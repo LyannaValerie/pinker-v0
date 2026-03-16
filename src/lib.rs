@@ -1,4 +1,5 @@
 pub mod ast;
+pub mod backend_text;
 pub mod cfg_ir;
 pub mod cfg_ir_validate;
 pub mod error;

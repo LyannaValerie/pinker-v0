@@ -10,21 +10,16 @@ Pinker v0 e um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - checagem semantica de `principal`, retorno, mutabilidade, aridade e tipos
 - AST textual estavel
 - AST JSON estavel
-- IR estruturada (alto nivel)
-- validacao interna da IR estruturada
-- CFG IR (blocos rotulados com saltos explicitos)
-- validacao interna da CFG IR
+- IR estruturada + validacao interna
+- CFG IR + validacao interna
+- backend textual simples (pseudo-assembly) a partir da CFG IR validada
 
 ## O que nao faz
-- codegen
+- codegen nativo real
 - backend nativo
-- LLVM
-- FFI
-- ponteiros
-- structs
-- enums
-- generics
-- traits
+- LLVM / Cranelift
+- otimizações grandes
+- FFI, ponteiros, structs, enums, generics, traits
 
 ## Build e testes
 ```bash
@@ -35,31 +30,28 @@ cargo test
 ## Uso
 ```bash
 cargo run -- examples/principal_valida.pink
-cargo run -- --tokens examples/principal_valida.pink
-cargo run -- --ast examples/json_ast_demo.pink
-cargo run -- --json-ast examples/json_ast_demo.pink
 cargo run -- --ir examples/ir_if_else.pink
 cargo run -- --cfg-ir examples/cfg_if_else.pink
+cargo run -- --pseudo-asm examples/emit_if_else.pink
 cargo run -- --check examples/mut_falho.pink
 ```
 
 ## Modos da CLI
-- `--tokens`: imprime tokens com spans
-- `--ast`: imprime AST textual legivel
-- `--json-ast`: imprime AST JSON valido
-- `--ir`: imprime a IR estruturada apos parsing + semantica
-- `--cfg-ir`: imprime a IR baixa em CFG com blocos e terminadores explicitos
-- `--check`: executa so a validacao semantica
+- `--ir`: IR estruturada (alto nivel)
+- `--cfg-ir`: CFG IR (blocos, `br`, `jmp`, `ret`)
+- `--pseudo-asm`: backend textual pseudo-assembly emitido da CFG IR validada
 
-## Duas formas de IR
-- `--ir`: IR estruturada, mais proxima da estrutura de alto nivel (`if` estruturado)
-- `--cfg-ir`: IR baixa com `block`, `br`, `jmp` e `ret` explicitos
+## Pipeline de backend textual
+`--pseudo-asm` executa:
+semantica -> IR estruturada -> validação da IR estruturada -> CFG IR -> validação da CFG IR -> emissão textual.
 
-A CFG IR ainda nao e SSA, nao otimiza e nao gera codigo nativo.
+Se a CFG IR for inválida, a emissão falha e nada do backend textual é impresso.
 
+## O que o backend textual representa
+- formato textual estável para auditoria e golden tests
+- ponte simples entre CFG IR e backend real futuro
 
-## Validação da CFG IR
-- pipeline de `--cfg-ir`: semantica -> IR estruturada -> validação da IR estruturada -> lowering para CFG IR -> validação da CFG IR -> impressão
-- se a CFG IR for inválida, `--cfg-ir` falha e nada é impresso da CFG
-- o validador garante: labels únicos, entry válido, targets de branch/jump válidos, tipos de operandos/chamadas/returns, consistência de slots/temporários e referências globais
-- ainda não garante: análises avançadas além das invariantes internas da fase v0
+## O que ainda não representa
+- não é assembly real de CPU
+- não é backend executável
+- não faz otimizações ou alocação de registradores

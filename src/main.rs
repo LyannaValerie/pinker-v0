@@ -1,3 +1,4 @@
+use pinker_v0::backend_text;
 use pinker_v0::cfg_ir;
 use pinker_v0::cfg_ir_validate;
 use pinker_v0::ir;
@@ -16,12 +17,13 @@ struct Config {
     print_json_ast: bool,
     print_ir: bool,
     print_cfg_ir: bool,
+    print_pseudo_asm: bool,
     check_only: bool,
 }
 
 fn usage(binary: &str) -> String {
     format!(
-        "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--cfg-ir] [--check] <arquivo.pink>\n\
+        "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--cfg-ir] [--pseudo-asm] [--check] <arquivo.pink>\n\
          \n\
          Modos:\n\
            --tokens    imprime a lista de tokens com spans\n\
@@ -29,7 +31,8 @@ fn usage(binary: &str) -> String {
            --json-ast  imprime a AST em JSON estável\n\
            --ir        imprime a IR estruturada após parsing + semântica\n\
            --cfg-ir    imprime a IR em blocos rotulados e saltos explícitos\n\
-           --check     executa apenas a validação semântica\n"
+           --pseudo-asm imprime backend textual pseudo-assembly baseado na CFG IR
+           --check      executa apenas a validação semântica\n"
     )
 }
 
@@ -40,6 +43,7 @@ fn parse_args() -> Result<Config, String> {
     let mut print_json_ast = false;
     let mut print_ir = false;
     let mut print_cfg_ir = false;
+    let mut print_pseudo_asm = false;
     let mut check_only = false;
 
     let binary = env::args().next().unwrap_or_else(|| "pink".to_string());
@@ -50,6 +54,7 @@ fn parse_args() -> Result<Config, String> {
             "--json-ast" => print_json_ast = true,
             "--ir" => print_ir = true,
             "--cfg-ir" => print_cfg_ir = true,
+            "--pseudo-asm" => print_pseudo_asm = true,
             "--check" => check_only = true,
             "--help" | "-h" => return Err(usage(&binary)),
             _ if arg.starts_with("--") => {
@@ -82,6 +87,7 @@ fn parse_args() -> Result<Config, String> {
         print_json_ast,
         print_ir,
         print_cfg_ir,
+        print_pseudo_asm,
         check_only,
     })
 }
@@ -140,7 +146,7 @@ fn main() {
 
     match semantic::check_program(&program) {
         Ok(()) => {
-            let program_ir = if config.print_ir || config.print_cfg_ir {
+            let program_ir = if config.print_ir || config.print_cfg_ir || config.print_pseudo_asm {
                 let lowered = match ir::lower_program(&program) {
                     Ok(program_ir) => program_ir,
                     Err(err) => {
@@ -164,7 +170,7 @@ fn main() {
                 print!("{}", ir::render_program(program_ir.as_ref().unwrap()));
             }
 
-            if config.print_cfg_ir && !config.check_only {
+            let cfg_ir_program = if config.print_cfg_ir || config.print_pseudo_asm {
                 let cfg = match cfg_ir::lower_program(program_ir.as_ref().unwrap()) {
                     Ok(cfg) => cfg,
                     Err(err) => {
@@ -176,8 +182,29 @@ fn main() {
                     eprintln!("{}", err);
                     std::process::exit(1);
                 }
+                Some(cfg)
+            } else {
+                None
+            };
+
+            if config.print_cfg_ir && !config.check_only {
                 println!("=== CFG IR ===");
-                print!("{}", cfg_ir::render_program(&cfg));
+                print!(
+                    "{}",
+                    cfg_ir::render_program(cfg_ir_program.as_ref().unwrap())
+                );
+            }
+
+            if config.print_pseudo_asm && !config.check_only {
+                let emitted = match backend_text::emit_program(cfg_ir_program.as_ref().unwrap()) {
+                    Ok(emitted) => emitted,
+                    Err(err) => {
+                        eprintln!("{}", err);
+                        std::process::exit(1);
+                    }
+                };
+                println!("=== PSEUDO ASM ===");
+                print!("{}", emitted);
             }
 
             if !config.check_only {
