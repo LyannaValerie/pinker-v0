@@ -527,7 +527,10 @@ impl<'a> JsonWriter<'a> {
 
     fn end_object(&mut self) {
         self.indent -= 1;
-        if matches!(self.stack.last(), Some(JsonContainer::Object { first: false })) {
+        if matches!(
+            self.stack.last(),
+            Some(JsonContainer::Object { first: false })
+        ) {
             self.newline();
         }
         self.stack.pop();
@@ -544,7 +547,10 @@ impl<'a> JsonWriter<'a> {
 
     fn end_array(&mut self) {
         self.indent -= 1;
-        if matches!(self.stack.last(), Some(JsonContainer::Array { first: false })) {
+        if matches!(
+            self.stack.last(),
+            Some(JsonContainer::Array { first: false })
+        ) {
             self.newline();
         }
         self.stack.pop();
@@ -614,7 +620,8 @@ impl<'a> JsonWriter<'a> {
     }
 
     fn before_value(&mut self) {
-        let should_prepare_array_item = matches!(self.stack.last(), Some(JsonContainer::Array { .. }));
+        let should_prepare_array_item =
+            matches!(self.stack.last(), Some(JsonContainer::Array { .. }));
         if should_prepare_array_item {
             let is_first = match self.stack.last() {
                 Some(JsonContainer::Array { first }) => *first,
