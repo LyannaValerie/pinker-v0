@@ -23,6 +23,26 @@ pub enum PinkerError {
         msg: String,
         span: Span,
     },
+    IrValidation {
+        msg: String,
+        span: Span,
+    },
+    CfgIrValidation {
+        msg: String,
+        span: Span,
+    },
+    BackendTextValidation {
+        msg: String,
+        span: Span,
+    },
+    InstrSelectValidation {
+        msg: String,
+        span: Span,
+    },
+    AbstractMachineValidation {
+        msg: String,
+        span: Span,
+    },
 }
 
 impl PinkerError {
@@ -32,7 +52,12 @@ impl PinkerError {
             | PinkerError::Parse { span, .. }
             | PinkerError::Expected { span, .. }
             | PinkerError::Semantic { span, .. }
-            | PinkerError::Ir { span, .. } => *span,
+            | PinkerError::Ir { span, .. }
+            | PinkerError::IrValidation { span, .. }
+            | PinkerError::CfgIrValidation { span, .. }
+            | PinkerError::BackendTextValidation { span, .. }
+            | PinkerError::InstrSelectValidation { span, .. }
+            | PinkerError::AbstractMachineValidation { span, .. } => *span,
         }
     }
 }
@@ -67,6 +92,25 @@ impl std::fmt::Display for PinkerError {
             }
             PinkerError::Ir { msg, span } => {
                 write!(f, "Erro IR: {} em {}", msg, span)
+            }
+            PinkerError::IrValidation { msg, span } => {
+                write!(f, "Erro Validação IR: {} em {}", msg, span)
+            }
+            PinkerError::CfgIrValidation { msg, span } => {
+                write!(f, "Erro Validação CFG IR: {} em {}", msg, span)
+            }
+            PinkerError::BackendTextValidation { msg, span } => {
+                write!(f, "Erro Validação Backend Textual: {} em {}", msg, span)
+            }
+            PinkerError::InstrSelectValidation { msg, span } => {
+                write!(
+                    f,
+                    "Erro Validação Seleção de Instruções: {} em {}",
+                    msg, span
+                )
+            }
+            PinkerError::AbstractMachineValidation { msg, span } => {
+                write!(f, "Erro Validação Máquina Abstrata: {} em {}", msg, span)
             }
         }
     }
