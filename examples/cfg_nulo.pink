@@ -1,0 +1,10 @@
+pacote main;
+
+carinho log() {
+    mimo;
+}
+
+carinho principal() -> bombom {
+    log();
+    mimo 0;
+}
