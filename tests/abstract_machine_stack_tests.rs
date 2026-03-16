@@ -86,10 +86,13 @@ fn stack_underflow_call() {
             },
             fn_bombom(vec![block(
                 "entry",
-                vec![MachineInstr::PushInt(1), MachineInstr::Call {
-                    callee: "soma".to_string(),
-                    argc: 2,
-                }],
+                vec![
+                    MachineInstr::PushInt(1),
+                    MachineInstr::Call {
+                        callee: "soma".to_string(),
+                        argc: 2,
+                    },
+                ],
                 MachineTerminator::Ret,
             )]),
         ],
@@ -99,6 +102,82 @@ fn stack_underflow_call() {
         .unwrap_err()
         .to_string();
     assert!(err.contains("underflow em call"));
+}
+
+#[test]
+fn stack_call_aridade_invalida() {
+    let program = MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![
+            MachineFunction {
+                name: "soma".to_string(),
+                ret_type: TypeIR::Bombom,
+                params: vec!["%x#0".to_string(), "%y#0".to_string()],
+                locals: vec![],
+                blocks: vec![block(
+                    "entry",
+                    vec![
+                        MachineInstr::LoadSlot("%x#0".to_string()),
+                        MachineInstr::LoadSlot("%y#0".to_string()),
+                        MachineInstr::Add,
+                    ],
+                    MachineTerminator::Ret,
+                )],
+            },
+            fn_bombom(vec![block(
+                "entry",
+                vec![
+                    MachineInstr::PushInt(1),
+                    MachineInstr::PushInt(2),
+                    MachineInstr::Call {
+                        callee: "soma".to_string(),
+                        argc: 1,
+                    },
+                ],
+                MachineTerminator::Ret,
+            )]),
+        ],
+    };
+
+    let err = abstract_machine_validate::validate_program(&program)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("call com aridade inválida"));
+}
+
+#[test]
+fn stack_call_void_aridade_invalida() {
+    let program = MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![
+            MachineFunction {
+                name: "log".to_string(),
+                ret_type: TypeIR::Nulo,
+                params: vec!["%x#0".to_string()],
+                locals: vec![],
+                blocks: vec![block("entry", vec![], MachineTerminator::RetVoid)],
+            },
+            fn_bombom(vec![block(
+                "entry",
+                vec![
+                    MachineInstr::PushInt(1),
+                    MachineInstr::CallVoid {
+                        callee: "log".to_string(),
+                        argc: 0,
+                    },
+                    MachineInstr::PushInt(0),
+                ],
+                MachineTerminator::Ret,
+            )]),
+        ],
+    };
+
+    let err = abstract_machine_validate::validate_program(&program)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("call_void com aridade inválida"));
 }
 
 #[test]
@@ -133,16 +212,25 @@ fn stack_underflow_call_void() {
 
 #[test]
 fn stack_branch_sem_condicao() {
-    let err = validate(fn_bombom(vec![block(
-        "entry",
-        vec![],
-        MachineTerminator::BrTrue {
-            then_label: "then_0".to_string(),
-            else_label: "else_1".to_string(),
-        },
-    ),
-    block("then_0", vec![MachineInstr::PushInt(1)], MachineTerminator::Ret),
-    block("else_1", vec![MachineInstr::PushInt(0)], MachineTerminator::Ret),
+    let err = validate(fn_bombom(vec![
+        block(
+            "entry",
+            vec![],
+            MachineTerminator::BrTrue {
+                then_label: "then_0".to_string(),
+                else_label: "else_1".to_string(),
+            },
+        ),
+        block(
+            "then_0",
+            vec![MachineInstr::PushInt(1)],
+            MachineTerminator::Ret,
+        ),
+        block(
+            "else_1",
+            vec![MachineInstr::PushInt(0)],
+            MachineTerminator::Ret,
+        ),
     ]))
     .unwrap_err();
     assert!(err.contains("underflow em br_true"));
@@ -150,8 +238,12 @@ fn stack_branch_sem_condicao() {
 
 #[test]
 fn stack_ret_sem_valor() {
-    let err = validate(fn_bombom(vec![block("entry", vec![], MachineTerminator::Ret)]))
-        .unwrap_err();
+    let err = validate(fn_bombom(vec![block(
+        "entry",
+        vec![],
+        MachineTerminator::Ret,
+    )]))
+    .unwrap_err();
     assert!(err.contains("ret requer exatamente um valor na pilha"));
 }
 
@@ -183,9 +275,17 @@ fn stack_altura_inconsistente_entre_predecessores() {
                 else_label: "b".to_string(),
             },
         ),
-        block("a", vec![MachineInstr::PushInt(1)], MachineTerminator::Jmp("join".to_string())),
+        block(
+            "a",
+            vec![MachineInstr::PushInt(1)],
+            MachineTerminator::Jmp("join".to_string()),
+        ),
         block("b", vec![], MachineTerminator::Jmp("join".to_string())),
-        block("join", vec![MachineInstr::PushInt(7)], MachineTerminator::Ret),
+        block(
+            "join",
+            vec![MachineInstr::PushInt(7)],
+            MachineTerminator::Ret,
+        ),
     ]))
     .unwrap_err();
     assert!(err.contains("altura de pilha inconsistente entre predecessores"));
@@ -244,7 +344,11 @@ fn machine_invalida_nao_e_impressa() {
         ret_type: TypeIR::Bombom,
         params: vec![],
         locals: vec![],
-        blocks: vec![block("entry", vec![MachineInstr::Neg], MachineTerminator::Ret)],
+        blocks: vec![block(
+            "entry",
+            vec![MachineInstr::Neg],
+            MachineTerminator::Ret,
+        )],
     };
     let validation = validate(function);
     assert!(validation.is_err());

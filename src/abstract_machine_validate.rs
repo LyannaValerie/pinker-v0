@@ -72,7 +72,11 @@ fn validate_function(
             match i {
                 MachineInstr::LoadSlot(s) => {
                     if !(known_named_slots.contains(s) || known_temp_slots.contains(s)) {
-                        return Err(err_ctx(f, Some(&b.label), "load_slot para slot inexistente"));
+                        return Err(err_ctx(
+                            f,
+                            Some(&b.label),
+                            "load_slot para slot inexistente",
+                        ));
                     }
                 }
                 MachineInstr::StoreSlot(s) => {
@@ -115,7 +119,11 @@ fn validate_function(
                             ));
                         }
                         if *argc != *param_count {
-                            return Err(err_ctx(f, Some(&b.label), "call_void com aridade inválida"));
+                            return Err(err_ctx(
+                                f,
+                                Some(&b.label),
+                                "call_void com aridade inválida",
+                            ));
                         }
                     } else {
                         return Err(err_ctx(
