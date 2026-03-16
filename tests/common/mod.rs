@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use pinker_v0::abstract_machine;
+use pinker_v0::abstract_machine_validate;
 use pinker_v0::backend_text;
 use pinker_v0::backend_text_validate;
 use pinker_v0::cfg_ir;
@@ -110,6 +112,28 @@ pub fn render_cli_selected_output(code: &str) -> Result<String, PinkerError> {
     let mut out = String::new();
     out.push_str("=== SELECTED ===\n");
     out.push_str(&render_selected(code)?);
+    out.push_str("Análise semântica concluída sem erros.\n");
+    Ok(out)
+}
+
+pub fn render_machine(code: &str) -> Result<String, PinkerError> {
+    let program = parse(code)?;
+    semantic::check_program(&program)?;
+    let program_ir = ir::lower_program(&program)?;
+    ir_validate::validate_program(&program_ir)?;
+    let cfg = cfg_ir::lower_program(&program_ir)?;
+    cfg_ir_validate::validate_program(&cfg)?;
+    let selected = instr_select::lower_program(&cfg)?;
+    instr_select_validate::validate_program(&selected)?;
+    let machine = abstract_machine::lower_program(&selected)?;
+    abstract_machine_validate::validate_program(&machine)?;
+    Ok(abstract_machine::render_program(&machine))
+}
+
+pub fn render_cli_machine_output(code: &str) -> Result<String, PinkerError> {
+    let mut out = String::new();
+    out.push_str("=== MACHINE ===\n");
+    out.push_str(&render_machine(code)?);
     out.push_str("Análise semântica concluída sem erros.\n");
     Ok(out)
 }

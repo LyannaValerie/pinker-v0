@@ -39,6 +39,10 @@ pub enum PinkerError {
         msg: String,
         span: Span,
     },
+    AbstractMachineValidation {
+        msg: String,
+        span: Span,
+    },
 }
 
 impl PinkerError {
@@ -52,7 +56,8 @@ impl PinkerError {
             | PinkerError::IrValidation { span, .. }
             | PinkerError::CfgIrValidation { span, .. }
             | PinkerError::BackendTextValidation { span, .. }
-            | PinkerError::InstrSelectValidation { span, .. } => *span,
+            | PinkerError::InstrSelectValidation { span, .. }
+            | PinkerError::AbstractMachineValidation { span, .. } => *span,
         }
     }
 }
@@ -103,6 +108,9 @@ impl std::fmt::Display for PinkerError {
                     "Erro Validação Seleção de Instruções: {} em {}",
                     msg, span
                 )
+            }
+            PinkerError::AbstractMachineValidation { msg, span } => {
+                write!(f, "Erro Validação Máquina Abstrata: {} em {}", msg, span)
             }
         }
     }
