@@ -1,22 +1,22 @@
 # Pinker v0
 
-Pinker v0 e um frontend pequeno e congelado em Rust para a linguagem Pinker.
+Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 
 ## O que o frontend faz hoje
-- lexico com spans
-- parser para `pacote`, `carinho`, `mimo`, `talvez/senao`, `eterno`, `nova`, `mut`
-- tipos `bombom` e `logica`
+- léxico com spans
+- parser para `pacote`, `carinho`, `mimo`, `talvez/senão`, `eterno`, `nova`, `mut`
+- tipos `bombom` e `lógica`
 - chamadas diretas por nome
-- checagem semantica de `principal`, retorno, mutabilidade, aridade e tipos
-- AST textual estavel
-- AST JSON estavel
-- IR estruturada + validacao interna
-- CFG IR + validacao interna
+- checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
+- AST textual estável
+- AST JSON estável
+- IR estruturada + validação interna
+- CFG IR + validação interna
 - seleção de instruções textual + validação
 - alvo textual abstrato (máquina de pilha) + validação
-- backend textual pseudo-assembly + validacao interna
+- backend textual pseudo-assembly + validação interna
 
-## O que nao faz
+## O que não faz
 - codegen nativo real
 - backend nativo
 - LLVM / Cranelift
@@ -41,7 +41,7 @@ cargo run -- --check examples/mut_falho.pink
 ```
 
 ## Modos da CLI
-- `--ir`: IR estruturada (alto nivel)
+- `--ir`: IR estruturada (alto nível)
 - `--cfg-ir`: CFG IR (blocos, `br`, `jmp`, `ret`)
 - `--selected`: camada de seleção de instruções textual (`isel` + `term`)
 - `--machine`: alvo textual abstrato de máquina de pilha (`vm` + `term`)
@@ -49,7 +49,7 @@ cargo run -- --check examples/mut_falho.pink
 
 ## Pipeline de backend textual
 `--pseudo-asm` executa:
-semantica -> IR estruturada -> validação da IR estruturada -> CFG IR -> validação da CFG IR -> seleção de instruções -> validação da seleção -> máquina abstrata -> validação da máquina -> backend textual -> validação do backend textual -> impressão.
+semântica → IR estruturada → validação da IR estruturada → CFG IR → validação da CFG IR → seleção de instruções → validação da seleção → máquina abstrata → validação da máquina → backend textual → validação do backend textual → impressão.
 
 Se qualquer camada intermediária for inválida, a emissão falha e nada é impresso.
 
