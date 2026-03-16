@@ -1,6 +1,9 @@
 pub mod ast;
+pub mod cfg_ir;
+pub mod cfg_ir_validate;
 pub mod error;
 pub mod ir;
+pub mod ir_validate;
 pub mod lexer;
 pub mod parser;
 pub mod printer;
