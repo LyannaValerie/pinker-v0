@@ -31,8 +31,8 @@ fn usage(binary: &str) -> String {
            --json-ast  imprime a AST em JSON estável\n\
            --ir        imprime a IR estruturada após parsing + semântica\n\
            --cfg-ir    imprime a IR em blocos rotulados e saltos explícitos\n\
-           --pseudo-asm imprime backend textual pseudo-assembly baseado na CFG IR
-           --check      executa apenas a validação semântica\n"
+           --pseudo-asm imprime backend textual pseudo-assembly baseado na CFG IR\n\
+           --check     executa apenas a validação semântica\n"
     )
 }
 
@@ -146,7 +146,9 @@ fn main() {
 
     match semantic::check_program(&program) {
         Ok(()) => {
-            let program_ir = if config.print_ir || config.print_cfg_ir || config.print_pseudo_asm {
+            let program_ir = if !config.check_only
+                && (config.print_ir || config.print_cfg_ir || config.print_pseudo_asm)
+            {
                 let lowered = match ir::lower_program(&program) {
                     Ok(program_ir) => program_ir,
                     Err(err) => {
@@ -170,22 +172,23 @@ fn main() {
                 print!("{}", ir::render_program(program_ir.as_ref().unwrap()));
             }
 
-            let cfg_ir_program = if config.print_cfg_ir || config.print_pseudo_asm {
-                let cfg = match cfg_ir::lower_program(program_ir.as_ref().unwrap()) {
-                    Ok(cfg) => cfg,
-                    Err(err) => {
+            let cfg_ir_program =
+                if !config.check_only && (config.print_cfg_ir || config.print_pseudo_asm) {
+                    let cfg = match cfg_ir::lower_program(program_ir.as_ref().unwrap()) {
+                        Ok(cfg) => cfg,
+                        Err(err) => {
+                            eprintln!("{}", err);
+                            std::process::exit(1);
+                        }
+                    };
+                    if let Err(err) = cfg_ir_validate::validate_program(&cfg) {
                         eprintln!("{}", err);
                         std::process::exit(1);
                     }
+                    Some(cfg)
+                } else {
+                    None
                 };
-                if let Err(err) = cfg_ir_validate::validate_program(&cfg) {
-                    eprintln!("{}", err);
-                    std::process::exit(1);
-                }
-                Some(cfg)
-            } else {
-                None
-            };
 
             if config.print_cfg_ir && !config.check_only {
                 println!("=== CFG IR ===");

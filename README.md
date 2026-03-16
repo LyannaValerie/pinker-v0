@@ -47,6 +47,8 @@ semantica -> IR estruturada -> validação da IR estruturada -> CFG IR -> valida
 
 Se a CFG IR for inválida, a emissão falha e nada do backend textual é impresso.
 
+`--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
+
 ## O que o backend textual representa
 - formato textual estável para auditoria e golden tests
 - ponte simples entre CFG IR e backend real futuro

@@ -188,7 +188,7 @@ Análise semântica concluída sem erros.
 }
 
 #[test]
-fn backend_falha_quando_cfg_invalida() {
+fn validador_cfg_falha_quando_cfg_invalida() {
     let cfg = pinker_v0::cfg_ir::ProgramCfgIR {
         module_name: "main".to_string(),
         consts: vec![],
@@ -212,4 +212,31 @@ fn backend_falha_quando_cfg_invalida() {
 
     let err = pinker_v0::cfg_ir_validate::validate_program(&cfg).unwrap_err();
     assert!(err.to_string().contains("Erro Validação CFG IR"));
+}
+
+#[test]
+fn check_ignora_flags_de_emissao() {
+    use std::fs;
+    use std::process::Command;
+
+    let mut path = std::env::temp_dir();
+    path.push(format!("pinker_check_{}.pink", std::process::id()));
+    fs::write(
+        &path,
+        "pacote main; carinho principal() -> bombom { mimo 0; }",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--check")
+        .arg("--pseudo-asm")
+        .arg(&path)
+        .output()
+        .unwrap();
+
+    let _ = fs::remove_file(&path);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("=== PSEUDO ASM ==="));
 }
