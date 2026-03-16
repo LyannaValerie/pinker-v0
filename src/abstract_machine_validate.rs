@@ -47,7 +47,15 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         for b in &f.blocks {
             for i in &b.code {
                 match i {
-                    MachineInstr::LoadSlot(s) | MachineInstr::StoreSlot(s) => {
+                    MachineInstr::LoadSlot(s) => {
+                        if !known_slots.contains(s) {
+                            return Err(err("load_slot para slot inexistente"));
+                        }
+                    }
+                    MachineInstr::StoreSlot(s) => {
+                        if !(known_slots.contains(s) || is_temp_slot(s)) {
+                            return Err(err("store_slot para slot inválido"));
+                        }
                         known_slots.insert(s.clone());
                     }
                     MachineInstr::LoadGlobal(g) => {
@@ -106,6 +114,13 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
     }
 
     Ok(())
+}
+
+fn is_temp_slot(slot: &str) -> bool {
+    let Some(suffix) = slot.strip_prefix("%t") else {
+        return false;
+    };
+    !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_digit())
 }
 
 fn err(msg: &str) -> PinkerError {
