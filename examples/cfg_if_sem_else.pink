@@ -1,0 +1,8 @@
+pacote main;
+
+carinho principal() -> bombom {
+    talvez verdade {
+        nova x = 1;
+    }
+    mimo 0;
+}

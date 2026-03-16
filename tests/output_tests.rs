@@ -427,15 +427,9 @@ pacote main;
 carinho principal() -> bombom { nova mut x = 1; x = 2; mimo x; }",
     )
     .unwrap();
-    assert!(json.contains(
-        "\"stmts\": [\n          {\n            \"node\": \"LetStmt\""
-    ));
-    assert!(json.contains(
-        "          },\n          {\n            \"node\": \"AssignStmt\""
-    ));
-    assert!(json.contains(
-        "          },\n          {\n            \"node\": \"ReturnStmt\""
-    ));
+    assert!(json.contains("\"stmts\": [\n          {\n            \"node\": \"LetStmt\""));
+    assert!(json.contains("          },\n          {\n            \"node\": \"AssignStmt\""));
+    assert!(json.contains("          },\n          {\n            \"node\": \"ReturnStmt\""));
 }
 
 #[test]

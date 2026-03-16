@@ -1,4 +1,6 @@
+use pinker_v0::cfg_ir;
 use pinker_v0::ir;
+use pinker_v0::ir_validate;
 use pinker_v0::lexer::Lexer;
 use pinker_v0::parser::Parser;
 use pinker_v0::printer;
@@ -12,18 +14,20 @@ struct Config {
     print_ast: bool,
     print_json_ast: bool,
     print_ir: bool,
+    print_cfg_ir: bool,
     check_only: bool,
 }
 
 fn usage(binary: &str) -> String {
     format!(
-        "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--check] <arquivo.pink>\n\
+        "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--cfg-ir] [--check] <arquivo.pink>\n\
          \n\
          Modos:\n\
            --tokens    imprime a lista de tokens com spans\n\
            --ast       imprime a AST textual legível\n\
            --json-ast  imprime a AST em JSON estável\n\
-           --ir        imprime a IR textual após parsing + semântica\n\
+           --ir        imprime a IR estruturada após parsing + semântica\n\
+           --cfg-ir    imprime a IR em blocos rotulados e saltos explícitos\n\
            --check     executa apenas a validação semântica\n"
     )
 }
@@ -34,6 +38,7 @@ fn parse_args() -> Result<Config, String> {
     let mut print_ast = false;
     let mut print_json_ast = false;
     let mut print_ir = false;
+    let mut print_cfg_ir = false;
     let mut check_only = false;
 
     let binary = env::args().next().unwrap_or_else(|| "pink".to_string());
@@ -43,6 +48,7 @@ fn parse_args() -> Result<Config, String> {
             "--ast" => print_ast = true,
             "--json-ast" => print_json_ast = true,
             "--ir" => print_ir = true,
+            "--cfg-ir" => print_cfg_ir = true,
             "--check" => check_only = true,
             "--help" | "-h" => return Err(usage(&binary)),
             _ if arg.starts_with("--") => {
@@ -74,6 +80,7 @@ fn parse_args() -> Result<Config, String> {
         print_ast,
         print_json_ast,
         print_ir,
+        print_cfg_ir,
         check_only,
     })
 }
@@ -132,17 +139,42 @@ fn main() {
 
     match semantic::check_program(&program) {
         Ok(()) => {
-            if config.print_ir && !config.check_only {
-                let program_ir = match ir::lower_program(&program) {
+            let program_ir = if config.print_ir || config.print_cfg_ir {
+                let lowered = match ir::lower_program(&program) {
                     Ok(program_ir) => program_ir,
                     Err(err) => {
                         eprintln!("{}", err);
                         std::process::exit(1);
                     }
                 };
+
+                if let Err(err) = ir_validate::validate_program(&lowered) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+
+                Some(lowered)
+            } else {
+                None
+            };
+
+            if config.print_ir && !config.check_only {
                 println!("=== IR ===");
-                print!("{}", ir::render_program(&program_ir));
+                print!("{}", ir::render_program(program_ir.as_ref().unwrap()));
             }
+
+            if config.print_cfg_ir && !config.check_only {
+                let cfg = match cfg_ir::lower_program(program_ir.as_ref().unwrap()) {
+                    Ok(cfg) => cfg,
+                    Err(err) => {
+                        eprintln!("{}", err);
+                        std::process::exit(1);
+                    }
+                };
+                println!("=== CFG IR ===");
+                print!("{}", cfg_ir::render_program(&cfg));
+            }
+
             if !config.check_only {
                 println!("Análise semântica concluída sem erros.");
             }
