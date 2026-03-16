@@ -1,0 +1,7 @@
+pacote main;
+
+carinho principal() -> bombom {
+    talvez verdade {
+        mimo 1;
+    }
+}

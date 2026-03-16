@@ -1,0 +1,14 @@
+pacote main;
+
+carinho soma(x: bombom, y: bombom) -> bombom {
+    mimo x + y;
+}
+
+carinho principal() -> bombom {
+    nova resultado = soma(1, 2);
+    talvez resultado > 2 {
+        mimo resultado;
+    } senao {
+        mimo 0;
+    }
+}

@@ -1,0 +1,47 @@
+#![allow(dead_code)]
+
+use pinker_v0::error::PinkerError;
+use pinker_v0::ir;
+use pinker_v0::lexer::Lexer;
+use pinker_v0::parser::Parser;
+use pinker_v0::printer;
+use pinker_v0::semantic;
+
+pub fn tokenize(code: &str) -> Result<Vec<pinker_v0::token::Token>, PinkerError> {
+    let mut lexer = Lexer::new(code);
+    lexer.tokenize()
+}
+
+pub fn parse(code: &str) -> Result<pinker_v0::ast::Program, PinkerError> {
+    let tokens = tokenize(code)?;
+    let mut parser = Parser::new(tokens);
+    parser.parse()
+}
+
+pub fn parse_and_check(code: &str) -> Result<(), PinkerError> {
+    let program = parse(code)?;
+    semantic::check_program(&program)
+}
+
+pub fn render_ast(code: &str) -> Result<String, PinkerError> {
+    Ok(printer::render_program(&parse(code)?))
+}
+
+pub fn render_json_ast(code: &str) -> Result<String, PinkerError> {
+    Ok(printer::render_program_json(&parse(code)?))
+}
+
+pub fn render_ir(code: &str) -> Result<String, PinkerError> {
+    let program = parse(code)?;
+    semantic::check_program(&program)?;
+    let program_ir = ir::lower_program(&program)?;
+    Ok(ir::render_program(&program_ir))
+}
+
+pub fn render_cli_ir_output(code: &str) -> Result<String, PinkerError> {
+    let mut out = String::new();
+    out.push_str("=== IR ===\n");
+    out.push_str(&render_ir(code)?);
+    out.push_str("Análise semântica concluída sem erros.\n");
+    Ok(out)
+}

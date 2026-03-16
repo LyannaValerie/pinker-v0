@@ -1,0 +1,16 @@
+target/
+
+# Rust and project-local diagnostics
+*.log
+*.tmp
+*.temp
+*.dump
+arvore.txt
+
+# Editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

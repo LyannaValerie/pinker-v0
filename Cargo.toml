@@ -1,0 +1,19 @@
+[package]
+name = "pinker-v0"
+version = "0.1.0"
+edition = "2021"
+description = "Pinker v0 MVP Compiler - Minimal, Safe, Cute"
+authors = ["Lyanna Valerie 151316340+LyannaValerie@users.noreply.github.com"]
+
+[lib]
+name = "pinker_v0"
+path = "src/lib.rs"
+
+[[bin]]
+name = "pink"
+path = "src/main.rs"
+
+[dependencies]
+# Nenhuma dependência externa.
+# Manter o compilador v0 100% puro e sem alocadores externos (zero-dependency)
+# reflete a filosofia de sistema limpo e auditável que a linguagem Pinker busca.

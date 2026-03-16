@@ -1,0 +1,75 @@
+use crate::token::Span;
+
+#[derive(Debug)]
+pub enum PinkerError {
+    Lexer {
+        msg: String,
+        span: Span,
+    },
+    Parse {
+        msg: String,
+        span: Span,
+    },
+    Expected {
+        expected: String,
+        found: String,
+        span: Span,
+    },
+    Semantic {
+        msg: String,
+        span: Span,
+    },
+    Ir {
+        msg: String,
+        span: Span,
+    },
+}
+
+impl PinkerError {
+    pub fn span(&self) -> Span {
+        match self {
+            PinkerError::Lexer { span, .. }
+            | PinkerError::Parse { span, .. }
+            | PinkerError::Expected { span, .. }
+            | PinkerError::Semantic { span, .. }
+            | PinkerError::Ir { span, .. } => *span,
+        }
+    }
+}
+
+impl std::fmt::Display for PinkerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PinkerError::Lexer { msg, span } => {
+                write!(f, "Erro Léxico: {} em {}", msg, span)
+            }
+            PinkerError::Parse { msg, span } => {
+                write!(f, "Erro Sintático: {} em {}", msg, span)
+            }
+            PinkerError::Expected {
+                expected,
+                found,
+                span,
+            } => {
+                let found = if found.is_empty() {
+                    "fim do arquivo"
+                } else {
+                    found
+                };
+                write!(
+                    f,
+                    "Erro Sintático: esperado '{}', encontrado '{}' em {}",
+                    expected, found, span
+                )
+            }
+            PinkerError::Semantic { msg, span } => {
+                write!(f, "Erro Semântico: {} em {}", msg, span)
+            }
+            PinkerError::Ir { msg, span } => {
+                write!(f, "Erro IR: {} em {}", msg, span)
+            }
+        }
+    }
+}
+
+impl std::error::Error for PinkerError {}

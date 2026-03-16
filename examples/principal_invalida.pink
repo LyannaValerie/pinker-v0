@@ -1,0 +1,5 @@
+pacote main;
+
+carinho principal(x: bombom) -> bombom {
+    mimo x;
+}

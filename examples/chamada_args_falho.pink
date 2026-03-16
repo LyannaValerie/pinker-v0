@@ -1,0 +1,9 @@
+pacote main;
+
+carinho soma(x: bombom, y: bombom) -> bombom {
+    mimo x + y;
+}
+
+carinho principal() -> bombom {
+    mimo soma(1);
+}

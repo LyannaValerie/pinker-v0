@@ -1,0 +1,7 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova mut x = 10;
+    x = 20;
+    mimo x;
+}
