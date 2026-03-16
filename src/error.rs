@@ -31,6 +31,10 @@ pub enum PinkerError {
         msg: String,
         span: Span,
     },
+    BackendTextValidation {
+        msg: String,
+        span: Span,
+    },
 }
 
 impl PinkerError {
@@ -42,7 +46,8 @@ impl PinkerError {
             | PinkerError::Semantic { span, .. }
             | PinkerError::Ir { span, .. }
             | PinkerError::IrValidation { span, .. }
-            | PinkerError::CfgIrValidation { span, .. } => *span,
+            | PinkerError::CfgIrValidation { span, .. }
+            | PinkerError::BackendTextValidation { span, .. } => *span,
         }
     }
 }
@@ -83,6 +88,9 @@ impl std::fmt::Display for PinkerError {
             }
             PinkerError::CfgIrValidation { msg, span } => {
                 write!(f, "Erro Validação CFG IR: {} em {}", msg, span)
+            }
+            PinkerError::BackendTextValidation { msg, span } => {
+                write!(f, "Erro Validação Backend Textual: {} em {}", msg, span)
             }
         }
     }

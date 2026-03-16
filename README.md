@@ -12,7 +12,7 @@ Pinker v0 e um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - AST JSON estavel
 - IR estruturada + validacao interna
 - CFG IR + validacao interna
-- backend textual simples (pseudo-assembly) a partir da CFG IR validada
+- backend textual pseudo-assembly + validacao interna
 
 ## O que nao faz
 - codegen nativo real
@@ -39,18 +39,19 @@ cargo run -- --check examples/mut_falho.pink
 ## Modos da CLI
 - `--ir`: IR estruturada (alto nivel)
 - `--cfg-ir`: CFG IR (blocos, `br`, `jmp`, `ret`)
-- `--pseudo-asm`: backend textual pseudo-assembly emitido da CFG IR validada
+- `--pseudo-asm`: backend textual normalizado (`ins`/`term`) emitido da CFG IR validada
 
 ## Pipeline de backend textual
 `--pseudo-asm` executa:
-semantica -> IR estruturada -> validação da IR estruturada -> CFG IR -> validação da CFG IR -> emissão textual.
+semantica -> IR estruturada -> validação da IR estruturada -> CFG IR -> validação da CFG IR -> backend textual -> validação do backend textual -> impressão.
 
-Se a CFG IR for inválida, a emissão falha e nada do backend textual é impresso.
+Se a CFG IR ou o backend textual forem inválidos, a emissão falha e nada é impresso.
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 
 ## O que o backend textual representa
 - formato textual estável para auditoria e golden tests
+- separação explícita entre instruções (`ins`) e terminador de bloco (`term`)
 - ponte simples entre CFG IR e backend real futuro
 
 ## O que ainda não representa

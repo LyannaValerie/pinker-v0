@@ -17,7 +17,7 @@ text:
     params []
     locals []
     entry:
-      ret 0
+      term ret 0
 "
     );
 }
@@ -41,11 +41,11 @@ text:
     params []
     locals []
     entry:
-      br verdade, then_0, else_1
+      term br verdade, then_0, else_1
     then_0:
-      ret 1
+      term ret 1
     else_1:
-      ret 0
+      term ret 0
 "
     );
 }
@@ -70,18 +70,18 @@ text:
     params []
     locals %x#0
     entry:
-      br verdade, then_0, join_0
+      term br verdade, then_0, join_0
     then_0:
-      mov %x#0, 1
-      jmp join_0
+      ins mov %x#0, 1
+      term jmp join_0
     join_0:
-      ret 0
+      term ret 0
 "
     );
 }
 
 #[test]
-fn emite_chamada_direta() {
+fn emite_chamada_direta_com_temporario_e_binaria() {
     let code = "\
 pacote main;
 carinho soma(x: bombom, y: bombom) -> bombom { mimo x + y; }
@@ -98,14 +98,14 @@ text:
     params %x#0, %y#0
     locals []
     entry:
-      %t0 = add %x#0, %y#0
-      ret %t0
+      ins binop %t0, add, %x#0, %y#0
+      term ret %t0
   func principal:
     params []
     locals []
     entry:
-      %t0 = call soma(1, 2) -> bombom
-      ret %t0
+      ins call %t0, soma(1, 2), bombom
+      term ret %t0
 "
     );
 }
@@ -131,13 +131,13 @@ text:
     params []
     locals []
     entry:
-      ret
+      term ret
   func principal:
     params []
     locals []
     entry:
-      call log() -> nulo
-      ret 0
+      ins call_void log()
+      term ret 0
 "
     );
 }
@@ -160,7 +160,7 @@ text:
     params []
     locals []
     entry:
-      ret @LIMITE
+      term ret @LIMITE
 "
     );
 }
@@ -181,7 +181,7 @@ text:
     params []
     locals []
     entry:
-      ret 0
+      term ret 0
 Análise semântica concluída sem erros.
 "
     );

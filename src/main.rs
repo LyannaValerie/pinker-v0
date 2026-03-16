@@ -1,4 +1,5 @@
 use pinker_v0::backend_text;
+use pinker_v0::backend_text_validate;
 use pinker_v0::cfg_ir;
 use pinker_v0::cfg_ir_validate;
 use pinker_v0::ir;
@@ -199,15 +200,20 @@ fn main() {
             }
 
             if config.print_pseudo_asm && !config.check_only {
-                let emitted = match backend_text::emit_program(cfg_ir_program.as_ref().unwrap()) {
-                    Ok(emitted) => emitted,
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        std::process::exit(1);
-                    }
-                };
+                let lowered_backend =
+                    match backend_text::lower_program(cfg_ir_program.as_ref().unwrap()) {
+                        Ok(lowered_backend) => lowered_backend,
+                        Err(err) => {
+                            eprintln!("{}", err);
+                            std::process::exit(1);
+                        }
+                    };
+                if let Err(err) = backend_text_validate::validate_program(&lowered_backend) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
                 println!("=== PSEUDO ASM ===");
-                print!("{}", emitted);
+                print!("{}", backend_text::render_program(&lowered_backend));
             }
 
             if !config.check_only {

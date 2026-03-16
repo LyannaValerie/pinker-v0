@@ -1,129 +1,285 @@
-use crate::cfg_ir::{FunctionCfgIR, InstructionCfgIR, OperandIR, ProgramCfgIR, TerminatorIR};
+use crate::cfg_ir::{InstructionCfgIR, OperandIR, ProgramCfgIR, TerminatorIR};
 use crate::error::PinkerError;
+use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackendTextProgram {
+    pub module_name: String,
+    pub globals: Vec<BackendTextGlobal>,
+    pub functions: Vec<BackendTextFunction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackendTextGlobal {
+    pub name: String,
+    pub value: OperandIR,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackendTextFunction {
+    pub name: String,
+    pub ret_type: TypeIR,
+    pub params: Vec<String>,
+    pub locals: Vec<String>,
+    pub blocks: Vec<BackendTextBlock>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackendTextBlock {
+    pub label: String,
+    pub instructions: Vec<BackendTextInstruction>,
+    pub terminator: BackendTextTerminator,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BackendTextInstruction {
+    Mov {
+        dest: String,
+        src: OperandIR,
+    },
+    Unary {
+        dest: crate::cfg_ir::TempIR,
+        op: UnaryOpIR,
+        operand: OperandIR,
+    },
+    Binary {
+        dest: crate::cfg_ir::TempIR,
+        op: BinaryOpIR,
+        lhs: OperandIR,
+        rhs: OperandIR,
+    },
+    Call {
+        dest: Option<crate::cfg_ir::TempIR>,
+        callee: String,
+        args: Vec<OperandIR>,
+        ret_type: TypeIR,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BackendTextTerminator {
+    Jump(String),
+    Branch {
+        cond: OperandIR,
+        then_label: String,
+        else_label: String,
+    },
+    Return(Option<OperandIR>),
+}
+
+pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, PinkerError> {
+    let globals = program
+        .consts
+        .iter()
+        .map(|g| BackendTextGlobal {
+            name: g.name.clone(),
+            value: g.value.clone(),
+        })
+        .collect();
+
+    let functions = program
+        .functions
+        .iter()
+        .map(|f| BackendTextFunction {
+            name: f.name.clone(),
+            ret_type: f.ret_type,
+            params: f.params.iter().map(|p| p.slot.clone()).collect(),
+            locals: f.locals.iter().map(|l| l.slot.clone()).collect(),
+            blocks: f
+                .blocks
+                .iter()
+                .map(|b| BackendTextBlock {
+                    label: b.label.clone(),
+                    instructions: b
+                        .instructions
+                        .iter()
+                        .map(|i| match i {
+                            InstructionCfgIR::Let { slot, value }
+                            | InstructionCfgIR::Assign { slot, value } => {
+                                BackendTextInstruction::Mov {
+                                    dest: slot.clone(),
+                                    src: value.clone(),
+                                }
+                            }
+                            InstructionCfgIR::Unary { dest, op, operand } => {
+                                BackendTextInstruction::Unary {
+                                    dest: *dest,
+                                    op: *op,
+                                    operand: operand.clone(),
+                                }
+                            }
+                            InstructionCfgIR::Binary { dest, op, lhs, rhs } => {
+                                BackendTextInstruction::Binary {
+                                    dest: *dest,
+                                    op: *op,
+                                    lhs: lhs.clone(),
+                                    rhs: rhs.clone(),
+                                }
+                            }
+                            InstructionCfgIR::Call {
+                                dest,
+                                callee,
+                                args,
+                                ret_type,
+                            } => BackendTextInstruction::Call {
+                                dest: *dest,
+                                callee: callee.clone(),
+                                args: args.clone(),
+                                ret_type: *ret_type,
+                            },
+                        })
+                        .collect(),
+                    terminator: match &b.terminator {
+                        TerminatorIR::Jump(label) => BackendTextTerminator::Jump(label.clone()),
+                        TerminatorIR::Branch {
+                            cond,
+                            then_label,
+                            else_label,
+                        } => BackendTextTerminator::Branch {
+                            cond: cond.clone(),
+                            then_label: then_label.clone(),
+                            else_label: else_label.clone(),
+                        },
+                        TerminatorIR::Return(v) => BackendTextTerminator::Return(v.clone()),
+                    },
+                })
+                .collect(),
+        })
+        .collect();
+
+    Ok(BackendTextProgram {
+        module_name: program.module_name.clone(),
+        globals,
+        functions,
+    })
+}
 
 pub fn emit_program(program: &ProgramCfgIR) -> Result<String, PinkerError> {
+    let lowered = lower_program(program)?;
+    crate::backend_text_validate::validate_program(&lowered)?;
+    Ok(render_program(&lowered))
+}
+
+pub fn render_program(program: &BackendTextProgram) -> String {
     let mut out = String::new();
 
     line(&mut out, 0, &format!("module {}", program.module_name));
     line(&mut out, 0, "globals:");
-    if program.consts.is_empty() {
+    if program.globals.is_empty() {
         line(&mut out, 1, "[]");
     } else {
-        for konst in &program.consts {
+        for global in &program.globals {
             line(
                 &mut out,
                 1,
-                &format!("global @{} = {}", konst.name, render_operand(&konst.value)),
+                &format!(
+                    "global @{} = {}",
+                    global.name,
+                    render_operand(&global.value)
+                ),
             );
         }
     }
 
     line(&mut out, 0, "text:");
     for function in &program.functions {
-        emit_function(function, &mut out)?;
-    }
-
-    Ok(out)
-}
-
-fn emit_function(function: &FunctionCfgIR, out: &mut String) -> Result<(), PinkerError> {
-    line(out, 1, &format!("func {}:", function.name));
-
-    if function.params.is_empty() {
-        line(out, 2, "params []");
-    } else {
+        line(&mut out, 1, &format!("func {}:", function.name));
         line(
-            out,
+            &mut out,
             2,
             &format!(
                 "params {}",
-                function
-                    .params
-                    .iter()
-                    .map(|p| p.slot.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                if function.params.is_empty() {
+                    "[]".to_string()
+                } else {
+                    function.params.join(", ")
+                }
             ),
         );
-    }
-
-    if function.locals.is_empty() {
-        line(out, 2, "locals []");
-    } else {
         line(
-            out,
+            &mut out,
             2,
             &format!(
                 "locals {}",
-                function
-                    .locals
-                    .iter()
-                    .map(|l| l.slot.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                if function.locals.is_empty() {
+                    "[]".to_string()
+                } else {
+                    function.locals.join(", ")
+                }
             ),
         );
-    }
-
-    for block in &function.blocks {
-        line(out, 2, &format!("{}:", block.label));
-        for instruction in &block.instructions {
-            line(out, 3, &emit_instruction(instruction));
+        for block in &function.blocks {
+            line(&mut out, 2, &format!("{}:", block.label));
+            for instruction in &block.instructions {
+                line(
+                    &mut out,
+                    3,
+                    &format!("ins {}", render_instruction(instruction)),
+                );
+            }
+            line(
+                &mut out,
+                3,
+                &format!("term {}", render_terminator(&block.terminator)),
+            );
         }
-        line(out, 3, &emit_terminator(&block.terminator));
     }
 
-    Ok(())
+    out
 }
 
-fn emit_instruction(inst: &InstructionCfgIR) -> String {
+fn render_instruction(inst: &BackendTextInstruction) -> String {
     match inst {
-        InstructionCfgIR::Let { slot, value } => {
-            format!("mov {}, {}", slot, render_operand(value))
+        BackendTextInstruction::Mov { dest, src } => {
+            format!("mov {}, {}", dest, render_operand(src))
         }
-        InstructionCfgIR::Assign { slot, value } => {
-            format!("mov {}, {}", slot, render_operand(value))
+        BackendTextInstruction::Unary { dest, op, operand } => {
+            format!(
+                "unop {}, {}, {}",
+                render_temp(*dest),
+                op_name(*op),
+                render_operand(operand)
+            )
         }
-        InstructionCfgIR::Unary { dest, op, operand } => format!(
-            "{} = {} {}",
+        BackendTextInstruction::Binary { dest, op, lhs, rhs } => format!(
+            "binop {}, {}, {}, {}",
             render_temp(*dest),
-            render_unary_op(*op),
-            render_operand(operand)
-        ),
-        InstructionCfgIR::Binary { dest, op, lhs, rhs } => format!(
-            "{} = {} {}, {}",
-            render_temp(*dest),
-            render_binary_op(*op),
+            binop_name(*op),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        InstructionCfgIR::Call {
+        BackendTextInstruction::Call {
             dest,
             callee,
             args,
             ret_type,
         } => {
-            let call = format!(
-                "call {}({}) -> {}",
-                callee,
-                args.iter()
-                    .map(render_operand)
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                ret_type.name()
-            );
-            match dest {
-                Some(dest) => format!("{} = {}", render_temp(*dest), call),
-                None => call,
+            let args = args
+                .iter()
+                .map(render_operand)
+                .collect::<Vec<_>>()
+                .join(", ");
+            match (dest, ret_type) {
+                (Some(dest), _) => {
+                    format!(
+                        "call {}, {}({}), {}",
+                        render_temp(*dest),
+                        callee,
+                        args,
+                        ret_type.name()
+                    )
+                }
+                (None, TypeIR::Nulo) => format!("call_void {}({})", callee, args),
+                (None, _) => format!("call {}, {}({}), {}", "_", callee, args, ret_type.name()),
             }
         }
     }
 }
 
-fn emit_terminator(term: &TerminatorIR) -> String {
+fn render_terminator(term: &BackendTextTerminator) -> String {
     match term {
-        TerminatorIR::Jump(label) => format!("jmp {}", label),
-        TerminatorIR::Branch {
+        BackendTextTerminator::Jump(label) => format!("jmp {}", label),
+        BackendTextTerminator::Branch {
             cond,
             then_label,
             else_label,
@@ -133,8 +289,8 @@ fn emit_terminator(term: &TerminatorIR) -> String {
             then_label,
             else_label
         ),
-        TerminatorIR::Return(Some(value)) => format!("ret {}", render_operand(value)),
-        TerminatorIR::Return(None) => "ret".to_string(),
+        BackendTextTerminator::Return(Some(value)) => format!("ret {}", render_operand(value)),
+        BackendTextTerminator::Return(None) => "ret".to_string(),
     }
 }
 
@@ -158,25 +314,25 @@ fn render_temp(temp: crate::cfg_ir::TempIR) -> String {
     format!("%t{}", temp.0)
 }
 
-fn render_unary_op(op: crate::ir::UnaryOpIR) -> &'static str {
+fn op_name(op: UnaryOpIR) -> &'static str {
     match op {
-        crate::ir::UnaryOpIR::Neg => "neg",
-        crate::ir::UnaryOpIR::Not => "not",
+        UnaryOpIR::Neg => "neg",
+        UnaryOpIR::Not => "not",
     }
 }
 
-fn render_binary_op(op: crate::ir::BinaryOpIR) -> &'static str {
+fn binop_name(op: BinaryOpIR) -> &'static str {
     match op {
-        crate::ir::BinaryOpIR::Add => "add",
-        crate::ir::BinaryOpIR::Sub => "sub",
-        crate::ir::BinaryOpIR::Mul => "mul",
-        crate::ir::BinaryOpIR::Div => "div",
-        crate::ir::BinaryOpIR::Eq => "eq",
-        crate::ir::BinaryOpIR::Neq => "neq",
-        crate::ir::BinaryOpIR::Lt => "lt",
-        crate::ir::BinaryOpIR::Lte => "lte",
-        crate::ir::BinaryOpIR::Gt => "gt",
-        crate::ir::BinaryOpIR::Gte => "gte",
+        BinaryOpIR::Add => "add",
+        BinaryOpIR::Sub => "sub",
+        BinaryOpIR::Mul => "mul",
+        BinaryOpIR::Div => "div",
+        BinaryOpIR::Eq => "eq",
+        BinaryOpIR::Neq => "neq",
+        BinaryOpIR::Lt => "lt",
+        BinaryOpIR::Lte => "lte",
+        BinaryOpIR::Gt => "gt",
+        BinaryOpIR::Gte => "gte",
     }
 }
 

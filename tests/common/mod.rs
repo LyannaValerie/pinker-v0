@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use pinker_v0::backend_text;
+use pinker_v0::backend_text_validate;
 use pinker_v0::cfg_ir;
 use pinker_v0::cfg_ir_validate;
 use pinker_v0::error::PinkerError;
@@ -76,7 +77,9 @@ pub fn render_backend_text(code: &str) -> Result<String, PinkerError> {
     ir_validate::validate_program(&program_ir)?;
     let cfg = cfg_ir::lower_program(&program_ir)?;
     cfg_ir_validate::validate_program(&cfg)?;
-    backend_text::emit_program(&cfg)
+    let backend = backend_text::lower_program(&cfg)?;
+    backend_text_validate::validate_program(&backend)?;
+    Ok(backend_text::render_program(&backend))
 }
 
 pub fn render_cli_pseudo_asm_output(code: &str) -> Result<String, PinkerError> {
