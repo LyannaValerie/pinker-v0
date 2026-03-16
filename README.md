@@ -12,6 +12,7 @@ Pinker v0 e um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - AST JSON estavel
 - IR estruturada + validacao interna
 - CFG IR + validacao interna
+- seleção de instruções textual + validação
 - backend textual pseudo-assembly + validacao interna
 
 ## O que nao faz
@@ -32,6 +33,7 @@ cargo test
 cargo run -- examples/principal_valida.pink
 cargo run -- --ir examples/ir_if_else.pink
 cargo run -- --cfg-ir examples/cfg_if_else.pink
+cargo run -- --selected examples/selected_if_else.pink
 cargo run -- --pseudo-asm examples/emit_if_else.pink
 cargo run -- --check examples/mut_falho.pink
 ```
@@ -39,22 +41,23 @@ cargo run -- --check examples/mut_falho.pink
 ## Modos da CLI
 - `--ir`: IR estruturada (alto nivel)
 - `--cfg-ir`: CFG IR (blocos, `br`, `jmp`, `ret`)
-- `--pseudo-asm`: backend textual normalizado (`ins`/`term`) emitido da CFG IR validada
+- `--selected`: camada de seleção de instruções textual (`isel` + `term`)
+- `--pseudo-asm`: backend textual normalizado final (`ins`/`term`)
 
 ## Pipeline de backend textual
 `--pseudo-asm` executa:
-semantica -> IR estruturada -> validação da IR estruturada -> CFG IR -> validação da CFG IR -> backend textual -> validação do backend textual -> impressão.
+semantica -> IR estruturada -> validação da IR estruturada -> CFG IR -> validação da CFG IR -> seleção de instruções -> validação da seleção -> backend textual -> validação do backend textual -> impressão.
 
-Se a CFG IR ou o backend textual forem inválidos, a emissão falha e nada é impresso.
+Se qualquer camada intermediária for inválida, a emissão falha e nada é impresso.
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 
-## O que o backend textual representa
-- formato textual estável para auditoria e golden tests
-- separação explícita entre instruções (`ins`) e terminador de bloco (`term`)
-- ponte simples entre CFG IR e backend real futuro
+## O que essas camadas representam
+- `--cfg-ir`: controle de fluxo explícito próximo do lowering
+- `--selected`: instruções selecionadas e terminadores já disciplinados
+- `--pseudo-asm`: formato textual final estável para auditoria e golden tests
 
-## O que ainda não representa
-- não é assembly real de CPU
-- não é backend executável
-- não faz otimizações ou alocação de registradores
+## O que ainda não representam
+- não são assembly real de CPU
+- não são backend executável
+- não fazem otimizações ou alocação de registradores

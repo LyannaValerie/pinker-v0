@@ -1,5 +1,6 @@
 use crate::cfg_ir::{InstructionCfgIR, OperandIR, ProgramCfgIR, TerminatorIR};
 use crate::error::PinkerError;
+use crate::instr_select::{SelectedInstr, SelectedProgram, SelectedTerminator};
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -154,8 +155,161 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
     })
 }
 
+pub fn lower_selected_program(
+    selected: &SelectedProgram,
+) -> Result<BackendTextProgram, PinkerError> {
+    let globals = selected
+        .globals
+        .iter()
+        .map(|g| BackendTextGlobal {
+            name: g.name.clone(),
+            value: g.value.clone(),
+        })
+        .collect();
+
+    let functions = selected
+        .functions
+        .iter()
+        .map(|f| BackendTextFunction {
+            name: f.name.clone(),
+            ret_type: f.ret_type,
+            params: f.params.clone(),
+            locals: f.locals.clone(),
+            blocks: f
+                .blocks
+                .iter()
+                .map(|b| BackendTextBlock {
+                    label: b.label.clone(),
+                    instructions: b.instructions.iter().map(map_selected_instr).collect(),
+                    terminator: map_selected_term(&b.terminator),
+                })
+                .collect(),
+        })
+        .collect();
+
+    Ok(BackendTextProgram {
+        module_name: selected.module_name.clone(),
+        globals,
+        functions,
+    })
+}
+
+fn map_selected_instr(i: &SelectedInstr) -> BackendTextInstruction {
+    match i {
+        SelectedInstr::Mov { dest, src } => BackendTextInstruction::Mov {
+            dest: dest.clone(),
+            src: src.clone(),
+        },
+        SelectedInstr::Neg { dest, operand } => BackendTextInstruction::Unary {
+            dest: *dest,
+            op: UnaryOpIR::Neg,
+            operand: operand.clone(),
+        },
+        SelectedInstr::Not { dest, operand } => BackendTextInstruction::Unary {
+            dest: *dest,
+            op: UnaryOpIR::Not,
+            operand: operand.clone(),
+        },
+        SelectedInstr::Add { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::Add,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
+        SelectedInstr::Sub { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::Sub,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
+        SelectedInstr::Mul { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::Mul,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
+        SelectedInstr::Div { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::Div,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
+        SelectedInstr::CmpEq { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::Eq,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
+        SelectedInstr::CmpNe { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::Neq,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
+        SelectedInstr::CmpLt { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::Lt,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
+        SelectedInstr::CmpLe { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::Lte,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
+        SelectedInstr::CmpGt { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::Gt,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
+        SelectedInstr::CmpGe { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::Gte,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
+        SelectedInstr::Call {
+            dest,
+            callee,
+            args,
+            ret_type,
+        } => BackendTextInstruction::Call {
+            dest: Some(*dest),
+            callee: callee.clone(),
+            args: args.clone(),
+            ret_type: *ret_type,
+        },
+        SelectedInstr::CallVoid { callee, args } => BackendTextInstruction::Call {
+            dest: None,
+            callee: callee.clone(),
+            args: args.clone(),
+            ret_type: TypeIR::Nulo,
+        },
+    }
+}
+
+fn map_selected_term(t: &SelectedTerminator) -> BackendTextTerminator {
+    match t {
+        SelectedTerminator::Jmp(l) => BackendTextTerminator::Jump(l.clone()),
+        SelectedTerminator::Br {
+            cond,
+            then_label,
+            else_label,
+        } => BackendTextTerminator::Branch {
+            cond: cond.clone(),
+            then_label: then_label.clone(),
+            else_label: else_label.clone(),
+        },
+        SelectedTerminator::Ret(v) => BackendTextTerminator::Return(v.clone()),
+    }
+}
+
 pub fn emit_program(program: &ProgramCfgIR) -> Result<String, PinkerError> {
-    let lowered = lower_program(program)?;
+    let selected = crate::instr_select::lower_program(program)?;
+    crate::instr_select_validate::validate_program(&selected)?;
+    let lowered = lower_selected_program(&selected)?;
     crate::backend_text_validate::validate_program(&lowered)?;
     Ok(render_program(&lowered))
 }

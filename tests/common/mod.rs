@@ -5,6 +5,8 @@ use pinker_v0::backend_text_validate;
 use pinker_v0::cfg_ir;
 use pinker_v0::cfg_ir_validate;
 use pinker_v0::error::PinkerError;
+use pinker_v0::instr_select;
+use pinker_v0::instr_select_validate;
 use pinker_v0::ir;
 use pinker_v0::ir_validate;
 use pinker_v0::lexer::Lexer;
@@ -77,7 +79,9 @@ pub fn render_backend_text(code: &str) -> Result<String, PinkerError> {
     ir_validate::validate_program(&program_ir)?;
     let cfg = cfg_ir::lower_program(&program_ir)?;
     cfg_ir_validate::validate_program(&cfg)?;
-    let backend = backend_text::lower_program(&cfg)?;
+    let selected = instr_select::lower_program(&cfg)?;
+    instr_select_validate::validate_program(&selected)?;
+    let backend = backend_text::lower_selected_program(&selected)?;
     backend_text_validate::validate_program(&backend)?;
     Ok(backend_text::render_program(&backend))
 }
@@ -86,6 +90,26 @@ pub fn render_cli_pseudo_asm_output(code: &str) -> Result<String, PinkerError> {
     let mut out = String::new();
     out.push_str("=== PSEUDO ASM ===\n");
     out.push_str(&render_backend_text(code)?);
+    out.push_str("Análise semântica concluída sem erros.\n");
+    Ok(out)
+}
+
+pub fn render_selected(code: &str) -> Result<String, PinkerError> {
+    let program = parse(code)?;
+    semantic::check_program(&program)?;
+    let program_ir = ir::lower_program(&program)?;
+    ir_validate::validate_program(&program_ir)?;
+    let cfg = cfg_ir::lower_program(&program_ir)?;
+    cfg_ir_validate::validate_program(&cfg)?;
+    let selected = instr_select::lower_program(&cfg)?;
+    instr_select_validate::validate_program(&selected)?;
+    Ok(instr_select::render_program(&selected))
+}
+
+pub fn render_cli_selected_output(code: &str) -> Result<String, PinkerError> {
+    let mut out = String::new();
+    out.push_str("=== SELECTED ===\n");
+    out.push_str(&render_selected(code)?);
     out.push_str("Análise semântica concluída sem erros.\n");
     Ok(out)
 }
