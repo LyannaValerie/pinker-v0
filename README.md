@@ -13,6 +13,7 @@ Pinker v0 e um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - IR estruturada (alto nivel)
 - validacao interna da IR estruturada
 - CFG IR (blocos rotulados com saltos explicitos)
+- validacao interna da CFG IR
 
 ## O que nao faz
 - codegen
@@ -55,3 +56,10 @@ cargo run -- --check examples/mut_falho.pink
 - `--cfg-ir`: IR baixa com `block`, `br`, `jmp` e `ret` explicitos
 
 A CFG IR ainda nao e SSA, nao otimiza e nao gera codigo nativo.
+
+
+## Validação da CFG IR
+- pipeline de `--cfg-ir`: semantica -> IR estruturada -> validação da IR estruturada -> lowering para CFG IR -> validação da CFG IR -> impressão
+- se a CFG IR for inválida, `--cfg-ir` falha e nada é impresso da CFG
+- o validador garante: labels únicos, entry válido, targets de branch/jump válidos, tipos de operandos/chamadas/returns, consistência de slots/temporários e referências globais
+- ainda não garante: análises avançadas além das invariantes internas da fase v0

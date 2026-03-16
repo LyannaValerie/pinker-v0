@@ -24,6 +24,7 @@ pub struct FunctionCfgIR {
     pub ret_type: TypeIR,
     pub entry: String,
     pub blocks: Vec<BasicBlockIR>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,7 +74,7 @@ pub enum TerminatorIR {
     Return(Option<OperandIR>),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TempIR(pub u32);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -232,6 +233,7 @@ fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
         ret_type: function.ret_type,
         entry: "entry".to_string(),
         blocks,
+        span: function.span,
     })
 }
 

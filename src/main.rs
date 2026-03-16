@@ -1,4 +1,5 @@
 use pinker_v0::cfg_ir;
+use pinker_v0::cfg_ir_validate;
 use pinker_v0::ir;
 use pinker_v0::ir_validate;
 use pinker_v0::lexer::Lexer;
@@ -171,6 +172,10 @@ fn main() {
                         std::process::exit(1);
                     }
                 };
+                if let Err(err) = cfg_ir_validate::validate_program(&cfg) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
                 println!("=== CFG IR ===");
                 print!("{}", cfg_ir::render_program(&cfg));
             }

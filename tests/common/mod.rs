@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use pinker_v0::cfg_ir;
+use pinker_v0::cfg_ir_validate;
 use pinker_v0::error::PinkerError;
 use pinker_v0::ir;
 use pinker_v0::ir_validate;
@@ -47,6 +48,7 @@ pub fn render_cfg_ir(code: &str) -> Result<String, PinkerError> {
     let program_ir = ir::lower_program(&program)?;
     ir_validate::validate_program(&program_ir)?;
     let cfg = cfg_ir::lower_program(&program_ir)?;
+    cfg_ir_validate::validate_program(&cfg)?;
     Ok(cfg_ir::render_program(&cfg))
 }
 
