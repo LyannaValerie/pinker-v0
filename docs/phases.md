@@ -10,3 +10,13 @@
   - refinamento de tipos de params/slots no checker da Machine
   - regressões tipadas para `call` e `call_void`
   - `cargo build`, `cargo check`, `cargo fmt --check` e `cargo test` passando
+
+
+- Fase 12 — concluída
+  - enriquecimento de contexto/mensagens na validação da Machine (função, bloco, instrução/terminador, esperado vs recebido)
+  - cobertura de testes para underflow, tipos incompatíveis, `ret`, `br_true`, slots, `call` e `call_void`
+
+- Fase 13 — concluída
+  - interpretador mínimo da Machine com `--run` (execução de `principal` com frame local de slots/pilha e fluxo por labels)
+  - suporte inicial a push/load/store, unárias/binárias, comparações numéricas, `jmp`, `br_true`, `ret` e `ret_void`
+  - falhas explícitas para `call`, `call_void`, globals e execução multi-função
