@@ -379,6 +379,9 @@ fn apply_instr_effect(
                         "call_void com tipo de argumento incompatível",
                     )?;
                 }
+            } else {
+                in_state.insert(succ.clone(), stack.clone());
+                worklist.push_back(succ);
             }
         }
     }
