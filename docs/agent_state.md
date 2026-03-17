@@ -49,6 +49,11 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Ordem do trace: chamada externa -> interna
 - Sem label/bloco/locals por frame (adiado para manter escopo pequeno)
 
+## Hotfix operacional (Fase 21b)
+- Verificação de duplicação em `tests/interpreter_tests.rs` concluída
+- Snapshot atual sem duplicatas ativas para os helpers/testes mapeados
+- Stack trace simples de runtime preservado
+
 ## Restrições do projeto
 - Não expandir linguagem/gramática.
 - Não reabrir frontend.

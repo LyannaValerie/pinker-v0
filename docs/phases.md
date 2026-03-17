@@ -74,3 +74,9 @@
   - interpretador passou a anexar stack trace simples em erros de runtime
   - stack trace mostra nomes de funções ativas (ordem externa -> interna)
   - cobertura de testes para erro simples, chamada entre funções, recursão e CLI com stderr enriquecido
+
+
+- Fase 21b — hotfix validado
+  - auditoria de duplicação em `tests/interpreter_tests.rs` executada
+  - snapshot atual sem duplicatas dos testes/helpers listados
+  - stack trace simples de runtime mantido
