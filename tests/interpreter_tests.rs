@@ -1,7 +1,7 @@
 mod common;
 
 use pinker_v0::abstract_machine::{
-    MachineBlock, MachineFunction, MachineInstr, MachineProgram, MachineTerminator,
+    MachineBlock, MachineFunction, MachineGlobal, MachineInstr, MachineProgram, MachineTerminator,
 };
 use pinker_v0::abstract_machine_validate;
 use pinker_v0::cfg_ir;
@@ -225,4 +225,316 @@ fn cli_run_global_funciona() {
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout), "100\n");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+}
+
+// ── Fase 16: testes negativos de runtime ──────────────────────────────────
+
+#[test]
+fn run_falha_divisao_por_zero() {
+    let program = MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![MachineFunction {
+            name: "principal".to_string(),
+            ret_type: pinker_v0::ir::TypeIR::Bombom,
+            params: vec![],
+            locals: vec![],
+            slot_types: HashMap::new(),
+            blocks: vec![MachineBlock {
+                label: "entry".to_string(),
+                code: vec![
+                    MachineInstr::PushInt(10),
+                    MachineInstr::PushInt(0),
+                    MachineInstr::Div,
+                ],
+                terminator: MachineTerminator::Ret,
+            }],
+        }],
+    };
+    let err = interpreter::run_program(&program).unwrap_err().to_string();
+    assert!(err.contains("divisão por zero"), "mensagem: {}", err);
+}
+
+#[test]
+fn run_falha_slot_nao_inicializado() {
+    let program = MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![MachineFunction {
+            name: "principal".to_string(),
+            ret_type: pinker_v0::ir::TypeIR::Bombom,
+            params: vec![],
+            locals: vec![],
+            slot_types: HashMap::new(),
+            blocks: vec![MachineBlock {
+                label: "entry".to_string(),
+                code: vec![MachineInstr::LoadSlot("slot_fantasma".to_string())],
+                terminator: MachineTerminator::Ret,
+            }],
+        }],
+    };
+    let err = interpreter::run_program(&program).unwrap_err().to_string();
+    assert!(
+        err.contains("load_slot em slot não inicializado"),
+        "mensagem: {}",
+        err
+    );
+}
+
+#[test]
+fn run_falha_call_retorna_void() {
+    // Call para função que faz RetVoid: deve falhar com "call exige função com retorno"
+    let program = MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![
+            MachineFunction {
+                name: "principal".to_string(),
+                ret_type: pinker_v0::ir::TypeIR::Bombom,
+                params: vec![],
+                locals: vec![],
+                slot_types: HashMap::new(),
+                blocks: vec![MachineBlock {
+                    label: "entry".to_string(),
+                    code: vec![MachineInstr::Call {
+                        callee: "aux".to_string(),
+                        argc: 0,
+                    }],
+                    terminator: MachineTerminator::Ret,
+                }],
+            },
+            MachineFunction {
+                name: "aux".to_string(),
+                ret_type: pinker_v0::ir::TypeIR::Nulo,
+                params: vec![],
+                locals: vec![],
+                slot_types: HashMap::new(),
+                blocks: vec![MachineBlock {
+                    label: "entry".to_string(),
+                    code: vec![],
+                    terminator: MachineTerminator::RetVoid,
+                }],
+            },
+        ],
+    };
+    let err = interpreter::run_program(&program).unwrap_err().to_string();
+    assert!(
+        err.contains("call exige função com retorno"),
+        "mensagem: {}",
+        err
+    );
+}
+
+#[test]
+fn run_falha_call_void_retorna_valor() {
+    // CallVoid para função que empilha valor e faz Ret: deve falhar com "call_void exige função sem retorno"
+    let program = MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![
+            MachineFunction {
+                name: "principal".to_string(),
+                ret_type: pinker_v0::ir::TypeIR::Nulo,
+                params: vec![],
+                locals: vec![],
+                slot_types: HashMap::new(),
+                blocks: vec![MachineBlock {
+                    label: "entry".to_string(),
+                    code: vec![MachineInstr::CallVoid {
+                        callee: "aux".to_string(),
+                        argc: 0,
+                    }],
+                    terminator: MachineTerminator::RetVoid,
+                }],
+            },
+            MachineFunction {
+                name: "aux".to_string(),
+                ret_type: pinker_v0::ir::TypeIR::Bombom,
+                params: vec![],
+                locals: vec![],
+                slot_types: HashMap::new(),
+                blocks: vec![MachineBlock {
+                    label: "entry".to_string(),
+                    code: vec![MachineInstr::PushInt(42)],
+                    terminator: MachineTerminator::Ret,
+                }],
+            },
+        ],
+    };
+    let err = interpreter::run_program(&program).unwrap_err().to_string();
+    assert!(
+        err.contains("call_void exige função sem retorno"),
+        "mensagem: {}",
+        err
+    );
+}
+
+#[test]
+fn run_falha_aridade_invalida() {
+    // principal chama aux com 1 argumento mas aux tem 0 parâmetros
+    let program = MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![
+            MachineFunction {
+                name: "principal".to_string(),
+                ret_type: pinker_v0::ir::TypeIR::Bombom,
+                params: vec![],
+                locals: vec![],
+                slot_types: HashMap::new(),
+                blocks: vec![MachineBlock {
+                    label: "entry".to_string(),
+                    code: vec![
+                        MachineInstr::PushInt(1),
+                        MachineInstr::Call {
+                            callee: "aux".to_string(),
+                            argc: 1,
+                        },
+                    ],
+                    terminator: MachineTerminator::Ret,
+                }],
+            },
+            MachineFunction {
+                name: "aux".to_string(),
+                ret_type: pinker_v0::ir::TypeIR::Bombom,
+                params: vec![],
+                locals: vec![],
+                slot_types: HashMap::new(),
+                blocks: vec![MachineBlock {
+                    label: "entry".to_string(),
+                    code: vec![MachineInstr::PushInt(99)],
+                    terminator: MachineTerminator::Ret,
+                }],
+            },
+        ],
+    };
+    let err = interpreter::run_program(&program).unwrap_err().to_string();
+    assert!(
+        err.contains("chamada com aridade inválida"),
+        "mensagem: {}",
+        err
+    );
+}
+
+#[test]
+fn run_falha_valor_global_nao_suportado() {
+    let program = MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![MachineGlobal {
+            name: "G".to_string(),
+            value: pinker_v0::cfg_ir::OperandIR::Local("x".to_string()),
+        }],
+        functions: vec![MachineFunction {
+            name: "principal".to_string(),
+            ret_type: pinker_v0::ir::TypeIR::Bombom,
+            params: vec![],
+            locals: vec![],
+            slot_types: HashMap::new(),
+            blocks: vec![MachineBlock {
+                label: "entry".to_string(),
+                code: vec![MachineInstr::LoadGlobal("G".to_string())],
+                terminator: MachineTerminator::Ret,
+            }],
+        }],
+    };
+    let err = interpreter::run_program(&program).unwrap_err().to_string();
+    assert!(
+        err.contains("valor global não suportado em runtime"),
+        "mensagem: {}",
+        err
+    );
+}
+
+// ── Fase 16: testes end-to-end via run_code ───────────────────────────────
+
+#[test]
+fn run_not_unario() {
+    let out = run_code(
+        "pacote main; carinho principal() -> bombom { talvez !falso { mimo 1; } senao { mimo 0; } }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_divisao() {
+    let out = run_code(
+        "pacote main; carinho principal() -> bombom { nova a = 10; nova b = 2; mimo a / b; }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(5)));
+}
+
+#[test]
+fn run_igualdade() {
+    let out = run_code(
+        "pacote main; carinho principal() -> bombom { talvez 1 == 1 { mimo 1; } senao { mimo 0; } }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_diferenca() {
+    let out = run_code(
+        "pacote main; carinho principal() -> bombom { talvez 1 != 2 { mimo 1; } senao { mimo 0; } }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_comparacao_maior_igual() {
+    let out = run_code(
+        "pacote main; carinho principal() -> bombom { talvez 5 >= 3 { mimo 1; } senao { mimo 0; } }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_comparacao_maior() {
+    let out = run_code(
+        "pacote main; carinho principal() -> bombom { talvez 5 > 3 { mimo 1; } senao { mimo 0; } }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_comparacao_menor_igual() {
+    let out = run_code(
+        "pacote main; carinho principal() -> bombom { talvez 3 <= 5 { mimo 1; } senao { mimo 0; } }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_variavel_mutavel() {
+    let out =
+        run_code("pacote main; carinho principal() -> bombom { nova mut x = 1; x = 99; mimo x; }")
+            .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(99)));
+}
+
+// ── Fase 16: CLI — exit code não-zero em erro de runtime ─────────────────
+
+#[test]
+fn cli_run_erro_runtime_tem_exit_nonzero() {
+    // Programa com divisão por zero via --run: deve retornar exit code != 0 e stderr não vazio
+    let source =
+        "pacote main; carinho div(a: bombom, b: bombom) -> bombom { mimo a / b; } carinho principal() -> bombom { mimo div(10, 0); }";
+    let file = std::env::temp_dir().join("pinker_run_div_zero.pink");
+    fs::write(&file, source).unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(&file)
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).is_empty());
+    assert!(!String::from_utf8_lossy(&output.stderr).is_empty());
 }

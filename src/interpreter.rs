@@ -43,7 +43,10 @@ fn call_function(
     let function = find_function(fn_name, program)?;
 
     if function.params.len() != args.len() {
-        return Err(runtime_err("chamada com aridade inválida"));
+        return Err(runtime_err(&format!(
+            "[{}] chamada com aridade inválida",
+            fn_name
+        )));
     }
 
     let mut labels = HashMap::new();
@@ -61,7 +64,10 @@ fn call_function(
 
     loop {
         let Some(&block_idx) = labels.get(&current_label) else {
-            return Err(runtime_err("label de execução inexistente"));
+            return Err(runtime_err(&format!(
+                "[{}] label de execução inexistente: {}",
+                fn_name, current_label
+            )));
         };
         let block = &function.blocks[block_idx];
 
@@ -86,13 +92,19 @@ fn call_function(
             }
             MachineTerminator::Ret => {
                 if stack.len() != 1 {
-                    return Err(runtime_err("ret inválido: pilha deve ter 1 valor"));
+                    return Err(runtime_err(&format!(
+                        "[{}] ret inválido: pilha deve ter 1 valor",
+                        fn_name
+                    )));
                 }
                 return Ok(Some(stack.pop().expect("len checked")));
             }
             MachineTerminator::RetVoid => {
                 if !stack.is_empty() {
-                    return Err(runtime_err("ret_void inválido: pilha deve estar vazia"));
+                    return Err(runtime_err(&format!(
+                        "[{}] ret_void inválido: pilha deve estar vazia",
+                        fn_name
+                    )));
                 }
                 return Ok(None);
             }

@@ -30,3 +30,9 @@
   - suporte a leitura de globals no interpretador (`load_global`) com mapa de globals por execução
   - avaliação mínima de globals literais inteiras/lógicas para `RuntimeValue`
   - erro explícito para global inexistente e para valor global não suportado em runtime
+
+- Fase 16 — concluída
+  - 6 testes negativos de runtime via MachineProgram manual: divisão por zero, slot não inicializado, aridade inválida, call/call_void mismatch, valor global não suportado
+  - 8 testes end-to-end via run_code: Not, Div, CmpEq, CmpNe, CmpGe, CmpGt, CmpLe, reassignment de variável mutável
+  - 1 teste CLI: exit code não-zero e stderr não vazio em erro de runtime
+  - pequeno endurecimento: mensagens de erro em call_function incluem o nome da função ([fn_name])

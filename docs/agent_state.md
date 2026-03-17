@@ -15,9 +15,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 13: interpretador mínimo com `--run`
 - Fase 14: chamadas entre funções no interpretador (`call` e `call_void`)
 - Fase 15: globals no interpretador (`load_global`)
+- Fase 16: robustez do interpretador e testes negativos de runtime
 
 ## Fase atual
-- Fase 15 concluída (runtime com leitura de globals + chamadas entre funções).
+- Fase 16 concluída (robustez do interpretador e testes negativos de runtime).
 
 ## Restrições do projeto
 - Não expandir linguagem/gramática.
