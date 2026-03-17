@@ -11,9 +11,11 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 9: disciplina de pilha da Machine
 - Fase 10: checagem leve de tipo no topo da pilha
 - Fase 11: refinamento de tipos de params/slots na Machine (hotfix de fechamento)
+- Fase 12: contexto e mensagens de erro da Machine
+- Fase 13: interpretador mínimo com `--run`
 
 ## Fase atual
-- Encerramento operacional pós-hotfix da Fase 11.
+- Fase 13 concluída (primeira execução real mínima via interpretador da Machine).
 
 ## Restrições do projeto
 - Não expandir linguagem/gramática.
@@ -22,7 +24,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Preservar pipeline e camadas atuais.
 
 ## Itens adiados
-- Interpretador/execução da Machine.
+- Execução da Machine além do modo mínimo atual (sem chamadas entre funções e sem globals).
 - Inferência global pesada de tipos na Machine.
 
 ## Instrução para novo agente
