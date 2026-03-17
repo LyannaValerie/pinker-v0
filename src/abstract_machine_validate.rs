@@ -268,7 +268,14 @@ fn apply_instr_effect(
             stack.push(*globals.get(g).unwrap_or(&StackValueType::Unknown));
         }
         MachineInstr::StoreSlot(slot) => {
-            let top = pop_typed(f, label, stack, 1, "underflow em store_slot")?;
+            let top = pop_typed(
+                f,
+                label,
+                stack,
+                1,
+                "underflow em store_slot",
+                Some(&format!("instr='store_slot {}'", slot)),
+            )?;
             if let Some(expected) = slot_types.get(slot).copied() {
                 ensure_compatible(
                     f,
@@ -276,6 +283,7 @@ fn apply_instr_effect(
                     top[0],
                     expected,
                     "store_slot com tipo incompatível",
+                    Some(&format!("instr='store_slot {}', slot='{}'", slot, slot)),
                 )?;
                 let merged = merge_types(expected, top[0]);
                 slot_types.insert(slot.clone(), merged);
@@ -284,7 +292,14 @@ fn apply_instr_effect(
             }
         }
         MachineInstr::Neg | MachineInstr::Not => {
-            let top = pop_typed(f, label, stack, 1, "underflow em operação unária")?;
+            let top = pop_typed(
+                f,
+                label,
+                stack,
+                1,
+                "underflow em operação unária",
+                Some(&format!("instr='{}'", instr_name(i))),
+            )?;
             let expected = match i {
                 MachineInstr::Neg => StackValueType::Bombom,
                 MachineInstr::Not => StackValueType::Logica,
@@ -296,6 +311,7 @@ fn apply_instr_effect(
                 top[0],
                 expected,
                 "tipo inválido em operação unária",
+                Some(&format!("instr='{}'", instr_name(i))),
             )?;
             stack.push(expected);
         }
@@ -309,7 +325,14 @@ fn apply_instr_effect(
         | MachineInstr::CmpLe
         | MachineInstr::CmpGt
         | MachineInstr::CmpGe => {
-            let pair = pop_typed(f, label, stack, 2, "underflow em operação binária")?;
+            let pair = pop_typed(
+                f,
+                label,
+                stack,
+                2,
+                "underflow em operação binária",
+                Some(&format!("instr='{}'", instr_name(i))),
+            )?;
             let out_ty = match i {
                 MachineInstr::CmpEq
                 | MachineInstr::CmpNe
@@ -324,6 +347,7 @@ fn apply_instr_effect(
                         pair[0],
                         StackValueType::Bombom,
                         "tipo inválido em operação binária",
+                        Some(&format!("instr='{}'", instr_name(i))),
                     )?;
                     ensure_compatible(
                         f,
@@ -331,6 +355,7 @@ fn apply_instr_effect(
                         pair[1],
                         StackValueType::Bombom,
                         "tipo inválido em operação binária",
+                        Some(&format!("instr='{}'", instr_name(i))),
                     )?;
                     StackValueType::Bombom
                 }
@@ -343,13 +368,28 @@ fn apply_instr_effect(
                 return Err(err_ctx(
                     f,
                     Some(label),
-                    "tipo inválido em comparação binária",
+                    &format!(
+                        "tipo inválido em comparação binária [instr='{}', lhs={}, rhs={}]",
+                        instr_name(i),
+                        render_stack_type(pair[0]),
+                        render_stack_type(pair[1])
+                    ),
                 ));
             }
             stack.push(out_ty);
         }
         MachineInstr::Call { callee, argc } => {
-            let args = pop_typed(f, label, stack, *argc, "underflow em call")?;
+            let args = pop_typed(
+                f,
+                label,
+                stack,
+                *argc,
+                "underflow em call",
+                Some(&format!(
+                    "instr='call {}, {}', callee='{}'",
+                    callee, argc, callee
+                )),
+            )?;
             if let Some((_ret, param_types)) = sigs.get(callee) {
                 for (arg, expected) in args.iter().zip(param_types.iter().rev()) {
                     ensure_compatible(
@@ -358,6 +398,10 @@ fn apply_instr_effect(
                         *arg,
                         *expected,
                         "call com tipo de argumento incompatível",
+                        Some(&format!(
+                            "instr='call {}, {}', callee='{}'",
+                            callee, argc, callee
+                        )),
                     )?;
                 }
             }
@@ -368,7 +412,17 @@ fn apply_instr_effect(
             stack.push(type_to_stack(ret));
         }
         MachineInstr::CallVoid { callee, argc } => {
-            let args = pop_typed(f, label, stack, *argc, "underflow em call_void")?;
+            let args = pop_typed(
+                f,
+                label,
+                stack,
+                *argc,
+                "underflow em call_void",
+                Some(&format!(
+                    "instr='call_void {}, {}', callee='{}'",
+                    callee, argc, callee
+                )),
+            )?;
             if let Some((_ret, param_types)) = sigs.get(callee) {
                 for (arg, expected) in args.iter().zip(param_types.iter().rev()) {
                     ensure_compatible(
@@ -377,6 +431,10 @@ fn apply_instr_effect(
                         *arg,
                         *expected,
                         "call_void com tipo de argumento incompatível",
+                        Some(&format!(
+                            "instr='call_void {}, {}', callee='{}'",
+                            callee, argc, callee
+                        )),
                     )?;
                 }
             }
@@ -399,13 +457,21 @@ fn apply_terminator_effect(
             then_label,
             else_label,
         } => {
-            let top = pop_typed(f, label, stack, 1, "underflow em br_true")?;
+            let top = pop_typed(
+                f,
+                label,
+                stack,
+                1,
+                "underflow em br_true",
+                Some(&format!("term='br_true {}, {}'", then_label, else_label)),
+            )?;
             ensure_compatible(
                 f,
                 label,
                 top[0],
                 StackValueType::Logica,
                 "br_true requer condição lógica",
+                Some(&format!("term='br_true {}, {}'", then_label, else_label)),
             )?;
             Ok(vec![then_label.clone(), else_label.clone()])
         }
@@ -424,6 +490,7 @@ fn apply_terminator_effect(
                 v,
                 type_to_stack(f.ret_type),
                 "ret com tipo incompatível",
+                Some("term='ret'"),
             )?;
             stack.clear();
             Ok(vec![])
@@ -443,9 +510,10 @@ fn pop_typed(
     stack: &mut Vec<StackValueType>,
     amount: usize,
     message: &str,
+    detail: Option<&str>,
 ) -> Result<Vec<StackValueType>, PinkerError> {
     if stack.len() < amount {
-        return Err(err_ctx(f, Some(label), message));
+        return Err(err_ctx_with_detail(f, Some(label), message, detail));
     }
     let mut out = Vec::with_capacity(amount);
     for _ in 0..amount {
@@ -460,11 +528,50 @@ fn ensure_compatible(
     got: StackValueType,
     expected: StackValueType,
     message: &str,
+    detail: Option<&str>,
 ) -> Result<(), PinkerError> {
     if got != StackValueType::Unknown && got != expected {
-        return Err(err_ctx(f, Some(label), message));
+        let inferred = format!(
+            "{} [esperado={}, recebido={}]",
+            message,
+            render_stack_type(expected),
+            render_stack_type(got)
+        );
+        return Err(err_ctx_with_detail(f, Some(label), &inferred, detail));
     }
     Ok(())
+}
+
+fn instr_name(i: &MachineInstr) -> &'static str {
+    match i {
+        MachineInstr::PushInt(_) => "push_int",
+        MachineInstr::PushBool(_) => "push_bool",
+        MachineInstr::LoadSlot(_) => "load_slot",
+        MachineInstr::LoadGlobal(_) => "load_global",
+        MachineInstr::StoreSlot(_) => "store_slot",
+        MachineInstr::Neg => "neg",
+        MachineInstr::Not => "not",
+        MachineInstr::Add => "add",
+        MachineInstr::Sub => "sub",
+        MachineInstr::Mul => "mul",
+        MachineInstr::Div => "div",
+        MachineInstr::CmpEq => "cmp_eq",
+        MachineInstr::CmpNe => "cmp_ne",
+        MachineInstr::CmpLt => "cmp_lt",
+        MachineInstr::CmpLe => "cmp_le",
+        MachineInstr::CmpGt => "cmp_gt",
+        MachineInstr::CmpGe => "cmp_ge",
+        MachineInstr::Call { .. } => "call",
+        MachineInstr::CallVoid { .. } => "call_void",
+    }
+}
+
+fn render_stack_type(ty: StackValueType) -> &'static str {
+    match ty {
+        StackValueType::Bombom => "bombom",
+        StackValueType::Logica => "lógica",
+        StackValueType::Unknown => "unknown",
+    }
 }
 
 fn type_to_stack(ty: TypeIR) -> StackValueType {
@@ -517,10 +624,24 @@ fn err(msg: &str) -> PinkerError {
 }
 
 fn err_ctx(f: &MachineFunction, block: Option<&str>, msg: &str) -> PinkerError {
-    let scoped = if let Some(block) = block {
-        format!("{} (função '{}', bloco '{}')", msg, f.name, block)
+    err_ctx_with_detail(f, block, msg, None)
+}
+
+fn err_ctx_with_detail(
+    f: &MachineFunction,
+    block: Option<&str>,
+    msg: &str,
+    detail: Option<&str>,
+) -> PinkerError {
+    let prefix = if let Some(detail) = detail {
+        format!("{} [{}]", msg, detail)
     } else {
-        format!("{} (função '{}')", msg, f.name)
+        msg.to_string()
+    };
+    let scoped = if let Some(block) = block {
+        format!("{} (função '{}', bloco '{}')", prefix, f.name, block)
+    } else {
+        format!("{} (função '{}')", prefix, f.name)
     };
     err(&scoped)
 }
