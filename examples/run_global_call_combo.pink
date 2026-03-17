@@ -1,0 +1,11 @@
+pacote main;
+
+eterno BASE: bombom = 10;
+
+carinho soma_base(v: bombom) -> bombom {
+    mimo BASE + v;
+}
+
+carinho principal() -> bombom {
+    mimo soma_base(32);
+}

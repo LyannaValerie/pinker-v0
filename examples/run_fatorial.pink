@@ -1,0 +1,13 @@
+pacote main;
+
+carinho fat(n: bombom) -> bombom {
+    talvez n == 0 {
+        mimo 1;
+    } senao {
+        mimo n * fat(n - 1);
+    }
+}
+
+carinho principal() -> bombom {
+    mimo fat(5);
+}

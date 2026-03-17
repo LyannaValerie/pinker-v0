@@ -340,3 +340,26 @@ fn cfg_invalida_nao_deve_ser_impressa() {
 
     assert_eq!(output, "");
 }
+
+#[test]
+fn erro_cfg_tem_contexto_padronizado() {
+    let function = base_function(
+        TypeIR::Bombom,
+        vec![BasicBlockIR {
+            label: "entry".to_string(),
+            instructions: vec![InstructionCfgIR::Assign {
+                slot: "%x#0".to_string(),
+                value: OperandIR::Bool(true),
+            }],
+            terminator: TerminatorIR::Return(Some(OperandIR::Int(0))),
+        }],
+    );
+
+    let err = cfg_ir_validate::validate_program(&base_program(function))
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("tipo incompatível em slot '%x#0'"));
+    assert!(err.contains("função 'principal', bloco 'entry'"));
+    assert!(err.contains("instr='let/assign'"));
+    assert!(err.contains("esperado=Bombom, recebido=Logica"));
+}
