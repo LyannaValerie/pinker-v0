@@ -68,3 +68,9 @@
   - semântica atual trata globals (`eterno`) como não mutáveis
   - Machine não possui `StoreGlobal` (somente `LoadGlobal`)
   - interpretador opera globals via mapa imutável por execução
+
+
+- Fase 21b — concluída
+  - interpretador passou a anexar stack trace simples em erros de runtime
+  - stack trace mostra nomes de funções ativas (ordem externa -> interna)
+  - cobertura de testes para erro simples, chamada entre funções, recursão e CLI com stderr enriquecido

@@ -1,50 +1,46 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Avaliação da **FASE 21a — escrita em globals no interpretador**.
+- Implementação da **FASE 21b — stack trace simples de runtime**.
 
 ## Objetivo
-- Verificar viabilidade real de escrita/mutação de globals no estado atual da linguagem + pipeline.
-- Implementar apenas se já existisse caminho coerente e pequeno no código atual.
+- Melhorar diagnóstico de erro de runtime com pilha simples de chamadas, sem abrir debugger/stepping.
+- Preservar comportamento funcional do interpretador.
 
 ## Estado real encontrado
 - Workspace local usado como fonte de verdade.
 - Base inicial saudável: `cargo build` e `cargo test` passando.
 
-## Diagnóstico de viabilidade (factual)
-A fase **não é viável tecnicamente** no estado atual sem abrir escopo fora do permitido.
+## Modelagem adotada para stack trace
+- `run_program` agora cria e passa uma pilha de chamadas mutável (`Vec<String>`) para o interpretador.
+- `call_function` faz `push` do frame ao entrar e `pop` ao sair.
+- Em erro de runtime, `call_function` anexa stack trace textual simples ao erro.
+- Formato adicionado ao `msg` de runtime:
+  - linha `stack trace:`
+  - uma linha por frame: `  - <função>`
+  - ordem da mais externa para a mais interna.
+- Implementado de forma pequena via helper `attach_runtime_trace` em `src/interpreter.rs`.
 
-### Evidências no código real
-1. **Semântica trata globais como constantes imutáveis**
-   - `resolve_var` mapeia constantes globais com `is_mut: false`.
-   - Atribuição em `Stmt::Assign` exige `is_mut == true` e rejeita reatribuição de símbolo não mutável.
+## Contexto exibido
+- nomes de funções ativas no momento do erro.
+- sem spans por frame, sem locals por frame, sem labels (adiado para manter escopo mínimo).
 
-2. **Machine não possui instrução de escrita em global**
-   - `MachineInstr` expõe `LoadGlobal`, mas não existe `StoreGlobal`.
+## Testes adicionados/ajustados
+- `tests/interpreter_tests.rs`:
+  - ajuste de `run_falha_divisao_por_zero` para validar presença de `stack trace` + `principal`
+  - novo `run_falha_runtime_em_chamada_tem_stack_trace`
+  - novo `run_falha_runtime_em_recursao_tem_stack_trace`
+  - ajuste de `cli_run_erro_runtime_tem_exit_nonzero` para validar stack trace em stderr
+  - ajuste de `cli_run_erro_runtime_em_exemplo_novo` para validar stack trace em stderr
 
-3. **Interpretador recebe globals como mapa somente leitura**
-   - `run_program` cria `globals` e passa `&HashMap<String, RuntimeValue>` para execução.
-   - `exec_instr` implementa `LoadGlobal`, mas não há ramo de escrita em global.
+## Limites que continuam
+- stack trace sem label/bloco por frame
+- sem captura de variáveis locais
+- sem debugger/stepping/tracing contínuo
 
-4. **Lowering atual não produz operação de escrita em global**
-   - Caminho de lowering para Machine usa `StoreSlot` para slots locais/temporários; não há lowering para store global.
-
-## Decisão aplicada
-- Não foi implementada escrita em globals.
-- Não foi criado exemplo/feature parcial inconsistente.
-- Rodada tratada como auditoria curta de impossibilidade atual, conforme instrução.
-
-## Bloqueio
-Para viabilizar Fase 21a de fato, seria necessário (fora do escopo mínimo desta rodada):
-- decisão de linguagem/semântica para mutabilidade de `eterno` (ou novo construto)
-- suporte em IR/CFG/seleção/Machine para operação de escrita global
-- validação estrutural e de tipos para novo opcode
-- atualização do interpretador para estado global mutável compartilhado entre chamadas
-
-## Arquivos alterados
-- `docs/handoff_codex.md`
-- `docs/agent_state.md`
-- `docs/phases.md`
+## Estado real encontrado
+- Workspace local usado como fonte de verdade.
+- Base inicial saudável: `cargo build` e `cargo test` passando.
 
 ## Comandos executados
 - Inicial:
@@ -55,7 +51,8 @@ Para viabilizar Fase 21a de fato, seria necessário (fora do escopo mínimo dest
   - `cargo check`
   - `cargo fmt --check`
   - `cargo test`
+  - `cargo run -q -- --run examples/run_div_zero_cli.pink`
 
 ## Próximos passos sugeridos
-- Decidir explicitamente a política de mutabilidade de globals na linguagem (se entra ou não).
-- Se aprovado, abrir fase dedicada de pipeline (semântica + IR/CFG/Machine + runtime), em vez de patch isolado no interpretador.
+- opcional: incluir label/bloco atual por frame (se continuar barato)
+- opcional: normalizar visual do stack trace para ter índice de profundidade

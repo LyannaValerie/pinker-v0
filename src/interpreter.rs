@@ -14,7 +14,8 @@ pub enum RuntimeValue {
 
 pub fn run_program(program: &MachineProgram) -> Result<Option<RuntimeValue>, PinkerError> {
     let globals = build_globals(program)?;
-    call_function("principal", vec![], program, &globals)
+    let mut call_stack = Vec::new();
+    call_function("principal", vec![], program, &globals, &mut call_stack)
 }
 
 fn build_globals(program: &MachineProgram) -> Result<HashMap<String, RuntimeValue>, PinkerError> {
@@ -39,77 +40,86 @@ fn call_function(
     args: Vec<RuntimeValue>,
     program: &MachineProgram,
     globals: &HashMap<String, RuntimeValue>,
+    call_stack: &mut Vec<String>,
 ) -> Result<Option<RuntimeValue>, PinkerError> {
-    let function = find_function(fn_name, program)?;
+    call_stack.push(fn_name.to_string());
 
-    if function.params.len() != args.len() {
-        return Err(runtime_err(&format!(
-            "[{}] chamada com aridade inválida",
-            fn_name
-        )));
-    }
+    let result = (|| {
+        let function = find_function(fn_name, program)?;
 
-    let mut labels = HashMap::new();
-    for (idx, block) in function.blocks.iter().enumerate() {
-        labels.insert(block.label.clone(), idx);
-    }
-
-    let mut slots: HashMap<String, RuntimeValue> = HashMap::new();
-    for (slot, value) in function.params.iter().cloned().zip(args.into_iter()) {
-        slots.insert(slot, value);
-    }
-
-    let mut stack: Vec<RuntimeValue> = Vec::new();
-    let mut current_label = "entry".to_string();
-
-    loop {
-        let Some(&block_idx) = labels.get(&current_label) else {
+        if function.params.len() != args.len() {
             return Err(runtime_err(&format!(
-                "[{}] label de execução inexistente: {}",
-                fn_name, current_label
+                "[{}] chamada com aridade inválida",
+                fn_name
             )));
-        };
-        let block = &function.blocks[block_idx];
-
-        for instr in &block.code {
-            exec_instr(instr, &mut slots, &mut stack, program, globals)?;
         }
 
-        match &block.terminator {
-            MachineTerminator::Jmp(target) => {
-                current_label = target.clone();
+        let mut labels = HashMap::new();
+        for (idx, block) in function.blocks.iter().enumerate() {
+            labels.insert(block.label.clone(), idx);
+        }
+
+        let mut slots: HashMap<String, RuntimeValue> = HashMap::new();
+        for (slot, value) in function.params.iter().cloned().zip(args.into_iter()) {
+            slots.insert(slot, value);
+        }
+
+        let mut stack: Vec<RuntimeValue> = Vec::new();
+        let mut current_label = "entry".to_string();
+
+        loop {
+            let Some(&block_idx) = labels.get(&current_label) else {
+                return Err(runtime_err(&format!(
+                    "[{}] label de execução inexistente: {}",
+                    fn_name, current_label
+                )));
+            };
+            let block = &function.blocks[block_idx];
+
+            for instr in &block.code {
+                exec_instr(instr, &mut slots, &mut stack, program, globals, call_stack)?;
             }
-            MachineTerminator::BrTrue {
-                then_label,
-                else_label,
-            } => {
-                let cond = pop_bool(&mut stack, "br_true requer bool no topo")?;
-                current_label = if cond {
-                    then_label.clone()
-                } else {
-                    else_label.clone()
-                };
-            }
-            MachineTerminator::Ret => {
-                if stack.len() != 1 {
-                    return Err(runtime_err(&format!(
-                        "[{}] ret inválido: pilha deve ter 1 valor",
-                        fn_name
-                    )));
+
+            match &block.terminator {
+                MachineTerminator::Jmp(target) => {
+                    current_label = target.clone();
                 }
-                return Ok(Some(stack.pop().expect("len checked")));
-            }
-            MachineTerminator::RetVoid => {
-                if !stack.is_empty() {
-                    return Err(runtime_err(&format!(
-                        "[{}] ret_void inválido: pilha deve estar vazia",
-                        fn_name
-                    )));
+                MachineTerminator::BrTrue {
+                    then_label,
+                    else_label,
+                } => {
+                    let cond = pop_bool(&mut stack, "br_true requer bool no topo")?;
+                    current_label = if cond {
+                        then_label.clone()
+                    } else {
+                        else_label.clone()
+                    };
                 }
-                return Ok(None);
+                MachineTerminator::Ret => {
+                    if stack.len() != 1 {
+                        return Err(runtime_err(&format!(
+                            "[{}] ret inválido: pilha deve ter 1 valor",
+                            fn_name
+                        )));
+                    }
+                    return Ok(Some(stack.pop().expect("len checked")));
+                }
+                MachineTerminator::RetVoid => {
+                    if !stack.is_empty() {
+                        return Err(runtime_err(&format!(
+                            "[{}] ret_void inválido: pilha deve estar vazia",
+                            fn_name
+                        )));
+                    }
+                    return Ok(None);
+                }
             }
         }
-    }
+    })();
+
+    let result = result.map_err(|err| attach_runtime_trace(err, call_stack));
+    let _ = call_stack.pop();
+    result
 }
 
 fn exec_instr(
@@ -118,6 +128,7 @@ fn exec_instr(
     stack: &mut Vec<RuntimeValue>,
     program: &MachineProgram,
     globals: &HashMap<String, RuntimeValue>,
+    call_stack: &mut Vec<String>,
 ) -> Result<(), PinkerError> {
     match instr {
         MachineInstr::PushInt(v) => stack.push(RuntimeValue::Int(*v)),
@@ -191,7 +202,7 @@ fn exec_instr(
         }
         MachineInstr::Call { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = call_function(callee, args, program, globals)?;
+            let result = call_function(callee, args, program, globals, call_stack)?;
             let Some(value) = result else {
                 return Err(runtime_err("call exige função com retorno"));
             };
@@ -199,7 +210,7 @@ fn exec_instr(
         }
         MachineInstr::CallVoid { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = call_function(callee, args, program, globals)?;
+            let result = call_function(callee, args, program, globals, call_stack)?;
             if result.is_some() {
                 return Err(runtime_err("call_void exige função sem retorno"));
             }
@@ -257,5 +268,23 @@ fn runtime_err(msg: &str) -> PinkerError {
     PinkerError::Runtime {
         msg: msg.to_string(),
         span: Span::single(Position::new(1, 1)),
+    }
+}
+
+fn attach_runtime_trace(err: PinkerError, call_stack: &[String]) -> PinkerError {
+    match err {
+        PinkerError::Runtime { msg, span } => {
+            if msg.contains("\nstack trace:\n") {
+                PinkerError::Runtime { msg, span }
+            } else {
+                let mut traced = msg;
+                traced.push_str("\nstack trace:\n");
+                for frame in call_stack {
+                    traced.push_str(&format!("  - {}\n", frame));
+                }
+                PinkerError::Runtime { msg: traced, span }
+            }
+        }
+        _ => err,
     }
 }

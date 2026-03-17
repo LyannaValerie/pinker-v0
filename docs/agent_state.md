@@ -21,9 +21,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 19: padronização de mensagens de erro entre IR / CFG / Machine
 - Fase 20: mais testes end-to-end com `--run`
 - Fase 21a: escrita em globals no interpretador (viabilidade negada no estado atual)
+- Fase 21b: stack trace simples de runtime
 
 ## Fase atual
-- Fase 21a avaliada e bloqueada: escrita em globals não é suportável sem mudanças de linguagem/semântica/lowering/Machine fora do escopo.
+- Fase 21b concluída (erros de runtime exibem stack trace simples com cadeia de funções ativas).
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -42,6 +43,11 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Semântica atual modela `eterno` como constante não mutável
 - Machine atual só possui `LoadGlobal` (sem `StoreGlobal`)
 - Interpretador recebe globals por referência imutável (`&HashMap`)
+
+## Stack trace de runtime (Fase 21b)
+- Runtime agora anexa `stack trace` textual em erros com nomes de funções ativas
+- Ordem do trace: chamada externa -> interna
+- Sem label/bloco/locals por frame (adiado para manter escopo pequeno)
 
 ## Restrições do projeto
 - Não expandir linguagem/gramática.
