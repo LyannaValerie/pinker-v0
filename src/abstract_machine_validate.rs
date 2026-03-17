@@ -379,11 +379,6 @@ fn apply_instr_effect(
                         "call_void com tipo de argumento incompatível",
                     )?;
                 }
-                let merged = merge_stack_types(previous, &stack);
-                if &merged != previous {
-                    in_state.insert(succ.clone(), merged);
-                    worklist.push_back(succ);
-                }
             } else {
                 in_state.insert(succ.clone(), stack.clone());
                 worklist.push_back(succ);
