@@ -225,6 +225,21 @@ fn stack_underflow_call_void() {
 }
 
 #[test]
+fn erro_machine_mantem_formato_padrao_de_contexto() {
+    let err = validate(fn_bombom(vec![block(
+        "entry",
+        vec![MachineInstr::PushBool(true)],
+        MachineTerminator::Ret,
+    )]))
+    .unwrap_err();
+
+    assert!(err.contains("ret com tipo incompatível"));
+    assert!(err.contains("função 'principal', bloco 'entry'"));
+    assert!(err.contains("term='ret'"));
+    assert!(err.contains("esperado=bombom, recebido=lógica"));
+}
+
+#[test]
 fn stack_branch_sem_condicao() {
     let err = validate(fn_bombom(vec![
         block(
