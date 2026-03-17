@@ -29,6 +29,18 @@ cargo build
 cargo test
 ```
 
+## CI mínima + MSRV
+- CI mínima em `.github/workflows/ci.yml` rodando: `cargo build --locked`, `cargo check --locked`, `cargo fmt --check` e `cargo test --locked`.
+- MSRV adotada nesta fase: **Rust 1.78.0** (fixada em `rust-toolchain.toml`).
+
+### Comandos locais equivalentes ao CI
+```bash
+cargo build --locked
+cargo check --locked
+cargo fmt --check
+cargo test --locked
+```
+
 ## Uso
 ```bash
 cargo run -- examples/principal_valida.pink
