@@ -46,18 +46,24 @@ fn validate_function(
     function_sigs: &HashMap<String, FunctionSigCfg>,
 ) -> Result<(), PinkerError> {
     if function.blocks.is_empty() {
-        return Err(cfg_error(
+        return Err(cfg_error_ctx(
+            function,
+            None,
             &format!("função '{}' sem blocos na CFG IR", function.name),
+            None,
             function.span,
         ));
     }
 
     if function.entry != "entry" {
-        return Err(cfg_error(
+        return Err(cfg_error_ctx(
+            function,
+            None,
             &format!(
                 "função '{}' deve usar label de entrada 'entry'",
                 function.name
             ),
+            None,
             function.span,
         ));
     }
@@ -66,8 +72,11 @@ fn validate_function(
     let mut entry_count = 0usize;
     for block in &function.blocks {
         if block.label.trim().is_empty() {
-            return Err(cfg_error(
+            return Err(cfg_error_ctx(
+                function,
+                None,
                 &format!("função '{}' contém bloco sem label", function.name),
+                None,
                 function.span,
             ));
         }
@@ -75,22 +84,28 @@ fn validate_function(
             entry_count += 1;
         }
         if !labels.insert(block.label.clone()) {
-            return Err(cfg_error(
+            return Err(cfg_error_ctx(
+                function,
+                None,
                 &format!(
                     "função '{}' contém label duplicado '{}'",
                     function.name, block.label
                 ),
+                None,
                 function.span,
             ));
         }
     }
 
     if entry_count != 1 {
-        return Err(cfg_error(
+        return Err(cfg_error_ctx(
+            function,
+            None,
             &format!(
                 "função '{}' deve ter exatamente um bloco 'entry'",
                 function.name
             ),
+            None,
             function.span,
         ));
     }
@@ -98,8 +113,11 @@ fn validate_function(
     let mut slot_types = HashMap::new();
     for param in &function.params {
         if param.slot.trim().is_empty() {
-            return Err(cfg_error(
+            return Err(cfg_error_ctx(
+                function,
+                None,
                 &format!("função '{}' possui parâmetro com slot vazio", function.name),
+                Some("item='param'"),
                 function.span,
             ));
         }
@@ -107,8 +125,11 @@ fn validate_function(
     }
     for local in &function.locals {
         if local.slot.trim().is_empty() {
-            return Err(cfg_error(
+            return Err(cfg_error_ctx(
+                function,
+                None,
                 &format!("função '{}' possui local com slot vazio", function.name),
+                Some("item='local'"),
                 function.span,
             ));
         }
@@ -256,8 +277,14 @@ fn validate_block(
                     ));
                 }
                 if actual != *expected {
-                    return Err(cfg_error(
+                    return Err(cfg_error_ctx(
+                        function,
+                        Some(block.label.as_str()),
                         &format!("tipo incompatível em slot '{}'", slot),
+                        Some(&format!(
+                            "instr='let/assign', esperado={:?}, recebido={:?}",
+                            expected, actual
+                        )),
                         function.span,
                     ));
                 }
@@ -346,8 +373,14 @@ fn validate_block(
                         function.span,
                     )?;
                     if actual != *expected {
-                        return Err(cfg_error(
+                        return Err(cfg_error_ctx(
+                            function,
+                            Some(block.label.as_str()),
                             "tipo de argumento inválido em call",
+                            Some(&format!(
+                                "instr='call {}', esperado={:?}, recebido={:?}",
+                                callee, expected, actual
+                            )),
                             function.span,
                         ));
                     }
@@ -400,8 +433,11 @@ fn validate_block(
             let cond_ty =
                 infer_operand_type(cond, slot_types, &temp_types, global_consts, function.span)?;
             if cond_ty != TypeIR::Logica {
-                return Err(cfg_error(
+                return Err(cfg_error_ctx(
+                    function,
+                    Some(block.label.as_str()),
                     &format!("branch em '{}' exige condição lógica", block.label),
+                    Some(&format!("term='branch', recebido={:?}", cond_ty)),
                     function.span,
                 ));
             }
@@ -484,6 +520,26 @@ fn cfg_error(msg: &str, span: Span) -> PinkerError {
         msg: msg.to_string(),
         span,
     }
+}
+
+fn cfg_error_ctx(
+    function: &crate::cfg_ir::FunctionCfgIR,
+    block: Option<&str>,
+    msg: &str,
+    detail: Option<&str>,
+    span: Span,
+) -> PinkerError {
+    let prefix = if let Some(detail) = detail {
+        format!("{} [{}]", msg, detail)
+    } else {
+        msg.to_string()
+    };
+    let scoped = if let Some(block) = block {
+        format!("{} (função '{}', bloco '{}')", prefix, function.name, block)
+    } else {
+        format!("{} (função '{}')", prefix, function.name)
+    };
+    cfg_error(&scoped, span)
 }
 
 fn default_span() -> Span {

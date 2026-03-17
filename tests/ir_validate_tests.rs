@@ -212,3 +212,27 @@ fn falha_bloco_malformado() {
         Err(PinkerError::IrValidation { .. })
     ));
 }
+
+#[test]
+fn erro_ir_tem_contexto_padronizado() {
+    let program = ProgramIR {
+        module_name: "main".to_string(),
+        consts: vec![],
+        functions: vec![base_function(
+            TypeIR::Bombom,
+            vec![InstructionIR::Assign {
+                slot: "%x#0".to_string(),
+                value: ValueIR::Bool(true),
+                span: sp(),
+            }],
+        )],
+    };
+
+    let err = ir_validate::validate_program(&program)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("atribuição IR com tipo incompatível"));
+    assert!(err.contains("função 'principal', bloco 'entry'"));
+    assert!(err.contains("instr='let/assign'"));
+    assert!(err.contains("esperado=Bombom, recebido=Logica"));
+}

@@ -1,0 +1,15 @@
+pacote main;
+
+eterno INC: bombom = 1;
+
+carinho soma_inc(n: bombom) -> bombom {
+    talvez n == 0 {
+        mimo 0;
+    } senao {
+        mimo INC + soma_inc(n - 1);
+    }
+}
+
+carinho principal() -> bombom {
+    mimo soma_inc(5);
+}
