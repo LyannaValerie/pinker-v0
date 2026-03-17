@@ -159,6 +159,7 @@ fn machine_falha_em_programa_invalido() {
             ret_type: pinker_v0::ir::TypeIR::Bombom,
             params: vec![],
             locals: vec![],
+            slot_types: std::collections::HashMap::new(),
             blocks: vec![pinker_v0::abstract_machine::MachineBlock {
                 label: "entry".to_string(),
                 code: vec![],
@@ -169,4 +170,29 @@ fn machine_falha_em_programa_invalido() {
 
     let err = pinker_v0::abstract_machine_validate::validate_program(&program).unwrap_err();
     assert!(err.to_string().contains("Erro Validação Máquina Abstrata"));
+}
+
+#[test]
+fn machine_falha_load_slot_inexistente() {
+    let program = pinker_v0::abstract_machine::MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![pinker_v0::abstract_machine::MachineFunction {
+            name: "principal".to_string(),
+            ret_type: pinker_v0::ir::TypeIR::Bombom,
+            params: vec![],
+            locals: vec![],
+            slot_types: std::collections::HashMap::new(),
+            blocks: vec![pinker_v0::abstract_machine::MachineBlock {
+                label: "entry".to_string(),
+                code: vec![pinker_v0::abstract_machine::MachineInstr::LoadSlot(
+                    "%x#0".to_string(),
+                )],
+                terminator: pinker_v0::abstract_machine::MachineTerminator::Ret,
+            }],
+        }],
+    };
+
+    let err = pinker_v0::abstract_machine_validate::validate_program(&program).unwrap_err();
+    assert!(err.to_string().contains("load_slot para slot inexistente"));
 }
