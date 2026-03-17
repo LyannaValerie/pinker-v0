@@ -1,9 +1,24 @@
+//! Validador estrutural e de disciplina de pilha da Machine abstrata.
+//!
+//! Dois passes principais:
+//! 1. **Validação estrutural** (`validate_function`): verifica slots, labels,
+//!    labels duplicados, aridade de calls e consistência de ret/ret_void.
+//! 2. **Disciplina de pilha** (`validate_stack_discipline`): simula a pilha
+//!    via worklist (BFS sobre os blocos), propagando e mesclando tipos de
+//!    stack entre predecessores. Detecta underflow, tipos incompatíveis e
+//!    altura inconsistente entre caminhos.
+//!
+//! Ponto de entrada: [`validate_program`].
+
 use crate::abstract_machine::{MachineFunction, MachineInstr, MachineProgram, MachineTerminator};
 use crate::error::PinkerError;
 use crate::ir::TypeIR;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet, VecDeque};
 
+// Tipo de valor de pilha inferido estaticamente.
+// `Unknown` representa tipo não resolvido (e.g. slot sem anotação ainda);
+// é compatível com qualquer tipo para não bloquear caminhos sem informação.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum StackValueType {
     Bombom,
@@ -185,6 +200,10 @@ fn validate_function(
     validate_stack_discipline(f, globals, sigs)
 }
 
+// Simula a pilha de tipos para cada bloco usando um worklist (BFS).
+// `in_state` guarda a altura/tipos da pilha na entrada de cada bloco.
+// Quando dois predecessores geram tipos diferentes para o mesmo slot da
+// pilha, o tipo resultante vira `Unknown` via `merge_stack_types`.
 fn validate_stack_discipline(
     f: &MachineFunction,
     globals: &HashMap<String, StackValueType>,
@@ -609,6 +628,7 @@ fn merge_types(a: StackValueType, b: StackValueType) -> StackValueType {
     }
 }
 
+// Temporários gerados pelo lowering seguem o padrão `%t<N>` (e.g. `%t0`, `%t12`).
 fn is_temp_slot(slot: &str) -> bool {
     let Some(suffix) = slot.strip_prefix("%t") else {
         return false;

@@ -80,3 +80,9 @@
   - auditoria de duplicação em `tests/interpreter_tests.rs` executada
   - snapshot atual sem duplicatas dos testes/helpers listados
   - stack trace simples de runtime mantido
+
+
+- Rodada documental — concluída
+  - doc comments de módulo adicionados: `interpreter.rs`, `abstract_machine_validate.rs`, `ir_validate.rs`, `cfg_ir_validate.rs`
+  - comentários curtos em blocos densos: worklist de pilha, pop_args, attach_runtime_trace, is_temp_slot, enrich_ir_error, validate_block (CFG)
+  - nenhuma mudança funcional; todos os comandos de CI passando

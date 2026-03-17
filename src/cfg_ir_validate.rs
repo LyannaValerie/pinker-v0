@@ -1,3 +1,16 @@
+//! Validador da CFG IR (blocos básicos com terminadores) do Pinker.
+//!
+//! Opera sobre `ProgramCfgIR` após o lowering da IR estruturada. Verifica:
+//! - estrutura de cada função: bloco `entry` único, labels sem duplicata
+//! - alcançabilidade de todos os blocos via BFS a partir de `entry`
+//! - instruções por bloco: tipos de slots, temporários e argumentos de call
+//! - terminadores: `jump`/`branch`/`return` com targets e tipos corretos
+//!
+//! Temporários (`%tN`) têm escopo por bloco; são criados em `Unary`,
+//! `Binary` e `Call` e consultados em operandos subsequentes do mesmo bloco.
+//!
+//! Ponto de entrada: [`validate_program`].
+
 use crate::cfg_ir::{InstructionCfgIR, OperandIR, ProgramCfgIR, TempIR, TerminatorIR};
 use crate::error::PinkerError;
 use crate::ir::TypeIR;
@@ -152,6 +165,8 @@ fn validate_function(
     Ok(())
 }
 
+// BFS a partir de `entry` para garantir que todos os blocos declarados são
+// alcançáveis. Blocos inalcançáveis são erro: a CFG IR não aceita código morto.
 fn validate_reachability(
     function: &crate::cfg_ir::FunctionCfgIR,
     labels: &HashSet<String>,
@@ -241,6 +256,8 @@ fn validate_reachability(
     Ok(())
 }
 
+// Valida instruções e o terminador de um bloco básico.
+// `temp_types` cresce durante as instruções do bloco (escopo local ao bloco).
 fn validate_block(
     block: &crate::cfg_ir::BasicBlockIR,
     function: &crate::cfg_ir::FunctionCfgIR,

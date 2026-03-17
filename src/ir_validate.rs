@@ -1,3 +1,13 @@
+//! Validador da IR estruturada (alto nível) do Pinker.
+//!
+//! Opera sobre `ProgramIR` antes do lowering para CFG IR. Verifica:
+//! - constantes globais: nome, tipo e valor não nulo
+//! - funções: bloco de entrada `entry`, slots únicos por parâmetro/local
+//! - blocos: instruções `let`/`assign`/`return`/`if` com tipos compatíveis
+//! - expressões: inferência recursiva de tipo via [`infer_value_type`]
+//!
+//! Ponto de entrada: [`validate_program`].
+
 use crate::error::PinkerError;
 use crate::ir::{
     BinaryOpIR, BlockIR, FunctionIR, InstructionIR, ProgramIR, TypeIR, UnaryOpIR, ValueIR,
@@ -397,6 +407,8 @@ fn ir_validation_error_ctx(
     ir_validation_error(&scoped, span)
 }
 
+// Enriquece um `IrValidation` existente com contexto de função/bloco/detalhe.
+// Erros de outras variantes passam direto sem modificação.
 fn enrich_ir_error(
     err: PinkerError,
     function: Option<&FunctionIR>,

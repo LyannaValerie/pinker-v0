@@ -1,85 +1,72 @@
 # Handoff Auditor
 
-## Rodada
-- fase: Fase 17 — recursão com teste dedicado e robustez de chamadas no interpretador
-- escopo auditado: src/interpreter.rs, tests/interpreter_tests.rs, pipeline completa `--run`
-- estado auditado: Fase 16 concluída, 164 testes passando, build limpo
+## Rodada atual
+- **Fase documental** (sem número de fase nova): documentação seletiva de módulos centrais.
 
-## Como me situei
-- Lidos: README.md, docs/agent_state.md, docs/handoff_codex.md, docs/phases.md, src/main.rs, src/interpreter.rs, src/error.rs, tests/interpreter_tests.rs
-- Executados: `cargo build` (limpo) e `cargo test` (164 passou, 0 falhou)
-- Testado manualmente: fat(5) → 120, fib(7) → 13, recursão mútua eh_par(4) → 1
-- Fonte de verdade: código real do workspace. Sem divergências relevantes encontradas.
+## Objetivo
+Adicionar doc comments e comentários curtos de alta utilidade nos módulos mais densos,
+sem alterar comportamento funcional.
 
-## Confirmado no código
-- Recursão já funciona sem redesign: `call_function` é chamada recursivamente via `exec_instr::Call`, e cada chamada cria novos `slots`/`stack`/`labels` isolados na Rust call stack
-- Recursão mútua também funciona: funções se enxergam pelo `program.functions` compartilhado
-- Sem nenhum teste dedicado de recursão em `interpreter_tests.rs` (32 testes, nenhum cobre auto-chamada)
-- Sem nenhum exemplo `.pink` de função recursiva em `examples/`
-- Recursão infinita causa `stack overflow` do Rust (panic fatal, não `PinkerError`) — comportamento esperado para um interpretador sem limite de profundidade
-- `find_function` faz busca linear O(n) por nome — irrelevante para programas pequenos, sem nenhum risco para esta fase
-- `CmpLt` já coberto por `run_comparacao_em_fluxo_de_controle` (Fase 13), sem lacuna
+## Estado real encontrado
+- Workspace local em estado limpo pós-Fase 21b.
+- `cargo build`, `cargo check`, `cargo fmt --check` e `cargo test` passando antes e após esta rodada.
 
-## Lacunas principais
-- **Zero testes de recursão**: fatorial, fibonacci, recursão com acumulador — nenhum coberto
-- **Zero testes de recursão mútua**: duas funções que se chamam entre si — nenhum coberto
-- **Sem exemplo `.pink` de recursão**: `examples/run_fatorial.pink` e afins não existem
-- **Recursão infinita gera panic do Rust**, não `PinkerError` — limite documentado mas sem teste que verifica o comportamento atual (e.g., que o processo termina com código não-zero)
+## Arquivos lidos
+1. README.md
+2. docs/agent_state.md
+3. docs/handoff_codex.md
+4. docs/phases.md
+5. src/interpreter.rs
+6. src/abstract_machine_validate.rs
+7. src/ir_validate.rs
+8. src/cfg_ir_validate.rs
 
-## Testes de recursão indispensáveis
-Todos via `run_code(source)`:
+## Arquivos alterados
+- `src/interpreter.rs`
+- `src/abstract_machine_validate.rs`
+- `src/ir_validate.rs`
+- `src/cfg_ir_validate.rs`
+- `docs/handoff_auditor.md` (este arquivo)
+- `docs/agent_state.md`
+- `docs/phases.md`
 
-1. `run_recursao_fatorial` — `fat(5)` → `120`; cobre auto-chamada com base `n == 0`
-2. `run_recursao_fibonacci` — `fib(7)` → `13`; cobre recursão dupla com dois casos base
-3. `run_recursao_com_acumulador` — `soma(n)` retorna `n + (n-1) + ... + 1`; cobre recursão linear simples sem ramos duplos
+## Tipo de documentação adicionada
 
-Opcional de alto valor:
-4. `run_recursao_mutua` — `eh_par(4)` via `eh_par`/`eh_impar` mutuamente recursivas → `1`; confirma que o programa compartilhado é acessível recursivamente
+### src/interpreter.rs
+- Doc comment de módulo descrevendo o papel do interpretador, o que suporta e o ponto de entrada.
+- Comentário em `call_function` explicando o uso do call_stack e a closure interna.
+- Comentário em `pop_args` explicando o `reverse` (LIFO vs ordem de declaração).
+- Comentário em `attach_runtime_trace` explicando a guarda contra duplicação.
 
-## Testes end-to-end indispensáveis
-Via `cargo run -q -- --run`:
+### src/abstract_machine_validate.rs
+- Doc comment de módulo descrevendo os dois passes (estrutural + disciplina de pilha).
+- Comentário em `StackValueType` explicando o papel de `Unknown`.
+- Comentário em `validate_stack_discipline` descrevendo a estratégia de worklist/BFS e merge.
+- Comentário em `is_temp_slot` documentando o padrão `%tN`.
 
-1. `examples/run_fatorial.pink` — `fat(5)` → imprime `120`
-2. `examples/run_fibonacci.pink` — `fib(7)` → imprime `13`
+### src/ir_validate.rs
+- Doc comment de módulo listando o que o validador cobre e o ponto de entrada.
+- Comentário em `enrich_ir_error` explicando o comportamento com erros de outras variantes.
 
-Esses arquivos devem ser criados em `examples/` e executados nos comandos obrigatórios ao final.
+### src/cfg_ir_validate.rs
+- Doc comment de módulo descrevendo a CFG IR, o que valida e o escopo de temporários por bloco.
+- Comentário em `validate_reachability` explicando BFS e a política contra código morto.
+- Comentário em `validate_block` explicando o escopo de `temp_types`.
 
-## Pequenos endurecimentos aceitáveis
-- Nenhum endurecimento estrutural é necessário nesta fase: o interpretador já suporta recursão corretamente
-- Opcional mínimo: adicionar comentário inline em `call_function` explicando que a recursão usa a Rust call stack e que não há proteção contra stack overflow — apenas documentação, sem mudança de código
+## Áreas ainda carentes de documentação
+- `src/abstract_machine.rs`: structs sem doc comments.
+- `src/cfg_ir.rs`: tipos de instrução/terminador sem descrição.
+- `src/ir.rs`: tipos IR centrais sem doc comments.
+- `src/semantic.rs` / `src/parser.rs`: módulos grandes sem comentários de seção.
+- `tests/interpreter_tests.rs`: helpers de teste sem descrição de intenção.
 
-## O que NÃO deve entrar nesta fase
-- Limite de profundidade de chamada (`max_depth`) — requer decisão de design (qual limite? qual erro?)
-- Proteção contra recursão infinita com `RuntimeError` — fora do escopo atual
-- Otimização de tail call — fora do escopo
-- Loops (`eterno`) no interpretador — requer lowering novo
-- Escrita em globals
-- I/O de linguagem
-- Debugger, tracing
-- Qualquer mudança em frontend, parser, semântica ou camadas de lowering
-- Backend nativo, LLVM, Cranelift
+## Resultado dos comandos obrigatórios
+- `cargo build`: ok
+- `cargo check`: ok
+- `cargo fmt --check`: ok (sem diff)
+- `cargo test`: 20 passed; 0 failed
 
-## Divergências entre docs e código real
-- Nenhuma divergência. `docs/handoff_codex.md` e `docs/agent_state.md` refletem corretamente o estado pós-Fase 16.
-- `docs/handoff_codex.md` menciona como próximos passos "loops (eterno)" e "overflow wrapping". Ambos continuam adiados. Esta fase prioriza recursão.
-
-## Recomendação ao executor
-Mexer em:
-- `tests/interpreter_tests.rs`: adicionar 3 testes via `run_code` (fatorial, fibonacci, recursão linear) + 1 opcional (recursão mútua)
-- `examples/run_fatorial.pink`: criar arquivo simples com `fat(5)` → `120`
-- `examples/run_fibonacci.pink`: criar arquivo simples com `fib(7)` → `13`
-
-Não mexer em:
-- `src/interpreter.rs` — nenhuma mudança necessária; recursão já funciona
-- `error.rs`, `main.rs`, camadas de lowering, frontend
-
-Menor diff aceitável:
-- `tests/interpreter_tests.rs` com 3–4 novos testes, todos passando
-- 2 novos arquivos `.pink` em `examples/`
-- `src/interpreter.rs` intocado
-- `cargo test` verde ao final
-- Atualizar `docs/handoff_codex.md`, `docs/agent_state.md` e `docs/phases.md` ao concluir
-
-## Comandos executados
-- cargo build: `Finished dev profile — 0 erros, 0 warnings`
-- cargo test: `164 passed; 0 failed` (32 em interpreter_tests, 132 nos demais)
+## Próximos passos sugeridos
+- Documentação seletiva de `src/abstract_machine.rs` e `src/cfg_ir.rs`.
+- Comentários de seção em `src/semantic.rs` para separar as fases de checagem.
+- Nada nesta rodada alterou comportamento funcional.
