@@ -379,30 +379,10 @@ fn apply_instr_effect(
                         "call_void com tipo de argumento incompatível",
                     )?;
                 }
-            };
-            if out_ty == StackValueType::Logica
-                && pair[0] != StackValueType::Unknown
-                && pair[1] != StackValueType::Unknown
-                && pair[0] != pair[1]
-            {
-                return Err(err_ctx(
-                    f,
-                    Some(label),
-                    "tipo inválido em comparação binária",
-                ));
+            } else {
+                in_state.insert(succ.clone(), stack.clone());
+                worklist.push_back(succ);
             }
-            stack.push(out_ty);
-        }
-        MachineInstr::Call { callee, argc } => {
-            pop_typed(f, label, stack, *argc, "underflow em call")?;
-            let ret = sigs
-                .get(callee)
-                .map(|(ret, _)| *ret)
-                .unwrap_or(TypeIR::Bombom);
-            stack.push(type_to_stack(ret));
-        }
-        MachineInstr::CallVoid { argc, .. } => {
-            pop_typed(f, label, stack, *argc, "underflow em call_void")?;
         }
     }
 

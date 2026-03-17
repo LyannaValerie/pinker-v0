@@ -547,6 +547,48 @@ fn stack_call_tipo_argumento_incompativel() {
 }
 
 #[test]
+fn stack_call_void_tipo_argumento_incompativel() {
+    let program = MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![
+            MachineFunction {
+                name: "usa_logica".to_string(),
+                ret_type: TypeIR::Nulo,
+                params: vec!["%x#0".to_string()],
+                locals: vec![],
+                slot_types: HashMap::from([("%x#0".to_string(), TypeIR::Logica)]),
+                blocks: vec![block("entry", vec![], MachineTerminator::RetVoid)],
+            },
+            MachineFunction {
+                name: "f".to_string(),
+                ret_type: TypeIR::Bombom,
+                params: vec![],
+                locals: vec![],
+                slot_types: HashMap::new(),
+                blocks: vec![block(
+                    "entry",
+                    vec![
+                        MachineInstr::PushInt(1),
+                        MachineInstr::CallVoid {
+                            callee: "usa_logica".to_string(),
+                            argc: 1,
+                        },
+                        MachineInstr::PushInt(0),
+                    ],
+                    MachineTerminator::Ret,
+                )],
+            },
+        ],
+    };
+
+    let err = abstract_machine_validate::validate_program(&program)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("call_void com tipo de argumento incompatível"));
+}
+
+#[test]
 fn stack_valido_temporario_if_else() {
     let out = render_machine(
         "pacote main; carinho principal() -> bombom { talvez verdade { mimo 1 + 2; } senao { mimo 3 + 4; } }",
