@@ -54,6 +54,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Snapshot atual sem duplicatas ativas para os helpers/testes mapeados
 - Stack trace simples de runtime preservado
 
+## Revalidação operacional (Fase 21b)
+- Reexecução de `cargo build/check/fmt --check/test` sem falhas
+- Reconfirmação do cenário CLI de erro (`examples/run_div_zero_cli.pink`) com stderr enriquecido por stack trace
+
 ## Restrições do projeto
 - Não expandir linguagem/gramática.
 - Não reabrir frontend.

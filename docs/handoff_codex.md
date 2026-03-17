@@ -1,10 +1,10 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- **Hotfix da Fase 21b**: saneamento de possível duplicação em `tests/interpreter_tests.rs`.
+- **Revalidação da Fase 21b**: confirmação de estabilidade do stack trace simples de runtime.
 
 ## Objetivo
-- Corrigir falha de `cargo test` por duplicação de funções de teste/helper, preservando o stack trace simples já implementado no interpretador.
+- Confirmar que o estado mergeado permanece estável, sem regressão do stack trace simples e sem duplicações ativas em `tests/interpreter_tests.rs`.
 
 ## Estado real encontrado
 - Workspace local usado como fonte de verdade.
@@ -12,13 +12,13 @@
 - `cargo test` já passava no estado atual.
 
 ## Ação aplicada
-- Hotfix de confirmação: nenhuma remoção adicional foi necessária em `tests/interpreter_tests.rs` neste snapshot, pois não havia duplicatas ativas.
-- Stack trace simples no interpretador foi preservado sem mudanças funcionais.
+- Revalidação operacional: nenhuma mudança funcional foi necessária no interpretador.
+- Auditoria rápida de `tests/interpreter_tests.rs`: snapshot segue sem duplicatas ativas.
+- Stack trace simples no interpretador foi preservado como implementado.
 
 ## Arquivos alterados nesta rodada
 - `docs/handoff_codex.md`
 - `docs/agent_state.md`
-- `docs/phases.md`
 
 ## Comandos executados
 - `cargo build`
@@ -34,3 +34,4 @@
 ## Próximos passos sugeridos
 - Manter o monitoramento de merges para evitar reintrodução de duplicatas em `interpreter_tests.rs`.
 - Se reaparecer duplicação em outro branch, remover apenas o bloco redundante e manter esta cobertura.
+- Se houver necessidade de diagnóstico adicional, evoluir o stack trace com metadados de frame (label/bloco) em fase dedicada.
