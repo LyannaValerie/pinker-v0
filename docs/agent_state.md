@@ -17,9 +17,14 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 15: globals no interpretador (`load_global`)
 - Fase 16: robustez do interpretador e testes negativos de runtime
 - Fase 17: recursão coberta por testes dedicados e exemplos CLI
+- Fase 18: CI mínima + MSRV
 
 ## Fase atual
-- Fase 17 concluída (recursão direta/mútua testada; exemplos `--run` adicionados).
+- Fase 18 concluída (workflow mínimo de CI e política de MSRV documentada/fixada).
+
+## Infraestrutura mínima ativa
+- Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
+- MSRV fixada em `rust-toolchain.toml` (`1.78.0`)
 
 ## Restrições do projeto
 - Não expandir linguagem/gramática.

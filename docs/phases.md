@@ -41,3 +41,9 @@
   - 4 testes novos em `interpreter_tests`: fatorial, fibonacci, recursão linear e recursão mútua
   - exemplos CLI adicionados: `examples/run_fatorial.pink` e `examples/run_fibonacci.pink`
   - validação end-to-end com `cargo run -- --run` para ambos os exemplos
+
+
+- Fase 18 — concluída
+  - CI mínima adicionada em `.github/workflows/ci.yml`
+  - checks de CI: `cargo build --locked`, `cargo check --locked`, `cargo fmt --check`, `cargo test --locked`
+  - política de MSRV definida como Rust `1.78.0` em `rust-toolchain.toml` e documentada no README

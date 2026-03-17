@@ -1,61 +1,46 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Implementação da **Fase 17**: testes de recursão no interpretador e exemplos CLI `--run`.
+- Implementação da **FASE 18 — CI mínima + MSRV**.
 
 ## Objetivo
-- Cobrir recursão direta e mútua com testes dedicados sem alterar arquitetura.
-- Adicionar exemplos executáveis para validação de recursão via CLI.
-- Preservar integralmente o comportamento já entregue na Fase 16.
+- Adicionar infraestrutura mínima de CI sem alterar comportamento funcional.
+- Definir uma política de MSRV clara, simples e auditável.
 
-## Arquivos alterados
-- `tests/interpreter_tests.rs`
-- `examples/run_fatorial.pink`
-- `examples/run_fibonacci.pink`
-- `docs/handoff_codex.md`
-- `docs/agent_state.md`
-- `docs/phases.md`
-
-## Diagnóstico real encontrado
-- Não foi possível sincronizar com `origin/main` porque o clone local não possui branch `main` nem remote `origin` configurados.
-- Estado local auditado: documentação e código alinhados em Fase 16 concluída.
-- `src/interpreter.rs` já suporta recursão via chamadas de função recursivas na stack do Rust.
-- Existia lacuna de cobertura: nenhum teste dedicado de recursão em `tests/interpreter_tests.rs`.
-- Não existiam exemplos `examples/run_fatorial.pink` e `examples/run_fibonacci.pink`.
-
-## O que foi absorvido de `docs/handoff_auditor.md`
-- Escopo mínimo: adicionar apenas testes e exemplos de recursão.
-- Não alterar parser/semântica/backend/lowering.
-- Manter `src/interpreter.rs` intocado.
-- Coberturas indispensáveis: fatorial, fibonacci, recursão linear (acumulada) e, opcionalmente, recursão mútua.
+## Estado real encontrado
+- Workspace local foi usado como fonte de verdade.
+- Não foi assumido `origin/main` funcional.
+- Base inicial saudável: `cargo build` e `cargo test` já passavam antes das alterações.
 
 ## Decisão técnica aplicada
-- `src/interpreter.rs` mantido sem alterações.
-- `tests/interpreter_tests.rs`: adicionados 4 testes de recursão via `run_code`:
-  1. `run_recursao_fatorial` (`fat(5) = 120`)
-  2. `run_recursao_fibonacci` (`fib(7) = 13`)
-  3. `run_recursao_com_acumulador` (`soma(5) = 15`)
-  4. `run_recursao_mutua` (`eh_par(4) = 1`)
-- `examples/`:
-  - criado `run_fatorial.pink`
-  - criado `run_fibonacci.pink`
+- Criado workflow mínimo em `.github/workflows/ci.yml` com um job `rust` executando:
+  - `cargo build --locked`
+  - `cargo check --locked`
+  - `cargo fmt --check`
+  - `cargo test --locked`
+- Definida MSRV conservadora e explícita como **Rust 1.78.0** via `rust-toolchain.toml`.
+- README atualizado com seção de CI + MSRV e comandos locais equivalentes.
 
-## Divergências entre docs e código
-- Divergência operacional externa: instrução exige sincronização com `origin/main`, mas esse workspace não possui `origin/main` disponível.
-- Sem divergências funcionais relevantes entre docs e código local após leitura obrigatória.
+## Arquivos criados/alterados
+- Criado: `.github/workflows/ci.yml`
+- Criado: `rust-toolchain.toml`
+- Alterado: `README.md`
+- Alterado: `docs/handoff_codex.md`
+- Alterado: `docs/agent_state.md`
+- Alterado: `docs/phases.md`
 
-## Testes/comandos executados
-- Inicial (antes das mudanças):
-  - `cargo build`: limpo
-  - `cargo test`: limpo (164 passed)
-- Final (após mudanças):
-  - `cargo build`: limpo
-  - `cargo check`: limpo
-  - `cargo fmt --check`: limpo
-  - `cargo test`: limpo (168 passed)
-  - `cargo run -q -- --run examples/run_fatorial.pink` → `120`
-  - `cargo run -q -- --run examples/run_fibonacci.pink` → `13`
+## Comandos locais equivalentes ao CI
+- `cargo build --locked`
+- `cargo check --locked`
+- `cargo fmt --check`
+- `cargo test --locked`
 
-## Pendências
-- Continuar sem proteção contra recursão infinita/stack overflow (adiado por escopo).
-- Remoto `origin/main` ausente neste ambiente; sincronização plena depende de configurar remote.
+## Validação executada nesta rodada
+- `cargo build`
+- `cargo check`
+- `cargo fmt --check`
+- `cargo test`
+
+## Próximos passos sugeridos
+- Opcional futuro: rodar CI também em pull_request com filtro de paths (manter simples).
+- Opcional futuro: adicionar job separado para validar explicitamente MSRV em CI, se necessário.
