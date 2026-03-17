@@ -19,9 +19,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 17: recursão coberta por testes dedicados e exemplos CLI
 - Fase 18: CI mínima + MSRV
 - Fase 19: padronização de mensagens de erro entre IR / CFG / Machine
+- Fase 20: mais testes end-to-end com `--run`
 
 ## Fase atual
-- Fase 19 concluída (mensagens de validação padronizadas entre IR/CFG/Machine, com contexto técnico consistente).
+- Fase 20 concluída (cobertura ampliada de execução real via CLI `--run` com exemplos válidos e inválido de runtime).
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -31,6 +32,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - IR e CFG IR agora usam contexto padronizado com função/bloco quando aplicável
 - Mensagens de incompatibilidade de tipo incluem esperado vs recebido em pontos críticos
 - Machine manteve padrão contextual existente (referência de estilo)
+
+## Confiabilidade end-to-end (Fase 20)
+- Cobertura adicional de `--run` com exemplos de global+chamada, recursão+global e mutação+if/else
+- Cobertura explícita de erro de runtime observado pela CLI (exit non-zero + stderr)
 
 ## Restrições do projeto
 - Não expandir linguagem/gramática.

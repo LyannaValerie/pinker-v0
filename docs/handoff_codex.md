@@ -1,51 +1,51 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Implementação da **FASE 19 — padronização de mensagens de erro entre IR / CFG / Machine**.
+- Implementação da **FASE 20 — mais testes end-to-end com `--run`**.
 
 ## Objetivo
-- Padronizar estilo de mensagens entre validadores IR e CFG IR, aproximando do padrão contextual já usado na Machine.
-- Enriquecer contexto de forma barata (função, bloco, instrução/terminador e esperado vs recebido quando aplicável).
-- Preservar semântica de validação e manter diff pequeno.
+- Aumentar confiança prática do fluxo completo da CLI real (`arquivo .pink -> parser -> semântica -> IR -> CFG -> seleção -> Machine -> interpretador`).
+- Cobrir combinações realistas sem alterar linguagem/runtime.
 
 ## Estado real encontrado
 - Workspace local usado como fonte de verdade.
-- Docs operacionais anteriores apontavam Fase 18 concluída.
-- Base inicial saudável: `cargo build` e `cargo test` passavam antes das alterações.
+- Fase 19 estava concluída e base inicial estava saudável (`cargo build`/`cargo test` passando).
 
-## O que foi padronizado na Fase 19
-- **IR (`src/ir_validate.rs`)**:
-  - novo helper contextual `ir_validation_error_ctx` com formato uniforme.
-  - enrich de erros inferidos com `enrich_ir_error` para preservar origem e anexar escopo.
-  - mensagens de erro relevantes agora podem incluir:
-    - função/bloco
-    - instrução (`instr='...'`)
-    - esperado vs recebido em incompatibilidades de tipo.
-- **CFG IR (`src/cfg_ir_validate.rs`)**:
-  - novo helper `cfg_error_ctx` no mesmo estilo de escopo.
-  - pontos críticos de validação ajustados para incluir função/bloco e detalhes de instrução.
-- **Machine (`src/abstract_machine_validate.rs`)**:
-  - sem alteração de implementação; usada como referência de estilo.
+## Cenários novos cobertos (end-to-end via CLI `--run`)
+- **global + chamada**: `examples/run_global_call_combo.pink` → `42`
+- **mutação local + if/else**: `examples/run_mut_if_else.pink` → `42`
+- **recursão + global**: `examples/run_recursao_global.pink` → `5`
+- **erro de runtime via CLI**: `examples/run_div_zero_cli.pink` → exit code não-zero e stderr com divisão por zero
 
-## Testes adicionados/ajustados
-- `tests/ir_validate_tests.rs`
-  - `erro_ir_tem_contexto_padronizado`
-- `tests/cfg_ir_validate_tests.rs`
-  - `erro_cfg_tem_contexto_padronizado`
-- `tests/abstract_machine_stack_tests.rs`
-  - `erro_machine_mantem_formato_padrao_de_contexto`
+## Exemplos adicionados
+- `examples/run_global_call_combo.pink`
+- `examples/run_mut_if_else.pink`
+- `examples/run_recursao_global.pink`
+- `examples/run_div_zero_cli.pink`
+
+## Testes adicionados
+- Em `tests/interpreter_tests.rs`:
+  - `cli_run_mantem_exemplos_base`
+  - `cli_run_global_com_chamada_exemplo_novo`
+  - `cli_run_mutacao_com_if_else_exemplo_novo`
+  - `cli_run_recursao_com_global_exemplo_novo`
+  - `cli_run_erro_runtime_em_exemplo_novo`
+
+## Observação sobre exemplos legados solicitados
+- `examples/run_recursao_fatorial.pink` não existe neste workspace; o teste trata esse caso de forma condicional sem falha espúria.
+- `examples/run_fatorial.pink` existe e foi executado nos comandos desta rodada.
 
 ## Limites que continuam
-- Sem refactor grande da hierarquia de erros.
-- Sem spans novos sofisticados.
-- Parte das mensagens antigas de CFG IR permanece com texto legado quando não havia ganho claro sem inflar escopo.
+- Sem escrita em globals.
+- Sem I/O da linguagem.
+- Sem novas capacidades de runtime fora do escopo.
 
 ## Arquivos alterados
-- `src/ir_validate.rs`
-- `src/cfg_ir_validate.rs`
-- `tests/ir_validate_tests.rs`
-- `tests/cfg_ir_validate_tests.rs`
-- `tests/abstract_machine_stack_tests.rs`
+- `examples/run_global_call_combo.pink`
+- `examples/run_mut_if_else.pink`
+- `examples/run_recursao_global.pink`
+- `examples/run_div_zero_cli.pink`
+- `tests/interpreter_tests.rs`
 - `docs/handoff_codex.md`
 - `docs/agent_state.md`
 - `docs/phases.md`
@@ -59,7 +59,16 @@
   - `cargo check`
   - `cargo fmt --check`
   - `cargo test`
+  - `cargo run -q -- --run examples/run_soma.pink`
+  - `cargo run -q -- --run examples/run_chamada.pink`
+  - `cargo run -q -- --run examples/run_global.pink`
+  - `cargo run -q -- --run examples/run_global_expr.pink`
+  - `cargo run -q -- --run examples/run_fatorial.pink`
+  - `cargo run -q -- --run examples/run_global_call_combo.pink`
+  - `cargo run -q -- --run examples/run_mut_if_else.pink`
+  - `cargo run -q -- --run examples/run_recursao_global.pink`
+  - `cargo run -q -- --run examples/run_div_zero_cli.pink`
 
 ## Próximos passos sugeridos
-- Opcional: continuar convergência textual total no CFG IR para 100% dos ramos de erro legados.
-- Opcional: considerar um helper compartilhado entre validadores para reduzir duplicação de formatação.
+- Expandir golden set de `--run` para cobrir mais casos de erro semântico observável pela CLI.
+- Opcional: suíte de exemplos negativos de parse/semântica dedicada para contratos de stderr.

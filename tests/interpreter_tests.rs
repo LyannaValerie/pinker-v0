@@ -576,3 +576,82 @@ fn run_recursao_mutua() {
     .unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(1)));
 }
+
+// ── Fase 20: mais cenários end-to-end reais via CLI --run ─────────────────
+
+fn run_cli_example(path: &str) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(path)
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn cli_run_mantem_exemplos_base() {
+    let casos = [
+        ("examples/run_soma.pink", "42\n"),
+        ("examples/run_chamada.pink", "42\n"),
+        ("examples/run_global.pink", "100\n"),
+        ("examples/run_global_expr.pink", "44\n"),
+    ];
+
+    for (path, expected) in casos {
+        let out = run_cli_example(path);
+        assert!(out.status.success(), "falhou em {}", path);
+        assert_eq!(
+            String::from_utf8_lossy(&out.stdout),
+            expected,
+            "path={}",
+            path
+        );
+        assert!(
+            String::from_utf8_lossy(&out.stderr).is_empty(),
+            "stderr em {}: {}",
+            path,
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    let maybe_fatorial = std::path::Path::new("examples/run_recursao_fatorial.pink");
+    if maybe_fatorial.exists() {
+        let out = run_cli_example("examples/run_recursao_fatorial.pink");
+        assert!(out.status.success());
+    }
+}
+
+#[test]
+fn cli_run_global_com_chamada_exemplo_novo() {
+    let out = run_cli_example("examples/run_global_call_combo.pink");
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
+    assert!(String::from_utf8_lossy(&out.stderr).is_empty());
+}
+
+#[test]
+fn cli_run_mutacao_com_if_else_exemplo_novo() {
+    let out = run_cli_example("examples/run_mut_if_else.pink");
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
+    assert!(String::from_utf8_lossy(&out.stderr).is_empty());
+}
+
+#[test]
+fn cli_run_recursao_com_global_exemplo_novo() {
+    let out = run_cli_example("examples/run_recursao_global.pink");
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "5\n");
+    assert!(String::from_utf8_lossy(&out.stderr).is_empty());
+}
+
+#[test]
+fn cli_run_erro_runtime_em_exemplo_novo() {
+    let out = run_cli_example("examples/run_div_zero_cli.pink");
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stdout).is_empty());
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("divisão por zero"),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}

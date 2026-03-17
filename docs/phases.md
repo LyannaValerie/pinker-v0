@@ -54,3 +54,10 @@
   - IR: contexto de função/bloco/instrução e detalhes esperado vs recebido em incompatibilidades de tipo
   - CFG IR: contexto de função/bloco e enriquecimento pontual com detalhe técnico de instrução
   - Machine mantida sem alteração estrutural, com teste garantindo formato contextual estável
+
+
+- Fase 20 — concluída
+  - ampliação de cobertura end-to-end da CLI `--run` com novos exemplos pequenos e auditáveis
+  - novos cenários: global+chamada, mutação local+if/else, recursão+global
+  - novo cenário inválido de runtime via CLI: divisão por zero com exit code não-zero e stderr
+  - manutenção explícita dos exemplos base `run_soma`, `run_chamada`, `run_global`, `run_global_expr`
