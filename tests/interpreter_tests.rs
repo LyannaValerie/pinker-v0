@@ -686,3 +686,120 @@ fn cli_run_erro_runtime_em_exemplo_novo() {
     assert!(stderr.contains("stack trace:"), "stderr: {}", stderr);
     assert!(stderr.contains("principal"), "stderr: {}", stderr);
 }
+
+// ── Fase 17: recursão no interpretador ─────────────────────────────────────
+
+#[test]
+fn run_recursao_fatorial() {
+    let out = run_code(
+        "pacote main; carinho fat(n: bombom) -> bombom { talvez n == 0 { mimo 1; } senao { mimo n * fat(n - 1); } } carinho principal() -> bombom { mimo fat(5); }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(120)));
+}
+
+#[test]
+fn run_recursao_fibonacci() {
+    let out = run_code(
+        "pacote main; carinho fib(n: bombom) -> bombom { talvez n == 0 { mimo 0; } senao { talvez n == 1 { mimo 1; } senao { mimo fib(n - 1) + fib(n - 2); } } } carinho principal() -> bombom { mimo fib(7); }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(13)));
+}
+
+#[test]
+fn run_recursao_com_acumulador() {
+    let out = run_code(
+        "pacote main; carinho soma(n: bombom) -> bombom { talvez n == 0 { mimo 0; } senao { mimo n + soma(n - 1); } } carinho principal() -> bombom { mimo soma(5); }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(15)));
+}
+
+#[test]
+fn run_recursao_mutua() {
+    let out = run_code(
+        "pacote main; carinho eh_par(n: bombom) -> bombom { talvez n == 0 { mimo 1; } senao { mimo eh_impar(n - 1); } } carinho eh_impar(n: bombom) -> bombom { talvez n == 0 { mimo 0; } senao { mimo eh_par(n - 1); } } carinho principal() -> bombom { mimo eh_par(4); }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+// ── Fase 20: mais cenários end-to-end reais via CLI --run ─────────────────
+
+fn run_cli_example(path: &str) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(path)
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn cli_run_mantem_exemplos_base() {
+    let casos = [
+        ("examples/run_soma.pink", "42\n"),
+        ("examples/run_chamada.pink", "42\n"),
+        ("examples/run_global.pink", "100\n"),
+        ("examples/run_global_expr.pink", "44\n"),
+    ];
+
+    for (path, expected) in casos {
+        let out = run_cli_example(path);
+        assert!(out.status.success(), "falhou em {}", path);
+        assert_eq!(
+            String::from_utf8_lossy(&out.stdout),
+            expected,
+            "path={}",
+            path
+        );
+        assert!(
+            String::from_utf8_lossy(&out.stderr).is_empty(),
+            "stderr em {}: {}",
+            path,
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    let maybe_fatorial = std::path::Path::new("examples/run_recursao_fatorial.pink");
+    if maybe_fatorial.exists() {
+        let out = run_cli_example("examples/run_recursao_fatorial.pink");
+        assert!(out.status.success());
+    }
+}
+
+#[test]
+fn cli_run_global_com_chamada_exemplo_novo() {
+    let out = run_cli_example("examples/run_global_call_combo.pink");
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
+    assert!(String::from_utf8_lossy(&out.stderr).is_empty());
+}
+
+#[test]
+fn cli_run_mutacao_com_if_else_exemplo_novo() {
+    let out = run_cli_example("examples/run_mut_if_else.pink");
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
+    assert!(String::from_utf8_lossy(&out.stderr).is_empty());
+}
+
+#[test]
+fn cli_run_recursao_com_global_exemplo_novo() {
+    let out = run_cli_example("examples/run_recursao_global.pink");
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "5\n");
+    assert!(String::from_utf8_lossy(&out.stderr).is_empty());
+}
+
+#[test]
+fn cli_run_erro_runtime_em_exemplo_novo() {
+    let out = run_cli_example("examples/run_div_zero_cli.pink");
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stdout).is_empty());
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("divisão por zero"),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}

@@ -38,12 +38,9 @@
 - sem captura de variáveis locais
 - sem debugger/stepping/tracing contínuo
 
-## Arquivos alterados
-- `src/interpreter.rs`
-- `tests/interpreter_tests.rs`
-- `docs/handoff_codex.md`
-- `docs/agent_state.md`
-- `docs/phases.md`
+## Estado real encontrado
+- Workspace local usado como fonte de verdade.
+- Base inicial saudável: `cargo build` e `cargo test` passando.
 
 ## Comandos executados
 - Inicial:
