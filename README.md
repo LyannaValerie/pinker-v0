@@ -13,7 +13,7 @@ Pinker v0 e um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - IR estruturada + validacao interna
 - CFG IR + validacao interna
 - seleção de instruções textual + validação
-- alvo textual abstrato (máquina de pilha) + validação
+- alvo textual abstrato (máquina de pilha) + validação estrutural e disciplina de pilha
 - backend textual pseudo-assembly + validacao interna
 
 ## O que nao faz
@@ -36,6 +36,7 @@ cargo run -- --ir examples/ir_if_else.pink
 cargo run -- --cfg-ir examples/cfg_if_else.pink
 cargo run -- --selected examples/selected_if_else.pink
 cargo run -- --machine examples/machine_if_else.pink
+cargo run -- --machine examples/machine_stack_if_call.pink
 cargo run -- --pseudo-asm examples/emit_if_else.pink
 cargo run -- --check examples/mut_falho.pink
 ```
@@ -54,6 +55,20 @@ semantica -> IR estruturada -> validação da IR estruturada -> CFG IR -> valida
 Se qualquer camada intermediária for inválida, a emissão falha e nada é impresso.
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
+
+## Validação da Machine (sanity check de pilha)
+A camada `--machine` agora valida:
+- underflow de pilha em instruções/terminadores (`neg`, binárias, `call`, `call_void`, `br_true`)
+- consistência de altura de pilha entre predecessores de um bloco
+- tipo esperado no topo para `br_true` (condição lógica)
+- `ret` com exatamente um valor disponível
+- compatibilidade de tipo no `ret` com o retorno da função quando inferível
+- `ret_void` com pilha vazia
+- slots válidos por função (`params`, `locals` e temporários `%tN`)
+
+Se a validação estrutural ou de pilha falhar, `--machine` retorna erro e não imprime saída parcial.
+
+Limites atuais (adiado): validação de tipo de argumentos em `call`/`call_void` ainda é parcial na camada Machine e depende de metadado tipado que hoje não existe nela.
 
 ## O que essas camadas representam
 - `--cfg-ir`: controle de fluxo explícito próximo do lowering
