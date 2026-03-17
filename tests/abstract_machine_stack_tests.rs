@@ -237,6 +237,41 @@ fn stack_branch_sem_condicao() {
 }
 
 #[test]
+fn stack_branch_tipo_incompativel() {
+    let err = validate(fn_bombom(vec![
+        block(
+            "entry",
+            vec![MachineInstr::PushInt(1)],
+            MachineTerminator::BrTrue {
+                then_label: "then_0".to_string(),
+                else_label: "else_1".to_string(),
+            },
+        ),
+        block(
+            "then_0",
+            vec![MachineInstr::PushInt(1)],
+            MachineTerminator::Ret,
+        ),
+        block(
+            "else_1",
+            vec![MachineInstr::PushInt(0)],
+            MachineTerminator::Ret,
+        ),
+    ]))
+    .unwrap_err();
+    assert!(err.contains("br_true requer condição lógica"));
+}
+
+#[test]
+fn stack_branch_tipo_compativel() {
+    let out = render_machine(
+        "pacote main; carinho principal() -> bombom { talvez verdade { mimo 1; } senao { mimo 0; } }",
+    )
+    .unwrap();
+    assert!(out.contains("term br_true"));
+}
+
+#[test]
 fn stack_ret_sem_valor() {
     let err = validate(fn_bombom(vec![block(
         "entry",
@@ -245,6 +280,23 @@ fn stack_ret_sem_valor() {
     )]))
     .unwrap_err();
     assert!(err.contains("ret requer exatamente um valor na pilha"));
+}
+
+#[test]
+fn stack_ret_tipo_incompativel() {
+    let err = validate(fn_bombom(vec![block(
+        "entry",
+        vec![MachineInstr::PushBool(true)],
+        MachineTerminator::Ret,
+    )]))
+    .unwrap_err();
+    assert!(err.contains("ret com tipo incompatível"));
+}
+
+#[test]
+fn stack_ret_tipo_compativel() {
+    let out = render_machine("pacote main; carinho principal() -> bombom { mimo 7; }").unwrap();
+    assert!(out.contains("term ret"));
 }
 
 #[test]

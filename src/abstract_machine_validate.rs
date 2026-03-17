@@ -4,13 +4,20 @@ use crate::ir::TypeIR;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet, VecDeque};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StackValueType {
+    Bombom,
+    Logica,
+    Unknown,
+}
+
 pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
-    let mut globals = HashSet::new();
+    let mut globals = HashMap::new();
     for g in &program.globals {
         if g.name.trim().is_empty() {
             return Err(err("global da máquina com nome vazio"));
         }
-        globals.insert(g.name.clone());
+        globals.insert(g.name.clone(), infer_operand_type(&g.value));
     }
 
     let mut sigs = HashMap::new();
@@ -27,7 +34,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
 
 fn validate_function(
     f: &MachineFunction,
-    globals: &HashSet<String>,
+    globals: &HashMap<String, StackValueType>,
     sigs: &HashMap<String, (TypeIR, usize)>,
 ) -> Result<(), PinkerError> {
     if f.blocks.is_empty() {
@@ -85,7 +92,7 @@ fn validate_function(
                     }
                 }
                 MachineInstr::LoadGlobal(g) => {
-                    if !globals.contains(g) {
+                    if !globals.contains_key(g) {
                         return Err(err_ctx(
                             f,
                             Some(&b.label),
@@ -164,41 +171,61 @@ fn validate_function(
         }
     }
 
-    validate_stack_discipline(f)
+    validate_stack_discipline(f, globals, sigs)
 }
 
-fn validate_stack_discipline(f: &MachineFunction) -> Result<(), PinkerError> {
+fn validate_stack_discipline(
+    f: &MachineFunction,
+    globals: &HashMap<String, StackValueType>,
+    sigs: &HashMap<String, (TypeIR, usize)>,
+) -> Result<(), PinkerError> {
     let mut label_to_block = HashMap::new();
     for b in &f.blocks {
         label_to_block.insert(b.label.clone(), b);
     }
 
-    let mut in_depth = HashMap::new();
-    in_depth.insert("entry".to_string(), 0usize);
+    let mut in_state = HashMap::new();
+    in_state.insert("entry".to_string(), Vec::<StackValueType>::new());
     let mut worklist = VecDeque::new();
     worklist.push_back("entry".to_string());
 
+    let mut slot_types = HashMap::new();
+
     while let Some(label) = worklist.pop_front() {
         let block = label_to_block.get(&label).unwrap();
-        let mut depth = *in_depth.get(&label).unwrap();
+        let mut stack = in_state.get(&label).cloned().unwrap();
 
         for i in &block.code {
-            apply_instr_effect(f, &block.label, i, &mut depth)?;
+            apply_instr_effect(
+                f,
+                &block.label,
+                i,
+                &mut stack,
+                &mut slot_types,
+                globals,
+                sigs,
+            )?;
         }
 
-        let successors = apply_terminator_effect(f, &block.label, &block.terminator, &mut depth)?;
+        let successors =
+            apply_terminator_effect(f, &block.label, &block.terminator, &mut stack, sigs)?;
 
         for succ in successors {
-            if let Some(previous) = in_depth.get(&succ) {
-                if *previous != depth {
+            if let Some(previous) = in_state.get(&succ) {
+                if previous.len() != stack.len() {
                     return Err(err_ctx(
                         f,
                         Some(&block.label),
                         "altura de pilha inconsistente entre predecessores",
                     ));
                 }
+                let merged = merge_stack_types(previous, &stack);
+                if &merged != previous {
+                    in_state.insert(succ.clone(), merged);
+                    worklist.push_back(succ);
+                }
             } else {
-                in_depth.insert(succ.clone(), depth);
+                in_state.insert(succ.clone(), stack.clone());
                 worklist.push_back(succ);
             }
         }
@@ -211,17 +238,39 @@ fn apply_instr_effect(
     f: &MachineFunction,
     label: &str,
     i: &MachineInstr,
-    depth: &mut usize,
+    stack: &mut Vec<StackValueType>,
+    slot_types: &mut HashMap<String, StackValueType>,
+    globals: &HashMap<String, StackValueType>,
+    sigs: &HashMap<String, (TypeIR, usize)>,
 ) -> Result<(), PinkerError> {
     match i {
-        MachineInstr::PushInt(_)
-        | MachineInstr::PushBool(_)
-        | MachineInstr::LoadSlot(_)
-        | MachineInstr::LoadGlobal(_) => *depth += 1,
-        MachineInstr::StoreSlot(_) => pop(f, label, depth, 1, "underflow em store_slot")?,
+        MachineInstr::PushInt(_) => stack.push(StackValueType::Bombom),
+        MachineInstr::PushBool(_) => stack.push(StackValueType::Logica),
+        MachineInstr::LoadSlot(slot) => {
+            stack.push(*slot_types.get(slot).unwrap_or(&StackValueType::Unknown));
+        }
+        MachineInstr::LoadGlobal(g) => {
+            stack.push(*globals.get(g).unwrap_or(&StackValueType::Unknown));
+        }
+        MachineInstr::StoreSlot(slot) => {
+            let top = pop_typed(f, label, stack, 1, "underflow em store_slot")?;
+            slot_types.insert(slot.clone(), top[0]);
+        }
         MachineInstr::Neg | MachineInstr::Not => {
-            pop(f, label, depth, 1, "underflow em operação unária")?;
-            *depth += 1;
+            let top = pop_typed(f, label, stack, 1, "underflow em operação unária")?;
+            let expected = match i {
+                MachineInstr::Neg => StackValueType::Bombom,
+                MachineInstr::Not => StackValueType::Logica,
+                _ => StackValueType::Unknown,
+            };
+            ensure_compatible(
+                f,
+                label,
+                top[0],
+                expected,
+                "tipo inválido em operação unária",
+            )?;
+            stack.push(expected);
         }
         MachineInstr::Add
         | MachineInstr::Sub
@@ -233,15 +282,55 @@ fn apply_instr_effect(
         | MachineInstr::CmpLe
         | MachineInstr::CmpGt
         | MachineInstr::CmpGe => {
-            pop(f, label, depth, 2, "underflow em operação binária")?;
-            *depth += 1;
+            let pair = pop_typed(f, label, stack, 2, "underflow em operação binária")?;
+            let out_ty = match i {
+                MachineInstr::CmpEq
+                | MachineInstr::CmpNe
+                | MachineInstr::CmpLt
+                | MachineInstr::CmpLe
+                | MachineInstr::CmpGt
+                | MachineInstr::CmpGe => StackValueType::Logica,
+                _ => {
+                    ensure_compatible(
+                        f,
+                        label,
+                        pair[0],
+                        StackValueType::Bombom,
+                        "tipo inválido em operação binária",
+                    )?;
+                    ensure_compatible(
+                        f,
+                        label,
+                        pair[1],
+                        StackValueType::Bombom,
+                        "tipo inválido em operação binária",
+                    )?;
+                    StackValueType::Bombom
+                }
+            };
+            if out_ty == StackValueType::Logica
+                && pair[0] != StackValueType::Unknown
+                && pair[1] != StackValueType::Unknown
+                && pair[0] != pair[1]
+            {
+                return Err(err_ctx(
+                    f,
+                    Some(label),
+                    "tipo inválido em comparação binária",
+                ));
+            }
+            stack.push(out_ty);
         }
-        MachineInstr::Call { argc, .. } => {
-            pop(f, label, depth, *argc, "underflow em call")?;
-            *depth += 1;
+        MachineInstr::Call { callee, argc } => {
+            pop_typed(f, label, stack, *argc, "underflow em call")?;
+            let ret = sigs
+                .get(callee)
+                .map(|(ret, _)| *ret)
+                .unwrap_or(TypeIR::Bombom);
+            stack.push(type_to_stack(ret));
         }
         MachineInstr::CallVoid { argc, .. } => {
-            pop(f, label, depth, *argc, "underflow em call_void")?;
+            pop_typed(f, label, stack, *argc, "underflow em call_void")?;
         }
     }
 
@@ -252,7 +341,8 @@ fn apply_terminator_effect(
     f: &MachineFunction,
     label: &str,
     term: &MachineTerminator,
-    depth: &mut usize,
+    stack: &mut Vec<StackValueType>,
+    _sigs: &HashMap<String, (TypeIR, usize)>,
 ) -> Result<Vec<String>, PinkerError> {
     match term {
         MachineTerminator::Jmp(target) => Ok(vec![target.clone()]),
@@ -260,22 +350,37 @@ fn apply_terminator_effect(
             then_label,
             else_label,
         } => {
-            pop(f, label, depth, 1, "underflow em br_true")?;
+            let top = pop_typed(f, label, stack, 1, "underflow em br_true")?;
+            ensure_compatible(
+                f,
+                label,
+                top[0],
+                StackValueType::Logica,
+                "br_true requer condição lógica",
+            )?;
             Ok(vec![then_label.clone(), else_label.clone()])
         }
         MachineTerminator::Ret => {
-            if *depth != 1 {
+            if stack.len() != 1 {
                 return Err(err_ctx(
                     f,
                     Some(label),
                     "ret requer exatamente um valor na pilha",
                 ));
             }
-            *depth = 0;
+            let v = stack[0];
+            ensure_compatible(
+                f,
+                label,
+                v,
+                type_to_stack(f.ret_type),
+                "ret com tipo incompatível",
+            )?;
+            stack.clear();
             Ok(vec![])
         }
         MachineTerminator::RetVoid => {
-            if *depth != 0 {
+            if !stack.is_empty() {
                 return Err(err_ctx(f, Some(label), "ret_void requer pilha vazia"));
             }
             Ok(vec![])
@@ -283,18 +388,60 @@ fn apply_terminator_effect(
     }
 }
 
-fn pop(
+fn pop_typed(
     f: &MachineFunction,
     label: &str,
-    depth: &mut usize,
+    stack: &mut Vec<StackValueType>,
     amount: usize,
     message: &str,
-) -> Result<(), PinkerError> {
-    if *depth < amount {
+) -> Result<Vec<StackValueType>, PinkerError> {
+    if stack.len() < amount {
         return Err(err_ctx(f, Some(label), message));
     }
-    *depth -= amount;
+    let mut out = Vec::with_capacity(amount);
+    for _ in 0..amount {
+        out.push(stack.pop().expect("stack underflow already checked"));
+    }
+    Ok(out)
+}
+
+fn ensure_compatible(
+    f: &MachineFunction,
+    label: &str,
+    got: StackValueType,
+    expected: StackValueType,
+    message: &str,
+) -> Result<(), PinkerError> {
+    if got != StackValueType::Unknown && got != expected {
+        return Err(err_ctx(f, Some(label), message));
+    }
     Ok(())
+}
+
+fn type_to_stack(ty: TypeIR) -> StackValueType {
+    match ty {
+        TypeIR::Bombom => StackValueType::Bombom,
+        TypeIR::Logica => StackValueType::Logica,
+        TypeIR::Nulo => StackValueType::Unknown,
+    }
+}
+
+fn infer_operand_type(op: &crate::cfg_ir::OperandIR) -> StackValueType {
+    match op {
+        crate::cfg_ir::OperandIR::Int(_) => StackValueType::Bombom,
+        crate::cfg_ir::OperandIR::Bool(_) => StackValueType::Logica,
+        _ => StackValueType::Unknown,
+    }
+}
+
+fn merge_stack_types(a: &[StackValueType], b: &[StackValueType]) -> Vec<StackValueType> {
+    a.iter()
+        .zip(b.iter())
+        .map(|(lhs, rhs)| match (lhs, rhs) {
+            (x, y) if x == y => *x,
+            _ => StackValueType::Unknown,
+        })
+        .collect()
 }
 
 fn is_temp_slot(slot: &str) -> bool {
