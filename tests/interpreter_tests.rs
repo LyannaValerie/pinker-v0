@@ -538,3 +538,41 @@ fn cli_run_erro_runtime_tem_exit_nonzero() {
     assert!(String::from_utf8_lossy(&output.stdout).is_empty());
     assert!(!String::from_utf8_lossy(&output.stderr).is_empty());
 }
+
+// ── Fase 17: recursão no interpretador ─────────────────────────────────────
+
+#[test]
+fn run_recursao_fatorial() {
+    let out = run_code(
+        "pacote main; carinho fat(n: bombom) -> bombom { talvez n == 0 { mimo 1; } senao { mimo n * fat(n - 1); } } carinho principal() -> bombom { mimo fat(5); }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(120)));
+}
+
+#[test]
+fn run_recursao_fibonacci() {
+    let out = run_code(
+        "pacote main; carinho fib(n: bombom) -> bombom { talvez n == 0 { mimo 0; } senao { talvez n == 1 { mimo 1; } senao { mimo fib(n - 1) + fib(n - 2); } } } carinho principal() -> bombom { mimo fib(7); }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(13)));
+}
+
+#[test]
+fn run_recursao_com_acumulador() {
+    let out = run_code(
+        "pacote main; carinho soma(n: bombom) -> bombom { talvez n == 0 { mimo 0; } senao { mimo n + soma(n - 1); } } carinho principal() -> bombom { mimo soma(5); }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(15)));
+}
+
+#[test]
+fn run_recursao_mutua() {
+    let out = run_code(
+        "pacote main; carinho eh_par(n: bombom) -> bombom { talvez n == 0 { mimo 1; } senao { mimo eh_impar(n - 1); } } carinho eh_impar(n: bombom) -> bombom { talvez n == 0 { mimo 0; } senao { mimo eh_par(n - 1); } } carinho principal() -> bombom { mimo eh_par(4); }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
