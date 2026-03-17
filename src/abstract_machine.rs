@@ -1,9 +1,24 @@
+//! Máquina abstrata de pilha — camada `--machine` do pipeline.
+//!
+//! `MachineProgram` é o resultado do lowering de `SelectedProgram` para um conjunto explícito
+//! de instruções de pilha (`MachineInstr`) e terminadores (`MachineTerminator`).
+//! Cada instrução opera sobre uma pilha implícita de valores; nenhuma instrução referencia
+//! registradores — apenas slots nomeados e a pilha de operandos.
+//!
+//! A representação é validada por `abstract_machine_validate` antes de ser interpretada
+//! ou emitida como pseudo-assembly via `backend_text`.
+//!
+//! Posição no pipeline:
+//!   `instr_select` → **`abstract_machine`** → `abstract_machine_validate` → `interpreter` / `backend_text`
+
 use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
 use crate::instr_select::{SelectedInstr, SelectedProgram, SelectedTerminator};
 use crate::ir::TypeIR;
 use std::collections::HashMap;
 
+/// Programa completo na representação de máquina abstrata.
+/// Contém globals (constantes somente-leitura) e funções com blocos de instruções de pilha.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineProgram {
     pub module_name: String,
@@ -11,12 +26,16 @@ pub struct MachineProgram {
     pub functions: Vec<MachineFunction>,
 }
 
+/// Constante global somente-leitura. O runtime acessa via `LoadGlobal`; escrita não é suportada.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineGlobal {
     pub name: String,
     pub value: OperandIR,
 }
 
+/// Função na Machine. `params` e `locals` listam os nomes dos slots nomeados;
+/// `slot_types` mapeia cada slot ao seu tipo para uso pelo validador de pilha.
+/// Temporários (`%tN`) são gerados durante o lowering e também registrados em `slot_types`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineFunction {
     pub name: String,
@@ -27,6 +46,8 @@ pub struct MachineFunction {
     pub blocks: Vec<MachineBlock>,
 }
 
+/// Bloco básico da Machine: sequência linear de instruções de pilha seguida de um terminador.
+/// A invariante é que `terminator` sempre está presente — não existe bloco sem saída.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineBlock {
     pub label: String,
@@ -34,6 +55,12 @@ pub struct MachineBlock {
     pub terminator: MachineTerminator,
 }
 
+/// Instruções de pilha. Convenções:
+/// - `PushInt`/`PushBool`: empilha literal.
+/// - `LoadSlot`/`StoreSlot`: lê/escreve slot nomeado (params, locals ou temporário `%tN`).
+/// - `LoadGlobal`: lê constante global pelo nome; não existe `StoreGlobal` nesta versão.
+/// - Operações aritméticas/lógicas/comparação: consomem topo(s) da pilha e empilham resultado.
+/// - `Call`/`CallVoid`: empilha `argc` argumentos antes da instrução; `Call` empilha o retorno.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineInstr {
     PushInt(u64),
@@ -57,6 +84,8 @@ pub enum MachineInstr {
     CallVoid { callee: String, argc: usize },
 }
 
+/// Terminadores de bloco. `BrTrue` consome o topo da pilha (deve ser `lógica`).
+/// `Ret` consome o único valor da pilha como retorno; `RetVoid` exige pilha vazia.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineTerminator {
     Jmp(String),
@@ -117,6 +146,8 @@ pub fn lower_program(selected: &SelectedProgram) -> Result<MachineProgram, Pinke
     })
 }
 
+// Padrão de lowering para instruções binárias/unárias: carrega operandos na pilha,
+// emite a operação, depois armazena o resultado em um slot temporário `%tN`.
 fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) {
     match inst {
         SelectedInstr::Mov { dest, src } => {
@@ -249,6 +280,8 @@ fn emit_load(op: &OperandIR, code: &mut Vec<MachineInstr>) {
     }
 }
 
+// Temporários recebem o nome canônico `%tN` (N = índice do TempIR).
+// Esse padrão é reconhecido pelo validador em `abstract_machine_validate::is_temp_slot`.
 fn temp_name(t: crate::cfg_ir::TempIR) -> String {
     format!("%t{}", t.0)
 }

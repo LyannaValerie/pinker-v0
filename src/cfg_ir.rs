@@ -1,7 +1,21 @@
+//! CFG IR — controle de fluxo explícito, camada `--cfg-ir` do pipeline.
+//!
+//! Converte a IR estruturada (`ir.rs`) para blocos básicos com terminadores explícitos
+//! (`Jump`, `Branch`, `Return`). Após este passo, não existem mais `if`/`else` aninhados
+//! na representação — apenas saltos entre labels.
+//!
+//! Temporários (`TempIR`) são introduzidos aqui para resultados intermediários de expressões.
+//! Cada temporário tem escopo de função (não por bloco); o validador `cfg_ir_validate`
+//! impõe que temporários usados sejam definidos antes do uso no mesmo bloco.
+//!
+//! Posição no pipeline:
+//!   `ir` → **`cfg_ir`** → `cfg_ir_validate` → `instr_select`
+
 use crate::error::PinkerError;
 use crate::ir::{BinaryOpIR, FunctionIR, InstructionIR, ProgramIR, TypeIR, UnaryOpIR, ValueIR};
 use crate::token::Span;
 
+/// Programa na CFG IR: módulo com constantes globais e funções em forma de blocos.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramCfgIR {
     pub module_name: String,
@@ -9,6 +23,7 @@ pub struct ProgramCfgIR {
     pub functions: Vec<FunctionCfgIR>,
 }
 
+/// Constante global na CFG IR. O valor é restrito a literais ou referências a outras globais.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GlobalConstCfgIR {
     pub name: String,
@@ -16,6 +31,8 @@ pub struct GlobalConstCfgIR {
     pub value: ValueCfgIR,
 }
 
+/// Função na CFG IR. `entry` nomeia o label do bloco de entrada (sempre `"entry"`).
+/// `params` e `locals` preservam os metadados originais (nome-fonte, tipo, mutabilidade).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionCfgIR {
     pub name: String,
@@ -27,6 +44,8 @@ pub struct FunctionCfgIR {
     pub span: Span,
 }
 
+/// Bloco básico: sequência linear de instruções sem salto, terminada por um `TerminatorIR`.
+/// Todo bloco possui exatamente um terminador; não existe bloco sem saída.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BasicBlockIR {
     pub label: String,
@@ -34,6 +53,9 @@ pub struct BasicBlockIR {
     pub terminator: TerminatorIR,
 }
 
+/// Instruções dentro de um bloco básico. `Let`/`Assign` operam sobre slots nomeados;
+/// `Unary`/`Binary`/`Call` produzem um resultado em um `TempIR`.
+/// `Call` com `dest: None` descarta o retorno (chamadas `nulo`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstructionCfgIR {
     Let {
@@ -63,6 +85,8 @@ pub enum InstructionCfgIR {
     },
 }
 
+/// Terminador de bloco. `Branch` consome um operando booleano como condição.
+/// `Return(None)` corresponde a funções `nulo`; `Return(Some(_))` a funções com retorno.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminatorIR {
     Jump(String),
@@ -74,9 +98,12 @@ pub enum TerminatorIR {
     Return(Option<OperandIR>),
 }
 
+/// Índice de temporário gerado durante o lowering. Escopo de função; único por função.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TempIR(pub u32);
 
+/// Operando: literal, referência a slot local, referência a constante global ou temporário.
+/// `GlobalConst` referencia apenas `eterno` (somente-leitura); não existe operando mutável global.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperandIR {
     Local(String),
@@ -88,12 +115,18 @@ pub enum OperandIR {
 
 pub type ValueCfgIR = OperandIR;
 
+// `FunctionLowerer` mantém estado mutable durante o lowering de uma função:
+// - `blocks`: blocos acumulados em ordem de criação (índice = posição no vetor).
+// - `next_block`: contador de sufixo para labels gerados (`join_N`, `dead_N`).
+// - `next_temp`: contador global de temporários por função.
 struct FunctionLowerer {
     blocks: Vec<BlockBuilder>,
     next_block: usize,
     next_temp: u32,
 }
 
+// `BlockBuilder` é um bloco em construção. `terminator: None` indica bloco ainda aberto.
+// `is_terminated()` é consultado antes de adicionar instruções para evitar código morto.
 struct BlockBuilder {
     label: String,
     instructions: Vec<InstructionCfgIR>,
@@ -289,6 +322,8 @@ impl FunctionLowerer {
                     .as_ref()
                     .map(|b| self.fresh_block(b.label.clone()));
 
+                // Se não há `senão`, o label de else aponta para o bloco de junção (join).
+                // Ambas as arestas do Branch precisam de destino válido.
                 let else_label = else_idx
                     .map(|idx| self.blocks[idx].label.clone())
                     .unwrap_or_else(|| self.next_label("join"));

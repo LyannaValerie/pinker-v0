@@ -86,3 +86,11 @@
   - doc comments de módulo adicionados: `interpreter.rs`, `abstract_machine_validate.rs`, `ir_validate.rs`, `cfg_ir_validate.rs`
   - comentários curtos em blocos densos: worklist de pilha, pop_args, attach_runtime_trace, is_temp_slot, enrich_ir_error, validate_block (CFG)
   - nenhuma mudança funcional; todos os comandos de CI passando
+
+
+- Fase 22 documental — concluída
+  - doc comments de módulo adicionados: `abstract_machine.rs`, `cfg_ir.rs`, `ir.rs`, `semantic.rs`
+  - doc comments em structs/enums centrais: `MachineProgram`, `MachineFunction`, `MachineInstr`, `MachineTerminator`, `BasicBlockIR`, `InstructionCfgIR`, `TerminatorIR`, `TempIR`, `OperandIR`, `FunctionIR`, `BlockIR`, `ValueIR`, `TypeIR`, `InstructionIR`
+  - comentários de seção em `semantic.rs`: passagem 1 (declaração), passagem 2 (verificação), análise de alcançabilidade
+  - comentários em construtores internos: `FunctionLowerer`/`BlockBuilder` (CFG IR), `LoweringContext`/`FunctionLowerer` (IR), padrão load→op→store (Machine)
+  - nenhuma mudança funcional; todos os comandos de CI passando

@@ -1,3 +1,17 @@
+//! Checagem semântica — validação antes do lowering para IR.
+//!
+//! `SemanticChecker` opera em duas passagens sobre o programa:
+//! 1. **Declaração**: coleta todas as funções e constantes em tabelas globais (`funcs`, `consts`).
+//!    Detecta duplicações e conflitos de nomes entre funções e constantes.
+//! 2. **Verificação**: valida cada corpo de função e constante (tipos, escopos, retornos, aridade).
+//!
+//! Invariantes mantidas:
+//! - Sombreamento de variável no mesmo escopo é proibido; escopos aninhados permitem sombra.
+//! - `principal` é obrigatória, sem parâmetros, retorno `bombom`.
+//! - Retorno de função com tipo declarado deve ser alcançável em todos os caminhos simples
+//!   (análise superficial: sequência + talvez/senão — sem análise de fluxo completa).
+//! - `Nulo` nunca aparece como tipo de usuário; representa ausência de retorno internamente.
+
 use crate::ast::*;
 use crate::error::PinkerError;
 use crate::token::{Position, Span};
@@ -92,6 +106,9 @@ impl SemanticChecker {
         })
     }
 
+    // --- Passagem 1: declaração global ---
+    // Registra funções e constantes antes de verificar qualquer corpo.
+    // Erros aqui interrompem antes da passagem 2.
     pub fn check_program(&mut self, program: &Program) -> Result<(), PinkerError> {
         for item in &program.items {
             match item {
@@ -131,6 +148,7 @@ impl SemanticChecker {
             }
         }
 
+        // --- Passagem 2: verificação de corpos ---
         self.check_principal(program)?;
 
         for item in &program.items {
@@ -196,6 +214,7 @@ impl SemanticChecker {
         self.current_func_ret = function.ret_type.clone();
         self.push_scope();
 
+        // Parâmetros entram no escopo da função antes do corpo (não são mutáveis).
         for param in &function.params {
             self.declare_var(&param.name, param.ty.clone(), false, param.span)?;
         }
@@ -385,6 +404,9 @@ impl SemanticChecker {
         }
     }
 
+    // Análise de alcançabilidade de retorno superficial: verifica se o bloco
+    // contém um `mimo` direto ou um `talvez/senão` onde ambos os ramos retornam.
+    // Não analisa fluxo complexo nem condições de laço — suficiente para a v0.
     fn block_returns(&self, block: &Block) -> bool {
         for stmt in &block.stmts {
             match stmt {

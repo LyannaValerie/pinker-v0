@@ -24,8 +24,8 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 21b: stack trace simples de runtime
 
 ## Fase atual
-- Fase 21b concluída (erros de runtime exibem stack trace simples com cadeia de funções ativas).
-- Rodada documental concluída: doc comments adicionados em `interpreter.rs`, `abstract_machine_validate.rs`, `ir_validate.rs` e `cfg_ir_validate.rs`.
+- Fase 22 documental concluída: doc comments e comentários estruturais adicionados em
+  `abstract_machine.rs`, `cfg_ir.rs`, `ir.rs` e `semantic.rs`.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
