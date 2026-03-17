@@ -2,6 +2,7 @@ use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
 use crate::instr_select::{SelectedInstr, SelectedProgram, SelectedTerminator};
 use crate::ir::TypeIR;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineProgram {
@@ -22,6 +23,7 @@ pub struct MachineFunction {
     pub ret_type: TypeIR,
     pub params: Vec<String>,
     pub locals: Vec<String>,
+    pub slot_types: HashMap<String, TypeIR>,
     pub blocks: Vec<MachineBlock>,
 }
 
@@ -102,6 +104,7 @@ pub fn lower_program(selected: &SelectedProgram) -> Result<MachineProgram, Pinke
                 ret_type: f.ret_type,
                 params: f.params.clone(),
                 locals: f.locals.clone(),
+                slot_types: f.slot_types.clone(),
                 blocks,
             }
         })

@@ -1,0 +1,16 @@
+pacote main;
+
+carinho soma(x: bombom, y: bombom) -> bombom {
+    mimo x + y;
+}
+
+carinho principal() -> bombom {
+    nova a = 2;
+    nova b = 3;
+
+    talvez verdade {
+        mimo soma(a, b);
+    } senao {
+        mimo a;
+    }
+}
