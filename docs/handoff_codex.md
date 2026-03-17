@@ -1,29 +1,30 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Hotfix cirúrgico de recuperação do `main` (Fase 11), sem nova fase.
+- Continuidade disciplinada sem novo escopo funcional (objetivo específico não informado no prompt).
 
 ## Objetivo
-- Verificar e restaurar estado compilável no validador da Machine.
-- Confirmar ausência de duplicação de `apply_instr_effect`.
-- Confirmar `MachineInstr::CallVoid` sem bloco quebrado/copy-paste fora de escopo.
+- Executar autoauditoria mínima do estado mergeado.
+- Confirmar compilação/formatação/testes verdes antes de qualquer nova alteração.
+- Manter fases 9–11 estáveis sem abrir fase nova.
 
 ## Arquivos alterados
-- `docs/handoff_codex.md` (atualização desta rodada)
-- `docs/phases.md` (status ajustado para hotfix verificado)
+- `docs/handoff_codex.md` (atualização factual desta rodada)
 
 ## Verificação técnica feita
-- `src/abstract_machine_validate.rs` contém apenas uma definição de `apply_instr_effect`.
-- Arms de `MachineInstr::Call` e `MachineInstr::CallVoid` estão únicos e válidos.
-- Não há referência fora de escopo (`previous`, `in_state`, `succ`, `worklist`) dentro do arm de `CallVoid`.
+- Estado de código mantido sem alterações funcionais.
+- Pipeline atual preservada e coerente.
 
-## Testes executados
+## Testes/comandos executados
 - `cargo check`
 - `cargo fmt --check`
 - `cargo test`
 
-## Limitações
-- A tipagem da Machine continua local/leve (sem inferência global pesada).
+## Resultado real
+- Todos os comandos obrigatórios passaram nesta rodada.
 
-## Pontos de atenção para auditoria
-- Validar que a regressão `stack_call_void_tipo_argumento_incompativel` permanece ativa e cobrindo mismatch tipado em `call_void`.
+## Limitações
+- Mantém-se o limite conhecido: tipagem da Machine continua local/leve, sem inferência global pesada.
+
+## Pendências
+- Nenhuma pendência técnica aberta nesta rodada.

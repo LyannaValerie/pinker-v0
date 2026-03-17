@@ -379,62 +379,6 @@ fn apply_instr_effect(
                         "call_void com tipo de argumento incompatível",
                     )?;
                 }
-            }
-        }
-    }
-
-    validate_stack_discipline(f, globals, sigs)
-}
-
-fn validate_stack_discipline(
-    f: &MachineFunction,
-    globals: &HashMap<String, StackValueType>,
-    sigs: &HashMap<String, (TypeIR, Vec<StackValueType>)>,
-) -> Result<(), PinkerError> {
-    let mut label_to_block = HashMap::new();
-    for b in &f.blocks {
-        label_to_block.insert(b.label.clone(), b);
-    }
-
-    let mut in_state = HashMap::new();
-    in_state.insert("entry".to_string(), Vec::<StackValueType>::new());
-    let mut worklist = VecDeque::new();
-    worklist.push_back("entry".to_string());
-
-    let mut slot_types = f
-        .slot_types
-        .iter()
-        .map(|(slot, ty)| (slot.clone(), type_to_stack(*ty)))
-        .collect::<HashMap<_, _>>();
-
-    while let Some(label) = worklist.pop_front() {
-        let block = label_to_block.get(&label).unwrap();
-        let mut stack = in_state.get(&label).cloned().unwrap();
-
-        for i in &block.code {
-            apply_instr_effect(
-                f,
-                &block.label,
-                i,
-                &mut stack,
-                &mut slot_types,
-                globals,
-                sigs,
-            )?;
-        }
-
-        let successors =
-            apply_terminator_effect(f, &block.label, &block.terminator, &mut stack, sigs)?;
-
-        for succ in successors {
-            if let Some(previous) = in_state.get(&succ) {
-                if previous.len() != stack.len() {
-                    return Err(err_ctx(
-                        f,
-                        Some(&block.label),
-                        "altura de pilha inconsistente entre predecessores",
-                    ));
-                }
                 let merged = merge_stack_types(previous, &stack);
                 if &merged != previous {
                     in_state.insert(succ.clone(), merged);
