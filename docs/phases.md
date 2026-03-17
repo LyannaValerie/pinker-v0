@@ -47,3 +47,10 @@
   - CI mínima adicionada em `.github/workflows/ci.yml`
   - checks de CI: `cargo build --locked`, `cargo check --locked`, `cargo fmt --check`, `cargo test --locked`
   - política de MSRV definida como Rust `1.78.0` em `rust-toolchain.toml` e documentada no README
+
+
+- Fase 19 — concluída
+  - padronização de mensagens de erro entre validadores IR, CFG IR e Machine
+  - IR: contexto de função/bloco/instrução e detalhes esperado vs recebido em incompatibilidades de tipo
+  - CFG IR: contexto de função/bloco e enriquecimento pontual com detalhe técnico de instrução
+  - Machine mantida sem alteração estrutural, com teste garantindo formato contextual estável

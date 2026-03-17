@@ -18,13 +18,19 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 16: robustez do interpretador e testes negativos de runtime
 - Fase 17: recursão coberta por testes dedicados e exemplos CLI
 - Fase 18: CI mínima + MSRV
+- Fase 19: padronização de mensagens de erro entre IR / CFG / Machine
 
 ## Fase atual
-- Fase 18 concluída (workflow mínimo de CI e política de MSRV documentada/fixada).
+- Fase 19 concluída (mensagens de validação padronizadas entre IR/CFG/Machine, com contexto técnico consistente).
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
 - MSRV fixada em `rust-toolchain.toml` (`1.78.0`)
+
+## Qualidade diagnóstica (Fase 19)
+- IR e CFG IR agora usam contexto padronizado com função/bloco quando aplicável
+- Mensagens de incompatibilidade de tipo incluem esperado vs recebido em pontos críticos
+- Machine manteve padrão contextual existente (referência de estilo)
 
 ## Restrições do projeto
 - Não expandir linguagem/gramática.

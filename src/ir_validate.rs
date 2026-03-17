@@ -32,7 +32,8 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
     }
 
     for konst in &program.consts {
-        let ty = infer_value_type(&konst.value, &HashMap::new(), &consts, &funcs, konst.span)?;
+        let ty = infer_value_type(&konst.value, &HashMap::new(), &consts, &funcs, konst.span)
+            .map_err(|err| enrich_ir_error(err, None, None, Some("item='const'")))?;
         if ty != konst.ty {
             return Err(ir_validation_error(
                 "tipo da constante global não confere com o valor",
@@ -60,8 +61,11 @@ fn validate_function(
     funcs: &HashMap<String, FunctionSig>,
 ) -> Result<(), PinkerError> {
     if function.entry.label != "entry" {
-        return Err(ir_validation_error(
+        return Err(ir_validation_error_ctx(
+            function,
+            None,
             "função IR deve ter bloco de entrada com rótulo 'entry'",
+            None,
             function.span,
         ));
     }
@@ -71,14 +75,20 @@ fn validate_function(
 
     for param in &function.params {
         if param.slot.trim().is_empty() {
-            return Err(ir_validation_error(
+            return Err(ir_validation_error_ctx(
+                function,
+                None,
                 "parâmetro IR com slot vazio",
+                Some("item='param'"),
                 function.span,
             ));
         }
         if !seen.insert(param.slot.clone()) {
-            return Err(ir_validation_error(
+            return Err(ir_validation_error_ctx(
+                function,
+                None,
                 "slot duplicado em parâmetros",
+                Some(&format!("slot='{}'", param.slot)),
                 function.span,
             ));
         }
@@ -87,14 +97,20 @@ fn validate_function(
 
     for local in &function.locals {
         if local.slot.trim().is_empty() {
-            return Err(ir_validation_error(
+            return Err(ir_validation_error_ctx(
+                function,
+                None,
                 "local IR com slot vazio",
+                Some("item='local'"),
                 function.span,
             ));
         }
         if !seen.insert(local.slot.clone()) {
-            return Err(ir_validation_error(
+            return Err(ir_validation_error_ctx(
+                function,
+                None,
                 "slot duplicado em locais",
+                Some(&format!("slot='{}'", local.slot)),
                 function.span,
             ));
         }
@@ -112,7 +128,13 @@ fn validate_block(
     funcs: &HashMap<String, FunctionSig>,
 ) -> Result<(), PinkerError> {
     if block.label.trim().is_empty() {
-        return Err(ir_validation_error("bloco IR sem rótulo", block.span));
+        return Err(ir_validation_error_ctx(
+            function,
+            Some(block),
+            "bloco IR sem rótulo",
+            None,
+            block.span,
+        ));
     }
 
     for instruction in &block.instructions {
@@ -120,27 +142,58 @@ fn validate_block(
             InstructionIR::Let { slot, value, span }
             | InstructionIR::Assign { slot, value, span } => {
                 let Some(expected_ty) = slots.get(slot) else {
-                    return Err(ir_validation_error("slot local inexistente", *span));
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "slot local inexistente",
+                        Some(&format!("slot='{}', instr='let/assign'", slot)),
+                        *span,
+                    ));
                 };
-                let actual_ty = infer_value_type(value, slots, consts, funcs, *span)?;
+                let actual_ty =
+                    infer_value_type(value, slots, consts, funcs, *span).map_err(|err| {
+                        enrich_ir_error(
+                            err,
+                            Some(function),
+                            Some(block),
+                            Some(&format!("slot='{}', instr='let/assign'", slot)),
+                        )
+                    })?;
                 if actual_ty == TypeIR::Nulo {
-                    return Err(ir_validation_error("valor nulo em posição inválida", *span));
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "valor nulo em posição inválida",
+                        Some("instr='let/assign'"),
+                        *span,
+                    ));
                 }
                 if actual_ty != *expected_ty {
-                    return Err(ir_validation_error(
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
                         "atribuição IR com tipo incompatível",
+                        Some(&format!(
+                            "instr='let/assign', esperado={:?}, recebido={:?}",
+                            expected_ty, actual_ty
+                        )),
                         *span,
                     ));
                 }
             }
             InstructionIR::Expr { value, span } => {
-                let ty = infer_value_type(value, slots, consts, funcs, *span)?;
+                let ty = infer_value_type(value, slots, consts, funcs, *span).map_err(|err| {
+                    enrich_ir_error(err, Some(function), Some(block), Some("instr='expr'"))
+                })?;
                 if ty == TypeIR::Nulo {
                     match value {
                         ValueIR::Call { .. } => {}
                         _ => {
-                            return Err(ir_validation_error(
+                            return Err(ir_validation_error_ctx(
+                                function,
+                                Some(block),
                                 "valor nulo em expressão inválida",
+                                Some("instr='expr'"),
                                 *span,
                             ));
                         }
@@ -149,25 +202,48 @@ fn validate_block(
             }
             InstructionIR::Return { value, span } => match (function.ret_type, value) {
                 (TypeIR::Nulo, Some(_)) => {
-                    return Err(ir_validation_error(
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
                         "return com valor em função nulo",
+                        Some("instr='return'"),
                         *span,
                     ))
                 }
                 (TypeIR::Nulo, None) => {}
                 (_, None) => {
-                    return Err(ir_validation_error(
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
                         "return sem valor em função que exige retorno",
+                        Some("instr='return'"),
                         *span,
                     ))
                 }
                 (expected, Some(v)) => {
-                    let ty = infer_value_type(v, slots, consts, funcs, *span)?;
+                    let ty = infer_value_type(v, slots, consts, funcs, *span).map_err(|err| {
+                        enrich_ir_error(err, Some(function), Some(block), Some("instr='return'"))
+                    })?;
                     if ty == TypeIR::Nulo {
-                        return Err(ir_validation_error("return com valor nulo inválido", *span));
+                        return Err(ir_validation_error_ctx(
+                            function,
+                            Some(block),
+                            "return com valor nulo inválido",
+                            Some("instr='return'"),
+                            *span,
+                        ));
                     }
                     if ty != expected {
-                        return Err(ir_validation_error("tipo de return incompatível", *span));
+                        return Err(ir_validation_error_ctx(
+                            function,
+                            Some(block),
+                            "tipo de return incompatível",
+                            Some(&format!(
+                                "instr='return', esperado={:?}, recebido={:?}",
+                                expected, ty
+                            )),
+                            *span,
+                        ));
                     }
                 }
             },
@@ -177,9 +253,18 @@ fn validate_block(
                 else_block,
                 span,
             } => {
-                let cond_ty = infer_value_type(condition, slots, consts, funcs, *span)?;
+                let cond_ty =
+                    infer_value_type(condition, slots, consts, funcs, *span).map_err(|err| {
+                        enrich_ir_error(err, Some(function), Some(block), Some("instr='if'"))
+                    })?;
                 if cond_ty != TypeIR::Logica {
-                    return Err(ir_validation_error("condição de if deve ser lógica", *span));
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "condição de if deve ser lógica",
+                        Some(&format!("instr='if', recebido={:?}", cond_ty)),
+                        *span,
+                    ));
                 }
                 validate_block(then_block, function, slots, consts, funcs)?;
                 if let Some(else_block) = else_block {
@@ -286,5 +371,48 @@ fn ir_validation_error(msg: &str, span: Span) -> PinkerError {
     PinkerError::IrValidation {
         msg: msg.to_string(),
         span,
+    }
+}
+
+fn ir_validation_error_ctx(
+    function: &FunctionIR,
+    block: Option<&BlockIR>,
+    msg: &str,
+    detail: Option<&str>,
+    span: Span,
+) -> PinkerError {
+    let mut scoped = if let Some(detail) = detail {
+        format!("{} [{}]", msg, detail)
+    } else {
+        msg.to_string()
+    };
+    if let Some(block) = block {
+        scoped.push_str(&format!(
+            " (função '{}', bloco '{}')",
+            function.name, block.label
+        ));
+    } else {
+        scoped.push_str(&format!(" (função '{}')", function.name));
+    }
+    ir_validation_error(&scoped, span)
+}
+
+fn enrich_ir_error(
+    err: PinkerError,
+    function: Option<&FunctionIR>,
+    block: Option<&BlockIR>,
+    detail: Option<&str>,
+) -> PinkerError {
+    match err {
+        PinkerError::IrValidation { msg, span } => {
+            if let Some(function) = function {
+                ir_validation_error_ctx(function, block, &msg, detail, span)
+            } else if let Some(detail) = detail {
+                ir_validation_error(&format!("{} [{}]", msg, detail), span)
+            } else {
+                ir_validation_error(&msg, span)
+            }
+        }
+        _ => err,
     }
 }
