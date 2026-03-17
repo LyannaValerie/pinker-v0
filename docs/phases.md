@@ -11,7 +11,6 @@
   - regressões tipadas para `call` e `call_void`
   - `cargo build`, `cargo check`, `cargo fmt --check` e `cargo test` passando
 
-
 - Fase 12 — concluída
   - enriquecimento de contexto/mensagens na validação da Machine (função, bloco, instrução/terminador, esperado vs recebido)
   - cobertura de testes para underflow, tipos incompatíveis, `ret`, `br_true`, slots, `call` e `call_void`
@@ -36,3 +35,9 @@
   - 8 testes end-to-end via run_code: Not, Div, CmpEq, CmpNe, CmpGe, CmpGt, CmpLe, reassignment de variável mutável
   - 1 teste CLI: exit code não-zero e stderr não vazio em erro de runtime
   - pequeno endurecimento: mensagens de erro em call_function incluem o nome da função ([fn_name])
+
+- Fase 17 — concluída
+  - cobertura dedicada de recursão no interpretador sem alteração estrutural
+  - 4 testes novos em `interpreter_tests`: fatorial, fibonacci, recursão linear e recursão mútua
+  - exemplos CLI adicionados: `examples/run_fatorial.pink` e `examples/run_fibonacci.pink`
+  - validação end-to-end com `cargo run -- --run` para ambos os exemplos

@@ -1,0 +1,17 @@
+pacote main;
+
+carinho fib(n: bombom) -> bombom {
+    talvez n == 0 {
+        mimo 0;
+    } senao {
+        talvez n == 1 {
+            mimo 1;
+        } senao {
+            mimo fib(n - 1) + fib(n - 2);
+        }
+    }
+}
+
+carinho principal() -> bombom {
+    mimo fib(7);
+}
