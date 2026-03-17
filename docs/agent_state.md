@@ -25,6 +25,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 
 ## Fase atual
 - Fase 21b concluída (erros de runtime exibem stack trace simples com cadeia de funções ativas).
+- Rodada documental concluída: doc comments adicionados em `interpreter.rs`, `abstract_machine_validate.rs`, `ir_validate.rs` e `cfg_ir_validate.rs`.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`

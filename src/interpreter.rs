@@ -1,3 +1,11 @@
+//! Interpretador da Machine abstrata de pilha do Pinker.
+//!
+//! Executa um `MachineProgram` validado chamando `principal` com frame
+//! próprio de slots e pilha de operandos. Suporta chamadas entre funções,
+//! recursão, globals literais e stack trace simples em erros de runtime.
+//!
+//! Ponto de entrada: [`run_program`].
+
 use crate::abstract_machine::{
     MachineFunction, MachineGlobal, MachineInstr, MachineProgram, MachineTerminator,
 };
@@ -35,6 +43,9 @@ fn eval_global_value(g: &MachineGlobal) -> Result<RuntimeValue, PinkerError> {
     }
 }
 
+// Executa uma função pelo nome com os argumentos fornecidos.
+// O call_stack acumula os nomes ativos para montar o stack trace em erros.
+// Retorna `None` para funções void, `Some(valor)` caso contrário.
 fn call_function(
     fn_name: &str,
     args: Vec<RuntimeValue>,
@@ -44,6 +55,7 @@ fn call_function(
 ) -> Result<Option<RuntimeValue>, PinkerError> {
     call_stack.push(fn_name.to_string());
 
+    // Encapsula a execução numa closure para poder anexar o trace no retorno.
     let result = (|| {
         let function = find_function(fn_name, program)?;
 
@@ -231,6 +243,8 @@ fn find_function<'a>(
         .ok_or_else(|| runtime_err("função chamada inexistente"))
 }
 
+// Desempilha `argc` argumentos e reverte a ordem para corresponder à
+// declaração da função (pilha é LIFO, mas args foram empilhados left-to-right).
 fn pop_args(stack: &mut Vec<RuntimeValue>, argc: usize) -> Result<Vec<RuntimeValue>, PinkerError> {
     let mut args = Vec::with_capacity(argc);
     for _ in 0..argc {
@@ -271,6 +285,8 @@ fn runtime_err(msg: &str) -> PinkerError {
     }
 }
 
+// Adiciona o stack trace textual à mensagem de erro, se ainda não tiver sido
+// adicionado (evita duplicação quando o erro borbulha por múltiplos frames).
 fn attach_runtime_trace(err: PinkerError, call_stack: &[String]) -> PinkerError {
     match err {
         PinkerError::Runtime { msg, span } => {
