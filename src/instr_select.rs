@@ -1,6 +1,7 @@
 use crate::cfg_ir::{InstructionCfgIR, OperandIR, ProgramCfgIR, TerminatorIR};
 use crate::error::PinkerError;
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgram {
@@ -21,6 +22,7 @@ pub struct SelectedFunction {
     pub ret_type: TypeIR,
     pub params: Vec<String>,
     pub locals: Vec<String>,
+    pub slot_types: HashMap<String, TypeIR>,
     pub blocks: Vec<SelectedBlock>,
 }
 
@@ -137,6 +139,12 @@ pub fn lower_program(cfg: &ProgramCfgIR) -> Result<SelectedProgram, PinkerError>
                 ret_type: f.ret_type,
                 params: f.params.iter().map(|p| p.slot.clone()).collect(),
                 locals: f.locals.iter().map(|l| l.slot.clone()).collect(),
+                slot_types: f
+                    .params
+                    .iter()
+                    .map(|p| (p.slot.clone(), p.ty))
+                    .chain(f.locals.iter().map(|l| (l.slot.clone(), l.ty)))
+                    .collect(),
                 blocks: f
                     .blocks
                     .iter()
