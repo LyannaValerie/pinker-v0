@@ -20,9 +20,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 18: CI mínima + MSRV
 - Fase 19: padronização de mensagens de erro entre IR / CFG / Machine
 - Fase 20: mais testes end-to-end com `--run`
+- Fase 21a: escrita em globals no interpretador (viabilidade negada no estado atual)
 
 ## Fase atual
-- Fase 20 concluída (cobertura ampliada de execução real via CLI `--run` com exemplos válidos e inválido de runtime).
+- Fase 21a avaliada e bloqueada: escrita em globals não é suportável sem mudanças de linguagem/semântica/lowering/Machine fora do escopo.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -36,6 +37,11 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 ## Confiabilidade end-to-end (Fase 20)
 - Cobertura adicional de `--run` com exemplos de global+chamada, recursão+global e mutação+if/else
 - Cobertura explícita de erro de runtime observado pela CLI (exit non-zero + stderr)
+
+## Viabilidade de globals mutáveis (Fase 21a)
+- Semântica atual modela `eterno` como constante não mutável
+- Machine atual só possui `LoadGlobal` (sem `StoreGlobal`)
+- Interpretador recebe globals por referência imutável (`&HashMap`)
 
 ## Restrições do projeto
 - Não expandir linguagem/gramática.

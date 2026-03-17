@@ -61,3 +61,10 @@
   - novos cenários: global+chamada, mutação local+if/else, recursão+global
   - novo cenário inválido de runtime via CLI: divisão por zero com exit code não-zero e stderr
   - manutenção explícita dos exemplos base `run_soma`, `run_chamada`, `run_global`, `run_global_expr`
+
+
+- Fase 21a — avaliada (bloqueada no estado atual)
+  - escrita em globals não é viável com o código atual sem expansão de escopo
+  - semântica atual trata globals (`eterno`) como não mutáveis
+  - Machine não possui `StoreGlobal` (somente `LoadGlobal`)
+  - interpretador opera globals via mapa imutável por execução

@@ -1,51 +1,47 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Implementação da **FASE 20 — mais testes end-to-end com `--run`**.
+- Avaliação da **FASE 21a — escrita em globals no interpretador**.
 
 ## Objetivo
-- Aumentar confiança prática do fluxo completo da CLI real (`arquivo .pink -> parser -> semântica -> IR -> CFG -> seleção -> Machine -> interpretador`).
-- Cobrir combinações realistas sem alterar linguagem/runtime.
+- Verificar viabilidade real de escrita/mutação de globals no estado atual da linguagem + pipeline.
+- Implementar apenas se já existisse caminho coerente e pequeno no código atual.
 
 ## Estado real encontrado
 - Workspace local usado como fonte de verdade.
-- Fase 19 estava concluída e base inicial estava saudável (`cargo build`/`cargo test` passando).
+- Base inicial saudável: `cargo build` e `cargo test` passando.
 
-## Cenários novos cobertos (end-to-end via CLI `--run`)
-- **global + chamada**: `examples/run_global_call_combo.pink` → `42`
-- **mutação local + if/else**: `examples/run_mut_if_else.pink` → `42`
-- **recursão + global**: `examples/run_recursao_global.pink` → `5`
-- **erro de runtime via CLI**: `examples/run_div_zero_cli.pink` → exit code não-zero e stderr com divisão por zero
+## Diagnóstico de viabilidade (factual)
+A fase **não é viável tecnicamente** no estado atual sem abrir escopo fora do permitido.
 
-## Exemplos adicionados
-- `examples/run_global_call_combo.pink`
-- `examples/run_mut_if_else.pink`
-- `examples/run_recursao_global.pink`
-- `examples/run_div_zero_cli.pink`
+### Evidências no código real
+1. **Semântica trata globais como constantes imutáveis**
+   - `resolve_var` mapeia constantes globais com `is_mut: false`.
+   - Atribuição em `Stmt::Assign` exige `is_mut == true` e rejeita reatribuição de símbolo não mutável.
 
-## Testes adicionados
-- Em `tests/interpreter_tests.rs`:
-  - `cli_run_mantem_exemplos_base`
-  - `cli_run_global_com_chamada_exemplo_novo`
-  - `cli_run_mutacao_com_if_else_exemplo_novo`
-  - `cli_run_recursao_com_global_exemplo_novo`
-  - `cli_run_erro_runtime_em_exemplo_novo`
+2. **Machine não possui instrução de escrita em global**
+   - `MachineInstr` expõe `LoadGlobal`, mas não existe `StoreGlobal`.
 
-## Observação sobre exemplos legados solicitados
-- `examples/run_recursao_fatorial.pink` não existe neste workspace; o teste trata esse caso de forma condicional sem falha espúria.
-- `examples/run_fatorial.pink` existe e foi executado nos comandos desta rodada.
+3. **Interpretador recebe globals como mapa somente leitura**
+   - `run_program` cria `globals` e passa `&HashMap<String, RuntimeValue>` para execução.
+   - `exec_instr` implementa `LoadGlobal`, mas não há ramo de escrita em global.
 
-## Limites que continuam
-- Sem escrita em globals.
-- Sem I/O da linguagem.
-- Sem novas capacidades de runtime fora do escopo.
+4. **Lowering atual não produz operação de escrita em global**
+   - Caminho de lowering para Machine usa `StoreSlot` para slots locais/temporários; não há lowering para store global.
+
+## Decisão aplicada
+- Não foi implementada escrita em globals.
+- Não foi criado exemplo/feature parcial inconsistente.
+- Rodada tratada como auditoria curta de impossibilidade atual, conforme instrução.
+
+## Bloqueio
+Para viabilizar Fase 21a de fato, seria necessário (fora do escopo mínimo desta rodada):
+- decisão de linguagem/semântica para mutabilidade de `eterno` (ou novo construto)
+- suporte em IR/CFG/seleção/Machine para operação de escrita global
+- validação estrutural e de tipos para novo opcode
+- atualização do interpretador para estado global mutável compartilhado entre chamadas
 
 ## Arquivos alterados
-- `examples/run_global_call_combo.pink`
-- `examples/run_mut_if_else.pink`
-- `examples/run_recursao_global.pink`
-- `examples/run_div_zero_cli.pink`
-- `tests/interpreter_tests.rs`
 - `docs/handoff_codex.md`
 - `docs/agent_state.md`
 - `docs/phases.md`
@@ -59,16 +55,7 @@
   - `cargo check`
   - `cargo fmt --check`
   - `cargo test`
-  - `cargo run -q -- --run examples/run_soma.pink`
-  - `cargo run -q -- --run examples/run_chamada.pink`
-  - `cargo run -q -- --run examples/run_global.pink`
-  - `cargo run -q -- --run examples/run_global_expr.pink`
-  - `cargo run -q -- --run examples/run_fatorial.pink`
-  - `cargo run -q -- --run examples/run_global_call_combo.pink`
-  - `cargo run -q -- --run examples/run_mut_if_else.pink`
-  - `cargo run -q -- --run examples/run_recursao_global.pink`
-  - `cargo run -q -- --run examples/run_div_zero_cli.pink`
 
 ## Próximos passos sugeridos
-- Expandir golden set de `--run` para cobrir mais casos de erro semântico observável pela CLI.
-- Opcional: suíte de exemplos negativos de parse/semântica dedicada para contratos de stderr.
+- Decidir explicitamente a política de mutabilidade de globals na linguagem (se entra ou não).
+- Se aprovado, abrir fase dedicada de pipeline (semântica + IR/CFG/Machine + runtime), em vez de patch isolado no interpretador.
