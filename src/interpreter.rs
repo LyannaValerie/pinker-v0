@@ -1,4 +1,7 @@
-use crate::abstract_machine::{MachineFunction, MachineInstr, MachineProgram, MachineTerminator};
+use crate::abstract_machine::{
+    MachineFunction, MachineGlobal, MachineInstr, MachineProgram, MachineTerminator,
+};
+use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
 use crate::token::{Position, Span};
 use std::collections::HashMap;
@@ -10,17 +13,32 @@ pub enum RuntimeValue {
 }
 
 pub fn run_program(program: &MachineProgram) -> Result<Option<RuntimeValue>, PinkerError> {
-    if !program.globals.is_empty() {
-        return Err(runtime_err("runtime mínimo não suporta globals"));
-    }
+    let globals = build_globals(program)?;
+    call_function("principal", vec![], program, &globals)
+}
 
-    call_function("principal", vec![], program)
+fn build_globals(program: &MachineProgram) -> Result<HashMap<String, RuntimeValue>, PinkerError> {
+    let mut globals = HashMap::new();
+    for g in &program.globals {
+        let value = eval_global_value(g)?;
+        globals.insert(g.name.clone(), value);
+    }
+    Ok(globals)
+}
+
+fn eval_global_value(g: &MachineGlobal) -> Result<RuntimeValue, PinkerError> {
+    match &g.value {
+        OperandIR::Int(v) => Ok(RuntimeValue::Int(*v)),
+        OperandIR::Bool(v) => Ok(RuntimeValue::Bool(*v)),
+        _ => Err(runtime_err("valor global não suportado em runtime")),
+    }
 }
 
 fn call_function(
     fn_name: &str,
     args: Vec<RuntimeValue>,
     program: &MachineProgram,
+    globals: &HashMap<String, RuntimeValue>,
 ) -> Result<Option<RuntimeValue>, PinkerError> {
     let function = find_function(fn_name, program)?;
 
@@ -48,7 +66,7 @@ fn call_function(
         let block = &function.blocks[block_idx];
 
         for instr in &block.code {
-            exec_instr(instr, &mut slots, &mut stack, program)?;
+            exec_instr(instr, &mut slots, &mut stack, program, globals)?;
         }
 
         match &block.terminator {
@@ -87,6 +105,7 @@ fn exec_instr(
     slots: &mut HashMap<String, RuntimeValue>,
     stack: &mut Vec<RuntimeValue>,
     program: &MachineProgram,
+    globals: &HashMap<String, RuntimeValue>,
 ) -> Result<(), PinkerError> {
     match instr {
         MachineInstr::PushInt(v) => stack.push(RuntimeValue::Int(*v)),
@@ -94,6 +113,12 @@ fn exec_instr(
         MachineInstr::LoadSlot(slot) => {
             let Some(value) = slots.get(slot).copied() else {
                 return Err(runtime_err("load_slot em slot não inicializado"));
+            };
+            stack.push(value);
+        }
+        MachineInstr::LoadGlobal(name) => {
+            let Some(value) = globals.get(name).copied() else {
+                return Err(runtime_err("global inexistente em runtime"));
             };
             stack.push(value);
         }
@@ -152,12 +177,9 @@ fn exec_instr(
             let (lhs, rhs) = pop_bin_int(stack, "cmp_ge exige dois bombons")?;
             stack.push(RuntimeValue::Bool(lhs >= rhs));
         }
-        MachineInstr::LoadGlobal(_) => {
-            return Err(runtime_err("runtime mínimo não suporta globals"));
-        }
         MachineInstr::Call { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = call_function(callee, args, program)?;
+            let result = call_function(callee, args, program, globals)?;
             let Some(value) = result else {
                 return Err(runtime_err("call exige função com retorno"));
             };
@@ -165,7 +187,7 @@ fn exec_instr(
         }
         MachineInstr::CallVoid { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = call_function(callee, args, program)?;
+            let result = call_function(callee, args, program, globals)?;
             if result.is_some() {
                 return Err(runtime_err("call_void exige função sem retorno"));
             }

@@ -1,7 +1,7 @@
 mod common;
 
 use pinker_v0::abstract_machine::{
-    MachineBlock, MachineFunction, MachineGlobal, MachineInstr, MachineProgram, MachineTerminator,
+    MachineBlock, MachineFunction, MachineInstr, MachineProgram, MachineTerminator,
 };
 use pinker_v0::abstract_machine_validate;
 use pinker_v0::cfg_ir;
@@ -35,6 +35,33 @@ fn run_code(code: &str) -> Result<Option<RuntimeValue>, String> {
 fn run_retorno_constante() {
     let out = run_code("pacote main; carinho principal() -> bombom { mimo 42; }").unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(42)));
+}
+
+#[test]
+fn run_retorno_global_inteira() {
+    let out = run_code(
+        "pacote main; eterno LIMITE: bombom = 100; carinho principal() -> bombom { mimo LIMITE; }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(100)));
+}
+
+#[test]
+fn run_global_em_expressao_aritmetica() {
+    let out = run_code(
+        "pacote main; eterno BASE: bombom = 20; carinho principal() -> bombom { mimo (BASE + 2) * 2; }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(44)));
+}
+
+#[test]
+fn run_global_booleana_em_fluxo_condicional() {
+    let out = run_code(
+        "pacote main; eterno FLAG: logica = verdade; carinho principal() -> bombom { talvez FLAG { mimo 1; } senao { mimo 0; } }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
 }
 
 #[test]
@@ -142,13 +169,10 @@ fn run_falha_funcao_inexistente() {
 }
 
 #[test]
-fn run_falha_globals_nao_suportadas() {
+fn run_falha_global_inexistente() {
     let program = MachineProgram {
         module_name: "main".to_string(),
-        globals: vec![MachineGlobal {
-            name: "g".to_string(),
-            value: pinker_v0::cfg_ir::OperandIR::Int(1),
-        }],
+        globals: vec![],
         functions: vec![MachineFunction {
             name: "principal".to_string(),
             ret_type: pinker_v0::ir::TypeIR::Bombom,
@@ -157,14 +181,14 @@ fn run_falha_globals_nao_suportadas() {
             slot_types: HashMap::new(),
             blocks: vec![MachineBlock {
                 label: "entry".to_string(),
-                code: vec![MachineInstr::PushInt(1)],
+                code: vec![MachineInstr::LoadGlobal("NAO_EXISTE".to_string())],
                 terminator: MachineTerminator::Ret,
             }],
         }],
     };
 
     let err = interpreter::run_program(&program).unwrap_err().to_string();
-    assert!(err.contains("runtime mínimo não suporta globals"));
+    assert!(err.contains("global inexistente em runtime"));
 }
 
 #[test]
@@ -182,5 +206,23 @@ fn cli_run_funciona_em_caso_valido() {
 
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout), "42\n");
+    assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+}
+
+#[test]
+fn cli_run_global_funciona() {
+    let source =
+        "pacote main; eterno LIMITE: bombom = 100; carinho principal() -> bombom { mimo LIMITE; }";
+    let file = std::env::temp_dir().join("pinker_run_global_ok.pink");
+    fs::write(&file, source).unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(&file)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "100\n");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }

@@ -1,0 +1,7 @@
+pacote main;
+
+eterno BASE: bombom = 20;
+
+carinho principal() -> bombom {
+  mimo (BASE + 2) * 2;
+}

@@ -25,3 +25,8 @@
   - suporte a chamadas entre funções no interpretador (`call` e `call_void`) com frame por função
   - ordem de argumentos preservada no runtime (desempilha + reverse)
   - erro explícito para função inexistente e para `call_void` recebendo retorno
+
+- Fase 15 — concluída
+  - suporte a leitura de globals no interpretador (`load_global`) com mapa de globals por execução
+  - avaliação mínima de globals literais inteiras/lógicas para `RuntimeValue`
+  - erro explícito para global inexistente e para valor global não suportado em runtime

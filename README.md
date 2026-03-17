@@ -40,6 +40,7 @@ cargo run -- --machine examples/machine_stack_if_call.pink
 cargo run -- --pseudo-asm examples/emit_if_else.pink
 cargo run -- --run examples/run_soma.pink
 cargo run -- --run examples/run_chamada.pink
+cargo run -- --run examples/run_global.pink
 cargo run -- --check examples/mut_falho.pink
 ```
 
