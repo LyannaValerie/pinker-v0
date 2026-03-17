@@ -1,21 +1,26 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Hotfix de compilação da Fase 11 solicitado por erro `E0425` reportado externamente.
+- Implementação da **Fase 12** na validação da Machine: enriquecimento de contexto e mensagens de erro, sem alterar semântica/pipeline.
 
 ## Objetivo
-- Remover bloco `else` indevido em `MachineInstr::CallVoid` caso presente em `src/abstract_machine_validate.rs`.
-- Preservar checagem tipada local de `call_void`.
-- Validar compilação completa do repositório.
+- Melhorar diagnósticos de erro da camada Machine com contexto de função/bloco e detalhe da instrução/terminador relevante.
+- Cobrir cenários críticos (underflow, incompatibilidade de tipo, `ret`, `br_true`, slots, `call` e `call_void`) mantendo validações existentes.
 
 ## Arquivos alterados
-- `docs/handoff_codex.md` (atualização factual)
-- `docs/phases.md` (status revalidado após comandos)
+- `src/abstract_machine_validate.rs`
+- `tests/abstract_machine_stack_tests.rs`
+- `docs/handoff_codex.md`
+- `docs/phases.md`
 
 ## Diagnóstico real encontrado
-- No estado atual deste repositório, o trecho indevido **não estava presente** dentro do arm `MachineInstr::CallVoid`.
-- `apply_instr_effect` contém uma única definição e escopo local correto.
-- Nenhuma mudança em Rust foi necessária nesta rodada.
+- O projeto permanece no escopo congelado de frontend + pipeline textual.
+- A validação da Machine já fazia checagens estruturais e disciplina de pilha (Fases 9–11), mas mensagens ainda eram genéricas em vários pontos.
+
+## Decisão técnica aplicada
+- Mantida a arquitetura atual (`PinkerError::AbstractMachineValidation`), sem redesign da hierarquia.
+- Introduzido detalhe opcional em erros da validação (`err_ctx_with_detail`) para anexar contexto local da instrução/terminador.
+- `ensure_compatible` agora informa `esperado` vs `recebido` quando há tipo incompatível.
 
 ## Testes/comandos executados
 - `cargo build`
@@ -25,10 +30,12 @@
 
 ## Resultado real
 - Todos os comandos passaram.
-- Compilação e suíte restauradas/confirmadas no estado atual.
+- Regressão total estável.
+- Mensagens da Machine agora incluem contexto adicional auditável para os casos-alvo da Fase 12.
 
 ## Limitações
-- Tipagem da Machine segue leve/local (sem inferência global pesada).
+- Tipagem da Machine continua leve/local (sem inferência global pesada).
+- Sem interpretador/execução da Machine (adiado por escopo).
 
 ## Pendências
-- Nenhuma pendência técnica aberta nesta rodada.
+- Nenhuma pendência da Fase 12 nesta rodada.
