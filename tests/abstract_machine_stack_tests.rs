@@ -220,6 +220,8 @@ fn stack_underflow_call_void() {
         .unwrap_err()
         .to_string();
     assert!(err.contains("underflow em call_void"));
+    assert!(err.contains("função 'principal', bloco 'entry'"));
+    assert!(err.contains("instr='call_void log, 1'"));
 }
 
 #[test]
@@ -246,6 +248,7 @@ fn stack_branch_sem_condicao() {
     ]))
     .unwrap_err();
     assert!(err.contains("underflow em br_true"));
+    assert!(err.contains("term='br_true then_0, else_1'"));
 }
 
 #[test]
@@ -272,6 +275,8 @@ fn stack_branch_tipo_incompativel() {
     ]))
     .unwrap_err();
     assert!(err.contains("br_true requer condição lógica"));
+    assert!(err.contains("função 'principal', bloco 'entry'"));
+    assert!(err.contains("term='br_true then_0, else_1'"));
 }
 
 #[test]
@@ -303,6 +308,8 @@ fn stack_ret_tipo_incompativel() {
     )]))
     .unwrap_err();
     assert!(err.contains("ret com tipo incompatível"));
+    assert!(err.contains("term='ret'"));
+    assert!(err.contains("esperado=bombom, recebido=lógica"));
 }
 
 #[test]
@@ -365,6 +372,7 @@ fn stack_load_slot_invalido() {
     )]))
     .unwrap_err();
     assert!(err.contains("load_slot para slot inexistente"));
+    assert!(err.contains("função 'principal', bloco 'entry'"));
 }
 
 #[test]
@@ -380,6 +388,7 @@ fn stack_store_slot_invalido() {
     )]))
     .unwrap_err();
     assert!(err.contains("store_slot para slot inválido"));
+    assert!(err.contains("função 'principal', bloco 'entry'"));
 }
 
 #[test]
@@ -457,6 +466,8 @@ fn stack_store_slot_tipado_incompativel() {
 
     let err = validate(function).unwrap_err();
     assert!(err.contains("store_slot com tipo incompatível"));
+    assert!(err.contains("slot='%x#0'"));
+    assert!(err.contains("esperado=bombom, recebido=lógica"));
 }
 
 #[test]
@@ -544,6 +555,8 @@ fn stack_call_tipo_argumento_incompativel() {
         .unwrap_err()
         .to_string();
     assert!(err.contains("call com tipo de argumento incompatível"));
+    assert!(err.contains("callee='usa_int'"));
+    assert!(err.contains("esperado=bombom, recebido=lógica"));
 }
 
 #[test]
@@ -586,6 +599,8 @@ fn stack_call_void_tipo_argumento_incompativel() {
         .unwrap_err()
         .to_string();
     assert!(err.contains("call_void com tipo de argumento incompatível"));
+    assert!(err.contains("callee='usa_logica'"));
+    assert!(err.contains("esperado=lógica, recebido=bombom"));
 }
 
 #[test]

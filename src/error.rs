@@ -43,6 +43,10 @@ pub enum PinkerError {
         msg: String,
         span: Span,
     },
+    Runtime {
+        msg: String,
+        span: Span,
+    },
 }
 
 impl PinkerError {
@@ -57,7 +61,8 @@ impl PinkerError {
             | PinkerError::CfgIrValidation { span, .. }
             | PinkerError::BackendTextValidation { span, .. }
             | PinkerError::InstrSelectValidation { span, .. }
-            | PinkerError::AbstractMachineValidation { span, .. } => *span,
+            | PinkerError::AbstractMachineValidation { span, .. }
+            | PinkerError::Runtime { span, .. } => *span,
         }
     }
 }
@@ -111,6 +116,9 @@ impl std::fmt::Display for PinkerError {
             }
             PinkerError::AbstractMachineValidation { msg, span } => {
                 write!(f, "Erro Validação Máquina Abstrata: {} em {}", msg, span)
+            }
+            PinkerError::Runtime { msg, span } => {
+                write!(f, "Erro Runtime: {} em {}", msg, span)
             }
         }
     }
