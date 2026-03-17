@@ -1,19 +1,21 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Hotfix real de compilação da Fase 11 (verificação contra erro reportado localmente por outro ambiente).
+- Hotfix de compilação da Fase 11 solicitado por erro `E0425` reportado externamente.
 
 ## Objetivo
-- Validar e corrigir, se necessário, o erro `E0425` reportado em `src/abstract_machine_validate.rs` (`previous/in_state/succ/worklist` fora de escopo).
-- Confirmar estado compilável do `main` sem abrir nova fase.
+- Remover bloco `else` indevido em `MachineInstr::CallVoid` caso presente em `src/abstract_machine_validate.rs`.
+- Preservar checagem tipada local de `call_void`.
+- Validar compilação completa do repositório.
 
 ## Arquivos alterados
-- `docs/handoff_codex.md` (atualização factual desta rodada)
+- `docs/handoff_codex.md` (atualização factual)
+- `docs/phases.md` (status revalidado após comandos)
 
-## Verificação técnica feita
-- Em `src/abstract_machine_validate.rs`, não foi encontrado bloco indevido no arm de `MachineInstr::CallVoid`.
-- `apply_instr_effect` aparece uma única vez e permanece com lógica local de instrução.
-- Não há referência fora de escopo (`previous`, `in_state`, `succ`, `worklist`) no escopo errado.
+## Diagnóstico real encontrado
+- No estado atual deste repositório, o trecho indevido **não estava presente** dentro do arm `MachineInstr::CallVoid`.
+- `apply_instr_effect` contém uma única definição e escopo local correto.
+- Nenhuma mudança em Rust foi necessária nesta rodada.
 
 ## Testes/comandos executados
 - `cargo build`
@@ -22,11 +24,11 @@
 - `cargo test`
 
 ## Resultado real
-- Todos os comandos passaram nesta rodada.
-- Não foi necessária alteração de código Rust para restaurar compilação no estado atual do repositório.
+- Todos os comandos passaram.
+- Compilação e suíte restauradas/confirmadas no estado atual.
 
 ## Limitações
-- A tipagem da Machine continua local/leve (sem inferência global pesada).
+- Tipagem da Machine segue leve/local (sem inferência global pesada).
 
 ## Pendências
 - Nenhuma pendência técnica aberta nesta rodada.

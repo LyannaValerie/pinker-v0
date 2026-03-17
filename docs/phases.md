@@ -6,7 +6,7 @@
 - Fase 10 — concluída
   - checagem leve de tipo no topo da pilha (`br_true`, `ret`, unárias/binárias quando inferível)
 
-- Fase 11 — concluída (hotfix de fechamento verificado)
+- Fase 11 — concluída (revalidada nesta rodada)
   - refinamento de tipos de params/slots no checker da Machine
   - regressões tipadas para `call` e `call_void`
-  - `main` compilável e suíte verde após verificação desta rodada
+  - `cargo build`, `cargo check`, `cargo fmt --check` e `cargo test` passando
