@@ -39,6 +39,7 @@ cargo run -- --machine examples/machine_if_else.pink
 cargo run -- --machine examples/machine_stack_if_call.pink
 cargo run -- --pseudo-asm examples/emit_if_else.pink
 cargo run -- --run examples/run_soma.pink
+cargo run -- --run examples/run_chamada.pink
 cargo run -- --check examples/mut_falho.pink
 ```
 
@@ -74,7 +75,7 @@ A camada `--machine` agora valida:
 
 Se a validação estrutural ou de pilha falhar, `--machine` retorna erro e não imprime saída parcial.
 
-Limites atuais (adiado): a tipagem na Machine continua leve/local (sem inferência global pesada entre blocos e sem interpretador).
+Limites atuais (adiado): a tipagem na Machine continua leve/local (sem inferência global pesada entre blocos).
 
 ## O que essas camadas representam
 - `--cfg-ir`: controle de fluxo explícito próximo do lowering

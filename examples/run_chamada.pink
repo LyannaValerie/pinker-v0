@@ -1,0 +1,9 @@
+pacote main;
+
+carinho dobrar(x: bombom) -> bombom {
+  mimo x + x;
+}
+
+carinho principal() -> bombom {
+  mimo dobrar(21);
+}

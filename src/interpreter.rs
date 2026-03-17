@@ -13,29 +13,31 @@ pub fn run_program(program: &MachineProgram) -> Result<Option<RuntimeValue>, Pin
     if !program.globals.is_empty() {
         return Err(runtime_err("runtime mínimo não suporta globals"));
     }
-    if program.functions.len() != 1 {
-        return Err(runtime_err(
-            "runtime mínimo suporta apenas programa com função principal",
-        ));
-    }
 
-    let function = &program.functions[0];
-    if function.name != "principal" {
-        return Err(runtime_err(
-            "runtime mínimo exige função principal como única função",
-        ));
-    }
-
-    run_function(function)
+    call_function("principal", vec![], program)
 }
 
-fn run_function(function: &MachineFunction) -> Result<Option<RuntimeValue>, PinkerError> {
+fn call_function(
+    fn_name: &str,
+    args: Vec<RuntimeValue>,
+    program: &MachineProgram,
+) -> Result<Option<RuntimeValue>, PinkerError> {
+    let function = find_function(fn_name, program)?;
+
+    if function.params.len() != args.len() {
+        return Err(runtime_err("chamada com aridade inválida"));
+    }
+
     let mut labels = HashMap::new();
     for (idx, block) in function.blocks.iter().enumerate() {
         labels.insert(block.label.clone(), idx);
     }
 
     let mut slots: HashMap<String, RuntimeValue> = HashMap::new();
+    for (slot, value) in function.params.iter().cloned().zip(args.into_iter()) {
+        slots.insert(slot, value);
+    }
+
     let mut stack: Vec<RuntimeValue> = Vec::new();
     let mut current_label = "entry".to_string();
 
@@ -46,7 +48,7 @@ fn run_function(function: &MachineFunction) -> Result<Option<RuntimeValue>, Pink
         let block = &function.blocks[block_idx];
 
         for instr in &block.code {
-            exec_instr(instr, &mut slots, &mut stack)?;
+            exec_instr(instr, &mut slots, &mut stack, program)?;
         }
 
         match &block.terminator {
@@ -84,6 +86,7 @@ fn exec_instr(
     instr: &MachineInstr,
     slots: &mut HashMap<String, RuntimeValue>,
     stack: &mut Vec<RuntimeValue>,
+    program: &MachineProgram,
 ) -> Result<(), PinkerError> {
     match instr {
         MachineInstr::PushInt(v) => stack.push(RuntimeValue::Int(*v)),
@@ -152,15 +155,44 @@ fn exec_instr(
         MachineInstr::LoadGlobal(_) => {
             return Err(runtime_err("runtime mínimo não suporta globals"));
         }
-        MachineInstr::Call { .. } => {
-            return Err(runtime_err("runtime mínimo não suporta call"));
+        MachineInstr::Call { callee, argc } => {
+            let args = pop_args(stack, *argc)?;
+            let result = call_function(callee, args, program)?;
+            let Some(value) = result else {
+                return Err(runtime_err("call exige função com retorno"));
+            };
+            stack.push(value);
         }
-        MachineInstr::CallVoid { .. } => {
-            return Err(runtime_err("runtime mínimo não suporta call_void"));
+        MachineInstr::CallVoid { callee, argc } => {
+            let args = pop_args(stack, *argc)?;
+            let result = call_function(callee, args, program)?;
+            if result.is_some() {
+                return Err(runtime_err("call_void exige função sem retorno"));
+            }
         }
     }
 
     Ok(())
+}
+
+fn find_function<'a>(
+    name: &str,
+    program: &'a MachineProgram,
+) -> Result<&'a MachineFunction, PinkerError> {
+    program
+        .functions
+        .iter()
+        .find(|f| f.name == name)
+        .ok_or_else(|| runtime_err("função chamada inexistente"))
+}
+
+fn pop_args(stack: &mut Vec<RuntimeValue>, argc: usize) -> Result<Vec<RuntimeValue>, PinkerError> {
+    let mut args = Vec::with_capacity(argc);
+    for _ in 0..argc {
+        args.push(pop(stack, "underflow em argumentos de chamada")?);
+    }
+    args.reverse();
+    Ok(args)
 }
 
 fn pop(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<RuntimeValue, PinkerError> {

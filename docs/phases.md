@@ -20,3 +20,8 @@
   - interpretador mínimo da Machine com `--run` (execução de `principal` com frame local de slots/pilha e fluxo por labels)
   - suporte inicial a push/load/store, unárias/binárias, comparações numéricas, `jmp`, `br_true`, `ret` e `ret_void`
   - falhas explícitas para `call`, `call_void`, globals e execução multi-função
+
+- Fase 14 — concluída
+  - suporte a chamadas entre funções no interpretador (`call` e `call_void`) com frame por função
+  - ordem de argumentos preservada no runtime (desempilha + reverse)
+  - erro explícito para função inexistente e para `call_void` recebendo retorno

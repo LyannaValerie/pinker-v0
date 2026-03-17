@@ -13,9 +13,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 11: refinamento de tipos de params/slots na Machine (hotfix de fechamento)
 - Fase 12: contexto e mensagens de erro da Machine
 - Fase 13: interpretador mínimo com `--run`
+- Fase 14: chamadas entre funções no interpretador (`call` e `call_void`)
 
 ## Fase atual
-- Fase 13 concluída (primeira execução real mínima via interpretador da Machine).
+- Fase 14 concluída (execução com chamadas entre funções na Machine interpretada).
 
 ## Restrições do projeto
 - Não expandir linguagem/gramática.
@@ -24,7 +25,8 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Preservar pipeline e camadas atuais.
 
 ## Itens adiados
-- Execução da Machine além do modo mínimo atual (sem chamadas entre funções e sem globals).
+- Execução com globals.
+- Infraestrutura avançada de runtime (I/O de linguagem, debug runtime, otimizações de execução).
 - Inferência global pesada de tipos na Machine.
 
 ## Instrução para novo agente

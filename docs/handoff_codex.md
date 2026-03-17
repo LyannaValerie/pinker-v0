@@ -1,53 +1,65 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Implementação da **Fase 13**: primeiro interpretador mínimo da Pinker sobre `MachineProgram` já validada.
+- Implementação da **Fase 14**: suporte a chamadas entre funções no interpretador da Machine.
 
 ## Objetivo
-- Executar `principal` via nova flag `--run` sem alterar frontend/gramática.
-- Entregar execução mínima controlada com escopo explícito e erros curtos para recursos fora de escopo.
+- Permitir `MachineInstr::Call` e `MachineInstr::CallVoid` com frame por função, mantendo arquitetura simples.
+- Preservar pipeline atual (`--run` reaproveita semântica → IR → CFG → seleção → Machine → validação Machine).
 
 ## Arquivos alterados
 - `src/interpreter.rs`
-- `src/error.rs`
-- `src/lib.rs`
-- `src/main.rs`
 - `tests/interpreter_tests.rs`
-- `examples/run_soma.pink`
+- `examples/run_chamada.pink`
+- `examples/run_chamada_void.pink`
 - `README.md`
 - `docs/handoff_codex.md`
+- `docs/agent_state.md`
 - `docs/phases.md`
 
 ## Diagnóstico real encontrado
-- O repositório estava estável após Fase 12 (build e testes passando).
-- Pipeline de lowering/validação até Machine já estava consolidada e foi reaproveitada para `--run`.
+- Fase 13 estava estável e já executava `principal`, mas bloqueava `call`/`call_void` por erro explícito.
+- O lowering já emite argumentos em ordem de origem e a pilha recebe `arg1, arg2, ...`; portanto a rotina de chamada no runtime precisa desempilhar e reverter para reconstruir a ordem lógica.
 
 ## Decisão técnica aplicada
-- Interpretador pequeno e direto em `src/interpreter.rs`, com frame local (`slots` + `stack`) e execução por labels.
-- Nova variante mínima de erro `PinkerError::Runtime` para mensagens de runtime curtas e consistentes.
-- Integração de `--run` na CLI reutilizando a pipeline existente até Machine validada.
+- Extraída rotina reutilizável `call_function(fn_name, args, program)` no interpretador.
+- `run_program` agora valida globals e despacha para `call_function("principal", vec![], program)`.
+- `exec_instr` recebeu acesso ao `MachineProgram` para resolver chamadas.
 
 ## Cobertura atual do interpretador
-- Suporta: `PushInt`, `PushBool`, `LoadSlot`, `StoreSlot`, `Neg`, `Not`, `Add/Sub/Mul/Div`, comparações numéricas, `Jmp`, `BrTrue`, `Ret`, `RetVoid`.
-- Executa apenas `principal` como única função.
+- Continua cobrindo instruções básicas da Fase 13.
+- Agora cobre também:
+  - `Call`: consome `argc`, reordena argumentos, chama função alvo, exige retorno com valor e empilha no chamador.
+  - `CallVoid`: consome `argc`, reordena argumentos e chama função alvo.
 
-## Fora de escopo nesta fase (falha explícita)
-- `Call`, `CallVoid`.
-- globals.
-- execução multi-função.
+## Política adotada para `CallVoid`
+- `call_void` **exige função sem retorno** no runtime.
+- Se a função chamada retornar valor (`Some`), o interpretador falha com erro curto: `call_void exige função sem retorno`.
+- Esta política é consistente com validador/lowering atuais (que já tratam `call_void` como chamada para função `nulo`).
+
+## O que ainda não cobre
+- globals (erro explícito).
 - I/O na linguagem.
+- infraestrutura avançada de runtime (debugger, otimizações, etc.).
+
+## Limites remanescentes
+- Sem suporte a globals em execução.
+- Sem política avançada de overflow além do comportamento atual com `wrapping_*` nas operações inteiras.
 
 ## Testes/comandos executados
 - `cargo build`
 - `cargo check`
 - `cargo fmt --check`
 - `cargo test`
+- `cargo run -q -- --run examples/run_chamada.pink`
 - `cargo run -q -- --run examples/run_soma.pink`
+- `cargo run -q -- --run examples/run_chamada_void.pink`
 
 ## Resultado real
 - Todos os comandos passaram.
-- `--run examples/run_soma.pink` imprime `42`.
+- `run_chamada.pink` e `run_soma.pink` imprimem `42`.
+- `run_chamada_void.pink` imprime `42`.
 
 ## Próximos passos sugeridos
-- Expandir execução para chamadas entre funções (com stack frame por chamada), mantendo disciplina mínima.
-- Definir política explícita para overflow aritmético/semântica de inteiros no runtime.
+- Adicionar testes dedicados para recursão (não foco desta fase, mas a estrutura de chamadas já permite execução empilhada).
+- Definir política explícita de impressão para possíveis retornos `lógica` em `principal` caso a semântica futura permita.

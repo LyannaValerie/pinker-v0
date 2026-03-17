@@ -71,7 +71,52 @@ fn run_comparacao_em_fluxo_de_controle() {
 }
 
 #[test]
-fn run_falha_call_nao_suportado() {
+fn run_chamada_simples_um_argumento() {
+    let out = run_code(
+        "pacote main; carinho dobro(x: bombom) -> bombom { mimo x + x; } carinho principal() -> bombom { mimo dobro(21); }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(42)));
+}
+
+#[test]
+fn run_chamada_com_multiplos_argumentos() {
+    let out = run_code(
+        "pacote main; carinho calc(a: bombom, b: bombom, c: bombom) -> bombom { mimo a + b * c; } carinho principal() -> bombom { mimo calc(2, 10, 4); }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(42)));
+}
+
+#[test]
+fn run_chamada_respeita_ordem_argumentos() {
+    let out = run_code(
+        "pacote main; carinho sub(a: bombom, b: bombom) -> bombom { mimo a - b; } carinho principal() -> bombom { mimo sub(10, 3); }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(7)));
+}
+
+#[test]
+fn run_chamada_encadeada() {
+    let out = run_code(
+        "pacote main; carinho inc(x: bombom) -> bombom { mimo x + 1; } carinho dobro(x: bombom) -> bombom { mimo x + x; } carinho principal() -> bombom { mimo dobro(inc(20)); }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(42)));
+}
+
+#[test]
+fn run_chamada_void_como_statement() {
+    let out = run_code(
+        "pacote main; carinho marca() { mimo; } carinho principal() -> bombom { marca(); mimo 42; }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(42)));
+}
+
+#[test]
+fn run_falha_funcao_inexistente() {
     let program = MachineProgram {
         module_name: "main".to_string(),
         globals: vec![],
@@ -84,7 +129,7 @@ fn run_falha_call_nao_suportado() {
             blocks: vec![MachineBlock {
                 label: "entry".to_string(),
                 code: vec![MachineInstr::Call {
-                    callee: "x".to_string(),
+                    callee: "nao_existe".to_string(),
                     argc: 0,
                 }],
                 terminator: MachineTerminator::Ret,
@@ -93,33 +138,7 @@ fn run_falha_call_nao_suportado() {
     };
 
     let err = interpreter::run_program(&program).unwrap_err().to_string();
-    assert!(err.contains("runtime mínimo não suporta call"));
-}
-
-#[test]
-fn run_falha_call_void_nao_suportado() {
-    let program = MachineProgram {
-        module_name: "main".to_string(),
-        globals: vec![],
-        functions: vec![MachineFunction {
-            name: "principal".to_string(),
-            ret_type: pinker_v0::ir::TypeIR::Nulo,
-            params: vec![],
-            locals: vec![],
-            slot_types: HashMap::new(),
-            blocks: vec![MachineBlock {
-                label: "entry".to_string(),
-                code: vec![MachineInstr::CallVoid {
-                    callee: "x".to_string(),
-                    argc: 0,
-                }],
-                terminator: MachineTerminator::RetVoid,
-            }],
-        }],
-    };
-
-    let err = interpreter::run_program(&program).unwrap_err().to_string();
-    assert!(err.contains("runtime mínimo não suporta call_void"));
+    assert!(err.contains("função chamada inexistente"));
 }
 
 #[test]
@@ -150,8 +169,9 @@ fn run_falha_globals_nao_suportadas() {
 
 #[test]
 fn cli_run_funciona_em_caso_valido() {
-    let source = "pacote main; carinho principal() -> bombom { mimo 42; }";
-    let file = std::env::temp_dir().join("pinker_run_ok.pink");
+    let source =
+        "pacote main; carinho dobro(x: bombom) -> bombom { mimo x + x; } carinho principal() -> bombom { mimo dobro(21); }";
+    let file = std::env::temp_dir().join("pinker_run_call_ok.pink");
     fs::write(&file, source).unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_pink"))
