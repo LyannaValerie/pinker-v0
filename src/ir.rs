@@ -1,3 +1,15 @@
+//! IR estruturada — primeira representação interna após a análise semântica.
+//!
+//! Preserva a estrutura do programa (funções, blocos, `if/else` aninhados) porém substitui
+//! referências de nome por slots normalizados e explicita tipos em cada nó.
+//! Esta camada ainda não divide o fluxo de controle em blocos básicos — isso ocorre em `cfg_ir`.
+//!
+//! Convenção de nomes de slots: `%nome#N`, onde `N` é um contador por nome-fonte.
+//! Isso permite múltiplas declarações do mesmo nome em escopos distintos sem colisão.
+//!
+//! Posição no pipeline:
+//!   `semantic` → **`ir`** → `ir_validate` → `cfg_ir`
+
 use crate::ast::{
     BinaryOp, Block, ConstDecl, ElseBlock, Expr, ExprKind, FunctionDecl, IfStmt, Item, LetStmt,
     Program, ReturnStmt, Stmt, Type, UnaryOp,
@@ -6,6 +18,7 @@ use crate::error::PinkerError;
 use crate::token::Span;
 use std::collections::HashMap;
 
+/// Programa completo na IR estruturada.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramIR {
     pub module_name: String,
@@ -13,6 +26,7 @@ pub struct ProgramIR {
     pub functions: Vec<FunctionIR>,
 }
 
+/// Constante global (`eterno`). `value` é sempre um literal ou referência a outra global.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConstIR {
     pub name: String,
@@ -21,6 +35,8 @@ pub struct ConstIR {
     pub span: Span,
 }
 
+/// Função na IR estruturada. `entry` contém o único bloco da função (ainda não dividido em CFG).
+/// `params` lista os parâmetros como bindings; `locals` lista variáveis locais declaradas.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionIR {
     pub name: String,
@@ -31,6 +47,7 @@ pub struct FunctionIR {
     pub span: Span,
 }
 
+/// Parâmetro ou binding de escopo. `source_name` é o nome original; `slot` é o nome normalizado.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BindingIR {
     pub source_name: String,
@@ -38,6 +55,7 @@ pub struct BindingIR {
     pub ty: TypeIR,
 }
 
+/// Variável local declarada por `nova`. `is_mut` reflete a palavra-chave `mut`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalIR {
     pub source_name: String,
@@ -46,6 +64,8 @@ pub struct LocalIR {
     pub is_mut: bool,
 }
 
+/// Bloco de instruções com label e span. Na IR estruturada, `if/else` é uma instrução,
+/// não um conjunto de blocos — a divisão em blocos básicos ocorre em `cfg_ir`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockIR {
     pub label: String,
@@ -53,6 +73,7 @@ pub struct BlockIR {
     pub span: Span,
 }
 
+/// Instrução da IR estruturada. `If` preserva o bloco `then` e o bloco `else` como filhos diretos.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstructionIR {
     Let {
@@ -81,6 +102,8 @@ pub enum InstructionIR {
     },
 }
 
+/// Expressão na IR. `Call` carrega `ret_type` explicitamente para que camadas posteriores
+/// não precisem consultar a tabela de funções — o tipo está embutido no nó.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValueIR {
     Local(String),
@@ -103,6 +126,8 @@ pub enum ValueIR {
     },
 }
 
+/// Tipos do sistema de tipos da v0. `Nulo` representa ausência de retorno (funções sem `-> tipo`);
+/// não é exposto como tipo de usuário — apenas interno ao pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TypeIR {
     Bombom,
@@ -141,12 +166,19 @@ struct BindingState {
     ty: TypeIR,
 }
 
+// `LoweringContext` é construído em uma primeira passagem sobre o programa:
+// coleta todas as assinaturas de funções e constantes antes de baixar qualquer corpo.
+// Isso permite chamadas para-frente sem ordem de declaração obrigatória.
 struct LoweringContext {
     module_name: String,
     function_sigs: HashMap<String, FunctionSigIR>,
     global_consts: HashMap<String, TypeIR>,
 }
 
+// `FunctionLowerer` mantém estado mutable por função durante o lowering:
+// - `scopes`: pilha de escopos léxicos (topo = escopo atual).
+// - `slot_counters`: contador por nome-fonte para gerar slots únicos (`%nome#N`).
+// - `locals` acumula todas as variáveis locais declaradas (sem os params).
 struct FunctionLowerer<'a> {
     context: &'a LoweringContext,
     scopes: Vec<HashMap<String, BindingState>>,
