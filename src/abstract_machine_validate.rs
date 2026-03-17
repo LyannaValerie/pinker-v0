@@ -379,6 +379,154 @@ fn apply_instr_effect(
                         "call_void com tipo de argumento incompatível",
                     )?;
                 }
+                let merged = merge_stack_types(previous, &stack);
+                if &merged != previous {
+                    in_state.insert(succ.clone(), merged);
+                    worklist.push_back(succ);
+                }
+            } else {
+                in_state.insert(succ.clone(), stack.clone());
+                worklist.push_back(succ);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn apply_instr_effect(
+    f: &MachineFunction,
+    label: &str,
+    i: &MachineInstr,
+    stack: &mut Vec<StackValueType>,
+    slot_types: &mut HashMap<String, StackValueType>,
+    globals: &HashMap<String, StackValueType>,
+    sigs: &HashMap<String, (TypeIR, Vec<StackValueType>)>,
+) -> Result<(), PinkerError> {
+    match i {
+        MachineInstr::PushInt(_) => stack.push(StackValueType::Bombom),
+        MachineInstr::PushBool(_) => stack.push(StackValueType::Logica),
+        MachineInstr::LoadSlot(slot) => {
+            stack.push(*slot_types.get(slot).unwrap_or(&StackValueType::Unknown));
+        }
+        MachineInstr::LoadGlobal(g) => {
+            stack.push(*globals.get(g).unwrap_or(&StackValueType::Unknown));
+        }
+        MachineInstr::StoreSlot(slot) => {
+            let top = pop_typed(f, label, stack, 1, "underflow em store_slot")?;
+            if let Some(expected) = slot_types.get(slot).copied() {
+                ensure_compatible(
+                    f,
+                    label,
+                    top[0],
+                    expected,
+                    "store_slot com tipo incompatível",
+                )?;
+                let merged = merge_types(expected, top[0]);
+                slot_types.insert(slot.clone(), merged);
+            } else {
+                slot_types.insert(slot.clone(), top[0]);
+            }
+        }
+        MachineInstr::Neg | MachineInstr::Not => {
+            let top = pop_typed(f, label, stack, 1, "underflow em operação unária")?;
+            let expected = match i {
+                MachineInstr::Neg => StackValueType::Bombom,
+                MachineInstr::Not => StackValueType::Logica,
+                _ => StackValueType::Unknown,
+            };
+            ensure_compatible(
+                f,
+                label,
+                top[0],
+                expected,
+                "tipo inválido em operação unária",
+            )?;
+            stack.push(expected);
+        }
+        MachineInstr::Add
+        | MachineInstr::Sub
+        | MachineInstr::Mul
+        | MachineInstr::Div
+        | MachineInstr::CmpEq
+        | MachineInstr::CmpNe
+        | MachineInstr::CmpLt
+        | MachineInstr::CmpLe
+        | MachineInstr::CmpGt
+        | MachineInstr::CmpGe => {
+            let pair = pop_typed(f, label, stack, 2, "underflow em operação binária")?;
+            let out_ty = match i {
+                MachineInstr::CmpEq
+                | MachineInstr::CmpNe
+                | MachineInstr::CmpLt
+                | MachineInstr::CmpLe
+                | MachineInstr::CmpGt
+                | MachineInstr::CmpGe => StackValueType::Logica,
+                _ => {
+                    ensure_compatible(
+                        f,
+                        label,
+                        pair[0],
+                        StackValueType::Bombom,
+                        "tipo inválido em operação binária",
+                    )?;
+                    ensure_compatible(
+                        f,
+                        label,
+                        pair[1],
+                        StackValueType::Bombom,
+                        "tipo inválido em operação binária",
+                    )?;
+                    StackValueType::Bombom
+                }
+            };
+            if out_ty == StackValueType::Logica
+                && pair[0] != StackValueType::Unknown
+                && pair[1] != StackValueType::Unknown
+                && pair[0] != pair[1]
+            {
+                return Err(err_ctx(
+                    f,
+                    Some(label),
+                    "tipo inválido em comparação binária",
+                ));
+            }
+            stack.push(out_ty);
+        }
+        MachineInstr::Call { callee, argc } => {
+            let args = pop_typed(f, label, stack, *argc, "underflow em call")?;
+            if let Some((_ret, param_types)) = sigs.get(callee) {
+                for (arg, expected) in args.iter().zip(param_types.iter().rev()) {
+                    ensure_compatible(
+                        f,
+                        label,
+                        *arg,
+                        *expected,
+                        "call com tipo de argumento incompatível",
+                    )?;
+                }
+            }
+            let ret = sigs
+                .get(callee)
+                .map(|(ret, _)| *ret)
+                .unwrap_or(TypeIR::Bombom);
+            stack.push(type_to_stack(ret));
+        }
+        MachineInstr::CallVoid { callee, argc } => {
+            let args = pop_typed(f, label, stack, *argc, "underflow em call_void")?;
+            if let Some((_ret, param_types)) = sigs.get(callee) {
+                for (arg, expected) in args.iter().zip(param_types.iter().rev()) {
+                    ensure_compatible(
+                        f,
+                        label,
+                        *arg,
+                        *expected,
+                        "call_void com tipo de argumento incompatível",
+                    )?;
+                }
+            } else {
+                in_state.insert(succ.clone(), stack.clone());
+                worklist.push_back(succ);
             }
         }
     }
