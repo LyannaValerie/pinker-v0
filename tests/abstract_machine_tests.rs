@@ -159,6 +159,7 @@ fn machine_falha_em_programa_invalido() {
             ret_type: pinker_v0::ir::TypeIR::Bombom,
             params: vec![],
             locals: vec![],
+            slot_types: std::collections::HashMap::new(),
             blocks: vec![pinker_v0::abstract_machine::MachineBlock {
                 label: "entry".to_string(),
                 code: vec![],
@@ -181,6 +182,7 @@ fn machine_falha_load_slot_inexistente() {
             ret_type: pinker_v0::ir::TypeIR::Bombom,
             params: vec![],
             locals: vec![],
+            slot_types: std::collections::HashMap::new(),
             blocks: vec![pinker_v0::abstract_machine::MachineBlock {
                 label: "entry".to_string(),
                 code: vec![pinker_v0::abstract_machine::MachineInstr::LoadSlot(

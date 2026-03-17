@@ -63,12 +63,13 @@ A camada `--machine` agora valida:
 - tipo esperado no topo para `br_true` (condição lógica)
 - `ret` com exatamente um valor disponível
 - compatibilidade de tipo no `ret` com o retorno da função quando inferível
+- aproveitamento de tipos de `params`/`locals` para reduzir `Unknown` em `load_slot`/`store_slot`
 - `ret_void` com pilha vazia
 - slots válidos por função (`params`, `locals` e temporários `%tN`)
 
 Se a validação estrutural ou de pilha falhar, `--machine` retorna erro e não imprime saída parcial.
 
-Limites atuais (adiado): validação de tipo de argumentos em `call`/`call_void` ainda é parcial na camada Machine e depende de metadado tipado que hoje não existe nela.
+Limites atuais (adiado): a tipagem na Machine continua leve/local (sem inferência global pesada entre blocos e sem interpretador).
 
 ## O que essas camadas representam
 - `--cfg-ir`: controle de fluxo explícito próximo do lowering

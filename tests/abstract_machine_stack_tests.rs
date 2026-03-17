@@ -6,6 +6,7 @@ use pinker_v0::abstract_machine::{
 };
 use pinker_v0::abstract_machine_validate;
 use pinker_v0::ir::TypeIR;
+use std::collections::HashMap;
 
 fn validate(function: MachineFunction) -> Result<(), String> {
     let program = MachineProgram {
@@ -23,6 +24,7 @@ fn fn_bombom(blocks: Vec<MachineBlock>) -> MachineFunction {
         ret_type: TypeIR::Bombom,
         params: vec![],
         locals: vec![],
+        slot_types: HashMap::new(),
         blocks,
     }
 }
@@ -74,6 +76,10 @@ fn stack_underflow_call() {
                 ret_type: TypeIR::Bombom,
                 params: vec!["%x#0".to_string(), "%y#0".to_string()],
                 locals: vec![],
+                slot_types: HashMap::from([
+                    ("%x#0".to_string(), TypeIR::Bombom),
+                    ("%y#0".to_string(), TypeIR::Bombom),
+                ]),
                 blocks: vec![block(
                     "entry",
                     vec![
@@ -115,6 +121,10 @@ fn stack_call_aridade_invalida() {
                 ret_type: TypeIR::Bombom,
                 params: vec!["%x#0".to_string(), "%y#0".to_string()],
                 locals: vec![],
+                slot_types: HashMap::from([
+                    ("%x#0".to_string(), TypeIR::Bombom),
+                    ("%y#0".to_string(), TypeIR::Bombom),
+                ]),
                 blocks: vec![block(
                     "entry",
                     vec![
@@ -157,6 +167,7 @@ fn stack_call_void_aridade_invalida() {
                 ret_type: TypeIR::Nulo,
                 params: vec!["%x#0".to_string()],
                 locals: vec![],
+                slot_types: HashMap::from([("%x#0".to_string(), TypeIR::Bombom)]),
                 blocks: vec![block("entry", vec![], MachineTerminator::RetVoid)],
             },
             fn_bombom(vec![block(
@@ -191,6 +202,7 @@ fn stack_underflow_call_void() {
                 ret_type: TypeIR::Nulo,
                 params: vec!["%x#0".to_string()],
                 locals: vec![],
+                slot_types: HashMap::from([("%x#0".to_string(), TypeIR::Bombom)]),
                 blocks: vec![block("entry", vec![], MachineTerminator::RetVoid)],
             },
             fn_bombom(vec![block(
@@ -306,6 +318,7 @@ fn stack_ret_void_pilha_suja() {
         ret_type: TypeIR::Nulo,
         params: vec![],
         locals: vec![],
+        slot_types: HashMap::new(),
         blocks: vec![block(
             "entry",
             vec![MachineInstr::PushInt(1)],
@@ -370,6 +383,170 @@ fn stack_store_slot_invalido() {
 }
 
 #[test]
+fn stack_load_slot_param_tipado_fluxo_valido() {
+    let function = MachineFunction {
+        name: "f".to_string(),
+        ret_type: TypeIR::Bombom,
+        params: vec!["%p#0".to_string()],
+        locals: vec![],
+        slot_types: HashMap::from([("%p#0".to_string(), TypeIR::Logica)]),
+        blocks: vec![
+            block(
+                "entry",
+                vec![MachineInstr::LoadSlot("%p#0".to_string())],
+                MachineTerminator::BrTrue {
+                    then_label: "then_0".to_string(),
+                    else_label: "else_1".to_string(),
+                },
+            ),
+            block(
+                "then_0",
+                vec![MachineInstr::PushInt(1)],
+                MachineTerminator::Ret,
+            ),
+            block(
+                "else_1",
+                vec![MachineInstr::PushInt(0)],
+                MachineTerminator::Ret,
+            ),
+        ],
+    };
+
+    assert!(validate(function).is_ok());
+}
+
+#[test]
+fn stack_load_slot_local_tipado_fluxo_valido() {
+    let function = MachineFunction {
+        name: "f".to_string(),
+        ret_type: TypeIR::Bombom,
+        params: vec![],
+        locals: vec!["%x#0".to_string()],
+        slot_types: HashMap::from([("%x#0".to_string(), TypeIR::Bombom)]),
+        blocks: vec![block(
+            "entry",
+            vec![
+                MachineInstr::PushInt(10),
+                MachineInstr::StoreSlot("%x#0".to_string()),
+                MachineInstr::LoadSlot("%x#0".to_string()),
+            ],
+            MachineTerminator::Ret,
+        )],
+    };
+
+    assert!(validate(function).is_ok());
+}
+
+#[test]
+fn stack_store_slot_tipado_incompativel() {
+    let function = MachineFunction {
+        name: "f".to_string(),
+        ret_type: TypeIR::Nulo,
+        params: vec![],
+        locals: vec!["%x#0".to_string()],
+        slot_types: HashMap::from([("%x#0".to_string(), TypeIR::Bombom)]),
+        blocks: vec![block(
+            "entry",
+            vec![
+                MachineInstr::PushBool(true),
+                MachineInstr::StoreSlot("%x#0".to_string()),
+            ],
+            MachineTerminator::RetVoid,
+        )],
+    };
+
+    let err = validate(function).unwrap_err();
+    assert!(err.contains("store_slot com tipo incompatível"));
+}
+
+#[test]
+fn stack_aritmetica_invalida_com_parametro_logico() {
+    let function = MachineFunction {
+        name: "f".to_string(),
+        ret_type: TypeIR::Bombom,
+        params: vec!["%p#0".to_string()],
+        locals: vec![],
+        slot_types: HashMap::from([("%p#0".to_string(), TypeIR::Logica)]),
+        blocks: vec![block(
+            "entry",
+            vec![
+                MachineInstr::LoadSlot("%p#0".to_string()),
+                MachineInstr::PushInt(1),
+                MachineInstr::Add,
+            ],
+            MachineTerminator::Ret,
+        )],
+    };
+
+    let err = validate(function).unwrap_err();
+    assert!(err.contains("tipo inválido em operação binária"));
+}
+
+#[test]
+fn stack_ret_invalido_com_parametro_logico() {
+    let function = MachineFunction {
+        name: "f".to_string(),
+        ret_type: TypeIR::Bombom,
+        params: vec!["%p#0".to_string()],
+        locals: vec![],
+        slot_types: HashMap::from([("%p#0".to_string(), TypeIR::Logica)]),
+        blocks: vec![block(
+            "entry",
+            vec![MachineInstr::LoadSlot("%p#0".to_string())],
+            MachineTerminator::Ret,
+        )],
+    };
+
+    let err = validate(function).unwrap_err();
+    assert!(err.contains("ret com tipo incompatível"));
+}
+
+#[test]
+fn stack_call_tipo_argumento_incompativel() {
+    let program = MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![
+            MachineFunction {
+                name: "usa_int".to_string(),
+                ret_type: TypeIR::Bombom,
+                params: vec!["%x#0".to_string()],
+                locals: vec![],
+                slot_types: HashMap::from([("%x#0".to_string(), TypeIR::Bombom)]),
+                blocks: vec![block(
+                    "entry",
+                    vec![MachineInstr::LoadSlot("%x#0".to_string())],
+                    MachineTerminator::Ret,
+                )],
+            },
+            MachineFunction {
+                name: "f".to_string(),
+                ret_type: TypeIR::Bombom,
+                params: vec![],
+                locals: vec![],
+                slot_types: HashMap::new(),
+                blocks: vec![block(
+                    "entry",
+                    vec![
+                        MachineInstr::PushBool(true),
+                        MachineInstr::Call {
+                            callee: "usa_int".to_string(),
+                            argc: 1,
+                        },
+                    ],
+                    MachineTerminator::Ret,
+                )],
+            },
+        ],
+    };
+
+    let err = abstract_machine_validate::validate_program(&program)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("call com tipo de argumento incompatível"));
+}
+
+#[test]
 fn stack_valido_temporario_if_else() {
     let out = render_machine(
         "pacote main; carinho principal() -> bombom { talvez verdade { mimo 1 + 2; } senao { mimo 3 + 4; } }",
@@ -396,6 +573,7 @@ fn machine_invalida_nao_e_impressa() {
         ret_type: TypeIR::Bombom,
         params: vec![],
         locals: vec![],
+        slot_types: HashMap::new(),
         blocks: vec![block(
             "entry",
             vec![MachineInstr::Neg],

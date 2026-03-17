@@ -22,7 +22,18 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
 
     let mut sigs = HashMap::new();
     for f in &program.functions {
-        sigs.insert(f.name.clone(), (f.ret_type, f.params.len()));
+        let param_types = f
+            .params
+            .iter()
+            .map(|p| {
+                f.slot_types
+                    .get(p)
+                    .copied()
+                    .map(type_to_stack)
+                    .unwrap_or(StackValueType::Unknown)
+            })
+            .collect::<Vec<_>>();
+        sigs.insert(f.name.clone(), (f.ret_type, param_types));
     }
 
     for f in &program.functions {
@@ -35,7 +46,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
 fn validate_function(
     f: &MachineFunction,
     globals: &HashMap<String, StackValueType>,
-    sigs: &HashMap<String, (TypeIR, usize)>,
+    sigs: &HashMap<String, (TypeIR, Vec<StackValueType>)>,
 ) -> Result<(), PinkerError> {
     if f.blocks.is_empty() {
         return Err(err("função da máquina sem blocos"));
@@ -101,7 +112,7 @@ fn validate_function(
                     }
                 }
                 MachineInstr::Call { callee, argc } => {
-                    if let Some((ret, param_count)) = sigs.get(callee) {
+                    if let Some((ret, param_types)) = sigs.get(callee) {
                         if *ret == TypeIR::Nulo {
                             return Err(err_ctx(
                                 f,
@@ -109,7 +120,7 @@ fn validate_function(
                                 "call com retorno para função nulo",
                             ));
                         }
-                        if *argc != *param_count {
+                        if *argc != param_types.len() {
                             return Err(err_ctx(f, Some(&b.label), "call com aridade inválida"));
                         }
                     } else {
@@ -117,7 +128,7 @@ fn validate_function(
                     }
                 }
                 MachineInstr::CallVoid { callee, argc } => {
-                    if let Some((ret, param_count)) = sigs.get(callee) {
+                    if let Some((ret, param_types)) = sigs.get(callee) {
                         if *ret != TypeIR::Nulo {
                             return Err(err_ctx(
                                 f,
@@ -125,7 +136,7 @@ fn validate_function(
                                 "call_void para função com retorno",
                             ));
                         }
-                        if *argc != *param_count {
+                        if *argc != param_types.len() {
                             return Err(err_ctx(
                                 f,
                                 Some(&b.label),
@@ -177,7 +188,7 @@ fn validate_function(
 fn validate_stack_discipline(
     f: &MachineFunction,
     globals: &HashMap<String, StackValueType>,
-    sigs: &HashMap<String, (TypeIR, usize)>,
+    sigs: &HashMap<String, (TypeIR, Vec<StackValueType>)>,
 ) -> Result<(), PinkerError> {
     let mut label_to_block = HashMap::new();
     for b in &f.blocks {
@@ -189,7 +200,11 @@ fn validate_stack_discipline(
     let mut worklist = VecDeque::new();
     worklist.push_back("entry".to_string());
 
-    let mut slot_types = HashMap::new();
+    let mut slot_types = f
+        .slot_types
+        .iter()
+        .map(|(slot, ty)| (slot.clone(), type_to_stack(*ty)))
+        .collect::<HashMap<_, _>>();
 
     while let Some(label) = worklist.pop_front() {
         let block = label_to_block.get(&label).unwrap();
@@ -241,7 +256,7 @@ fn apply_instr_effect(
     stack: &mut Vec<StackValueType>,
     slot_types: &mut HashMap<String, StackValueType>,
     globals: &HashMap<String, StackValueType>,
-    sigs: &HashMap<String, (TypeIR, usize)>,
+    sigs: &HashMap<String, (TypeIR, Vec<StackValueType>)>,
 ) -> Result<(), PinkerError> {
     match i {
         MachineInstr::PushInt(_) => stack.push(StackValueType::Bombom),
@@ -254,7 +269,19 @@ fn apply_instr_effect(
         }
         MachineInstr::StoreSlot(slot) => {
             let top = pop_typed(f, label, stack, 1, "underflow em store_slot")?;
-            slot_types.insert(slot.clone(), top[0]);
+            if let Some(expected) = slot_types.get(slot).copied() {
+                ensure_compatible(
+                    f,
+                    label,
+                    top[0],
+                    expected,
+                    "store_slot com tipo incompatível",
+                )?;
+                let merged = merge_types(expected, top[0]);
+                slot_types.insert(slot.clone(), merged);
+            } else {
+                slot_types.insert(slot.clone(), top[0]);
+            }
         }
         MachineInstr::Neg | MachineInstr::Not => {
             let top = pop_typed(f, label, stack, 1, "underflow em operação unária")?;
@@ -322,6 +349,51 @@ fn apply_instr_effect(
             stack.push(out_ty);
         }
         MachineInstr::Call { callee, argc } => {
+            let args = pop_typed(f, label, stack, *argc, "underflow em call")?;
+            if let Some((_ret, param_types)) = sigs.get(callee) {
+                for (arg, expected) in args.iter().zip(param_types.iter().rev()) {
+                    ensure_compatible(
+                        f,
+                        label,
+                        *arg,
+                        *expected,
+                        "call com tipo de argumento incompatível",
+                    )?;
+                }
+            }
+            let ret = sigs
+                .get(callee)
+                .map(|(ret, _)| *ret)
+                .unwrap_or(TypeIR::Bombom);
+            stack.push(type_to_stack(ret));
+        }
+        MachineInstr::CallVoid { callee, argc } => {
+            let args = pop_typed(f, label, stack, *argc, "underflow em call_void")?;
+            if let Some((_ret, param_types)) = sigs.get(callee) {
+                for (arg, expected) in args.iter().zip(param_types.iter().rev()) {
+                    ensure_compatible(
+                        f,
+                        label,
+                        *arg,
+                        *expected,
+                        "call_void com tipo de argumento incompatível",
+                    )?;
+                }
+            };
+            if out_ty == StackValueType::Logica
+                && pair[0] != StackValueType::Unknown
+                && pair[1] != StackValueType::Unknown
+                && pair[0] != pair[1]
+            {
+                return Err(err_ctx(
+                    f,
+                    Some(label),
+                    "tipo inválido em comparação binária",
+                ));
+            }
+            stack.push(out_ty);
+        }
+        MachineInstr::Call { callee, argc } => {
             pop_typed(f, label, stack, *argc, "underflow em call")?;
             let ret = sigs
                 .get(callee)
@@ -342,7 +414,7 @@ fn apply_terminator_effect(
     label: &str,
     term: &MachineTerminator,
     stack: &mut Vec<StackValueType>,
-    _sigs: &HashMap<String, (TypeIR, usize)>,
+    _sigs: &HashMap<String, (TypeIR, Vec<StackValueType>)>,
 ) -> Result<Vec<String>, PinkerError> {
     match term {
         MachineTerminator::Jmp(target) => Ok(vec![target.clone()]),
@@ -442,6 +514,15 @@ fn merge_stack_types(a: &[StackValueType], b: &[StackValueType]) -> Vec<StackVal
             _ => StackValueType::Unknown,
         })
         .collect()
+}
+
+fn merge_types(a: StackValueType, b: StackValueType) -> StackValueType {
+    match (a, b) {
+        (x, y) if x == y => x,
+        (StackValueType::Unknown, y) => y,
+        (x, StackValueType::Unknown) => x,
+        _ => StackValueType::Unknown,
+    }
 }
 
 fn is_temp_slot(slot: &str) -> bool {
