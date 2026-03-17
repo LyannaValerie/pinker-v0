@@ -10,3 +10,8 @@
   - refinamento de tipos de params/slots no checker da Machine
   - regressões tipadas para `call` e `call_void`
   - `cargo build`, `cargo check`, `cargo fmt --check` e `cargo test` passando
+
+
+- Fase 12 — concluída
+  - enriquecimento de contexto/mensagens na validação da Machine (função, bloco, instrução/terminador, esperado vs recebido)
+  - cobertura de testes para underflow, tipos incompatíveis, `ret`, `br_true`, slots, `call` e `call_void`
