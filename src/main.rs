@@ -6,6 +6,7 @@ use pinker_v0::cfg_ir;
 use pinker_v0::cfg_ir_validate;
 use pinker_v0::instr_select;
 use pinker_v0::instr_select_validate;
+use pinker_v0::interpreter;
 use pinker_v0::ir;
 use pinker_v0::ir_validate;
 use pinker_v0::lexer::Lexer;
@@ -25,12 +26,13 @@ struct Config {
     print_selected: bool,
     print_machine: bool,
     print_pseudo_asm: bool,
+    run_program: bool,
     check_only: bool,
 }
 
 fn usage(binary: &str) -> String {
     format!(
-        "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--cfg-ir] [--selected] [--machine] [--pseudo-asm] [--check] <arquivo.pink>\n\
+        "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--cfg-ir] [--selected] [--machine] [--pseudo-asm] [--run] [--check] <arquivo.pink>\n\
          \n\
          Modos:\n\
            --tokens    imprime a lista de tokens com spans\n\
@@ -41,6 +43,7 @@ fn usage(binary: &str) -> String {
            --selected  imprime a camada de seleção de instruções textual\n\
            --machine   imprime o alvo textual abstrato (máquina de pilha)\n\
            --pseudo-asm imprime backend textual pseudo-assembly final\n\
+           --run       interpreta a machine validada e executa principal\n\
            --check     executa apenas a validação semântica\n"
     )
 }
@@ -55,6 +58,7 @@ fn parse_args() -> Result<Config, String> {
     let mut print_selected = false;
     let mut print_machine = false;
     let mut print_pseudo_asm = false;
+    let mut run_program = false;
     let mut check_only = false;
 
     let binary = env::args().next().unwrap_or_else(|| "pink".to_string());
@@ -68,6 +72,7 @@ fn parse_args() -> Result<Config, String> {
             "--selected" => print_selected = true,
             "--machine" => print_machine = true,
             "--pseudo-asm" => print_pseudo_asm = true,
+            "--run" => run_program = true,
             "--check" => check_only = true,
             "--help" | "-h" => return Err(usage(&binary)),
             _ if arg.starts_with("--") => {
@@ -103,6 +108,7 @@ fn parse_args() -> Result<Config, String> {
         print_selected,
         print_machine,
         print_pseudo_asm,
+        run_program,
         check_only,
     })
 }
@@ -166,7 +172,8 @@ fn main() {
                     || config.print_cfg_ir
                     || config.print_selected
                     || config.print_machine
-                    || config.print_pseudo_asm)
+                    || config.print_pseudo_asm
+                    || config.run_program)
             {
                 let lowered = match ir::lower_program(&program) {
                     Ok(program_ir) => program_ir,
@@ -195,7 +202,8 @@ fn main() {
                 && (config.print_cfg_ir
                     || config.print_selected
                     || config.print_machine
-                    || config.print_pseudo_asm)
+                    || config.print_pseudo_asm
+                    || config.run_program)
             {
                 let cfg = match cfg_ir::lower_program(program_ir.as_ref().unwrap()) {
                     Ok(cfg) => cfg,
@@ -222,7 +230,10 @@ fn main() {
             }
 
             let selected_program = if !config.check_only
-                && (config.print_selected || config.print_machine || config.print_pseudo_asm)
+                && (config.print_selected
+                    || config.print_machine
+                    || config.print_pseudo_asm
+                    || config.run_program)
             {
                 let selected = match instr_select::lower_program(cfg_ir_program.as_ref().unwrap()) {
                     Ok(selected) => selected,
@@ -248,24 +259,25 @@ fn main() {
                 );
             }
 
-            let machine_program =
-                if !config.check_only && (config.print_machine || config.print_pseudo_asm) {
-                    let machine =
-                        match abstract_machine::lower_program(selected_program.as_ref().unwrap()) {
-                            Ok(machine) => machine,
-                            Err(err) => {
-                                eprintln!("{}", err);
-                                std::process::exit(1);
-                            }
-                        };
-                    if let Err(err) = abstract_machine_validate::validate_program(&machine) {
-                        eprintln!("{}", err);
-                        std::process::exit(1);
-                    }
-                    Some(machine)
-                } else {
-                    None
-                };
+            let machine_program = if !config.check_only
+                && (config.print_machine || config.print_pseudo_asm || config.run_program)
+            {
+                let machine =
+                    match abstract_machine::lower_program(selected_program.as_ref().unwrap()) {
+                        Ok(machine) => machine,
+                        Err(err) => {
+                            eprintln!("{}", err);
+                            std::process::exit(1);
+                        }
+                    };
+                if let Err(err) = abstract_machine_validate::validate_program(&machine) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+                Some(machine)
+            } else {
+                None
+            };
 
             if config.print_machine && !config.check_only {
                 println!("=== MACHINE ===");
@@ -273,6 +285,20 @@ fn main() {
                     "{}",
                     abstract_machine::render_program(machine_program.as_ref().unwrap())
                 );
+            }
+
+            if config.run_program && !config.check_only {
+                let result = match interpreter::run_program(machine_program.as_ref().unwrap()) {
+                    Ok(result) => result,
+                    Err(err) => {
+                        eprintln!("{}", err);
+                        std::process::exit(1);
+                    }
+                };
+
+                if let Some(interpreter::RuntimeValue::Int(v)) = result {
+                    println!("{}", v);
+                }
             }
 
             if config.print_pseudo_asm && !config.check_only {
@@ -293,7 +319,7 @@ fn main() {
                 print!("{}", backend_text::render_program(&lowered_backend));
             }
 
-            if !config.check_only {
+            if !config.check_only && !config.run_program {
                 println!("Análise semântica concluída sem erros.");
             }
         }
