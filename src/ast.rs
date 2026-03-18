@@ -230,6 +230,7 @@ pub enum Stmt {
     Assign(AssignStmt),
     If(IfStmt),
     While(WhileStmt),
+    Break(BreakStmt),
     Expr(Expr),
 }
 
@@ -241,6 +242,7 @@ impl Stmt {
             Stmt::Assign(stmt) => stmt.span,
             Stmt::If(stmt) => stmt.span,
             Stmt::While(stmt) => stmt.span,
+            Stmt::Break(stmt) => stmt.span,
             Stmt::Expr(expr) => expr.span,
         }
     }
@@ -252,6 +254,7 @@ impl Stmt {
             Stmt::Assign(stmt) => stmt.write_json(writer),
             Stmt::If(stmt) => stmt.write_json(writer),
             Stmt::While(stmt) => stmt.write_json(writer),
+            Stmt::Break(stmt) => stmt.write_json(writer),
             Stmt::Expr(expr) => {
                 writer.begin_object();
                 writer.field_str("node", "ExprStmt");
@@ -346,6 +349,20 @@ impl WhileStmt {
         writer.field_span("span", self.span);
         writer.field_value("condition", |writer| self.condition.write_json(writer));
         writer.field_value("body", |writer| self.body.write_json(writer));
+        writer.end_object();
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BreakStmt {
+    pub span: Span,
+}
+
+impl BreakStmt {
+    fn write_json(&self, writer: &mut JsonWriter<'_>) {
+        writer.begin_object();
+        writer.field_str("node", "BreakStmt");
+        writer.field_span("span", self.span);
         writer.end_object();
     }
 }

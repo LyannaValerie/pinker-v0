@@ -143,3 +143,11 @@
   - linha de omissão indica explicitamente a quantidade de frames omitidos
   - nenhuma mudança de semântica de execução, categorias de erro ou frontend
   - renderização consolidada do CLI (`Erro Runtime`, `mensagem`, `stack trace`, `span`) preservada
+
+
+- Fase 28a — concluída
+  - adicionado suporte mínimo a `quebrar;` dentro de `sempre que`
+  - parser/AST reconhecem `quebrar` como statement dedicado
+  - semântica rejeita `quebrar` fora de loop com diagnóstico explícito
+  - IR estruturada inclui instrução `break` e CFG IR baixa para salto ao `loop_join`
+  - execução `--run` interrompe o loop corretamente sem expandir escopo (`continuar`/labels seguem fora)

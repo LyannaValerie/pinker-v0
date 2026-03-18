@@ -163,3 +163,26 @@
 - Não foram adicionados `enquanto`, `para`, `quebrar`, `continuar` ou labels de loop.
 - Não houve redesign de runtime/diagnóstico; fase restrita ao suporte mínimo do construto.
 - Não houve necessidade de correção documental estrutural da timeline; apenas adição incremental da Fase 27a.
+
+
+## Fase 28a — adicionar `quebrar` para `sempre que`
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a verificada e preservada.
+- Implementado suporte mínimo a `quebrar;` dentro de `sempre que`.
+
+### Partes do pipeline tocadas
+- Lexer/token: nova keyword `quebrar`.
+- Parser/AST: novo `Stmt::Break(BreakStmt)`.
+- Semântica: validação de contexto de loop (`quebrar` fora de `sempre que` é erro).
+- IR estruturada: `InstructionIR::Break { loop_exit_label, span }`.
+- CFG IR: lowering de `break` para `jmp` ao bloco de saída do loop (`loop_join_*`).
+- Execução (`--run`): comportamento efetivo via CFG/seleção/machine sem nova instrução de runtime.
+
+### O que ficou fora do escopo
+- `continuar`, labels de loop, `quebrar` com alvo e redesign de controle de fluxo.
+- Mudanças de spans/contexto avançado de diagnóstico.
+
+### Testes adicionados
+- Parser: aceita `quebrar` dentro de `sempre que`.
+- Semântica: rejeita `quebrar` fora de loop.
+- IR/CFG/selected: cobertura mínima de lowering com `quebrar`.
+- Interpretador/CLI `--run`: loop é interrompido corretamente ao encontrar `quebrar`.

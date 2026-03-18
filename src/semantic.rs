@@ -33,6 +33,7 @@ pub struct SemanticChecker {
     scopes: Vec<Scope>,
     current_func_name: Option<String>,
     current_func_ret: Option<Type>,
+    loop_depth: usize,
 }
 
 impl SemanticChecker {
@@ -43,6 +44,7 @@ impl SemanticChecker {
             scopes: Vec::new(),
             current_func_name: None,
             current_func_ret: None,
+            loop_depth: 0,
         }
     }
 
@@ -212,6 +214,7 @@ impl SemanticChecker {
     fn check_function(&mut self, function: &FunctionDecl) -> Result<(), PinkerError> {
         self.current_func_name = Some(function.name.clone());
         self.current_func_ret = function.ret_type.clone();
+        self.loop_depth = 0;
         self.push_scope();
 
         // Parâmetros entram no escopo da função antes do corpo (não são mutáveis).
@@ -235,6 +238,7 @@ impl SemanticChecker {
         self.pop_scope();
         self.current_func_name = None;
         self.current_func_ret = None;
+        self.loop_depth = 0;
         Ok(())
     }
 
@@ -343,7 +347,18 @@ impl SemanticChecker {
                         });
                     }
 
-                    self.check_block(&while_stmt.body, false)?;
+                    self.loop_depth += 1;
+                    let body_result = self.check_block(&while_stmt.body, false);
+                    self.loop_depth -= 1;
+                    body_result?;
+                }
+                Stmt::Break(break_stmt) => {
+                    if self.loop_depth == 0 {
+                        return Err(PinkerError::Semantic {
+                            msg: "'quebrar' só pode ser usado dentro de 'sempre que'".to_string(),
+                            span: break_stmt.span,
+                        });
+                    }
                 }
                 Stmt::Expr(expr) => {
                     self.check_expr(expr)?;

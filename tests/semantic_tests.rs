@@ -248,3 +248,10 @@ fn sempre_que_invalido_com_condicao_nao_logica() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("condição de 'sempre que' deve ser 'logica'"));
 }
+
+#[test]
+fn quebrar_fora_de_loop_e_invalido() {
+    let code = "pacote main; carinho principal() -> bombom { quebrar; mimo 0; }";
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("'quebrar' só pode ser usado dentro de 'sempre que'"));
+}

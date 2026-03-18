@@ -123,6 +123,7 @@ struct FunctionLowerer {
     blocks: Vec<BlockBuilder>,
     next_block: usize,
     next_temp: u32,
+    loop_exit_stack: Vec<String>,
 }
 
 // `BlockBuilder` é um bloco em construção. `terminator: None` indica bloco ainda aberto.
@@ -227,6 +228,7 @@ fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
         blocks: vec![BlockBuilder::new("entry".to_string())],
         next_block: 0,
         next_temp: 0,
+        loop_exit_stack: Vec::new(),
     };
 
     let mut current = 0;
@@ -392,10 +394,13 @@ impl FunctionLowerer {
                     else_label: self.blocks[join_idx].label.clone(),
                 });
 
+                self.loop_exit_stack
+                    .push(self.blocks[join_idx].label.clone());
                 let mut body_current = body_idx;
                 for inst in &body_block.instructions {
                     body_current = self.lower_instruction(inst, body_current, function_ret)?;
                 }
+                self.loop_exit_stack.pop();
 
                 if !self.blocks[body_current].is_terminated() {
                     self.blocks[body_current].terminator =
@@ -403,6 +408,23 @@ impl FunctionLowerer {
                 }
 
                 Ok(join_idx)
+            }
+            InstructionIR::Break { span, .. } => {
+                let Some(loop_exit_label) = self.loop_exit_stack.last().cloned() else {
+                    return Err(PinkerError::Ir {
+                        msg: "lowering CFG IR encontrou break fora de loop".to_string(),
+                        span: *span,
+                    });
+                };
+
+                let cont_label = self.next_label("loop_break_cont");
+                let cont_idx = self.fresh_block(cont_label);
+                self.blocks[current].terminator = Some(TerminatorIR::Branch {
+                    cond: OperandIR::Bool(true),
+                    then_label: loop_exit_label,
+                    else_label: self.blocks[cont_idx].label.clone(),
+                });
+                Ok(cont_idx)
             }
         }
     }

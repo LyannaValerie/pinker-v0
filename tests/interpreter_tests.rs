@@ -927,3 +927,34 @@ fn cli_run_limite_recursao_trace_truncado_na_saida() {
     );
     assert!(stderr.contains("at loop"), "loop deve aparecer: {}", stderr);
 }
+
+#[test]
+fn run_sempre_que_com_quebrar_interrompe_loop() {
+    let out = run_code(
+        "pacote main; carinho principal() -> bombom { nova mut x = 0; sempre que x < 5 { x = x + 1; quebrar; } mimo x; }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn cli_run_quebrar_funciona() {
+    let source =
+        "pacote main; carinho principal() -> bombom { nova mut x = 0; sempre que x < 5 { x = x + 1; quebrar; } mimo x; }";
+    let file = std::env::temp_dir().join("pinker_run_break_ok.pink");
+    fs::write(&file, source).unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(&file)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "1
+"
+    );
+    assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+}

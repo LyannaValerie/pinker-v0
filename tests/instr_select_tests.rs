@@ -219,3 +219,17 @@ fn seleciona_sempre_que() {
     assert!(out.contains("loop_cond_"), "{}", out);
     assert!(out.contains("term br"), "{}", out);
 }
+
+#[test]
+fn seleciona_sempre_que_com_quebrar() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova mut x = 0;
+            sempre que x < 2 { quebrar; }
+            mimo x;
+        }";
+    let out = render_selected(code).unwrap();
+    assert!(out.contains("term br verdade"), "{}", out);
+    assert!(out.contains("loop_join_"), "{}", out);
+}
