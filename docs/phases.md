@@ -198,3 +198,11 @@
   - cobertura incremental adicionada em testes de lexer/parser/semântica/IR/CFG/selected/machine/interpreter
   - novo exemplo mínimo de execução: `examples/run_bitwise_basico.pink`
   - fora de escopo preservado: operadores compostos (`&=`, `|=`, `^=`, `<<=`, `>>=`), `&&`, `||`, novos tipos inteiros e redesign amplo
+
+
+- Fase 32 — robustez de lowering CFG para `talvez/senao` com fall-through em ambos os ramos
+  - continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 verificada e preservada
+  - consolidada cobertura estrutural em `tests/cfg_ir_tests.rs` para `if-else` onde ambos os ramos fazem fall-through e convergem em bloco `join`
+  - cobertura end-to-end reforçada com execução CLI de `examples/algoritmo_complexo.pink` em `tests/interpreter_tests.rs`
+  - comportamento funcional de lowering/execução mantido (sem nova feature, sem redesign amplo)
+  - limite atual mantido: robustez coberta por testes direcionados, sem refactor estrutural do lowerer
