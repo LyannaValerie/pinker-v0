@@ -224,3 +224,16 @@
   - `Cargo.toml` atualizado com campo `license = "MIT"`
   - `README.md` atualizado com seção curta `## Licença` apontando para `LICENSE`
   - nenhuma mudança de semântica, parser, interpretador ou qualquer camada funcional do compilador
+
+
+- Fase 35 — humanizar a renderização de `--machine` sem alterar a Machine
+  - continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 verificada e preservada
+  - renderização de `--machine` tornou-se substancialmente mais legível para humanos
+  - parâmetros e locais do usuário agora exibem nomes limpos (`x, y` em vez de `%x#0, %y#0`)
+  - temporários internos do compilador (`%t0`, `%t1`, …) listados separadamente em linha `temps` no cabeçalho da função
+  - temporários mantêm formato `%tN` nas instruções — distinção visual clara entre variáveis do usuário e artefatos do compilador
+  - blocos recebem anotação de papel como comentário: `entry`, `then_*`, `else_*`, `loop_cond_*`, `loop_*`, `loop_join_*`, `join_*`, `logic_rhs_*`, `logic_short_*`, `logic_join_*`
+  - Machine, interpretador, semântica e outras camadas NÃO foram alterados
+  - `--selected`, `--cfg-ir`, `--pseudo-asm` e `--run` NÃO foram alterados
+  - 7 novos testes adicionados em `abstract_machine_tests.rs`; 4 testes exatos atualizados para novo formato
+  - `showcase_completo.pink` validado como caso de inspeção manual — saída visivelmente mais pedagógica

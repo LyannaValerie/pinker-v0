@@ -16,7 +16,7 @@ machine:
   func principal:
     params []
     locals []
-    entry:
+    entry:  ; entrada da função
       vm push_int 0
       term ret
 "
@@ -41,13 +41,13 @@ machine:
   func principal:
     params []
     locals []
-    entry:
+    entry:  ; entrada da função
       vm push_bool verdade
       term br_true then_0, else_1
-    then_0:
+    then_0:  ; ramo 'verdadeiro' (talvez)
       vm push_int 1
       term ret
-    else_1:
+    else_1:  ; ramo 'senão'
       vm push_int 0
       term ret
 "
@@ -75,14 +75,15 @@ machine:
   func log:
     params []
     locals []
-    entry:
+    entry:  ; entrada da função
       term ret_void
   func soma:
-    params %x#0, %y#0
+    params x, y
     locals []
-    entry:
-      vm load_slot %x#0
-      vm load_slot %y#0
+    temps  %t0  ; gerados pelo compilador
+    entry:  ; entrada da função
+      vm load_slot x
+      vm load_slot y
       vm add
       vm store_slot %t0
       vm load_slot %t0
@@ -90,7 +91,8 @@ machine:
   func principal:
     params []
     locals []
-    entry:
+    temps  %t0  ; gerados pelo compilador
+    entry:  ; entrada da função
       vm call_void log, 0
       vm push_int 1
       vm push_int 2
@@ -131,7 +133,7 @@ machine:
   func principal:
     params []
     locals []
-    entry:
+    entry:  ; entrada da função
       vm push_int 0
       term ret
 Análise semântica concluída sem erros.
@@ -212,4 +214,155 @@ carinho principal() -> bombom {
     assert!(out.contains("vm bitxor"));
     assert!(out.contains("vm shl"));
     assert!(out.contains("vm shr"));
+}
+
+// ── Fase 35: testes de legibilidade da saída --machine ────────────────────────
+
+#[test]
+fn machine_params_exibem_nomes_limpos_sem_prefixo_interno() {
+    // Params do usuário devem aparecer como `x, y` e não como `%x#0, %y#0`
+    let code = "\
+pacote main;
+carinho soma(x: bombom, y: bombom) -> bombom { mimo x + y; }
+carinho principal() -> bombom { mimo soma(1, 2); }";
+    let out = render_machine(code).unwrap();
+    assert!(
+        out.contains("params x, y"),
+        "params devem mostrar nomes limpos"
+    );
+    assert!(
+        !out.contains("params %x#0"),
+        "prefixo interno %x#0 não deve aparecer em params"
+    );
+    assert!(
+        !out.contains("params %y#0"),
+        "prefixo interno %y#0 não deve aparecer em params"
+    );
+}
+
+#[test]
+fn machine_locals_exibem_nomes_limpos_sem_prefixo_interno() {
+    // Locais do usuário devem aparecer como `x` e não como `%x#0`
+    let code = "\
+pacote main;
+carinho principal() -> bombom {
+  nova x = 1;
+  nova y = 2;
+  mimo x + y;
+}";
+    let out = render_machine(code).unwrap();
+    assert!(
+        out.contains("locals x, y"),
+        "locals devem mostrar nomes limpos"
+    );
+    assert!(
+        !out.contains("locals %x#0"),
+        "prefixo interno %x#0 não deve aparecer em locals"
+    );
+}
+
+#[test]
+fn machine_temps_listados_separadamente_no_cabecalho() {
+    // Temporários internos devem aparecer na linha `temps %tN`
+    let code = "\
+pacote main;
+carinho principal() -> bombom {
+  nova x = 1;
+  nova y = 2;
+  mimo x + y;
+}";
+    let out = render_machine(code).unwrap();
+    assert!(
+        out.contains("temps  %t0  ; gerados pelo compilador"),
+        "temporários internos devem ser listados na seção temps"
+    );
+}
+
+#[test]
+fn machine_instrucoes_de_slot_mostram_nome_limpo_para_variaveis_usuario() {
+    // load_slot e store_slot de locais do usuário devem usar nome limpo
+    let code = "\
+pacote main;
+carinho principal() -> bombom {
+  nova x = 5;
+  mimo x;
+}";
+    let out = render_machine(code).unwrap();
+    assert!(
+        out.contains("vm store_slot x"),
+        "store_slot deve mostrar nome limpo"
+    );
+    assert!(
+        out.contains("vm load_slot x"),
+        "load_slot deve mostrar nome limpo"
+    );
+    assert!(
+        !out.contains("load_slot %x#0"),
+        "prefixo interno %x#0 não deve aparecer em load_slot"
+    );
+}
+
+#[test]
+fn machine_temps_mantidos_com_formato_percentual_nas_instrucoes() {
+    // Temporários internos devem manter formato %tN nas instruções (visualmente distintos)
+    let code = "\
+pacote main;
+carinho principal() -> bombom { mimo 1 + 2; }";
+    let out = render_machine(code).unwrap();
+    assert!(
+        out.contains("vm store_slot %t0"),
+        "temporários internos devem manter formato %tN"
+    );
+    assert!(
+        out.contains("vm load_slot %t0"),
+        "temporários internos devem manter formato %tN em load"
+    );
+}
+
+#[test]
+fn machine_blocos_tem_anotacao_de_papel() {
+    // Blocos conhecidos devem ter anotação de papel como comentário
+    let code = "\
+pacote main;
+carinho principal() -> bombom {
+  talvez verdade { mimo 1; } senao { mimo 0; }
+}";
+    let out = render_machine(code).unwrap();
+    assert!(
+        out.contains("entry:  ; entrada da função"),
+        "bloco entry deve ter anotação"
+    );
+    assert!(
+        out.contains("then_0:  ; ramo 'verdadeiro' (talvez)"),
+        "bloco then deve ter anotação"
+    );
+    assert!(
+        out.contains("else_1:  ; ramo 'senão'"),
+        "bloco else deve ter anotação"
+    );
+}
+
+#[test]
+fn machine_loop_blocos_tem_anotacao_de_papel() {
+    // Blocos de loop devem ter anotações explicativas
+    let code = "\
+pacote main;
+carinho principal() -> bombom {
+  nova mut x = 0;
+  sempre que x < 3 { x = x + 1; }
+  mimo x;
+}";
+    let out = render_machine(code).unwrap();
+    assert!(
+        out.contains("loop_cond_0:  ; condição do loop (sempre que)"),
+        "bloco de condição do loop deve ter anotação"
+    );
+    assert!(
+        out.contains("; corpo do loop"),
+        "bloco do corpo do loop deve ter anotação"
+    );
+    assert!(
+        out.contains("; saída do loop"),
+        "bloco de saída do loop deve ter anotação"
+    );
 }

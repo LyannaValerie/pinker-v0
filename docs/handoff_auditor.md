@@ -196,3 +196,49 @@ Nenhuma.
 
 ### Recomendação de merge
 **MERGE RECOMENDADO.**
+
+---
+
+## Auditoria — Fase 35
+
+### Objetivo
+Humanizar a renderização de `--machine` para facilitar a leitura por humanos, sem alterar a Machine ou qualquer outra camada funcional.
+
+### Estado real encontrado
+- Workspace operacional após Fase 34.
+- `cargo build`, `cargo check`, `cargo fmt --check` e `cargo test` passavam antes das mudanças.
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 verificada.
+- Saída anterior de `--machine` era tecnicamente correta mas visualmente opaca (nomes internos `%x#0`, ausência de contexto de blocos).
+
+### Arquivos alterados
+- `src/abstract_machine.rs` — helpers `clean_slot_display`, `is_render_temp`, `block_role_annotation`; `render_program` atualizado; `render_instr` usa nomes limpos em `LoadSlot`/`StoreSlot`
+- `tests/abstract_machine_tests.rs` — 4 testes exatos atualizados para novo formato + 7 novos testes da Fase 35
+- `docs/phases.md` (Fase 35 registrada)
+- `docs/agent_state.md` (Fase 35 marcada como concluída; seção 35 adicionada)
+- `docs/handoff_codex.md` (rodada atual atualizada)
+- `docs/handoff_auditor.md` (este arquivo)
+
+### O que melhorou
+- Params/locals exibem nomes limpos (`x, y` em vez de `%x#0, %y#0`).
+- Temporários internos (`%t0`, `%t1`, …) listados separadamente na linha `temps`.
+- Instruções `load_slot`/`store_slot` mostram nome limpo para variáveis do usuário.
+- Blocos recebem anotação de papel: `entry:  ; entrada da função`, `then_0:  ; ramo 'verdadeiro' (talvez)`, `loop_cond_0:  ; condição do loop (sempre que)`, etc.
+
+### O que permaneceu igual
+- Machine, interpretador, semântica, parser, IR, CFG: sem mudança funcional.
+- Terminadores (`br_true`, `jmp`, `ret`, `ret_void`): formato inalterado.
+- `--selected`, `--cfg-ir`, `--pseudo-asm`, `--run`: inalterados.
+- Validação de Machine (`abstract_machine_validate`): inalterada.
+
+### Continuidade histórica
+Verificada. Ordem 21a → ... → 34 → 35 preservada em `docs/phases.md` e `docs/agent_state.md`.
+Nenhuma correção histórica foi necessária.
+
+### Mudança funcional no compilador
+Nenhuma. Apenas renderização/apresentação da saída textual de `--machine`.
+
+### Status da Fase 35
+**CONCLUÍDA.** Escopo respeitado. Sem regressão. Continuidade histórica preservada.
+
+### Recomendação de merge
+**MERGE RECOMENDADO.**

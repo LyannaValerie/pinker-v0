@@ -340,6 +340,8 @@ pub fn render_program(program: &MachineProgram) -> String {
     line(&mut out, 0, "machine:");
     for f in &program.functions {
         line(&mut out, 1, &format!("func {}:", f.name));
+
+        // Parâmetros: exibe nomes limpos (sem prefixo interno %nome#N → nome)
         line(
             &mut out,
             2,
@@ -348,10 +350,16 @@ pub fn render_program(program: &MachineProgram) -> String {
                 if f.params.is_empty() {
                     "[]".to_string()
                 } else {
-                    f.params.join(", ")
+                    f.params
+                        .iter()
+                        .map(|p| clean_slot_display(p))
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 }
             ),
         );
+
+        // Locais do usuário: exibe nomes limpos
         line(
             &mut out,
             2,
@@ -360,12 +368,47 @@ pub fn render_program(program: &MachineProgram) -> String {
                 if f.locals.is_empty() {
                     "[]".to_string()
                 } else {
-                    f.locals.join(", ")
+                    f.locals
+                        .iter()
+                        .map(|l| clean_slot_display(l))
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 }
             ),
         );
+
+        // Temporários internos: slots %tN gerados pelo compilador, não visíveis no fonte Pinker.
+        // Coletados varrendo StoreSlot nos blocos (não estão em slot_types).
+        let temps: Vec<String> = {
+            let mut seen = HashMap::new();
+            for b in &f.blocks {
+                for instr in &b.code {
+                    if let MachineInstr::StoreSlot(s) = instr {
+                        if is_render_temp(s) {
+                            seen.insert(s.clone(), ());
+                        }
+                    }
+                }
+            }
+            let mut v: Vec<String> = seen.into_keys().collect();
+            v.sort();
+            v
+        };
+        if !temps.is_empty() {
+            line(
+                &mut out,
+                2,
+                &format!("temps  {}  ; gerados pelo compilador", temps.join(", ")),
+            );
+        }
+
         for b in &f.blocks {
-            line(&mut out, 2, &format!("{}:", b.label));
+            // Rótulo do bloco com anotação de papel quando reconhecível
+            line(
+                &mut out,
+                2,
+                &format!("{}:{}", b.label, block_role_annotation(&b.label)),
+            );
             for i in &b.code {
                 line(&mut out, 3, &format!("vm {}", render_instr(i)));
             }
@@ -376,15 +419,77 @@ pub fn render_program(program: &MachineProgram) -> String {
     out
 }
 
+// Converte nome interno de slot para forma legível ao usuário.
+// `%varname#0` → `varname`; `%t0` permanece `%t0` (temporário interno).
+fn clean_slot_display(s: &str) -> String {
+    if let Some(rest) = s.strip_prefix('%') {
+        // Temporário interno: %tN — mantém forma original para distinção visual
+        if is_render_temp(s) {
+            return s.to_string();
+        }
+        // Local/param do usuário: %nome#N → nome
+        if let Some(pos) = rest.rfind('#') {
+            return rest[..pos].to_string();
+        }
+        rest.to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+// Retorna true se o slot corresponde a um temporário interno do compilador (%tN).
+fn is_render_temp(slot: &str) -> bool {
+    let Some(suffix) = slot.strip_prefix("%t") else {
+        return false;
+    };
+    !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_digit())
+}
+
+// Retorna anotação de papel para rótulos de blocos conhecidos.
+// Ajuda humanos a entender o propósito de cada bloco sem alterar semântica.
+fn block_role_annotation(label: &str) -> &'static str {
+    if label == "entry" {
+        return "  ; entrada da função";
+    }
+    if label.starts_with("then_") {
+        return "  ; ramo 'verdadeiro' (talvez)";
+    }
+    if label.starts_with("else_") {
+        return "  ; ramo 'senão'";
+    }
+    if label.starts_with("loop_cond_") {
+        return "  ; condição do loop (sempre que)";
+    }
+    if label.starts_with("loop_join_") {
+        return "  ; saída do loop";
+    }
+    if label.starts_with("loop_") {
+        return "  ; corpo do loop";
+    }
+    if label.starts_with("join_") {
+        return "  ; convergência de ramos";
+    }
+    if label.starts_with("logic_rhs_") {
+        return "  ; avalia lado direito (&&/||)";
+    }
+    if label.starts_with("logic_short_") {
+        return "  ; atalho (curto-circuito)";
+    }
+    if label.starts_with("logic_join_") {
+        return "  ; convergência lógica (&&/||)";
+    }
+    ""
+}
+
 fn render_instr(i: &MachineInstr) -> String {
     match i {
         MachineInstr::PushInt(v) => format!("push_int {}", v),
         MachineInstr::PushBool(v) => {
             format!("push_bool {}", if *v { "verdade" } else { "falso" })
         }
-        MachineInstr::LoadSlot(s) => format!("load_slot {}", s),
+        MachineInstr::LoadSlot(s) => format!("load_slot {}", clean_slot_display(s)),
         MachineInstr::LoadGlobal(g) => format!("load_global @{}", g),
-        MachineInstr::StoreSlot(s) => format!("store_slot {}", s),
+        MachineInstr::StoreSlot(s) => format!("store_slot {}", clean_slot_display(s)),
         MachineInstr::Neg => "neg".to_string(),
         MachineInstr::Not => "not".to_string(),
         MachineInstr::BitAnd => "bitand".to_string(),
