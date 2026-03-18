@@ -58,6 +58,8 @@ cargo run -- --run examples/run_quebrar.pink
 cargo run -- --run examples/run_continuar.pink
 cargo run -- --run examples/run_global.pink
 cargo run -- --check examples/mut_falho.pink
+cargo run -- --check examples/check_quebrar_fora_loop.pink
+cargo run -- --check examples/check_continuar_fora_loop.pink
 ```
 
 ## Modos da CLI
@@ -104,3 +106,6 @@ Limites atuais (adiado): a tipagem na Machine continua leve/local (sem inferênc
 - não são assembly real de CPU
 - não são backend executável
 - não fazem otimizações ou alocação de registradores
+
+## Backlog futuro
+- Visão estruturada de evolução de longo prazo em `docs/future.md` (não é roadmap rígido de curto prazo).

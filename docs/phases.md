@@ -177,3 +177,15 @@
   - adição de exemplos mínimos `examples/run_quebrar.pink` e `examples/run_continuar.pink`
   - teste CLI de `sempre que` passa a usar o exemplo versionado existente `examples/run_sempre_que.pink`
   - sem mudanças na semântica de `sempre que`, `quebrar` e `continuar`; apenas consolidação auditável
+
+
+- Fase 30 — consolidar exemplos versionados e cobertura negativa para loops inválidos, e organizar backlog futuro em `docs/future.md`
+  - adicionados exemplos versionados negativos para validação semântica de loop inválido:
+    - `examples/check_quebrar_fora_loop.pink`
+    - `examples/check_continuar_fora_loop.pink`
+  - adicionados testes CLI reprodutíveis com `--check` cobrindo:
+    - `quebrar` fora de loop
+    - `continuar` fora de loop
+  - cobertura positiva de loops (`run_sempre_que`, `run_quebrar`, `run_continuar`) preservada sem alteração semântica
+  - `docs/handoff_opus.md` descontinuado com redirecionamento explícito
+  - backlog futuro estruturado em `docs/future.md`

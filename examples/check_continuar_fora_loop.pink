@@ -1,0 +1,5 @@
+pacote main;
+carinho principal() -> bombom {
+    continuar;
+    mimo 0;
+}

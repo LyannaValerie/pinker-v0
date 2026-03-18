@@ -1,19 +1,10 @@
-# Handoff Opus (auditor)
+# Handoff Opus (legado descontinuado)
 
-## Estado auditado
-- Template inicial criado nesta rodada (aguardando preenchimento por auditoria dedicada).
+Este arquivo foi descontinuado como documento ativo na Fase 30.
 
-## Confirmado no código
-- Preencher após auditoria do diff mais recente.
+## Redirecionamento
+- Backlog/visão futura do projeto: `docs/future.md`
+- Estado operacional corrente: `docs/agent_state.md`
+- Handoff ativo de execução: `docs/handoff_codex.md`
 
-## Problemas encontrados
-- Preencher após auditoria.
-
-## Riscos
-- Preencher após auditoria.
-
-## Recomendação ao Codex
-- Preencher após auditoria.
-
-## Regra de leitura
-- Opus deve ler `docs/agent_state.md` e `docs/handoff_codex.md` após pull do `main`.
+> Manter este arquivo apenas como ponte histórica para evitar quebra de referências antigas.

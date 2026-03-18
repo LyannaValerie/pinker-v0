@@ -700,6 +700,14 @@ fn run_cli_example(path: &str) -> std::process::Output {
         .unwrap()
 }
 
+fn run_cli_check_example(path: &str) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--check")
+        .arg(path)
+        .output()
+        .unwrap()
+}
+
 #[test]
 fn cli_run_mantem_exemplos_base() {
     let casos = [
@@ -961,6 +969,34 @@ fn cli_run_continuar_funciona() {
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout), "12\n");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+}
+
+#[test]
+fn cli_check_quebrar_fora_de_loop_falha_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/check_quebrar_fora_loop.pink");
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Erro Semântico:"), "stderr: {}", stderr);
+    assert!(
+        stderr.contains("'quebrar' só pode ser usado dentro de 'sempre que'"),
+        "stderr: {}",
+        stderr
+    );
+}
+
+#[test]
+fn cli_check_continuar_fora_de_loop_falha_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/check_continuar_fora_loop.pink");
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Erro Semântico:"), "stderr: {}", stderr);
+    assert!(
+        stderr.contains("'continuar' só pode ser usado dentro de 'sempre que'"),
+        "stderr: {}",
+        stderr
+    );
 }
 
 // ── Fase 28c: spans/source context em erros de runtime e parser ───────────
