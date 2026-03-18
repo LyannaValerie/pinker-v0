@@ -1,0 +1,9 @@
+pacote main;
+
+carinho loop() -> bombom {
+  mimo loop();
+}
+
+carinho principal() -> bombom {
+  mimo loop();
+}

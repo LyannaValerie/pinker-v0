@@ -1,16 +1,16 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- **Fase 25 implementada**: renderização final de erro de runtime no CLI padronizada em helper, preservando mensagem principal (Fase 24) e stack trace (Fases 23a/23b).
+- **Fase 26 implementada**: proteção preventiva contra recursão infinita/profundidade excessiva no interpretador com limite interno e erro categorizado, preservando stack trace e renderização de runtime no CLI.
 
 ## Objetivo
-- Melhorar o diagnóstico de runtime sem refactor grande do interpretador: manter simplicidade e compatibilidade, mas com formato de trace mais estruturado.
+- Aplicar proteção preventiva de profundidade de chamadas no runtime sem refactor grande do interpretador, mantendo simplicidade, compatibilidade e diagnóstico estável.
 
 ## Estado real encontrado
-- Continuidade histórica correta: Fase 21a (avaliada/bloqueada) → Fase 21b (concluída) → Fase 22 documental (concluída) → Fase 23a (concluída) → Fase 23b (concluída) → Fase 24 (fase da rodada).
+- Continuidade histórica correta: Fase 21a (avaliada/bloqueada) → Fase 21b (concluída) → Fase 22 documental (concluída) → Fase 23a (concluída) → Fase 23b (concluída) → Fase 24 (concluída) → Fase 25 (concluída) → Fase 26 (fase da rodada).
 - Workspace local usado como fonte de verdade.
 - Base inicial saudável: `cargo build` e `cargo test` passavam antes das mudanças.
-- Divergência documental na rodada anterior: `docs/agent_state.md` apontava Fase 22 como fase atual, enquanto o pedido da rodada era Fase 23.
+- Sem divergência estrutural entre `docs/phases.md`, `docs/agent_state.md` e `docs/handoff_codex.md` nesta rodada; apenas atualização incremental para registrar a Fase 26.
 
 ## Ação aplicada
 - Introduzida estrutura interna de frame no interpretador (`RuntimeFrame`) com:
@@ -89,3 +89,26 @@
 - Limites mantidos:
   - sem spans ricos por frame, sem debugger/stepping, sem mudança de semântica de execução.
 - Próximo passo sugerido (adiado): extrair golden tests dedicados ao renderer de runtime para reduzir acoplamento com testes e2e de CLI.
+
+
+## Fase 26 — proteção preventiva contra recursão infinita
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 verificada e preservada (sem correção estrutural ampla, apenas atualização incremental da fase atual).
+- Implementação mínima no interpretador: constante `MAX_CALL_DEPTH = 128` e guarda antes de `call_stack.push(...)` em `call_function`.
+- Ao exceder o limite, o runtime retorna erro controlado (sem depender de stack overflow do processo/OS).
+- Categoria adotada: `[runtime::limite_recursao_excedido]`.
+- Mensagem explicita que o limite é preventivo do runtime e informa profundidade máxima atingida.
+- Stack trace existente (função + bloco + instrução) foi preservado e continua observável no erro de limite.
+- Renderização final do CLI (`Erro Runtime`, `mensagem`, `stack trace`, `span`) permaneceu a mesma, sem redesign.
+
+### Testes adicionados/ajustados
+- `run_falha_limite_recursao_excedido_tem_categoria_e_trace`: garante categoria estável, mensagem de limite preventivo e stack trace útil.
+- `cli_run_erro_runtime_limite_recursao_tem_saida_previsivel`: garante saída previsível da CLI para erro de limite de recursão.
+- Novo exemplo mínimo: `examples/run_recursao_limite_cli.pink`.
+
+### Limites mantidos
+- Limite de profundidade é fixo no código (sem configuração externa nesta fase).
+- Sem spans ricos por frame e sem debugger/stepping.
+
+### Próximos passos sugeridos
+- Tornar `MAX_CALL_DEPTH` configurável de forma leve (flag/env) sem alterar semântica padrão.
+- Adicionar testes dedicados apenas ao renderer de runtime para reduzir acoplamento com e2e de CLI.

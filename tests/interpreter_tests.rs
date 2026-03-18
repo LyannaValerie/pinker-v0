@@ -317,6 +317,37 @@ fn run_falha_runtime_em_recursao_tem_stack_trace() {
 }
 
 #[test]
+fn run_falha_limite_recursao_excedido_tem_categoria_e_trace() {
+    let err = run_code(
+        "pacote main; carinho loop() -> bombom { mimo loop(); } carinho principal() -> bombom { mimo loop(); }",
+    )
+    .unwrap_err();
+
+    assert!(
+        err.contains("[runtime::limite_recursao_excedido]"),
+        "mensagem: {}",
+        err
+    );
+    assert!(
+        err.contains("limite preventivo de recursão excedido"),
+        "mensagem: {}",
+        err
+    );
+    assert!(
+        err.contains("profundidade máxima de chamadas (128)"),
+        "mensagem: {}",
+        err
+    );
+    assert!(err.contains("stack trace:"), "mensagem: {}", err);
+    assert!(
+        err.contains("at principal [bloco: entry] [instr: call]"),
+        "mensagem: {}",
+        err
+    );
+    assert!(err.contains("at loop"), "mensagem: {}", err);
+}
+
+#[test]
 fn run_falha_slot_nao_inicializado() {
     let program = MachineProgram {
         module_name: "main".to_string(),
@@ -720,6 +751,30 @@ fn cli_run_recursao_com_global_exemplo_novo() {
     assert!(out.status.success());
     assert_eq!(String::from_utf8_lossy(&out.stdout), "5\n");
     assert!(String::from_utf8_lossy(&out.stderr).is_empty());
+}
+
+#[test]
+fn cli_run_erro_runtime_limite_recursao_tem_saida_previsivel() {
+    let out = run_cli_example("examples/run_recursao_limite_cli.pink");
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stdout).is_empty());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("Erro Runtime:"), "stderr: {}", stderr);
+    assert!(
+        stderr.contains("[runtime::limite_recursao_excedido]"),
+        "stderr: {}",
+        stderr
+    );
+    assert!(
+        stderr.contains("limite preventivo de recursão excedido"),
+        "stderr: {}",
+        stderr
+    );
+    assert!(stderr.contains("stack trace:"), "stderr: {}", stderr);
+    assert!(stderr.contains("at principal"), "stderr: {}", stderr);
+    assert!(stderr.contains("at loop"), "stderr: {}", stderr);
+    assert!(stderr.contains("[instr: call]"), "stderr: {}", stderr);
+    assert!(stderr.contains("  span: 1:1..1:1"), "stderr: {}", stderr);
 }
 
 #[test]

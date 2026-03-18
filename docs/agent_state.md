@@ -25,9 +25,12 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 22 documental: doc comments e comentários estruturais em módulos centrais
 - Fase 23a: stack trace com contexto ligeiramente melhor + ganchos leves
 - Fase 23b: stack trace com contexto ligeiramente melhor + ganchos leves para evolução futura
+- Fase 24: melhorar mensagens de erro de runtime além do stack trace
+- Fase 25: padronizar e consolidar a renderização final de erros de runtime no CLI
+- Fase 26: proteção preventiva contra recursão infinita/limite de profundidade de chamadas
 
 ## Fase atual
-- Fase 25 concluída: renderização final de erro de runtime no CLI padronizada e consolidada em helper, preservando mensagem principal (Fase 24) e stack trace (Fases 23a/23b).
+- Fase 26 concluída: proteção preventiva contra recursão infinita/profundidade excessiva com limite interno estável e categoria de runtime, preservando mensagem principal (Fase 24), stack trace (Fases 23a/23b) e renderização consolidada do CLI (Fase 25).
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -101,3 +104,15 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Mensagem principal com categoria estável (`[runtime::<tipo>]`) mantida sem alteração.
 - Stack trace existente (`at <função> [bloco] [instr]`) mantido sem alteração funcional.
 - Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 verificada; sem correção documental estrutural nesta rodada.
+
+
+## Fase 26 — limite preventivo de recursão no runtime
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 verificada e preservada.
+- Interpretador passou a aplicar limite interno estável de profundidade (`MAX_CALL_DEPTH = 128`) antes de empilhar novo frame.
+- Excesso de profundidade gera erro categorizado `[runtime::limite_recursao_excedido]` com mensagem explícita de limite preventivo do runtime.
+- Stack trace por frame (`at <função> [bloco] [instr]`) e renderização consolidada de runtime no CLI foram mantidos sem mudança estrutural.
+
+## Itens adiados (mantidos)
+- Configuração externa do limite de recursão.
+- Spans ricos por frame (`future_span` segue reservado).
+- Debugger/stepping/tracing avançado.
