@@ -107,3 +107,9 @@
   - stack trace passou a incluir contexto da instrução em execução por frame (`[instr: <op>]`) com custo baixo
   - renderização centralizada manteve estabilidade e agora combina função + bloco + instrução no mesmo frame
   - gancho leve adicional preparado: `current_instr: Option<&'static str>` por frame (coleta simples, sem spans completos)
+
+
+- Fase 24 — concluída
+  - mensagem principal de runtime passou a incluir prefixo estável por categoria (`[runtime::<tipo>]`)
+  - erros comuns ganharam dica curta e estável (ex.: divisão por zero, slot não inicializado, função/global inexistente, aridade inválida)
+  - stack trace existente foi preservado sem mudança de semântica de execução

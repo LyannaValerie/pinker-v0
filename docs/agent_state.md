@@ -27,8 +27,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 23b: stack trace com contexto ligeiramente melhor + ganchos leves para evolução futura
 
 ## Fase atual
-- Fase 23b concluída: stack trace de runtime mantém frames estruturados e adiciona contexto de instrução por frame
-  (`at <função> [bloco: <label>] [instr: <op>]`) com ganchos leves (`future_span`) preservados.
+- Fase 24 concluída: mensagens principais de runtime ganharam categoria estável (`[runtime::<tipo>]`) e dicas curtas para erros comuns, preservando o stack trace de Fase 23b.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -87,3 +86,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Contexto adicional atual: label/bloco e instrução atual quando disponível.
 - Gancho novo (23b): `current_instr: Option<&'static str>` no frame para evolução barata de contexto.
 - Gancho adiado: `future_span` opcional no frame para futura origem por instrução/bloco.
+
+
+## Mensagens de runtime (Fase 24)
+- Erro principal de runtime agora usa prefixo estável por categoria (`[runtime::<tipo>]`).
+- Diagnóstico recebeu dica curta para causas comuns (divisão por zero, slot não inicializado, função/global inexistente, aridade inválida).
+- Stack trace (`at <função> [bloco] [instr]`) foi mantido sem mudanças estruturais.
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 verificada sem necessidade de correção documental nesta rodada.

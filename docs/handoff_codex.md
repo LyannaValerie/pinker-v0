@@ -1,13 +1,13 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- **Fase 23b implementada**: stack trace de runtime com contexto ligeiramente melhor e ganchos leves para evolução futura.
+- **Fase 24 implementada**: mensagem principal de erro de runtime enriquecida além do stack trace, preservando o trace existente.
 
 ## Objetivo
 - Melhorar o diagnóstico de runtime sem refactor grande do interpretador: manter simplicidade e compatibilidade, mas com formato de trace mais estruturado.
 
 ## Estado real encontrado
-- Continuidade histórica correta: Fase 21a (avaliada/bloqueada) → Fase 21b (concluída) → Fase 22 documental (concluída) → Fase 23a (concluída) → Fase 23b (fase da rodada).
+- Continuidade histórica correta: Fase 21a (avaliada/bloqueada) → Fase 21b (concluída) → Fase 22 documental (concluída) → Fase 23a (concluída) → Fase 23b (concluída) → Fase 24 (fase da rodada).
 - Workspace local usado como fonte de verdade.
 - Base inicial saudável: `cargo build` e `cargo test` passavam antes das mudanças.
 - Divergência documental na rodada anterior: `docs/agent_state.md` apontava Fase 22 como fase atual, enquanto o pedido da rodada era Fase 23.
@@ -57,3 +57,19 @@
 ## Próximos passos sugeridos
 - Quando houver metadado barato de origem por instrução/bloco, preencher `future_span`.
 - Opcionalmente enriquecer `current_instr` com origem estrutural (ex.: bloco/offset) mantendo formato textual estável.
+
+
+## Fase 24 — mensagens de runtime além do stack trace
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 verificada e preservada.
+- `runtime_err` passou a enriquecer a mensagem com categoria estável (`[runtime::<tipo>]`) e dica curta para erros frequentes.
+- Melhorias aplicadas sem alterar semântica do interpretador: apenas diagnóstico textual.
+- Stack trace existente (função + bloco + instrução) foi mantido inalterado.
+
+### Limites mantidos
+- Sem spans completos por instrução/frame (gancho `future_span` segue reservado).
+- Sem debugger/stepping/tracing avançado.
+- Sem mudanças de gramática/frontend/backend nativo.
+
+### Próximos passos sugeridos
+- Expandir catálogo de categorias/dicas apenas para erros que já existem no runtime, mantendo testes por substring estável.
+- Quando útil, popular `future_span` com origem real da instrução sem inflar arquitetura.

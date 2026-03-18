@@ -165,6 +165,7 @@ fn run_falha_funcao_inexistente() {
     };
 
     let err = interpreter::run_program(&program).unwrap_err().to_string();
+    assert!(err.contains("[runtime::funcao_inexistente]"));
     assert!(err.contains("função chamada inexistente"));
 }
 
@@ -252,7 +253,17 @@ fn run_falha_divisao_por_zero() {
         }],
     };
     let err = interpreter::run_program(&program).unwrap_err().to_string();
+    assert!(
+        err.contains("[runtime::divisao_por_zero]"),
+        "mensagem: {}",
+        err
+    );
     assert!(err.contains("divisão por zero"), "mensagem: {}", err);
+    assert!(
+        err.contains("dica: verifique se o divisor é diferente de 0"),
+        "mensagem: {}",
+        err
+    );
     assert!(err.contains("stack trace:"), "mensagem: {}", err);
     assert!(
         err.contains("at principal [bloco: entry] [instr: div]"),
@@ -324,6 +335,11 @@ fn run_falha_slot_nao_inicializado() {
         }],
     };
     let err = interpreter::run_program(&program).unwrap_err().to_string();
+    assert!(
+        err.contains("[runtime::slot_nao_inicializado]"),
+        "mensagem: {}",
+        err
+    );
     assert!(
         err.contains("load_slot em slot não inicializado"),
         "mensagem: {}",
@@ -705,6 +721,11 @@ fn cli_run_erro_runtime_em_exemplo_novo() {
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stdout).is_empty());
     let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("[runtime::divisao_por_zero]"),
+        "stderr: {}",
+        stderr
+    );
     assert!(stderr.contains("divisão por zero"), "stderr: {}", stderr);
     assert!(stderr.contains("stack trace:"), "stderr: {}", stderr);
     assert!(stderr.contains("at principal"), "stderr: {}", stderr);
