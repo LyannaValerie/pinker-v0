@@ -232,6 +232,20 @@ fn lowering_de_sempre_que_com_continuar() {
 }
 
 #[test]
+fn lowering_de_logicos_basicos() {
+    let code = "
+pacote main;
+carinho principal() -> bombom {
+  nova a = verdade;
+  nova b = falso;
+  talvez a && b || !a { mimo 1; } senao { mimo 0; }
+}";
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("and("), "{}", ir);
+    assert!(ir.contains("or("), "{}", ir);
+}
+
+#[test]
 fn lowering_de_bitwise_basico() {
     let code = "
         pacote main;

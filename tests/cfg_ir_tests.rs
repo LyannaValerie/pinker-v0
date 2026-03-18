@@ -222,3 +222,18 @@ fn cfg_ir_if_else_fallthrough_ambos_ramos_gera_join_valido() {
     assert!(cfg.contains("block join_"), "{}", cfg);
     assert!(cfg.contains("ret %x#0"), "{}", cfg);
 }
+
+#[test]
+fn cfg_ir_logicos_viram_branch_de_curto_circuito() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova a = verdade;
+            nova b = falso;
+            talvez a && b || !a { mimo 1; } senao { mimo 0; }
+        }";
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("logic_rhs_"), "{}", cfg);
+    assert!(cfg.contains("logic_short_"), "{}", cfg);
+    assert!(cfg.contains("logic_join_"), "{}", cfg);
+}

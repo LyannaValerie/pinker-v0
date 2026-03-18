@@ -107,6 +107,45 @@ fn run_bitwise_basico() {
 }
 
 #[test]
+fn run_logicos_basicos() {
+    let out = run_code(
+        "pacote main; carinho principal() -> bombom { talvez (verdade && falso) || !falso { mimo 1; } senao { mimo 0; } }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_short_circuit_and_nao_avalia_rhs() {
+    let out = run_code(
+        "pacote main;
+         carinho falha() -> logica {
+             talvez 1 / 0 == 0 { mimo verdade; } senao { mimo falso; }
+         }
+         carinho principal() -> bombom {
+             talvez falso && falha() { mimo 1; } senao { mimo 0; }
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn run_short_circuit_or_nao_avalia_rhs() {
+    let out = run_code(
+        "pacote main;
+         carinho falha() -> logica {
+             talvez 1 / 0 == 0 { mimo verdade; } senao { mimo falso; }
+         }
+         carinho principal() -> bombom {
+             talvez verdade || falha() { mimo 1; } senao { mimo 0; }
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
 fn run_chamada_simples_um_argumento() {
     let out = run_code(
         "pacote main; carinho dobro(x: bombom) -> bombom { mimo x + x; } carinho principal() -> bombom { mimo dobro(21); }",
@@ -999,6 +1038,30 @@ fn cli_run_bitwise_funciona() {
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout), "22\n");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+}
+
+#[test]
+fn cli_run_logica_curto_circuito_and_funciona() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg("examples/run_logica_curto_circuito_and.pink")
+        .output()
+        .expect("falha ao executar CLI --run");
+
+    assert!(output.status.success(), "{:?}", output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n");
+}
+
+#[test]
+fn cli_run_logica_curto_circuito_or_funciona() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg("examples/run_logica_curto_circuito_or.pink")
+        .output()
+        .expect("falha ao executar CLI --run");
+
+    assert!(output.status.success(), "{:?}", output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "1\n");
 }
 
 #[test]

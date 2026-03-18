@@ -112,6 +112,13 @@ fn validate_function(
                     let lhs_ty = infer_operand(lhs, &slots, &temps, globals)?;
                     let rhs_ty = infer_operand(rhs, &slots, &temps, globals)?;
                     let result = match op {
+                        crate::ir::BinaryOpIR::LogicalAnd | crate::ir::BinaryOpIR::LogicalOr => {
+                            if lhs_ty == TypeIR::Logica && rhs_ty == TypeIR::Logica {
+                                TypeIR::Logica
+                            } else {
+                                return Err(err("binop lógica textual inválida"));
+                            }
+                        }
                         crate::ir::BinaryOpIR::Add
                         | crate::ir::BinaryOpIR::Sub
                         | crate::ir::BinaryOpIR::Mul

@@ -507,6 +507,8 @@ fn op_name(op: UnaryOpIR) -> &'static str {
 
 fn binop_name(op: BinaryOpIR) -> &'static str {
     match op {
+        BinaryOpIR::LogicalAnd => "and",
+        BinaryOpIR::LogicalOr => "or",
         BinaryOpIR::BitAnd => "bitand",
         BinaryOpIR::BitOr => "bitor",
         BinaryOpIR::BitXor => "bitxor",

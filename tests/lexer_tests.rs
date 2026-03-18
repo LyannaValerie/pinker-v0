@@ -61,3 +61,10 @@ fn lexer_reconhece_operadores_bitwise_basicos() {
     assert!(tokens.iter().any(|t| t.kind == TokenKind::LessLess));
     assert!(tokens.iter().any(|t| t.kind == TokenKind::GreaterGreater));
 }
+
+#[test]
+fn lexer_reconhece_operadores_logicos_curto_circuito() {
+    let tokens = tokenize("a && b || c;").unwrap();
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::AmpAmp));
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::PipePipe));
+}

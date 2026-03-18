@@ -491,6 +491,8 @@ pub enum ExprKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOp {
+    LogicalAnd,
+    LogicalOr,
     BitAnd,
     BitOr,
     BitXor,
@@ -511,6 +513,8 @@ pub enum BinaryOp {
 impl BinaryOp {
     pub fn from_token(kind: TokenKind) -> Option<Self> {
         match kind {
+            TokenKind::AmpAmp => Some(Self::LogicalAnd),
+            TokenKind::PipePipe => Some(Self::LogicalOr),
             TokenKind::Amp => Some(Self::BitAnd),
             TokenKind::Pipe => Some(Self::BitOr),
             TokenKind::Caret => Some(Self::BitXor),
@@ -532,6 +536,8 @@ impl BinaryOp {
 
     pub fn name(&self) -> &'static str {
         match self {
+            Self::LogicalAnd => "LogicalAnd",
+            Self::LogicalOr => "LogicalOr",
             Self::BitAnd => "BitAnd",
             Self::BitOr => "BitOr",
             Self::BitXor => "BitXor",

@@ -327,6 +327,16 @@ fn validate_block(
                 let rhs_ty =
                     infer_operand_type(rhs, slot_types, &temp_types, global_consts, function.span)?;
                 let result = match op {
+                    crate::ir::BinaryOpIR::LogicalAnd | crate::ir::BinaryOpIR::LogicalOr => {
+                        if lhs_ty == TypeIR::Logica && rhs_ty == TypeIR::Logica {
+                            TypeIR::Logica
+                        } else {
+                            return Err(cfg_error(
+                                "operação lógica com tipos inválidos",
+                                function.span,
+                            ));
+                        }
+                    }
                     crate::ir::BinaryOpIR::Add
                     | crate::ir::BinaryOpIR::Sub
                     | crate::ir::BinaryOpIR::Mul

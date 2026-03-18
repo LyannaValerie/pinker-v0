@@ -206,3 +206,12 @@
   - cobertura end-to-end reforçada com execução CLI de `examples/algoritmo_complexo.pink` em `tests/interpreter_tests.rs`
   - comportamento funcional de lowering/execução mantido (sem nova feature, sem redesign amplo)
   - limite atual mantido: robustez coberta por testes direcionados, sem refactor estrutural do lowerer
+
+
+- Fase 33 — adicionar operadores lógicos `&&` e `||` com short-circuit
+  - continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 verificada e preservada
+  - operadores adicionados ao frontend: `&&` (`AmpAmp`) e `||` (`PipePipe`) no lexer/parser/AST
+  - política de tipos adotada: `&&` e `||` aceitam apenas `logica` e retornam `logica` (uso com `bombom` é erro semântico)
+  - short-circuit real implementado no lowering CFG: criação de blocos `logic_rhs_*`, `logic_short_*`, `logic_join_*` com desvio condicional sem avaliar o RHS quando não necessário
+  - cobertura adicionada em lexer/parser/semântica/IR/CFG/interpreter + exemplos `run_logica_curto_circuito_and.pink` e `run_logica_curto_circuito_or.pink`
+  - fora de escopo preservado: truthiness implícito, overloads/coerções complexas e novos operadores compostos

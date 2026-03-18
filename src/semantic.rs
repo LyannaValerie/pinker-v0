@@ -521,6 +521,16 @@ impl SemanticChecker {
                 }
 
                 match op {
+                    BinaryOp::LogicalAnd | BinaryOp::LogicalOr => {
+                        if matches!(lhs_ty, Type::Logica(_)) {
+                            Ok(Type::Logica(expr.span))
+                        } else {
+                            Err(PinkerError::Semantic {
+                                msg: "operação lógica requer operandos 'logica'".to_string(),
+                                span: expr.span,
+                            })
+                        }
+                    }
                     BinaryOp::Add
                     | BinaryOp::Sub
                     | BinaryOp::Mul

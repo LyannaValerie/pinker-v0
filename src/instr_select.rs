@@ -229,6 +229,13 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             },
         }),
         InstructionCfgIR::Binary { dest, op, lhs, rhs } => Ok(match op {
+            BinaryOpIR::LogicalAnd | BinaryOpIR::LogicalOr => {
+                return Err(PinkerError::Ir {
+                    msg: "logical and/or deve ser resolvido no lowering de CFG com short-circuit"
+                        .to_string(),
+                    span: crate::token::Span::single(crate::token::Position::new(1, 1)),
+                });
+            }
             BinaryOpIR::BitAnd => SelectedInstr::BitAnd {
                 dest: *dest,
                 lhs: lhs.clone(),

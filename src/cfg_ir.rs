@@ -123,6 +123,8 @@ struct FunctionLowerer {
     blocks: Vec<BlockBuilder>,
     next_block: usize,
     next_temp: u32,
+    next_logical_slot: u32,
+    logical_locals: Vec<crate::ir::LocalIR>,
     loop_exit_stack: Vec<String>,
     loop_continue_stack: Vec<String>,
 }
@@ -229,6 +231,8 @@ fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
         blocks: vec![BlockBuilder::new("entry".to_string())],
         next_block: 0,
         next_temp: 0,
+        next_logical_slot: 0,
+        logical_locals: Vec::new(),
         loop_exit_stack: Vec::new(),
         loop_continue_stack: Vec::new(),
     };
@@ -263,10 +267,13 @@ fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
         })
         .collect();
 
+    let mut locals = function.locals.clone();
+    locals.extend(lowerer.logical_locals);
+
     Ok(FunctionCfgIR {
         name: function.name.clone(),
         params: function.params.clone(),
-        locals: function.locals.clone(),
+        locals,
         ret_type: function.ret_type,
         entry: "entry".to_string(),
         blocks,
@@ -283,36 +290,36 @@ impl FunctionLowerer {
     ) -> Result<usize, PinkerError> {
         match instruction {
             InstructionIR::Let { slot, value, span } => {
-                let operand = self.lower_value_operand(value, current, *span)?;
+                let (operand, next_current) = self.lower_value_operand(value, current, *span)?;
                 self.blocks[current]
                     .instructions
                     .push(InstructionCfgIR::Let {
                         slot: slot.clone(),
                         value: operand,
                     });
-                Ok(current)
+                Ok(next_current)
             }
             InstructionIR::Assign { slot, value, span } => {
-                let operand = self.lower_value_operand(value, current, *span)?;
+                let (operand, next_current) = self.lower_value_operand(value, current, *span)?;
                 self.blocks[current]
                     .instructions
                     .push(InstructionCfgIR::Assign {
                         slot: slot.clone(),
                         value: operand,
                     });
-                Ok(current)
+                Ok(next_current)
             }
-            InstructionIR::Expr { value, span } => {
-                self.lower_expr_stmt(value, current, *span)?;
-                Ok(current)
-            }
+            InstructionIR::Expr { value, span } => self.lower_expr_stmt(value, current, *span),
             InstructionIR::Return { value, span } => {
-                let ret = value
-                    .as_ref()
-                    .map(|v| self.lower_value_operand(v, current, *span))
-                    .transpose()?;
-                self.blocks[current].terminator = Some(TerminatorIR::Return(ret));
-                Ok(current)
+                let (ret, next_current) = match value {
+                    Some(v) => {
+                        let (ret, next_current) = self.lower_value_operand(v, current, *span)?;
+                        (Some(ret), next_current)
+                    }
+                    None => (None, current),
+                };
+                self.blocks[next_current].terminator = Some(TerminatorIR::Return(ret));
+                Ok(next_current)
             }
             InstructionIR::If {
                 condition,
@@ -320,7 +327,7 @@ impl FunctionLowerer {
                 else_block,
                 span,
             } => {
-                let cond = self.lower_value_operand(condition, current, *span)?;
+                let (cond, cond_current) = self.lower_value_operand(condition, current, *span)?;
                 let then_idx = self.fresh_block(then_block.label.clone());
                 let else_idx = else_block
                     .as_ref()
@@ -332,7 +339,7 @@ impl FunctionLowerer {
                     .map(|idx| self.blocks[idx].label.clone())
                     .unwrap_or_else(|| self.next_label("join"));
 
-                self.blocks[current].terminator = Some(TerminatorIR::Branch {
+                self.blocks[cond_current].terminator = Some(TerminatorIR::Branch {
                     cond,
                     then_label: self.blocks[then_idx].label.clone(),
                     else_label: else_label.clone(),
@@ -386,7 +393,7 @@ impl FunctionLowerer {
                     }
                     Ok(join_idx)
                 } else {
-                    Ok(current)
+                    Ok(cond_current)
                 }
             }
             InstructionIR::While {
@@ -399,11 +406,11 @@ impl FunctionLowerer {
                 self.blocks[current].terminator =
                     Some(TerminatorIR::Jump(self.blocks[cond_idx].label.clone()));
 
-                let cond = self.lower_value_operand(condition, cond_idx, *span)?;
+                let (cond, cond_end_idx) = self.lower_value_operand(condition, cond_idx, *span)?;
                 let body_idx = self.fresh_block(body_block.label.clone());
                 let join_label = self.next_label("loop_join");
                 let join_idx = self.fresh_block(join_label);
-                self.blocks[cond_idx].terminator = Some(TerminatorIR::Branch {
+                self.blocks[cond_end_idx].terminator = Some(TerminatorIR::Branch {
                     cond,
                     then_label: self.blocks[body_idx].label.clone(),
                     else_label: self.blocks[join_idx].label.clone(),
@@ -412,7 +419,7 @@ impl FunctionLowerer {
                 self.loop_exit_stack
                     .push(self.blocks[join_idx].label.clone());
                 self.loop_continue_stack
-                    .push(self.blocks[cond_idx].label.clone());
+                    .push(self.blocks[cond_end_idx].label.clone());
                 let mut body_current = body_idx;
                 for inst in &body_block.instructions {
                     body_current = self.lower_instruction(inst, body_current, function_ret)?;
@@ -422,7 +429,7 @@ impl FunctionLowerer {
 
                 if !self.blocks[body_current].is_terminated() {
                     self.blocks[body_current].terminator =
-                        Some(TerminatorIR::Jump(self.blocks[cond_idx].label.clone()));
+                        Some(TerminatorIR::Jump(self.blocks[cond_end_idx].label.clone()));
                 }
 
                 Ok(join_idx)
@@ -469,30 +476,33 @@ impl FunctionLowerer {
         value: &ValueIR,
         current: usize,
         span: Span,
-    ) -> Result<(), PinkerError> {
+    ) -> Result<usize, PinkerError> {
         match value {
             ValueIR::Call {
                 callee,
                 args,
                 ret_type,
             } if *ret_type == TypeIR::Nulo => {
-                let lowered_args = args
-                    .iter()
-                    .map(|arg| self.lower_value_operand(arg, current, span))
-                    .collect::<Result<Vec<_>, PinkerError>>()?;
-                self.blocks[current]
+                let lowered_args =
+                    args.iter()
+                        .try_fold((Vec::new(), current), |(mut acc, cur), arg| {
+                            let (lowered, next_cur) = self.lower_value_operand(arg, cur, span)?;
+                            acc.push(lowered);
+                            Ok::<_, PinkerError>((acc, next_cur))
+                        })?;
+                self.blocks[lowered_args.1]
                     .instructions
                     .push(InstructionCfgIR::Call {
                         dest: None,
                         callee: callee.clone(),
-                        args: lowered_args,
+                        args: lowered_args.0,
                         ret_type: *ret_type,
                     });
-                Ok(())
+                Ok(lowered_args.1)
             }
             _ => {
-                let _ = self.lower_value_operand(value, current, span)?;
-                Ok(())
+                let (_, next_current) = self.lower_value_operand(value, current, span)?;
+                Ok(next_current)
             }
         }
     }
@@ -502,47 +512,55 @@ impl FunctionLowerer {
         value: &ValueIR,
         current: usize,
         span: Span,
-    ) -> Result<OperandIR, PinkerError> {
+    ) -> Result<(OperandIR, usize), PinkerError> {
         match value {
-            ValueIR::Local(slot) => Ok(OperandIR::Local(slot.clone())),
-            ValueIR::GlobalConst(name) => Ok(OperandIR::GlobalConst(name.clone())),
-            ValueIR::Int(v) => Ok(OperandIR::Int(*v)),
-            ValueIR::Bool(v) => Ok(OperandIR::Bool(*v)),
+            ValueIR::Local(slot) => Ok((OperandIR::Local(slot.clone()), current)),
+            ValueIR::GlobalConst(name) => Ok((OperandIR::GlobalConst(name.clone()), current)),
+            ValueIR::Int(v) => Ok((OperandIR::Int(*v), current)),
+            ValueIR::Bool(v) => Ok((OperandIR::Bool(*v), current)),
             ValueIR::Unary { op, operand } => {
-                let operand = self.lower_value_operand(operand, current, span)?;
+                let (operand, next_current) = self.lower_value_operand(operand, current, span)?;
                 let dest = self.next_temp();
-                self.blocks[current]
+                self.blocks[next_current]
                     .instructions
                     .push(InstructionCfgIR::Unary {
                         dest,
                         op: *op,
                         operand,
                     });
-                Ok(OperandIR::Temp(dest))
+                Ok((OperandIR::Temp(dest), next_current))
             }
-            ValueIR::Binary { op, lhs, rhs } => {
-                let lhs = self.lower_value_operand(lhs, current, span)?;
-                let rhs = self.lower_value_operand(rhs, current, span)?;
-                let dest = self.next_temp();
-                self.blocks[current]
-                    .instructions
-                    .push(InstructionCfgIR::Binary {
-                        dest,
-                        op: *op,
-                        lhs,
-                        rhs,
-                    });
-                Ok(OperandIR::Temp(dest))
-            }
+            ValueIR::Binary { op, lhs, rhs } => match op {
+                BinaryOpIR::LogicalAnd | BinaryOpIR::LogicalOr => {
+                    self.lower_short_circuit_value(*op, lhs, rhs, current, span)
+                }
+                _ => {
+                    let (lhs, lhs_current) = self.lower_value_operand(lhs, current, span)?;
+                    let (rhs, rhs_current) = self.lower_value_operand(rhs, lhs_current, span)?;
+                    let dest = self.next_temp();
+                    self.blocks[rhs_current]
+                        .instructions
+                        .push(InstructionCfgIR::Binary {
+                            dest,
+                            op: *op,
+                            lhs,
+                            rhs,
+                        });
+                    Ok((OperandIR::Temp(dest), rhs_current))
+                }
+            },
             ValueIR::Call {
                 callee,
                 args,
                 ret_type,
             } => {
-                let lowered_args = args
-                    .iter()
-                    .map(|arg| self.lower_value_operand(arg, current, span))
-                    .collect::<Result<Vec<_>, PinkerError>>()?;
+                let lowered_args =
+                    args.iter()
+                        .try_fold((Vec::new(), current), |(mut acc, cur), arg| {
+                            let (lowered, next_cur) = self.lower_value_operand(arg, cur, span)?;
+                            acc.push(lowered);
+                            Ok::<_, PinkerError>((acc, next_cur))
+                        })?;
                 if *ret_type == TypeIR::Nulo {
                     return Err(PinkerError::Ir {
                         msg: "chamada nulo usada como valor na CFG IR".to_string(),
@@ -550,17 +568,84 @@ impl FunctionLowerer {
                     });
                 }
                 let dest = self.next_temp();
-                self.blocks[current]
+                self.blocks[lowered_args.1]
                     .instructions
                     .push(InstructionCfgIR::Call {
                         dest: Some(dest),
                         callee: callee.clone(),
-                        args: lowered_args,
+                        args: lowered_args.0,
                         ret_type: *ret_type,
                     });
-                Ok(OperandIR::Temp(dest))
+                Ok((OperandIR::Temp(dest), lowered_args.1))
             }
         }
+    }
+
+    fn lower_short_circuit_value(
+        &mut self,
+        op: BinaryOpIR,
+        lhs: &ValueIR,
+        rhs: &ValueIR,
+        current: usize,
+        span: Span,
+    ) -> Result<(OperandIR, usize), PinkerError> {
+        let (lhs_cond, lhs_current) = self.lower_value_operand(lhs, current, span)?;
+        let rhs_label = self.next_label("logic_rhs");
+        let short_label = self.next_label("logic_short");
+        let join_label = self.next_label("logic_join");
+        let rhs_idx = self.fresh_block(rhs_label.clone());
+        let short_idx = self.fresh_block(short_label.clone());
+        let join_idx = self.fresh_block(join_label.clone());
+
+        let (then_label, else_label) = if op == BinaryOpIR::LogicalAnd {
+            (rhs_label, short_label)
+        } else {
+            (short_label, rhs_label)
+        };
+
+        self.blocks[lhs_current].terminator = Some(TerminatorIR::Branch {
+            cond: lhs_cond,
+            then_label,
+            else_label,
+        });
+
+        let logical_slot = self.next_logical_slot();
+        let short_value = if op == BinaryOpIR::LogicalAnd {
+            OperandIR::Bool(false)
+        } else {
+            OperandIR::Bool(true)
+        };
+        self.blocks[short_idx]
+            .instructions
+            .push(InstructionCfgIR::Let {
+                slot: logical_slot.clone(),
+                value: short_value,
+            });
+        self.blocks[short_idx].terminator = Some(TerminatorIR::Jump(join_label.clone()));
+
+        let (rhs_value, rhs_end_idx) = self.lower_value_operand(rhs, rhs_idx, span)?;
+        self.blocks[rhs_end_idx]
+            .instructions
+            .push(InstructionCfgIR::Let {
+                slot: logical_slot.clone(),
+                value: rhs_value,
+            });
+        self.blocks[rhs_end_idx].terminator = Some(TerminatorIR::Jump(join_label));
+
+        Ok((OperandIR::Local(logical_slot), join_idx))
+    }
+
+    fn next_logical_slot(&mut self) -> String {
+        let index = self.next_logical_slot;
+        self.next_logical_slot += 1;
+        let slot = format!("%logic#{}", index);
+        self.logical_locals.push(crate::ir::LocalIR {
+            source_name: format!("$logic_{}", index),
+            slot: slot.clone(),
+            ty: TypeIR::Logica,
+            is_mut: true,
+        });
+        slot
     }
 
     fn fresh_block(&mut self, label: String) -> usize {
@@ -664,6 +749,8 @@ fn render_unary_op(op: UnaryOpIR) -> &'static str {
 
 fn render_binary_op(op: BinaryOpIR) -> &'static str {
     match op {
+        BinaryOpIR::LogicalAnd => "and",
+        BinaryOpIR::LogicalOr => "or",
         BinaryOpIR::BitAnd => "bitand",
         BinaryOpIR::BitOr => "bitor",
         BinaryOpIR::BitXor => "bitxor",

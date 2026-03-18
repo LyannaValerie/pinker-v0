@@ -36,9 +36,11 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 29: consolidar exemplos versionados e cobertura CLI para loops
 - Fase 30: consolidar exemplos versionados e cobertura negativa para loops inválidos, e organizar backlog futuro em `docs/future.md`
 - Fase 31: adicionar operadores bitwise básicos (`&`, `|`, `^`, `<<`, `>>`)
+- Fase 32: robustez de lowering CFG para `talvez/senao` com fall-through em ambos os ramos
+- Fase 33: adicionar operadores lógicos `&&` e `||` com short-circuit
 
 ## Fase atual
-- Fase 32 concluída: robustez do lowering CFG para `talvez/senao` com fall-through em ambos os ramos consolidada por testes direcionados, sem mudança semântica.
+- Fase 33 concluída: operadores lógicos `&&` e `||` adicionados com short-circuit real no lowering CFG e cobertura incremental de testes.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -229,3 +231,16 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 ## Itens adiados (mantidos)
 - Refactor estrutural maior do lowerer de CFG.
 - Expansões de linguagem fora da Fase 32.
+
+
+## Fase 33 — operadores lógicos `&&` e `||` com short-circuit
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 verificada e preservada.
+- Frontend atualizado de forma mínima: `AmpAmp`/`PipePipe` em token/lexer, parse de `&&`/`||` e nós `LogicalAnd`/`LogicalOr`.
+- Política de tipos adotada: operadores lógicos funcionam somente com `logica` e retornam `logica`.
+- Short-circuit garantido no lowering CFG via blocos `logic_rhs_*`, `logic_short_*` e `logic_join_*`; o RHS não é avaliado quando o LHS já determina o resultado.
+- Cobertura adicionada em lexer/parser/semântica/IR/CFG/interpreter e em execução CLI `--run` com exemplos dedicados.
+
+## Itens adiados (mantidos após Fase 33)
+- Truthiness implícito.
+- Coerções implícitas/overloads de operadores.
+- Operadores compostos lógicos relacionados.

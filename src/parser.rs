@@ -371,18 +371,20 @@ impl Parser {
 
     fn precedence(op: BinaryOp) -> u8 {
         match op {
-            BinaryOp::BitOr => 1,
-            BinaryOp::BitXor => 2,
-            BinaryOp::BitAnd => 3,
+            BinaryOp::LogicalOr => 1,
+            BinaryOp::LogicalAnd => 2,
+            BinaryOp::BitOr => 3,
+            BinaryOp::BitXor => 4,
+            BinaryOp::BitAnd => 5,
             BinaryOp::Eq
             | BinaryOp::Neq
             | BinaryOp::Lt
             | BinaryOp::Lte
             | BinaryOp::Gt
-            | BinaryOp::Gte => 4,
-            BinaryOp::Shl | BinaryOp::Shr => 5,
-            BinaryOp::Add | BinaryOp::Sub => 6,
-            BinaryOp::Mul | BinaryOp::Div => 7,
+            | BinaryOp::Gte => 6,
+            BinaryOp::Shl | BinaryOp::Shr => 7,
+            BinaryOp::Add | BinaryOp::Sub => 8,
+            BinaryOp::Mul | BinaryOp::Div => 9,
         }
     }
 

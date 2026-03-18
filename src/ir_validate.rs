@@ -350,6 +350,13 @@ fn infer_value_type(
             let lhs_ty = infer_value_type(lhs, slots, consts, funcs, span)?;
             let rhs_ty = infer_value_type(rhs, slots, consts, funcs, span)?;
             match op {
+                BinaryOpIR::LogicalAnd | BinaryOpIR::LogicalOr => {
+                    if lhs_ty == TypeIR::Logica && rhs_ty == TypeIR::Logica {
+                        Ok(TypeIR::Logica)
+                    } else {
+                        Err(ir_validation_error("operação lógica exige logica", span))
+                    }
+                }
                 BinaryOpIR::Add
                 | BinaryOpIR::Sub
                 | BinaryOpIR::Mul
