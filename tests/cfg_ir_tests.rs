@@ -134,3 +134,18 @@ Análise semântica concluída sem erros.
 "
     );
 }
+
+#[test]
+fn cfg_ir_sempre_que() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova mut x = 0;
+            sempre que x < 3 { x = x + 1; }
+            mimo x;
+        }";
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("block loop_cond_"), "{}", cfg);
+    assert!(cfg.contains("block loop_"), "{}", cfg);
+    assert!(cfg.contains("block loop_join_"), "{}", cfg);
+}

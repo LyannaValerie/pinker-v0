@@ -281,6 +281,27 @@ fn validate_block(
                     validate_block(else_block, function, slots, consts, funcs)?;
                 }
             }
+
+            InstructionIR::While {
+                condition,
+                body_block,
+                span,
+            } => {
+                let cond_ty =
+                    infer_value_type(condition, slots, consts, funcs, *span).map_err(|err| {
+                        enrich_ir_error(err, Some(function), Some(block), Some("instr='while'"))
+                    })?;
+                if cond_ty != TypeIR::Logica {
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "condição de while deve ser lógica",
+                        Some(&format!("instr='while', recebido={:?}", cond_ty)),
+                        *span,
+                    ));
+                }
+                validate_block(body_block, function, slots, consts, funcs)?;
+            }
         }
     }
 

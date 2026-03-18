@@ -126,3 +126,11 @@
   - ao exceder o limite, runtime falha de forma controlada com categoria `[runtime::limite_recursao_excedido]`
   - diagnóstico deixa explícito que é limite preventivo do runtime (não stack overflow real do sistema)
   - stack trace existente e renderização final do CLI foram preservados
+
+
+
+- Fase 27a — concluída
+  - adicionado suporte de superfície para loop condicional com a forma composta `sempre que <condicao> { ... }`
+  - reconhecimento léxico/sintático via keywords `sempre` + `que` no parser
+  - novo nó de AST para loop condicional e integração mínima no pipeline (semântica → IR → CFG → seleção → Machine/`--run`)
+  - sem novos controles avançados de fluxo (`quebrar`, `continuar`, labels de loop), mantidos fora de escopo

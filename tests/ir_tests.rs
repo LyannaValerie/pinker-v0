@@ -182,3 +182,19 @@ Análise semântica concluída sem erros.
 "
     );
 }
+
+#[test]
+fn lowering_de_sempre_que() {
+    let code = "
+pacote main;
+carinho principal() -> bombom {
+  nova mut x = 0;
+  sempre que x < 3 {
+    x = x + 1;
+  }
+  mimo x;
+}";
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("while"), "{}", ir);
+    assert!(ir.contains("block loop_"), "{}", ir);
+}

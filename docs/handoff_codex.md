@@ -112,3 +112,25 @@
 ### Próximos passos sugeridos
 - Tornar `MAX_CALL_DEPTH` configurável de forma leve (flag/env) sem alterar semântica padrão.
 - Adicionar testes dedicados apenas ao renderer de runtime para reduzir acoplamento com e2e de CLI.
+
+
+## Fase 27a — adicionar `sempre que`
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a verificada e preservada.
+- Implementação mínima concluída para `sempre que <condicao> { ... }`.
+
+### Como a forma composta foi reconhecida
+- Lexer passou a reconhecer `sempre` e `que` como keywords distintas.
+- Parser exige o par composto `KwSempre` seguido de `KwQue` no início do statement.
+
+### Partes do pipeline tocadas
+- AST: novo `Stmt::While(WhileStmt)` com `condition`, `body` e `span`.
+- Semântica: valida condição lógica em `sempre que` e verifica bloco do corpo como bloco normal.
+- IR estruturada: novo `InstructionIR::While`.
+- Validação IR: condição do loop deve ser `logica` e corpo é validado recursivamente.
+- CFG IR: lowering para padrão com `loop_cond_N` (branch), `loop_N` (corpo) e `loop_join_N` (saída).
+- Demais camadas permanecem usando infraestrutura existente de branch/jump/back-edge.
+
+### Limites e adiamentos explícitos
+- Não foram adicionados `enquanto`, `para`, `quebrar`, `continuar` ou labels de loop.
+- Não houve redesign de runtime/diagnóstico; fase restrita ao suporte mínimo do construto.
+- Não houve necessidade de correção documental estrutural da timeline; apenas adição incremental da Fase 27a.

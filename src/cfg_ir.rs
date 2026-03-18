@@ -372,6 +372,38 @@ impl FunctionLowerer {
                     Ok(current)
                 }
             }
+            InstructionIR::While {
+                condition,
+                body_block,
+                span,
+            } => {
+                let cond_label = self.next_label("loop_cond");
+                let cond_idx = self.fresh_block(cond_label);
+                self.blocks[current].terminator =
+                    Some(TerminatorIR::Jump(self.blocks[cond_idx].label.clone()));
+
+                let cond = self.lower_value_operand(condition, cond_idx, *span)?;
+                let body_idx = self.fresh_block(body_block.label.clone());
+                let join_label = self.next_label("loop_join");
+                let join_idx = self.fresh_block(join_label);
+                self.blocks[cond_idx].terminator = Some(TerminatorIR::Branch {
+                    cond,
+                    then_label: self.blocks[body_idx].label.clone(),
+                    else_label: self.blocks[join_idx].label.clone(),
+                });
+
+                let mut body_current = body_idx;
+                for inst in &body_block.instructions {
+                    body_current = self.lower_instruction(inst, body_current, function_ret)?;
+                }
+
+                if !self.blocks[body_current].is_terminated() {
+                    self.blocks[body_current].terminator =
+                        Some(TerminatorIR::Jump(self.blocks[cond_idx].label.clone()));
+                }
+
+                Ok(join_idx)
+            }
         }
     }
 

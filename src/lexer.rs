@@ -160,6 +160,8 @@ impl<'a> Lexer<'a> {
                                 "mimo" => TokenKind::KwMimo,
                                 "talvez" => TokenKind::KwTalvez,
                                 "senao" => TokenKind::KwSenao,
+                                "sempre" => TokenKind::KwSempre,
+                                "que" => TokenKind::KwQue,
                                 "eterno" => TokenKind::KwEterno,
                                 "nova" => TokenKind::KwNova,
                                 "mut" => TokenKind::KwMut,

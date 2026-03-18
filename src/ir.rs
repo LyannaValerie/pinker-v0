@@ -12,7 +12,7 @@
 
 use crate::ast::{
     BinaryOp, Block, ConstDecl, ElseBlock, Expr, ExprKind, FunctionDecl, IfStmt, Item, LetStmt,
-    Program, ReturnStmt, Stmt, Type, UnaryOp,
+    Program, ReturnStmt, Stmt, Type, UnaryOp, WhileStmt,
 };
 use crate::error::PinkerError;
 use crate::token::Span;
@@ -98,6 +98,11 @@ pub enum InstructionIR {
         condition: ValueIR,
         then_block: BlockIR,
         else_block: Option<BlockIR>,
+        span: Span,
+    },
+    While {
+        condition: ValueIR,
+        body_block: BlockIR,
         span: Span,
     },
 }
@@ -359,6 +364,7 @@ impl<'a> FunctionLowerer<'a> {
                 span: expr.span,
             }),
             Stmt::If(if_stmt) => self.lower_if(if_stmt),
+            Stmt::While(while_stmt) => self.lower_while(while_stmt),
         }
     }
 
@@ -417,6 +423,17 @@ impl<'a> FunctionLowerer<'a> {
             then_block,
             else_block,
             span: if_stmt.span,
+        })
+    }
+
+    fn lower_while(&mut self, while_stmt: &WhileStmt) -> Result<InstructionIR, PinkerError> {
+        let condition = self.lower_value(&while_stmt.condition)?.value;
+        let body_label = self.next_block_label("loop");
+        let body_block = self.lower_block(&while_stmt.body, body_label, true)?;
+        Ok(InstructionIR::While {
+            condition,
+            body_block,
+            span: while_stmt.span,
         })
     }
 
@@ -678,6 +695,14 @@ fn render_instruction(instruction: &InstructionIR, indent: usize, out: &mut Stri
             if let Some(else_block) = else_block {
                 render_block(else_block, indent + 1, out);
             }
+        }
+        InstructionIR::While {
+            condition,
+            body_block,
+            ..
+        } => {
+            line(out, indent, &format!("while {}", render_value(condition)));
+            render_block(body_block, indent + 1, out);
         }
     }
 }

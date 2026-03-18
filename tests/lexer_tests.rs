@@ -32,3 +32,10 @@ fn erro_lexico_tem_formato_previsivel() {
             .to_string();
     assert_eq!(err, "Erro Léxico: caractere inesperado '$' em 1:52..1:53");
 }
+
+#[test]
+fn lexer_reconhece_sempre_que() {
+    let tokens = tokenize("sempre que verdade { mimo; }").unwrap();
+    assert_eq!(tokens[0].kind, TokenKind::KwSempre);
+    assert_eq!(tokens[1].kind, TokenKind::KwQue);
+}

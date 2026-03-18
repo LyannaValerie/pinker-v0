@@ -220,3 +220,31 @@ fn erro_semantico_tem_formato_previsivel() {
         "Erro Semântico: variável 'x' não declarada para atribuição em 1:46..1:52"
     );
 }
+
+#[test]
+fn sempre_que_valido_com_condicao_logica() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova mut x = 0;
+            sempre que x < 3 {
+                x = x + 1;
+            }
+            mimo x;
+        }";
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn sempre_que_invalido_com_condicao_nao_logica() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            sempre que 1 {
+                mimo 1;
+            }
+            mimo 0;
+        }";
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("condição de 'sempre que' deve ser 'logica'"));
+}

@@ -97,3 +97,26 @@ fn erro_sintatico_expected_vs_found_e_span() {
         .to_string();
     assert_eq!(err, "Erro Sintático: expressão inválida: ';' em 1:55..1:56");
 }
+
+#[test]
+fn parser_de_sempre_que() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            sempre que verdade {
+                mimo 1;
+            }
+            mimo 0;
+        }";
+    let program = parse(code).unwrap();
+    match &program.items[0] {
+        Item::Function(function) => match &function.body.stmts[0] {
+            Stmt::While(while_stmt) => {
+                assert_eq!(while_stmt.span.start.line, 4);
+                assert_eq!(while_stmt.span.end.line, 6);
+            }
+            _ => panic!("stmt esperado: while"),
+        },
+        _ => panic!("item esperado: função"),
+    }
+}

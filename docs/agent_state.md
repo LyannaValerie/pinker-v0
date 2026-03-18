@@ -30,7 +30,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 26: proteção preventiva contra recursão infinita/limite de profundidade de chamadas
 
 ## Fase atual
-- Fase 26 concluída: proteção preventiva contra recursão infinita/profundidade excessiva com limite interno estável e categoria de runtime, preservando mensagem principal (Fase 24), stack trace (Fases 23a/23b) e renderização consolidada do CLI (Fase 25).
+- Fase 27a concluída: suporte mínimo a `sempre que <condicao> { ... }` no pipeline da linguagem, mantendo as fases 21a → 26 preservadas.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -116,3 +116,11 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Configuração externa do limite de recursão.
 - Spans ricos por frame (`future_span` segue reservado).
 - Debugger/stepping/tracing avançado.
+
+
+## Fase 27a (estado)
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a verificada.
+- Forma de superfície adicionada: `sempre que <condicao> { ... }`.
+- Reconhecimento implementado como combinação de palavras-chave `sempre` + `que`.
+- Escopo tocado: lexer, parser, AST, semântica, IR estruturada, validação IR, lowering CFG e testes E2E (`--run`).
+- Fora de escopo mantido: `enquanto`, `para`, `quebrar`, `continuar`, labels de loop e redesign amplo.
