@@ -1,7 +1,7 @@
 # Handoff Auditor
 
 ## Rodada atual
-- **Fase 27b**: truncamento/resumo de stack trace muito longo em erros de runtime.
+- **Fase 28c**: melhorias de spans/source context em erros de runtime e parser.
 
 ## Objetivo da Fase 24
 Melhorar o diagnóstico de runtime além do stack trace: prefixo de categoria por tipo de erro e dica curta para erros frequentes, sem alterar semântica de execução.
@@ -97,6 +97,56 @@ Preservada em todos os docs consultados. Ordem 21a → 21b → 22 → 23a → 23
 - Nenhuma categoria de erro alterada; nenhuma interface pública modificada.
 
 ### Status da Fase 27b
+**CONCLUÍDA.** Escopo respeitado. Sem regressão. Continuidade histórica preservada.
+
+### Recomendação de merge
+**MERGE RECOMENDADO.**
+
+---
+
+## Auditoria — Fase 28c
+
+### Objetivo
+Melhorar spans/source context em erros de runtime e parser: tornar localização mais útil sem redesenhar infraestrutura de erros.
+
+### Estado real encontrado
+- Workspace operacional após Fase 28b (28a e 28b confirmadas no workspace).
+- `cargo build`, `cargo check`, `cargo fmt --check` e `cargo test` passavam antes das mudanças.
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b verificada.
+
+### Arquivos alterados
+- `src/error.rs` — `is_dummy_span`, `extract_source_snippet`, `render_for_cli_with_source`; `render_runtime_for_cli` passa a exibir `localização: indisponível` para span dummy
+- `src/main.rs` — todos os `render_for_cli()` pós-leitura de fonte substituídos por `render_for_cli_with_source(&source)`
+- `tests/interpreter_tests.rs` — 3 testes atualizados (`span: 1:1..1:1` → `localização: indisponível`); 3 novos testes (Fase 28c)
+- `docs/phases.md` — Fase 28c registrada
+- `docs/agent_state.md` — fase atual atualizada para 28c; seção 28c adicionada
+- `docs/handoff_auditor.md` — este arquivo (atualizado nesta auditoria)
+
+### Continuidade histórica
+Preservada. Ordem 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c verificada em `docs/phases.md` e `docs/agent_state.md`.
+
+### O que melhorou
+- Erros de parser/lexer/semântica no CLI agora mostram a linha de origem e um `^` na coluna do erro.
+- Erros de runtime com span placeholder deixam de exibir `span: 1:1..1:1` (inútil) e passam a mostrar `localização: indisponível (erro detectado na instrução de máquina)`.
+
+### O que permaneceu igual
+- Formato de runtime (`Erro Runtime:`, `mensagem:`, `stack trace:`) sem mudança.
+- Stack trace por frame (`at <fn> [bloco: ...] [instr: ...]`) sem mudança.
+- `future_span` em `RuntimeFrame` segue reservado mas não preenchido.
+
+### Limites atuais
+- Spans reais por instrução de máquina ainda não existem (MachineInstr não carrega spans).
+- Source context só é exibido quando `render_for_cli_with_source` é chamado (CLI usa; API programática continua com `to_string()` ou `render_for_cli()`).
+
+### Avaliação do escopo
+- ~50 linhas adicionadas ao `error.rs`; 3 testes novos; 3 testes atualizados.
+- Nenhuma mudança de semântica, gramática ou arquitetura de erros.
+
+### Próximos passos sugeridos
+- Propagar spans do AST até MachineInstr para ter localização real em runtime.
+- Usar `future_span` em `RuntimeFrame` quando spans de instrução estiverem disponíveis.
+
+### Status da Fase 28c
 **CONCLUÍDA.** Escopo respeitado. Sem regressão. Continuidade histórica preservada.
 
 ### Recomendação de merge

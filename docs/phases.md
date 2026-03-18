@@ -160,3 +160,13 @@
   - IR estruturada inclui `Continue` com alvo interno de continuidade do loop
   - CFG IR lowera `continuar` para salto ao bloco de condição da próxima iteração
   - execução `--run` passa a pular para a próxima iteração corretamente
+
+
+- Fase 28c — melhorar spans/source context em erros de runtime e parser
+  - erros de runtime com span dummy (`1:1..1:1`) passam a exibir `localização: indisponível (erro detectado na instrução de máquina)` em vez do span inútil
+  - adicionado método `render_for_cli_with_source(source)` em `PinkerError`
+  - erros de lexer/parser/semântica passam a incluir a linha de origem e indicador de coluna (`^`) no output do CLI
+  - `main.rs` atualizado para usar `render_for_cli_with_source` em todos os erros após leitura do arquivo-fonte
+  - 3 testes de CLI atualizados para verificar `localização: indisponível` (antes verificavam `span: 1:1..1:1`)
+  - 3 novos testes adicionados: source context em parse error (CLI), source context em erro semântico (CLI), localização indisponível em runtime (unitário)
+  - formato de runtime e stack trace preservados sem mudança estrutural

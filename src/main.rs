@@ -134,7 +134,7 @@ fn main() {
     let tokens = match lexer.tokenize() {
         Ok(tokens) => tokens,
         Err(err) => {
-            eprintln!("{}", err.render_for_cli());
+            eprintln!("{}", err.render_for_cli_with_source(&source));
             std::process::exit(1);
         }
     };
@@ -150,7 +150,7 @@ fn main() {
     let program = match parser.parse() {
         Ok(program) => program,
         Err(err) => {
-            eprintln!("{}", err.render_for_cli());
+            eprintln!("{}", err.render_for_cli_with_source(&source));
             std::process::exit(1);
         }
     };
@@ -178,13 +178,13 @@ fn main() {
                 let lowered = match ir::lower_program(&program) {
                     Ok(program_ir) => program_ir,
                     Err(err) => {
-                        eprintln!("{}", err.render_for_cli());
+                        eprintln!("{}", err.render_for_cli_with_source(&source));
                         std::process::exit(1);
                     }
                 };
 
                 if let Err(err) = ir_validate::validate_program(&lowered) {
-                    eprintln!("{}", err.render_for_cli());
+                    eprintln!("{}", err.render_for_cli_with_source(&source));
                     std::process::exit(1);
                 }
 
@@ -208,12 +208,12 @@ fn main() {
                 let cfg = match cfg_ir::lower_program(program_ir.as_ref().unwrap()) {
                     Ok(cfg) => cfg,
                     Err(err) => {
-                        eprintln!("{}", err.render_for_cli());
+                        eprintln!("{}", err.render_for_cli_with_source(&source));
                         std::process::exit(1);
                     }
                 };
                 if let Err(err) = cfg_ir_validate::validate_program(&cfg) {
-                    eprintln!("{}", err.render_for_cli());
+                    eprintln!("{}", err.render_for_cli_with_source(&source));
                     std::process::exit(1);
                 }
                 Some(cfg)
@@ -238,12 +238,12 @@ fn main() {
                 let selected = match instr_select::lower_program(cfg_ir_program.as_ref().unwrap()) {
                     Ok(selected) => selected,
                     Err(err) => {
-                        eprintln!("{}", err.render_for_cli());
+                        eprintln!("{}", err.render_for_cli_with_source(&source));
                         std::process::exit(1);
                     }
                 };
                 if let Err(err) = instr_select_validate::validate_program(&selected) {
-                    eprintln!("{}", err.render_for_cli());
+                    eprintln!("{}", err.render_for_cli_with_source(&source));
                     std::process::exit(1);
                 }
                 Some(selected)
@@ -266,12 +266,12 @@ fn main() {
                     match abstract_machine::lower_program(selected_program.as_ref().unwrap()) {
                         Ok(machine) => machine,
                         Err(err) => {
-                            eprintln!("{}", err.render_for_cli());
+                            eprintln!("{}", err.render_for_cli_with_source(&source));
                             std::process::exit(1);
                         }
                     };
                 if let Err(err) = abstract_machine_validate::validate_program(&machine) {
-                    eprintln!("{}", err.render_for_cli());
+                    eprintln!("{}", err.render_for_cli_with_source(&source));
                     std::process::exit(1);
                 }
                 Some(machine)
@@ -291,7 +291,7 @@ fn main() {
                 let result = match interpreter::run_program(machine_program.as_ref().unwrap()) {
                     Ok(result) => result,
                     Err(err) => {
-                        eprintln!("{}", err.render_for_cli());
+                        eprintln!("{}", err.render_for_cli_with_source(&source));
                         std::process::exit(1);
                     }
                 };
@@ -307,12 +307,12 @@ fn main() {
                 ) {
                     Ok(lowered_backend) => lowered_backend,
                     Err(err) => {
-                        eprintln!("{}", err.render_for_cli());
+                        eprintln!("{}", err.render_for_cli_with_source(&source));
                         std::process::exit(1);
                     }
                 };
                 if let Err(err) = backend_text_validate::validate_program(&lowered_backend) {
-                    eprintln!("{}", err.render_for_cli());
+                    eprintln!("{}", err.render_for_cli_with_source(&source));
                     std::process::exit(1);
                 }
                 println!("=== PSEUDO ASM ===");
@@ -324,7 +324,7 @@ fn main() {
             }
         }
         Err(err) => {
-            eprintln!("{}", err.render_for_cli());
+            eprintln!("{}", err.render_for_cli_with_source(&source));
             std::process::exit(1);
         }
     }

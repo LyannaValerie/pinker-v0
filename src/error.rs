@@ -72,6 +72,24 @@ impl PinkerError {
             _ => self.to_string(),
         }
     }
+
+    /// Renderiza o erro para o CLI incluindo source context quando disponível.
+    /// Para erros com span real (lexer, parser, semântica), extrai a linha
+    /// de origem e acrescenta um indicador de coluna (`^`) abaixo.
+    /// Para erros de runtime, delega ao renderer de runtime existente.
+    pub fn render_for_cli_with_source(&self, source: &str) -> String {
+        match self {
+            PinkerError::Runtime { msg, span } => render_runtime_for_cli(msg, *span),
+            _ => {
+                let base = self.to_string();
+                let span = self.span();
+                match extract_source_snippet(source, span) {
+                    Some(snippet) => format!("{}\n{}", base, snippet),
+                    None => base,
+                }
+            }
+        }
+    }
 }
 
 fn render_runtime_for_cli(msg: &str, span: Span) -> String {
@@ -88,9 +106,41 @@ fn render_runtime_for_cli(msg: &str, span: Span) -> String {
             out.push('\n');
         }
     }
-    out.push_str("  span: ");
-    out.push_str(&span.to_string());
+    if is_dummy_span(span) {
+        out.push_str("  localização: indisponível (erro detectado na instrução de máquina)");
+    } else {
+        out.push_str("  span: ");
+        out.push_str(&span.to_string());
+    }
     out
+}
+
+/// Retorna `true` se o span é o placeholder sintético `1:1..1:1` usado quando
+/// a localização real não está disponível na camada de execução.
+fn is_dummy_span(span: Span) -> bool {
+    span.start.line == 1 && span.start.col == 1 && span.end.line == 1 && span.end.col == 1
+}
+
+/// Extrai a linha de origem correspondente ao span e acrescenta um indicador
+/// de coluna (`^`) alinhado à posição inicial do erro.
+/// Retorna `None` se o número de linha for inválido ou a linha não existir.
+fn extract_source_snippet(source: &str, span: Span) -> Option<String> {
+    let line_num = span.start.line;
+    if line_num == 0 {
+        return None;
+    }
+    let line_text = source.lines().nth(line_num - 1)?;
+    let col = span.start.col.saturating_sub(1);
+    let mut out = String::new();
+    out.push_str("  | ");
+    out.push_str(line_text);
+    out.push('\n');
+    out.push_str("  | ");
+    for _ in 0..col {
+        out.push(' ');
+    }
+    out.push('^');
+    Some(out)
 }
 
 fn split_runtime_message_and_trace(msg: &str) -> (&str, Option<&str>) {
