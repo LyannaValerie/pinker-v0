@@ -151,3 +151,48 @@ Preservada. Ordem 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27
 
 ### Recomendação de merge
 **MERGE RECOMENDADO.**
+
+---
+
+## Auditoria — Fase 34
+
+### Objetivo
+Adicionar licença ao repositório Pinker v0 e documentar seu uso básico de forma mínima.
+
+### Estado real encontrado
+- Workspace operacional após Fase 33.
+- `cargo build`, `cargo check`, `cargo fmt --check` e `cargo test` passavam antes das mudanças.
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 verificada.
+- Nenhum arquivo de licença existia no repositório antes desta fase.
+- Nenhuma preferência de licença documentada em nenhum arquivo do workspace.
+
+### Licença adotada
+- **MIT** — licença permissiva padrão, amplamente reconhecida, sem customização.
+- Justificativa: ausência de instrução prévia no repositório → adotado default permissivo mínimo conforme política da fase.
+
+### Arquivos alterados
+- `LICENSE` (criado)
+- `Cargo.toml` (campo `license = "MIT"` adicionado)
+- `README.md` (seção `## Licença` adicionada ao final)
+- `docs/phases.md` (Fase 34 registrada)
+- `docs/agent_state.md` (Fase 34 marcada como concluída)
+- `docs/handoff_codex.md` (rodada atual atualizada)
+- `docs/handoff_auditor.md` (este arquivo)
+
+### O que permaneceu igual
+- Nenhuma mudança em semântica, parser, interpretador, IR, CFG, Machine ou qualquer camada funcional.
+- Nenhum novo teste de código.
+- Todos os testes anteriores passam sem alteração.
+
+### Continuidade histórica
+Verificada. Ordem 21a → ... → 33 → 34 preservada em `docs/phases.md` e `docs/agent_state.md`.
+Nenhuma correção histórica foi necessária.
+
+### Mudança funcional no compilador
+Nenhuma.
+
+### Status da Fase 34
+**CONCLUÍDA.** Escopo respeitado. Sem regressão. Continuidade histórica preservada.
+
+### Recomendação de merge
+**MERGE RECOMENDADO.**

@@ -109,3 +109,6 @@ Limites atuais (adiado): a tipagem na Machine continua leve/local (sem inferênc
 
 ## Backlog futuro
 - Visão estruturada de evolução de longo prazo em `docs/future.md` (não é roadmap rígido de curto prazo).
+
+## Licença
+[MIT](LICENSE)
