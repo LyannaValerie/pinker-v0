@@ -331,6 +331,20 @@ impl SemanticChecker {
                         }
                     }
                 }
+                Stmt::While(while_stmt) => {
+                    let cond_ty = self.check_value_expr(
+                        &while_stmt.condition,
+                        "condição não pode usar resultado de função sem retorno",
+                    )?;
+                    if !matches!(cond_ty, Type::Logica(_)) {
+                        return Err(PinkerError::Semantic {
+                            msg: "condição de 'sempre que' deve ser 'logica'".to_string(),
+                            span: while_stmt.condition.span,
+                        });
+                    }
+
+                    self.check_block(&while_stmt.body, false)?;
+                }
                 Stmt::Expr(expr) => {
                     self.check_expr(expr)?;
                 }

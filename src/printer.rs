@@ -141,6 +141,15 @@ fn render_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             render_expr(&assign_stmt.expr, indent + 1, out, "value");
         }
         Stmt::If(if_stmt) => render_if(if_stmt, indent, out, "If"),
+        Stmt::While(while_stmt) => {
+            line(
+                out,
+                indent,
+                &format!("While {}", format_span(while_stmt.span)),
+            );
+            render_expr(&while_stmt.condition, indent + 1, out, "condition");
+            render_block(&while_stmt.body, indent + 1, out, "body");
+        }
         Stmt::Expr(expr) => {
             line(out, indent, &format!("ExprStmt {}", format_span(expr.span)));
             render_expr(expr, indent + 1, out, "expr");

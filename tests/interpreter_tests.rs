@@ -796,3 +796,34 @@ fn cli_run_erro_runtime_em_exemplo_novo() {
     assert!(stderr.contains("[instr: div]"), "stderr: {}", stderr);
     assert!(stderr.contains("  span: 1:1..1:1"), "stderr: {}", stderr);
 }
+
+#[test]
+fn run_sempre_que_simples() {
+    let out = run_code(
+        "pacote main; carinho principal() -> bombom { nova mut x = 0; sempre que x < 5 { x = x + 1; } mimo x; }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(5)));
+}
+
+#[test]
+fn cli_run_sempre_que_funciona() {
+    let source =
+        "pacote main; carinho principal() -> bombom { nova mut x = 0; sempre que x < 4 { x = x + 1; } mimo x; }";
+    let file = std::env::temp_dir().join("pinker_run_sempre_que_ok.pink");
+    fs::write(&file, source).unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(&file)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "4
+"
+    );
+    assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+}

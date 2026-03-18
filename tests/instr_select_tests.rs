@@ -205,3 +205,17 @@ fn falha_clara_para_call_sem_destino() {
     let err = pinker_v0::instr_select::lower_program(&cfg).unwrap_err();
     assert!(err.to_string().contains("instruction selection"));
 }
+
+#[test]
+fn seleciona_sempre_que() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova mut x = 0;
+            sempre que x < 2 { x = x + 1; }
+            mimo x;
+        }";
+    let out = render_selected(code).unwrap();
+    assert!(out.contains("loop_cond_"), "{}", out);
+    assert!(out.contains("term br"), "{}", out);
+}

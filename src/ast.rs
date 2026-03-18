@@ -229,6 +229,7 @@ pub enum Stmt {
     Return(ReturnStmt),
     Assign(AssignStmt),
     If(IfStmt),
+    While(WhileStmt),
     Expr(Expr),
 }
 
@@ -239,6 +240,7 @@ impl Stmt {
             Stmt::Return(stmt) => stmt.span,
             Stmt::Assign(stmt) => stmt.span,
             Stmt::If(stmt) => stmt.span,
+            Stmt::While(stmt) => stmt.span,
             Stmt::Expr(expr) => expr.span,
         }
     }
@@ -249,6 +251,7 @@ impl Stmt {
             Stmt::Return(stmt) => stmt.write_json(writer),
             Stmt::Assign(stmt) => stmt.write_json(writer),
             Stmt::If(stmt) => stmt.write_json(writer),
+            Stmt::While(stmt) => stmt.write_json(writer),
             Stmt::Expr(expr) => {
                 writer.begin_object();
                 writer.field_str("node", "ExprStmt");
@@ -325,6 +328,24 @@ impl IfStmt {
             }
             None => writer.field_null("else_branch"),
         }
+        writer.end_object();
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct WhileStmt {
+    pub condition: Expr,
+    pub body: Block,
+    pub span: Span,
+}
+
+impl WhileStmt {
+    fn write_json(&self, writer: &mut JsonWriter<'_>) {
+        writer.begin_object();
+        writer.field_str("node", "WhileStmt");
+        writer.field_span("span", self.span);
+        writer.field_value("condition", |writer| self.condition.write_json(writer));
+        writer.field_value("body", |writer| self.body.write_json(writer));
         writer.end_object();
     }
 }
