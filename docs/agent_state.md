@@ -137,3 +137,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Configuração externa de `MAX_CALL_DEPTH` e do limiar de truncamento.
 - Spans ricos por frame (`future_span` segue reservado).
 - Debugger/stepping/tracing avançado.
+
+
+## Fase 28a — adicionar `quebrar` para `sempre que`
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a verificada.
+- `quebrar;` adicionado com escopo mínimo para sair de `sempre que`.
+- Parser/AST/semântica/IR/CFG e testes de `--run` atualizados de forma incremental.
+- Fora de escopo mantido: `continuar`, labels de loop, alvo de `quebrar`, refactor amplo de fluxo.

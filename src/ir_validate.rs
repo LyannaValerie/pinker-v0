@@ -302,6 +302,11 @@ fn validate_block(
                 }
                 validate_block(body_block, function, slots, consts, funcs)?;
             }
+
+            InstructionIR::Break {
+                loop_exit_label: _,
+                span: _,
+            } => {}
         }
     }
 

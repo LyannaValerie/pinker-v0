@@ -162,6 +162,7 @@ impl<'a> Lexer<'a> {
                                 "senao" => TokenKind::KwSenao,
                                 "sempre" => TokenKind::KwSempre,
                                 "que" => TokenKind::KwQue,
+                                "quebrar" => TokenKind::KwQuebrar,
                                 "eterno" => TokenKind::KwEterno,
                                 "nova" => TokenKind::KwNova,
                                 "mut" => TokenKind::KwMut,

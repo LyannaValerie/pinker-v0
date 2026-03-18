@@ -149,3 +149,21 @@ fn cfg_ir_sempre_que() {
     assert!(cfg.contains("block loop_"), "{}", cfg);
     assert!(cfg.contains("block loop_join_"), "{}", cfg);
 }
+
+#[test]
+fn cfg_ir_sempre_que_com_quebrar() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova mut x = 0;
+            sempre que x < 3 {
+                quebrar;
+            }
+            mimo x;
+        }";
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("block loop_cond_"), "{}", cfg);
+    assert!(cfg.contains("block loop_"), "{}", cfg);
+    assert!(cfg.contains("loop_join_"), "{}", cfg);
+    assert!(cfg.contains("br verdade:logica"), "{}", cfg);
+}

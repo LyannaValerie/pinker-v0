@@ -150,6 +150,13 @@ fn render_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             render_expr(&while_stmt.condition, indent + 1, out, "condition");
             render_block(&while_stmt.body, indent + 1, out, "body");
         }
+        Stmt::Break(break_stmt) => {
+            line(
+                out,
+                indent,
+                &format!("Break {}", format_span(break_stmt.span)),
+            );
+        }
         Stmt::Expr(expr) => {
             line(out, indent, &format!("ExprStmt {}", format_span(expr.span)));
             render_expr(expr, indent + 1, out, "expr");

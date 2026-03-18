@@ -120,3 +120,26 @@ fn parser_de_sempre_que() {
         _ => panic!("item esperado: função"),
     }
 }
+
+#[test]
+fn parser_aceita_quebrar_dentro_de_sempre_que() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            sempre que verdade {
+                quebrar;
+            }
+            mimo 0;
+        }";
+    let program = parse(code).unwrap();
+    match &program.items[0] {
+        Item::Function(function) => match &function.body.stmts[0] {
+            Stmt::While(while_stmt) => match &while_stmt.body.stmts[0] {
+                Stmt::Break(_) => {}
+                _ => panic!("stmt esperado: break"),
+            },
+            _ => panic!("stmt esperado: while"),
+        },
+        _ => panic!("item esperado: função"),
+    }
+}
