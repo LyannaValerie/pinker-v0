@@ -38,9 +38,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 31: adicionar operadores bitwise básicos (`&`, `|`, `^`, `<<`, `>>`)
 - Fase 32: robustez de lowering CFG para `talvez/senao` com fall-through em ambos os ramos
 - Fase 33: adicionar operadores lógicos `&&` e `||` com short-circuit
+- Fase 34: adicionar licença do projeto e documentar seu uso básico
 
 ## Fase atual
-- Fase 33 concluída: operadores lógicos `&&` e `||` adicionados com short-circuit real no lowering CFG e cobertura incremental de testes.
+- Fase 34 concluída: licença MIT adicionada em `LICENSE`; `Cargo.toml` com campo `license`; `README.md` com seção curta de licença; nenhuma mudança funcional no compilador.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "Pinker v0 MVP Compiler - Minimal, Safe, Cute"
 authors = ["Lyanna Valerie 151316340+LyannaValerie@users.noreply.github.com"]
+license = "MIT"
 
 [lib]
 name = "pinker_v0"

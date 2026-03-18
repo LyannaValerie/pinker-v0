@@ -1,33 +1,40 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- **Fase 33 implementada**: adição de `&&` e `||` com short-circuit real na linguagem Pinker, mantendo escopo mínimo e continuidade histórica.
+- **Fase 34 implementada**: licença MIT adicionada ao repositório Pinker v0. Sem mudança funcional no compilador.
 
 ## Estado real encontrado
-- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 verificada antes da implementação da Fase 33.
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 verificada antes da implementação da Fase 34.
 - Workspace local mantido como fonte de verdade.
+- Repositório não possuía nenhum arquivo de licença antes desta fase (`LICENSE`, `LICENSE-MIT`, `LICENSE-APACHE` ausentes).
+- Nenhuma preferência de licença explícita encontrada em nenhum doc do repositório.
 - Base inicial saudável: `cargo build` e `cargo test` passaram antes das mudanças.
 
-## Ação aplicada (Fase 33)
-- Frontend:
-  - `&&` e `||` reconhecidos no lexer (`AmpAmp`/`PipePipe`) e parser/AST (`LogicalAnd`/`LogicalOr`).
-- Semântica:
-  - política de tipos consolidada: `&&` e `||` exigem `logica` em ambos os lados e retornam `logica`.
-- Lowering/pipeline:
-  - IR recebeu `LogicalAnd`/`LogicalOr`.
-  - short-circuit real implementado no lowering CFG: blocos `logic_rhs_*`, `logic_short_*`, `logic_join_*` evitam avaliar RHS quando LHS já define o resultado.
-- Testes e exemplos:
-  - novos testes em lexer/parser/semântica/IR/CFG/interpreter e CLI `--run`.
-  - novos exemplos: `examples/run_logica_curto_circuito_and.pink` e `examples/run_logica_curto_circuito_or.pink`.
+## Ação aplicada (Fase 34)
+- Criado `LICENSE` com texto padrão MIT (copyright Lyanna Valerie, 2024).
+- `Cargo.toml` recebeu campo `license = "MIT"`.
+- `README.md` recebeu seção curta `## Licença` com link para `LICENSE`.
+- Docs de fase/estado/handoff atualizados.
 
-## Limites atuais
-- Sem truthiness implícito.
-- Sem coerções implícitas complexas ou overload de operadores.
-- Sem operadores compostos lógicos relacionados.
+## Escolha da licença
+- MIT adotada como default permissivo (sem instrução prévia no repositório).
+- Texto padrão reconhecível (sem customização).
+
+## Arquivos alterados
+- `LICENSE` (criado)
+- `Cargo.toml` (campo `license`)
+- `README.md` (seção `## Licença`)
+- `docs/phases.md`
+- `docs/agent_state.md`
+- `docs/handoff_codex.md`
+- `docs/handoff_auditor.md`
+
+## Fora do escopo (preservado)
+- Nenhuma mudança em semântica, parser, interpretador, IR, CFG, Machine ou qualquer camada funcional.
+- Nenhum novo teste de código adicionado (fase puramente documental/licenciamento).
 
 ## Comandos executados
-- `cargo build`
-- `cargo test`
-- `cargo check`
-- `cargo fmt --check`
-- `cargo run -q -- --run examples/run_logica_curto_circuito_and.pink`
+- `cargo build`: ok
+- `cargo check`: ok
+- `cargo fmt --check`: ok
+- `cargo test`: ok (todos os testes passaram)

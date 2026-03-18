@@ -215,3 +215,12 @@
   - short-circuit real implementado no lowering CFG: criação de blocos `logic_rhs_*`, `logic_short_*`, `logic_join_*` com desvio condicional sem avaliar o RHS quando não necessário
   - cobertura adicionada em lexer/parser/semântica/IR/CFG/interpreter + exemplos `run_logica_curto_circuito_and.pink` e `run_logica_curto_circuito_or.pink`
   - fora de escopo preservado: truthiness implícito, overloads/coerções complexas e novos operadores compostos
+
+
+- Fase 34 — adicionar licença do projeto e documentar seu uso básico
+  - continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 verificada e preservada
+  - repositório não possuía licença ativa antes desta fase
+  - licença MIT adicionada em `LICENSE` (texto padrão reconhecível; sem customização)
+  - `Cargo.toml` atualizado com campo `license = "MIT"`
+  - `README.md` atualizado com seção curta `## Licença` apontando para `LICENSE`
+  - nenhuma mudança de semântica, parser, interpretador ou qualquer camada funcional do compilador
