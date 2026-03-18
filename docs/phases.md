@@ -94,3 +94,10 @@
   - comentários de seção em `semantic.rs`: passagem 1 (declaração), passagem 2 (verificação), análise de alcançabilidade
   - comentários em construtores internos: `FunctionLowerer`/`BlockBuilder` (CFG IR), `LoweringContext`/`FunctionLowerer` (IR), padrão load→op→store (Machine)
   - nenhuma mudança funcional; todos os comandos de CI passando
+
+
+- Fase 23 — concluída
+  - stack trace de runtime evoluiu para frames estruturados (`RuntimeFrame`) em vez de lista ad hoc de strings
+  - renderização padronizada via helper (`render_runtime_trace`) no formato `at <função> [bloco: <label>]`
+  - mensagem final de erro de runtime preservada com trace estável e legível
+  - ganchos leves preparados: `block_label: Option<String>` e `future_span: Option<Span>` por frame (span ainda não preenchido)

@@ -254,7 +254,11 @@ fn run_falha_divisao_por_zero() {
     let err = interpreter::run_program(&program).unwrap_err().to_string();
     assert!(err.contains("divisão por zero"), "mensagem: {}", err);
     assert!(err.contains("stack trace:"), "mensagem: {}", err);
-    assert!(err.contains("principal"), "mensagem: {}", err);
+    assert!(
+        err.contains("at principal [bloco: entry]"),
+        "mensagem: {}",
+        err
+    );
 }
 
 #[test]
@@ -266,7 +270,11 @@ fn run_falha_runtime_em_chamada_tem_stack_trace() {
 
     assert!(err.contains("divisão por zero"), "mensagem: {}", err);
     assert!(err.contains("stack trace:"), "mensagem: {}", err);
-    assert!(err.contains("principal"), "mensagem: {}", err);
+    assert!(
+        err.contains("at principal [bloco: entry]"),
+        "mensagem: {}",
+        err
+    );
     assert!(err.contains("quebra"), "mensagem: {}", err);
 }
 
@@ -279,7 +287,11 @@ fn run_falha_runtime_em_recursao_tem_stack_trace() {
 
     assert!(err.contains("divisão por zero"), "mensagem: {}", err);
     assert!(err.contains("stack trace:"), "mensagem: {}", err);
-    assert!(err.contains("principal"), "mensagem: {}", err);
+    assert!(
+        err.contains("at principal [bloco: entry]"),
+        "mensagem: {}",
+        err
+    );
     assert!(err.matches("queda").count() >= 2, "mensagem: {}", err);
 }
 
@@ -567,8 +579,9 @@ fn cli_run_erro_runtime_tem_exit_nonzero() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!stderr.is_empty());
     assert!(stderr.contains("stack trace:"));
-    assert!(stderr.contains("principal"));
-    assert!(stderr.contains("div"));
+    assert!(stderr.contains("at principal"));
+    assert!(stderr.contains("at div"));
+    assert!(stderr.contains("[bloco:"));
 }
 
 // ── Fase 17: recursão no interpretador ─────────────────────────────────────
@@ -684,5 +697,6 @@ fn cli_run_erro_runtime_em_exemplo_novo() {
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("divisão por zero"), "stderr: {}", stderr);
     assert!(stderr.contains("stack trace:"), "stderr: {}", stderr);
-    assert!(stderr.contains("principal"), "stderr: {}", stderr);
+    assert!(stderr.contains("at principal"), "stderr: {}", stderr);
+    assert!(stderr.contains("[bloco:"), "stderr: {}", stderr);
 }

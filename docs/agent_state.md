@@ -22,10 +22,12 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 20: mais testes end-to-end com `--run`
 - Fase 21a: escrita em globals no interpretador (viabilidade negada no estado atual)
 - Fase 21b: stack trace simples de runtime
+- Fase 22 documental: doc comments e comentários estruturais em módulos centrais
+- Fase 23: stack trace com contexto ligeiramente melhor + ganchos leves
 
 ## Fase atual
-- Fase 22 documental concluída: doc comments e comentários estruturais adicionados em
-  `abstract_machine.rs`, `cfg_ir.rs`, `ir.rs` e `semantic.rs`.
+- Fase 23 concluída: stack trace de runtime com frames estruturados e contexto de bloco (`at <função> [bloco: <label>]`)
+  + ganchos leves (`future_span`) para evolução futura sem redesign.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -76,3 +78,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 2. Ler `docs/handoff_codex.md` e `docs/handoff_auditor.md` antes da rodada.
 3. Em caso de conflito, o código mergeado no repositório prevalece.
 4. Se `origin/main` não estiver disponível no clone, registrar explicitamente limitação de sincronização.
+
+
+## Stack trace de runtime (Fase 23)
+- `call_stack` no interpretador migrou de strings ad hoc para `RuntimeFrame`.
+- Trace renderizado por helper único (`render_runtime_trace`) para formato estável.
+- Contexto adicional atual: label/bloco quando disponível.
+- Gancho adiado: `future_span` opcional no frame para futura origem por instrução/bloco.

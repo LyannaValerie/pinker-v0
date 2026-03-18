@@ -14,6 +14,13 @@ use crate::error::PinkerError;
 use crate::token::{Position, Span};
 use std::collections::HashMap;
 
+#[derive(Debug, Clone)]
+struct RuntimeFrame {
+    fn_name: String,
+    block_label: Option<String>,
+    future_span: Option<Span>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeValue {
     Int(u64),
@@ -51,9 +58,13 @@ fn call_function(
     args: Vec<RuntimeValue>,
     program: &MachineProgram,
     globals: &HashMap<String, RuntimeValue>,
-    call_stack: &mut Vec<String>,
+    call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<Option<RuntimeValue>, PinkerError> {
-    call_stack.push(fn_name.to_string());
+    call_stack.push(RuntimeFrame {
+        fn_name: fn_name.to_string(),
+        block_label: None,
+        future_span: None,
+    });
 
     // Encapsula a execução numa closure para poder anexar o trace no retorno.
     let result = (|| {
@@ -87,6 +98,9 @@ fn call_function(
                 )));
             };
             let block = &function.blocks[block_idx];
+            if let Some(frame) = call_stack.last_mut() {
+                frame.block_label = Some(block.label.clone());
+            }
 
             for instr in &block.code {
                 exec_instr(instr, &mut slots, &mut stack, program, globals, call_stack)?;
@@ -140,7 +154,7 @@ fn exec_instr(
     stack: &mut Vec<RuntimeValue>,
     program: &MachineProgram,
     globals: &HashMap<String, RuntimeValue>,
-    call_stack: &mut Vec<String>,
+    call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<(), PinkerError> {
     match instr {
         MachineInstr::PushInt(v) => stack.push(RuntimeValue::Int(*v)),
@@ -287,20 +301,37 @@ fn runtime_err(msg: &str) -> PinkerError {
 
 // Adiciona o stack trace textual à mensagem de erro, se ainda não tiver sido
 // adicionado (evita duplicação quando o erro borbulha por múltiplos frames).
-fn attach_runtime_trace(err: PinkerError, call_stack: &[String]) -> PinkerError {
+fn attach_runtime_trace(err: PinkerError, call_stack: &[RuntimeFrame]) -> PinkerError {
     match err {
         PinkerError::Runtime { msg, span } => {
             if msg.contains("\nstack trace:\n") {
                 PinkerError::Runtime { msg, span }
             } else {
                 let mut traced = msg;
-                traced.push_str("\nstack trace:\n");
-                for frame in call_stack {
-                    traced.push_str(&format!("  - {}\n", frame));
-                }
+                traced.push_str(&render_runtime_trace(call_stack));
                 PinkerError::Runtime { msg: traced, span }
             }
         }
         _ => err,
     }
+}
+
+fn render_runtime_trace(call_stack: &[RuntimeFrame]) -> String {
+    let mut out = String::from("\nstack trace:\n");
+    for frame in call_stack {
+        out.push_str("  at ");
+        out.push_str(&frame.fn_name);
+        if let Some(label) = &frame.block_label {
+            out.push_str(" [bloco: ");
+            out.push_str(label);
+            out.push(']');
+        }
+        if let Some(span) = frame.future_span {
+            out.push_str(" [span: ");
+            out.push_str(&span.to_string());
+            out.push(']');
+        }
+        out.push('\n');
+    }
+    out
 }
