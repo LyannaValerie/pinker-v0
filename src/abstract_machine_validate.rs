@@ -335,6 +335,11 @@ fn apply_instr_effect(
             stack.push(expected);
         }
         MachineInstr::Add
+        | MachineInstr::BitAnd
+        | MachineInstr::BitOr
+        | MachineInstr::BitXor
+        | MachineInstr::Shl
+        | MachineInstr::Shr
         | MachineInstr::Sub
         | MachineInstr::Mul
         | MachineInstr::Div
@@ -570,6 +575,11 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::StoreSlot(_) => "store_slot",
         MachineInstr::Neg => "neg",
         MachineInstr::Not => "not",
+        MachineInstr::BitAnd => "bitand",
+        MachineInstr::BitOr => "bitor",
+        MachineInstr::BitXor => "bitxor",
+        MachineInstr::Shl => "shl",
+        MachineInstr::Shr => "shr",
         MachineInstr::Add => "add",
         MachineInstr::Sub => "sub",
         MachineInstr::Mul => "mul",

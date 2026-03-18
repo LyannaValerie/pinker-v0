@@ -156,6 +156,11 @@ pub enum UnaryOpIR {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOpIR {
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
     Add,
     Sub,
     Mul,
@@ -541,9 +546,15 @@ impl<'a> FunctionLowerer<'a> {
                         rhs: Box::new(rhs.value),
                     },
                     ty: match op {
-                        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
-                            TypeIR::Bombom
-                        }
+                        BinaryOp::Add
+                        | BinaryOp::Sub
+                        | BinaryOp::Mul
+                        | BinaryOp::Div
+                        | BinaryOp::BitAnd
+                        | BinaryOp::BitOr
+                        | BinaryOp::BitXor
+                        | BinaryOp::Shl
+                        | BinaryOp::Shr => TypeIR::Bombom,
                         BinaryOp::Eq
                         | BinaryOp::Neq
                         | BinaryOp::Lt
@@ -846,6 +857,11 @@ impl UnaryOpIR {
 impl BinaryOpIR {
     fn from_ast(op: BinaryOp) -> Self {
         match op {
+            BinaryOp::BitAnd => BinaryOpIR::BitAnd,
+            BinaryOp::BitOr => BinaryOpIR::BitOr,
+            BinaryOp::BitXor => BinaryOpIR::BitXor,
+            BinaryOp::Shl => BinaryOpIR::Shl,
+            BinaryOp::Shr => BinaryOpIR::Shr,
             BinaryOp::Add => BinaryOpIR::Add,
             BinaryOp::Sub => BinaryOpIR::Sub,
             BinaryOp::Mul => BinaryOpIR::Mul,
@@ -861,6 +877,11 @@ impl BinaryOpIR {
 
     fn name(&self) -> &'static str {
         match self {
+            BinaryOpIR::BitAnd => "bitand",
+            BinaryOpIR::BitOr => "bitor",
+            BinaryOpIR::BitXor => "bitxor",
+            BinaryOpIR::Shl => "shl",
+            BinaryOpIR::Shr => "shr",
             BinaryOpIR::Add => "add",
             BinaryOpIR::Sub => "sub",
             BinaryOpIR::Mul => "mul",

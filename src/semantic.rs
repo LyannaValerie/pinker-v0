@@ -521,12 +521,21 @@ impl SemanticChecker {
                 }
 
                 match op {
-                    BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+                    BinaryOp::Add
+                    | BinaryOp::Sub
+                    | BinaryOp::Mul
+                    | BinaryOp::Div
+                    | BinaryOp::BitAnd
+                    | BinaryOp::BitOr
+                    | BinaryOp::BitXor
+                    | BinaryOp::Shl
+                    | BinaryOp::Shr => {
                         if matches!(lhs_ty, Type::Bombom(_)) {
                             Ok(Type::Bombom(expr.span))
                         } else {
                             Err(PinkerError::Semantic {
-                                msg: "operação aritmética requer operandos 'bombom'".to_string(),
+                                msg: "operação aritmética/bitwise requer operandos 'bombom'"
+                                    .to_string(),
                                 span: expr.span,
                             })
                         }

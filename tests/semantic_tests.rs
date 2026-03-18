@@ -262,3 +262,28 @@ fn continuar_fora_de_loop_e_invalido() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("'continuar' só pode ser usado dentro de 'sempre que'"));
 }
+
+#[test]
+fn bitwise_valido_em_bombom() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova a = 6;
+            nova b = 3;
+            mimo (a & b) | (a ^ b) + (a << 1) + (a >> 1);
+        }";
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn bitwise_invalido_em_logica() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova a = verdade;
+            nova b = falso;
+            mimo a & b;
+        }";
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("operação aritmética/bitwise requer operandos 'bombom'"));
+}

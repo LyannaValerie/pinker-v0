@@ -98,6 +98,15 @@ fn run_comparacao_em_fluxo_de_controle() {
 }
 
 #[test]
+fn run_bitwise_basico() {
+    let out = run_code(
+        "pacote main; carinho principal() -> bombom { nova a = 6; nova b = 3; mimo (a & b) | (a ^ b) + (a << 1) + (a >> 1); }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(22)));
+}
+
+#[test]
 fn run_chamada_simples_um_argumento() {
     let out = run_code(
         "pacote main; carinho dobro(x: bombom) -> bombom { mimo x + x; } carinho principal() -> bombom { mimo dobro(21); }",
@@ -968,6 +977,19 @@ fn cli_run_continuar_funciona() {
 
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout), "12\n");
+    assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+}
+
+#[test]
+fn cli_run_bitwise_funciona() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg("examples/run_bitwise_basico.pink")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "22\n");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
 

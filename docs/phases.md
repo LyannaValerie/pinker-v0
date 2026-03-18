@@ -189,3 +189,12 @@
   - cobertura positiva de loops (`run_sempre_que`, `run_quebrar`, `run_continuar`) preservada sem alteração semântica
   - `docs/handoff_opus.md` descontinuado com redirecionamento explícito
   - backlog futuro estruturado em `docs/future.md`
+
+
+- Fase 31 — adicionar operadores bitwise básicos à linguagem Pinker
+  - adicionados operadores binários: `&`, `|`, `^`, `<<`, `>>`
+  - pipeline atualizado com diff mínimo: lexer/token, parser/AST, semântica, IR, CFG IR, seleção, Machine e interpretador
+  - política de tipos adotada: bitwise e shifts válidos apenas para `bombom` (inválidos para `logica`)
+  - cobertura incremental adicionada em testes de lexer/parser/semântica/IR/CFG/selected/machine/interpreter
+  - novo exemplo mínimo de execução: `examples/run_bitwise_basico.pink`
+  - fora de escopo preservado: operadores compostos (`&=`, `|=`, `^=`, `<<=`, `>>=`), `&&`, `||`, novos tipos inteiros e redesign amplo

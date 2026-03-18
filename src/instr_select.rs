@@ -47,6 +47,31 @@ pub enum SelectedInstr {
         dest: crate::cfg_ir::TempIR,
         operand: OperandIR,
     },
+    BitAnd {
+        dest: crate::cfg_ir::TempIR,
+        lhs: OperandIR,
+        rhs: OperandIR,
+    },
+    BitOr {
+        dest: crate::cfg_ir::TempIR,
+        lhs: OperandIR,
+        rhs: OperandIR,
+    },
+    BitXor {
+        dest: crate::cfg_ir::TempIR,
+        lhs: OperandIR,
+        rhs: OperandIR,
+    },
+    Shl {
+        dest: crate::cfg_ir::TempIR,
+        lhs: OperandIR,
+        rhs: OperandIR,
+    },
+    Shr {
+        dest: crate::cfg_ir::TempIR,
+        lhs: OperandIR,
+        rhs: OperandIR,
+    },
     Add {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
@@ -204,6 +229,31 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             },
         }),
         InstructionCfgIR::Binary { dest, op, lhs, rhs } => Ok(match op {
+            BinaryOpIR::BitAnd => SelectedInstr::BitAnd {
+                dest: *dest,
+                lhs: lhs.clone(),
+                rhs: rhs.clone(),
+            },
+            BinaryOpIR::BitOr => SelectedInstr::BitOr {
+                dest: *dest,
+                lhs: lhs.clone(),
+                rhs: rhs.clone(),
+            },
+            BinaryOpIR::BitXor => SelectedInstr::BitXor {
+                dest: *dest,
+                lhs: lhs.clone(),
+                rhs: rhs.clone(),
+            },
+            BinaryOpIR::Shl => SelectedInstr::Shl {
+                dest: *dest,
+                lhs: lhs.clone(),
+                rhs: rhs.clone(),
+            },
+            BinaryOpIR::Shr => SelectedInstr::Shr {
+                dest: *dest,
+                lhs: lhs.clone(),
+                rhs: rhs.clone(),
+            },
             BinaryOpIR::Add => SelectedInstr::Add {
                 dest: *dest,
                 lhs: lhs.clone(),
@@ -343,6 +393,36 @@ fn render_instr(inst: &SelectedInstr) -> String {
         SelectedInstr::Not { dest, operand } => {
             format!("not {}, {}", render_temp(*dest), render_operand(operand))
         }
+        SelectedInstr::BitAnd { dest, lhs, rhs } => format!(
+            "bitand {}, {}, {}",
+            render_temp(*dest),
+            render_operand(lhs),
+            render_operand(rhs)
+        ),
+        SelectedInstr::BitOr { dest, lhs, rhs } => format!(
+            "bitor {}, {}, {}",
+            render_temp(*dest),
+            render_operand(lhs),
+            render_operand(rhs)
+        ),
+        SelectedInstr::BitXor { dest, lhs, rhs } => format!(
+            "bitxor {}, {}, {}",
+            render_temp(*dest),
+            render_operand(lhs),
+            render_operand(rhs)
+        ),
+        SelectedInstr::Shl { dest, lhs, rhs } => format!(
+            "shl {}, {}, {}",
+            render_temp(*dest),
+            render_operand(lhs),
+            render_operand(rhs)
+        ),
+        SelectedInstr::Shr { dest, lhs, rhs } => format!(
+            "shr {}, {}, {}",
+            render_temp(*dest),
+            render_operand(lhs),
+            render_operand(rhs)
+        ),
         SelectedInstr::Add { dest, lhs, rhs } => format!(
             "add {}, {}, {}",
             render_temp(*dest),

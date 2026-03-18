@@ -230,3 +230,20 @@ fn lowering_de_sempre_que_com_continuar() {
     let ir = render_ir(code).unwrap();
     assert!(ir.contains("continue loop_continue_"), "{}", ir);
 }
+
+#[test]
+fn lowering_de_bitwise_basico() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova a = 6;
+            nova b = 3;
+            mimo (a & b) | (a ^ b) + (a << 1) + (a >> 1);
+        }";
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("bitand"), "{}", ir);
+    assert!(ir.contains("bitor"), "{}", ir);
+    assert!(ir.contains("bitxor"), "{}", ir);
+    assert!(ir.contains("shl"), "{}", ir);
+    assert!(ir.contains("shr"), "{}", ir);
+}

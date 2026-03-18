@@ -51,3 +51,13 @@ fn lexer_reconhece_continuar() {
     let tokens = tokenize("continuar;").unwrap();
     assert_eq!(tokens[0].kind, TokenKind::KwContinuar);
 }
+
+#[test]
+fn lexer_reconhece_operadores_bitwise_basicos() {
+    let tokens = tokenize("a & b | c ^ d << 1 >> 2;").unwrap();
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::Amp));
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::Pipe));
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::Caret));
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::LessLess));
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::GreaterGreater));
+}

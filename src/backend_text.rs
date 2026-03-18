@@ -210,6 +210,36 @@ fn map_selected_instr(i: &SelectedInstr) -> BackendTextInstruction {
             op: UnaryOpIR::Not,
             operand: operand.clone(),
         },
+        SelectedInstr::BitAnd { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::BitAnd,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
+        SelectedInstr::BitOr { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::BitOr,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
+        SelectedInstr::BitXor { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::BitXor,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
+        SelectedInstr::Shl { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::Shl,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
+        SelectedInstr::Shr { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::Shr,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
         SelectedInstr::Add { dest, lhs, rhs } => BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Add,
@@ -477,6 +507,11 @@ fn op_name(op: UnaryOpIR) -> &'static str {
 
 fn binop_name(op: BinaryOpIR) -> &'static str {
     match op {
+        BinaryOpIR::BitAnd => "bitand",
+        BinaryOpIR::BitOr => "bitor",
+        BinaryOpIR::BitXor => "bitxor",
+        BinaryOpIR::Shl => "shl",
+        BinaryOpIR::Shr => "shr",
         BinaryOpIR::Add => "add",
         BinaryOpIR::Sub => "sub",
         BinaryOpIR::Mul => "mul",

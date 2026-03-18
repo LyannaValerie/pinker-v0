@@ -350,12 +350,20 @@ fn infer_value_type(
             let lhs_ty = infer_value_type(lhs, slots, consts, funcs, span)?;
             let rhs_ty = infer_value_type(rhs, slots, consts, funcs, span)?;
             match op {
-                BinaryOpIR::Add | BinaryOpIR::Sub | BinaryOpIR::Mul | BinaryOpIR::Div => {
+                BinaryOpIR::Add
+                | BinaryOpIR::Sub
+                | BinaryOpIR::Mul
+                | BinaryOpIR::Div
+                | BinaryOpIR::BitAnd
+                | BinaryOpIR::BitOr
+                | BinaryOpIR::BitXor
+                | BinaryOpIR::Shl
+                | BinaryOpIR::Shr => {
                     if lhs_ty == TypeIR::Bombom && rhs_ty == TypeIR::Bombom {
                         Ok(TypeIR::Bombom)
                     } else {
                         Err(ir_validation_error(
-                            "operação aritmética exige bombom",
+                            "operação aritmética/bitwise exige bombom",
                             span,
                         ))
                     }

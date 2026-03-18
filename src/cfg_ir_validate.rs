@@ -330,12 +330,17 @@ fn validate_block(
                     crate::ir::BinaryOpIR::Add
                     | crate::ir::BinaryOpIR::Sub
                     | crate::ir::BinaryOpIR::Mul
-                    | crate::ir::BinaryOpIR::Div => {
+                    | crate::ir::BinaryOpIR::Div
+                    | crate::ir::BinaryOpIR::BitAnd
+                    | crate::ir::BinaryOpIR::BitOr
+                    | crate::ir::BinaryOpIR::BitXor
+                    | crate::ir::BinaryOpIR::Shl
+                    | crate::ir::BinaryOpIR::Shr => {
                         if lhs_ty == TypeIR::Bombom && rhs_ty == TypeIR::Bombom {
                             TypeIR::Bombom
                         } else {
                             return Err(cfg_error(
-                                "operação aritmética com tipos inválidos",
+                                "operação aritmética/bitwise com tipos inválidos",
                                 function.span,
                             ));
                         }

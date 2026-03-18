@@ -184,3 +184,18 @@ fn cfg_ir_sempre_que_com_continuar() {
     assert!(cfg.contains("block loop_cond_"), "{}", cfg);
     assert!(cfg.contains("loop_continue_cont"), "{}", cfg);
 }
+
+#[test]
+fn cfg_ir_bitwise_basico() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova a = 6;
+            nova b = 3;
+            mimo (a & b) | (a ^ b) + (a << 1) + (a >> 1);
+        }";
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("bitand"), "{}", cfg);
+    assert!(cfg.contains("bitor"), "{}", cfg);
+    assert!(cfg.contains("shl"), "{}", cfg);
+}

@@ -172,3 +172,26 @@ fn parser_aceita_continuar_dentro_de_sempre_que() {
         _ => panic!("stmt esperado: continue"),
     }
 }
+
+#[test]
+fn parser_aceita_expressao_com_bitwise_basico() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            mimo (8 & 3) | (2 ^ (1 << 4 >> 2));
+        }";
+    let program = parse(code).expect("parser deve aceitar bitwise básico");
+    match &program.items[0] {
+        Item::Function(function) => match &function.body.stmts[0] {
+            Stmt::Return(ret) => match &ret.expr {
+                Some(expr) => match &expr.kind {
+                    ExprKind::Binary(_, _, _) => {}
+                    _ => panic!("expr esperada: binary"),
+                },
+                None => panic!("return deveria ter expressão"),
+            },
+            _ => panic!("stmt esperado: return"),
+        },
+        _ => panic!("item esperado: função"),
+    }
+}
