@@ -34,9 +34,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 28b: adicionar `continuar` para `sempre que`
 - Fase 28c: melhorar spans/source context em erros de runtime e parser
 - Fase 29: consolidar exemplos versionados e cobertura CLI para loops
+- Fase 30: consolidar exemplos versionados e cobertura negativa para loops inválidos, e organizar backlog futuro em `docs/future.md`
 
 ## Fase atual
-- Fase 29 concluída: consolidação de exemplos versionados e cobertura CLI para loops com `sempre que`, `quebrar` e `continuar`, mantendo semântica estável.
+- Fase 30 concluída: consolidação da cobertura negativa/versionada para loops inválidos (`quebrar`/`continuar` fora de loop) e organização do backlog em `docs/future.md`, mantendo semântica estável.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -187,3 +188,21 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 ## Itens adiados (mantidos)
 - Nenhum novo construto de linguagem (`para`, labels de loop, etc.).
 - Nenhum redesign de runtime/stack trace nesta fase.
+
+
+## Fase 30 — cobertura negativa de loops e backlog futuro
+
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 verificada e preservada.
+- Cobertura negativa reprodutível consolidada com exemplos versionados:
+  - `examples/check_quebrar_fora_loop.pink`
+  - `examples/check_continuar_fora_loop.pink`
+- Testes CLI com `--check` adicionados para garantir erro semântico estável por substring:
+  - `cli_check_quebrar_fora_de_loop_falha_com_exemplo_versionado`
+  - `cli_check_continuar_fora_de_loop_falha_com_exemplo_versionado`
+- `docs/handoff_opus.md` descontinuado e redirecionado para `docs/future.md`.
+- `docs/future.md` criado para concentrar backlog de longo prazo por camadas (0..8), mantendo fora do escopo imediato.
+
+## Itens adiados (mantidos)
+- Sem novas keywords/construtos além do já existente (`sempre que`, `quebrar`, `continuar`).
+- Sem redesign de runtime/stack trace.
+- Sem expansão de gramática/arquitetura fora da fase.

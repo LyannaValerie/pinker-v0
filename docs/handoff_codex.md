@@ -1,6 +1,45 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
+- **Fase 30 implementada**: consolidação de cobertura negativa/versionada para loops inválidos (`quebrar` e `continuar` fora de loop) + organização de backlog futuro em `docs/future.md`, sem mudança semântica.
+
+## Estado real encontrado
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 verificada; Fase 30 aplicada em continuidade.
+- Workspace local usado como fonte de verdade.
+- Base inicial saudável antes das mudanças: `cargo build` e `cargo test` OK.
+- Divergência documental ativa: `docs/handoff_opus.md` ainda estava como template legado; corrigido com descontinuação explícita e redirecionamento.
+
+## Ação aplicada (Fase 30)
+- Exemplos versionados negativos adicionados:
+  - `examples/check_quebrar_fora_loop.pink`
+  - `examples/check_continuar_fora_loop.pink`
+- Cobertura CLI negativa consolidada com `--check` em `tests/interpreter_tests.rs`:
+  - `cli_check_quebrar_fora_de_loop_falha_com_exemplo_versionado`
+  - `cli_check_continuar_fora_de_loop_falha_com_exemplo_versionado`
+- `docs/future.md` criado com backlog estruturado por camadas (0..8), resumo de distância e top 5 desbloqueadores.
+- `docs/handoff_opus.md` marcado como legado descontinuado com ponte para `docs/future.md`.
+- Semântica preservada sem mudanças em `sempre que`, `quebrar` e `continuar`.
+
+## Arquivos alterados nesta rodada
+- `examples/check_quebrar_fora_loop.pink`
+- `examples/check_continuar_fora_loop.pink`
+- `tests/interpreter_tests.rs`
+- `docs/future.md`
+- `docs/handoff_opus.md`
+- `docs/phases.md`
+- `docs/agent_state.md`
+- `docs/handoff_codex.md`
+
+## Comandos executados
+- `cargo build`
+- `cargo test`
+- `cargo check`
+- `cargo fmt --check`
+- `cargo run -q -- --check examples/check_quebrar_fora_loop.pink`
+
+---
+
+## Rodada atual
 - **Fase 29 implementada**: consolidação de exemplos versionados e cobertura CLI para loops com `sempre que`, `quebrar` e `continuar`, sem mudança semântica.
 
 ## Objetivo
