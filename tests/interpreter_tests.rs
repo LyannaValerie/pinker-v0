@@ -255,7 +255,7 @@ fn run_falha_divisao_por_zero() {
     assert!(err.contains("divisão por zero"), "mensagem: {}", err);
     assert!(err.contains("stack trace:"), "mensagem: {}", err);
     assert!(
-        err.contains("at principal [bloco: entry]"),
+        err.contains("at principal [bloco: entry] [instr: div]"),
         "mensagem: {}",
         err
     );
@@ -271,11 +271,15 @@ fn run_falha_runtime_em_chamada_tem_stack_trace() {
     assert!(err.contains("divisão por zero"), "mensagem: {}", err);
     assert!(err.contains("stack trace:"), "mensagem: {}", err);
     assert!(
-        err.contains("at principal [bloco: entry]"),
+        err.contains("at principal [bloco: entry] [instr: call]"),
         "mensagem: {}",
         err
     );
-    assert!(err.contains("quebra"), "mensagem: {}", err);
+    assert!(
+        err.contains("at quebra [bloco: entry] [instr: div]"),
+        "mensagem: {}",
+        err
+    );
 }
 
 #[test]
@@ -288,11 +292,17 @@ fn run_falha_runtime_em_recursao_tem_stack_trace() {
     assert!(err.contains("divisão por zero"), "mensagem: {}", err);
     assert!(err.contains("stack trace:"), "mensagem: {}", err);
     assert!(
-        err.contains("at principal [bloco: entry]"),
+        err.contains("at principal [bloco: entry] [instr: call]"),
         "mensagem: {}",
         err
     );
-    assert!(err.matches("queda").count() >= 2, "mensagem: {}", err);
+    assert!(err.contains("at queda"), "mensagem: {}", err);
+    assert!(err.contains("[instr: div]"), "mensagem: {}", err);
+    assert!(
+        err.matches("[instr: call]").count() >= 2,
+        "mensagem: {}",
+        err
+    );
 }
 
 #[test]
@@ -698,5 +708,5 @@ fn cli_run_erro_runtime_em_exemplo_novo() {
     assert!(stderr.contains("divisão por zero"), "stderr: {}", stderr);
     assert!(stderr.contains("stack trace:"), "stderr: {}", stderr);
     assert!(stderr.contains("at principal"), "stderr: {}", stderr);
-    assert!(stderr.contains("[bloco:"), "stderr: {}", stderr);
+    assert!(stderr.contains("[instr: div]"), "stderr: {}", stderr);
 }

@@ -96,8 +96,14 @@
   - nenhuma mudança funcional; todos os comandos de CI passando
 
 
-- Fase 23 — concluída
+- Fase 23a — concluída
   - stack trace de runtime evoluiu para frames estruturados (`RuntimeFrame`) em vez de lista ad hoc de strings
   - renderização padronizada via helper (`render_runtime_trace`) no formato `at <função> [bloco: <label>]`
   - mensagem final de erro de runtime preservada com trace estável e legível
   - ganchos leves preparados: `block_label: Option<String>` e `future_span: Option<Span>` por frame (span ainda não preenchido)
+
+
+- Fase 23b — concluída
+  - stack trace passou a incluir contexto da instrução em execução por frame (`[instr: <op>]`) com custo baixo
+  - renderização centralizada manteve estabilidade e agora combina função + bloco + instrução no mesmo frame
+  - gancho leve adicional preparado: `current_instr: Option<&'static str>` por frame (coleta simples, sem spans completos)

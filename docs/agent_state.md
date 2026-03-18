@@ -23,11 +23,12 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 21a: escrita em globals no interpretador (viabilidade negada no estado atual)
 - Fase 21b: stack trace simples de runtime
 - Fase 22 documental: doc comments e comentários estruturais em módulos centrais
-- Fase 23: stack trace com contexto ligeiramente melhor + ganchos leves
+- Fase 23a: stack trace com contexto ligeiramente melhor + ganchos leves
+- Fase 23b: stack trace com contexto ligeiramente melhor + ganchos leves para evolução futura
 
 ## Fase atual
-- Fase 23 concluída: stack trace de runtime com frames estruturados e contexto de bloco (`at <função> [bloco: <label>]`)
-  + ganchos leves (`future_span`) para evolução futura sem redesign.
+- Fase 23b concluída: stack trace de runtime mantém frames estruturados e adiciona contexto de instrução por frame
+  (`at <função> [bloco: <label>] [instr: <op>]`) com ganchos leves (`future_span`) preservados.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -80,8 +81,9 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 4. Se `origin/main` não estiver disponível no clone, registrar explicitamente limitação de sincronização.
 
 
-## Stack trace de runtime (Fase 23)
+## Stack trace de runtime (Fase 23a/23b)
 - `call_stack` no interpretador migrou de strings ad hoc para `RuntimeFrame`.
 - Trace renderizado por helper único (`render_runtime_trace`) para formato estável.
-- Contexto adicional atual: label/bloco quando disponível.
+- Contexto adicional atual: label/bloco e instrução atual quando disponível.
+- Gancho novo (23b): `current_instr: Option<&'static str>` no frame para evolução barata de contexto.
 - Gancho adiado: `future_span` opcional no frame para futura origem por instrução/bloco.

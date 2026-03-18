@@ -18,6 +18,7 @@ use std::collections::HashMap;
 struct RuntimeFrame {
     fn_name: String,
     block_label: Option<String>,
+    current_instr: Option<&'static str>,
     future_span: Option<Span>,
 }
 
@@ -63,6 +64,7 @@ fn call_function(
     call_stack.push(RuntimeFrame {
         fn_name: fn_name.to_string(),
         block_label: None,
+        current_instr: None,
         future_span: None,
     });
 
@@ -103,7 +105,9 @@ fn call_function(
             }
 
             for instr in &block.code {
+                set_current_instr(call_stack, Some(machine_instr_name(instr)));
                 exec_instr(instr, &mut slots, &mut stack, program, globals, call_stack)?;
+                set_current_instr(call_stack, None);
             }
 
             match &block.terminator {
@@ -326,6 +330,11 @@ fn render_runtime_trace(call_stack: &[RuntimeFrame]) -> String {
             out.push_str(label);
             out.push(']');
         }
+        if let Some(instr) = frame.current_instr {
+            out.push_str(" [instr: ");
+            out.push_str(instr);
+            out.push(']');
+        }
         if let Some(span) = frame.future_span {
             out.push_str(" [span: ");
             out.push_str(&span.to_string());
@@ -334,4 +343,34 @@ fn render_runtime_trace(call_stack: &[RuntimeFrame]) -> String {
         out.push('\n');
     }
     out
+}
+
+fn set_current_instr(call_stack: &mut [RuntimeFrame], instr_name: Option<&'static str>) {
+    if let Some(frame) = call_stack.last_mut() {
+        frame.current_instr = instr_name;
+    }
+}
+
+fn machine_instr_name(instr: &MachineInstr) -> &'static str {
+    match instr {
+        MachineInstr::PushInt(_) => "push_int",
+        MachineInstr::PushBool(_) => "push_bool",
+        MachineInstr::LoadSlot(_) => "load_slot",
+        MachineInstr::LoadGlobal(_) => "load_global",
+        MachineInstr::StoreSlot(_) => "store_slot",
+        MachineInstr::Neg => "neg",
+        MachineInstr::Not => "not",
+        MachineInstr::Add => "add",
+        MachineInstr::Sub => "sub",
+        MachineInstr::Mul => "mul",
+        MachineInstr::Div => "div",
+        MachineInstr::CmpEq => "cmp_eq",
+        MachineInstr::CmpNe => "cmp_ne",
+        MachineInstr::CmpLt => "cmp_lt",
+        MachineInstr::CmpLe => "cmp_le",
+        MachineInstr::CmpGt => "cmp_gt",
+        MachineInstr::CmpGe => "cmp_ge",
+        MachineInstr::Call { .. } => "call",
+        MachineInstr::CallVoid { .. } => "call_void",
+    }
 }

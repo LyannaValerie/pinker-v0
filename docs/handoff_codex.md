@@ -1,13 +1,13 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- **Fase 23 implementada**: stack trace de runtime com contexto ligeiramente melhor e ganchos leves para evolução futura.
+- **Fase 23b implementada**: stack trace de runtime com contexto ligeiramente melhor e ganchos leves para evolução futura.
 
 ## Objetivo
 - Melhorar o diagnóstico de runtime sem refactor grande do interpretador: manter simplicidade e compatibilidade, mas com formato de trace mais estruturado.
 
 ## Estado real encontrado
-- Continuidade histórica correta: Fase 21a (avaliada/bloqueada) → Fase 21b (concluída) → Fase 22 documental (concluída) → Fase 23 (concluída).
+- Continuidade histórica correta: Fase 21a (avaliada/bloqueada) → Fase 21b (concluída) → Fase 22 documental (concluída) → Fase 23a (concluída) → Fase 23b (fase da rodada).
 - Workspace local usado como fonte de verdade.
 - Base inicial saudável: `cargo build` e `cargo test` passavam antes das mudanças.
 - Divergência documental na rodada anterior: `docs/agent_state.md` apontava Fase 22 como fase atual, enquanto o pedido da rodada era Fase 23.
@@ -21,7 +21,8 @@
 - Atualização do frame atual durante execução de bloco (`block_label = Some(block.label)`).
 - Stack trace final passou a ser renderizado por helper dedicado (`render_runtime_trace`) com formato estável:
   - `stack trace:`
-  - `  at <função> [bloco: <label>]`
+  - `  at <função> [bloco: <label>] [instr: <op>]`
+- Evolução leve da 23b: `RuntimeFrame` recebeu `current_instr: Option<&'static str>` e o frame ativo é atualizado antes de cada instrução.
 - Mantida a proteção contra duplicação de trace ao propagar erro por múltiplos frames.
 
 ## Arquivos alterados nesta rodada
@@ -40,10 +41,11 @@
 
 ## Resultado
 - Comandos de build/check/fmt/test passaram após as mudanças.
-- Caso CLI de erro exibe stack trace mais informativo com contexto de bloco.
+- Caso CLI de erro exibe stack trace mais informativo com contexto de bloco + instrução.
 
 ## Ganchos futuros preparados (sem implementar agora)
 - `RuntimeFrame.block_label: Option<String>` já preenchido quando disponível.
+- `RuntimeFrame.current_instr: Option<&'static str>` preenchido de forma leve durante execução.
 - `RuntimeFrame.future_span: Option<Span>` reservado para futura evolução com spans por frame.
 - `render_runtime_trace` centraliza formatação para evoluções incrementais sem redesign.
 
@@ -54,4 +56,4 @@
 
 ## Próximos passos sugeridos
 - Quando houver metadado barato de origem por instrução/bloco, preencher `future_span`.
-- Opcionalmente incluir contexto de instrução atual no frame mantendo formato textual estável.
+- Opcionalmente enriquecer `current_instr` com origem estrutural (ex.: bloco/offset) mantendo formato textual estável.
