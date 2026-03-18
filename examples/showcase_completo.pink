@@ -1,0 +1,357 @@
+pacote main;
+
+// ── Constantes globais ────────────────────────────────────────────────────────
+eterno ZERO:         bombom = 0;
+eterno UM:           bombom = 1;
+eterno DOIS:         bombom = 2;
+eterno DEZ:          bombom = 10;
+eterno VINTE:        bombom = 20;
+eterno CEM:          bombom = 100;
+eterno MASCARA_BYTE: bombom = 255;
+eterno LIMITE_FIB:   bombom = 12;
+
+// ── Utilitários básicos ───────────────────────────────────────────────────────
+
+// Módulo: n mod d, expresso em termos de / e *
+carinho resto(n: bombom, d: bombom) -> bombom {
+    mimo n - (n / d) * d;
+}
+
+// Máximo de dois valores
+carinho maior(a: bombom, b: bombom) -> bombom {
+    talvez a >= b {
+        mimo a;
+    } senao {
+        mimo b;
+    }
+}
+
+// Mínimo de dois valores
+carinho menor(a: bombom, b: bombom) -> bombom {
+    talvez a <= b {
+        mimo a;
+    } senao {
+        mimo b;
+    }
+}
+
+// Paridade via módulo
+carinho eh_par(n: bombom) -> logica {
+    mimo resto(n, DOIS) == ZERO;
+}
+
+// ── Teoria dos números ────────────────────────────────────────────────────────
+
+// MDC — algoritmo de Euclides iterativo
+carinho mdc(a: bombom, b: bombom) -> bombom {
+    nova mut x = a;
+    nova mut y = b;
+    nova mut t: bombom = ZERO;
+    sempre que y != ZERO {
+        t = resto(x, y);
+        x = y;
+        y = t;
+    }
+    mimo x;
+}
+
+// MMC — via identidade mmc(a,b) = a / mdc(a,b) * b
+carinho mmc(a: bombom, b: bombom) -> bombom {
+    mimo (a / mdc(a, b)) * b;
+}
+
+// Potenciação recursiva
+carinho potencia(base: bombom, exp: bombom) -> bombom {
+    talvez exp == ZERO {
+        mimo UM;
+    } senao {
+        mimo base * potencia(base, exp - UM);
+    }
+}
+
+// Primalidade: usa senao-talvez encadeado, loop, quebrar
+carinho eh_primo(n: bombom) -> logica {
+    talvez n < DOIS {
+        mimo falso;
+    } senao talvez n == DOIS {
+        mimo verdade;
+    } senao talvez eh_par(n) {
+        mimo falso;
+    } senao {
+        nova mut i: bombom = 3;
+        nova mut ok: logica = verdade;
+        sempre que i * i <= n {
+            talvez resto(n, i) == ZERO {
+                ok = falso;
+                quebrar;
+            }
+            i = i + DOIS;
+        }
+        mimo ok;
+    }
+}
+
+// Popcount — conta bits em 1 com operações bitwise
+carinho contar_bits(n: bombom) -> bombom {
+    nova mut x = n;
+    nova mut bits: bombom = ZERO;
+    sempre que x != ZERO {
+        bits = bits + (x & UM);
+        x = x >> UM;
+    }
+    mimo bits;
+}
+
+// Inverte os 8 bits inferiores via XOR com máscara
+carinho inverter_byte(n: bombom) -> bombom {
+    mimo (n & MASCARA_BYTE) ^ MASCARA_BYTE;
+}
+
+// Fibonacci recursivo clássico
+carinho fib(n: bombom) -> bombom {
+    talvez n == ZERO {
+        mimo ZERO;
+    } senao talvez n == UM {
+        mimo UM;
+    } senao {
+        mimo fib(n - UM) + fib(n - DOIS);
+    }
+}
+
+// Fibonacci iterativo — múltiplas variáveis mutáveis e loop
+carinho fib_iter(n: bombom) -> bombom {
+    talvez n == ZERO {
+        mimo ZERO;
+    } senao {
+        nova mut a: bombom = ZERO;
+        nova mut b: bombom = UM;
+        nova mut temp: bombom = ZERO;
+        nova mut i: bombom = UM;
+        sempre que i < n {
+            temp = a + b;
+            a = b;
+            b = temp;
+            i = i + UM;
+        }
+        mimo b;
+    }
+}
+
+// Soma dos dígitos decimais de n
+carinho soma_digitos(n: bombom) -> bombom {
+    talvez n == ZERO {
+        mimo ZERO;
+    } senao {
+        nova mut x = n;
+        nova mut s: bombom = ZERO;
+        sempre que x != ZERO {
+            s = s + resto(x, DEZ);
+            x = x / DEZ;
+        }
+        mimo s;
+    }
+}
+
+// Soma dos primos até limite — usa continuar para pular compostos
+carinho soma_primos_ate(limite: bombom) -> bombom {
+    nova mut soma: bombom = ZERO;
+    nova mut n: bombom = DOIS;
+    sempre que n <= limite {
+        talvez !eh_primo(n) {
+            n = n + UM;
+            continuar;
+        }
+        soma = soma + n;
+        n = n + UM;
+    }
+    mimo soma;
+}
+
+// Quadrado perfeito via busca linear crescente
+carinho eh_quadrado_perfeito(n: bombom) -> logica {
+    talvez n == ZERO {
+        mimo verdade;
+    } senao {
+        nova mut r: bombom = UM;
+        sempre que r * r < n {
+            r = r + UM;
+        }
+        mimo r * r == n;
+    }
+}
+
+// Conta inteiros em [1, limite] com número par de bits em 1
+carinho contar_par_bits(limite: bombom) -> bombom {
+    nova mut cont: bombom = ZERO;
+    nova mut i: bombom = UM;
+    sempre que i <= limite {
+        talvez eh_par(contar_bits(i)) {
+            cont = cont + UM;
+        }
+        i = i + UM;
+    }
+    mimo cont;
+}
+
+// Função que causaria pânico SE chamada — demonstra curto-circuito
+carinho perigo() -> logica {
+    talvez UM / ZERO == ZERO {
+        mimo verdade;
+    } senao {
+        mimo falso;
+    }
+}
+
+// Função void — sem valor de retorno (tipo nulo)
+carinho encerrar() {
+    mimo;
+}
+
+// ── Ponto de entrada ──────────────────────────────────────────────────────────
+carinho principal() -> bombom {
+
+    // ── Variáveis imutáveis com e sem anotação de tipo ────────────────────────
+    nova base: bombom = 12;
+    nova exp:  bombom = 4;
+    nova a     = 48;
+    nova b     = 36;
+
+    // ── Operadores aritméticos ────────────────────────────────────────────────
+    nova soma       = a + b;            // 84
+    nova diferenca  = a - b;            // 12
+    nova produto    = base * exp;       // 48
+    nova quociente  = a / base;         // 4
+    nova modulo     = resto(a, base);   // 0
+
+    // ── Operadores bit a bit ──────────────────────────────────────────────────
+    nova e_bit   = a & b;               // 32
+    nova ou_bit  = a | b;               // 52
+    nova xor_bit = a ^ b;               // 20
+    nova shl     = base << DOIS;        // 48
+    nova shr     = a >> UM;             // 24
+    nova mascara = shl & MASCARA_BYTE;  // 48
+
+    // ── Operadores de comparação atribuídos diretamente ───────────────────────
+    nova eq_ab:  logica = a == b;       // falso
+    nova neq_ab: logica = a != b;       // verdade
+    nova lt_ab:  logica = base < a;     // verdade
+    nova lte_ab: logica = b <= a;       // verdade
+    nova gt_ab:  logica = a > b;        // verdade
+    nova gte_ab: logica = a >= b;       // verdade
+
+    // ── Operador unário lógico (! atribuído diretamente) ─────────────────────
+    nova p: logica = verdade;
+    nova q: logica = falso;
+    nova nao_p  = !p;                   // falso
+    nova nao_q  = !q;                   // verdade
+
+    // ── Operadores lógicos && e || usados em condições talvez ─────────────────
+    nova mut e_log:  logica = falso;
+    talvez p && !q {
+        e_log = verdade;                // verdade: p=V, !q=V, logo V && V
+    }
+
+    nova mut ou_log: logica = falso;
+    talvez q || p {
+        ou_log = verdade;               // verdade: p=V basta
+    }
+
+    // XOR lógico: (p && !q) || (!p && q)
+    nova mut xor_log: logica = falso;
+    talvez (p && !q) || (!p && q) {
+        xor_log = verdade;              // verdade: p≠q
+    }
+
+    // ── Curto-circuito AND: perigo() não é chamada ────────────────────────────
+    nova mut curto_and: logica = falso;
+    talvez falso && perigo() {
+        curto_and = verdade;            // nunca alcançado — perigo() não executa
+    }
+
+    // ── Curto-circuito OR: perigo() não é chamada ─────────────────────────────
+    nova mut curto_or: logica = falso;
+    talvez verdade || perigo() {
+        curto_or = verdade;             // sempre verdade — perigo() não executa
+    }
+
+    // ── Operador unário aritmético - (negação mod 2^64) ───────────────────────
+    nova negado       = -base;          // wrapping: 2^64 - 12
+    nova volta_a_base = -negado;        // wrapping de volta: 12
+
+    // ── Chamadas de função com argumentos compostos ───────────────────────────
+    nova g       = mdc(a, b);                // 12
+    nova m       = mmc(a, b);                // 144
+    nova pot     = potencia(DOIS, DEZ);      // 1024
+    nova bits_po = contar_bits(pot);         // 1   (1024 = 2^10)
+    nova inv     = inverter_byte(base);      // 243
+    nova fib_rec = fib(7);                   // 13
+    nova fib_it  = fib_iter(LIMITE_FIB);    // fib(12) = 144
+    nova soma_d  = soma_digitos(fib_it);     // 1+4+4 = 9
+    nova sp      = soma_primos_ate(VINTE);   // 2+3+5+7+11+13+17+19 = 77
+    nova qperf   = eh_quadrado_perfeito(pot); // verdade (32*32 = 1024)
+    nova pb      = contar_par_bits(DEZ);     // 5
+    nova nao_primo_base: logica = !eh_primo(base); // verdade (12 não é primo)
+
+    // ── Variável mutável: acumulador com lógica complexa e continuar ──────────
+    nova mut acum: bombom = ZERO;
+    nova mut i:    bombom = ZERO;
+    sempre que i < DEZ {
+        i = i + UM;
+        talvez i == UM {
+            continuar;                          // pula o 1 — continuar em ação
+        }
+        talvez eh_primo(i) && i != DOIS {
+            acum = acum + (i << UM);            // dobro dos primos ímpares: 3,5,7
+        } senao talvez i == DOIS {
+            acum = acum + i;                    // 2 entra direto
+        } senao talvez eh_par(i) {
+            acum = acum + (i >> UM);            // metade dos pares compostos: 4,6,8,10
+        } senao {
+            acum = acum + UM;                   // compostos ímpares: 9 contribui 1
+        }
+    }
+    // acum = 2 + 6 + 2 + 10 + 3 + 14 + 4 + 1 + 5 = 47
+
+    // ── Expressão composta usando múltiplos resultados ────────────────────────
+    nova combinado = (g + m + pot + fib_rec + fib_it + sp) & MASCARA_BYTE;
+    // (12 + 144 + 1024 + 13 + 144 + 77) & 255 = 1414 & 255 = 134
+
+    nova extra = maior(contar_bits(combinado), contar_bits(acum));
+    // maior(3, 5) = 5  — usando contar_bits como argumento de expressão
+
+    nova menor_res = menor(soma_d, pb);
+    // menor(9, 5) = 5
+
+    // ── Atribuição a partir de comparação simples (sem &&/||) ─────────────────
+    nova checagem_bits: logica = bits_po == UM;          // verdade
+    nova checagem_inv:  logica = inv != ZERO;             // verdade (243)
+    nova checagem_qp:   logica = qperf;                   // verdade
+
+    // ── Checagem com && em talvez ─────────────────────────────────────────────
+    nova mut checagem_composta: logica = falso;
+    talvez combinado != ZERO && extra >= UM {
+        checagem_composta = verdade;
+    }
+
+    // ── Loop com quebrar ao encontrar o primeiro divisor de combinado ─────────
+    nova mut div_enc: bombom = ZERO;
+    nova mut d: bombom = DOIS;
+    sempre que d * d <= combinado {
+        talvez resto(combinado, d) == ZERO {
+            div_enc = d;
+            quebrar;                            // quebrar em ação — div_enc = 2
+        }
+        d = d + UM;
+    }
+
+    // ── Integra volta_a_base (demonstra negação aritmética) ───────────────────
+    nova resultado_intermediario = acum + combinado + extra + volta_a_base;
+    // 47 + 134 + 5 + 12 = 198
+
+    // ── Chamada de função void ────────────────────────────────────────────────
+    encerrar();
+
+    // ── Retorno: combinação final com XOR e OR bit a bit ─────────────────────
+    // 198 ^ (2 | 1) = 198 ^ 3 = 197
+    mimo resultado_intermediario ^ (div_enc | UM);
+}
