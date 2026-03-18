@@ -202,6 +202,26 @@ fn exec_instr(
             let value = pop_bool(stack, "not exige lógica no topo")?;
             stack.push(RuntimeValue::Bool(!value));
         }
+        MachineInstr::BitAnd => {
+            let (lhs, rhs) = pop_bin_int(stack, "bitand exige dois bombons")?;
+            stack.push(RuntimeValue::Int(lhs & rhs));
+        }
+        MachineInstr::BitOr => {
+            let (lhs, rhs) = pop_bin_int(stack, "bitor exige dois bombons")?;
+            stack.push(RuntimeValue::Int(lhs | rhs));
+        }
+        MachineInstr::BitXor => {
+            let (lhs, rhs) = pop_bin_int(stack, "bitxor exige dois bombons")?;
+            stack.push(RuntimeValue::Int(lhs ^ rhs));
+        }
+        MachineInstr::Shl => {
+            let (lhs, rhs) = pop_bin_int(stack, "shl exige dois bombons")?;
+            stack.push(RuntimeValue::Int(lhs.wrapping_shl(rhs as u32)));
+        }
+        MachineInstr::Shr => {
+            let (lhs, rhs) = pop_bin_int(stack, "shr exige dois bombons")?;
+            stack.push(RuntimeValue::Int(lhs.wrapping_shr(rhs as u32)));
+        }
         MachineInstr::Add => {
             let (lhs, rhs) = pop_bin_int(stack, "add exige dois bombons")?;
             stack.push(RuntimeValue::Int(lhs.wrapping_add(rhs)));
@@ -437,6 +457,11 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::StoreSlot(_) => "store_slot",
         MachineInstr::Neg => "neg",
         MachineInstr::Not => "not",
+        MachineInstr::BitAnd => "bitand",
+        MachineInstr::BitOr => "bitor",
+        MachineInstr::BitXor => "bitxor",
+        MachineInstr::Shl => "shl",
+        MachineInstr::Shr => "shr",
         MachineInstr::Add => "add",
         MachineInstr::Sub => "sub",
         MachineInstr::Mul => "mul",

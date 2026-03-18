@@ -70,6 +70,11 @@ pub enum MachineInstr {
     StoreSlot(String),
     Neg,
     Not,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
     Add,
     Sub,
     Mul,
@@ -162,6 +167,36 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) {
         SelectedInstr::Not { dest, operand } => {
             emit_load(operand, code);
             code.push(MachineInstr::Not);
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
+        SelectedInstr::BitAnd { dest, lhs, rhs } => {
+            emit_load(lhs, code);
+            emit_load(rhs, code);
+            code.push(MachineInstr::BitAnd);
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
+        SelectedInstr::BitOr { dest, lhs, rhs } => {
+            emit_load(lhs, code);
+            emit_load(rhs, code);
+            code.push(MachineInstr::BitOr);
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
+        SelectedInstr::BitXor { dest, lhs, rhs } => {
+            emit_load(lhs, code);
+            emit_load(rhs, code);
+            code.push(MachineInstr::BitXor);
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
+        SelectedInstr::Shl { dest, lhs, rhs } => {
+            emit_load(lhs, code);
+            emit_load(rhs, code);
+            code.push(MachineInstr::Shl);
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
+        SelectedInstr::Shr { dest, lhs, rhs } => {
+            emit_load(lhs, code);
+            emit_load(rhs, code);
+            code.push(MachineInstr::Shr);
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
         SelectedInstr::Add { dest, lhs, rhs } => {
@@ -352,6 +387,11 @@ fn render_instr(i: &MachineInstr) -> String {
         MachineInstr::StoreSlot(s) => format!("store_slot {}", s),
         MachineInstr::Neg => "neg".to_string(),
         MachineInstr::Not => "not".to_string(),
+        MachineInstr::BitAnd => "bitand".to_string(),
+        MachineInstr::BitOr => "bitor".to_string(),
+        MachineInstr::BitXor => "bitxor".to_string(),
+        MachineInstr::Shl => "shl".to_string(),
+        MachineInstr::Shr => "shr".to_string(),
         MachineInstr::Add => "add".to_string(),
         MachineInstr::Sub => "sub".to_string(),
         MachineInstr::Mul => "mul".to_string(),

@@ -250,3 +250,20 @@ fn seleciona_sempre_que_com_continuar() {
     assert!(out.contains("loop_cond_"), "{}", out);
     assert!(out.contains("loop_continue_cont"), "{}", out);
 }
+
+#[test]
+fn seleciona_bitwise_basico() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova a = 6;
+            nova b = 3;
+            mimo (a & b) | (a ^ b) + (a << 1) + (a >> 1);
+        }";
+    let out = render_selected(code).unwrap();
+    assert!(out.contains("isel bitand"), "{}", out);
+    assert!(out.contains("isel bitor"), "{}", out);
+    assert!(out.contains("isel bitxor"), "{}", out);
+    assert!(out.contains("isel shl"), "{}", out);
+    assert!(out.contains("isel shr"), "{}", out);
+}

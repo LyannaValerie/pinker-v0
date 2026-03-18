@@ -57,6 +57,11 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         temps.insert(*dest);
                     }
                     SelectedInstr::Add { dest, lhs, rhs }
+                    | SelectedInstr::BitAnd { dest, lhs, rhs }
+                    | SelectedInstr::BitOr { dest, lhs, rhs }
+                    | SelectedInstr::BitXor { dest, lhs, rhs }
+                    | SelectedInstr::Shl { dest, lhs, rhs }
+                    | SelectedInstr::Shr { dest, lhs, rhs }
                     | SelectedInstr::Sub { dest, lhs, rhs }
                     | SelectedInstr::Mul { dest, lhs, rhs }
                     | SelectedInstr::Div { dest, lhs, rhs }

@@ -1,6 +1,39 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
+- **Fase 31 implementada**: adição de operadores bitwise básicos (`&`, `|`, `^`, `<<`, `>>`) com política de tipos restrita a `bombom`, sem expansão fora do escopo.
+
+## Estado real encontrado
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 verificada; Fase 31 aplicada em continuidade.
+- Workspace local usado como fonte de verdade.
+- Base inicial saudável antes das mudanças: `cargo build` e `cargo test` OK.
+- Sem necessidade de correção documental estrutural prévia entre `docs/phases.md`, `docs/agent_state.md` e `docs/handoff_codex.md` além de atualização incremental para a nova fase.
+
+## Ação aplicada (Fase 31)
+- Suporte de linguagem e pipeline para operadores bitwise:
+  - `&`, `|`, `^`, `<<`, `>>`.
+- Escopo técnico tocado com diff mínimo:
+  - `src/token.rs`, `src/lexer.rs`, `src/parser.rs`, `src/ast.rs`, `src/semantic.rs`,
+    `src/ir.rs`, `src/cfg_ir.rs`, `src/instr_select.rs`,
+    `src/abstract_machine.rs`, `src/abstract_machine_validate.rs`,
+    `src/backend_text.rs`, `src/interpreter.rs`.
+- Cobertura adicionada:
+  - lexer/parser/semântica/IR/CFG/selected/machine/interpreter.
+- Exemplo novo:
+  - `examples/run_bitwise_basico.pink`.
+- Fora de escopo preservado:
+  - operadores compostos (`&=`, `|=`, `^=`, `<<=`, `>>=`), `&&`, `||`, novos tipos inteiros.
+
+## Comandos executados
+- `cargo build`
+- `cargo test`
+- `cargo check`
+- `cargo fmt --check`
+- `cargo run -q -- --run examples/run_bitwise_basico.pink`
+
+---
+
+## Rodada atual
 - **Fase 30 implementada**: consolidação de cobertura negativa/versionada para loops inválidos (`quebrar` e `continuar` fora de loop) + organização de backlog futuro em `docs/future.md`, sem mudança semântica.
 
 ## Estado real encontrado

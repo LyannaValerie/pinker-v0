@@ -651,6 +651,11 @@ fn render_unary_op(op: UnaryOpIR) -> &'static str {
 
 fn render_binary_op(op: BinaryOpIR) -> &'static str {
     match op {
+        BinaryOpIR::BitAnd => "bitand",
+        BinaryOpIR::BitOr => "bitor",
+        BinaryOpIR::BitXor => "bitxor",
+        BinaryOpIR::Shl => "shl",
+        BinaryOpIR::Shr => "shr",
         BinaryOpIR::Add => "add",
         BinaryOpIR::Sub => "sub",
         BinaryOpIR::Mul => "mul",

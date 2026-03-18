@@ -115,11 +115,16 @@ fn validate_function(
                         crate::ir::BinaryOpIR::Add
                         | crate::ir::BinaryOpIR::Sub
                         | crate::ir::BinaryOpIR::Mul
-                        | crate::ir::BinaryOpIR::Div => {
+                        | crate::ir::BinaryOpIR::Div
+                        | crate::ir::BinaryOpIR::BitAnd
+                        | crate::ir::BinaryOpIR::BitOr
+                        | crate::ir::BinaryOpIR::BitXor
+                        | crate::ir::BinaryOpIR::Shl
+                        | crate::ir::BinaryOpIR::Shr => {
                             if lhs_ty == TypeIR::Bombom && rhs_ty == TypeIR::Bombom {
                                 TypeIR::Bombom
                             } else {
-                                return Err(err("binop aritmética textual inválida"));
+                                return Err(err("binop aritmética/bitwise textual inválida"));
                             }
                         }
                         crate::ir::BinaryOpIR::Eq | crate::ir::BinaryOpIR::Neq => {

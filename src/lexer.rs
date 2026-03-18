@@ -85,6 +85,9 @@ impl<'a> Lexer<'a> {
                     let mut lexeme = c.to_string();
                     let kind = match c {
                         '+' => TokenKind::Plus,
+                        '&' => TokenKind::Amp,
+                        '|' => TokenKind::Pipe,
+                        '^' => TokenKind::Caret,
                         '-' => {
                             if self.match_char('>') {
                                 lexeme.push('>');
@@ -122,6 +125,9 @@ impl<'a> Lexer<'a> {
                             if self.match_char('=') {
                                 lexeme.push('=');
                                 TokenKind::LessEq
+                            } else if self.match_char('<') {
+                                lexeme.push('<');
+                                TokenKind::LessLess
                             } else {
                                 TokenKind::Less
                             }
@@ -130,6 +136,9 @@ impl<'a> Lexer<'a> {
                             if self.match_char('=') {
                                 lexeme.push('=');
                                 TokenKind::GreaterEq
+                            } else if self.match_char('>') {
+                                lexeme.push('>');
+                                TokenKind::GreaterGreater
                             } else {
                                 TokenKind::Greater
                             }

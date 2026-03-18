@@ -35,9 +35,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 28c: melhorar spans/source context em erros de runtime e parser
 - Fase 29: consolidar exemplos versionados e cobertura CLI para loops
 - Fase 30: consolidar exemplos versionados e cobertura negativa para loops inválidos, e organizar backlog futuro em `docs/future.md`
+- Fase 31: adicionar operadores bitwise básicos (`&`, `|`, `^`, `<<`, `>>`)
 
 ## Fase atual
-- Fase 30 concluída: consolidação da cobertura negativa/versionada para loops inválidos (`quebrar`/`continuar` fora de loop) e organização do backlog em `docs/future.md`, mantendo semântica estável.
+- Fase 31 concluída: operadores bitwise básicos adicionados (`&`, `|`, `^`, `<<`, `>>`) com política simples de tipos (`bombom`), mantendo a continuidade histórica e sem expansão fora de escopo.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -206,3 +207,13 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Sem novas keywords/construtos além do já existente (`sempre que`, `quebrar`, `continuar`).
 - Sem redesign de runtime/stack trace.
 - Sem expansão de gramática/arquitetura fora da fase.
+
+
+## Fase 31 — operadores bitwise básicos
+
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 verificada e preservada.
+- Operadores adicionados: `&`, `|`, `^`, `<<`, `>>`.
+- Pipeline tocado de forma incremental: lexer/token, parser/AST, semântica, IR estruturada, CFG IR, seleção, Machine e interpretador.
+- Política de tipos adotada: operações bitwise e shifts aceitas apenas para `bombom`; uso em `logica` segue inválido.
+- Cobertura adicionada em testes de lexer/parser/semântica/IR/CFG/selected/machine/interpreter + exemplo `examples/run_bitwise_basico.pink`.
+- Fora de escopo mantido: operadores compostos, `&&`/`||`, novos tipos inteiros e redesign amplo.

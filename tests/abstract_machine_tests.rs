@@ -196,3 +196,20 @@ fn machine_falha_load_slot_inexistente() {
     let err = pinker_v0::abstract_machine_validate::validate_program(&program).unwrap_err();
     assert!(err.to_string().contains("load_slot para slot inexistente"));
 }
+
+#[test]
+fn machine_bitwise_basico() {
+    let code = "\
+pacote main;
+carinho principal() -> bombom {
+  nova a = 6;
+  nova b = 3;
+  mimo (a & b) | (a ^ b) + (a << 1) + (a >> 1);
+}";
+    let out = render_machine(code).unwrap();
+    assert!(out.contains("vm bitand"));
+    assert!(out.contains("vm bitor"));
+    assert!(out.contains("vm bitxor"));
+    assert!(out.contains("vm shl"));
+    assert!(out.contains("vm shr"));
+}
