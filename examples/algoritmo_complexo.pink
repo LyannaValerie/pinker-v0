@@ -1,0 +1,74 @@
+pacote main;
+
+eterno LIMITE: bombom = 30;
+
+carinho resto(n: bombom, d: bombom) -> bombom {
+    mimo n - (n / d) * d;
+}
+
+carinho mdc(a: bombom, b: bombom) -> bombom {
+    talvez b == 0 {
+        mimo a;
+    } senao {
+        nova mut x = a;
+        nova mut y = b;
+        sempre que x != y {
+            talvez x > y {
+                x = x - y;
+            } senao {
+                y = y - x;
+            }
+        }
+        mimo x;
+    }
+}
+
+carinho mmc(a: bombom, b: bombom) -> bombom {
+    mimo (a / mdc(a, b)) * b;
+}
+
+carinho soma_divisores(n: bombom) -> bombom {
+    nova mut soma = 1;
+    nova mut d = 2;
+    sempre que d * d <= n {
+        talvez resto(n, d) == 0 {
+            soma = soma + d;
+            talvez d * d != n {
+                soma = soma + n / d;
+            }
+        }
+        d = d + 1;
+    }
+    mimo soma;
+}
+
+carinho eh_perfeito(n: bombom) -> bombom {
+    talvez n < 2 {
+        mimo 0;
+    } senao {
+        talvez soma_divisores(n) == n {
+            mimo 1;
+        } senao {
+            mimo 0;
+        }
+    }
+}
+
+carinho contar_perfeitos(limite: bombom) -> bombom {
+    nova mut contador = 0;
+    nova mut n = 2;
+    sempre que n <= limite {
+        talvez eh_perfeito(n) == 1 {
+            contador = contador + 1;
+        }
+        n = n + 1;
+    }
+    mimo contador;
+}
+
+carinho principal() -> bombom {
+    nova perfeitos = contar_perfeitos(LIMITE);
+    nova g = mdc(48, 36);
+    nova m = mmc(4, 6);
+    mimo perfeitos + g + m;
+}

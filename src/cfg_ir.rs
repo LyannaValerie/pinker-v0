@@ -342,35 +342,48 @@ impl FunctionLowerer {
                 for inst in &then_block.instructions {
                     then_current = self.lower_instruction(inst, then_current, function_ret)?;
                 }
-                let mut then_falls_through = !self.blocks[then_current].is_terminated();
+                let then_falls_through = !self.blocks[then_current].is_terminated();
 
+                // Para sem-else: else "cai" implicitamente via Branch → join.
                 let mut else_falls_through = else_idx.is_none();
+                let mut else_end: Option<usize> = None;
+
                 if let (Some(else_block), Some(else_idx)) = (else_block, else_idx) {
                     let mut else_current = else_idx;
                     for inst in &else_block.instructions {
                         else_current = self.lower_instruction(inst, else_current, function_ret)?;
                     }
                     else_falls_through = !self.blocks[else_current].is_terminated();
-                    if else_falls_through {
-                        let join_idx = self.fresh_block(else_label.clone());
-                        self.blocks[else_current].terminator =
-                            Some(TerminatorIR::Jump(self.blocks[join_idx].label.clone()));
-                    }
+                    else_end = Some(else_current);
                 }
 
                 if then_falls_through || else_falls_through {
+                    // Para sem-else: join label já é else_label (Branch aponta para ele).
+                    // Para com-else: precisamos de um join label novo para não duplicar o
+                    // label do bloco else.
+                    let join_label = if else_end.is_some() {
+                        self.next_label("join")
+                    } else {
+                        else_label
+                    };
+
                     let join_idx =
-                        if let Some(idx) = self.blocks.iter().position(|b| b.label == else_label) {
+                        if let Some(idx) = self.blocks.iter().position(|b| b.label == join_label) {
                             idx
                         } else {
-                            self.fresh_block(else_label)
+                            self.fresh_block(join_label)
                         };
+
                     if then_falls_through {
                         self.blocks[then_current].terminator =
                             Some(TerminatorIR::Jump(self.blocks[join_idx].label.clone()));
-                        then_falls_through = false;
                     }
-                    let _ = then_falls_through;
+                    if let Some(ec) = else_end {
+                        if else_falls_through {
+                            self.blocks[ec].terminator =
+                                Some(TerminatorIR::Jump(self.blocks[join_idx].label.clone()));
+                        }
+                    }
                     Ok(join_idx)
                 } else {
                     Ok(current)
