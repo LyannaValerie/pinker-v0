@@ -113,3 +113,9 @@
   - mensagem principal de runtime passou a incluir prefixo estável por categoria (`[runtime::<tipo>]`)
   - erros comuns ganharam dica curta e estável (ex.: divisão por zero, slot não inicializado, função/global inexistente, aridade inválida)
   - stack trace existente foi preservado sem mudança de semântica de execução
+
+
+- Fase 25 — concluída
+  - renderização final de erro de runtime no CLI consolidada em helper (`PinkerError::render_for_cli`)
+  - layout final de runtime no CLI padronizado em blocos estáveis: `Erro Runtime`, `mensagem`, `stack trace` (quando houver) e `span`
+  - mensagem principal categorizada (`[runtime::<tipo>]`) e stack trace por frame foram preservados sem mudança semântica

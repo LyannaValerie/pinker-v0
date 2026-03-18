@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- **Fase 24 implementada**: mensagem principal de erro de runtime enriquecida além do stack trace, preservando o trace existente.
+- **Fase 25 implementada**: renderização final de erro de runtime no CLI padronizada em helper, preservando mensagem principal (Fase 24) e stack trace (Fases 23a/23b).
 
 ## Objetivo
 - Melhorar o diagnóstico de runtime sem refactor grande do interpretador: manter simplicidade e compatibilidade, mas com formato de trace mais estruturado.
@@ -73,3 +73,19 @@
 ### Próximos passos sugeridos
 - Expandir catálogo de categorias/dicas apenas para erros que já existem no runtime, mantendo testes por substring estável.
 - Quando útil, popular `future_span` com origem real da instrução sem inflar arquitetura.
+
+
+## Fase 25 — consolidação da renderização final no CLI
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 verificada e preservada.
+- Mudança técnica mínima: `PinkerError::render_for_cli()` passou a compor saída final de runtime com layout previsível.
+- Layout final no stderr para runtime:
+  - `Erro Runtime:`
+  - `  mensagem: <mensagem enriquecida>`
+  - `stack trace:` + frames indentados (quando houver)
+  - `  span: <span>`
+- Permanece igual:
+  - categoria estável `[runtime::<tipo>]` e dicas curtas na mensagem principal
+  - stack trace por frame (`at <função> [bloco: ...] [instr: ...]`)
+- Limites mantidos:
+  - sem spans ricos por frame, sem debugger/stepping, sem mudança de semântica de execução.
+- Próximo passo sugerido (adiado): extrair golden tests dedicados ao renderer de runtime para reduzir acoplamento com testes e2e de CLI.
