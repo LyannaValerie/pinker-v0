@@ -30,7 +30,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 26: proteção preventiva contra recursão infinita/limite de profundidade de chamadas
 
 ## Fase atual
-- Fase 27b concluída: truncamento/resumo de stack trace muito longo em erros de runtime, mantendo as fases 21a → 27a preservadas.
+- Fase 28c concluída: melhorias de spans/source context em erros de runtime e parser, mantendo continuidade 21a → 28b preservada.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -151,3 +151,18 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - `continuar;` adicionado com escopo mínimo para avançar para a próxima iteração de `sempre que`.
 - Pipeline tocado: lexer/token, parser/AST, semântica, IR estruturada, CFG IR e testes de execução/CLI.
 - Fora de escopo mantido: labels de loop, alvo explícito para `continuar`, redesign amplo de fluxo.
+
+
+## Fase 28c — melhorar spans/source context em erros de runtime e parser
+
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c verificada.
+- Runtime: span dummy `1:1..1:1` substituído por `localização: indisponível (erro detectado na instrução de máquina)` no CLI.
+- Parser/lexer/semântica: novo método `render_for_cli_with_source(source)` extrai e exibe a linha de origem com caret (`^`) alinhado à coluna do erro.
+- `main.rs` atualizado para usar `render_for_cli_with_source` após leitura do fonte.
+- 3 testes de CLI atualizados; 3 novos testes adicionados (source context parse, source context semântica, localização indisponível runtime).
+- Formato geral de runtime (`Erro Runtime:`, `mensagem:`, `stack trace:`) preservado sem mudança.
+
+## Itens adiados (mantidos)
+- Spans reais por instrução de máquina (requer propagar spans do AST até Machine).
+- `future_span` em `RuntimeFrame` segue reservado mas não preenchido.
+- Debugger/stepping/tracing avançado.

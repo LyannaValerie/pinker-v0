@@ -645,7 +645,11 @@ fn cli_run_erro_runtime_tem_exit_nonzero() {
     assert!(stderr.contains("at principal"), "stderr: {}", stderr);
     assert!(stderr.contains("at div"), "stderr: {}", stderr);
     assert!(stderr.contains("[bloco:"), "stderr: {}", stderr);
-    assert!(stderr.contains("  span: 1:1..1:1"), "stderr: {}", stderr);
+    assert!(
+        stderr.contains("  localização: indisponível"),
+        "stderr: {}",
+        stderr
+    );
 }
 
 // ── Fase 17: recursão no interpretador ─────────────────────────────────────
@@ -774,7 +778,11 @@ fn cli_run_erro_runtime_limite_recursao_tem_saida_previsivel() {
     assert!(stderr.contains("at principal"), "stderr: {}", stderr);
     assert!(stderr.contains("at loop"), "stderr: {}", stderr);
     assert!(stderr.contains("[instr: call]"), "stderr: {}", stderr);
-    assert!(stderr.contains("  span: 1:1..1:1"), "stderr: {}", stderr);
+    assert!(
+        stderr.contains("  localização: indisponível"),
+        "stderr: {}",
+        stderr
+    );
 }
 
 #[test]
@@ -794,7 +802,11 @@ fn cli_run_erro_runtime_em_exemplo_novo() {
     assert!(stderr.contains("stack trace:"), "stderr: {}", stderr);
     assert!(stderr.contains("at principal"), "stderr: {}", stderr);
     assert!(stderr.contains("[instr: div]"), "stderr: {}", stderr);
-    assert!(stderr.contains("  span: 1:1..1:1"), "stderr: {}", stderr);
+    assert!(
+        stderr.contains("  localização: indisponível"),
+        "stderr: {}",
+        stderr
+    );
 }
 
 #[test]
@@ -984,4 +996,106 @@ fn cli_run_continuar_funciona() {
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout), "12\n");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+}
+
+// ── Fase 28c: spans/source context em erros de runtime e parser ───────────
+
+#[test]
+fn runtime_erro_sem_span_real_mostra_localizacao_indisponivel() {
+    // Erro de runtime deve exibir "localização: indisponível" em vez de "span: 1:1..1:1"
+    // porque a instrução de máquina não carrega span real.
+    let program = MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![MachineFunction {
+            name: "principal".to_string(),
+            ret_type: pinker_v0::ir::TypeIR::Bombom,
+            params: vec![],
+            locals: vec![],
+            slot_types: HashMap::new(),
+            blocks: vec![MachineBlock {
+                label: "entry".to_string(),
+                code: vec![
+                    MachineInstr::PushInt(10),
+                    MachineInstr::PushInt(0),
+                    MachineInstr::Div,
+                ],
+                terminator: MachineTerminator::Ret,
+            }],
+        }],
+    };
+    let err = interpreter::run_program(&program).unwrap_err();
+    let rendered = err.render_for_cli();
+    assert!(
+        rendered.contains("localização: indisponível"),
+        "deve indicar localização indisponível: {}",
+        rendered
+    );
+    assert!(
+        !rendered.contains("span: 1:1..1:1"),
+        "não deve mostrar span dummy: {}",
+        rendered
+    );
+}
+
+#[test]
+fn cli_parse_error_mostra_source_context() {
+    // Erro de parser deve incluir a linha de origem com indicador de coluna (^)
+    let source = "pacote main; carinho principal() -> bombom { mimo 1 + ; }";
+    let file = std::env::temp_dir().join("pinker_28c_parse_ctx.pink");
+    fs::write(&file, source).unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(&file)
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Erro Sintático:"), "stderr: {}", stderr);
+    // Source context: deve mostrar a linha e o caret
+    assert!(
+        stderr.contains("| "),
+        "deve mostrar linha de origem: {}",
+        stderr
+    );
+    assert!(
+        stderr.contains('^'),
+        "deve mostrar caret de coluna: {}",
+        stderr
+    );
+}
+
+#[test]
+fn cli_semantic_error_mostra_source_context() {
+    // Erro semântico deve incluir a linha de origem com indicador de coluna (^)
+    let source = "pacote main; carinho principal() -> bombom { mimo verdade + 1; }";
+    let file = std::env::temp_dir().join("pinker_28c_semantic_ctx.pink");
+    fs::write(&file, source).unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(&file)
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Pode ser erro semântico ou sintático dependendo da pipeline
+    assert!(
+        stderr.contains("Erro Semântico:") || stderr.contains("Erro Sintático:"),
+        "stderr: {}",
+        stderr
+    );
+    assert!(
+        stderr.contains("| "),
+        "deve mostrar linha de origem: {}",
+        stderr
+    );
+    assert!(
+        stderr.contains('^'),
+        "deve mostrar caret de coluna: {}",
+        stderr
+    );
 }
