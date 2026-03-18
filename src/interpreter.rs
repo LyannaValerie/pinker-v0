@@ -298,8 +298,47 @@ fn pop_bin_int(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<(u64, u64), P
 
 fn runtime_err(msg: &str) -> PinkerError {
     PinkerError::Runtime {
-        msg: msg.to_string(),
+        msg: enrich_runtime_msg(msg),
         span: Span::single(Position::new(1, 1)),
+    }
+}
+
+fn enrich_runtime_msg(msg: &str) -> String {
+    let (kind, hint) = classify_runtime_msg(msg);
+    format!(
+        "[runtime::{kind}] {msg}{}",
+        hint.map(|h| format!(" | dica: {h}")).unwrap_or_default()
+    )
+}
+
+fn classify_runtime_msg(msg: &str) -> (&'static str, Option<&'static str>) {
+    if msg.contains("divisão por zero") {
+        (
+            "divisao_por_zero",
+            Some("verifique se o divisor é diferente de 0 antes da operação '/'"),
+        )
+    } else if msg.contains("slot não inicializado") {
+        (
+            "slot_nao_inicializado",
+            Some("inicialize o slot antes de fazer load_slot"),
+        )
+    } else if msg.contains("função chamada inexistente") {
+        (
+            "funcao_inexistente",
+            Some("confira se o nome da função e a assinatura existem no programa"),
+        )
+    } else if msg.contains("aridade inválida") {
+        (
+            "aridade_invalida",
+            Some("confira a quantidade de argumentos passados na chamada"),
+        )
+    } else if msg.contains("global inexistente") {
+        (
+            "global_inexistente",
+            Some("use apenas globals declaradas em `eterno`"),
+        )
+    } else {
+        ("erro", None)
     }
 }
 
