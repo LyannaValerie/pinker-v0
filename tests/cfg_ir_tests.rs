@@ -199,3 +199,26 @@ fn cfg_ir_bitwise_basico() {
     assert!(cfg.contains("bitor"), "{}", cfg);
     assert!(cfg.contains("shl"), "{}", cfg);
 }
+
+#[test]
+fn cfg_ir_if_else_fallthrough_ambos_ramos_gera_join_valido() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova mut x = 0;
+            talvez verdade {
+                x = x + 1;
+            } senao {
+                x = x + 2;
+            }
+            mimo x;
+        }";
+
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("block then_0:"), "{}", cfg);
+    assert!(cfg.contains("block else_1:"), "{}", cfg);
+    assert!(cfg.contains("br verdade:logica, then_0, else_1"), "{}", cfg);
+    assert!(cfg.contains("jmp join_"), "{}", cfg);
+    assert!(cfg.contains("block join_"), "{}", cfg);
+    assert!(cfg.contains("ret %x#0"), "{}", cfg);
+}

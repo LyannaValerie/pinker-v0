@@ -38,7 +38,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 31: adicionar operadores bitwise básicos (`&`, `|`, `^`, `<<`, `>>`)
 
 ## Fase atual
-- Fase 31 concluída: operadores bitwise básicos adicionados (`&`, `|`, `^`, `<<`, `>>`) com política simples de tipos (`bombom`), mantendo a continuidade histórica e sem expansão fora de escopo.
+- Fase 32 concluída: robustez do lowering CFG para `talvez/senao` com fall-through em ambos os ramos consolidada por testes direcionados, sem mudança semântica.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -217,3 +217,15 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Política de tipos adotada: operações bitwise e shifts aceitas apenas para `bombom`; uso em `logica` segue inválido.
 - Cobertura adicionada em testes de lexer/parser/semântica/IR/CFG/selected/machine/interpreter + exemplo `examples/run_bitwise_basico.pink`.
 - Fora de escopo mantido: operadores compostos, `&&`/`||`, novos tipos inteiros e redesign amplo.
+
+
+## Fase 32 — robustez do lowering CFG para `talvez/senao` com fall-through em ambos os ramos
+
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 verificada.
+- Cobertura estrutural adicionada no CFG IR para `if-else` com queda em ambos os ramos, validando presença de branch, jumps para `join` e retorno final sem panic.
+- Cobertura CLI reforçada para cenário representativo (`examples/algoritmo_complexo.pink`) mantendo resultado estável.
+- Sem alteração de semântica/gramática e sem refactor amplo de lowering.
+
+## Itens adiados (mantidos)
+- Refactor estrutural maior do lowerer de CFG.
+- Expansões de linguagem fora da Fase 32.

@@ -775,6 +775,14 @@ fn cli_run_recursao_com_global_exemplo_novo() {
 }
 
 #[test]
+fn cli_run_algoritmo_complexo_fallthrough_if_else() {
+    let out = run_cli_example("examples/algoritmo_complexo.pink");
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "26\n");
+    assert!(String::from_utf8_lossy(&out.stderr).is_empty());
+}
+
+#[test]
 fn cli_run_erro_runtime_limite_recursao_tem_saida_previsivel() {
     let out = run_cli_example("examples/run_recursao_limite_cli.pink");
     assert!(!out.status.success());
