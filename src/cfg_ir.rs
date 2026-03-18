@@ -124,6 +124,7 @@ struct FunctionLowerer {
     next_block: usize,
     next_temp: u32,
     loop_exit_stack: Vec<String>,
+    loop_continue_stack: Vec<String>,
 }
 
 // `BlockBuilder` é um bloco em construção. `terminator: None` indica bloco ainda aberto.
@@ -229,6 +230,7 @@ fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
         next_block: 0,
         next_temp: 0,
         loop_exit_stack: Vec::new(),
+        loop_continue_stack: Vec::new(),
     };
 
     let mut current = 0;
@@ -396,10 +398,13 @@ impl FunctionLowerer {
 
                 self.loop_exit_stack
                     .push(self.blocks[join_idx].label.clone());
+                self.loop_continue_stack
+                    .push(self.blocks[cond_idx].label.clone());
                 let mut body_current = body_idx;
                 for inst in &body_block.instructions {
                     body_current = self.lower_instruction(inst, body_current, function_ret)?;
                 }
+                self.loop_continue_stack.pop();
                 self.loop_exit_stack.pop();
 
                 if !self.blocks[body_current].is_terminated() {
@@ -422,6 +427,23 @@ impl FunctionLowerer {
                 self.blocks[current].terminator = Some(TerminatorIR::Branch {
                     cond: OperandIR::Bool(true),
                     then_label: loop_exit_label,
+                    else_label: self.blocks[cont_idx].label.clone(),
+                });
+                Ok(cont_idx)
+            }
+            InstructionIR::Continue { span, .. } => {
+                let Some(loop_continue_label) = self.loop_continue_stack.last().cloned() else {
+                    return Err(PinkerError::Ir {
+                        msg: "lowering CFG IR encontrou continue fora de loop".to_string(),
+                        span: *span,
+                    });
+                };
+
+                let cont_label = self.next_label("loop_continue_cont");
+                let cont_idx = self.fresh_block(cont_label);
+                self.blocks[current].terminator = Some(TerminatorIR::Branch {
+                    cond: OperandIR::Bool(true),
+                    then_label: loop_continue_label,
                     else_label: self.blocks[cont_idx].label.clone(),
                 });
                 Ok(cont_idx)

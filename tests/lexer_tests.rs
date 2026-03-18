@@ -45,3 +45,9 @@ fn lexer_reconhece_quebrar() {
     let tokens = tokenize("quebrar;").unwrap();
     assert_eq!(tokens[0].kind, TokenKind::KwQuebrar);
 }
+
+#[test]
+fn lexer_reconhece_continuar() {
+    let tokens = tokenize("continuar;").unwrap();
+    assert_eq!(tokens[0].kind, TokenKind::KwContinuar);
+}

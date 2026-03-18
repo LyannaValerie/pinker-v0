@@ -958,3 +958,30 @@ fn cli_run_quebrar_funciona() {
     );
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
+
+#[test]
+fn run_sempre_que_com_continuar_pula_para_proxima_iteracao() {
+    let out = run_code(
+        "pacote main; carinho principal() -> bombom { nova mut x = 0; nova mut s = 0; sempre que x < 5 { x = x + 1; talvez x == 3 { continuar; } s = s + x; } mimo s; }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(12)));
+}
+
+#[test]
+fn cli_run_continuar_funciona() {
+    let source =
+        "pacote main; carinho principal() -> bombom { nova mut x = 0; nova mut s = 0; sempre que x < 5 { x = x + 1; talvez x == 3 { continuar; } s = s + x; } mimo s; }";
+    let file = std::env::temp_dir().join("pinker_run_continue_ok.pink");
+    fs::write(&file, source).unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(&file)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "12\n");
+    assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+}

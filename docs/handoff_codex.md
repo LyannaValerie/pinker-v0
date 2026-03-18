@@ -186,3 +186,27 @@
 - Semântica: rejeita `quebrar` fora de loop.
 - IR/CFG/selected: cobertura mínima de lowering com `quebrar`.
 - Interpretador/CLI `--run`: loop é interrompido corretamente ao encontrar `quebrar`.
+
+
+## Fase 28b — adicionar `continuar` para `sempre que`
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b verificada e preservada.
+- Implementado suporte mínimo a `continuar;` dentro de `sempre que`.
+
+### Partes do pipeline tocadas
+- Lexer/token: nova keyword `continuar`.
+- Parser/AST: novo `Stmt::Continue(ContinueStmt)`.
+- Semântica: validação de contexto de loop (`continuar` fora de `sempre que` é erro).
+- IR estruturada: `InstructionIR::Continue { loop_continue_label, span }`.
+- CFG IR: lowering de `continue` para salto ao bloco de condição do loop (próxima iteração).
+- Execução (`--run`): comportamento efetivo preservando o pipeline existente (sem nova instrução de runtime).
+
+### O que ficou fora do escopo
+- labels de loop, `continuar` com alvo, e refactor amplo do controle de fluxo.
+- mudanças de spans/contexto avançado de diagnóstico.
+
+### Testes adicionados
+- Lexer: reconhece `continuar`.
+- Parser: aceita `continuar` dentro de `sempre que`.
+- Semântica: rejeita `continuar` fora de loop.
+- IR/CFG/selected: cobertura mínima de lowering com `continuar`.
+- Interpretador/CLI `--run`: `continuar` pula corretamente para a próxima iteração.

@@ -144,3 +144,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - `quebrar;` adicionado com escopo mínimo para sair de `sempre que`.
 - Parser/AST/semântica/IR/CFG e testes de `--run` atualizados de forma incremental.
 - Fora de escopo mantido: `continuar`, labels de loop, alvo de `quebrar`, refactor amplo de fluxo.
+
+
+## Fase 28b — adicionar `continuar` para `sempre que`
+
+- `continuar;` adicionado com escopo mínimo para avançar para a próxima iteração de `sempre que`.
+- Pipeline tocado: lexer/token, parser/AST, semântica, IR estruturada, CFG IR e testes de execução/CLI.
+- Fora de escopo mantido: labels de loop, alvo explícito para `continuar`, redesign amplo de fluxo.

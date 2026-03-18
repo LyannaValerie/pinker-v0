@@ -143,3 +143,32 @@ fn parser_aceita_quebrar_dentro_de_sempre_que() {
         _ => panic!("item esperado: função"),
     }
 }
+
+#[test]
+fn parser_aceita_continuar_dentro_de_sempre_que() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova mut x = 0;
+            sempre que x < 3 {
+                x = x + 1;
+                continuar;
+            }
+            mimo x;
+        }
+    "#;
+
+    let program = parse(source).expect("parser deve aceitar continuar");
+    let func = match &program.items[0] {
+        Item::Function(f) => f,
+        _ => panic!("item esperado: function"),
+    };
+    let while_stmt = match &func.body.stmts[1] {
+        Stmt::While(w) => w,
+        _ => panic!("stmt esperado: while"),
+    };
+    match &while_stmt.body.stmts[1] {
+        Stmt::Continue(_) => {}
+        _ => panic!("stmt esperado: continue"),
+    }
+}

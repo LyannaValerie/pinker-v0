@@ -231,6 +231,7 @@ pub enum Stmt {
     If(IfStmt),
     While(WhileStmt),
     Break(BreakStmt),
+    Continue(ContinueStmt),
     Expr(Expr),
 }
 
@@ -243,6 +244,7 @@ impl Stmt {
             Stmt::If(stmt) => stmt.span,
             Stmt::While(stmt) => stmt.span,
             Stmt::Break(stmt) => stmt.span,
+            Stmt::Continue(stmt) => stmt.span,
             Stmt::Expr(expr) => expr.span,
         }
     }
@@ -255,6 +257,7 @@ impl Stmt {
             Stmt::If(stmt) => stmt.write_json(writer),
             Stmt::While(stmt) => stmt.write_json(writer),
             Stmt::Break(stmt) => stmt.write_json(writer),
+            Stmt::Continue(stmt) => stmt.write_json(writer),
             Stmt::Expr(expr) => {
                 writer.begin_object();
                 writer.field_str("node", "ExprStmt");
@@ -362,6 +365,20 @@ impl BreakStmt {
     fn write_json(&self, writer: &mut JsonWriter<'_>) {
         writer.begin_object();
         writer.field_str("node", "BreakStmt");
+        writer.field_span("span", self.span);
+        writer.end_object();
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ContinueStmt {
+    pub span: Span,
+}
+
+impl ContinueStmt {
+    fn write_json(&self, writer: &mut JsonWriter<'_>) {
+        writer.begin_object();
+        writer.field_str("node", "ContinueStmt");
         writer.field_span("span", self.span);
         writer.end_object();
     }

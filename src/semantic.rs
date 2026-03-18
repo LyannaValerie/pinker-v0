@@ -360,6 +360,14 @@ impl SemanticChecker {
                         });
                     }
                 }
+                Stmt::Continue(continue_stmt) => {
+                    if self.loop_depth == 0 {
+                        return Err(PinkerError::Semantic {
+                            msg: "'continuar' só pode ser usado dentro de 'sempre que'".to_string(),
+                            span: continue_stmt.span,
+                        });
+                    }
+                }
                 Stmt::Expr(expr) => {
                     self.check_expr(expr)?;
                 }

@@ -11,8 +11,8 @@
 //!   `semantic` → **`ir`** → `ir_validate` → `cfg_ir`
 
 use crate::ast::{
-    BinaryOp, Block, BreakStmt, ConstDecl, ElseBlock, Expr, ExprKind, FunctionDecl, IfStmt, Item,
-    LetStmt, Program, ReturnStmt, Stmt, Type, UnaryOp, WhileStmt,
+    BinaryOp, Block, BreakStmt, ConstDecl, ContinueStmt, ElseBlock, Expr, ExprKind, FunctionDecl,
+    IfStmt, Item, LetStmt, Program, ReturnStmt, Stmt, Type, UnaryOp, WhileStmt,
 };
 use crate::error::PinkerError;
 use crate::token::Span;
@@ -109,6 +109,10 @@ pub enum InstructionIR {
         loop_exit_label: String,
         span: Span,
     },
+    Continue {
+        loop_continue_label: String,
+        span: Span,
+    },
 }
 
 /// Expressão na IR. `Call` carrega `ret_type` explicitamente para que camadas posteriores
@@ -196,6 +200,7 @@ struct FunctionLowerer<'a> {
     slot_counters: HashMap<String, usize>,
     block_counter: usize,
     loop_exit_stack: Vec<String>,
+    loop_continue_stack: Vec<String>,
 }
 
 struct TypedValueIR {
@@ -301,6 +306,7 @@ impl<'a> FunctionLowerer<'a> {
             slot_counters: HashMap::new(),
             block_counter: 0,
             loop_exit_stack: Vec::new(),
+            loop_continue_stack: Vec::new(),
         }
     }
 
@@ -372,6 +378,7 @@ impl<'a> FunctionLowerer<'a> {
             Stmt::If(if_stmt) => self.lower_if(if_stmt),
             Stmt::While(while_stmt) => self.lower_while(while_stmt),
             Stmt::Break(break_stmt) => self.lower_break(break_stmt),
+            Stmt::Continue(continue_stmt) => self.lower_continue(continue_stmt),
         }
     }
 
@@ -437,13 +444,33 @@ impl<'a> FunctionLowerer<'a> {
         let condition = self.lower_value(&while_stmt.condition)?.value;
         let body_label = self.next_block_label("loop");
         let loop_exit_label = self.next_block_label("loop_break_join");
+        let loop_continue_label = self.next_block_label("loop_continue");
         self.loop_exit_stack.push(loop_exit_label);
+        self.loop_continue_stack.push(loop_continue_label);
         let body_block = self.lower_block(&while_stmt.body, body_label, true)?;
+        self.loop_continue_stack.pop();
         self.loop_exit_stack.pop();
         Ok(InstructionIR::While {
             condition,
             body_block,
             span: while_stmt.span,
+        })
+    }
+
+    fn lower_continue(
+        &mut self,
+        continue_stmt: &ContinueStmt,
+    ) -> Result<InstructionIR, PinkerError> {
+        let Some(loop_continue_label) = self.loop_continue_stack.last() else {
+            return Err(PinkerError::Ir {
+                msg: "lowering encontrou 'continuar' fora de loop".to_string(),
+                span: continue_stmt.span,
+            });
+        };
+
+        Ok(InstructionIR::Continue {
+            loop_continue_label: loop_continue_label.clone(),
+            span: continue_stmt.span,
         })
     }
 
@@ -732,6 +759,12 @@ fn render_instruction(instruction: &InstructionIR, indent: usize, out: &mut Stri
             loop_exit_label, ..
         } => {
             line(out, indent, &format!("break {}", loop_exit_label));
+        }
+        InstructionIR::Continue {
+            loop_continue_label,
+            ..
+        } => {
+            line(out, indent, &format!("continue {}", loop_continue_label));
         }
     }
 }
