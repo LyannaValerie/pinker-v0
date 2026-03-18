@@ -604,10 +604,17 @@ fn cli_run_erro_runtime_tem_exit_nonzero() {
     assert!(String::from_utf8_lossy(&output.stdout).is_empty());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!stderr.is_empty());
-    assert!(stderr.contains("stack trace:"));
-    assert!(stderr.contains("at principal"));
-    assert!(stderr.contains("at div"));
-    assert!(stderr.contains("[bloco:"));
+    assert!(stderr.contains("Erro Runtime:"), "stderr: {}", stderr);
+    assert!(
+        stderr.contains("  mensagem: [runtime::divisao_por_zero]"),
+        "stderr: {}",
+        stderr
+    );
+    assert!(stderr.contains("stack trace:"), "stderr: {}", stderr);
+    assert!(stderr.contains("at principal"), "stderr: {}", stderr);
+    assert!(stderr.contains("at div"), "stderr: {}", stderr);
+    assert!(stderr.contains("[bloco:"), "stderr: {}", stderr);
+    assert!(stderr.contains("  span: 1:1..1:1"), "stderr: {}", stderr);
 }
 
 // ── Fase 17: recursão no interpretador ─────────────────────────────────────
@@ -726,8 +733,11 @@ fn cli_run_erro_runtime_em_exemplo_novo() {
         "stderr: {}",
         stderr
     );
+    assert!(stderr.contains("Erro Runtime:"), "stderr: {}", stderr);
+    assert!(stderr.contains("  mensagem:"), "stderr: {}", stderr);
     assert!(stderr.contains("divisão por zero"), "stderr: {}", stderr);
     assert!(stderr.contains("stack trace:"), "stderr: {}", stderr);
     assert!(stderr.contains("at principal"), "stderr: {}", stderr);
     assert!(stderr.contains("[instr: div]"), "stderr: {}", stderr);
+    assert!(stderr.contains("  span: 1:1..1:1"), "stderr: {}", stderr);
 }

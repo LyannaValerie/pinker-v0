@@ -27,7 +27,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 23b: stack trace com contexto ligeiramente melhor + ganchos leves para evolução futura
 
 ## Fase atual
-- Fase 24 concluída: mensagens principais de runtime ganharam categoria estável (`[runtime::<tipo>]`) e dicas curtas para erros comuns, preservando o stack trace de Fase 23b.
+- Fase 25 concluída: renderização final de erro de runtime no CLI padronizada e consolidada em helper, preservando mensagem principal (Fase 24) e stack trace (Fases 23a/23b).
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -93,3 +93,11 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Diagnóstico recebeu dica curta para causas comuns (divisão por zero, slot não inicializado, função/global inexistente, aridade inválida).
 - Stack trace (`at <função> [bloco] [instr]`) foi mantido sem mudanças estruturais.
 - Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 verificada sem necessidade de correção documental nesta rodada.
+
+
+## Renderização final de runtime no CLI (Fase 25)
+- CLI passou a usar renderização dedicada para `PinkerError::Runtime` via `render_for_cli()`.
+- Estrutura textual estabilizada: cabeçalho `Erro Runtime:`, linha `mensagem:`, bloco `stack trace:` (se presente) e linha final `span:`.
+- Mensagem principal com categoria estável (`[runtime::<tipo>]`) mantida sem alteração.
+- Stack trace existente (`at <função> [bloco] [instr]`) mantido sem alteração funcional.
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 verificada; sem correção documental estrutural nesta rodada.
