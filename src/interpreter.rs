@@ -16,6 +16,13 @@ use std::collections::HashMap;
 
 const MAX_CALL_DEPTH: usize = 128;
 
+// Truncamento de stack trace longo (Fase 27b):
+// traces com mais de TRACE_TRUNC_THRESHOLD frames são resumidos mostrando
+// os primeiros TRACE_HEAD e os últimos TRACE_TAIL, com linha de omissão.
+const TRACE_TRUNC_THRESHOLD: usize = 10;
+const TRACE_HEAD: usize = 5;
+const TRACE_TAIL: usize = 5;
+
 #[derive(Debug, Clone)]
 struct RuntimeFrame {
     fn_name: String,
@@ -374,27 +381,43 @@ fn attach_runtime_trace(err: PinkerError, call_stack: &[RuntimeFrame]) -> Pinker
     }
 }
 
+fn render_frame(frame: &RuntimeFrame, out: &mut String) {
+    out.push_str("  at ");
+    out.push_str(&frame.fn_name);
+    if let Some(label) = &frame.block_label {
+        out.push_str(" [bloco: ");
+        out.push_str(label);
+        out.push(']');
+    }
+    if let Some(instr) = frame.current_instr {
+        out.push_str(" [instr: ");
+        out.push_str(instr);
+        out.push(']');
+    }
+    if let Some(span) = frame.future_span {
+        out.push_str(" [span: ");
+        out.push_str(&span.to_string());
+        out.push(']');
+    }
+    out.push('\n');
+}
+
 fn render_runtime_trace(call_stack: &[RuntimeFrame]) -> String {
     let mut out = String::from("\nstack trace:\n");
-    for frame in call_stack {
-        out.push_str("  at ");
-        out.push_str(&frame.fn_name);
-        if let Some(label) = &frame.block_label {
-            out.push_str(" [bloco: ");
-            out.push_str(label);
-            out.push(']');
+    let n = call_stack.len();
+    if n <= TRACE_TRUNC_THRESHOLD {
+        for frame in call_stack {
+            render_frame(frame, &mut out);
         }
-        if let Some(instr) = frame.current_instr {
-            out.push_str(" [instr: ");
-            out.push_str(instr);
-            out.push(']');
+    } else {
+        for frame in &call_stack[..TRACE_HEAD] {
+            render_frame(frame, &mut out);
         }
-        if let Some(span) = frame.future_span {
-            out.push_str(" [span: ");
-            out.push_str(&span.to_string());
-            out.push(']');
+        let omitted = n - TRACE_HEAD - TRACE_TAIL;
+        out.push_str(&format!("  ... {omitted} frames omitidos ...\n"));
+        for frame in &call_stack[n - TRACE_TAIL..] {
+            render_frame(frame, &mut out);
         }
-        out.push('\n');
     }
     out
 }

@@ -827,3 +827,103 @@ fn cli_run_sempre_que_funciona() {
     );
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
+
+// ── Fase 27b: truncamento de stack trace longo ────────────────────────────
+
+#[test]
+fn run_trace_curto_sem_truncamento() {
+    // Trace com 2 frames (principal + quebra): não deve ser truncado.
+    let err = run_code(
+        "pacote main; carinho quebra(x: bombom) -> bombom { mimo x / 0; } carinho principal() -> bombom { mimo quebra(10); }",
+    )
+    .unwrap_err();
+
+    assert!(err.contains("stack trace:"), "mensagem: {}", err);
+    assert!(
+        err.contains("at principal"),
+        "principal deve aparecer: {}",
+        err
+    );
+    assert!(err.contains("at quebra"), "quebra deve aparecer: {}", err);
+    assert!(
+        !err.contains("frames omitidos"),
+        "trace curto não deve ter omissão: {}",
+        err
+    );
+}
+
+#[test]
+fn run_trace_longo_e_truncado() {
+    // Recursão infinita atinge MAX_CALL_DEPTH e produz trace com ~128 frames.
+    // O trace deve ser resumido com linha de omissão.
+    let err = run_code(
+        "pacote main; carinho loop() -> bombom { mimo loop(); } carinho principal() -> bombom { mimo loop(); }",
+    )
+    .unwrap_err();
+
+    assert!(err.contains("stack trace:"), "mensagem: {}", err);
+    assert!(
+        err.contains("frames omitidos"),
+        "trace longo deve indicar omissão: {}",
+        err
+    );
+    // Frames iniciais devem estar presentes
+    assert!(
+        err.contains("at principal"),
+        "principal deve aparecer: {}",
+        err
+    );
+    assert!(err.contains("at loop"), "loop deve aparecer: {}", err);
+}
+
+#[test]
+fn run_trace_longo_preserva_frames_iniciais_e_finais() {
+    // Verifica que o trace resumido contém frames do início e do final.
+    let err = run_code(
+        "pacote main; carinho loop() -> bombom { mimo loop(); } carinho principal() -> bombom { mimo loop(); }",
+    )
+    .unwrap_err();
+
+    // Frames iniciais: principal (frame 0) e loop (frame 1+) devem aparecer
+    assert!(
+        err.contains("at principal [bloco: entry] [instr: call]"),
+        "frame inicial principal deve aparecer: {}",
+        err
+    );
+    // Frames finais: loop deve aparecer (nos últimos 5)
+    assert!(
+        err.contains("at loop"),
+        "frames finais de loop devem aparecer: {}",
+        err
+    );
+    // Linha de omissão com contagem explícita
+    assert!(
+        err.contains("frames omitidos"),
+        "deve indicar frames omitidos: {}",
+        err
+    );
+}
+
+#[test]
+fn cli_run_limite_recursao_trace_truncado_na_saida() {
+    // CLI: trace longo de recursão deve aparecer truncado no stderr.
+    let out = run_cli_example("examples/run_recursao_limite_cli.pink");
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("[runtime::limite_recursao_excedido]"),
+        "stderr: {}",
+        stderr
+    );
+    assert!(
+        stderr.contains("frames omitidos"),
+        "trace longo deve ser truncado no CLI: {}",
+        stderr
+    );
+    assert!(
+        stderr.contains("at principal"),
+        "principal deve aparecer: {}",
+        stderr
+    );
+    assert!(stderr.contains("at loop"), "loop deve aparecer: {}", stderr);
+}

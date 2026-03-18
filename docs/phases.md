@@ -134,3 +134,12 @@
   - reconhecimento léxico/sintático via keywords `sempre` + `que` no parser
   - novo nó de AST para loop condicional e integração mínima no pipeline (semântica → IR → CFG → seleção → Machine/`--run`)
   - sem novos controles avançados de fluxo (`quebrar`, `continuar`, labels de loop), mantidos fora de escopo
+
+
+- Fase 27b — concluída
+  - truncamento/resumo de stack trace muito longo em erros de runtime
+  - política simples: traces com mais de 10 frames são resumidos (primeiros 5 + `... N frames omitidos ...` + últimos 5)
+  - traces curtos (≤ 10 frames) permanecem sem alteração
+  - linha de omissão indica explicitamente a quantidade de frames omitidos
+  - nenhuma mudança de semântica de execução, categorias de erro ou frontend
+  - renderização consolidada do CLI (`Erro Runtime`, `mensagem`, `stack trace`, `span`) preservada

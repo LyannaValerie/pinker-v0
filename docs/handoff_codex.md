@@ -114,6 +114,35 @@
 - Adicionar testes dedicados apenas ao renderer de runtime para reduzir acoplamento com e2e de CLI.
 
 
+## Fase 27b — truncamento/resumo de stack trace longo
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b verificada e preservada.
+- Mudança técnica mínima: `render_runtime_trace` em `src/interpreter.rs` passou a truncar traces longos.
+
+### Política adotada
+- `TRACE_TRUNC_THRESHOLD = 10`: traces com ≤ 10 frames são exibidos integralmente (comportamento anterior).
+- Traces com > 10 frames: exibe os primeiros `TRACE_HEAD = 5`, uma linha `... N frames omitidos ...`, e os últimos `TRACE_TAIL = 5`.
+
+### O que permaneceu igual
+- Traces curtos: comportamento idêntico ao anterior.
+- Categorias de erro, mensagens enriquecidas, renderização CLI (`Erro Runtime`, `mensagem`, `stack trace`, `span`).
+- Semântica de execução, frontend, gramática.
+- `RuntimeFrame`, `attach_runtime_trace`, `set_current_instr`, `machine_instr_name` sem alteração.
+
+### Testes adicionados
+- `run_trace_curto_sem_truncamento`: verifica que traces curtos não são truncados.
+- `run_trace_longo_e_truncado`: verifica que recursão infinita produz trace com `frames omitidos`.
+- `run_trace_longo_preserva_frames_iniciais_e_finais`: verifica que frames iniciais e finais estão presentes.
+- `cli_run_limite_recursao_trace_truncado_na_saida`: verifica saída CLI truncada no caso de limite de recursão.
+
+### Limites mantidos
+- Limiar e tamanhos de head/tail são fixos no código (sem configuração externa nesta fase).
+- Sem spans ricos por frame e sem debugger/stepping.
+
+### Próximos passos sugeridos
+- Tornar `TRACE_TRUNC_THRESHOLD`, `TRACE_HEAD`, `TRACE_TAIL` configuráveis via flag/env.
+- Adicionar golden tests dedicados ao renderer de runtime.
+
+
 ## Fase 27a — adicionar `sempre que`
 - Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a verificada e preservada.
 - Implementação mínima concluída para `sempre que <condicao> { ... }`.
