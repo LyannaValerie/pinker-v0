@@ -65,6 +65,39 @@ impl PinkerError {
             | PinkerError::Runtime { span, .. } => *span,
         }
     }
+
+    pub fn render_for_cli(&self) -> String {
+        match self {
+            PinkerError::Runtime { msg, span } => render_runtime_for_cli(msg, *span),
+            _ => self.to_string(),
+        }
+    }
+}
+
+fn render_runtime_for_cli(msg: &str, span: Span) -> String {
+    let (main_msg, trace) = split_runtime_message_and_trace(msg);
+    let mut out = String::from("Erro Runtime:\n");
+    out.push_str("  mensagem: ");
+    out.push_str(main_msg);
+    out.push('\n');
+    if let Some(trace) = trace {
+        out.push_str("stack trace:\n");
+        for line in trace.lines() {
+            out.push_str("  ");
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out.push_str("  span: ");
+    out.push_str(&span.to_string());
+    out
+}
+
+fn split_runtime_message_and_trace(msg: &str) -> (&str, Option<&str>) {
+    match msg.split_once("\nstack trace:\n") {
+        Some((main_msg, trace)) => (main_msg, Some(trace)),
+        None => (msg, None),
+    }
 }
 
 impl std::fmt::Display for PinkerError {
