@@ -1,0 +1,14 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova mut x = 0;
+    nova mut s = 0;
+    sempre que x < 5 {
+        x = x + 1;
+        talvez x == 3 {
+            continuar;
+        }
+        s = s + x;
+    }
+    mimo s;
+}

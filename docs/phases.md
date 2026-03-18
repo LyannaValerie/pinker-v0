@@ -170,3 +170,10 @@
   - 3 testes de CLI atualizados para verificar `localização: indisponível` (antes verificavam `span: 1:1..1:1`)
   - 3 novos testes adicionados: source context em parse error (CLI), source context em erro semântico (CLI), localização indisponível em runtime (unitário)
   - formato de runtime e stack trace preservados sem mudança estrutural
+
+
+- Fase 29 — consolidar exemplos versionados e cobertura CLI para loops com `sempre que`, `quebrar` e `continuar`
+  - consolidação da cobertura CLI de loop para usar exemplos versionados do repositório em vez de fontes temporárias ad hoc
+  - adição de exemplos mínimos `examples/run_quebrar.pink` e `examples/run_continuar.pink`
+  - teste CLI de `sempre que` passa a usar o exemplo versionado existente `examples/run_sempre_que.pink`
+  - sem mudanças na semântica de `sempre que`, `quebrar` e `continuar`; apenas consolidação auditável
