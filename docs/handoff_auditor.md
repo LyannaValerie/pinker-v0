@@ -1,7 +1,7 @@
 # Handoff Auditor
 
 ## Rodada atual
-- **Fase 24**: mensagens principais de runtime enriquecidas com categoria estável e dica curta.
+- **Fase 27b**: truncamento/resumo de stack trace muito longo em erros de runtime.
 
 ## Objetivo da Fase 24
 Melhorar o diagnóstico de runtime além do stack trace: prefixo de categoria por tipo de erro e dica curta para erros frequentes, sem alterar semântica de execução.
@@ -64,5 +64,40 @@ Preservada em todos os docs consultados. Ordem 21a → 21b → 22 → 23a → 23
 ## Status da Fase 24
 **CONCLUÍDA.** Escopo respeitado. Sem regressão. Sem extrapolação. Continuidade histórica preservada.
 
-## Recomendação de merge
+## Recomendação de merge (Fase 24)
+**MERGE RECOMENDADO.**
+
+---
+
+## Auditoria — Fase 27b
+
+### Objetivo
+Reduzir verbosidade excessiva de stack traces muito longos (como os gerados pelo limite de recursão).
+
+### Estado real encontrado
+- Workspace local operacional após Fase 27a.
+- `cargo build`, `cargo check`, `cargo fmt --check` e `cargo test` passavam antes das mudanças.
+- Continuidade histórica correta: 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b.
+- `handoff_auditor.md` estava parado na Fase 24: atualizado nesta rodada com o menor diff possível.
+
+### Arquivos alterados
+- `src/interpreter.rs` — constantes `TRACE_TRUNC_THRESHOLD/HEAD/TAIL`; extração de `render_frame`; lógica de truncamento em `render_runtime_trace`
+- `tests/interpreter_tests.rs` — 4 testes novos para Fase 27b
+- `docs/phases.md` — Fase 27b registrada
+- `docs/handoff_codex.md` — Fase 27b documentada
+- `docs/agent_state.md` — Fase 27b marcada como concluída
+- `docs/handoff_auditor.md` — este arquivo (atualizado nesta auditoria)
+
+### Continuidade histórica
+Preservada em todos os docs consultados. Ordem 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b verificada.
+
+### Avaliação do escopo
+- Dentro do escopo: apenas renderização textual do trace; sem semântica, sem frontend, sem redesign de erros.
+- ~20 linhas adicionadas ao interpretador; 4 testes novos.
+- Nenhuma categoria de erro alterada; nenhuma interface pública modificada.
+
+### Status da Fase 27b
+**CONCLUÍDA.** Escopo respeitado. Sem regressão. Continuidade histórica preservada.
+
+### Recomendação de merge
 **MERGE RECOMENDADO.**

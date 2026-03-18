@@ -30,7 +30,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 26: proteção preventiva contra recursão infinita/limite de profundidade de chamadas
 
 ## Fase atual
-- Fase 27a concluída: suporte mínimo a `sempre que <condicao> { ... }` no pipeline da linguagem, mantendo as fases 21a → 26 preservadas.
+- Fase 27b concluída: truncamento/resumo de stack trace muito longo em erros de runtime, mantendo as fases 21a → 27a preservadas.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -124,3 +124,16 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Reconhecimento implementado como combinação de palavras-chave `sempre` + `que`.
 - Escopo tocado: lexer, parser, AST, semântica, IR estruturada, validação IR, lowering CFG e testes E2E (`--run`).
 - Fora de escopo mantido: `enquanto`, `para`, `quebrar`, `continuar`, labels de loop e redesign amplo.
+
+
+## Fase 27b — truncamento de stack trace longo
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b verificada.
+- `render_runtime_trace` passou a truncar traces com mais de `TRACE_TRUNC_THRESHOLD` (10) frames.
+- Política: primeiros `TRACE_HEAD` (5) + linha `... N frames omitidos ...` + últimos `TRACE_TAIL` (5).
+- Traces curtos (≤ 10 frames) permanecem idênticos ao comportamento anterior.
+- Nenhuma mudança de semântica, categorias de erro, frontend ou renderização CLI.
+
+## Itens adiados (mantidos)
+- Configuração externa de `MAX_CALL_DEPTH` e do limiar de truncamento.
+- Spans ricos por frame (`future_span` segue reservado).
+- Debugger/stepping/tracing avançado.
