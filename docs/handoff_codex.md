@@ -1,16 +1,16 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- **Fase 26 implementada**: proteção preventiva contra recursão infinita/profundidade excessiva no interpretador com limite interno e erro categorizado, preservando stack trace e renderização de runtime no CLI.
+- **Fase 29 implementada**: consolidação de exemplos versionados e cobertura CLI para loops com `sempre que`, `quebrar` e `continuar`, sem mudança semântica.
 
 ## Objetivo
-- Aplicar proteção preventiva de profundidade de chamadas no runtime sem refactor grande do interpretador, mantendo simplicidade, compatibilidade e diagnóstico estável.
+- Consolidar validação CLI de loops usando exemplos versionados estáveis do repositório, reduzindo dependência de arquivos temporários ad hoc.
 
 ## Estado real encontrado
-- Continuidade histórica correta: Fase 21a (avaliada/bloqueada) → Fase 21b (concluída) → Fase 22 documental (concluída) → Fase 23a (concluída) → Fase 23b (concluída) → Fase 24 (concluída) → Fase 25 (concluída) → Fase 26 (fase da rodada).
+- Continuidade histórica correta: Fase 21a (avaliada/bloqueada) → Fase 21b (concluída) → Fase 22 documental (concluída) → Fase 23a (concluída) → Fase 23b (concluída) → Fase 24 (concluída) → Fase 25 (concluída) → Fase 26 (concluída) → Fase 27a (concluída) → Fase 27b (concluída) → Fase 28a (concluída) → Fase 28b (concluída) → Fase 28c (concluída) → Fase 29 (fase da rodada).
 - Workspace local usado como fonte de verdade.
 - Base inicial saudável: `cargo build` e `cargo test` passavam antes das mudanças.
-- Sem divergência estrutural entre `docs/phases.md`, `docs/agent_state.md` e `docs/handoff_codex.md` nesta rodada; apenas atualização incremental para registrar a Fase 26.
+- Sem divergência estrutural entre `docs/phases.md`, `docs/agent_state.md` e `docs/handoff_codex.md` após esta rodada; aplicada correção documental mínima para atualizar o cabeçalho para Fase 29.
 
 ## Ação aplicada
 - Introduzida estrutura interna de frame no interpretador (`RuntimeFrame`) com:
@@ -210,3 +210,28 @@
 - Semântica: rejeita `continuar` fora de loop.
 - IR/CFG/selected: cobertura mínima de lowering com `continuar`.
 - Interpretador/CLI `--run`: `continuar` pula corretamente para a próxima iteração.
+
+
+## Fase 28c — melhorar spans/source context em erros de runtime e parser
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c verificada e preservada.
+- Runtime com span dummy passa a exibir `localização: indisponível` no CLI.
+- Parser/semântica passaram a renderizar contexto de fonte (linha + caret) via `render_for_cli_with_source`.
+- Sem alteração de semântica da linguagem.
+
+
+## Fase 29 — consolidar exemplos versionados e cobertura CLI para loops com `sempre que`, `quebrar` e `continuar`
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 verificada e preservada.
+- Correção documental mínima aplicada: handoff estava desatualizado no cabeçalho da rodada (Fase 26); atualizado para Fase 29 sem reescrever histórico anterior.
+- Cobertura CLI consolidada para loops com exemplos versionados:
+  - `cli_run_sempre_que_funciona` usa `examples/run_sempre_que.pink`;
+  - `cli_run_quebrar_funciona` usa `examples/run_quebrar.pink`;
+  - `cli_run_continuar_funciona` usa `examples/run_continuar.pink`.
+- Novos exemplos mínimos adicionados: `examples/run_quebrar.pink` e `examples/run_continuar.pink`.
+- Semântica mantida: sem mudança de comportamento de `sempre que`, `quebrar` e `continuar`.
+
+### Limites mantidos
+- Sem adição de `para`, labels de loop ou novas formas de controle de fluxo.
+- Sem redesign de runtime/stack trace nesta fase.
+
+### Próximos passos sugeridos
+- Opcional: ampliar cobertura CLI de loops com mais cenários negativos usando exemplos versionados, mantendo assertions por substring estável.

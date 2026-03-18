@@ -820,23 +820,10 @@ fn run_sempre_que_simples() {
 
 #[test]
 fn cli_run_sempre_que_funciona() {
-    let source =
-        "pacote main; carinho principal() -> bombom { nova mut x = 0; sempre que x < 4 { x = x + 1; } mimo x; }";
-    let file = std::env::temp_dir().join("pinker_run_sempre_que_ok.pink");
-    fs::write(&file, source).unwrap();
-
-    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
-        .arg("--run")
-        .arg(&file)
-        .output()
-        .unwrap();
+    let output = run_cli_example("examples/run_sempre_que.pink");
 
     assert!(output.status.success());
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "4
-"
-    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "3\n");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
 
@@ -951,23 +938,10 @@ fn run_sempre_que_com_quebrar_interrompe_loop() {
 
 #[test]
 fn cli_run_quebrar_funciona() {
-    let source =
-        "pacote main; carinho principal() -> bombom { nova mut x = 0; sempre que x < 5 { x = x + 1; quebrar; } mimo x; }";
-    let file = std::env::temp_dir().join("pinker_run_break_ok.pink");
-    fs::write(&file, source).unwrap();
-
-    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
-        .arg("--run")
-        .arg(&file)
-        .output()
-        .unwrap();
+    let output = run_cli_example("examples/run_quebrar.pink");
 
     assert!(output.status.success());
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "1
-"
-    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "1\n");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
 
@@ -982,16 +956,7 @@ fn run_sempre_que_com_continuar_pula_para_proxima_iteracao() {
 
 #[test]
 fn cli_run_continuar_funciona() {
-    let source =
-        "pacote main; carinho principal() -> bombom { nova mut x = 0; nova mut s = 0; sempre que x < 5 { x = x + 1; talvez x == 3 { continuar; } s = s + x; } mimo s; }";
-    let file = std::env::temp_dir().join("pinker_run_continue_ok.pink");
-    fs::write(&file, source).unwrap();
-
-    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
-        .arg("--run")
-        .arg(&file)
-        .output()
-        .unwrap();
+    let output = run_cli_example("examples/run_continuar.pink");
 
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout), "12\n");

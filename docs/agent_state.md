@@ -28,9 +28,15 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 24: melhorar mensagens de erro de runtime além do stack trace
 - Fase 25: padronizar e consolidar a renderização final de erros de runtime no CLI
 - Fase 26: proteção preventiva contra recursão infinita/limite de profundidade de chamadas
+- Fase 27a: adicionar `sempre que`
+- Fase 27b: truncamento/resumo de stack trace muito longo
+- Fase 28a: adicionar `quebrar` para `sempre que`
+- Fase 28b: adicionar `continuar` para `sempre que`
+- Fase 28c: melhorar spans/source context em erros de runtime e parser
+- Fase 29: consolidar exemplos versionados e cobertura CLI para loops
 
 ## Fase atual
-- Fase 28c concluída: melhorias de spans/source context em erros de runtime e parser, mantendo continuidade 21a → 28b preservada.
+- Fase 29 concluída: consolidação de exemplos versionados e cobertura CLI para loops com `sempre que`, `quebrar` e `continuar`, mantendo semântica estável.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -166,3 +172,18 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Spans reais por instrução de máquina (requer propagar spans do AST até Machine).
 - `future_span` em `RuntimeFrame` segue reservado mas não preenchido.
 - Debugger/stepping/tracing avançado.
+
+
+## Fase 29 — consolidar exemplos versionados e cobertura CLI de loops
+
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 verificada e preservada.
+- Testes CLI de loop foram consolidados para usar exemplos versionados:
+  - `cli_run_sempre_que_funciona` agora usa `examples/run_sempre_que.pink`;
+  - `cli_run_quebrar_funciona` agora usa `examples/run_quebrar.pink`;
+  - `cli_run_continuar_funciona` agora usa `examples/run_continuar.pink`.
+- Novos exemplos mínimos adicionados: `run_quebrar.pink` e `run_continuar.pink`.
+- Semântica de `sempre que`, `quebrar` e `continuar` mantida sem alteração.
+
+## Itens adiados (mantidos)
+- Nenhum novo construto de linguagem (`para`, labels de loop, etc.).
+- Nenhum redesign de runtime/stack trace nesta fase.

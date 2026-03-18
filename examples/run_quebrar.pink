@@ -1,0 +1,10 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova mut x = 0;
+    sempre que x < 5 {
+        x = x + 1;
+        quebrar;
+    }
+    mimo x;
+}
