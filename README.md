@@ -15,6 +15,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - seleção de instruções textual + validação
 - alvo textual abstrato (máquina de pilha) + validação estrutural e disciplina de pilha
 - backend textual pseudo-assembly + validacao interna
+- proteção preventiva de recursão no runtime (`--run`) com limite interno de profundidade de chamadas
 
 ## O que não faz
 - codegen nativo real

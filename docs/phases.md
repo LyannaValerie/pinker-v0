@@ -119,3 +119,10 @@
   - renderização final de erro de runtime no CLI consolidada em helper (`PinkerError::render_for_cli`)
   - layout final de runtime no CLI padronizado em blocos estáveis: `Erro Runtime`, `mensagem`, `stack trace` (quando houver) e `span`
   - mensagem principal categorizada (`[runtime::<tipo>]`) e stack trace por frame foram preservados sem mudança semântica
+
+
+- Fase 26 — concluída
+  - proteção preventiva de profundidade de chamadas no interpretador com limite interno estável (`MAX_CALL_DEPTH = 128`)
+  - ao exceder o limite, runtime falha de forma controlada com categoria `[runtime::limite_recursao_excedido]`
+  - diagnóstico deixa explícito que é limite preventivo do runtime (não stack overflow real do sistema)
+  - stack trace existente e renderização final do CLI foram preservados

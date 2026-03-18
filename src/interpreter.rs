@@ -14,6 +14,8 @@ use crate::error::PinkerError;
 use crate::token::{Position, Span};
 use std::collections::HashMap;
 
+const MAX_CALL_DEPTH: usize = 128;
+
 #[derive(Debug, Clone)]
 struct RuntimeFrame {
     fn_name: String,
@@ -61,6 +63,12 @@ fn call_function(
     globals: &HashMap<String, RuntimeValue>,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<Option<RuntimeValue>, PinkerError> {
+    if call_stack.len() >= MAX_CALL_DEPTH {
+        return Err(runtime_err(&format!(
+            "limite preventivo de recursão excedido: profundidade máxima de chamadas ({MAX_CALL_DEPTH}) atingida ao entrar em '{fn_name}'"
+        )));
+    }
+
     call_stack.push(RuntimeFrame {
         fn_name: fn_name.to_string(),
         block_label: None,
@@ -312,7 +320,14 @@ fn enrich_runtime_msg(msg: &str) -> String {
 }
 
 fn classify_runtime_msg(msg: &str) -> (&'static str, Option<&'static str>) {
-    if msg.contains("divisão por zero") {
+    if msg.contains("limite preventivo de recursão excedido") {
+        (
+            "limite_recursao_excedido",
+            Some(
+                "revise o caso-base da função recursiva para garantir término antes do limite interno",
+            ),
+        )
+    } else if msg.contains("divisão por zero") {
         (
             "divisao_por_zero",
             Some("verifique se o divisor é diferente de 0 antes da operação '/'"),
