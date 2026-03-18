@@ -264,6 +264,14 @@ impl Parser {
             }));
         }
 
+        if self.match_token(TokenKind::KwContinuar) {
+            let start_span = self.previous().span;
+            self.consume(TokenKind::Semi, ";")?;
+            return Ok(Stmt::Continue(ContinueStmt {
+                span: merge_span(start_span, self.previous().span),
+            }));
+        }
+
         if self.match_token(TokenKind::KwSempre) {
             let start_span = self.previous().span;
             self.consume(TokenKind::KwQue, "que")?;

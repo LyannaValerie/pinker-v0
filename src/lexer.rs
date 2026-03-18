@@ -163,6 +163,7 @@ impl<'a> Lexer<'a> {
                                 "sempre" => TokenKind::KwSempre,
                                 "que" => TokenKind::KwQue,
                                 "quebrar" => TokenKind::KwQuebrar,
+                                "continuar" => TokenKind::KwContinuar,
                                 "eterno" => TokenKind::KwEterno,
                                 "nova" => TokenKind::KwNova,
                                 "mut" => TokenKind::KwMut,

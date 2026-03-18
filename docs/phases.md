@@ -151,3 +151,12 @@
   - semântica rejeita `quebrar` fora de loop com diagnóstico explícito
   - IR estruturada inclui instrução `break` e CFG IR baixa para salto ao `loop_join`
   - execução `--run` interrompe o loop corretamente sem expandir escopo (`continuar`/labels seguem fora)
+
+
+- Fase 28b — adicionar `continuar` para `sempre que`
+  - adicionado suporte mínimo a `continuar;` dentro de `sempre que`
+  - parser/AST reconhecem `continuar` como statement dedicado
+  - semântica rejeita `continuar` fora de loop com diagnóstico explícito
+  - IR estruturada inclui `Continue` com alvo interno de continuidade do loop
+  - CFG IR lowera `continuar` para salto ao bloco de condição da próxima iteração
+  - execução `--run` passa a pular para a próxima iteração corretamente

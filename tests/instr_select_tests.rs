@@ -233,3 +233,20 @@ fn seleciona_sempre_que_com_quebrar() {
     assert!(out.contains("term br verdade"), "{}", out);
     assert!(out.contains("loop_join_"), "{}", out);
 }
+
+#[test]
+fn seleciona_sempre_que_com_continuar() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova mut x = 0;
+            sempre que x < 2 {
+                x = x + 1;
+                continuar;
+            }
+            mimo x;
+        }";
+    let out = render_selected(code).unwrap();
+    assert!(out.contains("loop_cond_"), "{}", out);
+    assert!(out.contains("loop_continue_cont"), "{}", out);
+}

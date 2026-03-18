@@ -214,3 +214,19 @@ fn lowering_de_sempre_que_com_quebrar() {
     assert!(ir.contains("while lt(%x#0, 3:bombom)"), "{}", ir);
     assert!(ir.contains("break loop_break_join_"), "{}", ir);
 }
+
+#[test]
+fn lowering_de_sempre_que_com_continuar() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova mut x = 0;
+            sempre que x < 3 {
+                x = x + 1;
+                continuar;
+            }
+            mimo x;
+        }";
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("continue loop_continue_"), "{}", ir);
+}

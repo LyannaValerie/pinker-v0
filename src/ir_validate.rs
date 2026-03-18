@@ -307,6 +307,10 @@ fn validate_block(
                 loop_exit_label: _,
                 span: _,
             } => {}
+            InstructionIR::Continue {
+                loop_continue_label: _,
+                span: _,
+            } => {}
         }
     }
 

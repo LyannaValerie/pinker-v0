@@ -157,6 +157,13 @@ fn render_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
                 &format!("Break {}", format_span(break_stmt.span)),
             );
         }
+        Stmt::Continue(continue_stmt) => {
+            line(
+                out,
+                indent,
+                &format!("Continue {}", format_span(continue_stmt.span)),
+            );
+        }
         Stmt::Expr(expr) => {
             line(out, indent, &format!("ExprStmt {}", format_span(expr.span)));
             render_expr(expr, indent + 1, out, "expr");

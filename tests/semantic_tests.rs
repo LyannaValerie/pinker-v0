@@ -255,3 +255,10 @@ fn quebrar_fora_de_loop_e_invalido() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("'quebrar' só pode ser usado dentro de 'sempre que'"));
 }
+
+#[test]
+fn continuar_fora_de_loop_e_invalido() {
+    let code = "pacote main; carinho principal() -> bombom { continuar; mimo 0; }";
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("'continuar' só pode ser usado dentro de 'sempre que'"));
+}

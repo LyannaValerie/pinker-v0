@@ -167,3 +167,20 @@ fn cfg_ir_sempre_que_com_quebrar() {
     assert!(cfg.contains("loop_join_"), "{}", cfg);
     assert!(cfg.contains("br verdade:logica"), "{}", cfg);
 }
+
+#[test]
+fn cfg_ir_sempre_que_com_continuar() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova mut x = 0;
+            sempre que x < 3 {
+                x = x + 1;
+                continuar;
+            }
+            mimo x;
+        }";
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("block loop_cond_"), "{}", cfg);
+    assert!(cfg.contains("loop_continue_cont"), "{}", cfg);
+}
