@@ -156,6 +156,8 @@ pub enum UnaryOpIR {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOpIR {
+    LogicalAnd,
+    LogicalOr,
     BitAnd,
     BitOr,
     BitXor,
@@ -546,6 +548,7 @@ impl<'a> FunctionLowerer<'a> {
                         rhs: Box::new(rhs.value),
                     },
                     ty: match op {
+                        BinaryOp::LogicalAnd | BinaryOp::LogicalOr => TypeIR::Logica,
                         BinaryOp::Add
                         | BinaryOp::Sub
                         | BinaryOp::Mul
@@ -857,6 +860,8 @@ impl UnaryOpIR {
 impl BinaryOpIR {
     fn from_ast(op: BinaryOp) -> Self {
         match op {
+            BinaryOp::LogicalAnd => BinaryOpIR::LogicalAnd,
+            BinaryOp::LogicalOr => BinaryOpIR::LogicalOr,
             BinaryOp::BitAnd => BinaryOpIR::BitAnd,
             BinaryOp::BitOr => BinaryOpIR::BitOr,
             BinaryOp::BitXor => BinaryOpIR::BitXor,
@@ -877,6 +882,8 @@ impl BinaryOpIR {
 
     fn name(&self) -> &'static str {
         match self {
+            BinaryOpIR::LogicalAnd => "and",
+            BinaryOpIR::LogicalOr => "or",
             BinaryOpIR::BitAnd => "bitand",
             BinaryOpIR::BitOr => "bitor",
             BinaryOpIR::BitXor => "bitxor",

@@ -287,3 +287,30 @@ fn bitwise_invalido_em_logica() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("operação aritmética/bitwise requer operandos 'bombom'"));
 }
+
+#[test]
+fn logico_valido_em_logica() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            nova a = verdade;
+            nova b = falso;
+            talvez a && b || !a {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }";
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn logico_invalido_em_bombom() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            mimo 1 && 0;
+        }";
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("operação lógica requer operandos 'logica'"));
+}

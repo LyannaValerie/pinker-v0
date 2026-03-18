@@ -1,0 +1,17 @@
+pacote main;
+
+carinho falha() -> logica {
+    talvez 1 / 0 == 0 {
+        mimo verdade;
+    } senao {
+        mimo falso;
+    }
+}
+
+carinho principal() -> bombom {
+    talvez verdade || falha() {
+        mimo 1;
+    } senao {
+        mimo 0;
+    }
+}

@@ -195,3 +195,28 @@ fn parser_aceita_expressao_com_bitwise_basico() {
         _ => panic!("item esperado: função"),
     }
 }
+
+#[test]
+fn parser_aceita_expressao_com_logicos() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            talvez verdadeiro() || falso && verdadeiro() {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }
+        carinho verdadeiro() -> logica { mimo verdade; }";
+    let program = parse(code).expect("parser deve aceitar && e ||");
+    match &program.items[0] {
+        Item::Function(function) => match &function.body.stmts[0] {
+            Stmt::If(if_stmt) => match &if_stmt.condition.kind {
+                ExprKind::Binary(_, _, _) => {}
+                _ => panic!("condição esperada: binary"),
+            },
+            _ => panic!("stmt esperado: if"),
+        },
+        _ => panic!("item esperado: função"),
+    }
+}

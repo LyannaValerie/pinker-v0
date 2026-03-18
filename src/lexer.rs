@@ -85,8 +85,22 @@ impl<'a> Lexer<'a> {
                     let mut lexeme = c.to_string();
                     let kind = match c {
                         '+' => TokenKind::Plus,
-                        '&' => TokenKind::Amp,
-                        '|' => TokenKind::Pipe,
+                        '&' => {
+                            if self.match_char('&') {
+                                lexeme.push('&');
+                                TokenKind::AmpAmp
+                            } else {
+                                TokenKind::Amp
+                            }
+                        }
+                        '|' => {
+                            if self.match_char('|') {
+                                lexeme.push('|');
+                                TokenKind::PipePipe
+                            } else {
+                                TokenKind::Pipe
+                            }
+                        }
                         '^' => TokenKind::Caret,
                         '-' => {
                             if self.match_char('>') {
