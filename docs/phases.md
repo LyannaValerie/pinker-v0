@@ -5,6 +5,15 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Rodada documental (paralela à Fase 51, sem número de fase) — normalização documental
+  - `docs/handoff_auditor.md` formalmente abandonado por defasagem operacional (congelado na Fase 43)
+  - `docs/future.md` normalizado como inventário amplo sem vínculo com fase específica nem com ordem do roadmap
+  - marcações `~~...~~` aplicadas nas seções já implementadas e indicações 🔶 nas parciais
+  - erros de referência de fase corrigidos no `future.md` (Fases 39–40→43–44, Fase 44→47, Fase 43→46, Fase 42→45, Fase 37→34)
+  - precedência `roadmap.md` (ordem ativa) > `future.md` (inventário amplo) reafirmada explicitamente
+  - rodada sem alteração funcional de compilador, parser, semântica, IR, CFG ou runtime
+  - `cargo build --locked` e `cargo test --locked` executados com sucesso
+
 - Fase 51 — `peso`/alinhamento (`sizeof`/`alignof`) estático e explícito
   - continuidade histórica da trilha funcional preservada: Fase 50 segue como fase principal anterior e Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar roadmap.
   - sintaxe adicionada: `peso(tipo)` e `alinhamento(tipo)` como expressões estáticas de frontend.
