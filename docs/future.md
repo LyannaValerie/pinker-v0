@@ -1,5 +1,7 @@
 # Backlog futuro (visão, não compromisso imediato)
 
+> Nota de precedência: `docs/future.md` é inventário amplo de possibilidades; a ordem oficial ativa de implementação está em `docs/roadmap.md`.
+
 Este documento organiza possibilidades futuras de evolução do Pinker v0 em camadas de dependência.
 
 > Status: backlog estruturado para referência técnica; não é roadmap rígido de curto prazo.
