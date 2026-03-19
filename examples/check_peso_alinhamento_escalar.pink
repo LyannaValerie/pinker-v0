@@ -1,0 +1,5 @@
+pacote main;
+
+carinho principal() -> bombom {
+    mimo peso(bombom) + peso(logica) + alinhamento(u32);
+}

@@ -5,6 +5,16 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 51 — `peso`/alinhamento (`sizeof`/`alignof`) estático e explícito
+  - continuidade histórica da trilha funcional preservada: Fase 50 segue como fase principal anterior e Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar roadmap.
+  - sintaxe adicionada: `peso(tipo)` e `alinhamento(tipo)` como expressões estáticas de frontend.
+  - semântica calcula layout/alinhamento de forma estática para `bombom`, `u8/u16/u32/u64`, `i8/i16/i32/i64`, `logica`, `seta<T>`, arrays fixos `[T; N]`, `ninho` e `apelido` (via tipo subjacente).
+  - política de layout mínima adotada para `ninho`: alinhar cada campo ao alinhamento natural, alinhamento da struct = maior alinhamento de campo, tamanho final arredondado para múltiplo desse alinhamento.
+  - decisões explícitas desta fase: `bombom` equivale a `u64` para layout (`8/8`), `logica` usa `1/1`, `seta<T>` usa tamanho/alinhamento fixos abstratos (`8/8`), array fixo usa `N * peso(elemento)` com alinhamento do elemento.
+  - integração de pipeline mantida mínima: IR baixa `peso`/`alinhamento` para literal inteiro constante (`bombom`), sem runtime novo e sem abrir lowering operacional de ponteiro/campo/index/cast.
+  - fora de escopo mantido: `volatile`, dereferência real, aritmética de ponteiro, ABI/layout físico final e backend nativo.
+  - próximo item normal do roadmap principal: Bloco 2, item 5 (`volatile`).
+
 - Fase 50 — casts controlados (escopo mínimo e explícito)
   - continuidade histórica da trilha funcional preservada: Fase 49 segue como fase principal anterior e Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar roadmap.
   - sintaxe de cast explícito adicionada: `expr virar tipo`, com associatividade à esquerda e precedência pós-unária (sem coerção implícita global).

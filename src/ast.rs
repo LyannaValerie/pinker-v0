@@ -662,6 +662,20 @@ impl Expr {
                 writer.field_value("target", |writer| target.write_json(writer));
                 writer.end_object();
             }
+            ExprKind::SizeOfType { target } => {
+                writer.begin_object();
+                writer.field_str("node", "SizeOfTypeExpr");
+                writer.field_span("span", self.span);
+                writer.field_value("target", |writer| target.write_json(writer));
+                writer.end_object();
+            }
+            ExprKind::AlignOfType { target } => {
+                writer.begin_object();
+                writer.field_str("node", "AlignOfTypeExpr");
+                writer.field_span("span", self.span);
+                writer.field_value("target", |writer| target.write_json(writer));
+                writer.end_object();
+            }
             ExprKind::Ident(name) => {
                 writer.begin_object();
                 writer.field_str("node", "IdentExpr");
@@ -695,6 +709,8 @@ pub enum ExprKind {
     FieldAccess { base: Box<Expr>, field: String },
     Index { base: Box<Expr>, index: Box<Expr> },
     Cast { expr: Box<Expr>, target: Type },
+    SizeOfType { target: Type },
+    AlignOfType { target: Type },
     Ident(String),
     IntLit(u64),
     BoolLit(bool),

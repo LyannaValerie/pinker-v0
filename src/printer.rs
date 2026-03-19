@@ -289,6 +289,30 @@ fn render_expr(expr: &Expr, indent: usize, out: &mut String, label: &str) {
             );
             render_expr(inner, indent + 1, out, "expr");
         }
+        ExprKind::SizeOfType { target } => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "{} SizeOfType({}) {}",
+                    label,
+                    format_type(target),
+                    format_span(expr.span)
+                ),
+            );
+        }
+        ExprKind::AlignOfType { target } => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "{} AlignOfType({}) {}",
+                    label,
+                    format_type(target),
+                    format_span(expr.span)
+                ),
+            );
+        }
         ExprKind::Ident(name) => {
             line(
                 out,

@@ -14,6 +14,7 @@
 
 use crate::ast::*;
 use crate::error::PinkerError;
+use crate::layout;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet};
 
@@ -893,6 +894,26 @@ impl SemanticChecker {
                     });
                 }
                 Ok(target_ty)
+            }
+            ExprKind::SizeOfType { target } => {
+                let resolved = self.resolve_type_or_error(target)?.with_span(expr.span);
+                layout::layout_of_type(&resolved, &self.type_aliases, &self.structs).map_err(
+                    |msg| PinkerError::Semantic {
+                        msg: format!("consulta de peso inválida: {}", msg),
+                        span: expr.span,
+                    },
+                )?;
+                Ok(Type::Bombom(expr.span))
+            }
+            ExprKind::AlignOfType { target } => {
+                let resolved = self.resolve_type_or_error(target)?.with_span(expr.span);
+                layout::layout_of_type(&resolved, &self.type_aliases, &self.structs).map_err(
+                    |msg| PinkerError::Semantic {
+                        msg: format!("consulta de alinhamento inválida: {}", msg),
+                        span: expr.span,
+                    },
+                )?;
+                Ok(Type::Bombom(expr.span))
             }
             ExprKind::Binary(lhs, op, rhs) => {
                 let lhs_ty = self.check_value_expr(
