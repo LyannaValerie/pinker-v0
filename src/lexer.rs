@@ -112,6 +112,7 @@ impl<'a> Lexer<'a> {
                         }
                         '*' => TokenKind::Star,
                         '/' => TokenKind::Slash,
+                        '%' => TokenKind::Percent,
                         '(' => TokenKind::LParen,
                         ')' => TokenKind::RParen,
                         '{' => TokenKind::LBrace,

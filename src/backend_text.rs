@@ -264,6 +264,12 @@ fn map_selected_instr(i: &SelectedInstr) -> BackendTextInstruction {
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         },
+        SelectedInstr::Mod { dest, lhs, rhs } => BackendTextInstruction::Binary {
+            dest: *dest,
+            op: BinaryOpIR::Mod,
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        },
         SelectedInstr::CmpEq { dest, lhs, rhs } => BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Eq,
@@ -518,6 +524,7 @@ fn binop_name(op: BinaryOpIR) -> &'static str {
         BinaryOpIR::Sub => "sub",
         BinaryOpIR::Mul => "mul",
         BinaryOpIR::Div => "div",
+        BinaryOpIR::Mod => "mod",
         BinaryOpIR::Eq => "eq",
         BinaryOpIR::Neq => "neq",
         BinaryOpIR::Lt => "lt",

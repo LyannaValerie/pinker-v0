@@ -54,9 +54,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 37: contextualizar os comentários de `--machine` por alvo/slot sem alterar semântica
 - Fase 38: tornar os comentários de `--machine` sensíveis ao papel do fluxo
 - Fase 39: rodada documental de consolidação da trilha única "voltar aos trilhos" em `docs/roadmap.md`
+- Fase 40: operador `%` nativo (primeira fase funcional do Bloco 1), com integração no pipeline completo e cobertura de runtime/CLI
 
 ## Fase atual
-- Rodada documental de consolidação da trilha "voltar aos trilhos" concluída: roadmap oficial unificado em `docs/roadmap.md`, trilha paralela desativada, precedência operacional de `roadmap.md` sobre `future.md` registrada sem abrir fase funcional nova.
+- Fase 40 concluída: suporte nativo ao operador `%` integrado em lexer/parser/semântica/IR/CFG/selected/Machine/interpretador/backend textual, com precedência multiplicativa (`*`, `/`, `%`) e erro de runtime em `%` por zero alinhado à família existente de divisão por zero.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`

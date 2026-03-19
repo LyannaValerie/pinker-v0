@@ -361,6 +361,7 @@ fn infer_value_type(
                 | BinaryOpIR::Sub
                 | BinaryOpIR::Mul
                 | BinaryOpIR::Div
+                | BinaryOpIR::Mod
                 | BinaryOpIR::BitAnd
                 | BinaryOpIR::BitOr
                 | BinaryOpIR::BitXor

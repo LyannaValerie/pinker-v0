@@ -314,3 +314,28 @@ fn logico_invalido_em_bombom() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("operação lógica requer operandos 'logica'"));
 }
+
+#[test]
+fn modulo_valido_em_bombom() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            mimo 10 % 3;
+        }";
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn modulo_invalido_em_logica() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            talvez (verdade % falso) == 0 {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }";
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("operação aritmética/bitwise requer operandos 'bombom'"));
+}

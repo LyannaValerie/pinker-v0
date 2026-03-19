@@ -92,6 +92,11 @@ pub enum SelectedInstr {
         lhs: OperandIR,
         rhs: OperandIR,
     },
+    Mod {
+        dest: crate::cfg_ir::TempIR,
+        lhs: OperandIR,
+        rhs: OperandIR,
+    },
     CmpEq {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
@@ -281,6 +286,11 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
             },
+            BinaryOpIR::Mod => SelectedInstr::Mod {
+                dest: *dest,
+                lhs: lhs.clone(),
+                rhs: rhs.clone(),
+            },
             BinaryOpIR::Eq => SelectedInstr::CmpEq {
                 dest: *dest,
                 lhs: lhs.clone(),
@@ -450,6 +460,12 @@ fn render_instr(inst: &SelectedInstr) -> String {
         ),
         SelectedInstr::Div { dest, lhs, rhs } => format!(
             "div {}, {}, {}",
+            render_temp(*dest),
+            render_operand(lhs),
+            render_operand(rhs)
+        ),
+        SelectedInstr::Mod { dest, lhs, rhs } => format!(
+            "mod {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)

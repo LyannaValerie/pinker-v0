@@ -261,3 +261,12 @@ fn lowering_de_bitwise_basico() {
     assert!(ir.contains("shl"), "{}", ir);
     assert!(ir.contains("shr"), "{}", ir);
 }
+
+#[test]
+fn lowering_de_modulo_basico() {
+    let code = "\
+pacote main;
+carinho principal() -> bombom { mimo 10 % 4; }";
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("return mod(10:bombom, 4:bombom)"), "{}", ir);
+}

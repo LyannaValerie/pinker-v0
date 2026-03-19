@@ -167,6 +167,7 @@ pub enum BinaryOpIR {
     Sub,
     Mul,
     Div,
+    Mod,
     Eq,
     Neq,
     Lt,
@@ -553,6 +554,7 @@ impl<'a> FunctionLowerer<'a> {
                         | BinaryOp::Sub
                         | BinaryOp::Mul
                         | BinaryOp::Div
+                        | BinaryOp::Mod
                         | BinaryOp::BitAnd
                         | BinaryOp::BitOr
                         | BinaryOp::BitXor
@@ -871,6 +873,7 @@ impl BinaryOpIR {
             BinaryOp::Sub => BinaryOpIR::Sub,
             BinaryOp::Mul => BinaryOpIR::Mul,
             BinaryOp::Div => BinaryOpIR::Div,
+            BinaryOp::Mod => BinaryOpIR::Mod,
             BinaryOp::Eq => BinaryOpIR::Eq,
             BinaryOp::Neq => BinaryOpIR::Neq,
             BinaryOp::Lt => BinaryOpIR::Lt,
@@ -893,6 +896,7 @@ impl BinaryOpIR {
             BinaryOpIR::Sub => "sub",
             BinaryOpIR::Mul => "mul",
             BinaryOpIR::Div => "div",
+            BinaryOpIR::Mod => "mod",
             BinaryOpIR::Eq => "eq",
             BinaryOpIR::Neq => "neq",
             BinaryOpIR::Lt => "lt",

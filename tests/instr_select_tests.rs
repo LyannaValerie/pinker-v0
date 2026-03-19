@@ -267,3 +267,14 @@ fn seleciona_bitwise_basico() {
     assert!(out.contains("isel shl"), "{}", out);
     assert!(out.contains("isel shr"), "{}", out);
 }
+
+#[test]
+fn seleciona_modulo_basico() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            mimo 10 % 4;
+        }";
+    let out = render_selected(code).unwrap();
+    assert!(out.contains("isel mod %t0, 10, 4"), "{}", out);
+}

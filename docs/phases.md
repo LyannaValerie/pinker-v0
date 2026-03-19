@@ -1,5 +1,14 @@
 # Linha do tempo de fases
 
+- Fase 40 — operador `%` nativo (primeira fase funcional do Bloco 1)
+  - continuidade histórica da Fase 39 (rodada documental) validada antes da implementação
+  - `%` adicionado de forma incremental em lexer/token, parser/AST e semântica
+  - precedência de `%` alinhada ao grupo multiplicativo (`*`, `/`)
+  - lowering e validações atualizadas no pipeline completo: IR, CFG IR, selected, Machine e backend textual
+  - interpretador `--run` atualizado para executar `%` e falhar em `%` por zero com a mesma família de erro de divisão por zero
+  - cobertura adicionada por camada (lexer/parser/semântica/IR/CFG/selected/machine/interpreter/CLI)
+  - exemplo versionado novo: `examples/run_modulo_basico.pink`
+
 - Fase 39 — rodada documental de consolidação da trilha "voltar aos trilhos" (sem fase funcional nova)
   - `docs/roadmap.md` consolidado como trilha única oficial em 5 blocos (fundação -> memória -> saída `.s` -> bare metal -> tooling)
   - precedência operacional explícita: `roadmap.md` (ordem ativa) > `future.md` (inventário amplo)

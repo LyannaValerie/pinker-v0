@@ -201,6 +201,17 @@ fn cfg_ir_bitwise_basico() {
 }
 
 #[test]
+fn cfg_ir_modulo_basico() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            mimo 10 % 4;
+        }";
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("mod 10:bombom, 4:bombom"), "{}", cfg);
+}
+
+#[test]
 fn cfg_ir_if_else_fallthrough_ambos_ramos_gera_join_valido() {
     let code = "
         pacote main;

@@ -535,6 +535,7 @@ impl SemanticChecker {
                     | BinaryOp::Sub
                     | BinaryOp::Mul
                     | BinaryOp::Div
+                    | BinaryOp::Mod
                     | BinaryOp::BitAnd
                     | BinaryOp::BitOr
                     | BinaryOp::BitXor
