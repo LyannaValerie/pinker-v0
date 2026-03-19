@@ -73,6 +73,8 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 50 concluída: casts controlados com `virar` (escopo explícito e conservador), com suporte frontend/semântica/IR para inteiro->inteiro e sem lowering operacional em CFG/Machine/runtime.
 - Fase 51 concluída: `peso(tipo)` e `alinhamento(tipo)` com cálculo estático de layout/alinhamento (frontend + semântica + IR com literal constante), sem runtime novo.
 - Fase 52 concluída: `volatile` com keyword `fragil` no formato `fragil seta<T>`, preservado em frontend/semântica/IR como qualificador semântico (`is_volatile`) sem efeito operacional de runtime/backend nesta etapa.
+- Bloco 3 iniciado na Fase 53 (`--asm-s` textual); próximo item normal: ABI mínima (Bloco 3, item 2).
+- Fase 53 concluída: backend textual `.s` inicial com flag dedicada `--asm-s`, derivado da camada `selected`, com subset escalar e falha explícita para tipos fora do escopo (`seta`, `ninho`, arrays).
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`

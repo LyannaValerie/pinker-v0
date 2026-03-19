@@ -1,0 +1,9 @@
+pacote main;
+
+carinho usa_ptr(p: seta<bombom>) -> bombom {
+    mimo 0;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}

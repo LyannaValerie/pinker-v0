@@ -1,5 +1,6 @@
 use pinker_v0::abstract_machine;
 use pinker_v0::abstract_machine_validate;
+use pinker_v0::backend_s;
 use pinker_v0::backend_text;
 use pinker_v0::backend_text_validate;
 use pinker_v0::cfg_ir;
@@ -26,13 +27,14 @@ struct Config {
     print_selected: bool,
     print_machine: bool,
     print_pseudo_asm: bool,
+    print_asm_s: bool,
     run_program: bool,
     check_only: bool,
 }
 
 fn usage(binary: &str) -> String {
     format!(
-        "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--cfg-ir] [--selected] [--machine] [--pseudo-asm] [--run] [--check] <arquivo.pink>\n\
+        "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--cfg-ir] [--selected] [--machine] [--pseudo-asm] [--asm-s] [--run] [--check] <arquivo.pink>\n\
          \n\
          Modos:\n\
            --tokens    imprime a lista de tokens com spans\n\
@@ -43,6 +45,7 @@ fn usage(binary: &str) -> String {
            --selected  imprime a camada de seleção de instruções textual\n\
            --machine   imprime o alvo textual abstrato (máquina de pilha)\n\
            --pseudo-asm imprime backend textual pseudo-assembly final\n\
+           --asm-s     imprime backend textual `.s` (Fase 53, escopo inicial)\n\
            --run       interpreta a machine validada e executa principal\n\
            --check     executa apenas a validação semântica\n"
     )
@@ -59,6 +62,7 @@ fn parse_args() -> Result<Config, String> {
     let mut print_machine = false;
     let mut print_pseudo_asm = false;
     let mut run_program = false;
+    let mut print_asm_s = false;
     let mut check_only = false;
 
     let binary = env::args().next().unwrap_or_else(|| "pink".to_string());
@@ -72,6 +76,7 @@ fn parse_args() -> Result<Config, String> {
             "--selected" => print_selected = true,
             "--machine" => print_machine = true,
             "--pseudo-asm" => print_pseudo_asm = true,
+            "--asm" | "--asm-s" | "--s" => print_asm_s = true,
             "--run" => run_program = true,
             "--check" => check_only = true,
             "--help" | "-h" => return Err(usage(&binary)),
@@ -109,6 +114,7 @@ fn parse_args() -> Result<Config, String> {
         print_machine,
         print_pseudo_asm,
         run_program,
+        print_asm_s,
         check_only,
     })
 }
@@ -182,17 +188,20 @@ fn main() {
         || config.print_selected
         || config.print_machine
         || config.print_pseudo_asm
-        || config.run_program;
+        || config.run_program
+        || config.print_asm_s;
     let needs_cfg = config.print_cfg_ir
         || config.print_selected
         || config.print_machine
         || config.print_pseudo_asm
-        || config.run_program;
+        || config.run_program
+        || config.print_asm_s;
     let needs_selected = config.print_selected
         || config.print_machine
         || config.print_pseudo_asm
-        || config.run_program;
-    let needs_machine = config.print_machine || config.print_pseudo_asm || config.run_program;
+        || config.run_program
+        || config.print_asm_s;
+    let needs_machine = config.print_machine || config.run_program;
 
     // --- IR estruturada ---
     let program_ir = if needs_ir {
@@ -268,6 +277,17 @@ fn main() {
         );
     }
 
+    // --- Backend textual `.s` (Fase 53) ---
+    // Esta saída textual parte de `selected_program` e permanece sem ABI/registradores reais.
+    if config.print_asm_s {
+        let out = try_or_exit!(
+            backend_s::emit_from_selected(selected_program.as_ref().unwrap()),
+            &source
+        );
+        println!("=== ASM .S (TEXTUAL) ===");
+        print!("{}", out);
+    }
+
     // --- Execução via interpretador ---
     if config.run_program {
         let result = try_or_exit!(
@@ -306,7 +326,8 @@ fn main() {
         || config.print_selected
         || config.print_machine
         || config.print_pseudo_asm
-        || config.run_program;
+        || config.run_program
+        || config.print_asm_s;
     if !any_output {
         println!("Análise semântica concluída sem erros.");
     }
