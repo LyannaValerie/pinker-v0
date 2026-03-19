@@ -322,6 +322,33 @@ fn parser_aceita_cast_explicito_com_virar() {
 }
 
 #[test]
+fn parser_aceita_peso_e_alinhamento_de_tipo() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo peso([u16; 3]) + alinhamento(seta<u8>);
+        }
+    "#;
+    let program = parse(code).expect("parser deve aceitar peso/alinhamento");
+    let func = match &program.items[0] {
+        Item::Function(f) => f,
+        _ => panic!("item esperado: função"),
+    };
+    let ret_expr = match &func.body.stmts[0] {
+        Stmt::Return(ret) => ret.expr.as_ref().expect("retorno com expressão"),
+        _ => panic!("stmt esperado: return"),
+    };
+    match &ret_expr.kind {
+        ExprKind::Binary(lhs, op, rhs) => {
+            assert_eq!(op.name(), "Add");
+            assert!(matches!(lhs.kind, ExprKind::SizeOfType { .. }));
+            assert!(matches!(rhs.kind, ExprKind::AlignOfType { .. }));
+        }
+        _ => panic!("expressão esperada: binária"),
+    }
+}
+
+#[test]
 fn parser_aceita_tipos_unsigned_em_assinaturas_e_locais() {
     let source = r#"
         pacote main;

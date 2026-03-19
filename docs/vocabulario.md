@@ -29,6 +29,8 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `apelido`      | type alias       | nome alternativo      |
 | `ninho`        | struct           | agrupamento acolhedor |
 | `virar`        | cast explícito   | transformação visível |
+| `peso`         | sizeof explícito | medida estática       |
+| `alinhamento`  | alignof explícito| alinhar com cuidado   |
 
 ---
 
@@ -86,7 +88,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 | impl             | `vestir`    | `assumir`            | vestir um molde, incorporar         |
 | ~~type alias~~   | ~~`apelido`~~ | `alcunha`          | implementado na Fase 45             |
 | ~~cast / as~~    | ~~`virar`~~ | `tornar`             | implementado na Fase 50             |
-| sizeof           | `peso`      | `tamanho`            | medida                              |
+| ~~sizeof~~       | ~~`peso`~~  | `tamanho`            | implementado na Fase 51             |
 | generic          | `qualquer`  | `molde livre`        | flexibilidade                       |
 
 ### Programacao de sistemas
@@ -95,6 +97,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 |------------------|-------------|----------------------|-------------------------------------|
 | unsafe           | `coragem`   | `ousadia`            | saber que ha risco e seguir         |
 | volatile         | `fragil`    | `instavel`           | cuidado redobrado                   |
+| ~~align/alinhamento~~ | ~~`alinhamento`~~ | `ajuste`     | implementado na Fase 51             |
 | static           | `raiz`      | `ancora`             | fixo, inamovivel                    |
 | inline asm       | `sussurro`  | `sopro`              | falar direto com a maquina, baixinho|
 | alloc            | `reserva`   | `guardar`            | separar espaco com intencao         |

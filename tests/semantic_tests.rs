@@ -423,6 +423,53 @@ fn cast_ponteiro_para_inteiro_falha_nesta_fase() {
 }
 
 #[test]
+fn peso_e_alinhamento_de_tipos_escalares_sao_validos() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo peso(bombom) + peso(logica) + alinhamento(u32);
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn peso_de_array_fixo_e_alias_sao_validos() {
+    let code = r#"
+        pacote main;
+        apelido Bytes = [u8; 16];
+        carinho principal() -> bombom {
+            mimo peso(Bytes) + alinhamento(Bytes);
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn peso_e_alinhamento_de_ninho_sao_validos() {
+    let code = r#"
+        pacote main;
+        ninho Ponto { x: u8; y: u32; }
+        carinho principal() -> bombom {
+            mimo peso(Ponto) + alinhamento(Ponto);
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn peso_de_tipo_inexistente_falha() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo peso(TipoQueNaoExiste);
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo 'TipoQueNaoExiste' não existe"));
+}
+
+#[test]
 fn cast_com_alias_inteiro_funciona_via_tipo_subjacente() {
     let code = r#"
         pacote main;

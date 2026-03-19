@@ -551,6 +551,26 @@ impl Parser {
                     span: merge_span(lparen_span, self.previous().span),
                 })
             }
+            TokenKind::KwPeso => {
+                let start_span = token.span;
+                self.consume(TokenKind::LParen, "(")?;
+                let target = self.parse_type()?;
+                self.consume(TokenKind::RParen, ")")?;
+                Ok(Expr {
+                    kind: ExprKind::SizeOfType { target },
+                    span: merge_span(start_span, self.previous().span),
+                })
+            }
+            TokenKind::KwAlinhamento => {
+                let start_span = token.span;
+                self.consume(TokenKind::LParen, "(")?;
+                let target = self.parse_type()?;
+                self.consume(TokenKind::RParen, ")")?;
+                Ok(Expr {
+                    kind: ExprKind::AlignOfType { target },
+                    span: merge_span(start_span, self.previous().span),
+                })
+            }
             _ => Err(PinkerError::Parse {
                 msg: format!("expressão inválida: '{}'", token.lexeme),
                 span: token.span,

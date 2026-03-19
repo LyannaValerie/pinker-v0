@@ -12,9 +12,10 @@
 
 use crate::ast::{
     BinaryOp, Block, BreakStmt, ConstDecl, ContinueStmt, ElseBlock, Expr, ExprKind, FunctionDecl,
-    IfStmt, Item, LetStmt, Program, ReturnStmt, Stmt, Type, UnaryOp, WhileStmt,
+    IfStmt, Item, LetStmt, Program, ReturnStmt, Stmt, StructDecl, Type, UnaryOp, WhileStmt,
 };
 use crate::error::PinkerError;
+use crate::layout;
 use crate::token::Span;
 use std::collections::{HashMap, HashSet};
 
@@ -236,6 +237,7 @@ struct LoweringContext {
     function_sigs: HashMap<String, FunctionSigIR>,
     global_consts: HashMap<String, TypeIR>,
     type_aliases: HashMap<String, Type>,
+    struct_decls: HashMap<String, StructDecl>,
     struct_names: HashSet<String>,
     struct_fields: HashMap<String, HashMap<String, TypeIR>>,
 }
@@ -325,12 +327,14 @@ impl LoweringContext {
             .unwrap_or_else(|| "main".to_string());
 
         let mut type_aliases = HashMap::new();
+        let mut struct_decls = HashMap::new();
         let mut struct_names = HashSet::new();
         for item in &program.items {
             if let Item::TypeAlias(alias) = item {
                 type_aliases.insert(alias.name.clone(), alias.target.clone());
             } else if let Item::Struct(struct_decl) = item {
                 struct_names.insert(struct_decl.name.clone());
+                struct_decls.insert(struct_decl.name.clone(), struct_decl.clone());
             }
         }
         let mut struct_fields = HashMap::new();
@@ -385,6 +389,7 @@ impl LoweringContext {
             function_sigs,
             global_consts,
             type_aliases,
+            struct_decls,
             struct_names,
             struct_fields,
         })
@@ -805,6 +810,38 @@ impl<'a> FunctionLowerer<'a> {
                         target_type,
                     },
                     ty: target_type,
+                    struct_name: None,
+                })
+            }
+            ExprKind::SizeOfType { target } => {
+                let layout = layout::layout_of_type(
+                    target,
+                    &self.context.type_aliases,
+                    &self.context.struct_decls,
+                )
+                .map_err(|msg| PinkerError::Ir {
+                    msg: format!("consulta de peso inválida na IR: {}", msg),
+                    span: expr.span,
+                })?;
+                Ok(TypedValueIR {
+                    value: ValueIR::Int(layout.size),
+                    ty: TypeIR::Bombom,
+                    struct_name: None,
+                })
+            }
+            ExprKind::AlignOfType { target } => {
+                let layout = layout::layout_of_type(
+                    target,
+                    &self.context.type_aliases,
+                    &self.context.struct_decls,
+                )
+                .map_err(|msg| PinkerError::Ir {
+                    msg: format!("consulta de alinhamento inválida na IR: {}", msg),
+                    span: expr.span,
+                })?;
+                Ok(TypedValueIR {
+                    value: ValueIR::Int(layout.align),
+                    ty: TypeIR::Bombom,
                     struct_name: None,
                 })
             }

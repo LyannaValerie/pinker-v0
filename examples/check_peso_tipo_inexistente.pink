@@ -1,0 +1,5 @@
+pacote main;
+
+carinho principal() -> bombom {
+    mimo peso(TipoInexistente);
+}

@@ -1,0 +1,7 @@
+pacote main;
+
+apelido Bloco = [u16; 4];
+
+carinho principal() -> bombom {
+    mimo peso(Bloco) + alinhamento(Bloco);
+}
