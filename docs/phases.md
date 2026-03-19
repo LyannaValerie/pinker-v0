@@ -5,15 +5,15 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
-- Fase 41 — inteiros unsigned com largura fixa (`u8`, `u16`, `u32`, `u64`)
-  - continuidade histórica da Fase 40 validada antes da implementação
+- Fase 43 — inteiros unsigned com largura fixa (`u8`, `u16`, `u32`, `u64`)
+  - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
   - suporte tipado explícito em lexer/parser/semântica/IR/CFG/selected/Machine/runtime textual
   - política desta fase: validação estrita de tipos unsigned; sem coerção implícita entre larguras
   - literais inteiros continuam representados internamente em `u64` (`bombom`) e podem inicializar/argumentar unsigned de forma direta
   - cobertura incremental em testes de lexer/parser/semântica/IR/CLI + exemplo `examples/run_unsigned_basico.pink`
 
-- Fase 40 — operador `%` nativo (primeira fase funcional do Bloco 1)
-  - continuidade histórica da rodada documental "voltar aos trilhos" validada antes da implementação
+- Fase 42 — operador `%` nativo (primeira fase funcional do Bloco 1)
+  - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
   - `%` adicionado de forma incremental em lexer/token, parser/AST e semântica
   - precedência de `%` alinhada ao grupo multiplicativo (`*`, `/`)
   - lowering e validações atualizadas no pipeline completo: IR, CFG IR, selected, Machine e backend textual
@@ -90,20 +90,20 @@
   - manutenção explícita dos exemplos base `run_soma`, `run_chamada`, `run_global`, `run_global_expr`
 
 
-- Fase 21a — avaliada (bloqueada no estado atual)
+- Rodada documental — viabilidade de escrita em globals (bloqueada no estado atual)
   - escrita em globals não é viável com o código atual sem expansão de escopo
   - semântica atual trata globals (`eterno`) como não mutáveis
   - Machine não possui `StoreGlobal` (somente `LoadGlobal`)
   - interpretador opera globals via mapa imutável por execução
 
 
-- Fase 21b — concluída
+- Fase 21 — concluída
   - interpretador passou a anexar stack trace simples em erros de runtime
   - stack trace mostra nomes de funções ativas (ordem externa -> interna)
   - cobertura de testes para erro simples, chamada entre funções, recursão e CLI com stderr enriquecido
 
 
-- Fase 21b — hotfix validado
+- Rodada documental — hotfix de auditoria de duplicação (validado)
   - auditoria de duplicação em `tests/interpreter_tests.rs` executada
   - snapshot atual sem duplicatas dos testes/helpers listados
   - stack trace simples de runtime mantido
@@ -115,7 +115,7 @@
   - nenhuma mudança funcional; todos os comandos de CI passando
 
 
-- Fase 22 documental — concluída
+- Rodada documental — doc comments estruturais (concluída)
   - doc comments de módulo adicionados: `abstract_machine.rs`, `cfg_ir.rs`, `ir.rs`, `semantic.rs`
   - doc comments em structs/enums centrais: `MachineProgram`, `MachineFunction`, `MachineInstr`, `MachineTerminator`, `BasicBlockIR`, `InstructionCfgIR`, `TerminatorIR`, `TempIR`, `OperandIR`, `FunctionIR`, `BlockIR`, `ValueIR`, `TypeIR`, `InstructionIR`
   - comentários de seção em `semantic.rs`: passagem 1 (declaração), passagem 2 (verificação), análise de alcançabilidade
@@ -123,14 +123,14 @@
   - nenhuma mudança funcional; todos os comandos de CI passando
 
 
-- Fase 23a — concluída
+- Fase 22 — concluída
   - stack trace de runtime evoluiu para frames estruturados (`RuntimeFrame`) em vez de lista ad hoc de strings
   - renderização padronizada via helper (`render_runtime_trace`) no formato `at <função> [bloco: <label>]`
   - mensagem final de erro de runtime preservada com trace estável e legível
   - ganchos leves preparados: `block_label: Option<String>` e `future_span: Option<Span>` por frame (span ainda não preenchido)
 
 
-- Fase 23b — concluída
+- Fase 23 — concluída
   - stack trace passou a incluir contexto da instrução em execução por frame (`[instr: <op>]`) com custo baixo
   - renderização centralizada manteve estabilidade e agora combina função + bloco + instrução no mesmo frame
   - gancho leve adicional preparado: `current_instr: Option<&'static str>` por frame (coleta simples, sem spans completos)
@@ -156,14 +156,14 @@
 
 
 
-- Fase 27a — concluída
+- Fase 27 — concluída
   - adicionado suporte de superfície para loop condicional com a forma composta `sempre que <condicao> { ... }`
   - reconhecimento léxico/sintático via keywords `sempre` + `que` no parser
   - novo nó de AST para loop condicional e integração mínima no pipeline (semântica → IR → CFG → seleção → Machine/`--run`)
   - sem novos controles avançados de fluxo (`quebrar`, `continuar`, labels de loop), mantidos fora de escopo
 
 
-- Fase 27b — concluída
+- Fase 28 — concluída
   - truncamento/resumo de stack trace muito longo em erros de runtime
   - política simples: traces com mais de 10 frames são resumidos (primeiros 5 + `... N frames omitidos ...` + últimos 5)
   - traces curtos (≤ 10 frames) permanecem sem alteração
@@ -172,7 +172,7 @@
   - renderização consolidada do CLI (`Erro Runtime`, `mensagem`, `stack trace`, `span`) preservada
 
 
-- Fase 28a — concluída
+- Fase 29 — concluída
   - adicionado suporte mínimo a `quebrar;` dentro de `sempre que`
   - parser/AST reconhecem `quebrar` como statement dedicado
   - semântica rejeita `quebrar` fora de loop com diagnóstico explícito
@@ -180,7 +180,7 @@
   - execução `--run` interrompe o loop corretamente sem expandir escopo (`continuar`/labels seguem fora)
 
 
-- Fase 28b — adicionar `continuar` para `sempre que`
+- Fase 30 — adicionar `continuar` para `sempre que`
   - adicionado suporte mínimo a `continuar;` dentro de `sempre que`
   - parser/AST reconhecem `continuar` como statement dedicado
   - semântica rejeita `continuar` fora de loop com diagnóstico explícito
@@ -189,7 +189,7 @@
   - execução `--run` passa a pular para a próxima iteração corretamente
 
 
-- Fase 28c — melhorar spans/source context em erros de runtime e parser
+- Fase 31 — melhorar spans/source context em erros de runtime e parser
   - erros de runtime com span dummy (`1:1..1:1`) passam a exibir `localização: indisponível (erro detectado na instrução de máquina)` em vez do span inútil
   - adicionado método `render_for_cli_with_source(source)` em `PinkerError`
   - erros de lexer/parser/semântica passam a incluir a linha de origem e indicador de coluna (`^`) no output do CLI
@@ -199,14 +199,14 @@
   - formato de runtime e stack trace preservados sem mudança estrutural
 
 
-- Fase 29 — consolidar exemplos versionados e cobertura CLI para loops com `sempre que`, `quebrar` e `continuar`
+- Fase 32 — consolidar exemplos versionados e cobertura CLI para loops com `sempre que`, `quebrar` e `continuar`
   - consolidação da cobertura CLI de loop para usar exemplos versionados do repositório em vez de fontes temporárias ad hoc
   - adição de exemplos mínimos `examples/run_quebrar.pink` e `examples/run_continuar.pink`
   - teste CLI de `sempre que` passa a usar o exemplo versionado existente `examples/run_sempre_que.pink`
   - sem mudanças na semântica de `sempre que`, `quebrar` e `continuar`; apenas consolidação auditável
 
 
-- Fase 30 — consolidar exemplos versionados e cobertura negativa para loops inválidos, e organizar backlog futuro em `docs/future.md`
+- Fase 33 — consolidar exemplos versionados e cobertura negativa para loops inválidos, e organizar backlog futuro em `docs/future.md`
   - adicionados exemplos versionados negativos para validação semântica de loop inválido:
     - `examples/check_quebrar_fora_loop.pink`
     - `examples/check_continuar_fora_loop.pink`
@@ -218,7 +218,7 @@
   - backlog futuro estruturado em `docs/future.md`
 
 
-- Fase 31 — adicionar operadores bitwise básicos à linguagem Pinker
+- Fase 34 — adicionar operadores bitwise básicos à linguagem Pinker
   - adicionados operadores binários: `&`, `|`, `^`, `<<`, `>>`
   - pipeline atualizado com diff mínimo: lexer/token, parser/AST, semântica, IR, CFG IR, seleção, Machine e interpretador
   - política de tipos adotada: bitwise e shifts válidos apenas para `bombom` (inválidos para `logica`)
@@ -227,16 +227,16 @@
   - fora de escopo preservado: operadores compostos (`&=`, `|=`, `^=`, `<<=`, `>>=`), `&&`, `||`, novos tipos inteiros e redesign amplo
 
 
-- Fase 32 — robustez de lowering CFG para `talvez/senao` com fall-through em ambos os ramos
-  - continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 verificada e preservada
+- Fase 35 — robustez de lowering CFG para `talvez/senao` com fall-through em ambos os ramos
+  - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
   - consolidada cobertura estrutural em `tests/cfg_ir_tests.rs` para `if-else` onde ambos os ramos fazem fall-through e convergem em bloco `join`
   - cobertura end-to-end reforçada com execução CLI de `examples/algoritmo_complexo.pink` em `tests/interpreter_tests.rs`
   - comportamento funcional de lowering/execução mantido (sem nova feature, sem redesign amplo)
   - limite atual mantido: robustez coberta por testes direcionados, sem refactor estrutural do lowerer
 
 
-- Fase 33 — adicionar operadores lógicos `&&` e `||` com short-circuit
-  - continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 verificada e preservada
+- Fase 36 — adicionar operadores lógicos `&&` e `||` com short-circuit
+  - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
   - operadores adicionados ao frontend: `&&` (`AmpAmp`) e `||` (`PipePipe`) no lexer/parser/AST
   - política de tipos adotada: `&&` e `||` aceitam apenas `logica` e retornam `logica` (uso com `bombom` é erro semântico)
   - short-circuit real implementado no lowering CFG: criação de blocos `logic_rhs_*`, `logic_short_*`, `logic_join_*` com desvio condicional sem avaliar o RHS quando não necessário
@@ -244,8 +244,8 @@
   - fora de escopo preservado: truthiness implícito, overloads/coerções complexas e novos operadores compostos
 
 
-- Fase 34 — adicionar licença do projeto e documentar seu uso básico
-  - continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 verificada e preservada
+- Fase 37 — adicionar licença do projeto e documentar seu uso básico
+  - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
   - repositório não possuía licença ativa antes desta fase
   - licença MIT adicionada em `LICENSE` (texto padrão reconhecível; sem customização)
   - `Cargo.toml` atualizado com campo `license = "MIT"`
@@ -253,8 +253,8 @@
   - nenhuma mudança de semântica, parser, interpretador ou qualquer camada funcional do compilador
 
 
-- Fase 35 — humanizar a renderização de `--machine` sem alterar a Machine
-  - continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 verificada e preservada
+- Fase 38 — humanizar a renderização de `--machine` sem alterar a Machine
+  - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
   - renderização de `--machine` tornou-se substancialmente mais legível para humanos
   - parâmetros e locais do usuário agora exibem nomes limpos (`x, y` em vez de `%x#0, %y#0`)
   - temporários internos do compilador (`%t0`, `%t1`, …) listados separadamente em linha `temps` no cabeçalho da função
@@ -266,8 +266,8 @@
   - `showcase_completo.pink` validado como caso de inspeção manual — saída visivelmente mais pedagógica
 
 
-- Fase 36 — humanizar instruções individuais de `--machine` sem alterar semântica
-  - continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 verificada e preservada
+- Fase 39 — humanizar instruções individuais de `--machine` sem alterar semântica
+  - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
   - escopo exclusivo em `render_instr`/`render_term` da camada Machine textual (`vm`/`term`)
   - instrução original foi mantida visível e ganhou comentário curto estável na mesma linha (`; ...`)
   - prioridade 1 coberta: `load_slot`, `store_slot`, `load_global`, `push_int`, `push_bool`, `call`, `call_void`
@@ -277,8 +277,8 @@
   - testes da Machine atualizados para novo formato e cobertura adicional por substring para `call`, `br_true`, `jmp`, `ret`, mantendo checks de nomes limpos e linha `temps`
 
 
-## Fase 37 — contextualizar os comentários de `--machine`
-- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37 verificada e preservada.
+## Fase 40 — contextualizar os comentários de `--machine`
+- continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
 - `render_instr`/`render_term` agora usa heurísticas simples e baratas para comentários mais contextuais.
 - `br_true`: if/loop/curto-circuito com mensagens específicas por labels.
 - `jmp`: alvo contextual (`loop_cond`, `loop_join`, `join`/`logic_join`).
@@ -288,8 +288,8 @@
 - Sem alterações em semântica, parser, lowering, interpretador, `--selected`, `--cfg-ir`, `--pseudo-asm` ou `--run`.
 
 
-## Fase 38 — tornar os comentários de `--machine` sensíveis ao papel do fluxo
-- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37 → 38 verificada e preservada.
+## Fase 41 — tornar os comentários de `--machine` sensíveis ao papel do fluxo
+- continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
 - Escopo mantido estrito em renderização textual de `--machine` (`render_term`/heurísticas de comentário e anotação de bloco).
 - `br_true` passou a considerar também o bloco atual para diferenciar melhor `if`, `sempre que` e curto-circuito lógico.
 - `jmp` ganhou comentários específicos para `join_*`, `logic_join_*`, `loop_break_cont_*` e `loop_continue_cont_*`, além dos casos já existentes.
@@ -301,5 +301,5 @@
 - rodada **não funcional** (sem mudança de parser, semântica, lowering, interpretador, backend ou testes funcionais)
 - análise ampla do estado real do workspace concluída com leitura orientada de docs, pipeline e testes
 - `docs/roadmap.md` criado como mapa mestre de longo prazo (estado atual, lacunas, dependências, prioridades e critérios de revisão)
-- continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37 → 38 verificada e preservada
+- continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
 - build e testes revalidados nesta rodada documental

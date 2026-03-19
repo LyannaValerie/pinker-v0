@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada **funcional pequena e auditável**: Fase 41 do histórico interno, correspondente ao segundo item do Bloco 1 do roadmap consolidado (inteiros unsigned com largura fixa).
+- Rodada **funcional pequena e auditável**: Fase 43 do histórico interno, correspondente ao segundo item do Bloco 1 do roadmap consolidado (inteiros unsigned com largura fixa).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -19,6 +19,6 @@
 - Documentação operacional atualizada: `docs/phases.md`, `docs/agent_state.md` e este handoff.
 
 ## Estado operacional após a rodada
-- Continuidade histórica preservada (Fase 40 funcional -> Fase 41 funcional, com rodada documental mantida sem número).
+- Continuidade histórica preservada (Fase 42 funcional -> Fase 43 funcional, com rodada documental mantida sem número).
 - Segundo passo funcional do Bloco 1 entregue (unsigned fixos), sem abrir trilhas paralelas.
 - Itens fora de escopo mantidos: inteiros signed, aliases, arrays fixos, structs, backend `.s`, coerções automáticas complexas e redesign amplo do sistema de tipos.
