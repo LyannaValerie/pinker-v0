@@ -45,7 +45,7 @@ fn usage(binary: &str) -> String {
            --selected  imprime a camada de seleção de instruções textual\n\
            --machine   imprime o alvo textual abstrato (máquina de pilha)\n\
            --pseudo-asm imprime backend textual pseudo-assembly final\n\
-           --asm-s     imprime backend textual `.s` (Fase 53, escopo inicial)\n\
+           --asm-s     imprime backend textual `.s` (Fase 54, ABI textual mínima)\n\
            --run       interpreta a machine validada e executa principal\n\
            --check     executa apenas a validação semântica\n"
     )
@@ -277,8 +277,9 @@ fn main() {
         );
     }
 
-    // --- Backend textual `.s` (Fase 53) ---
-    // Esta saída textual parte de `selected_program` e permanece sem ABI/registradores reais.
+    // --- Backend textual `.s` (Fase 54) ---
+    // Esta saída textual parte de `selected_program`, com ABI textual mínima interna
+    // (ainda sem ABI/registradores reais de plataforma).
     if config.print_asm_s {
         let out = try_or_exit!(
             backend_s::emit_from_selected(selected_program.as_ref().unwrap()),

@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada funcional: **Fase 53 — backend textual `.s`** (primeiro item do Bloco 3).
+- Rodada funcional: **Fase 54 — ABI mínima textual para backend `.s`** (segundo item do Bloco 3).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -36,7 +36,7 @@
 
 ## Estado operacional após a rodada
 - Continuidade histórica preservada (Fase 48 funcional → Fase 48-H1 hotfixes).
-- Roadmap principal inalterado; Bloco 2 continua na próxima fase funcional.
+- Roadmap principal inalterado; Bloco 3 permanece como trilha funcional ativa.
 - CI agora inclui clippy e doc validation além de build/check/fmt/test.
 - Runtime signed bloqueado explicitamente até implementação correta de representação signed.
 
@@ -115,8 +115,19 @@
 - Política de subset explícita: suporta apenas tipos escalares (`bombom`, `u8..u64`, `i8..i64`, `logica`, `nulo`) e falha claramente para tipos ainda fora de escopo nesta fase (`seta`, `ninho`, arrays fixos).
 - `--pseudo-asm` foi preservado intacto para auditoria da camada textual anterior.
 
-## Continuidade de roadmap após Fase 53
-- Fase 52 permanece a fase funcional principal anterior.
+## O que entrou na Fase 54
+- `--asm-s` permaneceu derivado da camada `selected` (sem passar por Machine) e ganhou contrato de ABI textual mínima interna (`pinker.text.v0`).
+- Convenção mínima explicitada por função:
+  - símbolo exportado (`.globl <nome>`);
+  - parâmetros posicionais `@argN` mapeados para slots nomeados (`$param`);
+  - retorno textual por `@ret` (ou `ret_void` para funções `nulo`);
+  - marcações estruturais de prólogo/epílogo (`.L<func>_prologue` / `.L<func>_epilogue`) sem stack frame real.
+- Chamadas passaram a exibir convenção posicional de argumentos no comentário (`abi.call [@argN=...]`) e destino de retorno textual.
+- Subset mantido: apenas escalares (`bombom`, `u8..u64`, `i8..i64`, `logica`, `nulo`); tipos fora de escopo (`seta`, `ninho`, arrays) seguem com erro explícito.
+- Escopo deliberadamente preservado: sem assembler/linker, sem ABI final de plataforma, sem register allocation e sem executável real.
+
+## Continuidade de roadmap após Fase 54
+- Fase 53 permanece a fase funcional principal anterior.
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
-- Bloco 2 foi encerrado em Fase 52 e o Bloco 3 foi iniciado em Fase 53.
-- Próximo item normal do roadmap principal: Bloco 3, item 2 (ABI mínima).
+- Bloco 2 foi encerrado em Fase 52 e o Bloco 3 segue ativo (itens 1 e 2 concluídos).
+- Próximo item normal do roadmap principal: Bloco 3, item 3 (uso de assembler/linker externo).

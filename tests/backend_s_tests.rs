@@ -10,14 +10,23 @@ fn asm_s_header_estavel() {
         out,
         "\
 === ASM .S (TEXTUAL) ===
-; pinker v0 textual .s (fase 53, derivado de --selected)
+; pinker v0 textual .s (fase 54, abi textual minima, derivado de --selected)
 ; module main
+; abi pinker.text.v0
 .text
+; abi.func principal
+; abi.params []
+; abi.ret @ret
+; abi.frame prologue=.Lprincipal_prologue epilogue=.Lprincipal_epilogue
 .globl principal
 principal:
+  .Lprincipal_prologue:
+    ; abi.prologue (textual)
   ; slots params=[] locals=[]
   .Lprincipal_entry:
-    ret 0
+    ret @ret, 0
+  .Lprincipal_epilogue:
+    ; abi.epilogue (textual)
 Análise semântica concluída sem erros.
 "
     );
@@ -34,9 +43,25 @@ carinho principal() -> bombom {
     assert!(out.contains(".Lprincipal_entry:"));
     assert!(out.contains("br 1, .Lprincipal_then_0, .Lprincipal_else_1"));
     assert!(out.contains(".Lprincipal_then_0:"));
-    assert!(out.contains("ret 1"));
+    assert!(out.contains("ret @ret, 1"));
     assert!(out.contains(".Lprincipal_else_1:"));
-    assert!(out.contains("ret 0"));
+    assert!(out.contains("ret @ret, 0"));
+}
+
+#[test]
+fn asm_s_abi_minima_para_parametros_e_chamada() {
+    let code = "\
+pacote main;
+carinho soma(x: bombom, y: bombom) -> bombom { mimo x + y; }
+carinho principal() -> bombom { mimo soma(1, 2); }";
+    let out = render_backend_s(code).unwrap();
+
+    assert!(out.contains("; abi.func soma"));
+    assert!(out.contains("; abi.params [@arg0=$%x#0, @arg1=$%y#0]"));
+    assert!(out.contains("; abi.ret @ret"));
+    assert!(out.contains("; abi.frame prologue=.Lsoma_prologue epilogue=.Lsoma_epilogue"));
+    assert!(out.contains("call soma, 1, 2 ; abi.call [@arg0=1, @arg1=2] -> %t0"));
+    assert!(out.contains("ret @ret, %t0"));
 }
 
 #[test]
@@ -49,5 +74,5 @@ carinho principal() -> bombom { mimo 0; }";
     let err = render_backend_s(code).unwrap_err();
     assert!(err
         .to_string()
-        .contains("backend .s textual da Fase 53 ainda não suporta slot"));
+        .contains("backend .s textual da Fase 54 ainda não suporta slot"));
 }

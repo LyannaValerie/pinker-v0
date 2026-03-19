@@ -15,7 +15,7 @@ fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerErr
     for function in &selected.functions {
         if !is_supported_type(function.ret_type) {
             return Err(err(&format!(
-                "backend .s textual da Fase 53 ainda não suporta retorno '{}' em '{}'",
+                "backend .s textual da Fase 54 ainda não suporta retorno '{}' em '{}'",
                 function.ret_type.name(),
                 function.name
             )));
@@ -24,7 +24,7 @@ fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerErr
         for (slot, ty) in &function.slot_types {
             if !is_supported_type(*ty) {
                 return Err(err(&format!(
-                    "backend .s textual da Fase 53 ainda não suporta slot '{}' do tipo '{}' em '{}'",
+                    "backend .s textual da Fase 54 ainda não suporta slot '{}' do tipo '{}' em '{}'",
                     slot,
                     ty.name(),
                     function.name
@@ -37,7 +37,7 @@ fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerErr
                 if let SelectedInstr::Call { ret_type, .. } = inst {
                     if !is_supported_type(*ret_type) {
                         return Err(err(&format!(
-                            "backend .s textual da Fase 53 ainda não suporta call com retorno '{}'",
+                            "backend .s textual da Fase 54 ainda não suporta call com retorno '{}'",
                             ret_type.name()
                         )));
                     }
@@ -72,9 +72,10 @@ pub fn render_program(program: &BackendTextProgram) -> String {
     line(
         &mut out,
         0,
-        "; pinker v0 textual .s (fase 53, derivado de --selected)",
+        "; pinker v0 textual .s (fase 54, abi textual minima, derivado de --selected)",
     );
     line(&mut out, 0, &format!("; module {}", program.module_name));
+    line(&mut out, 0, "; abi pinker.text.v0");
     line(&mut out, 0, ".text");
 
     if !program.globals.is_empty() {
@@ -92,8 +93,29 @@ pub fn render_program(program: &BackendTextProgram) -> String {
     }
 
     for function in &program.functions {
+        line(&mut out, 0, &format!("; abi.func {}", function.name));
+        line(
+            &mut out,
+            0,
+            &format!("; abi.params {}", render_abi_params(function)),
+        );
+        line(
+            &mut out,
+            0,
+            &format!("; abi.ret {}", render_abi_return(function.ret_type)),
+        );
+        line(
+            &mut out,
+            0,
+            &format!(
+                "; abi.frame prologue=.L{}_prologue epilogue=.L{}_epilogue",
+                function.name, function.name
+            ),
+        );
         line(&mut out, 0, &format!(".globl {}", function.name));
         line(&mut out, 0, &format!("{}:", function.name));
+        line(&mut out, 1, &format!(".L{}_prologue:", function.name));
+        line(&mut out, 2, "; abi.prologue (textual)");
         line(
             &mut out,
             1,
@@ -119,6 +141,8 @@ pub fn render_program(program: &BackendTextProgram) -> String {
                 &render_terminator(&block.terminator, &function.name),
             );
         }
+        line(&mut out, 1, &format!(".L{}_epilogue:", function.name));
+        line(&mut out, 2, "; abi.epilogue (textual)");
     }
 
     out
@@ -150,16 +174,18 @@ fn render_instruction(inst: &crate::backend_text::BackendTextInstruction) -> Str
             args,
             ret_type,
         } => {
-            let args = args
-                .iter()
-                .map(render_operand)
-                .collect::<Vec<_>>()
-                .join(", ");
+            let call_site = render_call_site(callee, args);
+            let abi_args = render_abi_call_args(args);
 
             match (dest, ret_type) {
-                (Some(dest), _) => format!("call {}, {} ; -> {}", callee, args, render_temp(*dest)),
-                (None, TypeIR::Nulo) => format!("call {}, {} ; void", callee, args),
-                (None, _) => format!("; call inválida: {}({})", callee, args),
+                (Some(dest), _) => format!(
+                    "{} ; abi.call {} -> {}",
+                    call_site,
+                    abi_args,
+                    render_temp(*dest)
+                ),
+                (None, TypeIR::Nulo) => format!("{} ; abi.call {} -> void", call_site, abi_args),
+                (None, _) => format!("; call inválida: {} {}", callee, abi_args),
             }
         }
     }
@@ -186,9 +212,9 @@ fn render_terminator(
             else_label
         ),
         crate::backend_text::BackendTextTerminator::Return(Some(value)) => {
-            format!("ret {}", render_operand(value))
+            format!("ret @ret, {}", render_operand(value))
         }
-        crate::backend_text::BackendTextTerminator::Return(None) => "ret".to_string(),
+        crate::backend_text::BackendTextTerminator::Return(None) => "ret_void".to_string(),
     }
 }
 
@@ -251,6 +277,56 @@ fn join_or_empty(values: &[String]) -> String {
         "[]".to_string()
     } else {
         values.join(", ")
+    }
+}
+
+fn render_abi_params(function: &crate::backend_text::BackendTextFunction) -> String {
+    if function.params.is_empty() {
+        return "[]".to_string();
+    }
+
+    let rendered = function
+        .params
+        .iter()
+        .enumerate()
+        .map(|(idx, slot)| format!("@arg{}={}", idx, render_slot(slot)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{}]", rendered)
+}
+
+fn render_abi_return(ret_type: TypeIR) -> String {
+    if ret_type == TypeIR::Nulo {
+        "void".to_string()
+    } else {
+        "@ret".to_string()
+    }
+}
+
+fn render_call_site(callee: &str, args: &[crate::cfg_ir::OperandIR]) -> String {
+    if args.is_empty() {
+        format!("call {}", callee)
+    } else {
+        let args = args
+            .iter()
+            .map(render_operand)
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("call {}, {}", callee, args)
+    }
+}
+
+fn render_abi_call_args(args: &[crate::cfg_ir::OperandIR]) -> String {
+    if args.is_empty() {
+        "[]".to_string()
+    } else {
+        let args = args
+            .iter()
+            .enumerate()
+            .map(|(idx, operand)| format!("@arg{}={}", idx, render_operand(operand)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("[{}]", args)
     }
 }
 
