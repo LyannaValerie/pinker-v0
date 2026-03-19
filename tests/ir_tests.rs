@@ -356,3 +356,17 @@ carinho principal() -> bombom { mimo 0; }
     assert!(ir.contains("func usa -> struct"), "{}", ir);
     assert!(ir.contains("%p#0: struct"), "{}", ir);
 }
+
+#[test]
+fn lowering_preserva_categoria_seta_em_assinatura() {
+    let code = r#"
+pacote main;
+ninho Ponto { x: bombom; }
+apelido PtrPonto = seta<Ponto>;
+carinho id(p: PtrPonto) -> PtrPonto { mimo p; }
+carinho principal() -> bombom { mimo 0; }
+"#;
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("func id -> seta<?>"), "{}", ir);
+    assert!(ir.contains("%p#0: seta<?>"), "{}", ir);
+}

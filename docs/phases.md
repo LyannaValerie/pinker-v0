@@ -336,3 +336,12 @@
 - `docs/roadmap.md` criado como mapa mestre de longo prazo (estado atual, lacunas, dependências, prioridades e critérios de revisão)
 - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
 - build e testes revalidados nesta rodada documental
+
+## Fase 48 — ponteiros como categoria de tipo (`seta`)
+- continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
+- primeiro item funcional do Bloco 2 entregue com escopo mínimo, conservador e auditável.
+- frontend atualizado com keyword `seta` e tipo `seta<tipo>` em `parse_type`, reaproveitando os pontos tipados já existentes.
+- semântica valida tipo-base de `seta` com resolução normal de aliases/arrays/structs; rejeita base inexistente e mantém compatibilidade estrita entre ponteiros pelo tipo-base.
+- decisão explícita desta fase: `seta<seta<T>>` permanece rejeitado com diagnóstico específico para evitar expansão de escopo.
+- IR/lowering ganhou categoria `Pointer` (`seta<?>`) somente para transportar informação de tipo no pipeline (assinaturas/slots), sem semântica operacional.
+- fora de escopo mantido: dereferência, memória indireta (load/store por endereço), aritmética de ponteiros, campo/indexação via ponteiro, casts (`virar`), `sizeof`/alinhamento, `volatile`, ABI/backend `.s`.

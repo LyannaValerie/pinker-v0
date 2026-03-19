@@ -225,6 +225,10 @@ pub enum Type {
         size: u64,
         span: Span,
     },
+    Pointer {
+        base: Box<Type>,
+        span: Span,
+    },
     Alias {
         name: String,
         span: Span,
@@ -252,7 +256,8 @@ impl Type {
             | Type::Nulo(span) => *span,
             Type::Alias { span, .. }
             | Type::Struct { span, .. }
-            | Type::FixedArray { span, .. } => *span,
+            | Type::FixedArray { span, .. }
+            | Type::Pointer { span, .. } => *span,
         }
     }
 
@@ -269,6 +274,7 @@ impl Type {
             Type::I64(_) => "i64",
             Type::Logica(_) => "logica",
             Type::FixedArray { .. } => "array",
+            Type::Pointer { .. } => "seta",
             Type::Alias { .. } => "alias",
             Type::Struct { .. } => "struct",
             Type::Nulo(_) => "nulo",
@@ -290,6 +296,10 @@ impl Type {
             Type::FixedArray { element, size, .. } => Type::FixedArray {
                 element: element.clone(),
                 size: *size,
+                span,
+            },
+            Type::Pointer { base, .. } => Type::Pointer {
+                base: base.clone(),
                 span,
             },
             Type::Alias { name, .. } => Type::Alias {
@@ -316,6 +326,9 @@ impl Type {
         if let Type::FixedArray { element, size, .. } = self {
             writer.field_u64("size", *size);
             writer.field_value("element", |writer| element.write_json(writer));
+        }
+        if let Type::Pointer { base, .. } = self {
+            writer.field_value("base", |writer| base.write_json(writer));
         }
         writer.end_object();
     }

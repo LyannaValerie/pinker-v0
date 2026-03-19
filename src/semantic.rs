@@ -103,6 +103,9 @@ impl SemanticChecker {
                 lhs_size == rhs_size
                     && Self::check_type_match(lhs_element.as_ref(), rhs_element.as_ref())
             }
+            (Type::Pointer { base: lhs_base, .. }, Type::Pointer { base: rhs_base, .. }) => {
+                Self::check_type_match(lhs_base.as_ref(), rhs_base.as_ref())
+            }
             _ => false,
         }
     }
@@ -166,6 +169,25 @@ impl SemanticChecker {
                 Ok(Type::FixedArray {
                     element: Box::new(resolved_element),
                     size: *size,
+                    span: *span,
+                })
+            }
+            Type::Pointer { base, span } => {
+                let resolved_base = self.resolve_type_named(base.as_ref(), resolving)?;
+                if matches!(resolved_base, Type::Nulo(_)) {
+                    return Err(PinkerError::Semantic {
+                        msg: "tipo base de 'seta' não pode ser 'nulo'".to_string(),
+                        span: resolved_base.span(),
+                    });
+                }
+                if matches!(resolved_base, Type::Pointer { .. }) {
+                    return Err(PinkerError::Semantic {
+                        msg: "seta de seta ainda não é suportada nesta fase".to_string(),
+                        span: resolved_base.span(),
+                    });
+                }
+                Ok(Type::Pointer {
+                    base: Box::new(resolved_base),
                     span: *span,
                 })
             }

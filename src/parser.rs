@@ -144,6 +144,16 @@ impl Parser {
                 span: merge_span(start_span, self.previous().span),
             });
         }
+        if self.match_token(TokenKind::KwSeta) {
+            let start_span = self.previous().span;
+            self.consume(TokenKind::Less, "<")?;
+            let base = self.parse_type()?;
+            self.consume(TokenKind::Greater, ">")?;
+            return Ok(Type::Pointer {
+                base: Box::new(base),
+                span: merge_span(start_span, self.previous().span),
+            });
+        }
 
         if self.match_token(TokenKind::KwBombom) {
             Ok(Type::Bombom(span))
@@ -172,7 +182,8 @@ impl Parser {
             })
         } else {
             Err(PinkerError::Expected {
-                expected: "tipo válido (ex.: bombom, logica, alias ou [tipo; N])".to_string(),
+                expected: "tipo válido (ex.: bombom, logica, alias, [tipo; N] ou seta<tipo>)"
+                    .to_string(),
                 found: self
                     .peek()
                     .map(|token| token.lexeme.clone())
