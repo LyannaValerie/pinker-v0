@@ -523,7 +523,7 @@ impl Parser {
             span: eof_span,
         })?;
 
-        match token.kind {
+        let base = match token.kind {
             TokenKind::IntLit => Ok(Expr {
                 kind: ExprKind::IntLit(token.lexeme.parse().unwrap()),
                 span: token.span,
@@ -536,13 +536,10 @@ impl Parser {
                 kind: ExprKind::BoolLit(false),
                 span: token.span,
             }),
-            TokenKind::Ident => {
-                let ident = Expr {
-                    kind: ExprKind::Ident(token.lexeme.clone()),
-                    span: token.span,
-                };
-                self.parse_call_suffix(ident)
-            }
+            TokenKind::Ident => Ok(Expr {
+                kind: ExprKind::Ident(token.lexeme.clone()),
+                span: token.span,
+            }),
             TokenKind::LParen => {
                 let lparen_span = token.span;
                 let expr = self.parse_expr()?;
@@ -556,28 +553,58 @@ impl Parser {
                 msg: format!("expressão inválida: '{}'", token.lexeme),
                 span: token.span,
             }),
-        }
+        }?;
+
+        self.parse_postfix_suffix(base)
     }
 
-    fn parse_call_suffix(&mut self, callee: Expr) -> Result<Expr, PinkerError> {
-        if !self.match_token(TokenKind::LParen) {
-            return Ok(callee);
-        }
-
-        let mut args = Vec::new();
-        if !self.check(TokenKind::RParen) {
-            loop {
-                args.push(self.parse_expr()?);
-                if !self.match_token(TokenKind::Comma) {
-                    break;
+    fn parse_postfix_suffix(&mut self, mut expr: Expr) -> Result<Expr, PinkerError> {
+        loop {
+            if self.match_token(TokenKind::LParen) {
+                let mut args = Vec::new();
+                if !self.check(TokenKind::RParen) {
+                    loop {
+                        args.push(self.parse_expr()?);
+                        if !self.match_token(TokenKind::Comma) {
+                            break;
+                        }
+                    }
                 }
+                self.consume(TokenKind::RParen, ")")?;
+                expr = Expr {
+                    span: merge_span(expr.span, self.previous().span),
+                    kind: ExprKind::Call(Box::new(expr), args),
+                };
+                continue;
             }
+            if self.match_token(TokenKind::Dot) {
+                let field = self
+                    .consume(TokenKind::Ident, "nome do campo após '.'")?
+                    .lexeme
+                    .clone();
+                expr = Expr {
+                    span: merge_span(expr.span, self.previous().span),
+                    kind: ExprKind::FieldAccess {
+                        base: Box::new(expr),
+                        field,
+                    },
+                };
+                continue;
+            }
+            if self.match_token(TokenKind::LBracket) {
+                let index = self.parse_expr()?;
+                self.consume(TokenKind::RBracket, "]")?;
+                expr = Expr {
+                    span: merge_span(expr.span, self.previous().span),
+                    kind: ExprKind::Index {
+                        base: Box::new(expr),
+                        index: Box::new(index),
+                    },
+                };
+                continue;
+            }
+            break;
         }
-
-        self.consume(TokenKind::RParen, ")")?;
-        Ok(Expr {
-            span: merge_span(callee.span, self.previous().span),
-            kind: ExprKind::Call(Box::new(callee), args),
-        })
+        Ok(expr)
     }
 }

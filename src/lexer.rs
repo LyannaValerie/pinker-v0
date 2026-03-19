@@ -120,6 +120,7 @@ impl<'a> Lexer<'a> {
                         '{' => TokenKind::LBrace,
                         '}' => TokenKind::RBrace,
                         ',' => TokenKind::Comma,
+                        '.' => TokenKind::Dot,
                         ':' => TokenKind::Colon,
                         ';' => TokenKind::Semi,
                         '=' => {

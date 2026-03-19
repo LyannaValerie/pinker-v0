@@ -327,11 +327,11 @@ fn infer_value_type(
     match value {
         ValueIR::Local(slot) => slots
             .get(slot)
-            .copied()
+            .cloned()
             .ok_or_else(|| ir_validation_error("uso de slot local inexistente", span)),
         ValueIR::GlobalConst(name) => consts
             .get(name)
-            .copied()
+            .cloned()
             .ok_or_else(|| ir_validation_error("constante global inexistente", span)),
         ValueIR::Int(_) => Ok(TypeIR::Bombom),
         ValueIR::Bool(_) => Ok(TypeIR::Logica),
@@ -426,6 +426,35 @@ fn infer_value_type(
                 ));
             }
             Ok(sig.ret_type)
+        }
+        ValueIR::FieldAccess {
+            base,
+            field: _,
+            result_type,
+        } => {
+            let base_ty = infer_value_type(base, slots, consts, funcs, span)?;
+            if !matches!(base_ty, TypeIR::Struct) {
+                return Err(ir_validation_error(
+                    "acesso de campo exige base struct na IR",
+                    span,
+                ));
+            }
+            Ok(*result_type)
+        }
+        ValueIR::Index {
+            base,
+            index,
+            element_type,
+        } => {
+            let base_ty = infer_value_type(base, slots, consts, funcs, span)?;
+            let index_ty = infer_value_type(index, slots, consts, funcs, span)?;
+            if !matches!(base_ty, TypeIR::FixedArray { .. }) || !index_ty.is_integer() {
+                return Err(ir_validation_error(
+                    "indexação inválida na IR estruturada",
+                    span,
+                ));
+            }
+            Ok(*element_type)
         }
     }
 }

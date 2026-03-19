@@ -638,6 +638,22 @@ impl Expr {
                 writer.field_array("args", args, |writer, arg| arg.write_json(writer));
                 writer.end_object();
             }
+            ExprKind::FieldAccess { base, field } => {
+                writer.begin_object();
+                writer.field_str("node", "FieldAccessExpr");
+                writer.field_span("span", self.span);
+                writer.field_value("base", |writer| base.write_json(writer));
+                writer.field_str("field", field);
+                writer.end_object();
+            }
+            ExprKind::Index { base, index } => {
+                writer.begin_object();
+                writer.field_str("node", "IndexExpr");
+                writer.field_span("span", self.span);
+                writer.field_value("base", |writer| base.write_json(writer));
+                writer.field_value("index", |writer| index.write_json(writer));
+                writer.end_object();
+            }
             ExprKind::Ident(name) => {
                 writer.begin_object();
                 writer.field_str("node", "IdentExpr");
@@ -668,6 +684,8 @@ pub enum ExprKind {
     Binary(Box<Expr>, BinaryOp, Box<Expr>),
     Unary(UnaryOp, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
+    FieldAccess { base: Box<Expr>, field: String },
+    Index { base: Box<Expr>, index: Box<Expr> },
     Ident(String),
     IntLit(u64),
     BoolLit(bool),

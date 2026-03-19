@@ -316,6 +316,21 @@ carinho principal() -> bombom { mimo 10 % 4; }";
 }
 
 #[test]
+fn lowering_de_acesso_a_campo_e_indexacao() {
+    let code = r#"
+pacote main;
+ninho Ponto { x: bombom; y: bombom; }
+carinho combina(p: Ponto, a: [bombom; 3], i: bombom) -> bombom {
+  mimo p.x + a[i];
+}
+carinho principal() -> bombom { mimo 0; }
+"#;
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("%p#0.x"), "{}", ir);
+    assert!(ir.contains("%a#0[%i#0]"), "{}", ir);
+}
+
+#[test]
 fn lowering_resolve_alias_de_tipo_para_tipo_subjacente() {
     let code = r#"
 pacote main;

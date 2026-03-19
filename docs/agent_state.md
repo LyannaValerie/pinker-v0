@@ -69,6 +69,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Bloco 1 encerrado com a Fase 47; trilha ativa segue no Bloco 2.
 - Fase 48 concluída: ponteiros como categoria de tipo com `seta<tipo>` (frontend + semântica + IR), sem semântica operacional de memória.
 - Fase 48-H1 concluída: rodada extraordinária de hotfixes de corretude e manutenção (HF-1 a HF-17).
+- Fase 49 concluída: acesso a campo (`obj.campo`) e indexação (`arr[idx]`) com escopo mínimo de leitura.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`
@@ -339,3 +340,13 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - semântica valida tamanho estático simples (`N > 0`), resolve aliases no tipo-base e rejeita base inválida/inexistente.
 - IR/lowering passou a carregar tipo de array fixo em assinaturas/slots sem introduzir operações de memória/indexação.
 - fora de escopo mantido: inicializador literal de array, indexação, leitura/escrita por elemento, arrays dinâmicos, structs, ponteiros, casts e backend `.s`.
+
+
+## Fase 49 — acesso a campo e indexação
+- continuidade histórica preservada: Fase 48 permanece a fase funcional principal anterior e Fase 48-H1 permanece hotfix extraordinário sem reordenar roadmap.
+- parser generalizado para cadeia postfix (`call`, `field access`, `index`) mantendo precedência existente de unários/binários.
+- semântica valida leitura de campo em `ninho` e indexação em array fixo com índice inteiro.
+- escrita em `obj.campo = ...` e `arr[i] = ...` não entrou nesta fase (LHS segue restrito a identificador).
+- IR estruturada ganhou nós mínimos para representar campo/index; CFG/selected/machine/interpreter ainda não loweram esses nós por decisão de escopo.
+- bounds-check: não introduzido nesta fase.
+- próximo item normal do roadmap principal: Bloco 2, item 3 (`casts` controlados).

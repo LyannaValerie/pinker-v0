@@ -43,7 +43,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             .map(|p| {
                 f.slot_types
                     .get(p)
-                    .copied()
+                    .cloned()
                     .map(type_to_stack)
                     .unwrap_or(StackValueType::Unknown)
             })
@@ -295,7 +295,7 @@ fn apply_instr_effect(
                 "underflow em store_slot",
                 Some(&format!("instr='store_slot {}'", slot)),
             )?;
-            if let Some(expected) = slot_types.get(slot).copied() {
+            if let Some(expected) = slot_types.get(slot).cloned() {
                 ensure_compatible(
                     f,
                     label,

@@ -137,6 +137,16 @@ pub enum ValueIR {
         args: Vec<ValueIR>,
         ret_type: TypeIR,
     },
+    FieldAccess {
+        base: Box<ValueIR>,
+        field: String,
+        result_type: TypeIR,
+    },
+    Index {
+        base: Box<ValueIR>,
+        index: Box<ValueIR>,
+        element_type: TypeIR,
+    },
 }
 
 /// Tipos do sistema de tipos da v0. `Nulo` representa ausência de retorno (funções sem `-> tipo`);
@@ -204,12 +214,14 @@ pub enum BinaryOpIR {
 #[derive(Clone)]
 struct FunctionSigIR {
     ret_type: TypeIR,
+    ret_struct_name: Option<String>,
 }
 
 #[derive(Clone)]
 struct BindingState {
     slot: String,
     ty: TypeIR,
+    struct_name: Option<String>,
 }
 
 // `LoweringContext` é construído em uma primeira passagem sobre o programa:
@@ -221,6 +233,7 @@ struct LoweringContext {
     global_consts: HashMap<String, TypeIR>,
     type_aliases: HashMap<String, Type>,
     struct_names: HashSet<String>,
+    struct_fields: HashMap<String, HashMap<String, TypeIR>>,
 }
 
 // `FunctionLowerer` mantém estado mutable por função durante o lowering:
@@ -241,6 +254,7 @@ struct FunctionLowerer<'a> {
 struct TypedValueIR {
     value: ValueIR,
     ty: TypeIR,
+    struct_name: Option<String>,
 }
 
 // Fase 2 escolhe IR estruturada: blocos e `if` seguem explícitos, sem SSA e sem saltos.
@@ -315,6 +329,18 @@ impl LoweringContext {
                 struct_names.insert(struct_decl.name.clone());
             }
         }
+        let mut struct_fields = HashMap::new();
+        for item in &program.items {
+            if let Item::Struct(struct_decl) = item {
+                let mut fields = HashMap::new();
+                for field in &struct_decl.fields {
+                    let resolved =
+                        TypeIR::from_ast_with_context(&field.ty, &type_aliases, &struct_names)?;
+                    fields.insert(field.name.clone(), resolved);
+                }
+                struct_fields.insert(struct_decl.name.clone(), fields);
+            }
+        }
 
         let mut function_sigs = HashMap::new();
         let mut global_consts = HashMap::new();
@@ -330,6 +356,9 @@ impl LoweringContext {
                                 &type_aliases,
                                 &struct_names,
                             )?,
+                            ret_struct_name: function.ret_type.as_ref().and_then(|ty| {
+                                resolve_struct_name_from_type(ty, &type_aliases, &struct_names)
+                            }),
                         },
                     );
                 }
@@ -353,6 +382,7 @@ impl LoweringContext {
             global_consts,
             type_aliases,
             struct_names,
+            struct_fields,
         })
     }
 
@@ -379,8 +409,16 @@ impl<'a> FunctionLowerer<'a> {
         self.push_scope();
 
         for param in &function.params {
-            let binding =
-                self.allocate_binding(&param.name, self.context.resolve_type(&param.ty)?, None);
+            let binding = self.allocate_binding(
+                &param.name,
+                self.context.resolve_type(&param.ty)?,
+                resolve_struct_name_from_type(
+                    &param.ty,
+                    &self.context.type_aliases,
+                    &self.context.struct_names,
+                ),
+                None,
+            );
             self.params.push(binding);
         }
 
@@ -459,7 +497,18 @@ impl<'a> FunctionLowerer<'a> {
         } else {
             value.ty
         };
-        let binding = self.allocate_binding(&let_stmt.name, ty, Some(let_stmt.is_mut));
+        let struct_name = let_stmt
+            .ty
+            .as_ref()
+            .and_then(|annotated_ty| {
+                resolve_struct_name_from_type(
+                    annotated_ty,
+                    &self.context.type_aliases,
+                    &self.context.struct_names,
+                )
+            })
+            .or(value.struct_name.clone());
+        let binding = self.allocate_binding(&let_stmt.name, ty, struct_name, Some(let_stmt.is_mut));
         Ok(InstructionIR::Let {
             slot: binding.slot,
             value: value.value,
@@ -563,16 +612,19 @@ impl<'a> FunctionLowerer<'a> {
             ExprKind::IntLit(value) => Ok(TypedValueIR {
                 value: ValueIR::Int(*value),
                 ty: TypeIR::Bombom,
+                struct_name: None,
             }),
             ExprKind::BoolLit(value) => Ok(TypedValueIR {
                 value: ValueIR::Bool(*value),
                 ty: TypeIR::Logica,
+                struct_name: None,
             }),
             ExprKind::Ident(name) => {
                 if let Some(binding) = self.resolve_existing_binding(name) {
                     return Ok(TypedValueIR {
                         value: ValueIR::Local(binding.slot),
                         ty: binding.ty,
+                        struct_name: binding.struct_name,
                     });
                 }
 
@@ -580,6 +632,7 @@ impl<'a> FunctionLowerer<'a> {
                     return Ok(TypedValueIR {
                         value: ValueIR::GlobalConst(name.clone()),
                         ty: *ty,
+                        struct_name: None,
                     });
                 }
 
@@ -599,6 +652,7 @@ impl<'a> FunctionLowerer<'a> {
                         UnaryOp::Neg => operand.ty,
                         UnaryOp::Not => TypeIR::Logica,
                     },
+                    struct_name: None,
                 })
             }
             ExprKind::Binary(lhs, op, rhs) => {
@@ -636,6 +690,7 @@ impl<'a> FunctionLowerer<'a> {
                         | BinaryOp::Gt
                         | BinaryOp::Gte => TypeIR::Logica,
                     },
+                    struct_name: None,
                 })
             }
             ExprKind::Call(callee, args) => {
@@ -668,6 +723,70 @@ impl<'a> FunctionLowerer<'a> {
                         ret_type,
                     },
                     ty: ret_type,
+                    struct_name: self
+                        .context
+                        .function_sigs
+                        .get(name)
+                        .and_then(|sig| sig.ret_struct_name.clone()),
+                })
+            }
+            ExprKind::FieldAccess { base, field } => {
+                let base = self.lower_value(base)?;
+                let Some(base_struct_name) = base.struct_name.as_ref() else {
+                    return Err(PinkerError::Ir {
+                        msg: "acesso a campo com base não-struct na IR".to_string(),
+                        span: expr.span,
+                    });
+                };
+                let result_type = self
+                    .context
+                    .struct_fields
+                    .get(base_struct_name)
+                    .and_then(|fields| fields.get(field))
+                    .copied()
+                    .ok_or_else(|| PinkerError::Ir {
+                        msg: format!("campo '{}' não encontrado em '{}'", field, base_struct_name),
+                        span: expr.span,
+                    })?;
+                Ok(TypedValueIR {
+                    value: ValueIR::FieldAccess {
+                        base: Box::new(base.value),
+                        field: field.clone(),
+                        result_type,
+                    },
+                    ty: result_type,
+                    struct_name: None,
+                })
+            }
+            ExprKind::Index { base, index } => {
+                let base = self.lower_value(base)?;
+                let index = self.lower_value(index)?;
+                let TypeIR::FixedArray { element, .. } = base.ty else {
+                    return Err(PinkerError::Ir {
+                        msg: "indexação com base não-array na IR".to_string(),
+                        span: expr.span,
+                    });
+                };
+                let element_type = match element {
+                    ScalarTypeIR::Bombom => TypeIR::Bombom,
+                    ScalarTypeIR::U8 => TypeIR::U8,
+                    ScalarTypeIR::U16 => TypeIR::U16,
+                    ScalarTypeIR::U32 => TypeIR::U32,
+                    ScalarTypeIR::U64 => TypeIR::U64,
+                    ScalarTypeIR::I8 => TypeIR::I8,
+                    ScalarTypeIR::I16 => TypeIR::I16,
+                    ScalarTypeIR::I32 => TypeIR::I32,
+                    ScalarTypeIR::I64 => TypeIR::I64,
+                    ScalarTypeIR::Logica => TypeIR::Logica,
+                };
+                Ok(TypedValueIR {
+                    value: ValueIR::Index {
+                        base: Box::new(base.value),
+                        index: Box::new(index.value),
+                        element_type,
+                    },
+                    ty: element_type,
+                    struct_name: None,
                 })
             }
         }
@@ -677,6 +796,7 @@ impl<'a> FunctionLowerer<'a> {
         &mut self,
         source_name: &str,
         ty: TypeIR,
+        struct_name: Option<String>,
         is_mut: Option<bool>,
     ) -> BindingIR {
         let next = self
@@ -697,6 +817,7 @@ impl<'a> FunctionLowerer<'a> {
             BindingState {
                 slot: slot.clone(),
                 ty,
+                struct_name: struct_name.clone(),
             },
         );
 
@@ -751,6 +872,26 @@ fn lower_const(const_decl: &ConstDecl, context: &LoweringContext) -> Result<Cons
         value: value.value,
         span: const_decl.span,
     })
+}
+
+fn resolve_struct_name_from_type(
+    ty: &Type,
+    aliases: &HashMap<String, Type>,
+    struct_names: &HashSet<String>,
+) -> Option<String> {
+    match ty {
+        Type::Struct { name, .. } => Some(name.clone()),
+        Type::Alias { name, .. } => {
+            if struct_names.contains(name) {
+                Some(name.clone())
+            } else {
+                aliases
+                    .get(name)
+                    .and_then(|target| resolve_struct_name_from_type(target, aliases, struct_names))
+            }
+        }
+        _ => None,
+    }
 }
 
 fn render_function(function: &FunctionIR, indent: usize, out: &mut String) {
@@ -883,6 +1024,12 @@ fn render_value(value: &ValueIR) -> String {
             args.iter().map(render_value).collect::<Vec<_>>().join(", "),
             ret_type.render_name()
         ),
+        ValueIR::FieldAccess { base, field, .. } => {
+            format!("{}.{}", render_value(base), field)
+        }
+        ValueIR::Index { base, index, .. } => {
+            format!("{}[{}]", render_value(base), render_value(index))
+        }
     }
 }
 
@@ -959,7 +1106,7 @@ impl TypeIR {
                         span: *span,
                     });
                 }
-                if resolved_base == TypeIR::Pointer {
+                if matches!(resolved_base, TypeIR::Pointer) {
                     return Err(PinkerError::Ir {
                         msg: "seta de seta ainda não é suportada nesta fase".to_string(),
                         span: *span,
