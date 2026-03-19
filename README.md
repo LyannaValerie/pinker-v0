@@ -5,7 +5,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 ## O que o frontend faz hoje
 - léxico com spans
 - parser para `pacote`, `carinho`, `mimo`, `talvez/senão`, `sempre que`, `eterno`, `nova`, `mut`
-- tipos `bombom` e `lógica`
+- tipos `bombom`, `u8`, `u16`, `u32`, `u64` e `lógica`
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
 - AST textual estável
@@ -57,6 +57,7 @@ cargo run -- --run examples/run_sempre_que.pink
 cargo run -- --run examples/run_quebrar.pink
 cargo run -- --run examples/run_continuar.pink
 cargo run -- --run examples/run_global.pink
+cargo run -- --run examples/run_unsigned_basico.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
 cargo run -- --check examples/check_continuar_fora_loop.pink

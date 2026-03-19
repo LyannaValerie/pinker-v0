@@ -70,8 +70,31 @@ impl SemanticChecker {
     fn check_type_match(expected: &Type, actual: &Type) -> bool {
         matches!(
             (expected, actual),
-            (Type::Bombom(_), Type::Bombom(_)) | (Type::Logica(_), Type::Logica(_))
+            (Type::Bombom(_), Type::Bombom(_))
+                | (Type::Bombom(_), Type::U64(_))
+                | (Type::U64(_), Type::Bombom(_))
+                | (Type::U8(_), Type::U8(_))
+                | (Type::U16(_), Type::U16(_))
+                | (Type::U32(_), Type::U32(_))
+                | (Type::U64(_), Type::U64(_))
+                | (Type::Logica(_), Type::Logica(_))
         )
+    }
+
+    fn is_unsigned_type(ty: &Type) -> bool {
+        matches!(
+            ty,
+            Type::Bombom(_) | Type::U8(_) | Type::U16(_) | Type::U32(_) | Type::U64(_)
+        )
+    }
+
+    fn expr_is_int_literal(expr: &Expr) -> bool {
+        matches!(expr.kind, ExprKind::IntLit(_))
+    }
+
+    fn check_expected_type_for_expr(expected: &Type, actual: &Type, expr: &Expr) -> bool {
+        Self::check_type_match(expected, actual)
+            || (Self::is_unsigned_type(expected) && Self::expr_is_int_literal(expr))
     }
 
     fn declare_var(
@@ -196,7 +219,7 @@ impl SemanticChecker {
         )?;
         self.pop_scope();
 
-        if !Self::check_type_match(&constant.ty, &init_ty) {
+        if !Self::check_expected_type_for_expr(&constant.ty, &init_ty, &constant.init) {
             return Err(PinkerError::Semantic {
                 msg: format!(
                     "tipo incompatível na constante '{}': esperado '{}', encontrado '{}'",
@@ -257,7 +280,11 @@ impl SemanticChecker {
 
                     let ty = match &let_stmt.ty {
                         Some(declared_ty) => {
-                            if !Self::check_type_match(declared_ty, &init_ty) {
+                            if !Self::check_expected_type_for_expr(
+                                declared_ty,
+                                &init_ty,
+                                &let_stmt.init,
+                            ) {
                                 return Err(PinkerError::Semantic {
                                     msg: format!(
                                         "tipo de inicialização incompatível para '{}': esperado '{}', encontrado '{}'",
@@ -302,7 +329,11 @@ impl SemanticChecker {
                         });
                     }
 
-                    if !Self::check_type_match(&var_meta.ty, &value_ty) {
+                    if !Self::check_expected_type_for_expr(
+                        &var_meta.ty,
+                        &value_ty,
+                        &assign_stmt.expr,
+                    ) {
                         return Err(PinkerError::Semantic {
                             msg: format!(
                                 "tipo incompatível na atribuição para '{}': esperado '{}', encontrado '{}'",
@@ -423,7 +454,7 @@ impl SemanticChecker {
                     expr,
                     "resultado de função sem retorno não pode ser retornado como valor",
                 )?;
-                if !Self::check_type_match(&expected, &value_ty) {
+                if !Self::check_expected_type_for_expr(&expected, &value_ty, expr) {
                     return Err(PinkerError::Semantic {
                         msg: format!(
                             "retorno incompatível em '{}': esperado '{}', encontrado '{}'",
@@ -509,7 +540,10 @@ impl SemanticChecker {
                     "resultado de função sem retorno não pode ser usado em operação binária",
                 )?;
 
-                if !Self::check_type_match(&lhs_ty, &rhs_ty) {
+                let binary_types_compatible = Self::check_type_match(&lhs_ty, &rhs_ty)
+                    || (Self::expr_is_int_literal(lhs) && Self::is_unsigned_type(&rhs_ty))
+                    || (Self::expr_is_int_literal(rhs) && Self::is_unsigned_type(&lhs_ty));
+                if !binary_types_compatible {
                     return Err(PinkerError::Semantic {
                         msg: format!(
                             "tipos incompatíveis em operação binária: '{}' e '{}'",
@@ -541,11 +575,15 @@ impl SemanticChecker {
                     | BinaryOp::BitXor
                     | BinaryOp::Shl
                     | BinaryOp::Shr => {
-                        if matches!(lhs_ty, Type::Bombom(_)) {
-                            Ok(Type::Bombom(expr.span))
+                        if Self::is_unsigned_type(&lhs_ty) {
+                            if Self::expr_is_int_literal(lhs) && !Self::expr_is_int_literal(rhs) {
+                                Ok(rhs_ty.with_span(expr.span))
+                            } else {
+                                Ok(lhs_ty.with_span(expr.span))
+                            }
                         } else {
                             Err(PinkerError::Semantic {
-                                msg: "operação aritmética/bitwise requer operandos 'bombom'"
+                                msg: "operação aritmética/bitwise requer operandos unsigned compatíveis"
                                     .to_string(),
                                 span: expr.span,
                             })
@@ -566,11 +604,11 @@ impl SemanticChecker {
                 )?;
                 match op {
                     UnaryOp::Neg => {
-                        if matches!(inner_ty, Type::Bombom(_)) {
-                            Ok(Type::Bombom(expr.span))
+                        if Self::is_unsigned_type(&inner_ty) {
+                            Ok(inner_ty.with_span(expr.span))
                         } else {
                             Err(PinkerError::Semantic {
-                                msg: "negação aritmética requer operando 'bombom'".to_string(),
+                                msg: "negação aritmética requer operando unsigned".to_string(),
                                 span: expr.span,
                             })
                         }
@@ -627,7 +665,7 @@ impl SemanticChecker {
                 arg,
                 "resultado de função sem retorno não pode ser usado como argumento",
             )?;
-            if !Self::check_type_match(&param.ty, &arg_ty) {
+            if !Self::check_expected_type_for_expr(&param.ty, &arg_ty, arg) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
                         "tipo inválido no argumento {} da chamada '{}': esperado '{}', encontrado '{}'",

@@ -252,3 +252,23 @@ fn parser_aceita_expressao_com_modulo_e_precedencia_multiplicativa() {
         _ => panic!("expressão esperada: binária"),
     }
 }
+
+#[test]
+fn parser_aceita_tipos_unsigned_em_assinaturas_e_locais() {
+    let source = r#"
+        pacote main;
+        carinho soma_u8(a: u8, b: u8) -> u8 { mimo a + b; }
+        carinho soma_u16(a: u16, b: u16) -> u16 { mimo a + b; }
+        carinho soma_u32(a: u32, b: u32) -> u32 { mimo a + b; }
+        carinho soma_u64(a: u64, b: u64) -> u64 { mimo a + b; }
+        carinho principal() -> bombom {
+            nova x: u8 = soma_u8(1, 2);
+            nova y: u16 = soma_u16(3, 4);
+            nova z: u32 = soma_u32(5, 6);
+            nova w: u64 = soma_u64(40, 2);
+            mimo w;
+        }
+    "#;
+    let program = parse(source).expect("parser deve aceitar unsigned fixos");
+    assert_eq!(program.items.len(), 5);
+}

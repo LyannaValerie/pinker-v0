@@ -1123,6 +1123,13 @@ fn cli_run_logica_curto_circuito_or_funciona() {
 }
 
 #[test]
+fn cli_run_unsigned_fixos_funciona() {
+    let out = run_cli_example("examples/run_unsigned_basico.pink");
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
+}
+
+#[test]
 fn cli_check_quebrar_fora_de_loop_falha_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/check_quebrar_fora_loop.pink");
     assert!(!output.status.success());

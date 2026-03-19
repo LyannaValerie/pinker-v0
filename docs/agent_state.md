@@ -14,6 +14,11 @@
 - `docs/roadmap.md` tem precedência de execução sobre `docs/future.md`.
 - Usar checklist final para confirmar fases anteriores, evitando repetir torre histórica no corpo das respostas.
 
+## Convenção de fases e rodadas (ativa)
+- Fase numerada (`Fase N`) = entrega funcional/estrutural real.
+- Rodada documental = ajuste documental/estratégico sem feature funcional.
+- Rodada documental não recebe número de fase.
+
 ## Pipeline congelada
 semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> seleção -> validação seleção -> Machine -> validação Machine -> pseudo-asm -> validação backend textual.
 
@@ -53,11 +58,12 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 36: humanizar instruções individuais de `--machine` com comentários curtos
 - Fase 37: contextualizar os comentários de `--machine` por alvo/slot sem alterar semântica
 - Fase 38: tornar os comentários de `--machine` sensíveis ao papel do fluxo
-- Fase 39: rodada documental de consolidação da trilha única "voltar aos trilhos" em `docs/roadmap.md`
 - Fase 40: operador `%` nativo (primeira fase funcional do Bloco 1), com integração no pipeline completo e cobertura de runtime/CLI
+- Fase 41: inteiros unsigned fixos (`u8`, `u16`, `u32`, `u64`) com validação estrita e integração no pipeline
+- Rodada documental: consolidação da trilha única "voltar aos trilhos" em `docs/roadmap.md` (sem número de fase)
 
 ## Fase atual
-- Fase 40 concluída: suporte nativo ao operador `%` integrado em lexer/parser/semântica/IR/CFG/selected/Machine/interpretador/backend textual, com precedência multiplicativa (`*`, `/`, `%`) e erro de runtime em `%` por zero alinhado à família existente de divisão por zero.
+- Fase 41 concluída: suporte explícito a `u8`, `u16`, `u32`, `u64` em parâmetros, retornos, variáveis locais e constantes globais; validação semântica estrita entre larguras; e manutenção de `bombom` como inteiro legado/principal em `u64`.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`

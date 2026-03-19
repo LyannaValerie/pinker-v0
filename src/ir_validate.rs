@@ -44,7 +44,7 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
     for konst in &program.consts {
         let ty = infer_value_type(&konst.value, &HashMap::new(), &consts, &funcs, konst.span)
             .map_err(|err| enrich_ir_error(err, None, None, Some("item='const'")))?;
-        if ty != konst.ty {
+        if !value_matches_expected(&konst.value, ty, konst.ty) {
             return Err(ir_validation_error(
                 "tipo da constante global não confere com o valor",
                 konst.span,
@@ -178,7 +178,7 @@ fn validate_block(
                         *span,
                     ));
                 }
-                if actual_ty != *expected_ty {
+                if !value_matches_expected(value, actual_ty, *expected_ty) {
                     return Err(ir_validation_error_ctx(
                         function,
                         Some(block),
@@ -243,7 +243,7 @@ fn validate_block(
                             *span,
                         ));
                     }
-                    if ty != expected {
+                    if !value_matches_expected(v, ty, expected) {
                         return Err(ir_validation_error_ctx(
                             function,
                             Some(block),
@@ -338,7 +338,7 @@ fn infer_value_type(
         ValueIR::Unary { op, operand } => {
             let op_ty = infer_value_type(operand, slots, consts, funcs, span)?;
             match op {
-                UnaryOpIR::Neg if op_ty == TypeIR::Bombom => Ok(TypeIR::Bombom),
+                UnaryOpIR::Neg if op_ty.is_unsigned() => Ok(op_ty),
                 UnaryOpIR::Not if op_ty == TypeIR::Logica => Ok(TypeIR::Logica),
                 _ => Err(ir_validation_error(
                     "operação unária com operando inválido",
@@ -367,28 +367,35 @@ fn infer_value_type(
                 | BinaryOpIR::BitXor
                 | BinaryOpIR::Shl
                 | BinaryOpIR::Shr => {
-                    if lhs_ty == TypeIR::Bombom && rhs_ty == TypeIR::Bombom {
-                        Ok(TypeIR::Bombom)
+                    if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_unsigned() {
+                        Ok(lhs_ty)
+                    } else if matches!(lhs.as_ref(), ValueIR::Int(_)) && rhs_ty.is_unsigned() {
+                        Ok(rhs_ty)
+                    } else if matches!(rhs.as_ref(), ValueIR::Int(_)) && lhs_ty.is_unsigned() {
+                        Ok(lhs_ty)
                     } else {
                         Err(ir_validation_error(
-                            "operação aritmética/bitwise exige bombom",
+                            "operação aritmética/bitwise exige unsigned compatível",
                             span,
                         ))
                     }
                 }
                 BinaryOpIR::Eq | BinaryOpIR::Neq => {
-                    if lhs_ty == rhs_ty && lhs_ty != TypeIR::Nulo {
+                    if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty != TypeIR::Nulo {
                         Ok(TypeIR::Logica)
                     } else {
                         Err(ir_validation_error("comparação inválida", span))
                     }
                 }
                 BinaryOpIR::Lt | BinaryOpIR::Lte | BinaryOpIR::Gt | BinaryOpIR::Gte => {
-                    if lhs_ty == TypeIR::Bombom && rhs_ty == TypeIR::Bombom {
+                    if (lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_unsigned())
+                        || (matches!(lhs.as_ref(), ValueIR::Int(_)) && rhs_ty.is_unsigned())
+                        || (matches!(rhs.as_ref(), ValueIR::Int(_)) && lhs_ty.is_unsigned())
+                    {
                         Ok(TypeIR::Logica)
                     } else {
                         Err(ir_validation_error(
-                            "comparação relacional exige bombom",
+                            "comparação relacional exige unsigned compatível",
                             span,
                         ))
                     }
@@ -408,11 +415,11 @@ fn infer_value_type(
             }
             for (arg, expected) in args.iter().zip(sig.params.iter()) {
                 let actual = infer_value_type(arg, slots, consts, funcs, span)?;
-                if actual != *expected {
+                if !value_matches_expected(arg, actual, *expected) {
                     return Err(ir_validation_error("tipo de argumento inválido", span));
                 }
             }
-            if *ret_type != sig.ret_type {
+            if !ret_type.is_compatible_with(sig.ret_type) {
                 return Err(ir_validation_error(
                     "tipo de retorno anotado na call não confere",
                     span,
@@ -428,6 +435,11 @@ fn ir_validation_error(msg: &str, span: Span) -> PinkerError {
         msg: msg.to_string(),
         span,
     }
+}
+
+fn value_matches_expected(value: &ValueIR, actual: TypeIR, expected: TypeIR) -> bool {
+    actual.is_compatible_with(expected)
+        || (matches!(value, ValueIR::Int(_)) && expected.is_unsigned())
 }
 
 fn ir_validation_error_ctx(
