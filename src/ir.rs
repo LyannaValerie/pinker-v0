@@ -148,6 +148,10 @@ pub enum TypeIR {
     U16,
     U32,
     U64,
+    I8,
+    I16,
+    I32,
+    I64,
     Logica,
     Nulo,
 }
@@ -566,9 +570,9 @@ impl<'a> FunctionLowerer<'a> {
                         | BinaryOp::BitXor
                         | BinaryOp::Shl
                         | BinaryOp::Shr => {
-                            if lhs_is_int_lit && rhs.ty.is_unsigned() {
+                            if lhs_is_int_lit && rhs.ty.is_integer() {
                                 rhs.ty
-                            } else if rhs_is_int_lit && lhs.ty.is_unsigned() {
+                            } else if rhs_is_int_lit && lhs.ty.is_integer() {
                                 lhs.ty
                             } else {
                                 lhs.ty
@@ -843,6 +847,14 @@ impl TypeIR {
         )
     }
 
+    pub fn is_signed(&self) -> bool {
+        matches!(self, TypeIR::I8 | TypeIR::I16 | TypeIR::I32 | TypeIR::I64)
+    }
+
+    pub fn is_integer(&self) -> bool {
+        self.is_unsigned() || self.is_signed()
+    }
+
     pub fn is_compatible_with(&self, other: TypeIR) -> bool {
         *self == other
             || ((*self == TypeIR::Bombom && other == TypeIR::U64)
@@ -856,6 +868,10 @@ impl TypeIR {
             Type::U16(_) => TypeIR::U16,
             Type::U32(_) => TypeIR::U32,
             Type::U64(_) => TypeIR::U64,
+            Type::I8(_) => TypeIR::I8,
+            Type::I16(_) => TypeIR::I16,
+            Type::I32(_) => TypeIR::I32,
+            Type::I64(_) => TypeIR::I64,
             Type::Logica(_) => TypeIR::Logica,
             Type::Nulo(_) => TypeIR::Nulo,
         }
@@ -872,6 +888,10 @@ impl TypeIR {
             TypeIR::U16 => "u16",
             TypeIR::U32 => "u32",
             TypeIR::U64 => "u64",
+            TypeIR::I8 => "i8",
+            TypeIR::I16 => "i16",
+            TypeIR::I32 => "i32",
+            TypeIR::I64 => "i64",
             TypeIR::Logica => "logica",
             TypeIR::Nulo => "nulo",
         }

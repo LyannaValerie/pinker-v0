@@ -607,9 +607,15 @@ fn render_stack_type(ty: StackValueType) -> &'static str {
 
 fn type_to_stack(ty: TypeIR) -> StackValueType {
     match ty {
-        TypeIR::Bombom | TypeIR::U8 | TypeIR::U16 | TypeIR::U32 | TypeIR::U64 => {
-            StackValueType::Bombom
-        }
+        TypeIR::Bombom
+        | TypeIR::U8
+        | TypeIR::U16
+        | TypeIR::U32
+        | TypeIR::U64
+        | TypeIR::I8
+        | TypeIR::I16
+        | TypeIR::I32
+        | TypeIR::I64 => StackValueType::Bombom,
         TypeIR::Logica => StackValueType::Logica,
         TypeIR::Nulo => StackValueType::Unknown,
     }

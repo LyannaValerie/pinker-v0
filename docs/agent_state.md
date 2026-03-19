@@ -60,10 +60,11 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 41: tornar os comentários de `--machine` sensíveis ao papel do fluxo
 - Fase 42: operador `%` nativo (primeira fase funcional do Bloco 1), com integração no pipeline completo e cobertura de runtime/CLI
 - Fase 43: inteiros unsigned fixos (`u8`, `u16`, `u32`, `u64`) com validação estrita e integração no pipeline
+- Fase 44: inteiros signed fixos (`i8`, `i16`, `i32`, `i64`) com validação estrita e integração no pipeline
 - Rodada documental: consolidação da trilha única "voltar aos trilhos" em `docs/roadmap.md` (sem número de fase)
 
 ## Fase atual
-- Fase 43 concluída: suporte explícito a `u8`, `u16`, `u32`, `u64` em parâmetros, retornos, variáveis locais e constantes globais; validação semântica estrita entre larguras; e manutenção de `bombom` como inteiro legado/principal em `u64`.
+- Fase 44 concluída: suporte explícito a `i8`, `i16`, `i32`, `i64` em parâmetros, retornos, variáveis locais e constantes globais; validação semântica estrita entre signed/unsigned e larguras; e manutenção de `bombom` como inteiro legado/principal em `u64`.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`

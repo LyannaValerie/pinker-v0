@@ -130,11 +130,19 @@ impl Parser {
             Ok(Type::U32(span))
         } else if self.match_token(TokenKind::KwU64) {
             Ok(Type::U64(span))
+        } else if self.match_token(TokenKind::KwI8) {
+            Ok(Type::I8(span))
+        } else if self.match_token(TokenKind::KwI16) {
+            Ok(Type::I16(span))
+        } else if self.match_token(TokenKind::KwI32) {
+            Ok(Type::I32(span))
+        } else if self.match_token(TokenKind::KwI64) {
+            Ok(Type::I64(span))
         } else if self.match_token(TokenKind::KwLogica) {
             Ok(Type::Logica(span))
         } else {
             Err(PinkerError::Expected {
-                expected: "bombom, u8, u16, u32, u64 ou logica".to_string(),
+                expected: "bombom, u8, u16, u32, u64, i8, i16, i32, i64 ou logica".to_string(),
                 found: self
                     .peek()
                     .map(|token| token.lexeme.clone())

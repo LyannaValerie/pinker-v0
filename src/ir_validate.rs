@@ -338,7 +338,7 @@ fn infer_value_type(
         ValueIR::Unary { op, operand } => {
             let op_ty = infer_value_type(operand, slots, consts, funcs, span)?;
             match op {
-                UnaryOpIR::Neg if op_ty.is_unsigned() => Ok(op_ty),
+                UnaryOpIR::Neg if op_ty.is_integer() => Ok(op_ty),
                 UnaryOpIR::Not if op_ty == TypeIR::Logica => Ok(TypeIR::Logica),
                 _ => Err(ir_validation_error(
                     "operação unária com operando inválido",
@@ -367,15 +367,15 @@ fn infer_value_type(
                 | BinaryOpIR::BitXor
                 | BinaryOpIR::Shl
                 | BinaryOpIR::Shr => {
-                    if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_unsigned() {
+                    if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_integer() {
                         Ok(lhs_ty)
-                    } else if matches!(lhs.as_ref(), ValueIR::Int(_)) && rhs_ty.is_unsigned() {
+                    } else if matches!(lhs.as_ref(), ValueIR::Int(_)) && rhs_ty.is_integer() {
                         Ok(rhs_ty)
-                    } else if matches!(rhs.as_ref(), ValueIR::Int(_)) && lhs_ty.is_unsigned() {
+                    } else if matches!(rhs.as_ref(), ValueIR::Int(_)) && lhs_ty.is_integer() {
                         Ok(lhs_ty)
                     } else {
                         Err(ir_validation_error(
-                            "operação aritmética/bitwise exige unsigned compatível",
+                            "operação aritmética/bitwise exige inteiro compatível",
                             span,
                         ))
                     }
@@ -388,14 +388,14 @@ fn infer_value_type(
                     }
                 }
                 BinaryOpIR::Lt | BinaryOpIR::Lte | BinaryOpIR::Gt | BinaryOpIR::Gte => {
-                    if (lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_unsigned())
-                        || (matches!(lhs.as_ref(), ValueIR::Int(_)) && rhs_ty.is_unsigned())
-                        || (matches!(rhs.as_ref(), ValueIR::Int(_)) && lhs_ty.is_unsigned())
+                    if (lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_integer())
+                        || (matches!(lhs.as_ref(), ValueIR::Int(_)) && rhs_ty.is_integer())
+                        || (matches!(rhs.as_ref(), ValueIR::Int(_)) && lhs_ty.is_integer())
                     {
                         Ok(TypeIR::Logica)
                     } else {
                         Err(ir_validation_error(
-                            "comparação relacional exige unsigned compatível",
+                            "comparação relacional exige inteiro compatível",
                             span,
                         ))
                     }
@@ -439,7 +439,7 @@ fn ir_validation_error(msg: &str, span: Span) -> PinkerError {
 
 fn value_matches_expected(value: &ValueIR, actual: TypeIR, expected: TypeIR) -> bool {
     actual.is_compatible_with(expected)
-        || (matches!(value, ValueIR::Int(_)) && expected.is_unsigned())
+        || (matches!(value, ValueIR::Int(_)) && expected.is_integer())
 }
 
 fn ir_validation_error_ctx(

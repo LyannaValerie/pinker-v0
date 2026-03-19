@@ -272,3 +272,23 @@ fn parser_aceita_tipos_unsigned_em_assinaturas_e_locais() {
     let program = parse(source).expect("parser deve aceitar unsigned fixos");
     assert_eq!(program.items.len(), 5);
 }
+
+#[test]
+fn parser_aceita_tipos_signed_em_assinaturas_e_locais_com_negacao() {
+    let source = r#"
+        pacote main;
+        carinho soma_i8(a: i8, b: i8) -> i8 { mimo a + b; }
+        carinho soma_i16(a: i16, b: i16) -> i16 { mimo a + b; }
+        carinho soma_i32(a: i32, b: i32) -> i32 { mimo a + b; }
+        carinho soma_i64(a: i64, b: i64) -> i64 { mimo a + b; }
+        carinho principal() -> bombom {
+            nova x: i8 = soma_i8(-1, 2);
+            nova y: i16 = soma_i16(-3, 4);
+            nova z: i32 = soma_i32(-5, 6);
+            nova w: i64 = soma_i64(-40, 2);
+            mimo 42;
+        }
+    "#;
+    let program = parse(source).expect("parser deve aceitar signed fixos");
+    assert_eq!(program.items.len(), 5);
+}

@@ -315,7 +315,7 @@ fn validate_block(
                     function.span,
                 )?;
                 let result = match op {
-                    crate::ir::UnaryOpIR::Neg if operand_ty.is_unsigned() => operand_ty,
+                    crate::ir::UnaryOpIR::Neg if operand_ty.is_integer() => operand_ty,
                     crate::ir::UnaryOpIR::Not if operand_ty == TypeIR::Logica => TypeIR::Logica,
                     _ => return Err(cfg_error("operando inválido para unário", function.span)),
                 };
@@ -347,11 +347,11 @@ fn validate_block(
                     | crate::ir::BinaryOpIR::BitXor
                     | crate::ir::BinaryOpIR::Shl
                     | crate::ir::BinaryOpIR::Shr => {
-                        if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_unsigned() {
+                        if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_integer() {
                             lhs_ty
-                        } else if matches!(lhs, OperandIR::Int(_)) && rhs_ty.is_unsigned() {
+                        } else if matches!(lhs, OperandIR::Int(_)) && rhs_ty.is_integer() {
                             rhs_ty
-                        } else if matches!(rhs, OperandIR::Int(_)) && lhs_ty.is_unsigned() {
+                        } else if matches!(rhs, OperandIR::Int(_)) && lhs_ty.is_integer() {
                             lhs_ty
                         } else {
                             return Err(cfg_error(
@@ -371,9 +371,9 @@ fn validate_block(
                     | crate::ir::BinaryOpIR::Lte
                     | crate::ir::BinaryOpIR::Gt
                     | crate::ir::BinaryOpIR::Gte => {
-                        if (lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_unsigned())
-                            || (matches!(lhs, OperandIR::Int(_)) && rhs_ty.is_unsigned())
-                            || (matches!(rhs, OperandIR::Int(_)) && lhs_ty.is_unsigned())
+                        if (lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_integer())
+                            || (matches!(lhs, OperandIR::Int(_)) && rhs_ty.is_integer())
+                            || (matches!(rhs, OperandIR::Int(_)) && lhs_ty.is_integer())
                         {
                             TypeIR::Logica
                         } else {
@@ -584,7 +584,7 @@ fn cfg_error_ctx(
 
 fn operand_matches_expected(operand: &OperandIR, actual: TypeIR, expected: TypeIR) -> bool {
     actual.is_compatible_with(expected)
-        || (matches!(operand, OperandIR::Int(_)) && expected.is_unsigned())
+        || (matches!(operand, OperandIR::Int(_)) && expected.is_integer())
 }
 
 fn default_span() -> Span {

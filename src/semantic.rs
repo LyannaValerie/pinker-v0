@@ -77,14 +77,26 @@ impl SemanticChecker {
                 | (Type::U16(_), Type::U16(_))
                 | (Type::U32(_), Type::U32(_))
                 | (Type::U64(_), Type::U64(_))
+                | (Type::I8(_), Type::I8(_))
+                | (Type::I16(_), Type::I16(_))
+                | (Type::I32(_), Type::I32(_))
+                | (Type::I64(_), Type::I64(_))
                 | (Type::Logica(_), Type::Logica(_))
         )
     }
 
-    fn is_unsigned_type(ty: &Type) -> bool {
+    fn is_integer_type(ty: &Type) -> bool {
         matches!(
             ty,
-            Type::Bombom(_) | Type::U8(_) | Type::U16(_) | Type::U32(_) | Type::U64(_)
+            Type::Bombom(_)
+                | Type::U8(_)
+                | Type::U16(_)
+                | Type::U32(_)
+                | Type::U64(_)
+                | Type::I8(_)
+                | Type::I16(_)
+                | Type::I32(_)
+                | Type::I64(_)
         )
     }
 
@@ -94,7 +106,7 @@ impl SemanticChecker {
 
     fn check_expected_type_for_expr(expected: &Type, actual: &Type, expr: &Expr) -> bool {
         Self::check_type_match(expected, actual)
-            || (Self::is_unsigned_type(expected) && Self::expr_is_int_literal(expr))
+            || (Self::is_integer_type(expected) && Self::expr_is_int_literal(expr))
     }
 
     fn declare_var(
@@ -541,8 +553,8 @@ impl SemanticChecker {
                 )?;
 
                 let binary_types_compatible = Self::check_type_match(&lhs_ty, &rhs_ty)
-                    || (Self::expr_is_int_literal(lhs) && Self::is_unsigned_type(&rhs_ty))
-                    || (Self::expr_is_int_literal(rhs) && Self::is_unsigned_type(&lhs_ty));
+                    || (Self::expr_is_int_literal(lhs) && Self::is_integer_type(&rhs_ty))
+                    || (Self::expr_is_int_literal(rhs) && Self::is_integer_type(&lhs_ty));
                 if !binary_types_compatible {
                     return Err(PinkerError::Semantic {
                         msg: format!(
@@ -575,15 +587,18 @@ impl SemanticChecker {
                     | BinaryOp::BitXor
                     | BinaryOp::Shl
                     | BinaryOp::Shr => {
-                        if Self::is_unsigned_type(&lhs_ty) {
-                            if Self::expr_is_int_literal(lhs) && !Self::expr_is_int_literal(rhs) {
+                        if Self::is_integer_type(&lhs_ty) {
+                            if Self::expr_is_int_literal(lhs)
+                                && !Self::expr_is_int_literal(rhs)
+                                && Self::is_integer_type(&rhs_ty)
+                            {
                                 Ok(rhs_ty.with_span(expr.span))
                             } else {
                                 Ok(lhs_ty.with_span(expr.span))
                             }
                         } else {
                             Err(PinkerError::Semantic {
-                                msg: "operação aritmética/bitwise requer operandos unsigned compatíveis"
+                                msg: "operação aritmética/bitwise requer operandos inteiros compatíveis"
                                     .to_string(),
                                 span: expr.span,
                             })
@@ -604,11 +619,11 @@ impl SemanticChecker {
                 )?;
                 match op {
                     UnaryOp::Neg => {
-                        if Self::is_unsigned_type(&inner_ty) {
+                        if Self::is_integer_type(&inner_ty) {
                             Ok(inner_ty.with_span(expr.span))
                         } else {
                             Err(PinkerError::Semantic {
-                                msg: "negação aritmética requer operando unsigned".to_string(),
+                                msg: "negação aritmética requer operando inteiro".to_string(),
                                 span: expr.span,
                             })
                         }

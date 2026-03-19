@@ -5,6 +5,14 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 44 — inteiros signed com largura fixa (`i8`, `i16`, `i32`, `i64`)
+  - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
+  - suporte tipado explícito em lexer/parser/semântica/IR/CFG/selected/Machine/runtime textual
+  - política desta fase: validação estrita entre larguras e entre signed/unsigned; sem coerção implícita entre famílias
+  - literais inteiros continuam representados internamente como `bombom` (`u64`) e podem inicializar/argumentar inteiros (signed/unsigned) em contexto tipado esperado
+  - unário `-` aceito para tipos inteiros (incluindo signed fixos), mantendo semântica operacional atual do runtime textual
+  - cobertura incremental em testes de lexer/parser/semântica/IR/CLI + exemplo `examples/run_signed_basico.pink`
+
 - Fase 43 — inteiros unsigned com largura fixa (`u8`, `u16`, `u32`, `u64`)
   - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
   - suporte tipado explícito em lexer/parser/semântica/IR/CFG/selected/Machine/runtime textual
