@@ -65,6 +65,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                     | SelectedInstr::Sub { dest, lhs, rhs }
                     | SelectedInstr::Mul { dest, lhs, rhs }
                     | SelectedInstr::Div { dest, lhs, rhs }
+                    | SelectedInstr::Mod { dest, lhs, rhs }
                     | SelectedInstr::CmpEq { dest, lhs, rhs }
                     | SelectedInstr::CmpNe { dest, lhs, rhs }
                     | SelectedInstr::CmpLt { dest, lhs, rhs }

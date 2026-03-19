@@ -220,3 +220,35 @@ fn parser_aceita_expressao_com_logicos() {
         _ => panic!("item esperado: função"),
     }
 }
+
+#[test]
+fn parser_aceita_expressao_com_modulo_e_precedencia_multiplicativa() {
+    let source = "pacote main; carinho principal() -> bombom { mimo 10 % 4 * 2 / 3; }";
+    let program = parse(source).expect("parser deve aceitar %");
+    let func = match &program.items[0] {
+        Item::Function(f) => f,
+        _ => panic!("item esperado: function"),
+    };
+    let ret_expr = match &func.body.stmts[0] {
+        Stmt::Return(ret) => ret.expr.as_ref().expect("return com expressão"),
+        _ => panic!("stmt esperado: return"),
+    };
+    match &ret_expr.kind {
+        ExprKind::Binary(lhs_div, op_div, rhs_div) => {
+            assert_eq!(op_div.name(), "Div");
+            assert!(matches!(rhs_div.kind, ExprKind::IntLit(3)));
+            match &lhs_div.kind {
+                ExprKind::Binary(lhs_mul, op_mul, rhs_mul) => {
+                    assert_eq!(op_mul.name(), "Mul");
+                    assert!(matches!(rhs_mul.kind, ExprKind::IntLit(2)));
+                    match &lhs_mul.kind {
+                        ExprKind::Binary(_, op_mod, _) => assert_eq!(op_mod.name(), "Mod"),
+                        _ => panic!("esperado nó binário com Mod"),
+                    }
+                }
+                _ => panic!("esperado nó binário com Mul"),
+            }
+        }
+        _ => panic!("expressão esperada: binária"),
+    }
+}

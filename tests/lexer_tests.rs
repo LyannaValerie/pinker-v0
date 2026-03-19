@@ -63,6 +63,12 @@ fn lexer_reconhece_operadores_bitwise_basicos() {
 }
 
 #[test]
+fn lexer_reconhece_operador_modulo() {
+    let tokens = tokenize("a % b;").unwrap();
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::Percent));
+}
+
+#[test]
 fn lexer_reconhece_operadores_logicos_curto_circuito() {
     let tokens = tokenize("a && b || c;").unwrap();
     assert!(tokens.iter().any(|t| t.kind == TokenKind::AmpAmp));

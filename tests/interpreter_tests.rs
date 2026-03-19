@@ -321,6 +321,42 @@ fn run_falha_divisao_por_zero() {
 }
 
 #[test]
+fn run_falha_modulo_por_zero() {
+    let program = MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![MachineFunction {
+            name: "principal".to_string(),
+            ret_type: pinker_v0::ir::TypeIR::Bombom,
+            params: vec![],
+            locals: vec![],
+            slot_types: HashMap::new(),
+            blocks: vec![MachineBlock {
+                label: "entry".to_string(),
+                code: vec![
+                    MachineInstr::PushInt(10),
+                    MachineInstr::PushInt(0),
+                    MachineInstr::Mod,
+                ],
+                terminator: MachineTerminator::Ret,
+            }],
+        }],
+    };
+    let err = interpreter::run_program(&program).unwrap_err().to_string();
+    assert!(
+        err.contains("[runtime::divisao_por_zero]"),
+        "mensagem: {}",
+        err
+    );
+    assert!(err.contains("divisão por zero"), "mensagem: {}", err);
+    assert!(
+        err.contains("at principal [bloco: entry] [instr: mod]"),
+        "mensagem: {}",
+        err
+    );
+}
+
+#[test]
 fn run_falha_runtime_em_chamada_tem_stack_trace() {
     let err = run_code(
         "pacote main; carinho quebra(x: bombom) -> bombom { mimo x / 0; } carinho principal() -> bombom { mimo quebra(10); }",
@@ -608,6 +644,15 @@ fn run_divisao() {
     )
     .unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(5)));
+}
+
+#[test]
+fn run_modulo() {
+    let out = run_code(
+        "pacote main; carinho principal() -> bombom { nova a = 10; nova b = 4; mimo a % b; }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(2)));
 }
 
 #[test]
@@ -1037,6 +1082,19 @@ fn cli_run_bitwise_funciona() {
 
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout), "22\n");
+    assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+}
+
+#[test]
+fn cli_run_modulo_funciona() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg("examples/run_modulo_basico.pink")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "2\n");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
 

@@ -343,6 +343,7 @@ fn apply_instr_effect(
         | MachineInstr::Sub
         | MachineInstr::Mul
         | MachineInstr::Div
+        | MachineInstr::Mod
         | MachineInstr::CmpEq
         | MachineInstr::CmpNe
         | MachineInstr::CmpLt
@@ -584,6 +585,7 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::Sub => "sub",
         MachineInstr::Mul => "mul",
         MachineInstr::Div => "div",
+        MachineInstr::Mod => "mod",
         MachineInstr::CmpEq => "cmp_eq",
         MachineInstr::CmpNe => "cmp_ne",
         MachineInstr::CmpLt => "cmp_lt",

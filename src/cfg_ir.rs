@@ -760,6 +760,7 @@ fn render_binary_op(op: BinaryOpIR) -> &'static str {
         BinaryOpIR::Sub => "sub",
         BinaryOpIR::Mul => "mul",
         BinaryOpIR::Div => "div",
+        BinaryOpIR::Mod => "mod",
         BinaryOpIR::Eq => "eq",
         BinaryOpIR::Neq => "neq",
         BinaryOpIR::Lt => "lt",

@@ -216,6 +216,17 @@ carinho principal() -> bombom {
     assert!(out.contains("vm shr"));
 }
 
+#[test]
+fn machine_modulo_basico() {
+    let code = "\
+pacote main;
+carinho principal() -> bombom {
+  mimo 10 % 4;
+}";
+    let out = render_machine(code).unwrap();
+    assert!(out.contains("vm mod"), "{}", out);
+}
+
 // ── Fase 35: testes de legibilidade da saída --machine ────────────────────────
 
 #[test]

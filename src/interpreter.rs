@@ -241,6 +241,13 @@ fn exec_instr(
             }
             stack.push(RuntimeValue::Int(lhs / rhs));
         }
+        MachineInstr::Mod => {
+            let (lhs, rhs) = pop_bin_int(stack, "mod exige dois bombons")?;
+            if rhs == 0 {
+                return Err(runtime_err("divisão por zero"));
+            }
+            stack.push(RuntimeValue::Int(lhs % rhs));
+        }
         MachineInstr::CmpEq => {
             let (lhs, rhs) = pop_bin_int(stack, "cmp_eq exige dois bombons")?;
             stack.push(RuntimeValue::Bool(lhs == rhs));
@@ -466,6 +473,7 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::Sub => "sub",
         MachineInstr::Mul => "mul",
         MachineInstr::Div => "div",
+        MachineInstr::Mod => "mod",
         MachineInstr::CmpEq => "cmp_eq",
         MachineInstr::CmpNe => "cmp_ne",
         MachineInstr::CmpLt => "cmp_lt",

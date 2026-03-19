@@ -1,18 +1,19 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada **documental/estratégica** (sem nova fase funcional) para consolidar a trilha única de retorno ao objetivo de linguagem de sistemas/kernel.
+- Rodada **funcional pequena e auditável**: Fase 40 do histórico interno, correspondente ao primeiro item do Bloco 1 do roadmap consolidado (`%` nativo).
 
 ## O que foi atualizado
-- `docs/roadmap.md` agora é o documento mestre de execução para "voltar aos trilhos", com trilha oficial única em 5 blocos e ordem explícita de dependência.
-- Regra explícita: não abrir trilha paralela.
-- Regras operacionais registradas: não antecipar backend nativo antes da base mínima de tipos/modelagem; priorizar `.s` antes de ELF direto; módulos/strings/I/O sem atropelar trilha de kernel.
-- Critério de bloco concluído e regra de transição adicionados ao roadmap.
-- `docs/agent_state.md` atualizado para refletir precedência de `roadmap.md` sobre `future.md`.
-- `docs/future.md` recebeu nota de precedência curta no topo (inventário amplo x ordem oficial ativa).
-- `docs/phases.md` recebeu registro da rodada documental de consolidação (sem fase funcional nova).
+- Operador `%` adicionado com escopo mínimo e integração completa no pipeline:
+  - lexer/token (`Percent`);
+  - parser/AST (`BinaryOp::Mod`, precedência multiplicativa com `*` e `/`);
+  - semântica (`%` válido para `bombom`, inválido para `logica`);
+  - IR/CFG/selected/Machine/backend textual (novos mapeamentos `Mod`/`mod`);
+  - interpretador (`MachineInstr::Mod`) com `%` por zero usando mesma família de erro de divisão por zero.
+- Cobertura de testes incrementada por camada e novo exemplo versionado: `examples/run_modulo_basico.pink`.
+- Documentação operacional atualizada: `docs/phases.md`, `docs/agent_state.md` e este handoff.
 
 ## Estado operacional após a rodada
-- Continuidade histórica preservada.
-- Nenhuma mudança em parser/semântica/IR/CFG/selected/Machine/interpreter/backend.
-- Próxima fase funcional esperada deve permanecer coerente com o **Bloco 1** do roadmap consolidado.
+- Continuidade histórica preservada (Fase 39 documental -> Fase 40 funcional).
+- Primeira fase funcional do Bloco 1 entregue (`%` nativo), sem abrir trilhas paralelas.
+- Itens fora de escopo mantidos: `%=`/floats/novos tipos/coerções/otimizações/redesigns.

@@ -123,6 +123,7 @@ fn validate_function(
                         | crate::ir::BinaryOpIR::Sub
                         | crate::ir::BinaryOpIR::Mul
                         | crate::ir::BinaryOpIR::Div
+                        | crate::ir::BinaryOpIR::Mod
                         | crate::ir::BinaryOpIR::BitAnd
                         | crate::ir::BinaryOpIR::BitOr
                         | crate::ir::BinaryOpIR::BitXor

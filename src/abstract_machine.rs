@@ -79,6 +79,7 @@ pub enum MachineInstr {
     Sub,
     Mul,
     Div,
+    Mod,
     CmpEq,
     CmpNe,
     CmpLt,
@@ -221,6 +222,12 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) {
             emit_load(lhs, code);
             emit_load(rhs, code);
             code.push(MachineInstr::Div);
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
+        SelectedInstr::Mod { dest, lhs, rhs } => {
+            emit_load(lhs, code);
+            emit_load(rhs, code);
+            code.push(MachineInstr::Mod);
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
         SelectedInstr::CmpEq { dest, lhs, rhs } => {
@@ -532,6 +539,7 @@ fn render_instr(i: &MachineInstr) -> String {
         MachineInstr::Sub => with_comment("sub".to_string(), "subtrai os dois topos da pilha"),
         MachineInstr::Mul => with_comment("mul".to_string(), "multiplica os dois topos da pilha"),
         MachineInstr::Div => with_comment("div".to_string(), "divide os dois topos da pilha"),
+        MachineInstr::Mod => with_comment("mod".to_string(), "resto da divisão entre dois topos"),
         MachineInstr::CmpEq => with_comment("cmp_eq".to_string(), "compara igualdade"),
         MachineInstr::CmpNe => with_comment("cmp_ne".to_string(), "compara diferença"),
         MachineInstr::CmpLt => with_comment("cmp_lt".to_string(), "compara menor que"),

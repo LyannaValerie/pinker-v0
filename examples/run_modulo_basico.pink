@@ -1,0 +1,7 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova a = 10;
+    nova b = 4;
+    mimo a % b;
+}
