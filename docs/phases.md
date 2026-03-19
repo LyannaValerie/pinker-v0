@@ -434,3 +434,18 @@
 - subset mantido nesta fase: tipos escalares (`bombom`, `u8..u64`, `i8..i64`, `logica`, `nulo`) e chamadas/controle de fluxo já suportados em `selected`.
 - fora de escopo preservado: assembler/linker externo, ABI final de plataforma, register allocation real, stack frame real completo, syscalls e binário executável real.
 - próximo item normal do roadmap principal: Bloco 3, item 3 (uso de assembler/linker externo).
+
+## Fase 55 — assembler/linker externo (integração mínima)
+- continuidade histórica preservada: Fase 54 segue como fase funcional principal anterior e Fase 48-H1 permanece rodada extraordinária/hotfix sem reordenar roadmap.
+- item 3 do Bloco 3 entregue com escopo mínimo, experimental e auditável.
+- camada-fonte mantida: emissão segue partindo de `selected` (sem backend nativo novo e sem passar pela Machine para este fluxo).
+- integração externa adotada via **Opção A**: utilitário de emissão + teste condicional que chama toolchain existente do sistema (`cc`/`gcc`/`clang`) para montar+linkar um `.s` mínimo.
+- subset explícito do fluxo externo:
+  - sem globais;
+  - função única `principal() -> bombom`;
+  - bloco único com `mimo <inteiro_constante>;` sem instruções intermediárias.
+- target assumido para a prova real: Linux x86_64 hospedado (símbolo `main`, retorno em `%rax`).
+- resultado esperado do teste experimental: compilar o `.s` gerado e executar binário com `exit code` igual à constante.
+- estabilidade de CI preservada: teste de toolchain real é condicional (pula em ambiente sem Linux x86_64 ou sem driver C disponível).
+- fora de escopo preservado: assembler/linker próprios, ABI final, register allocation, stack frame real geral, suporte amplo de linguagem no fluxo externo.
+- próximo item normal do roadmap principal: Bloco 4, item 1 (inline asm).

@@ -151,6 +151,18 @@ pub fn render_backend_s(code: &str) -> Result<String, PinkerError> {
     backend_s::emit_from_selected(&selected)
 }
 
+pub fn render_backend_s_external_subset(code: &str) -> Result<String, PinkerError> {
+    let program = parse(code)?;
+    semantic::check_program(&program)?;
+    let program_ir = ir::lower_program(&program)?;
+    ir_validate::validate_program(&program_ir)?;
+    let cfg = cfg_ir::lower_program(&program_ir)?;
+    cfg_ir_validate::validate_program(&cfg)?;
+    let selected = instr_select::lower_program(&cfg)?;
+    instr_select_validate::validate_program(&selected)?;
+    backend_s::emit_external_toolchain_subset(&selected)
+}
+
 pub fn render_cli_asm_s_output(code: &str) -> Result<String, PinkerError> {
     let mut out = String::new();
     out.push_str(

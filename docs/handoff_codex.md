@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada funcional: **Fase 54 — ABI mínima textual para backend `.s`** (segundo item do Bloco 3).
+- Rodada funcional: **Fase 55 — assembler/linker externo (integração mínima)** (terceiro item do Bloco 3).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -131,3 +131,22 @@
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
 - Bloco 2 foi encerrado em Fase 52 e o Bloco 3 segue ativo (itens 1 e 2 concluídos).
 - Próximo item normal do roadmap principal: Bloco 3, item 3 (uso de assembler/linker externo).
+
+## O que entrou na Fase 55
+- Emissão `.s` textual da Fase 54 foi preservada intacta (`--asm-s` continua derivado da camada `selected`).
+- Backend `.s` ganhou um emissor adicional de **subset externo mínimo**:
+  - sem globais;
+  - função única `principal() -> bombom`;
+  - retorno inteiro constante em bloco único (`mimo <constante>;`).
+- Para prova real de integração, o emissor externo mapeia `principal` para símbolo `main` e gera assembly mínimo Linux x86_64 (`movq $const, %rax; ret`).
+- Teste de integração condicional adicionado:
+  - detecta driver C disponível (`cc`/`gcc`/`clang`);
+  - compila e linka o `.s` gerado;
+  - executa binário e valida `exit code` esperado.
+- Estabilidade preservada: se ambiente não for Linux x86_64 ou não tiver driver C, o teste de fluxo real retorna cedo (skip lógico), sem quebrar suíte padrão.
+
+## Continuidade de roadmap após Fase 55
+- Fase 54 passa a ser a fase funcional principal anterior.
+- Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
+- Bloco 3 foi encerrado com os itens 1, 2 e 3 concluídos.
+- Próximo item normal do roadmap principal: Bloco 4, item 1 (inline asm).
