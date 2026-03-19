@@ -273,6 +273,22 @@ fn render_expr(expr: &Expr, indent: usize, out: &mut String, label: &str) {
             render_expr(base, indent + 1, out, "base");
             render_expr(index, indent + 1, out, "index");
         }
+        ExprKind::Cast {
+            expr: inner,
+            target,
+        } => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "{} Cast({}) {}",
+                    label,
+                    format_type(target),
+                    format_span(expr.span)
+                ),
+            );
+            render_expr(inner, indent + 1, out, "expr");
+        }
         ExprKind::Ident(name) => {
             line(
                 out,

@@ -1,0 +1,7 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova x: u16 = 513;
+    nova y: u8 = x virar u8;
+    mimo y virar bombom;
+}

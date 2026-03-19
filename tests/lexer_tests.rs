@@ -112,6 +112,12 @@ fn lexer_reconhece_keyword_seta() {
 }
 
 #[test]
+fn lexer_reconhece_keyword_virar() {
+    let tokens = tokenize("x virar u8;").unwrap();
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::KwVirar));
+}
+
+#[test]
 fn lexer_reconhece_sintaxe_de_array_fixo() {
     let tokens = tokenize("[u8; 16]").unwrap();
     assert_eq!(tokens[0].kind, TokenKind::LBracket);

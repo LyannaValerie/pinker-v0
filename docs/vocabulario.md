@@ -28,6 +28,7 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `principal`    | main/entry       | protagonista          |
 | `apelido`      | type alias       | nome alternativo      |
 | `ninho`        | struct           | agrupamento acolhedor |
+| `virar`        | cast explícito   | transformação visível |
 
 ---
 
@@ -84,7 +85,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 | trait/interface  | `molde`     | `jeitinho`, `feitio` | forma de ser                        |
 | impl             | `vestir`    | `assumir`            | vestir um molde, incorporar         |
 | ~~type alias~~   | ~~`apelido`~~ | `alcunha`          | implementado na Fase 45             |
-| cast / as        | `virar`     | `tornar`             | transformacao                       |
+| ~~cast / as~~    | ~~`virar`~~ | `tornar`             | implementado na Fase 50             |
 | sizeof           | `peso`      | `tamanho`            | medida                              |
 | generic          | `qualquer`  | `molde livre`        | flexibilidade                       |
 

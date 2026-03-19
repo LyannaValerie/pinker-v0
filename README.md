@@ -7,6 +7,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - parser para `pacote`, `carinho`, `mimo`, `talvez/senão`, `sempre que`, `eterno`, `nova`, `mut`
 - tipos `bombom`, `u8`, `u16`, `u32`, `u64`, `i8`, `i16`, `i32`, `i64` e `logica`
 - aliases de tipo (`apelido`), arrays fixos (`[tipo; N]`), structs (`ninho`), ponteiros (`seta<tipo>`)
+- cast explícito controlado com `virar` (inteiro -> inteiro no frontend/semântica/IR estruturada)
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
 - AST textual estável
@@ -25,6 +26,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - otimizações grandes
 - FFI, enums, generics, traits
 - operações reais de ponteiro (dereferência, aritmética), acesso via ponteiro (`seta<T>`), escrita em campo/index, layout físico/ABI
+- lowering operacional de `virar` em CFG/Machine/runtime (`--check` aceita o subset da fase; `--run`/`--cfg-ir` ainda não executam cast)
 - runtime signed correto (tipos `i8`–`i64` são bloqueados no `--run` até representação adequada)
 
 ## Build e testes
@@ -70,6 +72,8 @@ cargo run -- --check examples/check_continuar_fora_loop.pink
 cargo run -- --check examples/check_campo_valido.pink
 cargo run -- --check examples/check_indexacao_valida.pink
 cargo run -- --check examples/check_indexacao_indice_nao_inteiro.pink
+cargo run -- --check examples/check_cast_inteiro_valido.pink
+cargo run -- --check examples/check_cast_invalido_logica.pink
 ```
 
 ## Modos da CLI

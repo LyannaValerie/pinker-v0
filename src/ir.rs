@@ -147,6 +147,10 @@ pub enum ValueIR {
         index: Box<ValueIR>,
         element_type: TypeIR,
     },
+    Cast {
+        value: Box<ValueIR>,
+        target_type: TypeIR,
+    },
 }
 
 /// Tipos do sistema de tipos da v0. `Nulo` representa ausência de retorno (funções sem `-> tipo`);
@@ -789,6 +793,21 @@ impl<'a> FunctionLowerer<'a> {
                     struct_name: None,
                 })
             }
+            ExprKind::Cast {
+                expr: source,
+                target,
+            } => {
+                let lowered_source = self.lower_value(source)?;
+                let target_type = self.context.resolve_type(target)?;
+                Ok(TypedValueIR {
+                    value: ValueIR::Cast {
+                        value: Box::new(lowered_source.value),
+                        target_type,
+                    },
+                    ty: target_type,
+                    struct_name: None,
+                })
+            }
         }
     }
 
@@ -1029,6 +1048,13 @@ fn render_value(value: &ValueIR) -> String {
         }
         ValueIR::Index { base, index, .. } => {
             format!("{}[{}]", render_value(base), render_value(index))
+        }
+        ValueIR::Cast { value, target_type } => {
+            format!(
+                "{} virar {}",
+                render_value(value),
+                target_type.render_name()
+            )
         }
     }
 }

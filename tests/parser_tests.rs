@@ -287,6 +287,41 @@ fn parser_aceita_cadeia_postfix_com_campo_e_indexacao() {
 }
 
 #[test]
+fn parser_aceita_cast_explicito_com_virar() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo foo(1).campo[0] virar u8 + 1;
+        }
+        carinho foo(x: bombom) -> Ponto { mimo x; }
+        ninho Ponto { campo: [bombom; 2]; }
+    "#;
+    let program = parse(code).expect("parser deve aceitar cast explícito");
+    let func = match &program.items[0] {
+        Item::Function(f) => f,
+        _ => panic!("item esperado: função"),
+    };
+    let ret_expr = match &func.body.stmts[0] {
+        Stmt::Return(ret) => ret.expr.as_ref().expect("retorno com expressão"),
+        _ => panic!("stmt esperado: return"),
+    };
+    match &ret_expr.kind {
+        ExprKind::Binary(lhs, op, rhs) => {
+            assert_eq!(op.name(), "Add");
+            assert!(matches!(rhs.kind, ExprKind::IntLit(1)));
+            match &lhs.kind {
+                ExprKind::Cast { expr, target } => {
+                    assert!(matches!(target, Type::U8(_)));
+                    assert!(matches!(expr.kind, ExprKind::Index { .. }));
+                }
+                _ => panic!("lado esquerdo esperado: cast"),
+            }
+        }
+        _ => panic!("expressão esperada: binária"),
+    }
+}
+
+#[test]
 fn parser_aceita_tipos_unsigned_em_assinaturas_e_locais() {
     let source = r#"
         pacote main;
