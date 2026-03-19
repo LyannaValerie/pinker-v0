@@ -109,6 +109,17 @@ semântica → IR estruturada → validação IR → CFG IR → validação CFG 
 
 Estado explícito da Fase 54: `--asm-s` cobre o subset escalar (`bombom`, `u8..u64`, `i8..i64`, `logica`, `nulo`) e agora declara contrato textual mínimo de ABI interna (símbolo exportado, `@argN`, `@ret`, prólogo/epílogo textuais). Tipos ainda não suportados seguem falhando de forma clara (ex.: `seta`, `ninho`, arrays).
 
+Estado explícito da Fase 55: além do `--asm-s` textual da Fase 54, existe integração externa **experimental e mínima** para Linux x86_64 via testes (`cc`/`gcc`/`clang`) em subset estrito:
+- programa sem globais;
+- função única `principal() -> bombom`;
+- retorno inteiro constante (`mimo <constante>;` sem instruções intermediárias).
+
+Fluxo experimental reproduzível:
+```bash
+cargo test --test backend_s_external_toolchain_tests -- --nocapture
+```
+Se não houver toolchain C no ambiente, o teste de fluxo real é pulado sem quebrar a suíte.
+
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 
 ## Validação da Machine (sanity check de pilha)

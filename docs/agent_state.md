@@ -76,7 +76,11 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Bloco 3 iniciado na Fase 53 (`--asm-s` textual) e avançado na Fase 54 (ABI mínima textual).
 - Fase 53 concluída: backend textual `.s` inicial com flag dedicada `--asm-s`, derivado da camada `selected`, com subset escalar e falha explícita para tipos fora do escopo (`seta`, `ninho`, arrays).
 - Fase 54 concluída: ABI textual mínima interna (`pinker.text.v0`) no backend `.s`, com contrato explícito de símbolo exportado, parâmetros posicionais (`@argN`), retorno (`@ret`/`ret_void`) e marcações textuais de prólogo/epílogo por função.
-- Próximo item normal do roadmap principal: Bloco 3, item 3 (uso de assembler/linker externo).
+- Fase 55 concluída: integração mínima e experimental com assembler/linker externo para subset estrito em Linux x86_64, mantendo emissão partindo de `selected`.
+- Prova externa implementada via teste condicional que usa driver C disponível (`cc`/`gcc`/`clang`) para montar+linkar `.s` mínimo (`main` retornando constante).
+- Subset explícito do fluxo externo: sem globais, função única `principal() -> bombom`, bloco único com `mimo <inteiro_constante>;` sem instruções intermediárias.
+- Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
+- Próximo item normal do roadmap principal: Bloco 4, item 1 (inline asm).
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`

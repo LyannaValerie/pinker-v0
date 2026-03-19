@@ -1,7 +1,8 @@
 use crate::backend_text;
 use crate::backend_text::BackendTextProgram;
+use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
-use crate::instr_select::{SelectedInstr, SelectedProgram};
+use crate::instr_select::{SelectedInstr, SelectedProgram, SelectedTerminator};
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
 use crate::token::{Position, Span};
 
@@ -9,6 +10,20 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
     validate_supported_subset(selected)?;
     let lowered = backend_text::lower_selected_program(selected)?;
     Ok(render_program(&lowered))
+}
+
+/// Emite um `.s` mínimo montável por toolchain externa (assembler+linker do sistema).
+///
+/// Escopo deliberadamente mínimo para a Fase 55:
+/// - target assumido: Linux x86_64 (SysV) hospedado;
+/// - subset aceito: apenas `principal() -> bombom` com retorno inteiro constante;
+/// - sem globals, sem parâmetros, sem fluxo de controle e sem chamadas.
+///
+/// O resultado mapeia `principal` para o símbolo `main`, para permitir linkedição
+/// via driver C (`cc`/`gcc`/`clang`) sem runtime próprio.
+pub fn emit_external_toolchain_subset(selected: &SelectedProgram) -> Result<String, PinkerError> {
+    let const_ret = extract_external_constant_return(selected)?;
+    Ok(render_external_x86_64_linux_main(const_ret))
 }
 
 fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerError> {
@@ -47,6 +62,70 @@ fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerErr
     }
 
     Ok(())
+}
+
+fn extract_external_constant_return(selected: &SelectedProgram) -> Result<u64, PinkerError> {
+    if !selected.globals.is_empty() {
+        return Err(err(
+            "integração externa mínima (Fase 55) não suporta globais; esperado programa sem `eterno`",
+        ));
+    }
+    if selected.functions.len() != 1 {
+        return Err(err(
+            "integração externa mínima (Fase 55) exige exatamente uma função: `principal`",
+        ));
+    }
+
+    let function = &selected.functions[0];
+    if function.name != "principal" {
+        return Err(err(
+            "integração externa mínima (Fase 55) exige função única chamada `principal`",
+        ));
+    }
+    if function.ret_type != TypeIR::Bombom {
+        return Err(err(
+            "integração externa mínima (Fase 55) exige `principal() -> bombom`",
+        ));
+    }
+    if !function.params.is_empty() || !function.locals.is_empty() {
+        return Err(err(
+            "integração externa mínima (Fase 55) não suporta parâmetros/locais em `principal`",
+        ));
+    }
+    if function.blocks.len() != 1 {
+        return Err(err(
+            "integração externa mínima (Fase 55) exige bloco único em `principal`",
+        ));
+    }
+
+    let block = &function.blocks[0];
+    if !block.instructions.is_empty() {
+        return Err(err(
+            "integração externa mínima (Fase 55) exige `principal` sem instruções intermediárias",
+        ));
+    }
+
+    match &block.terminator {
+        SelectedTerminator::Ret(Some(OperandIR::Int(v))) => Ok(*v),
+        _ => Err(err(
+            "integração externa mínima (Fase 55) exige `mimo <inteiro_constante>;` em `principal`",
+        )),
+    }
+}
+
+fn render_external_x86_64_linux_main(ret: u64) -> String {
+    let mut out = String::new();
+    line(
+        &mut out,
+        0,
+        "# pinker v0 external toolchain subset (fase 55, linux x86_64)",
+    );
+    line(&mut out, 0, ".text");
+    line(&mut out, 0, ".globl main");
+    line(&mut out, 0, "main:");
+    line(&mut out, 1, &format!("movq ${}, %rax", ret));
+    line(&mut out, 1, "ret");
+    out
 }
 
 fn is_supported_type(ty: TypeIR) -> bool {
