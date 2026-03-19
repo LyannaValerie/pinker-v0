@@ -5,6 +5,14 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 45 — aliases de tipo (`apelido`)
+  - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
+  - keyword `apelido` adicionada no frontend e integrada ao parser/AST como declaração global de alias (`apelido Nome = Tipo;`)
+  - aliases resolvidos semanticamente para tipo subjacente (sem tipo nominal novo), com uso em parâmetros, retorno, variáveis locais e constantes globais
+  - validações de erro adicionadas para alias inexistente, alias duplicado no escopo global e cadeia recursiva de aliases
+  - IR/lowering preservam o pipeline existente convertendo aliases para tipos reais antes das camadas downstream
+  - cobertura incremental em lexer/parser/semântica/IR/CLI com exemplos versionados `examples/run_alias_tipo_basico.pink` e `examples/check_alias_tipo_inexistente.pink`
+
 - Fase 44 — inteiros signed com largura fixa (`i8`, `i16`, `i32`, `i64`)
   - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
   - suporte tipado explícito em lexer/parser/semântica/IR/CFG/selected/Machine/runtime textual

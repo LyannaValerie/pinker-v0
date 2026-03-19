@@ -292,3 +292,19 @@ fn parser_aceita_tipos_signed_em_assinaturas_e_locais_com_negacao() {
     let program = parse(source).expect("parser deve aceitar signed fixos");
     assert_eq!(program.items.len(), 5);
 }
+
+#[test]
+fn parser_aceita_apelido_de_tipo_e_uso_em_assinatura() {
+    let source = r#"
+        pacote main;
+        apelido Byte = u8;
+        carinho id(x: Byte) -> Byte { mimo x; }
+        carinho principal() -> bombom { mimo id(7); }
+    "#;
+    let program = parse(source).expect("parser deve aceitar aliases de tipo");
+    assert_eq!(program.items.len(), 3);
+    match &program.items[0] {
+        Item::TypeAlias(alias) => assert_eq!(alias.name, "Byte"),
+        _ => panic!("item esperado: alias"),
+    }
+}

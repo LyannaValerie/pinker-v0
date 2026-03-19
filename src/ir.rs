@@ -202,6 +202,7 @@ struct LoweringContext {
     module_name: String,
     function_sigs: HashMap<String, FunctionSigIR>,
     global_consts: HashMap<String, TypeIR>,
+    type_aliases: HashMap<String, Type>,
 }
 
 // `FunctionLowerer` mantém estado mutable por função durante o lowering:
@@ -227,7 +228,7 @@ struct TypedValueIR {
 // Fase 2 escolhe IR estruturada: blocos e `if` seguem explícitos, sem SSA e sem saltos.
 // Isso mantém o lowering pequeno e auditável sem quebrar o frontend estabilizado.
 pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
-    let context = LoweringContext::from_program(program);
+    let context = LoweringContext::from_program(program)?;
     let mut consts = Vec::new();
     let mut functions = Vec::new();
 
@@ -237,6 +238,7 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
             Item::Function(function_decl) => {
                 functions.push(FunctionLowerer::new(&context).lower_function(function_decl)?)
             }
+            Item::TypeAlias(_) => {}
         }
     }
 
@@ -278,12 +280,19 @@ pub fn render_program(program: &ProgramIR) -> String {
 }
 
 impl LoweringContext {
-    fn from_program(program: &Program) -> Self {
+    fn from_program(program: &Program) -> Result<Self, PinkerError> {
         let module_name = program
             .package
             .as_ref()
             .map(|package| package.name.clone())
             .unwrap_or_else(|| "main".to_string());
+
+        let mut type_aliases = HashMap::new();
+        for item in &program.items {
+            if let Item::TypeAlias(alias) = item {
+                type_aliases.insert(alias.name.clone(), alias.target.clone());
+            }
+        }
 
         let mut function_sigs = HashMap::new();
         let mut global_consts = HashMap::new();
@@ -294,21 +303,33 @@ impl LoweringContext {
                     function_sigs.insert(
                         function.name.clone(),
                         FunctionSigIR {
-                            ret_type: TypeIR::from_ast_option(function.ret_type.as_ref()),
+                            ret_type: TypeIR::from_ast_option_with_context(
+                                function.ret_type.as_ref(),
+                                &type_aliases,
+                            )?,
                         },
                     );
                 }
                 Item::Const(const_decl) => {
-                    global_consts.insert(const_decl.name.clone(), TypeIR::from_ast(&const_decl.ty));
+                    global_consts.insert(
+                        const_decl.name.clone(),
+                        TypeIR::from_ast_with_context(&const_decl.ty, &type_aliases)?,
+                    );
                 }
+                Item::TypeAlias(_) => {}
             }
         }
 
-        Self {
+        Ok(Self {
             module_name,
             function_sigs,
             global_consts,
-        }
+            type_aliases,
+        })
+    }
+
+    fn resolve_type(&self, ty: &Type) -> Result<TypeIR, PinkerError> {
+        TypeIR::from_ast_with_context(ty, &self.type_aliases)
     }
 }
 
@@ -330,7 +351,8 @@ impl<'a> FunctionLowerer<'a> {
         self.push_scope();
 
         for param in &function.params {
-            let binding = self.allocate_binding(&param.name, TypeIR::from_ast(&param.ty), None);
+            let binding =
+                self.allocate_binding(&param.name, self.context.resolve_type(&param.ty)?, None);
             self.params.push(binding);
         }
 
@@ -342,7 +364,10 @@ impl<'a> FunctionLowerer<'a> {
             name: function.name.clone(),
             params: self.params,
             locals: self.locals,
-            ret_type: TypeIR::from_ast_option(function.ret_type.as_ref()),
+            ret_type: TypeIR::from_ast_option_with_context(
+                function.ret_type.as_ref(),
+                &self.context.type_aliases,
+            )?,
             entry,
             span: function.span,
         })
@@ -400,11 +425,11 @@ impl<'a> FunctionLowerer<'a> {
 
     fn lower_let(&mut self, let_stmt: &LetStmt) -> Result<InstructionIR, PinkerError> {
         let value = self.lower_value(&let_stmt.init)?;
-        let ty = let_stmt
-            .ty
-            .as_ref()
-            .map(TypeIR::from_ast)
-            .unwrap_or(value.ty);
+        let ty = if let Some(annotated_ty) = let_stmt.ty.as_ref() {
+            self.context.resolve_type(annotated_ty)?
+        } else {
+            value.ty
+        };
         let binding = self.allocate_binding(&let_stmt.name, ty, Some(let_stmt.is_mut));
         Ok(InstructionIR::Let {
             slot: binding.slot,
@@ -696,7 +721,7 @@ fn lower_const(const_decl: &ConstDecl, context: &LoweringContext) -> Result<Cons
     let value = lowerer.lower_value(&const_decl.init)?;
     Ok(ConstIR {
         name: const_decl.name.clone(),
-        ty: TypeIR::from_ast(&const_decl.ty),
+        ty: context.resolve_type(&const_decl.ty)?,
         value: value.value,
         span: const_decl.span,
     })
@@ -861,24 +886,58 @@ impl TypeIR {
                 || (*self == TypeIR::U64 && other == TypeIR::Bombom))
     }
 
-    pub fn from_ast(ty: &Type) -> Self {
+    fn from_ast_inner(
+        ty: &Type,
+        aliases: &HashMap<String, Type>,
+        resolving: &mut Vec<String>,
+    ) -> Result<Self, PinkerError> {
         match ty {
-            Type::Bombom(_) => TypeIR::Bombom,
-            Type::U8(_) => TypeIR::U8,
-            Type::U16(_) => TypeIR::U16,
-            Type::U32(_) => TypeIR::U32,
-            Type::U64(_) => TypeIR::U64,
-            Type::I8(_) => TypeIR::I8,
-            Type::I16(_) => TypeIR::I16,
-            Type::I32(_) => TypeIR::I32,
-            Type::I64(_) => TypeIR::I64,
-            Type::Logica(_) => TypeIR::Logica,
-            Type::Nulo(_) => TypeIR::Nulo,
+            Type::Bombom(_) => Ok(TypeIR::Bombom),
+            Type::U8(_) => Ok(TypeIR::U8),
+            Type::U16(_) => Ok(TypeIR::U16),
+            Type::U32(_) => Ok(TypeIR::U32),
+            Type::U64(_) => Ok(TypeIR::U64),
+            Type::I8(_) => Ok(TypeIR::I8),
+            Type::I16(_) => Ok(TypeIR::I16),
+            Type::I32(_) => Ok(TypeIR::I32),
+            Type::I64(_) => Ok(TypeIR::I64),
+            Type::Logica(_) => Ok(TypeIR::Logica),
+            Type::Nulo(_) => Ok(TypeIR::Nulo),
+            Type::Alias { name, span } => {
+                if resolving.iter().any(|current| current == name) {
+                    return Err(PinkerError::Ir {
+                        msg: format!("alias de tipo recursivo detectado em '{}'", name),
+                        span: *span,
+                    });
+                }
+                let Some(target) = aliases.get(name) else {
+                    return Err(PinkerError::Ir {
+                        msg: format!("tipo '{}' não existe", name),
+                        span: *span,
+                    });
+                };
+                resolving.push(name.clone());
+                let resolved = Self::from_ast_inner(target, aliases, resolving);
+                resolving.pop();
+                resolved
+            }
         }
     }
 
-    pub fn from_ast_option(ty: Option<&Type>) -> Self {
-        ty.map(Self::from_ast).unwrap_or(TypeIR::Nulo)
+    pub fn from_ast_with_context(
+        ty: &Type,
+        aliases: &HashMap<String, Type>,
+    ) -> Result<Self, PinkerError> {
+        Self::from_ast_inner(ty, aliases, &mut Vec::new())
+    }
+
+    pub fn from_ast_option_with_context(
+        ty: Option<&Type>,
+        aliases: &HashMap<String, Type>,
+    ) -> Result<Self, PinkerError> {
+        ty.map(|ty| Self::from_ast_with_context(ty, aliases))
+            .transpose()
+            .map(|resolved| resolved.unwrap_or(TypeIR::Nulo))
     }
 
     pub fn name(&self) -> &'static str {

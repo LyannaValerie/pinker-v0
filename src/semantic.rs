@@ -30,6 +30,7 @@ struct Scope {
 pub struct SemanticChecker {
     funcs: HashMap<String, FunctionDecl>,
     consts: HashMap<String, ConstDecl>,
+    type_aliases: HashMap<String, Type>,
     scopes: Vec<Scope>,
     current_func_name: Option<String>,
     current_func_ret: Option<Type>,
@@ -41,6 +42,7 @@ impl SemanticChecker {
         Self {
             funcs: HashMap::new(),
             consts: HashMap::new(),
+            type_aliases: HashMap::new(),
             scopes: Vec::new(),
             current_func_name: None,
             current_func_ret: None,
@@ -83,6 +85,39 @@ impl SemanticChecker {
                 | (Type::I64(_), Type::I64(_))
                 | (Type::Logica(_), Type::Logica(_))
         )
+    }
+
+    fn resolve_type_alias(
+        &self,
+        ty: &Type,
+        resolving: &mut Vec<String>,
+    ) -> Result<Type, PinkerError> {
+        match ty {
+            Type::Alias { name, span } => {
+                if resolving.iter().any(|entry| entry == name) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!("alias de tipo recursivo detectado em '{}'", name),
+                        span: *span,
+                    });
+                }
+                let Some(target) = self.type_aliases.get(name) else {
+                    return Err(PinkerError::Semantic {
+                        msg: format!("tipo '{}' não existe", name),
+                        span: *span,
+                    });
+                };
+                resolving.push(name.clone());
+                let resolved = self.resolve_type_alias(target, resolving)?;
+                resolving.pop();
+                Ok(resolved.with_span(*span))
+            }
+            _ => Ok(ty.clone()),
+        }
+    }
+
+    fn resolve_type_or_error(&self, ty: &Type) -> Result<Type, PinkerError> {
+        let mut resolving = Vec::new();
+        self.resolve_type_alias(ty, &mut resolving)
     }
 
     fn is_integer_type(ty: &Type) -> bool {
@@ -138,7 +173,9 @@ impl SemanticChecker {
         }
 
         self.consts.get(name).map(|constant| VarMeta {
-            ty: constant.ty.clone(),
+            ty: self
+                .resolve_type_or_error(&constant.ty)
+                .unwrap_or_else(|_| constant.ty.clone()),
             is_mut: false,
         })
     }
@@ -182,7 +219,31 @@ impl SemanticChecker {
                     }
                     self.consts.insert(constant.name.clone(), constant.clone());
                 }
+                Item::TypeAlias(alias) => {
+                    if self.type_aliases.contains_key(&alias.name) {
+                        return Err(PinkerError::Semantic {
+                            msg: format!("alias de tipo '{}' já declarado", alias.name),
+                            span: alias.span,
+                        });
+                    }
+                    if self.funcs.contains_key(&alias.name) || self.consts.contains_key(&alias.name)
+                    {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "nome '{}' já utilizado por função/constante global",
+                                alias.name
+                            ),
+                            span: alias.span,
+                        });
+                    }
+                    self.type_aliases
+                        .insert(alias.name.clone(), alias.target.clone());
+                }
             }
+        }
+
+        for alias_target in self.type_aliases.values() {
+            self.resolve_type_or_error(alias_target)?;
         }
 
         // --- Passagem 2: verificação de corpos ---
@@ -192,6 +253,7 @@ impl SemanticChecker {
             match item {
                 Item::Function(function) => self.check_function(function)?,
                 Item::Const(constant) => self.check_const_body(constant)?,
+                Item::TypeAlias(_) => {}
             }
         }
 
@@ -214,7 +276,12 @@ impl SemanticChecker {
             });
         }
 
-        match &main_fn.ret_type {
+        let resolved_ret = main_fn
+            .ret_type
+            .as_ref()
+            .map(|ty| self.resolve_type_or_error(ty))
+            .transpose()?;
+        match resolved_ret {
             Some(Type::Bombom(_)) => Ok(()),
             _ => Err(PinkerError::Semantic {
                 msg: "a função 'principal' deve declarar retorno 'bombom'".to_string(),
@@ -224,6 +291,7 @@ impl SemanticChecker {
     }
 
     fn check_const_body(&mut self, constant: &ConstDecl) -> Result<(), PinkerError> {
+        let resolved_const_ty = self.resolve_type_or_error(&constant.ty)?;
         self.push_scope();
         let init_ty = self.check_value_expr(
             &constant.init,
@@ -231,12 +299,12 @@ impl SemanticChecker {
         )?;
         self.pop_scope();
 
-        if !Self::check_expected_type_for_expr(&constant.ty, &init_ty, &constant.init) {
+        if !Self::check_expected_type_for_expr(&resolved_const_ty, &init_ty, &constant.init) {
             return Err(PinkerError::Semantic {
                 msg: format!(
                     "tipo incompatível na constante '{}': esperado '{}', encontrado '{}'",
                     constant.name,
-                    constant.ty.name(),
+                    resolved_const_ty.name(),
                     init_ty.name()
                 ),
                 span: constant.init.span,
@@ -248,13 +316,18 @@ impl SemanticChecker {
 
     fn check_function(&mut self, function: &FunctionDecl) -> Result<(), PinkerError> {
         self.current_func_name = Some(function.name.clone());
-        self.current_func_ret = function.ret_type.clone();
+        self.current_func_ret = function
+            .ret_type
+            .as_ref()
+            .map(|ty| self.resolve_type_or_error(ty))
+            .transpose()?;
         self.loop_depth = 0;
         self.push_scope();
 
         // Parâmetros entram no escopo da função antes do corpo (não são mutáveis).
         for param in &function.params {
-            self.declare_var(&param.name, param.ty.clone(), false, param.span)?;
+            let resolved_param_ty = self.resolve_type_or_error(&param.ty)?;
+            self.declare_var(&param.name, resolved_param_ty, false, param.span)?;
         }
 
         self.check_block(&function.body, true)?;
@@ -292,8 +365,9 @@ impl SemanticChecker {
 
                     let ty = match &let_stmt.ty {
                         Some(declared_ty) => {
+                            let resolved_declared_ty = self.resolve_type_or_error(declared_ty)?;
                             if !Self::check_expected_type_for_expr(
-                                declared_ty,
+                                &resolved_declared_ty,
                                 &init_ty,
                                 &let_stmt.init,
                             ) {
@@ -301,13 +375,13 @@ impl SemanticChecker {
                                     msg: format!(
                                         "tipo de inicialização incompatível para '{}': esperado '{}', encontrado '{}'",
                                         let_stmt.name,
-                                        declared_ty.name(),
+                                        resolved_declared_ty.name(),
                                         init_ty.name()
                                     ),
                                     span: let_stmt.init.span,
                                 });
                             }
-                            declared_ty.clone()
+                            resolved_declared_ty
                         }
                         None => init_ty,
                     };
@@ -522,11 +596,12 @@ impl SemanticChecker {
     // `Nulo` existe só internamente para a semântica da v0: função sem `-> tipo` retorna `Nulo`.
     // Esse tipo nunca pode aparecer em declaração de usuário.
     fn function_result_type(&self, function: &FunctionDecl, span: Span) -> Type {
-        function
+        let base = function
             .ret_type
-            .clone()
-            .unwrap_or(Type::Nulo(span))
-            .with_span(span)
+            .as_ref()
+            .and_then(|ty| self.resolve_type_or_error(ty).ok())
+            .unwrap_or(Type::Nulo(span));
+        base.with_span(span)
     }
 
     fn check_expr(&mut self, expr: &Expr) -> Result<Type, PinkerError> {
@@ -680,13 +755,14 @@ impl SemanticChecker {
                 arg,
                 "resultado de função sem retorno não pode ser usado como argumento",
             )?;
-            if !Self::check_expected_type_for_expr(&param.ty, &arg_ty, arg) {
+            let expected_param_ty = self.resolve_type_or_error(&param.ty)?;
+            if !Self::check_expected_type_for_expr(&expected_param_ty, &arg_ty, arg) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
                         "tipo inválido no argumento {} da chamada '{}': esperado '{}', encontrado '{}'",
                         index + 1,
                         name,
-                        param.ty.name(),
+                        expected_param_ty.name(),
                         arg_ty.name()
                     ),
                     span: arg.span,

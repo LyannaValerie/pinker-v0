@@ -63,6 +63,7 @@ impl PackageDecl {
 pub enum Item {
     Function(FunctionDecl),
     Const(ConstDecl),
+    TypeAlias(TypeAliasDecl),
 }
 
 impl Item {
@@ -70,6 +71,7 @@ impl Item {
         match self {
             Item::Function(function) => function.span,
             Item::Const(constant) => constant.span,
+            Item::TypeAlias(alias) => alias.span,
         }
     }
 
@@ -77,7 +79,26 @@ impl Item {
         match self {
             Item::Function(function) => function.write_json(writer),
             Item::Const(constant) => constant.write_json(writer),
+            Item::TypeAlias(alias) => alias.write_json(writer),
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeAliasDecl {
+    pub name: String,
+    pub target: Type,
+    pub span: Span,
+}
+
+impl TypeAliasDecl {
+    fn write_json(&self, writer: &mut JsonWriter<'_>) {
+        writer.begin_object();
+        writer.field_str("node", "TypeAliasDecl");
+        writer.field_str("name", &self.name);
+        writer.field_span("span", self.span);
+        writer.field_value("target", |writer| self.target.write_json(writer));
+        writer.end_object();
     }
 }
 
@@ -158,6 +179,7 @@ pub enum Type {
     I32(Span),
     I64(Span),
     Logica(Span),
+    Alias { name: String, span: Span },
     Nulo(Span),
 }
 
@@ -175,6 +197,7 @@ impl Type {
             | Type::I64(span)
             | Type::Logica(span)
             | Type::Nulo(span) => *span,
+            Type::Alias { span, .. } => *span,
         }
     }
 
@@ -190,6 +213,7 @@ impl Type {
             Type::I32(_) => "i32",
             Type::I64(_) => "i64",
             Type::Logica(_) => "logica",
+            Type::Alias { .. } => "alias",
             Type::Nulo(_) => "nulo",
         }
     }
@@ -206,6 +230,10 @@ impl Type {
             Type::I32(_) => Type::I32(span),
             Type::I64(_) => Type::I64(span),
             Type::Logica(_) => Type::Logica(span),
+            Type::Alias { name, .. } => Type::Alias {
+                name: name.clone(),
+                span,
+            },
             Type::Nulo(_) => Type::Nulo(span),
         }
     }

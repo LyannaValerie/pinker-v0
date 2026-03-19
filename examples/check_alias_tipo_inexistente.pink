@@ -1,0 +1,6 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova x: Fantasma = 1;
+    mimo 0;
+}

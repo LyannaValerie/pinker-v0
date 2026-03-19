@@ -61,10 +61,11 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 42: operador `%` nativo (primeira fase funcional do Bloco 1), com integração no pipeline completo e cobertura de runtime/CLI
 - Fase 43: inteiros unsigned fixos (`u8`, `u16`, `u32`, `u64`) com validação estrita e integração no pipeline
 - Fase 44: inteiros signed fixos (`i8`, `i16`, `i32`, `i64`) com validação estrita e integração no pipeline
+- Fase 45: aliases de tipo com keyword `apelido`, resolução para tipo subjacente e validações de alias inexistente/duplicado/recursivo
 - Rodada documental: consolidação da trilha única "voltar aos trilhos" em `docs/roadmap.md` (sem número de fase)
 
 ## Fase atual
-- Fase 44 concluída: suporte explícito a `i8`, `i16`, `i32`, `i64` em parâmetros, retornos, variáveis locais e constantes globais; validação semântica estrita entre signed/unsigned e larguras; e manutenção de `bombom` como inteiro legado/principal em `u64`.
+- Fase 45 concluída: aliases de tipo via `apelido` com declaração global (`apelido Nome = Tipo;`) e uso em pontos tipados existentes (assinaturas, retorno, locais e globais), resolvidos para tipo subjacente sem tipo nominal novo.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -317,3 +318,11 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Pipeline funcional permanece congelada e inalterada.
 - `cargo build` e `cargo test` executados com sucesso nesta rodada.
 - Sem abertura de nova fase funcional numerada.
+
+## Fase 45 — aliases de tipo (`apelido`)
+- continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
+- quarto item funcional do Bloco 1 entregue com escopo mínimo e auditável.
+- parser/AST aceitam `apelido Nome = Tipo;` e tipos por alias em assinaturas e anotações já existentes.
+- semântica resolve alias para tipo subjacente (sem nominalidade nova), rejeitando alias inexistente, duplicado e ciclos recursivos.
+- lowering IR converte aliases para tipos concretos, preservando as camadas CFG/selected/Machine/runtime sem redesign.
+- fora de escopo mantido: arrays, structs, ponteiros, casts (`virar`), backend `.s`, ABI e módulos.

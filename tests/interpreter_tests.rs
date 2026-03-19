@@ -1137,6 +1137,13 @@ fn cli_run_signed_fixos_funciona() {
 }
 
 #[test]
+fn cli_run_alias_tipo_funciona() {
+    let out = run_cli_example("examples/run_alias_tipo_basico.pink");
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
+}
+
+#[test]
 fn cli_check_quebrar_fora_de_loop_falha_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/check_quebrar_fora_loop.pink");
     assert!(!output.status.success());
@@ -1159,6 +1166,20 @@ fn cli_check_continuar_fora_de_loop_falha_com_exemplo_versionado() {
     assert!(stderr.contains("Erro Semântico:"), "stderr: {}", stderr);
     assert!(
         stderr.contains("'continuar' só pode ser usado dentro de 'sempre que'"),
+        "stderr: {}",
+        stderr
+    );
+}
+
+#[test]
+fn cli_check_alias_tipo_inexistente_falha_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/check_alias_tipo_inexistente.pink");
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Erro Semântico:"), "stderr: {}", stderr);
+    assert!(
+        stderr.contains("tipo 'Fantasma' não existe"),
         "stderr: {}",
         stderr
     );

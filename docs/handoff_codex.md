@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada **funcional pequena e auditável**: Fase 44 do histórico interno, correspondente ao terceiro item do Bloco 1 do roadmap consolidado (inteiros signed com largura fixa).
+- Rodada **funcional pequena e auditável**: Fase 45 do histórico interno, correspondente ao quarto item do Bloco 1 do roadmap consolidado (aliases de tipo).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -9,16 +9,18 @@
 - Rodada documental não recebe número de fase.
 
 ## O que foi atualizado
-- Suporte explícito a `i8`, `i16`, `i32` e `i64` com integração mínima no pipeline:
-  - lexer/token (novos keywords `i8`, `i16`, `i32`, `i64`);
-  - parser/AST (`Type::{I8,I16,I32,I64}`);
-  - semântica com validação estrita entre signed/unsigned e entre larguras (sem promoção implícita entre tipos);
-  - IR/validação com `TypeIR::{I8,I16,I32,I64}` e propagação de tipo de retorno em operações inteiras;
-  - validações downstream ajustadas para aceitar aritmética inteira (signed + unsigned) com literais inteiros de forma previsível e estrita.
-- Cobertura incremental de testes em lexer/parser/semântica/IR/CLI e novo exemplo versionado: `examples/run_signed_basico.pink`.
+- Suporte a aliases de tipo com keyword `apelido` e escopo mínimo:
+  - lexer/token com `KwApelido`;
+  - parser/AST com item global `TypeAliasDecl` e tipo referenciado por identificador (`Type::Alias`);
+  - semântica com resolução para tipo subjacente, sem tipo nominal novo, cobrindo erro de alias inexistente, duplicado e recursivo;
+  - lowering IR convertendo aliases para tipos concretos antes das camadas downstream (pipeline preservada sem redesign).
+- Cobertura incremental em testes de lexer/parser/semântica/IR/CLI.
+- Exemplos versionados adicionados:
+  - `examples/run_alias_tipo_basico.pink` (positivo);
+  - `examples/check_alias_tipo_inexistente.pink` (negativo).
 - Documentação operacional atualizada: `docs/phases.md`, `docs/agent_state.md` e este handoff.
 
 ## Estado operacional após a rodada
-- Continuidade histórica preservada (Fase 43 funcional -> Fase 44 funcional, com rodada documental mantida sem número).
-- Terceiro passo funcional do Bloco 1 entregue (signed fixos), sem abrir trilhas paralelas.
-- Itens fora de escopo mantidos: aliases, arrays fixos, structs, backend `.s`, coerções automáticas complexas, casts explícitos e redesign amplo do sistema de tipos.
+- Continuidade histórica preservada (Fase 44 funcional -> Fase 45 funcional, com rodada documental mantida sem número).
+- Quarto passo funcional do Bloco 1 entregue (aliases de tipo), sem abrir trilhas paralelas.
+- Itens fora de escopo mantidos: arrays fixos, structs, ponteiros, backend `.s`, coerções automáticas complexas, casts explícitos e redesign amplo do sistema de tipos.

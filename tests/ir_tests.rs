@@ -314,3 +314,16 @@ carinho principal() -> bombom { mimo 10 % 4; }";
     let ir = render_ir(code).unwrap();
     assert!(ir.contains("return mod(10:bombom, 4:bombom)"), "{}", ir);
 }
+
+#[test]
+fn lowering_resolve_alias_de_tipo_para_tipo_subjacente() {
+    let code = r#"
+pacote main;
+apelido Byte = u8;
+carinho id(x: Byte) -> Byte { mimo x; }
+carinho principal() -> bombom { mimo 0; }
+"#;
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("func id -> u8"), "{}", ir);
+    assert!(ir.contains("%x#0: u8"), "{}", ir);
+}

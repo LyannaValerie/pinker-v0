@@ -1,0 +1,16 @@
+pacote main;
+
+apelido Byte = u8;
+apelido Inteiro = i32;
+
+carinho soma(a: Byte, b: Byte) -> Byte {
+    mimo a + b;
+}
+
+carinho principal() -> bombom {
+    nova x: Byte = soma(40, 2);
+    nova y: Inteiro = 10;
+    x;
+    y;
+    mimo 42;
+}
