@@ -255,6 +255,10 @@ impl SemanticChecker {
         matches!(expr.kind, ExprKind::IntLit(_))
     }
 
+    fn is_cast_allowed(source: &Type, target: &Type) -> bool {
+        Self::is_integer_type(source) && Self::is_integer_type(target)
+    }
+
     fn check_expected_type_for_expr(expected: &Type, actual: &Type, expr: &Expr) -> bool {
         Self::check_type_match(expected, actual)
             || (Self::is_integer_type(expected) && Self::expr_is_int_literal(expr))
@@ -868,6 +872,27 @@ impl SemanticChecker {
                         span: expr.span,
                     }),
                 }
+            }
+            ExprKind::Cast {
+                expr: source_expr,
+                target,
+            } => {
+                let source_ty = self.check_value_expr(
+                    source_expr,
+                    "resultado de função sem retorno não pode ser convertido com 'virar'",
+                )?;
+                let target_ty = self.resolve_type_or_error(target)?.with_span(expr.span);
+                if !Self::is_cast_allowed(&source_ty, &target_ty) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "cast explícito inválido nesta fase: '{}' virar '{}'",
+                            source_ty.name(),
+                            target_ty.name()
+                        ),
+                        span: expr.span,
+                    });
+                }
+                Ok(target_ty)
             }
             ExprKind::Binary(lhs, op, rhs) => {
                 let lhs_ty = self.check_value_expr(

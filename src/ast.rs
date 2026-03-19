@@ -654,6 +654,14 @@ impl Expr {
                 writer.field_value("index", |writer| index.write_json(writer));
                 writer.end_object();
             }
+            ExprKind::Cast { expr, target } => {
+                writer.begin_object();
+                writer.field_str("node", "CastExpr");
+                writer.field_span("span", self.span);
+                writer.field_value("expr", |writer| expr.write_json(writer));
+                writer.field_value("target", |writer| target.write_json(writer));
+                writer.end_object();
+            }
             ExprKind::Ident(name) => {
                 writer.begin_object();
                 writer.field_str("node", "IdentExpr");
@@ -686,6 +694,7 @@ pub enum ExprKind {
     Call(Box<Expr>, Vec<Expr>),
     FieldAccess { base: Box<Expr>, field: String },
     Index { base: Box<Expr>, index: Box<Expr> },
+    Cast { expr: Box<Expr>, target: Type },
     Ident(String),
     IntLit(u64),
     BoolLit(bool),

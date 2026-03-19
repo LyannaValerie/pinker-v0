@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada funcional: **Fase 49 — acesso a campo e indexação** (segundo item do Bloco 2).
+- Rodada funcional: **Fase 50 — casts controlados** (terceiro item do Bloco 2).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -52,6 +52,18 @@
 
 ## Fora de escopo mantido
 - dereferência/aritmética de ponteiros e acesso via `seta<T>`
-- casts (`virar`), `sizeof`/alinhamento, `volatile`
+- `sizeof`/alinhamento e `volatile`
 - backend nativo e modelagem de layout físico
 - bounds-check de runtime/estático sofisticado
+
+## O que entrou na Fase 50
+- Frontend: keyword `virar` adicionada e parse de cast explícito como expressão local (`expr virar tipo`).
+- AST/JSON/printer: novo nó de expressão `Cast`.
+- Semântica: política mínima e explícita de cast permitido apenas para inteiro->inteiro (`bombom`, `u8/u16/u32/u64`, `i8/i16/i32/i64`), incluindo alias resolvido ao tipo subjacente.
+- Semântica: casts envolvendo `logica`, ponteiros (`seta`), `ninho` e arrays fixos permanecem fora de escopo, com erro semântico explícito.
+- IR estruturada: representação mínima (`ValueIR::Cast`) e validação (`ir_validate`) coerente com a mesma política inteiro->inteiro.
+- Downstream deliberadamente limitado: CFG/execução ainda retornam erro claro para cast nesta fase, evitando redesign de runtime/memória.
+- Continuidade preservada: Fase 48-H1 segue sendo rodada extraordinária/hotfix sem reordenar o roadmap principal.
+
+## Próximo item normal do roadmap principal
+- Bloco 2, item 4: `sizeof` / alinhamento.

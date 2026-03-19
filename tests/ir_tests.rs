@@ -67,6 +67,20 @@ functions:
 }
 
 #[test]
+fn lowering_de_cast_explicito_inteiro() {
+    let code = "\
+pacote main;
+carinho principal() -> bombom {
+    nova x: u16 = 513;
+    nova y: u8 = x virar u8;
+    mimo y virar bombom;
+}";
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("%x#0 virar u8"), "{}", ir);
+    assert!(ir.contains("%y#0 virar bombom"), "{}", ir);
+}
+
+#[test]
 fn lowering_de_if_else() {
     let code = "\
 pacote main;

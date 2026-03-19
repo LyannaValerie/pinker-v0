@@ -5,6 +5,16 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 50 — casts controlados (escopo mínimo e explícito)
+  - continuidade histórica da trilha funcional preservada: Fase 49 segue como fase principal anterior e Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar roadmap.
+  - sintaxe de cast explícito adicionada: `expr virar tipo`, com associatividade à esquerda e precedência pós-unária (sem coerção implícita global).
+  - frontend/AST/JSON/printer integrados com novo nó de expressão para cast explícito.
+  - semântica desta fase: somente cast inteiro->inteiro (`bombom`, `u8/u16/u32/u64`, `i8/i16/i32/i64`), incluindo aliases resolvidos ao tipo subjacente.
+  - casts envolvendo `logica`, `seta`, `ninho` e arrays fixos seguem proibidos nesta fase com diagnóstico explícito.
+  - IR estruturada ganhou representação mínima para cast; validação de IR reforçada para rejeitar cast fora da política inteiro->inteiro.
+  - decisão de escopo operacional: CFG/Machine/runtime ainda não loweram/executam cast nesta fase; erro explícito preserva segurança (incluindo bloqueio de signed no runtime).
+  - próximo item normal do roadmap principal: Bloco 2, item 4 (`sizeof`/alinhamento).
+
 - Fase 49 — acesso a campo e indexação (escopo mínimo de leitura)
   - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
   - frontend atualizado para cadeia postfix com chamada + acesso a campo (`obj.campo`) + indexação (`arr[idx]`) preservando precedência/associatividade existente.

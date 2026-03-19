@@ -70,6 +70,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 48 concluída: ponteiros como categoria de tipo com `seta<tipo>` (frontend + semântica + IR), sem semântica operacional de memória.
 - Fase 48-H1 concluída: rodada extraordinária de hotfixes de corretude e manutenção (HF-1 a HF-17).
 - Fase 49 concluída: acesso a campo (`obj.campo`) e indexação (`arr[idx]`) com escopo mínimo de leitura.
+- Fase 50 concluída: casts controlados com `virar` (escopo explícito e conservador), com suporte frontend/semântica/IR para inteiro->inteiro e sem lowering operacional em CFG/Machine/runtime.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`
@@ -350,3 +351,14 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - IR estruturada ganhou nós mínimos para representar campo/index; CFG/selected/machine/interpreter ainda não loweram esses nós por decisão de escopo.
 - bounds-check: não introduzido nesta fase.
 - próximo item normal do roadmap principal: Bloco 2, item 3 (`casts` controlados).
+
+## Fase 50 — casts controlados
+- continuidade histórica preservada: Fase 49 permanece a fase funcional principal anterior e Fase 48-H1 permanece rodada extraordinária/hotfix sem reordenar roadmap.
+- sintaxe adicionada: `expr virar tipo` como cast explícito local na expressão.
+- parser/AST/JSON/printer atualizados sem redesign amplo de precedência (cast aplicado como sufixo pós-unário, antes dos binários).
+- política semântica mínima desta fase: apenas cast entre tipos inteiros (`bombom`, `u8/u16/u32/u64`, `i8/i16/i32/i64`), incluindo aliases resolvidos para tipo subjacente.
+- casts com `logica`, `seta`, `ninho` e arrays fixos foram mantidos fora de escopo (erro semântico explícito).
+- IR estruturada ganhou nó mínimo de cast com validação dedicada.
+- decisão operacional desta fase: CFG/Machine/runtime ainda não loweram/executam cast; a falha é explícita no lowering de CFG.
+- proteção de runtime signed (HF-3) foi preservada sem afrouxamento.
+- próximo item normal do roadmap principal: Bloco 2, item 4 (`sizeof`/alinhamento).

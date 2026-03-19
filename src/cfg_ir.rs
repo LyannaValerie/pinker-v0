@@ -579,10 +579,13 @@ impl FunctionLowerer {
                     });
                 Ok((OperandIR::Temp(dest), lowered_args.1))
             }
-            ValueIR::FieldAccess { .. } | ValueIR::Index { .. } => Err(PinkerError::Ir {
-                msg: "CFG IR ainda não lowera acesso a campo/indexação nesta fase".to_string(),
-                span,
-            }),
+            ValueIR::FieldAccess { .. } | ValueIR::Index { .. } | ValueIR::Cast { .. } => {
+                Err(PinkerError::Ir {
+                    msg: "CFG IR ainda não lowera acesso a campo/indexação/cast nesta fase"
+                        .to_string(),
+                    span,
+                })
+            }
         }
     }
 

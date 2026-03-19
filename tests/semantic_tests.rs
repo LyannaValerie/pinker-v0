@@ -382,6 +382,61 @@ fn indexacao_em_base_nao_array_falha() {
 }
 
 #[test]
+fn cast_inteiro_para_inteiro_valido() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova x: u16 = 300;
+            nova y: u8 = x virar u8;
+            mimo y virar bombom;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn cast_logica_para_inteiro_falha_nesta_fase() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova b = verdade;
+            mimo b virar bombom;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("cast explícito inválido nesta fase"));
+}
+
+#[test]
+fn cast_ponteiro_para_inteiro_falha_nesta_fase() {
+    let code = r#"
+        pacote main;
+        ninho Ponto { x: bombom; }
+        apelido Ptr = seta<Ponto>;
+        carinho invalido(p: Ptr) -> bombom {
+            mimo p virar bombom;
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("cast explícito inválido nesta fase"));
+}
+
+#[test]
+fn cast_com_alias_inteiro_funciona_via_tipo_subjacente() {
+    let code = r#"
+        pacote main;
+        apelido Byte = u8;
+        carinho principal() -> bombom {
+            nova x: bombom = 511;
+            nova y: Byte = x virar Byte;
+            mimo y virar bombom;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
 fn unsigned_fixos_validos_com_tipos_explicitos() {
     let code = r#"
         pacote main;

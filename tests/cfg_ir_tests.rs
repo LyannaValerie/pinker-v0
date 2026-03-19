@@ -235,6 +235,19 @@ fn cfg_ir_if_else_fallthrough_ambos_ramos_gera_join_valido() {
 }
 
 #[test]
+fn cfg_ir_cast_explicito_ainda_fora_do_escopo_operacional() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova x: u16 = 300;
+            mimo (x virar u8) virar bombom;
+        }
+    "#;
+    let err = render_cfg_ir(code).unwrap_err().to_string();
+    assert!(err.contains("ainda não lowera acesso a campo/indexação/cast"));
+}
+
+#[test]
 fn cfg_ir_logicos_viram_branch_de_curto_circuito() {
     let code = "
         pacote main;

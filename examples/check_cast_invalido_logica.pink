@@ -1,0 +1,6 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova ok = verdade;
+    mimo ok virar bombom;
+}

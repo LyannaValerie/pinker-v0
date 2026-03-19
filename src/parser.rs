@@ -499,7 +499,7 @@ impl Parser {
                 let token_kind = token.kind;
                 self.advance();
                 let operand = self.parse_expr_unary()?;
-                return Ok(Expr {
+                let unary_expr = Expr {
                     span: merge_span(op_span, operand.span),
                     kind: ExprKind::Unary(
                         if token_kind == TokenKind::Minus {
@@ -509,11 +509,13 @@ impl Parser {
                         },
                         Box::new(operand),
                     ),
-                });
+                };
+                return self.parse_cast_suffix(unary_expr);
             }
         }
 
-        self.parse_expr_primary()
+        let expr = self.parse_expr_primary()?;
+        self.parse_cast_suffix(expr)
     }
 
     fn parse_expr_primary(&mut self) -> Result<Expr, PinkerError> {
@@ -604,6 +606,20 @@ impl Parser {
                 continue;
             }
             break;
+        }
+        Ok(expr)
+    }
+
+    fn parse_cast_suffix(&mut self, mut expr: Expr) -> Result<Expr, PinkerError> {
+        while self.match_token(TokenKind::KwVirar) {
+            let target = self.parse_type()?;
+            expr = Expr {
+                span: merge_span(expr.span, target.span()),
+                kind: ExprKind::Cast {
+                    expr: Box::new(expr),
+                    target,
+                },
+            };
         }
         Ok(expr)
     }

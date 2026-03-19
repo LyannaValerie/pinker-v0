@@ -456,6 +456,17 @@ fn infer_value_type(
             }
             Ok(*element_type)
         }
+        ValueIR::Cast { value, target_type } => {
+            let source_ty = infer_value_type(value, slots, consts, funcs, span)?;
+            if source_ty.is_integer() && target_type.is_integer() {
+                Ok(*target_type)
+            } else {
+                Err(ir_validation_error(
+                    "cast IR inválido: somente inteiro->inteiro é permitido nesta fase",
+                    span,
+                ))
+            }
+        }
     }
 }
 
