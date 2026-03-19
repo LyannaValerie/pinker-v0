@@ -106,9 +106,11 @@ impl Parser {
             Ok(Item::Function(self.parse_function()?))
         } else if self.match_token(TokenKind::KwEterno) {
             Ok(Item::Const(self.parse_const()?))
+        } else if self.match_token(TokenKind::KwApelido) {
+            Ok(Item::TypeAlias(self.parse_type_alias()?))
         } else {
             Err(PinkerError::Expected {
-                expected: "carinho ou eterno".to_string(),
+                expected: "carinho, eterno ou apelido".to_string(),
                 found: self
                     .peek()
                     .map(|token| token.lexeme.clone())
@@ -140,9 +142,15 @@ impl Parser {
             Ok(Type::I64(span))
         } else if self.match_token(TokenKind::KwLogica) {
             Ok(Type::Logica(span))
+        } else if self.match_token(TokenKind::Ident) {
+            Ok(Type::Alias {
+                name: self.previous().lexeme.clone(),
+                span,
+            })
         } else {
             Err(PinkerError::Expected {
-                expected: "bombom, u8, u16, u32, u64, i8, i16, i32, i64 ou logica".to_string(),
+                expected: "bombom, u8, u16, u32, u64, i8, i16, i32, i64, logica ou alias"
+                    .to_string(),
                 found: self
                     .peek()
                     .map(|token| token.lexeme.clone())
@@ -150,6 +158,22 @@ impl Parser {
                 span,
             })
         }
+    }
+
+    fn parse_type_alias(&mut self) -> Result<TypeAliasDecl, PinkerError> {
+        let start_span = self.previous().span;
+        let name = self
+            .consume(TokenKind::Ident, "nome do alias de tipo")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::Eq, "=")?;
+        let target = self.parse_type()?;
+        self.consume(TokenKind::Semi, ";")?;
+        Ok(TypeAliasDecl {
+            name,
+            target,
+            span: merge_span(start_span, self.previous().span),
+        })
     }
 
     fn parse_function(&mut self) -> Result<FunctionDecl, PinkerError> {

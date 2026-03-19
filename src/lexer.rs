@@ -191,6 +191,7 @@ impl<'a> Lexer<'a> {
                                 "eterno" => TokenKind::KwEterno,
                                 "nova" => TokenKind::KwNova,
                                 "mut" => TokenKind::KwMut,
+                                "apelido" => TokenKind::KwApelido,
                                 "bombom" => TokenKind::KwBombom,
                                 "u8" => TokenKind::KwU8,
                                 "u16" => TokenKind::KwU16,

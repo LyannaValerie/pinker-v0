@@ -26,6 +26,7 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `verdade`      | true             | certeza               |
 | `falso`        | false            | negacao               |
 | `principal`    | main/entry       | protagonista          |
+| `apelido`      | type alias       | nome alternativo      |
 
 ---
 
@@ -81,7 +82,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 |------------------|-------------|----------------------|-------------------------------------|
 | trait/interface  | `molde`     | `jeitinho`, `feitio` | forma de ser                        |
 | impl             | `vestir`    | `assumir`            | vestir um molde, incorporar         |
-| type alias       | `apelido`   | `alcunha`            | nome carinhoso alternativo          |
+| ~~type alias~~   | ~~`apelido`~~ | `alcunha`          | implementado na Fase 45             |
 | cast / as        | `virar`     | `tornar`             | transformacao                       |
 | sizeof           | `peso`      | `tamanho`            | medida                              |
 | generic          | `qualquer`  | `molde livre`        | flexibilidade                       |

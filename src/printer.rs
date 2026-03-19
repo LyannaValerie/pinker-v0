@@ -45,6 +45,18 @@ fn render_item(item: &Item, indent: usize, out: &mut String) {
             );
             render_expr(&constant.init, indent + 1, out, "init");
         }
+        Item::TypeAlias(alias) => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "TypeAlias {} = {} {}",
+                    alias.name,
+                    format_type(&alias.target),
+                    format_span(alias.span)
+                ),
+            );
+        }
     }
 }
 
@@ -241,7 +253,10 @@ fn render_expr(expr: &Expr, indent: usize, out: &mut String, label: &str) {
 }
 
 fn format_type(ty: &Type) -> String {
-    ty.name().to_string()
+    match ty {
+        Type::Alias { name, .. } => name.clone(),
+        _ => ty.name().to_string(),
+    }
 }
 
 fn format_span(span: Span) -> String {

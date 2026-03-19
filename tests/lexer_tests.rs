@@ -92,3 +92,9 @@ fn lexer_reconhece_tipos_signed_fixos() {
     assert!(tokens.iter().any(|t| t.kind == TokenKind::KwI32));
     assert!(tokens.iter().any(|t| t.kind == TokenKind::KwI64));
 }
+
+#[test]
+fn lexer_reconhece_keyword_apelido() {
+    let tokens = tokenize("apelido Byte = u8;").unwrap();
+    assert_eq!(tokens[0].kind, TokenKind::KwApelido);
+}

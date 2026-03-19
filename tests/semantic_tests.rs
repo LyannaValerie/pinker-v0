@@ -396,6 +396,33 @@ fn signed_unsigned_rejeitam_mistura_implicita() {
 }
 
 #[test]
+fn alias_de_tipo_valido_em_parametro_retorno_e_local() {
+    let code = r#"
+        pacote main;
+        apelido Byte = u8;
+        carinho id(x: Byte) -> Byte { mimo x; }
+        carinho principal() -> bombom {
+            nova y: Byte = id(7);
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn alias_de_tipo_inexistente_falha() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova x: Fantasma = 1;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo 'Fantasma' não existe"), "{}", err);
+}
+
+#[test]
 fn modulo_valido_em_bombom() {
     let code = "
         pacote main;
