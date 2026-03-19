@@ -1130,18 +1130,10 @@ fn cli_run_unsigned_fixos_funciona() {
 }
 
 #[test]
-fn cli_run_signed_fixos_bloqueado_no_runtime() {
+fn cli_run_signed_fixos_funciona() {
     let out = run_cli_example("examples/run_signed_basico.pink");
-    assert!(
-        !out.status.success(),
-        "signed types devem ser bloqueados no runtime"
-    );
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        stderr.contains("signed") && stderr.contains("ainda não é suportado"),
-        "stderr deve indicar bloqueio de signed: {}",
-        stderr
-    );
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
 }
 
 #[test]

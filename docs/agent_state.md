@@ -68,12 +68,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 47 concluída: structs com keyword `ninho` como tipo nomeado composto (declaração + registro semântico + uso tipado em assinaturas/aliases), com validação de campo duplicado, tipo inexistente e recursão direta; integração mínima no IR como categoria `struct` sem acesso a campo/literal/layout.
 - Bloco 1 encerrado com a Fase 47; trilha ativa segue no Bloco 2.
 - Fase 48 concluída: ponteiros como categoria de tipo com `seta<tipo>` (frontend + semântica + IR), sem semântica operacional de memória.
-- Fase 48-H1 concluída: rodada extraordinária de hotfixes de corretude e manutenção (HF-1 a HF-17).
 
 ## Infraestrutura mínima ativa
-- Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`
-- MSRV fixada em `rust-toolchain.toml` (`1.78.0`) com componentes `rustfmt` e `clippy`
-- CI alinhada: usa `dtolnay/rust-toolchain@master` com `toolchain: "1.78.0"` (não mais `@stable`)
+- Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
+- MSRV fixada em `rust-toolchain.toml` (`1.78.0`)
 
 ## Qualidade diagnóstica (Fase 19)
 - IR e CFG IR agora usam contexto padronizado com função/bloco quando aplicável

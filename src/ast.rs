@@ -208,7 +208,7 @@ impl ConstDecl {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     Bombom(Span),
     U8(Span),
@@ -239,45 +239,6 @@ pub enum Type {
     },
     Nulo(Span),
 }
-
-/// Igualdade estrutural de tipos ignora spans — dois tipos são iguais se e somente se
-/// sua estrutura semântica (variante + campos não-span) for idêntica.
-/// Isso evita que comparações de tipo dependam da posição no código-fonte.
-impl PartialEq for Type {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Type::Bombom(_), Type::Bombom(_))
-            | (Type::U8(_), Type::U8(_))
-            | (Type::U16(_), Type::U16(_))
-            | (Type::U32(_), Type::U32(_))
-            | (Type::U64(_), Type::U64(_))
-            | (Type::I8(_), Type::I8(_))
-            | (Type::I16(_), Type::I16(_))
-            | (Type::I32(_), Type::I32(_))
-            | (Type::I64(_), Type::I64(_))
-            | (Type::Logica(_), Type::Logica(_))
-            | (Type::Nulo(_), Type::Nulo(_)) => true,
-            (
-                Type::FixedArray {
-                    element: e1,
-                    size: s1,
-                    ..
-                },
-                Type::FixedArray {
-                    element: e2,
-                    size: s2,
-                    ..
-                },
-            ) => e1 == e2 && s1 == s2,
-            (Type::Pointer { base: b1, .. }, Type::Pointer { base: b2, .. }) => b1 == b2,
-            (Type::Alias { name: n1, .. }, Type::Alias { name: n2, .. }) => n1 == n2,
-            (Type::Struct { name: n1, .. }, Type::Struct { name: n2, .. }) => n1 == n2,
-            _ => false,
-        }
-    }
-}
-
-impl Eq for Type {}
 
 impl Type {
     pub fn span(&self) -> Span {

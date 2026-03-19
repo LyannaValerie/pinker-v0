@@ -113,19 +113,6 @@ fn parse_args() -> Result<Config, String> {
     })
 }
 
-/// Macro para encurtar o padrão "try or exit(1)" repetido no pipeline.
-macro_rules! try_or_exit {
-    ($result:expr, $source:expr) => {
-        match $result {
-            Ok(val) => val,
-            Err(err) => {
-                eprintln!("{}", err.render_for_cli_with_source($source));
-                std::process::exit(1);
-            }
-        }
-    };
-}
-
 fn main() {
     let config = match parse_args() {
         Ok(config) => config,
@@ -143,9 +130,14 @@ fn main() {
         }
     };
 
-    // --- Frontend: léxico + parsing ---
     let mut lexer = Lexer::new(&source);
-    let tokens = try_or_exit!(lexer.tokenize(), &source);
+    let tokens = match lexer.tokenize() {
+        Ok(tokens) => tokens,
+        Err(err) => {
+            eprintln!("{}", err.render_for_cli_with_source(&source));
+            std::process::exit(1);
+        }
+    };
 
     if config.print_tokens && !config.check_only {
         println!("=== TOKENS ===");
@@ -155,7 +147,13 @@ fn main() {
     }
 
     let mut parser = Parser::new(tokens);
-    let program = try_or_exit!(parser.parse(), &source);
+    let program = match parser.parse() {
+        Ok(program) => program,
+        Err(err) => {
+            eprintln!("{}", err.render_for_cli_with_source(&source));
+            std::process::exit(1);
+        }
+    };
 
     if config.print_ast && !config.check_only {
         println!("=== AST TEXTUAL ===");
@@ -167,147 +165,167 @@ fn main() {
         println!("{}", printer::render_program_json(&program));
     }
 
-    // --- Semântica ---
-    try_or_exit!(semantic::check_program(&program), &source);
+    match semantic::check_program(&program) {
+        Ok(()) => {
+            let program_ir = if !config.check_only
+                && (config.print_ir
+                    || config.print_cfg_ir
+                    || config.print_selected
+                    || config.print_machine
+                    || config.print_pseudo_asm
+                    || config.run_program)
+            {
+                let lowered = match ir::lower_program(&program) {
+                    Ok(program_ir) => program_ir,
+                    Err(err) => {
+                        eprintln!("{}", err.render_for_cli_with_source(&source));
+                        std::process::exit(1);
+                    }
+                };
 
-    if config.check_only {
-        return;
-    }
+                if let Err(err) = ir_validate::validate_program(&lowered) {
+                    eprintln!("{}", err.render_for_cli_with_source(&source));
+                    std::process::exit(1);
+                }
 
-    // Booleanos de necessidade do pipeline — cada fase só executa se algum
-    // modo de saída a jusante a exigir. Adicionar um novo modo exige tocar
-    // apenas a linha correspondente aqui.
-    let needs_ir = config.print_ir
-        || config.print_cfg_ir
-        || config.print_selected
-        || config.print_machine
-        || config.print_pseudo_asm
-        || config.run_program;
-    let needs_cfg = config.print_cfg_ir
-        || config.print_selected
-        || config.print_machine
-        || config.print_pseudo_asm
-        || config.run_program;
-    let needs_selected = config.print_selected
-        || config.print_machine
-        || config.print_pseudo_asm
-        || config.run_program;
-    let needs_machine = config.print_machine || config.print_pseudo_asm || config.run_program;
+                Some(lowered)
+            } else {
+                None
+            };
 
-    // --- IR estruturada ---
-    let program_ir = if needs_ir {
-        let lowered = try_or_exit!(ir::lower_program(&program), &source);
-        try_or_exit!(ir_validate::validate_program(&lowered), &source);
-        Some(lowered)
-    } else {
-        None
-    };
+            if config.print_ir && !config.check_only {
+                println!("=== IR ===");
+                print!("{}", ir::render_program(program_ir.as_ref().unwrap()));
+            }
 
-    if config.print_ir {
-        println!("=== IR ===");
-        print!("{}", ir::render_program(program_ir.as_ref().unwrap()));
-    }
+            let cfg_ir_program = if !config.check_only
+                && (config.print_cfg_ir
+                    || config.print_selected
+                    || config.print_machine
+                    || config.print_pseudo_asm
+                    || config.run_program)
+            {
+                let cfg = match cfg_ir::lower_program(program_ir.as_ref().unwrap()) {
+                    Ok(cfg) => cfg,
+                    Err(err) => {
+                        eprintln!("{}", err.render_for_cli_with_source(&source));
+                        std::process::exit(1);
+                    }
+                };
+                if let Err(err) = cfg_ir_validate::validate_program(&cfg) {
+                    eprintln!("{}", err.render_for_cli_with_source(&source));
+                    std::process::exit(1);
+                }
+                Some(cfg)
+            } else {
+                None
+            };
 
-    // --- CFG IR ---
-    let cfg_ir_program = if needs_cfg {
-        let cfg = try_or_exit!(cfg_ir::lower_program(program_ir.as_ref().unwrap()), &source);
-        try_or_exit!(cfg_ir_validate::validate_program(&cfg), &source);
-        Some(cfg)
-    } else {
-        None
-    };
+            if config.print_cfg_ir && !config.check_only {
+                println!("=== CFG IR ===");
+                print!(
+                    "{}",
+                    cfg_ir::render_program(cfg_ir_program.as_ref().unwrap())
+                );
+            }
 
-    if config.print_cfg_ir {
-        println!("=== CFG IR ===");
-        print!(
-            "{}",
-            cfg_ir::render_program(cfg_ir_program.as_ref().unwrap())
-        );
-    }
+            let selected_program = if !config.check_only
+                && (config.print_selected
+                    || config.print_machine
+                    || config.print_pseudo_asm
+                    || config.run_program)
+            {
+                let selected = match instr_select::lower_program(cfg_ir_program.as_ref().unwrap()) {
+                    Ok(selected) => selected,
+                    Err(err) => {
+                        eprintln!("{}", err.render_for_cli_with_source(&source));
+                        std::process::exit(1);
+                    }
+                };
+                if let Err(err) = instr_select_validate::validate_program(&selected) {
+                    eprintln!("{}", err.render_for_cli_with_source(&source));
+                    std::process::exit(1);
+                }
+                Some(selected)
+            } else {
+                None
+            };
 
-    // --- Seleção de instruções ---
-    let selected_program = if needs_selected {
-        let selected = try_or_exit!(
-            instr_select::lower_program(cfg_ir_program.as_ref().unwrap()),
-            &source
-        );
-        try_or_exit!(instr_select_validate::validate_program(&selected), &source);
-        Some(selected)
-    } else {
-        None
-    };
+            if config.print_selected && !config.check_only {
+                println!("=== SELECTED ===");
+                print!(
+                    "{}",
+                    instr_select::render_program(selected_program.as_ref().unwrap())
+                );
+            }
 
-    if config.print_selected {
-        println!("=== SELECTED ===");
-        print!(
-            "{}",
-            instr_select::render_program(selected_program.as_ref().unwrap())
-        );
-    }
+            let machine_program = if !config.check_only
+                && (config.print_machine || config.print_pseudo_asm || config.run_program)
+            {
+                let machine =
+                    match abstract_machine::lower_program(selected_program.as_ref().unwrap()) {
+                        Ok(machine) => machine,
+                        Err(err) => {
+                            eprintln!("{}", err.render_for_cli_with_source(&source));
+                            std::process::exit(1);
+                        }
+                    };
+                if let Err(err) = abstract_machine_validate::validate_program(&machine) {
+                    eprintln!("{}", err.render_for_cli_with_source(&source));
+                    std::process::exit(1);
+                }
+                Some(machine)
+            } else {
+                None
+            };
 
-    // --- Machine abstrata ---
-    let machine_program = if needs_machine {
-        let machine = try_or_exit!(
-            abstract_machine::lower_program(selected_program.as_ref().unwrap()),
-            &source
-        );
-        try_or_exit!(
-            abstract_machine_validate::validate_program(&machine),
-            &source
-        );
-        Some(machine)
-    } else {
-        None
-    };
+            if config.print_machine && !config.check_only {
+                println!("=== MACHINE ===");
+                print!(
+                    "{}",
+                    abstract_machine::render_program(machine_program.as_ref().unwrap())
+                );
+            }
 
-    if config.print_machine {
-        println!("=== MACHINE ===");
-        print!(
-            "{}",
-            abstract_machine::render_program(machine_program.as_ref().unwrap())
-        );
-    }
+            if config.run_program && !config.check_only {
+                let result = match interpreter::run_program(machine_program.as_ref().unwrap()) {
+                    Ok(result) => result,
+                    Err(err) => {
+                        eprintln!("{}", err.render_for_cli_with_source(&source));
+                        std::process::exit(1);
+                    }
+                };
 
-    // --- Execução via interpretador ---
-    if config.run_program {
-        let result = try_or_exit!(
-            interpreter::run_program(machine_program.as_ref().unwrap()),
-            &source
-        );
-        if let Some(interpreter::RuntimeValue::Int(v)) = result {
-            println!("{}", v);
+                if let Some(interpreter::RuntimeValue::Int(v)) = result {
+                    println!("{}", v);
+                }
+            }
+
+            if config.print_pseudo_asm && !config.check_only {
+                let lowered_backend = match backend_text::lower_selected_program(
+                    selected_program.as_ref().unwrap(),
+                ) {
+                    Ok(lowered_backend) => lowered_backend,
+                    Err(err) => {
+                        eprintln!("{}", err.render_for_cli_with_source(&source));
+                        std::process::exit(1);
+                    }
+                };
+                if let Err(err) = backend_text_validate::validate_program(&lowered_backend) {
+                    eprintln!("{}", err.render_for_cli_with_source(&source));
+                    std::process::exit(1);
+                }
+                println!("=== PSEUDO ASM ===");
+                print!("{}", backend_text::render_program(&lowered_backend));
+            }
+
+            if !config.check_only && !config.run_program {
+                println!("Análise semântica concluída sem erros.");
+            }
         }
-    }
-
-    // --- Backend textual (pseudo-asm) ---
-    // Nota (HF-6): `--pseudo-asm` parte de `selected_program` (não de `machine_program`),
-    // enquanto `--run` parte de `machine_program`. Essa bifurcação é intencional:
-    // o backend textual é uma representação alternativa da seleção de instruções,
-    // e o interpretador precisa da Machine validada para execução.
-    if config.print_pseudo_asm {
-        let lowered_backend = try_or_exit!(
-            backend_text::lower_selected_program(selected_program.as_ref().unwrap()),
-            &source
-        );
-        try_or_exit!(
-            backend_text_validate::validate_program(&lowered_backend),
-            &source
-        );
-        println!("=== PSEUDO ASM ===");
-        print!("{}", backend_text::render_program(&lowered_backend));
-    }
-
-    // HF-15: só imprime mensagem de sucesso quando nenhuma flag de saída foi ativa.
-    let any_output = config.print_tokens
-        || config.print_ast
-        || config.print_json_ast
-        || config.print_ir
-        || config.print_cfg_ir
-        || config.print_selected
-        || config.print_machine
-        || config.print_pseudo_asm
-        || config.run_program;
-    if !any_output {
-        println!("Análise semântica concluída sem erros.");
+        Err(err) => {
+            eprintln!("{}", err.render_for_cli_with_source(&source));
+            std::process::exit(1);
+        }
     }
 }
