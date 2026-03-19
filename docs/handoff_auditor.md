@@ -1,7 +1,7 @@
 # Handoff Auditor
 
 ## Rodada atual
-- Rodada funcional (Fase 41): unsigned fixos (`u8`, `u16`, `u32`, `u64`) + ajuste documental de convenção de fases/rodadas.
+- Rodada funcional (Fase 43): unsigned fixos (`u8`, `u16`, `u32`, `u64`) + ajuste documental de convenção de fases/rodadas.
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = alteração funcional/estrutural.
