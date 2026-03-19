@@ -420,3 +420,17 @@
 - limitação explícita: emissão `.s` falha com diagnóstico claro para tipos ainda não suportados no backend desta fase (`seta`, `ninho`, arrays fixos).
 - fora de escopo preservado: assembler/linker externo, ABI final, alocação de registradores, binário executável real.
 - próximo item normal do roadmap principal: Bloco 3, item 2 (ABI mínima).
+
+## Fase 54 — ABI mínima textual para backend `.s`
+- continuidade histórica preservada: Fase 53 segue como fase funcional principal anterior e Fase 48-H1 permanece rodada extraordinária/hotfix sem reordenar o roadmap.
+- item 2 do Bloco 3 entregue com escopo mínimo, conservador e auditável.
+- `--asm-s` continua partindo da camada `selected` e agora declara ABI textual interna estável (`pinker.text.v0`) no cabeçalho.
+- convenção mínima adotada:
+  - exportação de símbolo por função com `.globl <nome>`;
+  - parâmetros declarados como slots posicionais `@arg0`, `@arg1`, ... mapeados para slots nomeados (`$param`);
+  - retorno textual por slot lógico `@ret` (ou `void`/`ret_void` para função `nulo`);
+  - prólogo/epílogo textuais por função (`.L<func>_prologue`/`.L<func>_epilogue`) como marcação estrutural, sem frame real de hardware.
+- chamadas agora exibem mapeamento posicional de argumentos (`abi.call [@argN=...]`) e destino de retorno textual.
+- subset mantido nesta fase: tipos escalares (`bombom`, `u8..u64`, `i8..i64`, `logica`, `nulo`) e chamadas/controle de fluxo já suportados em `selected`.
+- fora de escopo preservado: assembler/linker externo, ABI final de plataforma, register allocation real, stack frame real completo, syscalls e binário executável real.
+- próximo item normal do roadmap principal: Bloco 3, item 3 (uso de assembler/linker externo).
