@@ -265,6 +265,31 @@ carinho principal() -> bombom { mimo soma_u64(40, 2); }
 }
 
 #[test]
+fn lowering_de_signed_fixos_preserva_tipos() {
+    let code = r#"
+pacote main;
+carinho soma_i8(a: i8, b: i8) -> i8 { mimo a + b; }
+carinho sub_i64(a: i64, b: i64) -> i64 { mimo a - b; }
+carinho principal() -> bombom {
+  nova n: i64 = 40;
+  nova m: i64 = 2;
+  nova r: i64 = sub_i64(-n, -m);
+  sub_i64(r, m);
+  mimo 42;
+}
+"#;
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("func soma_i8 -> i8"), "{}", ir);
+    assert!(ir.contains("%a#0: i8"), "{}", ir);
+    assert!(ir.contains("func sub_i64 -> i64"), "{}", ir);
+    assert!(
+        ir.contains("let %r#0 = call sub_i64(neg(%n#0), neg(%m#0)) -> i64"),
+        "{}",
+        ir
+    );
+}
+
+#[test]
 fn lowering_de_bitwise_basico() {
     let code = "
         pacote main;

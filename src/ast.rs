@@ -153,6 +153,10 @@ pub enum Type {
     U16(Span),
     U32(Span),
     U64(Span),
+    I8(Span),
+    I16(Span),
+    I32(Span),
+    I64(Span),
     Logica(Span),
     Nulo(Span),
 }
@@ -165,6 +169,10 @@ impl Type {
             | Type::U16(span)
             | Type::U32(span)
             | Type::U64(span)
+            | Type::I8(span)
+            | Type::I16(span)
+            | Type::I32(span)
+            | Type::I64(span)
             | Type::Logica(span)
             | Type::Nulo(span) => *span,
         }
@@ -177,6 +185,10 @@ impl Type {
             Type::U16(_) => "u16",
             Type::U32(_) => "u32",
             Type::U64(_) => "u64",
+            Type::I8(_) => "i8",
+            Type::I16(_) => "i16",
+            Type::I32(_) => "i32",
+            Type::I64(_) => "i64",
             Type::Logica(_) => "logica",
             Type::Nulo(_) => "nulo",
         }
@@ -189,6 +201,10 @@ impl Type {
             Type::U16(_) => Type::U16(span),
             Type::U32(_) => Type::U32(span),
             Type::U64(_) => Type::U64(span),
+            Type::I8(_) => Type::I8(span),
+            Type::I16(_) => Type::I16(span),
+            Type::I32(_) => Type::I32(span),
+            Type::I64(_) => Type::I64(span),
             Type::Logica(_) => Type::Logica(span),
             Type::Nulo(_) => Type::Nulo(span),
         }

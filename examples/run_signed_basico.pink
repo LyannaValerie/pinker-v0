@@ -1,0 +1,30 @@
+pacote main;
+
+eterno BASE: i32 = 40;
+
+carinho soma_i8(a: i8, b: i8) -> i8 {
+    mimo a + b;
+}
+
+carinho soma_i16(a: i16, b: i16) -> i16 {
+    mimo a + b;
+}
+
+carinho soma_i32(a: i32, b: i32) -> i32 {
+    mimo a + b;
+}
+
+carinho sub_i64(a: i64, b: i64) -> i64 {
+    mimo a - b;
+}
+
+carinho principal() -> bombom {
+    soma_i8(1, 2);
+    soma_i16(3, 4);
+    soma_i32(BASE, 1);
+
+    nova n: i64 = 40;
+    nova m: i64 = 2;
+    nova _r: i64 = sub_i64(-n, -m);
+    mimo 42;
+}

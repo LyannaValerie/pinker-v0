@@ -102,7 +102,7 @@ fn validate_function(
                 BackendTextInstruction::Unary { dest, op, operand } => {
                     let op_ty = infer_operand(operand, &slots, &temps, globals)?;
                     let result = match op {
-                        crate::ir::UnaryOpIR::Neg if op_ty.is_unsigned() => op_ty,
+                        crate::ir::UnaryOpIR::Neg if op_ty.is_integer() => op_ty,
                         crate::ir::UnaryOpIR::Not if op_ty == TypeIR::Logica => TypeIR::Logica,
                         _ => return Err(err("unop textual com operando inválido")),
                     };
@@ -129,11 +129,11 @@ fn validate_function(
                         | crate::ir::BinaryOpIR::BitXor
                         | crate::ir::BinaryOpIR::Shl
                         | crate::ir::BinaryOpIR::Shr => {
-                            if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_unsigned() {
+                            if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_integer() {
                                 lhs_ty
-                            } else if matches!(lhs, OperandIR::Int(_)) && rhs_ty.is_unsigned() {
+                            } else if matches!(lhs, OperandIR::Int(_)) && rhs_ty.is_integer() {
                                 rhs_ty
-                            } else if matches!(rhs, OperandIR::Int(_)) && lhs_ty.is_unsigned() {
+                            } else if matches!(rhs, OperandIR::Int(_)) && lhs_ty.is_integer() {
                                 lhs_ty
                             } else {
                                 return Err(err("binop aritmética/bitwise textual inválida"));
@@ -150,9 +150,9 @@ fn validate_function(
                         | crate::ir::BinaryOpIR::Lte
                         | crate::ir::BinaryOpIR::Gt
                         | crate::ir::BinaryOpIR::Gte => {
-                            if (lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_unsigned())
-                                || (matches!(lhs, OperandIR::Int(_)) && rhs_ty.is_unsigned())
-                                || (matches!(rhs, OperandIR::Int(_)) && lhs_ty.is_unsigned())
+                            if (lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_integer())
+                                || (matches!(lhs, OperandIR::Int(_)) && rhs_ty.is_integer())
+                                || (matches!(rhs, OperandIR::Int(_)) && lhs_ty.is_integer())
                             {
                                 TypeIR::Logica
                             } else {

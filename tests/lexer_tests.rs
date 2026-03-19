@@ -83,3 +83,12 @@ fn lexer_reconhece_tipos_unsigned_fixos() {
     assert!(tokens.iter().any(|t| t.kind == TokenKind::KwU32));
     assert!(tokens.iter().any(|t| t.kind == TokenKind::KwU64));
 }
+
+#[test]
+fn lexer_reconhece_tipos_signed_fixos() {
+    let tokens = tokenize("i8 i16 i32 i64").unwrap();
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::KwI8));
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::KwI16));
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::KwI32));
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::KwI64));
+}
