@@ -115,6 +115,8 @@ impl<'a> Lexer<'a> {
                         '%' => TokenKind::Percent,
                         '(' => TokenKind::LParen,
                         ')' => TokenKind::RParen,
+                        '[' => TokenKind::LBracket,
+                        ']' => TokenKind::RBracket,
                         '{' => TokenKind::LBrace,
                         '}' => TokenKind::RBrace,
                         ',' => TokenKind::Comma,

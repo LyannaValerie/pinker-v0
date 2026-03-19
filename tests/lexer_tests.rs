@@ -98,3 +98,13 @@ fn lexer_reconhece_keyword_apelido() {
     let tokens = tokenize("apelido Byte = u8;").unwrap();
     assert_eq!(tokens[0].kind, TokenKind::KwApelido);
 }
+
+#[test]
+fn lexer_reconhece_sintaxe_de_array_fixo() {
+    let tokens = tokenize("[u8; 16]").unwrap();
+    assert_eq!(tokens[0].kind, TokenKind::LBracket);
+    assert_eq!(tokens[1].kind, TokenKind::KwU8);
+    assert_eq!(tokens[2].kind, TokenKind::Semi);
+    assert_eq!(tokens[3].kind, TokenKind::IntLit);
+    assert_eq!(tokens[4].kind, TokenKind::RBracket);
+}

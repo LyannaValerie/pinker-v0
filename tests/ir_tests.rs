@@ -327,3 +327,16 @@ carinho principal() -> bombom { mimo 0; }
     assert!(ir.contains("func id -> u8"), "{}", ir);
     assert!(ir.contains("%x#0: u8"), "{}", ir);
 }
+
+#[test]
+fn lowering_preserva_tipo_array_fixo_em_assinatura() {
+    let code = r#"
+pacote main;
+apelido Bytes4 = [u8; 4];
+carinho usa(buf: Bytes4) -> bombom { mimo 0; }
+carinho principal() -> bombom { mimo 0; }
+"#;
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("func usa -> bombom"), "{}", ir);
+    assert!(ir.contains("%buf#0: [u8; 4]"), "{}", ir);
+}

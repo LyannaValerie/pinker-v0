@@ -70,21 +70,36 @@ impl SemanticChecker {
     }
 
     fn check_type_match(expected: &Type, actual: &Type) -> bool {
-        matches!(
-            (expected, actual),
+        match (expected, actual) {
             (Type::Bombom(_), Type::Bombom(_))
-                | (Type::Bombom(_), Type::U64(_))
-                | (Type::U64(_), Type::Bombom(_))
-                | (Type::U8(_), Type::U8(_))
-                | (Type::U16(_), Type::U16(_))
-                | (Type::U32(_), Type::U32(_))
-                | (Type::U64(_), Type::U64(_))
-                | (Type::I8(_), Type::I8(_))
-                | (Type::I16(_), Type::I16(_))
-                | (Type::I32(_), Type::I32(_))
-                | (Type::I64(_), Type::I64(_))
-                | (Type::Logica(_), Type::Logica(_))
-        )
+            | (Type::Bombom(_), Type::U64(_))
+            | (Type::U64(_), Type::Bombom(_))
+            | (Type::U8(_), Type::U8(_))
+            | (Type::U16(_), Type::U16(_))
+            | (Type::U32(_), Type::U32(_))
+            | (Type::U64(_), Type::U64(_))
+            | (Type::I8(_), Type::I8(_))
+            | (Type::I16(_), Type::I16(_))
+            | (Type::I32(_), Type::I32(_))
+            | (Type::I64(_), Type::I64(_))
+            | (Type::Logica(_), Type::Logica(_)) => true,
+            (
+                Type::FixedArray {
+                    element: lhs_element,
+                    size: lhs_size,
+                    ..
+                },
+                Type::FixedArray {
+                    element: rhs_element,
+                    size: rhs_size,
+                    ..
+                },
+            ) => {
+                lhs_size == rhs_size
+                    && Self::check_type_match(lhs_element.as_ref(), rhs_element.as_ref())
+            }
+            _ => false,
+        }
     }
 
     fn resolve_type_alias(
@@ -110,6 +125,38 @@ impl SemanticChecker {
                 let resolved = self.resolve_type_alias(target, resolving)?;
                 resolving.pop();
                 Ok(resolved.with_span(*span))
+            }
+            Type::FixedArray {
+                element,
+                size,
+                span,
+            } => {
+                if *size == 0 {
+                    return Err(PinkerError::Semantic {
+                        msg: "array fixo deve ter tamanho maior que zero".to_string(),
+                        span: *span,
+                    });
+                }
+
+                let resolved_element = self.resolve_type_alias(element.as_ref(), resolving)?;
+                if matches!(resolved_element, Type::Nulo(_)) {
+                    return Err(PinkerError::Semantic {
+                        msg: "tipo base de array fixo não pode ser 'nulo'".to_string(),
+                        span: resolved_element.span(),
+                    });
+                }
+                if matches!(resolved_element, Type::FixedArray { .. }) {
+                    return Err(PinkerError::Semantic {
+                        msg: "array fixo aninhado ainda não é suportado nesta fase".to_string(),
+                        span: resolved_element.span(),
+                    });
+                }
+
+                Ok(Type::FixedArray {
+                    element: Box::new(resolved_element),
+                    size: *size,
+                    span: *span,
+                })
             }
             _ => Ok(ty.clone()),
         }

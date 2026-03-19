@@ -5,6 +5,14 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 46 — arrays fixos (tipo estrutural mínimo)
+  - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
+  - frontend atualizado de forma incremental para aceitar tipo de array fixo na sintaxe `[tipo; N]` em pontos tipados existentes
+  - semântica valida tamanho estático simples (`N > 0`), resolve aliases no tipo-base e rejeita tipo-base inválido/inexistente
+  - limite deliberado desta fase: arrays fixos aninhados ainda não são suportados (erro explícito), sem indexação/acesso por elemento
+  - IR/lowering recebeu representação mínima de tipo para arrays fixos em assinaturas/slots, preservando o pipeline sem redesign
+  - cobertura incremental em lexer/parser/semântica/IR para cenário positivo e negativo (tamanho inválido)
+
 - Fase 45 — aliases de tipo (`apelido`)
   - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
   - keyword `apelido` adicionada no frontend e integrada ao parser/AST como declaração global de alias (`apelido Nome = Tipo;`)

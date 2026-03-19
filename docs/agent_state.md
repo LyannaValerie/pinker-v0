@@ -65,7 +65,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Rodada documental: consolidação da trilha única "voltar aos trilhos" em `docs/roadmap.md` (sem número de fase)
 
 ## Fase atual
-- Fase 45 concluída: aliases de tipo via `apelido` com declaração global (`apelido Nome = Tipo;`) e uso em pontos tipados existentes (assinaturas, retorno, locais e globais), resolvidos para tipo subjacente sem tipo nominal novo.
+- Fase 46 concluída: arrays fixos como tipo estrutural mínimo (`[tipo; N]`) com validação semântica de tamanho estático (`N > 0`), resolução de aliases no tipo-base e integração mínima no IR/lowering sem abrir indexação, structs ou ponteiros.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -326,3 +326,11 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - semântica resolve alias para tipo subjacente (sem nominalidade nova), rejeitando alias inexistente, duplicado e ciclos recursivos.
 - lowering IR converte aliases para tipos concretos, preservando as camadas CFG/selected/Machine/runtime sem redesign.
 - fora de escopo mantido: arrays, structs, ponteiros, casts (`virar`), backend `.s`, ABI e módulos.
+
+## Fase 46 — arrays fixos (tipo estrutural mínimo)
+- continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
+- quinto item funcional do Bloco 1 entregue com escopo mínimo e auditável.
+- sintaxe de tipo adicionada: `[tipo; N]` em pontos tipados já existentes (alias, parâmetros, retorno, anotações).
+- semântica valida tamanho estático simples (`N > 0`), resolve aliases no tipo-base e rejeita base inválida/inexistente.
+- IR/lowering passou a carregar tipo de array fixo em assinaturas/slots sem introduzir operações de memória/indexação.
+- fora de escopo mantido: inicializador literal de array, indexação, leitura/escrita por elemento, arrays dinâmicos, structs, ponteiros, casts e backend `.s`.

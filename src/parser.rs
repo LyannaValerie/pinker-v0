@@ -122,6 +122,27 @@ impl Parser {
 
     fn parse_type(&mut self) -> Result<Type, PinkerError> {
         let span = self.peek_span();
+        if self.match_token(TokenKind::LBracket) {
+            let start_span = self.previous().span;
+            let element = self.parse_type()?;
+            self.consume(TokenKind::Semi, ";")?;
+            let size_token = self.consume(TokenKind::IntLit, "tamanho inteiro do array fixo")?;
+            let size = size_token
+                .lexeme
+                .parse::<u64>()
+                .map_err(|_| PinkerError::Expected {
+                    expected: "tamanho inteiro válido do array fixo".to_string(),
+                    found: size_token.lexeme.clone(),
+                    span: size_token.span,
+                })?;
+            self.consume(TokenKind::RBracket, "]")?;
+            return Ok(Type::FixedArray {
+                element: Box::new(element),
+                size,
+                span: merge_span(start_span, self.previous().span),
+            });
+        }
+
         if self.match_token(TokenKind::KwBombom) {
             Ok(Type::Bombom(span))
         } else if self.match_token(TokenKind::KwU8) {
@@ -149,8 +170,7 @@ impl Parser {
             })
         } else {
             Err(PinkerError::Expected {
-                expected: "bombom, u8, u16, u32, u64, i8, i16, i32, i64, logica ou alias"
-                    .to_string(),
+                expected: "tipo válido (ex.: bombom, logica, alias ou [tipo; N])".to_string(),
                 found: self
                     .peek()
                     .map(|token| token.lexeme.clone())
