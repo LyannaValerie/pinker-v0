@@ -57,6 +57,29 @@ fn render_item(item: &Item, indent: usize, out: &mut String) {
                 ),
             );
         }
+        Item::Struct(struct_decl) => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "Struct {} {}",
+                    struct_decl.name,
+                    format_span(struct_decl.span)
+                ),
+            );
+            for field in &struct_decl.fields {
+                line(
+                    out,
+                    indent + 1,
+                    &format!(
+                        "{}: {} {}",
+                        field.name,
+                        format_type(&field.ty),
+                        format_span(field.span)
+                    ),
+                );
+            }
+        }
     }
 }
 
@@ -255,6 +278,8 @@ fn render_expr(expr: &Expr, indent: usize, out: &mut String, label: &str) {
 fn format_type(ty: &Type) -> String {
     match ty {
         Type::Alias { name, .. } => name.clone(),
+        Type::Struct { name, .. } => name.clone(),
+        Type::FixedArray { element, size, .. } => format!("[{}; {}]", format_type(element), size),
         _ => ty.name().to_string(),
     }
 }

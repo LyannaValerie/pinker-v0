@@ -108,9 +108,11 @@ impl Parser {
             Ok(Item::Const(self.parse_const()?))
         } else if self.match_token(TokenKind::KwApelido) {
             Ok(Item::TypeAlias(self.parse_type_alias()?))
+        } else if self.match_token(TokenKind::KwNinho) {
+            Ok(Item::Struct(self.parse_struct_decl()?))
         } else {
             Err(PinkerError::Expected {
-                expected: "carinho, eterno ou apelido".to_string(),
+                expected: "carinho, eterno, apelido ou ninho".to_string(),
                 found: self
                     .peek()
                     .map(|token| token.lexeme.clone())
@@ -192,6 +194,37 @@ impl Parser {
         Ok(TypeAliasDecl {
             name,
             target,
+            span: merge_span(start_span, self.previous().span),
+        })
+    }
+
+    fn parse_struct_decl(&mut self) -> Result<StructDecl, PinkerError> {
+        let start_span = self.previous().span;
+        let name = self
+            .consume(TokenKind::Ident, "nome da struct")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::LBrace, "{")?;
+        let mut fields = Vec::new();
+        while !self.check(TokenKind::RBrace) {
+            let field_name = self
+                .consume(TokenKind::Ident, "nome do campo da struct")?
+                .lexeme
+                .clone();
+            let field_start = self.previous().span;
+            self.consume(TokenKind::Colon, ":")?;
+            let ty = self.parse_type()?;
+            self.consume(TokenKind::Semi, ";")?;
+            fields.push(StructField {
+                name: field_name,
+                ty,
+                span: merge_span(field_start, self.previous().span),
+            });
+        }
+        self.consume(TokenKind::RBrace, "}")?;
+        Ok(StructDecl {
+            name,
+            fields,
             span: merge_span(start_span, self.previous().span),
         })
     }

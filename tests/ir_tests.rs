@@ -340,3 +340,19 @@ carinho principal() -> bombom { mimo 0; }
     assert!(ir.contains("func usa -> bombom"), "{}", ir);
     assert!(ir.contains("%buf#0: [u8; 4]"), "{}", ir);
 }
+
+#[test]
+fn lowering_preserva_tipo_ninho_em_assinatura() {
+    let code = r#"
+pacote main;
+ninho Ponto {
+  x: bombom;
+  y: bombom;
+}
+carinho usa(p: Ponto) -> Ponto { mimo p; }
+carinho principal() -> bombom { mimo 0; }
+"#;
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("func usa -> struct"), "{}", ir);
+    assert!(ir.contains("%p#0: struct"), "{}", ir);
+}

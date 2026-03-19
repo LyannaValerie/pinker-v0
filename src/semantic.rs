@@ -15,7 +15,7 @@
 use crate::ast::*;
 use crate::error::PinkerError;
 use crate::token::{Position, Span};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone)]
 struct VarMeta {
@@ -31,6 +31,7 @@ pub struct SemanticChecker {
     funcs: HashMap<String, FunctionDecl>,
     consts: HashMap<String, ConstDecl>,
     type_aliases: HashMap<String, Type>,
+    structs: HashMap<String, StructDecl>,
     scopes: Vec<Scope>,
     current_func_name: Option<String>,
     current_func_ret: Option<Type>,
@@ -43,6 +44,7 @@ impl SemanticChecker {
             funcs: HashMap::new(),
             consts: HashMap::new(),
             type_aliases: HashMap::new(),
+            structs: HashMap::new(),
             scopes: Vec::new(),
             current_func_name: None,
             current_func_ret: None,
@@ -83,6 +85,9 @@ impl SemanticChecker {
             | (Type::I32(_), Type::I32(_))
             | (Type::I64(_), Type::I64(_))
             | (Type::Logica(_), Type::Logica(_)) => true,
+            (Type::Struct { name: lhs_name, .. }, Type::Struct { name: rhs_name, .. }) => {
+                lhs_name == rhs_name
+            }
             (
                 Type::FixedArray {
                     element: lhs_element,
@@ -102,13 +107,19 @@ impl SemanticChecker {
         }
     }
 
-    fn resolve_type_alias(
+    fn resolve_type_named(
         &self,
         ty: &Type,
         resolving: &mut Vec<String>,
     ) -> Result<Type, PinkerError> {
         match ty {
             Type::Alias { name, span } => {
+                if self.structs.contains_key(name) {
+                    return Ok(Type::Struct {
+                        name: name.clone(),
+                        span: *span,
+                    });
+                }
                 if resolving.iter().any(|entry| entry == name) {
                     return Err(PinkerError::Semantic {
                         msg: format!("alias de tipo recursivo detectado em '{}'", name),
@@ -122,7 +133,7 @@ impl SemanticChecker {
                     });
                 };
                 resolving.push(name.clone());
-                let resolved = self.resolve_type_alias(target, resolving)?;
+                let resolved = self.resolve_type_named(target, resolving)?;
                 resolving.pop();
                 Ok(resolved.with_span(*span))
             }
@@ -138,7 +149,7 @@ impl SemanticChecker {
                     });
                 }
 
-                let resolved_element = self.resolve_type_alias(element.as_ref(), resolving)?;
+                let resolved_element = self.resolve_type_named(element.as_ref(), resolving)?;
                 if matches!(resolved_element, Type::Nulo(_)) {
                     return Err(PinkerError::Semantic {
                         msg: "tipo base de array fixo não pode ser 'nulo'".to_string(),
@@ -158,13 +169,43 @@ impl SemanticChecker {
                     span: *span,
                 })
             }
+            Type::Struct { .. } => Ok(ty.clone()),
             _ => Ok(ty.clone()),
         }
     }
 
     fn resolve_type_or_error(&self, ty: &Type) -> Result<Type, PinkerError> {
         let mut resolving = Vec::new();
-        self.resolve_type_alias(ty, &mut resolving)
+        self.resolve_type_named(ty, &mut resolving)
+    }
+
+    fn validate_struct_decl(&self, struct_decl: &StructDecl) -> Result<(), PinkerError> {
+        let mut field_names = HashSet::new();
+        for field in &struct_decl.fields {
+            if !field_names.insert(field.name.as_str()) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "campo '{}' duplicado na struct '{}'",
+                        field.name, struct_decl.name
+                    ),
+                    span: field.span,
+                });
+            }
+            let resolved = self.resolve_type_or_error(&field.ty)?;
+            if matches!(
+                resolved,
+                Type::Struct { name, .. } if name == struct_decl.name
+            ) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "struct '{}' não pode conter recursão direta nesta fase",
+                        struct_decl.name
+                    ),
+                    span: field.span,
+                });
+            }
+        }
+        Ok(())
     }
 
     fn is_integer_type(ty: &Type) -> bool {
@@ -286,11 +327,36 @@ impl SemanticChecker {
                     self.type_aliases
                         .insert(alias.name.clone(), alias.target.clone());
                 }
+                Item::Struct(struct_decl) => {
+                    if self.structs.contains_key(&struct_decl.name) {
+                        return Err(PinkerError::Semantic {
+                            msg: format!("struct '{}' já declarada", struct_decl.name),
+                            span: struct_decl.span,
+                        });
+                    }
+                    if self.funcs.contains_key(&struct_decl.name)
+                        || self.consts.contains_key(&struct_decl.name)
+                        || self.type_aliases.contains_key(&struct_decl.name)
+                    {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "nome '{}' já utilizado por função/constante/alias de tipo",
+                                struct_decl.name
+                            ),
+                            span: struct_decl.span,
+                        });
+                    }
+                    self.structs
+                        .insert(struct_decl.name.clone(), struct_decl.clone());
+                }
             }
         }
 
         for alias_target in self.type_aliases.values() {
             self.resolve_type_or_error(alias_target)?;
+        }
+        for struct_decl in self.structs.values() {
+            self.validate_struct_decl(struct_decl)?;
         }
 
         // --- Passagem 2: verificação de corpos ---
@@ -300,7 +366,7 @@ impl SemanticChecker {
             match item {
                 Item::Function(function) => self.check_function(function)?,
                 Item::Const(constant) => self.check_const_body(constant)?,
-                Item::TypeAlias(_) => {}
+                Item::TypeAlias(_) | Item::Struct(_) => {}
             }
         }
 

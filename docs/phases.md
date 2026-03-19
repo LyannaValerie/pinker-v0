@@ -5,6 +5,15 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 47 — structs (`ninho`) como tipo nomeado composto (escopo mínimo)
+  - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
+  - frontend atualizado de forma incremental para aceitar declaração global `ninho Nome { campo: tipo; ... }`
+  - parser/AST integrados com item de struct e campos tipados, mantendo uso do nome em posições tipadas existentes
+  - semântica registra structs, valida campo duplicado, tipo de campo inexistente, redefinição de nome e rejeita recursão direta (`Node { prox: Node; }`)
+  - integração mínima no pipeline: IR reconhece tipo estrutural nominal como categoria `struct` para assinaturas/slots, sem abrir valores operacionais nem acesso a campo
+  - cobertura incremental em lexer/parser/semântica/IR para cenário positivo e negativos centrais desta fase
+  - fora de escopo mantido: `obj.campo`, leitura/escrita de campo, literais/construtor de struct, layout/ABI/memória explícita, ponteiros e backend `.s`
+
 - Fase 46 — arrays fixos (tipo estrutural mínimo)
   - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
   - frontend atualizado de forma incremental para aceitar tipo de array fixo na sintaxe `[tipo; N]` em pontos tipados existentes

@@ -27,6 +27,7 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `falso`        | false            | negacao               |
 | `principal`    | main/entry       | protagonista          |
 | `apelido`      | type alias       | nome alternativo      |
+| `ninho`        | struct           | agrupamento acolhedor |
 
 ---
 
@@ -50,7 +51,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 
 | Conceito         | Sugestao    | Alternativas         | Sentimento                          |
 |------------------|-------------|----------------------|-------------------------------------|
-| struct           | `ninho`     | `cesta`, `colcha`    | acolhimento, agrupar com afeto      |
+| ~~struct~~       | ~~`ninho`~~ | `cesta`, `colcha`    | implementado na Fase 47             |
 | enum             | `leque`     | `flor`, `arco`       | variedade, abrir opcoes             |
 | array            | `colar`     | `fila`, `cordao`     | sequencia encadeada                 |
 | tuple            | `par`       | `laco`, `broche`     | coisas juntas                       |
