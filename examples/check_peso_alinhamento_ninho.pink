@@ -1,0 +1,11 @@
+pacote main;
+
+ninho Header {
+    flag: u8;
+    tamanho: u32;
+    codigo: u16;
+}
+
+carinho principal() -> bombom {
+    mimo peso(Header) + alinhamento(Header);
+}

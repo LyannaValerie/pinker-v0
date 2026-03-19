@@ -8,6 +8,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - tipos `bombom`, `u8`, `u16`, `u32`, `u64`, `i8`, `i16`, `i32`, `i64` e `logica`
 - aliases de tipo (`apelido`), arrays fixos (`[tipo; N]`), structs (`ninho`), ponteiros (`seta<tipo>`)
 - cast explícito controlado com `virar` (inteiro -> inteiro no frontend/semântica/IR estruturada)
+- consultas estáticas de layout com `peso(tipo)` e `alinhamento(tipo)`
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
 - AST textual estável
@@ -74,6 +75,10 @@ cargo run -- --check examples/check_indexacao_valida.pink
 cargo run -- --check examples/check_indexacao_indice_nao_inteiro.pink
 cargo run -- --check examples/check_cast_inteiro_valido.pink
 cargo run -- --check examples/check_cast_invalido_logica.pink
+cargo run -- --check examples/check_peso_alinhamento_escalar.pink
+cargo run -- --check examples/check_peso_alinhamento_array.pink
+cargo run -- --check examples/check_peso_alinhamento_ninho.pink
+cargo run -- --check examples/check_peso_tipo_inexistente.pink
 ```
 
 ## Modos da CLI

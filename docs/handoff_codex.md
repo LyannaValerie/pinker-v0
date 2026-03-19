@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada funcional: **Fase 50 — casts controlados** (terceiro item do Bloco 2).
+- Rodada funcional: **Fase 51 — `peso`/alinhamento** (quarto item do Bloco 2).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -66,4 +66,23 @@
 - Continuidade preservada: Fase 48-H1 segue sendo rodada extraordinária/hotfix sem reordenar o roadmap principal.
 
 ## Próximo item normal do roadmap principal
-- Bloco 2, item 4: `sizeof` / alinhamento.
+- Bloco 2, item 5: `volatile`.
+
+## O que entrou na Fase 51
+- Frontend: keywords `peso` e `alinhamento` adicionadas no lexer/token e parse de `peso(tipo)`/`alinhamento(tipo)` como expressões explícitas.
+- AST/JSON/printer: novos nós de expressão para consulta de tamanho e alinhamento por tipo.
+- Semântica: cálculo estático de layout/alinhamento com política mínima explícita e determinística para escalares, `seta<T>`, arrays fixos, `ninho` e aliases via tipo subjacente.
+- Política desta fase:
+  - `bombom` equivale a `u64` para layout (`8/8`);
+  - `logica` usa `1/1`;
+  - `seta<T>` usa `8/8` abstrato fixo;
+  - `[T; N]` usa `N * peso(T)` e alinhamento de `T`;
+  - `ninho` usa alinhamento natural por campo + alinhamento máximo da struct + arredondamento final do tamanho.
+- IR estruturada: lowering converte `peso`/`alinhamento` em literal inteiro constante (`bombom`) e mantém pipeline downstream sem runtime novo.
+- Continuidade preservada: Fase 48-H1 segue sendo rodada extraordinária/hotfix sem reordenar o roadmap principal.
+
+## Fora de escopo mantido
+- `volatile`
+- dereferência real e aritmética de ponteiros
+- ABI/layout físico final orientado a backend
+- backend nativo e redesign de runtime

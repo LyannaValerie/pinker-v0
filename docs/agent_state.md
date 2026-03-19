@@ -71,6 +71,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 48-H1 concluída: rodada extraordinária de hotfixes de corretude e manutenção (HF-1 a HF-17).
 - Fase 49 concluída: acesso a campo (`obj.campo`) e indexação (`arr[idx]`) com escopo mínimo de leitura.
 - Fase 50 concluída: casts controlados com `virar` (escopo explícito e conservador), com suporte frontend/semântica/IR para inteiro->inteiro e sem lowering operacional em CFG/Machine/runtime.
+- Fase 51 concluída: `peso(tipo)` e `alinhamento(tipo)` com cálculo estático de layout/alinhamento (frontend + semântica + IR com literal constante), sem runtime novo.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`
@@ -116,7 +117,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Infraestrutura avançada de runtime (I/O de linguagem, debug runtime, otimizações de execução).
 - Inferência global pesada de tipos na Machine.
 - Proteção contra recursão infinita/limite de profundidade de chamadas.
-- Dereferência e operações reais de ponteiro (load/store indireto, aritmética de ponteiro, campo/indexação via ponteiro, casts, `sizeof`/alinhamento, `volatile`).
+- Dereferência e operações reais de ponteiro (load/store indireto, aritmética de ponteiro, campo/indexação via ponteiro, casts operacionais e `volatile`).
 
 ## Instrução para novo agente
 1. Ler este arquivo primeiro.
@@ -362,3 +363,19 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - decisão operacional desta fase: CFG/Machine/runtime ainda não loweram/executam cast; a falha é explícita no lowering de CFG.
 - proteção de runtime signed (HF-3) foi preservada sem afrouxamento.
 - próximo item normal do roadmap principal: Bloco 2, item 4 (`sizeof`/alinhamento).
+
+## Fase 51 — `peso`/alinhamento (`sizeof`/`alignof`)
+- continuidade histórica preservada: Fase 50 permanece a fase funcional principal anterior e Fase 48-H1 permanece rodada extraordinária/hotfix sem reordenar roadmap.
+- sintaxe adicionada: `peso(tipo)` e `alinhamento(tipo)` como consultas explícitas de layout em tempo de compilação.
+- política mínima de layout desta fase:
+  - `bombom`/`u64`/`i64` = `8/8`;
+  - `u32`/`i32` = `4/4`;
+  - `u16`/`i16` = `2/2`;
+  - `u8`/`i8`/`logica` = `1/1`;
+  - `seta<T>` = `8/8` (ponteiro abstrato fixo nesta fase);
+  - `[T; N]` = `N * peso(T)` com alinhamento de `T`;
+  - `ninho` = campos alinhados naturalmente, alinhamento da struct = maior alinhamento de campo, tamanho final arredondado para múltiplo do alinhamento da struct.
+- aliases (`apelido`) participam por resolução para tipo subjacente.
+- integração no pipeline: semântica valida e IR baixa para literal inteiro constante (`bombom`), sem runtime novo.
+- fora de escopo preservado: `volatile`, dereferência/aritmética de ponteiro, ABI/layout físico final e backend nativo.
+- próximo item normal do roadmap principal: Bloco 2, item 5 (`volatile`).

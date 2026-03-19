@@ -198,6 +198,8 @@ impl<'a> Lexer<'a> {
                                 "ninho" => TokenKind::KwNinho,
                                 "seta" => TokenKind::KwSeta,
                                 "virar" => TokenKind::KwVirar,
+                                "peso" => TokenKind::KwPeso,
+                                "alinhamento" => TokenKind::KwAlinhamento,
                                 "bombom" => TokenKind::KwBombom,
                                 "u8" => TokenKind::KwU8,
                                 "u16" => TokenKind::KwU16,

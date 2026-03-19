@@ -81,6 +81,23 @@ carinho principal() -> bombom {
 }
 
 #[test]
+fn lowering_de_peso_e_alinhamento_vira_literal_constante() {
+    let code = r#"
+pacote main;
+ninho Ponto { a: u8; b: u32; c: u16; }
+carinho principal() -> bombom {
+    mimo peso(Ponto) + alinhamento(Ponto) + peso([u16; 3]) + alinhamento(seta<u8>);
+}
+"#;
+    let ir = render_ir(code).unwrap();
+    assert!(
+        ir.contains("return add(add(add(12:bombom, 4:bombom), 6:bombom), 8:bombom)"),
+        "{}",
+        ir
+    );
+}
+
+#[test]
 fn lowering_de_if_else() {
     let code = "\
 pacote main;

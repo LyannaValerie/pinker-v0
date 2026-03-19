@@ -118,6 +118,13 @@ fn lexer_reconhece_keyword_virar() {
 }
 
 #[test]
+fn lexer_reconhece_keywords_peso_e_alinhamento() {
+    let tokens = tokenize("peso(u16); alinhamento(seta<u8>);").unwrap();
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::KwPeso));
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::KwAlinhamento));
+}
+
+#[test]
 fn lexer_reconhece_sintaxe_de_array_fixo() {
     let tokens = tokenize("[u8; 16]").unwrap();
     assert_eq!(tokens[0].kind, TokenKind::LBracket);
