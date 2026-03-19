@@ -339,6 +339,37 @@ impl SemanticChecker {
         })
     }
 
+    fn resolve_struct_field_type(
+        &self,
+        base_ty: &Type,
+        field: &str,
+        span: Span,
+    ) -> Result<Type, PinkerError> {
+        let Type::Struct { name, .. } = base_ty else {
+            return Err(PinkerError::Semantic {
+                msg: "acesso de campo exige base do tipo 'ninho'".to_string(),
+                span,
+            });
+        };
+        let struct_decl = self
+            .structs
+            .get(name)
+            .ok_or_else(|| PinkerError::Semantic {
+                msg: format!("tipo de struct '{}' não declarado", name),
+                span,
+            })?;
+        let struct_field = struct_decl
+            .fields
+            .iter()
+            .find(|candidate| candidate.name == field)
+            .ok_or_else(|| PinkerError::Semantic {
+                msg: format!("campo '{}' não existe em '{}'", field, name),
+                span,
+            })?;
+        self.resolve_type_or_error(&struct_field.ty)
+            .map(|ty| ty.with_span(span))
+    }
+
     // --- Passagem 1: declaração global ---
     // Registra funções e constantes antes de verificar qualquer corpo.
     // Erros aqui interrompem antes da passagem 2.
@@ -808,6 +839,36 @@ impl SemanticChecker {
                     })
             }
             ExprKind::Call(callee, args) => self.check_call_expr(expr.span, callee, args),
+            ExprKind::FieldAccess { base, field } => {
+                let base_ty = self.check_value_expr(
+                    base,
+                    "resultado de função sem retorno não pode ser base de acesso a campo",
+                )?;
+                self.resolve_struct_field_type(&base_ty, field, expr.span)
+            }
+            ExprKind::Index { base, index } => {
+                let base_ty = self.check_value_expr(
+                    base,
+                    "resultado de função sem retorno não pode ser base de indexação",
+                )?;
+                let index_ty = self.check_value_expr(
+                    index,
+                    "resultado de função sem retorno não pode ser índice",
+                )?;
+                if !Self::is_integer_type(&index_ty) {
+                    return Err(PinkerError::Semantic {
+                        msg: "índice deve ser inteiro".to_string(),
+                        span: index.span,
+                    });
+                }
+                match base_ty {
+                    Type::FixedArray { element, .. } => Ok(element.as_ref().with_span(expr.span)),
+                    _ => Err(PinkerError::Semantic {
+                        msg: "indexação exige base de array fixo nesta fase".to_string(),
+                        span: expr.span,
+                    }),
+                }
+            }
             ExprKind::Binary(lhs, op, rhs) => {
                 let lhs_ty = self.check_value_expr(
                     lhs,

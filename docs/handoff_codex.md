@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada **extraordinária de hotfixes**: Fase 48-H1 do histórico interno, corrigindo problemas de corretude, CI e manutenção acumulados até a Fase 48.
+- Rodada funcional: **Fase 49 — acesso a campo e indexação** (segundo item do Bloco 2).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -39,3 +39,19 @@
 - Roadmap principal inalterado; Bloco 2 continua na próxima fase funcional.
 - CI agora inclui clippy e doc validation além de build/check/fmt/test.
 - Runtime signed bloqueado explicitamente até implementação correta de representação signed.
+
+
+## O que entrou na Fase 49
+- Frontend: parser agora suporta cadeia postfix (`call` + `obj.campo` + `arr[idx]`) com precedência preservada.
+- AST/JSON/printer: novos nós de expressão para acesso a campo e indexação.
+- Semântica: validação de acesso a campo apenas em base `ninho` e indexação apenas em array fixo com índice inteiro.
+- IR estruturada: representação mínima para campo/index (`ValueIR::FieldAccess` e `ValueIR::Index`).
+- Decisão deliberada de escopo: leitura apenas; escrita em LHS não adicionada.
+- Downstream deliberadamente limitado: CFG/execução ainda retornam erro claro para esses nós nesta fase, evitando redesign de memória/runtime.
+- Exemplos versionados adicionados para `--check` (casos positivo/negativo).
+
+## Fora de escopo mantido
+- dereferência/aritmética de ponteiros e acesso via `seta<T>`
+- casts (`virar`), `sizeof`/alinhamento, `volatile`
+- backend nativo e modelagem de layout físico
+- bounds-check de runtime/estático sofisticado

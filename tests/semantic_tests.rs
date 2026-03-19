@@ -316,6 +316,72 @@ fn logico_invalido_em_bombom() {
 }
 
 #[test]
+fn acesso_a_campo_de_ninho_valido() {
+    let code = r#"
+        pacote main;
+        ninho Ponto { x: bombom; y: bombom; }
+        carinho pega_x(p: Ponto) -> bombom { mimo p.x; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn acesso_a_campo_inexistente_falha() {
+    let code = r#"
+        pacote main;
+        ninho Ponto { x: bombom; }
+        carinho pega_y(p: Ponto) -> bombom { mimo p.y; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("campo 'y' não existe"));
+}
+
+#[test]
+fn acesso_a_campo_em_base_nao_struct_falha() {
+    let code = r#"
+        pacote main;
+        carinho invalida(v: bombom) -> bombom { mimo v.x; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("acesso de campo exige base do tipo 'ninho'"));
+}
+
+#[test]
+fn indexacao_de_array_fixo_valida() {
+    let code = r#"
+        pacote main;
+        carinho pega(a: [bombom; 3], i: bombom) -> bombom { mimo a[i]; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn indexacao_com_indice_nao_inteiro_falha() {
+    let code = r#"
+        pacote main;
+        carinho pega(a: [bombom; 3], ok: logica) -> bombom { mimo a[ok]; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("índice deve ser inteiro"));
+}
+
+#[test]
+fn indexacao_em_base_nao_array_falha() {
+    let code = r#"
+        pacote main;
+        carinho pega(v: bombom) -> bombom { mimo v[0]; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("indexação exige base de array fixo nesta fase"));
+}
+
+#[test]
 fn unsigned_fixos_validos_com_tipos_explicitos() {
     let code = r#"
         pacote main;

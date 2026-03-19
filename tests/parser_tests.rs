@@ -254,6 +254,39 @@ fn parser_aceita_expressao_com_modulo_e_precedencia_multiplicativa() {
 }
 
 #[test]
+fn parser_aceita_cadeia_postfix_com_campo_e_indexacao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo pega().pontos[1];
+        }
+        carinho pega() -> bombom { mimo 1; }
+    "#;
+    let program = parse(code).expect("parser deve aceitar cadeia postfix");
+    let func = match &program.items[0] {
+        Item::Function(f) => f,
+        _ => panic!("item esperado: função"),
+    };
+    let ret_expr = match &func.body.stmts[0] {
+        Stmt::Return(ret) => ret.expr.as_ref().expect("retorno com expressão"),
+        _ => panic!("stmt esperado: return"),
+    };
+    match &ret_expr.kind {
+        ExprKind::Index { base, index } => {
+            assert!(matches!(index.kind, ExprKind::IntLit(1)));
+            match &base.kind {
+                ExprKind::FieldAccess { base, field } => {
+                    assert_eq!(field, "pontos");
+                    assert!(matches!(base.kind, ExprKind::Call(_, _)));
+                }
+                _ => panic!("base esperada: acesso a campo"),
+            }
+        }
+        _ => panic!("expressão esperada: index"),
+    }
+}
+
+#[test]
 fn parser_aceita_tipos_unsigned_em_assinaturas_e_locais() {
     let source = r#"
         pacote main;
