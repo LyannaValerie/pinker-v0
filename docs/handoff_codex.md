@@ -1,50 +1,18 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- **Fase 38 implementada**: comentários de `--machine` ficaram sensíveis ao papel do fluxo (if/loop/curto-circuito/join), sem alterar semântica.
+- Rodada **documental/estratégica** (sem nova fase funcional) para consolidar a trilha única de retorno ao objetivo de linguagem de sistemas/kernel.
 
-## Estado real encontrado
-- Continuidade histórica validada: 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37.
-- Workspace local mantido como fonte de verdade.
-- Baseline antes das mudanças: `cargo build` e `cargo test` passavam.
+## O que foi atualizado
+- `docs/roadmap.md` agora é o documento mestre de execução para "voltar aos trilhos", com trilha oficial única em 5 blocos e ordem explícita de dependência.
+- Regra explícita: não abrir trilha paralela.
+- Regras operacionais registradas: não antecipar backend nativo antes da base mínima de tipos/modelagem; priorizar `.s` antes de ELF direto; módulos/strings/I/O sem atropelar trilha de kernel.
+- Critério de bloco concluído e regra de transição adicionados ao roadmap.
+- `docs/agent_state.md` atualizado para refletir precedência de `roadmap.md` sobre `future.md`.
+- `docs/future.md` recebeu nota de precedência curta no topo (inventário amplo x ordem oficial ativa).
+- `docs/phases.md` recebeu registro da rodada documental de consolidação (sem fase funcional nova).
 
-## Ação aplicada (Fase 38)
-- `src/abstract_machine.rs`:
-  - `render_term` passou a receber o bloco atual para comentar com contexto de fluxo.
-  - `br_true` refinado para diferenciar melhor `talvez/senao`, `sempre que` e curto-circuito lógico.
-  - `jmp` refinado por alvo (`loop_cond_*`, `loop_join_*`, `join_*`, `logic_join_*`, `loop_break_cont_*`, `loop_continue_cont_*`) e por contexto de bloco atual.
-  - anotações de bloco atualizadas para `join_*` e `logic_join_*` com foco em retomada de fluxo.
-  - suporte de anotação para `loop_break_cont_*` e `loop_continue_cont_*` quando aparecerem.
-- `tests/abstract_machine_tests.rs`:
-  - expectativas de comentários de `br_true` (if/loop) atualizadas para o novo texto contextual.
-  - novos testes de substring para curto-circuito (`br_true`) e para `jmp` em `join_*`/`logic_join_*`.
-  - checks de legibilidade herdados das Fases 35/36/37 preservados.
-- Docs atualizados: `docs/phases.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/handoff_auditor.md`.
-
-## O que permaneceu igual
-- Sem alteração na semântica/estrutura da Machine.
-- Sem alteração em parser, semântica, lowering CFG, interpretador.
-- Sem alteração em `--selected`, `--cfg-ir`, `--pseudo-asm`, `--run`.
-- Sem criação de flag nova.
-
-## Arquivos alterados
-- `src/abstract_machine.rs`
-- `tests/abstract_machine_tests.rs`
-- `docs/phases.md`
-- `docs/agent_state.md`
-- `docs/handoff_codex.md`
-- `docs/handoff_auditor.md`
-
-## Rodada documental estratégica (não funcional)
-- Esta rodada não implementa fase funcional nova.
-- Foco: análise macro do repositório e criação de `docs/roadmap.md` como guia de evolução.
-
-### Resultado
-- `docs/roadmap.md` criado com:
-  - estado atual real,
-  - lacunas para uso geral/sistemas/self-hosting/kernel,
-  - dependências entre blocos,
-  - separação explícita entre curto/médio/longo prazo,
-  - distinção entre itens maduros para fases curtas e itens ainda prematuros.
-- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37 → 38 verificada e preservada.
-- Sem alterações em parser, semântica, lowering, machine, interpretador, backend textual ou testes funcionais.
+## Estado operacional após a rodada
+- Continuidade histórica preservada.
+- Nenhuma mudança em parser/semântica/IR/CFG/selected/Machine/interpreter/backend.
+- Próxima fase funcional esperada deve permanecer coerente com o **Bloco 1** do roadmap consolidado.
