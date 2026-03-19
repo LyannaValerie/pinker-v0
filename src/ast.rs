@@ -64,6 +64,7 @@ pub enum Item {
     Function(FunctionDecl),
     Const(ConstDecl),
     TypeAlias(TypeAliasDecl),
+    Struct(StructDecl),
 }
 
 impl Item {
@@ -72,6 +73,7 @@ impl Item {
             Item::Function(function) => function.span,
             Item::Const(constant) => constant.span,
             Item::TypeAlias(alias) => alias.span,
+            Item::Struct(struct_decl) => struct_decl.span,
         }
     }
 
@@ -80,6 +82,7 @@ impl Item {
             Item::Function(function) => function.write_json(writer),
             Item::Const(constant) => constant.write_json(writer),
             Item::TypeAlias(alias) => alias.write_json(writer),
+            Item::Struct(struct_decl) => struct_decl.write_json(writer),
         }
     }
 }
@@ -98,6 +101,44 @@ impl TypeAliasDecl {
         writer.field_str("name", &self.name);
         writer.field_span("span", self.span);
         writer.field_value("target", |writer| self.target.write_json(writer));
+        writer.end_object();
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StructDecl {
+    pub name: String,
+    pub fields: Vec<StructField>,
+    pub span: Span,
+}
+
+impl StructDecl {
+    fn write_json(&self, writer: &mut JsonWriter<'_>) {
+        writer.begin_object();
+        writer.field_str("node", "StructDecl");
+        writer.field_str("name", &self.name);
+        writer.field_span("span", self.span);
+        writer.field_array("fields", &self.fields, |writer, field| {
+            field.write_json(writer)
+        });
+        writer.end_object();
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StructField {
+    pub name: String,
+    pub ty: Type,
+    pub span: Span,
+}
+
+impl StructField {
+    fn write_json(&self, writer: &mut JsonWriter<'_>) {
+        writer.begin_object();
+        writer.field_str("node", "StructField");
+        writer.field_str("name", &self.name);
+        writer.field_span("span", self.span);
+        writer.field_value("ty", |writer| self.ty.write_json(writer));
         writer.end_object();
     }
 }
@@ -188,6 +229,10 @@ pub enum Type {
         name: String,
         span: Span,
     },
+    Struct {
+        name: String,
+        span: Span,
+    },
     Nulo(Span),
 }
 
@@ -205,7 +250,9 @@ impl Type {
             | Type::I64(span)
             | Type::Logica(span)
             | Type::Nulo(span) => *span,
-            Type::Alias { span, .. } | Type::FixedArray { span, .. } => *span,
+            Type::Alias { span, .. }
+            | Type::Struct { span, .. }
+            | Type::FixedArray { span, .. } => *span,
         }
     }
 
@@ -223,6 +270,7 @@ impl Type {
             Type::Logica(_) => "logica",
             Type::FixedArray { .. } => "array",
             Type::Alias { .. } => "alias",
+            Type::Struct { .. } => "struct",
             Type::Nulo(_) => "nulo",
         }
     }
@@ -245,6 +293,10 @@ impl Type {
                 span,
             },
             Type::Alias { name, .. } => Type::Alias {
+                name: name.clone(),
+                span,
+            },
+            Type::Struct { name, .. } => Type::Struct {
                 name: name.clone(),
                 span,
             },

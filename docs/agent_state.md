@@ -65,7 +65,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Rodada documental: consolidação da trilha única "voltar aos trilhos" em `docs/roadmap.md` (sem número de fase)
 
 ## Fase atual
-- Fase 46 concluída: arrays fixos como tipo estrutural mínimo (`[tipo; N]`) com validação semântica de tamanho estático (`N > 0`), resolução de aliases no tipo-base e integração mínima no IR/lowering sem abrir indexação, structs ou ponteiros.
+- Fase 47 concluída: structs com keyword `ninho` como tipo nomeado composto (declaração + registro semântico + uso tipado em assinaturas/aliases), com validação de campo duplicado, tipo inexistente e recursão direta; integração mínima no IR como categoria `struct` sem acesso a campo/literal/layout.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -100,8 +100,8 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Reconfirmação do cenário CLI de erro (`examples/run_div_zero_cli.pink`) com stderr enriquecido por stack trace
 
 ## Restrições do projeto
-- Não expandir linguagem/gramática.
-- Não reabrir frontend.
+- Manter fases pequenas, auditáveis e na ordem de `docs/roadmap.md`.
+- Evitar refactor amplo fora do escopo da fase ativa.
 - Não usar LLVM/Cranelift/backend nativo.
 - Preservar pipeline e camadas atuais.
 

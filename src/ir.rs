@@ -16,7 +16,7 @@ use crate::ast::{
 };
 use crate::error::PinkerError;
 use crate::token::Span;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Programa completo na IR estruturada.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -154,6 +154,7 @@ pub enum TypeIR {
     I64,
     Logica,
     FixedArray { element: ScalarTypeIR, size: u64 },
+    Struct,
     Nulo,
 }
 
@@ -218,6 +219,7 @@ struct LoweringContext {
     function_sigs: HashMap<String, FunctionSigIR>,
     global_consts: HashMap<String, TypeIR>,
     type_aliases: HashMap<String, Type>,
+    struct_names: HashSet<String>,
 }
 
 // `FunctionLowerer` mantém estado mutable por função durante o lowering:
@@ -254,6 +256,7 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
                 functions.push(FunctionLowerer::new(&context).lower_function(function_decl)?)
             }
             Item::TypeAlias(_) => {}
+            Item::Struct(_) => {}
         }
     }
 
@@ -303,9 +306,12 @@ impl LoweringContext {
             .unwrap_or_else(|| "main".to_string());
 
         let mut type_aliases = HashMap::new();
+        let mut struct_names = HashSet::new();
         for item in &program.items {
             if let Item::TypeAlias(alias) = item {
                 type_aliases.insert(alias.name.clone(), alias.target.clone());
+            } else if let Item::Struct(struct_decl) = item {
+                struct_names.insert(struct_decl.name.clone());
             }
         }
 
@@ -321,6 +327,7 @@ impl LoweringContext {
                             ret_type: TypeIR::from_ast_option_with_context(
                                 function.ret_type.as_ref(),
                                 &type_aliases,
+                                &struct_names,
                             )?,
                         },
                     );
@@ -328,10 +335,14 @@ impl LoweringContext {
                 Item::Const(const_decl) => {
                     global_consts.insert(
                         const_decl.name.clone(),
-                        TypeIR::from_ast_with_context(&const_decl.ty, &type_aliases)?,
+                        TypeIR::from_ast_with_context(
+                            &const_decl.ty,
+                            &type_aliases,
+                            &struct_names,
+                        )?,
                     );
                 }
-                Item::TypeAlias(_) => {}
+                Item::TypeAlias(_) | Item::Struct(_) => {}
             }
         }
 
@@ -340,11 +351,12 @@ impl LoweringContext {
             function_sigs,
             global_consts,
             type_aliases,
+            struct_names,
         })
     }
 
     fn resolve_type(&self, ty: &Type) -> Result<TypeIR, PinkerError> {
-        TypeIR::from_ast_with_context(ty, &self.type_aliases)
+        TypeIR::from_ast_with_context(ty, &self.type_aliases, &self.struct_names)
     }
 }
 
@@ -382,6 +394,7 @@ impl<'a> FunctionLowerer<'a> {
             ret_type: TypeIR::from_ast_option_with_context(
                 function.ret_type.as_ref(),
                 &self.context.type_aliases,
+                &self.context.struct_names,
             )?,
             entry,
             span: function.span,
@@ -908,6 +921,7 @@ impl TypeIR {
     fn from_ast_inner(
         ty: &Type,
         aliases: &HashMap<String, Type>,
+        struct_names: &HashSet<String>,
         resolving: &mut Vec<String>,
     ) -> Result<Self, PinkerError> {
         match ty {
@@ -926,7 +940,8 @@ impl TypeIR {
                 size,
                 span,
             } => {
-                let resolved_element = Self::from_ast_inner(element, aliases, resolving)?;
+                let resolved_element =
+                    Self::from_ast_inner(element, aliases, struct_names, resolving)?;
                 let element = ScalarTypeIR::from_type_ir(resolved_element).ok_or_else(|| {
                     PinkerError::Ir {
                         msg: "array fixo aninhado ainda não é suportado nesta fase".to_string(),
@@ -939,7 +954,11 @@ impl TypeIR {
                 })
             }
             Type::Nulo(_) => Ok(TypeIR::Nulo),
+            Type::Struct { .. } => Ok(TypeIR::Struct),
             Type::Alias { name, span } => {
+                if struct_names.contains(name) {
+                    return Ok(TypeIR::Struct);
+                }
                 if resolving.iter().any(|current| current == name) {
                     return Err(PinkerError::Ir {
                         msg: format!("alias de tipo recursivo detectado em '{}'", name),
@@ -953,7 +972,7 @@ impl TypeIR {
                     });
                 };
                 resolving.push(name.clone());
-                let resolved = Self::from_ast_inner(target, aliases, resolving);
+                let resolved = Self::from_ast_inner(target, aliases, struct_names, resolving);
                 resolving.pop();
                 resolved
             }
@@ -963,15 +982,17 @@ impl TypeIR {
     pub fn from_ast_with_context(
         ty: &Type,
         aliases: &HashMap<String, Type>,
+        struct_names: &HashSet<String>,
     ) -> Result<Self, PinkerError> {
-        Self::from_ast_inner(ty, aliases, &mut Vec::new())
+        Self::from_ast_inner(ty, aliases, struct_names, &mut Vec::new())
     }
 
     pub fn from_ast_option_with_context(
         ty: Option<&Type>,
         aliases: &HashMap<String, Type>,
+        struct_names: &HashSet<String>,
     ) -> Result<Self, PinkerError> {
-        ty.map(|ty| Self::from_ast_with_context(ty, aliases))
+        ty.map(|ty| Self::from_ast_with_context(ty, aliases, struct_names))
             .transpose()
             .map(|resolved| resolved.unwrap_or(TypeIR::Nulo))
     }
@@ -989,6 +1010,7 @@ impl TypeIR {
             TypeIR::I64 => "i64",
             TypeIR::Logica => "logica",
             TypeIR::FixedArray { .. } => "array",
+            TypeIR::Struct => "struct",
             TypeIR::Nulo => "nulo",
         }
     }
@@ -998,6 +1020,7 @@ impl TypeIR {
             TypeIR::FixedArray { element, size } => {
                 format!("[{}; {}]", element.name(), size)
             }
+            TypeIR::Struct => "struct".to_string(),
             _ => self.name().to_string(),
         }
     }
@@ -1016,7 +1039,7 @@ impl ScalarTypeIR {
             TypeIR::I32 => Some(ScalarTypeIR::I32),
             TypeIR::I64 => Some(ScalarTypeIR::I64),
             TypeIR::Logica => Some(ScalarTypeIR::Logica),
-            TypeIR::FixedArray { .. } | TypeIR::Nulo => None,
+            TypeIR::FixedArray { .. } | TypeIR::Struct | TypeIR::Nulo => None,
         }
     }
 

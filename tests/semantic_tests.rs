@@ -445,6 +445,61 @@ fn array_fixo_com_tamanho_zero_e_invalido() {
 }
 
 #[test]
+fn ninho_valido_em_assinatura_e_alias() {
+    let code = r#"
+        pacote main;
+        ninho Ponto {
+            x: bombom;
+            y: bombom;
+        }
+        apelido VetorPontos = [Ponto; 2];
+        carinho usa(_p: Ponto, _v: VetorPontos) -> bombom { mimo 0; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn ninho_falha_com_campo_duplicado() {
+    let code = r#"
+        pacote main;
+        ninho Ponto {
+            x: bombom;
+            x: bombom;
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("campo 'x' duplicado"));
+}
+
+#[test]
+fn ninho_falha_com_tipo_de_campo_inexistente() {
+    let code = r#"
+        pacote main;
+        ninho Ponto {
+            x: Fantasma;
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo 'Fantasma' não existe"), "{}", err);
+}
+
+#[test]
+fn ninho_falha_com_recursao_direta() {
+    let code = r#"
+        pacote main;
+        ninho Node {
+            prox: Node;
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("recursão direta"), "{}", err);
+}
+
+#[test]
 fn modulo_valido_em_bombom() {
     let code = "
         pacote main;

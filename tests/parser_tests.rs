@@ -330,3 +330,25 @@ fn parser_aceita_apelido_de_tipo_e_uso_em_assinatura() {
         _ => panic!("item esperado: alias"),
     }
 }
+
+#[test]
+fn parser_aceita_declaracao_de_ninho_e_uso_tipado() {
+    let source = r#"
+        pacote main;
+        ninho Ponto {
+            x: bombom;
+            y: bombom;
+        }
+        carinho mede(_p: Ponto) -> bombom { mimo 0; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let program = parse(source).expect("parser deve aceitar ninho");
+    assert_eq!(program.items.len(), 3);
+    match &program.items[0] {
+        Item::Struct(struct_decl) => {
+            assert_eq!(struct_decl.name, "Ponto");
+            assert_eq!(struct_decl.fields.len(), 2);
+        }
+        _ => panic!("item esperado: struct"),
+    }
+}
