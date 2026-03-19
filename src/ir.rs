@@ -153,7 +153,22 @@ pub enum TypeIR {
     I32,
     I64,
     Logica,
+    FixedArray { element: ScalarTypeIR, size: u64 },
     Nulo,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScalarTypeIR {
+    Bombom,
+    U8,
+    U16,
+    U32,
+    U64,
+    I8,
+    I16,
+    I32,
+    I64,
+    Logica,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -264,7 +279,7 @@ pub fn render_program(program: &ProgramIR) -> String {
                 &format!(
                     "const @{}: {} = {}",
                     const_ir.name,
-                    const_ir.ty.name(),
+                    const_ir.ty.render_name(),
                     render_value(&const_ir.value)
                 ),
             );
@@ -731,7 +746,11 @@ fn render_function(function: &FunctionIR, indent: usize, out: &mut String) {
     line(
         out,
         indent,
-        &format!("func {} -> {}", function.name, function.ret_type.name()),
+        &format!(
+            "func {} -> {}",
+            function.name,
+            function.ret_type.render_name()
+        ),
     );
 
     if function.params.is_empty() {
@@ -742,7 +761,7 @@ fn render_function(function: &FunctionIR, indent: usize, out: &mut String) {
             line(
                 out,
                 indent + 2,
-                &format!("{}: {}", param.slot, param.ty.name()),
+                &format!("{}: {}", param.slot, param.ty.render_name()),
             );
         }
     }
@@ -756,7 +775,7 @@ fn render_function(function: &FunctionIR, indent: usize, out: &mut String) {
             line(
                 out,
                 indent + 2,
-                &format!("{}: {}{}", local.slot, local.ty.name(), mutability),
+                &format!("{}: {}{}", local.slot, local.ty.render_name(), mutability),
             );
         }
     }
@@ -851,7 +870,7 @@ fn render_value(value: &ValueIR) -> String {
             "call {}({}) -> {}",
             callee,
             args.iter().map(render_value).collect::<Vec<_>>().join(", "),
-            ret_type.name()
+            ret_type.render_name()
         ),
     }
 }
@@ -902,6 +921,23 @@ impl TypeIR {
             Type::I32(_) => Ok(TypeIR::I32),
             Type::I64(_) => Ok(TypeIR::I64),
             Type::Logica(_) => Ok(TypeIR::Logica),
+            Type::FixedArray {
+                element,
+                size,
+                span,
+            } => {
+                let resolved_element = Self::from_ast_inner(element, aliases, resolving)?;
+                let element = ScalarTypeIR::from_type_ir(resolved_element).ok_or_else(|| {
+                    PinkerError::Ir {
+                        msg: "array fixo aninhado ainda não é suportado nesta fase".to_string(),
+                        span: *span,
+                    }
+                })?;
+                Ok(TypeIR::FixedArray {
+                    element,
+                    size: *size,
+                })
+            }
             Type::Nulo(_) => Ok(TypeIR::Nulo),
             Type::Alias { name, span } => {
                 if resolving.iter().any(|current| current == name) {
@@ -952,7 +988,50 @@ impl TypeIR {
             TypeIR::I32 => "i32",
             TypeIR::I64 => "i64",
             TypeIR::Logica => "logica",
+            TypeIR::FixedArray { .. } => "array",
             TypeIR::Nulo => "nulo",
+        }
+    }
+
+    pub fn render_name(&self) -> String {
+        match self {
+            TypeIR::FixedArray { element, size } => {
+                format!("[{}; {}]", element.name(), size)
+            }
+            _ => self.name().to_string(),
+        }
+    }
+}
+
+impl ScalarTypeIR {
+    fn from_type_ir(ty: TypeIR) -> Option<Self> {
+        match ty {
+            TypeIR::Bombom => Some(ScalarTypeIR::Bombom),
+            TypeIR::U8 => Some(ScalarTypeIR::U8),
+            TypeIR::U16 => Some(ScalarTypeIR::U16),
+            TypeIR::U32 => Some(ScalarTypeIR::U32),
+            TypeIR::U64 => Some(ScalarTypeIR::U64),
+            TypeIR::I8 => Some(ScalarTypeIR::I8),
+            TypeIR::I16 => Some(ScalarTypeIR::I16),
+            TypeIR::I32 => Some(ScalarTypeIR::I32),
+            TypeIR::I64 => Some(ScalarTypeIR::I64),
+            TypeIR::Logica => Some(ScalarTypeIR::Logica),
+            TypeIR::FixedArray { .. } | TypeIR::Nulo => None,
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            ScalarTypeIR::Bombom => "bombom",
+            ScalarTypeIR::U8 => "u8",
+            ScalarTypeIR::U16 => "u16",
+            ScalarTypeIR::U32 => "u32",
+            ScalarTypeIR::U64 => "u64",
+            ScalarTypeIR::I8 => "i8",
+            ScalarTypeIR::I16 => "i16",
+            ScalarTypeIR::I32 => "i32",
+            ScalarTypeIR::I64 => "i64",
+            ScalarTypeIR::Logica => "logica",
         }
     }
 }

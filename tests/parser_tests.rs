@@ -1,7 +1,7 @@
 mod common;
 
 use common::{parse, parse_and_check};
-use pinker_v0::ast::{ExprKind, Item, Stmt};
+use pinker_v0::ast::{ExprKind, Item, Stmt, Type};
 
 #[test]
 fn parser_de_funcao_simples() {
@@ -291,6 +291,28 @@ fn parser_aceita_tipos_signed_em_assinaturas_e_locais_com_negacao() {
     "#;
     let program = parse(source).expect("parser deve aceitar signed fixos");
     assert_eq!(program.items.len(), 5);
+}
+
+#[test]
+fn parser_aceita_tipo_array_fixo_em_alias_e_assinatura() {
+    let source = r#"
+        pacote main;
+        apelido Bytes16 = [u8; 16];
+        carinho copia(buf: Bytes16) -> bombom {
+            mimo 0;
+        }
+        carinho principal() -> bombom {
+            mimo 0;
+        }
+    "#;
+    let program = parse(source).expect("parser deve aceitar tipo de array fixo");
+    match &program.items[0] {
+        Item::TypeAlias(alias) => match &alias.target {
+            Type::FixedArray { size, .. } => assert_eq!(*size, 16),
+            _ => panic!("alias deveria apontar para array fixo"),
+        },
+        _ => panic!("item esperado: alias de tipo"),
+    }
 }
 
 #[test]

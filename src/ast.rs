@@ -179,7 +179,15 @@ pub enum Type {
     I32(Span),
     I64(Span),
     Logica(Span),
-    Alias { name: String, span: Span },
+    FixedArray {
+        element: Box<Type>,
+        size: u64,
+        span: Span,
+    },
+    Alias {
+        name: String,
+        span: Span,
+    },
     Nulo(Span),
 }
 
@@ -197,7 +205,7 @@ impl Type {
             | Type::I64(span)
             | Type::Logica(span)
             | Type::Nulo(span) => *span,
-            Type::Alias { span, .. } => *span,
+            Type::Alias { span, .. } | Type::FixedArray { span, .. } => *span,
         }
     }
 
@@ -213,6 +221,7 @@ impl Type {
             Type::I32(_) => "i32",
             Type::I64(_) => "i64",
             Type::Logica(_) => "logica",
+            Type::FixedArray { .. } => "array",
             Type::Alias { .. } => "alias",
             Type::Nulo(_) => "nulo",
         }
@@ -230,6 +239,11 @@ impl Type {
             Type::I32(_) => Type::I32(span),
             Type::I64(_) => Type::I64(span),
             Type::Logica(_) => Type::Logica(span),
+            Type::FixedArray { element, size, .. } => Type::FixedArray {
+                element: element.clone(),
+                size: *size,
+                span,
+            },
             Type::Alias { name, .. } => Type::Alias {
                 name: name.clone(),
                 span,
@@ -247,6 +261,10 @@ impl Type {
         writer.field_str("node", "Type");
         writer.field_str("name", self.name());
         writer.field_span("span", self.span());
+        if let Type::FixedArray { element, size, .. } = self {
+            writer.field_u64("size", *size);
+            writer.field_value("element", |writer| element.write_json(writer));
+        }
         writer.end_object();
     }
 }

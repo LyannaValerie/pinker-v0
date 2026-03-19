@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada **funcional pequena e auditável**: Fase 45 do histórico interno, correspondente ao quarto item do Bloco 1 do roadmap consolidado (aliases de tipo).
+- Rodada **funcional pequena e auditável**: Fase 46 do histórico interno, correspondente ao quinto item do Bloco 1 do roadmap consolidado (arrays fixos).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -9,18 +9,15 @@
 - Rodada documental não recebe número de fase.
 
 ## O que foi atualizado
-- Suporte a aliases de tipo com keyword `apelido` e escopo mínimo:
-  - lexer/token com `KwApelido`;
-  - parser/AST com item global `TypeAliasDecl` e tipo referenciado por identificador (`Type::Alias`);
-  - semântica com resolução para tipo subjacente, sem tipo nominal novo, cobrindo erro de alias inexistente, duplicado e recursivo;
-  - lowering IR convertendo aliases para tipos concretos antes das camadas downstream (pipeline preservada sem redesign).
-- Cobertura incremental em testes de lexer/parser/semântica/IR/CLI.
-- Exemplos versionados adicionados:
-  - `examples/run_alias_tipo_basico.pink` (positivo);
-  - `examples/check_alias_tipo_inexistente.pink` (negativo).
+- Suporte a arrays fixos como tipo estrutural mínimo (`[tipo; N]`) com escopo conservador:
+  - lexer/token com `[` e `]`;
+  - parser/AST com `Type::FixedArray { element, size }`;
+  - semântica com validação de tamanho estático (`N > 0`), resolução de aliases no tipo-base e rejeição explícita de array aninhado nesta fase;
+  - lowering IR com `TypeIR::FixedArray`, preservando a pipeline downstream sem abrir indexação/operações por elemento.
+- Cobertura incremental em testes de lexer/parser/semântica/IR.
 - Documentação operacional atualizada: `docs/phases.md`, `docs/agent_state.md` e este handoff.
 
 ## Estado operacional após a rodada
-- Continuidade histórica preservada (Fase 44 funcional -> Fase 45 funcional, com rodada documental mantida sem número).
-- Quarto passo funcional do Bloco 1 entregue (aliases de tipo), sem abrir trilhas paralelas.
-- Itens fora de escopo mantidos: arrays fixos, structs, ponteiros, backend `.s`, coerções automáticas complexas, casts explícitos e redesign amplo do sistema de tipos.
+- Continuidade histórica preservada (Fase 45 funcional -> Fase 46 funcional, com rodada documental mantida sem número).
+- Quinto passo funcional do Bloco 1 entregue (arrays fixos), sem abrir trilhas paralelas.
+- Itens fora de escopo mantidos: structs, ponteiros, indexação/acesso por elemento, backend `.s`, casts explícitos e redesign amplo do sistema de tipos.

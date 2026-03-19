@@ -423,6 +423,28 @@ fn alias_de_tipo_inexistente_falha() {
 }
 
 #[test]
+fn arrays_fixos_validos_em_alias_e_parametro() {
+    let code = r#"
+        pacote main;
+        apelido Bytes16 = [u8; 16];
+        carinho usa(_buf: Bytes16) -> bombom { mimo 0; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn array_fixo_com_tamanho_zero_e_invalido() {
+    let code = r#"
+        pacote main;
+        apelido Vazio = [u8; 0];
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tamanho maior que zero"));
+}
+
+#[test]
 fn modulo_valido_em_bombom() {
     let code = "
         pacote main;
