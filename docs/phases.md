@@ -268,3 +268,11 @@
 - `jmp` ganhou comentários específicos para `join_*`, `logic_join_*`, `loop_break_cont_*` e `loop_continue_cont_*`, além dos casos já existentes.
 - Comentários de blocos de convergência foram ajustados para enfatizar retomada de fluxo (`join_*` e `logic_join_*`).
 - Sem alteração de semântica, Machine, lowering, parser, interpretador, opcodes ou flags; `--selected` permaneceu inalterado.
+
+
+## Rodada documental estratégica — roadmap macro até uso geral/sistemas/self-hosting/kernel
+- rodada **não funcional** (sem mudança de parser, semântica, lowering, interpretador, backend ou testes funcionais)
+- análise ampla do estado real do workspace concluída com leitura orientada de docs, pipeline e testes
+- `docs/roadmap.md` criado como mapa mestre de longo prazo (estado atual, lacunas, dependências, prioridades e critérios de revisão)
+- continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37 → 38 verificada e preservada
+- build e testes revalidados nesta rodada documental

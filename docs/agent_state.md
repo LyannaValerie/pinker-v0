@@ -288,3 +288,13 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - `jmp` ganhou comentários específicos para `join_*`, `logic_join_*`, `loop_break_cont_*` e `loop_continue_cont_*`.
 - Anotações de bloco em `join_*` e `logic_join_*` agora enfatizam retomada/continuação de fluxo.
 - Sem alteração de semântica, Machine, lowering, parser, interpretador, opcodes, flags e `--selected`.
+
+## Rodada documental estratégica (atual)
+- Rodada atual dedicada a roadmap macro; **sem alterações funcionais** no compilador/runtime.
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37 → 38 verificada e preservada.
+- `docs/roadmap.md` criado como documento mestre de navegação estratégica (curto/médio/longo prazo) até uso geral, sistemas, self-hosting e kernel/bare metal.
+
+## Situação operacional após a rodada
+- Pipeline funcional permanece congelada e inalterada.
+- `cargo build` e `cargo test` executados com sucesso nesta rodada.
+- Sem abertura de nova fase funcional numerada.

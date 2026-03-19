@@ -34,3 +34,17 @@
 - `docs/agent_state.md`
 - `docs/handoff_codex.md`
 - `docs/handoff_auditor.md`
+
+## Rodada documental estratégica (não funcional)
+- Esta rodada não implementa fase funcional nova.
+- Foco: análise macro do repositório e criação de `docs/roadmap.md` como guia de evolução.
+
+### Resultado
+- `docs/roadmap.md` criado com:
+  - estado atual real,
+  - lacunas para uso geral/sistemas/self-hosting/kernel,
+  - dependências entre blocos,
+  - separação explícita entre curto/médio/longo prazo,
+  - distinção entre itens maduros para fases curtas e itens ainda prematuros.
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37 → 38 verificada e preservada.
+- Sem alterações em parser, semântica, lowering, machine, interpretador, backend textual ou testes funcionais.
