@@ -74,3 +74,12 @@ fn lexer_reconhece_operadores_logicos_curto_circuito() {
     assert!(tokens.iter().any(|t| t.kind == TokenKind::AmpAmp));
     assert!(tokens.iter().any(|t| t.kind == TokenKind::PipePipe));
 }
+
+#[test]
+fn lexer_reconhece_tipos_unsigned_fixos() {
+    let tokens = tokenize("u8 u16 u32 u64").unwrap();
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::KwU8));
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::KwU16));
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::KwU32));
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::KwU64));
+}

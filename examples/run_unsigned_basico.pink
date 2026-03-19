@@ -1,0 +1,26 @@
+pacote main;
+
+eterno BASE: u32 = 40;
+
+carinho soma_u8(a: u8, b: u8) -> u8 {
+    mimo a + b;
+}
+
+carinho soma_u16(a: u16, b: u16) -> u16 {
+    mimo a + b;
+}
+
+carinho soma_u32(a: u32, b: u32) -> u32 {
+    mimo a + b;
+}
+
+carinho soma_u64(a: u64, b: u64) -> u64 {
+    mimo a + b;
+}
+
+carinho principal() -> bombom {
+    soma_u8(1, 2);
+    soma_u16(3, 4);
+    soma_u32(BASE, 1);
+    mimo soma_u64(40, 2);
+}

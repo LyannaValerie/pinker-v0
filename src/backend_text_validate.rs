@@ -102,7 +102,7 @@ fn validate_function(
                 BackendTextInstruction::Unary { dest, op, operand } => {
                     let op_ty = infer_operand(operand, &slots, &temps, globals)?;
                     let result = match op {
-                        crate::ir::UnaryOpIR::Neg if op_ty == TypeIR::Bombom => TypeIR::Bombom,
+                        crate::ir::UnaryOpIR::Neg if op_ty.is_unsigned() => op_ty,
                         crate::ir::UnaryOpIR::Not if op_ty == TypeIR::Logica => TypeIR::Logica,
                         _ => return Err(err("unop textual com operando inválido")),
                     };
@@ -129,14 +129,18 @@ fn validate_function(
                         | crate::ir::BinaryOpIR::BitXor
                         | crate::ir::BinaryOpIR::Shl
                         | crate::ir::BinaryOpIR::Shr => {
-                            if lhs_ty == TypeIR::Bombom && rhs_ty == TypeIR::Bombom {
-                                TypeIR::Bombom
+                            if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_unsigned() {
+                                lhs_ty
+                            } else if matches!(lhs, OperandIR::Int(_)) && rhs_ty.is_unsigned() {
+                                rhs_ty
+                            } else if matches!(rhs, OperandIR::Int(_)) && lhs_ty.is_unsigned() {
+                                lhs_ty
                             } else {
                                 return Err(err("binop aritmética/bitwise textual inválida"));
                             }
                         }
                         crate::ir::BinaryOpIR::Eq | crate::ir::BinaryOpIR::Neq => {
-                            if lhs_ty == rhs_ty && lhs_ty != TypeIR::Nulo {
+                            if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty != TypeIR::Nulo {
                                 TypeIR::Logica
                             } else {
                                 return Err(err("binop comparação textual inválida"));
@@ -146,7 +150,10 @@ fn validate_function(
                         | crate::ir::BinaryOpIR::Lte
                         | crate::ir::BinaryOpIR::Gt
                         | crate::ir::BinaryOpIR::Gte => {
-                            if lhs_ty == TypeIR::Bombom && rhs_ty == TypeIR::Bombom {
+                            if (lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_unsigned())
+                                || (matches!(lhs, OperandIR::Int(_)) && rhs_ty.is_unsigned())
+                                || (matches!(rhs, OperandIR::Int(_)) && lhs_ty.is_unsigned())
+                            {
                                 TypeIR::Logica
                             } else {
                                 return Err(err("binop relacional textual inválida"));
@@ -170,7 +177,7 @@ fn validate_function(
                     for a in args {
                         let _ = infer_operand(a, &slots, &temps, globals)?;
                     }
-                    if fn_ret != *ret_type {
+                    if !fn_ret.is_compatible_with(*ret_type) {
                         return Err(err("ret_type textual de call incompatível"));
                     }
                     match (dest, ret_type) {
@@ -218,7 +225,7 @@ fn validate_function(
                 (_, None) => return Err(err("ret textual sem valor em função com retorno")),
                 (expected, Some(v)) => {
                     let actual = infer_operand(v, &slots, &temps, globals)?;
-                    if actual != expected || actual == TypeIR::Nulo {
+                    if !actual.is_compatible_with(expected) || actual == TypeIR::Nulo {
                         return Err(err("ret textual com tipo inválido"));
                     }
                 }

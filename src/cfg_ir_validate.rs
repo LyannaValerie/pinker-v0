@@ -293,7 +293,7 @@ fn validate_block(
                         function.span,
                     ));
                 }
-                if actual != *expected {
+                if !operand_matches_expected(value, actual, *expected) {
                     return Err(cfg_error_ctx(
                         function,
                         Some(block.label.as_str()),
@@ -315,7 +315,7 @@ fn validate_block(
                     function.span,
                 )?;
                 let result = match op {
-                    crate::ir::UnaryOpIR::Neg if operand_ty == TypeIR::Bombom => TypeIR::Bombom,
+                    crate::ir::UnaryOpIR::Neg if operand_ty.is_unsigned() => operand_ty,
                     crate::ir::UnaryOpIR::Not if operand_ty == TypeIR::Logica => TypeIR::Logica,
                     _ => return Err(cfg_error("operando inválido para unário", function.span)),
                 };
@@ -347,8 +347,12 @@ fn validate_block(
                     | crate::ir::BinaryOpIR::BitXor
                     | crate::ir::BinaryOpIR::Shl
                     | crate::ir::BinaryOpIR::Shr => {
-                        if lhs_ty == TypeIR::Bombom && rhs_ty == TypeIR::Bombom {
-                            TypeIR::Bombom
+                        if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_unsigned() {
+                            lhs_ty
+                        } else if matches!(lhs, OperandIR::Int(_)) && rhs_ty.is_unsigned() {
+                            rhs_ty
+                        } else if matches!(rhs, OperandIR::Int(_)) && lhs_ty.is_unsigned() {
+                            lhs_ty
                         } else {
                             return Err(cfg_error(
                                 "operação aritmética/bitwise com tipos inválidos",
@@ -357,7 +361,7 @@ fn validate_block(
                         }
                     }
                     crate::ir::BinaryOpIR::Eq | crate::ir::BinaryOpIR::Neq => {
-                        if lhs_ty == rhs_ty && lhs_ty != TypeIR::Nulo {
+                        if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty != TypeIR::Nulo {
                             TypeIR::Logica
                         } else {
                             return Err(cfg_error("comparação inválida", function.span));
@@ -367,7 +371,10 @@ fn validate_block(
                     | crate::ir::BinaryOpIR::Lte
                     | crate::ir::BinaryOpIR::Gt
                     | crate::ir::BinaryOpIR::Gte => {
-                        if lhs_ty == TypeIR::Bombom && rhs_ty == TypeIR::Bombom {
+                        if (lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_unsigned())
+                            || (matches!(lhs, OperandIR::Int(_)) && rhs_ty.is_unsigned())
+                            || (matches!(rhs, OperandIR::Int(_)) && lhs_ty.is_unsigned())
+                        {
                             TypeIR::Logica
                         } else {
                             return Err(cfg_error(
@@ -405,7 +412,7 @@ fn validate_block(
                         global_consts,
                         function.span,
                     )?;
-                    if actual != *expected {
+                    if !operand_matches_expected(arg, actual, *expected) {
                         return Err(cfg_error_ctx(
                             function,
                             Some(block.label.as_str()),
@@ -418,7 +425,7 @@ fn validate_block(
                         ));
                     }
                 }
-                if *ret_type != sig.ret_type {
+                if !ret_type.is_compatible_with(sig.ret_type) {
                     return Err(cfg_error(
                         "ret_type anotado em call diverge da assinatura",
                         function.span,
@@ -510,7 +517,7 @@ fn validate_block(
                         function.span,
                     ));
                 }
-                if actual != expected {
+                if !operand_matches_expected(v, actual, expected) {
                     return Err(cfg_error(
                         "tipo de return inválido na CFG IR",
                         function.span,
@@ -573,6 +580,11 @@ fn cfg_error_ctx(
         format!("{} (função '{}')", prefix, function.name)
     };
     cfg_error(&scoped, span)
+}
+
+fn operand_matches_expected(operand: &OperandIR, actual: TypeIR, expected: TypeIR) -> bool {
+    actual.is_compatible_with(expected)
+        || (matches!(operand, OperandIR::Int(_)) && expected.is_unsigned())
 }
 
 fn default_span() -> Span {

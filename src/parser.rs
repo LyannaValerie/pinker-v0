@@ -122,11 +122,19 @@ impl Parser {
         let span = self.peek_span();
         if self.match_token(TokenKind::KwBombom) {
             Ok(Type::Bombom(span))
+        } else if self.match_token(TokenKind::KwU8) {
+            Ok(Type::U8(span))
+        } else if self.match_token(TokenKind::KwU16) {
+            Ok(Type::U16(span))
+        } else if self.match_token(TokenKind::KwU32) {
+            Ok(Type::U32(span))
+        } else if self.match_token(TokenKind::KwU64) {
+            Ok(Type::U64(span))
         } else if self.match_token(TokenKind::KwLogica) {
             Ok(Type::Logica(span))
         } else {
             Err(PinkerError::Expected {
-                expected: "bombom ou logica".to_string(),
+                expected: "bombom, u8, u16, u32, u64 ou logica".to_string(),
                 found: self
                     .peek()
                     .map(|token| token.lexeme.clone())

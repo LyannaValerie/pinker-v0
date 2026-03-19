@@ -88,7 +88,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         let Some(sig) = sigs.get(callee) else {
                             return Err(err("selected call para função inexistente"));
                         };
-                        if sig != ret_type {
+                        if !sig.is_compatible_with(*ret_type) {
                             return Err(err("selected call com ret_type inválido"));
                         }
                         if *ret_type == TypeIR::Nulo {
@@ -103,7 +103,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         let Some(sig) = sigs.get(callee) else {
                             return Err(err("selected call_void para função inexistente"));
                         };
-                        if *sig != TypeIR::Nulo {
+                        if !sig.is_compatible_with(TypeIR::Nulo) {
                             return Err(err("selected call_void exige função nulo"));
                         }
                     }

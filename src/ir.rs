@@ -144,6 +144,10 @@ pub enum ValueIR {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TypeIR {
     Bombom,
+    U8,
+    U16,
+    U32,
+    U64,
     Logica,
     Nulo,
 }
@@ -534,12 +538,14 @@ impl<'a> FunctionLowerer<'a> {
                         operand: Box::new(operand.value),
                     },
                     ty: match op {
-                        UnaryOp::Neg => TypeIR::Bombom,
+                        UnaryOp::Neg => operand.ty,
                         UnaryOp::Not => TypeIR::Logica,
                     },
                 })
             }
             ExprKind::Binary(lhs, op, rhs) => {
+                let lhs_is_int_lit = matches!(lhs.kind, ExprKind::IntLit(_));
+                let rhs_is_int_lit = matches!(rhs.kind, ExprKind::IntLit(_));
                 let lhs = self.lower_value(lhs)?;
                 let rhs = self.lower_value(rhs)?;
                 Ok(TypedValueIR {
@@ -559,7 +565,15 @@ impl<'a> FunctionLowerer<'a> {
                         | BinaryOp::BitOr
                         | BinaryOp::BitXor
                         | BinaryOp::Shl
-                        | BinaryOp::Shr => TypeIR::Bombom,
+                        | BinaryOp::Shr => {
+                            if lhs_is_int_lit && rhs.ty.is_unsigned() {
+                                rhs.ty
+                            } else if rhs_is_int_lit && lhs.ty.is_unsigned() {
+                                lhs.ty
+                            } else {
+                                lhs.ty
+                            }
+                        }
                         BinaryOp::Eq
                         | BinaryOp::Neq
                         | BinaryOp::Lt
@@ -822,9 +836,26 @@ fn line(out: &mut String, indent: usize, text: &str) {
 }
 
 impl TypeIR {
+    pub fn is_unsigned(&self) -> bool {
+        matches!(
+            self,
+            TypeIR::Bombom | TypeIR::U8 | TypeIR::U16 | TypeIR::U32 | TypeIR::U64
+        )
+    }
+
+    pub fn is_compatible_with(&self, other: TypeIR) -> bool {
+        *self == other
+            || ((*self == TypeIR::Bombom && other == TypeIR::U64)
+                || (*self == TypeIR::U64 && other == TypeIR::Bombom))
+    }
+
     pub fn from_ast(ty: &Type) -> Self {
         match ty {
             Type::Bombom(_) => TypeIR::Bombom,
+            Type::U8(_) => TypeIR::U8,
+            Type::U16(_) => TypeIR::U16,
+            Type::U32(_) => TypeIR::U32,
+            Type::U64(_) => TypeIR::U64,
             Type::Logica(_) => TypeIR::Logica,
             Type::Nulo(_) => TypeIR::Nulo,
         }
@@ -837,6 +868,10 @@ impl TypeIR {
     pub fn name(&self) -> &'static str {
         match self {
             TypeIR::Bombom => "bombom",
+            TypeIR::U8 => "u8",
+            TypeIR::U16 => "u16",
+            TypeIR::U32 => "u32",
+            TypeIR::U64 => "u64",
             TypeIR::Logica => "logica",
             TypeIR::Nulo => "nulo",
         }

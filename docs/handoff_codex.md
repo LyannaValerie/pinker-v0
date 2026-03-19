@@ -1,19 +1,24 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada **funcional pequena e auditável**: Fase 40 do histórico interno, correspondente ao primeiro item do Bloco 1 do roadmap consolidado (`%` nativo).
+- Rodada **funcional pequena e auditável**: Fase 41 do histórico interno, correspondente ao segundo item do Bloco 1 do roadmap consolidado (inteiros unsigned com largura fixa).
+
+## Convenção documental ativa
+- Fase numerada (`Fase N`) = mudança funcional/estrutural real.
+- Rodada documental = ajuste de documentação/estratégia sem feature funcional.
+- Rodada documental não recebe número de fase.
 
 ## O que foi atualizado
-- Operador `%` adicionado com escopo mínimo e integração completa no pipeline:
-  - lexer/token (`Percent`);
-  - parser/AST (`BinaryOp::Mod`, precedência multiplicativa com `*` e `/`);
-  - semântica (`%` válido para `bombom`, inválido para `logica`);
-  - IR/CFG/selected/Machine/backend textual (novos mapeamentos `Mod`/`mod`);
-  - interpretador (`MachineInstr::Mod`) com `%` por zero usando mesma família de erro de divisão por zero.
-- Cobertura de testes incrementada por camada e novo exemplo versionado: `examples/run_modulo_basico.pink`.
+- Suporte explícito a `u8`, `u16`, `u32` e `u64` com integração mínima no pipeline:
+  - lexer/token (novos keywords `u8`, `u16`, `u32`, `u64`);
+  - parser/AST (`Type::{U8,U16,U32,U64}`);
+  - semântica com validação estrita entre larguras (sem promoção implícita entre tipos);
+  - IR/validação com `TypeIR::{U8,U16,U32,U64}` e propagação de tipo de retorno em operações unsigned;
+  - validações downstream ajustadas para aceitar aritmética unsigned com literais inteiros de forma previsível.
+- Cobertura incremental de testes em lexer/parser/semântica/IR/CLI e novo exemplo versionado: `examples/run_unsigned_basico.pink`.
 - Documentação operacional atualizada: `docs/phases.md`, `docs/agent_state.md` e este handoff.
 
 ## Estado operacional após a rodada
-- Continuidade histórica preservada (Fase 39 documental -> Fase 40 funcional).
-- Primeira fase funcional do Bloco 1 entregue (`%` nativo), sem abrir trilhas paralelas.
-- Itens fora de escopo mantidos: `%=`/floats/novos tipos/coerções/otimizações/redesigns.
+- Continuidade histórica preservada (Fase 40 funcional -> Fase 41 funcional, com rodada documental mantida sem número).
+- Segundo passo funcional do Bloco 1 entregue (unsigned fixos), sem abrir trilhas paralelas.
+- Itens fora de escopo mantidos: inteiros signed, aliases, arrays fixos, structs, backend `.s`, coerções automáticas complexas e redesign amplo do sistema de tipos.

@@ -149,6 +149,10 @@ impl ConstDecl {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     Bombom(Span),
+    U8(Span),
+    U16(Span),
+    U32(Span),
+    U64(Span),
     Logica(Span),
     Nulo(Span),
 }
@@ -156,13 +160,23 @@ pub enum Type {
 impl Type {
     pub fn span(&self) -> Span {
         match self {
-            Type::Bombom(span) | Type::Logica(span) | Type::Nulo(span) => *span,
+            Type::Bombom(span)
+            | Type::U8(span)
+            | Type::U16(span)
+            | Type::U32(span)
+            | Type::U64(span)
+            | Type::Logica(span)
+            | Type::Nulo(span) => *span,
         }
     }
 
     pub fn name(&self) -> &'static str {
         match self {
             Type::Bombom(_) => "bombom",
+            Type::U8(_) => "u8",
+            Type::U16(_) => "u16",
+            Type::U32(_) => "u32",
+            Type::U64(_) => "u64",
             Type::Logica(_) => "logica",
             Type::Nulo(_) => "nulo",
         }
@@ -171,6 +185,10 @@ impl Type {
     pub fn with_span(&self, span: Span) -> Self {
         match self {
             Type::Bombom(_) => Type::Bombom(span),
+            Type::U8(_) => Type::U8(span),
+            Type::U16(_) => Type::U16(span),
+            Type::U32(_) => Type::U32(span),
+            Type::U64(_) => Type::U64(span),
             Type::Logica(_) => Type::Logica(span),
             Type::Nulo(_) => Type::Nulo(span),
         }

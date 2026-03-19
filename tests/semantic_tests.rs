@@ -285,7 +285,7 @@ fn bitwise_invalido_em_logica() {
             mimo a & b;
         }";
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("operação aritmética/bitwise requer operandos 'bombom'"));
+    assert!(err.contains("operação aritmética/bitwise requer operandos unsigned"));
 }
 
 #[test]
@@ -316,6 +316,44 @@ fn logico_invalido_em_bombom() {
 }
 
 #[test]
+fn unsigned_fixos_validos_com_tipos_explicitos() {
+    let code = r#"
+        pacote main;
+        eterno BASE: u32 = 40;
+        carinho soma_u8(a: u8, b: u8) -> u8 { mimo a + b; }
+        carinho soma_u16(a: u16, b: u16) -> u16 { mimo a + b; }
+        carinho soma_u32(a: u32, b: u32) -> u32 { mimo a + b; }
+        carinho soma_u64(a: u64, b: u64) -> u64 { mimo a + b; }
+        carinho principal() -> bombom {
+            soma_u8(1, 2);
+            soma_u16(3, 4);
+            soma_u32(BASE, 1);
+            mimo soma_u64(40, 2);
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn unsigned_fixos_rejeitam_mistura_implicita() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova a: u8 = 1;
+            nova b: u16 = 2;
+            nova c = a + b;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("tipos incompatíveis em operação binária"),
+        "{}",
+        err
+    );
+}
+
+#[test]
 fn modulo_valido_em_bombom() {
     let code = "
         pacote main;
@@ -337,5 +375,5 @@ fn modulo_invalido_em_logica() {
             }
         }";
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("operação aritmética/bitwise requer operandos 'bombom'"));
+    assert!(err.contains("operação aritmética/bitwise requer operandos unsigned"));
 }
