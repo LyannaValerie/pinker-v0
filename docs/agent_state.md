@@ -121,7 +121,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 
 ## Instrução para novo agente
 1. Ler este arquivo primeiro.
-2. Ler `docs/handoff_codex.md` e `docs/handoff_auditor.md` antes da rodada.
+2. Ler `docs/handoff_codex.md` antes da rodada. (`docs/handoff_auditor.md` está formalmente abandonado — não usar como referência ativa.)
 3. Em caso de conflito, o código mergeado no repositório prevalece.
 4. Se `origin/main` não estiver disponível no clone, registrar explicitamente limitação de sincronização.
 
@@ -363,6 +363,13 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - decisão operacional desta fase: CFG/Machine/runtime ainda não loweram/executam cast; a falha é explícita no lowering de CFG.
 - proteção de runtime signed (HF-3) foi preservada sem afrouxamento.
 - próximo item normal do roadmap principal: Bloco 2, item 4 (`sizeof`/alinhamento).
+
+## Rodada documental paralela (pós-Fase 51, sem número de fase)
+- `handoff_auditor.md` formalmente abandonado por defasagem operacional: estava congelado na Fase 43 e não refletia o estado real do projeto a partir da Fase 44.
+- `future.md` normalizado como inventário amplo sem vínculo com fase específica: erros de referência de fase corrigidos, itens implementados marcados (✅/🔶), itens parciais distinguidos dos pendentes, seção "5 itens mais críticos" substituída por "Frentes prioritárias em aberto" sem impor ordem ativa.
+- Precedência documental reafirmada: `docs/roadmap.md` = ordem ativa; `docs/future.md` = inventário amplo.
+- Rodada sem alteração funcional de compilador, parser, semântica, IR, CFG ou runtime.
+- `cargo build --locked` e `cargo test --locked` executados com sucesso após a rodada.
 
 ## Fase 51 — `peso`/alinhamento (`sizeof`/`alignof`)
 - continuidade histórica preservada: Fase 50 permanece a fase funcional principal anterior e Fase 48-H1 permanece rodada extraordinária/hotfix sem reordenar roadmap.

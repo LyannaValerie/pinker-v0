@@ -86,3 +86,9 @@
 - dereferência real e aritmética de ponteiros
 - ABI/layout físico final orientado a backend
 - backend nativo e redesign de runtime
+
+## Rodada documental paralela (sem número de fase)
+- Executada em paralelo à Fase 51 por agente separado; sem conflito com este handoff.
+- Alterações exclusivamente documentais: `handoff_auditor.md` abandonado, `future.md` normalizado, `phases.md` e `agent_state.md` atualizados.
+- Nenhuma alteração funcional de parser, semântica, IR, CFG, Machine ou runtime.
+- Próximo item funcional do roadmap permanece: Bloco 2, item 5 (`volatile`).
