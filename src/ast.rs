@@ -227,6 +227,7 @@ pub enum Type {
     },
     Pointer {
         base: Box<Type>,
+        is_volatile: bool,
         span: Span,
     },
     Alias {
@@ -269,7 +270,18 @@ impl PartialEq for Type {
                     ..
                 },
             ) => e1 == e2 && s1 == s2,
-            (Type::Pointer { base: b1, .. }, Type::Pointer { base: b2, .. }) => b1 == b2,
+            (
+                Type::Pointer {
+                    base: b1,
+                    is_volatile: v1,
+                    ..
+                },
+                Type::Pointer {
+                    base: b2,
+                    is_volatile: v2,
+                    ..
+                },
+            ) => b1 == b2 && v1 == v2,
             (Type::Alias { name: n1, .. }, Type::Alias { name: n2, .. }) => n1 == n2,
             (Type::Struct { name: n1, .. }, Type::Struct { name: n2, .. }) => n1 == n2,
             _ => false,
@@ -337,8 +349,11 @@ impl Type {
                 size: *size,
                 span,
             },
-            Type::Pointer { base, .. } => Type::Pointer {
+            Type::Pointer {
+                base, is_volatile, ..
+            } => Type::Pointer {
                 base: base.clone(),
+                is_volatile: *is_volatile,
                 span,
             },
             Type::Alias { name, .. } => Type::Alias {
@@ -368,6 +383,9 @@ impl Type {
         }
         if let Type::Pointer { base, .. } = self {
             writer.field_value("base", |writer| base.write_json(writer));
+        }
+        if let Type::Pointer { is_volatile, .. } = self {
+            writer.field_bool("is_volatile", *is_volatile);
         }
         writer.end_object();
     }

@@ -661,6 +661,34 @@ fn seta_de_seta_ainda_nao_suportada() {
 }
 
 #[test]
+fn fragil_seta_valida_em_alias_e_assinatura() {
+    let code = r#"
+        pacote main;
+        apelido Porta = fragil seta<u8>;
+        carinho id(p: Porta) -> Porta { mimo p; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fragil_em_tipo_nao_seta_e_invalido() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova x: fragil u8 = 1;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("'fragil' só pode qualificar tipo seta"),
+        "{}",
+        err
+    );
+}
+
+#[test]
 fn ninho_falha_com_campo_duplicado() {
     let code = r#"
         pacote main;

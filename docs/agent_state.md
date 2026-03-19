@@ -72,6 +72,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 49 concluída: acesso a campo (`obj.campo`) e indexação (`arr[idx]`) com escopo mínimo de leitura.
 - Fase 50 concluída: casts controlados com `virar` (escopo explícito e conservador), com suporte frontend/semântica/IR para inteiro->inteiro e sem lowering operacional em CFG/Machine/runtime.
 - Fase 51 concluída: `peso(tipo)` e `alinhamento(tipo)` com cálculo estático de layout/alinhamento (frontend + semântica + IR com literal constante), sem runtime novo.
+- Fase 52 concluída: `volatile` com keyword `fragil` no formato `fragil seta<T>`, preservado em frontend/semântica/IR como qualificador semântico (`is_volatile`) sem efeito operacional de runtime/backend nesta etapa.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`
@@ -117,7 +118,8 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Infraestrutura avançada de runtime (I/O de linguagem, debug runtime, otimizações de execução).
 - Inferência global pesada de tipos na Machine.
 - Proteção contra recursão infinita/limite de profundidade de chamadas.
-- Dereferência e operações reais de ponteiro (load/store indireto, aritmética de ponteiro, campo/indexação via ponteiro, casts operacionais e `volatile`).
+- Dereferência e operações reais de ponteiro (load/store indireto, aritmética de ponteiro, campo/indexação via ponteiro e casts operacionais).
+- Semântica operacional de `volatile` (MMIO real, backend nativo, fences/barreiras e modelo de memória completo).
 
 ## Instrução para novo agente
 1. Ler este arquivo primeiro.
@@ -386,3 +388,12 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - integração no pipeline: semântica valida e IR baixa para literal inteiro constante (`bombom`), sem runtime novo.
 - fora de escopo preservado: `volatile`, dereferência/aritmética de ponteiro, ABI/layout físico final e backend nativo.
 - próximo item normal do roadmap principal: Bloco 2, item 5 (`volatile`).
+
+## Fase 52 — `volatile` (`fragil`)
+- continuidade histórica preservada: Fase 51 permanece a fase funcional principal anterior e Fase 48-H1 permanece rodada extraordinária/hotfix sem reordenar roadmap.
+- sintaxe adotada: `fragil seta<T>` como qualificador explícito mínimo de tipo para ponteiro volátil.
+- escopo semântico desta fase: `fragil` só é válido qualificando `seta<T>`; uso fora desse formato é rejeitado com diagnóstico claro.
+- AST/semântica/IR preservam a marca `is_volatile`; a IR textual mostra `fragil seta<?>` quando aplicável.
+- decisão operacional: `volatile` nesta fase é qualificador semântico propagado no pipeline, sem MMIO real, sem backend nativo, sem fences/barreiras e sem dereferência operacional.
+- exemplos versionados de `--check` adicionados para cenário positivo e negativo.
+- próximo item normal do roadmap principal: Bloco 3, item 1 (backend textual `.s`).

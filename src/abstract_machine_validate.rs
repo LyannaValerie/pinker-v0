@@ -619,7 +619,7 @@ fn type_to_stack(ty: TypeIR) -> StackValueType {
         TypeIR::Logica => StackValueType::Logica,
         TypeIR::FixedArray { .. } => StackValueType::Unknown,
         TypeIR::Struct => StackValueType::Unknown,
-        TypeIR::Pointer => StackValueType::Unknown,
+        TypeIR::Pointer { .. } => StackValueType::Unknown,
         TypeIR::Nulo => StackValueType::Unknown,
     }
 }

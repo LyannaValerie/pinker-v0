@@ -5,6 +5,16 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 52 — `volatile` (`fragil`) com escopo mínimo e conservador
+  - continuidade histórica preservada: Fase 51 segue como fase funcional principal anterior e Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar roadmap.
+  - sintaxe adotada: `fragil seta<T>` (qualificador explícito de tipo para ponteiro volátil).
+  - parser/AST/semântica/IR atualizados para reconhecer, validar e propagar a marca `is_volatile`.
+  - restrição explícita desta fase: `fragil` só pode qualificar `seta<T>`; uso em tipos não-ponteiro é rejeitado.
+  - renderização textual/IR passa a exibir `fragil seta<?>` para preservar visibilidade do qualificador no pipeline.
+  - significado operacional limitado: qualificador semântico apenas; sem MMIO real, sem dereferência real, sem backend nativo, sem fences/barreiras.
+  - exemplos versionados adicionados: `examples/check_volatile_valido.pink` e `examples/check_volatile_invalido.pink`.
+  - próximo item normal do roadmap principal: Bloco 3, item 1 (backend textual `.s`).
+
 - Rodada documental (paralela à Fase 51, sem número de fase) — normalização documental
   - `docs/handoff_auditor.md` formalmente abandonado por defasagem operacional (congelado na Fase 43)
   - `docs/future.md` normalizado como inventário amplo sem vínculo com fase específica nem com ordem do roadmap

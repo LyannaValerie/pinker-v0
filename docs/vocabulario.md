@@ -31,6 +31,7 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `virar`        | cast explícito   | transformação visível |
 | `peso`         | sizeof explícito | medida estática       |
 | `alinhamento`  | alignof explícito| alinhar com cuidado   |
+| `fragil`       | volatile         | cuidado redobrado     |
 
 ---
 
@@ -96,7 +97,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 | Conceito         | Sugestao    | Alternativas         | Sentimento                          |
 |------------------|-------------|----------------------|-------------------------------------|
 | unsafe           | `coragem`   | `ousadia`            | saber que ha risco e seguir         |
-| volatile         | `fragil`    | `instavel`           | cuidado redobrado                   |
+| ~~volatile~~     | ~~`fragil`~~| `instavel`           | implementado na Fase 52             |
 | ~~align/alinhamento~~ | ~~`alinhamento`~~ | `ajuste`     | implementado na Fase 51             |
 | static           | `raiz`      | `ancora`             | fixo, inamovivel                    |
 | inline asm       | `sussurro`  | `sopro`              | falar direto com a maquina, baixinho|

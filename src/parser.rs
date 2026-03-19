@@ -124,6 +124,36 @@ impl Parser {
 
     fn parse_type(&mut self) -> Result<Type, PinkerError> {
         let span = self.peek_span();
+        if self.match_token(TokenKind::KwFragil) {
+            let qualifier_span = self.previous().span;
+            let ty = self.parse_type()?;
+            return match ty {
+                Type::Pointer {
+                    base,
+                    is_volatile: false,
+                    span: pointer_span,
+                } => Ok(Type::Pointer {
+                    base,
+                    is_volatile: true,
+                    span: merge_span(qualifier_span, pointer_span),
+                }),
+                Type::Pointer {
+                    is_volatile: true,
+                    span: pointer_span,
+                    ..
+                } => Err(PinkerError::Expected {
+                    expected: "tipo seta sem qualificador repetido".to_string(),
+                    found: "fragil".to_string(),
+                    span: merge_span(qualifier_span, pointer_span),
+                }),
+                _ => Err(PinkerError::Expected {
+                    expected: "'fragil' só pode qualificar tipo seta (ex.: fragil seta<u8>)"
+                        .to_string(),
+                    found: ty.name().to_string(),
+                    span: ty.span(),
+                }),
+            };
+        }
         if self.match_token(TokenKind::LBracket) {
             let start_span = self.previous().span;
             let element = self.parse_type()?;
@@ -151,6 +181,7 @@ impl Parser {
             self.consume(TokenKind::Greater, ">")?;
             return Ok(Type::Pointer {
                 base: Box::new(base),
+                is_volatile: false,
                 span: merge_span(start_span, self.previous().span),
             });
         }
@@ -182,8 +213,9 @@ impl Parser {
             })
         } else {
             Err(PinkerError::Expected {
-                expected: "tipo válido (ex.: bombom, logica, alias, [tipo; N] ou seta<tipo>)"
-                    .to_string(),
+                expected:
+                    "tipo válido (ex.: bombom, logica, alias, [tipo; N], seta<tipo> ou fragil seta<tipo>)"
+                        .to_string(),
                 found: self
                     .peek()
                     .map(|token| token.lexeme.clone())

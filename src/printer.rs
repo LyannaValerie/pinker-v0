@@ -342,7 +342,16 @@ fn format_type(ty: &Type) -> String {
         Type::Alias { name, .. } => name.clone(),
         Type::Struct { name, .. } => name.clone(),
         Type::FixedArray { element, size, .. } => format!("[{}; {}]", format_type(element), size),
-        Type::Pointer { base, .. } => format!("seta<{}>", format_type(base)),
+        Type::Pointer {
+            base, is_volatile, ..
+        } => {
+            let pointer = format!("seta<{}>", format_type(base));
+            if *is_volatile {
+                format!("fragil {}", pointer)
+            } else {
+                pointer
+            }
+        }
         _ => ty.name().to_string(),
     }
 }

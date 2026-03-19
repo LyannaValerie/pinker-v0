@@ -170,7 +170,7 @@ pub enum TypeIR {
     Logica,
     FixedArray { element: ScalarTypeIR, size: u64 },
     Struct,
-    Pointer,
+    Pointer { is_volatile: bool },
     Nulo,
 }
 
@@ -1161,7 +1161,11 @@ impl TypeIR {
                     size: *size,
                 })
             }
-            Type::Pointer { base, span } => {
+            Type::Pointer {
+                base,
+                is_volatile,
+                span,
+            } => {
                 let resolved_base = Self::from_ast_inner(base, aliases, struct_names, resolving)?;
                 if resolved_base == TypeIR::Nulo {
                     return Err(PinkerError::Ir {
@@ -1169,13 +1173,15 @@ impl TypeIR {
                         span: *span,
                     });
                 }
-                if matches!(resolved_base, TypeIR::Pointer) {
+                if matches!(resolved_base, TypeIR::Pointer { .. }) {
                     return Err(PinkerError::Ir {
                         msg: "seta de seta ainda não é suportada nesta fase".to_string(),
                         span: *span,
                     });
                 }
-                Ok(TypeIR::Pointer)
+                Ok(TypeIR::Pointer {
+                    is_volatile: *is_volatile,
+                })
             }
             Type::Nulo(_) => Ok(TypeIR::Nulo),
             Type::Struct { .. } => Ok(TypeIR::Struct),
@@ -1235,7 +1241,7 @@ impl TypeIR {
             TypeIR::Logica => "logica",
             TypeIR::FixedArray { .. } => "array",
             TypeIR::Struct => "struct",
-            TypeIR::Pointer => "seta",
+            TypeIR::Pointer { .. } => "seta",
             TypeIR::Nulo => "nulo",
         }
     }
@@ -1245,7 +1251,13 @@ impl TypeIR {
             TypeIR::FixedArray { element, size } => {
                 format!("[{}; {}]", element.name(), size)
             }
-            TypeIR::Pointer => "seta<?>".to_string(),
+            TypeIR::Pointer { is_volatile } => {
+                if *is_volatile {
+                    "fragil seta<?>".to_string()
+                } else {
+                    "seta<?>".to_string()
+                }
+            }
             TypeIR::Struct => "struct".to_string(),
             _ => self.name().to_string(),
         }
@@ -1265,7 +1277,9 @@ impl ScalarTypeIR {
             TypeIR::I32 => Some(ScalarTypeIR::I32),
             TypeIR::I64 => Some(ScalarTypeIR::I64),
             TypeIR::Logica => Some(ScalarTypeIR::Logica),
-            TypeIR::FixedArray { .. } | TypeIR::Struct | TypeIR::Pointer | TypeIR::Nulo => None,
+            TypeIR::FixedArray { .. } | TypeIR::Struct | TypeIR::Pointer { .. } | TypeIR::Nulo => {
+                None
+            }
         }
     }
 

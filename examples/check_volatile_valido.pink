@@ -1,0 +1,8 @@
+pacote main;
+apelido Porta = fragil seta<u8>;
+carinho id(_p: Porta) -> Porta {
+    mimo _p;
+}
+carinho principal() -> bombom {
+    mimo 0;
+}

@@ -110,8 +110,20 @@ impl SemanticChecker {
                 lhs_size == rhs_size
                     && Self::check_type_match(lhs_element.as_ref(), rhs_element.as_ref())
             }
-            (Type::Pointer { base: lhs_base, .. }, Type::Pointer { base: rhs_base, .. }) => {
-                Self::check_type_match(lhs_base.as_ref(), rhs_base.as_ref())
+            (
+                Type::Pointer {
+                    base: lhs_base,
+                    is_volatile: lhs_volatile,
+                    ..
+                },
+                Type::Pointer {
+                    base: rhs_base,
+                    is_volatile: rhs_volatile,
+                    ..
+                },
+            ) => {
+                lhs_volatile == rhs_volatile
+                    && Self::check_type_match(lhs_base.as_ref(), rhs_base.as_ref())
             }
             _ => false,
         }
@@ -179,7 +191,11 @@ impl SemanticChecker {
                     span: *span,
                 })
             }
-            Type::Pointer { base, span } => {
+            Type::Pointer {
+                base,
+                is_volatile,
+                span,
+            } => {
                 let resolved_base = self.resolve_type_named(base.as_ref(), resolving)?;
                 if matches!(resolved_base, Type::Nulo(_)) {
                     return Err(PinkerError::Semantic {
@@ -195,6 +211,7 @@ impl SemanticChecker {
                 }
                 Ok(Type::Pointer {
                     base: Box::new(resolved_base),
+                    is_volatile: *is_volatile,
                     span: *span,
                 })
             }

@@ -112,6 +112,12 @@ fn lexer_reconhece_keyword_seta() {
 }
 
 #[test]
+fn lexer_reconhece_keyword_fragil() {
+    let tokens = tokenize("fragil seta<u8>").unwrap();
+    assert_eq!(tokens[0].kind, TokenKind::KwFragil);
+}
+
+#[test]
 fn lexer_reconhece_keyword_virar() {
     let tokens = tokenize("x virar u8;").unwrap();
     assert!(tokens.iter().any(|t| t.kind == TokenKind::KwVirar));

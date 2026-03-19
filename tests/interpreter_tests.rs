@@ -1193,6 +1193,26 @@ fn cli_check_alias_tipo_inexistente_falha_com_exemplo_versionado() {
     );
 }
 
+#[test]
+fn cli_check_volatile_valido_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/check_volatile_valido.pink");
+    assert!(output.status.success(), "{:?}", output);
+}
+
+#[test]
+fn cli_check_volatile_invalido_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/check_volatile_invalido.pink");
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Erro Sintático:") || stderr.contains("Erro Semântico:"));
+    assert!(
+        stderr.contains("'fragil' só pode qualificar tipo seta"),
+        "stderr: {}",
+        stderr
+    );
+}
+
 // ── Fase 28c: spans/source context em erros de runtime e parser ───────────
 
 #[test]
