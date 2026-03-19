@@ -409,3 +409,14 @@
 - **HF-15** (LOW): mensagem de sucesso só aparece quando nenhuma flag de saída está ativa.
 - **HF-16** (LOW): `Cargo.toml` authors corrigido com `<>` no email.
 - **HF-17** (LOW): `docs/future.md` atualizado para marcar itens já implementados (tipos fixos, seta, ninho, arrays, apelido, bitwise, lógicos) e reordenar prioridades.
+
+
+## Fase 53 — backend textual `.s`
+- continuidade histórica preservada: Fase 52 segue como fase funcional principal anterior e Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar o roadmap.
+- Bloco 2 encerrado; início do Bloco 3 com primeira saída textual `.s` separada de `--pseudo-asm`.
+- nova flag de CLI: `--asm-s` (aliases `--asm` e `--s`) para inspeção textual assembly-like.
+- fonte de emissão: camada `--selected` (sem passar pela Machine), com render textual `.s` estável e cabeçalho fixo para testes.
+- subset suportado nesta fase: tipos escalares (`bombom`, `u8..u64`, `i8..i64`, `logica`, `nulo`) e controle de fluxo/chamadas já existentes no selected.
+- limitação explícita: emissão `.s` falha com diagnóstico claro para tipos ainda não suportados no backend desta fase (`seta`, `ninho`, arrays fixos).
+- fora de escopo preservado: assembler/linker externo, ABI final, alocação de registradores, binário executável real.
+- próximo item normal do roadmap principal: Bloco 3, item 2 (ABI mínima).

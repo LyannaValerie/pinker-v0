@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada funcional: **Fase 52 — `volatile` (`fragil`)** (quinto item do Bloco 2).
+- Rodada funcional: **Fase 53 — backend textual `.s`** (primeiro item do Bloco 3).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -106,3 +106,17 @@
 - Alterações exclusivamente documentais: `handoff_auditor.md` abandonado, `future.md` normalizado, `phases.md` e `agent_state.md` atualizados.
 - Nenhuma alteração funcional de parser, semântica, IR, CFG, Machine ou runtime.
 - Próximo item funcional do roadmap agora é: Bloco 3, item 1 (backend textual `.s`).
+
+
+## O que entrou na Fase 53
+- CLI: nova flag `--asm-s` (aliases `--asm` e `--s`) para emissão textual `.s` separada de `--pseudo-asm`.
+- Fonte da emissão `.s`: camada `selected` (com validação de seleção preservada), sem depender da Machine e sem executar interpretador.
+- Backend textual `.s`: formato estável assembly-like com labels por função/bloco, diretivas textuais simples (`.text`, `.globl`, `.section .rodata`) e instruções derivadas do subset atual (`mov`, unárias/binárias, `call`, `jmp`, `br`, `ret`).
+- Política de subset explícita: suporta apenas tipos escalares (`bombom`, `u8..u64`, `i8..i64`, `logica`, `nulo`) e falha claramente para tipos ainda fora de escopo nesta fase (`seta`, `ninho`, arrays fixos).
+- `--pseudo-asm` foi preservado intacto para auditoria da camada textual anterior.
+
+## Continuidade de roadmap após Fase 53
+- Fase 52 permanece a fase funcional principal anterior.
+- Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
+- Bloco 2 foi encerrado em Fase 52 e o Bloco 3 foi iniciado em Fase 53.
+- Próximo item normal do roadmap principal: Bloco 3, item 2 (ABI mínima).

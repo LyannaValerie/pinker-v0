@@ -61,6 +61,7 @@ cargo run -- --selected examples/selected_if_else.pink
 cargo run -- --machine examples/machine_if_else.pink
 cargo run -- --machine examples/machine_stack_if_call.pink
 cargo run -- --pseudo-asm examples/emit_if_else.pink
+cargo run -- --asm-s examples/emit_if_else.pink
 cargo run -- --run examples/run_soma.pink
 cargo run -- --run examples/run_chamada.pink
 cargo run -- --run examples/run_sempre_que.pink
@@ -91,6 +92,7 @@ cargo run -- --check examples/check_volatile_invalido.pink
 - `--selected`: camada de seleção de instruções textual (`isel` + `term`)
 - `--machine`: alvo textual abstrato de máquina de pilha (`vm` + `term`)
 - `--pseudo-asm`: backend textual normalizado final (`ins`/`term`)
+- `--asm-s`: backend textual `.s` inicial (assembly-like, derivado de `--selected`, sem ABI/registradores finais)
 - `--run`: interpreta a Machine validada e executa `principal`
 
 ## Pipeline de backend textual
@@ -101,6 +103,11 @@ semântica → IR estruturada → validação da IR estruturada → CFG IR → v
 semântica → IR estruturada → validação IR → CFG IR → validação CFG IR → seleção → validação seleção → Machine → validação Machine → interpretação.
 
 Se qualquer camada intermediária for inválida, a emissão falha e nada é impresso.
+
+`--asm-s` executa:
+semântica → IR estruturada → validação IR → CFG IR → validação CFG IR → seleção de instruções → validação da seleção → emissão textual `.s` inicial.
+
+Limitação explícita da Fase 53: `--asm-s` cobre o subset escalar (`bombom`, `u8..u64`, `i8..i64`, `logica`, `nulo`) e falha de forma clara para tipos ainda não suportados (ex.: `seta`, `ninho`, arrays).
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 
