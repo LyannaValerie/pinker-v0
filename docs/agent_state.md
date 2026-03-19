@@ -41,9 +41,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 34: adicionar licença do projeto e documentar seu uso básico
 - Fase 35: humanizar a renderização de `--machine` sem alterar a Machine
 - Fase 36: humanizar instruções individuais de `--machine` com comentários curtos
+- Fase 37: contextualizar os comentários de `--machine` por alvo/slot sem alterar semântica
 
 ## Fase atual
-- Fase 36 concluída: instruções e terminadores de `--machine` agora incluem comentários curtos e estáveis por linha (`; ...`) mantendo a operação original visível. `--selected` e demais camadas não foram alterados.
+- Fase 37 concluída: comentários de `--machine` foram contextualizados com heurísticas simples para `br_true`, `jmp`, `store_slot`, `call`, `call_void`, `ret` e `ret_void`, mantendo opcode/terminador originais visíveis e sem alterar semântica. `--selected` e demais camadas não foram alterados.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -269,3 +270,12 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - A instrução técnica original foi mantida sem abreviação ou ocultação; semântica da Machine inalterada.
 - Cobertura de testes atualizada para novo formato e reforçada com checks de substring estável para `call`, `br_true`, `jmp` e `ret`.
 - `--selected`, `--cfg-ir`, `--pseudo-asm`, `--run`, parser, lowering CFG e interpretador permaneceram sem mudanças.
+
+
+## Fase 37 — contextualizar os comentários de `--machine`
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37 verificada.
+- `render_instr` diferencia `store_slot` em temporário (`%tN`) vs variável local do usuário.
+- `render_instr` enriquece `call`/`call_void` com nome da função e aridade de forma natural.
+- `render_term` contextualiza `br_true` (if/loop/curto-circuito) e `jmp` por alvo conhecido.
+- `ret` e `ret_void` receberam comentários mais claros (`retorna o valor atual da pilha` / `encerra a função sem retorno`).
+- Sem mudanças em semântica, parser, lowering CFG, interpretador, `--selected`, `--cfg-ir`, `--pseudo-asm` e `--run`.
