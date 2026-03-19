@@ -5,6 +5,14 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Rodada documental — limpeza e normalização documental (paralela à Fase 51, sem número de fase)
+  - executada em paralelo à próxima fase funcional sem conflito ou alteração de código
+  - `docs/handoff_auditor.md` formalmente abandonado por defasagem operacional (última atualização em Fase 43; projeto seguiu até Fase 50)
+  - `docs/future.md` normalizado como inventário amplo sem amarração a número específico de fase; status de implementação de cada item atualizado para refletir o estado real após a Fase 50
+  - itens já implementados riscados com `~~...~~`; itens parcialmente implementados (virar, acesso a campo, indexação) marcados explicitamente como "parcial"
+  - precedência documental reafirmada: `docs/roadmap.md` = ordem ativa; `docs/future.md` = inventário amplo
+  - sem alterações funcionais, sem nova fase numerada, sem conflito com execução paralela
+
 - Fase 50 — casts controlados (escopo mínimo e explícito)
   - continuidade histórica da trilha funcional preservada: Fase 49 segue como fase principal anterior e Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar roadmap.
   - sintaxe de cast explícito adicionada: `expr virar tipo`, com associatividade à esquerda e precedência pós-unária (sem coerção implícita global).

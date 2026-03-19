@@ -120,7 +120,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 
 ## Instrução para novo agente
 1. Ler este arquivo primeiro.
-2. Ler `docs/handoff_codex.md` e `docs/handoff_auditor.md` antes da rodada.
+2. Ler `docs/handoff_codex.md` antes da rodada. (`docs/handoff_auditor.md` está formalmente abandonado — não ler como ativo.)
 3. Em caso de conflito, o código mergeado no repositório prevalece.
 4. Se `origin/main` não estiver disponível no clone, registrar explicitamente limitação de sincronização.
 
@@ -351,6 +351,20 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - IR estruturada ganhou nós mínimos para representar campo/index; CFG/selected/machine/interpreter ainda não loweram esses nós por decisão de escopo.
 - bounds-check: não introduzido nesta fase.
 - próximo item normal do roadmap principal: Bloco 2, item 3 (`casts` controlados).
+
+## Rodada documental — limpeza e normalização documental (paralela à Fase 51)
+
+- Rodada documental sem número; executada em paralelo à próxima fase funcional sem conflito.
+- `docs/handoff_auditor.md` formalmente abandonado por defasagem operacional (gap de 7 fases sem atualização após Fase 43). Arquivo preservado como legado histórico, marcado como descontinuado.
+- `docs/future.md` normalizado como inventário amplo sem vínculo com fase específica:
+  - referências a números de fase incorretos foram removidas/corrigidas;
+  - itens já implementados riscados com `~~...~~`;
+  - itens parcialmente implementados (cast `virar`, acesso a campo/indexação) marcados como "parcial" com indicação explícita do que falta;
+  - seção "5 itens mais críticos" (tom de mini-roadmap) substituída por referência orientativa de distância sem conotação de ordem ativa;
+  - convenção de status normalizada (✅ implementado / ⚠️ parcial / não iniciado / ideia futura).
+- Precedência documental reafirmada: `docs/roadmap.md` = ordem ativa de execução; `docs/future.md` = inventário amplo de possibilidades.
+- Nenhuma alteração funcional; nenhuma fase numerada aberta; nenhum conflito com fase paralela.
+- `cargo build --locked` e `cargo test --locked` executados sem falhas ao final da rodada.
 
 ## Fase 50 — casts controlados
 - continuidade histórica preservada: Fase 49 permanece a fase funcional principal anterior e Fase 48-H1 permanece rodada extraordinária/hotfix sem reordenar roadmap.
