@@ -416,3 +416,16 @@ carinho principal() -> bombom { mimo 0; }
     assert!(ir.contains("func id -> seta<?>"), "{}", ir);
     assert!(ir.contains("%p#0: seta<?>"), "{}", ir);
 }
+
+#[test]
+fn lowering_preserva_categoria_seta_fragil_em_assinatura() {
+    let code = r#"
+pacote main;
+apelido Porta = fragil seta<u8>;
+carinho id(p: Porta) -> Porta { mimo p; }
+carinho principal() -> bombom { mimo 0; }
+"#;
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("func id -> fragil seta<?>"), "{}", ir);
+    assert!(ir.contains("%p#0: fragil seta<?>"), "{}", ir);
+}

@@ -466,3 +466,21 @@ fn parser_aceita_tipo_seta_em_alias_e_assinaturas() {
         _ => panic!("item esperado: alias"),
     }
 }
+
+#[test]
+fn parser_aceita_tipo_seta_fragil_em_alias_e_assinaturas() {
+    let source = r#"
+        pacote main;
+        apelido Porta = fragil seta<u8>;
+        carinho id(p: Porta) -> Porta { mimo p; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let program = parse(source).expect("parser deve aceitar tipo seta fragil");
+    match &program.items[0] {
+        Item::TypeAlias(alias) => match &alias.target {
+            Type::Pointer { is_volatile, .. } => assert!(*is_volatile),
+            _ => panic!("alias deveria apontar para tipo seta fragil"),
+        },
+        _ => panic!("item esperado: alias"),
+    }
+}

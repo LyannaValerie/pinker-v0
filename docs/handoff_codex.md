@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada funcional: **Fase 51 — `peso`/alinhamento** (quarto item do Bloco 2).
+- Rodada funcional: **Fase 52 — `volatile` (`fragil`)** (quinto item do Bloco 2).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -66,7 +66,7 @@
 - Continuidade preservada: Fase 48-H1 segue sendo rodada extraordinária/hotfix sem reordenar o roadmap principal.
 
 ## Próximo item normal do roadmap principal
-- Bloco 2, item 5: `volatile`.
+- Bloco 3, item 1: backend textual `.s`.
 
 ## O que entrou na Fase 51
 - Frontend: keywords `peso` e `alinhamento` adicionadas no lexer/token e parse de `peso(tipo)`/`alinhamento(tipo)` como expressões explícitas.
@@ -87,8 +87,22 @@
 - ABI/layout físico final orientado a backend
 - backend nativo e redesign de runtime
 
+## O que entrou na Fase 52
+- Frontend: keyword `fragil` adicionada e parse mínimo de qualificador de tipo `fragil seta<T>`.
+- AST/JSON/printer: tipo ponteiro agora preserva qualificação `is_volatile`, com render textual explícito (`fragil seta<...>`).
+- Semântica: `fragil` é aceito apenas quando qualifica `seta<T>`; usos fora desse formato são rejeitados com diagnóstico claro.
+- IR estruturada: `TypeIR::Pointer` preserva o bit `is_volatile`; render da IR passa a exibir `fragil seta<?>` quando aplicável.
+- Política operacional desta fase: `fragil` é somente marca semântica propagada no pipeline (sem dereferência real, sem MMIO, sem fences, sem backend nativo).
+- Exemplos versionados e cobertura de testes adicionados para caso positivo e negativo com `--check`.
+- Continuidade preservada: Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar o roadmap principal.
+
+## Fora de escopo mantido
+- dereferência real e aritmética de ponteiros
+- MMIO/hardware real e semântica de ordenação/barreiras
+- backend nativo/ABI e lowering operacional de memória para `volatile`
+
 ## Rodada documental paralela (sem número de fase)
 - Executada em paralelo à Fase 51 por agente separado; sem conflito com este handoff.
 - Alterações exclusivamente documentais: `handoff_auditor.md` abandonado, `future.md` normalizado, `phases.md` e `agent_state.md` atualizados.
 - Nenhuma alteração funcional de parser, semântica, IR, CFG, Machine ou runtime.
-- Próximo item funcional do roadmap permanece: Bloco 2, item 5 (`volatile`).
+- Próximo item funcional do roadmap agora é: Bloco 3, item 1 (backend textual `.s`).

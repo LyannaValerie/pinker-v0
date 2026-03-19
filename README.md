@@ -7,6 +7,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - parser para `pacote`, `carinho`, `mimo`, `talvez/senão`, `sempre que`, `eterno`, `nova`, `mut`
 - tipos `bombom`, `u8`, `u16`, `u32`, `u64`, `i8`, `i16`, `i32`, `i64` e `logica`
 - aliases de tipo (`apelido`), arrays fixos (`[tipo; N]`), structs (`ninho`), ponteiros (`seta<tipo>`)
+- qualificador `fragil` (`volatile`) para ponteiros explícitos (`fragil seta<tipo>`)
 - cast explícito controlado com `virar` (inteiro -> inteiro no frontend/semântica/IR estruturada)
 - consultas estáticas de layout com `peso(tipo)` e `alinhamento(tipo)`
 - chamadas diretas por nome
@@ -27,6 +28,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - otimizações grandes
 - FFI, enums, generics, traits
 - operações reais de ponteiro (dereferência, aritmética), acesso via ponteiro (`seta<T>`), escrita em campo/index, layout físico/ABI
+- semântica operacional de `fragil` em runtime/backend (nesta fase é qualificador semântico preservado no pipeline)
 - lowering operacional de `virar` em CFG/Machine/runtime (`--check` aceita o subset da fase; `--run`/`--cfg-ir` ainda não executam cast)
 - runtime signed correto (tipos `i8`–`i64` são bloqueados no `--run` até representação adequada)
 
@@ -79,6 +81,8 @@ cargo run -- --check examples/check_peso_alinhamento_escalar.pink
 cargo run -- --check examples/check_peso_alinhamento_array.pink
 cargo run -- --check examples/check_peso_alinhamento_ninho.pink
 cargo run -- --check examples/check_peso_tipo_inexistente.pink
+cargo run -- --check examples/check_volatile_valido.pink
+cargo run -- --check examples/check_volatile_invalido.pink
 ```
 
 ## Modos da CLI

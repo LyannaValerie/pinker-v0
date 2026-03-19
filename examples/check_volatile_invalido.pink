@@ -1,0 +1,5 @@
+pacote main;
+carinho principal() -> bombom {
+    nova _x: fragil u8 = 1;
+    mimo 0;
+}
