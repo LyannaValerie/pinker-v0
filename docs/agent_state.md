@@ -42,9 +42,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 35: humanizar a renderização de `--machine` sem alterar a Machine
 - Fase 36: humanizar instruções individuais de `--machine` com comentários curtos
 - Fase 37: contextualizar os comentários de `--machine` por alvo/slot sem alterar semântica
+- Fase 38: tornar os comentários de `--machine` sensíveis ao papel do fluxo
 
 ## Fase atual
-- Fase 37 concluída: comentários de `--machine` foram contextualizados com heurísticas simples para `br_true`, `jmp`, `store_slot`, `call`, `call_void`, `ret` e `ret_void`, mantendo opcode/terminador originais visíveis e sem alterar semântica. `--selected` e demais camadas não foram alterados.
+- Fase 38 concluída: comentários de `--machine` foram refinados para refletir melhor o papel do fluxo em `if`, `sempre que`, curto-circuito lógico e convergências (`join_*`/`logic_join_*`), mantendo opcode/terminador originais visíveis e sem alterar semântica. `--selected` e demais camadas não foram alterados.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -279,3 +280,11 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - `render_term` contextualiza `br_true` (if/loop/curto-circuito) e `jmp` por alvo conhecido.
 - `ret` e `ret_void` receberam comentários mais claros (`retorna o valor atual da pilha` / `encerra a função sem retorno`).
 - Sem mudanças em semântica, parser, lowering CFG, interpretador, `--selected`, `--cfg-ir`, `--pseudo-asm` e `--run`.
+
+## Fase 38 — comentários sensíveis ao papel do fluxo em `--machine`
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37 → 38 verificada.
+- `render_term` passou a receber o label do bloco atual para contextualizar comentários por papel de fluxo.
+- `br_true` foi refinado para casos de `if`, `sempre que` e curto-circuito (`logic_short_*`/`logic_rhs_*`) com texto mais específico.
+- `jmp` ganhou comentários específicos para `join_*`, `logic_join_*`, `loop_break_cont_*` e `loop_continue_cont_*`.
+- Anotações de bloco em `join_*` e `logic_join_*` agora enfatizam retomada/continuação de fluxo.
+- Sem alteração de semântica, Machine, lowering, parser, interpretador, opcodes, flags e `--selected`.
