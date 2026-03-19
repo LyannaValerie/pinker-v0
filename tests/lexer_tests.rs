@@ -106,6 +106,12 @@ fn lexer_reconhece_keyword_ninho() {
 }
 
 #[test]
+fn lexer_reconhece_keyword_seta() {
+    let tokens = tokenize("seta<bombom>").unwrap();
+    assert_eq!(tokens[0].kind, TokenKind::KwSeta);
+}
+
+#[test]
 fn lexer_reconhece_sintaxe_de_array_fixo() {
     let tokens = tokenize("[u8; 16]").unwrap();
     assert_eq!(tokens[0].kind, TokenKind::LBracket);

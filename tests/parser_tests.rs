@@ -352,3 +352,22 @@ fn parser_aceita_declaracao_de_ninho_e_uso_tipado() {
         _ => panic!("item esperado: struct"),
     }
 }
+
+#[test]
+fn parser_aceita_tipo_seta_em_alias_e_assinaturas() {
+    let source = r#"
+        pacote main;
+        ninho Ponto { x: bombom; }
+        apelido PtrPonto = seta<Ponto>;
+        carinho id(p: PtrPonto) -> seta<[u8; 4]> { mimo p; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let program = parse(source).expect("parser deve aceitar tipo seta");
+    match &program.items[1] {
+        Item::TypeAlias(alias) => match &alias.target {
+            Type::Pointer { .. } => {}
+            _ => panic!("alias deveria apontar para tipo seta"),
+        },
+        _ => panic!("item esperado: alias"),
+    }
+}

@@ -155,6 +155,7 @@ pub enum TypeIR {
     Logica,
     FixedArray { element: ScalarTypeIR, size: u64 },
     Struct,
+    Pointer,
     Nulo,
 }
 
@@ -953,6 +954,22 @@ impl TypeIR {
                     size: *size,
                 })
             }
+            Type::Pointer { base, span } => {
+                let resolved_base = Self::from_ast_inner(base, aliases, struct_names, resolving)?;
+                if resolved_base == TypeIR::Nulo {
+                    return Err(PinkerError::Ir {
+                        msg: "tipo base de 'seta' não pode ser 'nulo'".to_string(),
+                        span: *span,
+                    });
+                }
+                if resolved_base == TypeIR::Pointer {
+                    return Err(PinkerError::Ir {
+                        msg: "seta de seta ainda não é suportada nesta fase".to_string(),
+                        span: *span,
+                    });
+                }
+                Ok(TypeIR::Pointer)
+            }
             Type::Nulo(_) => Ok(TypeIR::Nulo),
             Type::Struct { .. } => Ok(TypeIR::Struct),
             Type::Alias { name, span } => {
@@ -1011,6 +1028,7 @@ impl TypeIR {
             TypeIR::Logica => "logica",
             TypeIR::FixedArray { .. } => "array",
             TypeIR::Struct => "struct",
+            TypeIR::Pointer => "seta",
             TypeIR::Nulo => "nulo",
         }
     }
@@ -1020,6 +1038,7 @@ impl TypeIR {
             TypeIR::FixedArray { element, size } => {
                 format!("[{}; {}]", element.name(), size)
             }
+            TypeIR::Pointer => "seta<?>".to_string(),
             TypeIR::Struct => "struct".to_string(),
             _ => self.name().to_string(),
         }
@@ -1039,7 +1058,7 @@ impl ScalarTypeIR {
             TypeIR::I32 => Some(ScalarTypeIR::I32),
             TypeIR::I64 => Some(ScalarTypeIR::I64),
             TypeIR::Logica => Some(ScalarTypeIR::Logica),
-            TypeIR::FixedArray { .. } | TypeIR::Struct | TypeIR::Nulo => None,
+            TypeIR::FixedArray { .. } | TypeIR::Struct | TypeIR::Pointer | TypeIR::Nulo => None,
         }
     }
 

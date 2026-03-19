@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada **funcional pequena e auditável**: Fase 47 do histórico interno, correspondente ao sexto item do Bloco 1 do roadmap consolidado (structs).
+- Rodada **funcional pequena e auditável**: Fase 48 do histórico interno, correspondente ao primeiro item do Bloco 2 do roadmap consolidado (ponteiros como categoria de tipo).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -9,15 +9,15 @@
 - Rodada documental não recebe número de fase.
 
 ## O que foi atualizado
-- Suporte mínimo a structs como tipo composto nomeado com keyword `ninho`:
-  - lexer/token com `KwNinho`;
-  - parser/AST com item global `StructDecl` (`ninho Nome { campo: tipo; ... }`) e campos tipados;
-  - semântica com registro de structs e validações de campo duplicado, tipo inexistente, redefinição e recursão direta;
-  - lowering IR com categoria de tipo `struct` para assinaturas/slots (sem semântica operacional de valor/campo).
+- Suporte mínimo a ponteiros como tipo explícito com keyword `seta`:
+  - lexer/token com `KwSeta`;
+  - parser/AST com tipo `seta<tipo>` integrado em `parse_type`;
+  - semântica com resolução de tipo-base e validações de base inexistente e política explícita para `seta<seta<T>>` (rejeitada nesta fase);
+  - lowering IR com categoria `Pointer` (`seta<?>`) em assinaturas/slots, sem operações de memória.
 - Cobertura incremental em testes de lexer/parser/semântica/IR com cenários positivos e negativos.
 - Documentação operacional atualizada: `docs/phases.md`, `docs/agent_state.md` e este handoff.
 
 ## Estado operacional após a rodada
-- Continuidade histórica preservada (Fase 46 funcional -> Fase 47 funcional, com convenção documental mantida sem número para rodadas não-funcionais).
-- Sexto passo funcional do Bloco 1 entregue (structs), sem abrir trilhas paralelas.
-- Itens fora de escopo mantidos: acesso a campo, literais/construtor de struct, ponteiros, indexação, backend `.s`, casts explícitos e redesign amplo do sistema de tipos.
+- Continuidade histórica preservada (Fase 47 funcional -> Fase 48 funcional, com convenção documental mantida sem número para rodadas não-funcionais).
+- Bloco 1 permanece fechado; Fase 48 abre o Bloco 2 sem trilha paralela.
+- Itens fora de escopo mantidos: dereferência, acesso/indexação via ponteiro, aritmética de ponteiros, casts explícitos, `sizeof`/alinhamento, `volatile`, backend `.s` e redesign amplo.

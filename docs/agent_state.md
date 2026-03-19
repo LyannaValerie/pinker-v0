@@ -66,6 +66,8 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 
 ## Fase atual
 - Fase 47 concluída: structs com keyword `ninho` como tipo nomeado composto (declaração + registro semântico + uso tipado em assinaturas/aliases), com validação de campo duplicado, tipo inexistente e recursão direta; integração mínima no IR como categoria `struct` sem acesso a campo/literal/layout.
+- Bloco 1 encerrado com a Fase 47; trilha ativa segue no Bloco 2.
+- Fase 48 concluída: ponteiros como categoria de tipo com `seta<tipo>` (frontend + semântica + IR), sem semântica operacional de memória.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -110,6 +112,7 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Infraestrutura avançada de runtime (I/O de linguagem, debug runtime, otimizações de execução).
 - Inferência global pesada de tipos na Machine.
 - Proteção contra recursão infinita/limite de profundidade de chamadas.
+- Dereferência e operações reais de ponteiro (load/store indireto, aritmética de ponteiro, campo/indexação via ponteiro, casts, `sizeof`/alinhamento, `volatile`).
 
 ## Instrução para novo agente
 1. Ler este arquivo primeiro.

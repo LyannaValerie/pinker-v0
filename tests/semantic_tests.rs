@@ -460,6 +460,39 @@ fn ninho_valido_em_assinatura_e_alias() {
 }
 
 #[test]
+fn seta_valida_em_alias_array_struct_e_assinatura() {
+    let code = r#"
+        pacote main;
+        ninho Ponto { x: bombom; }
+        apelido PtrPonto = seta<Ponto>;
+        apelido PtrBytes = seta<[u8; 8]>;
+        carinho usa(_a: PtrPonto, _b: PtrBytes, _c: seta<u64>) -> bombom { mimo 0; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn seta_falha_com_tipo_base_inexistente() {
+    let code =
+        "pacote main; carinho principal() -> bombom { nova _x: seta<Desconhecido> = 0; mimo 0; }";
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo 'Desconhecido' não existe"));
+}
+
+#[test]
+fn seta_de_seta_ainda_nao_suportada() {
+    let code = r#"
+        pacote main;
+        apelido Ptr = seta<bombom>;
+        apelido PtrPtr = seta<Ptr>;
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("seta de seta ainda não é suportada nesta fase"));
+}
+
+#[test]
 fn ninho_falha_com_campo_duplicado() {
     let code = r#"
         pacote main;

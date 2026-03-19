@@ -280,6 +280,7 @@ fn format_type(ty: &Type) -> String {
         Type::Alias { name, .. } => name.clone(),
         Type::Struct { name, .. } => name.clone(),
         Type::FixedArray { element, size, .. } => format!("[{}; {}]", format_type(element), size),
+        Type::Pointer { base, .. } => format!("seta<{}>", format_type(base)),
         _ => ty.name().to_string(),
     }
 }
