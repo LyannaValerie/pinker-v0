@@ -556,3 +556,84 @@ fn modulo_invalido_em_logica() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("operação aritmética/bitwise requer operandos inteiros"));
 }
+
+// --- HF-4: validação de range de literais inteiros ---
+
+#[test]
+fn literal_u8_fora_de_range_e_rejeitado() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova x: u8 = 300;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("u8"), "{}", err);
+    assert!(err.contains("300"), "{}", err);
+}
+
+#[test]
+fn literal_u8_no_limite_aceito() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova x: u8 = 255;
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn literal_u16_fora_de_range_e_rejeitado() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova x: u16 = 70000;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("u16"), "{}", err);
+}
+
+#[test]
+fn literal_i8_fora_de_range_e_rejeitado() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova x: i8 = 200;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("i8"), "{}", err);
+}
+
+#[test]
+fn literal_em_chamada_fora_de_range_e_rejeitado() {
+    let code = r#"
+        pacote main;
+        carinho soma(a: u8, b: u8) -> u8 { mimo a; }
+        carinho principal() -> bombom {
+            soma(256, 1);
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("u8"), "{}", err);
+    assert!(err.contains("256"), "{}", err);
+}
+
+#[test]
+fn literal_bombom_sem_limite_aceito() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova x: bombom = 999999999999;
+            mimo x;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}

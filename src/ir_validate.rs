@@ -4,7 +4,7 @@
 //! - constantes globais: nome, tipo e valor não nulo
 //! - funções: bloco de entrada `entry`, slots únicos por parâmetro/local
 //! - blocos: instruções `let`/`assign`/`return`/`if` com tipos compatíveis
-//! - expressões: inferência recursiva de tipo via [`infer_value_type`]
+//! - expressões: inferência recursiva de tipo via `infer_value_type`
 //!
 //! Ponto de entrada: [`validate_program`].
 

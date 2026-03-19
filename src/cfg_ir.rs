@@ -282,6 +282,7 @@ fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
 }
 
 impl FunctionLowerer {
+    #[allow(clippy::only_used_in_recursion)]
     fn lower_instruction(
         &mut self,
         instruction: &InstructionIR,

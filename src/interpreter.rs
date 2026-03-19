@@ -11,7 +11,7 @@ use crate::abstract_machine::{
 };
 use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
-use crate::token::{Position, Span};
+use crate::token::Span;
 use std::collections::HashMap;
 
 const MAX_CALL_DEPTH: usize = 128;
@@ -38,9 +38,38 @@ pub enum RuntimeValue {
 }
 
 pub fn run_program(program: &MachineProgram) -> Result<Option<RuntimeValue>, PinkerError> {
+    reject_signed_types(program)?;
     let globals = build_globals(program)?;
     let mut call_stack = Vec::new();
     call_function("principal", vec![], program, &globals, &mut call_stack)
+}
+
+/// Bloqueia execução de programas que usam tipos signed (i8..i64) no runtime,
+/// pois a representação atual (u64 para tudo) produziria resultados incorretos
+/// em comparações e operações aritméticas de valores negativos.
+fn reject_signed_types(program: &MachineProgram) -> Result<(), PinkerError> {
+    for func in &program.functions {
+        if func.ret_type.is_signed() {
+            return Err(runtime_err(&format!(
+                "tipo signed '{}' no retorno de '{}' ainda não é suportado corretamente pelo runtime; \
+                 a representação interna (u64) produziria resultados incorretos",
+                func.ret_type.name(),
+                func.name
+            )));
+        }
+        for (slot, ty) in &func.slot_types {
+            if ty.is_signed() {
+                return Err(runtime_err(&format!(
+                    "tipo signed '{}' no slot '{}' de '{}' ainda não é suportado corretamente pelo runtime; \
+                     a representação interna (u64) produziria resultados incorretos",
+                    ty.name(),
+                    slot,
+                    func.name
+                )));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn build_globals(program: &MachineProgram) -> Result<HashMap<String, RuntimeValue>, PinkerError> {
@@ -127,7 +156,7 @@ fn call_function(
 
             match &block.terminator {
                 MachineTerminator::Jmp(target) => {
-                    current_label = target.clone();
+                    current_label.clone_from(target);
                 }
                 MachineTerminator::BrTrue {
                     then_label,
@@ -341,7 +370,7 @@ fn pop_bin_int(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<(u64, u64), P
 fn runtime_err(msg: &str) -> PinkerError {
     PinkerError::Runtime {
         msg: enrich_runtime_msg(msg),
-        span: Span::single(Position::new(1, 1)),
+        span: None,
     }
 }
 
