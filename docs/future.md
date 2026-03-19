@@ -7,17 +7,17 @@ Este documento organiza possibilidades futuras de evolução do Pinker v0 em cam
 > Status: backlog estruturado para referência técnica; não é roadmap rígido de curto prazo.
 
 ## Camada 0 — Sistema de tipos (bloqueante para tudo)
-- Tipos inteiros com tamanho: `u8`, `u16`, `u32`, `u64`, `i8`, `i16`, `i32`, `i64` — hoje só existe `bombom` (`u64`). Kernel precisa de `u8` para bytes, `u16` para portas, `u32` para registradores etc.
-- Tipo ponteiro (`seta`): `seta<T>` ou `seta bombom` — representar endereços de memória.
-- Structs (`ninho`): dados compostos com layout de memória definido.
+- ~~Tipos inteiros com tamanho: `u8`–`u64`, `i8`–`i64`.~~ ✅ Implementado (Fases 39–40). Runtime signed ainda u64-only (bloqueado em HF-3).
+- ~~Tipo ponteiro (`seta`): `seta<T>`.~~ ✅ Implementado (Fase 48). Semântica de tipo presente; runtime/deref pendente.
+- ~~Structs (`ninho`): dados compostos com layout de memória definido.~~ ✅ Declaração + semântica (Fase 44). Layout de memória/runtime pendente.
 - Enums (`leque`): variantes com ou sem dados associados.
-- Arrays de tamanho fixo: `[bombom; 256]`.
+- ~~Arrays de tamanho fixo: `[bombom; 256]`.~~ ✅ Tipo na AST/semântica (Fase 43). Runtime/acesso por índice pendente.
 - Slices / arrays dinâmicos: referência a faixa de memória contígua.
 - Tipo float (`bolha`): não crítico para kernel, mas útil para completude de médio nível.
 - Tipo char/byte (`letra`/`migalha`): manipulação de texto e dados brutos.
 - Strings (`verso`): pelo menos como slice de bytes.
 - Tuples (`par`): retornos múltiplos e agrupamento leve.
-- Type alias (`apelido`): ex. `apelido Endereco = u64`.
+- ~~Type alias (`apelido`): ex. `apelido Endereco = u64`.~~ ✅ Implementado (Fase 42).
 - Void pointer / ponteiro genérico: equivalente a `void*` em C.
 
 ## Camada 1 — Operações de memória (bloqueante para kernel)
@@ -34,8 +34,8 @@ Este documento organiza possibilidades futuras de evolução do Pinker v0 em cam
 ## Camada 2 — Controle de fluxo e expressividade (necessário para self-hosting e completude)
 - `for` / iteração (`passeio`).
 - `match` / pattern matching (`encaixe`).
-- Operadores lógicos `&&` e `||` com short-circuit.
-- Operadores bitwise: `&`, `|`, `^`, `<<`, `>>`.
+- ~~Operadores lógicos `&&` e `||` com short-circuit.~~ ✅ Implementado (Fase 36).
+- ~~Operadores bitwise: `&`, `|`, `^`, `<<`, `>>`.~~ ✅ Implementado (Fase 37).
 - Operadores compostos: `+=`, `-=`, `<<=`, `>>=`, `&=`, `|=`.
 - Loop infinito (`roda`) com bloco explícito.
 - Expressões como valor (estilo Rust), se fizer sentido.
@@ -93,11 +93,11 @@ Este documento organiza possibilidades futuras de evolução do Pinker v0 em cam
 - Self-hosting (compilar a si mesma) -> + 3 + 4 + 7 + 8 -> ~62 itens (todos).
 
 ## 5 itens mais críticos para desbloquear progresso
-1. Backend x86_64 (#38) — sem código nativo, nada roda de verdade.
-2. Ponteiros (#2, #13, #14) — sem ponteiros, nada de sistemas.
-3. Structs (#3) — sem dados compostos úteis, pouco avança.
-4. Operadores bitwise (#25) — sem manipulação de bits, sem hardware.
-5. Inline assembly (#45) — sem falar com CPU, nada de kernel.
+1. Backend x86_64 — sem código nativo, nada roda de verdade.
+2. Dereferência de ponteiro + aritmética — `seta` existe no tipo, falta runtime.
+3. Cast entre tipos (`virar`) — converter entre tamanhos de inteiros e ponteiros.
+4. Acesso a campos de struct por offset — `ninho` existe, falta runtime.
+5. Inline assembly (`sussurro`) — sem falar com CPU, nada de kernel.
 
 ## Observações de maturidade
 - A nomenclatura sugerida (ex.: `seta`, `ninho`, `leque`, `passeio`, `sussurro`) segue o estilo do `docs/vocabulario.md` como referência auxiliar.

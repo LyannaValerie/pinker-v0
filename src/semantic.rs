@@ -38,6 +38,12 @@ pub struct SemanticChecker {
     loop_depth: usize,
 }
 
+impl Default for SemanticChecker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SemanticChecker {
     pub fn new() -> Self {
         Self {
@@ -254,6 +260,49 @@ impl SemanticChecker {
             || (Self::is_integer_type(expected) && Self::expr_is_int_literal(expr))
     }
 
+    /// Valida que um literal inteiro cabe no tipo-alvo esperado.
+    /// Retorna `Ok(())` se o literal couber ou se o tipo não impõe restrição de faixa.
+    /// Retorna erro semântico se o literal exceder o intervalo válido do tipo.
+    fn validate_int_literal_range(expected: &Type, expr: &Expr) -> Result<(), PinkerError> {
+        let ExprKind::IntLit(value) = &expr.kind else {
+            return Ok(());
+        };
+        let value = *value;
+        let (type_name, fits) = match expected {
+            Type::U8(_) => ("u8", value <= u8::MAX as u64),
+            Type::U16(_) => ("u16", value <= u16::MAX as u64),
+            Type::U32(_) => ("u32", value <= u32::MAX as u64),
+            Type::U64(_) | Type::Bombom(_) => return Ok(()),
+            Type::I8(_) => ("i8", value <= i8::MAX as u64),
+            Type::I16(_) => ("i16", value <= i16::MAX as u64),
+            Type::I32(_) => ("i32", value <= i32::MAX as u64),
+            Type::I64(_) => ("i64", value <= i64::MAX as u64),
+            _ => return Ok(()),
+        };
+        if fits {
+            Ok(())
+        } else {
+            Err(PinkerError::Semantic {
+                msg: format!(
+                    "literal {} excede a faixa do tipo '{}' (máximo: {})",
+                    value,
+                    type_name,
+                    match expected {
+                        Type::U8(_) => u8::MAX as u64,
+                        Type::U16(_) => u16::MAX as u64,
+                        Type::U32(_) => u32::MAX as u64,
+                        Type::I8(_) => i8::MAX as u64,
+                        Type::I16(_) => i16::MAX as u64,
+                        Type::I32(_) => i32::MAX as u64,
+                        Type::I64(_) => i64::MAX as u64,
+                        _ => unreachable!(),
+                    }
+                ),
+                span: expr.span,
+            })
+        }
+    }
+
     fn declare_var(
         &mut self,
         name: &str,
@@ -445,6 +494,7 @@ impl SemanticChecker {
                 span: constant.init.span,
             });
         }
+        Self::validate_int_literal_range(&resolved_const_ty, &constant.init)?;
 
         Ok(())
     }
@@ -516,6 +566,10 @@ impl SemanticChecker {
                                     span: let_stmt.init.span,
                                 });
                             }
+                            Self::validate_int_literal_range(
+                                &resolved_declared_ty,
+                                &let_stmt.init,
+                            )?;
                             resolved_declared_ty
                         }
                         None => init_ty,
@@ -565,6 +619,7 @@ impl SemanticChecker {
                             span: assign_stmt.expr.span,
                         });
                     }
+                    Self::validate_int_literal_range(&var_meta.ty, &assign_stmt.expr)?;
                 }
                 Stmt::If(if_stmt) => {
                     let cond_ty = self.check_value_expr(
@@ -688,6 +743,7 @@ impl SemanticChecker {
                         span: expr.span,
                     });
                 }
+                Self::validate_int_literal_range(&expected, expr)?;
                 Ok(())
             }
         }
@@ -903,6 +959,7 @@ impl SemanticChecker {
                     span: arg.span,
                 });
             }
+            Self::validate_int_literal_range(&expected_param_ty, arg)?;
         }
 
         Ok(self.function_result_type(&function, expr_span))

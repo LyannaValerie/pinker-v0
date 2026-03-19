@@ -345,3 +345,21 @@
 - decisão explícita desta fase: `seta<seta<T>>` permanece rejeitado com diagnóstico específico para evitar expansão de escopo.
 - IR/lowering ganhou categoria `Pointer` (`seta<?>`) somente para transportar informação de tipo no pipeline (assinaturas/slots), sem semântica operacional.
 - fora de escopo mantido: dereferência, memória indireta (load/store por endereço), aritmética de ponteiros, campo/indexação via ponteiro, casts (`virar`), `sizeof`/alinhamento, `volatile`, ABI/backend `.s`.
+
+## Fase 48-H1 — hotfixes de corretude e manutenção (rodada extraordinária)
+- rodada extraordinária de hotfixes; **não** é fase funcional nova nem rodada documental regular.
+- roadmap principal inalterado; registrada como `Fase 48-H1` para preservar continuidade.
+- **HF-1** (HIGH): `Type::PartialEq` customizado ignora spans — comparação estrutural pura sem poluição por `Span`.
+- **HF-2** (HIGH): `PinkerError::Runtime` usa `Option<Span>` em vez de dummy span `1:1..1:1`; heurística `is_dummy_span` removida.
+- **HF-3** (HIGH): runtime rejeita explicitamente tipos signed (`i8`–`i64`) com erro claro, evitando resultados silenciosamente incorretos em representação u64-only.
+- **HF-4** (HIGH): validação de range de literais inteiros na semântica (ex.: `300` em contexto `u8` agora é erro).
+- **HF-5** (MEDIUM): `main.rs` simplificado com macro `try_or_exit!`, booleanos de necessidade de pipeline e early return após `--check`.
+- **HF-6** (MEDIUM): bifurcação `selected→backend_text` vs `machine→interpreter` documentada em comentário inline em `main.rs`.
+- **HF-7** (MEDIUM): escopo else-if assimétrico documentado — decisão arquitetural intencional (não é bug).
+- **HF-8** (MEDIUM): modelo `KwSempre` + `KwQue` documentado — duas keywords separadas por design.
+- **HF-9** (MEDIUM): CI alinhada com `rust-toolchain.toml` — `dtolnay/rust-toolchain@master` com `toolchain: "1.78.0"`.
+- **HF-10** (MEDIUM): `clippy` adicionado ao CI e a `rust-toolchain.toml`; 4 warnings corrigidos (only_used_in_recursion, assigning_clones, if_same_then_else, new_without_default).
+- **HF-11** (MEDIUM): `cargo doc --no-deps` adicionado ao CI com `-D warnings`.
+- **HF-15** (LOW): mensagem de sucesso só aparece quando nenhuma flag de saída está ativa.
+- **HF-16** (LOW): `Cargo.toml` authors corrigido com `<>` no email.
+- **HF-17** (LOW): `docs/future.md` atualizado para marcar itens já implementados (tipos fixos, seta, ninho, arrays, apelido, bitwise, lógicos) e reordenar prioridades.

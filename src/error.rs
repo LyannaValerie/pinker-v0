@@ -45,12 +45,12 @@ pub enum PinkerError {
     },
     Runtime {
         msg: String,
-        span: Span,
+        span: Option<Span>,
     },
 }
 
 impl PinkerError {
-    pub fn span(&self) -> Span {
+    pub fn span(&self) -> Option<Span> {
         match self {
             PinkerError::Lexer { span, .. }
             | PinkerError::Parse { span, .. }
@@ -61,8 +61,8 @@ impl PinkerError {
             | PinkerError::CfgIrValidation { span, .. }
             | PinkerError::BackendTextValidation { span, .. }
             | PinkerError::InstrSelectValidation { span, .. }
-            | PinkerError::AbstractMachineValidation { span, .. }
-            | PinkerError::Runtime { span, .. } => *span,
+            | PinkerError::AbstractMachineValidation { span, .. } => Some(*span),
+            PinkerError::Runtime { span, .. } => *span,
         }
     }
 
@@ -83,7 +83,7 @@ impl PinkerError {
             _ => {
                 let base = self.to_string();
                 let span = self.span();
-                match extract_source_snippet(source, span) {
+                match span.and_then(|s| extract_source_snippet(source, s)) {
                     Some(snippet) => format!("{}\n{}", base, snippet),
                     None => base,
                 }
@@ -92,7 +92,7 @@ impl PinkerError {
     }
 }
 
-fn render_runtime_for_cli(msg: &str, span: Span) -> String {
+fn render_runtime_for_cli(msg: &str, span: Option<Span>) -> String {
     let (main_msg, trace) = split_runtime_message_and_trace(msg);
     let mut out = String::from("Erro Runtime:\n");
     out.push_str("  mensagem: ");
@@ -106,19 +106,16 @@ fn render_runtime_for_cli(msg: &str, span: Span) -> String {
             out.push('\n');
         }
     }
-    if is_dummy_span(span) {
-        out.push_str("  localização: indisponível (erro detectado na instrução de máquina)");
-    } else {
-        out.push_str("  span: ");
-        out.push_str(&span.to_string());
+    match span {
+        Some(s) => {
+            out.push_str("  span: ");
+            out.push_str(&s.to_string());
+        }
+        None => {
+            out.push_str("  localização: indisponível (erro detectado na instrução de máquina)");
+        }
     }
     out
-}
-
-/// Retorna `true` se o span é o placeholder sintético `1:1..1:1` usado quando
-/// a localização real não está disponível na camada de execução.
-fn is_dummy_span(span: Span) -> bool {
-    span.start.line == 1 && span.start.col == 1 && span.end.line == 1 && span.end.col == 1
 }
 
 /// Extrai a linha de origem correspondente ao span e acrescenta um indicador
@@ -200,9 +197,10 @@ impl std::fmt::Display for PinkerError {
             PinkerError::AbstractMachineValidation { msg, span } => {
                 write!(f, "Erro Validação Máquina Abstrata: {} em {}", msg, span)
             }
-            PinkerError::Runtime { msg, span } => {
-                write!(f, "Erro Runtime: {} em {}", msg, span)
-            }
+            PinkerError::Runtime { msg, span } => match span {
+                Some(s) => write!(f, "Erro Runtime: {} em {}", msg, s),
+                None => write!(f, "Erro Runtime: {}", msg),
+            },
         }
     }
 }

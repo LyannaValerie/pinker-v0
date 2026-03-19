@@ -603,7 +603,6 @@ impl<'a> FunctionLowerer<'a> {
             }
             ExprKind::Binary(lhs, op, rhs) => {
                 let lhs_is_int_lit = matches!(lhs.kind, ExprKind::IntLit(_));
-                let rhs_is_int_lit = matches!(rhs.kind, ExprKind::IntLit(_));
                 let lhs = self.lower_value(lhs)?;
                 let rhs = self.lower_value(rhs)?;
                 Ok(TypedValueIR {
@@ -626,8 +625,6 @@ impl<'a> FunctionLowerer<'a> {
                         | BinaryOp::Shr => {
                             if lhs_is_int_lit && rhs.ty.is_integer() {
                                 rhs.ty
-                            } else if rhs_is_int_lit && lhs.ty.is_integer() {
-                                lhs.ty
                             } else {
                                 lhs.ty
                             }
