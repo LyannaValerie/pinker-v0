@@ -5,6 +5,13 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 49 — acesso a campo e indexação (escopo mínimo de leitura)
+  - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
+  - frontend atualizado para cadeia postfix com chamada + acesso a campo (`obj.campo`) + indexação (`arr[idx]`) preservando precedência/associatividade existente.
+  - semântica passa a validar leitura de campo em `ninho` e leitura por índice em array fixo, com diagnósticos explícitos para base inválida, campo inexistente e índice não inteiro.
+  - IR estruturada ganhou representação mínima para `field access` e `index`, enquanto CFG/execução permanecem deliberadamente sem lowering operacional desses nós nesta fase.
+  - decisão de escopo: leitura apenas (sem escrita em LHS), sem bounds-check novo e sem abrir dereferência/aritmética de ponteiro, casts, `sizeof`, alinhamento, `volatile` ou backend nativo.
+
 - Fase 47 — structs (`ninho`) como tipo nomeado composto (escopo mínimo)
   - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
   - frontend atualizado de forma incremental para aceitar declaração global `ninho Nome { campo: tipo; ... }`

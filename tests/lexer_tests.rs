@@ -120,3 +120,11 @@ fn lexer_reconhece_sintaxe_de_array_fixo() {
     assert_eq!(tokens[3].kind, TokenKind::IntLit);
     assert_eq!(tokens[4].kind, TokenKind::RBracket);
 }
+
+#[test]
+fn lexer_reconhece_acesso_a_campo_e_indexacao() {
+    let tokens = tokenize("obj.campo[1];").unwrap();
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::Dot));
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::LBracket));
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::RBracket));
+}

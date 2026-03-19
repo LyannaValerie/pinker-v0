@@ -251,6 +251,28 @@ fn render_expr(expr: &Expr, indent: usize, out: &mut String, label: &str) {
                 render_expr(arg, indent + 1, out, "arg");
             }
         }
+        ExprKind::FieldAccess { base, field } => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "{} FieldAccess({}) {}",
+                    label,
+                    field,
+                    format_span(expr.span)
+                ),
+            );
+            render_expr(base, indent + 1, out, "base");
+        }
+        ExprKind::Index { base, index } => {
+            line(
+                out,
+                indent,
+                &format!("{} Index {}", label, format_span(expr.span)),
+            );
+            render_expr(base, indent + 1, out, "base");
+            render_expr(index, indent + 1, out, "index");
+        }
         ExprKind::Ident(name) => {
             line(
                 out,

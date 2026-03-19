@@ -24,7 +24,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - LLVM / Cranelift
 - otimizações grandes
 - FFI, enums, generics, traits
-- operações reais de ponteiro (dereferência, aritmética), acesso a campos de struct, indexação de arrays
+- operações reais de ponteiro (dereferência, aritmética), acesso via ponteiro (`seta<T>`), escrita em campo/index, layout físico/ABI
 - runtime signed correto (tipos `i8`–`i64` são bloqueados no `--run` até representação adequada)
 
 ## Build e testes
@@ -67,6 +67,9 @@ cargo run -- --run examples/run_alias_tipo_basico.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
 cargo run -- --check examples/check_continuar_fora_loop.pink
+cargo run -- --check examples/check_campo_valido.pink
+cargo run -- --check examples/check_indexacao_valida.pink
+cargo run -- --check examples/check_indexacao_indice_nao_inteiro.pink
 ```
 
 ## Modos da CLI

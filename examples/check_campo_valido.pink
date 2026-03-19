@@ -1,0 +1,14 @@
+pacote main;
+
+ninho Ponto {
+    x: bombom;
+    y: bombom;
+}
+
+carinho pega_x(p: Ponto) -> bombom {
+    mimo p.x;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
