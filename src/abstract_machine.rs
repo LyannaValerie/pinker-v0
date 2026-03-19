@@ -483,45 +483,74 @@ fn block_role_annotation(label: &str) -> &'static str {
 
 fn render_instr(i: &MachineInstr) -> String {
     match i {
-        MachineInstr::PushInt(v) => format!("push_int {}", v),
-        MachineInstr::PushBool(v) => {
-            format!("push_bool {}", if *v { "verdade" } else { "falso" })
+        MachineInstr::PushInt(v) => {
+            with_comment(format!("push_int {}", v), "empilha literal inteiro")
         }
-        MachineInstr::LoadSlot(s) => format!("load_slot {}", clean_slot_display(s)),
-        MachineInstr::LoadGlobal(g) => format!("load_global @{}", g),
-        MachineInstr::StoreSlot(s) => format!("store_slot {}", clean_slot_display(s)),
-        MachineInstr::Neg => "neg".to_string(),
-        MachineInstr::Not => "not".to_string(),
-        MachineInstr::BitAnd => "bitand".to_string(),
-        MachineInstr::BitOr => "bitor".to_string(),
-        MachineInstr::BitXor => "bitxor".to_string(),
-        MachineInstr::Shl => "shl".to_string(),
-        MachineInstr::Shr => "shr".to_string(),
-        MachineInstr::Add => "add".to_string(),
-        MachineInstr::Sub => "sub".to_string(),
-        MachineInstr::Mul => "mul".to_string(),
-        MachineInstr::Div => "div".to_string(),
-        MachineInstr::CmpEq => "cmp_eq".to_string(),
-        MachineInstr::CmpNe => "cmp_ne".to_string(),
-        MachineInstr::CmpLt => "cmp_lt".to_string(),
-        MachineInstr::CmpLe => "cmp_le".to_string(),
-        MachineInstr::CmpGt => "cmp_gt".to_string(),
-        MachineInstr::CmpGe => "cmp_ge".to_string(),
-        MachineInstr::Call { callee, argc } => format!("call {}, {}", callee, argc),
-        MachineInstr::CallVoid { callee, argc } => format!("call_void {}, {}", callee, argc),
+        MachineInstr::PushBool(v) => with_comment(
+            format!("push_bool {}", if *v { "verdade" } else { "falso" }),
+            "empilha literal lógico",
+        ),
+        MachineInstr::LoadSlot(s) => with_comment(
+            format!("load_slot {}", clean_slot_display(s)),
+            "carrega valor do slot para a pilha",
+        ),
+        MachineInstr::LoadGlobal(g) => with_comment(
+            format!("load_global @{}", g),
+            "carrega constante global para a pilha",
+        ),
+        MachineInstr::StoreSlot(s) => with_comment(
+            format!("store_slot {}", clean_slot_display(s)),
+            "guarda topo da pilha no slot",
+        ),
+        MachineInstr::Neg => with_comment("neg".to_string(), "negação aritmética do topo"),
+        MachineInstr::Not => with_comment("not".to_string(), "negação lógica do topo"),
+        MachineInstr::BitAnd => {
+            with_comment("bitand".to_string(), "AND bit a bit entre dois topos")
+        }
+        MachineInstr::BitOr => with_comment("bitor".to_string(), "OR bit a bit entre dois topos"),
+        MachineInstr::BitXor => {
+            with_comment("bitxor".to_string(), "XOR bit a bit entre dois topos")
+        }
+        MachineInstr::Shl => with_comment("shl".to_string(), "desloca bits à esquerda"),
+        MachineInstr::Shr => with_comment("shr".to_string(), "desloca bits à direita"),
+        MachineInstr::Add => with_comment("add".to_string(), "soma os dois topos da pilha"),
+        MachineInstr::Sub => with_comment("sub".to_string(), "subtrai os dois topos da pilha"),
+        MachineInstr::Mul => with_comment("mul".to_string(), "multiplica os dois topos da pilha"),
+        MachineInstr::Div => with_comment("div".to_string(), "divide os dois topos da pilha"),
+        MachineInstr::CmpEq => with_comment("cmp_eq".to_string(), "compara igualdade"),
+        MachineInstr::CmpNe => with_comment("cmp_ne".to_string(), "compara diferença"),
+        MachineInstr::CmpLt => with_comment("cmp_lt".to_string(), "compara menor que"),
+        MachineInstr::CmpLe => with_comment("cmp_le".to_string(), "compara menor ou igual"),
+        MachineInstr::CmpGt => with_comment("cmp_gt".to_string(), "compara maior que"),
+        MachineInstr::CmpGe => with_comment("cmp_ge".to_string(), "compara maior ou igual"),
+        MachineInstr::Call { callee, argc } => with_comment(
+            format!("call {}, {}", callee, argc),
+            "chama função e empilha retorno",
+        ),
+        MachineInstr::CallVoid { callee, argc } => with_comment(
+            format!("call_void {}, {}", callee, argc),
+            "chama função sem retorno",
+        ),
     }
 }
 
 fn render_term(t: &MachineTerminator) -> String {
     match t {
-        MachineTerminator::Jmp(l) => format!("jmp {}", l),
+        MachineTerminator::Jmp(l) => with_comment(format!("jmp {}", l), "salto incondicional"),
         MachineTerminator::BrTrue {
             then_label,
             else_label,
-        } => format!("br_true {}, {}", then_label, else_label),
-        MachineTerminator::Ret => "ret".to_string(),
-        MachineTerminator::RetVoid => "ret_void".to_string(),
+        } => with_comment(
+            format!("br_true {}, {}", then_label, else_label),
+            "se topo for verdadeiro vai para then, senão para else",
+        ),
+        MachineTerminator::Ret => with_comment("ret".to_string(), "retorna valor atual"),
+        MachineTerminator::RetVoid => with_comment("ret_void".to_string(), "retorna sem valor"),
     }
+}
+
+fn with_comment(op: String, comment: &str) -> String {
+    format!("{op}  ; {comment}")
 }
 
 fn render_operand(op: &OperandIR) -> String {

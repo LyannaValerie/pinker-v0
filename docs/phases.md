@@ -237,3 +237,14 @@
   - `--selected`, `--cfg-ir`, `--pseudo-asm` e `--run` NÃO foram alterados
   - 7 novos testes adicionados em `abstract_machine_tests.rs`; 4 testes exatos atualizados para novo formato
   - `showcase_completo.pink` validado como caso de inspeção manual — saída visivelmente mais pedagógica
+
+
+- Fase 36 — humanizar instruções individuais de `--machine` sem alterar semântica
+  - continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 verificada e preservada
+  - escopo exclusivo em `render_instr`/`render_term` da camada Machine textual (`vm`/`term`)
+  - instrução original foi mantida visível e ganhou comentário curto estável na mesma linha (`; ...`)
+  - prioridade 1 coberta: `load_slot`, `store_slot`, `load_global`, `push_int`, `push_bool`, `call`, `call_void`
+  - prioridade 2 coberta: aritméticas, unárias, comparações e bitwise (`add/sub/mul/div`, `neg/not`, `cmp_*`, `bitand/bitor/bitxor/shl/shr`)
+  - prioridade 3 coberta: terminadores `br_true`, `jmp`, `ret`, `ret_void`
+  - `--selected`, `--cfg-ir`, `--pseudo-asm`, `--run`, parser, lowering e interpretador não foram alterados
+  - testes da Machine atualizados para novo formato e cobertura adicional por substring para `call`, `br_true`, `jmp`, `ret`, mantendo checks de nomes limpos e linha `temps`
