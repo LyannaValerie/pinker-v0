@@ -281,3 +281,32 @@ Nenhuma. Apenas renderização/apresentação da saída textual de `--machine`.
 
 ### Recomendação de merge
 **MERGE RECOMENDADO.**
+
+## Auditoria — Fase 37
+
+### Objetivo
+Contextualizar comentários da saída `--machine` (`br_true`, `jmp`, `store_slot`, `call`, `call_void`, `ret`, `ret_void`) sem alterar semântica.
+
+### Estado real encontrado
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37 verificada.
+- Baseline inicial (`cargo build` e `cargo test`) ok antes das mudanças.
+
+### Arquivos alterados
+- `src/abstract_machine.rs`
+- `tests/abstract_machine_tests.rs`
+- `docs/phases.md`
+- `docs/agent_state.md`
+- `docs/handoff_codex.md`
+- `docs/handoff_auditor.md`
+
+### Resultado dos comandos obrigatórios
+- `cargo build`: ok
+- `cargo check`: ok
+- `cargo fmt --check`: ok
+- `cargo test`: ok
+- `cargo run -- --machine examples/showcase_completo.pink`: ok
+
+### Avaliação do escopo
+- Escopo restrito a comentários da renderização `--machine`.
+- Sem mudanças em parser, semântica, lowering, interpretador ou flags.
+- `--selected` permaneceu inalterado.

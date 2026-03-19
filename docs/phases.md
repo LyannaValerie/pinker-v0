@@ -248,3 +248,14 @@
   - prioridade 3 coberta: terminadores `br_true`, `jmp`, `ret`, `ret_void`
   - `--selected`, `--cfg-ir`, `--pseudo-asm`, `--run`, parser, lowering e interpretador não foram alterados
   - testes da Machine atualizados para novo formato e cobertura adicional por substring para `call`, `br_true`, `jmp`, `ret`, mantendo checks de nomes limpos e linha `temps`
+
+
+## Fase 37 — contextualizar os comentários de `--machine`
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37 verificada e preservada.
+- `render_instr`/`render_term` agora usa heurísticas simples e baratas para comentários mais contextuais.
+- `br_true`: if/loop/curto-circuito com mensagens específicas por labels.
+- `jmp`: alvo contextual (`loop_cond`, `loop_join`, `join`/`logic_join`).
+- `store_slot`: diferencia temporário `%tN` de variável local do usuário.
+- `call` e `call_void`: incluem nome e aridade; `call_void` explicita ausência de retorno.
+- `ret` e `ret_void`: comentários ajustados para linguagem mais direta sem esconder terminador.
+- Sem alterações em semântica, parser, lowering, interpretador, `--selected`, `--cfg-ir`, `--pseudo-asm` ou `--run`.

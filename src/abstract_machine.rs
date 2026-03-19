@@ -498,10 +498,15 @@ fn render_instr(i: &MachineInstr) -> String {
             format!("load_global @{}", g),
             "carrega constante global para a pilha",
         ),
-        MachineInstr::StoreSlot(s) => with_comment(
-            format!("store_slot {}", clean_slot_display(s)),
-            "guarda topo da pilha no slot",
-        ),
+        MachineInstr::StoreSlot(s) => {
+            let slot = clean_slot_display(s);
+            let comment = if is_render_temp(s) {
+                format!("guarda o resultado no temporário {}", slot)
+            } else {
+                format!("atualiza a variável local {}", slot)
+            };
+            with_comment(format!("store_slot {}", slot), &comment)
+        }
         MachineInstr::Neg => with_comment("neg".to_string(), "negação aritmética do topo"),
         MachineInstr::Not => with_comment("not".to_string(), "negação lógica do topo"),
         MachineInstr::BitAnd => {
@@ -525,28 +530,65 @@ fn render_instr(i: &MachineInstr) -> String {
         MachineInstr::CmpGe => with_comment("cmp_ge".to_string(), "compara maior ou igual"),
         MachineInstr::Call { callee, argc } => with_comment(
             format!("call {}, {}", callee, argc),
-            "chama função e empilha retorno",
+            &format!(
+                "chama {} com {} argumento(s) e empilha o retorno",
+                callee, argc
+            ),
         ),
         MachineInstr::CallVoid { callee, argc } => with_comment(
             format!("call_void {}, {}", callee, argc),
-            "chama função sem retorno",
+            &format!("chama {} com {} argumento(s) sem retorno", callee, argc),
         ),
     }
 }
 
 fn render_term(t: &MachineTerminator) -> String {
     match t {
-        MachineTerminator::Jmp(l) => with_comment(format!("jmp {}", l), "salto incondicional"),
+        MachineTerminator::Jmp(l) => {
+            let comment = jmp_comment(l);
+            with_comment(format!("jmp {}", l), comment)
+        }
         MachineTerminator::BrTrue {
             then_label,
             else_label,
-        } => with_comment(
-            format!("br_true {}, {}", then_label, else_label),
-            "se topo for verdadeiro vai para then, senão para else",
-        ),
-        MachineTerminator::Ret => with_comment("ret".to_string(), "retorna valor atual"),
-        MachineTerminator::RetVoid => with_comment("ret_void".to_string(), "retorna sem valor"),
+        } => {
+            let comment = br_true_comment(then_label, else_label);
+            with_comment(format!("br_true {}, {}", then_label, else_label), comment)
+        }
+        MachineTerminator::Ret => with_comment("ret".to_string(), "retorna o valor atual da pilha"),
+        MachineTerminator::RetVoid => {
+            with_comment("ret_void".to_string(), "encerra a função sem retorno")
+        }
     }
+}
+
+fn jmp_comment(target: &str) -> &'static str {
+    if target.starts_with("loop_cond_") {
+        return "volta para a condição do loop";
+    }
+    if target.starts_with("loop_join_") {
+        return "segue para a saída do loop";
+    }
+    if target.starts_with("join_") || target.starts_with("logic_join_") {
+        return "segue para a convergência";
+    }
+    "salto incondicional para o próximo bloco"
+}
+
+fn br_true_comment<'a>(then_label: &'a str, else_label: &'a str) -> &'a str {
+    if then_label.starts_with("loop_") && else_label.starts_with("loop_join_") {
+        return "se verdadeiro entra no corpo do loop; senão sai do loop";
+    }
+    if then_label.starts_with("then_") && else_label.starts_with("else_") {
+        return "se verdadeiro vai para o ramo verdadeiro; senão vai para o ramo senão";
+    }
+    if then_label.starts_with("logic_rhs_") && else_label.starts_with("logic_short_") {
+        return "se verdadeiro continua avaliando; senão faz atalho lógico";
+    }
+    if then_label.starts_with("logic_short_") && else_label.starts_with("logic_rhs_") {
+        return "se verdadeiro faz atalho lógico; senão continua avaliando";
+    }
+    "se topo for verdadeiro vai para o primeiro alvo; senão para o segundo"
 }
 
 fn with_comment(op: String, comment: &str) -> String {
