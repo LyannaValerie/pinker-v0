@@ -1,5 +1,11 @@
 # Linha do tempo de fases
 
+- Fase 39 — rodada documental de consolidação da trilha "voltar aos trilhos" (sem fase funcional nova)
+  - `docs/roadmap.md` consolidado como trilha única oficial em 5 blocos (fundação -> memória -> saída `.s` -> bare metal -> tooling)
+  - precedência operacional explícita: `roadmap.md` (ordem ativa) > `future.md` (inventário amplo)
+  - regra de transição e critério de bloco concluído registrados
+  - sem alterações em parser/semântica/IR/CFG/selected/Machine/interpreter/backend
+
 - Fase 9 — concluída
   - disciplina de pilha, underflow, consistência entre predecessores, slots/temporários, aridade
 

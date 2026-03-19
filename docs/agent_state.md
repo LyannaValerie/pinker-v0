@@ -4,6 +4,16 @@
 - Branch de referência: `main`
 - Fonte de verdade: código mergeado no repositório
 
+## Diretriz consolidada de execução (rodada documental atual)
+- Não abrir trilha paralela.
+- Seguir a ordem consolidada em `docs/roadmap.md`.
+- Não pular para backend nativo antes da base mínima de tipos/modelagem.
+- Não antecipar módulos/strings/I/O à frente da trilha de kernel, salvo rodada documental explícita.
+- Assembly textual `.s` é a estratégia inicial preferível para backend.
+- Cada fase funcional deve permanecer pequena, auditável e com dependência real.
+- `docs/roadmap.md` tem precedência de execução sobre `docs/future.md`.
+- Usar checklist final para confirmar fases anteriores, evitando repetir torre histórica no corpo das respostas.
+
 ## Pipeline congelada
 semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> seleção -> validação seleção -> Machine -> validação Machine -> pseudo-asm -> validação backend textual.
 
@@ -43,9 +53,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 36: humanizar instruções individuais de `--machine` com comentários curtos
 - Fase 37: contextualizar os comentários de `--machine` por alvo/slot sem alterar semântica
 - Fase 38: tornar os comentários de `--machine` sensíveis ao papel do fluxo
+- Fase 39: rodada documental de consolidação da trilha única "voltar aos trilhos" em `docs/roadmap.md`
 
 ## Fase atual
-- Fase 38 concluída: comentários de `--machine` foram refinados para refletir melhor o papel do fluxo em `if`, `sempre que`, curto-circuito lógico e convergências (`join_*`/`logic_join_*`), mantendo opcode/terminador originais visíveis e sem alterar semântica. `--selected` e demais camadas não foram alterados.
+- Rodada documental de consolidação da trilha "voltar aos trilhos" concluída: roadmap oficial unificado em `docs/roadmap.md`, trilha paralela desativada, precedência operacional de `roadmap.md` sobre `future.md` registrada sem abrir fase funcional nova.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
