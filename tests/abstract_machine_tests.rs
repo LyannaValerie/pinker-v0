@@ -43,7 +43,7 @@ machine:
     locals []
     entry:  ; entrada da função
       vm push_bool verdade  ; empilha literal lógico
-      term br_true then_0, else_1  ; se verdadeiro vai para o ramo verdadeiro; senão vai para o ramo senão
+      term br_true then_0, else_1  ; se a condição for verdadeira, entra no ramo 'talvez'; senão vai para o 'senão'
     then_0:  ; ramo 'verdadeiro' (talvez)
       vm push_int 1  ; empilha literal inteiro
       term ret  ; retorna o valor atual da pilha
@@ -349,7 +349,7 @@ carinho principal() -> bombom {
 }";
     let if_out = render_machine(if_code).unwrap();
     assert!(if_out.contains(
-        "term br_true then_0, else_1  ; se verdadeiro vai para o ramo verdadeiro; senão vai para o ramo senão"
+        "term br_true then_0, else_1  ; se a condição for verdadeira, entra no ramo 'talvez'; senão vai para o 'senão'"
     ));
     assert!(if_out.contains("term ret  ; retorna o valor atual da pilha"));
 
@@ -362,9 +362,68 @@ carinho principal() -> bombom {
 }";
     let loop_out = render_machine(loop_code).unwrap();
     assert!(loop_out.contains(
-        "term br_true loop_0, loop_join_1  ; se verdadeiro entra no corpo do loop; senão sai do loop"
+        "term br_true loop_0, loop_join_1  ; se a condição do loop continuar verdadeira, entra no corpo; senão sai do loop"
     ));
     assert!(loop_out.contains("term jmp loop_cond_0  ; volta para a condição do loop"));
+}
+
+#[test]
+fn machine_br_true_logico_tem_contexto_de_curto_circuito() {
+    let code = "\
+pacote main;
+carinho principal() -> bombom {
+  talvez (verdade || falso) { mimo 1; } senao { mimo 0; }
+}";
+    let out = render_machine(code).unwrap();
+    assert!(out.contains("term br_true logic_short_"));
+    assert!(out.contains(
+        "; se o valor atual já decide o resultado, segue pelo atalho lógico; senão avalia o lado direito"
+    ));
+}
+
+#[test]
+fn machine_jmp_para_join_e_logic_join_tem_comentario_especifico() {
+    let if_code = "\
+pacote main;
+carinho principal() -> bombom {
+  nova mut x = 0;
+  talvez verdade { x = 1; } senao { x = 2; }
+  mimo x;
+}";
+    let if_out = render_machine(if_code).unwrap();
+    assert!(if_out.contains("term jmp join_"));
+    assert!(if_out.contains("; segue para a convergência dos ramos"));
+
+    let logic_code = "\
+pacote main;
+carinho principal() -> bombom {
+  nova mut x = 0;
+  talvez (verdade && verdade) { x = 1; } senao { x = 2; }
+  mimo x;
+}";
+    let logic_out = render_machine(logic_code).unwrap();
+    assert!(logic_out.contains("term jmp logic_join_"));
+    assert!(logic_out.contains("; continua após o atalho lógico"));
+}
+
+#[test]
+fn machine_fluxos_auxiliares_break_continue_tem_comentario_especifico() {
+    let code = "\
+pacote main;
+carinho principal() -> bombom {
+  nova mut x = 0;
+  sempre que x < 3 {
+    x = x + 1;
+    talvez x == 1 { continuar; }
+    talvez x == 2 { quebrar; }
+  }
+  mimo x;
+}";
+    let out = render_machine(code).unwrap();
+    assert!(out.contains("loop_continue_cont_"));
+    assert!(out.contains("; caminho auxiliar após continuar"));
+    assert!(out.contains("loop_break_cont_"));
+    assert!(out.contains("; caminho auxiliar após quebrar"));
 }
 
 #[test]

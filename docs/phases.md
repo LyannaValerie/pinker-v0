@@ -259,3 +259,12 @@
 - `call` e `call_void`: incluem nome e aridade; `call_void` explicita ausência de retorno.
 - `ret` e `ret_void`: comentários ajustados para linguagem mais direta sem esconder terminador.
 - Sem alterações em semântica, parser, lowering, interpretador, `--selected`, `--cfg-ir`, `--pseudo-asm` ou `--run`.
+
+
+## Fase 38 — tornar os comentários de `--machine` sensíveis ao papel do fluxo
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37 → 38 verificada e preservada.
+- Escopo mantido estrito em renderização textual de `--machine` (`render_term`/heurísticas de comentário e anotação de bloco).
+- `br_true` passou a considerar também o bloco atual para diferenciar melhor `if`, `sempre que` e curto-circuito lógico.
+- `jmp` ganhou comentários específicos para `join_*`, `logic_join_*`, `loop_break_cont_*` e `loop_continue_cont_*`, além dos casos já existentes.
+- Comentários de blocos de convergência foram ajustados para enfatizar retomada de fluxo (`join_*` e `logic_join_*`).
+- Sem alteração de semântica, Machine, lowering, parser, interpretador, opcodes ou flags; `--selected` permaneceu inalterado.

@@ -412,7 +412,11 @@ pub fn render_program(program: &MachineProgram) -> String {
             for i in &b.code {
                 line(&mut out, 3, &format!("vm {}", render_instr(i)));
             }
-            line(&mut out, 3, &format!("term {}", render_term(&b.terminator)));
+            line(
+                &mut out,
+                3,
+                &format!("term {}", render_term(&b.label, &b.terminator)),
+            );
         }
     }
 
@@ -463,11 +467,17 @@ fn block_role_annotation(label: &str) -> &'static str {
     if label.starts_with("loop_join_") {
         return "  ; saída do loop";
     }
+    if label.starts_with("loop_break_cont_") {
+        return "  ; caminho auxiliar após quebrar";
+    }
+    if label.starts_with("loop_continue_cont_") {
+        return "  ; caminho auxiliar após continuar";
+    }
     if label.starts_with("loop_") {
         return "  ; corpo do loop";
     }
     if label.starts_with("join_") {
-        return "  ; convergência de ramos";
+        return "  ; ponto de retomada após if/senão";
     }
     if label.starts_with("logic_rhs_") {
         return "  ; avalia lado direito (&&/||)";
@@ -476,7 +486,7 @@ fn block_role_annotation(label: &str) -> &'static str {
         return "  ; atalho (curto-circuito)";
     }
     if label.starts_with("logic_join_") {
-        return "  ; convergência lógica (&&/||)";
+        return "  ; ponto de continuação após decisão lógica";
     }
     ""
 }
@@ -542,17 +552,17 @@ fn render_instr(i: &MachineInstr) -> String {
     }
 }
 
-fn render_term(t: &MachineTerminator) -> String {
+fn render_term(current_label: &str, t: &MachineTerminator) -> String {
     match t {
         MachineTerminator::Jmp(l) => {
-            let comment = jmp_comment(l);
+            let comment = jmp_comment(current_label, l);
             with_comment(format!("jmp {}", l), comment)
         }
         MachineTerminator::BrTrue {
             then_label,
             else_label,
         } => {
-            let comment = br_true_comment(then_label, else_label);
+            let comment = br_true_comment(current_label, then_label, else_label);
             with_comment(format!("br_true {}, {}", then_label, else_label), comment)
         }
         MachineTerminator::Ret => with_comment("ret".to_string(), "retorna o valor atual da pilha"),
@@ -562,31 +572,59 @@ fn render_term(t: &MachineTerminator) -> String {
     }
 }
 
-fn jmp_comment(target: &str) -> &'static str {
+fn jmp_comment<'a>(current_label: &'a str, target: &'a str) -> &'a str {
     if target.starts_with("loop_cond_") {
         return "volta para a condição do loop";
     }
     if target.starts_with("loop_join_") {
         return "segue para a saída do loop";
     }
-    if target.starts_with("join_") || target.starts_with("logic_join_") {
-        return "segue para a convergência";
+    if target.starts_with("loop_break_cont_") {
+        return "segue pelo caminho auxiliar após quebrar";
+    }
+    if target.starts_with("loop_continue_cont_") {
+        return "segue pelo caminho auxiliar após continuar";
+    }
+    if target.starts_with("join_") {
+        return "segue para a convergência dos ramos";
+    }
+    if target.starts_with("logic_join_") {
+        return "continua após o atalho lógico";
+    }
+    if current_label.starts_with("join_") {
+        return "retoma o fluxo após convergência de ramos";
+    }
+    if current_label.starts_with("logic_join_") {
+        return "retoma o fluxo após decisão lógica";
     }
     "salto incondicional para o próximo bloco"
 }
 
-fn br_true_comment<'a>(then_label: &'a str, else_label: &'a str) -> &'a str {
-    if then_label.starts_with("loop_") && else_label.starts_with("loop_join_") {
-        return "se verdadeiro entra no corpo do loop; senão sai do loop";
+fn br_true_comment<'a>(
+    current_label: &'a str,
+    then_label: &'a str,
+    else_label: &'a str,
+) -> &'a str {
+    if current_label.starts_with("loop_cond_")
+        && then_label.starts_with("loop_")
+        && else_label.starts_with("loop_join_")
+    {
+        return "se a condição do loop continuar verdadeira, entra no corpo; senão sai do loop";
+    }
+    if then_label.starts_with("loop_cond_") && else_label.starts_with("loop_continue_cont_") {
+        return "se for para continuar, volta ao teste do loop; senão segue pelo caminho auxiliar";
+    }
+    if then_label.starts_with("loop_join_") && else_label.starts_with("loop_break_cont_") {
+        return "se for para quebrar, sai do loop; senão segue pelo caminho auxiliar";
     }
     if then_label.starts_with("then_") && else_label.starts_with("else_") {
-        return "se verdadeiro vai para o ramo verdadeiro; senão vai para o ramo senão";
+        return "se a condição for verdadeira, entra no ramo 'talvez'; senão vai para o 'senão'";
     }
     if then_label.starts_with("logic_rhs_") && else_label.starts_with("logic_short_") {
-        return "se verdadeiro continua avaliando; senão faz atalho lógico";
+        return "se o valor atual ainda não decide o resultado, avalia o lado direito; senão segue pelo atalho lógico";
     }
     if then_label.starts_with("logic_short_") && else_label.starts_with("logic_rhs_") {
-        return "se verdadeiro faz atalho lógico; senão continua avaliando";
+        return "se o valor atual já decide o resultado, segue pelo atalho lógico; senão avalia o lado direito";
     }
     "se topo for verdadeiro vai para o primeiro alvo; senão para o segundo"
 }
