@@ -40,9 +40,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 33: adicionar operadores lógicos `&&` e `||` com short-circuit
 - Fase 34: adicionar licença do projeto e documentar seu uso básico
 - Fase 35: humanizar a renderização de `--machine` sem alterar a Machine
+- Fase 36: humanizar instruções individuais de `--machine` com comentários curtos
 
 ## Fase atual
-- Fase 35 concluída: renderização de `--machine` melhorada para legibilidade humana. Nomes limpos em params/locals, linha `temps` separada, anotações de papel em blocos. Machine, interpretador e semântica não foram alterados.
+- Fase 36 concluída: instruções e terminadores de `--machine` agora incluem comentários curtos e estáveis por linha (`; ...`) mantendo a operação original visível. `--selected` e demais camadas não foram alterados.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/test`
@@ -258,6 +259,13 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - `--selected` NÃO alterado (deliberadamente fora do escopo).
 
 ## Itens adiados (mantidos após Fase 35)
-- Anotações em terminadores (`br_true`, `jmp`, `ret`) — block role annotations já cobrem o contexto de forma suficiente.
 - Spans reais por instrução de máquina (requer propagar spans do AST até MachineInstr).
 - Modo alternativo de renderização ou `--machine-legivel` — desnecessário dado o resultado desta fase.
+
+## Fase 36 — humanizar instruções individuais de `--machine`
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36 verificada.
+- `render_instr` passou a anexar comentários curtos de intenção por operação (carregar, gravar, chamar, operar/comparar).
+- `render_term` passou a explicar fluxo de controle por terminador (`br_true`, `jmp`, `ret`, `ret_void`).
+- A instrução técnica original foi mantida sem abreviação ou ocultação; semântica da Machine inalterada.
+- Cobertura de testes atualizada para novo formato e reforçada com checks de substring estável para `call`, `br_true`, `jmp` e `ret`.
+- `--selected`, `--cfg-ir`, `--pseudo-asm`, `--run`, parser, lowering CFG e interpretador permaneceram sem mudanças.

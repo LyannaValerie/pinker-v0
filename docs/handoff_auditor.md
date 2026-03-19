@@ -104,6 +104,45 @@ Preservada em todos os docs consultados. Ordem 21a → 21b → 22 → 23a → 23
 
 ---
 
+## Auditoria — Fase 36
+
+### Objetivo
+Humanizar as instruções individuais da saída `--machine` (linhas `vm` e `term`) mantendo semântica e estrutura técnica originais.
+
+### Estado real encontrado
+- Workspace operacional após Fase 35.
+- `cargo build` e `cargo test` passavam antes das mudanças.
+- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35 verificada.
+
+### Arquivos alterados
+- `src/abstract_machine.rs` — `render_instr` e `render_term` com comentários curtos estáveis; helper `with_comment`
+- `tests/abstract_machine_tests.rs` — snapshots/exatos ajustados e testes novos para `call`, `br_true`, `jmp`, `ret`
+- `docs/phases.md` — Fase 36 registrada
+- `docs/agent_state.md` — Fase 36 marcada como concluída
+- `docs/handoff_codex.md` — rodada atual atualizada
+- `docs/handoff_auditor.md` — este bloco
+
+### O que melhorou
+- Instruções de carga/gravação, chamadas, operações e comparações agora explicam ação em linguagem direta.
+- Terminadores (`br_true`, `jmp`, `ret`, `ret_void`) explicam o fluxo sem esconder o opcode original.
+- Formato mantém a instrução técnica intacta, só adicionando `; comentário`.
+
+### O que permaneceu igual
+- Sem mudanças em semântica, parser, lowering, interpretador ou validação.
+- `--selected`, `--cfg-ir`, `--pseudo-asm` e `--run` sem alteração.
+- Nenhuma nova flag adicionada.
+
+### Continuidade histórica
+Preservada. Ordem 21a → ... → 35 → 36 refletida em `docs/phases.md` e `docs/agent_state.md`.
+
+### Status da Fase 36
+**CONCLUÍDA.** Escopo respeitado, diff pequeno e localizado, sem regressão.
+
+### Recomendação de merge
+**MERGE RECOMENDADO.**
+
+---
+
 ## Auditoria — Fase 28c
 
 ### Objetivo

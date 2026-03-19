@@ -17,8 +17,8 @@ machine:
     params []
     locals []
     entry:  ; entrada da função
-      vm push_int 0
-      term ret
+      vm push_int 0  ; empilha literal inteiro
+      term ret  ; retorna valor atual
 "
     );
 }
@@ -42,14 +42,14 @@ machine:
     params []
     locals []
     entry:  ; entrada da função
-      vm push_bool verdade
-      term br_true then_0, else_1
+      vm push_bool verdade  ; empilha literal lógico
+      term br_true then_0, else_1  ; se topo for verdadeiro vai para then, senão para else
     then_0:  ; ramo 'verdadeiro' (talvez)
-      vm push_int 1
-      term ret
+      vm push_int 1  ; empilha literal inteiro
+      term ret  ; retorna valor atual
     else_1:  ; ramo 'senão'
-      vm push_int 0
-      term ret
+      vm push_int 0  ; empilha literal inteiro
+      term ret  ; retorna valor atual
 "
     );
 }
@@ -76,30 +76,30 @@ machine:
     params []
     locals []
     entry:  ; entrada da função
-      term ret_void
+      term ret_void  ; retorna sem valor
   func soma:
     params x, y
     locals []
     temps  %t0  ; gerados pelo compilador
     entry:  ; entrada da função
-      vm load_slot x
-      vm load_slot y
-      vm add
-      vm store_slot %t0
-      vm load_slot %t0
-      term ret
+      vm load_slot x  ; carrega valor do slot para a pilha
+      vm load_slot y  ; carrega valor do slot para a pilha
+      vm add  ; soma os dois topos da pilha
+      vm store_slot %t0  ; guarda topo da pilha no slot
+      vm load_slot %t0  ; carrega valor do slot para a pilha
+      term ret  ; retorna valor atual
   func principal:
     params []
     locals []
     temps  %t0  ; gerados pelo compilador
     entry:  ; entrada da função
-      vm call_void log, 0
-      vm push_int 1
-      vm push_int 2
-      vm call soma, 2
-      vm store_slot %t0
-      vm load_slot %t0
-      term ret
+      vm call_void log, 0  ; chama função sem retorno
+      vm push_int 1  ; empilha literal inteiro
+      vm push_int 2  ; empilha literal inteiro
+      vm call soma, 2  ; chama função e empilha retorno
+      vm store_slot %t0  ; guarda topo da pilha no slot
+      vm load_slot %t0  ; carrega valor do slot para a pilha
+      term ret  ; retorna valor atual
 "
     );
 }
@@ -114,8 +114,8 @@ carinho principal() -> bombom {
   mimo -(x + y);
 }";
     let out = render_machine(code).unwrap();
-    assert!(out.contains("vm add\n      vm store_slot %t0\n"));
-    assert!(out.contains("vm neg\n      vm store_slot %t1\n"));
+    assert!(out.contains("vm add  ; soma os dois topos da pilha\n      vm store_slot %t0"));
+    assert!(out.contains("vm neg  ; negação aritmética do topo\n      vm store_slot %t1"));
 }
 
 #[test]
@@ -134,8 +134,8 @@ machine:
     params []
     locals []
     entry:  ; entrada da função
-      vm push_int 0
-      term ret
+      vm push_int 0  ; empilha literal inteiro
+      term ret  ; retorna valor atual
 Análise semântica concluída sem erros.
 "
     );
@@ -289,11 +289,11 @@ carinho principal() -> bombom {
 }";
     let out = render_machine(code).unwrap();
     assert!(
-        out.contains("vm store_slot x"),
+        out.contains("vm store_slot x  ; guarda topo da pilha no slot"),
         "store_slot deve mostrar nome limpo"
     );
     assert!(
-        out.contains("vm load_slot x"),
+        out.contains("vm load_slot x  ; carrega valor do slot para a pilha"),
         "load_slot deve mostrar nome limpo"
     );
     assert!(
@@ -310,13 +310,47 @@ pacote main;
 carinho principal() -> bombom { mimo 1 + 2; }";
     let out = render_machine(code).unwrap();
     assert!(
-        out.contains("vm store_slot %t0"),
+        out.contains("vm store_slot %t0  ; guarda topo da pilha no slot"),
         "temporários internos devem manter formato %tN"
     );
     assert!(
-        out.contains("vm load_slot %t0"),
+        out.contains("vm load_slot %t0  ; carrega valor do slot para a pilha"),
         "temporários internos devem manter formato %tN em load"
     );
+}
+
+#[test]
+fn machine_instrucao_call_tem_descricao_humana() {
+    let code = "\
+pacote main;
+carinho soma(x: bombom, y: bombom) -> bombom { mimo x + y; }
+carinho principal() -> bombom { mimo soma(1, 2); }";
+    let out = render_machine(code).unwrap();
+    assert!(out.contains("vm call soma, 2  ; chama função e empilha retorno"));
+}
+
+#[test]
+fn machine_terminadores_tem_descricoes_humanas() {
+    let if_code = "\
+pacote main;
+carinho principal() -> bombom {
+  talvez verdade { mimo 1; } senao { mimo 0; }
+}";
+    let if_out = render_machine(if_code).unwrap();
+    assert!(if_out.contains(
+        "term br_true then_0, else_1  ; se topo for verdadeiro vai para then, senão para else"
+    ));
+    assert!(if_out.contains("term ret  ; retorna valor atual"));
+
+    let loop_code = "\
+pacote main;
+carinho principal() -> bombom {
+  nova mut x = 0;
+  sempre que x < 1 { x = x + 1; }
+  mimo x;
+}";
+    let loop_out = render_machine(loop_code).unwrap();
+    assert!(loop_out.contains("term jmp loop_cond_0  ; salto incondicional"));
 }
 
 #[test]

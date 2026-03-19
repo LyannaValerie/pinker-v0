@@ -1,43 +1,47 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- **Fase 35 implementada**: humanização da renderização de `--machine` sem qualquer mudança na Machine ou em outras camadas.
+- **Fase 36 implementada**: humanização das instruções individuais da saída `--machine` com comentários curtos por linha, sem alterar semântica.
 
 ## Estado real encontrado
-- Continuidade histórica 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 verificada antes da implementação da Fase 35.
+- Continuidade histórica validada: 21a → 21b → 22 → 23a → 23b → 24 → 25 → 26 → 27a → 27b → 28a → 28b → 28c → 29 → 30 → 31 → 32 → 33 → 34 → 35.
 - Workspace local mantido como fonte de verdade.
-- `cargo build` e `cargo test` passavam antes das mudanças (base saudável).
+- Baseline antes das mudanças: `cargo build` e `cargo test` passavam.
 
-## Ação aplicada (Fase 35)
-- `src/abstract_machine.rs`: adicionados helpers `clean_slot_display`, `is_render_temp`, `block_role_annotation`.
-- `render_program`: params/locals exibem nomes limpos; linha `temps` adicionada quando há temporários; blocos recebem anotação de papel.
-- `render_instr`: `LoadSlot`/`StoreSlot` usam `clean_slot_display` — variáveis do usuário mostram nome limpo, temporários mantêm `%tN`.
-- `tests/abstract_machine_tests.rs`: 4 testes de igualdade exata atualizados para novo formato; 7 novos testes adicionados (Fase 35).
-- Docs de fase/estado/handoff atualizados.
+## Ação aplicada (Fase 36)
+- `src/abstract_machine.rs`:
+  - `render_instr` agora mantém o opcode original e anexa comentário curto (`; ...`) explicando ação da instrução.
+  - `render_term` agora mantém o terminador original e anexa comentário curto explicando o fluxo.
+  - helper local `with_comment` adicionado para padronizar formatação.
+- `tests/abstract_machine_tests.rs`:
+  - testes de igualdade exata atualizados para o novo formato com comentários em linha.
+  - cobertura nova adicionada para descrição de `call`, `br_true`, `jmp` e `ret`.
+  - cobertura já existente de nomes limpos (`params/locals`) e linha `temps` mantida.
+- Docs atualizados: `docs/phases.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
 
-## O que melhorou na renderização
-- Params/locals: `%x#0, %y#0` → `x, y`
-- Temporários: listados separadamente na linha `temps  %t0, %t1  ; gerados pelo compilador`
-- Instruções de slot: `vm load_slot %x#0` → `vm load_slot x`
-- Blocos: `entry:` → `entry:  ; entrada da função`; `then_0:` → `then_0:  ; ramo 'verdadeiro' (talvez)`; etc.
+## O que melhorou na renderização `--machine`
+- Leituras/escritas de slot ficaram explícitas (`carrega valor do slot`, `guarda topo da pilha`).
+- Literais e globals indicam claramente empilhamento/carregamento.
+- Chamadas (`call`/`call_void`) indicam retorno vs sem retorno.
+- Operações aritméticas/lógicas/bitwise/comparações descrevem a intenção.
+- Terminadores explicam desvio/retorno, especialmente `br_true` (“se topo for verdadeiro... senão...”).
 
 ## O que permaneceu igual
-- Machine: nenhuma mudança de semântica ou estrutura.
-- Terminadores (`br_true`, `jmp`, `ret`, `ret_void`): formato inalterado.
-- `--selected`, `--cfg-ir`, `--pseudo-asm`, `--run`: inalterados.
-- Validação de Machine: inalterada.
-- Interpretador: inalterado.
+- Sem alteração na estrutura/semântica da Machine.
+- Sem alteração em parser, semântica, lowering CFG, interpretador.
+- Sem alteração em `--selected`, `--cfg-ir`, `--pseudo-asm`, `--run`.
+- Sem criação de nova flag.
 
 ## Arquivos alterados
-- `src/abstract_machine.rs` (apenas funções de renderização)
-- `tests/abstract_machine_tests.rs` (4 testes atualizados + 7 novos)
+- `src/abstract_machine.rs`
+- `tests/abstract_machine_tests.rs`
 - `docs/phases.md`
 - `docs/agent_state.md`
 - `docs/handoff_codex.md`
-- `docs/handoff_auditor.md`
 
 ## Comandos executados
 - `cargo build`: ok
 - `cargo check`: ok
 - `cargo fmt --check`: ok
-- `cargo test`: ok (todos os testes passaram)
+- `cargo test`: ok
+- `cargo run -- --machine examples/showcase_completo.pink`: ok, com melhora visível nas linhas `vm`/`term`
