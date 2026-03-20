@@ -82,8 +82,12 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 56 concluída: inline asm mínimo com keyword `sussurro` como statement textual (`sussurro("...")` ou múltiplas strings), preservado em frontend/AST/semântica/IR.
 - Política da Fase 56: somente strings literais, ao menos uma string, rejeição de string vazia; sem constraints, clobbers, inputs/outputs ou execução no runtime.
 - Limite operacional explícito da Fase 56: CFG IR/Machine/runtime ainda não loweram inline asm (erro claro em `--cfg-ir`).
+- Fase 57 concluída: freestanding/no-std como marca explícita de unidade com `livre;` no topo do programa (após `pacote`, antes de itens).
+- Política da Fase 57: `livre;` é marca semântica de intenção de ambiente freestanding (sem binário bootável e sem runtime bare-metal completo nesta etapa).
+- Propagação mínima da Fase 57: frontend/AST/JSON preservam a marca e o pipeline textual exibe metadata `mode livre|hospedado` em IR/CFG/selected/pseudo-asm/`.s`.
+- Relação com entrada: exigência atual de `principal` foi mantida sem alterações nesta fase.
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
-- Próximo item normal do roadmap principal: Bloco 4, item 2 (freestanding / no-std).
+- Próximo item normal do roadmap principal: Bloco 4, item 3 (linker script / boot entry).
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`

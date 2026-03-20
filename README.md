@@ -9,6 +9,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - aliases de tipo (`apelido`), arrays fixos (`[tipo; N]`), structs (`ninho`), ponteiros (`seta<tipo>`)
 - qualificador `fragil` (`volatile`) para ponteiros explícitos (`fragil seta<tipo>`)
 - inline asm mínimo como statement textual com `sussurro("...")` (ou múltiplas strings), preservado até IR
+- marca de unidade freestanding/no-std com `livre;` no topo do programa
 - cast explícito controlado com `virar` (inteiro -> inteiro no frontend/semântica/IR estruturada)
 - consultas estáticas de layout com `peso(tipo)` e `alinhamento(tipo)`
 - chamadas diretas por nome
@@ -32,6 +33,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - semântica operacional de `fragil` em runtime/backend (nesta fase é qualificador semântico preservado no pipeline)
 - lowering operacional de `virar` em CFG/Machine/runtime (`--check` aceita o subset da fase; `--run`/`--cfg-ir` ainda não executam cast)
 - lowering operacional de inline asm em CFG/Machine/runtime (`--check`/`--ir` aceitam o subset da fase; `--cfg-ir`/`--run` ainda não executam `sussurro`)
+- freestanding/no-std operacional real (nesta fase `livre;` é marca semântica de intenção, não runtime bare-metal executável)
 - runtime signed correto (tipos `i8`–`i64` são bloqueados no `--run` até representação adequada)
 
 ## Build e testes
@@ -89,6 +91,8 @@ cargo run -- --check examples/check_volatile_invalido.pink
 cargo run -- --check examples/check_inline_asm_valido.pink
 cargo run -- --check examples/check_inline_asm_multilinha.pink
 cargo run -- --check examples/check_inline_asm_invalido_vazio.pink
+cargo run -- --check examples/check_freestanding_valido.pink
+cargo run -- --check examples/check_freestanding_invalido_fora_topo.pink
 ```
 
 ## Modos da CLI
@@ -126,6 +130,8 @@ cargo test --test backend_s_external_toolchain_tests -- --nocapture
 Se não houver toolchain C no ambiente, o teste de fluxo real é pulado sem quebrar a suíte.
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
+
+Estado explícito da Fase 57: `livre;` só pode aparecer uma vez no topo da unidade (após `pacote` e antes dos itens). A marca é preservada no frontend e propagada como metadata de modo (`livre`/`hospedado`) nas saídas textuais (`--ir`, `--cfg-ir`, `--selected`, `--pseudo-asm`, `--asm-s`). Nesta fase, isso não remove a exigência de `principal`, não gera binário bootável e não implementa linker script/boot entry/kernel funcional.
 
 ## Validação da Machine (sanity check de pilha)
 A camada `--machine` agora valida:

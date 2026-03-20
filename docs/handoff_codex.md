@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada funcional: **Fase 56 — inline asm mínimo (`sussurro`)** (primeiro item do Bloco 4).
+- Rodada funcional: **Fase 57 — freestanding / no-std (`livre;`)** (segundo item do Bloco 4).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -166,3 +166,19 @@
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
 - Bloco 4 foi iniciado com o item 1 concluído.
 - Próximo item normal do roadmap principal: Bloco 4, item 2 (freestanding / no-std).
+
+## O que entrou na Fase 57
+- Frontend: keyword `livre` adicionada com parse de marcador de unidade `livre;`.
+- Regra de posição: marcador permitido somente no topo do programa, no máximo uma vez, após `pacote` e antes dos itens.
+- AST/JSON/printer: `Program` preserva a marca de freestanding como metadata explícita.
+- Semântica/política: `livre;` expressa intenção de ambiente freestanding/no-std, sem efeito de boot/runtime real nesta fase.
+- Propagação no pipeline: IR, CFG, selected, pseudo-asm e backend `.s` passaram a renderizar `mode livre|hospedado`.
+- Relação com `principal`: exigência de `principal() -> bombom` foi mantida para preservar continuidade.
+- Relação com `sussurro`: inline asm permanece permitido em código marcado como `livre`, sem semântica operacional adicional.
+- Exemplos versionados: `examples/check_freestanding_valido.pink` e `examples/check_freestanding_invalido_fora_topo.pink`.
+
+## Continuidade de roadmap após Fase 57
+- Fase 56 passa a ser a fase funcional principal anterior.
+- Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
+- Bloco 4 avançou com os itens 1 e 2 concluídos.
+- Próximo item normal do roadmap principal: Bloco 4, item 3 (linker script / boot entry).

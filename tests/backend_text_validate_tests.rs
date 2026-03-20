@@ -9,6 +9,7 @@ use pinker_v0::ir::{BinaryOpIR, TypeIR};
 
 fn valid_program() -> BackendTextProgram {
     BackendTextProgram {
+        is_freestanding: false,
         module_name: "main".to_string(),
         globals: vec![BackendTextGlobal {
             name: "LIMITE".to_string(),
@@ -147,6 +148,7 @@ fn falha_global_invalida() {
 #[test]
 fn caso_call_binaria_temporario_if_else_valido() {
     let p = BackendTextProgram {
+        is_freestanding: false,
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![
@@ -220,7 +222,7 @@ fn backend_text_invalido_nao_e_impresso() {
 #[test]
 fn formato_estrutura_estavel() {
     let out = pinker_v0::backend_text::render_program(&valid_program());
-    assert!(out.starts_with("module main\nglobals:\n"));
+    assert!(out.starts_with("module main\nmode hospedado\nglobals:\n"));
     assert!(out.contains("text:\n  func principal:\n"));
     assert!(out.contains("entry:\n      ins mov %x#0, @LIMITE\n      term ret %x#0\n"));
 }

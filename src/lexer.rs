@@ -226,6 +226,7 @@ impl<'a> Lexer<'a> {
                                 "seta" => TokenKind::KwSeta,
                                 "fragil" => TokenKind::KwFragil,
                                 "sussurro" => TokenKind::KwSussurro,
+                                "livre" => TokenKind::KwLivre,
                                 "virar" => TokenKind::KwVirar,
                                 "peso" => TokenKind::KwPeso,
                                 "alinhamento" => TokenKind::KwAlinhamento,

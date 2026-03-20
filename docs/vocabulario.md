@@ -33,6 +33,7 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `alinhamento`  | alignof explícito| alinhar com cuidado   |
 | `fragil`       | volatile         | cuidado redobrado     |
 | `sussurro`     | inline asm       | fala direta mínima com máquina |
+| `livre`        | freestanding/no-std (marca de unidade) | intenção de ambiente sem runtime hospedeiro implícito |
 
 ---
 
@@ -102,6 +103,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 | ~~align/alinhamento~~ | ~~`alinhamento`~~ | `ajuste`     | implementado na Fase 51             |
 | static           | `raiz`      | `ancora`             | fixo, inamovivel                    |
 | ~~inline asm~~   | ~~`sussurro`~~ | `sopro`          | implementado na Fase 56             |
+| ~~freestanding / no-std~~ | ~~`livre`~~ | `desnudo`     | implementado na Fase 57             |
 | alloc            | `reserva`   | `guardar`            | separar espaco com intencao         |
 | free / drop      | `soltar`    | `liberar`, `largar`  | deixar ir                           |
 

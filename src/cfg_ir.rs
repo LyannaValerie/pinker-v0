@@ -19,6 +19,7 @@ use crate::token::Span;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramCfgIR {
     pub module_name: String,
+    pub is_freestanding: bool,
     pub consts: Vec<GlobalConstCfgIR>,
     pub functions: Vec<FunctionCfgIR>,
 }
@@ -159,6 +160,7 @@ pub fn lower_program(program: &ProgramIR) -> Result<ProgramCfgIR, PinkerError> {
 
     Ok(ProgramCfgIR {
         module_name: program.module_name.clone(),
+        is_freestanding: program.is_freestanding,
         consts,
         functions,
     })
@@ -167,6 +169,18 @@ pub fn lower_program(program: &ProgramIR) -> Result<ProgramCfgIR, PinkerError> {
 pub fn render_program(program: &ProgramCfgIR) -> String {
     let mut out = String::new();
     line(&mut out, 0, &format!("module {}", program.module_name));
+    line(
+        &mut out,
+        0,
+        &format!(
+            "mode {}",
+            if program.is_freestanding {
+                "livre"
+            } else {
+                "hospedado"
+            }
+        ),
+    );
     line(&mut out, 0, "consts:");
     if program.consts.is_empty() {
         line(&mut out, 1, "[]");

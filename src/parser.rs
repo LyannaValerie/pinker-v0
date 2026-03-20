@@ -93,12 +93,23 @@ impl Parser {
             None
         };
 
+        let mut freestanding = None;
+        if self.match_token(TokenKind::KwLivre) {
+            let marker_span = self.previous().span;
+            self.consume(TokenKind::Semi, ";")?;
+            freestanding = Some(merge_span(marker_span, self.previous().span));
+        }
+
         let mut items = Vec::new();
         while self.peek().is_some() {
             items.push(self.parse_item()?);
         }
 
-        Ok(Program { package, items })
+        Ok(Program {
+            package,
+            freestanding,
+            items,
+        })
     }
 
     fn parse_item(&mut self) -> Result<Item, PinkerError> {
@@ -110,6 +121,12 @@ impl Parser {
             Ok(Item::TypeAlias(self.parse_type_alias()?))
         } else if self.match_token(TokenKind::KwNinho) {
             Ok(Item::Struct(self.parse_struct_decl()?))
+        } else if self.match_token(TokenKind::KwLivre) {
+            Err(PinkerError::Expected {
+                expected: "marcador `livre;` apenas uma vez no topo do programa (após `pacote`, antes dos itens)".to_string(),
+                found: "livre".to_string(),
+                span: self.previous().span,
+            })
         } else {
             Err(PinkerError::Expected {
                 expected: "carinho, eterno, apelido ou ninho".to_string(),

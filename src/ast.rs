@@ -3,6 +3,7 @@ use crate::token::{Span, TokenKind};
 #[derive(Debug, Clone)]
 pub struct Program {
     pub package: Option<PackageDecl>,
+    pub freestanding: Option<Span>,
     pub items: Vec<Item>,
 }
 
@@ -22,6 +23,10 @@ impl Program {
             Some(package) => writer.field_value("package", |writer| package.write_json(writer)),
             None => writer.field_null("package"),
         }
+        match self.freestanding {
+            Some(span) => writer.field_span("freestanding", span),
+            None => writer.field_null("freestanding"),
+        }
         writer.field_array("items", &self.items, |writer, item| item.write_json(writer));
         writer.end_object();
     }
@@ -31,7 +36,17 @@ impl Program {
             if let Some(last) = self.items.last() {
                 return package.span.merge(last.span());
             }
-            return package.span;
+            return self
+                .freestanding
+                .map(|freestanding| package.span.merge(freestanding))
+                .unwrap_or(package.span);
+        }
+
+        if let Some(freestanding) = self.freestanding {
+            if let Some(last) = self.items.last() {
+                return freestanding.merge(last.span());
+            }
+            return freestanding;
         }
 
         self.items

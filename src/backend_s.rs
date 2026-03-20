@@ -154,6 +154,18 @@ pub fn render_program(program: &BackendTextProgram) -> String {
         "; pinker v0 textual .s (fase 54, abi textual minima, derivado de --selected)",
     );
     line(&mut out, 0, &format!("; module {}", program.module_name));
+    line(
+        &mut out,
+        0,
+        &format!(
+            "; mode {}",
+            if program.is_freestanding {
+                "livre (freestanding intent)"
+            } else {
+                "hospedado"
+            }
+        ),
+    );
     line(&mut out, 0, "; abi pinker.text.v0");
     line(&mut out, 0, ".text");
 

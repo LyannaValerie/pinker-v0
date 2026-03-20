@@ -25,6 +25,7 @@ carinho principal() -> bombom { mimo LIMITE; }";
         ir,
         "\
 module main
+mode hospedado
 consts:
   const @LIMITE: bombom = 10:bombom
 functions:
@@ -51,6 +52,7 @@ carinho principal() -> bombom {
         ir,
         "\
 module main
+mode hospedado
 consts:
   []
 functions:
@@ -114,6 +116,7 @@ carinho principal() -> bombom {
         ir,
         "\
 module main
+mode hospedado
 consts:
   []
 functions:
@@ -141,6 +144,7 @@ carinho principal() -> bombom { mimo soma(1, 2); }";
         ir,
         "\
 module main
+mode hospedado
 consts:
   []
 functions:
@@ -174,6 +178,7 @@ carinho principal() -> bombom {
         ir,
         "\
 module main
+mode hospedado
 consts:
   []
 functions:
@@ -201,6 +206,7 @@ fn ir_de_principal_tem_cabecalho_estavel() {
         "\
 === IR ===
 module main
+mode hospedado
 consts:
   []
 functions:

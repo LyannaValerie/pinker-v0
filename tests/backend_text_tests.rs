@@ -10,6 +10,7 @@ fn emite_funcao_simples() {
         out,
         "\
 module main
+mode hospedado
 globals:
   []
 text:
@@ -34,6 +35,7 @@ carinho principal() -> bombom {
         out,
         "\
 module main
+mode hospedado
 globals:
   []
 text:
@@ -63,6 +65,7 @@ carinho principal() -> bombom {
         out,
         "\
 module main
+mode hospedado
 globals:
   []
 text:
@@ -91,6 +94,7 @@ carinho principal() -> bombom { mimo soma(1, 2); }";
         out,
         "\
 module main
+mode hospedado
 globals:
   []
 text:
@@ -124,6 +128,7 @@ carinho principal() -> bombom {
         out,
         "\
 module main
+mode hospedado
 globals:
   []
 text:
@@ -153,6 +158,7 @@ carinho principal() -> bombom { mimo LIMITE; }";
         out,
         "\
 module main
+mode hospedado
 globals:
   global @LIMITE = 10
 text:
@@ -174,6 +180,7 @@ fn cli_pseudo_asm_header_estavel() {
         "\
 === PSEUDO ASM ===
 module main
+mode hospedado
 globals:
   []
 text:
@@ -190,6 +197,7 @@ Análise semântica concluída sem erros.
 #[test]
 fn validador_cfg_falha_quando_cfg_invalida() {
     let cfg = pinker_v0::cfg_ir::ProgramCfgIR {
+        is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
         functions: vec![pinker_v0::cfg_ir::FunctionCfgIR {

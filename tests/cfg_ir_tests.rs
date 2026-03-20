@@ -10,6 +10,7 @@ fn cfg_ir_funcao_simples() {
         cfg,
         "\
 module main
+mode hospedado
 consts:
   []
 functions:
@@ -34,6 +35,7 @@ carinho principal() -> bombom {
         cfg,
         "\
 module main
+mode hospedado
 consts:
   []
 functions:
@@ -63,6 +65,7 @@ carinho principal() -> bombom {
         cfg,
         "\
 module main
+mode hospedado
 consts:
   []
 functions:
@@ -95,6 +98,7 @@ carinho principal() -> bombom {
         cfg,
         "\
 module main
+mode hospedado
 consts:
   []
 functions:
@@ -122,6 +126,7 @@ fn cfg_ir_cli_header_estavel() {
         "\
 === CFG IR ===
 module main
+mode hospedado
 consts:
   []
 functions:

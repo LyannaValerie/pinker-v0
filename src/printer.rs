@@ -24,6 +24,13 @@ fn render_program_into(program: &Program, indent: usize, out: &mut String) {
             &format!("Package {} {}", package.name, format_span(package.span)),
         );
     }
+    if let Some(span) = program.freestanding {
+        line(
+            out,
+            indent + 1,
+            &format!("Freestanding {}", format_span(span)),
+        );
+    }
     for item in &program.items {
         render_item(item, indent + 1, out);
     }
