@@ -56,6 +56,10 @@ pub enum BackendTextInstruction {
         args: Vec<OperandIR>,
         ret_type: TypeIR,
     },
+    Falar {
+        value: OperandIR,
+        ty: TypeIR,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -129,6 +133,12 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                                 args: args.clone(),
                                 ret_type: *ret_type,
                             },
+                            InstructionCfgIR::Falar { value, ty } => {
+                                BackendTextInstruction::Falar {
+                                    value: value.clone(),
+                                    ty: *ty,
+                                }
+                            }
                         })
                         .collect(),
                     terminator: match &b.terminator {
@@ -326,6 +336,10 @@ fn map_selected_instr(i: &SelectedInstr) -> BackendTextInstruction {
             args: args.clone(),
             ret_type: TypeIR::Nulo,
         },
+        SelectedInstr::Falar { value, ty } => BackendTextInstruction::Falar {
+            value: value.clone(),
+            ty: *ty,
+        },
     }
 }
 
@@ -478,6 +492,9 @@ fn render_instruction(inst: &BackendTextInstruction) -> String {
                 (None, _) => format!("call {}, {}({}), {}", "_", callee, args, ret_type.name()),
             }
         }
+        BackendTextInstruction::Falar { value, ty } => {
+            format!("falar {}:{}", render_operand(value), ty.name())
+        }
     }
 }
 
@@ -511,6 +528,7 @@ fn render_operand(operand: &OperandIR) -> String {
                 "falso".to_string()
             }
         }
+        OperandIR::Str(s) => format!("\"{}\"", s),
         OperandIR::Temp(temp) => render_temp(*temp),
     }
 }

@@ -1,0 +1,6 @@
+pacote fase62_falar_inteiro;
+
+carinho principal() -> bombom {
+    falar(42);
+    mimo 0;
+}

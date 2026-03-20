@@ -736,6 +736,31 @@ impl SemanticChecker {
                         });
                     }
                 }
+                Stmt::Falar(falar_stmt) => {
+                    let ty = self.check_value_expr(
+                        &falar_stmt.expr,
+                        "'falar' exige expressão com valor (não nulo)",
+                    )?;
+                    let is_printable = matches!(
+                        ty,
+                        Type::Bombom(_)
+                            | Type::U8(_)
+                            | Type::U16(_)
+                            | Type::U32(_)
+                            | Type::U64(_)
+                            | Type::Logica(_)
+                            | Type::Verso(_)
+                    );
+                    if !is_printable {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "'falar' não suporta tipo '{}'; apenas bombom, u8, u16, u32, u64, logica e verso são imprimíveis",
+                                ty.name()
+                            ),
+                            span: falar_stmt.span,
+                        });
+                    }
+                }
                 Stmt::InlineAsm(inline_asm_stmt) => {
                     if inline_asm_stmt.chunks.is_empty() {
                         return Err(PinkerError::Semantic {

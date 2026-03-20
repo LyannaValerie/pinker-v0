@@ -1,0 +1,7 @@
+pacote fase62_falar_logica;
+
+carinho principal() -> bombom {
+    falar(verdade);
+    falar(falso);
+    mimo 0;
+}

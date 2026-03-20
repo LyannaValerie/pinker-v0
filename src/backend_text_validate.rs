@@ -193,6 +193,7 @@ fn validate_function(
                         }
                     }
                 }
+                BackendTextInstruction::Falar { value: _, ty: _ } => {}
             }
         }
 
@@ -253,6 +254,7 @@ fn infer_operand(
             .ok_or_else(|| err(&format!("global textual inexistente '{}'", g))),
         OperandIR::Int(_) => Ok(TypeIR::Bombom),
         OperandIR::Bool(_) => Ok(TypeIR::Logica),
+        OperandIR::Str(_) => Ok(TypeIR::Verso),
         OperandIR::Temp(t) => temps
             .get(t)
             .copied()
@@ -264,6 +266,7 @@ fn infer_literal_operand(op: &OperandIR) -> Result<TypeIR, PinkerError> {
     match op {
         OperandIR::Int(_) => Ok(TypeIR::Bombom),
         OperandIR::Bool(_) => Ok(TypeIR::Logica),
+        OperandIR::Str(_) => Ok(TypeIR::Verso),
         OperandIR::GlobalConst(_) | OperandIR::Local(_) | OperandIR::Temp(_) => {
             Err(err("global textual com valor não-literal"))
         }

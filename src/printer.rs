@@ -223,6 +223,14 @@ fn render_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
                 &format!("Continue {}", format_span(continue_stmt.span)),
             );
         }
+        Stmt::Falar(falar_stmt) => {
+            line(
+                out,
+                indent,
+                &format!("Falar {}", format_span(falar_stmt.span)),
+            );
+            render_expr(&falar_stmt.expr, indent + 1, out, "expr");
+        }
         Stmt::InlineAsm(inline_asm_stmt) => {
             line(
                 out,

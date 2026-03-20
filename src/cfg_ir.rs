@@ -84,6 +84,10 @@ pub enum InstructionCfgIR {
         args: Vec<OperandIR>,
         ret_type: TypeIR,
     },
+    Falar {
+        value: OperandIR,
+        ty: TypeIR,
+    },
 }
 
 /// Terminador de bloco. `Branch` consome um operando booleano como condição.
@@ -111,6 +115,7 @@ pub enum OperandIR {
     GlobalConst(String),
     Int(u64),
     Bool(bool),
+    Str(String),
     Temp(TempIR),
 }
 
@@ -466,6 +471,16 @@ impl FunctionLowerer {
                 });
                 Ok(cont_idx)
             }
+            InstructionIR::Falar { value, ty, span } => {
+                let (operand, next_current) = self.lower_falar_operand(value, current, *span)?;
+                self.blocks[next_current]
+                    .instructions
+                    .push(InstructionCfgIR::Falar {
+                        value: operand,
+                        ty: *ty,
+                    });
+                Ok(next_current)
+            }
             InstructionIR::InlineAsm { span, .. } => Err(PinkerError::Ir {
                 msg: "CFG IR ainda não lowera inline asm ('sussurro') nesta fase".to_string(),
                 span: *span,
@@ -609,6 +624,19 @@ impl FunctionLowerer {
                 })
             }
         }
+    }
+
+    /// Like `lower_value_operand` but also handles `ValueIR::String` for `falar`.
+    fn lower_falar_operand(
+        &mut self,
+        value: &ValueIR,
+        current: usize,
+        span: Span,
+    ) -> Result<(OperandIR, usize), PinkerError> {
+        if let ValueIR::String(s) = value {
+            return Ok((OperandIR::Str(s.clone()), current));
+        }
+        self.lower_value_operand(value, current, span)
     }
 
     fn lower_short_circuit_value(
@@ -771,6 +799,9 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
                 None => call,
             }
         }
+        InstructionCfgIR::Falar { value, ty } => {
+            format!("falar {}:{}", render_operand(value), ty.name())
+        }
     }
 }
 
@@ -828,6 +859,7 @@ fn render_operand(op: &OperandIR) -> String {
         OperandIR::GlobalConst(name) => format!("@{}", name),
         OperandIR::Int(v) => format!("{}:bombom", v),
         OperandIR::Bool(v) => format!("{}:logica", if *v { "verdade" } else { "falso" }),
+        OperandIR::Str(s) => format!("\"{}\":verso", s),
         OperandIR::Temp(t) => render_temp(*t),
     }
 }

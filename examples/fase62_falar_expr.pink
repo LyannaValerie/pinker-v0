@@ -1,0 +1,8 @@
+pacote fase62_falar_expr;
+
+carinho principal() -> bombom {
+    nova x: bombom = 10;
+    falar(x + 5);
+    falar(x == 10);
+    mimo 0;
+}

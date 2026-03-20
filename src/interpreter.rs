@@ -316,6 +316,17 @@ fn exec_instr(
                 return Err(runtime_err("call_void exige função sem retorno"));
             }
         }
+        MachineInstr::PrintInt => {
+            let v = pop_int(stack, "print_int exige bombom no topo")?;
+            println!("{}", v);
+        }
+        MachineInstr::PrintBool => {
+            let v = pop_bool(stack, "print_bool exige lógica no topo")?;
+            println!("{}", if v { "verdade" } else { "falso" });
+        }
+        MachineInstr::PrintStr(s) => {
+            println!("{}", s);
+        }
     }
 
     Ok(())
@@ -511,5 +522,8 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::CmpGe => "cmp_ge",
         MachineInstr::Call { .. } => "call",
         MachineInstr::CallVoid { .. } => "call_void",
+        MachineInstr::PrintInt => "print_int",
+        MachineInstr::PrintBool => "print_bool",
+        MachineInstr::PrintStr(_) => "print_str",
     }
 }
