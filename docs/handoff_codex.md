@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada funcional: **Fase 57 — freestanding / no-std (`livre;`)** (segundo item do Bloco 4).
+- Rodada funcional: **Fase 58 — linker script / boot entry** (terceiro item do Bloco 4).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -182,3 +182,17 @@
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
 - Bloco 4 avançou com os itens 1 e 2 concluídos.
 - Próximo item normal do roadmap principal: Bloco 4, item 3 (linker script / boot entry).
+
+## O que entrou na Fase 58
+- Semântica: em unidade marcada com `livre;`, ausência de `principal` agora falha com diagnóstico explícito de boot entry mínimo desta fase.
+- Relação com entrada: `principal() -> bombom` foi mantido como contrato de entrada para preservar continuidade e evitar redesign amplo de gramática.
+- Backend textual `.s`: em modo `livre`, cabeçalho de `--asm-s` agora mostra `boot.entry principal -> _start`.
+- Linker script mínimo: representação textual adicionada no `--asm-s` (`ENTRY(_start)` + seções `.text/.rodata/.data/.bss`) como artefato preparatório, sem linkedição bare-metal real.
+- Exemplos versionados: `check_boot_entry_livre_valido` (positivo) e `check_boot_entry_livre_sem_principal` (inválido).
+- Limite deliberado: sem kernel funcional/boot real, sem pipeline GRUB/QEMU/ISO, sem Multiboot completo.
+
+## Continuidade de roadmap após Fase 58
+- Fase 57 passa a ser a fase funcional principal anterior.
+- Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
+- Bloco 4 avançou com os itens 1, 2 e 3 concluídos.
+- Próximo item normal do roadmap principal: Bloco 4, item 4 (primeiro kernel mínimo).

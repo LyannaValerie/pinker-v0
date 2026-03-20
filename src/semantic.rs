@@ -500,8 +500,14 @@ impl SemanticChecker {
     // `principal` é a política fixa de entrada da v0: sem parâmetros e retorno bombom.
     fn check_principal(&self, program: &Program) -> Result<(), PinkerError> {
         let Some(main_fn) = self.funcs.get("principal") else {
+            let msg = if program.freestanding.is_some() {
+                "função 'principal' (boot entry desta fase em modo `livre`) não encontrada"
+                    .to_string()
+            } else {
+                "função 'principal' (entry point) não encontrada".to_string()
+            };
             return Err(PinkerError::Semantic {
-                msg: "função 'principal' (entry point) não encontrada".to_string(),
+                msg,
                 span: Self::root_span(program),
             });
         };

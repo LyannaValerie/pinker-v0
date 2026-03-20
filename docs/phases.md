@@ -5,6 +5,16 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 58 — linker script / boot entry (representação mínima em `livre`)
+  - continuidade histórica preservada: Fase 57 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix e não reordena o roadmap.
+  - decisão de entrada: em unidade com `livre;`, `principal() -> bombom` permanece obrigatório e passa a representar o boot entry mínimo desta fase.
+  - validação semântica: ausência de `principal` em modo `livre` gera erro explícito de boot entry.
+  - backend textual `.s` (`--asm-s`) agora exibe metadata observável de boot (`boot.entry principal -> _start`).
+  - linker script mínimo agora é representado textualmente no cabeçalho de `--asm-s` (ex.: `ENTRY(_start)` + seções `.text/.rodata/.data/.bss`).
+  - escopo deliberadamente mantido: sem kernel bootável real, sem GRUB/QEMU/ISO, sem Multiboot completo e sem runtime bare-metal final.
+  - exemplos versionados adicionados: `examples/check_boot_entry_livre_valido.pink` e `examples/check_boot_entry_livre_sem_principal.pink`.
+  - próximo item normal do roadmap principal: Bloco 4, item 4 (primeiro kernel mínimo).
+
 - Fase 57 — freestanding / no-std (marca explícita de unidade)
   - continuidade histórica preservada: Fase 56 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix e não reordena o roadmap.
   - sintaxe adotada: `livre;` como marcador único de unidade, permitido apenas no topo (após `pacote`, antes de itens).

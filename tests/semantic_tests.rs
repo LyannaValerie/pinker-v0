@@ -9,6 +9,13 @@ fn principal_valida() {
 }
 
 #[test]
+fn livre_sem_principal_falha_com_boot_entry_explicito() {
+    let code = "pacote main; livre; carinho boot() -> bombom { mimo 0; }";
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("boot entry desta fase em modo `livre`"));
+}
+
+#[test]
 fn principal_invalida_sem_bombom() {
     let code = "pacote main; carinho principal() -> logica { mimo falso; }";
     let err = parse_and_check(code).unwrap_err().to_string();

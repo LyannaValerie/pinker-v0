@@ -85,9 +85,12 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 57 concluída: freestanding/no-std como marca explícita de unidade com `livre;` no topo do programa (após `pacote`, antes de itens).
 - Política da Fase 57: `livre;` é marca semântica de intenção de ambiente freestanding (sem binário bootável e sem runtime bare-metal completo nesta etapa).
 - Propagação mínima da Fase 57: frontend/AST/JSON preservam a marca e o pipeline textual exibe metadata `mode livre|hospedado` em IR/CFG/selected/pseudo-asm/`.s`.
-- Relação com entrada: exigência atual de `principal` foi mantida sem alterações nesta fase.
+- Fase 58 concluída: linker script / boot entry no escopo mínimo de representação textual/estrutural.
+- Decisão da Fase 58: em unidade `livre;`, `principal() -> bombom` segue obrigatório e representa boot entry mínimo (`principal -> _start`), sem alterar fluxo hospedado.
+- Validação da Fase 58: ausência de `principal` em modo `livre` gera erro semântico explícito de boot entry.
+- Backend textual da Fase 58: `--asm-s` passou a renderizar metadata `boot.entry principal -> _start` e um linker script textual mínimo (`ENTRY(_start)` + seções básicas).
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
-- Próximo item normal do roadmap principal: Bloco 4, item 3 (linker script / boot entry).
+- Próximo item normal do roadmap principal: Bloco 4, item 4 (primeiro kernel mínimo).
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`

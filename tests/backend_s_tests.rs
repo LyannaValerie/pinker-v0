@@ -77,3 +77,17 @@ carinho principal() -> bombom { mimo 0; }";
         .to_string()
         .contains("backend .s textual da Fase 54 ainda não suporta slot"));
 }
+
+#[test]
+fn asm_s_freestanding_exibe_boot_entry_e_linker_script_minimo() {
+    let code = "\
+pacote main;
+livre;
+carinho principal() -> bombom { mimo 0; }";
+
+    let out = render_backend_s(code).unwrap();
+    assert!(out.contains("; boot.entry principal -> _start"));
+    assert!(out.contains("; linker.script.v0 (textual, mínimo):"));
+    assert!(out.contains(";   ENTRY(_start)"));
+    assert!(out.contains(".text : { *(.text*) }"));
+}
