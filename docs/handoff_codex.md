@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada funcional: **Fase 61 — strings** (segundo item do Bloco 5).
+- Rodada funcional: **Fase 62 — I/O básico** (terceiro item do Bloco 5).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -244,7 +244,7 @@
 - Semântica: `verso` validado em constantes, locais, parâmetros, retornos e chamadas; checagem de tipo evita mistura implícita com inteiros/lógica.
 - IR estruturada: `TypeIR::Verso` e `ValueIR::String` adicionados, preservando strings em `--ir`.
 - Relação com `sussurro`: reaproveita o mesmo `StringLit`; inline asm foi preservado sem mudanças de contrato.
-- Limites deliberados: CFG IR/Machine/runtime ainda não loweram `verso`; `--cfg-ir`/`--run` falham com erro explícito.
+- Limites deliberados: CFG IR/Machine/runtime ainda não loweram `verso` em geral; `--cfg-ir`/`--run` falham com erro explícito para valores `verso` em contextos que não sejam `falar`.
 - Limite de layout deliberado: `peso(verso)`/`alinhamento(verso)` seguem fora desta fase (erro claro no cálculo de layout).
 - Exemplos versionados: `examples/fase61_verso_valido.pink` e `examples/fase61_verso_cfg_ir_invalido.pink`.
 
@@ -253,3 +253,25 @@
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
 - Bloco 5 avançou com os itens 1 e 2 concluídos.
 - Próximo item normal do roadmap principal: Bloco 5, item 3 (I/O básico).
+
+## O que entrou na Fase 62
+- Continuidade preservada: Fase 61 segue como fase funcional principal anterior; Fase 48-H1 permanece rodada extraordinária/hotfix sem reordenar roadmap.
+- Operação de I/O adotada: `falar(expr);` como statement de saída mínimo para stdout.
+- Frontend: keyword `falar` (`KwFalar`) adicionada no lexer/token; parser/AST reconhecem `Stmt::Falar(FalarStmt { expr, span })`.
+- Semântica: `falar` aceita qualquer expressão que resolva para tipo imprimível; tipos não imprimíveis geram erro semântico com lista explícita.
+- Subset imprimível (semântica): `bombom`, `u8`, `u16`, `u32`, `u64`, `logica`, `verso`. Tipos `i8`–`i64` (signed), `seta`, `ninho` e arrays fixos são rejeitados.
+- IR estruturada: `InstructionIR::Falar { value, ty, span }` adicionado; lowering e renderização incluem `falar valor:tipo`.
+- CFG IR: `InstructionCfgIR::Falar { value, ty }` adicionado com tratamento especial para `OperandIR::Str` (caminho de `verso` literal).
+- Seleção de instruções: `SelectedInstr::Falar { value, ty }` reconhecido e renderizado.
+- Machine: `falar` lowera para `MachineInstr::PrintStr(s)` quando `verso`, `MachineInstr::PrintBool` quando `logica` ou `MachineInstr::PrintInt` para inteiros unsigned.
+- Interpretador (`--run`): `PrintInt` imprime inteiro decimal via `println!`, `PrintBool` imprime `verdade`/`falso`, `PrintStr` imprime o conteúdo da string.
+- Pipeline completo funcional: `--check`, `--ir`, `--cfg-ir`, `--selected`, `--machine`, `--pseudo-asm`, `--asm-s` e `--run` reconhecem e processam `falar`.
+- Relação com `verso`: `verso` literal em `falar("...")` é impresso diretamente via `PrintStr` — único contexto onde `verso` funciona em `--run` nesta fase.
+- Fora de escopo mantido: `ouvir` (leitura de stdin), `abrir`/`fechar`/`escrever` (arquivo), formatação avançada de saída, múltiplos argumentos em `falar`, signed (`i8`–`i64`) em `falar`.
+- Exemplos versionados: `examples/fase62_falar_inteiro.pink`, `examples/fase62_falar_logica.pink`, `examples/fase62_falar_verso.pink`, `examples/fase62_falar_expr.pink`.
+
+## Continuidade de roadmap após Fase 62
+- Fase 61 passa a ser a fase funcional principal anterior.
+- Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
+- Bloco 5 avançou com os itens 1, 2 e 3 concluídos.
+- Próximo item normal do roadmap principal: Bloco 5, item 4 (`pink build` / tooling de projeto).

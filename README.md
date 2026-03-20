@@ -14,6 +14,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - consultas estáticas de layout com `peso(tipo)` e `alinhamento(tipo)`
 - módulos/imports mínimos com `trazer modulo;` e `trazer modulo.simbolo;` (carregando `modulo.pink` no mesmo diretório do arquivo principal, com subset de import para `carinho` e `eterno`)
 - strings mínimas como valor de linguagem com tipo `verso` e literal `"texto"` (frontend + semântica + IR)
+- saída básica com `falar(expr);` para `bombom`, `u8`, `u16`, `u32`, `u64`, `logica` e `verso` (executa em `--run`)
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
 - AST textual estável
@@ -36,7 +37,8 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - semântica operacional de `fragil` em runtime/backend (nesta fase é qualificador semântico preservado no pipeline)
 - lowering operacional de `virar` em CFG/Machine/runtime (`--check` aceita o subset da fase; `--run`/`--cfg-ir` ainda não executam cast)
 - lowering operacional de inline asm em CFG/Machine/runtime (`--check`/`--ir` aceitam o subset da fase; `--cfg-ir`/`--run` ainda não executam `sussurro`)
-- lowering operacional de `verso` em CFG/Machine/runtime (`--check`/`--ir` aceitam o subset da fase; `--cfg-ir`/`--run` ainda não executam valores `verso`)
+- lowering operacional de `verso` em CFG/Machine/runtime além de `falar`: `verso` como valor geral (passagem por chamada, retorno, variável) ainda não executa em `--cfg-ir`/`--run`; apenas `falar("literal")` funciona em `--run`
+- I/O de leitura (`ouvir`), arquivo (`abrir`, `fechar`, `escrever`) e formatação avançada de saída
 - freestanding/no-std operacional real (nesta fase `livre;` é marca semântica de intenção, não runtime bare-metal executável)
 - runtime signed correto (tipos `i8`–`i64` são bloqueados no `--run` até representação adequada)
 
@@ -105,6 +107,10 @@ cargo run -- --cfg-ir examples/fase61_verso_cfg_ir_invalido.pink
 cargo run -- --run examples/fase60_modulos_valido.pink
 cargo run -- --check examples/fase60_modulo_ausente.pink
 cargo run -- --check examples/fase60_simbolo_ausente.pink
+cargo run -- --run examples/fase62_falar_inteiro.pink
+cargo run -- --run examples/fase62_falar_logica.pink
+cargo run -- --run examples/fase62_falar_verso.pink
+cargo run -- --run examples/fase62_falar_expr.pink
 ```
 
 ## Modos da CLI

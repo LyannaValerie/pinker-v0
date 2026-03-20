@@ -99,9 +99,14 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Diagnósticos adicionados na Fase 60: módulo não encontrado, símbolo não encontrado, import duplicado, colisão simples de nomes e ciclo de módulos.
 - Fase 61 concluída: strings mínimas com tipo `verso` e literal `"texto"` em expressão geral, integradas em frontend/semântica/IR.
 - Política da Fase 61: `verso` funciona para declaração local, constante global, parâmetro, retorno e passagem por chamada no escopo `--check`/`--ir`.
-- Limite operacional da Fase 61: CFG IR/Machine/runtime ainda não loweram `verso`; `--cfg-ir`/`--run` falham explicitamente para valores string.
+- Limite operacional da Fase 61: CFG IR/Machine/runtime ainda não loweram `verso` em geral; contudo, `verso` como literal em `falar("...")` é executável em `--run` a partir da Fase 62.
+- Fase 62 concluída: I/O básico com operação `falar(expr);` para saída em stdout.
+- Operação adotada: `falar(expr);` como statement de saída mínimo.
+- Subset imprimível: `bombom`, `u8`, `u16`, `u32`, `u64`, `logica`, `verso`; signed (`i8`–`i64`), ponteiros, structs e arrays são rejeitados pela semântica com diagnóstico explícito.
+- `falar` funciona em `--run`: inteiros impressos como decimal, `logica` como `verdade`/`falso`, `verso` impresso como texto literal.
+- Pipeline completo: `--check`, `--ir`, `--cfg-ir`, `--selected`, `--machine`, `--pseudo-asm`, `--asm-s` e `--run` reconhecem `falar`.
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
-- Próximo item normal do roadmap principal: Bloco 5, item 3 (I/O básico).
+- Próximo item normal do roadmap principal: Bloco 5, item 4 (`pink build` / tooling de projeto).
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`

@@ -36,6 +36,7 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `livre`        | freestanding/no-std (marca de unidade) | intenção de ambiente sem runtime hospedeiro implícito |
 | `trazer`       | import mínimo    | convidar símbolo/módulo para perto |
 | `verso`        | string / texto   | palavras como poesia                |
+| `falar`        | print / saída    | expressar para o mundo              |
 
 ---
 
@@ -123,7 +124,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 
 | Conceito         | Sugestao    | Alternativas         | Sentimento                          |
 |------------------|-------------|----------------------|-------------------------------------|
-| print            | `falar`     | `contar`, `dizer`    | expressar para o mundo              |
+| ~~print~~        | ~~`falar`~~ | `contar`, `dizer`    | implementado na Fase 62             |
 | read / input     | `ouvir`     | `escutar`            | receber do mundo                    |
 | file open        | `abrir`     |                      | literal e acolhedor                 |
 | file close       | `fechar`    |                      | encerrar com cuidado                |
