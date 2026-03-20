@@ -748,13 +748,17 @@ impl SemanticChecker {
                             | Type::U16(_)
                             | Type::U32(_)
                             | Type::U64(_)
+                            | Type::I8(_)
+                            | Type::I16(_)
+                            | Type::I32(_)
+                            | Type::I64(_)
                             | Type::Logica(_)
                             | Type::Verso(_)
                     );
                     if !is_printable {
                         return Err(PinkerError::Semantic {
                             msg: format!(
-                                "'falar' não suporta tipo '{}'; apenas bombom, u8, u16, u32, u64, logica e verso são imprimíveis",
+                                "'falar' não suporta tipo '{}'; apenas bombom, u8, u16, u32, u64, i8, i16, i32, i64, logica e verso são imprimíveis",
                                 ty.name()
                             ),
                             span: falar_stmt.span,

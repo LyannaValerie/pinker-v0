@@ -113,7 +113,12 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Limites deliberados mantidos: sem package manager, manifesto rico, lockfile, perfis de build avançados, grafo de build sofisticado, incremental build e executável nativo geral.
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
 - Bloco 5 encerrado com a Fase 63 (itens 1–4 concluídos).
-- Próximo item normal do roadmap principal: não há item adicional definido em `docs/roadmap.md` após o fechamento do Bloco 5.
+- Rodada documental estratégica pós-Fase 63 abriu oficialmente o Bloco 6 — Memória operacional.
+- Fase 64 concluída: primeira fase funcional do Bloco 6 com signed real no runtime (`i8`/`i16`/`i32`/`i64` executáveis em `--run`).
+- Runtime agora distingue `RuntimeValue::Int(u64)` (unsigned/bombom) de `RuntimeValue::IntSigned(i64)` (signed), preservando família numérica nas operações.
+- `falar` passou a aceitar signed (`i8`/`i16`/`i32`/`i64`) além dos tipos já imprimíveis anteriores.
+- Limite preventivo de recursão do runtime ajustado para `MAX_CALL_DEPTH = 64` para estabilidade no ambiente de testes.
+- Próximo item normal sugerido do roadmap principal (Bloco 6): item A.2 — representação mínima de ponteiro no runtime.
 
 ## Rodada documental estratégica — Bloco 6 (atual)
 
@@ -126,10 +131,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - `docs/future.md` atualizado para separar explicitamente o backlog amplo da trilha ativa do Bloco 6.
 - `cargo build --locked` e `cargo test --locked` executados com sucesso após as alterações documentais.
 
-### Primeiro item normal sugerido do Bloco 6
+### Primeiro item normal sugerido do Bloco 6 (já concluído)
 
-O primeiro item normal sugerido do novo bloco é:
-**Bloco 6, item A.1 — signed real no runtime** (`i8`–`i64` bloqueados por HF-3).
+O primeiro item normal sugerido do novo bloco foi:
+**Bloco 6, item A.1 — signed real no runtime**.
 
 Esse item foi escolhido como ponto de entrada porque:
 - É um bloqueio crônico e autocontido (não depende de dereferência de ponteiro).
@@ -140,7 +145,7 @@ Esse item foi escolhido como ponto de entrada porque:
 ### Estado operacional após a rodada documental
 - Pipeline funcional permanece congelada e inalterada.
 - Bloco 5 confirmado como encerrado na Fase 63.
-- Bloco 6 — Memória operacional é agora a trilha oficial ativa.
+- Bloco 6 — Memória operacional é a trilha oficial ativa; Fase 64 foi o primeiro fechamento funcional do bloco.
 - Fase 48-H1 continua como rodada extraordinária/hotfix, sem reordenar a trilha principal.
 
 ## Infraestrutura mínima ativa
@@ -222,7 +227,7 @@ Esse item foi escolhido como ponto de entrada porque:
 
 ## Fase 26 — limite preventivo de recursão no runtime
 - continuidade histórica da trilha funcional e das rodadas documentais verificada e preservada.
-- Interpretador passou a aplicar limite interno estável de profundidade (`MAX_CALL_DEPTH = 128`) antes de empilhar novo frame.
+- Interpretador passou a aplicar limite interno estável de profundidade (`MAX_CALL_DEPTH = 64`) antes de empilhar novo frame.
 - Excesso de profundidade gera erro categorizado `[runtime::limite_recursao_excedido]` com mensagem explícita de limite preventivo do runtime.
 - Stack trace por frame (`at <função> [bloco] [instr]`) e renderização consolidada de runtime no CLI foram mantidos sem mudança estrutural.
 

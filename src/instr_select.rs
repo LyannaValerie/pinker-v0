@@ -14,6 +14,7 @@ pub struct SelectedProgram {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedGlobal {
     pub name: String,
+    pub ty: TypeIR,
     pub value: OperandIR,
 }
 
@@ -161,6 +162,7 @@ pub fn lower_program(cfg: &ProgramCfgIR) -> Result<SelectedProgram, PinkerError>
         .iter()
         .map(|g| SelectedGlobal {
             name: g.name.clone(),
+            ty: g.ty,
             value: g.value.clone(),
         })
         .collect();

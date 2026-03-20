@@ -389,8 +389,12 @@ fn run_analyze(config: Config) {
             interpreter::run_program(machine_program.as_ref().unwrap()),
             &source
         );
-        if let Some(interpreter::RuntimeValue::Int(v)) = result {
-            println!("{}", v);
+        if let Some(value) = result {
+            match value {
+                interpreter::RuntimeValue::Int(v) => println!("{}", v),
+                interpreter::RuntimeValue::IntSigned(v) => println!("{}", v),
+                interpreter::RuntimeValue::Bool(_) => {}
+            }
         }
     }
 
