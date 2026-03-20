@@ -15,6 +15,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - módulos/imports mínimos com `trazer modulo;` e `trazer modulo.simbolo;` (carregando `modulo.pink` no mesmo diretório do arquivo principal, com subset de import para `carinho` e `eterno`)
 - strings mínimas como valor de linguagem com tipo `verso` e literal `"texto"` (frontend + semântica + IR)
 - saída básica com `falar(expr);` para `bombom`, `u8`, `u16`, `u32`, `u64`, `logica` e `verso` (executa em `--run`)
+- comando de projeto `pink build <arquivo.pink>` para gerar artefato textual `.s` em disco (padrão: `build/<arquivo>.s`)
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
 - AST textual estável
@@ -111,9 +112,12 @@ cargo run -- --run examples/fase62_falar_inteiro.pink
 cargo run -- --run examples/fase62_falar_logica.pink
 cargo run -- --run examples/fase62_falar_verso.pink
 cargo run -- --run examples/fase62_falar_expr.pink
+cargo run -- build examples/emit_if_else.pink
+cargo run -- build --out-dir saida examples/fase60_modulos_valido.pink
 ```
 
 ## Modos da CLI
+- `build <arquivo.pink>`: executa pipeline de build e grava artefato `.s` em disco (opcional `--out-dir <dir>`, padrão `build/`)
 - `--ir`: IR estruturada (alto nível)
 - `--cfg-ir`: CFG IR (blocos, `br`, `jmp`, `ret`)
 - `--selected`: camada de seleção de instruções textual (`isel` + `term`)

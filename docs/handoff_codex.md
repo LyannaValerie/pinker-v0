@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada funcional: **Fase 62 — I/O básico** (terceiro item do Bloco 5).
+- Rodada funcional: **Fase 63 — `pink build` / tooling de projeto** (quarto item do Bloco 5).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -29,6 +29,22 @@
 - **HF-16**: `Cargo.toml` authors com `<>` correto.
 - **HF-17**: `docs/future.md` atualizado para marcar itens já implementados.
 
+## O que entrou na Fase 63
+- Continuidade preservada: Fase 62 segue como fase funcional principal anterior; Fase 48-H1 permanece rodada extraordinária/hotfix sem reordenar o roadmap principal.
+- CLI ganhou comando de projeto mínimo: `pink build <arquivo.pink>`, com opção `--out-dir <dir>` (padrão: `build`).
+- Política de entrada adotada: arquivo explícito obrigatório; sem manifesto/projeto rico nesta fase.
+- Pipeline de build adotado: parse + resolução de imports existentes (`trazer`) + semântica + IR/CFG/selected validados + emissão `backend_s`.
+- Artefato produzido nesta fase: arquivo textual `.s` em disco (`<out-dir>/<stem>.s`), com mensagem final de caminho gerado.
+- Erros de build cobertos com diagnóstico claro para: ausência de arquivo de entrada, falha semântica e flags inválidas no subcomando.
+- Cobertura de testes adicionada para `pink build`: positivo mínimo, positivo com imports e `--out-dir`, negativo sem input e negativo com erro semântico.
+- Escopo deliberadamente mantido: sem package manager, sem lockfile, sem perfis de build ricos, sem build graph avançado, sem incremental build e sem geração de executável nativo geral.
+
+## Continuidade de roadmap após Fase 63
+- Fase 62 passa a ser a fase funcional principal anterior.
+- Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
+- Bloco 5 foi encerrado com os itens 1, 2, 3 e 4 concluídos.
+- Não há novo item funcional definido além do Bloco 5 em `docs/roadmap.md` no estado atual.
+
 ## Decisões arquiteturais documentadas nesta rodada
 - **Bifurcação pipeline (HF-6)**: `--pseudo-asm` parte de `selected_program`, `--run` parte de `machine_program`. Intencional — backend textual é representação alternativa da seleção; interpretador precisa da Machine validada.
 - **Escopo else-if (HF-7)**: Assimetria é intencional — `senao talvez` é parsed como `senao { talvez ... }` aninhado, não como `else if` especial. Consistente com a gramática minimalista.
@@ -36,7 +52,7 @@
 
 ## Estado operacional após a rodada
 - Continuidade histórica preservada (Fase 48 funcional → Fase 48-H1 hotfixes).
-- Roadmap principal inalterado; Bloco 3 permanece como trilha funcional ativa.
+- Roadmap principal preservado; Bloco 5 foi encerrado na Fase 63 sem abrir trilha paralela.
 - CI agora inclui clippy e doc validation além de build/check/fmt/test.
 - Runtime signed bloqueado explicitamente até implementação correta de representação signed.
 

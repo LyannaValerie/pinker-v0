@@ -801,6 +801,14 @@ fn run_cli_check_example(path: &str) -> std::process::Output {
         .unwrap()
 }
 
+fn run_cli_build_args(args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("build")
+        .args(args)
+        .output()
+        .unwrap()
+}
+
 #[test]
 fn cli_run_mantem_exemplos_base() {
     let casos = [
@@ -864,6 +872,104 @@ fn cli_run_algoritmo_complexo_fallthrough_if_else() {
     assert!(out.status.success());
     assert_eq!(String::from_utf8_lossy(&out.stdout), "26\n");
     assert!(String::from_utf8_lossy(&out.stderr).is_empty());
+}
+
+#[test]
+fn cli_build_gera_artefato_s_no_diretorio_padrao() {
+    let temp = std::env::temp_dir().join("pinker_build_fase63_ok");
+    let _ = fs::remove_dir_all(&temp);
+    fs::create_dir_all(&temp).unwrap();
+    let source_path = temp.join("app.pink");
+    fs::write(
+        &source_path,
+        "pacote main; carinho principal() -> bombom { mimo 42; }",
+    )
+    .unwrap();
+
+    let output = run_cli_build_args(&[source_path.to_str().unwrap()]);
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Build concluído:"));
+
+    let artifact = std::path::Path::new("build").join("app.s");
+    assert!(
+        artifact.exists(),
+        "artefato não gerado: {}",
+        artifact.display()
+    );
+    let artifact_content = fs::read_to_string(&artifact).unwrap();
+    assert!(artifact_content.contains("pinker.text.v0"));
+    let _ = fs::remove_file(&artifact);
+    let _ = fs::remove_dir_all(&temp);
+}
+
+#[test]
+fn cli_build_com_imports_gera_artefato_no_out_dir() {
+    let temp = std::env::temp_dir().join("pinker_build_fase63_imports");
+    let _ = fs::remove_dir_all(&temp);
+    fs::create_dir_all(&temp).unwrap();
+    let source_path = temp.join("main.pink");
+    let module_path = temp.join("util.pink");
+    let out_dir = temp.join("saida_build");
+
+    fs::write(
+        &source_path,
+        "pacote main; trazer util.soma2; carinho principal() -> bombom { mimo soma2(40); }",
+    )
+    .unwrap();
+    fs::write(
+        module_path,
+        "pacote util; carinho soma2(x: bombom) -> bombom { mimo x + 2; }",
+    )
+    .unwrap();
+
+    let output = run_cli_build_args(&[
+        "--out-dir",
+        out_dir.to_str().unwrap(),
+        source_path.to_str().unwrap(),
+    ]);
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+    let artifact = out_dir.join("main.s");
+    assert!(
+        artifact.exists(),
+        "artefato não gerado: {}",
+        artifact.display()
+    );
+    let artifact_content = fs::read_to_string(&artifact).unwrap();
+    assert!(artifact_content.contains(".globl principal"));
+    let _ = fs::remove_dir_all(&temp);
+}
+
+#[test]
+fn cli_build_sem_arquivo_falha_com_uso() {
+    let output = run_cli_build_args(&[]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Uso:"));
+    assert!(stderr.contains("build"));
+}
+
+#[test]
+fn cli_build_falha_semantica_retorna_erro() {
+    let temp = std::env::temp_dir().join("pinker_build_fase63_fail");
+    let _ = fs::remove_dir_all(&temp);
+    fs::create_dir_all(&temp).unwrap();
+    let source_path = temp.join("quebrado.pink");
+    fs::write(
+        &source_path,
+        "pacote main; carinho principal() -> bombom { falar(verdade + 1); mimo 0; }",
+    )
+    .unwrap();
+
+    let output = run_cli_build_args(&[source_path.to_str().unwrap()]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Erro Semântico:"));
+    let _ = fs::remove_dir_all(&temp);
 }
 
 #[test]
