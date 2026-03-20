@@ -5,6 +5,14 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Rodada documental — criação de `docs/parallel.md` (sem número de fase, sem feature funcional)
+  - rodada estritamente documental; não adiciona feature funcional, não altera código, não cria fase numerada.
+  - criação do arquivo `docs/parallel.md` como documento visionário da Pinker: guarda a fantasia orientadora, a alma e a ambição conceitual do projeto.
+  - `parallel.md` não é roadmap, não é backlog técnico, não substitui `roadmap.md` nem `future.md`.
+  - precedência documental reafirmada: `roadmap.md` (trilha ativa) > `future.md` (inventário amplo) > `parallel.md` (fantasia orientadora, não mandatória).
+  - arquivos alterados: `docs/parallel.md` (novo), `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/phases.md`, `README.md`.
+  - `cargo build --locked` e `cargo test --locked` executados com sucesso ao final da rodada.
+
 - Rodada documental estratégica — abertura do Bloco 6 (sem número de fase, sem feature funcional)
   - rodada estritamente documental executada após o fechamento do Bloco 5 (Fase 63).
   - não adiciona feature funcional, não altera código, não cria fase numerada.

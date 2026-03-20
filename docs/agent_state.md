@@ -123,6 +123,17 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Escopo mantido: sem dereferência, sem escrita indireta, sem aritmética de ponteiros e sem efeito operacional de `fragil`.
 - Próximo item normal sugerido do roadmap principal (Bloco 6): item B.3 — dereferência de leitura.
 
+## Ecossistema documental (atual)
+
+A Pinker possui quatro camadas documentais com papéis distintos e complementares:
+
+- `docs/roadmap.md` — **trilha ativa oficial**. Define o que vem agora. Tem precedência sobre todos os outros documentos em decisões de execução.
+- `docs/future.md` — **inventário amplo**. Backlog estruturado de longo prazo por camadas de dependência. Não dita ordem ativa.
+- `docs/parallel.md` — **fantasia orientadora**. Documento visionário da Pinker: guarda sonhos, identidade, ambição conceitual e ideias que ainda não sabemos implementar. Não é mandatório. Não é roadmap. Não é backlog. Deve ser consultado em dúvidas estratégicas de identidade e direção, não de execução imediata.
+- `docs/agent_state.md` + `docs/handoff_codex.md` — **estado operacional**. Refletem o estado real do workspace a cada rodada.
+
+O `parallel.md` não vence o `roadmap.md` em nenhuma circunstância. Ele existe para que a disciplina técnica não apague a visão do projeto.
+
 ## Rodada documental estratégica — Bloco 6 (atual)
 
 - Rodada documental realizada após o fechamento do Bloco 5 (Fase 63).
