@@ -5,6 +5,18 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Rodada documental estratégica — abertura do Bloco 6 (sem número de fase, sem feature funcional)
+  - rodada estritamente documental executada após o fechamento do Bloco 5 (Fase 63).
+  - não adiciona feature funcional, não altera código, não cria fase numerada.
+  - confirmação explícita: Bloco 5 encerrado na Fase 63; nenhum bloco adicional estava definido em `docs/roadmap.md`.
+  - abertura oficial do **Bloco 6 — Memória operacional** como próxima trilha ativa da Pinker.
+  - tese consolidada: a maior parte dos construtos parciais da Pinker (`seta<T>`, `ninho`, arrays fixos, `virar`, `fragil`, signed runtime) depende de uma base de memória operacional ausente; fechar essa base é prioridade antes de abrir novas frentes horizontais.
+  - arquivos alterados: `docs/roadmap.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/phases.md`, `docs/future.md`.
+  - convenção documental ativa confirmada: Fase N = entrega funcional real; Fase N-HX = hotfix extraordinário; rodada documental = sem número.
+  - Fase 48-H1 permanece rodada extraordinária/hotfix sem reordenar a trilha principal (confirmado).
+  - `cargo build --locked` e `cargo test --locked` executados com sucesso ao final da rodada.
+  - primeiro item normal sugerido do Bloco 6: signed real no runtime (item A.1 — remover bloqueio HF-3 para `i8`–`i64`).
+
 - Fase 63 — `pink build` / tooling de projeto (quarto item do Bloco 5, escopo mínimo)
   - continuidade histórica preservada: Fase 62 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar a trilha principal.
   - superfície adotada: comando `pink build <arquivo.pink>` com opção `--out-dir <dir>` (padrão: `build`).

@@ -115,6 +115,34 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Bloco 5 encerrado com a Fase 63 (itens 1–4 concluídos).
 - Próximo item normal do roadmap principal: não há item adicional definido em `docs/roadmap.md` após o fechamento do Bloco 5.
 
+## Rodada documental estratégica — Bloco 6 (atual)
+
+- Rodada documental realizada após o fechamento do Bloco 5 (Fase 63).
+- Sem alteração funcional de compilador, parser, semântica, IR, CFG ou runtime.
+- Trilha ativa passa a ser o **Bloco 6 — Memória operacional**.
+- `docs/roadmap.md` atualizado com definição oficial do Bloco 6 e sua tese estratégica.
+- `docs/handoff_codex.md` atualizado com continuidade pós-Bloco 5.
+- `docs/phases.md` atualizado com entrada de rodada documental sem número.
+- `docs/future.md` atualizado para separar explicitamente o backlog amplo da trilha ativa do Bloco 6.
+- `cargo build --locked` e `cargo test --locked` executados com sucesso após as alterações documentais.
+
+### Primeiro item normal sugerido do Bloco 6
+
+O primeiro item normal sugerido do novo bloco é:
+**Bloco 6, item A.1 — signed real no runtime** (`i8`–`i64` bloqueados por HF-3).
+
+Esse item foi escolhido como ponto de entrada porque:
+- É um bloqueio crônico e autocontido (não depende de dereferência de ponteiro).
+- Remove a restrição HF-3 do runtime de forma cirúrgica.
+- Desbloqueia `falar` para signed e elimina erro explícito de "tipo signed bloqueado".
+- Cria base para os demais itens do Bloco 6 que dependem de representação numérica correta.
+
+### Estado operacional após a rodada documental
+- Pipeline funcional permanece congelada e inalterada.
+- Bloco 5 confirmado como encerrado na Fase 63.
+- Bloco 6 — Memória operacional é agora a trilha oficial ativa.
+- Fase 48-H1 continua como rodada extraordinária/hotfix, sem reordenar a trilha principal.
+
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`
 - MSRV fixada em `rust-toolchain.toml` (`1.78.0`) com componentes `rustfmt` e `clippy`

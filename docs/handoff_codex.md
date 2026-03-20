@@ -1,7 +1,8 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada funcional: **Fase 63 — `pink build` / tooling de projeto** (quarto item do Bloco 5).
+- **Rodada documental estratégica — abertura do Bloco 6** (sem fase funcional nova).
+- Fase 63 permanece a última fase funcional; Bloco 5 encerrado.
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -43,7 +44,51 @@
 - Fase 62 passa a ser a fase funcional principal anterior.
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
 - Bloco 5 foi encerrado com os itens 1, 2, 3 e 4 concluídos.
-- Não há novo item funcional definido além do Bloco 5 em `docs/roadmap.md` no estado atual.
+- Não há novo item funcional definido além do Bloco 5 em `docs/roadmap.md` no estado anterior à rodada documental.
+
+## Rodada documental estratégica — abertura do Bloco 6
+
+### Contexto
+Após o fechamento do Bloco 5 (Fase 63), esta rodada documental consolida oficialmente a próxima trilha da Pinker: **Bloco 6 — Memória operacional**.
+
+### Tese estratégica
+A Pinker possui vários construtos parcialmente implementados que convergem para uma base ausente comum:
+
+| Construto | Estado atual | O que falta |
+|-----------|-------------|-------------|
+| `seta<T>` | tipo presente, semântica de ponteiro | dereferência, escrita, aritmética |
+| `ninho` | declaração, layout estático (`peso`) | acesso a campo operacional, escrita |
+| arrays fixos | tipo estático, indexação semântica | indexação operacional, escrita por índice |
+| `virar` | cast inteiro→inteiro em frontend/semântica/IR | lowering CFG/Machine/runtime |
+| `fragil` | qualificador semântico propagado | efeito operacional mínimo |
+| `i8`–`i64` | tipos presentes, bloqueados em runtime (HF-3) | representação correta em runtime |
+
+A próxima fase funcional deve sair do Bloco 6 — não de novas frentes horizontais.
+
+### Lógica do bloco: fechar base comum antes de abrir novas frentes
+O Bloco 6 foi estruturado em duas categorias:
+
+**A. Itens que valem ser fechados cedo** (parciais autocontidos):
+1. signed real no runtime
+2. representação mínima de ponteiro no runtime
+
+**B. Núcleo do bloco** (itens estruturais, em ordem interna sugerida):
+3. dereferência de leitura
+4. escrita indireta via ponteiro
+5. aritmética de ponteiros
+6. acesso a campo operacional em `ninho`
+7. indexação operacional em arrays
+8. cast operacional útil ligado à memória
+9. primeiro efeito operacional real de `fragil`
+
+### O que esta rodada não faz
+- Não atribui numeração de fase antecipada aos itens do Bloco 6.
+- Não altera código funcional.
+- Não cria trilha paralela.
+- Não reordena as fases já fechadas.
+
+### Próxima fase funcional sugerida
+**Bloco 6, item A.1 — signed real no runtime**: remover o bloqueio HF-3 para `i8`–`i64` no interpretador `--run` com representação correta.
 
 ## Decisões arquiteturais documentadas nesta rodada
 - **Bifurcação pipeline (HF-6)**: `--pseudo-asm` parte de `selected_program`, `--run` parte de `machine_program`. Intencional — backend textual é representação alternativa da seleção; interpretador precisa da Machine validada.

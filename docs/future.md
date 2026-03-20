@@ -4,6 +4,10 @@
 > A ordem oficial ativa de implementação está em `docs/roadmap.md`.
 > Este documento **não é roadmap**, não dita ordem ativa e não substitui `docs/roadmap.md`.
 
+> **Trilha ativa atual**: **Bloco 6 — Memória operacional** (definido em `docs/roadmap.md`).
+> Os itens do Bloco 6 (signed runtime, ponteiro operacional, dereferência, escrita indireta, aritmética de ponteiros, acesso a campo/index, cast operacional, `fragil` operacional) **são prioridade da trilha ativa** e não competem com o backlog amplo deste arquivo.
+> Itens como terminal próprio, self-hosting, backend nativo completo, kernel real robusto, package manager e ecossistema soberano permanecem aqui como visão de longo prazo, sem competir com o Bloco 6.
+
 Este documento organiza possibilidades futuras de evolução do Pinker v0 em camadas de dependência.
 Cada item tem status: ✅ implementado, 🔶 parcial, ou sem marcação (não iniciado / ideia futura).
 
