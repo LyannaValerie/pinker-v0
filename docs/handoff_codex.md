@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada funcional: **Fase 58 — linker script / boot entry** (terceiro item do Bloco 4).
+- Rodada funcional: **Fase 59 — primeiro kernel mínimo** (quarto item do Bloco 4).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -196,3 +196,24 @@
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
 - Bloco 4 avançou com os itens 1, 2 e 3 concluídos.
 - Próximo item normal do roadmap principal: Bloco 4, item 4 (primeiro kernel mínimo).
+
+## O que entrou na Fase 59
+- Continuidade preservada: Fase 58 segue como fase funcional principal anterior; Fase 48-H1 permanece rodada extraordinária/hotfix sem reordenar roadmap.
+- Definição adotada de kernel mínimo nesta fase: artefato freestanding experimental observável no `--asm-s` com `_start` mínimo conectado ao fluxo atual.
+- Backend textual `.s` em modo `livre` agora inclui `kernel.stub.v0` no cabeçalho e emissão concreta de stub:
+  - `.globl _start`
+  - `_start:`
+  - `call principal`
+  - `.Lpinker_hang:` + `jmp .Lpinker_hang`
+- Relação com `principal`: mantida como contrato de entrada lógica (`principal() -> bombom`) e agora encadeada de forma mais concreta ao símbolo `_start` no artefato textual.
+- Relação com linker script: script textual mínimo da Fase 58 foi preservado e segue junto do stub para compor o caso kernel-like mínimo reproduzível.
+- Relação com `sussurro`: mantida opcional; não foi forçada no kernel mínimo para evitar inflar escopo e manter fechamento auditável.
+- Exemplo versionado adicionado: `examples/check_kernel_minimo_fase59_valido.pink`.
+- Cobertura adicionada: teste de backend `.s` verifica metadata de `kernel.stub.v0` e stub emitido (`_start`, `call principal`, laço de parada).
+- Limite deliberado: sem boot real universal, sem pipeline GRUB/QEMU/ISO robusta, sem runtime bare-metal amplo, sem multitarget.
+
+## Continuidade de roadmap após Fase 59
+- Fase 58 passa a ser a fase funcional principal anterior.
+- Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
+- Bloco 4 foi encerrado com os itens 1, 2, 3 e 4 concluídos.
+- Próximo item normal do roadmap principal: Bloco 5, item 1 (módulos/imports).

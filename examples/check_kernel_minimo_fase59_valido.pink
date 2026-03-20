@@ -1,0 +1,6 @@
+pacote main;
+livre;
+
+carinho principal() -> bombom {
+    mimo 7;
+}

@@ -88,6 +88,12 @@ carinho principal() -> bombom { mimo 0; }";
     let out = render_backend_s(code).unwrap();
     assert!(out.contains("; boot.entry principal -> _start"));
     assert!(out.contains("; linker.script.v0 (textual, mínimo):"));
+    assert!(out.contains("; kernel.stub.v0 (experimental):"));
     assert!(out.contains(";   ENTRY(_start)"));
     assert!(out.contains(".text : { *(.text*) }"));
+    assert!(out.contains(".globl _start"));
+    assert!(out.contains("_start:"));
+    assert!(out.contains("call principal"));
+    assert!(out.contains(".Lpinker_hang:"));
+    assert!(out.contains("jmp .Lpinker_hang"));
 }

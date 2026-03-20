@@ -1260,6 +1260,12 @@ fn cli_check_boot_entry_livre_valido_com_exemplo_versionado() {
 }
 
 #[test]
+fn cli_check_kernel_minimo_fase59_valido_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/check_kernel_minimo_fase59_valido.pink");
+    assert!(output.status.success(), "{:?}", output);
+}
+
+#[test]
 fn cli_check_boot_entry_livre_sem_principal_falha_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/check_boot_entry_livre_sem_principal.pink");
     assert!(!output.status.success());

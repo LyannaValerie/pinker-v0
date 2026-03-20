@@ -1,7 +1,8 @@
 use crate::backend_text;
 use crate::backend_text::BackendTextProgram;
 use crate::boot::{
-    freestanding_linker_script, FREESTANDING_BOOT_ENTRY_FUNCTION, FREESTANDING_BOOT_ENTRY_SYMBOL,
+    freestanding_kernel_stub, freestanding_linker_script, FREESTANDING_BOOT_ENTRY_FUNCTION,
+    FREESTANDING_BOOT_ENTRY_SYMBOL,
 };
 use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
@@ -183,8 +184,28 @@ pub fn render_program(program: &BackendTextProgram) -> String {
         for script_line in freestanding_linker_script().lines() {
             line(&mut out, 0, &format!(";   {}", script_line));
         }
+        line(&mut out, 0, "; kernel.stub.v0 (experimental):");
+        for stub_line in freestanding_kernel_stub().lines() {
+            line(&mut out, 0, &format!(";   {}", stub_line));
+        }
     }
     line(&mut out, 0, ".text");
+
+    if program.is_freestanding {
+        line(
+            &mut out,
+            0,
+            &format!(".globl {}", FREESTANDING_BOOT_ENTRY_SYMBOL),
+        );
+        line(&mut out, 0, &format!("{}:", FREESTANDING_BOOT_ENTRY_SYMBOL));
+        line(
+            &mut out,
+            1,
+            &format!("call {}", FREESTANDING_BOOT_ENTRY_FUNCTION),
+        );
+        line(&mut out, 0, ".Lpinker_hang:");
+        line(&mut out, 1, "jmp .Lpinker_hang");
+    }
 
     if !program.globals.is_empty() {
         line(&mut out, 0, ".section .rodata");
