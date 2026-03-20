@@ -408,6 +408,28 @@ impl Parser {
             }));
         }
 
+        if self.match_token(TokenKind::KwSussurro) {
+            let start_span = self.previous().span;
+            self.consume(TokenKind::LParen, "(")?;
+            let mut chunks = Vec::new();
+            loop {
+                let chunk_token = self.consume(
+                    TokenKind::StringLit,
+                    "string literal em sussurro (ex.: \"mov rax, 60\")",
+                )?;
+                chunks.push(chunk_token.lexeme.clone());
+                if !self.match_token(TokenKind::Comma) {
+                    break;
+                }
+            }
+            self.consume(TokenKind::RParen, ")")?;
+            self.consume(TokenKind::Semi, ";")?;
+            return Ok(Stmt::InlineAsm(InlineAsmStmt {
+                chunks,
+                span: merge_span(start_span, self.previous().span),
+            }));
+        }
+
         if self.match_token(TokenKind::KwSempre) {
             let start_span = self.previous().span;
             self.consume(TokenKind::KwQue, "que")?;

@@ -199,6 +199,16 @@ fn render_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
                 &format!("Continue {}", format_span(continue_stmt.span)),
             );
         }
+        Stmt::InlineAsm(inline_asm_stmt) => {
+            line(
+                out,
+                indent,
+                &format!("InlineAsm {}", format_span(inline_asm_stmt.span)),
+            );
+            for chunk in &inline_asm_stmt.chunks {
+                line(out, indent + 1, &format!("chunk \"{}\"", chunk));
+            }
+        }
         Stmt::Expr(expr) => {
             line(out, indent, &format!("ExprStmt {}", format_span(expr.span)));
             render_expr(expr, indent + 1, out, "expr");

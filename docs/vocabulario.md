@@ -32,6 +32,7 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `peso`         | sizeof explícito | medida estática       |
 | `alinhamento`  | alignof explícito| alinhar com cuidado   |
 | `fragil`       | volatile         | cuidado redobrado     |
+| `sussurro`     | inline asm       | fala direta mínima com máquina |
 
 ---
 
@@ -100,7 +101,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 | ~~volatile~~     | ~~`fragil`~~| `instavel`           | implementado na Fase 52             |
 | ~~align/alinhamento~~ | ~~`alinhamento`~~ | `ajuste`     | implementado na Fase 51             |
 | static           | `raiz`      | `ancora`             | fixo, inamovivel                    |
-| inline asm       | `sussurro`  | `sopro`              | falar direto com a maquina, baixinho|
+| ~~inline asm~~   | ~~`sussurro`~~ | `sopro`          | implementado na Fase 56             |
 | alloc            | `reserva`   | `guardar`            | separar espaco com intencao         |
 | free / drop      | `soltar`    | `liberar`, `largar`  | deixar ir                           |
 

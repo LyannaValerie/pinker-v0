@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada funcional: **Fase 55 — assembler/linker externo (integração mínima)** (terceiro item do Bloco 3).
+- Rodada funcional: **Fase 56 — inline asm mínimo (`sussurro`)** (primeiro item do Bloco 4).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -150,3 +150,19 @@
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
 - Bloco 3 foi encerrado com os itens 1, 2 e 3 concluídos.
 - Próximo item normal do roadmap principal: Bloco 4, item 1 (inline asm).
+
+## O que entrou na Fase 56
+- Frontend: keyword `sussurro` adicionada com parse de statement mínimo `sussurro("...");` e variante com múltiplas strings literais.
+- AST/JSON/printer: novo nó explícito `InlineAsmStmt { chunks }` preservando conteúdo textual opaco.
+- Semântica: validação mínima de uso (ao menos uma string literal e rejeição de string vazia).
+- IR estruturada: instrução explícita `InlineAsm` preservada na renderização de `--ir`.
+- Decisão de escopo deliberada: inline asm é apenas statement nesta fase (não expressão).
+- Downstream deliberadamente limitado: CFG IR ainda não lowera `InlineAsm` e retorna erro claro ao tentar `--cfg-ir`; runtime/`--run` seguem sem execução de inline asm.
+- Exemplos versionados: `check_inline_asm_valido`, `check_inline_asm_multilinha`, `check_inline_asm_invalido_vazio`.
+- Continuidade preservada: Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar o roadmap principal.
+
+## Continuidade de roadmap após Fase 56
+- Fase 55 passa a ser a fase funcional principal anterior.
+- Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
+- Bloco 4 foi iniciado com o item 1 concluído.
+- Próximo item normal do roadmap principal: Bloco 4, item 2 (freestanding / no-std).

@@ -311,6 +311,17 @@ fn validate_block(
                 loop_continue_label: _,
                 span: _,
             } => {}
+            InstructionIR::InlineAsm { chunks, span } => {
+                if chunks.is_empty() || chunks.iter().any(|chunk| chunk.trim().is_empty()) {
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "inline asm inválido: bloco vazio",
+                        Some("instr='inline_asm'"),
+                        *span,
+                    ));
+                }
+            }
         }
     }
 

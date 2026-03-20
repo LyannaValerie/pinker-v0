@@ -248,6 +248,19 @@ fn cfg_ir_cast_explicito_ainda_fora_do_escopo_operacional() {
 }
 
 #[test]
+fn cfg_ir_inline_asm_ainda_fora_do_escopo_operacional() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            sussurro("mov rax, 60");
+            mimo 0;
+        }
+    "#;
+    let err = render_cfg_ir(code).unwrap_err().to_string();
+    assert!(err.contains("ainda não lowera inline asm"));
+}
+
+#[test]
 fn cfg_ir_logicos_viram_branch_de_curto_circuito() {
     let code = "
         pacote main;

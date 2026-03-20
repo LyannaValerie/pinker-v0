@@ -1,0 +1,6 @@
+pacote main;
+
+carinho principal() -> bombom {
+    sussurro("mov rax, 60");
+    mimo 0;
+}

@@ -16,6 +16,7 @@ pub enum TokenKind {
     KwNinho,
     KwSeta,
     KwFragil,
+    KwSussurro,
     KwVirar,
     KwPeso,
     KwAlinhamento,
@@ -33,6 +34,7 @@ pub enum TokenKind {
     KwFalso,
     Ident,
     IntLit,
+    StringLit,
     Plus,
     AmpAmp,
     Amp,
@@ -134,7 +136,7 @@ impl TokenKind {
     pub fn is_literal(&self) -> bool {
         matches!(
             self,
-            TokenKind::IntLit | TokenKind::KwVerdade | TokenKind::KwFalso
+            TokenKind::IntLit | TokenKind::StringLit | TokenKind::KwVerdade | TokenKind::KwFalso
         )
     }
 
@@ -156,6 +158,7 @@ impl TokenKind {
             TokenKind::KwNinho => "KwNinho",
             TokenKind::KwSeta => "KwSeta",
             TokenKind::KwFragil => "KwFragil",
+            TokenKind::KwSussurro => "KwSussurro",
             TokenKind::KwVirar => "KwVirar",
             TokenKind::KwPeso => "KwPeso",
             TokenKind::KwAlinhamento => "KwAlinhamento",
@@ -173,6 +176,7 @@ impl TokenKind {
             TokenKind::KwFalso => "KwFalso",
             TokenKind::Ident => "Ident",
             TokenKind::IntLit => "IntLit",
+            TokenKind::StringLit => "StringLit",
             TokenKind::Plus => "Plus",
             TokenKind::AmpAmp => "AmpAmp",
             TokenKind::Amp => "Amp",
