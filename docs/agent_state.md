@@ -89,8 +89,12 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Decisão da Fase 58: em unidade `livre;`, `principal() -> bombom` segue obrigatório e representa boot entry mínimo (`principal -> _start`), sem alterar fluxo hospedado.
 - Validação da Fase 58: ausência de `principal` em modo `livre` gera erro semântico explícito de boot entry.
 - Backend textual da Fase 58: `--asm-s` passou a renderizar metadata `boot.entry principal -> _start` e um linker script textual mínimo (`ENTRY(_start)` + seções básicas).
+- Fase 59 concluída: primeiro kernel mínimo experimental no fluxo textual freestanding.
+- Definição da Fase 59: kernel mínimo = unidade `livre;` com `principal() -> bombom` como entrada lógica e stub `_start` observável no `--asm-s`.
+- Backend textual da Fase 59: em modo `livre`, `--asm-s` mantém boot metadata/linker script e passa a emitir `kernel.stub.v0` com `_start` global, `call principal` e laço de parada (`.Lpinker_hang`).
+- Relação com `sussurro` na Fase 59: opcional e não exigido para fechar a fase; sem novo lowering operacional de inline asm.
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
-- Próximo item normal do roadmap principal: Bloco 4, item 4 (primeiro kernel mínimo).
+- Próximo item normal do roadmap principal: Bloco 5, item 1 (módulos/imports).
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`

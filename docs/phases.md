@@ -5,6 +5,16 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 59 — primeiro kernel mínimo (experimental, escopo estrito)
+  - continuidade histórica preservada: Fase 58 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix e não reordena o roadmap.
+  - definição adotada de kernel mínimo nesta fase: unidade `livre;` com `principal() -> bombom` como entrada lógica, `boot.entry` + linker script textual e stub `_start` mínimo observável em `--asm-s`.
+  - backend textual `.s` em modo `livre` agora emite `kernel.stub.v0` experimental: símbolo global `_start`, `call principal` e laço de parada (`.Lpinker_hang`).
+  - relação com `sussurro`: permanece opcional e fora do fluxo operacional de `--asm-s`/CFG nesta fase; kernel mínimo não força dependência de inline asm.
+  - artefato reproduzível desta fase: saída `--asm-s` freestanding contendo metadata de boot + linker script textual + stub mínimo de entrada.
+  - exemplos versionados: `examples/check_kernel_minimo_fase59_valido.pink` (positivo de semântica/base freestanding) e cobertura textual do stub no teste `backend_s`.
+  - escopo deliberadamente mantido: sem boot real universal, sem GRUB/QEMU/ISO robustos, sem runtime bare-metal amplo e sem multitarget.
+  - próximo item normal do roadmap principal: Bloco 5, item 1 (módulos/imports).
+
 - Fase 58 — linker script / boot entry (representação mínima em `livre`)
   - continuidade histórica preservada: Fase 57 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix e não reordena o roadmap.
   - decisão de entrada: em unidade com `livre;`, `principal() -> bombom` permanece obrigatório e passa a representar o boot entry mínimo desta fase.

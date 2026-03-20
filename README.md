@@ -96,6 +96,7 @@ cargo run -- --check examples/check_freestanding_valido.pink
 cargo run -- --check examples/check_freestanding_invalido_fora_topo.pink
 cargo run -- --check examples/check_boot_entry_livre_valido.pink
 cargo run -- --check examples/check_boot_entry_livre_sem_principal.pink
+cargo run -- --check examples/check_kernel_minimo_fase59_valido.pink
 ```
 
 ## Modos da CLI
@@ -135,6 +136,8 @@ Se não houver toolchain C no ambiente, o teste de fluxo real é pulado sem queb
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 
 Estado explícito da Fase 58: em unidade com `livre;`, `principal() -> bombom` permanece obrigatório e passa a ser tratado como **boot entry mínimo desta fase**, refletido em `--asm-s` como `boot.entry principal -> _start`, junto de um **linker script textual mínimo** (`ENTRY(_start)` + seções básicas). Isso é apenas representação/preparação: não gera kernel bootável real, não integra GRUB/QEMU e não substitui o fluxo hospedado.
+
+Estado explícito da Fase 59: em unidade com `livre;`, `--asm-s` mantém o boot metadata/linker script da Fase 58 e agora também emite um **kernel stub mínimo experimental** (`_start` global chamando `principal` e entrando em loop de parada). O stub é intencionalmente mínimo e auditável, sem prometer boot real universal, GRUB/QEMU/ISO completos ou runtime bare-metal robusto.
 
 ## Validação da Machine (sanity check de pilha)
 A camada `--machine` agora valida:
