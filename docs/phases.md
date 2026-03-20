@@ -17,6 +17,20 @@
   - `cargo build --locked` e `cargo test --locked` executados com sucesso ao final da rodada.
   - primeiro item normal sugerido do Bloco 6: signed real no runtime (item A.1 — remover bloqueio HF-3 para `i8`–`i64`).
 
+- Fase 64 — signed real no runtime (primeira fase funcional do Bloco 6)
+  - continuidade histórica preservada: Fase 63 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar a trilha principal.
+  - runtime (`--run`) deixou de bloquear `i8`/`i16`/`i32`/`i64`: valores signed passam a executar no interpretador com representação explícita.
+  - representação adotada no runtime: `RuntimeValue::Int(u64)` (família unsigned/bombom) e `RuntimeValue::IntSigned(i64)` (família signed), além de `RuntimeValue::Bool(bool)`.
+  - globals agora preservam tipo na passagem `selected -> machine` para inicialização correta de constantes signed em runtime.
+  - operações cobertas no runtime para signed: `neg`, bitwise (`& | ^ << >>`), aritmética (`+ - * / %`) e comparações (`== != < <= > >=`), preservando a família signed/unsigned do cálculo.
+  - mistura signed/unsigned no runtime segue conservadora: sem coerção geral; quando a mistura ocorre por literal inteiro sem sinal, há normalização mínima para signed apenas se o literal couber em `i64`.
+  - `falar(expr)` passa a aceitar e imprimir `i8`/`i16`/`i32`/`i64` (semântica + runtime).
+  - `bombom` continua operacionalmente como inteiro não assinado (`u64`) e convive com signed sem coerção implícita ampla.
+  - backend textual (`--asm-s`) não foi expandido nesta fase para novo contrato operacional de signed além do que já existia textual; o foco foi estritamente o runtime `--run`.
+  - limite preventivo de recursão do runtime foi ajustado para `MAX_CALL_DEPTH = 64` para manter estabilidade em ambiente de testes com pilha menor.
+  - exemplos/testes adicionados: execução signed em runtime, comparação signed, retorno/chamada signed e `falar` com signed.
+  - próximo item normal sugerido do Bloco 6: item A.2 — representação mínima de ponteiro no runtime.
+
 - Fase 63 — `pink build` / tooling de projeto (quarto item do Bloco 5, escopo mínimo)
   - continuidade histórica preservada: Fase 62 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar a trilha principal.
   - superfície adotada: comando `pink build <arquivo.pink>` com opção `--out-dir <dir>` (padrão: `build`).

@@ -30,6 +30,7 @@ pub struct MachineProgram {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineGlobal {
     pub name: String,
+    pub ty: TypeIR,
     pub value: OperandIR,
 }
 
@@ -112,6 +113,7 @@ pub fn lower_program(selected: &SelectedProgram) -> Result<MachineProgram, Pinke
         .iter()
         .map(|g| MachineGlobal {
             name: g.name.clone(),
+            ty: g.ty,
             value: g.value.clone(),
         })
         .collect();

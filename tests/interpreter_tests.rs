@@ -418,7 +418,7 @@ fn run_falha_limite_recursao_excedido_tem_categoria_e_trace() {
         err
     );
     assert!(
-        err.contains("profundidade máxima de chamadas (128)"),
+        err.contains("profundidade máxima de chamadas (64)"),
         "mensagem: {}",
         err
     );
@@ -603,6 +603,7 @@ fn run_falha_valor_global_nao_suportado() {
         module_name: "main".to_string(),
         globals: vec![MachineGlobal {
             name: "G".to_string(),
+            ty: pinker_v0::ir::TypeIR::Bombom,
             value: pinker_v0::cfg_ir::OperandIR::Local("x".to_string()),
         }],
         functions: vec![MachineFunction {
@@ -632,6 +633,39 @@ fn run_falha_valor_global_nao_suportado() {
 fn run_not_unario() {
     let out = run_code(
         "pacote main; carinho principal() -> bombom { talvez !falso { mimo 1; } senao { mimo 0; } }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_signed_i32_em_runtime_funciona() {
+    let out = run_code(
+        "pacote main;
+         carinho soma(a: i32, b: i32) -> i32 { mimo a + b; }
+         carinho principal() -> bombom {
+             nova base: i32 = 5;
+             nova x: i32 = -base;
+             nova y: i32 = soma(x, 2);
+             talvez y < 0 { mimo 1; } senao { mimo 0; }
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_signed_retorno_e_chamada_funcionam() {
+    let out = run_code(
+        "pacote main;
+         carinho delta(a: i64, b: i64) -> i64 { mimo a - b; }
+         carinho principal() -> bombom {
+             nova a: i64 = 10;
+             nova b: i64 = 3;
+             nova d: i64 = delta(-a, -b);
+             nova sete: i64 = 7;
+             talvez d == -sete { mimo 1; } senao { mimo 0; }
+         }",
     )
     .unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(1)));
@@ -1068,7 +1102,7 @@ fn run_trace_curto_sem_truncamento() {
 
 #[test]
 fn run_trace_longo_e_truncado() {
-    // Recursão infinita atinge MAX_CALL_DEPTH e produz trace com ~128 frames.
+    // Recursão infinita atinge MAX_CALL_DEPTH e produz trace com dezenas de frames.
     // O trace deve ser resumido com linha de omissão.
     let err = run_code(
         "pacote main; carinho loop() -> bombom { mimo loop(); } carinho principal() -> bombom { mimo loop(); }",
@@ -1236,18 +1270,10 @@ fn cli_run_unsigned_fixos_funciona() {
 }
 
 #[test]
-fn cli_run_signed_fixos_bloqueado_no_runtime() {
+fn cli_run_signed_fixos_funciona() {
     let out = run_cli_example("examples/run_signed_basico.pink");
-    assert!(
-        !out.status.success(),
-        "signed types devem ser bloqueados no runtime"
-    );
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        stderr.contains("signed") && stderr.contains("ainda não é suportado"),
-        "stderr deve indicar bloqueio de signed: {}",
-        stderr
-    );
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
 }
 
 #[test]
@@ -1255,6 +1281,13 @@ fn cli_run_alias_tipo_funciona() {
     let out = run_cli_example("examples/run_alias_tipo_basico.pink");
     assert!(out.status.success());
     assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
+}
+
+#[test]
+fn cli_run_falar_signed_funciona() {
+    let out = run_cli_example("examples/fase64_falar_signed.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "-3\nverdade\n0\n");
 }
 
 #[test]

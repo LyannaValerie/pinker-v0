@@ -41,7 +41,6 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - lowering operacional de `verso` em CFG/Machine/runtime além de `falar`: `verso` como valor geral (passagem por chamada, retorno, variável) ainda não executa em `--cfg-ir`/`--run`; apenas `falar("literal")` funciona em `--run`
 - I/O de leitura (`ouvir`), arquivo (`abrir`, `fechar`, `escrever`) e formatação avançada de saída
 - freestanding/no-std operacional real (nesta fase `livre;` é marca semântica de intenção, não runtime bare-metal executável)
-- runtime signed correto (tipos `i8`–`i64` são bloqueados no `--run` até representação adequada)
 
 ## Build e testes
 ```bash
@@ -80,7 +79,9 @@ cargo run -- --run examples/run_quebrar.pink
 cargo run -- --run examples/run_continuar.pink
 cargo run -- --run examples/run_global.pink
 cargo run -- --run examples/run_unsigned_basico.pink
+cargo run -- --run examples/run_signed_basico.pink
 cargo run -- --run examples/run_alias_tipo_basico.pink
+cargo run -- --run examples/fase64_falar_signed.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
 cargo run -- --check examples/check_continuar_fora_loop.pink

@@ -1,8 +1,8 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- **Rodada documental estratégica — abertura do Bloco 6** (sem fase funcional nova).
-- Fase 63 permanece a última fase funcional; Bloco 5 encerrado.
+- **Fase 64 — signed real no runtime** (primeira fase funcional do Bloco 6).
+- Fase 63 permanece como fase funcional principal anterior; Fase 48-H1 segue extraordinária/hotfix sem reordenar trilha.
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -87,8 +87,17 @@ O Bloco 6 foi estruturado em duas categorias:
 - Não cria trilha paralela.
 - Não reordena as fases já fechadas.
 
+### Fase 64 concluída (resumo)
+- Runtime `--run` passou a executar `i8`/`i16`/`i32`/`i64` com representação explícita separando unsigned (`RuntimeValue::Int(u64)`) de signed (`RuntimeValue::IntSigned(i64)`).
+- Bloqueio HF-3 foi removido do interpretador.
+- Globals agora preservam tipo no fluxo `selected -> machine`, permitindo inicialização signed coerente em runtime.
+- Operações inteiras signed cobertas no runtime: `neg`, bitwise, aritmética básica e comparações.
+- `falar(expr)` passou a aceitar e imprimir tipos signed (`i8`/`i16`/`i32`/`i64`).
+- Cobertura adicionada em testes de runtime/CLI para signed em `--run`, comparação signed, retorno/chamada signed e `falar` signed.
+- Ajuste de estabilidade: limite preventivo de recursão do runtime passou para `MAX_CALL_DEPTH = 64`.
+
 ### Próxima fase funcional sugerida
-**Bloco 6, item A.1 — signed real no runtime**: remover o bloqueio HF-3 para `i8`–`i64` no interpretador `--run` com representação correta.
+**Bloco 6, item A.2 — representação mínima de ponteiro no runtime**.
 
 ## Decisões arquiteturais documentadas nesta rodada
 - **Bifurcação pipeline (HF-6)**: `--pseudo-asm` parte de `selected_program`, `--run` parte de `machine_program`. Intencional — backend textual é representação alternativa da seleção; interpretador precisa da Machine validada.
@@ -99,7 +108,7 @@ O Bloco 6 foi estruturado em duas categorias:
 - Continuidade histórica preservada (Fase 48 funcional → Fase 48-H1 hotfixes).
 - Roadmap principal preservado; Bloco 5 foi encerrado na Fase 63 sem abrir trilha paralela.
 - CI agora inclui clippy e doc validation além de build/check/fmt/test.
-- Runtime signed bloqueado explicitamente até implementação correta de representação signed.
+- Runtime signed passou a executar no `--run` a partir da Fase 64.
 
 
 ## O que entrou na Fase 49

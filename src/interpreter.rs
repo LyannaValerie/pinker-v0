@@ -14,7 +14,7 @@ use crate::error::PinkerError;
 use crate::token::Span;
 use std::collections::HashMap;
 
-const MAX_CALL_DEPTH: usize = 128;
+const MAX_CALL_DEPTH: usize = 64;
 
 // Truncamento de stack trace longo (Fase 27b):
 // traces com mais de TRACE_TRUNC_THRESHOLD frames são resumidos mostrando
@@ -34,42 +34,14 @@ struct RuntimeFrame {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeValue {
     Int(u64),
+    IntSigned(i64),
     Bool(bool),
 }
 
 pub fn run_program(program: &MachineProgram) -> Result<Option<RuntimeValue>, PinkerError> {
-    reject_signed_types(program)?;
     let globals = build_globals(program)?;
     let mut call_stack = Vec::new();
     call_function("principal", vec![], program, &globals, &mut call_stack)
-}
-
-/// Bloqueia execução de programas que usam tipos signed (i8..i64) no runtime,
-/// pois a representação atual (u64 para tudo) produziria resultados incorretos
-/// em comparações e operações aritméticas de valores negativos.
-fn reject_signed_types(program: &MachineProgram) -> Result<(), PinkerError> {
-    for func in &program.functions {
-        if func.ret_type.is_signed() {
-            return Err(runtime_err(&format!(
-                "tipo signed '{}' no retorno de '{}' ainda não é suportado corretamente pelo runtime; \
-                 a representação interna (u64) produziria resultados incorretos",
-                func.ret_type.name(),
-                func.name
-            )));
-        }
-        for (slot, ty) in &func.slot_types {
-            if ty.is_signed() {
-                return Err(runtime_err(&format!(
-                    "tipo signed '{}' no slot '{}' de '{}' ainda não é suportado corretamente pelo runtime; \
-                     a representação interna (u64) produziria resultados incorretos",
-                    ty.name(),
-                    slot,
-                    func.name
-                )));
-            }
-        }
-    }
-    Ok(())
 }
 
 fn build_globals(program: &MachineProgram) -> Result<HashMap<String, RuntimeValue>, PinkerError> {
@@ -82,9 +54,10 @@ fn build_globals(program: &MachineProgram) -> Result<HashMap<String, RuntimeValu
 }
 
 fn eval_global_value(g: &MachineGlobal) -> Result<RuntimeValue, PinkerError> {
-    match &g.value {
-        OperandIR::Int(v) => Ok(RuntimeValue::Int(*v)),
-        OperandIR::Bool(v) => Ok(RuntimeValue::Bool(*v)),
+    match (&g.value, g.ty) {
+        (OperandIR::Int(v), ty) if ty.is_signed() => Ok(RuntimeValue::IntSigned(*v as i64)),
+        (OperandIR::Int(v), _) => Ok(RuntimeValue::Int(*v)),
+        (OperandIR::Bool(v), _) => Ok(RuntimeValue::Bool(*v)),
         _ => Err(runtime_err("valor global não suportado em runtime")),
     }
 }
@@ -221,85 +194,145 @@ fn exec_instr(
         }
         MachineInstr::StoreSlot(slot) => {
             let value = pop(stack, "store_slot exige valor na pilha")?;
-            slots.insert(slot.clone(), value);
+            let coerced =
+                if let Some(ty) = current_function(program, call_stack)?.slot_types.get(slot) {
+                    coerce_int_to_type(value, *ty)?
+                } else {
+                    value
+                };
+            slots.insert(slot.clone(), coerced);
         }
         MachineInstr::Neg => {
-            let value = pop_int(stack, "neg exige bombom no topo")?;
-            stack.push(RuntimeValue::Int((0u64).wrapping_sub(value)));
+            let value = pop_numeric(stack, "neg exige inteiro no topo")?;
+            let out = match value {
+                RuntimeValue::Int(v) => RuntimeValue::Int((0u64).wrapping_sub(v)),
+                RuntimeValue::IntSigned(v) => RuntimeValue::IntSigned(v.wrapping_neg()),
+                RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
+            };
+            stack.push(out);
         }
         MachineInstr::Not => {
             let value = pop_bool(stack, "not exige lógica no topo")?;
             stack.push(RuntimeValue::Bool(!value));
         }
         MachineInstr::BitAnd => {
-            let (lhs, rhs) = pop_bin_int(stack, "bitand exige dois bombons")?;
-            stack.push(RuntimeValue::Int(lhs & rhs));
+            let (lhs, rhs) = pop_bin_numeric(stack, "bitand exige dois inteiros")?;
+            stack.push(bin_int(lhs, rhs, |a, b| a & b, |a, b| a & b)?);
         }
         MachineInstr::BitOr => {
-            let (lhs, rhs) = pop_bin_int(stack, "bitor exige dois bombons")?;
-            stack.push(RuntimeValue::Int(lhs | rhs));
+            let (lhs, rhs) = pop_bin_numeric(stack, "bitor exige dois inteiros")?;
+            stack.push(bin_int(lhs, rhs, |a, b| a | b, |a, b| a | b)?);
         }
         MachineInstr::BitXor => {
-            let (lhs, rhs) = pop_bin_int(stack, "bitxor exige dois bombons")?;
-            stack.push(RuntimeValue::Int(lhs ^ rhs));
+            let (lhs, rhs) = pop_bin_numeric(stack, "bitxor exige dois inteiros")?;
+            stack.push(bin_int(lhs, rhs, |a, b| a ^ b, |a, b| a ^ b)?);
         }
         MachineInstr::Shl => {
-            let (lhs, rhs) = pop_bin_int(stack, "shl exige dois bombons")?;
-            stack.push(RuntimeValue::Int(lhs.wrapping_shl(rhs as u32)));
+            let (lhs, rhs) = pop_bin_numeric(stack, "shl exige dois inteiros")?;
+            stack.push(bin_int(
+                lhs,
+                rhs,
+                |a, b| a.wrapping_shl(b as u32),
+                |a, b| a.wrapping_shl(b as u32),
+            )?);
         }
         MachineInstr::Shr => {
-            let (lhs, rhs) = pop_bin_int(stack, "shr exige dois bombons")?;
-            stack.push(RuntimeValue::Int(lhs.wrapping_shr(rhs as u32)));
+            let (lhs, rhs) = pop_bin_numeric(stack, "shr exige dois inteiros")?;
+            stack.push(bin_int(
+                lhs,
+                rhs,
+                |a, b| a.wrapping_shr(b as u32),
+                |a, b| a.wrapping_shr(b as u32),
+            )?);
         }
         MachineInstr::Add => {
-            let (lhs, rhs) = pop_bin_int(stack, "add exige dois bombons")?;
-            stack.push(RuntimeValue::Int(lhs.wrapping_add(rhs)));
+            let (lhs, rhs) = pop_bin_numeric(stack, "add exige dois inteiros")?;
+            stack.push(bin_int(
+                lhs,
+                rhs,
+                |a, b| a.wrapping_add(b),
+                |a, b| a.wrapping_add(b),
+            )?);
         }
         MachineInstr::Sub => {
-            let (lhs, rhs) = pop_bin_int(stack, "sub exige dois bombons")?;
-            stack.push(RuntimeValue::Int(lhs.wrapping_sub(rhs)));
+            let (lhs, rhs) = pop_bin_numeric(stack, "sub exige dois inteiros")?;
+            stack.push(bin_int(
+                lhs,
+                rhs,
+                |a, b| a.wrapping_sub(b),
+                |a, b| a.wrapping_sub(b),
+            )?);
         }
         MachineInstr::Mul => {
-            let (lhs, rhs) = pop_bin_int(stack, "mul exige dois bombons")?;
-            stack.push(RuntimeValue::Int(lhs.wrapping_mul(rhs)));
+            let (lhs, rhs) = pop_bin_numeric(stack, "mul exige dois inteiros")?;
+            stack.push(bin_int(
+                lhs,
+                rhs,
+                |a, b| a.wrapping_mul(b),
+                |a, b| a.wrapping_mul(b),
+            )?);
         }
         MachineInstr::Div => {
-            let (lhs, rhs) = pop_bin_int(stack, "div exige dois bombons")?;
-            if rhs == 0 {
-                return Err(runtime_err("divisão por zero"));
-            }
-            stack.push(RuntimeValue::Int(lhs / rhs));
+            let (lhs, rhs) = pop_bin_numeric(stack, "div exige dois inteiros")?;
+            stack.push(bin_int_checked_div(lhs, rhs)?);
         }
         MachineInstr::Mod => {
-            let (lhs, rhs) = pop_bin_int(stack, "mod exige dois bombons")?;
-            if rhs == 0 {
-                return Err(runtime_err("divisão por zero"));
-            }
-            stack.push(RuntimeValue::Int(lhs % rhs));
+            let (lhs, rhs) = pop_bin_numeric(stack, "mod exige dois inteiros")?;
+            stack.push(bin_int_checked_mod(lhs, rhs)?);
         }
         MachineInstr::CmpEq => {
-            let (lhs, rhs) = pop_bin_int(stack, "cmp_eq exige dois bombons")?;
-            stack.push(RuntimeValue::Bool(lhs == rhs));
+            let (lhs, rhs) = pop_bin_numeric(stack, "cmp_eq exige dois inteiros")?;
+            stack.push(RuntimeValue::Bool(cmp_int(
+                lhs,
+                rhs,
+                |a, b| a == b,
+                |a, b| a == b,
+            )?));
         }
         MachineInstr::CmpNe => {
-            let (lhs, rhs) = pop_bin_int(stack, "cmp_ne exige dois bombons")?;
-            stack.push(RuntimeValue::Bool(lhs != rhs));
+            let (lhs, rhs) = pop_bin_numeric(stack, "cmp_ne exige dois inteiros")?;
+            stack.push(RuntimeValue::Bool(cmp_int(
+                lhs,
+                rhs,
+                |a, b| a != b,
+                |a, b| a != b,
+            )?));
         }
         MachineInstr::CmpLt => {
-            let (lhs, rhs) = pop_bin_int(stack, "cmp_lt exige dois bombons")?;
-            stack.push(RuntimeValue::Bool(lhs < rhs));
+            let (lhs, rhs) = pop_bin_numeric(stack, "cmp_lt exige dois inteiros")?;
+            stack.push(RuntimeValue::Bool(cmp_int(
+                lhs,
+                rhs,
+                |a, b| a < b,
+                |a, b| a < b,
+            )?));
         }
         MachineInstr::CmpLe => {
-            let (lhs, rhs) = pop_bin_int(stack, "cmp_le exige dois bombons")?;
-            stack.push(RuntimeValue::Bool(lhs <= rhs));
+            let (lhs, rhs) = pop_bin_numeric(stack, "cmp_le exige dois inteiros")?;
+            stack.push(RuntimeValue::Bool(cmp_int(
+                lhs,
+                rhs,
+                |a, b| a <= b,
+                |a, b| a <= b,
+            )?));
         }
         MachineInstr::CmpGt => {
-            let (lhs, rhs) = pop_bin_int(stack, "cmp_gt exige dois bombons")?;
-            stack.push(RuntimeValue::Bool(lhs > rhs));
+            let (lhs, rhs) = pop_bin_numeric(stack, "cmp_gt exige dois inteiros")?;
+            stack.push(RuntimeValue::Bool(cmp_int(
+                lhs,
+                rhs,
+                |a, b| a > b,
+                |a, b| a > b,
+            )?));
         }
         MachineInstr::CmpGe => {
-            let (lhs, rhs) = pop_bin_int(stack, "cmp_ge exige dois bombons")?;
-            stack.push(RuntimeValue::Bool(lhs >= rhs));
+            let (lhs, rhs) = pop_bin_numeric(stack, "cmp_ge exige dois inteiros")?;
+            stack.push(RuntimeValue::Bool(cmp_int(
+                lhs,
+                rhs,
+                |a, b| a >= b,
+                |a, b| a >= b,
+            )?));
         }
         MachineInstr::Call { callee, argc } => {
             let args = pop_args(stack, *argc)?;
@@ -316,10 +349,11 @@ fn exec_instr(
                 return Err(runtime_err("call_void exige função sem retorno"));
             }
         }
-        MachineInstr::PrintInt => {
-            let v = pop_int(stack, "print_int exige bombom no topo")?;
-            println!("{}", v);
-        }
+        MachineInstr::PrintInt => match pop_numeric(stack, "print_int exige inteiro no topo")? {
+            RuntimeValue::Int(v) => println!("{}", v),
+            RuntimeValue::IntSigned(v) => println!("{}", v),
+            RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
+        },
         MachineInstr::PrintBool => {
             let v = pop_bool(stack, "print_bool exige lógica no topo")?;
             println!("{}", if v { "verdade" } else { "falso" });
@@ -358,9 +392,10 @@ fn pop(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<RuntimeValue, PinkerE
     stack.pop().ok_or_else(|| runtime_err(msg))
 }
 
-fn pop_int(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<u64, PinkerError> {
+fn pop_numeric(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<RuntimeValue, PinkerError> {
     match pop(stack, msg)? {
-        RuntimeValue::Int(v) => Ok(v),
+        RuntimeValue::Int(v) => Ok(RuntimeValue::Int(v)),
+        RuntimeValue::IntSigned(v) => Ok(RuntimeValue::IntSigned(v)),
         RuntimeValue::Bool(_) => Err(runtime_err(msg)),
     }
 }
@@ -369,13 +404,129 @@ fn pop_bool(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<bool, PinkerErro
     match pop(stack, msg)? {
         RuntimeValue::Bool(v) => Ok(v),
         RuntimeValue::Int(_) => Err(runtime_err(msg)),
+        RuntimeValue::IntSigned(_) => Err(runtime_err(msg)),
     }
 }
 
-fn pop_bin_int(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<(u64, u64), PinkerError> {
-    let rhs = pop_int(stack, msg)?;
-    let lhs = pop_int(stack, msg)?;
+fn pop_bin_numeric(
+    stack: &mut Vec<RuntimeValue>,
+    msg: &str,
+) -> Result<(RuntimeValue, RuntimeValue), PinkerError> {
+    let rhs = pop_numeric(stack, msg)?;
+    let lhs = pop_numeric(stack, msg)?;
     Ok((lhs, rhs))
+}
+
+fn coerce_int_to_type(
+    value: RuntimeValue,
+    ty: crate::ir::TypeIR,
+) -> Result<RuntimeValue, PinkerError> {
+    if !ty.is_integer() {
+        return Ok(value);
+    }
+    match (value, ty.is_signed()) {
+        (RuntimeValue::Int(v), true) => Ok(RuntimeValue::IntSigned(v as i64)),
+        (RuntimeValue::IntSigned(v), false) => Ok(RuntimeValue::Int(v as u64)),
+        (v, _) => Ok(v),
+    }
+}
+
+fn current_function<'a>(
+    program: &'a MachineProgram,
+    call_stack: &[RuntimeFrame],
+) -> Result<&'a MachineFunction, PinkerError> {
+    let fn_name = call_stack
+        .last()
+        .map(|frame| frame.fn_name.as_str())
+        .ok_or_else(|| runtime_err("pilha de chamadas vazia"))?;
+    find_function(fn_name, program)
+}
+
+fn bin_int(
+    lhs: RuntimeValue,
+    rhs: RuntimeValue,
+    op_u: fn(u64, u64) -> u64,
+    op_s: fn(i64, i64) -> i64,
+) -> Result<RuntimeValue, PinkerError> {
+    match normalize_numeric_pair(lhs, rhs)? {
+        (RuntimeValue::Int(a), RuntimeValue::Int(b)) => Ok(RuntimeValue::Int(op_u(a, b))),
+        (RuntimeValue::IntSigned(a), RuntimeValue::IntSigned(b)) => {
+            Ok(RuntimeValue::IntSigned(op_s(a, b)))
+        }
+        _ => Err(runtime_err("operação inteira inválida em runtime")),
+    }
+}
+
+fn cmp_int(
+    lhs: RuntimeValue,
+    rhs: RuntimeValue,
+    op_u: fn(u64, u64) -> bool,
+    op_s: fn(i64, i64) -> bool,
+) -> Result<bool, PinkerError> {
+    match normalize_numeric_pair(lhs, rhs)? {
+        (RuntimeValue::Int(a), RuntimeValue::Int(b)) => Ok(op_u(a, b)),
+        (RuntimeValue::IntSigned(a), RuntimeValue::IntSigned(b)) => Ok(op_s(a, b)),
+        _ => Err(runtime_err("comparação inteira inválida em runtime")),
+    }
+}
+
+fn bin_int_checked_div(lhs: RuntimeValue, rhs: RuntimeValue) -> Result<RuntimeValue, PinkerError> {
+    match normalize_numeric_pair(lhs, rhs)? {
+        (RuntimeValue::Int(a), RuntimeValue::Int(b)) => {
+            if b == 0 {
+                return Err(runtime_err("divisão por zero"));
+            }
+            Ok(RuntimeValue::Int(a / b))
+        }
+        (RuntimeValue::IntSigned(a), RuntimeValue::IntSigned(b)) => {
+            if b == 0 {
+                return Err(runtime_err("divisão por zero"));
+            }
+            Ok(RuntimeValue::IntSigned(a / b))
+        }
+        _ => Err(runtime_err("divisão inteira inválida em runtime")),
+    }
+}
+
+fn bin_int_checked_mod(lhs: RuntimeValue, rhs: RuntimeValue) -> Result<RuntimeValue, PinkerError> {
+    match normalize_numeric_pair(lhs, rhs)? {
+        (RuntimeValue::Int(a), RuntimeValue::Int(b)) => {
+            if b == 0 {
+                return Err(runtime_err("divisão por zero"));
+            }
+            Ok(RuntimeValue::Int(a % b))
+        }
+        (RuntimeValue::IntSigned(a), RuntimeValue::IntSigned(b)) => {
+            if b == 0 {
+                return Err(runtime_err("divisão por zero"));
+            }
+            Ok(RuntimeValue::IntSigned(a % b))
+        }
+        _ => Err(runtime_err("módulo inteiro inválido em runtime")),
+    }
+}
+
+fn normalize_numeric_pair(
+    lhs: RuntimeValue,
+    rhs: RuntimeValue,
+) -> Result<(RuntimeValue, RuntimeValue), PinkerError> {
+    match (lhs, rhs) {
+        (RuntimeValue::Int(_), RuntimeValue::Int(_))
+        | (RuntimeValue::IntSigned(_), RuntimeValue::IntSigned(_)) => Ok((lhs, rhs)),
+        (RuntimeValue::IntSigned(a), RuntimeValue::Int(b))
+        | (RuntimeValue::Int(b), RuntimeValue::IntSigned(a)) => {
+            if b > i64::MAX as u64 {
+                return Err(runtime_err(
+                    "mistura signed/unsigned fora de faixa no runtime (sem coerção implícita)",
+                ));
+            }
+            Ok((
+                RuntimeValue::IntSigned(a),
+                RuntimeValue::IntSigned(b as i64),
+            ))
+        }
+        _ => Err(runtime_err("operação inteira exige valores inteiros")),
+    }
 }
 
 fn runtime_err(msg: &str) -> PinkerError {

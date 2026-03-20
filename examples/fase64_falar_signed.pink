@@ -1,0 +1,10 @@
+pacote fase64_falar_signed;
+
+carinho principal() -> bombom {
+    nova base: i32 = 5;
+    nova a: i32 = -base;
+    nova b: i32 = 2;
+    falar(a + b);
+    falar(a < b);
+    mimo 0;
+}
