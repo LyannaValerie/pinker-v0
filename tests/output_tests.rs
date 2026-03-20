@@ -31,6 +31,7 @@ fn json_ast_basico_e_estavel() {
       }
     }
   },
+  "freestanding": null,
   "items": [
     {
       "node": "FunctionDecl",
@@ -143,6 +144,7 @@ carinho principal() -> bombom { mimo soma(1, 2); }",
       }
     }
   },
+  "freestanding": null,
   "items": [
     {
       "node": "FunctionDecl",

@@ -198,6 +198,28 @@ fn parser_aceita_sussurro_com_multiplas_strings() {
 }
 
 #[test]
+fn parser_aceita_marcador_livre_no_topo() {
+    let source = r#"
+        pacote main;
+        livre;
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let program = parse(source).expect("parser deve aceitar marcador livre");
+    assert!(program.freestanding.is_some());
+}
+
+#[test]
+fn parser_rejeita_livre_fora_do_topo() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo 0; }
+        livre;
+    "#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(err.contains("marcador `livre;` apenas uma vez no topo do programa"));
+}
+
+#[test]
 fn parser_rejeita_sussurro_sem_string_literal() {
     let source = r#"
         pacote main;

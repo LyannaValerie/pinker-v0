@@ -5,6 +5,16 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 57 — freestanding / no-std (marca explícita de unidade)
+  - continuidade histórica preservada: Fase 56 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix e não reordena o roadmap.
+  - sintaxe adotada: `livre;` como marcador único de unidade, permitido apenas no topo (após `pacote`, antes de itens).
+  - frontend atualizado: lexer/token/parser/AST/printer/JSON reconhecem, validam posição e preservam a marca.
+  - semântica desta fase: `livre;` é marca de intenção de ambiente freestanding/no-std; não substitui runtime hospedado e não remove a exigência de `principal`.
+  - pipeline atualizado com metadata mínima: IR/CFG/selected/pseudo-asm/`.s` exibem `mode livre|hospedado`.
+  - restrições explícitas: sem boot entry final, sem linker script final, sem kernel funcional, sem panic/runtime bare-metal completo.
+  - exemplos versionados: `examples/check_freestanding_valido.pink` e `examples/check_freestanding_invalido_fora_topo.pink`.
+  - próximo item normal do roadmap principal: Bloco 4, item 3 (linker script / boot entry).
+
 - Fase 56 — inline asm mínimo (`sussurro`) como statement textual preservado
   - continuidade histórica preservada: Fase 55 segue como fase funcional principal anterior e Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar roadmap.
   - sintaxe adotada: `sussurro("...");` e `sussurro("...", "...");` com uma ou mais strings literais.

@@ -6,6 +6,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgram {
     pub module_name: String,
+    pub is_freestanding: bool,
     pub globals: Vec<SelectedGlobal>,
     pub functions: Vec<SelectedFunction>,
 }
@@ -210,6 +211,7 @@ pub fn lower_program(cfg: &ProgramCfgIR) -> Result<SelectedProgram, PinkerError>
 
     Ok(SelectedProgram {
         module_name: cfg.module_name.clone(),
+        is_freestanding: cfg.is_freestanding,
         globals,
         functions,
     })
@@ -349,6 +351,18 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
 pub fn render_program(program: &SelectedProgram) -> String {
     let mut out = String::new();
     line(&mut out, 0, &format!("module {}", program.module_name));
+    line(
+        &mut out,
+        0,
+        &format!(
+            "mode {}",
+            if program.is_freestanding {
+                "livre"
+            } else {
+                "hospedado"
+            }
+        ),
+    );
     line(&mut out, 0, "globals:");
     if program.globals.is_empty() {
         line(&mut out, 1, "[]");

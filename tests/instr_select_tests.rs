@@ -10,6 +10,7 @@ fn seleciona_funcao_simples() {
         out,
         "\
 module main
+mode hospedado
 globals:
   []
 selected:
@@ -34,6 +35,7 @@ carinho principal() -> bombom {
         out,
         "\
 module main
+mode hospedado
 globals:
   []
 selected:
@@ -63,6 +65,7 @@ carinho principal() -> bombom {
         out,
         "\
 module main
+mode hospedado
 globals:
   []
 selected:
@@ -95,6 +98,7 @@ carinho principal() -> bombom {
         out,
         "\
 module main
+mode hospedado
 globals:
   []
 selected:
@@ -134,6 +138,7 @@ carinho principal() -> bombom {
         out,
         "\
 module main
+mode hospedado
 globals:
   []
 selected:
@@ -159,6 +164,7 @@ fn selected_cli_header_estavel() {
         "\
 === SELECTED ===
 module main
+mode hospedado
 globals:
   []
 selected:
@@ -176,6 +182,7 @@ Análise semântica concluída sem erros.
 fn falha_clara_para_call_sem_destino() {
     let cfg = pinker_v0::cfg_ir::ProgramCfgIR {
         module_name: "main".to_string(),
+        is_freestanding: false,
         consts: vec![],
         functions: vec![pinker_v0::cfg_ir::FunctionCfgIR {
             name: "principal".to_string(),

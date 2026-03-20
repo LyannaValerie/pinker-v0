@@ -125,6 +125,12 @@ fn lexer_reconhece_keyword_sussurro_e_string_lit() {
 }
 
 #[test]
+fn lexer_reconhece_keyword_livre() {
+    let tokens = tokenize("livre;").unwrap();
+    assert_eq!(tokens[0].kind, TokenKind::KwLivre);
+}
+
+#[test]
 fn lexer_reconhece_keyword_virar() {
     let tokens = tokenize("x virar u8;").unwrap();
     assert!(tokens.iter().any(|t| t.kind == TokenKind::KwVirar));

@@ -32,6 +32,7 @@ fn base_function(ret_type: TypeIR, instructions: Vec<InstructionIR>) -> Function
 #[test]
 fn valida_ir_simples_valida() {
     let program = ProgramIR {
+        is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
         functions: vec![base_function(
@@ -49,6 +50,7 @@ fn valida_ir_simples_valida() {
 #[test]
 fn falha_retorno_invalido() {
     let program = ProgramIR {
+        is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
         functions: vec![base_function(
@@ -70,6 +72,7 @@ fn falha_retorno_invalido() {
 #[test]
 fn falha_condicao_if_invalida() {
     let program = ProgramIR {
+        is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
         functions: vec![base_function(
@@ -138,6 +141,7 @@ fn falha_chamada_invalida() {
     );
 
     let program = ProgramIR {
+        is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
         functions: vec![callee, caller],
@@ -180,6 +184,7 @@ fn falha_uso_incorreto_de_nulo() {
     );
 
     let program = ProgramIR {
+        is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
         functions: vec![void_fn, caller],
@@ -202,6 +207,7 @@ fn falha_bloco_malformado() {
     );
     function.entry.label = "".to_string();
     let program = ProgramIR {
+        is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
         functions: vec![function],
@@ -216,6 +222,7 @@ fn falha_bloco_malformado() {
 #[test]
 fn erro_ir_tem_contexto_padronizado() {
     let program = ProgramIR {
+        is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
         functions: vec![base_function(

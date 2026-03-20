@@ -24,6 +24,7 @@ use std::collections::{HashMap, HashSet};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramIR {
     pub module_name: String,
+    pub is_freestanding: bool,
     pub consts: Vec<ConstIR>,
     pub functions: Vec<FunctionIR>,
 }
@@ -288,6 +289,7 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
 
     Ok(ProgramIR {
         module_name: context.module_name,
+        is_freestanding: program.freestanding.is_some(),
         consts,
         functions,
     })
@@ -296,6 +298,18 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
 pub fn render_program(program: &ProgramIR) -> String {
     let mut out = String::new();
     line(&mut out, 0, &format!("module {}", program.module_name));
+    line(
+        &mut out,
+        0,
+        &format!(
+            "mode {}",
+            if program.is_freestanding {
+                "livre"
+            } else {
+                "hospedado"
+            }
+        ),
+    );
 
     line(&mut out, 0, "consts:");
     if program.consts.is_empty() {

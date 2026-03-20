@@ -6,6 +6,7 @@ use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BackendTextProgram {
     pub module_name: String,
+    pub is_freestanding: bool,
     pub globals: Vec<BackendTextGlobal>,
     pub functions: Vec<BackendTextFunction>,
 }
@@ -150,6 +151,7 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
 
     Ok(BackendTextProgram {
         module_name: program.module_name.clone(),
+        is_freestanding: program.is_freestanding,
         globals,
         functions,
     })
@@ -189,6 +191,7 @@ pub fn lower_selected_program(
 
     Ok(BackendTextProgram {
         module_name: selected.module_name.clone(),
+        is_freestanding: selected.is_freestanding,
         globals,
         functions,
     })
@@ -354,6 +357,18 @@ pub fn render_program(program: &BackendTextProgram) -> String {
     let mut out = String::new();
 
     line(&mut out, 0, &format!("module {}", program.module_name));
+    line(
+        &mut out,
+        0,
+        &format!(
+            "mode {}",
+            if program.is_freestanding {
+                "livre"
+            } else {
+                "hospedado"
+            }
+        ),
+    );
     line(&mut out, 0, "globals:");
     if program.globals.is_empty() {
         line(&mut out, 1, "[]");

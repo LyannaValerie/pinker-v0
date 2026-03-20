@@ -12,6 +12,7 @@ fn asm_s_header_estavel() {
 === ASM .S (TEXTUAL) ===
 ; pinker v0 textual .s (fase 54, abi textual minima, derivado de --selected)
 ; module main
+; mode hospedado
 ; abi pinker.text.v0
 .text
 ; abi.func principal
