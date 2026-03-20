@@ -105,8 +105,15 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Subset imprimível: `bombom`, `u8`, `u16`, `u32`, `u64`, `logica`, `verso`; signed (`i8`–`i64`), ponteiros, structs e arrays são rejeitados pela semântica com diagnóstico explícito.
 - `falar` funciona em `--run`: inteiros impressos como decimal, `logica` como `verdade`/`falso`, `verso` impresso como texto literal.
 - Pipeline completo: `--check`, `--ir`, `--cfg-ir`, `--selected`, `--machine`, `--pseudo-asm`, `--asm-s` e `--run` reconhecem `falar`.
+- Fase 63 concluída: primeiro comando de projeto `pink build` para geração de artefato textual `.s` em disco.
+- Superfície da Fase 63: `pink build <arquivo.pink>` com `--out-dir <dir>` opcional (padrão `build`).
+- Artefato da Fase 63: `<out-dir>/<stem>.s`, emitido via backend textual já consolidado (`backend_s` derivado de `selected`).
+- Relação com módulos/imports na Fase 63: `build` reutiliza o mesmo fluxo de resolução multi-arquivo da Fase 60 (`trazer` no mesmo diretório do arquivo raiz), sem sistema paralelo.
+- Critério mínimo entregue na Fase 63: entrada explícita + pipeline existente + escrita em disco + erro claro em falha de CLI/build.
+- Limites deliberados mantidos: sem package manager, manifesto rico, lockfile, perfis de build avançados, grafo de build sofisticado, incremental build e executável nativo geral.
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
-- Próximo item normal do roadmap principal: Bloco 5, item 4 (`pink build` / tooling de projeto).
+- Bloco 5 encerrado com a Fase 63 (itens 1–4 concluídos).
+- Próximo item normal do roadmap principal: não há item adicional definido em `docs/roadmap.md` após o fechamento do Bloco 5.
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`

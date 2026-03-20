@@ -5,6 +5,17 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 63 — `pink build` / tooling de projeto (quarto item do Bloco 5, escopo mínimo)
+  - continuidade histórica preservada: Fase 62 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar a trilha principal.
+  - superfície adotada: comando `pink build <arquivo.pink>` com opção `--out-dir <dir>` (padrão: `build`).
+  - artefato desta fase: arquivo textual `.s` emitido no disco via backend já consolidado (`backend_s` derivado de `selected`), com nome previsível `<stem_do_arquivo>.s`.
+  - política de entrada: arquivo explícito obrigatório no comando `build`; sem manifesto de projeto e sem descoberta automática de package.
+  - relação com imports: `build` reutiliza exatamente a resolução de módulos/imports da Fase 60 (`trazer`) no mesmo diretório do arquivo raiz.
+  - critério de sucesso desta fase: gerar artefato em disco de forma reproduzível; em falha (CLI sem input, erro de parse/semântica/lowering), retornar diagnóstico claro sem saída parcial de build.
+  - cobertura adicionada: caso positivo mínimo, caso positivo com imports + `--out-dir`, caso negativo sem arquivo e caso negativo de falha semântica durante build.
+  - fora de escopo mantido: package manager, manifesto rico, lockfile, perfis release/debug, grafo de build avançado, incremental build e geração de executável nativo geral.
+  - Bloco 5 foi encerrado com os itens 1, 2, 3 e 4 concluídos; o roadmap principal ativo não define novo bloco além deste ponto.
+
 - Fase 62 — I/O básico (terceiro item do Bloco 5, escopo mínimo)
   - continuidade histórica preservada: Fase 61 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar a trilha principal.
   - operação adotada: `falar(expr);` como statement de saída mínimo.

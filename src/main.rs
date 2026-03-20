@@ -36,6 +36,16 @@ struct Config {
     check_only: bool,
 }
 
+struct BuildConfig {
+    input: String,
+    out_dir: String,
+}
+
+enum CliCommand {
+    Analyze(Config),
+    Build(BuildConfig),
+}
+
 fn usage(binary: &str) -> String {
     format!(
         "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--cfg-ir] [--selected] [--machine] [--pseudo-asm] [--asm-s] [--run] [--check] <arquivo.pink>\n\
@@ -55,8 +65,65 @@ fn usage(binary: &str) -> String {
     )
 }
 
-fn parse_args() -> Result<Config, String> {
-    let mut input = None;
+fn build_usage(binary: &str) -> String {
+    format!(
+        "Uso: {binary} build [--out-dir <diretorio>] <arquivo.pink>\n\
+         \n\
+         Comando:\n\
+           build      executa o pipeline de build e grava artefato `.s` no disco\n\
+         \n\
+         Opções:\n\
+           --out-dir  diretório de saída (padrão: build)\n"
+    )
+}
+
+fn parse_build_args(binary: &str, args: &[String]) -> Result<BuildConfig, String> {
+    let mut input: Option<String> = None;
+    let mut out_dir = "build".to_string();
+    let mut i = 0usize;
+
+    while i < args.len() {
+        let arg = &args[i];
+        match arg.as_str() {
+            "--help" | "-h" => return Err(build_usage(binary)),
+            "--out-dir" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--out-dir' requer um valor.\n\n{}",
+                        build_usage(binary)
+                    ));
+                }
+                out_dir.clone_from(&args[i]);
+            }
+            _ if arg.starts_with("--") => {
+                return Err(format!(
+                    "Flag desconhecida no comando build: '{}'\n\n{}",
+                    arg,
+                    build_usage(binary)
+                ));
+            }
+            _ => {
+                if input.is_some() {
+                    return Err(format!(
+                        "Apenas um arquivo de entrada é suportado em 'build'.\n\n{}",
+                        build_usage(binary)
+                    ));
+                }
+                input = Some(arg.clone());
+            }
+        }
+        i += 1;
+    }
+
+    let Some(input) = input else {
+        return Err(build_usage(binary));
+    };
+    Ok(BuildConfig { input, out_dir })
+}
+
+fn parse_args() -> Result<CliCommand, String> {
+    let mut input: Option<String> = None;
     let mut print_tokens = false;
     let mut print_ast = false;
     let mut print_json_ast = false;
@@ -69,8 +136,20 @@ fn parse_args() -> Result<Config, String> {
     let mut print_asm_s = false;
     let mut check_only = false;
 
-    let binary = env::args().next().unwrap_or_else(|| "pink".to_string());
-    for arg in env::args().skip(1) {
+    let raw_args: Vec<String> = env::args().collect();
+    let binary = raw_args
+        .first()
+        .cloned()
+        .unwrap_or_else(|| "pink".to_string());
+    let cli_args = &raw_args[1..];
+
+    if let Some(cmd) = cli_args.first() {
+        if cmd == "build" {
+            return parse_build_args(&binary, &cli_args[1..]).map(CliCommand::Build);
+        }
+    }
+
+    for arg in cli_args {
         match arg.as_str() {
             "--tokens" => print_tokens = true,
             "--ast" => print_ast = true,
@@ -98,7 +177,7 @@ fn parse_args() -> Result<Config, String> {
                         usage(&binary)
                     ));
                 }
-                input = Some(arg);
+                input = Some(arg.clone());
             }
         }
     }
@@ -107,7 +186,7 @@ fn parse_args() -> Result<Config, String> {
         return Err(usage(&binary));
     };
 
-    Ok(Config {
+    Ok(CliCommand::Analyze(Config {
         input,
         print_tokens,
         print_ast,
@@ -120,7 +199,7 @@ fn parse_args() -> Result<Config, String> {
         run_program,
         print_asm_s,
         check_only,
-    })
+    }))
 }
 
 /// Macro para encurtar o padrão "try or exit(1)" repetido no pipeline.
@@ -137,7 +216,7 @@ macro_rules! try_or_exit {
 }
 
 fn main() {
-    let config = match parse_args() {
+    let command = match parse_args() {
         Ok(config) => config,
         Err(msg) => {
             eprintln!("{}", msg);
@@ -145,6 +224,13 @@ fn main() {
         }
     };
 
+    match command {
+        CliCommand::Analyze(config) => run_analyze(config),
+        CliCommand::Build(config) => run_build(config),
+    }
+}
+
+fn run_analyze(config: Config) {
     let source = match fs::read_to_string(&config.input) {
         Ok(source) => source,
         Err(err) => {
@@ -340,6 +426,63 @@ fn main() {
     if !any_output {
         println!("Análise semântica concluída sem erros.");
     }
+}
+
+fn run_build(config: BuildConfig) {
+    let source = match fs::read_to_string(&config.input) {
+        Ok(source) => source,
+        Err(err) => {
+            eprintln!("Falha ao ler '{}': {}", config.input, err);
+            std::process::exit(1);
+        }
+    };
+
+    let mut lexer = Lexer::new(&source);
+    let tokens = try_or_exit!(lexer.tokenize(), &source);
+    let mut parser = Parser::new(tokens);
+    let parsed_program = try_or_exit!(parser.parse(), &source);
+    let program = try_or_exit!(
+        load_program_with_imports(&config.input, parsed_program),
+        &source
+    );
+    try_or_exit!(semantic::check_program(&program), &source);
+
+    let program_ir = try_or_exit!(ir::lower_program(&program), &source);
+    try_or_exit!(ir_validate::validate_program(&program_ir), &source);
+    let cfg_program = try_or_exit!(cfg_ir::lower_program(&program_ir), &source);
+    try_or_exit!(cfg_ir_validate::validate_program(&cfg_program), &source);
+    let selected_program = try_or_exit!(instr_select::lower_program(&cfg_program), &source);
+    try_or_exit!(
+        instr_select_validate::validate_program(&selected_program),
+        &source
+    );
+    let output = try_or_exit!(backend_s::emit_from_selected(&selected_program), &source);
+
+    let out_dir = PathBuf::from(&config.out_dir);
+    if let Err(err) = fs::create_dir_all(&out_dir) {
+        eprintln!(
+            "Falha ao criar diretório de saída '{}': {}",
+            out_dir.display(),
+            err
+        );
+        std::process::exit(1);
+    }
+
+    let stem = Path::new(&config.input)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("saida");
+    let output_path = out_dir.join(format!("{}.s", stem));
+    if let Err(err) = fs::write(&output_path, output) {
+        eprintln!(
+            "Falha ao gravar artefato de build '{}': {}",
+            output_path.display(),
+            err
+        );
+        std::process::exit(1);
+    }
+
+    println!("Build concluído: {}", output_path.display());
 }
 
 fn parse_program_from_source(source: &str) -> Result<ast::Program, PinkerError> {
