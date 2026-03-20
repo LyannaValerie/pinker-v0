@@ -1,0 +1,6 @@
+pacote main;
+trazer nao_existe;
+
+carinho principal() -> bombom {
+    mimo 0;
+}

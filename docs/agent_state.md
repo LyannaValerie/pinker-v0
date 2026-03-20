@@ -93,8 +93,12 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Definição da Fase 59: kernel mínimo = unidade `livre;` com `principal() -> bombom` como entrada lógica e stub `_start` observável no `--asm-s`.
 - Backend textual da Fase 59: em modo `livre`, `--asm-s` mantém boot metadata/linker script e passa a emitir `kernel.stub.v0` com `_start` global, `call principal` e laço de parada (`.Lpinker_hang`).
 - Relação com `sussurro` na Fase 59: opcional e não exigido para fechar a fase; sem novo lowering operacional de inline asm.
+- Bloco 5 iniciado na Fase 60 (módulos/imports mínimos).
+- Fase 60 concluída: suporte inicial a múltiplos arquivos com `trazer modulo;` e `trazer modulo.simbolo;`, carregando `<modulo>.pink` no mesmo diretório do arquivo principal.
+- Política da Fase 60: subset de import limitado a `carinho` e `eterno`; `apelido`/`ninho` seguem fora do import nesta etapa.
+- Diagnósticos adicionados na Fase 60: módulo não encontrado, símbolo não encontrado, import duplicado, colisão simples de nomes e ciclo de módulos.
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
-- Próximo item normal do roadmap principal: Bloco 5, item 1 (módulos/imports).
+- Próximo item normal do roadmap principal: Bloco 5, item 2 (strings).
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`

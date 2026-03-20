@@ -1,0 +1,6 @@
+pacote main;
+trazer fase60_modulo_util.nao_existe;
+
+carinho principal() -> bombom {
+    mimo 0;
+}

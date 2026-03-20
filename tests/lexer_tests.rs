@@ -144,6 +144,13 @@ fn lexer_reconhece_keywords_peso_e_alinhamento() {
 }
 
 #[test]
+fn lexer_reconhece_keyword_trazer() {
+    let tokens = tokenize("trazer util.soma;").unwrap();
+    assert_eq!(tokens[0].kind, TokenKind::KwTrazer);
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::Dot));
+}
+
+#[test]
 fn lexer_reconhece_sintaxe_de_array_fixo() {
     let tokens = tokenize("[u8; 16]").unwrap();
     assert_eq!(tokens[0].kind, TokenKind::LBracket);

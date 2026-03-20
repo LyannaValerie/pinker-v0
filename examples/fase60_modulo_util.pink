@@ -1,0 +1,7 @@
+pacote fase60_modulo_util;
+
+carinho soma_base(x: bombom, y: bombom) -> bombom {
+    mimo x + y;
+}
+
+eterno BASE: bombom = 40;

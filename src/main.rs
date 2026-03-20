@@ -14,8 +14,12 @@ use pinker_v0::lexer::Lexer;
 use pinker_v0::parser::Parser;
 use pinker_v0::printer;
 use pinker_v0::semantic;
+use pinker_v0::token::Span;
+use pinker_v0::{ast, error::PinkerError};
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
+use std::path::{Path, PathBuf};
 
 struct Config {
     input: String,
@@ -161,7 +165,11 @@ fn main() {
     }
 
     let mut parser = Parser::new(tokens);
-    let program = try_or_exit!(parser.parse(), &source);
+    let parsed_program = try_or_exit!(parser.parse(), &source);
+    let program = try_or_exit!(
+        load_program_with_imports(&config.input, parsed_program),
+        &source
+    );
 
     if config.print_ast && !config.check_only {
         println!("=== AST TEXTUAL ===");
@@ -332,4 +340,218 @@ fn main() {
     if !any_output {
         println!("Análise semântica concluída sem erros.");
     }
+}
+
+fn parse_program_from_source(source: &str) -> Result<ast::Program, PinkerError> {
+    let mut lexer = Lexer::new(source);
+    let tokens = lexer.tokenize()?;
+    let mut parser = Parser::new(tokens);
+    parser.parse()
+}
+
+fn importable_item_name(item: &ast::Item) -> Option<&str> {
+    match item {
+        ast::Item::Function(function) => Some(function.name.as_str()),
+        ast::Item::Const(constant) => Some(constant.name.as_str()),
+        _ => None,
+    }
+}
+
+fn importable_item_clone(item: &ast::Item) -> Option<ast::Item> {
+    match item {
+        ast::Item::Function(_) | ast::Item::Const(_) => Some(item.clone()),
+        ast::Item::TypeAlias(_) | ast::Item::Struct(_) => None,
+    }
+}
+
+fn load_module_program(
+    module: &str,
+    base_dir: &Path,
+    source_path: &Path,
+    import_span: Span,
+    loading: &mut Vec<String>,
+    loaded: &mut HashMap<String, ast::Program>,
+) -> Result<(), PinkerError> {
+    if loaded.contains_key(module) {
+        return Ok(());
+    }
+    if loading.iter().any(|entry| entry == module) {
+        return Err(PinkerError::Semantic {
+            msg: format!(
+                "ciclo de módulos detectado: {} -> {}",
+                loading.join(" -> "),
+                module
+            ),
+            span: import_span,
+        });
+    }
+
+    let module_path = base_dir.join(format!("{}.pink", module));
+    let source = fs::read_to_string(&module_path).map_err(|_| PinkerError::Semantic {
+        msg: format!(
+            "módulo '{}' não encontrado a partir de '{}'",
+            module,
+            source_path.display()
+        ),
+        span: import_span,
+    })?;
+    let program = parse_program_from_source(&source).map_err(|err| match err {
+        PinkerError::Lexer { msg, span }
+        | PinkerError::Parse { msg, span }
+        | PinkerError::Expected {
+            expected: msg,
+            span,
+            ..
+        }
+        | PinkerError::Semantic { msg, span } => PinkerError::Semantic {
+            msg: format!("falha ao ler módulo '{}': {}", module, msg),
+            span,
+        },
+        other => other,
+    })?;
+
+    loading.push(module.to_string());
+    for import in &program.imports {
+        load_module_program(
+            import.module.as_str(),
+            base_dir,
+            &module_path,
+            import.span,
+            loading,
+            loaded,
+        )?;
+    }
+    loading.pop();
+    loaded.insert(module.to_string(), program);
+    Ok(())
+}
+
+fn load_program_with_imports(
+    source_file: &str,
+    mut root_program: ast::Program,
+) -> Result<ast::Program, PinkerError> {
+    if root_program.imports.is_empty() {
+        return Ok(root_program);
+    }
+
+    let source_path = PathBuf::from(source_file);
+    let base_dir = source_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."))
+        .to_path_buf();
+
+    let mut loaded = HashMap::new();
+    let mut loading = Vec::new();
+    let mut seen_imports = HashSet::new();
+    let mut imported_items = Vec::new();
+    let mut imported_names = HashMap::<String, Span>::new();
+    let local_names: HashSet<String> = root_program
+        .items
+        .iter()
+        .filter_map(importable_item_name)
+        .map(ToOwned::to_owned)
+        .collect();
+
+    for import in &root_program.imports {
+        let import_key = format!(
+            "{}::{}",
+            import.module,
+            import.symbol.as_deref().unwrap_or("*")
+        );
+        if !seen_imports.insert(import_key) {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "import duplicado para '{}{}'",
+                    import.module,
+                    import
+                        .symbol
+                        .as_ref()
+                        .map(|symbol| format!(".{}", symbol))
+                        .unwrap_or_default()
+                ),
+                span: import.span,
+            });
+        }
+
+        load_module_program(
+            import.module.as_str(),
+            &base_dir,
+            &source_path,
+            import.span,
+            &mut loading,
+            &mut loaded,
+        )?;
+        let module_program = loaded
+            .get(import.module.as_str())
+            .expect("módulo carregado");
+
+        if let Some(symbol) = &import.symbol {
+            if local_names.contains(symbol) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "colisão de nome no import: '{}' já existe no arquivo principal",
+                        symbol
+                    ),
+                    span: import.span,
+                });
+            }
+            if let Some(previous_span) = imported_names.get(symbol) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "colisão de nome no import: '{}' trazido por múltiplos módulos",
+                        symbol
+                    ),
+                    span: previous_span.merge(import.span),
+                });
+            }
+            let Some(item) = module_program
+                .items
+                .iter()
+                .find(|item| importable_item_name(item) == Some(symbol.as_str()))
+            else {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "símbolo '{}' não encontrado no módulo '{}'",
+                        symbol, import.module
+                    ),
+                    span: import.span,
+                });
+            };
+            imported_items.push(item.clone());
+            imported_names.insert(symbol.clone(), import.span);
+        } else {
+            for item in &module_program.items {
+                let Some(importable_name) = importable_item_name(item) else {
+                    continue;
+                };
+                if local_names.contains(importable_name) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "colisão de nome no import: '{}' já existe no arquivo principal",
+                            importable_name
+                        ),
+                        span: import.span,
+                    });
+                }
+                if let Some(previous_span) = imported_names.get(importable_name) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "colisão de nome no import: '{}' trazido por múltiplos módulos",
+                            importable_name
+                        ),
+                        span: previous_span.merge(import.span),
+                    });
+                }
+                imported_names.insert(importable_name.to_string(), import.span);
+                if let Some(cloned) = importable_item_clone(item) {
+                    imported_items.push(cloned);
+                }
+            }
+        }
+    }
+
+    root_program.items.splice(0..0, imported_items);
+    root_program.imports.clear();
+    Ok(root_program)
 }

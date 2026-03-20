@@ -100,6 +100,33 @@ impl Parser {
             freestanding = Some(merge_span(marker_span, self.previous().span));
         }
 
+        let mut imports = Vec::new();
+        while self.match_token(TokenKind::KwTrazer) {
+            let start_span = self.previous().span;
+            let module = self
+                .consume(TokenKind::Ident, "nome do módulo em trazer")?
+                .lexeme
+                .clone();
+            let symbol = if self.match_token(TokenKind::Dot) {
+                Some(
+                    self.consume(
+                        TokenKind::Ident,
+                        "símbolo após '.' em trazer módulo.símbolo",
+                    )?
+                    .lexeme
+                    .clone(),
+                )
+            } else {
+                None
+            };
+            self.consume(TokenKind::Semi, ";")?;
+            imports.push(ImportDecl {
+                module,
+                symbol,
+                span: merge_span(start_span, self.previous().span),
+            });
+        }
+
         let mut items = Vec::new();
         while self.peek().is_some() {
             items.push(self.parse_item()?);
@@ -108,6 +135,7 @@ impl Parser {
         Ok(Program {
             package,
             freestanding,
+            imports,
             items,
         })
     }
@@ -125,6 +153,12 @@ impl Parser {
             Err(PinkerError::Expected {
                 expected: "marcador `livre;` apenas uma vez no topo do programa (após `pacote`, antes dos itens)".to_string(),
                 found: "livre".to_string(),
+                span: self.previous().span,
+            })
+        } else if self.match_token(TokenKind::KwTrazer) {
+            Err(PinkerError::Expected {
+                expected: "declaração `trazer` apenas no topo do programa (após `pacote`/`livre`, antes dos itens)".to_string(),
+                found: "trazer".to_string(),
                 span: self.previous().span,
             })
         } else {

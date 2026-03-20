@@ -4,7 +4,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 
 ## O que o frontend faz hoje
 - léxico com spans
-- parser para `pacote`, `carinho`, `mimo`, `talvez/senão`, `sempre que`, `eterno`, `nova`, `mut`
+- parser para `pacote`, `trazer`, `carinho`, `mimo`, `talvez/senão`, `sempre que`, `eterno`, `nova`, `mut`
 - tipos `bombom`, `u8`, `u16`, `u32`, `u64`, `i8`, `i16`, `i32`, `i64` e `logica`
 - aliases de tipo (`apelido`), arrays fixos (`[tipo; N]`), structs (`ninho`), ponteiros (`seta<tipo>`)
 - qualificador `fragil` (`volatile`) para ponteiros explícitos (`fragil seta<tipo>`)
@@ -12,6 +12,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - marca de unidade freestanding/no-std com `livre;` no topo do programa
 - cast explícito controlado com `virar` (inteiro -> inteiro no frontend/semântica/IR estruturada)
 - consultas estáticas de layout com `peso(tipo)` e `alinhamento(tipo)`
+- módulos/imports mínimos com `trazer modulo;` e `trazer modulo.simbolo;` (carregando `modulo.pink` no mesmo diretório do arquivo principal, com subset de import para `carinho` e `eterno`)
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
 - AST textual estável
@@ -97,6 +98,9 @@ cargo run -- --check examples/check_freestanding_invalido_fora_topo.pink
 cargo run -- --check examples/check_boot_entry_livre_valido.pink
 cargo run -- --check examples/check_boot_entry_livre_sem_principal.pink
 cargo run -- --check examples/check_kernel_minimo_fase59_valido.pink
+cargo run -- --run examples/fase60_modulos_valido.pink
+cargo run -- --check examples/fase60_modulo_ausente.pink
+cargo run -- --check examples/fase60_simbolo_ausente.pink
 ```
 
 ## Modos da CLI
