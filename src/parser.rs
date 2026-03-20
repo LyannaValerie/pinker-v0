@@ -257,6 +257,8 @@ impl Parser {
             Ok(Type::I64(span))
         } else if self.match_token(TokenKind::KwLogica) {
             Ok(Type::Logica(span))
+        } else if self.match_token(TokenKind::KwVerso) {
+            Ok(Type::Verso(span))
         } else if self.match_token(TokenKind::Ident) {
             Ok(Type::Alias {
                 name: self.previous().lexeme.clone(),
@@ -265,7 +267,7 @@ impl Parser {
         } else {
             Err(PinkerError::Expected {
                 expected:
-                    "tipo válido (ex.: bombom, logica, alias, [tipo; N], seta<tipo> ou fragil seta<tipo>)"
+                    "tipo válido (ex.: bombom, logica, verso, alias, [tipo; N], seta<tipo> ou fragil seta<tipo>)"
                         .to_string(),
                 found: self
                     .peek()
@@ -641,6 +643,10 @@ impl Parser {
             }),
             TokenKind::KwFalso => Ok(Expr {
                 kind: ExprKind::BoolLit(false),
+                span: token.span,
+            }),
+            TokenKind::StringLit => Ok(Expr {
+                kind: ExprKind::StringLit(token.lexeme.clone()),
                 span: token.span,
             }),
             TokenKind::Ident => Ok(Expr {

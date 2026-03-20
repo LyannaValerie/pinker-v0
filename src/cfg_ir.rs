@@ -537,6 +537,10 @@ impl FunctionLowerer {
             ValueIR::GlobalConst(name) => Ok((OperandIR::GlobalConst(name.clone()), current)),
             ValueIR::Int(v) => Ok((OperandIR::Int(*v), current)),
             ValueIR::Bool(v) => Ok((OperandIR::Bool(*v), current)),
+            ValueIR::String(_) => Err(PinkerError::Ir {
+                msg: "CFG IR ainda não lowera valores 'verso' nesta fase".to_string(),
+                span,
+            }),
             ValueIR::Unary { op, operand } => {
                 let (operand, next_current) = self.lower_value_operand(operand, current, span)?;
                 let dest = self.next_temp();
@@ -713,6 +717,10 @@ fn lower_constant_value(value: &ValueIR, span: Span) -> Result<ValueCfgIR, Pinke
         ValueIR::Bool(v) => Ok(OperandIR::Bool(*v)),
         ValueIR::GlobalConst(name) => Ok(OperandIR::GlobalConst(name.clone())),
         ValueIR::Local(slot) => Ok(OperandIR::Local(slot.clone())),
+        ValueIR::String(_) => Err(PinkerError::Ir {
+            msg: "constante global 'verso' ainda não é lowerada na CFG IR nesta fase".to_string(),
+            span,
+        }),
         _ => Err(PinkerError::Ir {
             msg: "constante global com valor não-literal fora do escopo da CFG IR".to_string(),
             span,

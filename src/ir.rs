@@ -130,6 +130,7 @@ pub enum ValueIR {
     GlobalConst(String),
     Int(u64),
     Bool(bool),
+    String(String),
     Unary {
         op: UnaryOpIR,
         operand: Box<ValueIR>,
@@ -174,6 +175,7 @@ pub enum TypeIR {
     I32,
     I64,
     Logica,
+    Verso,
     FixedArray { element: ScalarTypeIR, size: u64 },
     Struct,
     Pointer { is_volatile: bool },
@@ -658,6 +660,11 @@ impl<'a> FunctionLowerer<'a> {
                 ty: TypeIR::Logica,
                 struct_name: None,
             }),
+            ExprKind::StringLit(value) => Ok(TypedValueIR {
+                value: ValueIR::String(value.clone()),
+                ty: TypeIR::Verso,
+                struct_name: None,
+            }),
             ExprKind::Ident(name) => {
                 if let Some(binding) = self.resolve_existing_binding(name) {
                     return Ok(TypedValueIR {
@@ -1094,6 +1101,7 @@ fn render_value(value: &ValueIR) -> String {
         ValueIR::GlobalConst(name) => format!("@{}", name),
         ValueIR::Int(value) => format!("{}:bombom", value),
         ValueIR::Bool(value) => format!("{}:logica", if *value { "verdade" } else { "falso" }),
+        ValueIR::String(value) => format!("\"{}\":verso", value),
         ValueIR::Unary { op, operand } => format!("{}({})", op.name(), render_value(operand)),
         ValueIR::Binary { op, lhs, rhs } => {
             format!(
@@ -1176,6 +1184,7 @@ impl TypeIR {
             Type::I32(_) => Ok(TypeIR::I32),
             Type::I64(_) => Ok(TypeIR::I64),
             Type::Logica(_) => Ok(TypeIR::Logica),
+            Type::Verso(_) => Ok(TypeIR::Verso),
             Type::FixedArray {
                 element,
                 size,
@@ -1272,6 +1281,7 @@ impl TypeIR {
             TypeIR::I32 => "i32",
             TypeIR::I64 => "i64",
             TypeIR::Logica => "logica",
+            TypeIR::Verso => "verso",
             TypeIR::FixedArray { .. } => "array",
             TypeIR::Struct => "struct",
             TypeIR::Pointer { .. } => "seta",
@@ -1310,9 +1320,11 @@ impl ScalarTypeIR {
             TypeIR::I32 => Some(ScalarTypeIR::I32),
             TypeIR::I64 => Some(ScalarTypeIR::I64),
             TypeIR::Logica => Some(ScalarTypeIR::Logica),
-            TypeIR::FixedArray { .. } | TypeIR::Struct | TypeIR::Pointer { .. } | TypeIR::Nulo => {
-                None
-            }
+            TypeIR::Verso
+            | TypeIR::FixedArray { .. }
+            | TypeIR::Struct
+            | TypeIR::Pointer { .. }
+            | TypeIR::Nulo => None,
         }
     }
 

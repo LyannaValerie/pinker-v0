@@ -1,0 +1,11 @@
+pacote main;
+
+carinho eco(msg: verso) -> verso {
+    mimo msg;
+}
+
+carinho principal() -> bombom {
+    nova texto: verso = "olá, pinker";
+    nova copia: verso = eco(texto);
+    mimo 0;
+}

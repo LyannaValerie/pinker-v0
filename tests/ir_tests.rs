@@ -100,6 +100,23 @@ carinho principal() -> bombom {
 }
 
 #[test]
+fn lowering_de_verso_preserva_literal_e_tipo() {
+    let code = r#"
+pacote main;
+eterno MSG: verso = "oi";
+carinho eco(s: verso) -> verso { mimo s; }
+carinho principal() -> bombom {
+    nova a: verso = eco(MSG);
+    mimo 0;
+}
+"#;
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("const @MSG: verso = \"oi\":verso"), "{}", ir);
+    assert!(ir.contains("func eco -> verso"), "{}", ir);
+    assert!(ir.contains("%s#0: verso"), "{}", ir);
+}
+
+#[test]
 fn lowering_de_if_else() {
     let code = "\
 pacote main;

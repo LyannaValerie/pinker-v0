@@ -97,8 +97,11 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 60 concluída: suporte inicial a múltiplos arquivos com `trazer modulo;` e `trazer modulo.simbolo;`, carregando `<modulo>.pink` no mesmo diretório do arquivo principal.
 - Política da Fase 60: subset de import limitado a `carinho` e `eterno`; `apelido`/`ninho` seguem fora do import nesta etapa.
 - Diagnósticos adicionados na Fase 60: módulo não encontrado, símbolo não encontrado, import duplicado, colisão simples de nomes e ciclo de módulos.
+- Fase 61 concluída: strings mínimas com tipo `verso` e literal `"texto"` em expressão geral, integradas em frontend/semântica/IR.
+- Política da Fase 61: `verso` funciona para declaração local, constante global, parâmetro, retorno e passagem por chamada no escopo `--check`/`--ir`.
+- Limite operacional da Fase 61: CFG IR/Machine/runtime ainda não loweram `verso`; `--cfg-ir`/`--run` falham explicitamente para valores string.
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
-- Próximo item normal do roadmap principal: Bloco 5, item 2 (strings).
+- Próximo item normal do roadmap principal: Bloco 5, item 3 (I/O básico).
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`

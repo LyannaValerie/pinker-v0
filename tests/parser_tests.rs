@@ -258,6 +258,37 @@ fn parser_rejeita_sussurro_sem_string_literal() {
 }
 
 #[test]
+fn parser_aceita_tipo_verso_e_literal_string() {
+    let source = r#"
+        pacote main;
+        carinho eco(s: verso) -> verso {
+            mimo s;
+        }
+        carinho principal() -> bombom {
+            nova msg: verso = "oi";
+            mimo 0;
+        }
+    "#;
+    let program = parse(source).expect("parser deve aceitar verso");
+    let eco = match &program.items[0] {
+        Item::Function(function) => function,
+        _ => panic!("item esperado: function"),
+    };
+    assert!(matches!(eco.params[0].ty, Type::Verso(_)));
+    assert!(matches!(eco.ret_type, Some(Type::Verso(_))));
+
+    let principal = match &program.items[1] {
+        Item::Function(function) => function,
+        _ => panic!("item esperado: function"),
+    };
+    let let_stmt = match &principal.body.stmts[0] {
+        Stmt::Let(stmt) => stmt,
+        _ => panic!("stmt esperado: let"),
+    };
+    assert!(matches!(let_stmt.init.kind, ExprKind::StringLit(_)));
+}
+
+#[test]
 fn parser_aceita_expressao_com_bitwise_basico() {
     let code = "
         pacote main;

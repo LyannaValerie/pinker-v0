@@ -260,6 +260,7 @@ pub enum Type {
     I32(Span),
     I64(Span),
     Logica(Span),
+    Verso(Span),
     FixedArray {
         element: Box<Type>,
         size: u64,
@@ -297,6 +298,7 @@ impl PartialEq for Type {
             | (Type::I32(_), Type::I32(_))
             | (Type::I64(_), Type::I64(_))
             | (Type::Logica(_), Type::Logica(_))
+            | (Type::Verso(_), Type::Verso(_))
             | (Type::Nulo(_), Type::Nulo(_)) => true,
             (
                 Type::FixedArray {
@@ -344,6 +346,7 @@ impl Type {
             | Type::I32(span)
             | Type::I64(span)
             | Type::Logica(span)
+            | Type::Verso(span)
             | Type::Nulo(span) => *span,
             Type::Alias { span, .. }
             | Type::Struct { span, .. }
@@ -364,6 +367,7 @@ impl Type {
             Type::I32(_) => "i32",
             Type::I64(_) => "i64",
             Type::Logica(_) => "logica",
+            Type::Verso(_) => "verso",
             Type::FixedArray { .. } => "array",
             Type::Pointer { .. } => "seta",
             Type::Alias { .. } => "alias",
@@ -384,6 +388,7 @@ impl Type {
             Type::I32(_) => Type::I32(span),
             Type::I64(_) => Type::I64(span),
             Type::Logica(_) => Type::Logica(span),
+            Type::Verso(_) => Type::Verso(span),
             Type::FixedArray { element, size, .. } => Type::FixedArray {
                 element: element.clone(),
                 size: *size,
@@ -776,6 +781,13 @@ impl Expr {
                 writer.field_bool("value", *value);
                 writer.end_object();
             }
+            ExprKind::StringLit(value) => {
+                writer.begin_object();
+                writer.field_str("node", "StringLit");
+                writer.field_span("span", self.span);
+                writer.field_str("value", value);
+                writer.end_object();
+            }
         }
     }
 }
@@ -793,6 +805,7 @@ pub enum ExprKind {
     Ident(String),
     IntLit(u64),
     BoolLit(bool),
+    StringLit(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

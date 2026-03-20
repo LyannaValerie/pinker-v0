@@ -151,6 +151,12 @@ fn lexer_reconhece_keyword_trazer() {
 }
 
 #[test]
+fn lexer_reconhece_keyword_verso() {
+    let tokens = tokenize("verso").unwrap();
+    assert_eq!(tokens[0].kind, TokenKind::KwVerso);
+}
+
+#[test]
 fn lexer_reconhece_sintaxe_de_array_fixo() {
     let tokens = tokenize("[u8; 16]").unwrap();
     assert_eq!(tokens[0].kind, TokenKind::LBracket);
