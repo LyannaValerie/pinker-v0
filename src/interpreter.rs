@@ -35,6 +35,7 @@ struct RuntimeFrame {
 pub enum RuntimeValue {
     Int(u64),
     IntSigned(i64),
+    Ptr(usize),
     Bool(bool),
 }
 
@@ -55,6 +56,9 @@ fn build_globals(program: &MachineProgram) -> Result<HashMap<String, RuntimeValu
 
 fn eval_global_value(g: &MachineGlobal) -> Result<RuntimeValue, PinkerError> {
     match (&g.value, g.ty) {
+        (OperandIR::Int(v), crate::ir::TypeIR::Pointer { .. }) => {
+            Ok(RuntimeValue::Ptr(*v as usize))
+        }
         (OperandIR::Int(v), ty) if ty.is_signed() => Ok(RuntimeValue::IntSigned(*v as i64)),
         (OperandIR::Int(v), _) => Ok(RuntimeValue::Int(*v)),
         (OperandIR::Bool(v), _) => Ok(RuntimeValue::Bool(*v)),
@@ -103,7 +107,12 @@ fn call_function(
 
         let mut slots: HashMap<String, RuntimeValue> = HashMap::new();
         for (slot, value) in function.params.iter().cloned().zip(args.into_iter()) {
-            slots.insert(slot, value);
+            let coerced = if let Some(ty) = function.slot_types.get(&slot) {
+                coerce_runtime_value_to_type(value, *ty)?
+            } else {
+                value
+            };
+            slots.insert(slot, coerced);
         }
 
         let mut stack: Vec<RuntimeValue> = Vec::new();
@@ -196,7 +205,7 @@ fn exec_instr(
             let value = pop(stack, "store_slot exige valor na pilha")?;
             let coerced =
                 if let Some(ty) = current_function(program, call_stack)?.slot_types.get(slot) {
-                    coerce_int_to_type(value, *ty)?
+                    coerce_runtime_value_to_type(value, *ty)?
                 } else {
                     value
                 };
@@ -207,6 +216,7 @@ fn exec_instr(
             let out = match value {
                 RuntimeValue::Int(v) => RuntimeValue::Int((0u64).wrapping_sub(v)),
                 RuntimeValue::IntSigned(v) => RuntimeValue::IntSigned(v.wrapping_neg()),
+                RuntimeValue::Ptr(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(out);
@@ -352,6 +362,7 @@ fn exec_instr(
         MachineInstr::PrintInt => match pop_numeric(stack, "print_int exige inteiro no topo")? {
             RuntimeValue::Int(v) => println!("{}", v),
             RuntimeValue::IntSigned(v) => println!("{}", v),
+            RuntimeValue::Ptr(_) => unreachable!("pop_numeric só retorna inteiro"),
             RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
         },
         MachineInstr::PrintBool => {
@@ -396,6 +407,7 @@ fn pop_numeric(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<RuntimeValue,
     match pop(stack, msg)? {
         RuntimeValue::Int(v) => Ok(RuntimeValue::Int(v)),
         RuntimeValue::IntSigned(v) => Ok(RuntimeValue::IntSigned(v)),
+        RuntimeValue::Ptr(_) => Err(runtime_err(msg)),
         RuntimeValue::Bool(_) => Err(runtime_err(msg)),
     }
 }
@@ -405,6 +417,7 @@ fn pop_bool(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<bool, PinkerErro
         RuntimeValue::Bool(v) => Ok(v),
         RuntimeValue::Int(_) => Err(runtime_err(msg)),
         RuntimeValue::IntSigned(_) => Err(runtime_err(msg)),
+        RuntimeValue::Ptr(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -417,18 +430,33 @@ fn pop_bin_numeric(
     Ok((lhs, rhs))
 }
 
-fn coerce_int_to_type(
+fn coerce_runtime_value_to_type(
     value: RuntimeValue,
     ty: crate::ir::TypeIR,
 ) -> Result<RuntimeValue, PinkerError> {
-    if !ty.is_integer() {
-        return Ok(value);
+    if ty.is_integer() {
+        return match (value, ty.is_signed()) {
+            (RuntimeValue::Int(v), true) => Ok(RuntimeValue::IntSigned(v as i64)),
+            (RuntimeValue::IntSigned(v), false) => Ok(RuntimeValue::Int(v as u64)),
+            (v, _) => Ok(v),
+        };
     }
-    match (value, ty.is_signed()) {
-        (RuntimeValue::Int(v), true) => Ok(RuntimeValue::IntSigned(v as i64)),
-        (RuntimeValue::IntSigned(v), false) => Ok(RuntimeValue::Int(v as u64)),
-        (v, _) => Ok(v),
+
+    if matches!(ty, crate::ir::TypeIR::Pointer { .. }) {
+        return match value {
+            RuntimeValue::Int(v) => Ok(RuntimeValue::Ptr(v as usize)),
+            RuntimeValue::IntSigned(v) if v < 0 => Err(runtime_err(
+                "endereço de ponteiro inválido em runtime: valor negativo",
+            )),
+            RuntimeValue::IntSigned(v) => Ok(RuntimeValue::Ptr(v as usize)),
+            RuntimeValue::Ptr(v) => Ok(RuntimeValue::Ptr(v)),
+            RuntimeValue::Bool(_) => Err(runtime_err(
+                "ponteiro em runtime requer valor inteiro de endereço",
+            )),
+        };
     }
+
+    Ok(value)
 }
 
 fn current_function<'a>(

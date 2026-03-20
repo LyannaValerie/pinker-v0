@@ -241,6 +241,101 @@ fn run_falha_global_inexistente() {
 }
 
 #[test]
+fn run_seta_tem_repr_minima_no_runtime_em_slot() {
+    let mut slot_types = HashMap::new();
+    slot_types.insert(
+        "p".to_string(),
+        pinker_v0::ir::TypeIR::Pointer { is_volatile: false },
+    );
+
+    let program = MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![MachineFunction {
+            name: "principal".to_string(),
+            ret_type: pinker_v0::ir::TypeIR::Pointer { is_volatile: false },
+            params: vec![],
+            locals: vec!["p".to_string()],
+            slot_types,
+            blocks: vec![MachineBlock {
+                label: "entry".to_string(),
+                code: vec![
+                    MachineInstr::PushInt(4096),
+                    MachineInstr::StoreSlot("p".to_string()),
+                    MachineInstr::LoadSlot("p".to_string()),
+                ],
+                terminator: MachineTerminator::Ret,
+            }],
+        }],
+    };
+
+    let out = interpreter::run_program(&program).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Ptr(4096)));
+}
+
+#[test]
+fn run_seta_tem_repr_minima_no_runtime_em_global() {
+    let program = MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![MachineGlobal {
+            name: "PORTA".to_string(),
+            ty: pinker_v0::ir::TypeIR::Pointer { is_volatile: true },
+            value: pinker_v0::cfg_ir::OperandIR::Int(8192),
+        }],
+        functions: vec![MachineFunction {
+            name: "principal".to_string(),
+            ret_type: pinker_v0::ir::TypeIR::Pointer { is_volatile: true },
+            params: vec![],
+            locals: vec![],
+            slot_types: HashMap::new(),
+            blocks: vec![MachineBlock {
+                label: "entry".to_string(),
+                code: vec![MachineInstr::LoadGlobal("PORTA".to_string())],
+                terminator: MachineTerminator::Ret,
+            }],
+        }],
+    };
+
+    let out = interpreter::run_program(&program).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Ptr(8192)));
+}
+
+#[test]
+fn run_falha_quando_usa_ponteiro_em_operacao_inteira_nao_suportada() {
+    let mut slot_types = HashMap::new();
+    slot_types.insert(
+        "p".to_string(),
+        pinker_v0::ir::TypeIR::Pointer { is_volatile: false },
+    );
+
+    let program = MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![MachineFunction {
+            name: "principal".to_string(),
+            ret_type: pinker_v0::ir::TypeIR::Bombom,
+            params: vec![],
+            locals: vec!["p".to_string()],
+            slot_types,
+            blocks: vec![MachineBlock {
+                label: "entry".to_string(),
+                code: vec![
+                    MachineInstr::PushInt(1024),
+                    MachineInstr::StoreSlot("p".to_string()),
+                    MachineInstr::LoadSlot("p".to_string()),
+                    MachineInstr::PushInt(1),
+                    MachineInstr::Add,
+                ],
+                terminator: MachineTerminator::Ret,
+            }],
+        }],
+    };
+
+    let err = interpreter::run_program(&program).unwrap_err().to_string();
+    assert!(err.contains("add exige dois inteiros"), "mensagem: {}", err);
+}
+
+#[test]
 fn cli_run_funciona_em_caso_valido() {
     let source =
         "pacote main; carinho dobro(x: bombom) -> bombom { mimo x + x; } carinho principal() -> bombom { mimo dobro(21); }";
