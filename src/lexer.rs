@@ -231,6 +231,7 @@ impl<'a> Lexer<'a> {
                                 "peso" => TokenKind::KwPeso,
                                 "alinhamento" => TokenKind::KwAlinhamento,
                                 "trazer" => TokenKind::KwTrazer,
+                                "verso" => TokenKind::KwVerso,
                                 "bombom" => TokenKind::KwBombom,
                                 "u8" => TokenKind::KwU8,
                                 "u16" => TokenKind::KwU16,

@@ -368,6 +368,18 @@ fn render_expr(expr: &Expr, indent: usize, out: &mut String, label: &str) {
                 &format!("{} BoolLit({}) {}", label, value, format_span(expr.span)),
             );
         }
+        ExprKind::StringLit(value) => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "{} StringLit(\"{}\") {}",
+                    label,
+                    value,
+                    format_span(expr.span)
+                ),
+            );
+        }
     }
 }
 

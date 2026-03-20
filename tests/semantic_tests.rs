@@ -173,6 +173,33 @@ fn uso_de_funcao_sem_retorno_em_expressao() {
 }
 
 #[test]
+fn verso_valido_em_parametro_retorno_e_local() {
+    let code = r#"
+        pacote main;
+        carinho eco(msg: verso) -> verso { mimo msg; }
+        carinho principal() -> bombom {
+            nova texto: verso = "olá";
+            nova copia: verso = eco(texto);
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn verso_rejeita_atribuicao_de_bombom() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = 10;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo de inicialização incompatível para 'texto'"));
+}
+
+#[test]
 fn mimo_vazio_valido_em_funcao_sem_retorno() {
     let code = "
         pacote main;

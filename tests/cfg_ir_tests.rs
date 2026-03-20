@@ -266,6 +266,19 @@ fn cfg_ir_inline_asm_ainda_fora_do_escopo_operacional() {
 }
 
 #[test]
+fn cfg_ir_verso_ainda_fora_do_escopo_operacional() {
+    let code = r#"
+        pacote main;
+        eterno MSG: verso = "oi";
+        carinho principal() -> bombom {
+            mimo 0;
+        }
+    "#;
+    let err = render_cfg_ir(code).unwrap_err().to_string();
+    assert!(err.contains("constante global 'verso' ainda não é lowerada"));
+}
+
+#[test]
 fn cfg_ir_logicos_viram_branch_de_curto_circuito() {
     let code = "
         pacote main;

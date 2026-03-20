@@ -92,7 +92,8 @@ impl SemanticChecker {
             | (Type::I16(_), Type::I16(_))
             | (Type::I32(_), Type::I32(_))
             | (Type::I64(_), Type::I64(_))
-            | (Type::Logica(_), Type::Logica(_)) => true,
+            | (Type::Logica(_), Type::Logica(_))
+            | (Type::Verso(_), Type::Verso(_)) => true,
             (Type::Struct { name: lhs_name, .. }, Type::Struct { name: rhs_name, .. }) => {
                 lhs_name == rhs_name
             }
@@ -877,6 +878,7 @@ impl SemanticChecker {
         match &expr.kind {
             ExprKind::IntLit(_) => Ok(Type::Bombom(expr.span)),
             ExprKind::BoolLit(_) => Ok(Type::Logica(expr.span)),
+            ExprKind::StringLit(_) => Ok(Type::Verso(expr.span)),
             ExprKind::Ident(name) => {
                 self.resolve_var(name)
                     .map(|meta| meta.ty)

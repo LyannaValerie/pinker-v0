@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada funcional: **Fase 60 — módulos/imports** (primeiro item do Bloco 5).
+- Rodada funcional: **Fase 61 — strings** (segundo item do Bloco 5).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -235,3 +235,21 @@
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
 - Bloco 5 foi iniciado com o item 1 concluído.
 - Próximo item normal do roadmap principal: Bloco 5, item 2 (strings).
+
+## O que entrou na Fase 61
+- Continuidade preservada: Fase 60 segue como fase funcional principal anterior; Fase 48-H1 permanece rodada extraordinária/hotfix sem reordenar roadmap.
+- Tipo textual adotado: `verso`.
+- Literal textual adotado: `"texto"` (string com aspas duplas), agora aceito como expressão geral da linguagem.
+- Frontend: lexer/token/parser/AST/printer/JSON atualizados para `KwVerso`, `Type::Verso` e `ExprKind::StringLit`.
+- Semântica: `verso` validado em constantes, locais, parâmetros, retornos e chamadas; checagem de tipo evita mistura implícita com inteiros/lógica.
+- IR estruturada: `TypeIR::Verso` e `ValueIR::String` adicionados, preservando strings em `--ir`.
+- Relação com `sussurro`: reaproveita o mesmo `StringLit`; inline asm foi preservado sem mudanças de contrato.
+- Limites deliberados: CFG IR/Machine/runtime ainda não loweram `verso`; `--cfg-ir`/`--run` falham com erro explícito.
+- Limite de layout deliberado: `peso(verso)`/`alinhamento(verso)` seguem fora desta fase (erro claro no cálculo de layout).
+- Exemplos versionados: `examples/fase61_verso_valido.pink` e `examples/fase61_verso_cfg_ir_invalido.pink`.
+
+## Continuidade de roadmap após Fase 61
+- Fase 60 passa a ser a fase funcional principal anterior.
+- Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
+- Bloco 5 avançou com os itens 1 e 2 concluídos.
+- Próximo item normal do roadmap principal: Bloco 5, item 3 (I/O básico).

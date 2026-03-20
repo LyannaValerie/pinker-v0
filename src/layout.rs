@@ -30,6 +30,9 @@ fn layout_of_type_inner(
         Type::U32(_) | Type::I32(_) => Ok(TypeLayout { size: 4, align: 4 }),
         Type::U16(_) | Type::I16(_) => Ok(TypeLayout { size: 2, align: 2 }),
         Type::U8(_) | Type::I8(_) | Type::Logica(_) => Ok(TypeLayout { size: 1, align: 1 }),
+        Type::Verso(_) => {
+            Err("tipo 'verso' ainda não possui layout estático nesta fase".to_string())
+        }
         Type::Pointer { .. } => Ok(TypeLayout {
             size: POINTER_SIZE,
             align: POINTER_ALIGN,

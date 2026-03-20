@@ -1,0 +1,7 @@
+pacote main;
+
+eterno MSG: verso = "oi";
+
+carinho principal() -> bombom {
+    mimo 0;
+}

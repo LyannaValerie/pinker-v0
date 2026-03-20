@@ -1229,6 +1229,28 @@ fn cli_check_simbolo_ausente_falha_com_exemplo_versionado() {
 }
 
 #[test]
+fn cli_check_verso_valido_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/fase61_verso_valido.pink");
+    assert!(output.status.success(), "{:?}", output);
+}
+
+#[test]
+fn cli_cfg_ir_verso_falha_claro_com_exemplo_versionado() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--cfg-ir")
+        .arg("examples/fase61_verso_cfg_ir_invalido.pink")
+        .output()
+        .expect("falha ao executar CLI --cfg-ir");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("constante global 'verso' ainda não é lowerada"),
+        "stderr: {}",
+        stderr
+    );
+}
+
+#[test]
 fn cli_check_volatile_valido_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/check_volatile_valido.pink");
     assert!(output.status.success(), "{:?}", output);

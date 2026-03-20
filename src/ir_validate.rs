@@ -346,6 +346,7 @@ fn infer_value_type(
             .ok_or_else(|| ir_validation_error("constante global inexistente", span)),
         ValueIR::Int(_) => Ok(TypeIR::Bombom),
         ValueIR::Bool(_) => Ok(TypeIR::Logica),
+        ValueIR::String(_) => Ok(TypeIR::Verso),
         ValueIR::Unary { op, operand } => {
             let op_ty = infer_value_type(operand, slots, consts, funcs, span)?;
             match op {

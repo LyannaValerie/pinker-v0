@@ -35,6 +35,7 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `sussurro`     | inline asm       | fala direta mínima com máquina |
 | `livre`        | freestanding/no-std (marca de unidade) | intenção de ambiente sem runtime hospedeiro implícito |
 | `trazer`       | import mínimo    | convidar símbolo/módulo para perto |
+| `verso`        | string / texto   | palavras como poesia                |
 
 ---
 
@@ -48,7 +49,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 | Conceito         | Sugestao    | Alternativas        | Sentimento                          |
 |------------------|-------------|----------------------|-------------------------------------|
 | float            | `bolha`     | `brisa`, `pluma`     | leve, flutuante                     |
-| string / texto   | `verso`     | `prosa`, `fala`      | palavras como poesia                |
+| ~~string / texto~~   | ~~`verso`~~     | `prosa`, `fala`      | implementado na Fase 61             |
 | byte (u8)        | `migalha`   | `grao`               | pequeno mas precioso                |
 | char             | `letra`     | `sinal`              | simples, direto                     |
 | void explito     | `nulo`      | `vazio`              | ausencia serena                     |

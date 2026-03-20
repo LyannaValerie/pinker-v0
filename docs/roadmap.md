@@ -9,7 +9,7 @@ Este documento passa a ser o **documento mestre** para voltar aos trilhos da Pin
 
 ## Estado atual real (resumo)
 
-A base atual está estável em pipeline textual (`semântica -> IR -> CFG -> selected -> Machine -> pseudo-asm`) com execução via interpretador (`--run`) e cobertura de testes ampla. Ainda não há backend nativo real, ponteiros, structs, módulos, strings ou I/O de linguagem.
+A base atual está estável em pipeline textual (`semântica -> IR -> CFG -> selected -> Machine -> pseudo-asm`) com execução via interpretador (`--run`) e cobertura de testes ampla. Ainda não há backend nativo real nem I/O de linguagem; ponteiros, structs, módulos/imports e strings mínimas já existem com escopos controlados.
 
 ## Trilha oficial consolidada (ordem do mais essencial ao mais complexo)
 

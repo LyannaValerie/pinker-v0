@@ -5,6 +5,17 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 61 — strings (segundo item do Bloco 5, escopo mínimo)
+  - continuidade histórica preservada: Fase 60 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar a trilha principal.
+  - superfície adotada: tipo `verso` e literal de string `"texto"` como valores de linguagem.
+  - integração mínima implementada: lexer/token/parser/AST/semântica/IR reconhecem `verso` em assinaturas/locais/constantes e `StringLit` em expressão geral.
+  - relação com `sussurro`: o mesmo token `StringLit` agora é literal geral da linguagem; `sussurro("...")` foi preservado sem quebra semântica.
+  - subset suportado na fase: declaração local `nova x: verso = "..."`, constante global `eterno X: verso = "..."`, parâmetro e retorno de função `verso`, passagem de `verso` em chamada e retorno semântico/IR.
+  - limite operacional explícito: CFG IR/Machine/runtime ainda não loweram `verso`; `--cfg-ir`/`--run` falham com erro claro para esse valor.
+  - layout estático explícito: `peso(verso)`/`alinhamento(verso)` permanecem fora de escopo (erro de layout nesta fase).
+  - exemplos versionados: `examples/fase61_verso_valido.pink` (positivo em `--check`) e `examples/fase61_verso_cfg_ir_invalido.pink` (negativo esperado em `--cfg-ir`).
+  - próximo item normal do roadmap principal: Bloco 5, item 3 (I/O básico).
+
 - Fase 60 — módulos/imports (primeiro item do Bloco 5, escopo mínimo)
   - continuidade histórica preservada: Fase 59 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar a trilha principal.
   - sintaxe adotada: `trazer modulo;` (import de módulo) e `trazer modulo.simbolo;` (import de símbolo).
