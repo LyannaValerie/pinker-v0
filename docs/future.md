@@ -3,6 +3,9 @@
 > **Nota de precedência**: `docs/future.md` é inventário amplo de possibilidades e backlog de longo prazo.
 > A ordem oficial ativa de implementação está em `docs/roadmap.md`.
 > Este documento **não é roadmap**, não dita ordem ativa e não substitui `docs/roadmap.md`.
+>
+> **Distinção importante**: este arquivo é inventário técnico estruturado — itens com status de implementação, organizados por camadas de dependência.
+> `docs/parallel.md` é diferente: é o documento visionário da Pinker (fantasia orientadora, identidade, sonhos); não contém itens técnicos com status, não é backlog e não compete com este arquivo.
 
 > **Trilha ativa atual**: **Bloco 6 — Memória operacional** (definido em `docs/roadmap.md`).
 > Os itens do Bloco 6 (signed runtime, ponteiro operacional, dereferência, escrita indireta, aritmética de ponteiros, acesso a campo/index, cast operacional, `fragil` operacional) **são prioridade da trilha ativa** e não competem com o backlog amplo deste arquivo.

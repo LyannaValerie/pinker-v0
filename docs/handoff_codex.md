@@ -46,6 +46,41 @@
 - Bloco 5 foi encerrado com os itens 1, 2, 3 e 4 concluídos.
 - Não há novo item funcional definido além do Bloco 5 em `docs/roadmap.md` no estado anterior à rodada documental.
 
+## Rodada documental — criação de `docs/parallel.md`
+
+### Contexto
+Rodada documental executada para criar e integrar `docs/parallel.md` ao ecossistema documental da Pinker.
+
+### O que foi feito
+- Criação de `docs/parallel.md` como documento visionário da Pinker.
+- Atualização de `docs/phases.md`, `docs/agent_state.md`, `docs/handoff_codex.md` e `README.md`.
+- Nenhuma alteração funcional de compilador, parser, semântica, IR, CFG ou runtime.
+- `cargo build --locked` e `cargo test --locked` executados com sucesso.
+
+### Papel do `parallel.md`
+`docs/parallel.md` é o **guia do guia** do projeto. Guarda:
+- a fantasia orientadora da Pinker (Rosa, a linguagem como entidade viva, diagnósticos com personalidade);
+- ideias de longo prazo que ainda não são implementáveis (semântica de `?`, sintaxe dual, terminal próprio);
+- a tese de soberania do projeto (self-hosting, ecossistema escrito em Pinker, ambiente autônomo).
+
+### Quando consultar o `parallel.md`
+- Quando um bloco do roadmap for concluído e houver dúvida sobre a direção estratégica do projeto.
+- Quando uma decisão de design parecer tecnicamente correta mas conceitualmente vazia.
+- Quando houver risco de o projeto virar mais uma ferramenta sem identidade.
+- **Não** quando houver dúvida sobre a próxima fase funcional — para isso, consultar `roadmap.md`.
+
+### Precedência documental
+`roadmap.md` (trilha ativa) > `future.md` (inventário amplo) > `parallel.md` (fantasia orientadora, não mandatória).
+
+### O que esta rodada não faz
+- Não atribui numeração de fase.
+- Não altera código funcional.
+- Não cria trilha paralela.
+- Não transforma sonhos em promessas técnicas.
+- Não reordena as fases já fechadas.
+
+---
+
 ## Rodada documental estratégica — abertura do Bloco 6
 
 ### Contexto

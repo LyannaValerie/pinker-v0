@@ -186,8 +186,13 @@ Limites atuais (adiado): a tipagem na Machine continua leve/local (sem inferênc
 - não são backend executável
 - não fazem otimizações ou alocação de registradores
 
-## Backlog futuro
-- Visão estruturada de evolução de longo prazo em `docs/future.md` (não é roadmap rígido de curto prazo).
+## Documentação do projeto
+
+O projeto mantém três camadas documentais com papéis distintos:
+
+- `docs/roadmap.md` — trilha ativa oficial; define o que está sendo construído agora.
+- `docs/future.md` — inventário amplo de evolução de longo prazo; não é roadmap rígido de curto prazo.
+- `docs/parallel.md` — documento visionário; guarda a fantasia orientadora, a identidade e a ambição conceitual da Pinker; não é mandatório nem define ordem de execução.
 
 ## Licença
 [MIT](LICENSE)
