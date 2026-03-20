@@ -452,6 +452,10 @@ impl FunctionLowerer {
                 });
                 Ok(cont_idx)
             }
+            InstructionIR::InlineAsm { span, .. } => Err(PinkerError::Ir {
+                msg: "CFG IR ainda não lowera inline asm ('sussurro') nesta fase".to_string(),
+                span: *span,
+            }),
             InstructionIR::Continue { span, .. } => {
                 let Some(loop_continue_label) = self.loop_continue_stack.last().cloned() else {
                     return Err(PinkerError::Ir {

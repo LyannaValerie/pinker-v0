@@ -12,7 +12,8 @@
 
 use crate::ast::{
     BinaryOp, Block, BreakStmt, ConstDecl, ContinueStmt, ElseBlock, Expr, ExprKind, FunctionDecl,
-    IfStmt, Item, LetStmt, Program, ReturnStmt, Stmt, StructDecl, Type, UnaryOp, WhileStmt,
+    IfStmt, InlineAsmStmt, Item, LetStmt, Program, ReturnStmt, Stmt, StructDecl, Type, UnaryOp,
+    WhileStmt,
 };
 use crate::error::PinkerError;
 use crate::layout;
@@ -112,6 +113,10 @@ pub enum InstructionIR {
     },
     Continue {
         loop_continue_label: String,
+        span: Span,
+    },
+    InlineAsm {
+        chunks: Vec<String>,
         span: Span,
     },
 }
@@ -496,7 +501,18 @@ impl<'a> FunctionLowerer<'a> {
             Stmt::While(while_stmt) => self.lower_while(while_stmt),
             Stmt::Break(break_stmt) => self.lower_break(break_stmt),
             Stmt::Continue(continue_stmt) => self.lower_continue(continue_stmt),
+            Stmt::InlineAsm(inline_asm_stmt) => self.lower_inline_asm(inline_asm_stmt),
         }
+    }
+
+    fn lower_inline_asm(
+        &mut self,
+        inline_asm_stmt: &InlineAsmStmt,
+    ) -> Result<InstructionIR, PinkerError> {
+        Ok(InstructionIR::InlineAsm {
+            chunks: inline_asm_stmt.chunks.clone(),
+            span: inline_asm_stmt.span,
+        })
     }
 
     fn lower_let(&mut self, let_stmt: &LetStmt) -> Result<InstructionIR, PinkerError> {
@@ -1051,6 +1067,9 @@ fn render_instruction(instruction: &InstructionIR, indent: usize, out: &mut Stri
             ..
         } => {
             line(out, indent, &format!("continue {}", loop_continue_label));
+        }
+        InstructionIR::InlineAsm { chunks, .. } => {
+            line(out, indent, &format!("inline_asm [{}]", chunks.join(" | ")));
         }
     }
 }

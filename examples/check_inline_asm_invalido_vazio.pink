@@ -1,0 +1,6 @@
+pacote main;
+
+carinho principal() -> bombom {
+    sussurro("");
+    mimo 0;
+}

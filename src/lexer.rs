@@ -172,6 +172,33 @@ impl<'a> Lexer<'a> {
                             }
                             TokenKind::IntLit
                         }
+                        '"' => {
+                            lexeme.clear();
+                            let mut closed = false;
+                            while let Some(next_c) = self.peek_char() {
+                                if next_c == '"' {
+                                    self.advance();
+                                    closed = true;
+                                    break;
+                                }
+                                if next_c == '\n' {
+                                    return Err(PinkerError::Lexer {
+                                        msg: "string literal não pode quebrar linha nesta fase"
+                                            .to_string(),
+                                        span: Span::new(start_pos, self.current_pos()),
+                                    });
+                                }
+                                lexeme.push(next_c);
+                                self.advance();
+                            }
+                            if !closed {
+                                return Err(PinkerError::Lexer {
+                                    msg: "string literal não terminada".to_string(),
+                                    span: Span::new(start_pos, self.current_pos()),
+                                });
+                            }
+                            TokenKind::StringLit
+                        }
                         c if c.is_alphabetic() || c == '_' => {
                             while let Some(next_c) = self.peek_char() {
                                 if next_c.is_alphanumeric() || next_c == '_' {
@@ -198,6 +225,7 @@ impl<'a> Lexer<'a> {
                                 "ninho" => TokenKind::KwNinho,
                                 "seta" => TokenKind::KwSeta,
                                 "fragil" => TokenKind::KwFragil,
+                                "sussurro" => TokenKind::KwSussurro,
                                 "virar" => TokenKind::KwVirar,
                                 "peso" => TokenKind::KwPeso,
                                 "alinhamento" => TokenKind::KwAlinhamento,

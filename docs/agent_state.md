@@ -79,8 +79,11 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Fase 55 concluída: integração mínima e experimental com assembler/linker externo para subset estrito em Linux x86_64, mantendo emissão partindo de `selected`.
 - Prova externa implementada via teste condicional que usa driver C disponível (`cc`/`gcc`/`clang`) para montar+linkar `.s` mínimo (`main` retornando constante).
 - Subset explícito do fluxo externo: sem globais, função única `principal() -> bombom`, bloco único com `mimo <inteiro_constante>;` sem instruções intermediárias.
+- Fase 56 concluída: inline asm mínimo com keyword `sussurro` como statement textual (`sussurro("...")` ou múltiplas strings), preservado em frontend/AST/semântica/IR.
+- Política da Fase 56: somente strings literais, ao menos uma string, rejeição de string vazia; sem constraints, clobbers, inputs/outputs ou execução no runtime.
+- Limite operacional explícito da Fase 56: CFG IR/Machine/runtime ainda não loweram inline asm (erro claro em `--cfg-ir`).
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
-- Próximo item normal do roadmap principal: Bloco 4, item 1 (inline asm).
+- Próximo item normal do roadmap principal: Bloco 4, item 2 (freestanding / no-std).
 
 ## Infraestrutura mínima ativa
 - Workflow GitHub Actions em `.github/workflows/ci.yml` com `cargo build/check/fmt --check/clippy/test/doc`

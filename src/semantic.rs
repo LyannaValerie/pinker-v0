@@ -728,6 +728,24 @@ impl SemanticChecker {
                         });
                     }
                 }
+                Stmt::InlineAsm(inline_asm_stmt) => {
+                    if inline_asm_stmt.chunks.is_empty() {
+                        return Err(PinkerError::Semantic {
+                            msg: "'sussurro' exige ao menos uma string literal".to_string(),
+                            span: inline_asm_stmt.span,
+                        });
+                    }
+                    if inline_asm_stmt
+                        .chunks
+                        .iter()
+                        .any(|chunk| chunk.trim().is_empty())
+                    {
+                        return Err(PinkerError::Semantic {
+                            msg: "bloco de 'sussurro' não pode conter string vazia".to_string(),
+                            span: inline_asm_stmt.span,
+                        });
+                    }
+                }
                 Stmt::Expr(expr) => {
                     self.check_expr(expr)?;
                 }

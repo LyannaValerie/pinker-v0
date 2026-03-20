@@ -5,6 +5,17 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 56 — inline asm mínimo (`sussurro`) como statement textual preservado
+  - continuidade histórica preservada: Fase 55 segue como fase funcional principal anterior e Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar roadmap.
+  - sintaxe adotada: `sussurro("...");` e `sussurro("...", "...");` com uma ou mais strings literais.
+  - política de uso: inline asm permitido apenas como **statement** em bloco de função (não é expressão nesta fase).
+  - frontend/AST/JSON/printer atualizados para reconhecer e preservar `InlineAsmStmt`.
+  - semântica mínima: exige ao menos uma string literal e rejeita strings vazias.
+  - IR estruturada preserva `inline_asm` de forma explícita.
+  - CFG IR/Machine/runtime continuam fora de escopo operacional para inline asm nesta fase (erro claro ao tentar baixar para `--cfg-ir`).
+  - exemplos versionados adicionados: `examples/check_inline_asm_valido.pink`, `examples/check_inline_asm_multilinha.pink`, `examples/check_inline_asm_invalido_vazio.pink`.
+  - próximo item normal do roadmap principal: Bloco 4, item 2 (freestanding / no-std).
+
 - Fase 52 — `volatile` (`fragil`) com escopo mínimo e conservador
   - continuidade histórica preservada: Fase 51 segue como fase funcional principal anterior e Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar roadmap.
   - sintaxe adotada: `fragil seta<T>` (qualificador explícito de tipo para ponteiro volátil).

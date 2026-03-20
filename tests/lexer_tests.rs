@@ -118,6 +118,13 @@ fn lexer_reconhece_keyword_fragil() {
 }
 
 #[test]
+fn lexer_reconhece_keyword_sussurro_e_string_lit() {
+    let tokens = tokenize(r#"sussurro("mov rax, 60", "syscall");"#).unwrap();
+    assert_eq!(tokens[0].kind, TokenKind::KwSussurro);
+    assert!(tokens.iter().any(|t| t.kind == TokenKind::StringLit));
+}
+
+#[test]
 fn lexer_reconhece_keyword_virar() {
     let tokens = tokenize("x virar u8;").unwrap();
     assert!(tokens.iter().any(|t| t.kind == TokenKind::KwVirar));

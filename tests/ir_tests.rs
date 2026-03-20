@@ -263,6 +263,19 @@ fn lowering_de_sempre_que_com_continuar() {
 }
 
 #[test]
+fn lowering_preserva_inline_asm_textual() {
+    let code = r#"
+pacote main;
+carinho principal() -> bombom {
+  sussurro("mov rax, 60", "syscall");
+  mimo 0;
+}
+"#;
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("inline_asm [mov rax, 60 | syscall]"), "{}", ir);
+}
+
+#[test]
 fn lowering_de_logicos_basicos() {
     let code = "
 pacote main;

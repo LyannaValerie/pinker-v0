@@ -434,6 +434,7 @@ pub enum Stmt {
     While(WhileStmt),
     Break(BreakStmt),
     Continue(ContinueStmt),
+    InlineAsm(InlineAsmStmt),
     Expr(Expr),
 }
 
@@ -447,6 +448,7 @@ impl Stmt {
             Stmt::While(stmt) => stmt.span,
             Stmt::Break(stmt) => stmt.span,
             Stmt::Continue(stmt) => stmt.span,
+            Stmt::InlineAsm(stmt) => stmt.span,
             Stmt::Expr(expr) => expr.span,
         }
     }
@@ -460,6 +462,7 @@ impl Stmt {
             Stmt::While(stmt) => stmt.write_json(writer),
             Stmt::Break(stmt) => stmt.write_json(writer),
             Stmt::Continue(stmt) => stmt.write_json(writer),
+            Stmt::InlineAsm(stmt) => stmt.write_json(writer),
             Stmt::Expr(expr) => {
                 writer.begin_object();
                 writer.field_str("node", "ExprStmt");
@@ -582,6 +585,24 @@ impl ContinueStmt {
         writer.begin_object();
         writer.field_str("node", "ContinueStmt");
         writer.field_span("span", self.span);
+        writer.end_object();
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct InlineAsmStmt {
+    pub chunks: Vec<String>,
+    pub span: Span,
+}
+
+impl InlineAsmStmt {
+    fn write_json(&self, writer: &mut JsonWriter<'_>) {
+        writer.begin_object();
+        writer.field_str("node", "InlineAsmStmt");
+        writer.field_span("span", self.span);
+        writer.field_array("chunks", &self.chunks, |writer, chunk| {
+            writer.value_str(chunk);
+        });
         writer.end_object();
     }
 }
@@ -934,6 +955,12 @@ impl<'a> JsonWriter<'a> {
         self.field_name(name);
         write_value(self);
         self.mark_field_written();
+    }
+
+    fn value_str(&mut self, value: &str) {
+        self.start_value();
+        self.string(value);
+        self.mark_value_written();
     }
 
     fn write_position(&mut self, pos: crate::token::Position) {

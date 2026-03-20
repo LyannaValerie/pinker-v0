@@ -264,6 +264,31 @@ fn continuar_fora_de_loop_e_invalido() {
 }
 
 #[test]
+fn sussurro_valido_com_strings_literais() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            sussurro("mov rax, 60", "syscall");
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn sussurro_invalido_com_string_vazia() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            sussurro("");
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("não pode conter string vazia"));
+}
+
+#[test]
 fn bitwise_valido_em_bombom() {
     let code = "
         pacote main;

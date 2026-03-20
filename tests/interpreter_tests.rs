@@ -1213,6 +1213,26 @@ fn cli_check_volatile_invalido_com_exemplo_versionado() {
     );
 }
 
+#[test]
+fn cli_check_inline_asm_valido_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/check_inline_asm_valido.pink");
+    assert!(output.status.success(), "{:?}", output);
+}
+
+#[test]
+fn cli_check_inline_asm_invalido_vazio_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/check_inline_asm_invalido_vazio.pink");
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Erro Semântico:"), "stderr: {}", stderr);
+    assert!(
+        stderr.contains("não pode conter string vazia"),
+        "stderr: {}",
+        stderr
+    );
+}
+
 // ── Fase 28c: spans/source context em erros de runtime e parser ───────────
 
 #[test]

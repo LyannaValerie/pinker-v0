@@ -174,6 +174,44 @@ fn parser_aceita_continuar_dentro_de_sempre_que() {
 }
 
 #[test]
+fn parser_aceita_sussurro_com_multiplas_strings() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            sussurro("mov rax, 60", "syscall");
+            mimo 0;
+        }
+    "#;
+    let program = parse(source).expect("parser deve aceitar sussurro");
+    let func = match &program.items[0] {
+        Item::Function(f) => f,
+        _ => panic!("item esperado: function"),
+    };
+    match &func.body.stmts[0] {
+        Stmt::InlineAsm(stmt) => {
+            assert_eq!(stmt.chunks.len(), 2);
+            assert_eq!(stmt.chunks[0], "mov rax, 60");
+            assert_eq!(stmt.chunks[1], "syscall");
+        }
+        _ => panic!("stmt esperado: inline asm"),
+    }
+}
+
+#[test]
+fn parser_rejeita_sussurro_sem_string_literal() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova x = 1;
+            sussurro(x);
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(err.contains("string literal em sussurro"));
+}
+
+#[test]
 fn parser_aceita_expressao_com_bitwise_basico() {
     let code = "
         pacote main;
