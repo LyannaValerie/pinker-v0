@@ -1,0 +1,5 @@
+pacote main;
+livre;
+carinho boot() -> bombom {
+    mimo 0;
+}

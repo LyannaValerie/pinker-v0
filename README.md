@@ -22,6 +22,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - alvo textual abstrato (máquina de pilha) + validação estrutural e disciplina de pilha
 - backend textual pseudo-assembly + validacao interna
 - proteção preventiva de recursão no runtime (`--run`) com limite interno de profundidade de chamadas
+- metadata mínima de boot entry + linker script textual em modo `livre` na saída `--asm-s` (Fase 58)
 
 ## O que não faz
 - codegen nativo real
@@ -93,6 +94,8 @@ cargo run -- --check examples/check_inline_asm_multilinha.pink
 cargo run -- --check examples/check_inline_asm_invalido_vazio.pink
 cargo run -- --check examples/check_freestanding_valido.pink
 cargo run -- --check examples/check_freestanding_invalido_fora_topo.pink
+cargo run -- --check examples/check_boot_entry_livre_valido.pink
+cargo run -- --check examples/check_boot_entry_livre_sem_principal.pink
 ```
 
 ## Modos da CLI
@@ -131,7 +134,7 @@ Se não houver toolchain C no ambiente, o teste de fluxo real é pulado sem queb
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 
-Estado explícito da Fase 57: `livre;` só pode aparecer uma vez no topo da unidade (após `pacote` e antes dos itens). A marca é preservada no frontend e propagada como metadata de modo (`livre`/`hospedado`) nas saídas textuais (`--ir`, `--cfg-ir`, `--selected`, `--pseudo-asm`, `--asm-s`). Nesta fase, isso não remove a exigência de `principal`, não gera binário bootável e não implementa linker script/boot entry/kernel funcional.
+Estado explícito da Fase 58: em unidade com `livre;`, `principal() -> bombom` permanece obrigatório e passa a ser tratado como **boot entry mínimo desta fase**, refletido em `--asm-s` como `boot.entry principal -> _start`, junto de um **linker script textual mínimo** (`ENTRY(_start)` + seções básicas). Isso é apenas representação/preparação: não gera kernel bootável real, não integra GRUB/QEMU e não substitui o fluxo hospedado.
 
 ## Validação da Machine (sanity check de pilha)
 A camada `--machine` agora valida:

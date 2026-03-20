@@ -1,5 +1,8 @@
 use crate::backend_text;
 use crate::backend_text::BackendTextProgram;
+use crate::boot::{
+    freestanding_linker_script, FREESTANDING_BOOT_ENTRY_FUNCTION, FREESTANDING_BOOT_ENTRY_SYMBOL,
+};
 use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
 use crate::instr_select::{SelectedInstr, SelectedProgram, SelectedTerminator};
@@ -167,6 +170,20 @@ pub fn render_program(program: &BackendTextProgram) -> String {
         ),
     );
     line(&mut out, 0, "; abi pinker.text.v0");
+    if program.is_freestanding {
+        line(
+            &mut out,
+            0,
+            &format!(
+                "; boot.entry {} -> {}",
+                FREESTANDING_BOOT_ENTRY_FUNCTION, FREESTANDING_BOOT_ENTRY_SYMBOL
+            ),
+        );
+        line(&mut out, 0, "; linker.script.v0 (textual, mínimo):");
+        for script_line in freestanding_linker_script().lines() {
+            line(&mut out, 0, &format!(";   {}", script_line));
+        }
+    }
     line(&mut out, 0, ".text");
 
     if !program.globals.is_empty() {

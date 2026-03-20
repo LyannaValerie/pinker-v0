@@ -1253,6 +1253,26 @@ fn cli_check_freestanding_invalido_fora_topo_com_exemplo_versionado() {
     );
 }
 
+#[test]
+fn cli_check_boot_entry_livre_valido_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/check_boot_entry_livre_valido.pink");
+    assert!(output.status.success(), "{:?}", output);
+}
+
+#[test]
+fn cli_check_boot_entry_livre_sem_principal_falha_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/check_boot_entry_livre_sem_principal.pink");
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Erro Semântico:"), "stderr: {}", stderr);
+    assert!(
+        stderr.contains("boot entry desta fase em modo `livre`"),
+        "stderr: {}",
+        stderr
+    );
+}
+
 // ── Fase 28c: spans/source context em erros de runtime e parser ───────────
 
 #[test]

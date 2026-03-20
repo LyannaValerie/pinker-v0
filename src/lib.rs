@@ -4,6 +4,7 @@ pub mod ast;
 pub mod backend_s;
 pub mod backend_text;
 pub mod backend_text_validate;
+pub mod boot;
 pub mod cfg_ir;
 pub mod cfg_ir_validate;
 pub mod error;
