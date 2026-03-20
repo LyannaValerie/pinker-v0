@@ -34,6 +34,7 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `fragil`       | volatile         | cuidado redobrado     |
 | `sussurro`     | inline asm       | fala direta mínima com máquina |
 | `livre`        | freestanding/no-std (marca de unidade) | intenção de ambiente sem runtime hospedeiro implícito |
+| `trazer`       | import mínimo    | convidar símbolo/módulo para perto |
 
 ---
 
@@ -79,7 +80,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 |------------------|-------------|----------------------|-------------------------------------|
 | pub / publico    | `aberto`    | `livre`              | transparencia                       |
 | private          | `segredo`   | `intimo`             | protecao, guardado                  |
-| import / use     | `trazer`    | `buscar`, `chamar`   | convidar para perto                 |
+| ~~import / use~~ | ~~`trazer`~~| `buscar`, `chamar`   | implementado na Fase 60             |
 | module           | `canto`     | `ala`, `sala`        | um espaco proprio                   |
 | self             | `eu`        |                      | identidade                          |
 

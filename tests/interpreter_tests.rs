@@ -1180,6 +1180,13 @@ fn cli_check_continuar_fora_de_loop_falha_com_exemplo_versionado() {
 }
 
 #[test]
+fn cli_run_modulos_imports_valido_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase60_modulos_valido.pink");
+    assert!(output.status.success(), "{:?}", output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "42\n");
+}
+
+#[test]
 fn cli_check_alias_tipo_inexistente_falha_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/check_alias_tipo_inexistente.pink");
     assert!(!output.status.success());
@@ -1188,6 +1195,34 @@ fn cli_check_alias_tipo_inexistente_falha_com_exemplo_versionado() {
     assert!(stderr.contains("Erro Semântico:"), "stderr: {}", stderr);
     assert!(
         stderr.contains("tipo 'Fantasma' não existe"),
+        "stderr: {}",
+        stderr
+    );
+}
+
+#[test]
+fn cli_check_modulo_ausente_falha_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/fase60_modulo_ausente.pink");
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Erro Semântico:"), "stderr: {}", stderr);
+    assert!(
+        stderr.contains("módulo 'nao_existe' não encontrado"),
+        "stderr: {}",
+        stderr
+    );
+}
+
+#[test]
+fn cli_check_simbolo_ausente_falha_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/fase60_simbolo_ausente.pink");
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Erro Semântico:"), "stderr: {}", stderr);
+    assert!(
+        stderr.contains("símbolo 'nao_existe' não encontrado no módulo 'fase60_modulo_util'"),
         "stderr: {}",
         stderr
     );

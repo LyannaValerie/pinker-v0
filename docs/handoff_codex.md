@@ -1,7 +1,7 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- Rodada funcional: **Fase 59 — primeiro kernel mínimo** (quarto item do Bloco 4).
+- Rodada funcional: **Fase 60 — módulos/imports** (primeiro item do Bloco 5).
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -217,3 +217,21 @@
 - Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
 - Bloco 4 foi encerrado com os itens 1, 2, 3 e 4 concluídos.
 - Próximo item normal do roadmap principal: Bloco 5, item 1 (módulos/imports).
+
+## O que entrou na Fase 60
+- Continuidade preservada: Fase 59 segue como fase funcional principal anterior; Fase 48-H1 permanece rodada extraordinária/hotfix sem reordenar roadmap.
+- Sintaxe mínima adicionada no frontend: `trazer modulo;` (import de módulo) e `trazer modulo.simbolo;` (import de símbolo).
+- Parser: `trazer` é aceito apenas no topo da unidade (após `pacote`/`livre`, antes dos itens), com erro explícito fora de posição.
+- Resolução de módulo no CLI: cada módulo é carregado de `<modulo>.pink` no mesmo diretório do arquivo principal, com resolução recursiva e rejeição de ciclo.
+- Política de import desta fase: somente `carinho` e `eterno` entram no subset importável; `apelido`/`ninho` não entram via `trazer` nesta etapa.
+- Erros dedicados adicionados: módulo ausente, símbolo ausente, import duplicado, colisão simples de nomes e ciclo de módulos.
+- Fluxo preservado: sem quebrar arquivo único; com imports, o programa combinado é validado/baixado no pipeline existente sem redesign amplo.
+- Exemplos versionados: `examples/fase60_modulo_util.pink`, `examples/fase60_modulos_valido.pink`, `examples/fase60_modulo_ausente.pink`, `examples/fase60_simbolo_ausente.pink`.
+- Cobertura adicionada: lexer/parser para `trazer` e testes CLI (`--run` positivo + `--check` negativos de módulo/símbolo ausente).
+- Limites deliberados: sem package manager, sem visibilidade público/privado, sem alias/wildcard import, sem namespaces ricos, sem build graph avançado.
+
+## Continuidade de roadmap após Fase 60
+- Fase 59 passa a ser a fase funcional principal anterior.
+- Fase 48-H1 permanece rodada extraordinária/hotfix anterior, sem reordenar a trilha principal.
+- Bloco 5 foi iniciado com o item 1 concluído.
+- Próximo item normal do roadmap principal: Bloco 5, item 2 (strings).

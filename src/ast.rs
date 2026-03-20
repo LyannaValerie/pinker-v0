@@ -4,6 +4,7 @@ use crate::token::{Span, TokenKind};
 pub struct Program {
     pub package: Option<PackageDecl>,
     pub freestanding: Option<Span>,
+    pub imports: Vec<ImportDecl>,
     pub items: Vec<Item>,
 }
 
@@ -36,6 +37,9 @@ impl Program {
             if let Some(last) = self.items.last() {
                 return package.span.merge(last.span());
             }
+            if let Some(last_import) = self.imports.last() {
+                return package.span.merge(last_import.span);
+            }
             return self
                 .freestanding
                 .map(|freestanding| package.span.merge(freestanding))
@@ -46,7 +50,21 @@ impl Program {
             if let Some(last) = self.items.last() {
                 return freestanding.merge(last.span());
             }
+            if let Some(last_import) = self.imports.last() {
+                return freestanding.merge(last_import.span);
+            }
             return freestanding;
+        }
+
+        if let Some(first_import) = self.imports.first() {
+            if let Some(last) = self.items.last() {
+                return first_import.span.merge(last.span());
+            }
+            return self
+                .imports
+                .last()
+                .map(|last_import| first_import.span.merge(last_import.span))
+                .unwrap_or(first_import.span);
         }
 
         self.items
@@ -56,6 +74,13 @@ impl Program {
             .map(|(start, end)| start.merge(end))
             .unwrap_or_else(|| Span::single(crate::token::Position::new(1, 1)))
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct ImportDecl {
+    pub module: String,
+    pub symbol: Option<String>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]

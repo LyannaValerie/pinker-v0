@@ -31,6 +31,23 @@ fn render_program_into(program: &Program, indent: usize, out: &mut String) {
             &format!("Freestanding {}", format_span(span)),
         );
     }
+    for import in &program.imports {
+        let suffix = import
+            .symbol
+            .as_ref()
+            .map(|symbol| format!(".{}", symbol))
+            .unwrap_or_default();
+        line(
+            out,
+            indent + 1,
+            &format!(
+                "Import {}{} {}",
+                import.module,
+                suffix,
+                format_span(import.span)
+            ),
+        );
+    }
     for item in &program.items {
         render_item(item, indent + 1, out);
     }

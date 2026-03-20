@@ -74,6 +74,7 @@ impl SemanticChecker {
             .package
             .as_ref()
             .map(|package| package.span)
+            .or_else(|| program.imports.first().map(|import| import.span))
             .or_else(|| program.items.first().map(Item::span))
             .unwrap_or_else(|| Span::single(Position::new(1, 1)))
     }

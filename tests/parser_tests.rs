@@ -220,6 +220,30 @@ fn parser_rejeita_livre_fora_do_topo() {
 }
 
 #[test]
+fn parser_aceita_trazer_no_topo() {
+    let source = r#"
+        pacote main;
+        trazer util.soma;
+        carinho principal() -> bombom { mimo soma(1, 2); }
+    "#;
+    let program = parse(source).expect("parser deve aceitar trazer");
+    assert_eq!(program.imports.len(), 1);
+    assert_eq!(program.imports[0].module, "util");
+    assert_eq!(program.imports[0].symbol.as_deref(), Some("soma"));
+}
+
+#[test]
+fn parser_rejeita_trazer_fora_do_topo() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo 0; }
+        trazer util;
+    "#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(err.contains("declaração `trazer` apenas no topo"));
+}
+
+#[test]
 fn parser_rejeita_sussurro_sem_string_literal() {
     let source = r#"
         pacote main;

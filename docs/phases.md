@@ -5,6 +5,17 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 60 — módulos/imports (primeiro item do Bloco 5, escopo mínimo)
+  - continuidade histórica preservada: Fase 59 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar a trilha principal.
+  - sintaxe adotada: `trazer modulo;` (import de módulo) e `trazer modulo.simbolo;` (import de símbolo).
+  - resolução adotada: módulo identificado por arquivo `<modulo>.pink` no mesmo diretório do arquivo principal; carregamento recursivo mínimo de imports com rejeição explícita de ciclo.
+  - subset suportado nesta fase: import de `carinho` (funções) e `eterno` (constantes globais). `apelido`/`ninho` ficam fora do subset de import.
+  - política de integração: fluxo de arquivo único foi preservado; quando há `trazer`, o CLI combina itens importáveis no programa raiz antes da semântica.
+  - diagnósticos novos: módulo ausente, símbolo ausente, import duplicado e colisão simples de nome entre imports/arquivo principal.
+  - exemplos versionados: `examples/fase60_modulos_valido.pink`, `examples/fase60_modulo_util.pink`, `examples/fase60_modulo_ausente.pink`, `examples/fase60_simbolo_ausente.pink`.
+  - fora de escopo mantido: package manager, aliasing complexo, wildcard import, visibilidade pública/privada, namespaces ricos, build graph avançado.
+  - próximo item normal do roadmap principal: Bloco 5, item 2 (strings).
+
 - Fase 59 — primeiro kernel mínimo (experimental, escopo estrito)
   - continuidade histórica preservada: Fase 58 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix e não reordena o roadmap.
   - definição adotada de kernel mínimo nesta fase: unidade `livre;` com `principal() -> bombom` como entrada lógica, `boot.entry` + linker script textual e stub `_start` mínimo observável em `--asm-s`.
