@@ -5,6 +5,18 @@
   - **Rodada documental** = consolidação/curadoria/higiene documental sem nova feature funcional.
   - Rodadas documentais **não recebem número de fase**.
 
+- Fase 62 — I/O básico (terceiro item do Bloco 5, escopo mínimo)
+  - continuidade histórica preservada: Fase 61 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar a trilha principal.
+  - operação adotada: `falar(expr);` como statement de saída mínimo.
+  - subset de tipos suportados: `bombom`, `u8`, `u16`, `u32`, `u64`, `logica`, `verso`. Tipos signed (`i8`–`i64`), ponteiros (`seta`), structs (`ninho`) e arrays fixos são rejeitados pela semântica com diagnóstico explícito.
+  - expressões aceitas: qualquer expressão que resolva para um tipo imprimível (literal, variável, aritmética, comparação, chamada de função).
+  - funciona em `--run`: `bombom`/unsigned imprime como inteiro decimal; `logica` imprime `verdade` ou `falso`; `verso` imprime o conteúdo literal da string.
+  - pipeline completo: `--check`, `--ir`, `--cfg-ir`, `--selected`, `--machine`, `--pseudo-asm`, `--asm-s` e `--run` todos reconhecem e processam `falar`.
+  - relação com `verso`: o mesmo `StringLit` já adotado na Fase 61; `verso` literal é impresso diretamente via `PrintStr` na Machine, sem empilhar valor.
+  - fora de escopo mantido: `ouvir` (leitura), `abrir`/`fechar`/`escrever` (arquivo), formatação de saída, signed (`i8`–`i64`) em `falar`, múltiplos argumentos em `falar`.
+  - exemplos versionados: `examples/fase62_falar_inteiro.pink`, `examples/fase62_falar_logica.pink`, `examples/fase62_falar_verso.pink`, `examples/fase62_falar_expr.pink`.
+  - próximo item normal do roadmap principal: Bloco 5, item 4 (`pink build` / tooling de projeto).
+
 - Fase 61 — strings (segundo item do Bloco 5, escopo mínimo)
   - continuidade histórica preservada: Fase 60 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar a trilha principal.
   - superfície adotada: tipo `verso` e literal de string `"texto"` como valores de linguagem.
