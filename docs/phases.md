@@ -31,6 +31,15 @@
   - exemplos/testes adicionados: execução signed em runtime, comparação signed, retorno/chamada signed e `falar` com signed.
   - próximo item normal sugerido do Bloco 6: item A.2 — representação mínima de ponteiro no runtime.
 
+- Fase 65 — representação mínima de ponteiro no runtime (segunda fase funcional do Bloco 6)
+  - continuidade histórica preservada: Fase 64 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar a trilha principal.
+  - runtime (`--run`) passa a representar ponteiros explicitamente com `RuntimeValue::Ptr(usize)` em vez de tratá-los apenas como inteiro sem distinção operacional.
+  - inicialização/coerção mínima de `seta<T>` no runtime adicionada para globals, parâmetros e slots tipados como ponteiro (`TypeIR::Pointer`), convertendo endereço inteiro para `Ptr`.
+  - a fase mantém escopo conservador: não adiciona dereferência, escrita indireta, aritmética de ponteiros, acesso a campo/index via ponteiro, MMIO ou backend nativo.
+  - uso ainda não suportado continua com erro explícito de runtime (ex.: tentar executar `add` com valor `Ptr` falha com diagnóstico de operação inteira).
+  - cobertura adicionada: representação de ponteiro em slot, representação de ponteiro em global e erro explícito para operação inteira com ponteiro.
+  - próximo item normal sugerido do Bloco 6: item B.3 — dereferência de leitura.
+
 - Fase 63 — `pink build` / tooling de projeto (quarto item do Bloco 5, escopo mínimo)
   - continuidade histórica preservada: Fase 62 segue como fase funcional principal anterior; Fase 48-H1 segue como rodada extraordinária/hotfix sem reordenar a trilha principal.
   - superfície adotada: comando `pink build <arquivo.pink>` com opção `--out-dir <dir>` (padrão: `build`).

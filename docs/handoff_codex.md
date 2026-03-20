@@ -1,8 +1,8 @@
 # Handoff Codex (executor)
 
 ## Rodada atual
-- **Fase 64 — signed real no runtime** (primeira fase funcional do Bloco 6).
-- Fase 63 permanece como fase funcional principal anterior; Fase 48-H1 segue extraordinária/hotfix sem reordenar trilha.
+- **Fase 65 — representação mínima de ponteiro no runtime** (segunda fase funcional do Bloco 6).
+- Fase 64 permanece como fase funcional principal anterior; Fase 48-H1 segue extraordinária/hotfix sem reordenar trilha.
 
 ## Convenção documental ativa
 - Fase numerada (`Fase N`) = mudança funcional/estrutural real.
@@ -97,7 +97,14 @@ O Bloco 6 foi estruturado em duas categorias:
 - Ajuste de estabilidade: limite preventivo de recursão do runtime passou para `MAX_CALL_DEPTH = 64`.
 
 ### Próxima fase funcional sugerida
-**Bloco 6, item A.2 — representação mínima de ponteiro no runtime**.
+**Bloco 6, item B.3 — dereferência de leitura**.
+
+### Fase 65 concluída (resumo)
+- Runtime `--run` agora possui representação explícita de ponteiro: `RuntimeValue::Ptr(usize)`.
+- Coerção mínima para ponteiro foi adicionada onde já existe tipagem de slot/global/parâmetro (`TypeIR::Pointer`), convertendo inteiros de endereço para `Ptr`.
+- A fase é preparatória e deliberadamente pequena: não adiciona dereferência, escrita indireta, aritmética de ponteiros, campo/index via ponteiro, MMIO ou backend nativo.
+- Operações ainda não suportadas continuam com erro explícito no runtime (ex.: operação aritmética com `Ptr`).
+- Cobertura adicionada no interpretador para: representação mínima em slot, representação em global e erro explícito ao usar `Ptr` em operação inteira.
 
 ## Decisões arquiteturais documentadas nesta rodada
 - **Bifurcação pipeline (HF-6)**: `--pseudo-asm` parte de `selected_program`, `--run` parte de `machine_program`. Intencional — backend textual é representação alternativa da seleção; interpretador precisa da Machine validada.

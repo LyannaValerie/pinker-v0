@@ -118,7 +118,10 @@ semântica -> IR estruturada -> validação IR -> CFG IR -> validação CFG -> s
 - Runtime agora distingue `RuntimeValue::Int(u64)` (unsigned/bombom) de `RuntimeValue::IntSigned(i64)` (signed), preservando família numérica nas operações.
 - `falar` passou a aceitar signed (`i8`/`i16`/`i32`/`i64`) além dos tipos já imprimíveis anteriores.
 - Limite preventivo de recursão do runtime ajustado para `MAX_CALL_DEPTH = 64` para estabilidade no ambiente de testes.
-- Próximo item normal sugerido do roadmap principal (Bloco 6): item A.2 — representação mínima de ponteiro no runtime.
+- Fase 65 concluída: representação mínima de ponteiro no runtime para `seta<T>`.
+- Runtime agora inclui `RuntimeValue::Ptr(usize)` e coerção mínima para `TypeIR::Pointer` em globals, parâmetros e slots.
+- Escopo mantido: sem dereferência, sem escrita indireta, sem aritmética de ponteiros e sem efeito operacional de `fragil`.
+- Próximo item normal sugerido do roadmap principal (Bloco 6): item B.3 — dereferência de leitura.
 
 ## Rodada documental estratégica — Bloco 6 (atual)
 

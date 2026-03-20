@@ -7,6 +7,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - parser para `pacote`, `trazer`, `carinho`, `mimo`, `talvez/senão`, `sempre que`, `eterno`, `nova`, `mut`
 - tipos `bombom`, `u8`, `u16`, `u32`, `u64`, `i8`, `i16`, `i32`, `i64` e `logica`
 - aliases de tipo (`apelido`), arrays fixos (`[tipo; N]`), structs (`ninho`), ponteiros (`seta<tipo>`)
+- representação mínima de ponteiro no runtime (`RuntimeValue::Ptr`) para `seta<T>` no `--run`
 - qualificador `fragil` (`volatile`) para ponteiros explícitos (`fragil seta<tipo>`)
 - inline asm mínimo como statement textual com `sussurro("...")` (ou múltiplas strings), preservado até IR
 - marca de unidade freestanding/no-std com `livre;` no topo do programa
@@ -35,6 +36,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - otimizações grandes
 - FFI, enums, generics, traits
 - operações reais de ponteiro (dereferência, aritmética), acesso via ponteiro (`seta<T>`), escrita em campo/index, layout físico/ABI
+- leitura/escrita indireta por ponteiro e aritmética de ponteiro no runtime (apenas representação mínima existe nesta fase)
 - semântica operacional de `fragil` em runtime/backend (nesta fase é qualificador semântico preservado no pipeline)
 - lowering operacional de `virar` em CFG/Machine/runtime (`--check` aceita o subset da fase; `--run`/`--cfg-ir` ainda não executam cast)
 - lowering operacional de inline asm em CFG/Machine/runtime (`--check`/`--ir` aceitam o subset da fase; `--cfg-ir`/`--run` ainda não executam `sussurro`)
