@@ -461,6 +461,18 @@ impl Parser {
             }));
         }
 
+        if self.match_token(TokenKind::KwFalar) {
+            let start_span = self.previous().span;
+            self.consume(TokenKind::LParen, "(")?;
+            let expr = self.parse_expr()?;
+            self.consume(TokenKind::RParen, ")")?;
+            self.consume(TokenKind::Semi, ";")?;
+            return Ok(Stmt::Falar(FalarStmt {
+                expr,
+                span: merge_span(start_span, self.previous().span),
+            }));
+        }
+
         if self.match_token(TokenKind::KwSussurro) {
             let start_span = self.previous().span;
             self.consume(TokenKind::LParen, "(")?;

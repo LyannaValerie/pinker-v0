@@ -88,6 +88,9 @@ pub enum MachineInstr {
     CmpGe,
     Call { callee: String, argc: usize },
     CallVoid { callee: String, argc: usize },
+    PrintInt,
+    PrintBool,
+    PrintStr(String),
 }
 
 /// Terminadores de bloco. `BrTrue` consome o topo da pilha (deve ser `lógica`).
@@ -287,6 +290,19 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) {
                 argc: args.len(),
             });
         }
+        SelectedInstr::Falar { value, ty } => match value {
+            OperandIR::Str(s) => {
+                code.push(MachineInstr::PrintStr(s.clone()));
+            }
+            _ if *ty == TypeIR::Logica => {
+                emit_load(value, code);
+                code.push(MachineInstr::PrintBool);
+            }
+            _ => {
+                emit_load(value, code);
+                code.push(MachineInstr::PrintInt);
+            }
+        },
     }
 }
 
@@ -316,6 +332,7 @@ fn emit_load(op: &OperandIR, code: &mut Vec<MachineInstr>) {
     match op {
         OperandIR::Int(v) => code.push(MachineInstr::PushInt(*v)),
         OperandIR::Bool(v) => code.push(MachineInstr::PushBool(*v)),
+        OperandIR::Str(_) => {} // Str operands are handled specially by Falar lowering
         OperandIR::Local(s) => code.push(MachineInstr::LoadSlot(s.clone())),
         OperandIR::GlobalConst(g) => code.push(MachineInstr::LoadGlobal(g.clone())),
         OperandIR::Temp(t) => code.push(MachineInstr::LoadSlot(temp_name(*t))),
@@ -557,6 +574,15 @@ fn render_instr(i: &MachineInstr) -> String {
             format!("call_void {}, {}", callee, argc),
             &format!("chama {} com {} argumento(s) sem retorno", callee, argc),
         ),
+        MachineInstr::PrintInt => {
+            with_comment("print_int".to_string(), "imprime inteiro do topo da pilha")
+        }
+        MachineInstr::PrintBool => {
+            with_comment("print_bool".to_string(), "imprime lógico do topo da pilha")
+        }
+        MachineInstr::PrintStr(s) => {
+            with_comment(format!("print_str \"{}\"", s), "imprime literal verso")
+        }
     }
 }
 
@@ -651,6 +677,7 @@ fn render_operand(op: &OperandIR) -> String {
                 "falso".to_string()
             }
         }
+        OperandIR::Str(s) => format!("\"{}\"", s),
         OperandIR::Local(s) => s.clone(),
         OperandIR::GlobalConst(g) => format!("@{}", g),
         OperandIR::Temp(t) => format!("%t{}", t.0),

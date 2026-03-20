@@ -11,9 +11,9 @@
 //!   `semantic` → **`ir`** → `ir_validate` → `cfg_ir`
 
 use crate::ast::{
-    BinaryOp, Block, BreakStmt, ConstDecl, ContinueStmt, ElseBlock, Expr, ExprKind, FunctionDecl,
-    IfStmt, InlineAsmStmt, Item, LetStmt, Program, ReturnStmt, Stmt, StructDecl, Type, UnaryOp,
-    WhileStmt,
+    BinaryOp, Block, BreakStmt, ConstDecl, ContinueStmt, ElseBlock, Expr, ExprKind, FalarStmt,
+    FunctionDecl, IfStmt, InlineAsmStmt, Item, LetStmt, Program, ReturnStmt, Stmt, StructDecl,
+    Type, UnaryOp, WhileStmt,
 };
 use crate::error::PinkerError;
 use crate::layout;
@@ -114,6 +114,11 @@ pub enum InstructionIR {
     },
     Continue {
         loop_continue_label: String,
+        span: Span,
+    },
+    Falar {
+        value: ValueIR,
+        ty: TypeIR,
         span: Span,
     },
     InlineAsm {
@@ -517,8 +522,18 @@ impl<'a> FunctionLowerer<'a> {
             Stmt::While(while_stmt) => self.lower_while(while_stmt),
             Stmt::Break(break_stmt) => self.lower_break(break_stmt),
             Stmt::Continue(continue_stmt) => self.lower_continue(continue_stmt),
+            Stmt::Falar(falar_stmt) => self.lower_falar(falar_stmt),
             Stmt::InlineAsm(inline_asm_stmt) => self.lower_inline_asm(inline_asm_stmt),
         }
+    }
+
+    fn lower_falar(&mut self, falar_stmt: &FalarStmt) -> Result<InstructionIR, PinkerError> {
+        let typed = self.lower_value(&falar_stmt.expr)?;
+        Ok(InstructionIR::Falar {
+            value: typed.value,
+            ty: typed.ty,
+            span: falar_stmt.span,
+        })
     }
 
     fn lower_inline_asm(
@@ -1088,6 +1103,13 @@ fn render_instruction(instruction: &InstructionIR, indent: usize, out: &mut Stri
             ..
         } => {
             line(out, indent, &format!("continue {}", loop_continue_label));
+        }
+        InstructionIR::Falar { value, ty, .. } => {
+            line(
+                out,
+                indent,
+                &format!("falar {}:{}", render_value(value), ty.name()),
+            );
         }
         InstructionIR::InlineAsm { chunks, .. } => {
             line(out, indent, &format!("inline_asm [{}]", chunks.join(" | ")));

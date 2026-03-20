@@ -317,6 +317,9 @@ fn render_instruction(inst: &crate::backend_text::BackendTextInstruction) -> Str
                 (None, _) => format!("; call inválida: {} {}", callee, abi_args),
             }
         }
+        crate::backend_text::BackendTextInstruction::Falar { value, ty } => {
+            format!("falar {}:{}", render_operand(value), ty.name())
+        }
     }
 }
 
@@ -389,6 +392,7 @@ fn render_operand(op: &crate::cfg_ir::OperandIR) -> String {
                 "0".to_string()
             }
         }
+        crate::cfg_ir::OperandIR::Str(s) => format!("\"{}\"", s),
         crate::cfg_ir::OperandIR::Temp(temp) => render_temp(*temp),
     }
 }

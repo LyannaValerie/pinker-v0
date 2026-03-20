@@ -479,6 +479,7 @@ pub enum Stmt {
     While(WhileStmt),
     Break(BreakStmt),
     Continue(ContinueStmt),
+    Falar(FalarStmt),
     InlineAsm(InlineAsmStmt),
     Expr(Expr),
 }
@@ -493,6 +494,7 @@ impl Stmt {
             Stmt::While(stmt) => stmt.span,
             Stmt::Break(stmt) => stmt.span,
             Stmt::Continue(stmt) => stmt.span,
+            Stmt::Falar(stmt) => stmt.span,
             Stmt::InlineAsm(stmt) => stmt.span,
             Stmt::Expr(expr) => expr.span,
         }
@@ -507,6 +509,7 @@ impl Stmt {
             Stmt::While(stmt) => stmt.write_json(writer),
             Stmt::Break(stmt) => stmt.write_json(writer),
             Stmt::Continue(stmt) => stmt.write_json(writer),
+            Stmt::Falar(stmt) => stmt.write_json(writer),
             Stmt::InlineAsm(stmt) => stmt.write_json(writer),
             Stmt::Expr(expr) => {
                 writer.begin_object();
@@ -630,6 +633,22 @@ impl ContinueStmt {
         writer.begin_object();
         writer.field_str("node", "ContinueStmt");
         writer.field_span("span", self.span);
+        writer.end_object();
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FalarStmt {
+    pub expr: Expr,
+    pub span: Span,
+}
+
+impl FalarStmt {
+    fn write_json(&self, writer: &mut JsonWriter<'_>) {
+        writer.begin_object();
+        writer.field_str("node", "FalarStmt");
+        writer.field_span("span", self.span);
+        writer.field_value("expr", |writer| self.expr.write_json(writer));
         writer.end_object();
     }
 }

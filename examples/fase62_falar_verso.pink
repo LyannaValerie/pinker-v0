@@ -1,0 +1,6 @@
+pacote fase62_falar_verso;
+
+carinho principal() -> bombom {
+    falar("ola mundo");
+    mimo 0;
+}

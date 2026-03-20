@@ -138,6 +138,10 @@ pub enum SelectedInstr {
         callee: String,
         args: Vec<OperandIR>,
     },
+    Falar {
+        value: OperandIR,
+        ty: TypeIR,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -345,6 +349,10 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
                 span: crate::token::Span::single(crate::token::Position::new(1, 1)),
             }),
         },
+        InstructionCfgIR::Falar { value, ty } => Ok(SelectedInstr::Falar {
+            value: value.clone(),
+            ty: *ty,
+        }),
     }
 }
 
@@ -543,6 +551,9 @@ fn render_instr(inst: &SelectedInstr) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
+        SelectedInstr::Falar { value, ty } => {
+            format!("falar {}:{}", render_operand(value), ty.name())
+        }
     }
 }
 
@@ -576,6 +587,7 @@ fn render_operand(op: &OperandIR) -> String {
                 "falso".to_string()
             }
         }
+        OperandIR::Str(s) => format!("\"{}\"", s),
         OperandIR::Temp(t) => render_temp(*t),
     }
 }

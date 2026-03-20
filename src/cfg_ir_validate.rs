@@ -450,6 +450,7 @@ fn validate_block(
                     }
                 }
             }
+            InstructionCfgIR::Falar { value: _, ty: _ } => {}
         }
     }
 
@@ -548,6 +549,7 @@ fn infer_operand_type(
             .ok_or_else(|| cfg_error(&format!("constante global inexistente '{}'", name), span)),
         OperandIR::Int(_) => Ok(TypeIR::Bombom),
         OperandIR::Bool(_) => Ok(TypeIR::Logica),
+        OperandIR::Str(_) => Ok(TypeIR::Verso),
         OperandIR::Temp(temp) => temps
             .get(temp)
             .copied()
