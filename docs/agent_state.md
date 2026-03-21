@@ -23,11 +23,12 @@
 - Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
 
 ## 5. Estado corrente
-- Fase funcional atual: **72 — efeito operacional mínimo de `fragil`**.
-- Fase funcional anterior: **71 — cast operacional útil ligado à memória**.
+- Fase funcional atual: **73 — subset real montável ampliado**.
+- Fase funcional anterior: **72 — efeito operacional mínimo de `fragil`**.
 - Bloco concluído: **Bloco 6 — Memória operacional** (Fases 64–72 entregues).
 - Próximo bloco ativo: **Bloco 7 — Backend nativo real**.
 - Bloco futuro já definido (não ativo): **Bloco 8 — I/O e ecossistema útil**.
+- Item normal sugerido após a Fase 73: **convenção de chamada concreta mínima** (Bloco 7).
 - Rodada documental corrente: **Doc-11 — abertura documental dos Blocos 7 e 8**.
 - Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 
