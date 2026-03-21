@@ -188,11 +188,15 @@ Limites atuais (adiado): a tipagem na Machine continua leve/local (sem inferênc
 
 ## Documentação do projeto
 
-O projeto mantém três camadas documentais com papéis distintos:
+O projeto mantém um ecossistema documental com papéis distintos:
 
-- `docs/roadmap.md` — trilha ativa oficial; define o que está sendo construído agora.
-- `docs/future.md` — inventário amplo de evolução de longo prazo; não é roadmap rígido de curto prazo.
-- `docs/parallel.md` — documento visionário; guarda a fantasia orientadora, a identidade e a ambição conceitual da Pinker; não é mandatório nem define ordem de execução.
+- `docs/roadmap.md` — trilha ativa oficial; define a ordem funcional em execução.
+- `docs/future.md` — inventário técnico amplo de médio/longo prazo; não dita ordem ativa.
+- `docs/parallel.md` — documento visionário; guarda identidade e direção conceitual; não é backlog técnico.
+- `docs/phases.md` — crônica histórica oficial (fases funcionais, hotfixes e rodadas documentais).
+- `docs/agent_state.md` — estado corrente enxuto + diretrizes operacionais consolidadas.
+- `docs/handoff_codex.md` — handoff operacional curto da rodada atual.
+- `docs/doc_rules.md` — convenções obrigatórias de atualização e precedência documental.
 
 ## Licença
 [MIT](LICENSE)
