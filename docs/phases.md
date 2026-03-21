@@ -216,6 +216,15 @@ HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
 - Manutenção central: simplificações de CLI, alinhamento de toolchain/CI com MSRV, inclusão de `clippy` e validação de docs na esteira.
 - Higiene documental: atualização de backlog e normalização de registros associados ao ciclo de hotfix.
 
+HF-2 - Bloco 6 (Fases 64–70): varredura de corretude e estabilização
+- Pacote extraordinário pós-Bloco-6 sem avançar trilha funcional.
+- Bug #1 (interpreter.rs): `normalize_numeric_pair` invertia a ordem dos operandos quando `Int` era LHS e `IntSigned` era RHS, devido a padrão `|` com bindings compartilhados. Corrigido separando em dois arms explícitos que preservam a ordem lhs/rhs original. Efeito observado: `10 - 3 = -7`, `5 < 3 = verdade`.
+- Bug #2 (interpreter.rs): Classificador de erros de runtime não reconhecia erros de ponteiro (`deref_load`, `deref_store`, `endereço inválido`, `ponteiro no topo`). Hint diagnóstico adicionado.
+- Bug #3 (semantic.rs): Verificação redundante morta de tipo de índice em `ExprKind::Index` (subsumed pela checagem subsequente `matches!(bombom)`). Código morto removido.
+- Bug #4 (ir_validate.rs + cfg_ir_validate.rs): `Eq/Neq` rejeitava `signed_var == literal` por ausência da exceção literal já presente em `Lt/Lte/Gt/Gte`. Corrigido em ambas as camadas de validação.
+- Teste de regressão adicionado: `run_signed_literal_lhs_operacoes_nao_comutativas`.
+- Suite completa: 356 testes, 0 falhas.
+
 ########################## DOCUMENTAÇÃO ##########################
 
 Doc-1 - viabilidade de escrita em globals (análise)

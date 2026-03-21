@@ -922,6 +922,35 @@ fn run_signed_retorno_e_chamada_funcionam() {
     assert_eq!(out, Some(RuntimeValue::Int(1)));
 }
 
+// Regressão HF-2: literal no lado esquerdo de op não-comutativa com signed no RHS.
+// normalize_numeric_pair invertia a ordem dos operandos nesse caso.
+#[test]
+fn run_signed_literal_lhs_operacoes_nao_comutativas() {
+    // sub: 10 - v (v=3) deve ser 7, não -7
+    let out = run_code(
+        "pacote main;
+         carinho sub_lhs(v: i32) -> i32 { mimo 10 - v; }
+         carinho principal() -> bombom {
+             nova r: i32 = sub_lhs(3);
+             talvez r == 7 { mimo 1; } senao { mimo 0; }
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)), "10 - 3 deve ser 7");
+
+    // cmp_lt: 5 < v (v=3) deve ser falso, não verdade
+    let out2 = run_code(
+        "pacote main;
+         carinho cmp_lhs(v: i32) -> logica { mimo 5 < v; }
+         carinho principal() -> bombom {
+             nova r: logica = cmp_lhs(3);
+             talvez r { mimo 0; } senao { mimo 1; }
+         }",
+    )
+    .unwrap();
+    assert_eq!(out2, Some(RuntimeValue::Int(1)), "5 < 3 deve ser falso");
+}
+
 #[test]
 fn run_divisao() {
     let out = run_code(

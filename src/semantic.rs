@@ -979,12 +979,6 @@ impl SemanticChecker {
                     index,
                     "resultado de função sem retorno não pode ser índice",
                 )?;
-                if !Self::is_integer_type(&index_ty) {
-                    return Err(PinkerError::Semantic {
-                        msg: "índice nesta fase deve ser 'bombom'".to_string(),
-                        span: index.span,
-                    });
-                }
                 if !matches!(index_ty, Type::Bombom(_)) {
                     return Err(PinkerError::Semantic {
                         msg: "índice nesta fase deve ser 'bombom'".to_string(),
