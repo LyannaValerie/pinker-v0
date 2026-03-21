@@ -287,3 +287,13 @@ Doc-10 - renomeação de `phases.md` para `history.md`
 - Referências atualizadas em: `README.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/doc_rules.md`, `docs/parallel.md`.
 - Trilha ativa do roadmap permaneceu intacta; `roadmap.md` não foi alterado.
 - Arquitetura documental mantida: `roadmap.md` = trilha ativa, `future.md` = inventário amplo, `parallel.md` = visão orientadora, `history.md` = crônica histórica, `agent_state.md` = estado corrente, `handoff_codex.md` = handoff operacional curto.
+
+Doc-11 - abertura documental dos Blocos 7 e 8
+- Rodada estritamente documental; sem alteração funcional de código, testes ou exemplos `.pink`.
+- Objetivo: eliminar ambiguidade estratégica sobre o próximo grande rumo do projeto após o fechamento do Bloco 6.
+- Bloco 6 — Memória operacional marcado como concluído no roadmap (Fases 64–72 entregues).
+- **Bloco 7 — Backend nativo real** registrado formalmente como trilha ativa seguinte: transformar gradualmente o backend textual/experimental em backend nativo real mais utilizável.
+- **Bloco 8 — I/O e ecossistema útil** registrado formalmente como bloco futuro já definido, não ativo: I/O, arquivo, verso operacional e base para tooling.
+- Separação explícita preservada: trilha de soberania/backend (Bloco 7) vs. trilha de I/O/ecossistema (Bloco 8).
+- Trilha ativa permanece única: apenas o Bloco 7 está marcado como próximo bloco ativo; o Bloco 8 aguarda consolidação suficiente do Bloco 7.
+- Esta rodada não cria fase funcional; registra apenas a direção planejada.

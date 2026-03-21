@@ -25,9 +25,10 @@
 ## 5. Estado corrente
 - Fase funcional atual: **72 — efeito operacional mínimo de `fragil`**.
 - Fase funcional anterior: **71 — cast operacional útil ligado à memória**.
-- Bloco ativo: **Bloco 6 — Memória operacional**.
-- Próximo item normal: **expansão incremental do subset operacional de `fragil` além de `fragil seta<bombom>` (mantendo escopo mínimo e auditável)**.
-- Rodada documental corrente: **Doc-10 — renomeação de `phases.md` para `history.md`**.
+- Bloco concluído: **Bloco 6 — Memória operacional** (Fases 64–72 entregues).
+- Próximo bloco ativo: **Bloco 7 — Backend nativo real**.
+- Bloco futuro já definido (não ativo): **Bloco 8 — I/O e ecossistema útil**.
+- Rodada documental corrente: **Doc-11 — abertura documental dos Blocos 7 e 8**.
 - Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 
 ## 6. Ecossistema documental
