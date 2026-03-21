@@ -221,6 +221,13 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Subset operacional desta fase: `fragil seta<bombom>` em leitura/escrita indireta (`*p` e `*p = valor`) no `--run`, reaproveitando o modelo de memória abstrata já existente.
 - Fora de escopo explícito nesta fase: MMIO real, hardware real, fences/barreiras, ordenação de memória e ampliação para outros tipos base além do subset já aceito para dereferência/escrita indireta.
 
+73 - subset real montável ampliado
+- Primeira fase funcional do Bloco 7 — Backend nativo real.
+- Integração externa (`emit_external_toolchain_subset`) deixou de aceitar apenas retorno constante e passou a aceitar subset linear maior em Linux x86_64: `principal() -> bombom` com locais `bombom`, atribuição local e aritmética escalar `+`, `-`, `*`.
+- Emissão externa agora gera prólogo/epílogo real mínimo de frame (`pushq %rbp`, `movq %rsp, %rbp`, `leave`) e slots de stack para locais/temporários, mantendo recorte pequeno e auditável.
+- Fluxo real assembler/linker coberto por teste dedicado com execução do binário resultante (exit code validado) para caso com múltiplas instruções e retorno calculado.
+- Fora de escopo explícito nesta fase: parâmetros, globais, fluxo de controle (`talvez/senão`, loops), chamadas, memória indireta e ABI completa.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

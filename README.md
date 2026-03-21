@@ -100,6 +100,7 @@ cargo run -- --run examples/fase69_ninho_campo_operacional_valido.pink
 cargo run -- --run examples/fase70_indexacao_array_operacional_valido.pink
 cargo run -- --run examples/fase71_cast_memoria_valido.pink
 cargo run -- --run examples/fase72_fragil_operacional_minimo_valido.pink
+cargo run -- --asm-s examples/fase73_backend_externo_locais_aritmetica_valido.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
 cargo run -- --check examples/check_continuar_fora_loop.pink
@@ -176,6 +177,19 @@ Fluxo experimental reproduzível:
 cargo test --test backend_s_external_toolchain_tests -- --nocapture
 ```
 Se não houver toolchain C no ambiente, o teste de fluxo real é pulado sem quebrar a suíte.
+
+Estado explícito da Fase 73: o subset externo montável foi ampliado (mantendo Linux x86_64 + toolchain C do sistema) para aceitar `principal() -> bombom` com:
+- variáveis locais `bombom`;
+- atribuição em local;
+- aritmética escalar linear (`+`, `-`, `*`);
+- retorno calculado a partir de literal/local/temporário.
+
+Limites preservados na Fase 73 (fora do subset externo montável):
+- sem globais;
+- sem parâmetros;
+- sem fluxo de controle (`talvez/senão`, loops);
+- sem chamadas de função;
+- sem memória indireta/ponteiros no backend externo.
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 
