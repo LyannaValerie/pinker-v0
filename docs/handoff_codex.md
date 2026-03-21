@@ -1,16 +1,14 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Doc-8 — reestruturação documental do projeto Pinker v0**.
-- Rodada exclusivamente documental, sem alteração funcional em Rust/testes/exemplos.
+- **Doc-9 — revisão documental operacional da reestruturação**.
+- Rodada documental de auditoria de coerência e precedência, sem alteração funcional em Rust/testes/exemplos.
 
 ## 2. O que entrou na rodada atual
-- Reorganização de `docs/phases.md` em três seções fixas: FASES, HOTFIXES e DOCUMENTAÇÃO.
-- Criação de `docs/doc_rules.md` como referência obrigatória de convenções documentais.
-- Enxugamento de `docs/agent_state.md` para estado corrente + regras operacionais.
-- Enxugamento de `docs/handoff_codex.md` para papel de handoff curto.
-- Ajustes no `README.md` (seção documental) para refletir o novo ecossistema.
-- Remoção de legados: `docs/handoff_auditor.md` e `docs/handoff_opus.md`.
+- Revisão cruzada entre `roadmap.md`, `future.md`, `parallel.md`, `phases.md`, `agent_state.md`, `handoff_codex.md`, `doc_rules.md` e `README.md`.
+- Confirmação de precedência: `roadmap` (trilha ativa) > `future` (inventário amplo) > `parallel` (visão orientadora), sem conflito operacional novo.
+- Confirmação de `phases.md` como crônica histórica única e de `agent_state.md`/`handoff_codex.md` em formato enxuto.
+- Correção textual mínima em `parallel.md` (digitação), sem impacto de escopo ou timeline.
 
 ## 3. Fora de escopo da rodada atual
 - Qualquer mudança funcional de compilador/runtime/backend.

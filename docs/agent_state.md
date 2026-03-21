@@ -27,6 +27,7 @@
 - Fase funcional anterior: **64 — signed real no runtime**.
 - Bloco ativo: **Bloco 6 — Memória operacional**.
 - Próximo item normal: **Bloco 6, item B.3 — dereferência de leitura**.
+- Rodada documental corrente: **Doc-9 — revisão operacional da reestruturação documental**.
 
 ## 6. Ecossistema documental
 - `docs/roadmap.md`: trilha ativa oficial.
