@@ -401,6 +401,23 @@ fn run_aritmetica_ponteiro_offset_suporta_escrita_indireta() {
 }
 
 #[test]
+fn run_cast_memoria_bombom_para_seta_bombom_e_volta_funciona() {
+    let out = run_code(
+        "pacote main;
+         eterno A: bombom = 33;
+         carinho principal() -> bombom {
+             nova endereco: bombom = 1;
+             nova p: seta<bombom> = endereco virar seta<bombom>;
+             nova raw: bombom = p virar bombom;
+             nova q: seta<bombom> = raw virar seta<bombom>;
+             mimo *q;
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(33)));
+}
+
+#[test]
 fn run_acesso_campo_operacional_em_ninho_via_ponteiro() {
     let out = run_code(
         "pacote main;
@@ -1896,6 +1913,33 @@ fn cli_run_indexacao_operacional_em_array_fora_subset_falha_com_exemplo_versiona
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("(*ptr)[i]"), "stderr={}", stderr);
+}
+
+#[test]
+fn cli_run_cast_memoria_operacional_funciona_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase71_cast_memoria_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("55"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_check_cast_memoria_fora_subset_falha_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/fase71_cast_memoria_invalido.pink");
+    assert!(
+        !output.status.success(),
+        "esperava falha semântica para cast fora do subset"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("cast explícito inválido nesta fase"),
+        "stderr={}",
+        stderr
+    );
 }
 
 // ── Fase 28c: spans/source context em erros de runtime e parser ───────────

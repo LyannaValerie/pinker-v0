@@ -1,0 +1,8 @@
+pacote main;
+
+ninho Par { a: bombom; }
+
+carinho principal() -> bombom {
+    nova p: seta<Par> = 1;
+    mimo p virar bombom;
+}

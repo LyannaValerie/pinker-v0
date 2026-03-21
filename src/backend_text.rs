@@ -121,6 +121,10 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                                     .to_string(),
                                 span: crate::token::Span::single(crate::token::Position::new(1, 1)),
                             }),
+                            InstructionCfgIR::Cast { .. } => Err(PinkerError::Ir {
+                                msg: "backend textual ainda não lowera cast nesta fase".to_string(),
+                                span: crate::token::Span::single(crate::token::Position::new(1, 1)),
+                            }),
                             InstructionCfgIR::Binary { dest, op, lhs, rhs } => {
                                 Ok(BackendTextInstruction::Binary {
                                     dest: *dest,
@@ -257,6 +261,10 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
         }),
         SelectedInstr::DerefStore { .. } => Err(PinkerError::Ir {
             msg: "backend textual ainda não lowera escrita indireta nesta fase".to_string(),
+            span: crate::token::Span::single(crate::token::Position::new(1, 1)),
+        }),
+        SelectedInstr::Cast { .. } => Err(PinkerError::Ir {
+            msg: "backend textual ainda não lowera cast nesta fase".to_string(),
             span: crate::token::Span::single(crate::token::Position::new(1, 1)),
         }),
         SelectedInstr::BitAnd { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {

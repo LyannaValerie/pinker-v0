@@ -379,6 +379,25 @@ fn apply_instr_effect(
                 Some("instr='deref_store'"),
             )?;
         }
+        MachineInstr::Cast { ty } => {
+            let top = pop_typed(
+                f,
+                label,
+                stack,
+                1,
+                "underflow em cast",
+                Some("instr='cast'"),
+            )?;
+            if top[0] == StackValueType::Logica || *ty == TypeIR::Logica {
+                return Err(err_ctx_with_detail(
+                    f,
+                    Some(label),
+                    "cast nesta fase não suporta lógica",
+                    Some("instr='cast'"),
+                ));
+            }
+            stack.push(type_to_stack(*ty));
+        }
         MachineInstr::Add
         | MachineInstr::BitAnd
         | MachineInstr::BitOr
@@ -644,6 +663,7 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::Not => "not",
         MachineInstr::DerefLoad { .. } => "deref_load",
         MachineInstr::DerefStore { .. } => "deref_store",
+        MachineInstr::Cast { .. } => "cast",
         MachineInstr::BitAnd => "bitand",
         MachineInstr::BitOr => "bitor",
         MachineInstr::BitXor => "bitxor",

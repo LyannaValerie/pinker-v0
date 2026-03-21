@@ -240,16 +240,35 @@ fn cfg_ir_if_else_fallthrough_ambos_ramos_gera_join_valido() {
 }
 
 #[test]
-fn cfg_ir_cast_explicito_ainda_fora_do_escopo_operacional() {
+fn cfg_ir_cast_explicito_bombom_para_seta_bombom_e_volta() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
-            nova x: u16 = 300;
-            mimo (x virar u8) virar bombom;
+            nova base: bombom = 1;
+            nova p: seta<bombom> = base virar seta<bombom>;
+            mimo p virar bombom;
         }
     "#;
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("cast"), "{}", cfg);
+}
+
+#[test]
+fn cfg_ir_cast_ponteiro_ninho_para_bombom_fora_do_subset_falha() {
+    let code = r#"
+        pacote main;
+        ninho Par { a: bombom; }
+        carinho invalido(p: seta<Par>) -> bombom {
+            mimo p virar bombom;
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
     let err = render_cfg_ir(code).unwrap_err().to_string();
-    assert!(err.contains("ainda não lowera cast"));
+    assert!(
+        err.contains("cast explícito inválido nesta fase"),
+        "{}",
+        err
+    );
 }
 
 #[test]

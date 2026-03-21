@@ -276,7 +276,22 @@ impl SemanticChecker {
     }
 
     fn is_cast_allowed(source: &Type, target: &Type) -> bool {
-        Self::is_integer_type(source) && Self::is_integer_type(target)
+        if Self::is_integer_type(source) && Self::is_integer_type(target) {
+            return true;
+        }
+        let is_bombom_ptr = |ty: &Type| {
+            matches!(
+                ty,
+                Type::Pointer {
+                    base,
+                    is_volatile: _,
+                    span: _,
+                } if matches!(base.as_ref(), Type::Bombom(_))
+            )
+        };
+
+        (matches!(source, Type::Bombom(_)) && is_bombom_ptr(target))
+            || (is_bombom_ptr(source) && matches!(target, Type::Bombom(_)))
     }
 
     fn check_expected_type_for_expr(expected: &Type, actual: &Type, expr: &Expr) -> bool {

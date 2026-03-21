@@ -1,0 +1,11 @@
+pacote main;
+
+eterno A: bombom = 55;
+
+carinho principal() -> bombom {
+    nova endereco: bombom = 1;
+    nova p: seta<bombom> = endereco virar seta<bombom>;
+    nova raw: bombom = p virar bombom;
+    nova q: seta<bombom> = raw virar seta<bombom>;
+    mimo *q;
+}

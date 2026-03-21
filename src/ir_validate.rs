@@ -547,11 +547,15 @@ fn infer_value_type(
         }
         ValueIR::Cast { value, target_type } => {
             let source_ty = infer_value_type(value, slots, consts, funcs, span)?;
-            if source_ty.is_integer() && target_type.is_integer() {
+            let pointer_cast_ok = matches!(
+                (source_ty, target_type),
+                (TypeIR::Bombom, TypeIR::Pointer { .. }) | (TypeIR::Pointer { .. }, TypeIR::Bombom)
+            );
+            if (source_ty.is_integer() && target_type.is_integer()) || pointer_cast_ok {
                 Ok(*target_type)
             } else {
                 Err(ir_validation_error(
-                    "cast IR inválido: somente inteiro->inteiro é permitido nesta fase",
+                    "cast IR inválido: fase aceita inteiro->inteiro e bombom<->seta",
                     span,
                 ))
             }

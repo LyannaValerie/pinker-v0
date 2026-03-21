@@ -82,6 +82,11 @@ pub enum InstructionCfgIR {
         value: OperandIR,
         ty: TypeIR,
     },
+    Cast {
+        dest: TempIR,
+        value: OperandIR,
+        target_type: TypeIR,
+    },
     Binary {
         dest: TempIR,
         op: BinaryOpIR,
@@ -666,10 +671,18 @@ impl FunctionLowerer {
                 index,
                 element_type,
             } => self.lower_index_access(base, index, *element_type, current, span),
-            ValueIR::Cast { .. } => Err(PinkerError::Ir {
-                msg: "CFG IR ainda não lowera cast nesta fase".to_string(),
-                span,
-            }),
+            ValueIR::Cast { value, target_type } => {
+                let (value, next_current) = self.lower_value_operand(value, current, span)?;
+                let dest = self.next_temp();
+                self.blocks[next_current]
+                    .instructions
+                    .push(InstructionCfgIR::Cast {
+                        dest,
+                        value,
+                        target_type: *target_type,
+                    });
+                Ok((OperandIR::Temp(dest), next_current))
+            }
         }
     }
 
@@ -974,6 +987,16 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
             render_operand(ptr),
             render_operand(value),
             ty.name()
+        ),
+        InstructionCfgIR::Cast {
+            dest,
+            value,
+            target_type,
+        } => format!(
+            "{} = cast {} -> {}",
+            render_temp(*dest),
+            render_operand(value),
+            target_type.name()
         ),
         InstructionCfgIR::Call {
             dest,

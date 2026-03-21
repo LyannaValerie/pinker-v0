@@ -355,6 +355,33 @@ fn validate_block(
                     ));
                 }
             }
+            InstructionCfgIR::Cast {
+                dest,
+                value,
+                target_type,
+            } => {
+                let source_ty = infer_operand_type(
+                    value,
+                    slot_types,
+                    &temp_types,
+                    global_consts,
+                    function.span,
+                )?;
+                if !is_cfg_cast_allowed(source_ty, *target_type) {
+                    return Err(cfg_error_ctx(
+                        function,
+                        Some(&block.label),
+                        "cast inválido na CFG IR para subset operacional desta fase",
+                        Some(&format!(
+                            "source='{}', target='{}'",
+                            source_ty.name(),
+                            target_type.name()
+                        )),
+                        function.span,
+                    ));
+                }
+                temp_types.insert(*dest, *target_type);
+            }
             InstructionCfgIR::Binary { dest, op, lhs, rhs } => {
                 let lhs_ty =
                     infer_operand_type(lhs, slot_types, &temp_types, global_consts, function.span)?;
@@ -576,6 +603,16 @@ fn validate_block(
     }
 
     Ok(())
+}
+
+fn is_cfg_cast_allowed(source: TypeIR, target: TypeIR) -> bool {
+    if source.is_integer() && target.is_integer() {
+        return true;
+    }
+    matches!(
+        (source, target),
+        (TypeIR::Bombom, TypeIR::Pointer { .. }) | (TypeIR::Pointer { .. }, TypeIR::Bombom)
+    )
 }
 
 fn infer_operand_type(

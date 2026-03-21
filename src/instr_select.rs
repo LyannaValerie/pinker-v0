@@ -59,6 +59,11 @@ pub enum SelectedInstr {
         value: OperandIR,
         ty: TypeIR,
     },
+    Cast {
+        dest: crate::cfg_ir::TempIR,
+        value: OperandIR,
+        target_type: TypeIR,
+    },
     BitAnd {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
@@ -267,6 +272,15 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             value: value.clone(),
             ty: *ty,
         }),
+        InstructionCfgIR::Cast {
+            dest,
+            value,
+            target_type,
+        } => Ok(SelectedInstr::Cast {
+            dest: *dest,
+            value: value.clone(),
+            target_type: *target_type,
+        }),
         InstructionCfgIR::Binary { dest, op, lhs, rhs } => Ok(match op {
             BinaryOpIR::LogicalAnd | BinaryOpIR::LogicalOr => {
                 return Err(PinkerError::Ir {
@@ -471,6 +485,16 @@ fn render_instr(inst: &SelectedInstr) -> String {
             render_operand(ptr),
             render_operand(value),
             ty.name()
+        ),
+        SelectedInstr::Cast {
+            dest,
+            value,
+            target_type,
+        } => format!(
+            "cast {}, {}, {}",
+            render_temp(*dest),
+            render_operand(value),
+            target_type.name()
         ),
         SelectedInstr::BitAnd { dest, lhs, rhs } => format!(
             "bitand {}, {}, {}",
