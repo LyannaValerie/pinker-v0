@@ -381,7 +381,13 @@ fn validate_block(
                     | crate::ir::BinaryOpIR::BitXor
                     | crate::ir::BinaryOpIR::Shl
                     | crate::ir::BinaryOpIR::Shr => {
-                        if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_integer() {
+                        let pointer_offset_ok =
+                            matches!(op, crate::ir::BinaryOpIR::Add | crate::ir::BinaryOpIR::Sub)
+                                && matches!(lhs_ty, TypeIR::Pointer { .. })
+                                && matches!(rhs_ty, TypeIR::Bombom);
+                        if pointer_offset_ok
+                            || (lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_integer())
+                        {
                             lhs_ty
                         } else if matches!(lhs, OperandIR::Int(_)) && rhs_ty.is_integer() {
                             rhs_ty

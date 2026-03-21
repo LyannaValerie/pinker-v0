@@ -1,0 +1,7 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova p: seta<bombom> = 1;
+    nova q: seta<bombom> = 1 + p;
+    mimo 0;
+}

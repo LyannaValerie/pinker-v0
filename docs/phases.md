@@ -187,6 +187,12 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Runtime ganhou `deref_store` com atualização na memória abstrata mínima baseada em endereços de globals escalares já mapeadas.
 - Política de erro explícita em `--run`: escrita falha para endereço inválido/não inicializado e para valor incompatível com o tipo esperado.
 
+68 - aritmética de ponteiros
+- Aritmética mínima de ponteiros integrada ao frontend/semântica/runtime para o subset operacional `seta<bombom> ± bombom`.
+- Operações suportadas nesta fase: `ptr + n` e `ptr - n` com `ptr: seta<bombom>` e `n: bombom`; resultado permanece ponteiro utilizável por `*p` e `*p = valor`.
+- Operações fora de escopo explícitas nesta fase: `n + ptr`, `ptr - ptr`, comparação rica de ponteiros e bases diferentes de `bombom`.
+- Semântica de deslocamento desta fase: offset em unidades lógicas do modelo de memória abstrata vigente (endereços de globals já mapeadas), sem escala por tamanho de tipo base.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

@@ -801,6 +801,61 @@ fn escrita_indireta_seta_nao_bombom_falha_nesta_fase() {
 }
 
 #[test]
+fn aritmetica_ponteiro_ptr_add_bombom_valida_nesta_fase() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova p: seta<bombom> = 1;
+            nova q: seta<bombom> = p + 1;
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn aritmetica_ponteiro_ptr_sub_bombom_valida_nesta_fase() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova p: seta<bombom> = 3;
+            nova q: seta<bombom> = p - 2;
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn aritmetica_ponteiro_bombom_add_ptr_falha_nesta_fase() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova p: seta<bombom> = 1;
+            nova q: seta<bombom> = 1 + p;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("apenas 'ptr + bombom'"), "{}", err);
+}
+
+#[test]
+fn aritmetica_ponteiro_ptr_ptr_falha_nesta_fase() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova a: seta<bombom> = 1;
+            nova b: seta<bombom> = 2;
+            nova c: seta<bombom> = a + b;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("exige 'seta<bombom> + bombom'"), "{}", err);
+}
+
+#[test]
 fn ninho_falha_com_campo_duplicado() {
     let code = r#"
         pacote main;

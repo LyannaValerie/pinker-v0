@@ -1044,6 +1044,14 @@ impl SemanticChecker {
                     "resultado de função sem retorno não pode ser usado em operação binária",
                 )?;
 
+                if matches!(op, BinaryOp::Add | BinaryOp::Sub) {
+                    if let Some(pointer_result) =
+                        Self::check_pointer_arithmetic(expr.span, *op, &lhs_ty, &rhs_ty)
+                    {
+                        return pointer_result;
+                    }
+                }
+
                 let binary_types_compatible = Self::check_type_match(&lhs_ty, &rhs_ty)
                     || (Self::expr_is_int_literal(lhs) && Self::is_integer_type(&rhs_ty))
                     || (Self::expr_is_int_literal(rhs) && Self::is_integer_type(&lhs_ty));
@@ -1146,6 +1154,52 @@ impl SemanticChecker {
                 }
             }
         }
+    }
+
+    fn check_pointer_arithmetic(
+        expr_span: Span,
+        op: BinaryOp,
+        lhs_ty: &Type,
+        rhs_ty: &Type,
+    ) -> Option<Result<Type, PinkerError>> {
+        let is_ptr_bombom = |ty: &Type| {
+            matches!(
+                ty,
+                Type::Pointer { base, .. } if matches!(base.as_ref(), Type::Bombom(_))
+            )
+        };
+        let is_bombom = |ty: &Type| matches!(ty, Type::Bombom(_));
+
+        if is_ptr_bombom(lhs_ty) && is_bombom(rhs_ty) {
+            return Some(Ok(lhs_ty.with_span(expr_span)));
+        }
+        if is_bombom(lhs_ty) && is_ptr_bombom(rhs_ty) {
+            let msg = match op {
+                BinaryOp::Add => {
+                    "aritmética de ponteiro nesta fase suporta apenas 'ptr + bombom' e 'ptr - bombom'"
+                }
+                BinaryOp::Sub => {
+                    "subtração de ponteiro nesta fase suporta apenas 'ptr - bombom'"
+                }
+                _ => unreachable!("check_pointer_arithmetic só recebe add/sub"),
+            };
+            return Some(Err(PinkerError::Semantic {
+                msg: msg.to_string(),
+                span: expr_span,
+            }));
+        }
+        if matches!(lhs_ty, Type::Pointer { .. }) || matches!(rhs_ty, Type::Pointer { .. }) {
+            let msg = match op {
+                BinaryOp::Add => "aritmética de ponteiro nesta fase exige 'seta<bombom> + bombom'",
+                BinaryOp::Sub => "aritmética de ponteiro nesta fase exige 'seta<bombom> - bombom'",
+                _ => unreachable!("check_pointer_arithmetic só recebe add/sub"),
+            };
+            return Some(Err(PinkerError::Semantic {
+                msg: msg.to_string(),
+                span: expr_span,
+            }));
+        }
+        None
     }
 
     fn check_call_expr(

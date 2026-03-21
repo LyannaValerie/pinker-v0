@@ -443,7 +443,12 @@ fn infer_value_type(
                 | BinaryOpIR::BitXor
                 | BinaryOpIR::Shl
                 | BinaryOpIR::Shr => {
-                    if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_integer() {
+                    let pointer_offset_ok = matches!(op, BinaryOpIR::Add | BinaryOpIR::Sub)
+                        && matches!(lhs_ty, TypeIR::Pointer { .. })
+                        && matches!(rhs_ty, TypeIR::Bombom);
+                    if pointer_offset_ok
+                        || (lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_integer())
+                    {
                         Ok(lhs_ty)
                     } else if matches!(lhs.as_ref(), ValueIR::Int(_)) && rhs_ty.is_integer() {
                         Ok(rhs_ty)
