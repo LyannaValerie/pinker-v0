@@ -219,3 +219,9 @@ Doc-8 - reestruturação documental e regras obrigatórias
 - `handoff_codex.md` reduzido para handoff curto da rodada.
 - `doc_rules.md` criado como referência obrigatória de convenções.
 - `handoff_auditor.md` e `handoff_opus.md` removidos por legado descontinuado sem conteúdo único ativo.
+
+Doc-9 - revisão documental operacional da reestruturação
+- Auditoria de coerência entre `roadmap.md`, `future.md`, `parallel.md`, `phases.md`, `agent_state.md`, `handoff_codex.md` e `README.md`.
+- Validação de precedência documental e continuidade histórica sem abrir nova fase funcional.
+- Ajuste textual mínimo em `parallel.md` para correção de digitação, sem impacto operacional.
+

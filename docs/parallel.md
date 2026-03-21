@@ -16,7 +16,7 @@ Não é um backlog. Não é um roadmap. Não é uma lista de tarefas.
 
 Aqui vivem as ideias que ainda não sabemos realizar, as que talvez só se tornem viáveis muito no futuro, e as que são mais sobre identidade do que sobre feature. Aqui está o que o projeto quer ser, não apenas o que ele faz hoje.
 
-`parallel.md` deve ser consultado quando houver dúvida estratégica sobre a direção do projeto: quando um bloco do roadmap for concluído e for preciso orientar o próximo passo com algo além do pragmatismo; quando uma decisão de design parecer oposta ao espírito da Pinker; quando o projeto estiver tecnicamente correto mas estiritamente correto mas estiritamente vazio.
+`parallel.md` deve ser consultado quando houver dúvida estratégica sobre a direção do projeto: quando um bloco do roadmap for concluído e for preciso orientar o próximo passo com algo além do pragmatismo; quando uma decisão de design parecer oposta ao espírito da Pinker; quando o projeto estiver tecnicamente correto, mas vazio de identidade.
 
 ---
 
