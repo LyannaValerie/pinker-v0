@@ -981,7 +981,13 @@ impl SemanticChecker {
                 )?;
                 if !Self::is_integer_type(&index_ty) {
                     return Err(PinkerError::Semantic {
-                        msg: "índice deve ser inteiro".to_string(),
+                        msg: "índice nesta fase deve ser 'bombom'".to_string(),
+                        span: index.span,
+                    });
+                }
+                if !matches!(index_ty, Type::Bombom(_)) {
+                    return Err(PinkerError::Semantic {
+                        msg: "índice nesta fase deve ser 'bombom'".to_string(),
                         span: index.span,
                     });
                 }
@@ -1141,12 +1147,21 @@ impl SemanticChecker {
                     UnaryOp::Deref => match inner_ty {
                         Type::Pointer { base, .. } => match base.as_ref() {
                             Type::Bombom(_) => Ok(Type::Bombom(expr.span)),
+                            Type::FixedArray { element, size, .. }
+                                if matches!(element.as_ref(), Type::Bombom(_)) =>
+                            {
+                                Ok(Type::FixedArray {
+                                    element: Box::new(Type::Bombom(expr.span)),
+                                    size: *size,
+                                    span: expr.span,
+                                })
+                            }
                             Type::Struct { name, .. } => Ok(Type::Struct {
                                 name: name.clone(),
                                 span: expr.span,
                             }),
                             _ => Err(PinkerError::Semantic {
-                                msg: "dereferência nesta fase aceita apenas 'seta<bombom>' ou 'seta<ninho>'".to_string(),
+                                msg: "dereferência nesta fase aceita apenas 'seta<bombom>', 'seta<[bombom; N]>' ou 'seta<ninho>'".to_string(),
                                 span: expr.span,
                             }),
                         },

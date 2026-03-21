@@ -424,6 +424,35 @@ fn run_acesso_campo_operacional_em_ninho_via_ponteiro() {
 }
 
 #[test]
+fn run_indexacao_operacional_em_array_via_seta_funciona() {
+    let out = run_code(
+        "pacote main;
+         eterno A: bombom = 10;
+         eterno B: bombom = 20;
+         eterno C: bombom = 30;
+         carinho principal() -> bombom {
+             nova base: seta<[bombom; 3]> = 1;
+             mimo (*base)[2];
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(30)));
+}
+
+#[test]
+fn run_indexacao_operacional_falha_para_base_array_por_valor() {
+    let err = run_code(
+        "pacote main;
+         carinho pega(a: [bombom; 3]) -> bombom {
+             mimo a[1];
+         }
+         carinho principal() -> bombom { mimo 0; }",
+    )
+    .unwrap_err();
+    assert!(err.contains("(*ptr)[i]"), "mensagem: {}", err);
+}
+
+#[test]
 fn run_falha_quando_usa_ponteiro_em_operacao_nao_suportada() {
     let mut slot_types = HashMap::new();
     slot_types.insert(
@@ -1815,6 +1844,29 @@ fn cli_run_acesso_campo_ninho_fora_subset_operacional_falha() {
         "mensagem inesperada: {}",
         stderr
     );
+}
+
+#[test]
+fn cli_run_indexacao_operacional_em_array_funciona_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase70_indexacao_array_operacional_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("30"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_run_indexacao_operacional_em_array_fora_subset_falha_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase70_indexacao_array_operacional_invalido.pink");
+    assert!(
+        !output.status.success(),
+        "esperava falha operacional para indexação com array por valor"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("(*ptr)[i]"), "stderr={}", stderr);
 }
 
 // ── Fase 28c: spans/source context em erros de runtime e parser ───────────

@@ -530,7 +530,7 @@ fn infer_value_type(
         } => {
             let base_ty = infer_value_type(base, slots, consts, funcs, span)?;
             let index_ty = infer_value_type(index, slots, consts, funcs, span)?;
-            if !matches!(base_ty, TypeIR::FixedArray { .. }) || !index_ty.is_integer() {
+            if !matches!(base_ty, TypeIR::FixedArray { .. }) || index_ty != TypeIR::Bombom {
                 return Err(ir_validation_error(
                     "indexação inválida na IR estruturada",
                     span,

@@ -1,0 +1,9 @@
+pacote main;
+
+carinho pega(a: [bombom; 3]) -> bombom {
+    mimo a[1];
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}

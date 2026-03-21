@@ -23,10 +23,10 @@
 - Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
 
 ## 5. Estado corrente
-- Fase funcional atual: **69 — acesso a campo operacional em `ninho`**.
-- Fase funcional anterior: **68 — aritmética de ponteiros**.
+- Fase funcional atual: **70 — indexação operacional em arrays**.
+- Fase funcional anterior: **69 — acesso a campo operacional em `ninho`**.
 - Bloco ativo: **Bloco 6 — Memória operacional**.
-- Próximo item normal: **Bloco 6, item B.7 — indexação operacional em arrays**.
+- Próximo item normal: **Bloco 6, item B.8 — cast operacional útil ligado à memória**.
 - Rodada documental corrente: **Doc-9 — revisão operacional da reestruturação documental**.
 
 ## 6. Ecossistema documental
@@ -50,7 +50,7 @@
 
 ## 9. Itens adiados
 - Escrita de campo em `ninho`, acesso por valor `p.campo` e extensão para campos não escalares.
-- Indexação operacional de arrays por memória real.
+- Escrita por índice em arrays e suporte operacional além do subset `(*ptr)[i]` com `[bombom; N]`.
 - Efeito operacional robusto de `fragil`.
 - Backend nativo completo e runtime bare-metal robusto.
 

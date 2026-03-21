@@ -1,0 +1,10 @@
+pacote main;
+
+eterno A: bombom = 10;
+eterno B: bombom = 20;
+eterno C: bombom = 30;
+
+carinho principal() -> bombom {
+    nova base: seta<[bombom; 3]> = 1;
+    mimo (*base)[2];
+}

@@ -12,6 +12,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - escrita indireta mínima com `*p = valor` para `seta<bombom>` no `--run`
 - aritmética mínima de ponteiro no runtime com `seta<bombom> + bombom` e `seta<bombom> - bombom` no `--run`
 - acesso operacional mínimo a campo de `ninho` no runtime via `(*ptr).campo`, respeitando offsets de layout estático no subset da fase
+- indexação operacional mínima de arrays no runtime via `(*ptr)[i]`, reaproveitando aritmética de ponteiros + `deref_load` no subset `[bombom; N]` com índice `bombom`
 - qualificador `fragil` (`volatile`) para ponteiros explícitos (`fragil seta<tipo>`)
 - inline asm mínimo como statement textual com `sussurro("...")` (ou múltiplas strings), preservado até IR
 - marca de unidade freestanding/no-std com `livre;` no topo do programa
@@ -41,6 +42,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - FFI, enums, generics, traits
 - operações completas de ponteiro (aritmética além do subset mínimo da fase, como `n + ptr`, `ptr - ptr`), acesso completo via ponteiro (`seta<T>`), escrita em campo/index, layout físico/ABI
 - acesso operacional de campo de `ninho` além do subset da fase (ex.: base por valor `p.campo`, escrita de campo, campos não escalares)
+- indexação operacional de arrays além do subset da fase (ex.: base por valor `arr[i]`, escrita por índice e elementos não `bombom`)
 - leitura indireta além do subset mínimo da fase (`*p` apenas para `seta<bombom>` com endereçamento abstrato de globals escalares no runtime)
 - escrita indireta além do subset mínimo da fase (`*p = v` apenas para `seta<bombom>` com endereçamento abstrato de globals escalares já mapeadas no runtime)
 - semântica operacional de `fragil` em runtime/backend (nesta fase é qualificador semântico preservado no pipeline)
@@ -95,6 +97,7 @@ cargo run -- --run examples/fase67_escrita_indireta_valida.pink
 cargo run -- --run examples/fase68_ptr_aritmetica_valida.pink
 cargo run -- --run examples/fase68_ptr_aritmetica_leitura_valida.pink
 cargo run -- --run examples/fase69_ninho_campo_operacional_valido.pink
+cargo run -- --run examples/fase70_indexacao_array_operacional_valido.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
 cargo run -- --check examples/check_continuar_fora_loop.pink
@@ -122,6 +125,7 @@ cargo run -- --check examples/fase66_deref_seta_u8_invalido.pink
 cargo run -- --check examples/fase67_escrita_indireta_seta_u8_invalida.pink
 cargo run -- --check examples/fase68_ptr_aritmetica_invalida.pink
 cargo run -- --run examples/fase69_ninho_campo_operacional_invalido.pink
+cargo run -- --run examples/fase70_indexacao_array_operacional_invalido.pink
 cargo run -- --cfg-ir examples/fase61_verso_cfg_ir_invalido.pink
 cargo run -- --run examples/fase60_modulos_valido.pink
 cargo run -- --check examples/fase60_modulo_ausente.pink
