@@ -215,6 +215,12 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cenário destravado: bootstrap de ponteiro deixa de depender exclusivamente de literal cru em alguns fluxos (`bombom` pode virar `seta<bombom>` e voltar para `bombom` em `--run`).
 - Fora de escopo explícito nesta fase: `bombom -> seta<T>` genérico, `seta<T> -> bombom` para `T != bombom`, casts gerais entre ponteiros/compostos, backend nativo de cast.
 
+72 - efeito operacional mínimo de `fragil`
+- `fragil` deixou de ser apenas qualificador semântico: a volatilidade passa a ser propagada explicitamente em IR/CFG/selected/Machine/runtime nos acessos indiretos.
+- `deref_load` e `deref_store` agora carregam metadata `is_volatile` e têm caminhos operacionais distintos no pipeline (`deref_*_fragil` vs `deref_*`), com validação de consistência entre tipo do ponteiro e instrução.
+- Subset operacional desta fase: `fragil seta<bombom>` em leitura/escrita indireta (`*p` e `*p = valor`) no `--run`, reaproveitando o modelo de memória abstrata já existente.
+- Fora de escopo explícito nesta fase: MMIO real, hardware real, fences/barreiras, ordenação de memória e ampliação para outros tipos base além do subset já aceito para dereferência/escrita indireta.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

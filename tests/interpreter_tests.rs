@@ -349,6 +349,21 @@ fn run_escrita_indireta_via_seta_bombom() {
 }
 
 #[test]
+fn run_fragil_seta_bombom_tem_efeito_operacional_minimo() {
+    let out = run_code(
+        "pacote main;
+         eterno BASE: bombom = 10;
+         carinho principal() -> bombom {
+             nova p: fragil seta<bombom> = 1 virar fragil seta<bombom>;
+             *p = 88;
+             mimo *p;
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(88)));
+}
+
+#[test]
 fn run_escrita_indireta_falha_com_endereco_invalido() {
     let err = run_code(
         "pacote main;
@@ -1701,6 +1716,30 @@ fn cli_check_volatile_invalido_com_exemplo_versionado() {
     assert!(stderr.contains("Erro Sintático:") || stderr.contains("Erro Semântico:"));
     assert!(
         stderr.contains("'fragil' só pode qualificar tipo seta"),
+        "stderr: {}",
+        stderr
+    );
+}
+
+#[test]
+fn cli_run_fragil_operacional_minimo_funciona_com_exemplo_versionado() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg("examples/fase72_fragil_operacional_minimo_valido.pink")
+        .output()
+        .expect("falha ao executar CLI --run");
+    assert!(output.status.success(), "{:?}", output);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("89"), "stdout: {}", stdout);
+}
+
+#[test]
+fn cli_check_fragil_operacional_fora_subset_falha_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/fase72_fragil_operacional_minimo_invalido.pink");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("dereferência nesta fase aceita apenas"),
         "stderr: {}",
         stderr
     );

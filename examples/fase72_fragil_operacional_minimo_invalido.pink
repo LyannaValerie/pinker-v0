@@ -1,0 +1,9 @@
+pacote main;
+
+carinho ler(p: fragil seta<u8>) -> bombom {
+    mimo *p;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}

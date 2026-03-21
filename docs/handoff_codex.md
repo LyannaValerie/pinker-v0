@@ -1,29 +1,27 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 71 — cast operacional útil ligado à memória**.
-- Rodada funcional do Bloco 6, mantendo a trilha principal após a Fase 70.
+- **Fase 72 — efeito operacional mínimo de `fragil`**.
+- Rodada funcional do Bloco 6, mantendo a trilha principal após a Fase 71.
 
 ## 2. O que entrou na rodada atual
-- Lowering operacional de `virar` passou a existir em CFG/selected/Machine/runtime para subset mínimo útil de memória.
-- Subset explícito desta fase: inteiro->inteiro e `bombom <-> seta<bombom>`.
-- Runtime agora executa cast explícito com reinterpretação de endereço lógico (`cast`) para o subset suportado.
-- Novos testes positivos/negativos e exemplos versionados da Fase 71.
+- `fragil` passou a ter efeito operacional mínimo real em acesso indireto (`*p` e `*p = valor`) com caminhos distintos no pipeline/runtime.
+- Metadata de volatilidade (`is_volatile`) agora é propagada e validada de IR até Machine para `deref_load`/`deref_store`.
+- Subset explícito desta fase: `fragil seta<bombom>` no `--run` (leitura e escrita indiretas).
+- Novos testes positivos/negativos e exemplos versionados da Fase 72.
 
 ## 3. Fora de escopo da rodada atual
-- `bombom -> seta<T>` genérico e `seta<T> -> bombom` para `T != bombom`.
-- Cast geral entre tipos compostos/ponteiros.
-- Efeito operacional robusto de `fragil` (MMIO/barreiras).
+- MMIO real, hardware real, fences/barreiras e semântica sofisticada de ordenação de memória para `fragil`.
+- Ampliação agressiva de subset de `fragil` para bases além de `bombom`.
 - Backend nativo real de memória/ponteiros.
-- Operações de ponteiro além do subset mínimo já existente (`n + ptr`, `ptr - ptr`, comparações ricas de ponteiros).
 
 ## 4. Próximo item normal
 - Trilha ativa: **Bloco 6 — Memória operacional**.
-- Próximo item funcional normal sugerido: **primeiro efeito operacional real de `fragil` (item B.9 do Bloco 6)**.
+- Próximo item funcional normal sugerido: **expandir o subset operacional de `fragil` de forma incremental, sem abrir MMIO/fences**.
 
 ## 5. Observações operacionais curtas
-- Fase funcional atual: **71**.
-- Fase funcional anterior: **70**.
+- Fase funcional atual: **72**.
+- Fase funcional anterior: **71**.
 - Hotfix extraordinário mais recente: **HF-2 (Bloco 6, Fases 64–70)** — varredura de corretude pós-Bloco-6.
   - Bug corrigido: `normalize_numeric_pair` invertia ordem de operandos (signed/unsigned misto).
   - Bug corrigido: `Eq/Neq` no IR e CFG IR validator rejeitava `signed_var == literal`.

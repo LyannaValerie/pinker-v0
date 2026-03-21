@@ -195,6 +195,7 @@ fn validate_block(
                 ptr,
                 value,
                 value_type,
+                is_volatile,
                 span,
             } => {
                 let ptr_ty = infer_value_type(ptr, slots, consts, funcs, *span).map_err(|err| {
@@ -205,11 +206,23 @@ fn validate_block(
                         Some("instr='store_indirect'"),
                     )
                 })?;
-                if !matches!(ptr_ty, TypeIR::Pointer { .. }) {
+                let TypeIR::Pointer {
+                    is_volatile: ptr_is_volatile,
+                } = ptr_ty
+                else {
                     return Err(ir_validation_error_ctx(
                         function,
                         Some(block),
                         "store_indirect exige ponteiro",
+                        Some("instr='store_indirect'"),
+                        *span,
+                    ));
+                };
+                if ptr_is_volatile != *is_volatile {
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "store_indirect com metadata de volatilidade inconsistente",
                         Some("instr='store_indirect'"),
                         *span,
                     ));
@@ -412,11 +425,24 @@ fn infer_value_type(
                 )),
             }
         }
-        ValueIR::Deref { ptr, result_type } => {
+        ValueIR::Deref {
+            ptr,
+            result_type,
+            is_volatile,
+        } => {
             let ptr_ty = infer_value_type(ptr, slots, consts, funcs, span)?;
-            if !matches!(ptr_ty, TypeIR::Pointer { .. }) {
+            let TypeIR::Pointer {
+                is_volatile: ptr_is_volatile,
+            } = ptr_ty
+            else {
                 return Err(ir_validation_error(
                     "deref exige operando ponteiro na IR",
+                    span,
+                ));
+            };
+            if ptr_is_volatile != *is_volatile {
+                return Err(ir_validation_error(
+                    "deref com metadata de volatilidade inconsistente na IR",
                     span,
                 ));
             }

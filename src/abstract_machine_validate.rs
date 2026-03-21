@@ -334,7 +334,7 @@ fn apply_instr_effect(
             )?;
             stack.push(expected);
         }
-        MachineInstr::DerefLoad { ty } => {
+        MachineInstr::DerefLoad { ty, .. } => {
             let top = pop_typed(
                 f,
                 label,
@@ -353,7 +353,7 @@ fn apply_instr_effect(
             }
             stack.push(type_to_stack(*ty));
         }
-        MachineInstr::DerefStore { ty } => {
+        MachineInstr::DerefStore { ty, .. } => {
             let pair = pop_typed(
                 f,
                 label,
@@ -661,8 +661,20 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::StoreSlot(_) => "store_slot",
         MachineInstr::Neg => "neg",
         MachineInstr::Not => "not",
-        MachineInstr::DerefLoad { .. } => "deref_load",
-        MachineInstr::DerefStore { .. } => "deref_store",
+        MachineInstr::DerefLoad { is_volatile, .. } => {
+            if *is_volatile {
+                "deref_load_fragil"
+            } else {
+                "deref_load"
+            }
+        }
+        MachineInstr::DerefStore { is_volatile, .. } => {
+            if *is_volatile {
+                "deref_store_fragil"
+            } else {
+                "deref_store"
+            }
+        }
         MachineInstr::Cast { .. } => "cast",
         MachineInstr::BitAnd => "bitand",
         MachineInstr::BitOr => "bitor",

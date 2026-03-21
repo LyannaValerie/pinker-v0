@@ -321,23 +321,51 @@ fn validate_block(
                 };
                 temp_types.insert(*dest, result);
             }
-            InstructionCfgIR::DerefLoad { dest, ptr, ty } => {
+            InstructionCfgIR::DerefLoad {
+                dest,
+                ptr,
+                ty,
+                is_volatile,
+            } => {
                 let ptr_ty =
                     infer_operand_type(ptr, slot_types, &temp_types, global_consts, function.span)?;
-                if !matches!(ptr_ty, TypeIR::Pointer { .. }) {
+                let TypeIR::Pointer {
+                    is_volatile: ptr_is_volatile,
+                } = ptr_ty
+                else {
                     return Err(cfg_error(
                         "deref_load exige operando do tipo ponteiro",
+                        function.span,
+                    ));
+                };
+                if ptr_is_volatile != *is_volatile {
+                    return Err(cfg_error(
+                        "deref_load com metadata de volatilidade inconsistente",
                         function.span,
                     ));
                 }
                 temp_types.insert(*dest, *ty);
             }
-            InstructionCfgIR::DerefStore { ptr, value, ty } => {
+            InstructionCfgIR::DerefStore {
+                ptr,
+                value,
+                ty,
+                is_volatile,
+            } => {
                 let ptr_ty =
                     infer_operand_type(ptr, slot_types, &temp_types, global_consts, function.span)?;
-                if !matches!(ptr_ty, TypeIR::Pointer { .. }) {
+                let TypeIR::Pointer {
+                    is_volatile: ptr_is_volatile,
+                } = ptr_ty
+                else {
                     return Err(cfg_error(
                         "deref_store exige operando do tipo ponteiro",
+                        function.span,
+                    ));
+                };
+                if ptr_is_volatile != *is_volatile {
+                    return Err(cfg_error(
+                        "deref_store com metadata de volatilidade inconsistente",
                         function.span,
                     ));
                 }
