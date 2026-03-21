@@ -7,9 +7,10 @@
 > **Distinção importante**: este arquivo é inventário técnico estruturado — itens com status de implementação, organizados por camadas de dependência.
 > `docs/parallel.md` é diferente: é o documento visionário da Pinker (fantasia orientadora, identidade, sonhos); não contém itens técnicos com status, não é backlog e não compete com este arquivo.
 
-> **Trilha ativa atual**: **Bloco 6 — Memória operacional** (definido em `docs/roadmap.md`).
-> Os itens do Bloco 6 (signed runtime, ponteiro operacional, dereferência, escrita indireta, aritmética de ponteiros, acesso a campo/index, cast operacional, `fragil` operacional) **são prioridade da trilha ativa** e não competem com o backlog amplo deste arquivo.
-> Itens como terminal próprio, self-hosting, backend nativo completo, kernel real robusto, package manager e ecossistema soberano permanecem aqui como visão de longo prazo, sem competir com o Bloco 6.
+> **Trilha ativa atual**: **Bloco 7 — Backend nativo real** (definido em `docs/roadmap.md`).
+> O Bloco 6 — Memória operacional foi concluído (Fases 64–72). O Bloco 7 é a próxima trilha ativa.
+> O **Bloco 8 — I/O e ecossistema útil** está definido como bloco futuro planejado, mas não ativo.
+> Itens como terminal próprio, self-hosting, backend nativo completo, kernel real robusto, package manager e ecossistema soberano permanecem aqui como visão de longo prazo, sem competir com a trilha ativa.
 
 Este documento organiza possibilidades futuras de evolução do Pinker v0 em camadas de dependência.
 Cada item tem status: ✅ implementado, 🔶 parcial, ou sem marcação (não iniciado / ideia futura).

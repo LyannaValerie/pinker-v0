@@ -47,7 +47,7 @@ A base atual está estável em pipeline textual (`semântica -> IR -> CFG -> sel
 
 ### Bloco 6 — Memória operacional
 
-**Status**: bloco oficial ativo. Bloco 5 foi encerrado na Fase 63. Esta é a próxima trilha oficial da Pinker.
+**Status**: bloco concluído. Fases 64–72 entregues. Bloco 7 é a trilha ativa seguinte.
 
 **Tese estratégica**: a Pinker já possui vários construtos parcialmente implementados (`seta<T>`, `ninho`, arrays fixos, `virar`, `fragil`, `sussurro`, kernel/freestanding textual), mas a maior parte deles ainda depende de uma fundação ausente: o modelo de memória operacional em runtime/pipeline. O Bloco 6 prioriza fechar essa base comum antes de abrir novas frentes horizontais.
 
@@ -88,6 +88,58 @@ Os itens abaixo **não são prioridade imediata** deste bloco e devem permanecer
 #### Observação sobre numeração de fases
 
 Os 9 itens acima representam a **ordem interna sugerida** do Bloco 6. A numeração exata de fase (Fase 64, Fase 65, …) será atribuída a cada item no momento de sua rodada funcional, conforme a convenção ativa (Fase N = entrega funcional real). Esta rodada documental não atribui números de fase antecipados.
+
+---
+
+### Bloco 7 — Backend nativo real
+
+**Status**: **trilha ativa seguinte**. Bloco 6 foi encerrado na Fase 72. Este é o próximo grande eixo funcional da Pinker.
+
+**Objetivo geral**: transformar gradualmente o backend textual/experimental da Pinker em backend nativo real mais utilizável — capaz de gerar código que executa de verdade na máquina, com convenções de chamada e memória concretas.
+
+**Itens do bloco (ordem interna sugerida)**:
+
+1. **Subset real montável ampliado** — ampliar o subset do `--asm-s` para cobrir mais construtos do pipeline textual atual, gerando assembly que um assembler real aceite em mais casos.
+2. **Convenção de chamada concreta mínima** — definir e registrar uma ABI mínima real (registradores, passagem de argumentos, valor de retorno) para o subset funcional alvo.
+3. **Frame/registradores mínimos reais** — emitir prólogo/epílogo de frame real (salvar/restaurar registradores, ajustar stack pointer) no subset de funções contemplado.
+4. **Chamadas reais no subset nativo** — lowering de `call` e `call_void` para instruções de chamada reais com ABI concreta no subset ativo.
+5. **Memória real mínima no backend** — lowering de pelo menos um acesso de memória (load/store) para instruções de memória reais no subset do bloco.
+6. **Artefato executável mais amplo** — avançar além do subset experimental da Fase 55; ampliar o que pode ser compilado, montado e executado de forma reproduzível.
+
+#### Observação sobre numeração de fases
+
+Os 6 itens acima representam a ordem interna sugerida do Bloco 7. A numeração exata de fase (Fase 73, Fase 74, …) será atribuída a cada item no momento de sua rodada funcional, conforme a convenção ativa.
+
+---
+
+### Bloco 8 — I/O e ecossistema útil
+
+**Status**: bloco futuro já definido, **não ativo**. Deve ser iniciado somente após o Bloco 7 estar suficientemente consolidado.
+
+**Objetivo geral**: transformar a Pinker em linguagem mais interativa e útil para scripts, tooling e ecossistema — ampliando a superfície de I/O e tornando a linguagem mais utilizável no dia a dia.
+
+**Itens do bloco (ordem interna sugerida)**:
+
+1. **Entrada básica** — `ouvir` ou equivalente: leitura de entrada padrão em `--run` para pelo menos um tipo básico.
+2. **Arquivo — leitura mínima** — `abrir`/`fechar` + leitura de conteúdo de arquivo simples.
+3. **Arquivo — escrita mínima** — `escrever` para arquivo com semântica básica de abertura/fechamento.
+4. **Verso operacional útil** — ampliar o subset operacional de `verso`: passagem por chamada, retorno, variável e operações mínimas além de `falar`.
+5. **Operações mínimas de texto** — concatenação, comprimento e acesso por índice para `verso`.
+6. **Melhorias em `falar`** — formatação mínima, múltiplos argumentos ou interpolação básica.
+7. **Base para tooling em Pinker** — elementos mínimos que tornam a Pinker utilizável para escrever scripts e ferramentas simples.
+
+#### Separação deliberada entre Bloco 7 e Bloco 8
+
+- **Bloco 7** é a trilha de soberania/backend: a Pinker precisa gerar código real antes de expandir ecossistema.
+- **Bloco 8** é a trilha de I/O/ecossistema útil: mais interatividade e utilidade para o programador.
+- Manter essa separação evita misturar frentes com dependências e prioridades distintas.
+- O Bloco 8 só deve ser aberto como trilha ativa após o Bloco 7 atingir consolidação suficiente.
+
+#### Observação sobre numeração de fases
+
+Os itens do Bloco 8 receberão numeração de fase no momento de sua rodada funcional, conforme a convenção ativa. Nenhum número de fase é atribuído antecipadamente por esta rodada documental.
+
+---
 
 ## Interpretação obrigatória da trilha
 
