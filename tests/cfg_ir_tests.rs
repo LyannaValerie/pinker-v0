@@ -249,7 +249,37 @@ fn cfg_ir_cast_explicito_ainda_fora_do_escopo_operacional() {
         }
     "#;
     let err = render_cfg_ir(code).unwrap_err().to_string();
-    assert!(err.contains("ainda não lowera acesso a campo/indexação/cast"));
+    assert!(err.contains("ainda não lowera indexação/cast"));
+}
+
+#[test]
+fn cfg_ir_acesso_campo_operacional_via_ponteiro_para_ninho() {
+    let code = r#"
+        pacote main;
+        ninho Par { a: bombom; b: bombom; }
+        carinho principal() -> bombom {
+            nova p: seta<Par> = 1;
+            mimo (*p).b;
+        }
+    "#;
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("add"), "{}", cfg);
+    assert!(cfg.contains(", 8:bombom"), "{}", cfg);
+    assert!(cfg.contains("deref %t0:bombom"), "{}", cfg);
+}
+
+#[test]
+fn cfg_ir_acesso_campo_em_valor_struct_ainda_fora_do_subset_operacional() {
+    let code = r#"
+        pacote main;
+        ninho Par { a: bombom; b: bombom; }
+        carinho pega(p: Par) -> bombom {
+            mimo p.b;
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = render_cfg_ir(code).unwrap_err().to_string();
+    assert!(err.contains("(*ptr).campo"), "{}", err);
 }
 
 #[test]

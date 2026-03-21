@@ -401,6 +401,29 @@ fn run_aritmetica_ponteiro_offset_suporta_escrita_indireta() {
 }
 
 #[test]
+fn run_acesso_campo_operacional_em_ninho_via_ponteiro() {
+    let out = run_code(
+        "pacote main;
+         ninho Par { a: bombom; b: bombom; }
+         eterno A: bombom = 11;
+         eterno F1: bombom = 0;
+         eterno F2: bombom = 0;
+         eterno F3: bombom = 0;
+         eterno F4: bombom = 0;
+         eterno F5: bombom = 0;
+         eterno F6: bombom = 0;
+         eterno F7: bombom = 0;
+         eterno B: bombom = 22;
+         carinho principal() -> bombom {
+             nova p: seta<Par> = 1;
+             mimo (*p).b;
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(22)));
+}
+
+#[test]
 fn run_falha_quando_usa_ponteiro_em_operacao_nao_suportada() {
     let mut slot_types = HashMap::new();
     slot_types.insert(
@@ -1762,6 +1785,33 @@ fn cli_check_aritmetica_ponteiro_invalida_falha_com_exemplo_versionado() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("apenas 'ptr + bombom'"),
+        "mensagem inesperada: {}",
+        stderr
+    );
+}
+
+#[test]
+fn cli_run_acesso_campo_ninho_operacional_funciona_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase69_ninho_campo_operacional_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("22"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_run_acesso_campo_ninho_fora_subset_operacional_falha() {
+    let output = run_cli_example("examples/fase69_ninho_campo_operacional_invalido.pink");
+    assert!(
+        !output.status.success(),
+        "esperava falha operacional para acesso em base não ponteiro"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("(*ptr).campo"),
         "mensagem inesperada: {}",
         stderr
     );

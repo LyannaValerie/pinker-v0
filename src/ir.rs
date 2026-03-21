@@ -163,6 +163,7 @@ pub enum ValueIR {
     FieldAccess {
         base: Box<ValueIR>,
         field: String,
+        field_offset: u64,
         result_type: TypeIR,
     },
     Index {
@@ -264,6 +265,7 @@ struct LoweringContext {
     struct_decls: HashMap<String, StructDecl>,
     struct_names: HashSet<String>,
     struct_fields: HashMap<String, HashMap<String, TypeIR>>,
+    struct_field_offsets: HashMap<String, HashMap<String, u64>>,
 }
 
 // `FunctionLowerer` mantém estado mutable por função durante o lowering:
@@ -375,6 +377,7 @@ impl LoweringContext {
             }
         }
         let mut struct_fields = HashMap::new();
+        let mut struct_field_offsets = HashMap::new();
         for item in &program.items {
             if let Item::Struct(struct_decl) = item {
                 let mut fields = HashMap::new();
@@ -384,6 +387,13 @@ impl LoweringContext {
                     fields.insert(field.name.clone(), resolved);
                 }
                 struct_fields.insert(struct_decl.name.clone(), fields);
+                let offsets =
+                    layout::struct_field_offsets(&struct_decl.name, &type_aliases, &struct_decls)
+                        .map_err(|msg| PinkerError::Ir {
+                        msg: format!("layout de struct inválido na IR: {}", msg),
+                        span: struct_decl.span,
+                    })?;
+                struct_field_offsets.insert(struct_decl.name.clone(), offsets);
             }
         }
 
@@ -429,6 +439,7 @@ impl LoweringContext {
             struct_decls,
             struct_names,
             struct_fields,
+            struct_field_offsets,
         })
     }
 
@@ -736,13 +747,19 @@ impl<'a> FunctionLowerer<'a> {
                             span: expr.span,
                         });
                     };
+                    let (result_type, result_struct_name) =
+                        if let Some(struct_name) = operand.struct_name {
+                            (TypeIR::Struct, Some(struct_name))
+                        } else {
+                            (TypeIR::Bombom, None)
+                        };
                     return Ok(TypedValueIR {
                         value: ValueIR::Deref {
                             ptr: Box::new(operand.value),
-                            result_type: TypeIR::Bombom,
+                            result_type,
                         },
-                        ty: TypeIR::Bombom,
-                        struct_name: None,
+                        ty: result_type,
+                        struct_name: result_struct_name,
                     });
                 }
                 Ok(TypedValueIR {
@@ -851,10 +868,24 @@ impl<'a> FunctionLowerer<'a> {
                         msg: format!("campo '{}' não encontrado em '{}'", field, base_struct_name),
                         span: expr.span,
                     })?;
+                let field_offset = self
+                    .context
+                    .struct_field_offsets
+                    .get(base_struct_name)
+                    .and_then(|fields| fields.get(field))
+                    .copied()
+                    .ok_or_else(|| PinkerError::Ir {
+                        msg: format!(
+                            "offset de campo '{}' não encontrado no layout de '{}'",
+                            field, base_struct_name
+                        ),
+                        span: expr.span,
+                    })?;
                 Ok(TypedValueIR {
                     value: ValueIR::FieldAccess {
                         base: Box::new(base.value),
                         field: field.clone(),
+                        field_offset,
                         result_type,
                     },
                     ty: result_type,
@@ -1040,6 +1071,7 @@ fn resolve_struct_name_from_type(
                     .and_then(|target| resolve_struct_name_from_type(target, aliases, struct_names))
             }
         }
+        Type::Pointer { base, .. } => resolve_struct_name_from_type(base, aliases, struct_names),
         _ => None,
     }
 }
@@ -1197,8 +1229,13 @@ fn render_value(value: &ValueIR) -> String {
             args.iter().map(render_value).collect::<Vec<_>>().join(", "),
             ret_type.render_name()
         ),
-        ValueIR::FieldAccess { base, field, .. } => {
-            format!("{}.{}", render_value(base), field)
+        ValueIR::FieldAccess {
+            base,
+            field,
+            field_offset,
+            ..
+        } => {
+            format!("{}.{}/*+{}*/", render_value(base), field, field_offset)
         }
         ValueIR::Index { base, index, .. } => {
             format!("{}[{}]", render_value(base), render_value(index))

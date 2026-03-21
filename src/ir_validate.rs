@@ -511,6 +511,7 @@ fn infer_value_type(
         ValueIR::FieldAccess {
             base,
             field: _,
+            field_offset: _,
             result_type,
         } => {
             let base_ty = infer_value_type(base, slots, consts, funcs, span)?;

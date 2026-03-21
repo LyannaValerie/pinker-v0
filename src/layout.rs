@@ -18,6 +18,20 @@ pub fn layout_of_type(
     layout_of_type_inner(ty, aliases, structs, &mut Vec::new(), &mut Vec::new())
 }
 
+pub fn struct_field_offsets(
+    struct_name: &str,
+    aliases: &HashMap<String, Type>,
+    structs: &HashMap<String, StructDecl>,
+) -> Result<HashMap<String, u64>, String> {
+    struct_field_offsets_inner(
+        struct_name,
+        aliases,
+        structs,
+        &mut Vec::new(),
+        &mut Vec::new(),
+    )
+}
+
 fn layout_of_type_inner(
     ty: &Type,
     aliases: &HashMap<String, Type>,
@@ -120,6 +134,45 @@ fn layout_of_type_inner(
         }
         Type::Nulo(_) => Err("tipo 'nulo' não tem layout de memória".to_string()),
     }
+}
+
+fn struct_field_offsets_inner(
+    struct_name: &str,
+    aliases: &HashMap<String, Type>,
+    structs: &HashMap<String, StructDecl>,
+    resolving_aliases: &mut Vec<String>,
+    resolving_structs: &mut Vec<String>,
+) -> Result<HashMap<String, u64>, String> {
+    let struct_decl = structs
+        .get(struct_name)
+        .ok_or_else(|| format!("tipo de struct '{}' não existe", struct_name))?;
+    if resolving_structs.iter().any(|entry| entry == struct_name) {
+        return Err(format!(
+            "layout recursivo de struct '{}' não é suportado nesta fase",
+            struct_name
+        ));
+    }
+
+    resolving_structs.push(struct_name.to_string());
+    let mut offset = 0_u64;
+    let mut offsets = HashMap::new();
+    for field in &struct_decl.fields {
+        let field_layout = layout_of_type_inner(
+            &field.ty,
+            aliases,
+            structs,
+            resolving_aliases,
+            resolving_structs,
+        )?;
+        offset = round_up(offset, field_layout.align)?;
+        offsets.insert(field.name.clone(), offset);
+        offset = offset
+            .checked_add(field_layout.size)
+            .ok_or_else(|| "overflow ao calcular tamanho de struct".to_string())?;
+    }
+    resolving_structs.pop();
+
+    Ok(offsets)
 }
 
 fn round_up(value: u64, align: u64) -> Result<u64, String> {
