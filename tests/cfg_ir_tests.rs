@@ -272,6 +272,22 @@ fn cfg_ir_cast_ponteiro_ninho_para_bombom_fora_do_subset_falha() {
 }
 
 #[test]
+fn cfg_ir_fragil_emite_deref_com_marcacao_operacional() {
+    let code = r#"
+        pacote main;
+        eterno BASE: bombom = 10;
+        carinho principal() -> bombom {
+            nova p: fragil seta<bombom> = 1 virar fragil seta<bombom>;
+            *p = 77;
+            mimo *p;
+        }
+    "#;
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("deref_store_fragil"), "{}", cfg);
+    assert!(cfg.contains("deref_fragil"), "{}", cfg);
+}
+
+#[test]
 fn cfg_ir_indexacao_operacional_via_seta_array_bombom() {
     let code = r#"
         pacote main;

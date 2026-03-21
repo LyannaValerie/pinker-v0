@@ -93,6 +93,7 @@ pub enum InstructionIR {
         ptr: ValueIR,
         value: ValueIR,
         value_type: TypeIR,
+        is_volatile: bool,
         span: Span,
     },
     Expr {
@@ -149,6 +150,7 @@ pub enum ValueIR {
     Deref {
         ptr: Box<ValueIR>,
         result_type: TypeIR,
+        is_volatile: bool,
     },
     Binary {
         op: BinaryOpIR,
@@ -542,10 +544,21 @@ impl<'a> FunctionLowerer<'a> {
                     }
                     AssignTarget::Deref(ptr_expr) => {
                         let ptr = self.lower_value(ptr_expr)?;
+                        let is_volatile = match ptr.ty {
+                            TypeIR::Pointer { is_volatile } => is_volatile,
+                            _ => {
+                                return Err(PinkerError::Ir {
+                                    msg: "escrita indireta exige ponteiro no lowering IR"
+                                        .to_string(),
+                                    span: assign_stmt.span,
+                                });
+                            }
+                        };
                         Ok(InstructionIR::StoreIndirect {
                             ptr: ptr.value,
                             value: value.value,
                             value_type: value.ty,
+                            is_volatile,
                             span: assign_stmt.span,
                         })
                     }
@@ -761,7 +774,7 @@ impl<'a> FunctionLowerer<'a> {
             ExprKind::Unary(op, operand) => {
                 let operand = self.lower_value(operand)?;
                 if *op == UnaryOp::Deref {
-                    let TypeIR::Pointer { .. } = operand.ty else {
+                    let TypeIR::Pointer { is_volatile } = operand.ty else {
                         return Err(PinkerError::Ir {
                             msg: "dereferência exige operando do tipo seta no lowering IR"
                                 .to_string(),
@@ -786,6 +799,7 @@ impl<'a> FunctionLowerer<'a> {
                         value: ValueIR::Deref {
                             ptr: Box::new(operand.value),
                             result_type,
+                            is_volatile,
                         },
                         ty: result_type,
                         struct_name: result_struct_name,
@@ -1270,7 +1284,15 @@ fn render_value(value: &ValueIR) -> String {
         ValueIR::Bool(value) => format!("{}:logica", if *value { "verdade" } else { "falso" }),
         ValueIR::String(value) => format!("\"{}\":verso", value),
         ValueIR::Unary { op, operand } => format!("{}({})", op.name(), render_value(operand)),
-        ValueIR::Deref { ptr, .. } => format!("deref({})", render_value(ptr)),
+        ValueIR::Deref {
+            ptr, is_volatile, ..
+        } => {
+            if *is_volatile {
+                format!("deref_fragil({})", render_value(ptr))
+            } else {
+                format!("deref({})", render_value(ptr))
+            }
+        }
         ValueIR::Binary { op, lhs, rhs } => {
             format!(
                 "{}({}, {})",

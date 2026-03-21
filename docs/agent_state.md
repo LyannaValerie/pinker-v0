@@ -23,10 +23,10 @@
 - Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
 
 ## 5. Estado corrente
-- Fase funcional atual: **71 — cast operacional útil ligado à memória**.
-- Fase funcional anterior: **70 — indexação operacional em arrays**.
+- Fase funcional atual: **72 — efeito operacional mínimo de `fragil`**.
+- Fase funcional anterior: **71 — cast operacional útil ligado à memória**.
 - Bloco ativo: **Bloco 6 — Memória operacional**.
-- Próximo item normal: **Bloco 6, item B.9 — primeiro efeito operacional real de `fragil`**.
+- Próximo item normal: **expansão incremental do subset operacional de `fragil` além de `fragil seta<bombom>` (mantendo escopo mínimo e auditável)**.
 - Rodada documental corrente: **Doc-10 — renomeação de `phases.md` para `history.md`**.
 - Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 
@@ -53,7 +53,7 @@
 - Escrita de campo em `ninho`, acesso por valor `p.campo` e extensão para campos não escalares.
 - Escrita por índice em arrays e suporte operacional além do subset `(*ptr)[i]` com `[bombom; N]`.
 - Cast operacional além do subset da Fase 71 (`bombom <-> seta<bombom>` e inteiro->inteiro), incluindo `seta<T> -> bombom` genérico e casts entre compostos.
-- Efeito operacional robusto de `fragil`.
+- Efeito operacional robusto/completo de `fragil` (MMIO, fences, ordenação de memória e backend nativo).
 - Backend nativo completo e runtime bare-metal robusto.
 
 ## 10. Instrução para novo agente

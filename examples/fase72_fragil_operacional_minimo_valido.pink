@@ -1,0 +1,9 @@
+pacote main;
+
+eterno BASE: bombom = 10;
+
+carinho principal() -> bombom {
+    nova p: fragil seta<bombom> = 1 virar fragil seta<bombom>;
+    *p = 89;
+    mimo *p;
+}

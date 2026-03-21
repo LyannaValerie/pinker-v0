@@ -53,11 +53,13 @@ pub enum SelectedInstr {
         dest: crate::cfg_ir::TempIR,
         ptr: OperandIR,
         ty: TypeIR,
+        is_volatile: bool,
     },
     DerefStore {
         ptr: OperandIR,
         value: OperandIR,
         ty: TypeIR,
+        is_volatile: bool,
     },
     Cast {
         dest: crate::cfg_ir::TempIR,
@@ -262,15 +264,27 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
                 });
             }
         }),
-        InstructionCfgIR::DerefLoad { dest, ptr, ty } => Ok(SelectedInstr::DerefLoad {
+        InstructionCfgIR::DerefLoad {
+            dest,
+            ptr,
+            ty,
+            is_volatile,
+        } => Ok(SelectedInstr::DerefLoad {
             dest: *dest,
             ptr: ptr.clone(),
             ty: *ty,
+            is_volatile: *is_volatile,
         }),
-        InstructionCfgIR::DerefStore { ptr, value, ty } => Ok(SelectedInstr::DerefStore {
+        InstructionCfgIR::DerefStore {
+            ptr,
+            value,
+            ty,
+            is_volatile,
+        } => Ok(SelectedInstr::DerefStore {
             ptr: ptr.clone(),
             value: value.clone(),
             ty: *ty,
+            is_volatile: *is_volatile,
         }),
         InstructionCfgIR::Cast {
             dest,
@@ -474,14 +488,34 @@ fn render_instr(inst: &SelectedInstr) -> String {
         SelectedInstr::Not { dest, operand } => {
             format!("not {}, {}", render_temp(*dest), render_operand(operand))
         }
-        SelectedInstr::DerefLoad { dest, ptr, ty } => format!(
-            "deref_load {}, {}, {}",
+        SelectedInstr::DerefLoad {
+            dest,
+            ptr,
+            ty,
+            is_volatile,
+        } => format!(
+            "{} {}, {}, {}",
+            if *is_volatile {
+                "deref_load_fragil"
+            } else {
+                "deref_load"
+            },
             render_temp(*dest),
             render_operand(ptr),
             ty.name()
         ),
-        SelectedInstr::DerefStore { ptr, value, ty } => format!(
-            "deref_store {}, {}, {}",
+        SelectedInstr::DerefStore {
+            ptr,
+            value,
+            ty,
+            is_volatile,
+        } => format!(
+            "{} {}, {}, {}",
+            if *is_volatile {
+                "deref_store_fragil"
+            } else {
+                "deref_store"
+            },
             render_operand(ptr),
             render_operand(value),
             ty.name()

@@ -76,11 +76,13 @@ pub enum InstructionCfgIR {
         dest: TempIR,
         ptr: OperandIR,
         ty: TypeIR,
+        is_volatile: bool,
     },
     DerefStore {
         ptr: OperandIR,
         value: OperandIR,
         ty: TypeIR,
+        is_volatile: bool,
     },
     Cast {
         dest: TempIR,
@@ -348,6 +350,7 @@ impl FunctionLowerer {
                 ptr,
                 value,
                 value_type,
+                is_volatile,
                 span,
             } => {
                 let (ptr, ptr_current) = self.lower_value_operand(ptr, current, *span)?;
@@ -358,6 +361,7 @@ impl FunctionLowerer {
                         ptr,
                         value,
                         ty: *value_type,
+                        is_volatile: *is_volatile,
                     });
                 Ok(next_current)
             }
@@ -600,7 +604,11 @@ impl FunctionLowerer {
                     });
                 Ok((OperandIR::Temp(dest), next_current))
             }
-            ValueIR::Deref { ptr, result_type } => {
+            ValueIR::Deref {
+                ptr,
+                result_type,
+                is_volatile,
+            } => {
                 let (ptr, next_current) = self.lower_value_operand(ptr, current, span)?;
                 let dest = self.next_temp();
                 self.blocks[next_current]
@@ -609,6 +617,7 @@ impl FunctionLowerer {
                         dest,
                         ptr,
                         ty: *result_type,
+                        is_volatile: *is_volatile,
                     });
                 Ok((OperandIR::Temp(dest), next_current))
             }
@@ -720,6 +729,7 @@ impl FunctionLowerer {
         let ValueIR::Deref {
             ptr,
             result_type: base_result_type,
+            is_volatile,
         } = base
         else {
             return Err(PinkerError::Ir {
@@ -763,6 +773,7 @@ impl FunctionLowerer {
                 dest,
                 ptr: field_ptr,
                 ty: result_type,
+                is_volatile: *is_volatile,
             });
         Ok((OperandIR::Temp(dest), next_current))
     }
@@ -778,6 +789,7 @@ impl FunctionLowerer {
         let ValueIR::Deref {
             ptr,
             result_type: base_result_type,
+            is_volatile,
         } = base
         else {
             return Err(PinkerError::Ir {
@@ -819,6 +831,7 @@ impl FunctionLowerer {
                 dest,
                 ptr: OperandIR::Temp(elem_ptr_temp),
                 ty: element_type,
+                is_volatile: *is_volatile,
             });
         Ok((OperandIR::Temp(dest), current_after_index))
     }
@@ -976,14 +989,34 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
             render_operand(lhs),
             render_operand(rhs)
         ),
-        InstructionCfgIR::DerefLoad { dest, ptr, ty } => format!(
-            "{} = deref {}:{}",
+        InstructionCfgIR::DerefLoad {
+            dest,
+            ptr,
+            ty,
+            is_volatile,
+        } => format!(
+            "{} = {} {}:{}",
             render_temp(*dest),
+            if *is_volatile {
+                "deref_fragil"
+            } else {
+                "deref"
+            },
             render_operand(ptr),
             ty.name()
         ),
-        InstructionCfgIR::DerefStore { ptr, value, ty } => format!(
-            "deref_store {} <- {}:{}",
+        InstructionCfgIR::DerefStore {
+            ptr,
+            value,
+            ty,
+            is_volatile,
+        } => format!(
+            "{} {} <- {}:{}",
+            if *is_volatile {
+                "deref_store_fragil"
+            } else {
+                "deref_store"
+            },
             render_operand(ptr),
             render_operand(value),
             ty.name()

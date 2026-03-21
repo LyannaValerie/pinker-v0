@@ -267,19 +267,24 @@ fn exec_instr(
             let value = pop_bool(stack, "not exige lógica no topo")?;
             stack.push(RuntimeValue::Bool(!value));
         }
-        MachineInstr::DerefLoad { .. } => {
+        MachineInstr::DerefLoad { is_volatile, .. } => {
             let ptr = pop(stack, "deref_load exige ponteiro no topo")?;
             let RuntimeValue::Ptr(addr) = ptr else {
                 return Err(runtime_err("deref_load exige ponteiro no topo"));
             };
-            let Some(value) = memory.get(&addr).copied() else {
+            let loaded = if *is_volatile {
+                deref_load_fragil(memory, addr)
+            } else {
+                deref_load_normal(memory, addr)
+            };
+            let Some(value) = loaded else {
                 return Err(runtime_err(
                     "deref_load em endereço inválido ou não inicializado",
                 ));
             };
             stack.push(value);
         }
-        MachineInstr::DerefStore { ty } => {
+        MachineInstr::DerefStore { ty, is_volatile } => {
             let value = pop(stack, "deref_store exige valor no topo")?;
             let ptr = pop(stack, "deref_store exige ponteiro abaixo do valor")?;
             let RuntimeValue::Ptr(addr) = ptr else {
@@ -293,7 +298,11 @@ fn exec_instr(
                 ));
             }
             let coerced = coerce_runtime_value_to_type(value, *ty)?;
-            memory.insert(addr, coerced);
+            if *is_volatile {
+                deref_store_fragil(memory, addr, coerced);
+            } else {
+                deref_store_normal(memory, addr, coerced);
+            }
         }
         MachineInstr::Cast { ty } => {
             let value = pop(stack, "cast exige valor no topo")?;
@@ -665,6 +674,22 @@ fn runtime_err(msg: &str) -> PinkerError {
     }
 }
 
+fn deref_load_normal(memory: &HashMap<usize, RuntimeValue>, addr: usize) -> Option<RuntimeValue> {
+    memory.get(&addr).copied()
+}
+
+fn deref_load_fragil(memory: &HashMap<usize, RuntimeValue>, addr: usize) -> Option<RuntimeValue> {
+    memory.get(&addr).copied()
+}
+
+fn deref_store_normal(memory: &mut HashMap<usize, RuntimeValue>, addr: usize, value: RuntimeValue) {
+    memory.insert(addr, value);
+}
+
+fn deref_store_fragil(memory: &mut HashMap<usize, RuntimeValue>, addr: usize, value: RuntimeValue) {
+    memory.insert(addr, value);
+}
+
 fn enrich_runtime_msg(msg: &str) -> String {
     let (kind, hint) = classify_runtime_msg(msg);
     format!(
@@ -793,8 +818,20 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::StoreSlot(_) => "store_slot",
         MachineInstr::Neg => "neg",
         MachineInstr::Not => "not",
-        MachineInstr::DerefLoad { .. } => "deref_load",
-        MachineInstr::DerefStore { .. } => "deref_store",
+        MachineInstr::DerefLoad { is_volatile, .. } => {
+            if *is_volatile {
+                "deref_load_fragil"
+            } else {
+                "deref_load"
+            }
+        }
+        MachineInstr::DerefStore { is_volatile, .. } => {
+            if *is_volatile {
+                "deref_store_fragil"
+            } else {
+                "deref_store"
+            }
+        }
         MachineInstr::Cast { .. } => "cast",
         MachineInstr::BitAnd => "bitand",
         MachineInstr::BitOr => "bitor",

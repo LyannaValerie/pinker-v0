@@ -71,8 +71,8 @@ pub enum MachineInstr {
     StoreSlot(String),
     Neg,
     Not,
-    DerefLoad { ty: TypeIR },
-    DerefStore { ty: TypeIR },
+    DerefLoad { ty: TypeIR, is_volatile: bool },
+    DerefStore { ty: TypeIR, is_volatile: bool },
     Cast { ty: TypeIR },
     BitAnd,
     BitOr,
@@ -178,15 +178,31 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) {
             code.push(MachineInstr::Not);
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::DerefLoad { dest, ptr, ty } => {
+        SelectedInstr::DerefLoad {
+            dest,
+            ptr,
+            ty,
+            is_volatile,
+        } => {
             emit_load(ptr, code);
-            code.push(MachineInstr::DerefLoad { ty: *ty });
+            code.push(MachineInstr::DerefLoad {
+                ty: *ty,
+                is_volatile: *is_volatile,
+            });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::DerefStore { ptr, value, ty } => {
+        SelectedInstr::DerefStore {
+            ptr,
+            value,
+            ty,
+            is_volatile,
+        } => {
             emit_load(ptr, code);
             emit_load(value, code);
-            code.push(MachineInstr::DerefStore { ty: *ty });
+            code.push(MachineInstr::DerefStore {
+                ty: *ty,
+                is_volatile: *is_volatile,
+            });
         }
         SelectedInstr::Cast {
             dest,
@@ -567,12 +583,28 @@ fn render_instr(i: &MachineInstr) -> String {
         }
         MachineInstr::Neg => with_comment("neg".to_string(), "negação aritmética do topo"),
         MachineInstr::Not => with_comment("not".to_string(), "negação lógica do topo"),
-        MachineInstr::DerefLoad { ty } => with_comment(
-            format!("deref_load {}", ty.name()),
+        MachineInstr::DerefLoad { ty, is_volatile } => with_comment(
+            format!(
+                "{} {}",
+                if *is_volatile {
+                    "deref_load_fragil"
+                } else {
+                    "deref_load"
+                },
+                ty.name()
+            ),
             "lê valor indireto a partir de ponteiro no topo",
         ),
-        MachineInstr::DerefStore { ty } => with_comment(
-            format!("deref_store {}", ty.name()),
+        MachineInstr::DerefStore { ty, is_volatile } => with_comment(
+            format!(
+                "{} {}",
+                if *is_volatile {
+                    "deref_store_fragil"
+                } else {
+                    "deref_store"
+                },
+                ty.name()
+            ),
             "escreve valor indireto no endereço apontado",
         ),
         MachineInstr::Cast { ty } => with_comment(
