@@ -462,7 +462,14 @@ fn infer_value_type(
                     }
                 }
                 BinaryOpIR::Eq | BinaryOpIR::Neq => {
-                    if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty != TypeIR::Nulo {
+                    if (lhs_ty.is_compatible_with(rhs_ty) && lhs_ty != TypeIR::Nulo)
+                        || (matches!(lhs.as_ref(), ValueIR::Int(_))
+                            && rhs_ty.is_integer()
+                            && rhs_ty != TypeIR::Nulo)
+                        || (matches!(rhs.as_ref(), ValueIR::Int(_))
+                            && lhs_ty.is_integer()
+                            && lhs_ty != TypeIR::Nulo)
+                    {
                         Ok(TypeIR::Logica)
                     } else {
                         Err(ir_validation_error("comparação inválida", span))

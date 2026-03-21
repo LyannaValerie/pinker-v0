@@ -623,8 +623,8 @@ fn normalize_numeric_pair(
     match (lhs, rhs) {
         (RuntimeValue::Int(_), RuntimeValue::Int(_))
         | (RuntimeValue::IntSigned(_), RuntimeValue::IntSigned(_)) => Ok((lhs, rhs)),
-        (RuntimeValue::IntSigned(a), RuntimeValue::Int(b))
-        | (RuntimeValue::Int(b), RuntimeValue::IntSigned(a)) => {
+        // lhs signed, rhs unsigned: converte rhs para signed preservando ordem
+        (RuntimeValue::IntSigned(a), RuntimeValue::Int(b)) => {
             if b > i64::MAX as u64 {
                 return Err(runtime_err(
                     "mistura signed/unsigned fora de faixa no runtime (sem coerção implícita)",
@@ -633,6 +633,18 @@ fn normalize_numeric_pair(
             Ok((
                 RuntimeValue::IntSigned(a),
                 RuntimeValue::IntSigned(b as i64),
+            ))
+        }
+        // lhs unsigned, rhs signed: converte lhs para signed preservando ordem
+        (RuntimeValue::Int(a), RuntimeValue::IntSigned(b)) => {
+            if a > i64::MAX as u64 {
+                return Err(runtime_err(
+                    "mistura signed/unsigned fora de faixa no runtime (sem coerção implícita)",
+                ));
+            }
+            Ok((
+                RuntimeValue::IntSigned(a as i64),
+                RuntimeValue::IntSigned(b),
             ))
         }
         _ => Err(runtime_err("operação inteira exige valores inteiros")),
@@ -686,6 +698,15 @@ fn classify_runtime_msg(msg: &str) -> (&'static str, Option<&'static str>) {
         (
             "global_inexistente",
             Some("use apenas globals declaradas em `eterno`"),
+        )
+    } else if msg.contains("deref_load")
+        || msg.contains("deref_store")
+        || msg.contains("endereço inválido")
+        || msg.contains("ponteiro no topo")
+    {
+        (
+            "acesso_invalido_ptr",
+            Some("verifique se o endereço do ponteiro está mapeado (global escalar declarada)"),
         )
     } else {
         ("erro", None)

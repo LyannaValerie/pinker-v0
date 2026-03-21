@@ -25,7 +25,13 @@
 ## 5. Observações operacionais curtas
 - Fase funcional atual: **70**.
 - Fase funcional anterior: **69**.
-- Hotfix extraordinário preservado: **HF-1 (Fase 48-H1)**.
+- Hotfix extraordinário mais recente: **HF-2 (Bloco 6, Fases 64–70)** — varredura de corretude pós-Bloco-6.
+  - Bug corrigido: `normalize_numeric_pair` invertia ordem de operandos (signed/unsigned misto).
+  - Bug corrigido: `Eq/Neq` no IR e CFG IR validator rejeitava `signed_var == literal`.
+  - Diagnóstico melhorado: classificador de erros de runtime cobre erros de ponteiro.
+  - Código morto removido: verificação redundante em `semantic.rs` `ExprKind::Index`.
+  - Regressão adicionada: `run_signed_literal_lhs_operacoes_nao_comutativas`.
+- Hotfix anterior: **HF-1 (Fase 48-H1)**.
 - Rodadas documentais seguem sem numeração de fase funcional.
 
 ## 6. Precedência documental resumida

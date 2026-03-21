@@ -28,6 +28,7 @@
 - Bloco ativo: **Bloco 6 — Memória operacional**.
 - Próximo item normal: **Bloco 6, item B.8 — cast operacional útil ligado à memória**.
 - Rodada documental corrente: **Doc-9 — revisão operacional da reestruturação documental**.
+- Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 
 ## 6. Ecossistema documental
 - `docs/roadmap.md`: trilha ativa oficial.

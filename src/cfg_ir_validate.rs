@@ -401,7 +401,14 @@ fn validate_block(
                         }
                     }
                     crate::ir::BinaryOpIR::Eq | crate::ir::BinaryOpIR::Neq => {
-                        if lhs_ty.is_compatible_with(rhs_ty) && lhs_ty != TypeIR::Nulo {
+                        if (lhs_ty.is_compatible_with(rhs_ty) && lhs_ty != TypeIR::Nulo)
+                            || (matches!(lhs, OperandIR::Int(_))
+                                && rhs_ty.is_integer()
+                                && rhs_ty != TypeIR::Nulo)
+                            || (matches!(rhs, OperandIR::Int(_))
+                                && lhs_ty.is_integer()
+                                && lhs_ty != TypeIR::Nulo)
+                        {
                             TypeIR::Logica
                         } else {
                             return Err(cfg_error("comparação inválida", function.span));
