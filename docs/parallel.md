@@ -45,7 +45,7 @@ Não é um segundo `future.md`. O `future.md` é inventário técnico estruturad
 
 Não é um manifesto caótico. Este documento tem tom sério e controlado. Não é lugar de excesso retórico nem de promessas infundadas. É um documento de direção profunda.
 
-Não substitui nenhum documento existente. `roadmap.md`, `future.md`, `phases.md`, `agent_state.md` e `handoff_codex.md` continuam sendo os documentos operacionais e continuam tendo precedência sobre este arquivo em tudo que diz respeito à execução real.
+Não substitui nenhum documento existente. `roadmap.md`, `future.md`, `history.md`, `agent_state.md` e `handoff_codex.md` continuam sendo os documentos operacionais e continuam tendo precedência sobre este arquivo em tudo que diz respeito à execução real.
 
 ---
 

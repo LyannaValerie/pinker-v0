@@ -39,7 +39,7 @@
 - `roadmap.md` define trilha ativa.
 - `future.md` organiza inventário técnico amplo.
 - `parallel.md` mantém visão orientadora.
-- `phases.md` mantém histórico.
+- `history.md` mantém histórico.
 - `agent_state.md` mantém estado corrente.
 - `handoff_codex.md` mantém handoff operacional curto.
 - `doc_rules.md` mantém regras de documentação.

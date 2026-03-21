@@ -266,3 +266,11 @@ Doc-9 - revisão documental operacional da reestruturação
 - Auditoria de coerência entre `roadmap.md`, `future.md`, `parallel.md`, `phases.md`, `agent_state.md`, `handoff_codex.md` e `README.md`.
 - Validação de precedência documental e continuidade histórica sem abrir nova fase funcional.
 - Ajuste textual mínimo em `parallel.md` para correção de digitação, sem impacto operacional.
+
+Doc-10 - renomeação de `phases.md` para `history.md`
+- Rodada estritamente documental; sem alteração funcional de código, testes ou exemplos.
+- Arquivo `docs/phases.md` renomeado para `docs/history.md`; conteúdo histórico preservado integralmente.
+- Objetivo: alinhar o nome do arquivo ao seu papel real de crônica histórica única do projeto.
+- Referências atualizadas em: `README.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/doc_rules.md`, `docs/parallel.md`.
+- Trilha ativa do roadmap permaneceu intacta; `roadmap.md` não foi alterado.
+- Arquitetura documental mantida: `roadmap.md` = trilha ativa, `future.md` = inventário amplo, `parallel.md` = visão orientadora, `history.md` = crônica histórica, `agent_state.md` = estado corrente, `handoff_codex.md` = handoff operacional curto.

@@ -15,7 +15,7 @@
 - **Fase N**: entrega funcional real.
 - **HF-N**: hotfix extraordinário sem abrir nova fase funcional.
 - **Doc-N**: rodada exclusivamente documental.
-- Histórico detalhado fica em `docs/phases.md`.
+- Histórico detalhado fica em `docs/history.md`.
 
 ## 4. Pipeline congelada
 - Fluxo base: semântica -> IR -> validação IR -> CFG IR -> validação CFG -> selected -> validação selected -> Machine -> validação Machine.
@@ -27,14 +27,14 @@
 - Fase funcional anterior: **69 — acesso a campo operacional em `ninho`**.
 - Bloco ativo: **Bloco 6 — Memória operacional**.
 - Próximo item normal: **Bloco 6, item B.8 — cast operacional útil ligado à memória**.
-- Rodada documental corrente: **Doc-9 — revisão operacional da reestruturação documental**.
+- Rodada documental corrente: **Doc-10 — renomeação de `phases.md` para `history.md`**.
 - Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 
 ## 6. Ecossistema documental
 - `docs/roadmap.md`: trilha ativa oficial.
 - `docs/future.md`: inventário técnico amplo de longo prazo.
 - `docs/parallel.md`: visão/fantasia orientadora, sem ditar ordem ativa.
-- `docs/phases.md`: crônica histórica única (fases/hotfixes/documentação).
+- `docs/history.md`: crônica histórica única (fases/hotfixes/documentação).
 - `docs/handoff_codex.md`: handoff operacional curto da rodada.
 - `docs/doc_rules.md`: convenções obrigatórias de documentação.
 
@@ -56,6 +56,6 @@
 - Backend nativo completo e runtime bare-metal robusto.
 
 ## 10. Instrução para novo agente
-1. Ler: `README.md`, `docs/roadmap.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/phases.md`, `docs/doc_rules.md`.
+1. Ler: `README.md`, `docs/roadmap.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/history.md`, `docs/doc_rules.md`.
 2. Executar validações exigidas da rodada antes de encerrar.
-3. Atualizar ao final: `docs/phases.md`, `docs/agent_state.md`, `docs/handoff_codex.md` quando houver mudança documental/operacional.
+3. Atualizar ao final: `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` quando houver mudança documental/operacional.
