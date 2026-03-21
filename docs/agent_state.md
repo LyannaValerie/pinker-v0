@@ -23,10 +23,10 @@
 - Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
 
 ## 5. Estado corrente
-- Fase funcional atual: **68 — aritmética de ponteiros**.
-- Fase funcional anterior: **67 — escrita indireta**.
+- Fase funcional atual: **69 — acesso a campo operacional em `ninho`**.
+- Fase funcional anterior: **68 — aritmética de ponteiros**.
 - Bloco ativo: **Bloco 6 — Memória operacional**.
-- Próximo item normal: **Bloco 6, item B.6 — acesso a campo operacional em `ninho`**.
+- Próximo item normal: **Bloco 6, item B.7 — indexação operacional em arrays**.
 - Rodada documental corrente: **Doc-9 — revisão operacional da reestruturação documental**.
 
 ## 6. Ecossistema documental
@@ -49,7 +49,8 @@
 - Não declarar funcionalidade como pronta sem validação objetiva.
 
 ## 9. Itens adiados
-- Acesso operacional completo de `ninho`/arrays por memória real.
+- Escrita de campo em `ninho`, acesso por valor `p.campo` e extensão para campos não escalares.
+- Indexação operacional de arrays por memória real.
 - Efeito operacional robusto de `fragil`.
 - Backend nativo completo e runtime bare-metal robusto.
 

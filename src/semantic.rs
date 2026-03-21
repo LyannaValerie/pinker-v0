@@ -1139,13 +1139,17 @@ impl SemanticChecker {
                         }
                     }
                     UnaryOp::Deref => match inner_ty {
-                        Type::Pointer { base, .. } if matches!(base.as_ref(), Type::Bombom(_)) => {
-                            Ok(Type::Bombom(expr.span))
-                        }
-                        Type::Pointer { .. } => Err(PinkerError::Semantic {
-                            msg: "dereferência nesta fase aceita apenas 'seta<bombom>'".to_string(),
-                            span: expr.span,
-                        }),
+                        Type::Pointer { base, .. } => match base.as_ref() {
+                            Type::Bombom(_) => Ok(Type::Bombom(expr.span)),
+                            Type::Struct { name, .. } => Ok(Type::Struct {
+                                name: name.clone(),
+                                span: expr.span,
+                            }),
+                            _ => Err(PinkerError::Semantic {
+                                msg: "dereferência nesta fase aceita apenas 'seta<bombom>' ou 'seta<ninho>'".to_string(),
+                                span: expr.span,
+                            }),
+                        },
                         _ => Err(PinkerError::Semantic {
                             msg: "dereferência requer operando do tipo 'seta<T>'".to_string(),
                             span: expr.span,

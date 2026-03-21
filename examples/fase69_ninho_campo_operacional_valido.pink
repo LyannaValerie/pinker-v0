@@ -1,0 +1,21 @@
+pacote main;
+
+ninho Par {
+    a: bombom;
+    b: bombom;
+}
+
+eterno A: bombom = 11;
+eterno F1: bombom = 0;
+eterno F2: bombom = 0;
+eterno F3: bombom = 0;
+eterno F4: bombom = 0;
+eterno F5: bombom = 0;
+eterno F6: bombom = 0;
+eterno F7: bombom = 0;
+eterno B: bombom = 22;
+
+carinho principal() -> bombom {
+    nova p: seta<Par> = 1;
+    mimo (*p).b;
+}

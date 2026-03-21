@@ -193,6 +193,13 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Operações fora de escopo explícitas nesta fase: `n + ptr`, `ptr - ptr`, comparação rica de ponteiros e bases diferentes de `bombom`.
 - Semântica de deslocamento desta fase: offset em unidades lógicas do modelo de memória abstrata vigente (endereços de globals já mapeadas), sem escala por tamanho de tipo base.
 
+69 - acesso a campo operacional em `ninho`
+- Acesso operacional mínimo de campo integrado ao pipeline até `--run` para leitura em `ninho` usando offsets do layout estático.
+- Superfície funcional desta fase: **leitura de campo** (não inclui escrita de campo).
+- Subset operacional desta fase: leitura via `(*ptr).campo` com `ptr: seta<ninho>` e campo escalar (`bombom`, `u8..u64`, `i8..i64`, `logica`).
+- Caminho de lowering desta fase: `FieldAccess` usa offset estático de `layout` + aritmética de ponteiro + `deref_load` para ler o campo em runtime.
+- Fora de escopo explícito nesta fase: acesso por valor (`p.campo`), escrita de campo, indexação operacional plena e campos não escalares.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

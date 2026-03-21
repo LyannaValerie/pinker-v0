@@ -774,6 +774,19 @@ fn dereferencia_seta_nao_bombom_falha_nesta_fase() {
 }
 
 #[test]
+fn dereferencia_seta_ninho_valida_quando_usada_em_acesso_a_campo() {
+    let code = r#"
+        pacote main;
+        ninho Par { a: bombom; b: bombom; }
+        carinho pega(p: seta<Par>) -> bombom {
+            mimo (*p).a;
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
 fn escrita_indireta_seta_bombom_valida_nesta_fase() {
     let code = r#"
         pacote main;

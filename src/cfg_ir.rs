@@ -655,14 +655,98 @@ impl FunctionLowerer {
                     });
                 Ok((OperandIR::Temp(dest), lowered_args.1))
             }
-            ValueIR::FieldAccess { .. } | ValueIR::Index { .. } | ValueIR::Cast { .. } => {
-                Err(PinkerError::Ir {
-                    msg: "CFG IR ainda não lowera acesso a campo/indexação/cast nesta fase"
-                        .to_string(),
-                    span,
-                })
-            }
+            ValueIR::FieldAccess {
+                base,
+                field,
+                field_offset,
+                result_type,
+            } => self.lower_field_access(base, field, *field_offset, *result_type, current, span),
+            ValueIR::Index { .. } | ValueIR::Cast { .. } => Err(PinkerError::Ir {
+                msg: "CFG IR ainda não lowera indexação/cast nesta fase".to_string(),
+                span,
+            }),
         }
+    }
+
+    fn lower_field_access(
+        &mut self,
+        base: &ValueIR,
+        field: &str,
+        field_offset: u64,
+        result_type: TypeIR,
+        current: usize,
+        span: Span,
+    ) -> Result<(OperandIR, usize), PinkerError> {
+        if !matches!(
+            result_type,
+            TypeIR::Bombom
+                | TypeIR::U8
+                | TypeIR::U16
+                | TypeIR::U32
+                | TypeIR::U64
+                | TypeIR::I8
+                | TypeIR::I16
+                | TypeIR::I32
+                | TypeIR::I64
+                | TypeIR::Logica
+        ) {
+            return Err(PinkerError::Ir {
+                msg: format!(
+                    "acesso operacional de campo nesta fase aceita apenas campos escalares (campo '{}')",
+                    field
+                ),
+                span,
+            });
+        }
+
+        let ValueIR::Deref {
+            ptr,
+            result_type: base_result_type,
+        } = base
+        else {
+            return Err(PinkerError::Ir {
+                msg: format!(
+                    "acesso operacional de campo nesta fase exige base no formato '(*ptr).campo' (campo '{}')",
+                    field
+                ),
+                span,
+            });
+        };
+        if *base_result_type != TypeIR::Struct {
+            return Err(PinkerError::Ir {
+                msg: format!(
+                    "acesso operacional de campo nesta fase exige ponteiro para 'ninho' (campo '{}')",
+                    field
+                ),
+                span,
+            });
+        }
+
+        let (base_ptr, next_current) = self.lower_value_operand(ptr, current, span)?;
+        let field_ptr = if field_offset == 0 {
+            base_ptr
+        } else {
+            let dest_ptr = self.next_temp();
+            self.blocks[next_current]
+                .instructions
+                .push(InstructionCfgIR::Binary {
+                    dest: dest_ptr,
+                    op: BinaryOpIR::Add,
+                    lhs: base_ptr,
+                    rhs: OperandIR::Int(field_offset),
+                });
+            OperandIR::Temp(dest_ptr)
+        };
+
+        let dest = self.next_temp();
+        self.blocks[next_current]
+            .instructions
+            .push(InstructionCfgIR::DerefLoad {
+                dest,
+                ptr: field_ptr,
+                ty: result_type,
+            });
+        Ok((OperandIR::Temp(dest), next_current))
     }
 
     /// Like `lower_value_operand` but also handles `ValueIR::String` for `falar`.

@@ -1,0 +1,14 @@
+pacote main;
+
+ninho Par {
+    a: bombom;
+    b: bombom;
+}
+
+carinho pega(p: Par) -> bombom {
+    mimo p.b;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
