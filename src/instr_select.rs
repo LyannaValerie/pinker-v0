@@ -54,6 +54,11 @@ pub enum SelectedInstr {
         ptr: OperandIR,
         ty: TypeIR,
     },
+    DerefStore {
+        ptr: OperandIR,
+        value: OperandIR,
+        ty: TypeIR,
+    },
     BitAnd {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
@@ -257,6 +262,11 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             ptr: ptr.clone(),
             ty: *ty,
         }),
+        InstructionCfgIR::DerefStore { ptr, value, ty } => Ok(SelectedInstr::DerefStore {
+            ptr: ptr.clone(),
+            value: value.clone(),
+            ty: *ty,
+        }),
         InstructionCfgIR::Binary { dest, op, lhs, rhs } => Ok(match op {
             BinaryOpIR::LogicalAnd | BinaryOpIR::LogicalOr => {
                 return Err(PinkerError::Ir {
@@ -454,6 +464,12 @@ fn render_instr(inst: &SelectedInstr) -> String {
             "deref_load {}, {}, {}",
             render_temp(*dest),
             render_operand(ptr),
+            ty.name()
+        ),
+        SelectedInstr::DerefStore { ptr, value, ty } => format!(
+            "deref_store {}, {}, {}",
+            render_operand(ptr),
+            render_operand(value),
             ty.name()
         ),
         SelectedInstr::BitAnd { dest, lhs, rhs } => format!(

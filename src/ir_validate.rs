@@ -191,6 +191,51 @@ fn validate_block(
                     ));
                 }
             }
+            InstructionIR::StoreIndirect {
+                ptr,
+                value,
+                value_type,
+                span,
+            } => {
+                let ptr_ty = infer_value_type(ptr, slots, consts, funcs, *span).map_err(|err| {
+                    enrich_ir_error(
+                        err,
+                        Some(function),
+                        Some(block),
+                        Some("instr='store_indirect'"),
+                    )
+                })?;
+                if !matches!(ptr_ty, TypeIR::Pointer { .. }) {
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "store_indirect exige ponteiro",
+                        Some("instr='store_indirect'"),
+                        *span,
+                    ));
+                }
+                let actual_ty =
+                    infer_value_type(value, slots, consts, funcs, *span).map_err(|err| {
+                        enrich_ir_error(
+                            err,
+                            Some(function),
+                            Some(block),
+                            Some("instr='store_indirect'"),
+                        )
+                    })?;
+                if !value_matches_expected(value, actual_ty, *value_type) {
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "store_indirect com tipo incompatível",
+                        Some(&format!(
+                            "instr='store_indirect', esperado={:?}, recebido={:?}",
+                            value_type, actual_ty
+                        )),
+                        *span,
+                    ));
+                }
+            }
             InstructionIR::Expr { value, span } => {
                 let ty = infer_value_type(value, slots, consts, funcs, *span).map_err(|err| {
                     enrich_ir_error(err, Some(function), Some(block), Some("instr='expr'"))

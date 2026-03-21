@@ -332,6 +332,29 @@ fn validate_block(
                 }
                 temp_types.insert(*dest, *ty);
             }
+            InstructionCfgIR::DerefStore { ptr, value, ty } => {
+                let ptr_ty =
+                    infer_operand_type(ptr, slot_types, &temp_types, global_consts, function.span)?;
+                if !matches!(ptr_ty, TypeIR::Pointer { .. }) {
+                    return Err(cfg_error(
+                        "deref_store exige operando do tipo ponteiro",
+                        function.span,
+                    ));
+                }
+                let value_ty = infer_operand_type(
+                    value,
+                    slot_types,
+                    &temp_types,
+                    global_consts,
+                    function.span,
+                )?;
+                if !operand_matches_expected(value, value_ty, *ty) {
+                    return Err(cfg_error(
+                        "deref_store com valor incompatível com o tipo esperado",
+                        function.span,
+                    ));
+                }
+            }
             InstructionCfgIR::Binary { dest, op, lhs, rhs } => {
                 let lhs_ty =
                     infer_operand_type(lhs, slot_types, &temp_types, global_consts, function.span)?;

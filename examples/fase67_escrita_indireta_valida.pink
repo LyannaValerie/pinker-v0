@@ -1,0 +1,10 @@
+pacote main;
+
+eterno BASE: bombom = 10;
+
+carinho principal() -> bombom {
+    nova p: seta<bombom> = 1;
+    *p = 123;
+    falar(*p);
+    mimo *p;
+}

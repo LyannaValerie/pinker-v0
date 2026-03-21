@@ -541,19 +541,25 @@ impl Parser {
 
         let expr = self.parse_expr()?;
         if self.match_token(TokenKind::Eq) {
-            if let ExprKind::Ident(name) = &expr.kind {
-                let rhs = self.parse_expr()?;
-                self.consume(TokenKind::Semi, ";")?;
-                return Ok(Stmt::Assign(AssignStmt {
-                    name: name.clone(),
-                    expr: rhs,
-                    span: merge_span(expr.span, self.previous().span),
-                }));
-            }
-            return Err(PinkerError::Parse {
-                msg: "atribuição inválida: o lado esquerdo deve ser um identificador".to_string(),
-                span: expr.span,
-            });
+            let target = match &expr.kind {
+                ExprKind::Ident(name) => AssignTarget::Ident(name.clone()),
+                ExprKind::Unary(UnaryOp::Deref, ptr_expr) => {
+                    AssignTarget::Deref(Box::new((**ptr_expr).clone()))
+                }
+                _ => {
+                    return Err(PinkerError::Parse {
+                        msg: "atribuição inválida: o lado esquerdo deve ser um identificador ou dereferência '*expr'".to_string(),
+                        span: expr.span,
+                    });
+                }
+            };
+            let rhs = self.parse_expr()?;
+            self.consume(TokenKind::Semi, ";")?;
+            return Ok(Stmt::Assign(AssignStmt {
+                target,
+                expr: rhs,
+                span: merge_span(expr.span, self.previous().span),
+            }));
         }
 
         self.consume(TokenKind::Semi, ";")?;

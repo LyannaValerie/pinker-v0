@@ -9,6 +9,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - aliases de tipo (`apelido`), arrays fixos (`[tipo; N]`), structs (`ninho`), ponteiros (`seta<tipo>`)
 - representação mínima de ponteiro no runtime (`RuntimeValue::Ptr`) para `seta<T>` no `--run`
 - dereferência de leitura mínima com `*p` para `seta<bombom>` no `--run`
+- escrita indireta mínima com `*p = valor` para `seta<bombom>` no `--run`
 - qualificador `fragil` (`volatile`) para ponteiros explícitos (`fragil seta<tipo>`)
 - inline asm mínimo como statement textual com `sussurro("...")` (ou múltiplas strings), preservado até IR
 - marca de unidade freestanding/no-std com `livre;` no topo do programa
@@ -36,8 +37,9 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - LLVM / Cranelift
 - otimizações grandes
 - FFI, enums, generics, traits
-- operações completas de ponteiro (escrita indireta, aritmética), acesso completo via ponteiro (`seta<T>`), escrita em campo/index, layout físico/ABI
+- operações completas de ponteiro (aritmética), acesso completo via ponteiro (`seta<T>`), escrita em campo/index, layout físico/ABI
 - leitura indireta além do subset mínimo da fase (`*p` apenas para `seta<bombom>` com endereçamento abstrato de globals escalares no runtime)
+- escrita indireta além do subset mínimo da fase (`*p = v` apenas para `seta<bombom>` com endereçamento abstrato de globals escalares já mapeadas no runtime)
 - semântica operacional de `fragil` em runtime/backend (nesta fase é qualificador semântico preservado no pipeline)
 - lowering operacional de `virar` em CFG/Machine/runtime (`--check` aceita o subset da fase; `--run`/`--cfg-ir` ainda não executam cast)
 - lowering operacional de inline asm em CFG/Machine/runtime (`--check`/`--ir` aceitam o subset da fase; `--cfg-ir`/`--run` ainda não executam `sussurro`)
@@ -86,6 +88,7 @@ cargo run -- --run examples/run_signed_basico.pink
 cargo run -- --run examples/run_alias_tipo_basico.pink
 cargo run -- --run examples/fase64_falar_signed.pink
 cargo run -- --run examples/fase66_deref_leitura_valido.pink
+cargo run -- --run examples/fase67_escrita_indireta_valida.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
 cargo run -- --check examples/check_continuar_fora_loop.pink
@@ -110,6 +113,7 @@ cargo run -- --check examples/check_boot_entry_livre_sem_principal.pink
 cargo run -- --check examples/check_kernel_minimo_fase59_valido.pink
 cargo run -- --check examples/fase61_verso_valido.pink
 cargo run -- --check examples/fase66_deref_seta_u8_invalido.pink
+cargo run -- --check examples/fase67_escrita_indireta_seta_u8_invalida.pink
 cargo run -- --cfg-ir examples/fase61_verso_cfg_ir_invalido.pink
 cargo run -- --run examples/fase60_modulos_valido.pink
 cargo run -- --check examples/fase60_modulo_ausente.pink

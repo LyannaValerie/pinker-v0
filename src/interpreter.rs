@@ -41,14 +41,14 @@ pub enum RuntimeValue {
 
 pub fn run_program(program: &MachineProgram) -> Result<Option<RuntimeValue>, PinkerError> {
     let globals = build_globals(program)?;
-    let memory = build_memory(program, &globals)?;
+    let mut memory = build_memory(program, &globals)?;
     let mut call_stack = Vec::new();
     call_function(
         "principal",
         vec![],
         program,
         &globals,
-        &memory,
+        &mut memory,
         &mut call_stack,
     )
 }
@@ -112,7 +112,7 @@ fn call_function(
     args: Vec<RuntimeValue>,
     program: &MachineProgram,
     globals: &HashMap<String, RuntimeValue>,
-    memory: &HashMap<usize, RuntimeValue>,
+    memory: &mut HashMap<usize, RuntimeValue>,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<Option<RuntimeValue>, PinkerError> {
     if call_stack.len() >= MAX_CALL_DEPTH {
@@ -225,7 +225,7 @@ fn exec_instr(
     stack: &mut Vec<RuntimeValue>,
     program: &MachineProgram,
     globals: &HashMap<String, RuntimeValue>,
-    memory: &HashMap<usize, RuntimeValue>,
+    memory: &mut HashMap<usize, RuntimeValue>,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<(), PinkerError> {
     match instr {
@@ -278,6 +278,22 @@ fn exec_instr(
                 ));
             };
             stack.push(value);
+        }
+        MachineInstr::DerefStore { ty } => {
+            let value = pop(stack, "deref_store exige valor no topo")?;
+            let ptr = pop(stack, "deref_store exige ponteiro abaixo do valor")?;
+            let RuntimeValue::Ptr(addr) = ptr else {
+                return Err(runtime_err(
+                    "deref_store exige ponteiro abaixo do valor no topo",
+                ));
+            };
+            if !memory.contains_key(&addr) {
+                return Err(runtime_err(
+                    "deref_store em endereço inválido ou não inicializado",
+                ));
+            }
+            let coerced = coerce_runtime_value_to_type(value, *ty)?;
+            memory.insert(addr, coerced);
         }
         MachineInstr::BitAnd => {
             let (lhs, rhs) = pop_bin_numeric(stack, "bitand exige dois inteiros")?;
@@ -738,6 +754,7 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::Neg => "neg",
         MachineInstr::Not => "not",
         MachineInstr::DerefLoad { .. } => "deref_load",
+        MachineInstr::DerefStore { .. } => "deref_store",
         MachineInstr::BitAnd => "bitand",
         MachineInstr::BitOr => "bitor",
         MachineInstr::BitXor => "bitxor",

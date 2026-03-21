@@ -188,14 +188,17 @@ fn render_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             }
         }
         Stmt::Assign(assign_stmt) => {
+            let target = match &assign_stmt.target {
+                AssignTarget::Ident(name) => name.clone(),
+                AssignTarget::Deref(ptr) => match &ptr.kind {
+                    ExprKind::Ident(name) => format!("*{}", name),
+                    _ => "*<expr>".to_string(),
+                },
+            };
             line(
                 out,
                 indent,
-                &format!(
-                    "Assign {} {}",
-                    assign_stmt.name,
-                    format_span(assign_stmt.span)
-                ),
+                &format!("Assign {} {}", target, format_span(assign_stmt.span)),
             );
             render_expr(&assign_stmt.expr, indent + 1, out, "value");
         }

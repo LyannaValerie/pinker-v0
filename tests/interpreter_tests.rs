@@ -334,6 +334,40 @@ fn run_dereferencia_falha_com_endereco_invalido() {
 }
 
 #[test]
+fn run_escrita_indireta_via_seta_bombom() {
+    let out = run_code(
+        "pacote main;
+         eterno BASE: bombom = 10;
+         carinho principal() -> bombom {
+             nova p: seta<bombom> = 1;
+             *p = 123;
+             mimo *p;
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(123)));
+}
+
+#[test]
+fn run_escrita_indireta_falha_com_endereco_invalido() {
+    let err = run_code(
+        "pacote main;
+         eterno BASE: bombom = 10;
+         carinho principal() -> bombom {
+             nova p: seta<bombom> = 99;
+             *p = 1;
+             mimo 0;
+         }",
+    )
+    .unwrap_err();
+    assert!(
+        err.contains("deref_store em endereço inválido ou não inicializado"),
+        "mensagem: {}",
+        err
+    );
+}
+
+#[test]
 fn run_falha_quando_usa_ponteiro_em_operacao_inteira_nao_suportada() {
     let mut slot_types = HashMap::new();
     slot_types.insert(
@@ -1621,6 +1655,33 @@ fn cli_check_dereferencia_seta_u8_falha_com_exemplo_versionado() {
     assert!(
         !output.status.success(),
         "esperava falha semântica para deref fora do subset"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("apenas 'seta<bombom>'"),
+        "mensagem inesperada: {}",
+        stderr
+    );
+}
+
+#[test]
+fn cli_run_escrita_indireta_funciona_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase67_escrita_indireta_valida.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("123"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_check_escrita_indireta_seta_u8_falha_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/fase67_escrita_indireta_seta_u8_invalida.pink");
+    assert!(
+        !output.status.success(),
+        "esperava falha semântica para escrita indireta fora do subset"
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(

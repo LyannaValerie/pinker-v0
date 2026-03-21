@@ -181,6 +181,12 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Runtime ganhou `deref_load` com memória abstrata mínima baseada em endereços de globals escalares (`eterno`) para suportar `--run`.
 - Literais inteiros passaram a ser aceitos como endereço para inicialização de `seta<T>` nesta fase bootstrap.
 
+67 - escrita indireta
+- Sintaxe de escrita indireta `*expr = valor;` integrada ao frontend/semântica/IR/CFG/selected/Machine/runtime.
+- Subset operacional desta fase: apenas escrita em `seta<bombom>`; demais bases de ponteiro seguem fora de escopo.
+- Runtime ganhou `deref_store` com atualização na memória abstrata mínima baseada em endereços de globals escalares já mapeadas.
+- Política de erro explícita em `--run`: escrita falha para endereço inválido/não inicializado e para valor incompatível com o tipo esperado.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

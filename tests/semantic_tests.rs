@@ -774,6 +774,33 @@ fn dereferencia_seta_nao_bombom_falha_nesta_fase() {
 }
 
 #[test]
+fn escrita_indireta_seta_bombom_valida_nesta_fase() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova p: seta<bombom> = 1;
+            *p = 42;
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn escrita_indireta_seta_nao_bombom_falha_nesta_fase() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova p: seta<u8> = 1;
+            *p = 7;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("apenas 'seta<bombom>'"), "{}", err);
+}
+
+#[test]
 fn ninho_falha_com_campo_duplicado() {
     let code = r#"
         pacote main;
