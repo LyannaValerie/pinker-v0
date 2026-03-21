@@ -252,6 +252,7 @@ struct BindingState {
     slot: String,
     ty: TypeIR,
     struct_name: Option<String>,
+    ptr_array_bombom_size: Option<u64>,
 }
 
 // `LoweringContext` é construído em uma primeira passagem sobre o programa:
@@ -287,6 +288,7 @@ struct TypedValueIR {
     value: ValueIR,
     ty: TypeIR,
     struct_name: Option<String>,
+    ptr_array_bombom_size: Option<u64>,
 }
 
 // Fase 2 escolhe IR estruturada: blocos e `if` seguem explícitos, sem SSA e sem saltos.
@@ -474,6 +476,7 @@ impl<'a> FunctionLowerer<'a> {
                     &self.context.type_aliases,
                     &self.context.struct_names,
                 ),
+                pointer_to_bombom_array_size(&param.ty, &self.context.type_aliases),
                 None,
             );
             self.params.push(binding);
@@ -599,7 +602,20 @@ impl<'a> FunctionLowerer<'a> {
                 )
             })
             .or(value.struct_name.clone());
-        let binding = self.allocate_binding(&let_stmt.name, ty, struct_name, Some(let_stmt.is_mut));
+        let ptr_array_bombom_size = let_stmt
+            .ty
+            .as_ref()
+            .and_then(|annotated_ty| {
+                pointer_to_bombom_array_size(annotated_ty, &self.context.type_aliases)
+            })
+            .or(value.ptr_array_bombom_size);
+        let binding = self.allocate_binding(
+            &let_stmt.name,
+            ty,
+            struct_name,
+            ptr_array_bombom_size,
+            Some(let_stmt.is_mut),
+        );
         Ok(InstructionIR::Let {
             slot: binding.slot,
             value: value.value,
@@ -704,16 +720,19 @@ impl<'a> FunctionLowerer<'a> {
                 value: ValueIR::Int(*value),
                 ty: TypeIR::Bombom,
                 struct_name: None,
+                ptr_array_bombom_size: None,
             }),
             ExprKind::BoolLit(value) => Ok(TypedValueIR {
                 value: ValueIR::Bool(*value),
                 ty: TypeIR::Logica,
                 struct_name: None,
+                ptr_array_bombom_size: None,
             }),
             ExprKind::StringLit(value) => Ok(TypedValueIR {
                 value: ValueIR::String(value.clone()),
                 ty: TypeIR::Verso,
                 struct_name: None,
+                ptr_array_bombom_size: None,
             }),
             ExprKind::Ident(name) => {
                 if let Some(binding) = self.resolve_existing_binding(name) {
@@ -721,6 +740,7 @@ impl<'a> FunctionLowerer<'a> {
                         value: ValueIR::Local(binding.slot),
                         ty: binding.ty,
                         struct_name: binding.struct_name,
+                        ptr_array_bombom_size: binding.ptr_array_bombom_size,
                     });
                 }
 
@@ -729,6 +749,7 @@ impl<'a> FunctionLowerer<'a> {
                         value: ValueIR::GlobalConst(name.clone()),
                         ty: *ty,
                         struct_name: None,
+                        ptr_array_bombom_size: None,
                     });
                 }
 
@@ -750,6 +771,14 @@ impl<'a> FunctionLowerer<'a> {
                     let (result_type, result_struct_name) =
                         if let Some(struct_name) = operand.struct_name {
                             (TypeIR::Struct, Some(struct_name))
+                        } else if let Some(size) = operand.ptr_array_bombom_size {
+                            (
+                                TypeIR::FixedArray {
+                                    element: ScalarTypeIR::Bombom,
+                                    size,
+                                },
+                                None,
+                            )
                         } else {
                             (TypeIR::Bombom, None)
                         };
@@ -760,6 +789,7 @@ impl<'a> FunctionLowerer<'a> {
                         },
                         ty: result_type,
                         struct_name: result_struct_name,
+                        ptr_array_bombom_size: None,
                     });
                 }
                 Ok(TypedValueIR {
@@ -773,6 +803,7 @@ impl<'a> FunctionLowerer<'a> {
                         UnaryOp::Deref => unreachable!("deref tratada acima"),
                     },
                     struct_name: None,
+                    ptr_array_bombom_size: None,
                 })
             }
             ExprKind::Binary(lhs, op, rhs) => {
@@ -811,6 +842,7 @@ impl<'a> FunctionLowerer<'a> {
                         | BinaryOp::Gte => TypeIR::Logica,
                     },
                     struct_name: None,
+                    ptr_array_bombom_size: None,
                 })
             }
             ExprKind::Call(callee, args) => {
@@ -848,6 +880,7 @@ impl<'a> FunctionLowerer<'a> {
                         .function_sigs
                         .get(name)
                         .and_then(|sig| sig.ret_struct_name.clone()),
+                    ptr_array_bombom_size: None,
                 })
             }
             ExprKind::FieldAccess { base, field } => {
@@ -890,6 +923,7 @@ impl<'a> FunctionLowerer<'a> {
                     },
                     ty: result_type,
                     struct_name: None,
+                    ptr_array_bombom_size: None,
                 })
             }
             ExprKind::Index { base, index } => {
@@ -921,6 +955,7 @@ impl<'a> FunctionLowerer<'a> {
                     },
                     ty: element_type,
                     struct_name: None,
+                    ptr_array_bombom_size: None,
                 })
             }
             ExprKind::Cast {
@@ -936,6 +971,7 @@ impl<'a> FunctionLowerer<'a> {
                     },
                     ty: target_type,
                     struct_name: None,
+                    ptr_array_bombom_size: None,
                 })
             }
             ExprKind::SizeOfType { target } => {
@@ -952,6 +988,7 @@ impl<'a> FunctionLowerer<'a> {
                     value: ValueIR::Int(layout.size),
                     ty: TypeIR::Bombom,
                     struct_name: None,
+                    ptr_array_bombom_size: None,
                 })
             }
             ExprKind::AlignOfType { target } => {
@@ -968,6 +1005,7 @@ impl<'a> FunctionLowerer<'a> {
                     value: ValueIR::Int(layout.align),
                     ty: TypeIR::Bombom,
                     struct_name: None,
+                    ptr_array_bombom_size: None,
                 })
             }
         }
@@ -978,6 +1016,7 @@ impl<'a> FunctionLowerer<'a> {
         source_name: &str,
         ty: TypeIR,
         struct_name: Option<String>,
+        ptr_array_bombom_size: Option<u64>,
         is_mut: Option<bool>,
     ) -> BindingIR {
         let next = self
@@ -999,6 +1038,7 @@ impl<'a> FunctionLowerer<'a> {
                 slot: slot.clone(),
                 ty,
                 struct_name: struct_name.clone(),
+                ptr_array_bombom_size,
             },
         );
 
@@ -1072,6 +1112,26 @@ fn resolve_struct_name_from_type(
             }
         }
         Type::Pointer { base, .. } => resolve_struct_name_from_type(base, aliases, struct_names),
+        _ => None,
+    }
+}
+
+fn pointer_to_bombom_array_size(ty: &Type, aliases: &HashMap<String, Type>) -> Option<u64> {
+    match ty {
+        Type::Pointer { base, .. } => match base.as_ref() {
+            Type::FixedArray { element, size, .. }
+                if matches!(element.as_ref(), Type::Bombom(_)) =>
+            {
+                Some(*size)
+            }
+            Type::Alias { name, .. } => aliases
+                .get(name)
+                .and_then(|target| pointer_to_bombom_array_size(target, aliases)),
+            _ => None,
+        },
+        Type::Alias { name, .. } => aliases
+            .get(name)
+            .and_then(|target| pointer_to_bombom_array_size(target, aliases)),
         _ => None,
     }
 }

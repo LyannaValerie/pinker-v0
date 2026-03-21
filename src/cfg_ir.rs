@@ -661,8 +661,13 @@ impl FunctionLowerer {
                 field_offset,
                 result_type,
             } => self.lower_field_access(base, field, *field_offset, *result_type, current, span),
-            ValueIR::Index { .. } | ValueIR::Cast { .. } => Err(PinkerError::Ir {
-                msg: "CFG IR ainda não lowera indexação/cast nesta fase".to_string(),
+            ValueIR::Index {
+                base,
+                index,
+                element_type,
+            } => self.lower_index_access(base, index, *element_type, current, span),
+            ValueIR::Cast { .. } => Err(PinkerError::Ir {
+                msg: "CFG IR ainda não lowera cast nesta fase".to_string(),
                 span,
             }),
         }
@@ -747,6 +752,62 @@ impl FunctionLowerer {
                 ty: result_type,
             });
         Ok((OperandIR::Temp(dest), next_current))
+    }
+
+    fn lower_index_access(
+        &mut self,
+        base: &ValueIR,
+        index: &ValueIR,
+        element_type: TypeIR,
+        current: usize,
+        span: Span,
+    ) -> Result<(OperandIR, usize), PinkerError> {
+        let ValueIR::Deref {
+            ptr,
+            result_type: base_result_type,
+        } = base
+        else {
+            return Err(PinkerError::Ir {
+                msg: "indexação operacional nesta fase exige base no formato '(*ptr)[i]'"
+                    .to_string(),
+                span,
+            });
+        };
+        if !matches!(*base_result_type, TypeIR::FixedArray { .. }) {
+            return Err(PinkerError::Ir {
+                msg: "indexação operacional nesta fase exige ponteiro para array fixo".to_string(),
+                span,
+            });
+        }
+        if element_type != TypeIR::Bombom {
+            return Err(PinkerError::Ir {
+                msg: "indexação operacional nesta fase aceita apenas '[bombom; N]'".to_string(),
+                span,
+            });
+        }
+
+        let (base_ptr, current_after_base) = self.lower_value_operand(ptr, current, span)?;
+        let (offset, current_after_index) =
+            self.lower_value_operand(index, current_after_base, span)?;
+        let elem_ptr_temp = self.next_temp();
+        self.blocks[current_after_index]
+            .instructions
+            .push(InstructionCfgIR::Binary {
+                dest: elem_ptr_temp,
+                op: BinaryOpIR::Add,
+                lhs: base_ptr,
+                rhs: offset,
+            });
+
+        let dest = self.next_temp();
+        self.blocks[current_after_index]
+            .instructions
+            .push(InstructionCfgIR::DerefLoad {
+                dest,
+                ptr: OperandIR::Temp(elem_ptr_temp),
+                ty: element_type,
+            });
+        Ok((OperandIR::Temp(dest), current_after_index))
     }
 
     /// Like `lower_value_operand` but also handles `ValueIR::String` for `falar`.

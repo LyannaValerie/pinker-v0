@@ -200,6 +200,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Caminho de lowering desta fase: `FieldAccess` usa offset estático de `layout` + aritmética de ponteiro + `deref_load` para ler o campo em runtime.
 - Fora de escopo explícito nesta fase: acesso por valor (`p.campo`), escrita de campo, indexação operacional plena e campos não escalares.
 
+70 - indexação operacional em arrays
+- Indexação operacional mínima integrada ao pipeline até `--run` para **leitura por índice** em arrays no modelo de memória atual.
+- Superfície funcional desta fase: **leitura por índice** (escrita por índice não entrou nesta rodada).
+- Subset operacional desta fase: `(*ptr)[i]` com `ptr: seta<[bombom; N]>` e `i: bombom`.
+- Caminho de lowering desta fase: `Index` usa ponteiro base + índice como offset (unidades lógicas do runtime atual, sem escala adicional) + `deref_load`.
+- Relação com fases anteriores: reutiliza aritmética de ponteiros (Fase 68) e leitura indireta `deref_load` (Fase 66); mantém escrita indireta (Fase 67) sem estender para `arr[i] = ...`.
+- Fora de escopo explícito nesta fase: base por valor (`arr[i]`), escrita por índice, elementos não `bombom`, arrays gerais e checks sofisticados de bounds.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

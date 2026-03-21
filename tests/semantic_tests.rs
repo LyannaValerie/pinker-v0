@@ -426,7 +426,28 @@ fn indexacao_com_indice_nao_inteiro_falha() {
         carinho principal() -> bombom { mimo 0; }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("índice deve ser inteiro"));
+    assert!(err.contains("índice nesta fase deve ser 'bombom'"));
+}
+
+#[test]
+fn indexacao_com_base_deref_seta_array_bombom_valida() {
+    let code = r#"
+        pacote main;
+        carinho pega(a: seta<[bombom; 3]>, i: bombom) -> bombom { mimo (*a)[i]; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn indexacao_com_indice_signed_fora_do_subset_falha() {
+    let code = r#"
+        pacote main;
+        carinho pega(a: [bombom; 3], i: i32) -> bombom { mimo a[i]; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("índice nesta fase deve ser 'bombom'"));
 }
 
 #[test]

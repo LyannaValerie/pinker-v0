@@ -249,7 +249,35 @@ fn cfg_ir_cast_explicito_ainda_fora_do_escopo_operacional() {
         }
     "#;
     let err = render_cfg_ir(code).unwrap_err().to_string();
-    assert!(err.contains("ainda não lowera indexação/cast"));
+    assert!(err.contains("ainda não lowera cast"));
+}
+
+#[test]
+fn cfg_ir_indexacao_operacional_via_seta_array_bombom() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova base: seta<[bombom; 3]> = 1;
+            mimo (*base)[1];
+        }
+    "#;
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("add"), "{}", cfg);
+    assert!(cfg.contains(", 1:bombom"), "{}", cfg);
+    assert!(cfg.contains("deref %t"), "{}", cfg);
+}
+
+#[test]
+fn cfg_ir_indexacao_operacional_array_por_valor_ainda_fora_do_subset() {
+    let code = r#"
+        pacote main;
+        carinho pega(a: [bombom; 3]) -> bombom {
+            mimo a[1];
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = render_cfg_ir(code).unwrap_err().to_string();
+    assert!(err.contains("(*ptr)[i]"), "{}", err);
 }
 
 #[test]
