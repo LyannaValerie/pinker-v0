@@ -77,6 +77,11 @@ pub enum InstructionCfgIR {
         ptr: OperandIR,
         ty: TypeIR,
     },
+    DerefStore {
+        ptr: OperandIR,
+        value: OperandIR,
+        ty: TypeIR,
+    },
     Binary {
         dest: TempIR,
         op: BinaryOpIR,
@@ -331,6 +336,23 @@ impl FunctionLowerer {
                     .push(InstructionCfgIR::Assign {
                         slot: slot.clone(),
                         value: operand,
+                    });
+                Ok(next_current)
+            }
+            InstructionIR::StoreIndirect {
+                ptr,
+                value,
+                value_type,
+                span,
+            } => {
+                let (ptr, ptr_current) = self.lower_value_operand(ptr, current, *span)?;
+                let (value, next_current) = self.lower_value_operand(value, ptr_current, *span)?;
+                self.blocks[next_current]
+                    .instructions
+                    .push(InstructionCfgIR::DerefStore {
+                        ptr,
+                        value,
+                        ty: *value_type,
                     });
                 Ok(next_current)
             }
@@ -800,6 +822,12 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
             "{} = deref {}:{}",
             render_temp(*dest),
             render_operand(ptr),
+            ty.name()
+        ),
+        InstructionCfgIR::DerefStore { ptr, value, ty } => format!(
+            "deref_store {} <- {}:{}",
+            render_operand(ptr),
+            render_operand(value),
             ty.name()
         ),
         InstructionCfgIR::Call {

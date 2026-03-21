@@ -454,17 +454,36 @@ impl Block {
 
 #[derive(Debug, Clone)]
 pub struct AssignStmt {
-    pub name: String,
+    pub target: AssignTarget,
     pub expr: Expr,
     pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub enum AssignTarget {
+    Ident(String),
+    Deref(Box<Expr>),
 }
 
 impl AssignStmt {
     fn write_json(&self, writer: &mut JsonWriter<'_>) {
         writer.begin_object();
         writer.field_str("node", "AssignStmt");
-        writer.field_str("name", &self.name);
         writer.field_span("span", self.span);
+        writer.field_value("target", |writer| match &self.target {
+            AssignTarget::Ident(name) => {
+                writer.begin_object();
+                writer.field_str("node", "AssignTargetIdent");
+                writer.field_str("name", name);
+                writer.end_object();
+            }
+            AssignTarget::Deref(ptr) => {
+                writer.begin_object();
+                writer.field_str("node", "AssignTargetDeref");
+                writer.field_value("ptr", |writer| ptr.write_json(writer));
+                writer.end_object();
+            }
+        });
         writer.field_value("expr", |writer| self.expr.write_json(writer));
         writer.end_object();
     }

@@ -1,7 +1,7 @@
 mod common;
 
 use common::{parse, parse_and_check};
-use pinker_v0::ast::{ExprKind, Item, Stmt, Type};
+use pinker_v0::ast::{AssignTarget, ExprKind, Item, Stmt, Type};
 
 #[test]
 fn parser_de_funcao_simples() {
@@ -55,7 +55,10 @@ fn parser_de_atribuicao() {
     match &program.items[0] {
         Item::Function(function) => match &function.body.stmts[1] {
             Stmt::Assign(assign) => {
-                assert_eq!(assign.name, "x");
+                match &assign.target {
+                    AssignTarget::Ident(name) => assert_eq!(name, "x"),
+                    _ => panic!("assign deveria manter target identificador"),
+                }
                 assert_eq!(assign.span.start.line, 5);
             }
             _ => panic!("stmt esperado: assign"),
@@ -456,6 +459,30 @@ fn parser_aceita_dereferencia_de_leitura_com_asterisco_prefixo() {
             _ => panic!("retorno deveria ser expressão unária de dereferência"),
         },
         _ => panic!("stmt esperado: return"),
+    }
+}
+
+#[test]
+fn parser_aceita_atribuicao_indireta_com_deref_no_lado_esquerdo() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova p: seta<bombom> = 1;
+            *p = 9;
+            mimo *p;
+        }
+    "#;
+    let program = parse(source).expect("parser deve aceitar escrita indireta com *p = v");
+    let func = match &program.items[0] {
+        Item::Function(f) => f,
+        _ => panic!("item esperado: function"),
+    };
+    match &func.body.stmts[1] {
+        Stmt::Assign(assign) => match &assign.target {
+            AssignTarget::Deref(_) => {}
+            _ => panic!("target deveria ser dereferência"),
+        },
+        _ => panic!("stmt esperado: assign"),
     }
 }
 

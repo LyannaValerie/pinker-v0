@@ -63,6 +63,13 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         }
                         temps.insert(*dest);
                     }
+                    SelectedInstr::DerefStore { ptr, value, ty } => {
+                        check_operand(ptr, &slots, &temps, &globals)?;
+                        check_operand(value, &slots, &temps, &globals)?;
+                        if *ty == TypeIR::Nulo {
+                            return Err(err("selected deref_store não pode receber nulo"));
+                        }
+                    }
                     SelectedInstr::Add { dest, lhs, rhs }
                     | SelectedInstr::BitAnd { dest, lhs, rhs }
                     | SelectedInstr::BitOr { dest, lhs, rhs }

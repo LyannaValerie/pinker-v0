@@ -86,85 +86,96 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
     let functions = program
         .functions
         .iter()
-        .map(|f| BackendTextFunction {
-            name: f.name.clone(),
-            ret_type: f.ret_type,
-            params: f.params.iter().map(|p| p.slot.clone()).collect(),
-            locals: f.locals.iter().map(|l| l.slot.clone()).collect(),
-            blocks: f
+        .map(|f| -> Result<BackendTextFunction, PinkerError> {
+            let blocks = f
                 .blocks
                 .iter()
-                .map(|b| BackendTextBlock {
-                    label: b.label.clone(),
-                    instructions: b
+                .map(|b| -> Result<BackendTextBlock, PinkerError> {
+                    let instructions = b
                         .instructions
                         .iter()
                         .map(|i| match i {
                             InstructionCfgIR::Let { slot, value }
                             | InstructionCfgIR::Assign { slot, value } => {
-                                BackendTextInstruction::Mov {
+                                Ok(BackendTextInstruction::Mov {
                                     dest: slot.clone(),
                                     src: value.clone(),
-                                }
+                                })
                             }
                             InstructionCfgIR::Unary { dest, op, operand } => {
-                                BackendTextInstruction::Unary {
+                                Ok(BackendTextInstruction::Unary {
                                     dest: *dest,
                                     op: *op,
                                     operand: operand.clone(),
-                                }
+                                })
                             }
                             InstructionCfgIR::DerefLoad { dest, ptr, .. } => {
-                                BackendTextInstruction::Unary {
+                                Ok(BackendTextInstruction::Unary {
                                     dest: *dest,
                                     op: UnaryOpIR::Deref,
                                     operand: ptr.clone(),
-                                }
+                                })
                             }
+                            InstructionCfgIR::DerefStore { .. } => Err(PinkerError::Ir {
+                                msg: "backend textual ainda não lowera escrita indireta nesta fase"
+                                    .to_string(),
+                                span: crate::token::Span::single(crate::token::Position::new(1, 1)),
+                            }),
                             InstructionCfgIR::Binary { dest, op, lhs, rhs } => {
-                                BackendTextInstruction::Binary {
+                                Ok(BackendTextInstruction::Binary {
                                     dest: *dest,
                                     op: *op,
                                     lhs: lhs.clone(),
                                     rhs: rhs.clone(),
-                                }
+                                })
                             }
                             InstructionCfgIR::Call {
                                 dest,
                                 callee,
                                 args,
                                 ret_type,
-                            } => BackendTextInstruction::Call {
+                            } => Ok(BackendTextInstruction::Call {
                                 dest: *dest,
                                 callee: callee.clone(),
                                 args: args.clone(),
                                 ret_type: *ret_type,
-                            },
+                            }),
                             InstructionCfgIR::Falar { value, ty } => {
-                                BackendTextInstruction::Falar {
+                                Ok(BackendTextInstruction::Falar {
                                     value: value.clone(),
                                     ty: *ty,
-                                }
+                                })
                             }
                         })
-                        .collect(),
-                    terminator: match &b.terminator {
-                        TerminatorIR::Jump(label) => BackendTextTerminator::Jump(label.clone()),
-                        TerminatorIR::Branch {
-                            cond,
-                            then_label,
-                            else_label,
-                        } => BackendTextTerminator::Branch {
-                            cond: cond.clone(),
-                            then_label: then_label.clone(),
-                            else_label: else_label.clone(),
+                        .collect::<Result<Vec<_>, PinkerError>>()?;
+                    Ok(BackendTextBlock {
+                        label: b.label.clone(),
+                        instructions,
+                        terminator: match &b.terminator {
+                            TerminatorIR::Jump(label) => BackendTextTerminator::Jump(label.clone()),
+                            TerminatorIR::Branch {
+                                cond,
+                                then_label,
+                                else_label,
+                            } => BackendTextTerminator::Branch {
+                                cond: cond.clone(),
+                                then_label: then_label.clone(),
+                                else_label: else_label.clone(),
+                            },
+                            TerminatorIR::Return(v) => BackendTextTerminator::Return(v.clone()),
                         },
-                        TerminatorIR::Return(v) => BackendTextTerminator::Return(v.clone()),
-                    },
+                    })
                 })
-                .collect(),
+                .collect::<Result<Vec<_>, PinkerError>>()?;
+            Ok(BackendTextFunction {
+                name: f.name.clone(),
+                ret_type: f.ret_type,
+                params: f.params.iter().map(|p| p.slot.clone()).collect(),
+                locals: f.locals.iter().map(|l| l.slot.clone()).collect(),
+                blocks,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, PinkerError>>()?;
 
     Ok(BackendTextProgram {
         module_name: program.module_name.clone(),
@@ -189,22 +200,31 @@ pub fn lower_selected_program(
     let functions = selected
         .functions
         .iter()
-        .map(|f| BackendTextFunction {
-            name: f.name.clone(),
-            ret_type: f.ret_type,
-            params: f.params.clone(),
-            locals: f.locals.clone(),
-            blocks: f
+        .map(|f| -> Result<BackendTextFunction, PinkerError> {
+            let blocks = f
                 .blocks
                 .iter()
-                .map(|b| BackendTextBlock {
-                    label: b.label.clone(),
-                    instructions: b.instructions.iter().map(map_selected_instr).collect(),
-                    terminator: map_selected_term(&b.terminator),
+                .map(|b| -> Result<BackendTextBlock, PinkerError> {
+                    Ok(BackendTextBlock {
+                        label: b.label.clone(),
+                        instructions: b
+                            .instructions
+                            .iter()
+                            .map(map_selected_instr)
+                            .collect::<Result<Vec<_>, PinkerError>>()?,
+                        terminator: map_selected_term(&b.terminator),
+                    })
                 })
-                .collect(),
+                .collect::<Result<Vec<_>, PinkerError>>()?;
+            Ok(BackendTextFunction {
+                name: f.name.clone(),
+                ret_type: f.ret_type,
+                params: f.params.clone(),
+                locals: f.locals.clone(),
+                blocks,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, PinkerError>>()?;
 
     Ok(BackendTextProgram {
         module_name: selected.module_name.clone(),
@@ -214,144 +234,148 @@ pub fn lower_selected_program(
     })
 }
 
-fn map_selected_instr(i: &SelectedInstr) -> BackendTextInstruction {
+fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, PinkerError> {
     match i {
-        SelectedInstr::Mov { dest, src } => BackendTextInstruction::Mov {
+        SelectedInstr::Mov { dest, src } => Ok(BackendTextInstruction::Mov {
             dest: dest.clone(),
             src: src.clone(),
-        },
-        SelectedInstr::Neg { dest, operand } => BackendTextInstruction::Unary {
+        }),
+        SelectedInstr::Neg { dest, operand } => Ok(BackendTextInstruction::Unary {
             dest: *dest,
             op: UnaryOpIR::Neg,
             operand: operand.clone(),
-        },
-        SelectedInstr::Not { dest, operand } => BackendTextInstruction::Unary {
+        }),
+        SelectedInstr::Not { dest, operand } => Ok(BackendTextInstruction::Unary {
             dest: *dest,
             op: UnaryOpIR::Not,
             operand: operand.clone(),
-        },
-        SelectedInstr::DerefLoad { dest, ptr, .. } => BackendTextInstruction::Unary {
+        }),
+        SelectedInstr::DerefLoad { dest, ptr, .. } => Ok(BackendTextInstruction::Unary {
             dest: *dest,
             op: UnaryOpIR::Deref,
             operand: ptr.clone(),
-        },
-        SelectedInstr::BitAnd { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::DerefStore { .. } => Err(PinkerError::Ir {
+            msg: "backend textual ainda não lowera escrita indireta nesta fase".to_string(),
+            span: crate::token::Span::single(crate::token::Position::new(1, 1)),
+        }),
+        SelectedInstr::BitAnd { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::BitAnd,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
-        SelectedInstr::BitOr { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::BitOr { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::BitOr,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
-        SelectedInstr::BitXor { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::BitXor { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::BitXor,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
-        SelectedInstr::Shl { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::Shl { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Shl,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
-        SelectedInstr::Shr { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::Shr { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Shr,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
-        SelectedInstr::Add { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::Add { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Add,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
-        SelectedInstr::Sub { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::Sub { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Sub,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
-        SelectedInstr::Mul { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::Mul { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Mul,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
-        SelectedInstr::Div { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::Div { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Div,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
-        SelectedInstr::Mod { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::Mod { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Mod,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
-        SelectedInstr::CmpEq { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::CmpEq { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Eq,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
-        SelectedInstr::CmpNe { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::CmpNe { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Neq,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
-        SelectedInstr::CmpLt { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::CmpLt { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Lt,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
-        SelectedInstr::CmpLe { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::CmpLe { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Lte,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
-        SelectedInstr::CmpGt { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::CmpGt { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Gt,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
-        SelectedInstr::CmpGe { dest, lhs, rhs } => BackendTextInstruction::Binary {
+        }),
+        SelectedInstr::CmpGe { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Gte,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
-        },
+        }),
         SelectedInstr::Call {
             dest,
             callee,
             args,
             ret_type,
-        } => BackendTextInstruction::Call {
+        } => Ok(BackendTextInstruction::Call {
             dest: Some(*dest),
             callee: callee.clone(),
             args: args.clone(),
             ret_type: *ret_type,
-        },
-        SelectedInstr::CallVoid { callee, args } => BackendTextInstruction::Call {
+        }),
+        SelectedInstr::CallVoid { callee, args } => Ok(BackendTextInstruction::Call {
             dest: None,
             callee: callee.clone(),
             args: args.clone(),
             ret_type: TypeIR::Nulo,
-        },
-        SelectedInstr::Falar { value, ty } => BackendTextInstruction::Falar {
+        }),
+        SelectedInstr::Falar { value, ty } => Ok(BackendTextInstruction::Falar {
             value: value.clone(),
             ty: *ty,
-        },
+        }),
     }
 }
 

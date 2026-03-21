@@ -645,43 +645,88 @@ impl SemanticChecker {
                         &assign_stmt.expr,
                         "resultado de função sem retorno não pode ser usado em atribuição",
                     )?;
+                    match &assign_stmt.target {
+                        AssignTarget::Ident(name) => {
+                            let Some(var_meta) = self.resolve_var(name) else {
+                                return Err(PinkerError::Semantic {
+                                    msg: format!(
+                                        "variável '{}' não declarada para atribuição",
+                                        name
+                                    ),
+                                    span: assign_stmt.span,
+                                });
+                            };
 
-                    let Some(var_meta) = self.resolve_var(&assign_stmt.name) else {
-                        return Err(PinkerError::Semantic {
-                            msg: format!(
-                                "variável '{}' não declarada para atribuição",
-                                assign_stmt.name
-                            ),
-                            span: assign_stmt.span,
-                        });
-                    };
+                            if !var_meta.is_mut {
+                                return Err(PinkerError::Semantic {
+                                    msg: format!("reatribuição inválida: '{}' não é mutável", name),
+                                    span: assign_stmt.span,
+                                });
+                            }
 
-                    if !var_meta.is_mut {
-                        return Err(PinkerError::Semantic {
-                            msg: format!(
-                                "reatribuição inválida: '{}' não é mutável",
-                                assign_stmt.name
-                            ),
-                            span: assign_stmt.span,
-                        });
+                            if !Self::check_expected_type_for_expr(
+                                &var_meta.ty,
+                                &value_ty,
+                                &assign_stmt.expr,
+                            ) {
+                                return Err(PinkerError::Semantic {
+                                    msg: format!(
+                                        "tipo incompatível na atribuição para '{}': esperado '{}', encontrado '{}'",
+                                        name,
+                                        var_meta.ty.name(),
+                                        value_ty.name()
+                                    ),
+                                    span: assign_stmt.expr.span,
+                                });
+                            }
+                            Self::validate_int_literal_range(&var_meta.ty, &assign_stmt.expr)?;
+                        }
+                        AssignTarget::Deref(ptr_expr) => {
+                            let ptr_ty = self.check_value_expr(
+                                ptr_expr,
+                                "resultado de função sem retorno não pode ser usado como ponteiro de escrita indireta",
+                            )?;
+                            let expected_value_ty = match ptr_ty {
+                                Type::Pointer { base, .. }
+                                    if matches!(base.as_ref(), Type::Bombom(_)) =>
+                                {
+                                    Type::Bombom(ptr_expr.span)
+                                }
+                                Type::Pointer { .. } => {
+                                    return Err(PinkerError::Semantic {
+                                        msg: "escrita indireta nesta fase aceita apenas 'seta<bombom>'".to_string(),
+                                        span: ptr_expr.span,
+                                    });
+                                }
+                                _ => {
+                                    return Err(PinkerError::Semantic {
+                                        msg: "escrita indireta requer operando do tipo 'seta<T>'"
+                                            .to_string(),
+                                        span: ptr_expr.span,
+                                    });
+                                }
+                            };
+
+                            if !Self::check_expected_type_for_expr(
+                                &expected_value_ty,
+                                &value_ty,
+                                &assign_stmt.expr,
+                            ) {
+                                return Err(PinkerError::Semantic {
+                                    msg: format!(
+                                        "tipo incompatível na escrita indireta: esperado '{}', encontrado '{}'",
+                                        expected_value_ty.name(),
+                                        value_ty.name()
+                                    ),
+                                    span: assign_stmt.expr.span,
+                                });
+                            }
+                            Self::validate_int_literal_range(
+                                &expected_value_ty,
+                                &assign_stmt.expr,
+                            )?;
+                        }
                     }
-
-                    if !Self::check_expected_type_for_expr(
-                        &var_meta.ty,
-                        &value_ty,
-                        &assign_stmt.expr,
-                    ) {
-                        return Err(PinkerError::Semantic {
-                            msg: format!(
-                                "tipo incompatível na atribuição para '{}': esperado '{}', encontrado '{}'",
-                                assign_stmt.name,
-                                var_meta.ty.name(),
-                                value_ty.name()
-                            ),
-                            span: assign_stmt.expr.span,
-                        });
-                    }
-                    Self::validate_int_literal_range(&var_meta.ty, &assign_stmt.expr)?;
                 }
                 Stmt::If(if_stmt) => {
                     let cond_ty = self.check_value_expr(

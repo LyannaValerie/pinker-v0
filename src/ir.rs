@@ -11,9 +11,9 @@
 //!   `semantic` → **`ir`** → `ir_validate` → `cfg_ir`
 
 use crate::ast::{
-    BinaryOp, Block, BreakStmt, ConstDecl, ContinueStmt, ElseBlock, Expr, ExprKind, FalarStmt,
-    FunctionDecl, IfStmt, InlineAsmStmt, Item, LetStmt, Program, ReturnStmt, Stmt, StructDecl,
-    Type, UnaryOp, WhileStmt,
+    AssignTarget, BinaryOp, Block, BreakStmt, ConstDecl, ContinueStmt, ElseBlock, Expr, ExprKind,
+    FalarStmt, FunctionDecl, IfStmt, InlineAsmStmt, Item, LetStmt, Program, ReturnStmt, Stmt,
+    StructDecl, Type, UnaryOp, WhileStmt,
 };
 use crate::error::PinkerError;
 use crate::layout;
@@ -87,6 +87,12 @@ pub enum InstructionIR {
     Assign {
         slot: String,
         value: ValueIR,
+        span: Span,
+    },
+    StoreIndirect {
+        ptr: ValueIR,
+        value: ValueIR,
+        value_type: TypeIR,
         span: Span,
     },
     Expr {
@@ -510,13 +516,26 @@ impl<'a> FunctionLowerer<'a> {
         match stmt {
             Stmt::Let(let_stmt) => self.lower_let(let_stmt),
             Stmt::Assign(assign_stmt) => {
-                let binding = self.resolve_binding(&assign_stmt.name, assign_stmt.span)?;
-                let value = self.lower_value(&assign_stmt.expr)?.value;
-                Ok(InstructionIR::Assign {
-                    slot: binding.slot,
-                    value,
-                    span: assign_stmt.span,
-                })
+                let value = self.lower_value(&assign_stmt.expr)?;
+                match &assign_stmt.target {
+                    AssignTarget::Ident(name) => {
+                        let binding = self.resolve_binding(name, assign_stmt.span)?;
+                        Ok(InstructionIR::Assign {
+                            slot: binding.slot,
+                            value: value.value,
+                            span: assign_stmt.span,
+                        })
+                    }
+                    AssignTarget::Deref(ptr_expr) => {
+                        let ptr = self.lower_value(ptr_expr)?;
+                        Ok(InstructionIR::StoreIndirect {
+                            ptr: ptr.value,
+                            value: value.value,
+                            value_type: value.ty,
+                            span: assign_stmt.span,
+                        })
+                    }
+                }
             }
             Stmt::Return(return_stmt) => self.lower_return(return_stmt),
             Stmt::Expr(expr) => Ok(InstructionIR::Expr {
@@ -1087,6 +1106,17 @@ fn render_instruction(instruction: &InstructionIR, indent: usize, out: &mut Stri
                 out,
                 indent,
                 &format!("assign {} = {}", slot, render_value(value)),
+            );
+        }
+        InstructionIR::StoreIndirect { ptr, value, .. } => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "store_indirect {} <- {}",
+                    render_value(ptr),
+                    render_value(value)
+                ),
             );
         }
         InstructionIR::Expr { value, .. } => {

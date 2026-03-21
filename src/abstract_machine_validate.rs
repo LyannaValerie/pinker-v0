@@ -353,6 +353,32 @@ fn apply_instr_effect(
             }
             stack.push(type_to_stack(*ty));
         }
+        MachineInstr::DerefStore { ty } => {
+            let pair = pop_typed(
+                f,
+                label,
+                stack,
+                2,
+                "underflow em deref_store",
+                Some("instr='deref_store'"),
+            )?;
+            if pair[0] == StackValueType::Logica {
+                return Err(err_ctx_with_detail(
+                    f,
+                    Some(label),
+                    "deref_store exige ponteiro/inteiro de endereço",
+                    Some("instr='deref_store'"),
+                ));
+            }
+            ensure_compatible(
+                f,
+                label,
+                pair[1],
+                type_to_stack(*ty),
+                "deref_store com valor incompatível",
+                Some("instr='deref_store'"),
+            )?;
+        }
         MachineInstr::Add
         | MachineInstr::BitAnd
         | MachineInstr::BitOr
@@ -617,6 +643,7 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::Neg => "neg",
         MachineInstr::Not => "not",
         MachineInstr::DerefLoad { .. } => "deref_load",
+        MachineInstr::DerefStore { .. } => "deref_store",
         MachineInstr::BitAnd => "bitand",
         MachineInstr::BitOr => "bitor",
         MachineInstr::BitXor => "bitxor",
