@@ -41,8 +41,16 @@ pub enum RuntimeValue {
 
 pub fn run_program(program: &MachineProgram) -> Result<Option<RuntimeValue>, PinkerError> {
     let globals = build_globals(program)?;
+    let memory = build_memory(program, &globals)?;
     let mut call_stack = Vec::new();
-    call_function("principal", vec![], program, &globals, &mut call_stack)
+    call_function(
+        "principal",
+        vec![],
+        program,
+        &globals,
+        &memory,
+        &mut call_stack,
+    )
 }
 
 fn build_globals(program: &MachineProgram) -> Result<HashMap<String, RuntimeValue>, PinkerError> {
@@ -66,6 +74,36 @@ fn eval_global_value(g: &MachineGlobal) -> Result<RuntimeValue, PinkerError> {
     }
 }
 
+fn build_memory(
+    program: &MachineProgram,
+    globals: &HashMap<String, RuntimeValue>,
+) -> Result<HashMap<usize, RuntimeValue>, PinkerError> {
+    let mut memory = HashMap::new();
+    let mut next_addr: usize = 1;
+    for g in &program.globals {
+        match g.ty {
+            crate::ir::TypeIR::Bombom
+            | crate::ir::TypeIR::U8
+            | crate::ir::TypeIR::U16
+            | crate::ir::TypeIR::U32
+            | crate::ir::TypeIR::U64
+            | crate::ir::TypeIR::I8
+            | crate::ir::TypeIR::I16
+            | crate::ir::TypeIR::I32
+            | crate::ir::TypeIR::I64
+            | crate::ir::TypeIR::Logica => {
+                let value = *globals
+                    .get(&g.name)
+                    .ok_or_else(|| runtime_err("global inexistente em runtime"))?;
+                memory.insert(next_addr, value);
+                next_addr = next_addr.saturating_add(1);
+            }
+            _ => {}
+        }
+    }
+    Ok(memory)
+}
+
 // Executa uma função pelo nome com os argumentos fornecidos.
 // O call_stack acumula os nomes ativos para montar o stack trace em erros.
 // Retorna `None` para funções void, `Some(valor)` caso contrário.
@@ -74,6 +112,7 @@ fn call_function(
     args: Vec<RuntimeValue>,
     program: &MachineProgram,
     globals: &HashMap<String, RuntimeValue>,
+    memory: &HashMap<usize, RuntimeValue>,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<Option<RuntimeValue>, PinkerError> {
     if call_stack.len() >= MAX_CALL_DEPTH {
@@ -132,7 +171,9 @@ fn call_function(
 
             for instr in &block.code {
                 set_current_instr(call_stack, Some(machine_instr_name(instr)));
-                exec_instr(instr, &mut slots, &mut stack, program, globals, call_stack)?;
+                exec_instr(
+                    instr, &mut slots, &mut stack, program, globals, memory, call_stack,
+                )?;
                 set_current_instr(call_stack, None);
             }
 
@@ -184,6 +225,7 @@ fn exec_instr(
     stack: &mut Vec<RuntimeValue>,
     program: &MachineProgram,
     globals: &HashMap<String, RuntimeValue>,
+    memory: &HashMap<usize, RuntimeValue>,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<(), PinkerError> {
     match instr {
@@ -224,6 +266,18 @@ fn exec_instr(
         MachineInstr::Not => {
             let value = pop_bool(stack, "not exige lógica no topo")?;
             stack.push(RuntimeValue::Bool(!value));
+        }
+        MachineInstr::DerefLoad { .. } => {
+            let ptr = pop(stack, "deref_load exige ponteiro no topo")?;
+            let RuntimeValue::Ptr(addr) = ptr else {
+                return Err(runtime_err("deref_load exige ponteiro no topo"));
+            };
+            let Some(value) = memory.get(&addr).copied() else {
+                return Err(runtime_err(
+                    "deref_load em endereço inválido ou não inicializado",
+                ));
+            };
+            stack.push(value);
         }
         MachineInstr::BitAnd => {
             let (lhs, rhs) = pop_bin_numeric(stack, "bitand exige dois inteiros")?;
@@ -346,7 +400,7 @@ fn exec_instr(
         }
         MachineInstr::Call { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = call_function(callee, args, program, globals, call_stack)?;
+            let result = call_function(callee, args, program, globals, memory, call_stack)?;
             let Some(value) = result else {
                 return Err(runtime_err("call exige função com retorno"));
             };
@@ -354,7 +408,7 @@ fn exec_instr(
         }
         MachineInstr::CallVoid { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = call_function(callee, args, program, globals, call_stack)?;
+            let result = call_function(callee, args, program, globals, memory, call_stack)?;
             if result.is_some() {
                 return Err(runtime_err("call_void exige função sem retorno"));
             }
@@ -683,6 +737,7 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::StoreSlot(_) => "store_slot",
         MachineInstr::Neg => "neg",
         MachineInstr::Not => "not",
+        MachineInstr::DerefLoad { .. } => "deref_load",
         MachineInstr::BitAnd => "bitand",
         MachineInstr::BitOr => "bitor",
         MachineInstr::BitXor => "bitxor",

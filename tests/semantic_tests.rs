@@ -748,6 +748,32 @@ fn fragil_em_tipo_nao_seta_e_invalido() {
 }
 
 #[test]
+fn dereferencia_seta_bombom_valida_nesta_fase() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova p: seta<bombom> = 1;
+            mimo *p;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn dereferencia_seta_nao_bombom_falha_nesta_fase() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova p: seta<u8> = 1;
+            nova _x: u8 = *p;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("apenas 'seta<bombom>'"), "{}", err);
+}
+
+#[test]
 fn ninho_falha_com_campo_duplicado() {
     let code = r#"
         pacote main;

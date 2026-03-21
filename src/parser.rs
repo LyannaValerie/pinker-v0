@@ -613,7 +613,10 @@ impl Parser {
 
     fn parse_expr_unary(&mut self) -> Result<Expr, PinkerError> {
         if let Some(token) = self.peek() {
-            if token.kind == TokenKind::Minus || token.kind == TokenKind::Bang {
+            if token.kind == TokenKind::Minus
+                || token.kind == TokenKind::Bang
+                || token.kind == TokenKind::Star
+            {
                 let op_span = token.span;
                 let token_kind = token.kind;
                 self.advance();
@@ -623,8 +626,10 @@ impl Parser {
                     kind: ExprKind::Unary(
                         if token_kind == TokenKind::Minus {
                             UnaryOp::Neg
-                        } else {
+                        } else if token_kind == TokenKind::Bang {
                             UnaryOp::Not
+                        } else {
+                            UnaryOp::Deref
                         },
                         Box::new(operand),
                     ),

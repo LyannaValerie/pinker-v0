@@ -301,6 +301,39 @@ fn run_seta_tem_repr_minima_no_runtime_em_global() {
 }
 
 #[test]
+fn run_dereferencia_de_leitura_via_seta_bombom() {
+    let out = run_code(
+        "pacote main;
+         eterno BASE: bombom = 77;
+         carinho ler(p: seta<bombom>) -> bombom { mimo *p; }
+         carinho principal() -> bombom {
+             nova p: seta<bombom> = 1;
+             mimo ler(p);
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(77)));
+}
+
+#[test]
+fn run_dereferencia_falha_com_endereco_invalido() {
+    let err = run_code(
+        "pacote main;
+         eterno BASE: bombom = 77;
+         carinho principal() -> bombom {
+             nova p: seta<bombom> = 99;
+             mimo *p;
+         }",
+    )
+    .unwrap_err();
+    assert!(
+        err.contains("deref_load em endereço inválido ou não inicializado"),
+        "mensagem: {}",
+        err
+    );
+}
+
+#[test]
 fn run_falha_quando_usa_ponteiro_em_operacao_inteira_nao_suportada() {
     let mut slot_types = HashMap::new();
     slot_types.insert(
@@ -1566,6 +1599,33 @@ fn cli_check_boot_entry_livre_sem_principal_falha_com_exemplo_versionado() {
     assert!(
         stderr.contains("boot entry desta fase em modo `livre`"),
         "stderr: {}",
+        stderr
+    );
+}
+
+#[test]
+fn cli_run_dereferencia_leitura_funciona_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase66_deref_leitura_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("77"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_check_dereferencia_seta_u8_falha_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/fase66_deref_seta_u8_invalido.pink");
+    assert!(
+        !output.status.success(),
+        "esperava falha semântica para deref fora do subset"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("apenas 'seta<bombom>'"),
+        "mensagem inesperada: {}",
         stderr
     );
 }

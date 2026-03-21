@@ -56,6 +56,13 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         check_operand(operand, &slots, &temps, &globals)?;
                         temps.insert(*dest);
                     }
+                    SelectedInstr::DerefLoad { dest, ptr, ty } => {
+                        check_operand(ptr, &slots, &temps, &globals)?;
+                        if *ty == TypeIR::Nulo {
+                            return Err(err("selected deref_load não pode retornar nulo"));
+                        }
+                        temps.insert(*dest);
+                    }
                     SelectedInstr::Add { dest, lhs, rhs }
                     | SelectedInstr::BitAnd { dest, lhs, rhs }
                     | SelectedInstr::BitOr { dest, lhs, rhs }

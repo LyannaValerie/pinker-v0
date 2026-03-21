@@ -437,6 +437,29 @@ fn parser_aceita_cast_explicito_com_virar() {
 }
 
 #[test]
+fn parser_aceita_dereferencia_de_leitura_com_asterisco_prefixo() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova p: seta<bombom> = 1;
+            mimo *p;
+        }
+    "#;
+    let program = parse(source).expect("parser deve aceitar dereferência de leitura");
+    let func = match &program.items[0] {
+        Item::Function(f) => f,
+        _ => panic!("item esperado: function"),
+    };
+    match &func.body.stmts[1] {
+        Stmt::Return(ret) => match ret.expr.as_ref().map(|e| &e.kind) {
+            Some(ExprKind::Unary(_, _)) => {}
+            _ => panic!("retorno deveria ser expressão unária de dereferência"),
+        },
+        _ => panic!("stmt esperado: return"),
+    }
+}
+
+#[test]
 fn parser_aceita_peso_e_alinhamento_de_tipo() {
     let code = r#"
         pacote main;

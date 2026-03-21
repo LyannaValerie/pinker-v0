@@ -140,6 +140,10 @@ pub enum ValueIR {
         op: UnaryOpIR,
         operand: Box<ValueIR>,
     },
+    Deref {
+        ptr: Box<ValueIR>,
+        result_type: TypeIR,
+    },
     Binary {
         op: BinaryOpIR,
         lhs: Box<ValueIR>,
@@ -205,6 +209,7 @@ pub enum ScalarTypeIR {
 pub enum UnaryOpIR {
     Neg,
     Not,
+    Deref,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -704,6 +709,23 @@ impl<'a> FunctionLowerer<'a> {
             }
             ExprKind::Unary(op, operand) => {
                 let operand = self.lower_value(operand)?;
+                if *op == UnaryOp::Deref {
+                    let TypeIR::Pointer { .. } = operand.ty else {
+                        return Err(PinkerError::Ir {
+                            msg: "dereferência exige operando do tipo seta no lowering IR"
+                                .to_string(),
+                            span: expr.span,
+                        });
+                    };
+                    return Ok(TypedValueIR {
+                        value: ValueIR::Deref {
+                            ptr: Box::new(operand.value),
+                            result_type: TypeIR::Bombom,
+                        },
+                        ty: TypeIR::Bombom,
+                        struct_name: None,
+                    });
+                }
                 Ok(TypedValueIR {
                     value: ValueIR::Unary {
                         op: UnaryOpIR::from_ast(*op),
@@ -712,6 +734,7 @@ impl<'a> FunctionLowerer<'a> {
                     ty: match op {
                         UnaryOp::Neg => operand.ty,
                         UnaryOp::Not => TypeIR::Logica,
+                        UnaryOp::Deref => unreachable!("deref tratada acima"),
                     },
                     struct_name: None,
                 })
@@ -1125,6 +1148,7 @@ fn render_value(value: &ValueIR) -> String {
         ValueIR::Bool(value) => format!("{}:logica", if *value { "verdade" } else { "falso" }),
         ValueIR::String(value) => format!("\"{}\":verso", value),
         ValueIR::Unary { op, operand } => format!("{}({})", op.name(), render_value(operand)),
+        ValueIR::Deref { ptr, .. } => format!("deref({})", render_value(ptr)),
         ValueIR::Binary { op, lhs, rhs } => {
             format!(
                 "{}({}, {})",
@@ -1371,6 +1395,7 @@ impl UnaryOpIR {
         match op {
             UnaryOp::Neg => UnaryOpIR::Neg,
             UnaryOp::Not => UnaryOpIR::Not,
+            UnaryOp::Deref => UnaryOpIR::Deref,
         }
     }
 
@@ -1378,6 +1403,7 @@ impl UnaryOpIR {
         match self {
             UnaryOpIR::Neg => "neg",
             UnaryOpIR::Not => "not",
+            UnaryOpIR::Deref => "deref",
         }
     }
 }

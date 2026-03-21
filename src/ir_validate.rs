@@ -357,11 +357,25 @@ fn infer_value_type(
             match op {
                 UnaryOpIR::Neg if op_ty.is_integer() => Ok(op_ty),
                 UnaryOpIR::Not if op_ty == TypeIR::Logica => Ok(TypeIR::Logica),
+                UnaryOpIR::Deref => Err(ir_validation_error(
+                    "deref deve usar nó dedicado na IR desta fase",
+                    span,
+                )),
                 _ => Err(ir_validation_error(
                     "operação unária com operando inválido",
                     span,
                 )),
             }
+        }
+        ValueIR::Deref { ptr, result_type } => {
+            let ptr_ty = infer_value_type(ptr, slots, consts, funcs, span)?;
+            if !matches!(ptr_ty, TypeIR::Pointer { .. }) {
+                return Err(ir_validation_error(
+                    "deref exige operando ponteiro na IR",
+                    span,
+                ));
+            }
+            Ok(*result_type)
         }
         ValueIR::Binary { op, lhs, rhs } => {
             let lhs_ty = infer_value_type(lhs, slots, consts, funcs, span)?;
@@ -497,6 +511,7 @@ fn ir_validation_error(msg: &str, span: Span) -> PinkerError {
 fn value_matches_expected(value: &ValueIR, actual: TypeIR, expected: TypeIR) -> bool {
     actual.is_compatible_with(expected)
         || (matches!(value, ValueIR::Int(_)) && expected.is_integer())
+        || (matches!(value, ValueIR::Int(_)) && matches!(expected, TypeIR::Pointer { .. }))
 }
 
 fn ir_validation_error_ctx(

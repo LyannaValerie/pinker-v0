@@ -354,6 +354,7 @@ fn render_unary(op: UnaryOpIR) -> &'static str {
     match op {
         UnaryOpIR::Neg => "neg",
         UnaryOpIR::Not => "not",
+        UnaryOpIR::Deref => "deref",
     }
 }
 

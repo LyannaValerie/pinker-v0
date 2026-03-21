@@ -321,6 +321,17 @@ fn validate_block(
                 };
                 temp_types.insert(*dest, result);
             }
+            InstructionCfgIR::DerefLoad { dest, ptr, ty } => {
+                let ptr_ty =
+                    infer_operand_type(ptr, slot_types, &temp_types, global_consts, function.span)?;
+                if !matches!(ptr_ty, TypeIR::Pointer { .. }) {
+                    return Err(cfg_error(
+                        "deref_load exige operando do tipo ponteiro",
+                        function.span,
+                    ));
+                }
+                temp_types.insert(*dest, *ty);
+            }
             InstructionCfgIR::Binary { dest, op, lhs, rhs } => {
                 let lhs_ty =
                     infer_operand_type(lhs, slot_types, &temp_types, global_consts, function.span)?;
@@ -587,6 +598,7 @@ fn cfg_error_ctx(
 fn operand_matches_expected(operand: &OperandIR, actual: TypeIR, expected: TypeIR) -> bool {
     actual.is_compatible_with(expected)
         || (matches!(operand, OperandIR::Int(_)) && expected.is_integer())
+        || (matches!(operand, OperandIR::Int(_)) && matches!(expected, TypeIR::Pointer { .. }))
 }
 
 fn default_span() -> Span {
