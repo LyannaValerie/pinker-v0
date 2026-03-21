@@ -281,6 +281,7 @@ impl SemanticChecker {
 
     fn check_expected_type_for_expr(expected: &Type, actual: &Type, expr: &Expr) -> bool {
         Self::check_type_match(expected, actual)
+            || matches!(expected, Type::Pointer { .. }) && Self::expr_is_int_literal(expr)
             || (Self::is_integer_type(expected) && Self::expr_is_int_literal(expr))
     }
 
@@ -1084,6 +1085,19 @@ impl SemanticChecker {
                             })
                         }
                     }
+                    UnaryOp::Deref => match inner_ty {
+                        Type::Pointer { base, .. } if matches!(base.as_ref(), Type::Bombom(_)) => {
+                            Ok(Type::Bombom(expr.span))
+                        }
+                        Type::Pointer { .. } => Err(PinkerError::Semantic {
+                            msg: "dereferência nesta fase aceita apenas 'seta<bombom>'".to_string(),
+                            span: expr.span,
+                        }),
+                        _ => Err(PinkerError::Semantic {
+                            msg: "dereferência requer operando do tipo 'seta<T>'".to_string(),
+                            span: expr.span,
+                        }),
+                    },
                 }
             }
         }

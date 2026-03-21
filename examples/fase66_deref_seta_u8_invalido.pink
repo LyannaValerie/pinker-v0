@@ -1,0 +1,7 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova p: seta<u8> = 1;
+    nova x: u8 = *p;
+    mimo x;
+}

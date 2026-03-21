@@ -49,6 +49,11 @@ pub enum SelectedInstr {
         dest: crate::cfg_ir::TempIR,
         operand: OperandIR,
     },
+    DerefLoad {
+        dest: crate::cfg_ir::TempIR,
+        ptr: OperandIR,
+        ty: TypeIR,
+    },
     BitAnd {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
@@ -240,6 +245,17 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
                 dest: *dest,
                 operand: operand.clone(),
             },
+            UnaryOpIR::Deref => {
+                return Err(PinkerError::Ir {
+                    msg: "deref deve ser lowered como deref_load na CFG".to_string(),
+                    span: crate::token::Span::single(crate::token::Position::new(1, 1)),
+                });
+            }
+        }),
+        InstructionCfgIR::DerefLoad { dest, ptr, ty } => Ok(SelectedInstr::DerefLoad {
+            dest: *dest,
+            ptr: ptr.clone(),
+            ty: *ty,
         }),
         InstructionCfgIR::Binary { dest, op, lhs, rhs } => Ok(match op {
             BinaryOpIR::LogicalAnd | BinaryOpIR::LogicalOr => {
@@ -434,6 +450,12 @@ fn render_instr(inst: &SelectedInstr) -> String {
         SelectedInstr::Not { dest, operand } => {
             format!("not {}, {}", render_temp(*dest), render_operand(operand))
         }
+        SelectedInstr::DerefLoad { dest, ptr, ty } => format!(
+            "deref_load {}, {}, {}",
+            render_temp(*dest),
+            render_operand(ptr),
+            ty.name()
+        ),
         SelectedInstr::BitAnd { dest, lhs, rhs } => format!(
             "bitand {}, {}, {}",
             render_temp(*dest),

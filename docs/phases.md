@@ -175,6 +175,12 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 65 - representação mínima de ponteiro no runtime
 - Runtime passou a diferenciar ponteiro (`Ptr`) de inteiro escalar.
 
+66 - dereferência de leitura
+- Sintaxe de leitura indireta `*expr` integrada ao frontend/semântica/IR/CFG/selected/Machine/runtime.
+- Subset operacional desta fase: apenas `seta<bombom>`; demais bases de ponteiro seguem fora de escopo.
+- Runtime ganhou `deref_load` com memória abstrata mínima baseada em endereços de globals escalares (`eterno`) para suportar `--run`.
+- Literais inteiros passaram a ser aceitos como endereço para inicialização de `seta<T>` nesta fase bootstrap.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
@@ -224,4 +230,3 @@ Doc-9 - revisão documental operacional da reestruturação
 - Auditoria de coerência entre `roadmap.md`, `future.md`, `parallel.md`, `phases.md`, `agent_state.md`, `handoff_codex.md` e `README.md`.
 - Validação de precedência documental e continuidade histórica sem abrir nova fase funcional.
 - Ajuste textual mínimo em `parallel.md` para correção de digitação, sem impacto operacional.
-

@@ -1,28 +1,33 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Doc-9 — revisão documental operacional da reestruturação**.
-- Rodada documental de auditoria de coerência e precedência, sem alteração funcional em Rust/testes/exemplos.
+- **Fase 66 — dereferência de leitura**.
+- Rodada funcional do Bloco 6, mantendo a trilha principal após a Fase 65.
 
 ## 2. O que entrou na rodada atual
-- Revisão cruzada entre `roadmap.md`, `future.md`, `parallel.md`, `phases.md`, `agent_state.md`, `handoff_codex.md`, `doc_rules.md` e `README.md`.
-- Confirmação de precedência: `roadmap` (trilha ativa) > `future` (inventário amplo) > `parallel` (visão orientadora), sem conflito operacional novo.
-- Confirmação de `phases.md` como crônica histórica única e de `agent_state.md`/`handoff_codex.md` em formato enxuto.
-- Correção textual mínima em `parallel.md` (digitação), sem impacto de escopo ou timeline.
+- Sintaxe de dereferência de leitura `*expr` no frontend.
+- Validação semântica para dereferência no subset da fase: apenas `seta<bombom>`.
+- Lowering operacional em IR/CFG/selected/Machine/runtime com instrução dedicada (`deref_load`).
+- Runtime com memória abstrata mínima de leitura indireta baseada em endereços de globals escalares (`eterno`) para permitir execução em `--run`.
+- Aceite de literal inteiro como endereço de bootstrap para inicializar `seta<T>` nesta fase.
+- Novos testes positivos/negativos e exemplos versionados da Fase 66.
 
 ## 3. Fora de escopo da rodada atual
-- Qualquer mudança funcional de compilador/runtime/backend.
-- Alterações em testes, exemplos `.pink` e ordem ativa do roadmap.
-- Conversão de `future.md` em roadmap ou de `parallel.md` em backlog técnico.
+- Escrita indireta (`*p = v`).
+- Aritmética de ponteiros.
+- Acesso operacional de campo/index por ponteiro.
+- Efeito operacional robusto de `fragil` (MMIO/barreiras).
+- Backend nativo real de memória/ponteiros.
 
 ## 4. Próximo item normal
 - Trilha ativa: **Bloco 6 — Memória operacional**.
-- Próximo item funcional normal: **dereferência de leitura (item B.3 do Bloco 6)**.
+- Próximo item funcional normal sugerido: **escrita indireta via ponteiro (item B.4 do Bloco 6)**.
 
 ## 5. Observações operacionais curtas
-- Fase funcional atual permanece **65**; fase funcional anterior permanece **64**.
-- Hotfix extraordinário registrado: **HF-1 (Fase 48-H1)**.
-- Histórico detalhado permanece centralizado em `docs/phases.md`.
+- Fase funcional atual: **66**.
+- Fase funcional anterior: **65**.
+- Hotfix extraordinário preservado: **HF-1 (Fase 48-H1)**.
+- Rodadas documentais seguem sem numeração de fase funcional.
 
 ## 6. Precedência documental resumida
 - Código mergeado prevalece sobre documentação.

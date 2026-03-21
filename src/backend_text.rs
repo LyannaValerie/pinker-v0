@@ -114,6 +114,13 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                                     operand: operand.clone(),
                                 }
                             }
+                            InstructionCfgIR::DerefLoad { dest, ptr, .. } => {
+                                BackendTextInstruction::Unary {
+                                    dest: *dest,
+                                    op: UnaryOpIR::Deref,
+                                    operand: ptr.clone(),
+                                }
+                            }
                             InstructionCfgIR::Binary { dest, op, lhs, rhs } => {
                                 BackendTextInstruction::Binary {
                                     dest: *dest,
@@ -222,6 +229,11 @@ fn map_selected_instr(i: &SelectedInstr) -> BackendTextInstruction {
             dest: *dest,
             op: UnaryOpIR::Not,
             operand: operand.clone(),
+        },
+        SelectedInstr::DerefLoad { dest, ptr, .. } => BackendTextInstruction::Unary {
+            dest: *dest,
+            op: UnaryOpIR::Deref,
+            operand: ptr.clone(),
         },
         SelectedInstr::BitAnd { dest, lhs, rhs } => BackendTextInstruction::Binary {
             dest: *dest,
@@ -541,6 +553,7 @@ fn op_name(op: UnaryOpIR) -> &'static str {
     match op {
         UnaryOpIR::Neg => "neg",
         UnaryOpIR::Not => "not",
+        UnaryOpIR::Deref => "deref",
     }
 }
 

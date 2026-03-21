@@ -23,10 +23,10 @@
 - Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
 
 ## 5. Estado corrente
-- Fase funcional atual: **65 — representação mínima de ponteiro no runtime**.
-- Fase funcional anterior: **64 — signed real no runtime**.
+- Fase funcional atual: **66 — dereferência de leitura**.
+- Fase funcional anterior: **65 — representação mínima de ponteiro no runtime**.
 - Bloco ativo: **Bloco 6 — Memória operacional**.
-- Próximo item normal: **Bloco 6, item B.3 — dereferência de leitura**.
+- Próximo item normal: **Bloco 6, item B.4 — escrita indireta via ponteiro**.
 - Rodada documental corrente: **Doc-9 — revisão operacional da reestruturação documental**.
 
 ## 6. Ecossistema documental
@@ -49,7 +49,7 @@
 - Não declarar funcionalidade como pronta sem validação objetiva.
 
 ## 9. Itens adiados
-- Dereferência, escrita indireta e aritmética de ponteiro completas.
+- Escrita indireta e aritmética de ponteiro.
 - Acesso operacional completo de `ninho`/arrays por memória real.
 - Efeito operacional robusto de `fragil`.
 - Backend nativo completo e runtime bare-metal robusto.

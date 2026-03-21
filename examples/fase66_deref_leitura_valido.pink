@@ -1,0 +1,12 @@
+pacote main;
+
+eterno BASE: bombom = 77;
+
+carinho ler(p: seta<bombom>) -> bombom {
+    mimo *p;
+}
+
+carinho principal() -> bombom {
+    nova p: seta<bombom> = 1;
+    mimo ler(p);
+}

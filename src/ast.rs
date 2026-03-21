@@ -902,6 +902,7 @@ impl BinaryOp {
 pub enum UnaryOp {
     Neg,
     Not,
+    Deref,
 }
 
 impl UnaryOp {
@@ -909,6 +910,7 @@ impl UnaryOp {
         match self {
             Self::Neg => "Neg",
             Self::Not => "Not",
+            Self::Deref => "Deref",
         }
     }
 }

@@ -72,6 +72,11 @@ pub enum InstructionCfgIR {
         op: UnaryOpIR,
         operand: OperandIR,
     },
+    DerefLoad {
+        dest: TempIR,
+        ptr: OperandIR,
+        ty: TypeIR,
+    },
     Binary {
         dest: TempIR,
         op: BinaryOpIR,
@@ -568,6 +573,18 @@ impl FunctionLowerer {
                     });
                 Ok((OperandIR::Temp(dest), next_current))
             }
+            ValueIR::Deref { ptr, result_type } => {
+                let (ptr, next_current) = self.lower_value_operand(ptr, current, span)?;
+                let dest = self.next_temp();
+                self.blocks[next_current]
+                    .instructions
+                    .push(InstructionCfgIR::DerefLoad {
+                        dest,
+                        ptr,
+                        ty: *result_type,
+                    });
+                Ok((OperandIR::Temp(dest), next_current))
+            }
             ValueIR::Binary { op, lhs, rhs } => match op {
                 BinaryOpIR::LogicalAnd | BinaryOpIR::LogicalOr => {
                     self.lower_short_circuit_value(*op, lhs, rhs, current, span)
@@ -779,6 +796,12 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
             render_operand(lhs),
             render_operand(rhs)
         ),
+        InstructionCfgIR::DerefLoad { dest, ptr, ty } => format!(
+            "{} = deref {}:{}",
+            render_temp(*dest),
+            render_operand(ptr),
+            ty.name()
+        ),
         InstructionCfgIR::Call {
             dest,
             callee,
@@ -809,6 +832,7 @@ fn render_unary_op(op: UnaryOpIR) -> &'static str {
     match op {
         UnaryOpIR::Neg => "neg",
         UnaryOpIR::Not => "not",
+        UnaryOpIR::Deref => "deref",
     }
 }
 

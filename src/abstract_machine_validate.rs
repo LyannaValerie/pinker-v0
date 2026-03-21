@@ -334,6 +334,25 @@ fn apply_instr_effect(
             )?;
             stack.push(expected);
         }
+        MachineInstr::DerefLoad { ty } => {
+            let top = pop_typed(
+                f,
+                label,
+                stack,
+                1,
+                "underflow em deref_load",
+                Some("instr='deref_load'"),
+            )?;
+            if top[0] == StackValueType::Logica {
+                return Err(err_ctx_with_detail(
+                    f,
+                    Some(label),
+                    "deref_load exige ponteiro/inteiro de endereço no topo",
+                    Some("instr='deref_load'"),
+                ));
+            }
+            stack.push(type_to_stack(*ty));
+        }
         MachineInstr::Add
         | MachineInstr::BitAnd
         | MachineInstr::BitOr
@@ -576,7 +595,7 @@ fn ensure_compatible(
     message: &str,
     detail: Option<&str>,
 ) -> Result<(), PinkerError> {
-    if got != StackValueType::Unknown && got != expected {
+    if expected != StackValueType::Unknown && got != StackValueType::Unknown && got != expected {
         let inferred = format!(
             "{} [esperado={}, recebido={}]",
             message,
@@ -597,6 +616,7 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::StoreSlot(_) => "store_slot",
         MachineInstr::Neg => "neg",
         MachineInstr::Not => "not",
+        MachineInstr::DerefLoad { .. } => "deref_load",
         MachineInstr::BitAnd => "bitand",
         MachineInstr::BitOr => "bitor",
         MachineInstr::BitXor => "bitxor",
