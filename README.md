@@ -212,7 +212,7 @@ O projeto mantém um ecossistema documental com papéis distintos:
 - `docs/roadmap.md` — trilha ativa oficial; define a ordem funcional em execução.
 - `docs/future.md` — inventário técnico amplo de médio/longo prazo; não dita ordem ativa.
 - `docs/parallel.md` — documento visionário; guarda identidade e direção conceitual; não é backlog técnico.
-- `docs/phases.md` — crônica histórica oficial (fases funcionais, hotfixes e rodadas documentais).
+- `docs/history.md` — crônica histórica oficial (fases funcionais, hotfixes e rodadas documentais).
 - `docs/agent_state.md` — estado corrente enxuto + diretrizes operacionais consolidadas.
 - `docs/handoff_codex.md` — handoff operacional curto da rodada atual.
 - `docs/doc_rules.md` — convenções obrigatórias de atualização e precedência documental.
