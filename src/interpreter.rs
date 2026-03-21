@@ -326,22 +326,14 @@ fn exec_instr(
             )?);
         }
         MachineInstr::Add => {
-            let (lhs, rhs) = pop_bin_numeric(stack, "add exige dois inteiros")?;
-            stack.push(bin_int(
-                lhs,
-                rhs,
-                |a, b| a.wrapping_add(b),
-                |a, b| a.wrapping_add(b),
-            )?);
+            let rhs = pop(stack, "underflow em add")?;
+            let lhs = pop(stack, "underflow em add")?;
+            stack.push(eval_add(lhs, rhs)?);
         }
         MachineInstr::Sub => {
-            let (lhs, rhs) = pop_bin_numeric(stack, "sub exige dois inteiros")?;
-            stack.push(bin_int(
-                lhs,
-                rhs,
-                |a, b| a.wrapping_sub(b),
-                |a, b| a.wrapping_sub(b),
-            )?);
+            let rhs = pop(stack, "underflow em sub")?;
+            let lhs = pop(stack, "underflow em sub")?;
+            stack.push(eval_sub(lhs, rhs)?);
         }
         MachineInstr::Mul => {
             let (lhs, rhs) = pop_bin_numeric(stack, "mul exige dois inteiros")?;
@@ -552,6 +544,26 @@ fn bin_int(
             Ok(RuntimeValue::IntSigned(op_s(a, b)))
         }
         _ => Err(runtime_err("operação inteira inválida em runtime")),
+    }
+}
+
+fn eval_add(lhs: RuntimeValue, rhs: RuntimeValue) -> Result<RuntimeValue, PinkerError> {
+    match (lhs, rhs) {
+        (RuntimeValue::Ptr(base), RuntimeValue::Int(offset)) => {
+            Ok(RuntimeValue::Ptr(base.wrapping_add(offset as usize)))
+        }
+        (lhs, rhs) => bin_int(lhs, rhs, |a, b| a.wrapping_add(b), |a, b| a.wrapping_add(b))
+            .map_err(|_| runtime_err("add exige inteiros ou 'seta<bombom> + bombom'")),
+    }
+}
+
+fn eval_sub(lhs: RuntimeValue, rhs: RuntimeValue) -> Result<RuntimeValue, PinkerError> {
+    match (lhs, rhs) {
+        (RuntimeValue::Ptr(base), RuntimeValue::Int(offset)) => {
+            Ok(RuntimeValue::Ptr(base.wrapping_sub(offset as usize)))
+        }
+        (lhs, rhs) => bin_int(lhs, rhs, |a, b| a.wrapping_sub(b), |a, b| a.wrapping_sub(b))
+            .map_err(|_| runtime_err("sub exige inteiros ou 'seta<bombom> - bombom'")),
     }
 }
 

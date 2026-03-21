@@ -368,7 +368,40 @@ fn run_escrita_indireta_falha_com_endereco_invalido() {
 }
 
 #[test]
-fn run_falha_quando_usa_ponteiro_em_operacao_inteira_nao_suportada() {
+fn run_aritmetica_ponteiro_offset_suporta_leitura_indireta() {
+    let out = run_code(
+        "pacote main;
+         eterno A: bombom = 10;
+         eterno B: bombom = 20;
+         carinho principal() -> bombom {
+             nova p: seta<bombom> = 1;
+             nova q: seta<bombom> = p + 1;
+             mimo *q;
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(20)));
+}
+
+#[test]
+fn run_aritmetica_ponteiro_offset_suporta_escrita_indireta() {
+    let out = run_code(
+        "pacote main;
+         eterno A: bombom = 10;
+         eterno B: bombom = 20;
+         carinho principal() -> bombom {
+             nova p: seta<bombom> = 2;
+             nova q: seta<bombom> = p - 1;
+             *q = 99;
+             mimo *q;
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(99)));
+}
+
+#[test]
+fn run_falha_quando_usa_ponteiro_em_operacao_nao_suportada() {
     let mut slot_types = HashMap::new();
     slot_types.insert(
         "p".to_string(),
@@ -390,7 +423,7 @@ fn run_falha_quando_usa_ponteiro_em_operacao_inteira_nao_suportada() {
                     MachineInstr::PushInt(1024),
                     MachineInstr::StoreSlot("p".to_string()),
                     MachineInstr::LoadSlot("p".to_string()),
-                    MachineInstr::PushInt(1),
+                    MachineInstr::LoadSlot("p".to_string()),
                     MachineInstr::Add,
                 ],
                 terminator: MachineTerminator::Ret,
@@ -399,7 +432,11 @@ fn run_falha_quando_usa_ponteiro_em_operacao_inteira_nao_suportada() {
     };
 
     let err = interpreter::run_program(&program).unwrap_err().to_string();
-    assert!(err.contains("add exige dois inteiros"), "mensagem: {}", err);
+    assert!(
+        err.contains("add exige inteiros ou 'seta<bombom> + bombom'"),
+        "mensagem: {}",
+        err
+    );
 }
 
 #[test]
@@ -1686,6 +1723,45 @@ fn cli_check_escrita_indireta_seta_u8_falha_com_exemplo_versionado() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("apenas 'seta<bombom>'"),
+        "mensagem inesperada: {}",
+        stderr
+    );
+}
+
+#[test]
+fn cli_run_aritmetica_ponteiro_valida_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase68_ptr_aritmetica_valida.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("20"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_run_aritmetica_ponteiro_leitura_valida_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase68_ptr_aritmetica_leitura_valida.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("99"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_check_aritmetica_ponteiro_invalida_falha_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/fase68_ptr_aritmetica_invalida.pink");
+    assert!(
+        !output.status.success(),
+        "esperava falha semântica para aritmética de ponteiro fora do subset"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("apenas 'ptr + bombom'"),
         "mensagem inesperada: {}",
         stderr
     );

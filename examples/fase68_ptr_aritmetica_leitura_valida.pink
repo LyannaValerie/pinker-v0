@@ -1,0 +1,12 @@
+pacote main;
+
+eterno A: bombom = 10;
+eterno B: bombom = 20;
+
+carinho principal() -> bombom {
+    nova p: seta<bombom> = 2;
+    nova q: seta<bombom> = p - 1;
+    *q = 99;
+    falar(*q);
+    mimo 0;
+}

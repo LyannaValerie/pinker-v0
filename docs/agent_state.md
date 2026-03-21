@@ -23,10 +23,10 @@
 - Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
 
 ## 5. Estado corrente
-- Fase funcional atual: **67 — escrita indireta**.
-- Fase funcional anterior: **66 — dereferência de leitura**.
+- Fase funcional atual: **68 — aritmética de ponteiros**.
+- Fase funcional anterior: **67 — escrita indireta**.
 - Bloco ativo: **Bloco 6 — Memória operacional**.
-- Próximo item normal: **Bloco 6, item B.5 — aritmética de ponteiros**.
+- Próximo item normal: **Bloco 6, item B.6 — acesso a campo operacional em `ninho`**.
 - Rodada documental corrente: **Doc-9 — revisão operacional da reestruturação documental**.
 
 ## 6. Ecossistema documental
@@ -49,7 +49,6 @@
 - Não declarar funcionalidade como pronta sem validação objetiva.
 
 ## 9. Itens adiados
-- Aritmética de ponteiro.
 - Acesso operacional completo de `ninho`/arrays por memória real.
 - Efeito operacional robusto de `fragil`.
 - Backend nativo completo e runtime bare-metal robusto.
