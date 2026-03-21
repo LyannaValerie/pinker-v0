@@ -295,6 +295,11 @@ fn exec_instr(
             let coerced = coerce_runtime_value_to_type(value, *ty)?;
             memory.insert(addr, coerced);
         }
+        MachineInstr::Cast { ty } => {
+            let value = pop(stack, "cast exige valor no topo")?;
+            let casted = coerce_runtime_value_to_type(value, *ty)?;
+            stack.push(casted);
+        }
         MachineInstr::BitAnd => {
             let (lhs, rhs) = pop_bin_numeric(stack, "bitand exige dois inteiros")?;
             stack.push(bin_int(lhs, rhs, |a, b| a & b, |a, b| a & b)?);
@@ -500,6 +505,8 @@ fn coerce_runtime_value_to_type(
         return match (value, ty.is_signed()) {
             (RuntimeValue::Int(v), true) => Ok(RuntimeValue::IntSigned(v as i64)),
             (RuntimeValue::IntSigned(v), false) => Ok(RuntimeValue::Int(v as u64)),
+            (RuntimeValue::Ptr(v), true) => Ok(RuntimeValue::IntSigned(v as i64)),
+            (RuntimeValue::Ptr(v), false) => Ok(RuntimeValue::Int(v as u64)),
             (v, _) => Ok(v),
         };
     }
@@ -788,6 +795,7 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::Not => "not",
         MachineInstr::DerefLoad { .. } => "deref_load",
         MachineInstr::DerefStore { .. } => "deref_store",
+        MachineInstr::Cast { .. } => "cast",
         MachineInstr::BitAnd => "bitand",
         MachineInstr::BitOr => "bitor",
         MachineInstr::BitXor => "bitxor",

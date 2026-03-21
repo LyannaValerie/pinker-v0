@@ -73,6 +73,7 @@ pub enum MachineInstr {
     Not,
     DerefLoad { ty: TypeIR },
     DerefStore { ty: TypeIR },
+    Cast { ty: TypeIR },
     BitAnd,
     BitOr,
     BitXor,
@@ -186,6 +187,15 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) {
             emit_load(ptr, code);
             emit_load(value, code);
             code.push(MachineInstr::DerefStore { ty: *ty });
+        }
+        SelectedInstr::Cast {
+            dest,
+            value,
+            target_type,
+        } => {
+            emit_load(value, code);
+            code.push(MachineInstr::Cast { ty: *target_type });
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
         SelectedInstr::BitAnd { dest, lhs, rhs } => {
             emit_load(lhs, code);
@@ -564,6 +574,10 @@ fn render_instr(i: &MachineInstr) -> String {
         MachineInstr::DerefStore { ty } => with_comment(
             format!("deref_store {}", ty.name()),
             "escreve valor indireto no endereço apontado",
+        ),
+        MachineInstr::Cast { ty } => with_comment(
+            format!("cast {}", ty.name()),
+            "converte valor explícito para o tipo alvo",
         ),
         MachineInstr::BitAnd => {
             with_comment("bitand".to_string(), "AND bit a bit entre dois topos")

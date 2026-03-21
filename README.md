@@ -16,7 +16,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - qualificador `fragil` (`volatile`) para ponteiros explícitos (`fragil seta<tipo>`)
 - inline asm mínimo como statement textual com `sussurro("...")` (ou múltiplas strings), preservado até IR
 - marca de unidade freestanding/no-std com `livre;` no topo do programa
-- cast explícito controlado com `virar` (inteiro -> inteiro no frontend/semântica/IR estruturada)
+- cast explícito controlado com `virar` (operacional em `--run` para inteiro->inteiro e `bombom <-> seta<bombom>`)
 - consultas estáticas de layout com `peso(tipo)` e `alinhamento(tipo)`
 - módulos/imports mínimos com `trazer modulo;` e `trazer modulo.simbolo;` (carregando `modulo.pink` no mesmo diretório do arquivo principal, com subset de import para `carinho` e `eterno`)
 - strings mínimas como valor de linguagem com tipo `verso` e literal `"texto"` (frontend + semântica + IR)
@@ -46,7 +46,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - leitura indireta além do subset mínimo da fase (`*p` apenas para `seta<bombom>` com endereçamento abstrato de globals escalares no runtime)
 - escrita indireta além do subset mínimo da fase (`*p = v` apenas para `seta<bombom>` com endereçamento abstrato de globals escalares já mapeadas no runtime)
 - semântica operacional de `fragil` em runtime/backend (nesta fase é qualificador semântico preservado no pipeline)
-- lowering operacional de `virar` em CFG/Machine/runtime (`--check` aceita o subset da fase; `--run`/`--cfg-ir` ainda não executam cast)
+- lowering operacional de `virar` fora do subset atual (nesta fase executa inteiro->inteiro e `bombom <-> seta<bombom>`; demais casts continuam rejeitados)
 - lowering operacional de inline asm em CFG/Machine/runtime (`--check`/`--ir` aceitam o subset da fase; `--cfg-ir`/`--run` ainda não executam `sussurro`)
 - lowering operacional de `verso` em CFG/Machine/runtime além de `falar`: `verso` como valor geral (passagem por chamada, retorno, variável) ainda não executa em `--cfg-ir`/`--run`; apenas `falar("literal")` funciona em `--run`
 - I/O de leitura (`ouvir`), arquivo (`abrir`, `fechar`, `escrever`) e formatação avançada de saída
@@ -98,6 +98,7 @@ cargo run -- --run examples/fase68_ptr_aritmetica_valida.pink
 cargo run -- --run examples/fase68_ptr_aritmetica_leitura_valida.pink
 cargo run -- --run examples/fase69_ninho_campo_operacional_valido.pink
 cargo run -- --run examples/fase70_indexacao_array_operacional_valido.pink
+cargo run -- --run examples/fase71_cast_memoria_valido.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
 cargo run -- --check examples/check_continuar_fora_loop.pink
@@ -105,6 +106,7 @@ cargo run -- --check examples/check_campo_valido.pink
 cargo run -- --check examples/check_indexacao_valida.pink
 cargo run -- --check examples/check_indexacao_indice_nao_inteiro.pink
 cargo run -- --check examples/check_cast_inteiro_valido.pink
+cargo run -- --check examples/fase71_cast_memoria_invalido.pink
 cargo run -- --check examples/check_cast_invalido_logica.pink
 cargo run -- --check examples/check_peso_alinhamento_escalar.pink
 cargo run -- --check examples/check_peso_alinhamento_array.pink

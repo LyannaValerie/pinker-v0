@@ -70,6 +70,17 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                             return Err(err("selected deref_store não pode receber nulo"));
                         }
                     }
+                    SelectedInstr::Cast {
+                        dest,
+                        value,
+                        target_type,
+                    } => {
+                        check_operand(value, &slots, &temps, &globals)?;
+                        if *target_type == TypeIR::Nulo {
+                            return Err(err("selected cast não pode ter alvo nulo"));
+                        }
+                        temps.insert(*dest);
+                    }
                     SelectedInstr::Add { dest, lhs, rhs }
                     | SelectedInstr::BitAnd { dest, lhs, rhs }
                     | SelectedInstr::BitOr { dest, lhs, rhs }

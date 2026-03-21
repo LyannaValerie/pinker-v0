@@ -1,30 +1,29 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 70 — indexação operacional em arrays**.
-- Rodada funcional do Bloco 6, mantendo a trilha principal após a Fase 69.
+- **Fase 71 — cast operacional útil ligado à memória**.
+- Rodada funcional do Bloco 6, mantendo a trilha principal após a Fase 70.
 
 ## 2. O que entrou na rodada atual
-- Leitura operacional mínima por índice em array no `--run`, via caminho `(*ptr)[i]`.
-- Lowering de `Index` passou a usar ponteiro base + offset do índice + `deref_load` no modelo de memória atual.
-- Subset explícito desta fase: `ptr: seta<[bombom; N]>` e índice `i: bombom`.
-- Novos testes positivos/negativos e exemplos versionados da Fase 70.
+- Lowering operacional de `virar` passou a existir em CFG/selected/Machine/runtime para subset mínimo útil de memória.
+- Subset explícito desta fase: inteiro->inteiro e `bombom <-> seta<bombom>`.
+- Runtime agora executa cast explícito com reinterpretação de endereço lógico (`cast`) para o subset suportado.
+- Novos testes positivos/negativos e exemplos versionados da Fase 71.
 
 ## 3. Fora de escopo da rodada atual
-- Escrita operacional por índice (`arr[i] = v`).
-- Base por valor em indexação (`arr[i]` sem ponteiro).
-- Indexação operacional para elementos não `bombom`.
+- `bombom -> seta<T>` genérico e `seta<T> -> bombom` para `T != bombom`.
+- Cast geral entre tipos compostos/ponteiros.
 - Efeito operacional robusto de `fragil` (MMIO/barreiras).
 - Backend nativo real de memória/ponteiros.
 - Operações de ponteiro além do subset mínimo já existente (`n + ptr`, `ptr - ptr`, comparações ricas de ponteiros).
 
 ## 4. Próximo item normal
 - Trilha ativa: **Bloco 6 — Memória operacional**.
-- Próximo item funcional normal sugerido: **cast operacional útil ligado à memória (item B.8 do Bloco 6)**.
+- Próximo item funcional normal sugerido: **primeiro efeito operacional real de `fragil` (item B.9 do Bloco 6)**.
 
 ## 5. Observações operacionais curtas
-- Fase funcional atual: **70**.
-- Fase funcional anterior: **69**.
+- Fase funcional atual: **71**.
+- Fase funcional anterior: **70**.
 - Hotfix extraordinário mais recente: **HF-2 (Bloco 6, Fases 64–70)** — varredura de corretude pós-Bloco-6.
   - Bug corrigido: `normalize_numeric_pair` invertia ordem de operandos (signed/unsigned misto).
   - Bug corrigido: `Eq/Neq` no IR e CFG IR validator rejeitava `signed_var == literal`.

@@ -488,12 +488,29 @@ fn cast_logica_para_inteiro_falha_nesta_fase() {
 }
 
 #[test]
-fn cast_ponteiro_para_inteiro_falha_nesta_fase() {
+fn cast_bombom_para_seta_bombom_e_seta_bombom_para_bombom_valido() {
+    let code = r#"
+        pacote main;
+        carinho ida(x: bombom) -> seta<bombom> {
+            mimo x virar seta<bombom>;
+        }
+        carinho volta(p: seta<bombom>) -> bombom {
+            mimo p virar bombom;
+        }
+        carinho principal() -> bombom {
+            nova p: seta<bombom> = ida(1);
+            mimo volta(p);
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn cast_ponteiro_nao_bombom_para_inteiro_falha_nesta_fase() {
     let code = r#"
         pacote main;
         ninho Ponto { x: bombom; }
-        apelido Ptr = seta<Ponto>;
-        carinho invalido(p: Ptr) -> bombom {
+        carinho invalido(p: seta<Ponto>) -> bombom {
             mimo p virar bombom;
         }
         carinho principal() -> bombom { mimo 0; }

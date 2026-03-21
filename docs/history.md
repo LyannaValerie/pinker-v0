@@ -208,6 +208,13 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Relação com fases anteriores: reutiliza aritmética de ponteiros (Fase 68) e leitura indireta `deref_load` (Fase 66); mantém escrita indireta (Fase 67) sem estender para `arr[i] = ...`.
 - Fora de escopo explícito nesta fase: base por valor (`arr[i]`), escrita por índice, elementos não `bombom`, arrays gerais e checks sofisticados de bounds.
 
+71 - cast operacional útil ligado à memória
+- `virar` passou a ter lowering operacional em CFG/selected/Machine/runtime para subset mínimo útil de memória.
+- Casts suportados nesta fase: inteiro->inteiro (já existente) e `bombom <-> seta<bombom>`.
+- Semântica operacional desta fase: reinterpretação direta do endereço lógico do runtime (sem MMIO, sem reinterpretação ampla de memória, sem cast geral entre compostos).
+- Cenário destravado: bootstrap de ponteiro deixa de depender exclusivamente de literal cru em alguns fluxos (`bombom` pode virar `seta<bombom>` e voltar para `bombom` em `--run`).
+- Fora de escopo explícito nesta fase: `bombom -> seta<T>` genérico, `seta<T> -> bombom` para `T != bombom`, casts gerais entre ponteiros/compostos, backend nativo de cast.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
