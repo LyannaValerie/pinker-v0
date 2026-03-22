@@ -157,7 +157,7 @@ fn render_block(block: &Block, indent: usize, out: &mut String, label: &str) {
 fn render_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
     match stmt {
         Stmt::Let(let_stmt) => {
-            let mutability = if let_stmt.is_mut { "mut " } else { "" };
+            let mutability = if let_stmt.is_mut { "muda " } else { "" };
             let annotation = let_stmt
                 .ty
                 .as_ref()

@@ -10,8 +10,8 @@ carinho mdc(a: bombom, b: bombom) -> bombom {
     talvez b == 0 {
         mimo a;
     } senao {
-        nova mut x = a;
-        nova mut y = b;
+        nova muda x = a;
+        nova muda y = b;
         sempre que x != y {
             talvez x > y {
                 x = x - y;
@@ -28,8 +28,8 @@ carinho mmc(a: bombom, b: bombom) -> bombom {
 }
 
 carinho soma_divisores(n: bombom) -> bombom {
-    nova mut soma = 1;
-    nova mut d = 2;
+    nova muda soma = 1;
+    nova muda d = 2;
     sempre que d * d <= n {
         talvez resto(n, d) == 0 {
             soma = soma + d;
@@ -55,8 +55,8 @@ carinho eh_perfeito(n: bombom) -> bombom {
 }
 
 carinho contar_perfeitos(limite: bombom) -> bombom {
-    nova mut contador = 0;
-    nova mut n = 2;
+    nova muda contador = 0;
+    nova muda n = 2;
     sempre que n <= limite {
         talvez eh_perfeito(n) == 1 {
             contador = contador + 1;

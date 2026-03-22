@@ -3,7 +3,7 @@ pacote main;
 carinho principal() -> bombom {
     nova a: bombom = 10;
     nova b: bombom = 2;
-    nova mut c: bombom = a + b;
+    nova muda c: bombom = a + b;
     c = c * 5;
     mimo c - 1;
 }

@@ -1,23 +1,23 @@
 pacote main;
 
 carinho base(a: bombom, b: bombom) -> bombom {
-    nova mut t0: bombom = a + b;
+    nova muda t0: bombom = a + b;
     t0 = t0 * 3;
     t0 = t0 - 2;
     mimo t0;
 }
 
 carinho mistura(x: bombom) -> bombom {
-    nova mut t1: bombom = base(x, 4);
+    nova muda t1: bombom = base(x, 4);
     t1 = t1 + base(2, x);
     t1 = t1 - 5;
     mimo t1;
 }
 
 carinho principal() -> bombom {
-    nova mut v0: bombom = mistura(6);
-    nova mut v1: bombom = base(v0, 3);
-    nova mut v2: bombom = mistura(1);
+    nova muda v0: bombom = mistura(6);
+    nova muda v1: bombom = base(v0, 3);
+    nova muda v2: bombom = mistura(1);
     v1 = v1 - v2;
     v1 = v1 + 40;
     mimo v1;

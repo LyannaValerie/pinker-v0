@@ -101,7 +101,7 @@ fn mutacao_valida() {
     let code = "
         pacote main;
         carinho principal() -> bombom {
-            nova mut x = 10;
+            nova muda x = 10;
             x = 20;
             mimo x;
         }";
@@ -260,7 +260,7 @@ fn sempre_que_valido_com_condicao_logica() {
     let code = "
         pacote main;
         carinho principal() -> bombom {
-            nova mut x = 0;
+            nova muda x = 0;
             sempre que x < 3 {
                 x = x + 1;
             }

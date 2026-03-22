@@ -43,7 +43,7 @@ fn lowering_de_atribuicao() {
     let code = "\
 pacote main;
 carinho principal() -> bombom {
-    nova mut x = 1;
+    nova muda x = 1;
     x = 2;
     mimo x;
 }";
@@ -59,7 +59,7 @@ functions:
   func principal -> bombom
     params: []
     locals:
-      %x#0: bombom mut
+      %x#0: bombom muda
     block entry:
       let %x#0 = 1:bombom
       assign %x#0 = 2:bombom
@@ -242,7 +242,7 @@ fn lowering_de_sempre_que() {
     let code = "
 pacote main;
 carinho principal() -> bombom {
-  nova mut x = 0;
+  nova muda x = 0;
   sempre que x < 3 {
     x = x + 1;
   }
@@ -258,7 +258,7 @@ fn lowering_de_sempre_que_com_quebrar() {
     let code = "
         pacote main;
         carinho principal() -> bombom {
-            nova mut x = 0;
+            nova muda x = 0;
             sempre que x < 3 {
                 quebrar;
             }
@@ -274,7 +274,7 @@ fn lowering_de_sempre_que_com_continuar() {
     let code = "
         pacote main;
         carinho principal() -> bombom {
-            nova mut x = 0;
+            nova muda x = 0;
             sempre que x < 3 {
                 x = x + 1;
                 continuar;

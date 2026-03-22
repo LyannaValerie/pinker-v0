@@ -1049,7 +1049,7 @@ fn run_comparacao_menor_igual() {
 #[test]
 fn run_variavel_mutavel() {
     let out =
-        run_code("pacote main; carinho principal() -> bombom { nova mut x = 1; x = 99; mimo x; }")
+        run_code("pacote main; carinho principal() -> bombom { nova muda x = 1; x = 99; mimo x; }")
             .unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(99)));
 }
@@ -1373,7 +1373,7 @@ fn cli_run_erro_runtime_em_exemplo_novo() {
 #[test]
 fn run_sempre_que_simples() {
     let out = run_code(
-        "pacote main; carinho principal() -> bombom { nova mut x = 0; sempre que x < 5 { x = x + 1; } mimo x; }",
+        "pacote main; carinho principal() -> bombom { nova muda x = 0; sempre que x < 5 { x = x + 1; } mimo x; }",
     )
     .unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(5)));
@@ -1491,7 +1491,7 @@ fn cli_run_limite_recursao_trace_truncado_na_saida() {
 #[test]
 fn run_sempre_que_com_quebrar_interrompe_loop() {
     let out = run_code(
-        "pacote main; carinho principal() -> bombom { nova mut x = 0; sempre que x < 5 { x = x + 1; quebrar; } mimo x; }",
+        "pacote main; carinho principal() -> bombom { nova muda x = 0; sempre que x < 5 { x = x + 1; quebrar; } mimo x; }",
     )
     .unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(1)));
@@ -1509,7 +1509,7 @@ fn cli_run_quebrar_funciona() {
 #[test]
 fn run_sempre_que_com_continuar_pula_para_proxima_iteracao() {
     let out = run_code(
-        "pacote main; carinho principal() -> bombom { nova mut x = 0; nova mut s = 0; sempre que x < 5 { x = x + 1; talvez x == 3 { continuar; } s = s + x; } mimo s; }",
+        "pacote main; carinho principal() -> bombom { nova muda x = 0; nova muda s = 0; sempre que x < 5 { x = x + 1; talvez x == 3 { continuar; } s = s + x; } mimo s; }",
     )
     .unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(12)));

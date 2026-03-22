@@ -145,7 +145,7 @@ fn cfg_ir_sempre_que() {
     let code = "
         pacote main;
         carinho principal() -> bombom {
-            nova mut x = 0;
+            nova muda x = 0;
             sempre que x < 3 { x = x + 1; }
             mimo x;
         }";
@@ -160,7 +160,7 @@ fn cfg_ir_sempre_que_com_quebrar() {
     let code = "
         pacote main;
         carinho principal() -> bombom {
-            nova mut x = 0;
+            nova muda x = 0;
             sempre que x < 3 {
                 quebrar;
             }
@@ -178,7 +178,7 @@ fn cfg_ir_sempre_que_com_continuar() {
     let code = "
         pacote main;
         carinho principal() -> bombom {
-            nova mut x = 0;
+            nova muda x = 0;
             sempre que x < 3 {
                 x = x + 1;
                 continuar;
@@ -221,7 +221,7 @@ fn cfg_ir_if_else_fallthrough_ambos_ramos_gera_join_valido() {
     let code = "
         pacote main;
         carinho principal() -> bombom {
-            nova mut x = 0;
+            nova muda x = 0;
             talvez verdade {
                 x = x + 1;
             } senao {

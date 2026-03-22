@@ -241,7 +241,7 @@ pub fn render_program(program: &ProgramCfgIR) -> String {
         } else {
             line(&mut out, 2, "locals:");
             for l in &function.locals {
-                let mutability = if l.is_mut { " mut" } else { "" };
+                let mutability = if l.is_mut { " muda" } else { "" };
                 line(
                     &mut out,
                     3,

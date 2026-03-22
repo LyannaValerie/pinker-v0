@@ -409,7 +409,7 @@ impl Parser {
     fn parse_stmt(&mut self) -> Result<Stmt, PinkerError> {
         if self.match_token(TokenKind::KwNova) {
             let start_span = self.previous().span;
-            let is_mut = self.match_token(TokenKind::KwMut);
+            let is_mut = self.match_token(TokenKind::KwMuda);
             let name = self
                 .consume(TokenKind::Ident, "nome da variável")?
                 .lexeme

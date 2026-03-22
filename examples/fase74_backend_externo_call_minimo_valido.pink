@@ -6,7 +6,7 @@ carinho dobro(x: bombom) -> bombom {
 
 carinho principal() -> bombom {
     nova base: bombom = 40;
-    nova mut valor: bombom = dobro(base);
+    nova muda valor: bombom = dobro(base);
     valor = valor - 1;
     mimo valor;
 }
