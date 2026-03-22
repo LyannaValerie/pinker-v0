@@ -1,33 +1,31 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Doc-13 — limpeza editorial do README**.
-- Rodada exclusivamente documental; sem mudança funcional, sem abertura de fase, sem alteração do roadmap ativo.
+- **Fase 84 — recusa explícita complementar de `sempre que` no subset externo**.
+- Rodada funcional pequena e auditável no Bloco 7, sem abertura de fundamento novo e sem abrir Bloco 8.
 
 ## 2. O que entrou na rodada atual
-- `README.md` revisado para remover linguagem histórica/de-fase; formulação substituída por descrição de estado e contrato atual.
-- Seção "Pipeline de backend textual": todos os blocos "Estado explícito da Fase X" consolidados em uma descrição única do subset externo montável atual, com tabela de fronteira auditável mantida.
-- Seções "O que o frontend faz hoje" e "O que não faz": ocorrências de "nesta fase", "da fase" e "(Fase N)" corrigidas para "atual"/"hoje".
-- Comandos, seção de documentação do projeto, tabela de fronteira e fluxo experimental preservados integralmente.
-- `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` atualizados para a rodada Doc-13.
+- Backend externo `--asm-s` (`emit_external_toolchain_subset`) passou a recusar explicitamente `sempre que` com diagnóstico dedicado.
+- Contrato textual do subset externo foi atualizado para Fase 84 e agora declara também a recusa explícita de loops.
+- Testes do subset externo foram atualizados para Fase 84 e ganharam caso negativo dedicado para `sempre que`.
+- Exemplo versionado novo: `examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink`.
+- Documentação mínima sincronizada: `README.md`, `docs/history.md`, `docs/agent_state.md`, `docs/phases.md`.
 
 ## 3. Fora de escopo da rodada atual
-- Implementação de funcionalidade nova.
-- Abertura de fase funcional ou bloco novo.
-- Alteração do roadmap ativo.
-- Mudança na filosofia ou ordem de execução do projeto.
+- Abertura de suporte parcial a loops no backend externo.
+- Lowering novo de labels/jumps/branches.
+- ABI ampla, register allocation amplo, memória indireta/ponteiros, 3+ parâmetros e novos tipos no subset externo.
+- Abertura do Bloco 8.
 
 ## 4. Próximo item normal
 - Trilha ativa: **Bloco 7 — Backend nativo real**.
 - Próximo item funcional sugerido: **continuidade conservadora do artefato executável com reforços explícitos pequenos de fronteira (sem abrir fundamentos novos)**.
-- Bloco 8 aguarda consolidação suficiente do Bloco 7 antes de ser aberto como trilha ativa.
 
 ## 5. Observações operacionais curtas
-- Fase funcional atual: **83**.
-- Fase funcional anterior: **82**.
-- Hotfix extraordinário mais recente: **HF-2 (Bloco 6, Fases 64–70)** — varredura de corretude pós-Bloco-6.
-- Hotfix anterior: **HF-1 (Fase 48-H1)**.
-- Rodadas documentais seguem sem numeração de fase funcional.
+- Fase funcional atual: **84**.
+- Fase funcional anterior: **83**.
+- Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.
+- Hotfix histórico extraordinário preservado: **HF-1 (Fase 48-H1)**.
 
 ## 6. Precedência documental resumida
 - Código mergeado prevalece sobre documentação.

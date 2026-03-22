@@ -194,6 +194,7 @@ Fora do subset externo montável atual:
 Recusas explícitas e auditáveis:
 - 3+ parâmetros por função/call → rejeitado com diagnóstico explícito;
 - `talvez/senão` no backend externo → rejeitado com diagnóstico explícito.
+- `sempre que` no backend externo → rejeitado com diagnóstico explícito.
 
 Fluxo experimental reproduzível:
 ```bash
@@ -210,6 +211,7 @@ Fronteira auditável atual do subset externo (`--asm-s` montável):
 | memória mínima de frame via `%rbp` (load/store em slots) | garantido | exemplo `fase77_backend_externo_memoria_frame_valido` + teste externo |
 | 3+ parâmetros por função/call | rejeitado explicitamente | exemplo `fase81_backend_externo_recusa_explicita_tres_parametros_invalido` + testes negativos |
 | `talvez/senão` no backend externo | rejeitado explicitamente | exemplo `fase82_backend_externo_recusa_explicita_talvez_senao_invalido` + testes negativos |
+| `sempre que` no backend externo | rejeitado explicitamente | exemplo `fase84_backend_externo_recusa_explicita_sempre_que_invalido` + testes negativos |
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 

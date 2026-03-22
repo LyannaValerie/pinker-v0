@@ -297,6 +297,13 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura de teste ampliada com caso agregador dedicado da fase exercitando: caso positivo representativo (linear), caso positivo interprocedural, caso positivo com memória mínima de frame, recusa explícita de 3+ parâmetros e recusa explícita de `talvez/senão`.
 - Fora de escopo explícito nesta fase: controle de fluxo geral, memória indireta/ponteiros, globais amplas, ABI completa, recursão externa e abertura do Bloco 8.
 
+84 - recusa explícita complementar de `sempre que` no subset externo
+- Décima segunda fase funcional do Bloco 7 — Backend nativo real.
+- Subset externo montável preservou integralmente o recorte da Fase 83 e passou a rejeitar de forma explícita e auditável `sempre que` no fluxo `--asm-s`.
+- Diagnóstico do backend externo foi endurecido para separar de forma objetiva o subset linear garantido da proximidade estrutural de loops.
+- Cobertura de teste ampliada com caso versionado dedicado da fase validando a recusa explícita de `sempre que`, mantendo as recusas explícitas já existentes de `talvez/senão` e 3+ parâmetros.
+- Fora de escopo explícito nesta fase: abertura de lowering de loops/branches/labels/saltos no backend externo, memória indireta/ponteiros, globais, parâmetros não `bombom`, ABI completa e abertura do Bloco 8.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
