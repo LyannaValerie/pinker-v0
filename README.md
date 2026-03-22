@@ -107,6 +107,7 @@ cargo run -- --asm-s examples/fase75_backend_externo_parametro_nao_bombom_invali
 cargo run -- --asm-s examples/fase76_backend_externo_multiplos_parametros_valido.pink
 cargo run -- --asm-s examples/fase77_backend_externo_memoria_frame_valido.pink
 cargo run -- --asm-s examples/fase78_backend_externo_composicao_interprocedural_valido.pink
+cargo run -- --asm-s examples/fase79_backend_externo_programa_linear_maior_valido.pink
 cargo run -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
@@ -258,6 +259,17 @@ Estado explícito da Fase 78: o subset externo montável preserva o recorte da F
 - cobertura externa real (compilar/montar/linkar/executar) para fluxo interprocedural mais rico, sem abrir fundamentos novos de backend.
 
 Limites preservados na Fase 78 (fora do subset externo montável):
+- sem controle de fluxo geral (`talvez/senão`, loops) no backend externo;
+- sem memória indireta geral/ponteiros no backend externo;
+- sem globais, sem 3+ parâmetros e sem parâmetros não `bombom`;
+- sem recursão externa e sem ABI completa de plataforma/register allocation amplo.
+
+Estado explícito da Fase 79: o subset externo montável preserva integralmente o recorte da Fase 78 e amplia a densidade do programa linear executável com mais etapas explícitas no mesmo binário:
+- fluxo linear mais longo com múltiplas atribuições intermediárias dependentes;
+- reuso explícito de locais/temporários de frame antes e depois de chamadas diretas já suportadas;
+- composição interprocedural linear mantendo até 2 parâmetros `bombom` e sem abrir novos fundamentos.
+
+Limites preservados na Fase 79 (fora do subset externo montável):
 - sem controle de fluxo geral (`talvez/senão`, loops) no backend externo;
 - sem memória indireta geral/ponteiros no backend externo;
 - sem globais, sem 3+ parâmetros e sem parâmetros não `bombom`;

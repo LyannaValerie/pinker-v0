@@ -1,0 +1,25 @@
+pacote main;
+
+carinho etapa(a: bombom, b: bombom) -> bombom {
+    nova mut t0: bombom = a + b;
+    t0 = t0 * 2;
+    t0 = t0 - 3;
+    t0 = t0 + a;
+    mimo t0;
+}
+
+carinho refina(x: bombom) -> bombom {
+    nova mut t1: bombom = x * 3;
+    t1 = t1 - 4;
+    t1 = t1 + x;
+    mimo t1;
+}
+
+carinho principal() -> bombom {
+    nova mut v0: bombom = etapa(8, 5);
+    nova mut v1: bombom = refina(v0);
+    nova mut v2: bombom = etapa(v1, 7);
+    v2 = v2 - 200;
+    v2 = v2 + refina(10);
+    mimo v2;
+}

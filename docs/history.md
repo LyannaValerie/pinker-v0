@@ -263,6 +263,12 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura externa real dedicada da fase com exemplo versionado novo e teste de integração que compila/monta/linka/executa fluxo `principal -> combina -> (soma2/ajusta)` e valida resultado observável.
 - Fora de escopo explícito nesta fase: controle de fluxo geral, memória indireta/ponteiros no backend externo, globais, 3+ parâmetros, parâmetros não `bombom`, recursão externa e ABI completa.
 
+79 - programa linear maior com mais etapas
+- Sétima fase funcional do Bloco 7 — Backend nativo real.
+- Subset externo montável preservou integralmente o recorte da Fase 78 e formalizou cobertura para programa linear mais denso no mesmo executável: mais atribuições intermediárias, maior reuso de slots de frame e mais etapas aritméticas lineares entre chamadas diretas já suportadas.
+- Cobertura externa real ampliada com exemplo/teste versionado da fase (`etapa/refina/principal`) exercitando compilação/montagem/linkedição/execução e validação de resultado observável em fluxo linear mais comprido.
+- Fora de escopo explícito nesta fase: controle de fluxo geral, memória indireta/ponteiros no backend externo, globais, 3+ parâmetros, parâmetros não `bombom`, recursão externa e ABI completa.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
