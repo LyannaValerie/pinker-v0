@@ -20,7 +20,7 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `continuar`    | continue         | seguir em frente      |
 | `eterno`       | const global     | permanencia           |
 | `nova`         | let (declaracao) | nascimento            |
-| `mut`          | mutable          | mudanca               |
+| `muda`         | mutable          | mudanca               |
 | `bombom`       | integer (u64)    | doce                  |
 | `logica`       | boolean          | razao                 |
 | `verdade`      | true             | certeza               |
@@ -116,7 +116,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 |------------------|-------------|----------------------|-------------------------------------|
 | async            | `sonho`     | `promessa`           | algo que vai acontecer              |
 | await            | `espera`    | `aguardo`            | paciencia                           |
-| spawn / thread   | `broto`     | `semente`, `muda`    | algo que nasce e cresce em paralelo |
+| spawn / thread   | `broto`     | `semente`            | algo que nasce e cresce em paralelo |
 | mutex / lock     | `tranca`    | `chave`, `cadeado`   | protecao de acesso                  |
 | channel          | `ponte`     | `tunel`, `passagem`  | conexao entre partes                |
 

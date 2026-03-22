@@ -47,7 +47,7 @@ fn parser_de_atribuicao() {
     let code = "
         pacote main;
         carinho principal() -> bombom {
-            nova mut x = 1;
+            nova muda x = 1;
             x = 2;
             mimo x;
         }";
@@ -152,7 +152,7 @@ fn parser_aceita_continuar_dentro_de_sempre_que() {
     let source = r#"
         pacote main;
         carinho principal() -> bombom {
-            nova mut x = 0;
+            nova muda x = 0;
             sempre que x < 3 {
                 x = x + 1;
                 continuar;

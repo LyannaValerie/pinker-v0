@@ -173,3 +173,15 @@ fn lexer_reconhece_acesso_a_campo_e_indexacao() {
     assert!(tokens.iter().any(|t| t.kind == TokenKind::LBracket));
     assert!(tokens.iter().any(|t| t.kind == TokenKind::RBracket));
 }
+
+#[test]
+fn lexer_reconhece_muda_e_rejeita_mut_como_keyword() {
+    let tokens = tokenize("nova muda x = 1;").unwrap();
+    assert_eq!(tokens[0].kind, TokenKind::KwNova);
+    assert_eq!(tokens[1].kind, TokenKind::KwMuda);
+    assert_eq!(tokens[2].kind, TokenKind::Ident);
+
+    let tokens_mut = tokenize("nova mut x = 1;").unwrap();
+    assert_eq!(tokens_mut[1].kind, TokenKind::Ident);
+    assert_eq!(tokens_mut[1].lexeme, "mut");
+}

@@ -5,6 +5,6 @@ carinho agrega3(a: bombom, b: bombom, c: bombom) -> bombom {
 }
 
 carinho principal() -> bombom {
-    nova mut base: bombom = 7;
+    nova muda base: bombom = 7;
     mimo agrega3(base, 2, 1);
 }

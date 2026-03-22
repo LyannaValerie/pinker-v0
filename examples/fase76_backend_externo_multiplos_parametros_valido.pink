@@ -1,14 +1,14 @@
 pacote main;
 
 carinho soma2(a: bombom, b: bombom) -> bombom {
-    nova mut total: bombom = a + b;
+    nova muda total: bombom = a + b;
     total = total + 4;
     mimo total;
 }
 
 carinho principal() -> bombom {
     nova base: bombom = 30;
-    nova mut valor: bombom = soma2(base, 8);
+    nova muda valor: bombom = soma2(base, 8);
     valor = valor - 1;
     mimo valor;
 }

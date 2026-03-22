@@ -218,7 +218,7 @@ fn seleciona_sempre_que() {
     let code = "
         pacote main;
         carinho principal() -> bombom {
-            nova mut x = 0;
+            nova muda x = 0;
             sempre que x < 2 { x = x + 1; }
             mimo x;
         }";
@@ -232,7 +232,7 @@ fn seleciona_sempre_que_com_quebrar() {
     let code = "
         pacote main;
         carinho principal() -> bombom {
-            nova mut x = 0;
+            nova muda x = 0;
             sempre que x < 2 { quebrar; }
             mimo x;
         }";
@@ -246,7 +246,7 @@ fn seleciona_sempre_que_com_continuar() {
     let code = "
         pacote main;
         carinho principal() -> bombom {
-            nova mut x = 0;
+            nova muda x = 0;
             sempre que x < 2 {
                 x = x + 1;
                 continuar;

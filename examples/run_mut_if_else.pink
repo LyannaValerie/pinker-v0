@@ -1,7 +1,7 @@
 pacote main;
 
 carinho principal() -> bombom {
-    nova mut x = 1;
+    nova muda x = 1;
     talvez verdade {
         x = 40;
         mimo x + 2;

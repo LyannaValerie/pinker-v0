@@ -44,9 +44,9 @@ carinho eh_par(n: bombom) -> logica {
 
 // MDC — algoritmo de Euclides iterativo
 carinho mdc(a: bombom, b: bombom) -> bombom {
-    nova mut x = a;
-    nova mut y = b;
-    nova mut t: bombom = ZERO;
+    nova muda x = a;
+    nova muda y = b;
+    nova muda t: bombom = ZERO;
     sempre que y != ZERO {
         t = resto(x, y);
         x = y;
@@ -78,8 +78,8 @@ carinho eh_primo(n: bombom) -> logica {
     } senao talvez eh_par(n) {
         mimo falso;
     } senao {
-        nova mut i: bombom = 3;
-        nova mut ok: logica = verdade;
+        nova muda i: bombom = 3;
+        nova muda ok: logica = verdade;
         sempre que i * i <= n {
             talvez resto(n, i) == ZERO {
                 ok = falso;
@@ -93,8 +93,8 @@ carinho eh_primo(n: bombom) -> logica {
 
 // Popcount — conta bits em 1 com operações bitwise
 carinho contar_bits(n: bombom) -> bombom {
-    nova mut x = n;
-    nova mut bits: bombom = ZERO;
+    nova muda x = n;
+    nova muda bits: bombom = ZERO;
     sempre que x != ZERO {
         bits = bits + (x & UM);
         x = x >> UM;
@@ -123,10 +123,10 @@ carinho fib_iter(n: bombom) -> bombom {
     talvez n == ZERO {
         mimo ZERO;
     } senao {
-        nova mut a: bombom = ZERO;
-        nova mut b: bombom = UM;
-        nova mut temp: bombom = ZERO;
-        nova mut i: bombom = UM;
+        nova muda a: bombom = ZERO;
+        nova muda b: bombom = UM;
+        nova muda temp: bombom = ZERO;
+        nova muda i: bombom = UM;
         sempre que i < n {
             temp = a + b;
             a = b;
@@ -142,8 +142,8 @@ carinho soma_digitos(n: bombom) -> bombom {
     talvez n == ZERO {
         mimo ZERO;
     } senao {
-        nova mut x = n;
-        nova mut s: bombom = ZERO;
+        nova muda x = n;
+        nova muda s: bombom = ZERO;
         sempre que x != ZERO {
             s = s + resto(x, DEZ);
             x = x / DEZ;
@@ -154,8 +154,8 @@ carinho soma_digitos(n: bombom) -> bombom {
 
 // Soma dos primos até limite — usa continuar para pular compostos
 carinho soma_primos_ate(limite: bombom) -> bombom {
-    nova mut soma: bombom = ZERO;
-    nova mut n: bombom = DOIS;
+    nova muda soma: bombom = ZERO;
+    nova muda n: bombom = DOIS;
     sempre que n <= limite {
         talvez !eh_primo(n) {
             n = n + UM;
@@ -172,7 +172,7 @@ carinho eh_quadrado_perfeito(n: bombom) -> logica {
     talvez n == ZERO {
         mimo verdade;
     } senao {
-        nova mut r: bombom = UM;
+        nova muda r: bombom = UM;
         sempre que r * r < n {
             r = r + UM;
         }
@@ -182,8 +182,8 @@ carinho eh_quadrado_perfeito(n: bombom) -> logica {
 
 // Conta inteiros em [1, limite] com número par de bits em 1
 carinho contar_par_bits(limite: bombom) -> bombom {
-    nova mut cont: bombom = ZERO;
-    nova mut i: bombom = UM;
+    nova muda cont: bombom = ZERO;
+    nova muda i: bombom = UM;
     sempre que i <= limite {
         talvez eh_par(contar_bits(i)) {
             cont = cont + UM;
@@ -246,30 +246,30 @@ carinho principal() -> bombom {
     nova nao_q  = !q;                   // verdade
 
     // ── Operadores lógicos && e || usados em condições talvez ─────────────────
-    nova mut e_log:  logica = falso;
+    nova muda e_log:  logica = falso;
     talvez p && !q {
         e_log = verdade;                // verdade: p=V, !q=V, logo V && V
     }
 
-    nova mut ou_log: logica = falso;
+    nova muda ou_log: logica = falso;
     talvez q || p {
         ou_log = verdade;               // verdade: p=V basta
     }
 
     // XOR lógico: (p && !q) || (!p && q)
-    nova mut xor_log: logica = falso;
+    nova muda xor_log: logica = falso;
     talvez (p && !q) || (!p && q) {
         xor_log = verdade;              // verdade: p≠q
     }
 
     // ── Curto-circuito AND: perigo() não é chamada ────────────────────────────
-    nova mut curto_and: logica = falso;
+    nova muda curto_and: logica = falso;
     talvez falso && perigo() {
         curto_and = verdade;            // nunca alcançado — perigo() não executa
     }
 
     // ── Curto-circuito OR: perigo() não é chamada ─────────────────────────────
-    nova mut curto_or: logica = falso;
+    nova muda curto_or: logica = falso;
     talvez verdade || perigo() {
         curto_or = verdade;             // sempre verdade — perigo() não executa
     }
@@ -293,8 +293,8 @@ carinho principal() -> bombom {
     nova nao_primo_base: logica = !eh_primo(base); // verdade (12 não é primo)
 
     // ── Variável mutável: acumulador com lógica complexa e continuar ──────────
-    nova mut acum: bombom = ZERO;
-    nova mut i:    bombom = ZERO;
+    nova muda acum: bombom = ZERO;
+    nova muda i:    bombom = ZERO;
     sempre que i < DEZ {
         i = i + UM;
         talvez i == UM {
@@ -328,14 +328,14 @@ carinho principal() -> bombom {
     nova checagem_qp:   logica = qperf;                   // verdade
 
     // ── Checagem com && em talvez ─────────────────────────────────────────────
-    nova mut checagem_composta: logica = falso;
+    nova muda checagem_composta: logica = falso;
     talvez combinado != ZERO && extra >= UM {
         checagem_composta = verdade;
     }
 
     // ── Loop com quebrar ao encontrar o primeiro divisor de combinado ─────────
-    nova mut div_enc: bombom = ZERO;
-    nova mut d: bombom = DOIS;
+    nova muda div_enc: bombom = ZERO;
+    nova muda d: bombom = DOIS;
     sempre que d * d <= combinado {
         talvez resto(combinado, d) == ZERO {
             div_enc = d;

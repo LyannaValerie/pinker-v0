@@ -220,7 +220,7 @@ impl<'a> Lexer<'a> {
                                 "continuar" => TokenKind::KwContinuar,
                                 "eterno" => TokenKind::KwEterno,
                                 "nova" => TokenKind::KwNova,
-                                "mut" => TokenKind::KwMut,
+                                "muda" => TokenKind::KwMuda,
                                 "apelido" => TokenKind::KwApelido,
                                 "ninho" => TokenKind::KwNinho,
                                 "seta" => TokenKind::KwSeta,

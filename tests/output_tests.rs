@@ -426,7 +426,7 @@ fn json_ast_multiplos_statements_em_bloco_e_valido() {
     let json = render_json_ast(
         "\
 pacote main;
-carinho principal() -> bombom { nova mut x = 1; x = 2; mimo x; }",
+carinho principal() -> bombom { nova muda x = 1; x = 2; mimo x; }",
     )
     .unwrap();
     assert!(json.contains("\"stmts\": [\n          {\n            \"node\": \"LetStmt\""));

@@ -58,7 +58,7 @@ pub struct BindingIR {
     pub ty: TypeIR,
 }
 
-/// Variável local declarada por `nova`. `is_mut` reflete a palavra-chave `mut`.
+/// Variável local declarada por `nova`. `is_mut` reflete a palavra-chave `muda`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalIR {
     pub source_name: String,
@@ -1179,7 +1179,7 @@ fn render_function(function: &FunctionIR, indent: usize, out: &mut String) {
     } else {
         line(out, indent + 1, "locals:");
         for local in &function.locals {
-            let mutability = if local.is_mut { " mut" } else { "" };
+            let mutability = if local.is_mut { " muda" } else { "" };
             line(
                 out,
                 indent + 2,

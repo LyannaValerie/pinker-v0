@@ -367,7 +367,7 @@ carinho principal() -> bombom {
     let loop_code = "\
 pacote main;
 carinho principal() -> bombom {
-  nova mut x = 0;
+  nova muda x = 0;
   sempre que x < 1 { x = x + 1; }
   mimo x;
 }";
@@ -397,7 +397,7 @@ fn machine_jmp_para_join_e_logic_join_tem_comentario_especifico() {
     let if_code = "\
 pacote main;
 carinho principal() -> bombom {
-  nova mut x = 0;
+  nova muda x = 0;
   talvez verdade { x = 1; } senao { x = 2; }
   mimo x;
 }";
@@ -408,7 +408,7 @@ carinho principal() -> bombom {
     let logic_code = "\
 pacote main;
 carinho principal() -> bombom {
-  nova mut x = 0;
+  nova muda x = 0;
   talvez (verdade && verdade) { x = 1; } senao { x = 2; }
   mimo x;
 }";
@@ -422,7 +422,7 @@ fn machine_fluxos_auxiliares_break_continue_tem_comentario_especifico() {
     let code = "\
 pacote main;
 carinho principal() -> bombom {
-  nova mut x = 0;
+  nova muda x = 0;
   sempre que x < 3 {
     x = x + 1;
     talvez x == 1 { continuar; }
@@ -466,7 +466,7 @@ fn machine_loop_blocos_tem_anotacao_de_papel() {
     let code = "\
 pacote main;
 carinho principal() -> bombom {
-  nova mut x = 0;
+  nova muda x = 0;
   sempre que x < 3 { x = x + 1; }
   mimo x;
 }";
