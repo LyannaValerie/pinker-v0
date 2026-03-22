@@ -103,6 +103,8 @@ cargo run -- --run examples/fase72_fragil_operacional_minimo_valido.pink
 cargo run -- --asm-s examples/fase73_backend_externo_locais_aritmetica_valido.pink
 cargo run -- --check examples/fase74_backend_externo_call_minimo_valido.pink
 cargo run -- --check examples/fase74_backend_externo_call_dois_args_invalido.pink
+cargo run -- --asm-s examples/fase75_backend_externo_frame_registradores_valido.pink
+cargo run -- --asm-s examples/fase75_backend_externo_parametro_nao_bombom_invalido.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
 cargo run -- --check examples/check_continuar_fora_loop.pink
@@ -206,6 +208,19 @@ Limites preservados na Fase 74 (fora do subset externo montável):
 - sem globais;
 - sem memória indireta/ponteiros no backend externo;
 - sem ABI completa de plataforma.
+
+Estado explícito da Fase 75: o subset externo montável manteve o recorte da Fase 74, mas consolidou disciplina mínima de frame/registradores reais para reduzir emissão ad hoc:
+- registradores com papel fixo no subset: `%rax` (acumulador/retorno), `%rdi` (argumento único), `%r10` (temporário volátil de binárias);
+- frame mínimo explícito por função com `%rbp` e slots lineares para parâmetro/local/temporários, mantendo prólogo/epílogo simples;
+- chamadas diretas continuam no subset de até 1 argumento `bombom`, com retorno em `%rax`, sem promover isso a ABI completa.
+
+Limites preservados na Fase 75 (fora do subset externo montável):
+- sem mais de 1 parâmetro;
+- sem recursão externa;
+- sem fluxo de controle (`talvez/senão`, loops);
+- sem globais;
+- sem memória indireta/ponteiros no backend externo;
+- sem register allocation amplo e sem ABI final de plataforma.
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 

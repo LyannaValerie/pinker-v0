@@ -1,0 +1,9 @@
+pacote main;
+
+carinho dobra_u8(x: u8) -> bombom {
+    mimo x virar bombom;
+}
+
+carinho principal() -> bombom {
+    mimo dobra_u8(5);
+}

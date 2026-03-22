@@ -1,0 +1,14 @@
+pacote main;
+
+carinho aplica(x: bombom) -> bombom {
+    nova mut y: bombom = x * 3;
+    y = y - 2;
+    mimo y;
+}
+
+carinho principal() -> bombom {
+    nova base: bombom = 7;
+    nova mut valor: bombom = aplica(base + 1);
+    valor = valor * 2;
+    mimo valor;
+}

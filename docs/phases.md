@@ -4,8 +4,8 @@
 > A crônica histórica oficial foi renomeada para `docs/history.md` (Doc-10).
 
 ## Estado atual
-- Fase funcional atual: **74 — convenção de chamada concreta mínima**.
-- Fase funcional anterior: **73 — subset real montável ampliado**.
+- Fase funcional atual: **75 — frame/registradores mínimos reais**.
+- Fase funcional anterior: **74 — convenção de chamada concreta mínima**.
 - Hotfix extraordinário ativo mais recente: **HF-2**.
 - Hotfix histórico extraordinário preservado: **Fase 48-H1**.
 
