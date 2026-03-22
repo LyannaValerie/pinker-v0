@@ -10,7 +10,7 @@ fn asm_s_external_subset_emite_main_montavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 42; }";
     let out = render_backend_s_external_subset(code).unwrap();
     assert!(out.contains(
-        "# pinker v0 external toolchain subset (fase 82, linux x86_64, frame/reg + memoria minima + recusa 3+ params + recusa talvez/senao)"
+        "# pinker v0 external toolchain subset (fase 83, linux x86_64, frame/reg + memoria minima + recusa 3+ params + recusa talvez/senao)"
     ));
     assert!(out.contains(".globl main"));
     assert!(out.contains("movabsq $42, %rax"));
@@ -435,7 +435,7 @@ fn asm_s_external_subset_falha_clara_fora_do_subset() {
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err
         .to_string()
-        .contains("subset externo montável (Fase 82)"));
+        .contains("subset externo montável (Fase 83)"));
 }
 
 #[test]
@@ -446,23 +446,23 @@ fn asm_s_external_subset_falha_parametro_nao_bombom() {
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err
         .to_string()
-        .contains("subset externo montável (Fase 82) aceita somente parâmetro `bombom`"));
+        .contains("subset externo montável (Fase 83) aceita somente parâmetro `bombom`"));
 }
 
 #[test]
-fn asm_s_external_subset_fase82_preserva_recusa_explicita_tres_parametros_por_funcao() {
+fn asm_s_external_subset_fase83_preserva_recusa_explicita_tres_parametros_por_funcao() {
     let code = include_str!(
         "../examples/fase81_backend_externo_recusa_explicita_tres_parametros_invalido.pink",
     );
 
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains(
-        "subset externo montável (Fase 82) recusa explicitamente 3+ parâmetros por função",
+        "subset externo montável (Fase 83) recusa explicitamente 3+ parâmetros por função",
     ));
 }
 
 #[test]
-fn asm_s_external_subset_fase82_recusa_explicita_talvez_senao() {
+fn asm_s_external_subset_fase83_recusa_explicita_talvez_senao() {
     let code = include_str!(
         "../examples/fase82_backend_externo_recusa_explicita_talvez_senao_invalido.pink",
     );
@@ -470,7 +470,37 @@ fn asm_s_external_subset_fase82_recusa_explicita_talvez_senao() {
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err
         .to_string()
-        .contains("subset externo montável (Fase 82) recusa explicitamente `talvez/senao`",));
+        .contains("subset externo montável (Fase 83) recusa explicitamente `talvez/senao`",));
+}
+
+#[test]
+fn asm_s_external_subset_fase83_matriz_fronteira_auditavel() {
+    let casos_garantidos = [
+        include_str!("../examples/fase73_backend_externo_locais_aritmetica_valido.pink"),
+        include_str!("../examples/fase77_backend_externo_memoria_frame_valido.pink"),
+        include_str!("../examples/fase78_backend_externo_composicao_interprocedural_valido.pink"),
+    ];
+
+    for code in casos_garantidos {
+        let asm = render_backend_s_external_subset(code).expect("subset garantido deve emitir .s");
+        assert!(asm.contains("# pinker v0 external toolchain subset (fase 83"));
+    }
+
+    let caso_rejeitado_tres_params = include_str!(
+        "../examples/fase81_backend_externo_recusa_explicita_tres_parametros_invalido.pink",
+    );
+    let err_tres_params = render_backend_s_external_subset(caso_rejeitado_tres_params).unwrap_err();
+    assert!(err_tres_params.to_string().contains(
+        "subset externo montável (Fase 83) recusa explicitamente 3+ parâmetros por função"
+    ));
+
+    let caso_rejeitado_talvez = include_str!(
+        "../examples/fase82_backend_externo_recusa_explicita_talvez_senao_invalido.pink",
+    );
+    let err_talvez = render_backend_s_external_subset(caso_rejeitado_talvez).unwrap_err();
+    assert!(err_talvez
+        .to_string()
+        .contains("subset externo montável (Fase 83) recusa explicitamente `talvez/senao`"));
 }
 
 fn detect_cc_driver() -> Option<String> {
@@ -489,5 +519,5 @@ fn unique_temp_dir() -> std::path::PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("tempo do sistema inválido")
         .as_nanos();
-    std::env::temp_dir().join(format!("pinker_phase82_{}", nanos))
+    std::env::temp_dir().join(format!("pinker_phase83_{}", nanos))
 }
