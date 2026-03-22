@@ -364,6 +364,8 @@ Doc-10 - renomeação de `phases.md` para `history.md`
 - Trilha ativa do roadmap permaneceu intacta; `roadmap.md` não foi alterado.
 - Arquitetura documental mantida: `roadmap.md` = trilha ativa, `future.md` = inventário amplo, `parallel.md` = visão orientadora, `history.md` = crônica histórica, `agent_state.md` = estado corrente, `handoff_codex.md` = handoff operacional curto.
 
+Doc-11 - abertura documental dos Blocos 7 e 8
+
 Doc-12 - sincronização ampla de `docs/future.md` com o estado real do projeto
 - Rodada documental sem mudança funcional.
 - `docs/future.md` revisado de ponta a ponta; itens implementados/parciais alinhados com `docs/history.md`, `docs/vocabulario.md`, `docs/agent_state.md` e README.
@@ -372,8 +374,6 @@ Doc-12 - sincronização ampla de `docs/future.md` com o estado real do projeto
 - Intro corrigido: "próxima trilha ativa" → "trilha ativa corrente" para o Bloco 7 (Fases 73–83 já entregues).
 - Frentes prioritárias atualizadas para refletir status 🔶 atual de cada item.
 - `docs/vocabulario.md`: `seta` movida de sugestões para keywords implementadas (implementado na Fase 48).
-
-Doc-11 - abertura documental dos Blocos 7 e 8
 
 Doc-13 - limpeza editorial do README
 - Rodada documental sem mudança funcional.
