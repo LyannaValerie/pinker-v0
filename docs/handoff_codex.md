@@ -1,19 +1,22 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 83 — matriz de fronteira auditável do subset externo**.
-- Décima primeira fase funcional do Bloco 7, consolidando de forma conservadora a fronteira do subset linear no backend externo montável em matriz auditável.
+- **Doc-12 — sincronização ampla de `docs/future.md` com o estado real do projeto**.
+- Rodada exclusivamente documental; sem mudança funcional, sem abertura de fase, sem alteração do roadmap ativo.
 
 ## 2. O que entrou na rodada atual
-- `emit_external_toolchain_subset` foi atualizado para rotular o contrato vigente como Fase 83, preservando exatamente o mesmo subset conservador já consolidado (chamadas diretas lineares, até 2 parâmetros `bombom`, frame `%rbp` e load/store em slots).
-- README recebeu uma matriz mínima auditável do subset externo (garantido vs rejeitado), ligada a exemplos versionados e testes já existentes.
-- Testes do backend externo ganharam caso agregador da Fase 83 cobrindo, de forma sistemática, positivos representativos (linear, interprocedural e memória de frame) e recusas explícitas (3+ parâmetros e `talvez/senão`).
+- `docs/future.md` revisado de ponta a ponta: itens com drift documental marcados corretamente como ✅ implementado ou 🔶 parcial, com referência às fases correspondentes.
+- Principais correções: `fragil` (🔶, Fases 52+72), dereferência/aritmética de ponteiros (🔶, Fases 66–68), acesso operacional a campo/índice (🔶, Fases 69–70), `virar` lowering (🔶, Fase 71), `trazer` (🔶, Fase 60), geração x86_64/ABI (🔶, Bloco 7 Fases 73–83), `sussurro`/`livre;`/linker script (🔶, Fases 56–58), `falar`/`verso`/`pink build` (🔶, Fases 61–63), inteiros signed runtime (✅, Fase 64).
+- Intro corrigido: "próxima trilha ativa" → "trilha ativa corrente" para Bloco 7.
+- Frentes prioritárias: texto atualizado para refletir status 🔶 atual de cada item.
+- `docs/vocabulario.md`: `seta` movida para keywords implementadas (Fase 48).
+- `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` atualizados para a rodada Doc-12.
 
 ## 3. Fora de escopo da rodada atual
-- ABI final completa de plataforma.
-- 3+ parâmetros, parâmetros não `bombom`, chamadas complexas e recursão externa.
-- Lowering de memória indireta/ponteiros no backend externo real.
-- Fluxo de controle (`talvez/senão`, loops) no subset externo.
+- Implementação de funcionalidade nova.
+- Abertura de fase funcional ou bloco novo.
+- Alteração do roadmap ativo.
+- Mudança na filosofia ou ordem de execução do projeto.
 
 ## 4. Próximo item normal
 - Trilha ativa: **Bloco 7 — Backend nativo real**.

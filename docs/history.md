@@ -364,6 +364,15 @@ Doc-10 - renomeação de `phases.md` para `history.md`
 - Trilha ativa do roadmap permaneceu intacta; `roadmap.md` não foi alterado.
 - Arquitetura documental mantida: `roadmap.md` = trilha ativa, `future.md` = inventário amplo, `parallel.md` = visão orientadora, `history.md` = crônica histórica, `agent_state.md` = estado corrente, `handoff_codex.md` = handoff operacional curto.
 
+Doc-12 - sincronização ampla de `docs/future.md` com o estado real do projeto
+- Rodada documental sem mudança funcional.
+- `docs/future.md` revisado de ponta a ponta; itens implementados/parciais alinhados com `docs/history.md`, `docs/vocabulario.md`, `docs/agent_state.md` e README.
+- Inconsistências corrigidas: `fragil` (Fases 52+72), `seta<T>` operações (Fases 65–68), `ninho` acesso operacional (Fase 69), arrays indexação operacional (Fase 70), `virar` lowering (Fase 71), `trazer` (Fase 60), geração x86_64 / ABI (Bloco 7, Fases 73–83), `sussurro` (Fase 56), `livre;` (Fase 57), linker script (Fase 58), `falar` (Fase 62), `verso` (Fase 61), `pink build` (Fase 63), inteiros signed runtime (Fase 64).
+- Nota desatualizada de "HF-3" removida da entrada de inteiros signed; substituída por referência correta à Fase 64.
+- Intro corrigido: "próxima trilha ativa" → "trilha ativa corrente" para o Bloco 7 (Fases 73–83 já entregues).
+- Frentes prioritárias atualizadas para refletir status 🔶 atual de cada item.
+- `docs/vocabulario.md`: `seta` movida de sugestões para keywords implementadas (implementado na Fase 48).
+
 Doc-11 - abertura documental dos Blocos 7 e 8
 - Rodada estritamente documental; sem alteração funcional de código, testes ou exemplos `.pink`.
 - Objetivo: eliminar ambiguidade estratégica sobre o próximo grande rumo do projeto após o fechamento do Bloco 6.

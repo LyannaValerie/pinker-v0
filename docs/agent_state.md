@@ -29,7 +29,7 @@
 - Próximo bloco ativo: **Bloco 7 — Backend nativo real**.
 - Bloco futuro já definido (não ativo): **Bloco 8 — I/O e ecossistema útil**.
 - Item normal sugerido após a Fase 83: **continuidade conservadora do artefato executável no Bloco 7 com reforços explícitos pequenos de fronteira (sem abrir fundamentos novos e sem abrir Bloco 8)**.
-- Rodada documental corrente: **Doc-11 — abertura documental dos Blocos 7 e 8**.
+- Rodada documental corrente: **Doc-12 — sincronização ampla de `docs/future.md` com o estado real do projeto**.
 - Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 
 ## 6. Ecossistema documental
