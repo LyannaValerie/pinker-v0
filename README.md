@@ -109,6 +109,7 @@ cargo run -- --asm-s examples/fase77_backend_externo_memoria_frame_valido.pink
 cargo run -- --asm-s examples/fase78_backend_externo_composicao_interprocedural_valido.pink
 cargo run -- --asm-s examples/fase79_backend_externo_programa_linear_maior_valido.pink
 cargo run -- --asm-s examples/fase80_backend_externo_cobertura_linear_ampla_valido.pink
+cargo run -- --asm-s examples/fase81_backend_externo_recusa_explicita_tres_parametros_invalido.pink
 cargo run -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
@@ -218,7 +219,6 @@ Estado explícito da Fase 75: o subset externo montável manteve o recorte da Fa
 - registradores com papel fixo no subset: `%rax` (acumulador/retorno), `%rdi` (argumento único), `%r10` (temporário volátil de binárias);
 - frame mínimo explícito por função com `%rbp` e slots lineares para parâmetro/local/temporários, mantendo prólogo/epílogo simples;
 - chamadas diretas continuam no subset de até 1 argumento `bombom`, com retorno em `%rax`, sem promover isso a ABI completa.
-
 Limites preservados na Fase 75 (fora do subset externo montável):
 - sem mais de 1 parâmetro;
 - sem recursão externa;

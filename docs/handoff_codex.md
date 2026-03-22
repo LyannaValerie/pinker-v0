@@ -1,12 +1,12 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 80 — cobertura linear auditável mais ampla**.
-- Oitava fase funcional do Bloco 7, ampliando de forma conservadora a cobertura executável do mesmo subset linear no backend externo montável.
+- **Fase 81 — recusa explícita complementar no subset externo**.
+- Nona fase funcional do Bloco 7, reforçando de forma conservadora a fronteira do mesmo subset linear no backend externo montável.
 
 ## 2. O que entrou na rodada atual
-- `emit_external_toolchain_subset` foi atualizado para rotular o contrato vigente como Fase 80, preservando o mesmo subset conservador (chamadas diretas lineares, até 2 parâmetros `bombom`, frame `%rbp` e load/store em slots).
-- Testes de integração externa real ganharam caso versionado dedicado da Fase 80 cobrindo combinação linear mais rica de densidade local + composição interprocedural no mesmo executável (compilar/montar/linkar/executar + validação de resultado).
+- `emit_external_toolchain_subset` foi atualizado para rotular o contrato vigente como Fase 81, preservando o mesmo subset conservador (chamadas diretas lineares, até 2 parâmetros `bombom`, frame `%rbp` e load/store em slots).
+- Testes do backend externo ganharam caso negativo versionado dedicado da Fase 81 cobrindo recusa explícita de 3+ parâmetros por função no fluxo `--asm-s`.
 - Exemplo versionado da fase foi adicionado para auditoria e reprodução do novo recorte garantido.
 
 ## 3. Fora de escopo da rodada atual
@@ -17,12 +17,12 @@
 
 ## 4. Próximo item normal
 - Trilha ativa: **Bloco 7 — Backend nativo real**.
-- Próximo item funcional sugerido: **continuidade conservadora do artefato executável (mais combinações lineares auditáveis sem abrir fundamentos novos)**.
+- Próximo item funcional sugerido: **continuidade conservadora do artefato executável com novos reforços explícitos de fronteira (sem abrir fundamentos novos)**.
 - Bloco 8 aguarda consolidação suficiente do Bloco 7 antes de ser aberto como trilha ativa.
 
 ## 5. Observações operacionais curtas
-- Fase funcional atual: **80**.
-- Fase funcional anterior: **79**.
+- Fase funcional atual: **81**.
+- Fase funcional anterior: **80**.
 - Hotfix extraordinário mais recente: **HF-2 (Bloco 6, Fases 64–70)** — varredura de corretude pós-Bloco-6.
 - Hotfix anterior: **HF-1 (Fase 48-H1)**.
 - Rodadas documentais seguem sem numeração de fase funcional.

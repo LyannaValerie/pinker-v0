@@ -23,12 +23,12 @@
 - Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
 
 ## 5. Estado corrente
-- Fase funcional atual: **80 — cobertura linear auditável mais ampla**.
-- Fase funcional anterior: **79 — programa linear maior com mais etapas**.
+- Fase funcional atual: **81 — recusa explícita complementar no subset externo**.
+- Fase funcional anterior: **80 — cobertura linear auditável mais ampla**.
 - Bloco concluído: **Bloco 6 — Memória operacional** (Fases 64–72 entregues).
 - Próximo bloco ativo: **Bloco 7 — Backend nativo real**.
 - Bloco futuro já definido (não ativo): **Bloco 8 — I/O e ecossistema útil**.
-- Item normal sugerido após a Fase 80: **continuidade conservadora do artefato executável no Bloco 7 (mais combinações lineares auditáveis no mesmo subset, sem novos fundamentos)**.
+- Item normal sugerido após a Fase 81: **continuidade conservadora do artefato executável no Bloco 7 com novas fronteiras explícitas pequenas e auditáveis (sem abrir fundamentos novos)**.
 - Rodada documental corrente: **Doc-11 — abertura documental dos Blocos 7 e 8**.
 - Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 

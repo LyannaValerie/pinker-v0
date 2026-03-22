@@ -275,6 +275,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura externa real ampliada com exemplo/teste versionado da fase (`base/mistura/principal`) exercitando compilação/montagem/linkedição/execução e validação de resultado observável em fluxo linear maior com reuso de chamadas diretas já suportadas.
 - Fora de escopo explícito nesta fase: controle de fluxo geral, memória indireta/ponteiros no backend externo, globais, 3+ parâmetros, parâmetros não `bombom`, recursão externa e ABI completa.
 
+
+81 - recusa explícita complementar no subset externo
+- Nona fase funcional do Bloco 7 — Backend nativo real.
+- Subset externo montável preservou integralmente o recorte da Fase 80 e passou a rejeitar de forma explícita e auditável funções/calls com 3+ parâmetros no fluxo `--asm-s`.
+- Diagnósticos do backend externo foram endurecidos para declarar o limite garantido do contrato (até 2 parâmetros `bombom`) e evitar leitura incidental de suporte além do subset.
+- Cobertura de teste ampliada com caso versionado dedicado da fase validando a recusa explícita de 3+ parâmetros.
+- Fora de escopo explícito nesta fase: abertura de novos fundamentos (controle de fluxo geral, memória indireta/ponteiros, globais, parâmetros não `bombom` e ABI completa).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

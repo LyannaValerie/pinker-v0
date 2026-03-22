@@ -1,0 +1,10 @@
+pacote main;
+
+carinho agrega3(a: bombom, b: bombom, c: bombom) -> bombom {
+    mimo a + b + c;
+}
+
+carinho principal() -> bombom {
+    nova mut base: bombom = 7;
+    mimo agrega3(base, 2, 1);
+}
