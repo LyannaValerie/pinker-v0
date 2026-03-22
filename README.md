@@ -106,6 +106,7 @@ cargo run -- --asm-s examples/fase75_backend_externo_frame_registradores_valido.
 cargo run -- --asm-s examples/fase75_backend_externo_parametro_nao_bombom_invalido.pink
 cargo run -- --asm-s examples/fase76_backend_externo_multiplos_parametros_valido.pink
 cargo run -- --asm-s examples/fase77_backend_externo_memoria_frame_valido.pink
+cargo run -- --asm-s examples/fase78_backend_externo_composicao_interprocedural_valido.pink
 cargo run -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
@@ -250,6 +251,17 @@ Limites preservados na Fase 77 (fora do subset externo montável):
 - sem fluxo de controle (`talvez/senão`, loops);
 - sem 3+ parâmetros e sem parâmetros não `bombom`;
 - sem ABI completa de plataforma e sem register allocation amplo.
+
+Estado explícito da Fase 78: o subset externo montável preserva o recorte da Fase 77 e amplia a composição linear interprocedural no mesmo executável:
+- encadeamento linear de chamadas diretas em múltiplos níveis (ex.: `principal -> combina -> ajusta/soma2`);
+- passagem de resultados intermediários `bombom` entre funções do subset, com armazenamento em slots de frame quando necessário;
+- cobertura externa real (compilar/montar/linkar/executar) para fluxo interprocedural mais rico, sem abrir fundamentos novos de backend.
+
+Limites preservados na Fase 78 (fora do subset externo montável):
+- sem controle de fluxo geral (`talvez/senão`, loops) no backend externo;
+- sem memória indireta geral/ponteiros no backend externo;
+- sem globais, sem 3+ parâmetros e sem parâmetros não `bombom`;
+- sem recursão externa e sem ABI completa de plataforma/register allocation amplo.
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 

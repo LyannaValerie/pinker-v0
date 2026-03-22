@@ -1,0 +1,26 @@
+pacote main;
+
+carinho soma2(a: bombom, b: bombom) -> bombom {
+    nova mut total: bombom = a + b;
+    total = total + 1;
+    mimo total;
+}
+
+carinho ajusta(x: bombom) -> bombom {
+    nova mut y: bombom = x + 3;
+    y = y * 2;
+    mimo y;
+}
+
+carinho combina(base: bombom, extra: bombom) -> bombom {
+    nova mut parcial: bombom = soma2(base, extra);
+    parcial = ajusta(parcial);
+    parcial = parcial - 5;
+    mimo parcial;
+}
+
+carinho principal() -> bombom {
+    nova mut valor: bombom = combina(10, 4);
+    valor = soma2(valor, 7);
+    mimo valor;
+}

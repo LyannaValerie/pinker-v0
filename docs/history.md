@@ -256,6 +256,13 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Integração externa real coberta por exemplo/teste versionado da fase, compilando/montando/linkando/executando e validando resultado observável.
 - Fora de escopo explícito nesta fase: memória indireta geral/ponteiros (`*p`), arrays/structs operacionais no backend externo, globais, fluxo de controle geral e ABI completa.
 
+
+78 - composição linear interprocedural mais rica
+- Sexta fase funcional do Bloco 7 — Backend nativo real.
+- Subset externo montável preservou integralmente o recorte da Fase 77 e ampliou o artefato executável real com composição interprocedural linear mais rica: encadeamento de chamadas diretas em múltiplos níveis no mesmo executável, reaproveitando `%rdi`/`%rsi`, `%rax`, `%r10` e slots de frame via `%rbp`.
+- Cobertura externa real dedicada da fase com exemplo versionado novo e teste de integração que compila/monta/linka/executa fluxo `principal -> combina -> (soma2/ajusta)` e valida resultado observável.
+- Fora de escopo explícito nesta fase: controle de fluxo geral, memória indireta/ponteiros no backend externo, globais, 3+ parâmetros, parâmetros não `bombom`, recursão externa e ABI completa.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

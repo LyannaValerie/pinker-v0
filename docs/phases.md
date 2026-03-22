@@ -4,8 +4,8 @@
 > A crônica histórica oficial foi renomeada para `docs/history.md` (Doc-10).
 
 ## Estado atual
-- Fase funcional atual: **77 — memória real mínima no backend**.
-- Fase funcional anterior: **76 — múltiplos parâmetros mínimos reais**.
+- Fase funcional atual: **78 — composição linear interprocedural mais rica**.
+- Fase funcional anterior: **77 — memória real mínima no backend**.
 - Hotfix extraordinário ativo mais recente: **HF-2**.
 - Hotfix histórico extraordinário preservado: **Fase 48-H1**.
 
