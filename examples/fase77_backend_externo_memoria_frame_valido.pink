@@ -1,0 +1,9 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova origem: bombom = 22;
+    nova mut destino: bombom = 0;
+    destino = origem;
+    destino = destino + 1;
+    mimo destino;
+}

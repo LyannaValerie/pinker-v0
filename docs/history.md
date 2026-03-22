@@ -249,6 +249,13 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Integração externa real coberta com caso versionado dedicado exercitando compilação/linkedição/execução de função com 2 parâmetros e retorno calculado.
 - Fora de escopo explícito nesta fase: 3+ parâmetros, parâmetros não `bombom`, recursão externa, fluxo de controle, globais, memória indireta/ponteiros no backend externo e ABI completa.
 
+77 - memória real mínima no backend
+- Quinta fase funcional do Bloco 7 — Backend nativo real.
+- Subset externo montável preservou o recorte da Fase 76 e passou a declarar/cobrir explicitamente o primeiro acesso de memória real mínimo no backend externo: load/store em slots de frame via `%rbp`.
+- Emissão externa no recorte continua Linux x86_64 hospedado, com frame mínimo (`%rbp`) e registradores do subset (`%rax`, `%rdi`, `%rsi`, `%r10`), agora com cobertura dedicada para fluxo real que depende de leitura e escrita em memória de frame.
+- Integração externa real coberta por exemplo/teste versionado da fase, compilando/montando/linkando/executando e validando resultado observável.
+- Fora de escopo explícito nesta fase: memória indireta geral/ponteiros (`*p`), arrays/structs operacionais no backend externo, globais, fluxo de controle geral e ABI completa.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
