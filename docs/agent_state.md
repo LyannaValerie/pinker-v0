@@ -23,13 +23,13 @@
 - Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
 
 ## 5. Estado corrente
-- Fase funcional atual: **83 — matriz de fronteira auditável do subset externo**.
-- Fase funcional anterior: **82 — recusa explícita complementar de controle de fluxo no subset externo**.
+- Fase funcional atual: **84 — recusa explícita complementar de `sempre que` no subset externo**.
+- Fase funcional anterior: **83 — matriz de fronteira auditável do subset externo**.
 - Bloco concluído: **Bloco 6 — Memória operacional** (Fases 64–72 entregues).
 - Próximo bloco ativo: **Bloco 7 — Backend nativo real**.
 - Bloco futuro já definido (não ativo): **Bloco 8 — I/O e ecossistema útil**.
-- Item normal sugerido após a Fase 83: **continuidade conservadora do artefato executável no Bloco 7 com reforços explícitos pequenos de fronteira (sem abrir fundamentos novos e sem abrir Bloco 8)**.
-- Rodada documental corrente: **Doc-13 — limpeza editorial do README**.
+- Item normal sugerido após a Fase 84: **continuidade conservadora do artefato executável no Bloco 7 com reforços explícitos pequenos de fronteira (sem abrir fundamentos novos e sem abrir Bloco 8)**.
+- Rodada funcional corrente: **Fase 84 — recusa explícita complementar de `sempre que` no subset externo**.
 - Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 
 ## 6. Ecossistema documental
