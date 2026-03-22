@@ -1,16 +1,15 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Doc-12 — sincronização ampla de `docs/future.md` com o estado real do projeto**.
+- **Doc-13 — limpeza editorial do README**.
 - Rodada exclusivamente documental; sem mudança funcional, sem abertura de fase, sem alteração do roadmap ativo.
 
 ## 2. O que entrou na rodada atual
-- `docs/future.md` revisado de ponta a ponta: itens com drift documental marcados corretamente como ✅ implementado ou 🔶 parcial, com referência às fases correspondentes.
-- Principais correções: `fragil` (🔶, Fases 52+72), dereferência/aritmética de ponteiros (🔶, Fases 66–68), acesso operacional a campo/índice (🔶, Fases 69–70), `virar` lowering (🔶, Fase 71), `trazer` (🔶, Fase 60), geração x86_64/ABI (🔶, Bloco 7 Fases 73–83), `sussurro`/`livre;`/linker script (🔶, Fases 56–58), `falar`/`verso`/`pink build` (🔶, Fases 61–63), inteiros signed runtime (✅, Fase 64).
-- Intro corrigido: "próxima trilha ativa" → "trilha ativa corrente" para Bloco 7.
-- Frentes prioritárias: texto atualizado para refletir status 🔶 atual de cada item.
-- `docs/vocabulario.md`: `seta` movida para keywords implementadas (Fase 48).
-- `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` atualizados para a rodada Doc-12.
+- `README.md` revisado para remover linguagem histórica/de-fase; formulação substituída por descrição de estado e contrato atual.
+- Seção "Pipeline de backend textual": todos os blocos "Estado explícito da Fase X" consolidados em uma descrição única do subset externo montável atual, com tabela de fronteira auditável mantida.
+- Seções "O que o frontend faz hoje" e "O que não faz": ocorrências de "nesta fase", "da fase" e "(Fase N)" corrigidas para "atual"/"hoje".
+- Comandos, seção de documentação do projeto, tabela de fronteira e fluxo experimental preservados integralmente.
+- `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` atualizados para a rodada Doc-13.
 
 ## 3. Fora de escopo da rodada atual
 - Implementação de funcionalidade nova.

@@ -374,6 +374,13 @@ Doc-12 - sincronização ampla de `docs/future.md` com o estado real do projeto
 - `docs/vocabulario.md`: `seta` movida de sugestões para keywords implementadas (implementado na Fase 48).
 
 Doc-11 - abertura documental dos Blocos 7 e 8
+
+Doc-13 - limpeza editorial do README
+- Rodada documental sem mudança funcional.
+- Seção "Pipeline de backend textual" reescrita: substituição de todos os blocos "Estado explícito da Fase X" por descrição consolidada do estado atual e subset atual.
+- Seções "O que o frontend faz hoje" e "O que não faz" corrigidas: referências a "nesta fase", "da fase" e "(Fase N)" substituídas por formulação de contrato presente ("atual", "hoje").
+- Estrutura geral do README preservada; comandos, seção de documentação e tabela de fronteira auditável mantidos integralmente.
+- Objetivo: README descreve o que existe hoje e como testar hoje; linguagem histórica/de-fase migrada para `history.md`.
 - Rodada estritamente documental; sem alteração funcional de código, testes ou exemplos `.pink`.
 - Objetivo: eliminar ambiguidade estratégica sobre o próximo grande rumo do projeto após o fechamento do Bloco 6.
 - Bloco 6 — Memória operacional marcado como concluído no roadmap (Fases 64–72 entregues).
