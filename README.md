@@ -102,9 +102,10 @@ cargo run -- --run examples/fase71_cast_memoria_valido.pink
 cargo run -- --run examples/fase72_fragil_operacional_minimo_valido.pink
 cargo run -- --asm-s examples/fase73_backend_externo_locais_aritmetica_valido.pink
 cargo run -- --check examples/fase74_backend_externo_call_minimo_valido.pink
-cargo run -- --check examples/fase74_backend_externo_call_dois_args_invalido.pink
 cargo run -- --asm-s examples/fase75_backend_externo_frame_registradores_valido.pink
 cargo run -- --asm-s examples/fase75_backend_externo_parametro_nao_bombom_invalido.pink
+cargo run -- --asm-s examples/fase76_backend_externo_multiplos_parametros_valido.pink
+cargo run -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
 cargo run -- --check examples/check_continuar_fora_loop.pink
@@ -221,6 +222,21 @@ Limites preservados na Fase 75 (fora do subset externo montável):
 - sem globais;
 - sem memória indireta/ponteiros no backend externo;
 - sem register allocation amplo e sem ABI final de plataforma.
+
+Estado explícito da Fase 76: o subset externo montável ampliou a convenção concreta mínima para múltiplos parâmetros reais no recorte Linux x86_64 hospedado:
+- chamadas diretas com **até 2 argumentos `bombom`**;
+- registradores de argumento no subset: `%rdi` (arg0) e `%rsi` (arg1), com retorno em `%rax`;
+- frame mínimo por função preservado com `%rbp`, slots lineares e `%r10` como temporário volátil de binárias;
+- suporte mantido para bloco único linear com atribuição, aritmética (`+`, `-`, `*`) e `mimo` calculado.
+
+Limites preservados na Fase 76 (fora do subset externo montável):
+- sem 3+ parâmetros;
+- sem parâmetros não `bombom`;
+- sem recursão externa;
+- sem fluxo de controle (`talvez/senão`, loops);
+- sem globais;
+- sem memória indireta/ponteiros no backend externo;
+- sem ABI completa de plataforma e sem register allocation amplo.
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 

@@ -242,6 +242,13 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura externa real ampliada com caso versionado dedicado da Fase 75 exercitando call + retorno + locals/aritmética sob a disciplina de frame/registradores.
 - Fora de escopo explícito nesta fase: register allocation amplo, ABI final de plataforma, mais de 1 parâmetro, fluxo de controle geral e memória indireta/ponteiros no backend externo.
 
+76 - múltiplos parâmetros mínimos reais
+- Quarta fase funcional do Bloco 7 — Backend nativo real.
+- Subset externo montável ampliou chamadas diretas de até 1 para **até 2 parâmetros `bombom`**, com convenção concreta mínima no recorte Linux x86_64 hospedado.
+- Convenção desta fase no subset: `%rdi` (arg0), `%rsi` (arg1), `%rax` (retorno/acumulador) e `%r10` (temporário volátil de binárias), preservando frame mínimo com `%rbp` e slots lineares.
+- Integração externa real coberta com caso versionado dedicado exercitando compilação/linkedição/execução de função com 2 parâmetros e retorno calculado.
+- Fora de escopo explícito nesta fase: 3+ parâmetros, parâmetros não `bombom`, recursão externa, fluxo de controle, globais, memória indireta/ponteiros no backend externo e ABI completa.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
