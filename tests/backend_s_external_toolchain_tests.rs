@@ -10,7 +10,7 @@ fn asm_s_external_subset_emite_main_montavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 42; }";
     let out = render_backend_s_external_subset(code).unwrap();
     assert!(out.contains(
-        "# pinker v0 external toolchain subset (fase 79, linux x86_64, frame/reg + memoria minima)"
+        "# pinker v0 external toolchain subset (fase 80, linux x86_64, frame/reg + memoria minima)"
     ));
     assert!(out.contains(".globl main"));
     assert!(out.contains("movabsq $42, %rax"));
@@ -381,13 +381,61 @@ fn asm_s_external_subset_fluxo_real_fase79_programa_linear_maior() {
 }
 
 #[test]
+fn asm_s_external_subset_fluxo_real_fase80_cobertura_linear_auditavel_mais_ampla() {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return;
+    }
+
+    let Some(driver) = detect_cc_driver() else {
+        return;
+    };
+
+    let code =
+        include_str!("../examples/fase80_backend_externo_cobertura_linear_ampla_valido.pink");
+    let asm = render_backend_s_external_subset(code).unwrap();
+    assert!(asm.contains("call base"));
+    assert!(asm.contains("call mistura"));
+    assert!(asm.contains("movq %rsi"));
+    assert!(asm.contains("imulq %r10, %rax"));
+    assert!(asm.contains("movq -"));
+
+    let workdir = unique_temp_dir();
+    fs::create_dir_all(&workdir).expect("falha ao criar diretório temporário");
+    let asm_path = workdir.join("principal.s");
+    let bin_path = workdir.join("principal");
+    fs::write(&asm_path, asm).expect("falha ao escrever .s temporário");
+
+    let compile = Command::new(&driver)
+        .arg(&asm_path)
+        .arg("-o")
+        .arg(&bin_path)
+        .output()
+        .expect("falha ao invocar driver C");
+    assert!(
+        compile.status.success(),
+        "compilação falhou com {}: {}",
+        driver,
+        String::from_utf8_lossy(&compile.stderr)
+    );
+
+    let run = Command::new(&bin_path)
+        .output()
+        .expect("falha ao executar binário gerado");
+    assert_eq!(run.status.code(), Some(167));
+
+    let _ = fs::remove_file(&asm_path);
+    let _ = fs::remove_file(&bin_path);
+    let _ = fs::remove_dir(&workdir);
+}
+
+#[test]
 fn asm_s_external_subset_falha_clara_fora_do_subset() {
     let code = include_str!("../examples/fase76_backend_externo_tres_args_invalido.pink");
 
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err
         .to_string()
-        .contains("subset externo montável (Fase 79)"));
+        .contains("subset externo montável (Fase 80)"));
 }
 
 #[test]
@@ -398,7 +446,7 @@ fn asm_s_external_subset_falha_parametro_nao_bombom() {
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err
         .to_string()
-        .contains("subset externo montável (Fase 79) aceita somente parâmetro `bombom`"));
+        .contains("subset externo montável (Fase 80) aceita somente parâmetro `bombom`"));
 }
 
 fn detect_cc_driver() -> Option<String> {
@@ -417,5 +465,5 @@ fn unique_temp_dir() -> std::path::PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("tempo do sistema inválido")
         .as_nanos();
-    std::env::temp_dir().join(format!("pinker_phase79_{}", nanos))
+    std::env::temp_dir().join(format!("pinker_phase80_{}", nanos))
 }
