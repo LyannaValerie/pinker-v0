@@ -10,7 +10,7 @@ fn asm_s_external_subset_emite_main_montavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 42; }";
     let out = render_backend_s_external_subset(code).unwrap();
     assert!(out.contains(
-        "# pinker v0 external toolchain subset (fase 80, linux x86_64, frame/reg + memoria minima)"
+        "# pinker v0 external toolchain subset (fase 81, linux x86_64, frame/reg + memoria minima + recusa 3+ params)"
     ));
     assert!(out.contains(".globl main"));
     assert!(out.contains("movabsq $42, %rax"));
@@ -435,7 +435,7 @@ fn asm_s_external_subset_falha_clara_fora_do_subset() {
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err
         .to_string()
-        .contains("subset externo montável (Fase 80)"));
+        .contains("subset externo montável (Fase 81)"));
 }
 
 #[test]
@@ -446,7 +446,19 @@ fn asm_s_external_subset_falha_parametro_nao_bombom() {
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err
         .to_string()
-        .contains("subset externo montável (Fase 80) aceita somente parâmetro `bombom`"));
+        .contains("subset externo montável (Fase 81) aceita somente parâmetro `bombom`"));
+}
+
+#[test]
+fn asm_s_external_subset_fase81_recusa_explicita_tres_parametros_por_funcao() {
+    let code = include_str!(
+        "../examples/fase81_backend_externo_recusa_explicita_tres_parametros_invalido.pink",
+    );
+
+    let err = render_backend_s_external_subset(code).unwrap_err();
+    assert!(err.to_string().contains(
+        "subset externo montável (Fase 81) recusa explicitamente 3+ parâmetros por função",
+    ));
 }
 
 fn detect_cc_driver() -> Option<String> {
@@ -465,5 +477,5 @@ fn unique_temp_dir() -> std::path::PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("tempo do sistema inválido")
         .as_nanos();
-    std::env::temp_dir().join(format!("pinker_phase80_{}", nanos))
+    std::env::temp_dir().join(format!("pinker_phase81_{}", nanos))
 }
