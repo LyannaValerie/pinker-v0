@@ -4,8 +4,8 @@
 > A crônica histórica oficial foi renomeada para `docs/history.md` (Doc-10).
 
 ## Estado atual
-- Fase funcional atual: **79 — programa linear maior com mais etapas**.
-- Fase funcional anterior: **78 — composição linear interprocedural mais rica**.
+- Fase funcional atual: **80 — cobertura linear auditável mais ampla**.
+- Fase funcional anterior: **79 — programa linear maior com mais etapas**.
 - Hotfix extraordinário ativo mais recente: **HF-2**.
 - Hotfix histórico extraordinário preservado: **Fase 48-H1**.
 

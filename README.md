@@ -108,6 +108,7 @@ cargo run -- --asm-s examples/fase76_backend_externo_multiplos_parametros_valido
 cargo run -- --asm-s examples/fase77_backend_externo_memoria_frame_valido.pink
 cargo run -- --asm-s examples/fase78_backend_externo_composicao_interprocedural_valido.pink
 cargo run -- --asm-s examples/fase79_backend_externo_programa_linear_maior_valido.pink
+cargo run -- --asm-s examples/fase80_backend_externo_cobertura_linear_ampla_valido.pink
 cargo run -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
@@ -270,6 +271,17 @@ Estado explícito da Fase 79: o subset externo montável preserva integralmente 
 - composição interprocedural linear mantendo até 2 parâmetros `bombom` e sem abrir novos fundamentos.
 
 Limites preservados na Fase 79 (fora do subset externo montável):
+- sem controle de fluxo geral (`talvez/senão`, loops) no backend externo;
+- sem memória indireta geral/ponteiros no backend externo;
+- sem globais, sem 3+ parâmetros e sem parâmetros não `bombom`;
+- sem recursão externa e sem ABI completa de plataforma/register allocation amplo.
+
+Estado explícito da Fase 80: o subset externo montável preserva integralmente o recorte da Fase 79 e amplia a cobertura linear auditável com combinação mais rica de densidade local + composição interprocedural no mesmo executável:
+- reuso de chamadas diretas a funções auxiliares com 1 e 2 parâmetros `bombom` em múltiplos trechos lineares do mesmo programa;
+- maior reaproveitamento de resultados intermediários em slots de frame entre chamadas sucessivas já suportadas;
+- cobertura externa real adicional (compilar/montar/linkar/executar) com validação de resultado observável no Linux x86_64 hospedado.
+
+Limites preservados na Fase 80 (fora do subset externo montável):
 - sem controle de fluxo geral (`talvez/senão`, loops) no backend externo;
 - sem memória indireta geral/ponteiros no backend externo;
 - sem globais, sem 3+ parâmetros e sem parâmetros não `bombom`;
