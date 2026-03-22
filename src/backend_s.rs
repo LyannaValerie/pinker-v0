@@ -19,10 +19,11 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 
 /// Emite um `.s` mínimo montável por toolchain externa (assembler+linker do sistema).
 ///
-/// Escopo deliberadamente mínimo para a Fase 76:
+/// Escopo deliberadamente mínimo para a Fase 77:
 /// - target assumido: Linux x86_64 (SysV) hospedado;
 /// - subset aceito: funções `-> bombom` com bloco único linear, incluindo `call` direta;
 /// - disciplina mínima de registradores/frame: `%rax` (retorno/acumulador), `%rdi` (arg0), `%rsi` (arg1), `%r10` (temporário volátil), slots em frame `%rbp`;
+/// - memória mínima real garantida: load/store em slots de frame via `movq -off(%rbp), %reg` e `movq %reg, -off(%rbp)`;
 /// - sem globais, sem fluxo de controle e sem ABI completa.
 ///
 /// O resultado mapeia `principal` para o símbolo `main`, para permitir linkedição
@@ -92,14 +93,14 @@ fn extract_external_callconv_program(
 ) -> Result<ExternalCallConvProgram, PinkerError> {
     if !selected.globals.is_empty() {
         return Err(err(
-            "subset externo montável (Fase 76) não suporta globais; esperado programa sem `eterno`",
+            "subset externo montável (Fase 77) não suporta globais; esperado programa sem `eterno`",
         ));
     }
 
     let has_main = selected.functions.iter().any(|f| f.name == "principal");
     if !has_main {
         return Err(err(
-            "subset externo montável (Fase 76) exige função `principal`",
+            "subset externo montável (Fase 77) exige função `principal`",
         ));
     }
 
@@ -107,40 +108,40 @@ fn extract_external_callconv_program(
     for function in &selected.functions {
         if function.ret_type != TypeIR::Bombom {
             return Err(err(
-                "subset externo montável (Fase 76) exige retorno `bombom` em todas as funções",
+                "subset externo montável (Fase 77) exige retorno `bombom` em todas as funções",
             ));
         }
         if function.name == "principal" && !function.params.is_empty() {
             return Err(err(
-                "subset externo montável (Fase 76) exige `principal()` sem parâmetros",
+                "subset externo montável (Fase 77) exige `principal()` sem parâmetros",
             ));
         }
         if function.params.len() > ARG_REGS.len() {
             return Err(err(
-                "subset externo montável (Fase 76) aceita no máximo 2 parâmetros `bombom` por função",
+                "subset externo montável (Fase 77) aceita no máximo 2 parâmetros `bombom` por função",
             ));
         }
         for param in &function.params {
             let Some(ty) = function.slot_types.get(param) else {
                 return Err(err(
-                    "subset externo montável (Fase 76) encontrou parâmetro sem tipo",
+                    "subset externo montável (Fase 77) encontrou parâmetro sem tipo",
                 ));
             };
             if *ty != TypeIR::Bombom {
                 return Err(err(
-                    "subset externo montável (Fase 76) aceita somente parâmetro `bombom`",
+                    "subset externo montável (Fase 77) aceita somente parâmetro `bombom`",
                 ));
             }
         }
         for local in &function.locals {
             let Some(ty) = function.slot_types.get(local) else {
                 return Err(err(
-                    "subset externo montável (Fase 76) encontrou local sem tipo",
+                    "subset externo montável (Fase 77) encontrou local sem tipo",
                 ));
             };
             if *ty != TypeIR::Bombom {
                 return Err(err(&format!(
-                    "subset externo montável (Fase 76) só aceita local `bombom`; '{}' é '{}'",
+                    "subset externo montável (Fase 77) só aceita local `bombom`; '{}' é '{}'",
                     local,
                     ty.name()
                 )));
@@ -148,7 +149,7 @@ fn extract_external_callconv_program(
         }
         if function.blocks.len() != 1 {
             return Err(err(
-                "subset externo montável (Fase 76) exige bloco único por função",
+                "subset externo montável (Fase 77) exige bloco único por função",
             ));
         }
 
@@ -157,7 +158,7 @@ fn extract_external_callconv_program(
             SelectedTerminator::Ret(Some(value)) => value.clone(),
             _ => {
                 return Err(err(
-                    "subset externo montável (Fase 76) exige `mimo <valor>;` em cada função",
+                    "subset externo montável (Fase 77) exige `mimo <valor>;` em cada função",
                 ))
             }
         };
@@ -209,22 +210,22 @@ fn extract_external_callconv_program(
                 } => {
                     if *ret_type != TypeIR::Bombom {
                         return Err(err(
-                            "subset externo montável (Fase 76) só aceita call com retorno `bombom`",
+                            "subset externo montável (Fase 77) só aceita call com retorno `bombom`",
                         ));
                     }
                     if !selected.functions.iter().any(|f| &f.name == callee) {
                         return Err(err(
-                            "subset externo montável (Fase 76) encontrou call para função inexistente",
+                            "subset externo montável (Fase 77) encontrou call para função inexistente",
                         ));
                     }
                     if callee == &function.name {
                         return Err(err(
-                            "subset externo montável (Fase 76) não suporta recursão externa",
+                            "subset externo montável (Fase 77) não suporta recursão externa",
                         ));
                     }
                     if args.len() > ARG_REGS.len() {
                         return Err(err(
-                            "subset externo montável (Fase 76) aceita call com no máximo 2 argumentos `bombom`",
+                            "subset externo montável (Fase 77) aceita call com no máximo 2 argumentos `bombom`",
                         ));
                     }
                     for (idx, arg) in args.iter().enumerate() {
@@ -239,7 +240,7 @@ fn extract_external_callconv_program(
                 }
                 _ => {
                     return Err(err(
-                        "subset externo montável (Fase 76) aceita apenas atribuição, aritmética linear (+,-,*), e call direta com até 2 argumentos `bombom`",
+                        "subset externo montável (Fase 77) aceita apenas atribuição, aritmética linear (+,-,*), call direta com até 2 argumentos `bombom` e load/store em slots de frame",
                     ));
                 }
             }
@@ -263,7 +264,7 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
     line(
         &mut out,
         0,
-        "# pinker v0 external toolchain subset (fase 76, linux x86_64, frame/reg minima)",
+        "# pinker v0 external toolchain subset (fase 77, linux x86_64, frame/reg + memoria minima)",
     );
     line(&mut out, 0, ".text");
 
@@ -324,7 +325,7 @@ fn ensure_dest_is_local_or_param(
         Ok(())
     } else {
         Err(err(
-            "subset externo montável (Fase 76) só aceita escrita em parâmetros ou variáveis locais declaradas",
+            "subset externo montável (Fase 77) só aceita escrita em parâmetros ou variáveis locais declaradas",
         ))
     }
 }
@@ -400,7 +401,7 @@ fn load_operand(
         OperandIR::Local(slot) => {
             let Some(offset) = slot_offsets.get(slot) else {
                 return Err(err(
-                    "subset externo montável (Fase 76) encontrou slot sem offset",
+                    "subset externo montável (Fase 77) encontrou slot sem offset",
                 ));
             };
             lines.push(format!("movq -{}(%rbp), {}", offset, reg));
@@ -409,14 +410,14 @@ fn load_operand(
             let key = temp_key(*temp);
             let Some(offset) = slot_offsets.get(&key) else {
                 return Err(err(
-                    "subset externo montável (Fase 76) encontrou temporário sem offset",
+                    "subset externo montável (Fase 77) encontrou temporário sem offset",
                 ));
             };
             lines.push(format!("movq -{}(%rbp), {}", offset, reg));
         }
         _ => {
             return Err(err(
-                "subset externo montável (Fase 76) só aceita operandos inteiros, locais e temporários",
+                "subset externo montável (Fase 77) só aceita operandos inteiros, locais e temporários",
             ));
         }
     }

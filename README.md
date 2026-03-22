@@ -105,6 +105,7 @@ cargo run -- --check examples/fase74_backend_externo_call_minimo_valido.pink
 cargo run -- --asm-s examples/fase75_backend_externo_frame_registradores_valido.pink
 cargo run -- --asm-s examples/fase75_backend_externo_parametro_nao_bombom_invalido.pink
 cargo run -- --asm-s examples/fase76_backend_externo_multiplos_parametros_valido.pink
+cargo run -- --asm-s examples/fase77_backend_externo_memoria_frame_valido.pink
 cargo run -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
@@ -236,6 +237,18 @@ Limites preservados na Fase 76 (fora do subset externo montável):
 - sem fluxo de controle (`talvez/senão`, loops);
 - sem globais;
 - sem memória indireta/ponteiros no backend externo;
+- sem ABI completa de plataforma e sem register allocation amplo.
+
+Estado explícito da Fase 77: o subset externo montável preserva o recorte de chamadas da Fase 76 e explicita o primeiro recorte de memória real mínima no backend externo:
+- load de slot de frame por `%rbp` (`movq -off(%rbp), %reg`);
+- store de slot de frame por `%rbp` (`movq %reg, -off(%rbp)`);
+- uso desses acessos em fluxo real compilável/montável/linkável/executável no subset Linux x86_64 hospedado.
+
+Limites preservados na Fase 77 (fora do subset externo montável):
+- sem memória indireta geral/ponteiros (`*p`, `arr[i]`, `campo` por ponteiro) no backend externo;
+- sem globais;
+- sem fluxo de controle (`talvez/senão`, loops);
+- sem 3+ parâmetros e sem parâmetros não `bombom`;
 - sem ABI completa de plataforma e sem register allocation amplo.
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
