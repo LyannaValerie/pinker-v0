@@ -235,6 +235,13 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Subset garantido desta fase: `principal() -> bombom` chamando função auxiliar com 0 ou 1 argumento `bombom`, com atribuição/local e aritmética linear (`+`, `-`, `*`) antes/depois da call.
 - Fora de escopo explícito nesta fase: mais de 1 argumento, chamadas complexas, recursão externa, fluxo de controle, globais, memória indireta/ponteiros e ABI completa.
 
+75 - frame/registradores mínimos reais
+- Terceira fase funcional do Bloco 7 — Backend nativo real.
+- Subset externo montável preservou o recorte da Fase 74 e passou a adotar disciplina mínima explícita de registradores: `%rax` (acumulador/retorno), `%rdi` (argumento único) e `%r10` (temporário volátil de binárias lineares).
+- Emissão de aritmética/call foi consolidada para reduzir casos ad hoc e manter consistência do frame mínimo por função com `%rbp` e slots de parâmetro/local/temporários.
+- Cobertura externa real ampliada com caso versionado dedicado da Fase 75 exercitando call + retorno + locals/aritmética sob a disciplina de frame/registradores.
+- Fora de escopo explícito nesta fase: register allocation amplo, ABI final de plataforma, mais de 1 parâmetro, fluxo de controle geral e memória indireta/ponteiros no backend externo.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
