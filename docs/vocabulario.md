@@ -31,6 +31,7 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `virar`        | cast explícito   | transformação visível |
 | `peso`         | sizeof explícito | medida estática       |
 | `alinhamento`  | alignof explícito| alinhar com cuidado   |
+| `seta`         | ponteiro / ref   | direção, apontar      |
 | `fragil`       | volatile         | cuidado redobrado     |
 | `sussurro`     | inline asm       | fala direta mínima com máquina |
 | `livre`        | freestanding/no-std (marca de unidade) | intenção de ambiente sem runtime hospedeiro implícito |
@@ -54,7 +55,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 | byte (u8)        | `migalha`   | `grao`               | pequeno mas precioso                |
 | char             | `letra`     | `sinal`              | simples, direto                     |
 | void explito     | `nulo`      | `vazio`              | ausencia serena                     |
-| ponteiro / ref   | `seta`      | `olhar`, `aceno`     | direcao, apontar                    |
+| ~~ponteiro / ref~~ | ~~`seta`~~  | `olhar`, `aceno`     | implementado na Fase 48             |
 
 ### Estruturas de dados
 
