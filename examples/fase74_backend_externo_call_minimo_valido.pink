@@ -1,0 +1,12 @@
+pacote main;
+
+carinho dobro(x: bombom) -> bombom {
+    mimo x * 2;
+}
+
+carinho principal() -> bombom {
+    nova base: bombom = 40;
+    nova mut valor: bombom = dobro(base);
+    valor = valor - 1;
+    mimo valor;
+}

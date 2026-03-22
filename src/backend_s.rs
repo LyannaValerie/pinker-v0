@@ -19,16 +19,17 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 
 /// Emite um `.s` mínimo montável por toolchain externa (assembler+linker do sistema).
 ///
-/// Escopo deliberadamente mínimo para a Fase 55:
+/// Escopo deliberadamente mínimo para a Fase 74:
 /// - target assumido: Linux x86_64 (SysV) hospedado;
-/// - subset aceito: apenas `principal() -> bombom` com retorno inteiro constante;
-/// - sem globals, sem parâmetros, sem fluxo de controle e sem chamadas.
+/// - subset aceito: funções `-> bombom` com bloco único linear, incluindo `call` direta;
+/// - convenção concreta mínima: `@arg0` em `%rdi` e retorno em `%rax`;
+/// - sem globais, sem fluxo de controle e sem ABI completa.
 ///
 /// O resultado mapeia `principal` para o símbolo `main`, para permitir linkedição
 /// via driver C (`cc`/`gcc`/`clang`) sem runtime próprio.
 pub fn emit_external_toolchain_subset(selected: &SelectedProgram) -> Result<String, PinkerError> {
-    let function = extract_external_linear_arithmetic_main(selected)?;
-    Ok(render_external_x86_64_linux_main(&function))
+    let program = extract_external_callconv_program(selected)?;
+    Ok(render_external_x86_64_linux_callconv(&program))
 }
 
 fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerError> {
@@ -69,179 +70,261 @@ fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerErr
     Ok(())
 }
 
-struct ExternalLinearMain {
+struct ExternalCallConvProgram {
+    functions: Vec<ExternalCallConvFunction>,
+}
+
+struct ExternalCallConvFunction {
+    name: String,
     stack_size: u32,
     slot_offsets: HashMap<String, u32>,
     body: Vec<String>,
     ret: OperandIR,
+    param: Option<String>,
 }
 
-fn extract_external_linear_arithmetic_main(
+fn extract_external_callconv_program(
     selected: &SelectedProgram,
-) -> Result<ExternalLinearMain, PinkerError> {
+) -> Result<ExternalCallConvProgram, PinkerError> {
     if !selected.globals.is_empty() {
         return Err(err(
-            "subset externo montável (Fase 73) não suporta globais; esperado programa sem `eterno`",
-        ));
-    }
-    if selected.functions.len() != 1 {
-        return Err(err(
-            "subset externo montável (Fase 73) exige exatamente uma função: `principal`",
+            "subset externo montável (Fase 74) não suporta globais; esperado programa sem `eterno`",
         ));
     }
 
-    let function = &selected.functions[0];
-    if function.name != "principal" {
+    let has_main = selected.functions.iter().any(|f| f.name == "principal");
+    if !has_main {
         return Err(err(
-            "subset externo montável (Fase 73) exige função única chamada `principal`",
+            "subset externo montável (Fase 74) exige função `principal`",
         ));
     }
-    if function.ret_type != TypeIR::Bombom {
-        return Err(err(
-            "subset externo montável (Fase 73) exige `principal() -> bombom`",
-        ));
-    }
-    if !function.params.is_empty() {
-        return Err(err(
-            "subset externo montável (Fase 73) ainda não suporta parâmetros em `principal`",
-        ));
-    }
-    if function.blocks.len() != 1 {
-        return Err(err(
-            "subset externo montável (Fase 73) exige bloco único em `principal`",
-        ));
-    }
-    for local in &function.locals {
-        let Some(ty) = function.slot_types.get(local) else {
+
+    let mut functions = Vec::new();
+    for function in &selected.functions {
+        if function.ret_type != TypeIR::Bombom {
             return Err(err(
-                "subset externo montável (Fase 73) encontrou local sem tipo",
+                "subset externo montável (Fase 74) exige retorno `bombom` em todas as funções",
             ));
-        };
-        if *ty != TypeIR::Bombom {
-            return Err(err(&format!(
-                "subset externo montável (Fase 73) só aceita local `bombom`; '{}' é '{}'",
-                local,
-                ty.name()
-            )));
         }
-    }
-
-    let block = &function.blocks[0];
-    let ret = match &block.terminator {
-        SelectedTerminator::Ret(Some(value)) => value.clone(),
-        _ => {
+        if function.name == "principal" && !function.params.is_empty() {
             return Err(err(
-                "subset externo montável (Fase 73) exige `mimo <valor>;` em `principal`",
-            ))
+                "subset externo montável (Fase 74) exige `principal()` sem parâmetros",
+            ));
         }
-    };
+        if function.params.len() > 1 {
+            return Err(err(
+                "subset externo montável (Fase 74) aceita no máximo 1 parâmetro `bombom` por função",
+            ));
+        }
+        if let Some(param) = function.params.first() {
+            let Some(ty) = function.slot_types.get(param) else {
+                return Err(err(
+                    "subset externo montável (Fase 74) encontrou parâmetro sem tipo",
+                ));
+            };
+            if *ty != TypeIR::Bombom {
+                return Err(err(
+                    "subset externo montável (Fase 74) aceita somente parâmetro `bombom`",
+                ));
+            }
+        }
+        for local in &function.locals {
+            let Some(ty) = function.slot_types.get(local) else {
+                return Err(err(
+                    "subset externo montável (Fase 74) encontrou local sem tipo",
+                ));
+            };
+            if *ty != TypeIR::Bombom {
+                return Err(err(&format!(
+                    "subset externo montável (Fase 74) só aceita local `bombom`; '{}' é '{}'",
+                    local,
+                    ty.name()
+                )));
+            }
+        }
+        if function.blocks.len() != 1 {
+            return Err(err(
+                "subset externo montável (Fase 74) exige bloco único por função",
+            ));
+        }
 
-    let temp_ids = collect_temp_ids(function, &ret);
-    let mut slot_offsets = HashMap::new();
-    let mut slot_index = 1u32;
-    for local in &function.locals {
-        slot_offsets.insert(local.clone(), slot_index * 8);
-        slot_index += 1;
-    }
-    for temp in temp_ids {
-        slot_offsets.insert(temp, slot_index * 8);
-        slot_index += 1;
-    }
-    let raw_stack = (slot_index.saturating_sub(1)) * 8;
-    let stack_size = if raw_stack == 0 {
-        0
-    } else {
-        raw_stack.div_ceil(16) * 16
-    };
-
-    let mut body = Vec::new();
-    for inst in &block.instructions {
-        match inst {
-            SelectedInstr::Mov { dest, src } => {
-                ensure_dest_is_local(dest, function)?;
-                body.extend(load_operand("%rax", src, &slot_offsets)?);
-                body.push(format!("movq %rax, -{}(%rbp)", slot_offsets[dest]));
-            }
-            SelectedInstr::Add { dest, lhs, rhs } => {
-                body.extend(load_operand("%rax", lhs, &slot_offsets)?);
-                body.extend(load_operand("%rbx", rhs, &slot_offsets)?);
-                body.push("addq %rbx, %rax".to_string());
-                body.push(format!(
-                    "movq %rax, -{}(%rbp)",
-                    slot_offsets[&temp_key(*dest)]
-                ));
-            }
-            SelectedInstr::Sub { dest, lhs, rhs } => {
-                body.extend(load_operand("%rax", lhs, &slot_offsets)?);
-                body.extend(load_operand("%rbx", rhs, &slot_offsets)?);
-                body.push("subq %rbx, %rax".to_string());
-                body.push(format!(
-                    "movq %rax, -{}(%rbp)",
-                    slot_offsets[&temp_key(*dest)]
-                ));
-            }
-            SelectedInstr::Mul { dest, lhs, rhs } => {
-                body.extend(load_operand("%rax", lhs, &slot_offsets)?);
-                body.extend(load_operand("%rbx", rhs, &slot_offsets)?);
-                body.push("imulq %rbx, %rax".to_string());
-                body.push(format!(
-                    "movq %rax, -{}(%rbp)",
-                    slot_offsets[&temp_key(*dest)]
-                ));
-            }
+        let block = &function.blocks[0];
+        let ret = match &block.terminator {
+            SelectedTerminator::Ret(Some(value)) => value.clone(),
             _ => {
                 return Err(err(
-                    "subset externo montável (Fase 73) aceita apenas `nova`/atribuição e aritmética linear (+,-,*) em `principal`",
-                ));
+                    "subset externo montável (Fase 74) exige `mimo <valor>;` em cada função",
+                ))
+            }
+        };
+
+        let temp_ids = collect_temp_ids(function, &ret);
+        let mut slot_offsets = HashMap::new();
+        let mut slot_index = 1u32;
+        for param in &function.params {
+            slot_offsets.insert(param.clone(), slot_index * 8);
+            slot_index += 1;
+        }
+        for local in &function.locals {
+            slot_offsets.insert(local.clone(), slot_index * 8);
+            slot_index += 1;
+        }
+        for temp in temp_ids {
+            slot_offsets.insert(temp, slot_index * 8);
+            slot_index += 1;
+        }
+        let raw_stack = (slot_index.saturating_sub(1)) * 8;
+        let stack_size = if raw_stack == 0 {
+            0
+        } else {
+            raw_stack.div_ceil(16) * 16
+        };
+
+        let mut body = Vec::new();
+        for inst in &block.instructions {
+            match inst {
+                SelectedInstr::Mov { dest, src } => {
+                    ensure_dest_is_local_or_param(dest, function)?;
+                    body.extend(load_operand("%rax", src, &slot_offsets)?);
+                    body.push(format!("movq %rax, -{}(%rbp)", slot_offsets[dest]));
+                }
+                SelectedInstr::Add { dest, lhs, rhs } => {
+                    body.extend(load_operand("%rax", lhs, &slot_offsets)?);
+                    body.extend(load_operand("%rbx", rhs, &slot_offsets)?);
+                    body.push("addq %rbx, %rax".to_string());
+                    body.push(format!(
+                        "movq %rax, -{}(%rbp)",
+                        slot_offsets[&temp_key(*dest)]
+                    ));
+                }
+                SelectedInstr::Sub { dest, lhs, rhs } => {
+                    body.extend(load_operand("%rax", lhs, &slot_offsets)?);
+                    body.extend(load_operand("%rbx", rhs, &slot_offsets)?);
+                    body.push("subq %rbx, %rax".to_string());
+                    body.push(format!(
+                        "movq %rax, -{}(%rbp)",
+                        slot_offsets[&temp_key(*dest)]
+                    ));
+                }
+                SelectedInstr::Mul { dest, lhs, rhs } => {
+                    body.extend(load_operand("%rax", lhs, &slot_offsets)?);
+                    body.extend(load_operand("%rbx", rhs, &slot_offsets)?);
+                    body.push("imulq %rbx, %rax".to_string());
+                    body.push(format!(
+                        "movq %rax, -{}(%rbp)",
+                        slot_offsets[&temp_key(*dest)]
+                    ));
+                }
+                SelectedInstr::Call {
+                    dest,
+                    callee,
+                    args,
+                    ret_type,
+                } => {
+                    if *ret_type != TypeIR::Bombom {
+                        return Err(err(
+                            "subset externo montável (Fase 74) só aceita call com retorno `bombom`",
+                        ));
+                    }
+                    if !selected.functions.iter().any(|f| &f.name == callee) {
+                        return Err(err(
+                            "subset externo montável (Fase 74) encontrou call para função inexistente",
+                        ));
+                    }
+                    if callee == &function.name {
+                        return Err(err(
+                            "subset externo montável (Fase 74) não suporta recursão externa",
+                        ));
+                    }
+                    if args.len() > 1 {
+                        return Err(err(
+                            "subset externo montável (Fase 74) aceita call com no máximo 1 argumento `bombom`",
+                        ));
+                    }
+                    if let Some(arg) = args.first() {
+                        body.extend(load_operand("%rdi", arg, &slot_offsets)?);
+                    }
+                    body.push(format!("call {}", callee));
+                    body.push(format!(
+                        "movq %rax, -{}(%rbp)",
+                        slot_offsets[&temp_key(*dest)]
+                    ));
+                }
+                _ => {
+                    return Err(err(
+                        "subset externo montável (Fase 74) aceita apenas atribuição, aritmética linear (+,-,*), e call direta com até 1 argumento `bombom`",
+                    ));
+                }
             }
         }
+
+        functions.push(ExternalCallConvFunction {
+            name: function.name.clone(),
+            stack_size,
+            slot_offsets,
+            body,
+            ret,
+            param: function.params.first().cloned(),
+        });
     }
 
-    Ok(ExternalLinearMain {
-        stack_size,
-        slot_offsets,
-        body,
-        ret,
-    })
+    Ok(ExternalCallConvProgram { functions })
 }
 
-fn render_external_x86_64_linux_main(function: &ExternalLinearMain) -> String {
+fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> String {
     let mut out = String::new();
     line(
         &mut out,
         0,
-        "# pinker v0 external toolchain subset (fase 73, linux x86_64)",
+        "# pinker v0 external toolchain subset (fase 74, linux x86_64, callconv minima)",
     );
     line(&mut out, 0, ".text");
-    line(&mut out, 0, ".globl main");
-    line(&mut out, 0, "main:");
-    line(&mut out, 1, "pushq %rbp");
-    line(&mut out, 1, "movq %rsp, %rbp");
-    if function.stack_size > 0 {
-        line(&mut out, 1, &format!("subq ${}, %rsp", function.stack_size));
+
+    for function in &program.functions {
+        let symbol = if function.name == "principal" {
+            "main".to_string()
+        } else {
+            function.name.clone()
+        };
+        line(&mut out, 0, &format!(".globl {}", symbol));
+        line(&mut out, 0, &format!("{}:", symbol));
+        line(&mut out, 1, "pushq %rbp");
+        line(&mut out, 1, "movq %rsp, %rbp");
+        if function.stack_size > 0 {
+            line(&mut out, 1, &format!("subq ${}, %rsp", function.stack_size));
+        }
+        if let Some(param) = &function.param {
+            line(
+                &mut out,
+                1,
+                &format!("movq %rdi, -{}(%rbp)", function.slot_offsets[param]),
+            );
+        }
+        for stmt in &function.body {
+            line(&mut out, 1, stmt);
+        }
+        for stmt in load_operand("%rax", &function.ret, &function.slot_offsets)
+            .expect("retorno deve ser carregável")
+        {
+            line(&mut out, 1, &stmt);
+        }
+        line(&mut out, 1, "leave");
+        line(&mut out, 1, "ret");
     }
-    for stmt in &function.body {
-        line(&mut out, 1, stmt);
-    }
-    for stmt in load_operand("%rax", &function.ret, &function.slot_offsets)
-        .expect("retorno deve ser carregável")
-    {
-        line(&mut out, 1, &stmt);
-    }
-    line(&mut out, 1, "leave");
-    line(&mut out, 1, "ret");
     out
 }
 
-fn ensure_dest_is_local(
+fn ensure_dest_is_local_or_param(
     dest: &str,
     function: &crate::instr_select::SelectedFunction,
 ) -> Result<(), PinkerError> {
-    if function.locals.iter().any(|local| local == dest) {
+    if function.locals.iter().any(|local| local == dest)
+        || function.params.iter().any(|param| param == dest)
+    {
         Ok(())
     } else {
         Err(err(
-            "subset externo montável (Fase 73) só aceita escrita em variáveis locais declaradas",
+            "subset externo montável (Fase 74) só aceita escrita em parâmetros ou variáveis locais declaradas",
         ))
     }
 }

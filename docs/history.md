@@ -228,6 +228,13 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Fluxo real assembler/linker coberto por teste dedicado com execução do binário resultante (exit code validado) para caso com múltiplas instruções e retorno calculado.
 - Fora de escopo explícito nesta fase: parâmetros, globais, fluxo de controle (`talvez/senão`, loops), chamadas, memória indireta e ABI completa.
 
+74 - convenção de chamada concreta mínima
+- Segunda fase funcional do Bloco 7 — Backend nativo real.
+- Integração externa (`emit_external_toolchain_subset`) passou a aceitar **chamada direta real** no subset Linux x86_64 hospedado, com múltiplas funções `-> bombom` em bloco único linear.
+- Convenção concreta mínima desta fase: retorno em `%rax`; passagem de **um argumento `bombom`** em `%rdi`; `principal` segue mapeada para `main`.
+- Subset garantido desta fase: `principal() -> bombom` chamando função auxiliar com 0 ou 1 argumento `bombom`, com atribuição/local e aritmética linear (`+`, `-`, `*`) antes/depois da call.
+- Fora de escopo explícito nesta fase: mais de 1 argumento, chamadas complexas, recursão externa, fluxo de controle, globais, memória indireta/ponteiros e ABI completa.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
