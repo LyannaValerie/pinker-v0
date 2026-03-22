@@ -1,13 +1,13 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 81 — recusa explícita complementar no subset externo**.
-- Nona fase funcional do Bloco 7, reforçando de forma conservadora a fronteira do mesmo subset linear no backend externo montável.
+- **Fase 82 — recusa explícita complementar de controle de fluxo no subset externo**.
+- Décima fase funcional do Bloco 7, reforçando de forma conservadora a fronteira do mesmo subset linear no backend externo montável.
 
 ## 2. O que entrou na rodada atual
-- `emit_external_toolchain_subset` foi atualizado para rotular o contrato vigente como Fase 81, preservando o mesmo subset conservador (chamadas diretas lineares, até 2 parâmetros `bombom`, frame `%rbp` e load/store em slots).
-- Testes do backend externo ganharam caso negativo versionado dedicado da Fase 81 cobrindo recusa explícita de 3+ parâmetros por função no fluxo `--asm-s`.
-- Exemplo versionado da fase foi adicionado para auditoria e reprodução do novo recorte garantido.
+- `emit_external_toolchain_subset` foi atualizado para rotular o contrato vigente como Fase 82, preservando o mesmo subset conservador (chamadas diretas lineares, até 2 parâmetros `bombom`, frame `%rbp` e load/store em slots).
+- O backend externo passou a recusar explicitamente `talvez/senão` no fluxo `--asm-s`, com diagnóstico dedicado para separar o subset linear garantido de controle de fluxo geral.
+- Testes do backend externo ganharam caso negativo versionado dedicado da Fase 82 cobrindo a recusa explícita de `talvez/senão`.
 
 ## 3. Fora de escopo da rodada atual
 - ABI final completa de plataforma.
@@ -21,8 +21,8 @@
 - Bloco 8 aguarda consolidação suficiente do Bloco 7 antes de ser aberto como trilha ativa.
 
 ## 5. Observações operacionais curtas
-- Fase funcional atual: **81**.
-- Fase funcional anterior: **80**.
+- Fase funcional atual: **82**.
+- Fase funcional anterior: **81**.
 - Hotfix extraordinário mais recente: **HF-2 (Bloco 6, Fases 64–70)** — varredura de corretude pós-Bloco-6.
 - Hotfix anterior: **HF-1 (Fase 48-H1)**.
 - Rodadas documentais seguem sem numeração de fase funcional.
