@@ -290,6 +290,13 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura de teste ampliada com caso versionado dedicado da fase validando a recusa explícita de `talvez/senão` no backend externo.
 - Fora de escopo explícito nesta fase: abertura de lowering de branches/labels/saltos, loops no backend externo, memória indireta/ponteiros, globais, parâmetros não `bombom` e ABI completa.
 
+83 - matriz de fronteira auditável do subset externo
+- Décima primeira fase funcional do Bloco 7 — Backend nativo real.
+- Subset externo montável preservou integralmente o recorte da Fase 82 e consolidou uma matriz mínima auditável de fronteira (garantido vs rejeitado), sem abrir fundamentos novos.
+- Contrato textual e diagnósticos do backend externo foram alinhados para rotular explicitamente a Fase 83 mantendo o mesmo subset linear já suportado.
+- Cobertura de teste ampliada com caso agregador dedicado da fase exercitando: caso positivo representativo (linear), caso positivo interprocedural, caso positivo com memória mínima de frame, recusa explícita de 3+ parâmetros e recusa explícita de `talvez/senão`.
+- Fora de escopo explícito nesta fase: controle de fluxo geral, memória indireta/ponteiros, globais amplas, ABI completa, recursão externa e abertura do Bloco 8.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

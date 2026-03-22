@@ -296,6 +296,22 @@ Limites preservados na Fase 82 (fora do subset externo montável):
 - sem globais, sem 3+ parâmetros e sem parâmetros não `bombom`;
 - sem recursão externa e sem ABI completa de plataforma/register allocation amplo.
 
+Estado explícito da Fase 83: consolidação auditável da fronteira do subset externo do Bloco 7, com matriz mínima de garantias e recusas explícitas, sem abrir fundamentos novos.
+
+| Fronteira do subset externo (`--asm-s` montável) | Situação na Fase 83 | Evidência auditável mínima |
+|---|---|---|
+| Caso positivo representativo: `principal() -> bombom` com locals `bombom` + aritmética linear | garantido | exemplo `fase73_backend_externo_locais_aritmetica_valido` + teste externo |
+| Caso positivo interprocedural linear: chamadas diretas com até 2 parâmetros `bombom` | garantido | exemplos `fase76`/`fase78`/`fase80` + testes externos |
+| Caso positivo com memória mínima de frame via `%rbp` (load/store em slots) | garantido | exemplo `fase77_backend_externo_memoria_frame_valido` + teste externo |
+| 3+ parâmetros por função/call | rejeitado explicitamente | exemplo `fase81_backend_externo_recusa_explicita_tres_parametros_invalido` + testes negativos |
+| `talvez/senão` no backend externo | rejeitado explicitamente | exemplo `fase82_backend_externo_recusa_explicita_talvez_senao_invalido` + testes negativos |
+
+Limites preservados na Fase 83 (fora do subset externo montável):
+- sem controle de fluxo geral (`talvez/senão`, loops) no backend externo;
+- sem memória indireta geral/ponteiros no backend externo;
+- sem globais, sem 3+ parâmetros e sem parâmetros não `bombom`;
+- sem recursão externa e sem ABI completa de plataforma/register allocation amplo.
+
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 
 Estado explícito da Fase 58: em unidade com `livre;`, `principal() -> bombom` permanece obrigatório e passa a ser tratado como **boot entry mínimo desta fase**, refletido em `--asm-s` como `boot.entry principal -> _start`, junto de um **linker script textual mínimo** (`ENTRY(_start)` + seções básicas). Isso é apenas representação/preparação: não gera kernel bootável real, não integra GRUB/QEMU e não substitui o fluxo hospedado.
