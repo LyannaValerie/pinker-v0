@@ -4,8 +4,8 @@
 > A crônica histórica oficial foi renomeada para `docs/history.md` (Doc-10).
 
 ## Estado atual
-- Fase funcional atual: **81 — recusa explícita complementar no subset externo**.
-- Fase funcional anterior: **80 — cobertura linear auditável mais ampla**.
+- Fase funcional atual: **82 — recusa explícita complementar de controle de fluxo no subset externo**.
+- Fase funcional anterior: **81 — recusa explícita complementar no subset externo**.
 - Hotfix extraordinário ativo mais recente: **HF-2**.
 - Hotfix histórico extraordinário preservado: **Fase 48-H1**.
 

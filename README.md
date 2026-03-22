@@ -110,6 +110,7 @@ cargo run -- --asm-s examples/fase78_backend_externo_composicao_interprocedural_
 cargo run -- --asm-s examples/fase79_backend_externo_programa_linear_maior_valido.pink
 cargo run -- --asm-s examples/fase80_backend_externo_cobertura_linear_ampla_valido.pink
 cargo run -- --asm-s examples/fase81_backend_externo_recusa_explicita_tres_parametros_invalido.pink
+cargo run -- --asm-s examples/fase82_backend_externo_recusa_explicita_talvez_senao_invalido.pink
 cargo run -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
@@ -282,6 +283,14 @@ Estado explícito da Fase 80: o subset externo montável preserva integralmente 
 - cobertura externa real adicional (compilar/montar/linkar/executar) com validação de resultado observável no Linux x86_64 hospedado.
 
 Limites preservados na Fase 80 (fora do subset externo montável):
+- sem controle de fluxo geral (`talvez/senão`, loops) no backend externo;
+- sem memória indireta geral/ponteiros no backend externo;
+- sem globais, sem 3+ parâmetros e sem parâmetros não `bombom`;
+- sem recursão externa e sem ABI completa de plataforma/register allocation amplo.
+
+Estado explícito da Fase 82: o subset externo montável preserva integralmente o recorte da Fase 81 e endurece a fronteira de controle de fluxo por recusa explícita e auditável de `talvez/senão` no caminho `--asm-s` montável.
+
+Limites preservados na Fase 82 (fora do subset externo montável):
 - sem controle de fluxo geral (`talvez/senão`, loops) no backend externo;
 - sem memória indireta geral/ponteiros no backend externo;
 - sem globais, sem 3+ parâmetros e sem parâmetros não `bombom`;
