@@ -101,6 +101,8 @@ cargo run -- --run examples/fase70_indexacao_array_operacional_valido.pink
 cargo run -- --run examples/fase71_cast_memoria_valido.pink
 cargo run -- --run examples/fase72_fragil_operacional_minimo_valido.pink
 cargo run -- --asm-s examples/fase73_backend_externo_locais_aritmetica_valido.pink
+cargo run -- --check examples/fase74_backend_externo_call_minimo_valido.pink
+cargo run -- --check examples/fase74_backend_externo_call_dois_args_invalido.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
 cargo run -- --check examples/check_continuar_fora_loop.pink
@@ -190,6 +192,20 @@ Limites preservados na Fase 73 (fora do subset externo montável):
 - sem fluxo de controle (`talvez/senão`, loops);
 - sem chamadas de função;
 - sem memória indireta/ponteiros no backend externo.
+
+Estado explícito da Fase 74: o subset externo montável ganhou convenção de chamada concreta mínima (ainda Linux x86_64 + toolchain C do sistema) para aceitar chamadas diretas no recorte:
+- funções `-> bombom` com bloco único linear;
+- `principal() -> bombom` chamando função auxiliar com 0 ou 1 argumento `bombom`;
+- passagem de argumento único em `%rdi` e retorno em `%rax`;
+- preservando prólogo/epílogo e slots de stack mínimos por função.
+
+Limites preservados na Fase 74 (fora do subset externo montável):
+- sem mais de 1 parâmetro;
+- sem recursão externa;
+- sem fluxo de controle (`talvez/senão`, loops);
+- sem globais;
+- sem memória indireta/ponteiros no backend externo;
+- sem ABI completa de plataforma.
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 

@@ -4,8 +4,8 @@
 > A crônica histórica oficial foi renomeada para `docs/history.md` (Doc-10).
 
 ## Estado atual
-- Fase funcional atual: **73 — subset real montável ampliado**.
-- Fase funcional anterior: **72 — efeito operacional mínimo de `fragil`**.
+- Fase funcional atual: **74 — convenção de chamada concreta mínima**.
+- Fase funcional anterior: **73 — subset real montável ampliado**.
 - Hotfix extraordinário ativo mais recente: **HF-2**.
 - Hotfix histórico extraordinário preservado: **Fase 48-H1**.
 
