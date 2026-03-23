@@ -763,6 +763,34 @@ fn try_call_intrinsic(
             let value = env::var(key).unwrap_or_else(|_| default_value.clone());
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value))))
         }
+        "caminho_existe" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'caminho_existe' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(path) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'caminho_existe' exige caminho em verso",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                std::path::Path::new(path).exists(),
+            ))))
+        }
+        "e_arquivo" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'e_arquivo' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(path) = &args[0] else {
+                return Err(runtime_err("intrínseca 'e_arquivo' exige caminho em verso"));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                std::path::Path::new(path).is_file(),
+            ))))
+        }
         "diretorio_atual" => {
             if !args.is_empty() {
                 return Err(runtime_err(

@@ -4,8 +4,8 @@
 > A crônica histórica oficial foi renomeada para `docs/history.md` (Doc-10).
 
 ## Estado atual
-- Fase funcional atual: **95 — ambiente mínimo de processo em `--run` (fallback de env + diretório atual)**.
-- Fase funcional anterior: **94 — refinamento mínimo de argv em `--run` (fallback posicional simples)**.
+- Fase funcional atual: **96 — introspecção mínima de caminho em `--run` (`caminho_existe` + `e_arquivo`)**.
+- Fase funcional anterior: **95 — ambiente mínimo de processo em `--run` (fallback de env + diretório atual)**.
 - Hotfix extraordinário ativo mais recente: **HF-2**.
 - Hotfix histórico extraordinário preservado: **Fase 48-H1**.
 - Última rodada documental: **Doc-17 — alinhamento documental/operacional pós-Paralela-1 (binários + MCP)**.

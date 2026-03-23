@@ -1,29 +1,28 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Doc-17 — alinhamento documental/operacional pós-Paralela-1 (binários + MCP)**.
-- Rodada curta sem nova fase funcional, focada em coerência documental e saneamento de uso de binários.
+- **Fase 96 — introspecção mínima de caminho em `--run` (`caminho_existe` + `e_arquivo`)**.
+- Rodada funcional curta do Bloco 8 com foco em existência/classificação mínima de caminho sem abrir API ampla.
 
 ## 2. O que entrou na rodada atual
-- `docs/doc_rules.md` passou a formalizar rodadas paralelas de implementação como categoria própria na crônica (`RODADAS PARALELAS`), distinta de Fase/HF/Doc.
-- `docs/future.md` foi corrigido para refletir o estado real: Bloco 8 ativo; Bloco 7 consolidado para transição, não ativo.
-- Ambiguidade de `cargo run` (dois binários: `pink` e `pinker_mcp`) foi saneada com duas camadas: `default-run = "pink"` em `Cargo.toml` e atualização dos comandos do README para `cargo run --bin pink -- ...`.
-- README recebeu observação operacional curta sobre o binário `pinker_mcp` e seu uso mínimo via JSON-RPC 2.0 em stdio.
-- Verificação prática do `pinker_mcp` confirmou `initialize`, `tools/list` e `tools/call` (`pinker_rodar`) funcionando com mensagens JSON por linha.
+- Intrínseca `caminho_existe(verso) -> logica` adicionada ao pipeline completo (semântica, IR, validações, runtime `--run`).
+- Intrínseca `e_arquivo(verso) -> logica` adicionada ao mesmo recorte mínimo para classificação de arquivo.
+- Exemplo versionado novo: `examples/fase96_introspeccao_caminho_minima_valido.pink`.
+- Cobertura de testes ampliada em semântica e `--run`/CLI para: caminho existente, caminho ausente e integração com `diretorio_atual`/`falar`.
 
 ## 3. Fora de escopo da rodada atual
-- Nova feature de linguagem, runtime ou backend nativo.
-- Reimplementação/expansão do MCP além da inspeção prática do estado já existente.
-- Redesign de CLI e reescrita ampla de documentação.
+- `e_diretorio`, listagem de diretórios, `chdir`, globbing e mutação de paths.
+- Processos externos ou biblioteca ampla de filesystem.
+- Redesign de runtime ou expansão de gramática.
 
 ## 4. Próximo item normal
 - Trilha ativa permanece: **Bloco 8 — I/O e ecossistema útil**.
-- Próximo item funcional sugerido: **seguir trilha do Bloco 8 com refinamentos mínimos de I/O/tooling em `--run`, mantendo escopo pequeno e auditável**.
+- Próximo item funcional sugerido: **manter refinamentos mínimos de tooling/I/O em `--run` preservando escopo pequeno e auditável**.
 
 ## 5. Observações operacionais curtas
-- Última fase funcional concluída: **95**.
-- Rodada documental mais recente: **Doc-17**.
-- Rodada paralela concluída: **Paralela-1** — negação bitwise dual (`~` + `nope`) + MCP mínimo (`src/bin/pinker_mcp.rs`).
+- Última fase funcional concluída: **96**.
+- Rodada documental mais recente preservada: **Doc-17**.
+- Rodada paralela concluída preservada: **Paralela-1** — negação bitwise dual (`~` + `nope`) + MCP mínimo (`src/bin/pinker_mcp.rs`).
 - Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.
 - Hotfix histórico extraordinário preservado: **HF-1 (Fase 48-H1)**.
 

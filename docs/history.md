@@ -396,6 +396,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplos versionados (`examples/fase95_ambiente_processo_minimo_valido.pink`, `examples/fase95_diretorio_atual_minimo_valido.pink`, `examples/fase95_argumento_ou_ambiente_ou_valido.pink`) e testes automatizados de semântica/`--run`/CLI para fallback, leitura de ambiente real e integração com `falar`.
 - Fora de escopo explícito nesta fase: mutação/listagem de env vars, mudança de diretório, listagem de diretórios, API ampla de paths e processos externos.
 
+96 - introspecção mínima de caminho em `--run`
+- Décima segunda fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfícies escolhidas: `caminho_existe(verso) -> logica` para existência mínima de caminho e `e_arquivo(verso) -> logica` para classificação mínima no mesmo recorte.
+- Semântica operacional desta fase: ambas as intrínsecas recebem `verso`; `caminho_existe` retorna presença do caminho informado e `e_arquivo` classifica se o caminho existente é arquivo regular.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram as duas intrínsecas sem declaração explícita de função.
+- Cobertura adicionada com exemplo versionado (`examples/fase96_introspeccao_caminho_minima_valido.pink`) e testes automatizados de semântica/`--run`/CLI para caso positivo, caso negativo e integração com `diretorio_atual`/`falar`.
+- Fora de escopo explícito nesta fase: listagem de diretórios, `e_diretorio`, mudança de diretório, globbing, mutação de paths, processos externos e biblioteca ampla de filesystem.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

@@ -1,0 +1,20 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova alvo: verso = argumento_ou(0, "README.md");
+    falar(caminho_existe(alvo));
+    falar(e_arquivo(alvo));
+    talvez caminho_existe(alvo) {
+        talvez e_arquivo(alvo) {
+            mimo 1;
+        } senao {
+            falar("nao_arquivo");
+            sair(2);
+            mimo 0;
+        }
+    } senao {
+        falar("ausente");
+        sair(3);
+        mimo 0;
+    }
+}
