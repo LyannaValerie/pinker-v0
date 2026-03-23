@@ -644,6 +644,29 @@ fn try_call_intrinsic(
                 value.chars().count() as u64,
             ))))
         }
+        "indice_verso" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'indice_verso' exige 2 argumentos (verso, bombom)",
+                ));
+            }
+            let RuntimeValue::Str(value) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'indice_verso' exige primeiro argumento em verso",
+                ));
+            };
+            let RuntimeValue::Int(index) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'indice_verso' exige segundo argumento em bombom",
+                ));
+            };
+            let Some(ch) = value.chars().nth(index as usize) else {
+                return Err(runtime_err(
+                    "índice fora da faixa em 'indice_verso' para o verso informado",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(ch.to_string()))))
+        }
         _ => Ok(IntrinsicCall::NotIntrinsic),
     }
 }

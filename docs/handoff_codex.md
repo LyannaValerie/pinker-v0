@@ -1,26 +1,26 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Doc-15 — criação inicial de `manual.md` como manual de uso da linguagem Pinker no estado atual**.
-- Rodada documental, sem abertura de nova fase funcional.
+- **Fase 90 — indexação mínima de `verso` com fronteira auditável (`indice_verso`)**.
+- Rodada funcional pequena, focada em fechar o item 5 do Bloco 8 sem expandir biblioteca textual ampla.
 
 ## 2. O que entrou na rodada atual
-- Criação de `manual.md` na raiz com foco em uso real da linguagem hoje.
-- Estrutura do manual cobrindo: base do programa, tipos (`bombom`, `logica`, `verso`), fluxo (`talvez`/`senao`, `sempre que`), funções, I/O (`falar`, `ouvir`, `abrir`/`ler_arquivo`/`escrever`/`fechar`), texto com `verso`, exemplos completos e limites atuais.
-- Inclusão de ponteiro curto no `README.md` para o novo manual.
-- Atualização de `docs/history.md`, `docs/agent_state.md` e `docs/phases.md` para continuidade documental.
+- Inclusão da intrínseca `indice_verso(verso, bombom) -> verso` no recorte operacional de `--run`.
+- Diagnóstico explícito de fronteira para indexação de `verso`: tipo inválido (semântica) e índice fora da faixa (runtime).
+- Cobertura com testes de semântica/`--run`/CLI e exemplo versionado `examples/fase90_verso_indexacao_minima_valido.pink`.
+- Atualização de `README.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/vocabulario.md` e `docs/phases.md` para continuidade factual da trilha.
 
 ## 3. Fora de escopo da rodada atual
-- Qualquer mudança funcional de parser/semântica/runtime/backend.
-- Ampliação de gramática ou de API de I/O/texto.
-- Reestruturação ampla do README.
+- Slicing de `verso`, indexação negativa, replace/split, formatação/interpolação.
+- Ampliação de gramática para `v[i]` em `verso` nesta fase.
+- Biblioteca textual ampla ou redesign de runtime.
 
 ## 4. Próximo item normal
 - Trilha ativa permanece: **Bloco 8 — I/O e ecossistema útil**.
-- Próximo item funcional sugerido permanece: **indexação mínima de `verso`** para completar o item 5 do Bloco 8 com recorte pequeno e auditável.
+- Próximo item funcional sugerido: **item 6 do Bloco 8 (`falar`)**, mantendo recorte pequeno e auditável.
 
 ## 5. Observações operacionais curtas
-- Última fase funcional concluída: **89**.
+- Última fase funcional concluída: **90**.
 - Rodada documental mais recente: **Doc-15**.
 - Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.
 - Hotfix histórico extraordinário preservado: **HF-1 (Fase 48-H1)**.
