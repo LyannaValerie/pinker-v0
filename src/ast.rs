@@ -658,7 +658,7 @@ impl ContinueStmt {
 
 #[derive(Debug, Clone)]
 pub struct FalarStmt {
-    pub expr: Expr,
+    pub args: Vec<Expr>,
     pub span: Span,
 }
 
@@ -667,7 +667,7 @@ impl FalarStmt {
         writer.begin_object();
         writer.field_str("node", "FalarStmt");
         writer.field_span("span", self.span);
-        writer.field_value("expr", |writer| self.expr.write_json(writer));
+        writer.field_array("args", &self.args, |writer, arg| arg.write_json(writer));
         writer.end_object();
     }
 }

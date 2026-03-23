@@ -191,6 +191,51 @@ fn run_indice_verso_falha_com_indice_fora_da_faixa() {
 }
 
 #[test]
+fn run_falar_multiplos_argumentos_bombom_funciona() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            falar(10, 20, 30);
+            mimo 0;
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn run_falar_mistura_verso_e_bombom_funciona() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            falar("idade", 7, "anos");
+            mimo 0;
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn run_falar_multiplos_argumentos_com_locals_e_chamada_funciona() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho eco(v: verso) -> verso { mimo v; }
+        carinho principal() -> bombom {
+            nova nome: verso = "Pinker";
+            nova n: bombom = 2;
+            falar("oi", eco(nome), n);
+            mimo n;
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(2)));
+}
+
+#[test]
 fn run_short_circuit_and_nao_avalia_rhs() {
     let out = run_code(
         "pacote main;
@@ -1798,6 +1843,16 @@ fn cli_run_indice_verso_minimo_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase90_verso_indexacao_minima_valido.pink");
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(String::from_utf8_lossy(&out.stdout), "n\n1\n0\n");
+}
+
+#[test]
+fn cli_run_falar_multiplos_argumentos_mistos_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase91_falar_multiplos_argumentos_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "oi Pinker 2\nstatus verdade\n0\n"
+    );
 }
 
 #[test]

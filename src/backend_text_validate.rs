@@ -193,7 +193,7 @@ fn validate_function(
                         }
                     }
                 }
-                BackendTextInstruction::Falar { value: _, ty: _ } => {}
+                BackendTextInstruction::Falar { args: _ } => {}
             }
         }
 

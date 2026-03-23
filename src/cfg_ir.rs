@@ -12,7 +12,9 @@
 //!   `ir` → **`cfg_ir`** → `cfg_ir_validate` → `instr_select`
 
 use crate::error::PinkerError;
-use crate::ir::{BinaryOpIR, FunctionIR, InstructionIR, ProgramIR, TypeIR, UnaryOpIR, ValueIR};
+use crate::ir::{
+    BinaryOpIR, FalarArgIR, FunctionIR, InstructionIR, ProgramIR, TypeIR, UnaryOpIR, ValueIR,
+};
 use crate::token::Span;
 
 /// Programa na CFG IR: módulo com constantes globais e funções em forma de blocos.
@@ -102,9 +104,14 @@ pub enum InstructionCfgIR {
         ret_type: TypeIR,
     },
     Falar {
-        value: OperandIR,
-        ty: TypeIR,
+        args: Vec<FalarArgCfgIR>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FalarArgCfgIR {
+    pub value: OperandIR,
+    pub ty: TypeIR,
 }
 
 /// Terminador de bloco. `Branch` consome um operando booleano como condição.
@@ -507,14 +514,11 @@ impl FunctionLowerer {
                 });
                 Ok(cont_idx)
             }
-            InstructionIR::Falar { value, ty, span } => {
-                let (operand, next_current) = self.lower_falar_operand(value, current, *span)?;
+            InstructionIR::Falar { args, span } => {
+                let (operands, next_current) = self.lower_falar_args(args, current, *span)?;
                 self.blocks[next_current]
                     .instructions
-                    .push(InstructionCfgIR::Falar {
-                        value: operand,
-                        ty: *ty,
-                    });
+                    .push(InstructionCfgIR::Falar { args: operands });
                 Ok(next_current)
             }
             InstructionIR::InlineAsm { span, .. } => Err(PinkerError::Ir {
@@ -846,6 +850,22 @@ impl FunctionLowerer {
         self.lower_value_operand(value, current, span)
     }
 
+    fn lower_falar_args(
+        &mut self,
+        args: &[FalarArgIR],
+        current: usize,
+        span: Span,
+    ) -> Result<(Vec<FalarArgCfgIR>, usize), PinkerError> {
+        let mut lowered = Vec::with_capacity(args.len());
+        let mut cur = current;
+        for arg in args {
+            let (value, next_cur) = self.lower_falar_operand(&arg.value, cur, span)?;
+            lowered.push(FalarArgCfgIR { value, ty: arg.ty });
+            cur = next_cur;
+        }
+        Ok((lowered, cur))
+    }
+
     /// Like `lower_value_operand` but also allows `ValueIR::String` in argumentos de call.
     fn lower_call_operand(
         &mut self,
@@ -1061,9 +1081,13 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
                 None => call,
             }
         }
-        InstructionCfgIR::Falar { value, ty } => {
-            format!("falar {}:{}", render_operand(value), ty.name())
-        }
+        InstructionCfgIR::Falar { args } => format!(
+            "falar {}",
+            args.iter()
+                .map(|arg| format!("{}:{}", render_operand(&arg.value), arg.ty.name()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
     }
 }
 

@@ -608,7 +608,7 @@ fn validate_block(
                     }
                 }
             }
-            InstructionCfgIR::Falar { value: _, ty: _ } => {}
+            InstructionCfgIR::Falar { args: _ } => {}
         }
     }
 

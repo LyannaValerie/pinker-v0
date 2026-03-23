@@ -124,14 +124,19 @@ pub enum InstructionIR {
         span: Span,
     },
     Falar {
-        value: ValueIR,
-        ty: TypeIR,
+        args: Vec<FalarArgIR>,
         span: Span,
     },
     InlineAsm {
         chunks: Vec<String>,
         span: Span,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FalarArgIR {
+    pub value: ValueIR,
+    pub ty: TypeIR,
 }
 
 /// Expressão na IR. `Call` carrega `ret_type` explicitamente para que camadas posteriores
@@ -635,10 +640,16 @@ impl<'a> FunctionLowerer<'a> {
     }
 
     fn lower_falar(&mut self, falar_stmt: &FalarStmt) -> Result<InstructionIR, PinkerError> {
-        let typed = self.lower_value(&falar_stmt.expr)?;
+        let mut args = Vec::with_capacity(falar_stmt.args.len());
+        for arg in &falar_stmt.args {
+            let typed = self.lower_value(arg)?;
+            args.push(FalarArgIR {
+                value: typed.value,
+                ty: typed.ty,
+            });
+        }
         Ok(InstructionIR::Falar {
-            value: typed.value,
-            ty: typed.ty,
+            args,
             span: falar_stmt.span,
         })
     }
@@ -1319,12 +1330,13 @@ fn render_instruction(instruction: &InstructionIR, indent: usize, out: &mut Stri
         } => {
             line(out, indent, &format!("continue {}", loop_continue_label));
         }
-        InstructionIR::Falar { value, ty, .. } => {
-            line(
-                out,
-                indent,
-                &format!("falar {}:{}", render_value(value), ty.name()),
-            );
+        InstructionIR::Falar { args, .. } => {
+            let rendered_args = args
+                .iter()
+                .map(|arg| format!("{}:{}", render_value(&arg.value), arg.ty.name()))
+                .collect::<Vec<_>>()
+                .join(", ");
+            line(out, indent, &format!("falar {}", rendered_args));
         }
         InstructionIR::InlineAsm { chunks, .. } => {
             line(out, indent, &format!("inline_asm [{}]", chunks.join(" | ")));

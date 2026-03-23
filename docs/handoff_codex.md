@@ -1,26 +1,27 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 90 — indexação mínima de `verso` com fronteira auditável (`indice_verso`)**.
-- Rodada funcional pequena, focada em fechar o item 5 do Bloco 8 sem expandir biblioteca textual ampla.
+- **Fase 91 — melhorias mínimas em `falar` (múltiplos argumentos + mistura heterogênea mínima)**.
+- Rodada funcional pequena, focada em abrir ergonomia de saída sem abrir subsistema de formatação.
 
 ## 2. O que entrou na rodada atual
-- Inclusão da intrínseca `indice_verso(verso, bombom) -> verso` no recorte operacional de `--run`.
-- Diagnóstico explícito de fronteira para indexação de `verso`: tipo inválido (semântica) e índice fora da faixa (runtime).
-- Cobertura com testes de semântica/`--run`/CLI e exemplo versionado `examples/fase90_verso_indexacao_minima_valido.pink`.
+- `falar(...)` passou a aceitar múltiplos argumentos no `--run`.
+- Separação previsível por espaço simples entre argumentos e quebra de linha única no fim da chamada.
+- Mistura mínima heterogênea coberta no recorte da fase (incluindo `verso` + `bombom` na mesma chamada).
+- Cobertura com testes de `--run`/CLI e exemplo versionado `examples/fase91_falar_multiplos_argumentos_valido.pink`.
 - Atualização de `README.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/vocabulario.md` e `docs/phases.md` para continuidade factual da trilha.
 
 ## 3. Fora de escopo da rodada atual
-- Slicing de `verso`, indexação negativa, replace/split, formatação/interpolação.
-- Ampliação de gramática para `v[i]` em `verso` nesta fase.
+- Interpolação/formatação ampla, placeholders nomeados/posicionais, largura/alinhamento/precisão.
 - Biblioteca textual ampla ou redesign de runtime.
+- Backend externo para saída formatada.
 
 ## 4. Próximo item normal
 - Trilha ativa permanece: **Bloco 8 — I/O e ecossistema útil**.
-- Próximo item funcional sugerido: **item 6 do Bloco 8 (`falar`)**, mantendo recorte pequeno e auditável.
+- Próximo item funcional sugerido: **item 7 do Bloco 8 (base para tooling em Pinker)**.
 
 ## 5. Observações operacionais curtas
-- Última fase funcional concluída: **90**.
+- Última fase funcional concluída: **91**.
 - Rodada documental mais recente: **Doc-15**.
 - Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.
 - Hotfix histórico extraordinário preservado: **HF-1 (Fase 48-H1)**.
