@@ -312,6 +312,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado da fase (`examples/fase85_ouvir_bombom_valido.pink`) e testes automatizados para caso positivo e erro de parse em `--run`.
 - Fora de escopo explícito nesta fase: arquivo (`abrir`/`fechar`/`escrever`), `verso` operacional amplo, múltiplos tipos de entrada e backend externo para I/O.
 
+86 - leitura mínima de arquivo com `abrir`/`fechar` em `--run`
+- Segunda fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Recorte mínimo implementado no runtime interpretado: `abrir("caminho") -> bombom` (handle), `ler_arquivo(handle) -> bombom` (leitura simples de conteúdo inteiro) e `fechar(handle)` (encerramento explícito).
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações passaram a reconhecer `abrir`, `ler_arquivo` e `fechar` como intrínsecas sem declaração explícita de função.
+- Diagnósticos claros adicionados para caminho inválido/falha de abertura, handle inválido e conteúdo de arquivo não parseável como `bombom` (u64).
+- Cobertura adicionada com exemplo versionado da fase (`examples/fase86_arquivo_leitura_minima_valido.pink`) e testes automatizados de sucesso e falha em `--run`.
+- Fora de escopo explícito nesta fase: `escrever`, múltiplos modos de abertura, streaming, diretórios, leitura textual ampla e `verso` operacional geral.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

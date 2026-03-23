@@ -1,0 +1,9 @@
+pacote fase86_arquivo_leitura_minima_valido;
+
+carinho principal() -> bombom {
+    nova handle: bombom = abrir("examples/fase86_input_numero.txt");
+    nova valor: bombom = ler_arquivo(handle);
+    fechar(handle);
+    falar(valor + 1);
+    mimo 0;
+}

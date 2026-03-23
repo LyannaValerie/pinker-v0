@@ -4,8 +4,8 @@
 > A crônica histórica oficial foi renomeada para `docs/history.md` (Doc-10).
 
 ## Estado atual
-- Fase funcional atual: **85 — entrada básica com `ouvir` em `--run`**.
-- Fase funcional anterior: **84 — recusa explícita complementar de `sempre que` no subset externo**.
+- Fase funcional atual: **86 — leitura mínima de arquivo com `abrir`/`fechar` em `--run`**.
+- Fase funcional anterior: **85 — entrada básica com `ouvir` em `--run`**.
 - Hotfix extraordinário ativo mais recente: **HF-2**.
 - Hotfix histórico extraordinário preservado: **Fase 48-H1**.
 

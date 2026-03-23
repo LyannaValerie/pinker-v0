@@ -13,6 +13,7 @@ use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
 use crate::token::Span;
 use std::collections::HashMap;
+use std::fs;
 use std::io;
 
 const MAX_CALL_DEPTH: usize = 64;
@@ -24,6 +25,16 @@ const TRACE_TRUNC_THRESHOLD: usize = 10;
 const TRACE_HEAD: usize = 5;
 const TRACE_TAIL: usize = 5;
 
+enum IntrinsicCall {
+    NotIntrinsic,
+    Done(Option<RuntimeValue>),
+}
+
+struct RuntimeIoState {
+    open_files: HashMap<u64, String>,
+    next_file_handle: u64,
+}
+
 #[derive(Debug, Clone)]
 struct RuntimeFrame {
     fn_name: String,
@@ -32,17 +43,22 @@ struct RuntimeFrame {
     future_span: Option<Span>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeValue {
     Int(u64),
     IntSigned(i64),
     Ptr(usize),
     Bool(bool),
+    Str(String),
 }
 
 pub fn run_program(program: &MachineProgram) -> Result<Option<RuntimeValue>, PinkerError> {
     let globals = build_globals(program)?;
     let mut memory = build_memory(program, &globals)?;
+    let mut io_state = RuntimeIoState {
+        open_files: HashMap::new(),
+        next_file_handle: 1,
+    };
     let mut call_stack = Vec::new();
     call_function(
         "principal",
@@ -50,6 +66,7 @@ pub fn run_program(program: &MachineProgram) -> Result<Option<RuntimeValue>, Pin
         program,
         &globals,
         &mut memory,
+        &mut io_state,
         &mut call_stack,
     )
 }
@@ -93,8 +110,9 @@ fn build_memory(
             | crate::ir::TypeIR::I32
             | crate::ir::TypeIR::I64
             | crate::ir::TypeIR::Logica => {
-                let value = *globals
+                let value = globals
                     .get(&g.name)
+                    .cloned()
                     .ok_or_else(|| runtime_err("global inexistente em runtime"))?;
                 memory.insert(next_addr, value);
                 next_addr = next_addr.saturating_add(1);
@@ -114,6 +132,7 @@ fn call_function(
     program: &MachineProgram,
     globals: &HashMap<String, RuntimeValue>,
     memory: &mut HashMap<usize, RuntimeValue>,
+    io_state: &mut RuntimeIoState,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<Option<RuntimeValue>, PinkerError> {
     if call_stack.len() >= MAX_CALL_DEPTH {
@@ -173,7 +192,7 @@ fn call_function(
             for instr in &block.code {
                 set_current_instr(call_stack, Some(machine_instr_name(instr)));
                 exec_instr(
-                    instr, &mut slots, &mut stack, program, globals, memory, call_stack,
+                    instr, &mut slots, &mut stack, program, globals, memory, io_state, call_stack,
                 )?;
                 set_current_instr(call_stack, None);
             }
@@ -220,6 +239,7 @@ fn call_function(
     result
 }
 
+#[allow(clippy::too_many_arguments)]
 fn exec_instr(
     instr: &MachineInstr,
     slots: &mut HashMap<String, RuntimeValue>,
@@ -227,19 +247,21 @@ fn exec_instr(
     program: &MachineProgram,
     globals: &HashMap<String, RuntimeValue>,
     memory: &mut HashMap<usize, RuntimeValue>,
+    io_state: &mut RuntimeIoState,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<(), PinkerError> {
     match instr {
         MachineInstr::PushInt(v) => stack.push(RuntimeValue::Int(*v)),
         MachineInstr::PushBool(v) => stack.push(RuntimeValue::Bool(*v)),
+        MachineInstr::PushStr(v) => stack.push(RuntimeValue::Str(v.clone())),
         MachineInstr::LoadSlot(slot) => {
-            let Some(value) = slots.get(slot).copied() else {
+            let Some(value) = slots.get(slot).cloned() else {
                 return Err(runtime_err("load_slot em slot não inicializado"));
             };
             stack.push(value);
         }
         MachineInstr::LoadGlobal(name) => {
-            let Some(value) = globals.get(name).copied() else {
+            let Some(value) = globals.get(name).cloned() else {
                 return Err(runtime_err("global inexistente em runtime"));
             };
             stack.push(value);
@@ -261,6 +283,7 @@ fn exec_instr(
                 RuntimeValue::IntSigned(v) => RuntimeValue::IntSigned(v.wrapping_neg()),
                 RuntimeValue::Ptr(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::Str(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(out);
         }
@@ -423,10 +446,11 @@ fn exec_instr(
         }
         MachineInstr::Call { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = if let Some(value) = try_call_intrinsic(callee, &args)? {
-                Some(value)
-            } else {
-                call_function(callee, args, program, globals, memory, call_stack)?
+            let result = match try_call_intrinsic(callee, &args, io_state)? {
+                IntrinsicCall::Done(value) => value,
+                IntrinsicCall::NotIntrinsic => {
+                    call_function(callee, args, program, globals, memory, io_state, call_stack)?
+                }
             };
             let Some(value) = result else {
                 return Err(runtime_err("call exige função com retorno"));
@@ -435,10 +459,11 @@ fn exec_instr(
         }
         MachineInstr::CallVoid { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = if let Some(value) = try_call_intrinsic(callee, &args)? {
-                Some(value)
-            } else {
-                call_function(callee, args, program, globals, memory, call_stack)?
+            let result = match try_call_intrinsic(callee, &args, io_state)? {
+                IntrinsicCall::Done(value) => value,
+                IntrinsicCall::NotIntrinsic => {
+                    call_function(callee, args, program, globals, memory, io_state, call_stack)?
+                }
             };
             if result.is_some() {
                 return Err(runtime_err("call_void exige função sem retorno"));
@@ -449,6 +474,7 @@ fn exec_instr(
             RuntimeValue::IntSigned(v) => println!("{}", v),
             RuntimeValue::Ptr(_) => unreachable!("pop_numeric só retorna inteiro"),
             RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
+            RuntimeValue::Str(_) => unreachable!("pop_numeric só retorna inteiro"),
         },
         MachineInstr::PrintBool => {
             let v = pop_bool(stack, "print_bool exige lógica no topo")?;
@@ -465,7 +491,8 @@ fn exec_instr(
 fn try_call_intrinsic(
     callee: &str,
     args: &[RuntimeValue],
-) -> Result<Option<RuntimeValue>, PinkerError> {
+    io_state: &mut RuntimeIoState,
+) -> Result<IntrinsicCall, PinkerError> {
     match callee {
         "ouvir" => {
             if !args.is_empty() {
@@ -487,9 +514,64 @@ fn try_call_intrinsic(
                     trimmed
                 ))
             })?;
-            Ok(Some(RuntimeValue::Int(parsed)))
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(parsed))))
         }
-        _ => Ok(None),
+        "abrir" => {
+            if args.len() != 1 {
+                return Err(runtime_err("intrínseca 'abrir' exige 1 argumento (verso)"));
+            }
+            let RuntimeValue::Str(path) = &args[0] else {
+                return Err(runtime_err("intrínseca 'abrir' exige caminho em verso"));
+            };
+            let content = fs::read_to_string(path).map_err(|err| {
+                runtime_err(&format!("falha ao abrir arquivo em 'abrir': {}", err))
+            })?;
+            let handle = io_state.next_file_handle;
+            io_state.next_file_handle = io_state.next_file_handle.saturating_add(1);
+            io_state.open_files.insert(handle, content);
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(handle))))
+        }
+        "ler_arquivo" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'ler_arquivo' exige 1 argumento (handle)",
+                ));
+            }
+            let RuntimeValue::Int(handle) = args[0] else {
+                return Err(runtime_err("intrínseca 'ler_arquivo' exige handle bombom"));
+            };
+            let Some(content) = io_state.open_files.get(&handle) else {
+                return Err(runtime_err("handle inválido em 'ler_arquivo'"));
+            };
+            let trimmed = content.trim();
+            if trimmed.is_empty() {
+                return Err(runtime_err(
+                    "conteúdo inválido para 'ler_arquivo': esperado inteiro bombom (u64), recebido vazio",
+                ));
+            }
+            let parsed = trimmed.parse::<u64>().map_err(|_| {
+                runtime_err(&format!(
+                    "conteúdo inválido para 'ler_arquivo': '{}' não é bombom válido",
+                    trimmed
+                ))
+            })?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(parsed))))
+        }
+        "fechar" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'fechar' exige 1 argumento (handle)",
+                ));
+            }
+            let RuntimeValue::Int(handle) = args[0] else {
+                return Err(runtime_err("intrínseca 'fechar' exige handle bombom"));
+            };
+            if io_state.open_files.remove(&handle).is_none() {
+                return Err(runtime_err("handle inválido em 'fechar'"));
+            }
+            Ok(IntrinsicCall::Done(None))
+        }
+        _ => Ok(IntrinsicCall::NotIntrinsic),
     }
 }
 
@@ -525,6 +607,7 @@ fn pop_numeric(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<RuntimeValue,
         RuntimeValue::IntSigned(v) => Ok(RuntimeValue::IntSigned(v)),
         RuntimeValue::Ptr(_) => Err(runtime_err(msg)),
         RuntimeValue::Bool(_) => Err(runtime_err(msg)),
+        RuntimeValue::Str(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -534,6 +617,7 @@ fn pop_bool(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<bool, PinkerErro
         RuntimeValue::Int(_) => Err(runtime_err(msg)),
         RuntimeValue::IntSigned(_) => Err(runtime_err(msg)),
         RuntimeValue::Ptr(_) => Err(runtime_err(msg)),
+        RuntimeValue::Str(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -556,6 +640,7 @@ fn coerce_runtime_value_to_type(
             (RuntimeValue::IntSigned(v), false) => Ok(RuntimeValue::Int(v as u64)),
             (RuntimeValue::Ptr(v), true) => Ok(RuntimeValue::IntSigned(v as i64)),
             (RuntimeValue::Ptr(v), false) => Ok(RuntimeValue::Int(v as u64)),
+            (RuntimeValue::Str(_), _) => Err(runtime_err("cast inteiro não aceita verso")),
             (v, _) => Ok(v),
         };
     }
@@ -569,6 +654,9 @@ fn coerce_runtime_value_to_type(
             RuntimeValue::IntSigned(v) => Ok(RuntimeValue::Ptr(v as usize)),
             RuntimeValue::Ptr(v) => Ok(RuntimeValue::Ptr(v)),
             RuntimeValue::Bool(_) => Err(runtime_err(
+                "ponteiro em runtime requer valor inteiro de endereço",
+            )),
+            RuntimeValue::Str(_) => Err(runtime_err(
                 "ponteiro em runtime requer valor inteiro de endereço",
             )),
         };
@@ -676,31 +764,31 @@ fn normalize_numeric_pair(
     lhs: RuntimeValue,
     rhs: RuntimeValue,
 ) -> Result<(RuntimeValue, RuntimeValue), PinkerError> {
-    match (lhs, rhs) {
+    match (&lhs, &rhs) {
         (RuntimeValue::Int(_), RuntimeValue::Int(_))
         | (RuntimeValue::IntSigned(_), RuntimeValue::IntSigned(_)) => Ok((lhs, rhs)),
         // lhs signed, rhs unsigned: converte rhs para signed preservando ordem
         (RuntimeValue::IntSigned(a), RuntimeValue::Int(b)) => {
-            if b > i64::MAX as u64 {
+            if *b > i64::MAX as u64 {
                 return Err(runtime_err(
                     "mistura signed/unsigned fora de faixa no runtime (sem coerção implícita)",
                 ));
             }
             Ok((
-                RuntimeValue::IntSigned(a),
-                RuntimeValue::IntSigned(b as i64),
+                RuntimeValue::IntSigned(*a),
+                RuntimeValue::IntSigned(*b as i64),
             ))
         }
         // lhs unsigned, rhs signed: converte lhs para signed preservando ordem
         (RuntimeValue::Int(a), RuntimeValue::IntSigned(b)) => {
-            if a > i64::MAX as u64 {
+            if *a > i64::MAX as u64 {
                 return Err(runtime_err(
                     "mistura signed/unsigned fora de faixa no runtime (sem coerção implícita)",
                 ));
             }
             Ok((
-                RuntimeValue::IntSigned(a as i64),
-                RuntimeValue::IntSigned(b),
+                RuntimeValue::IntSigned(*a as i64),
+                RuntimeValue::IntSigned(*b),
             ))
         }
         _ => Err(runtime_err("operação inteira exige valores inteiros")),
@@ -715,11 +803,11 @@ fn runtime_err(msg: &str) -> PinkerError {
 }
 
 fn deref_load_normal(memory: &HashMap<usize, RuntimeValue>, addr: usize) -> Option<RuntimeValue> {
-    memory.get(&addr).copied()
+    memory.get(&addr).cloned()
 }
 
 fn deref_load_fragil(memory: &HashMap<usize, RuntimeValue>, addr: usize) -> Option<RuntimeValue> {
-    memory.get(&addr).copied()
+    memory.get(&addr).cloned()
 }
 
 fn deref_store_normal(memory: &mut HashMap<usize, RuntimeValue>, addr: usize, value: RuntimeValue) {
@@ -853,6 +941,7 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
     match instr {
         MachineInstr::PushInt(_) => "push_int",
         MachineInstr::PushBool(_) => "push_bool",
+        MachineInstr::PushStr(_) => "push_str",
         MachineInstr::LoadSlot(_) => "load_slot",
         MachineInstr::LoadGlobal(_) => "load_global",
         MachineInstr::StoreSlot(_) => "store_slot",

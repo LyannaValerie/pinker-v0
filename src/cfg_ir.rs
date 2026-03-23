@@ -556,7 +556,7 @@ impl FunctionLowerer {
                 let lowered_args =
                     args.iter()
                         .try_fold((Vec::new(), current), |(mut acc, cur), arg| {
-                            let (lowered, next_cur) = self.lower_value_operand(arg, cur, span)?;
+                            let (lowered, next_cur) = self.lower_call_operand(arg, cur, span)?;
                             acc.push(lowered);
                             Ok::<_, PinkerError>((acc, next_cur))
                         })?;
@@ -648,7 +648,7 @@ impl FunctionLowerer {
                 let lowered_args =
                     args.iter()
                         .try_fold((Vec::new(), current), |(mut acc, cur), arg| {
-                            let (lowered, next_cur) = self.lower_value_operand(arg, cur, span)?;
+                            let (lowered, next_cur) = self.lower_call_operand(arg, cur, span)?;
                             acc.push(lowered);
                             Ok::<_, PinkerError>((acc, next_cur))
                         })?;
@@ -838,6 +838,19 @@ impl FunctionLowerer {
 
     /// Like `lower_value_operand` but also handles `ValueIR::String` for `falar`.
     fn lower_falar_operand(
+        &mut self,
+        value: &ValueIR,
+        current: usize,
+        span: Span,
+    ) -> Result<(OperandIR, usize), PinkerError> {
+        if let ValueIR::String(s) = value {
+            return Ok((OperandIR::Str(s.clone()), current));
+        }
+        self.lower_value_operand(value, current, span)
+    }
+
+    /// Like `lower_value_operand` but also allows `ValueIR::String` in argumentos de call.
+    fn lower_call_operand(
         &mut self,
         value: &ValueIR,
         current: usize,

@@ -139,7 +139,8 @@ Os 6 itens acima representam a ordem interna sugerida do Bloco 7. A numeração 
 
 Status de execução no bloco:
 - **Fase 85 concluída**: item 1 entregue no recorte mínimo, via intrínseca `ouvir()` em `--run` para `bombom` (u64), com diagnóstico claro para entrada inválida.
-- Itens 2–7 permanecem pendentes e fora do escopo da Fase 85.
+- **Fase 86 concluída**: item 2 entregue no recorte mínimo em `--run`, com `abrir("caminho") -> bombom`, `ler_arquivo(handle) -> bombom` e `fechar(handle)` para leitura simples de conteúdo inteiro em arquivo.
+- Itens 3–7 permanecem pendentes.
 
 ---
 

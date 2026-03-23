@@ -1,29 +1,29 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 85 — entrada básica com `ouvir` em `--run`**.
-- Rodada funcional mínima do Bloco 8, com foco exclusivo em entrada padrão para um tipo básico.
+- **Fase 86 — leitura mínima de arquivo com `abrir`/`fechar` em `--run`**.
+- Rodada funcional mínima do Bloco 8, focada em leitura simples de arquivo sem inflar API de I/O.
 
 ## 2. O que entrou na rodada atual
-- Intrínseca `ouvir()` adicionada ao recorte funcional de `--run`, com leitura de `stdin` para `bombom` e erro claro em entrada inválida.
-- Semântica/IR/validações passaram a reconhecer `ouvir` como intrínseca de aridade zero sem exigir declaração de função.
-- Testes adicionados para caso positivo e erro de parse em runtime via CLI com `stdin` controlado.
-- Exemplo versionado da fase incluído: `examples/fase85_ouvir_bombom_valido.pink`.
-- Documentação atualizada para registrar a Fase 85 e manter o Bloco 8 como trilha ativa.
+- Intrínseca `abrir("caminho") -> bombom` adicionada ao recorte funcional de `--run`, abrindo arquivo por caminho (`verso`) e retornando handle mínimo.
+- Intrínseca `ler_arquivo(handle) -> bombom` adicionada para leitura simples de conteúdo inteiro (`u64`) do arquivo aberto.
+- Intrínseca `fechar(handle)` adicionada para encerramento explícito do handle no runtime interpretado.
+- Pipeline de semântica/IR/CFG/selected/Machine/validações passou a reconhecer `abrir`, `ler_arquivo` e `fechar` como intrínsecas do subset da fase.
+- Testes e exemplo versionado adicionados: `examples/fase86_arquivo_leitura_minima_valido.pink` + casos de sucesso/falha no `--run`.
 
 ## 3. Fora de escopo da rodada atual
-- I/O de arquivo (`abrir`, `fechar`, `escrever`).
-- `verso` operacional amplo (passagem por chamada/retorno/variável em runtime).
-- Suporte de `ouvir` para múltiplos tipos além de `bombom`.
-- Backend externo para I/O.
+- Escrita de arquivo (`escrever`).
+- Múltiplos modos de abertura, streaming incremental, diretórios e API rica de FS.
+- Leitura de arquivo para tipos além de inteiro `bombom`.
+- `verso` operacional amplo em runtime (passagem geral por chamada/retorno/variável).
 
 ## 4. Próximo item normal
 - Trilha ativa: **Bloco 8 — I/O e ecossistema útil**.
-- Próximo item funcional sugerido: **arquivo mínimo (`abrir`/`fechar` + leitura simples) ou ampliação controlada de `ouvir` para um segundo tipo, mantendo diff pequeno**.
+- Próximo item funcional sugerido: **arquivo — escrita mínima (`escrever`)** no mesmo padrão de diff pequeno e auditável.
 
 ## 5. Observações operacionais curtas
-- Última fase funcional concluída: **85**.
-- Fase funcional anterior: **84**.
+- Última fase funcional concluída: **86**.
+- Fase funcional anterior: **85**.
 - Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.
 - Hotfix histórico extraordinário preservado: **HF-1 (Fase 48-H1)**.
 
