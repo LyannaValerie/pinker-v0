@@ -1,0 +1,20 @@
+pacote main;
+
+carinho saudacao(nome: verso) -> verso {
+    mimo juntar_verso("oi ", nome);
+}
+
+carinho principal() -> bombom {
+    nova nome: verso = argumento_ou(0, "visitante");
+    nova msg: verso = saudacao(nome);
+
+    falar(msg, tamanho_verso(msg), indice_verso(msg, 0));
+
+    talvez tem_argumento(1) {
+        falar("extra", argumento(1));
+    } senao {
+        falar("extra", "nenhum");
+    }
+
+    mimo quantos_argumentos();
+}
