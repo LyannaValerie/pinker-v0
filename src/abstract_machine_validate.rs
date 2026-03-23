@@ -56,6 +56,11 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         "argumento".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );
+    sigs.insert("quantos_argumentos".to_string(), (TypeIR::Bombom, vec![]));
+    sigs.insert(
+        "tem_argumento".to_string(),
+        (TypeIR::Logica, vec![StackValueType::Bombom]),
+    );
     sigs.insert(
         "sair".to_string(),
         (TypeIR::Nulo, vec![StackValueType::Bombom]),

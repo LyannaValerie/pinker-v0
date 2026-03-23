@@ -372,6 +372,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado da fase (`examples/fase92_tooling_base_argumento_status_valido.pink`) e testes automatizados de semântica/`--run`/CLI (casos positivos e limite de argumento ausente).
 - Fora de escopo explícito nesta fase: parser de flags, subcomandos, env vars, diretórios, processos externos e biblioteca ampla de tooling.
 
+93 - ergonomia mínima de argv em `--run` (contagem + presença por índice)
+- Nona fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfície escolhida para contagem: intrínseca `quantos_argumentos() -> bombom`, sem coleção ampla de argv.
+- Superfície escolhida para presença por índice: intrínseca `tem_argumento(bombom) -> logica`, para guarda mínima antes de `argumento(i)`.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram `quantos_argumentos` e `tem_argumento` sem declaração explícita de função.
+- Cobertura adicionada com exemplo versionado da fase (`examples/fase93_argv_ergonomia_minima_valido.pink`) e testes automatizados de semântica/`--run`/CLI incluindo integração com `argumento(i)`.
+- Fora de escopo explícito nesta fase: parser de flags, subcomandos, env vars, coleção/iteração ampla de argv, diretórios e processos externos.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

@@ -713,6 +713,31 @@ fn try_call_intrinsic(
             };
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(arg.clone()))))
         }
+        "quantos_argumentos" => {
+            if !args.is_empty() {
+                return Err(runtime_err(
+                    "intrínseca 'quantos_argumentos' exige 0 argumentos",
+                ));
+            }
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(
+                io_state.cli_args.len() as u64,
+            ))))
+        }
+        "tem_argumento" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'tem_argumento' exige 1 argumento (índice bombom)",
+                ));
+            }
+            let RuntimeValue::Int(index) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'tem_argumento' exige índice bombom",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                io_state.cli_args.get(index as usize).is_some(),
+            ))))
+        }
         "sair" => {
             if args.len() != 1 {
                 return Err(runtime_err(

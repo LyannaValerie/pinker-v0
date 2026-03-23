@@ -42,6 +42,8 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `fechar`      | file close mínimo| encerrar handle de arquivo com cuidado |
 | `escrever`    | file write mínimo| gravar `bombom` em arquivo aberto no subset de I/O |
 | `argumento`   | argv posicional mínimo | ler argumento por índice em `--run` |
+| `quantos_argumentos` | contagem mínima de argv | contar argv posicional repassado em `--run` |
+| `tem_argumento` | presença mínima de argv | verificar existência de índice em argv no `--run` |
 | `sair`        | status de saída mínimo | encerrar script com código explícito |
 
 ---
@@ -63,6 +65,10 @@ Nota de status operacional:
   - `argumento(bombom) -> verso` para leitura posicional mínima de argv;
   - `sair(bombom)` para status explícito de saída;
   - repasse de argv via CLI com `--run ... -- <args...>`.
+- Fase 93 (ergonomia mínima de argv em `--run`):
+  - `quantos_argumentos() -> bombom` para contagem mínima de argv;
+  - `tem_argumento(bombom) -> logica` para verificação mínima de presença por índice;
+  - integração natural com `argumento(i)` sem abrir coleção/iterador amplo de argv.
 - Fora do subset textual atual: slicing, indexação negativa e formatação/interpolação.
 
 ---
