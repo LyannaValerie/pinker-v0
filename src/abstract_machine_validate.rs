@@ -568,37 +568,38 @@ fn apply_instr_effect(
                 }
             }
         }
-        MachineInstr::PrintInt => {
+        MachineInstr::PrintIntInline => {
             pop_typed(
                 f,
                 label,
                 stack,
                 1,
-                "underflow em print_int",
-                Some("instr='print_int'"),
+                "underflow em print_int_inline",
+                Some("instr='print_int_inline'"),
             )?;
         }
-        MachineInstr::PrintBool => {
+        MachineInstr::PrintBoolInline => {
             pop_typed(
                 f,
                 label,
                 stack,
                 1,
-                "underflow em print_bool",
-                Some("instr='print_bool'"),
+                "underflow em print_bool_inline",
+                Some("instr='print_bool_inline'"),
             )?;
         }
-        MachineInstr::PrintStrValue => {
+        MachineInstr::PrintStrValueInline => {
             pop_typed(
                 f,
                 label,
                 stack,
                 1,
-                "underflow em print_str_value",
-                Some("instr='print_str_value'"),
+                "underflow em print_str_value_inline",
+                Some("instr='print_str_value_inline'"),
             )?;
         }
-        MachineInstr::PrintStr(_) => {}
+        MachineInstr::PrintStrInline(_) | MachineInstr::PrintSpace | MachineInstr::PrintNewline => {
+        }
     }
 
     Ok(())
@@ -745,10 +746,12 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::CmpGe => "cmp_ge",
         MachineInstr::Call { .. } => "call",
         MachineInstr::CallVoid { .. } => "call_void",
-        MachineInstr::PrintInt => "print_int",
-        MachineInstr::PrintBool => "print_bool",
-        MachineInstr::PrintStrValue => "print_str_value",
-        MachineInstr::PrintStr(_) => "print_str",
+        MachineInstr::PrintIntInline => "print_int_inline",
+        MachineInstr::PrintBoolInline => "print_bool_inline",
+        MachineInstr::PrintStrValueInline => "print_str_value_inline",
+        MachineInstr::PrintStrInline(_) => "print_str_inline",
+        MachineInstr::PrintSpace => "print_space",
+        MachineInstr::PrintNewline => "print_newline",
     }
 }
 

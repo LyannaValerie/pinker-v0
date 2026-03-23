@@ -140,7 +140,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                             return Err(err("selected call_void exige função nulo"));
                         }
                     }
-                    SelectedInstr::Falar { value: _, ty: _ } => {}
+                    SelectedInstr::Falar { args: _ } => {}
                 }
             }
 

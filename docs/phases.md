@@ -4,8 +4,8 @@
 > A crônica histórica oficial foi renomeada para `docs/history.md` (Doc-10).
 
 ## Estado atual
-- Fase funcional atual: **90 — indexação mínima de `verso` com fronteira auditável (`indice_verso`)**.
-- Fase funcional anterior: **89 — operações mínimas de texto úteis em `verso` (`juntar_verso` + `tamanho_verso`)**.
+- Fase funcional atual: **91 — melhorias mínimas em `falar` (múltiplos argumentos + mistura heterogênea mínima)**.
+- Fase funcional anterior: **90 — indexação mínima de `verso` com fronteira auditável (`indice_verso`)**.
 - Hotfix extraordinário ativo mais recente: **HF-2**.
 - Hotfix histórico extraordinário preservado: **Fase 48-H1**.
 - Última rodada documental: **Doc-15 — criação inicial de `manual.md`**.

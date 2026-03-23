@@ -22,7 +22,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - strings mínimas como valor de linguagem com tipo `verso` e literal `"texto"` (frontend + semântica + IR)
 - `verso` operacional mínimo em `--run`: variável local, passagem por chamada, retorno e uso em `falar(verso)`
 - operações mínimas de texto em `--run` com `verso`: `juntar_verso(a, b)` para concatenação (apenas `verso + verso` via intrínseca), `tamanho_verso(v)` retornando `bombom` e indexação mínima por intrínseca `indice_verso(v, i)` (`verso`, `bombom`) retornando `verso` unitário
-- saída básica com `falar(expr);` para `bombom`, `u8`, `u16`, `u32`, `u64`, `logica` e `verso` (executa em `--run`)
+- saída básica com `falar(arg1, arg2, ...);` no `--run`, com múltiplos argumentos e separação por espaço simples no subset tipado (`bombom`, `u8`, `u16`, `u32`, `u64`, `i8`, `i16`, `i32`, `i64`, `logica`, `verso`)
 - entrada básica com intrínseca `ouvir()` em `--run`, com leitura de stdin para `bombom` (u64) no recorte mínimo da Fase 85
 - leitura mínima de arquivo em `--run` com intrínsecas `abrir("caminho") -> bombom`, `ler_arquivo(handle) -> bombom` e `fechar(handle)` (Fase 86)
 - escrita mínima de arquivo em `--run` com intrínseca `escrever(handle, bombom)` após `abrir("caminho")`, com fechamento explícito via `fechar(handle)` (Fase 87)
@@ -113,6 +113,7 @@ cargo run -- --run examples/fase87_arquivo_escrita_minima_valido.pink
 cargo run -- --run examples/fase88_verso_operacional_minimo_valido.pink
 cargo run -- --run examples/fase89_verso_operacoes_minimas_valido.pink
 cargo run -- --run examples/fase90_verso_indexacao_minima_valido.pink
+cargo run -- --run examples/fase91_falar_multiplos_argumentos_valido.pink
 cargo run -- --asm-s examples/fase73_backend_externo_locais_aritmetica_valido.pink
 cargo run -- --check examples/fase74_backend_externo_call_minimo_valido.pink
 cargo run -- --asm-s examples/fase75_backend_externo_frame_registradores_valido.pink

@@ -232,7 +232,9 @@ fn render_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
                 indent,
                 &format!("Falar {}", format_span(falar_stmt.span)),
             );
-            render_expr(&falar_stmt.expr, indent + 1, out, "expr");
+            for (idx, arg) in falar_stmt.args.iter().enumerate() {
+                render_expr(arg, indent + 1, out, &format!("arg{}", idx));
+            }
         }
         Stmt::InlineAsm(inline_asm_stmt) => {
             line(

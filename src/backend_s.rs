@@ -638,9 +638,13 @@ fn render_instruction(inst: &crate::backend_text::BackendTextInstruction) -> Str
                 (None, _) => format!("; call inválida: {} {}", callee, abi_args),
             }
         }
-        crate::backend_text::BackendTextInstruction::Falar { value, ty } => {
-            format!("falar {}:{}", render_operand(value), ty.name())
-        }
+        crate::backend_text::BackendTextInstruction::Falar { args } => format!(
+            "falar {}",
+            args.iter()
+                .map(|arg| format!("{}:{}", render_operand(&arg.value), arg.ty.name()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
     }
 }
 

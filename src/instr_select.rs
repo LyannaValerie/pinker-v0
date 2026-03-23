@@ -1,4 +1,4 @@
-use crate::cfg_ir::{InstructionCfgIR, OperandIR, ProgramCfgIR, TerminatorIR};
+use crate::cfg_ir::{FalarArgCfgIR, InstructionCfgIR, OperandIR, ProgramCfgIR, TerminatorIR};
 use crate::error::PinkerError;
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
 use std::collections::HashMap;
@@ -157,9 +157,14 @@ pub enum SelectedInstr {
         args: Vec<OperandIR>,
     },
     Falar {
-        value: OperandIR,
-        ty: TypeIR,
+        args: Vec<FalarArgSelected>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FalarArgSelected {
+    pub value: OperandIR,
+    pub ty: TypeIR,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -405,11 +410,19 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
                 span: crate::token::Span::single(crate::token::Position::new(1, 1)),
             }),
         },
-        InstructionCfgIR::Falar { value, ty } => Ok(SelectedInstr::Falar {
-            value: value.clone(),
-            ty: *ty,
+        InstructionCfgIR::Falar { args } => Ok(SelectedInstr::Falar {
+            args: lower_falar_args(args),
         }),
     }
+}
+
+fn lower_falar_args(args: &[FalarArgCfgIR]) -> Vec<FalarArgSelected> {
+    args.iter()
+        .map(|arg| FalarArgSelected {
+            value: arg.value.clone(),
+            ty: arg.ty,
+        })
+        .collect()
 }
 
 pub fn render_program(program: &SelectedProgram) -> String {
@@ -649,9 +662,13 @@ fn render_instr(inst: &SelectedInstr) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
-        SelectedInstr::Falar { value, ty } => {
-            format!("falar {}:{}", render_operand(value), ty.name())
-        }
+        SelectedInstr::Falar { args } => format!(
+            "falar {}",
+            args.iter()
+                .map(|arg| format!("{}:{}", render_operand(&arg.value), arg.ty.name()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
     }
 }
 

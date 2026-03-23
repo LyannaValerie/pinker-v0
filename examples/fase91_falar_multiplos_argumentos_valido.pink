@@ -1,0 +1,13 @@
+pacote fase91_falar_multiplos_argumentos_valido;
+
+carinho eco(msg: verso) -> verso {
+    mimo msg;
+}
+
+carinho principal() -> bombom {
+    nova nome: verso = "Pinker";
+    nova versao: bombom = 2;
+    falar("oi", eco(nome), versao);
+    falar("status", verdade);
+    mimo 0;
+}

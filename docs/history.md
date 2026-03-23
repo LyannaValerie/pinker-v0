@@ -354,6 +354,15 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado da fase (`examples/fase90_verso_indexacao_minima_valido.pink`) e testes automatizados de semântica/`--run`/CLI.
 - Fora de escopo explícito nesta fase: sintaxe `v[i]` para `verso`, slicing, indexação negativa, interpolação/formatação e biblioteca textual ampla.
 
+91 - melhorias mínimas em `falar` (múltiplos argumentos + mistura heterogênea mínima)
+- Sétima fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfície escolhida nesta fase: manter `falar(...)` e ampliar apenas sua aridade no runtime `--run`, sem criar API nova de formatação.
+- Recorte mínimo implementado: `falar` aceita múltiplos argumentos com separação previsível por espaço simples e quebra de linha única ao fim da chamada.
+- Mistura heterogênea mínima coberta no recorte: argumentos de tipos já estáveis (incluindo `bombom` + `verso`) na mesma chamada.
+- Pipeline alinhada no recorte: AST/semântica/IR/CFG IR/selected/Machine/backend textual passaram a transportar lista de argumentos para `falar`.
+- Cobertura adicionada com exemplo versionado da fase (`examples/fase91_falar_multiplos_argumentos_valido.pink`) e testes automatizados de `--run`/CLI para múltiplos `bombom`, mistura `verso`+`bombom` e integração com local/chamada.
+- Fora de escopo explícito nesta fase: interpolação, placeholders posicionais/nomeados, largura/alinhamento/precisão e biblioteca de formatação ampla.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

@@ -425,11 +425,7 @@ fn validate_block(
                 loop_continue_label: _,
                 span: _,
             } => {}
-            InstructionIR::Falar {
-                value: _,
-                ty: _,
-                span: _,
-            } => {}
+            InstructionIR::Falar { args: _, span: _ } => {}
             InstructionIR::InlineAsm { chunks, span } => {
                 if chunks.is_empty() || chunks.iter().any(|chunk| chunk.trim().is_empty()) {
                     return Err(ir_validation_error_ctx(

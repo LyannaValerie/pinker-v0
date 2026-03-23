@@ -1,6 +1,6 @@
-use crate::cfg_ir::{InstructionCfgIR, OperandIR, ProgramCfgIR, TerminatorIR};
+use crate::cfg_ir::{FalarArgCfgIR, InstructionCfgIR, OperandIR, ProgramCfgIR, TerminatorIR};
 use crate::error::PinkerError;
-use crate::instr_select::{SelectedInstr, SelectedProgram, SelectedTerminator};
+use crate::instr_select::{FalarArgSelected, SelectedInstr, SelectedProgram, SelectedTerminator};
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,9 +57,14 @@ pub enum BackendTextInstruction {
         ret_type: TypeIR,
     },
     Falar {
-        value: OperandIR,
-        ty: TypeIR,
+        args: Vec<BackendTextFalarArg>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackendTextFalarArg {
+    pub value: OperandIR,
+    pub ty: TypeIR,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -144,12 +149,9 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                                 args: args.clone(),
                                 ret_type: *ret_type,
                             }),
-                            InstructionCfgIR::Falar { value, ty } => {
-                                Ok(BackendTextInstruction::Falar {
-                                    value: value.clone(),
-                                    ty: *ty,
-                                })
-                            }
+                            InstructionCfgIR::Falar { args } => Ok(BackendTextInstruction::Falar {
+                                args: map_falar_args_from_cfg(args),
+                            }),
                         })
                         .collect::<Result<Vec<_>, PinkerError>>()?;
                     Ok(BackendTextBlock {
@@ -380,9 +382,8 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
             args: args.clone(),
             ret_type: TypeIR::Nulo,
         }),
-        SelectedInstr::Falar { value, ty } => Ok(BackendTextInstruction::Falar {
-            value: value.clone(),
-            ty: *ty,
+        SelectedInstr::Falar { args } => Ok(BackendTextInstruction::Falar {
+            args: map_falar_args_from_selected(args),
         }),
     }
 }
@@ -536,10 +537,32 @@ fn render_instruction(inst: &BackendTextInstruction) -> String {
                 (None, _) => format!("call {}, {}({}), {}", "_", callee, args, ret_type.name()),
             }
         }
-        BackendTextInstruction::Falar { value, ty } => {
-            format!("falar {}:{}", render_operand(value), ty.name())
-        }
+        BackendTextInstruction::Falar { args } => format!(
+            "falar {}",
+            args.iter()
+                .map(|arg| format!("{}:{}", render_operand(&arg.value), arg.ty.name()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
     }
+}
+
+fn map_falar_args_from_cfg(args: &[FalarArgCfgIR]) -> Vec<BackendTextFalarArg> {
+    args.iter()
+        .map(|arg| BackendTextFalarArg {
+            value: arg.value.clone(),
+            ty: arg.ty,
+        })
+        .collect()
+}
+
+fn map_falar_args_from_selected(args: &[FalarArgSelected]) -> Vec<BackendTextFalarArg> {
+    args.iter()
+        .map(|arg| BackendTextFalarArg {
+            value: arg.value.clone(),
+            ty: arg.ty,
+        })
+        .collect()
 }
 
 fn render_terminator(term: &BackendTextTerminator) -> String {

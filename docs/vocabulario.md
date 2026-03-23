@@ -53,6 +53,10 @@ Nota de status operacional:
 - Fase 90 (fechamento mínimo de indexação):
   - `indice_verso(verso, bombom) -> verso` (retorna `verso` unitário);
   - índice fora da faixa gera erro explícito em runtime.
+- Fase 91 (melhoria mínima de saída):
+  - `falar` passou a aceitar múltiplos argumentos;
+  - separação previsível por espaço simples entre argumentos na mesma linha;
+  - mistura mínima heterogênea coberta no recorte da fase (ex.: `bombom` + `verso`).
 - Fora do subset textual atual: slicing, indexação negativa e formatação/interpolação.
 
 ---

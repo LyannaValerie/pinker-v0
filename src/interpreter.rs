@@ -474,23 +474,31 @@ fn exec_instr(
                 return Err(runtime_err("call_void exige função sem retorno"));
             }
         }
-        MachineInstr::PrintInt => match pop_numeric(stack, "print_int exige inteiro no topo")? {
-            RuntimeValue::Int(v) => println!("{}", v),
-            RuntimeValue::IntSigned(v) => println!("{}", v),
-            RuntimeValue::Ptr(_) => unreachable!("pop_numeric só retorna inteiro"),
-            RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
-            RuntimeValue::Str(_) => unreachable!("pop_numeric só retorna inteiro"),
-        },
-        MachineInstr::PrintBool => {
-            let v = pop_bool(stack, "print_bool exige lógica no topo")?;
-            println!("{}", if v { "verdade" } else { "falso" });
+        MachineInstr::PrintIntInline => {
+            match pop_numeric(stack, "print_int_inline exige inteiro no topo")? {
+                RuntimeValue::Int(v) => print!("{}", v),
+                RuntimeValue::IntSigned(v) => print!("{}", v),
+                RuntimeValue::Ptr(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::Str(_) => unreachable!("pop_numeric só retorna inteiro"),
+            }
         }
-        MachineInstr::PrintStrValue => {
-            let s = pop_str(stack, "print_str_value exige verso no topo")?;
-            println!("{}", s);
+        MachineInstr::PrintBoolInline => {
+            let v = pop_bool(stack, "print_bool_inline exige lógica no topo")?;
+            print!("{}", if v { "verdade" } else { "falso" });
         }
-        MachineInstr::PrintStr(s) => {
-            println!("{}", s);
+        MachineInstr::PrintStrValueInline => {
+            let s = pop_str(stack, "print_str_value_inline exige verso no topo")?;
+            print!("{}", s);
+        }
+        MachineInstr::PrintStrInline(s) => {
+            print!("{}", s);
+        }
+        MachineInstr::PrintSpace => {
+            print!(" ");
+        }
+        MachineInstr::PrintNewline => {
+            println!();
         }
     }
 
@@ -1084,9 +1092,11 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::CmpGe => "cmp_ge",
         MachineInstr::Call { .. } => "call",
         MachineInstr::CallVoid { .. } => "call_void",
-        MachineInstr::PrintInt => "print_int",
-        MachineInstr::PrintBool => "print_bool",
-        MachineInstr::PrintStrValue => "print_str_value",
-        MachineInstr::PrintStr(_) => "print_str",
+        MachineInstr::PrintIntInline => "print_int_inline",
+        MachineInstr::PrintBoolInline => "print_bool_inline",
+        MachineInstr::PrintStrValueInline => "print_str_value_inline",
+        MachineInstr::PrintStrInline(_) => "print_str_inline",
+        MachineInstr::PrintSpace => "print_space",
+        MachineInstr::PrintNewline => "print_newline",
     }
 }

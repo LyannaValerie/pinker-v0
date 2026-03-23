@@ -13,7 +13,7 @@
 
 use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
-use crate::instr_select::{SelectedInstr, SelectedProgram, SelectedTerminator};
+use crate::instr_select::{FalarArgSelected, SelectedInstr, SelectedProgram, SelectedTerminator};
 use crate::ir::TypeIR;
 use std::collections::HashMap;
 
@@ -93,10 +93,12 @@ pub enum MachineInstr {
     CmpGe,
     Call { callee: String, argc: usize },
     CallVoid { callee: String, argc: usize },
-    PrintInt,
-    PrintBool,
-    PrintStrValue,
-    PrintStr(String),
+    PrintIntInline,
+    PrintBoolInline,
+    PrintStrValueInline,
+    PrintStrInline(String),
+    PrintSpace,
+    PrintNewline,
 }
 
 /// Terminadores de bloco. `BrTrue` consome o topo da pilha (deve ser `lógica`).
@@ -332,23 +334,33 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) {
                 argc: args.len(),
             });
         }
-        SelectedInstr::Falar { value, ty } => match value {
-            OperandIR::Str(s) => {
-                code.push(MachineInstr::PrintStr(s.clone()));
+        SelectedInstr::Falar { args } => {
+            for (idx, arg) in args.iter().enumerate() {
+                if idx > 0 {
+                    code.push(MachineInstr::PrintSpace);
+                }
+                lower_falar_arg(arg, code);
             }
-            _ if *ty == TypeIR::Verso => {
-                emit_load(value, code);
-                code.push(MachineInstr::PrintStrValue);
-            }
-            _ if *ty == TypeIR::Logica => {
-                emit_load(value, code);
-                code.push(MachineInstr::PrintBool);
-            }
-            _ => {
-                emit_load(value, code);
-                code.push(MachineInstr::PrintInt);
-            }
-        },
+            code.push(MachineInstr::PrintNewline);
+        }
+    }
+}
+
+fn lower_falar_arg(arg: &FalarArgSelected, code: &mut Vec<MachineInstr>) {
+    match &arg.value {
+        OperandIR::Str(s) => code.push(MachineInstr::PrintStrInline(s.clone())),
+        _ if arg.ty == TypeIR::Verso => {
+            emit_load(&arg.value, code);
+            code.push(MachineInstr::PrintStrValueInline);
+        }
+        _ if arg.ty == TypeIR::Logica => {
+            emit_load(&arg.value, code);
+            code.push(MachineInstr::PrintBoolInline);
+        }
+        _ => {
+            emit_load(&arg.value, code);
+            code.push(MachineInstr::PrintIntInline);
+        }
     }
 }
 
@@ -651,19 +663,22 @@ fn render_instr(i: &MachineInstr) -> String {
             format!("call_void {}, {}", callee, argc),
             &format!("chama {} com {} argumento(s) sem retorno", callee, argc),
         ),
-        MachineInstr::PrintInt => {
-            with_comment("print_int".to_string(), "imprime inteiro do topo da pilha")
+        MachineInstr::PrintIntInline => {
+            with_comment("print_int_inline".to_string(), "imprime inteiro sem quebra")
         }
-        MachineInstr::PrintBool => {
-            with_comment("print_bool".to_string(), "imprime lógico do topo da pilha")
+        MachineInstr::PrintBoolInline => {
+            with_comment("print_bool_inline".to_string(), "imprime lógico sem quebra")
         }
-        MachineInstr::PrintStrValue => with_comment(
-            "print_str_value".to_string(),
-            "imprime verso do topo da pilha",
+        MachineInstr::PrintStrValueInline => with_comment(
+            "print_str_value_inline".to_string(),
+            "imprime verso do topo sem quebra",
         ),
-        MachineInstr::PrintStr(s) => {
-            with_comment(format!("print_str \"{}\"", s), "imprime literal verso")
-        }
+        MachineInstr::PrintStrInline(s) => with_comment(
+            format!("print_str_inline \"{}\"", s),
+            "imprime literal verso sem quebra",
+        ),
+        MachineInstr::PrintSpace => with_comment("print_space".to_string(), "imprime espaço"),
+        MachineInstr::PrintNewline => with_comment("print_newline".to_string(), "imprime quebra"),
     }
 }
 
