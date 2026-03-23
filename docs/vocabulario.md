@@ -84,7 +84,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 |------------------|-------------|----------------------|-------------------------------------|
 | float            | `bolha`     | `brisa`, `pluma`     | leve, flutuante                     |
 | ~~string / texto~~   | ~~`verso`~~     | `prosa`, `fala`      | implementado na Fase 61             |
-| byte (u8)        | `migalha`   | `grao`               | pequeno mas precioso                |
+| byte (u8)        | `grao`   | `migalha`               | pequeno mas precioso                |
 | char             | `letra`     | `sinal`              | simples, direto                     |
 | void explito     | `nulo`      | `vazio`              | ausencia serena                     |
 | ~~ponteiro / ref~~ | ~~`seta`~~  | `olhar`, `aceno`     | implementado na Fase 48             |
@@ -97,7 +97,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 | enum             | `leque`     | `flor`, `arco`       | variedade, abrir opcoes             |
 | array            | `colar`     | `fila`, `cordao`     | sequencia encadeada                 |
 | tuple            | `par`       | `laco`, `broche`     | coisas juntas                       |
-| map / dicionario | `almanaque` | `cofre`, `gaveta`    | guardar com organizacao             |
+| map / dicionario | `gaveta` | `cofre`, `almanaque`    | guardar com organizacao             |
 
 ### Controle de fluxo
 
