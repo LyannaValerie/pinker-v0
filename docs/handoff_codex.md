@@ -1,15 +1,15 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 92 — base mínima para tooling em `--run` (argv posicional + status explícito)**.
+- **Fase 93 — ergonomia mínima de argv em `--run` (contagem + presença por índice)**.
 - Rodada funcional pequena, focada em script/tool simples sem abrir parser amplo de CLI.
 
 ## 2. O que entrou na rodada atual
-- `--run` passou a aceitar `-- <args...>` para repasse de argumentos posicionais do host para o script.
-- Nova intrínseca `argumento(bombom) -> verso` no runtime para leitura posicional mínima de argv.
-- Nova intrínseca `sair(bombom)` para status/código explícito de saída em scripts/ferramentas simples.
-- Cobertura com testes de semântica/`--run`/CLI e exemplo versionado `examples/fase92_tooling_base_argumento_status_valido.pink`.
-- Atualização de `README.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/vocabulario.md` e `docs/phases.md` para continuidade factual da trilha.
+- Nova intrínseca `quantos_argumentos() -> bombom` para contagem mínima de argv em `--run`.
+- Nova intrínseca `tem_argumento(bombom) -> logica` para verificação mínima de presença por índice.
+- Integração explícita com `argumento(i)` já existente para fluxo de guarda mínima antes da leitura posicional.
+- Cobertura com testes de semântica/`--run`/CLI e exemplo versionado `examples/fase93_argv_ergonomia_minima_valido.pink`.
+- Atualização de `README.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/vocabulario.md`, `docs/roadmap.md` e `docs/phases.md` para continuidade factual da trilha.
 
 ## 3. Fora de escopo da rodada atual
 - Parser de flags/subcomandos/env vars para tooling.
@@ -18,10 +18,10 @@
 
 ## 4. Próximo item normal
 - Trilha ativa permanece: **Bloco 8 — I/O e ecossistema útil**.
-- Próximo item funcional sugerido: **consolidar ergonomia mínima pós-Fase 92 sem inflar escopo de tooling**.
+- Próximo item funcional sugerido: **seguir refinamentos pequenos de tooling útil sem inflar escopo de CLI**.
 
 ## 5. Observações operacionais curtas
-- Última fase funcional concluída: **92**.
+- Última fase funcional concluída: **93**.
 - Rodada documental mais recente: **Doc-15**.
 - Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.
 - Hotfix histórico extraordinário preservado: **HF-1 (Fase 48-H1)**.

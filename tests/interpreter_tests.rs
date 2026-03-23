@@ -242,6 +242,66 @@ fn run_argumento_intrinseca_falha_sem_arg_disponivel() {
 }
 
 #[test]
+fn run_quantos_argumentos_intrinseca_conta_argv_posicional() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova total: bombom = quantos_argumentos();
+            falar(total);
+            mimo total;
+        }"#,
+        &["um", "dois", "tres"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(3)));
+    assert_eq!(out.exit_status, None);
+}
+
+#[test]
+fn run_tem_argumento_intrinseca_integra_com_argumento() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_argumento(1) {
+                falar(argumento(1));
+                mimo tamanho_verso(argumento(1));
+            } senao {
+                falar("faltou");
+                sair(9);
+                mimo 0;
+            }
+        }"#,
+        &["A", "beta"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(4)));
+    assert_eq!(out.exit_status, None);
+}
+
+#[test]
+fn run_tem_argumento_intrinseca_false_sem_falha_de_argumento() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_argumento(2) {
+                falar(argumento(2));
+                mimo 0;
+            } senao {
+                sair(5);
+                mimo 1;
+            }
+        }"#,
+        &["A", "B"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, None);
+    assert_eq!(out.exit_status, Some(5));
+}
+
+#[test]
 fn run_falar_multiplos_argumentos_bombom_funciona() {
     let out = run_code(
         r#"
@@ -1937,6 +1997,36 @@ fn cli_run_argumento_faltando_falha_com_erro_claro() {
         "stderr: {}",
         stderr
     );
+}
+
+#[test]
+fn cli_run_quantos_e_tem_argumento_minimos_funcionam() {
+    let source = r#"pacote main;
+carinho principal() -> bombom {
+    falar(quantos_argumentos());
+    talvez tem_argumento(1) {
+        falar(argumento(1));
+        sair(9);
+        mimo 0;
+    } senao {
+        falar("faltou");
+        mimo 1;
+    }
+}"#;
+    let file = std::env::temp_dir().join("pinker_fase93_argv_minimo_ok.pink");
+    fs::write(&file, source).expect("falha ao gravar fonte temporária");
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(&file)
+        .arg("--")
+        .arg("a")
+        .arg("beta")
+        .output()
+        .expect("falha ao executar CLI --run");
+
+    assert!(!output.status.success(), "{:?}", output);
+    assert_eq!(output.status.code(), Some(9));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "2\nbeta\n");
 }
 
 #[test]

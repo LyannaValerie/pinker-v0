@@ -146,6 +146,7 @@ Status de execução no bloco:
 - **Fase 90 concluída (fechamento do item 5)**: indexação mínima de `verso` em `--run` via `indice_verso(verso, bombom) -> verso`, com diagnóstico explícito de faixa e tipo no recorte mínimo.
 - **Fase 91 concluída (item 6 no recorte mínimo)**: `falar` passou a aceitar múltiplos argumentos no `--run`, com mistura mínima heterogênea entre tipos já estáveis (incluindo `bombom` + `verso`) e separação previsível por espaço simples.
 - **Fase 92 concluída (item 7 no recorte mínimo)**: base mínima de tooling em `--run` com `argumento(bombom) -> verso` para argv posicional e `sair(bombom)` para status explícito de saída, sem parser de flags/subcomandos/env.
+- **Fase 93 concluída (refinamento mínimo pós-Fase 92)**: ergonomia mínima de argv em `--run` com `quantos_argumentos() -> bombom` e `tem_argumento(bombom) -> logica`, mantendo recorte de tooling pequeno e sem parser de flags/subcomandos/env.
 
 ---
 

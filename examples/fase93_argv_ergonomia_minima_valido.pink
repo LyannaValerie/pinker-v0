@@ -1,0 +1,15 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova total: bombom = quantos_argumentos();
+    falar("total", total);
+
+    talvez tem_argumento(1) {
+        falar("arg1", argumento(1));
+        sair(9);
+        mimo 0;
+    } senao {
+        falar("faltou-arg1");
+        mimo 1;
+    }
+}

@@ -60,6 +60,20 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "quantos_argumentos".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![],
+        },
+    );
+    function_sigs.insert(
+        "tem_argumento".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
         "sair".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,

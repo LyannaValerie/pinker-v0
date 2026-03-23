@@ -194,6 +194,42 @@ fn argumento_intrinseca_rejeita_indice_nao_bombom() {
 }
 
 #[test]
+fn quantos_argumentos_intrinseca_valida_sem_declaracao() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom { mimo quantos_argumentos(); }";
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn quantos_argumentos_intrinseca_rejeita_aridade_diferente_de_zero() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom { mimo quantos_argumentos(1); }";
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("chamada de 'quantos_argumentos' com aridade inválida"));
+}
+
+#[test]
+fn tem_argumento_intrinseca_valida_sem_declaracao() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_argumento(0) { mimo 1; } senao { mimo 0; }
+        }";
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn tem_argumento_intrinseca_rejeita_indice_nao_bombom() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom { talvez tem_argumento(falso) { mimo 1; } senao { mimo 0; } }";
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'tem_argumento'"));
+}
+
+#[test]
 fn sair_intrinseca_valida_sem_declaracao() {
     let code = "
         pacote main;

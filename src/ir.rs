@@ -454,6 +454,20 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "quantos_argumentos".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "tem_argumento".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Logica,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "sair".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Nulo,
