@@ -47,7 +47,10 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 Nota de status operacional:
 - `verso` foi introduzido como tipo/literal na Fase 61.
 - Recorte operacional mínimo em `--run` foi oficializado na Fase 88: variável local, passagem por chamada, retorno e `falar(verso)`.
-- Operações de texto (`concatenação`, `comprimento`, `indexação`) seguem fora do subset atual.
+- Operações mínimas de texto da Fase 89:
+  - `juntar_verso(verso, verso) -> verso` (concatenação mínima);
+  - `tamanho_verso(verso) -> bombom` (comprimento mínimo).
+- Indexação e demais operações de texto ainda seguem fora do subset atual.
 
 ---
 

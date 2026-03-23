@@ -608,6 +608,42 @@ fn try_call_intrinsic(
             }
             Ok(IntrinsicCall::Done(None))
         }
+        "juntar_verso" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'juntar_verso' exige 2 argumentos (verso, verso)",
+                ));
+            }
+            let RuntimeValue::Str(lhs) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'juntar_verso' exige primeiro argumento em verso",
+                ));
+            };
+            let RuntimeValue::Str(rhs) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'juntar_verso' exige segundo argumento em verso",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(format!(
+                "{}{}",
+                lhs, rhs
+            )))))
+        }
+        "tamanho_verso" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'tamanho_verso' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(value) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'tamanho_verso' exige argumento em verso",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(
+                value.chars().count() as u64,
+            ))))
+        }
         _ => Ok(IntrinsicCall::NotIntrinsic),
     }
 }

@@ -336,6 +336,15 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado da fase (`examples/fase88_verso_operacional_minimo_valido.pink`) e testes automatizados positivos em `--run` e `--cfg-ir`.
 - Limite explícito preservado: `eterno` global de `verso` continua fora do subset operacional da CFG IR nesta fase; concatenação/comprimento/indexação também seguem fora.
 
+89 - operações mínimas de texto úteis em `verso` (`juntar_verso` + `tamanho_verso`)
+- Quinta fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Recorte mínimo implementado no runtime interpretado: concatenação via intrínseca `juntar_verso(verso, verso) -> verso` e comprimento via intrínseca `tamanho_verso(verso) -> bombom`.
+- Superfície escolhida nesta fase: intrínsecas pontuais (sem abrir operador textual novo), priorizando diff pequeno e auditável.
+- Pipeline alinhada no recorte: semântica/CFG IR/selected/Machine/validações passaram a reconhecer as duas intrínsecas sem declaração explícita de função.
+- Runtime passou a executar concatenação mínima de `verso` e cálculo de comprimento em contagem de caracteres Unicode (`chars().count()`), retornando `bombom`.
+- Cobertura adicionada com exemplo versionado da fase (`examples/fase89_verso_operacoes_minimas_valido.pink`) e testes automatizados de semântica/`--run`/CLI.
+- Fora de escopo explícito nesta fase: indexação de `verso`, slicing, interpolação/formatação e biblioteca textual ampla.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

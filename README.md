@@ -21,6 +21,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - módulos/imports mínimos com `trazer modulo;` e `trazer modulo.simbolo;` (carregando `modulo.pink` no mesmo diretório do arquivo principal, com subset de import para `carinho` e `eterno`)
 - strings mínimas como valor de linguagem com tipo `verso` e literal `"texto"` (frontend + semântica + IR)
 - `verso` operacional mínimo em `--run`: variável local, passagem por chamada, retorno e uso em `falar(verso)`
+- operações mínimas de texto em `--run` com `verso`: `juntar_verso(a, b)` para concatenação (apenas `verso + verso` via intrínseca) e `tamanho_verso(v)` retornando `bombom`
 - saída básica com `falar(expr);` para `bombom`, `u8`, `u16`, `u32`, `u64`, `logica` e `verso` (executa em `--run`)
 - entrada básica com intrínseca `ouvir()` em `--run`, com leitura de stdin para `bombom` (u64) no recorte mínimo da Fase 85
 - leitura mínima de arquivo em `--run` com intrínsecas `abrir("caminho") -> bombom`, `ler_arquivo(handle) -> bombom` e `fechar(handle)` (Fase 86)
@@ -52,7 +53,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - semântica completa de `fragil` em runtime/backend (há apenas efeito operacional mínimo em acessos indiretos no subset `fragil seta<bombom>`, sem MMIO/fences/ordenação de memória)
 - lowering operacional de `virar` fora do subset atual (executa inteiro->inteiro e `bombom <-> seta<bombom>`; demais casts continuam rejeitados)
 - lowering operacional de inline asm em CFG/Machine/runtime (`--check`/`--ir` aceitam o subset atual; `--cfg-ir`/`--run` ainda não executam `sussurro`)
-- operações de texto em `verso` (concatenação, comprimento, indexação e formatação) ainda fora do subset operacional
+- operações de texto em `verso` além do recorte mínimo atual (ex.: indexação e formatação) ainda fora do subset operacional
 - API rica de arquivo (múltiplos modos, append/streaming/diretórios)
 - leitura de arquivo além do recorte mínimo da Fase 86 (apenas conteúdo inteiro `bombom` via `ler_arquivo`)
 - formatação avançada de saída
@@ -110,6 +111,7 @@ cargo run -- --run examples/fase85_ouvir_bombom_valido.pink
 cargo run -- --run examples/fase86_arquivo_leitura_minima_valido.pink
 cargo run -- --run examples/fase87_arquivo_escrita_minima_valido.pink
 cargo run -- --run examples/fase88_verso_operacional_minimo_valido.pink
+cargo run -- --run examples/fase89_verso_operacoes_minimas_valido.pink
 cargo run -- --asm-s examples/fase73_backend_externo_locais_aritmetica_valido.pink
 cargo run -- --check examples/fase74_backend_externo_call_minimo_valido.pink
 cargo run -- --asm-s examples/fase75_backend_externo_frame_registradores_valido.pink
