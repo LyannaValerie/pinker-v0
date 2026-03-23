@@ -126,7 +126,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 | Conceito         | Sugestao    | Alternativas         | Sentimento                          |
 |------------------|-------------|----------------------|-------------------------------------|
 | ~~print~~        | ~~`falar`~~ | `contar`, `dizer`    | implementado na Fase 62             |
-| read / input     | `ouvir`     | `escutar`            | receber do mundo                    |
+| ~~read / input~~ | ~~`ouvir`~~ | `escutar`            | implementado na Fase 85 como intrínseca `ouvir()` |
 | file open        | `abrir`     |                      | literal e acolhedor                 |
 | file close       | `fechar`    |                      | encerrar com cuidado                |
 | write to file    | `escrever`  | `registrar`          | deixar marca                        |

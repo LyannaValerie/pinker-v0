@@ -50,6 +50,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             .collect::<Vec<_>>();
         sigs.insert(f.name.clone(), (f.ret_type, param_types));
     }
+    sigs.insert("ouvir".to_string(), (TypeIR::Bombom, vec![]));
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;
