@@ -485,6 +485,10 @@ fn exec_instr(
             let v = pop_bool(stack, "print_bool exige lógica no topo")?;
             println!("{}", if v { "verdade" } else { "falso" });
         }
+        MachineInstr::PrintStrValue => {
+            let s = pop_str(stack, "print_str_value exige verso no topo")?;
+            println!("{}", s);
+        }
         MachineInstr::PrintStr(s) => {
             println!("{}", s);
         }
@@ -651,6 +655,14 @@ fn pop_bool(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<bool, PinkerErro
         RuntimeValue::IntSigned(_) => Err(runtime_err(msg)),
         RuntimeValue::Ptr(_) => Err(runtime_err(msg)),
         RuntimeValue::Str(_) => Err(runtime_err(msg)),
+    }
+}
+
+fn pop_str(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<String, PinkerError> {
+    let value = pop(stack, msg)?;
+    match value {
+        RuntimeValue::Str(v) => Ok(v),
+        _ => Err(runtime_err(msg)),
     }
 }
 
@@ -1015,6 +1027,7 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::CallVoid { .. } => "call_void",
         MachineInstr::PrintInt => "print_int",
         MachineInstr::PrintBool => "print_bool",
+        MachineInstr::PrintStrValue => "print_str_value",
         MachineInstr::PrintStr(_) => "print_str",
     }
 }

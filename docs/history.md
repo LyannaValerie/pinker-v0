@@ -329,6 +329,13 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado da fase (`examples/fase87_arquivo_escrita_minima_valido.pink`) e testes automatizados de sucesso/falha incluindo integração escrita+leitura.
 - Fora de escopo explícito nesta fase: append/modos de abertura, diretórios, streaming, escrita textual ampla e `verso` operacional geral.
 
+88 - `verso` operacional útil mínimo em `--run`
+- Quarta fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Recorte mínimo implementado no runtime interpretado: `verso` como valor operacional em variável local, passagem por chamada, retorno e `falar(verso)` por valor (não apenas literal).
+- Pipeline alinhada no recorte: CFG IR passou a lowerar `ValueIR::String` para `OperandIR::Str` em expressões/locals/chamadas/retornos; Machine/runtime ganharam instrução de impressão de `verso` por valor de pilha.
+- Cobertura adicionada com exemplo versionado da fase (`examples/fase88_verso_operacional_minimo_valido.pink`) e testes automatizados positivos em `--run` e `--cfg-ir`.
+- Limite explícito preservado: `eterno` global de `verso` continua fora do subset operacional da CFG IR nesta fase; concatenação/comprimento/indexação também seguem fora.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

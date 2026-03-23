@@ -95,6 +95,7 @@ pub enum MachineInstr {
     CallVoid { callee: String, argc: usize },
     PrintInt,
     PrintBool,
+    PrintStrValue,
     PrintStr(String),
 }
 
@@ -334,6 +335,10 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) {
         SelectedInstr::Falar { value, ty } => match value {
             OperandIR::Str(s) => {
                 code.push(MachineInstr::PrintStr(s.clone()));
+            }
+            _ if *ty == TypeIR::Verso => {
+                emit_load(value, code);
+                code.push(MachineInstr::PrintStrValue);
             }
             _ if *ty == TypeIR::Logica => {
                 emit_load(value, code);
@@ -652,6 +657,10 @@ fn render_instr(i: &MachineInstr) -> String {
         MachineInstr::PrintBool => {
             with_comment("print_bool".to_string(), "imprime lógico do topo da pilha")
         }
+        MachineInstr::PrintStrValue => with_comment(
+            "print_str_value".to_string(),
+            "imprime verso do topo da pilha",
+        ),
         MachineInstr::PrintStr(s) => {
             with_comment(format!("print_str \"{}\"", s), "imprime literal verso")
         }
