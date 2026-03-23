@@ -45,6 +45,13 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             },
         );
     }
+    function_sigs.insert(
+        "ouvir".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![],
+        },
+    );
 
     for function in &program.functions {
         validate_function(function, &global_consts, &function_sigs)?;

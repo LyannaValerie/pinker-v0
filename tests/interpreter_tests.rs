@@ -14,7 +14,9 @@ use pinker_v0::ir_validate;
 use pinker_v0::semantic;
 use std::collections::HashMap;
 use std::fs;
+use std::io::Write;
 use std::process::Command;
+use std::process::Stdio;
 
 fn run_code(code: &str) -> Result<Option<RuntimeValue>, String> {
     let program = common::parse(code).map_err(|e| e.to_string())?;
@@ -1147,6 +1149,26 @@ fn run_cli_check_example(path: &str) -> std::process::Output {
         .unwrap()
 }
 
+fn run_cli_example_with_stdin(path: &str, stdin_data: &str) -> std::process::Output {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("falha ao executar CLI --run com stdin");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin do processo filho indisponível")
+        .write_all(stdin_data.as_bytes())
+        .expect("falha ao escrever stdin do teste");
+    child
+        .wait_with_output()
+        .expect("falha ao aguardar saída do processo filho")
+}
+
 fn run_cli_build_args(args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_pink"))
         .arg("build")
@@ -1600,6 +1622,25 @@ fn cli_run_falar_signed_funciona() {
     let out = run_cli_example("examples/fase64_falar_signed.pink");
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(String::from_utf8_lossy(&out.stdout), "-3\nverdade\n0\n");
+}
+
+#[test]
+fn cli_run_ouvir_bombom_funciona_com_exemplo_versionado() {
+    let out = run_cli_example_with_stdin("examples/fase85_ouvir_bombom_valido.pink", "41\n");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
+}
+
+#[test]
+fn cli_run_ouvir_bombom_invalido_falha_com_erro_claro() {
+    let out = run_cli_example_with_stdin("examples/fase85_ouvir_bombom_valido.pink", "abc\n");
+    assert!(!out.status.success(), "{:?}", out);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("entrada inválida para 'ouvir'"),
+        "stderr: {}",
+        stderr
+    );
 }
 
 #[test]

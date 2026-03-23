@@ -137,7 +137,9 @@ Os 6 itens acima representam a ordem interna sugerida do Bloco 7. A numeração 
 
 #### Observação sobre numeração de fases
 
-Os itens do Bloco 8 receberão numeração de fase no momento de sua rodada funcional, conforme a convenção ativa. Nenhum número de fase é atribuído antecipadamente por esta rodada documental.
+Status de execução no bloco:
+- **Fase 85 concluída**: item 1 entregue no recorte mínimo, via intrínseca `ouvir()` em `--run` para `bombom` (u64), com diagnóstico claro para entrada inválida.
+- Itens 2–7 permanecem pendentes e fora do escopo da Fase 85.
 
 ---
 
