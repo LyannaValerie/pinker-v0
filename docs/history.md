@@ -443,3 +443,10 @@ Doc-14 - abertura documental do Bloco 8 e fechamento operacional do Bloco 7
 - Transição registrada após consolidação suficiente do Bloco 7 (Fases 73–84), preservando que o bloco não está completo em sentido absoluto.
 - `roadmap.md` atualizado: Bloco 7 deixou de ser trilha ativa e Bloco 8 passou a trilha ativa.
 - `agent_state.md` e `handoff_codex.md` alinhados para o próximo passo funcional mínimo do Bloco 8: entrada básica com `ouvir` (ou equivalente) em `--run` para pelo menos um tipo básico.
+
+Doc-15 - criação inicial de `manual.md` como manual de uso da linguagem
+- Rodada exclusivamente documental, sem mudança funcional de código/runtime.
+- `manual.md` criado na raiz do projeto com foco em uso real da Pinker no estado atual: estrutura básica, tipos, fluxo, funções, I/O, `verso`, exemplos completos e limites explícitos.
+- Escopo preservado: manual orientado a uso, sem duplicar papel de `README.md`, `docs/history.md` ou `docs/roadmap.md`.
+- `README.md` recebeu apenas ponteiro curto para `manual.md` na seção de ecossistema documental.
+- `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` atualizados para refletir a nova peça documental e manter continuidade operacional.
