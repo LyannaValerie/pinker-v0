@@ -483,6 +483,20 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "e_diretorio".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Logica,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "juntar_caminho".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "diretorio_atual".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Verso,

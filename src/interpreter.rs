@@ -791,6 +791,42 @@ fn try_call_intrinsic(
                 std::path::Path::new(path).is_file(),
             ))))
         }
+        "e_diretorio" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'e_diretorio' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(path) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'e_diretorio' exige caminho em verso",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                std::path::Path::new(path).is_dir(),
+            ))))
+        }
+        "juntar_caminho" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'juntar_caminho' exige 2 argumentos (base verso, trecho verso)",
+                ));
+            }
+            let RuntimeValue::Str(base) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'juntar_caminho' exige base em verso",
+                ));
+            };
+            let RuntimeValue::Str(child) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'juntar_caminho' exige trecho em verso",
+                ));
+            };
+            let joined = std::path::PathBuf::from(base).join(child);
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
+                joined.to_string_lossy().to_string(),
+            ))))
+        }
         "diretorio_atual" => {
             if !args.is_empty() {
                 return Err(runtime_err(
