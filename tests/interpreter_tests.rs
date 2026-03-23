@@ -302,6 +302,40 @@ fn run_tem_argumento_intrinseca_false_sem_falha_de_argumento() {
 }
 
 #[test]
+fn run_argumento_ou_intrinseca_usa_fallback_sem_arg() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova nome: verso = argumento_ou(0, "visitante");
+            falar("oi", nome);
+            mimo tamanho_verso(nome);
+        }"#,
+        &[],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(9)));
+    assert_eq!(out.exit_status, None);
+}
+
+#[test]
+fn run_argumento_ou_intrinseca_prioriza_arg_existente() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova nome: verso = argumento_ou(0, "visitante");
+            falar("oi", nome);
+            mimo tamanho_verso(nome);
+        }"#,
+        &["Pinker"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(6)));
+    assert_eq!(out.exit_status, None);
+}
+
+#[test]
 fn run_falar_multiplos_argumentos_bombom_funciona() {
     let out = run_code(
         r#"
@@ -2027,6 +2061,23 @@ carinho principal() -> bombom {
     assert!(!output.status.success(), "{:?}", output);
     assert_eq!(output.status.code(), Some(9));
     assert_eq!(String::from_utf8_lossy(&output.stdout), "2\nbeta\n");
+}
+
+#[test]
+fn cli_run_argumento_ou_fallback_minimo_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase94_argumento_ou_fallback_minimo_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "oi visitante\n9\n");
+}
+
+#[test]
+fn cli_run_argumento_ou_prioriza_arg_existente_com_exemplo_versionado() {
+    let out = run_cli_example_with_args(
+        "examples/fase94_argumento_ou_fallback_minimo_valido.pink",
+        &["Pinker"],
+    );
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "oi Pinker\n6\n");
 }
 
 #[test]

@@ -380,6 +380,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado da fase (`examples/fase93_argv_ergonomia_minima_valido.pink`) e testes automatizados de semântica/`--run`/CLI incluindo integração com `argumento(i)`.
 - Fora de escopo explícito nesta fase: parser de flags, subcomandos, env vars, coleção/iteração ampla de argv, diretórios e processos externos.
 
+94 - refinamento mínimo de argv em `--run` (fallback posicional simples)
+- Décima fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfície escolhida para fallback: intrínseca mínima `argumento_ou(bombom, verso) -> verso`, mantendo foco em script pequeno sem coleção ampla.
+- Semântica operacional desta fase: quando o índice existe em argv, retorna o argumento real; quando não existe, retorna o `verso` padrão fornecido.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram `argumento_ou` sem declaração explícita de função.
+- Cobertura adicionada com exemplo versionado da fase (`examples/fase94_argumento_ou_fallback_minimo_valido.pink`) e testes automatizados de semântica/`--run`/CLI cobrindo ausência/presença.
+- Fora de escopo explícito nesta fase: parser de flags, subcomandos, env vars, coleção/iteração ampla de argv, diretórios e processos externos.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
