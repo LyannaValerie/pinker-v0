@@ -45,6 +45,8 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `argumento_ou` | argv posicional com fallback mínimo | ler argumento por índice ou usar padrão em `--run` |
 | `quantos_argumentos` | contagem mínima de argv | contar argv posicional repassado em `--run` |
 | `tem_argumento` | presença mínima de argv | verificar existência de índice em argv no `--run` |
+| `ambiente_ou` | leitura mínima de env com fallback | ler variável de ambiente por chave com padrão em `--run` |
+| `diretorio_atual` | leitura mínima do cwd | obter diretório atual do processo como `verso` em `--run` |
 | `sair`        | status de saída mínimo | encerrar script com código explícito |
 
 ---
@@ -74,6 +76,10 @@ Nota de status operacional:
   - `argumento_ou(bombom, verso) -> verso` para obter argv posicional com valor padrão;
   - foco em scripts pequenos sem exigir sempre `tem_argumento(i)` + `talvez`;
   - sem parser de flags/subcomandos/env e sem coleção ampla de argv.
+- Fase 95 (ambiente mínimo de processo em `--run`):
+  - `ambiente_ou(verso, verso) -> verso` para leitura de variável de ambiente com fallback;
+  - `diretorio_atual() -> verso` para leitura mínima do diretório corrente;
+  - sem mutação/listagem de env vars, sem `chdir` e sem API rica de paths.
 - Fora do subset textual atual: slicing, indexação negativa e formatação/interpolação.
 
 ---

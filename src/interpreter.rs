@@ -13,6 +13,7 @@ use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
 use crate::token::Span;
 use std::collections::HashMap;
+use std::env;
 use std::fs;
 use std::io;
 
@@ -733,6 +734,39 @@ fn try_call_intrinsic(
                 .cloned()
                 .unwrap_or_else(|| default_value.clone());
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value))))
+        }
+        "ambiente_ou" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'ambiente_ou' exige 2 argumentos (chave verso, padrão verso)",
+                ));
+            }
+            let RuntimeValue::Str(key) = &args[0] else {
+                return Err(runtime_err("intrínseca 'ambiente_ou' exige chave em verso"));
+            };
+            let RuntimeValue::Str(default_value) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'ambiente_ou' exige valor padrão em verso",
+                ));
+            };
+            let value = env::var(key).unwrap_or_else(|_| default_value.clone());
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value))))
+        }
+        "diretorio_atual" => {
+            if !args.is_empty() {
+                return Err(runtime_err(
+                    "intrínseca 'diretorio_atual' exige 0 argumentos",
+                ));
+            }
+            let value = env::current_dir().map_err(|err| {
+                runtime_err(&format!(
+                    "falha ao obter diretório atual em 'diretorio_atual': {}",
+                    err
+                ))
+            })?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
+                value.to_string_lossy().to_string(),
+            ))))
         }
         "quantos_argumentos" => {
             if !args.is_empty() {

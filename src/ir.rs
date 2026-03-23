@@ -461,6 +461,20 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "ambiente_ou".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "diretorio_atual".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "quantos_argumentos".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Bombom,

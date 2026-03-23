@@ -62,6 +62,20 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "ambiente_ou".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "diretorio_atual".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![],
+        },
+    );
+    funcs.insert(
         "quantos_argumentos".to_string(),
         FunctionSig {
             ret_type: TypeIR::Bombom,

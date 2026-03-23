@@ -1,0 +1,6 @@
+pacote main;
+
+carinho principal() -> bombom {
+    falar(diretorio_atual());
+    mimo 0;
+}
