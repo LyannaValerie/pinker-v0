@@ -211,6 +211,40 @@ fn argumento_ou_intrinseca_rejeita_padrao_nao_verso() {
 }
 
 #[test]
+fn ambiente_ou_intrinseca_valida_sem_declaracao() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo tamanho_verso(ambiente_ou("HOME", "anonimo")); }"#;
+    assert!(parse_and_check(source).is_ok());
+}
+
+#[test]
+fn ambiente_ou_intrinseca_rejeita_chave_nao_verso() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo tamanho_verso(ambiente_ou(0, "anonimo")); }"#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'ambiente_ou'"));
+}
+
+#[test]
+fn diretorio_atual_intrinseca_valida_sem_declaracao() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo tamanho_verso(diretorio_atual()); }"#;
+    assert!(parse_and_check(source).is_ok());
+}
+
+#[test]
+fn diretorio_atual_intrinseca_rejeita_aridade_diferente_de_zero() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo tamanho_verso(diretorio_atual("x")); }"#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(err.contains("chamada de 'diretorio_atual' com aridade inválida"));
+}
+
+#[test]
 fn quantos_argumentos_intrinseca_valida_sem_declaracao() {
     let code = "
         pacote main;

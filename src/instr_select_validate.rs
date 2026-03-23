@@ -18,6 +18,8 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("ouvir".to_string(), TypeIR::Bombom);
     sigs.insert("argumento".to_string(), TypeIR::Verso);
     sigs.insert("argumento_ou".to_string(), TypeIR::Verso);
+    sigs.insert("ambiente_ou".to_string(), TypeIR::Verso);
+    sigs.insert("diretorio_atual".to_string(), TypeIR::Verso);
     sigs.insert("quantos_argumentos".to_string(), TypeIR::Bombom);
     sigs.insert("tem_argumento".to_string(), TypeIR::Logica);
     sigs.insert("sair".to_string(), TypeIR::Nulo);

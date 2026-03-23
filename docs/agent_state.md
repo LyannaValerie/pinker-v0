@@ -23,15 +23,15 @@
 - Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
 
 ## 5. Estado corrente
-- Fase funcional atual: **94 — refinamento mínimo de argv em `--run` (fallback posicional simples)**.
+- Fase funcional atual: **95 — ambiente mínimo de processo em `--run` (fallback de env + diretório atual)**.
 - Rodada documental mais recente: **Doc-16 — pacote paralelo de apoio (auditoria + corpus + mapeamento de codegen textual)**.
-- Fase funcional anterior: **93 — ergonomia mínima de argv em `--run` (contagem + presença por índice)**.
+- Fase funcional anterior: **94 — refinamento mínimo de argv em `--run` (fallback posicional simples)**.
 - Bloco concluído: **Bloco 6 — Memória operacional** (Fases 64–72 entregues).
 - Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
 - Bloco 7: **suficientemente consolidado para transição**, sem declaração de completude absoluta.
-- Próximo passo funcional sugerido: **manter evolução de tooling em `--run` com escopo mínimo e auditável, sem parser amplo de CLI**.
+- Próximo passo funcional sugerido: **seguir refinamentos mínimos de tooling em `--run` no Bloco 8, preservando recorte pequeno e auditável sem parser amplo de CLI**.
 - Eixo `--asm-s`/backend externo permanece em subset linear auditável (Fases 73–84), mapeado nesta rodada sem abertura de lowering novo.
-- Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 94).
+- Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 95).
 - Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 
 ## 6. Ecossistema documental

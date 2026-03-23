@@ -388,6 +388,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado da fase (`examples/fase94_argumento_ou_fallback_minimo_valido.pink`) e testes automatizados de semântica/`--run`/CLI cobrindo ausência/presença.
 - Fora de escopo explícito nesta fase: parser de flags, subcomandos, env vars, coleção/iteração ampla de argv, diretórios e processos externos.
 
+95 - ambiente mínimo de processo em `--run` (fallback de env + diretório atual)
+- Décima primeira fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfícies escolhidas: `ambiente_ou(verso, verso) -> verso` para leitura de variável de ambiente com fallback e `diretorio_atual() -> verso` para leitura do diretório corrente do processo.
+- Semântica operacional desta fase: `ambiente_ou` retorna valor real quando a chave existe no ambiente do processo e usa o padrão quando a variável não está disponível; `diretorio_atual` expõe o caminho corrente como `verso`.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram as duas intrínsecas sem declaração explícita de função.
+- Cobertura adicionada com exemplos versionados (`examples/fase95_ambiente_processo_minimo_valido.pink`, `examples/fase95_diretorio_atual_minimo_valido.pink`, `examples/fase95_argumento_ou_ambiente_ou_valido.pink`) e testes automatizados de semântica/`--run`/CLI para fallback, leitura de ambiente real e integração com `falar`.
+- Fora de escopo explícito nesta fase: mutação/listagem de env vars, mudança de diretório, listagem de diretórios, API ampla de paths e processos externos.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

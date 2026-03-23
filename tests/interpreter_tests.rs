@@ -1414,6 +1414,27 @@ fn run_cli_example_with_args(path: &str, args: &[&str]) -> std::process::Output 
         .unwrap()
 }
 
+fn run_cli_example_with_env_and_cwd(
+    path: &str,
+    set_env: &[(&str, &str)],
+    unset_env: &[&str],
+    cwd: Option<&std::path::Path>,
+) -> std::process::Output {
+    let path = std::fs::canonicalize(path).unwrap_or_else(|_| std::path::PathBuf::from(path));
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_pink"));
+    cmd.arg("--run").arg(path);
+    for (key, value) in set_env {
+        cmd.env(key, value);
+    }
+    for key in unset_env {
+        cmd.env_remove(key);
+    }
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+    cmd.output().unwrap()
+}
+
 fn run_cli_check_example(path: &str) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_pink"))
         .arg("--check")
@@ -2078,6 +2099,61 @@ fn cli_run_argumento_ou_prioriza_arg_existente_com_exemplo_versionado() {
     );
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(String::from_utf8_lossy(&out.stdout), "oi Pinker\n6\n");
+}
+
+#[test]
+fn run_ambiente_ou_intrinseca_usa_fallback_sem_env() {
+    let output = run_cli_example_with_env_and_cwd(
+        "examples/fase95_ambiente_processo_minimo_valido.pink",
+        &[],
+        &["PINKER_TEST_ENV_PHASE95"],
+        None,
+    );
+    assert!(output.status.success(), "status={:?}", output.status);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "visitante\n9\n");
+}
+
+#[test]
+fn run_ambiente_ou_intrinseca_ler_valor_real_do_ambiente() {
+    let output = run_cli_example_with_env_and_cwd(
+        "examples/fase95_ambiente_processo_minimo_valido.pink",
+        &[("PINKER_TEST_ENV_PHASE95", "PinkerLab")],
+        &[],
+        None,
+    );
+    assert!(output.status.success(), "status={:?}", output.status);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "PinkerLab\n9\n");
+}
+
+#[test]
+fn cli_run_diretorio_atual_funciona_com_exemplo_versionado() {
+    let tmp = std::env::temp_dir().join("pinker_fase95_diretorio_atual");
+    fs::create_dir_all(&tmp).unwrap();
+    let output = run_cli_example_with_env_and_cwd(
+        "examples/fase95_diretorio_atual_minimo_valido.pink",
+        &[],
+        &[],
+        Some(&tmp),
+    );
+    assert!(output.status.success(), "status={:?}", output.status);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        format!("{}\n0\n", tmp.display())
+    );
+}
+
+#[test]
+fn cli_run_argumento_ou_e_ambiente_ou_combinados_funcionam() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg("examples/fase95_argumento_ou_ambiente_ou_valido.pink")
+        .arg("--")
+        .arg("cli")
+        .env("PINKER_TEST_ENV_PHASE95", "env")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "status={:?}", output.status);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "cli\n3\n");
 }
 
 #[test]
