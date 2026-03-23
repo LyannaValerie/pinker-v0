@@ -25,7 +25,7 @@
 
 ## 5. Estado corrente
 - Fase funcional atual: **95 — ambiente mínimo de processo em `--run` (fallback de env + diretório atual)**.
-- Rodada documental mais recente: **Doc-16 — pacote paralelo de apoio (auditoria + corpus + mapeamento de codegen textual)**.
+- Rodada documental mais recente: **Doc-17 — alinhamento documental/operacional pós-Paralela-1 (binários + MCP)**.
 - Fase funcional anterior: **94 — refinamento mínimo de argv em `--run` (fallback posicional simples)**.
 - Bloco concluído: **Bloco 6 — Memória operacional** (Fases 64–72 entregues).
 - Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
@@ -67,3 +67,10 @@
 1. Ler: `README.md`, `docs/roadmap.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/history.md`, `docs/doc_rules.md`.
 2. Executar validações exigidas da rodada antes de encerrar.
 3. Atualizar ao final: `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` quando houver mudança documental/operacional.
+
+
+## 11. Padrão operacional de binários
+- Binário principal: `pink` (CLI da linguagem).
+- Binário MCP: `pinker_mcp` (JSON-RPC 2.0 via stdio, linha a linha).
+- Padrão recomendado para evitar ambiguidade: `cargo run --bin pink -- ...`.
+- Ergonomia preservada no manifesto com `default-run = "pink"`, sem remover a necessidade de documentar o uso explícito quando houver múltiplos binários.

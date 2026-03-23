@@ -86,100 +86,106 @@ cargo test --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --locked
 ```
 
+## Binários do projeto
+- `pink`: binário principal da CLI da linguagem.
+- `pinker_mcp`: servidor MCP mínimo via JSON-RPC 2.0 em stdio (mensagens JSON por linha).
+
+Para evitar ambiguidade operacional após a coexistência de dois binários, use explicitamente `cargo run --bin pink -- ...` nos fluxos de auditoria/CLI principal. O `Cargo.toml` também define `default-run = "pink"` para preservar ergonomia de `cargo run` sem `--bin`.
+
 ## Uso
 ```bash
-cargo run -- examples/principal_valida.pink
-cargo run -- --ir examples/ir_if_else.pink
-cargo run -- --cfg-ir examples/cfg_if_else.pink
-cargo run -- --selected examples/selected_if_else.pink
-cargo run -- --machine examples/machine_if_else.pink
-cargo run -- --machine examples/machine_stack_if_call.pink
-cargo run -- --pseudo-asm examples/emit_if_else.pink
-cargo run -- --asm-s examples/emit_if_else.pink
-cargo run -- --run examples/run_soma.pink
-cargo run -- --run examples/run_chamada.pink
-cargo run -- --run examples/run_sempre_que.pink
-cargo run -- --run examples/run_quebrar.pink
-cargo run -- --run examples/run_continuar.pink
-cargo run -- --run examples/run_global.pink
-cargo run -- --run examples/run_unsigned_basico.pink
-cargo run -- --run examples/run_signed_basico.pink
-cargo run -- --run examples/run_alias_tipo_basico.pink
-cargo run -- --run examples/fase64_falar_signed.pink
-cargo run -- --run examples/fase66_deref_leitura_valido.pink
-cargo run -- --run examples/fase67_escrita_indireta_valida.pink
-cargo run -- --run examples/fase68_ptr_aritmetica_valida.pink
-cargo run -- --run examples/fase68_ptr_aritmetica_leitura_valida.pink
-cargo run -- --run examples/fase69_ninho_campo_operacional_valido.pink
-cargo run -- --run examples/fase70_indexacao_array_operacional_valido.pink
-cargo run -- --run examples/fase71_cast_memoria_valido.pink
-cargo run -- --run examples/fase72_fragil_operacional_minimo_valido.pink
-cargo run -- --run examples/fase85_ouvir_bombom_valido.pink
-cargo run -- --run examples/fase86_arquivo_leitura_minima_valido.pink
-cargo run -- --run examples/fase87_arquivo_escrita_minima_valido.pink
-cargo run -- --run examples/fase88_verso_operacional_minimo_valido.pink
-cargo run -- --run examples/fase89_verso_operacoes_minimas_valido.pink
-cargo run -- --run examples/fase90_verso_indexacao_minima_valido.pink
-cargo run -- --run examples/fase91_falar_multiplos_argumentos_valido.pink
-cargo run -- --run examples/fase92_tooling_base_argumento_status_valido.pink -- Pinker
-cargo run -- --run examples/fase93_argv_ergonomia_minima_valido.pink -- A beta
-cargo run -- --run examples/fase94_argumento_ou_fallback_minimo_valido.pink -- Pinker
-cargo run -- --run examples/fase95_ambiente_processo_minimo_valido.pink
-cargo run -- --run examples/fase95_diretorio_atual_minimo_valido.pink
-cargo run -- --run examples/fase95_argumento_ou_ambiente_ou_valido.pink -- Pinker
-cargo run -- --asm-s examples/fase73_backend_externo_locais_aritmetica_valido.pink
-cargo run -- --check examples/fase74_backend_externo_call_minimo_valido.pink
-cargo run -- --asm-s examples/fase75_backend_externo_frame_registradores_valido.pink
-cargo run -- --asm-s examples/fase75_backend_externo_parametro_nao_bombom_invalido.pink
-cargo run -- --asm-s examples/fase76_backend_externo_multiplos_parametros_valido.pink
-cargo run -- --asm-s examples/fase77_backend_externo_memoria_frame_valido.pink
-cargo run -- --asm-s examples/fase78_backend_externo_composicao_interprocedural_valido.pink
-cargo run -- --asm-s examples/fase79_backend_externo_programa_linear_maior_valido.pink
-cargo run -- --asm-s examples/fase80_backend_externo_cobertura_linear_ampla_valido.pink
-cargo run -- --asm-s examples/fase81_backend_externo_recusa_explicita_tres_parametros_invalido.pink
-cargo run -- --asm-s examples/fase82_backend_externo_recusa_explicita_talvez_senao_invalido.pink
-cargo run -- --asm-s examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink
-cargo run -- --check examples/fase76_backend_externo_tres_args_invalido.pink
-cargo run -- --check examples/mut_falho.pink
-cargo run -- --check examples/check_quebrar_fora_loop.pink
-cargo run -- --check examples/check_continuar_fora_loop.pink
-cargo run -- --check examples/check_campo_valido.pink
-cargo run -- --check examples/check_indexacao_valida.pink
-cargo run -- --check examples/check_indexacao_indice_nao_inteiro.pink
-cargo run -- --check examples/check_cast_inteiro_valido.pink
-cargo run -- --check examples/fase71_cast_memoria_invalido.pink
-cargo run -- --check examples/fase72_fragil_operacional_minimo_invalido.pink
-cargo run -- --check examples/check_cast_invalido_logica.pink
-cargo run -- --check examples/check_peso_alinhamento_escalar.pink
-cargo run -- --check examples/check_peso_alinhamento_array.pink
-cargo run -- --check examples/check_peso_alinhamento_ninho.pink
-cargo run -- --check examples/check_peso_tipo_inexistente.pink
-cargo run -- --check examples/check_volatile_valido.pink
-cargo run -- --check examples/check_volatile_invalido.pink
-cargo run -- --check examples/check_inline_asm_valido.pink
-cargo run -- --check examples/check_inline_asm_multilinha.pink
-cargo run -- --check examples/check_inline_asm_invalido_vazio.pink
-cargo run -- --check examples/check_freestanding_valido.pink
-cargo run -- --check examples/check_freestanding_invalido_fora_topo.pink
-cargo run -- --check examples/check_boot_entry_livre_valido.pink
-cargo run -- --check examples/check_boot_entry_livre_sem_principal.pink
-cargo run -- --check examples/check_kernel_minimo_fase59_valido.pink
-cargo run -- --check examples/fase61_verso_valido.pink
-cargo run -- --check examples/fase66_deref_seta_u8_invalido.pink
-cargo run -- --check examples/fase67_escrita_indireta_seta_u8_invalida.pink
-cargo run -- --check examples/fase68_ptr_aritmetica_invalida.pink
-cargo run -- --run examples/fase69_ninho_campo_operacional_invalido.pink
-cargo run -- --run examples/fase70_indexacao_array_operacional_invalido.pink
-cargo run -- --cfg-ir examples/fase61_verso_cfg_ir_invalido.pink
-cargo run -- --run examples/fase60_modulos_valido.pink
-cargo run -- --check examples/fase60_modulo_ausente.pink
-cargo run -- --check examples/fase60_simbolo_ausente.pink
-cargo run -- --run examples/fase62_falar_inteiro.pink
-cargo run -- --run examples/fase62_falar_logica.pink
-cargo run -- --run examples/fase62_falar_verso.pink
-cargo run -- --run examples/fase62_falar_expr.pink
-cargo run -- build examples/emit_if_else.pink
-cargo run -- build --out-dir saida examples/fase60_modulos_valido.pink
+cargo run --bin pink -- examples/principal_valida.pink
+cargo run --bin pink -- --ir examples/ir_if_else.pink
+cargo run --bin pink -- --cfg-ir examples/cfg_if_else.pink
+cargo run --bin pink -- --selected examples/selected_if_else.pink
+cargo run --bin pink -- --machine examples/machine_if_else.pink
+cargo run --bin pink -- --machine examples/machine_stack_if_call.pink
+cargo run --bin pink -- --pseudo-asm examples/emit_if_else.pink
+cargo run --bin pink -- --asm-s examples/emit_if_else.pink
+cargo run --bin pink -- --run examples/run_soma.pink
+cargo run --bin pink -- --run examples/run_chamada.pink
+cargo run --bin pink -- --run examples/run_sempre_que.pink
+cargo run --bin pink -- --run examples/run_quebrar.pink
+cargo run --bin pink -- --run examples/run_continuar.pink
+cargo run --bin pink -- --run examples/run_global.pink
+cargo run --bin pink -- --run examples/run_unsigned_basico.pink
+cargo run --bin pink -- --run examples/run_signed_basico.pink
+cargo run --bin pink -- --run examples/run_alias_tipo_basico.pink
+cargo run --bin pink -- --run examples/fase64_falar_signed.pink
+cargo run --bin pink -- --run examples/fase66_deref_leitura_valido.pink
+cargo run --bin pink -- --run examples/fase67_escrita_indireta_valida.pink
+cargo run --bin pink -- --run examples/fase68_ptr_aritmetica_valida.pink
+cargo run --bin pink -- --run examples/fase68_ptr_aritmetica_leitura_valida.pink
+cargo run --bin pink -- --run examples/fase69_ninho_campo_operacional_valido.pink
+cargo run --bin pink -- --run examples/fase70_indexacao_array_operacional_valido.pink
+cargo run --bin pink -- --run examples/fase71_cast_memoria_valido.pink
+cargo run --bin pink -- --run examples/fase72_fragil_operacional_minimo_valido.pink
+cargo run --bin pink -- --run examples/fase85_ouvir_bombom_valido.pink
+cargo run --bin pink -- --run examples/fase86_arquivo_leitura_minima_valido.pink
+cargo run --bin pink -- --run examples/fase87_arquivo_escrita_minima_valido.pink
+cargo run --bin pink -- --run examples/fase88_verso_operacional_minimo_valido.pink
+cargo run --bin pink -- --run examples/fase89_verso_operacoes_minimas_valido.pink
+cargo run --bin pink -- --run examples/fase90_verso_indexacao_minima_valido.pink
+cargo run --bin pink -- --run examples/fase91_falar_multiplos_argumentos_valido.pink
+cargo run --bin pink -- --run examples/fase92_tooling_base_argumento_status_valido.pink -- Pinker
+cargo run --bin pink -- --run examples/fase93_argv_ergonomia_minima_valido.pink -- A beta
+cargo run --bin pink -- --run examples/fase94_argumento_ou_fallback_minimo_valido.pink -- Pinker
+cargo run --bin pink -- --run examples/fase95_ambiente_processo_minimo_valido.pink
+cargo run --bin pink -- --run examples/fase95_diretorio_atual_minimo_valido.pink
+cargo run --bin pink -- --run examples/fase95_argumento_ou_ambiente_ou_valido.pink -- Pinker
+cargo run --bin pink -- --asm-s examples/fase73_backend_externo_locais_aritmetica_valido.pink
+cargo run --bin pink -- --check examples/fase74_backend_externo_call_minimo_valido.pink
+cargo run --bin pink -- --asm-s examples/fase75_backend_externo_frame_registradores_valido.pink
+cargo run --bin pink -- --asm-s examples/fase75_backend_externo_parametro_nao_bombom_invalido.pink
+cargo run --bin pink -- --asm-s examples/fase76_backend_externo_multiplos_parametros_valido.pink
+cargo run --bin pink -- --asm-s examples/fase77_backend_externo_memoria_frame_valido.pink
+cargo run --bin pink -- --asm-s examples/fase78_backend_externo_composicao_interprocedural_valido.pink
+cargo run --bin pink -- --asm-s examples/fase79_backend_externo_programa_linear_maior_valido.pink
+cargo run --bin pink -- --asm-s examples/fase80_backend_externo_cobertura_linear_ampla_valido.pink
+cargo run --bin pink -- --asm-s examples/fase81_backend_externo_recusa_explicita_tres_parametros_invalido.pink
+cargo run --bin pink -- --asm-s examples/fase82_backend_externo_recusa_explicita_talvez_senao_invalido.pink
+cargo run --bin pink -- --asm-s examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink
+cargo run --bin pink -- --check examples/fase76_backend_externo_tres_args_invalido.pink
+cargo run --bin pink -- --check examples/mut_falho.pink
+cargo run --bin pink -- --check examples/check_quebrar_fora_loop.pink
+cargo run --bin pink -- --check examples/check_continuar_fora_loop.pink
+cargo run --bin pink -- --check examples/check_campo_valido.pink
+cargo run --bin pink -- --check examples/check_indexacao_valida.pink
+cargo run --bin pink -- --check examples/check_indexacao_indice_nao_inteiro.pink
+cargo run --bin pink -- --check examples/check_cast_inteiro_valido.pink
+cargo run --bin pink -- --check examples/fase71_cast_memoria_invalido.pink
+cargo run --bin pink -- --check examples/fase72_fragil_operacional_minimo_invalido.pink
+cargo run --bin pink -- --check examples/check_cast_invalido_logica.pink
+cargo run --bin pink -- --check examples/check_peso_alinhamento_escalar.pink
+cargo run --bin pink -- --check examples/check_peso_alinhamento_array.pink
+cargo run --bin pink -- --check examples/check_peso_alinhamento_ninho.pink
+cargo run --bin pink -- --check examples/check_peso_tipo_inexistente.pink
+cargo run --bin pink -- --check examples/check_volatile_valido.pink
+cargo run --bin pink -- --check examples/check_volatile_invalido.pink
+cargo run --bin pink -- --check examples/check_inline_asm_valido.pink
+cargo run --bin pink -- --check examples/check_inline_asm_multilinha.pink
+cargo run --bin pink -- --check examples/check_inline_asm_invalido_vazio.pink
+cargo run --bin pink -- --check examples/check_freestanding_valido.pink
+cargo run --bin pink -- --check examples/check_freestanding_invalido_fora_topo.pink
+cargo run --bin pink -- --check examples/check_boot_entry_livre_valido.pink
+cargo run --bin pink -- --check examples/check_boot_entry_livre_sem_principal.pink
+cargo run --bin pink -- --check examples/check_kernel_minimo_fase59_valido.pink
+cargo run --bin pink -- --check examples/fase61_verso_valido.pink
+cargo run --bin pink -- --check examples/fase66_deref_seta_u8_invalido.pink
+cargo run --bin pink -- --check examples/fase67_escrita_indireta_seta_u8_invalida.pink
+cargo run --bin pink -- --check examples/fase68_ptr_aritmetica_invalida.pink
+cargo run --bin pink -- --run examples/fase69_ninho_campo_operacional_invalido.pink
+cargo run --bin pink -- --run examples/fase70_indexacao_array_operacional_invalido.pink
+cargo run --bin pink -- --cfg-ir examples/fase61_verso_cfg_ir_invalido.pink
+cargo run --bin pink -- --run examples/fase60_modulos_valido.pink
+cargo run --bin pink -- --check examples/fase60_modulo_ausente.pink
+cargo run --bin pink -- --check examples/fase60_simbolo_ausente.pink
+cargo run --bin pink -- --run examples/fase62_falar_inteiro.pink
+cargo run --bin pink -- --run examples/fase62_falar_logica.pink
+cargo run --bin pink -- --run examples/fase62_falar_verso.pink
+cargo run --bin pink -- --run examples/fase62_falar_expr.pink
+cargo run --bin pink -- build examples/emit_if_else.pink
+cargo run --bin pink -- build --out-dir saida examples/fase60_modulos_valido.pink
 ```
 
 ## Modos da CLI

@@ -2,6 +2,7 @@
 name = "pinker-v0"
 version = "0.1.0"
 edition = "2021"
+default-run = "pink"
 description = "Pinker v0 MVP Compiler - Minimal, Safe, Cute"
 authors = ["Lyanna Valerie <151316340+LyannaValerie@users.noreply.github.com>"]
 license = "MIT"
