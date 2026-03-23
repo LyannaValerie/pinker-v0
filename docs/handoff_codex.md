@@ -1,28 +1,29 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 87 — escrita mínima de arquivo com `escrever` em `--run`**.
-- Rodada funcional mínima do Bloco 8, focada em escrita simples de arquivo sem inflar API de I/O.
+- **Fase 88 — `verso` operacional útil mínimo em `--run`**.
+- Rodada funcional mínima do Bloco 8, focada em oficializar `verso` como valor operacional de runtime sem abrir operações de texto.
 
 ## 2. O que entrou na rodada atual
-- Intrínseca `escrever(handle, bombom)` adicionada ao recorte funcional de `--run`, sobrescrevendo conteúdo do arquivo já aberto por `abrir("caminho")`.
-- Runtime de arquivo em `--run` passou a manter caminho + conteúdo por handle, permitindo `escrever` seguido de `ler_arquivo` no mesmo handle.
-- Pipeline de semântica/IR/CFG/selected/Machine/validações passou a reconhecer `escrever` como intrínseca do subset da fase.
-- Testes e exemplo versionado adicionados: `examples/fase87_arquivo_escrita_minima_valido.pink` + casos de sucesso/falha no `--run`.
+- `verso` passou a ser operacional no recorte mínimo de `--run`: variável local, passagem por chamada, retorno e `falar(verso)` por valor.
+- CFG IR passou a lowerar valor string em expressões para `OperandIR::Str` (sem liberar `eterno` global de `verso` nesta fase).
+- Machine/runtime ganharam caminho de impressão de `verso` por valor de pilha (`print_str_value`) além do caminho prévio para literal imediato.
+- Testes e exemplo versionado adicionados: `examples/fase88_verso_operacional_minimo_valido.pink` + casos positivos em `--run` e `--cfg-ir`.
 
 ## 3. Fora de escopo da rodada atual
 - Modos de abertura, append, truncate selecionável e streaming.
 - Diretórios e API rica de filesystem.
-- Escrita textual ampla com `verso`.
-- `verso` operacional amplo em runtime (passagem geral por chamada/retorno/variável).
+- concatenação/comprimento/indexação de `verso`.
+- `eterno` global de `verso` em CFG IR/runtime.
+- formatação/interpolação e API textual ampla.
 
 ## 4. Próximo item normal
 - Trilha ativa: **Bloco 8 — I/O e ecossistema útil**.
-- Próximo item funcional sugerido: **verso operacional útil** com recorte mínimo e auditável.
+- Próximo item funcional sugerido: **operações mínimas de texto** (`verso` concatenação/comprimento/indexação) com recorte mínimo e auditável.
 
 ## 5. Observações operacionais curtas
-- Última fase funcional concluída: **87**.
-- Fase funcional anterior: **86**.
+- Última fase funcional concluída: **88**.
+- Fase funcional anterior: **87**.
 - Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.
 - Hotfix histórico extraordinário preservado: **HF-1 (Fase 48-H1)**.
 

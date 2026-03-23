@@ -141,7 +141,8 @@ Status de execução no bloco:
 - **Fase 85 concluída**: item 1 entregue no recorte mínimo, via intrínseca `ouvir()` em `--run` para `bombom` (u64), com diagnóstico claro para entrada inválida.
 - **Fase 86 concluída**: item 2 entregue no recorte mínimo em `--run`, com `abrir("caminho") -> bombom`, `ler_arquivo(handle) -> bombom` e `fechar(handle)` para leitura simples de conteúdo inteiro em arquivo.
 - **Fase 87 concluída**: item 3 entregue no recorte mínimo em `--run`, com `escrever(handle, bombom)` para sobrescrita simples do conteúdo do arquivo já aberto por `abrir(...)`, mantendo fechamento explícito com `fechar(handle)`.
-- Itens 4–7 permanecem pendentes.
+- **Fase 88 concluída**: item 4 entregue no recorte mínimo em `--run`, com `verso` operacional em variável local, passagem por chamada, retorno e `falar(verso)` por valor.
+- Itens 5–7 permanecem pendentes.
 
 ---
 

@@ -372,6 +372,24 @@ fn cfg_ir_verso_ainda_fora_do_escopo_operacional() {
 }
 
 #[test]
+fn cfg_ir_verso_operacional_minimo_em_local_parametro_retorno() {
+    let code = r#"
+        pacote main;
+        carinho eco(msg: verso) -> verso { mimo msg; }
+        carinho principal() -> bombom {
+            nova texto: verso = "oi";
+            nova copia: verso = eco(texto);
+            falar(copia);
+            mimo 0;
+        }
+    "#;
+    let cfg = render_cfg_ir(code).expect("cfg-ir deve aceitar verso no recorte mínimo");
+    assert!(cfg.contains("let %texto#0 = \"oi\":verso"), "{}", cfg);
+    assert!(cfg.contains("call eco(%texto#0) -> verso"), "{}", cfg);
+    assert!(cfg.contains("falar %copia#0:verso"), "{}", cfg);
+}
+
+#[test]
 fn cfg_ir_logicos_viram_branch_de_curto_circuito() {
     let code = "
         pacote main;

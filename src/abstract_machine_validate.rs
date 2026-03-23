@@ -570,6 +570,16 @@ fn apply_instr_effect(
                 Some("instr='print_bool'"),
             )?;
         }
+        MachineInstr::PrintStrValue => {
+            pop_typed(
+                f,
+                label,
+                stack,
+                1,
+                "underflow em print_str_value",
+                Some("instr='print_str_value'"),
+            )?;
+        }
         MachineInstr::PrintStr(_) => {}
     }
 
@@ -719,6 +729,7 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::CallVoid { .. } => "call_void",
         MachineInstr::PrintInt => "print_int",
         MachineInstr::PrintBool => "print_bool",
+        MachineInstr::PrintStrValue => "print_str_value",
         MachineInstr::PrintStr(_) => "print_str",
     }
 }

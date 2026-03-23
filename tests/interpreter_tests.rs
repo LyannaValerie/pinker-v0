@@ -118,6 +118,22 @@ fn run_logicos_basicos() {
 }
 
 #[test]
+fn run_verso_operacional_minimo_em_local_parametro_retorno() {
+    let out = run_code(
+        "pacote main;
+         carinho eco(msg: verso) -> verso { mimo msg; }
+         carinho principal() -> bombom {
+             nova texto: verso = \"oi\";
+             nova copia: verso = eco(texto);
+             falar(copia);
+             mimo 1;
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
 fn run_short_circuit_and_nao_avalia_rhs() {
     let out = run_code(
         "pacote main;
@@ -1704,6 +1720,13 @@ fn cli_run_arquivo_escrita_minima_funciona_com_exemplo_versionado() {
         .expect("falha ao restaurar fixture da fase 87");
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n0\n");
+}
+
+#[test]
+fn cli_run_verso_operacional_minimo_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase88_verso_operacional_minimo_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "olá verso\n0\n");
 }
 
 #[test]

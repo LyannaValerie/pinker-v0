@@ -1,0 +1,12 @@
+pacote fase88_verso_operacional_minimo_valido;
+
+carinho eco(msg: verso) -> verso {
+    mimo msg;
+}
+
+carinho principal() -> bombom {
+    nova texto: verso = "olá verso";
+    nova copia: verso = eco(texto);
+    falar(copia);
+    mimo 0;
+}

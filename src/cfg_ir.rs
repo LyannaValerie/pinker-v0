@@ -588,10 +588,7 @@ impl FunctionLowerer {
             ValueIR::GlobalConst(name) => Ok((OperandIR::GlobalConst(name.clone()), current)),
             ValueIR::Int(v) => Ok((OperandIR::Int(*v), current)),
             ValueIR::Bool(v) => Ok((OperandIR::Bool(*v), current)),
-            ValueIR::String(_) => Err(PinkerError::Ir {
-                msg: "CFG IR ainda não lowera valores 'verso' nesta fase".to_string(),
-                span,
-            }),
+            ValueIR::String(v) => Ok((OperandIR::Str(v.clone()), current)),
             ValueIR::Unary { op, operand } => {
                 let (operand, next_current) = self.lower_value_operand(operand, current, span)?;
                 let dest = self.next_temp();
