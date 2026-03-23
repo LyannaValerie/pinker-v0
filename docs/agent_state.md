@@ -23,12 +23,12 @@
 - Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
 
 ## 5. Estado corrente
-- Fase funcional atual: **88 — `verso` operacional útil mínimo em `--run`**.
-- Fase funcional anterior: **87 — escrita mínima de arquivo com `escrever` em `--run`**.
+- Fase funcional atual: **89 — operações mínimas de texto úteis em `verso` (`juntar_verso` + `tamanho_verso`)**.
+- Fase funcional anterior: **88 — `verso` operacional útil mínimo em `--run`**.
 - Bloco concluído: **Bloco 6 — Memória operacional** (Fases 64–72 entregues).
 - Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
 - Bloco 7: **suficientemente consolidado para transição**, sem declaração de completude absoluta.
-- Próximo passo funcional sugerido: **operações mínimas de texto em `verso`** (concatenação, comprimento e indexação), mantendo recorte pequeno e auditável.
+- Próximo passo funcional sugerido: **completar o item de operações mínimas de texto em `verso` com indexação mínima**, mantendo recorte pequeno e auditável.
 - Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 88).
 - Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 

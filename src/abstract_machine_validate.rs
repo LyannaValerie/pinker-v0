@@ -71,6 +71,17 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             vec![StackValueType::Bombom, StackValueType::Bombom],
         ),
     );
+    sigs.insert(
+        "juntar_verso".to_string(),
+        (
+            TypeIR::Verso,
+            vec![StackValueType::Verso, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
+        "tamanho_verso".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Verso]),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;

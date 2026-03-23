@@ -134,6 +134,27 @@ fn run_verso_operacional_minimo_em_local_parametro_retorno() {
 }
 
 #[test]
+fn run_verso_concat_minimo_e_comprimento_minimo_funcionam() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho junta(a: verso, b: verso) -> verso {
+            mimo juntar_verso(a, b);
+        }
+        carinho principal() -> bombom {
+            nova base: verso = "la";
+            nova fim: verso = "li";
+            nova texto: verso = junta(base, fim);
+            falar(texto);
+            nova n: bombom = tamanho_verso(texto);
+            mimo n;
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(4)));
+}
+
+#[test]
 fn run_short_circuit_and_nao_avalia_rhs() {
     let out = run_code(
         "pacote main;
@@ -1727,6 +1748,13 @@ fn cli_run_verso_operacional_minimo_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase88_verso_operacional_minimo_valido.pink");
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(String::from_utf8_lossy(&out.stdout), "olá verso\n0\n");
+}
+
+#[test]
+fn cli_run_verso_operacoes_minimas_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase89_verso_operacoes_minimas_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "oi Pinker\n9\n0\n");
 }
 
 #[test]

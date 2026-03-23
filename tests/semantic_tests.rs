@@ -226,6 +226,29 @@ fn escrever_intrinseca_rejeita_segundo_argumento_nao_bombom() {
 }
 
 #[test]
+fn juntar_e_tamanho_verso_intrinsecas_validas_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova a: verso = "oi";
+            nova b: verso = "!";
+            nova c: verso = juntar_verso(a, b);
+            nova n: bombom = tamanho_verso(c);
+            mimo n;
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn juntar_verso_rejeita_argumento_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo tamanho_verso(juntar_verso("oi", 1)); }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'juntar_verso'"));
+}
+
+#[test]
 fn uso_de_funcao_sem_retorno_em_expressao() {
     let code = "
         pacote main;
