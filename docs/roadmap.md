@@ -145,7 +145,7 @@ Status de execução no bloco:
 - **Fase 89 concluída (parcial do item 5)**: concatenação mínima (`juntar_verso(verso, verso)`) e comprimento mínimo (`tamanho_verso(verso) -> bombom`) operacionais em `--run`.
 - **Fase 90 concluída (fechamento do item 5)**: indexação mínima de `verso` em `--run` via `indice_verso(verso, bombom) -> verso`, com diagnóstico explícito de faixa e tipo no recorte mínimo.
 - **Fase 91 concluída (item 6 no recorte mínimo)**: `falar` passou a aceitar múltiplos argumentos no `--run`, com mistura mínima heterogênea entre tipos já estáveis (incluindo `bombom` + `verso`) e separação previsível por espaço simples.
-- Item 7 permanece pendente.
+- **Fase 92 concluída (item 7 no recorte mínimo)**: base mínima de tooling em `--run` com `argumento(bombom) -> verso` para argv posicional e `sair(bombom)` para status explícito de saída, sem parser de flags/subcomandos/env.
 
 ---
 

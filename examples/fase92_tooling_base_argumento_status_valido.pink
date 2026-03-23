@@ -1,0 +1,8 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova nome: verso = argumento(0);
+    falar("oi", nome);
+    sair(7);
+    mimo 0;
+}

@@ -41,6 +41,8 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `abrir`       | file open mínimo | abrir arquivo no subset de I/O      |
 | `fechar`      | file close mínimo| encerrar handle de arquivo com cuidado |
 | `escrever`    | file write mínimo| gravar `bombom` em arquivo aberto no subset de I/O |
+| `argumento`   | argv posicional mínimo | ler argumento por índice em `--run` |
+| `sair`        | status de saída mínimo | encerrar script com código explícito |
 
 ---
 
@@ -57,6 +59,10 @@ Nota de status operacional:
   - `falar` passou a aceitar múltiplos argumentos;
   - separação previsível por espaço simples entre argumentos na mesma linha;
   - mistura mínima heterogênea coberta no recorte da fase (ex.: `bombom` + `verso`).
+- Fase 92 (base mínima de tooling em `--run`):
+  - `argumento(bombom) -> verso` para leitura posicional mínima de argv;
+  - `sair(bombom)` para status explícito de saída;
+  - repasse de argv via CLI com `--run ... -- <args...>`.
 - Fora do subset textual atual: slicing, indexação negativa e formatação/interpolação.
 
 ---
@@ -150,6 +156,8 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 | ~~file open~~        | ~~`abrir`~~     |                      | implementado na Fase 86 (`abrir("caminho")`)                 |
 | ~~file close~~       | ~~`fechar`~~    |                      | implementado na Fase 86 (`fechar(handle)`)                |
 | ~~write to file~~    | ~~`escrever`~~  | `registrar`          | implementado na Fase 87 (`escrever(handle, bombom)`) |
+| ~~argv posicional~~  | ~~`argumento`~~ | `parametro`          | implementado na Fase 92 (`argumento(i)`) |
+| ~~exit/status~~      | ~~`sair`~~      | `encerrar`           | implementado na Fase 92 (`sair(codigo)`) |
 
 ---
 

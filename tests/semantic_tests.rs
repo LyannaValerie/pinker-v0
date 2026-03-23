@@ -177,6 +177,40 @@ fn ouvir_intrinseca_rejeita_aridade_diferente_de_zero() {
 }
 
 #[test]
+fn argumento_intrinseca_valida_sem_declaracao() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom { mimo tamanho_verso(argumento(0)); }";
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn argumento_intrinseca_rejeita_indice_nao_bombom() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom { mimo tamanho_verso(argumento(falso)); }";
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'argumento'"));
+}
+
+#[test]
+fn sair_intrinseca_valida_sem_declaracao() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom { sair(1); mimo 0; }";
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn sair_intrinseca_rejeita_argumento_nao_bombom() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom { sair(verdade); mimo 0; }";
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'sair'"));
+}
+
+#[test]
 fn abrir_ler_fechar_intrinsecas_validas_sem_declaracao() {
     let code = r#"
         pacote main;
