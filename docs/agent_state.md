@@ -23,14 +23,14 @@
 - Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
 
 ## 5. Estado corrente
-- Fase funcional atual: **91 — melhorias mínimas em `falar` (múltiplos argumentos + mistura heterogênea mínima)**.
+- Fase funcional atual: **92 — base mínima para tooling em `--run` (argv posicional + status explícito)**.
 - Rodada documental mais recente: **Doc-15 — criação inicial de `manual.md` como manual de uso da linguagem**.
-- Fase funcional anterior: **90 — indexação mínima de `verso` com fronteira auditável de faixa/tipo (`indice_verso`)**.
+- Fase funcional anterior: **91 — melhorias mínimas em `falar` (múltiplos argumentos + mistura heterogênea mínima)**.
 - Bloco concluído: **Bloco 6 — Memória operacional** (Fases 64–72 entregues).
 - Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
 - Bloco 7: **suficientemente consolidado para transição**, sem declaração de completude absoluta.
-- Próximo passo funcional sugerido: **item 7 do Bloco 8 (base para tooling em Pinker)**.
-- Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 91).
+- Próximo passo funcional sugerido: **consolidar ergonomia mínima pós-Fase 92 sem abrir parser amplo de CLI**.
+- Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 92).
 - Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 
 ## 6. Ecossistema documental

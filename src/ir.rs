@@ -447,6 +447,20 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "argumento".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "sair".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "abrir".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Bombom,

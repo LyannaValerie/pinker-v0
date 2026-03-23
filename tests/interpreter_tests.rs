@@ -33,6 +33,22 @@ fn run_code(code: &str) -> Result<Option<RuntimeValue>, String> {
     interpreter::run_program(&machine).map_err(|e| e.to_string())
 }
 
+fn run_code_with_args(code: &str, args: &[&str]) -> Result<interpreter::RunOutcome, String> {
+    let program = common::parse(code).map_err(|e| e.to_string())?;
+    semantic::check_program(&program).map_err(|e| e.to_string())?;
+    let program_ir = ir::lower_program(&program).map_err(|e| e.to_string())?;
+    ir_validate::validate_program(&program_ir).map_err(|e| e.to_string())?;
+    let cfg = cfg_ir::lower_program(&program_ir).map_err(|e| e.to_string())?;
+    cfg_ir_validate::validate_program(&cfg).map_err(|e| e.to_string())?;
+    let selected = instr_select::lower_program(&cfg).map_err(|e| e.to_string())?;
+    instr_select_validate::validate_program(&selected).map_err(|e| e.to_string())?;
+    let machine =
+        pinker_v0::abstract_machine::lower_program(&selected).map_err(|e| e.to_string())?;
+    abstract_machine_validate::validate_program(&machine).map_err(|e| e.to_string())?;
+    let runtime_args: Vec<String> = args.iter().map(|v| (*v).to_string()).collect();
+    interpreter::run_program_with_args(&machine, &runtime_args).map_err(|e| e.to_string())
+}
+
 #[test]
 fn run_retorno_constante() {
     let out = run_code("pacote main; carinho principal() -> bombom { mimo 42; }").unwrap();
@@ -185,6 +201,41 @@ fn run_indice_verso_falha_com_indice_fora_da_faixa() {
     .unwrap_err();
     assert!(
         err.contains("índice fora da faixa em 'indice_verso'"),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
+fn run_argumento_intrinseca_ler_posicional_minimo() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova nome: verso = argumento(0);
+            falar("oi", nome);
+            mimo tamanho_verso(nome);
+        }"#,
+        &["Pinker"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(6)));
+    assert_eq!(out.exit_status, None);
+}
+
+#[test]
+fn run_argumento_intrinseca_falha_sem_arg_disponivel() {
+    let err = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            falar(argumento(0));
+            mimo 0;
+        }"#,
+    )
+    .unwrap_err();
+    assert!(
+        err.contains("índice fora da faixa em 'argumento'"),
         "erro: {}",
         err
     );
@@ -1259,6 +1310,16 @@ fn run_cli_example(path: &str) -> std::process::Output {
         .unwrap()
 }
 
+fn run_cli_example_with_args(path: &str, args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(path)
+        .arg("--")
+        .args(args)
+        .output()
+        .unwrap()
+}
+
 fn run_cli_check_example(path: &str) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_pink"))
         .arg("--check")
@@ -1852,6 +1913,29 @@ fn cli_run_falar_multiplos_argumentos_mistos_funciona_com_exemplo_versionado() {
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
         "oi Pinker 2\nstatus verdade\n0\n"
+    );
+}
+
+#[test]
+fn cli_run_argumento_posicional_minimo_funciona_com_exemplo_versionado() {
+    let out = run_cli_example_with_args(
+        "examples/fase92_tooling_base_argumento_status_valido.pink",
+        &["Pinker"],
+    );
+    assert!(!out.status.success(), "{:?}", out);
+    assert_eq!(out.status.code(), Some(7));
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "oi Pinker\n");
+}
+
+#[test]
+fn cli_run_argumento_faltando_falha_com_erro_claro() {
+    let out = run_cli_example("examples/fase92_tooling_base_argumento_status_valido.pink");
+    assert!(!out.status.success(), "{:?}", out);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("índice fora da faixa em 'argumento'"),
+        "stderr: {}",
+        stderr
     );
 }
 

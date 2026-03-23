@@ -363,6 +363,15 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado da fase (`examples/fase91_falar_multiplos_argumentos_valido.pink`) e testes automatizados de `--run`/CLI para múltiplos `bombom`, mistura `verso`+`bombom` e integração com local/chamada.
 - Fora de escopo explícito nesta fase: interpolação, placeholders posicionais/nomeados, largura/alinhamento/precisão e biblioteca de formatação ampla.
 
+92 - base mínima para tooling em `--run` (argv posicional + status explícito)
+- Oitava fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfície escolhida para argumentos: intrínseca mínima `argumento(bombom) -> verso`, sem coleção/iterador amplo de argv.
+- Superfície escolhida para status/código: intrínseca mínima `sair(bombom)` para encerrar com código explícito; sem parser de flags/subcomandos/env.
+- CLI `pink --run` passou a aceitar repasse posicional via separador `--`, encaminhando os argumentos para `argumento(i)`.
+- Pipeline alinhada no recorte: semântica e runtime reconheceram `argumento`/`sair` sem declaração explícita de função.
+- Cobertura adicionada com exemplo versionado da fase (`examples/fase92_tooling_base_argumento_status_valido.pink`) e testes automatizados de semântica/`--run`/CLI (casos positivos e limite de argumento ausente).
+- Fora de escopo explícito nesta fase: parser de flags, subcomandos, env vars, diretórios, processos externos e biblioteca ampla de tooling.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

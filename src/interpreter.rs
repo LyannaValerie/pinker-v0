@@ -33,6 +33,8 @@ enum IntrinsicCall {
 struct RuntimeIoState {
     open_files: HashMap<u64, RuntimeOpenFile>,
     next_file_handle: u64,
+    cli_args: Vec<String>,
+    exit_status: Option<i32>,
 }
 
 struct RuntimeOpenFile {
@@ -57,15 +59,30 @@ pub enum RuntimeValue {
     Str(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunOutcome {
+    pub return_value: Option<RuntimeValue>,
+    pub exit_status: Option<i32>,
+}
+
 pub fn run_program(program: &MachineProgram) -> Result<Option<RuntimeValue>, PinkerError> {
+    Ok(run_program_with_args(program, &[])?.return_value)
+}
+
+pub fn run_program_with_args(
+    program: &MachineProgram,
+    cli_args: &[String],
+) -> Result<RunOutcome, PinkerError> {
     let globals = build_globals(program)?;
     let mut memory = build_memory(program, &globals)?;
     let mut io_state = RuntimeIoState {
         open_files: HashMap::new(),
         next_file_handle: 1,
+        cli_args: cli_args.to_vec(),
+        exit_status: None,
     };
     let mut call_stack = Vec::new();
-    call_function(
+    let return_value = call_function(
         "principal",
         vec![],
         program,
@@ -73,7 +90,11 @@ pub fn run_program(program: &MachineProgram) -> Result<Option<RuntimeValue>, Pin
         &mut memory,
         &mut io_state,
         &mut call_stack,
-    )
+    )?;
+    Ok(RunOutcome {
+        return_value,
+        exit_status: io_state.exit_status,
+    })
 }
 
 fn build_globals(program: &MachineProgram) -> Result<HashMap<String, RuntimeValue>, PinkerError> {
@@ -200,6 +221,9 @@ fn call_function(
                     instr, &mut slots, &mut stack, program, globals, memory, io_state, call_stack,
                 )?;
                 set_current_instr(call_stack, None);
+                if io_state.exit_status.is_some() {
+                    return Ok(None);
+                }
             }
 
             match &block.terminator {
@@ -674,6 +698,32 @@ fn try_call_intrinsic(
                 ));
             };
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(ch.to_string()))))
+        }
+        "argumento" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'argumento' exige 1 argumento (índice bombom)",
+                ));
+            }
+            let RuntimeValue::Int(index) = args[0] else {
+                return Err(runtime_err("intrínseca 'argumento' exige índice bombom"));
+            };
+            let Some(arg) = io_state.cli_args.get(index as usize) else {
+                return Err(runtime_err("índice fora da faixa em 'argumento'"));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(arg.clone()))))
+        }
+        "sair" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'sair' exige 1 argumento (código bombom)",
+                ));
+            }
+            let RuntimeValue::Int(code) = args[0] else {
+                return Err(runtime_err("intrínseca 'sair' exige código bombom"));
+            };
+            io_state.exit_status = Some(code.min(i32::MAX as u64) as i32);
+            Ok(IntrinsicCall::Done(None))
         }
         _ => Ok(IntrinsicCall::NotIntrinsic),
     }

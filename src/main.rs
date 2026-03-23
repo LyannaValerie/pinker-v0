@@ -33,6 +33,7 @@ struct Config {
     print_pseudo_asm: bool,
     print_asm_s: bool,
     run_program: bool,
+    run_args: Vec<String>,
     check_only: bool,
 }
 
@@ -48,7 +49,7 @@ enum CliCommand {
 
 fn usage(binary: &str) -> String {
     format!(
-        "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--cfg-ir] [--selected] [--machine] [--pseudo-asm] [--asm-s] [--run] [--check] <arquivo.pink>\n\
+        "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--cfg-ir] [--selected] [--machine] [--pseudo-asm] [--asm-s] [--run] [--check] <arquivo.pink> [-- <args...>]\n\
          \n\
          Modos:\n\
            --tokens    imprime a lista de tokens com spans\n\
@@ -61,6 +62,7 @@ fn usage(binary: &str) -> String {
            --pseudo-asm imprime backend textual pseudo-assembly final\n\
            --asm-s     imprime backend textual `.s` (Fase 54, ABI textual mínima)\n\
            --run       interpreta a machine validada e executa principal\n\
+           --          separa argumentos posicionais repassados para `argumento(i)` em --run\n\
            --check     executa apenas a validação semântica\n"
     )
 }
@@ -142,14 +144,27 @@ fn parse_args() -> Result<CliCommand, String> {
         .cloned()
         .unwrap_or_else(|| "pink".to_string());
     let cli_args = &raw_args[1..];
+    let mut cli_tail_start = cli_args.len();
+    for (i, arg) in cli_args.iter().enumerate() {
+        if arg == "--" {
+            cli_tail_start = i;
+            break;
+        }
+    }
+    let flag_args = &cli_args[..cli_tail_start];
+    let runtime_tail = if cli_tail_start < cli_args.len() {
+        &cli_args[(cli_tail_start + 1)..]
+    } else {
+        &[]
+    };
 
-    if let Some(cmd) = cli_args.first() {
+    if let Some(cmd) = flag_args.first() {
         if cmd == "build" {
-            return parse_build_args(&binary, &cli_args[1..]).map(CliCommand::Build);
+            return parse_build_args(&binary, &flag_args[1..]).map(CliCommand::Build);
         }
     }
 
-    for arg in cli_args {
+    for arg in flag_args {
         match arg.as_str() {
             "--tokens" => print_tokens = true,
             "--ast" => print_ast = true,
@@ -185,6 +200,12 @@ fn parse_args() -> Result<CliCommand, String> {
     let Some(input) = input else {
         return Err(usage(&binary));
     };
+    if !run_program && !runtime_tail.is_empty() {
+        return Err(format!(
+            "Argumentos após '--' exigem '--run'.\n\n{}",
+            usage(&binary)
+        ));
+    }
 
     Ok(CliCommand::Analyze(Config {
         input,
@@ -197,6 +218,7 @@ fn parse_args() -> Result<CliCommand, String> {
         print_machine,
         print_pseudo_asm,
         run_program,
+        run_args: runtime_tail.to_vec(),
         print_asm_s,
         check_only,
     }))
@@ -386,10 +408,10 @@ fn run_analyze(config: Config) {
     // --- Execução via interpretador ---
     if config.run_program {
         let result = try_or_exit!(
-            interpreter::run_program(machine_program.as_ref().unwrap()),
+            interpreter::run_program_with_args(machine_program.as_ref().unwrap(), &config.run_args),
             &source
         );
-        if let Some(value) = result {
+        if let Some(value) = result.return_value {
             match value {
                 interpreter::RuntimeValue::Int(v) => println!("{}", v),
                 interpreter::RuntimeValue::IntSigned(v) => println!("{}", v),
@@ -397,6 +419,9 @@ fn run_analyze(config: Config) {
                 interpreter::RuntimeValue::Bool(_) => {}
                 interpreter::RuntimeValue::Str(v) => println!("{}", v),
             }
+        }
+        if let Some(code) = result.exit_status {
+            std::process::exit(code);
         }
     }
 
