@@ -28,6 +28,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - escrita mínima de arquivo em `--run` com intrínseca `escrever(handle, bombom)` após `abrir("caminho")`, com fechamento explícito via `fechar(handle)` (Fase 87)
 - base mínima de tooling em `--run` com `argumento(i)` para argv posicional e `sair(codigo)` para status explícito de saída (Fase 92)
 - ergonomia mínima de argv em `--run` com `quantos_argumentos()` e `tem_argumento(i)` para contagem/presença posicional sem coleção ampla (Fase 93)
+- refinamento mínimo de fallback de argv em `--run` com `argumento_ou(i, padrao)` para script simples sem falha por ausência posicional (Fase 94)
 - comando de projeto `pink build <arquivo.pink>` para gerar artefato textual `.s` em disco (padrão: `build/<arquivo>.s`)
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
@@ -118,6 +119,7 @@ cargo run -- --run examples/fase90_verso_indexacao_minima_valido.pink
 cargo run -- --run examples/fase91_falar_multiplos_argumentos_valido.pink
 cargo run -- --run examples/fase92_tooling_base_argumento_status_valido.pink -- Pinker
 cargo run -- --run examples/fase93_argv_ergonomia_minima_valido.pink -- A beta
+cargo run -- --run examples/fase94_argumento_ou_fallback_minimo_valido.pink -- Pinker
 cargo run -- --asm-s examples/fase73_backend_externo_locais_aritmetica_valido.pink
 cargo run -- --check examples/fase74_backend_externo_call_minimo_valido.pink
 cargo run -- --asm-s examples/fase75_backend_externo_frame_registradores_valido.pink
@@ -180,7 +182,7 @@ cargo run -- build --out-dir saida examples/fase60_modulos_valido.pink
 - `--machine`: alvo textual abstrato de máquina de pilha (`vm` + `term`)
 - `--pseudo-asm`: backend textual normalizado final (`ins`/`term`)
 - `--asm-s`: backend textual `.s` com ABI textual mínima interna (derivado de `--selected`, sem ABI/registradores finais de plataforma)
-- `--run`: interpreta a Machine validada e executa `principal` (suporta `-- <args...>` para repasse posicional de argv)
+- `--run`: interpreta a Machine validada e executa `principal` (suporta `-- <args...>` para repasse posicional de argv em `argumento`, `tem_argumento`, `quantos_argumentos` e `argumento_ou`)
 
 ## Pipeline de backend textual
 `--pseudo-asm` executa:

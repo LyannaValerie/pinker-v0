@@ -454,6 +454,13 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "argumento_ou".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "quantos_argumentos".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Bombom,

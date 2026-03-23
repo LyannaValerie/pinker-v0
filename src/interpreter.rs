@@ -713,6 +713,27 @@ fn try_call_intrinsic(
             };
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(arg.clone()))))
         }
+        "argumento_ou" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'argumento_ou' exige 2 argumentos (índice bombom, padrão verso)",
+                ));
+            }
+            let RuntimeValue::Int(index) = args[0] else {
+                return Err(runtime_err("intrínseca 'argumento_ou' exige índice bombom"));
+            };
+            let RuntimeValue::Str(default_value) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'argumento_ou' exige valor padrão em verso",
+                ));
+            };
+            let value = io_state
+                .cli_args
+                .get(index as usize)
+                .cloned()
+                .unwrap_or_else(|| default_value.clone());
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value))))
+        }
         "quantos_argumentos" => {
             if !args.is_empty() {
                 return Err(runtime_err(

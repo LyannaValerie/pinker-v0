@@ -23,14 +23,14 @@
 - Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
 
 ## 5. Estado corrente
-- Fase funcional atual: **93 — ergonomia mínima de argv em `--run` (contagem + presença por índice)**.
+- Fase funcional atual: **94 — refinamento mínimo de argv em `--run` (fallback posicional simples)**.
 - Rodada documental mais recente: **Doc-15 — criação inicial de `manual.md` como manual de uso da linguagem**.
-- Fase funcional anterior: **92 — base mínima para tooling em `--run` (argv posicional + status explícito)**.
+- Fase funcional anterior: **93 — ergonomia mínima de argv em `--run` (contagem + presença por índice)**.
 - Bloco concluído: **Bloco 6 — Memória operacional** (Fases 64–72 entregues).
 - Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
 - Bloco 7: **suficientemente consolidado para transição**, sem declaração de completude absoluta.
 - Próximo passo funcional sugerido: **manter evolução de tooling em `--run` com escopo mínimo e auditável, sem parser amplo de CLI**.
-- Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 93).
+- Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 94).
 - Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 
 ## 6. Ecossistema documental

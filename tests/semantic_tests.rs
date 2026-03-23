@@ -194,6 +194,23 @@ fn argumento_intrinseca_rejeita_indice_nao_bombom() {
 }
 
 #[test]
+fn argumento_ou_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo tamanho_verso(argumento_ou(0, "anonimo")); }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn argumento_ou_intrinseca_rejeita_padrao_nao_verso() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom { mimo tamanho_verso(argumento_ou(0, 1)); }";
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'argumento_ou'"));
+}
+
+#[test]
 fn quantos_argumentos_intrinseca_valida_sem_declaracao() {
     let code = "
         pacote main;

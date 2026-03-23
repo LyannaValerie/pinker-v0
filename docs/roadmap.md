@@ -147,6 +147,7 @@ Status de execução no bloco:
 - **Fase 91 concluída (item 6 no recorte mínimo)**: `falar` passou a aceitar múltiplos argumentos no `--run`, com mistura mínima heterogênea entre tipos já estáveis (incluindo `bombom` + `verso`) e separação previsível por espaço simples.
 - **Fase 92 concluída (item 7 no recorte mínimo)**: base mínima de tooling em `--run` com `argumento(bombom) -> verso` para argv posicional e `sair(bombom)` para status explícito de saída, sem parser de flags/subcomandos/env.
 - **Fase 93 concluída (refinamento mínimo pós-Fase 92)**: ergonomia mínima de argv em `--run` com `quantos_argumentos() -> bombom` e `tem_argumento(bombom) -> logica`, mantendo recorte de tooling pequeno e sem parser de flags/subcomandos/env.
+- **Fase 94 concluída (refinamento mínimo pós-Fase 93)**: fallback posicional mínimo com `argumento_ou(bombom, verso) -> verso` em `--run`, reduzindo falha em scripts simples sem abrir parser amplo de CLI.
 
 ---
 

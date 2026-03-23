@@ -1,0 +1,7 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova nome: verso = argumento_ou(0, "visitante");
+    falar("oi", nome);
+    mimo tamanho_verso(nome);
+}
