@@ -404,6 +404,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado (`examples/fase96_introspeccao_caminho_minima_valido.pink`) e testes automatizados de semântica/`--run`/CLI para caso positivo, caso negativo e integração com `diretorio_atual`/`falar`.
 - Fora de escopo explícito nesta fase: listagem de diretórios, `e_diretorio`, mudança de diretório, globbing, mutação de paths, processos externos e biblioteca ampla de filesystem.
 
+97 - refinamento mínimo de caminho em `--run`
+- Décima terceira fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfícies escolhidas: `e_diretorio(verso) -> logica` para classificação complementar de caminho e `juntar_caminho(verso, verso) -> verso` para composição mínima baseada na stdlib de paths.
+- Semântica operacional desta fase: `e_diretorio` retorna `verdade` apenas quando o caminho existe e é diretório; `juntar_caminho` compõe base+trecho sem prometer canonicalização nem normalização rica.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram as duas intrínsecas sem declaração explícita de função.
+- Cobertura adicionada com exemplo versionado (`examples/fase97_refinamento_caminho_minimo_valido.pink`) e testes automatizados de semântica/`--run`/CLI para casos positivos, negativos e integração com `diretorio_atual`/`argumento_ou`/`caminho_existe`/`falar`.
+- Fora de escopo explícito nesta fase: canonicalização, normalização rica, listagem de diretórios, `chdir`, globbing, mutação ampla de paths, processos externos e biblioteca ampla de filesystem.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

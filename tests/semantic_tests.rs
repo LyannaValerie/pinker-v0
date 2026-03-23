@@ -266,6 +266,45 @@ fn e_arquivo_intrinseca_rejeita_argumento_nao_verso() {
 }
 
 #[test]
+fn e_diretorio_intrinseca_valida_sem_declaracao() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez e_diretorio(".") { mimo 1; } senao { mimo 0; }
+        }"#;
+    assert!(parse_and_check(source).is_ok());
+}
+
+#[test]
+fn e_diretorio_intrinseca_rejeita_argumento_nao_verso() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom { talvez e_diretorio(1) { mimo 1; } senao { mimo 0; } }"#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'e_diretorio'"));
+}
+
+#[test]
+fn juntar_caminho_intrinseca_valida_sem_declaracao() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova p: verso = juntar_caminho(".", "README.md");
+            mimo tamanho_verso(p);
+        }"#;
+    assert!(parse_and_check(source).is_ok());
+}
+
+#[test]
+fn juntar_caminho_intrinseca_rejeita_segundo_argumento_nao_verso() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo tamanho_verso(juntar_caminho(".", 1)); }"#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'juntar_caminho'"));
+}
+
+#[test]
 fn diretorio_atual_intrinseca_valida_sem_declaracao() {
     let source = r#"
         pacote main;

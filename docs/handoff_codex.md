@@ -1,17 +1,17 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 96 — introspecção mínima de caminho em `--run` (`caminho_existe` + `e_arquivo`)**.
-- Rodada funcional curta do Bloco 8 com foco em existência/classificação mínima de caminho sem abrir API ampla.
+- **Fase 97 — refinamento mínimo de caminho em `--run` (`e_diretorio` + `juntar_caminho`)**.
+- Rodada funcional curta do Bloco 8 com foco em classificação complementar + composição mínima de caminho sem abrir API ampla.
 
 ## 2. O que entrou na rodada atual
-- Intrínseca `caminho_existe(verso) -> logica` adicionada ao pipeline completo (semântica, IR, validações, runtime `--run`).
-- Intrínseca `e_arquivo(verso) -> logica` adicionada ao mesmo recorte mínimo para classificação de arquivo.
-- Exemplo versionado novo: `examples/fase96_introspeccao_caminho_minima_valido.pink`.
-- Cobertura de testes ampliada em semântica e `--run`/CLI para: caminho existente, caminho ausente e integração com `diretorio_atual`/`falar`.
+- Intrínseca `e_diretorio(verso) -> logica` adicionada ao pipeline completo (semântica, IR, validações, runtime `--run`) para classificação complementar de diretório.
+- Intrínseca `juntar_caminho(verso, verso) -> verso` adicionada no mesmo recorte mínimo, usando composição por infraestrutura de path da stdlib.
+- Exemplo versionado novo: `examples/fase97_refinamento_caminho_minimo_valido.pink`.
+- Cobertura de testes ampliada em semântica e `--run`/CLI para: diretório existente, negativos em arquivo/ausente, composição mínima e integração com `diretorio_atual`/`argumento_ou`/`caminho_existe`/`falar`.
 
 ## 3. Fora de escopo da rodada atual
-- `e_diretorio`, listagem de diretórios, `chdir`, globbing e mutação de paths.
+- canonicalização/normalização rica, listagem de diretórios, `chdir`, globbing e mutação ampla de paths.
 - Processos externos ou biblioteca ampla de filesystem.
 - Redesign de runtime ou expansão de gramática.
 
@@ -20,7 +20,7 @@
 - Próximo item funcional sugerido: **manter refinamentos mínimos de tooling/I/O em `--run` preservando escopo pequeno e auditável**.
 
 ## 5. Observações operacionais curtas
-- Última fase funcional concluída: **96**.
+- Última fase funcional concluída: **97**.
 - Rodada documental mais recente preservada: **Doc-17**.
 - Rodada paralela concluída preservada: **Paralela-1** — negação bitwise dual (`~` + `nope`) + MCP mínimo (`src/bin/pinker_mcp.rs`).
 - Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.

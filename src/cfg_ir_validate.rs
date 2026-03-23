@@ -88,6 +88,20 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "e_diretorio".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
+        "juntar_caminho".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
         "diretorio_atual".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,

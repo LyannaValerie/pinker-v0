@@ -2155,6 +2155,70 @@ fn run_e_arquivo_intrinseca_distingue_arquivo_de_diretorio() {
 }
 
 #[test]
+fn run_e_diretorio_intrinseca_true_para_diretorio_existente() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez e_diretorio(".") {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_e_diretorio_intrinseca_false_para_arquivo_e_caminho_ausente() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova arquivo: logica = e_diretorio("README.md");
+            nova ausente: logica = e_diretorio("__pinker_fase97_nao_existe__.pink");
+            talvez arquivo {
+                mimo 7;
+            } senao {
+                talvez ausente {
+                    mimo 8;
+                } senao {
+                    mimo 1;
+                }
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_juntar_caminho_intrinseca_compoe_sem_prometer_canonicalizacao() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova cwd: verso = diretorio_atual();
+            nova alvo: verso = juntar_caminho(cwd, argumento_ou(0, "README.md"));
+            falar(alvo, caminho_existe(alvo), e_diretorio(alvo));
+            talvez caminho_existe(alvo) {
+                talvez e_diretorio(alvo) {
+                    mimo 2;
+                } senao {
+                    mimo 1;
+                }
+            } senao {
+                mimo 0;
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
 fn run_ambiente_ou_intrinseca_usa_fallback_sem_env() {
     let output = run_cli_example_with_env_and_cwd(
         "examples/fase95_ambiente_processo_minimo_valido.pink",
@@ -2205,6 +2269,16 @@ fn cli_run_introspeccao_caminho_minima_funciona_com_exemplo_versionado() {
 verdade
 1
 "
+    );
+}
+
+#[test]
+fn cli_run_refinamento_caminho_fase97_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase97_refinamento_caminho_minimo_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "verdade\nverdade\nfalso\n1\n"
     );
 }
 

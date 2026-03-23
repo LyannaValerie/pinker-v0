@@ -1,0 +1,20 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova cwd: verso = diretorio_atual();
+    nova alvo: verso = juntar_caminho(cwd, argumento_ou(0, "README.md"));
+
+    falar(caminho_existe(alvo));
+    falar(e_arquivo(alvo));
+    falar(e_diretorio(alvo));
+
+    talvez caminho_existe(alvo) {
+        talvez e_arquivo(alvo) {
+            mimo 1;
+        } senao {
+            mimo 2;
+        }
+    } senao {
+        mimo 0;
+    }
+}
