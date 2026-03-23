@@ -125,7 +125,7 @@ cargo run --bin pink -- --run examples/fase69_ninho_campo_operacional_valido.pin
 cargo run --bin pink -- --run examples/fase70_indexacao_array_operacional_valido.pink
 cargo run --bin pink -- --run examples/fase71_cast_memoria_valido.pink
 cargo run --bin pink -- --run examples/fase72_fragil_operacional_minimo_valido.pink
-cargo run --bin pink -- --run examples/fase85_ouvir_bombom_valido.pink
+printf '41\n' | cargo run --bin pink -- --run examples/fase85_ouvir_bombom_valido.pink
 cargo run --bin pink -- --run examples/fase86_arquivo_leitura_minima_valido.pink
 cargo run --bin pink -- --run examples/fase87_arquivo_escrita_minima_valido.pink
 cargo run --bin pink -- --run examples/fase88_verso_operacional_minimo_valido.pink
