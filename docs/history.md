@@ -510,6 +510,14 @@ Doc-16 - pacote paralelo de apoio (auditoria + corpus + mapeamento de codegen te
 - Cobertura de teste adicionada em `tests/interpreter_tests.rs` para o novo exemplo/corpus, sem abrir recurso novo.
 - `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` atualizados para registrar a rodada documental/paralela e preservar continuidade histórica.
 
+Doc-17 - alinhamento documental/operacional pós-Paralela-1 (binários + MCP)
+- Rodada curta documental/operacional, sem abertura de fase funcional e sem expansão de linguagem/runtime/backend.
+- `docs/doc_rules.md` atualizado para formalizar **rodadas paralelas de implementação** como categoria própria da crônica histórica em `docs/history.md` (seção `RODADAS PARALELAS`), distinta de Fase/HF/Doc.
+- `docs/future.md` sincronizado com a precedência vigente (`roadmap`/`agent_state`/`handoff`): Bloco 8 permanece trilha ativa; Bloco 7 não é mais bloco ativo.
+- Ambiguidade operacional de `cargo run` registrada e saneada: coexistência de binários (`pink`, `pinker_mcp`) exigiu explicitação de binário nos comandos de uso principal (`cargo run --bin pink -- ...`) e definição de `default-run = "pink"` para preservar ergonomia diária.
+- README alinhado para remover padrões antigos ambíguos de auditoria/uso (ex.: `cargo run -- --check ...`, `cargo run -- --selected ...`) e para explicitar a existência/uso mínimo do binário `pinker_mcp`.
+- Verificação prática do `pinker_mcp` executada no estado atual: transporte JSON-RPC 2.0 via stdio (JSON por linha), resposta positiva para `initialize`, `tools/list` e `tools/call` (`pinker_rodar`).
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo

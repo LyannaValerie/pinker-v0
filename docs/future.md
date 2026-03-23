@@ -7,9 +7,9 @@
 > **Distinção importante**: este arquivo é inventário técnico estruturado — itens com status de implementação, organizados por camadas de dependência.
 > `docs/parallel.md` é diferente: é o documento visionário da Pinker (fantasia orientadora, identidade, sonhos); não contém itens técnicos com status, não é backlog e não compete com este arquivo.
 
-> **Trilha ativa atual**: **Bloco 7 — Backend nativo real** (definido em `docs/roadmap.md`).
-> O Bloco 6 — Memória operacional foi concluído (Fases 64–72). O Bloco 7 é a trilha ativa corrente (Fases 73–83 já entregues).
-> O **Bloco 8 — I/O e ecossistema útil** está definido como bloco futuro planejado, mas não ativo.
+> **Trilha ativa atual**: **Bloco 8 — I/O e ecossistema útil** (definido em `docs/roadmap.md`).
+> O Bloco 6 — Memória operacional foi concluído (Fases 64–72). O Bloco 7 foi consolidado o suficiente para transição e não é a trilha ativa atual.
+> O Bloco 8 está em execução no recorte atual até a Fase 95; este arquivo permanece como inventário amplo e não substitui o roadmap.
 > Itens como terminal próprio, self-hosting, backend nativo completo, kernel real robusto, package manager e ecossistema soberano permanecem aqui como visão de longo prazo, sem competir com a trilha ativa.
 
 Este documento organiza possibilidades futuras de evolução do Pinker v0 em camadas de dependência.
@@ -77,7 +77,7 @@ Cada item tem status: ✅ implementado, 🔶 parcial, ou sem marcação (não in
 ---
 
 ## Camada 5 — Backend de código nativo (bloqueante para tudo executável)
-- ~~Geração de código para x86_64.~~ 🔶 Parcialmente implementado (Fases 73–83, Bloco 7 ativo). Subset linear real: `principal() -> bombom` com locais, aritmética, chamadas diretas (até 2 parâmetros `bombom`), memória de frame via `%rbp` (Linux x86_64 hospedado). Controle de fluxo geral, memória indireta/ponteiros, globais, ABI completa e backend não hospedado pendentes.
+- ~~Geração de código para x86_64.~~ 🔶 Parcialmente implementado (Fases 73–84, Bloco 7 consolidado para transição). Subset linear real: `principal() -> bombom` com locais, aritmética, chamadas diretas (até 2 parâmetros `bombom`), memória de frame via `%rbp` (Linux x86_64 hospedado). Controle de fluxo geral, memória indireta/ponteiros, globais, ABI completa e backend não hospedado pendentes.
 - Emissão de binário ELF (ou flat binary).
 - Register allocation.
 - ~~Calling convention / ABI.~~ 🔶 Parcialmente implementado (Fases 74–76). ABI mínima real no subset: `%rdi` (arg0), `%rsi` (arg1), `%rax` (retorno), `%r10` (temporário volátil), frame `%rbp` com slots lineares. ABI completa de plataforma, 3+ parâmetros, tipos não `bombom` e register allocation amplo pendentes.
@@ -130,7 +130,7 @@ Cada item tem status: ✅ implementado, 🔶 parcial, ou sem marcação (não in
 Os itens abaixo representam as maiores lacunas abertas em relação ao estado atual.
 A ordem de execução está definida em `docs/roadmap.md`, não aqui.
 
-1. **Backend x86_64** — 🔶 em progresso (Bloco 7, Fases 73–83). Subset linear real já montável (locais, aritmética, chamadas, memória de frame). Controle de fluxo geral, memória indireta/ponteiros, globais e ABI completa ainda pendentes.
+1. **Backend x86_64** — 🔶 consolidado para transição (Bloco 7, Fases 73–84). Subset linear real já montável (locais, aritmética, chamadas, memória de frame). Controle de fluxo geral, memória indireta/ponteiros, globais e ABI completa ainda pendentes.
 2. **Dereferência de ponteiro + aritmética** — 🔶 parcial (Fases 66–68, subset `seta<bombom>`). Leitura (`*p`), escrita indireta (`*p = valor`) e aritmética (`ptr ± n`) operacionais em `--run`. Acesso a outros tipos base, backend nativo e operações avançadas pendentes.
 3. **Cast operacional (`virar`)** — 🔶 parcial (Fase 50 + Fase 71). Inteiro→inteiro e `bombom <-> seta<bombom>` operacionais em `--run`. Cast `seta<T> -> bombom` genérico, casts entre compostos e backend nativo pendentes.
 4. **Acesso a campo e indexação com escrita + runtime** — 🔶 parcial (Fases 69–70). Leitura operacional de campo via ponteiro (`(*ptr).campo`) e indexação via ponteiro (`(*ptr)[i]`) em `--run` para subset escalar/`bombom`. Escrita em campo/índice, base por valor, elementos não escalares pendentes.
