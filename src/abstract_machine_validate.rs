@@ -70,6 +70,14 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
+    sigs.insert(
+        "caminho_existe".to_string(),
+        (TypeIR::Logica, vec![StackValueType::Verso]),
+    );
+    sigs.insert(
+        "e_arquivo".to_string(),
+        (TypeIR::Logica, vec![StackValueType::Verso]),
+    );
     sigs.insert("diretorio_atual".to_string(), (TypeIR::Verso, vec![]));
     sigs.insert("quantos_argumentos".to_string(), (TypeIR::Bombom, vec![]));
     sigs.insert(

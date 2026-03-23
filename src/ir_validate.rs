@@ -69,6 +69,20 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "caminho_existe".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "e_arquivo".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    funcs.insert(
         "diretorio_atual".to_string(),
         FunctionSig {
             ret_type: TypeIR::Verso,

@@ -47,6 +47,8 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `tem_argumento` | presença mínima de argv | verificar existência de índice em argv no `--run` |
 | `ambiente_ou` | leitura mínima de env com fallback | ler variável de ambiente por chave com padrão em `--run` |
 | `diretorio_atual` | leitura mínima do cwd | obter diretório atual do processo como `verso` em `--run` |
+| `caminho_existe` | existência mínima de caminho | verificar presença de caminho simples em `--run` |
+| `e_arquivo` | classificação mínima de caminho | verificar se o caminho simples é arquivo em `--run` |
 | `sair`        | status de saída mínimo | encerrar script com código explícito |
 | `nope`        | bitwise NOT textual    | negação bitwise em forma Pinker (equivale a `~`) |
 
@@ -81,6 +83,10 @@ Nota de status operacional:
   - `ambiente_ou(verso, verso) -> verso` para leitura de variável de ambiente com fallback;
   - `diretorio_atual() -> verso` para leitura mínima do diretório corrente;
   - sem mutação/listagem de env vars, sem `chdir` e sem API rica de paths.
+- Fase 96 (introspecção mínima de caminho em `--run`):
+  - `caminho_existe(verso) -> logica` para verificação mínima de existência;
+  - `e_arquivo(verso) -> logica` para classificação mínima de arquivo no mesmo recorte;
+  - sem listagem de diretórios, sem `chdir`, sem globbing e sem biblioteca ampla de paths.
 - Fora do subset textual atual: slicing, indexação negativa e formatação/interpolação.
 
 ---

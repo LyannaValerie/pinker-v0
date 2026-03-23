@@ -149,6 +149,7 @@ Status de execução no bloco:
 - **Fase 93 concluída (refinamento mínimo pós-Fase 92)**: ergonomia mínima de argv em `--run` com `quantos_argumentos() -> bombom` e `tem_argumento(bombom) -> logica`, mantendo recorte de tooling pequeno e sem parser de flags/subcomandos/env.
 - **Fase 94 concluída (refinamento mínimo pós-Fase 93)**: fallback posicional mínimo com `argumento_ou(bombom, verso) -> verso` em `--run`, reduzindo falha em scripts simples sem abrir parser amplo de CLI.
 - **Fase 95 concluída (ambiente mínimo de processo em `--run`)**: leitura mínima de variável de ambiente com fallback via `ambiente_ou(verso, verso) -> verso` e leitura de diretório atual via `diretorio_atual() -> verso`, sem mutação/listagem de ambiente, sem `chdir` e sem biblioteca ampla de paths.
+- **Fase 96 concluída (refinamento mínimo pós-Fase 95)**: introspecção mínima de caminho em `--run` com `caminho_existe(verso) -> logica` e classificação mínima `e_arquivo(verso) -> logica`, sem listagem de diretórios, sem `chdir`, sem globbing e sem biblioteca ampla de paths.
 
 ---
 

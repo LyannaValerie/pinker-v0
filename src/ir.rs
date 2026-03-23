@@ -469,6 +469,20 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "caminho_existe".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Logica,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "e_arquivo".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Logica,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "diretorio_atual".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Verso,

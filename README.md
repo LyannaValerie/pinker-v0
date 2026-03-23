@@ -31,6 +31,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - refinamento mínimo de fallback de argv em `--run` com `argumento_ou(i, padrao)` para script simples sem falha por ausência posicional (Fase 94)
 - ambiente mínimo de processo em `--run` com `ambiente_ou(chave, padrao)` para leitura de variável de ambiente com fallback de `verso` (Fase 95)
 - diretório atual mínimo em `--run` com `diretorio_atual()` retornando `verso` (Fase 95)
+- introspecção mínima de caminho em `--run` com `caminho_existe(verso) -> logica` e `e_arquivo(verso) -> logica` (Fase 96)
 - comando de projeto `pink build <arquivo.pink>` para gerar artefato textual `.s` em disco (padrão: `build/<arquivo>.s`)
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
@@ -62,6 +63,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - API rica de arquivo (múltiplos modos, append/streaming/diretórios)
 - mutação/listagem ampla de ambiente de processo (apenas leitura mínima com fallback)
 - mudança de diretório e API rica de paths
+- introspecção de caminho além do recorte mínimo atual (`caminho_existe` e `e_arquivo`)
 - leitura de arquivo além do recorte mínimo da Fase 86 (apenas conteúdo inteiro `bombom` via `ler_arquivo`)
 - formatação avançada de saída
 - freestanding/no-std operacional real (`livre;` é marca semântica de intenção, não runtime bare-metal executável)
@@ -133,6 +135,7 @@ cargo run --bin pink -- --run examples/fase94_argumento_ou_fallback_minimo_valid
 cargo run --bin pink -- --run examples/fase95_ambiente_processo_minimo_valido.pink
 cargo run --bin pink -- --run examples/fase95_diretorio_atual_minimo_valido.pink
 cargo run --bin pink -- --run examples/fase95_argumento_ou_ambiente_ou_valido.pink -- Pinker
+cargo run --bin pink -- --run examples/fase96_introspeccao_caminho_minima_valido.pink
 cargo run --bin pink -- --asm-s examples/fase73_backend_externo_locais_aritmetica_valido.pink
 cargo run --bin pink -- --check examples/fase74_backend_externo_call_minimo_valido.pink
 cargo run --bin pink -- --asm-s examples/fase75_backend_externo_frame_registradores_valido.pink
@@ -196,7 +199,7 @@ cargo run --bin pink -- build --out-dir saida examples/fase60_modulos_valido.pin
 - `--machine`: alvo textual abstrato de máquina de pilha (`vm` + `term`)
 - `--pseudo-asm`: backend textual normalizado final (`ins`/`term`)
 - `--asm-s`: backend textual `.s` com ABI textual mínima interna (derivado de `--selected`, sem ABI/registradores finais de plataforma)
-- `--run`: interpreta a Machine validada e executa `principal` (suporta `-- <args...>` para repasse posicional de argv em `argumento`, `tem_argumento`, `quantos_argumentos` e `argumento_ou`; inclui também leitura mínima de ambiente com `ambiente_ou` e diretório atual via `diretorio_atual`)
+- `--run`: interpreta a Machine validada e executa `principal` (suporta `-- <args...>` para repasse posicional de argv em `argumento`, `tem_argumento`, `quantos_argumentos` e `argumento_ou`; inclui também leitura mínima de ambiente com `ambiente_ou`, diretório atual via `diretorio_atual` e introspecção mínima de caminho com `caminho_existe`/`e_arquivo`)
 
 ## Pipeline de backend textual
 `--pseudo-asm` executa:

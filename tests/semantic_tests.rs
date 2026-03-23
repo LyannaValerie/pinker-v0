@@ -228,6 +228,44 @@ fn ambiente_ou_intrinseca_rejeita_chave_nao_verso() {
 }
 
 #[test]
+fn caminho_existe_intrinseca_valida_sem_declaracao() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez caminho_existe("README.md") { mimo 1; } senao { mimo 0; }
+        }"#;
+    assert!(parse_and_check(source).is_ok());
+}
+
+#[test]
+fn caminho_existe_intrinseca_rejeita_argumento_nao_verso() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom { talvez caminho_existe(1) { mimo 1; } senao { mimo 0; } }"#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'caminho_existe'"));
+}
+
+#[test]
+fn e_arquivo_intrinseca_valida_sem_declaracao() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez e_arquivo("README.md") { mimo 1; } senao { mimo 0; }
+        }"#;
+    assert!(parse_and_check(source).is_ok());
+}
+
+#[test]
+fn e_arquivo_intrinseca_rejeita_argumento_nao_verso() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom { talvez e_arquivo(1) { mimo 1; } senao { mimo 0; } }"#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'e_arquivo'"));
+}
+
+#[test]
 fn diretorio_atual_intrinseca_valida_sem_declaracao() {
     let source = r#"
         pacote main;

@@ -2102,6 +2102,59 @@ fn cli_run_argumento_ou_prioriza_arg_existente_com_exemplo_versionado() {
 }
 
 #[test]
+fn run_caminho_existe_intrinseca_true_para_arquivo_existente() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez caminho_existe("README.md") {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_caminho_existe_intrinseca_false_para_caminho_ausente() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez caminho_existe("__pinker_fase96_nao_existe__.pink") {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn run_e_arquivo_intrinseca_distingue_arquivo_de_diretorio() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova cwd: verso = diretorio_atual();
+            falar(cwd, caminho_existe(cwd), e_arquivo(cwd));
+            talvez e_arquivo("README.md") {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
 fn run_ambiente_ou_intrinseca_usa_fallback_sem_env() {
     let output = run_cli_example_with_env_and_cwd(
         "examples/fase95_ambiente_processo_minimo_valido.pink",
@@ -2139,6 +2192,19 @@ fn cli_run_diretorio_atual_funciona_com_exemplo_versionado() {
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
         format!("{}\n0\n", tmp.display())
+    );
+}
+
+#[test]
+fn cli_run_introspeccao_caminho_minima_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase96_introspeccao_caminho_minima_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "verdade
+verdade
+1
+"
     );
 }
 
