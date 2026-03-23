@@ -177,6 +177,28 @@ fn ouvir_intrinseca_rejeita_aridade_diferente_de_zero() {
 }
 
 #[test]
+fn abrir_ler_fechar_intrinsecas_validas_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova h: bombom = abrir("arquivo.txt");
+            nova v: bombom = ler_arquivo(h);
+            fechar(h);
+            mimo v;
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn abrir_intrinseca_rejeita_argumento_nao_verso() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom { mimo abrir(1); }";
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'abrir'"));
+}
+
+#[test]
 fn uso_de_funcao_sem_retorno_em_expressao() {
     let code = "
         pacote main;

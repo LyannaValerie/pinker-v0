@@ -47,6 +47,27 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
             params: vec![],
         },
     );
+    funcs.insert(
+        "abrir".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "ler_arquivo".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "fechar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Bombom],
+        },
+    );
 
     for konst in &program.consts {
         let ty = infer_value_type(&konst.value, &HashMap::new(), &consts, &funcs, konst.span)

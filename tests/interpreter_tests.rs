@@ -1644,6 +1644,52 @@ fn cli_run_ouvir_bombom_invalido_falha_com_erro_claro() {
 }
 
 #[test]
+fn cli_run_arquivo_leitura_minima_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase86_arquivo_leitura_minima_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n0\n");
+}
+
+#[test]
+fn cli_run_abrir_arquivo_inexistente_falha_com_erro_claro() {
+    let mut script_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase86_{}_{}.pink",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    script_path.push(unique);
+    std::fs::write(
+        &script_path,
+        r#"pacote t;
+carinho principal() -> bombom {
+    nova h: bombom = abrir("arquivo_que_nao_existe_12345.txt");
+    fechar(h);
+    mimo 0;
+}"#,
+    )
+    .expect("falha ao gravar script temporário");
+
+    let out = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(&script_path)
+        .output()
+        .expect("falha ao executar CLI --run");
+    let _ = std::fs::remove_file(&script_path);
+
+    assert!(!out.status.success(), "{:?}", out);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("falha ao abrir arquivo em 'abrir'"),
+        "stderr: {}",
+        stderr
+    );
+}
+
+#[test]
 fn cli_check_quebrar_fora_de_loop_falha_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/check_quebrar_fora_loop.pink");
     assert!(!output.status.success());

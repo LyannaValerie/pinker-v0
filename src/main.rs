@@ -395,6 +395,7 @@ fn run_analyze(config: Config) {
                 interpreter::RuntimeValue::IntSigned(v) => println!("{}", v),
                 interpreter::RuntimeValue::Ptr(v) => println!("{}", v),
                 interpreter::RuntimeValue::Bool(_) => {}
+                interpreter::RuntimeValue::Str(v) => println!("{}", v),
             }
         }
     }

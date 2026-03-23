@@ -38,6 +38,8 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `trazer`       | import mínimo    | convidar símbolo/módulo para perto |
 | `verso`        | string / texto   | palavras como poesia                |
 | `falar`        | print / saída    | expressar para o mundo              |
+| `abrir`       | file open mínimo | abrir arquivo no subset de I/O      |
+| `fechar`      | file close mínimo| encerrar handle de arquivo com cuidado |
 
 ---
 
@@ -127,8 +129,8 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 |------------------|-------------|----------------------|-------------------------------------|
 | ~~print~~        | ~~`falar`~~ | `contar`, `dizer`    | implementado na Fase 62             |
 | ~~read / input~~ | ~~`ouvir`~~ | `escutar`            | implementado na Fase 85 como intrínseca `ouvir()` |
-| file open        | `abrir`     |                      | literal e acolhedor                 |
-| file close       | `fechar`    |                      | encerrar com cuidado                |
+| ~~file open~~        | ~~`abrir`~~     |                      | implementado na Fase 86 (`abrir("caminho")`)                 |
+| ~~file close~~       | ~~`fechar`~~    |                      | implementado na Fase 86 (`fechar(handle)`)                |
 | write to file    | `escrever`  | `registrar`          | deixar marca                        |
 
 ---

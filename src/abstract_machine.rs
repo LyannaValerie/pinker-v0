@@ -66,6 +66,7 @@ pub struct MachineBlock {
 pub enum MachineInstr {
     PushInt(u64),
     PushBool(bool),
+    PushStr(String),
     LoadSlot(String),
     LoadGlobal(String),
     StoreSlot(String),
@@ -372,7 +373,7 @@ fn emit_load(op: &OperandIR, code: &mut Vec<MachineInstr>) {
     match op {
         OperandIR::Int(v) => code.push(MachineInstr::PushInt(*v)),
         OperandIR::Bool(v) => code.push(MachineInstr::PushBool(*v)),
-        OperandIR::Str(_) => {} // Str operands are handled specially by Falar lowering
+        OperandIR::Str(s) => code.push(MachineInstr::PushStr(s.clone())),
         OperandIR::Local(s) => code.push(MachineInstr::LoadSlot(s.clone())),
         OperandIR::GlobalConst(g) => code.push(MachineInstr::LoadGlobal(g.clone())),
         OperandIR::Temp(t) => code.push(MachineInstr::LoadSlot(temp_name(*t))),
@@ -564,6 +565,9 @@ fn render_instr(i: &MachineInstr) -> String {
             format!("push_bool {}", if *v { "verdade" } else { "falso" }),
             "empilha literal lógico",
         ),
+        MachineInstr::PushStr(v) => {
+            with_comment(format!("push_str \"{}\"", v), "empilha literal verso")
+        }
         MachineInstr::LoadSlot(s) => with_comment(
             format!("load_slot {}", clean_slot_display(s)),
             "carrega valor do slot para a pilha",

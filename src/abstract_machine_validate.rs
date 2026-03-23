@@ -23,6 +23,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 enum StackValueType {
     Bombom,
     Logica,
+    Verso,
     Unknown,
 }
 
@@ -51,6 +52,18 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         sigs.insert(f.name.clone(), (f.ret_type, param_types));
     }
     sigs.insert("ouvir".to_string(), (TypeIR::Bombom, vec![]));
+    sigs.insert(
+        "abrir".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Verso]),
+    );
+    sigs.insert(
+        "ler_arquivo".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Bombom]),
+    );
+    sigs.insert(
+        "fechar".to_string(),
+        (TypeIR::Nulo, vec![StackValueType::Bombom]),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;
@@ -281,6 +294,7 @@ fn apply_instr_effect(
     match i {
         MachineInstr::PushInt(_) => stack.push(StackValueType::Bombom),
         MachineInstr::PushBool(_) => stack.push(StackValueType::Logica),
+        MachineInstr::PushStr(_) => stack.push(StackValueType::Verso),
         MachineInstr::LoadSlot(slot) => {
             stack.push(*slot_types.get(slot).unwrap_or(&StackValueType::Unknown));
         }
@@ -657,6 +671,7 @@ fn instr_name(i: &MachineInstr) -> &'static str {
     match i {
         MachineInstr::PushInt(_) => "push_int",
         MachineInstr::PushBool(_) => "push_bool",
+        MachineInstr::PushStr(_) => "push_str",
         MachineInstr::LoadSlot(_) => "load_slot",
         MachineInstr::LoadGlobal(_) => "load_global",
         MachineInstr::StoreSlot(_) => "store_slot",
@@ -705,6 +720,7 @@ fn render_stack_type(ty: StackValueType) -> &'static str {
     match ty {
         StackValueType::Bombom => "bombom",
         StackValueType::Logica => "lógica",
+        StackValueType::Verso => "verso",
         StackValueType::Unknown => "unknown",
     }
 }
@@ -721,7 +737,7 @@ fn type_to_stack(ty: TypeIR) -> StackValueType {
         | TypeIR::I32
         | TypeIR::I64 => StackValueType::Bombom,
         TypeIR::Logica => StackValueType::Logica,
-        TypeIR::Verso => StackValueType::Unknown,
+        TypeIR::Verso => StackValueType::Verso,
         TypeIR::FixedArray { .. } => StackValueType::Unknown,
         TypeIR::Struct => StackValueType::Unknown,
         TypeIR::Pointer { .. } => StackValueType::Unknown,
@@ -733,6 +749,7 @@ fn infer_operand_type(op: &crate::cfg_ir::OperandIR) -> StackValueType {
     match op {
         crate::cfg_ir::OperandIR::Int(_) => StackValueType::Bombom,
         crate::cfg_ir::OperandIR::Bool(_) => StackValueType::Logica,
+        crate::cfg_ir::OperandIR::Str(_) => StackValueType::Verso,
         _ => StackValueType::Unknown,
     }
 }
