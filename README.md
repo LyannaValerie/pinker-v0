@@ -23,6 +23,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - saída básica com `falar(expr);` para `bombom`, `u8`, `u16`, `u32`, `u64`, `logica` e `verso` (executa em `--run`)
 - entrada básica com intrínseca `ouvir()` em `--run`, com leitura de stdin para `bombom` (u64) no recorte mínimo da Fase 85
 - leitura mínima de arquivo em `--run` com intrínsecas `abrir("caminho") -> bombom`, `ler_arquivo(handle) -> bombom` e `fechar(handle)` (Fase 86)
+- escrita mínima de arquivo em `--run` com intrínseca `escrever(handle, bombom)` após `abrir("caminho")`, com fechamento explícito via `fechar(handle)` (Fase 87)
 - comando de projeto `pink build <arquivo.pink>` para gerar artefato textual `.s` em disco (padrão: `build/<arquivo>.s`)
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
@@ -51,7 +52,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - lowering operacional de `virar` fora do subset atual (executa inteiro->inteiro e `bombom <-> seta<bombom>`; demais casts continuam rejeitados)
 - lowering operacional de inline asm em CFG/Machine/runtime (`--check`/`--ir` aceitam o subset atual; `--cfg-ir`/`--run` ainda não executam `sussurro`)
 - lowering operacional de `verso` em CFG/Machine/runtime além de `falar`: `verso` como valor geral (passagem por chamada, retorno, variável) ainda não executa em `--cfg-ir`/`--run`; apenas `falar("literal")` funciona em `--run`
-- escrita de arquivo (`escrever`) e API rica de arquivo (múltiplos modos, streaming, diretórios)
+- API rica de arquivo (múltiplos modos, append/streaming/diretórios)
 - leitura de arquivo além do recorte mínimo da Fase 86 (apenas conteúdo inteiro `bombom` via `ler_arquivo`)
 - formatação avançada de saída
 - freestanding/no-std operacional real (`livre;` é marca semântica de intenção, não runtime bare-metal executável)
@@ -106,6 +107,7 @@ cargo run -- --run examples/fase71_cast_memoria_valido.pink
 cargo run -- --run examples/fase72_fragil_operacional_minimo_valido.pink
 cargo run -- --run examples/fase85_ouvir_bombom_valido.pink
 cargo run -- --run examples/fase86_arquivo_leitura_minima_valido.pink
+cargo run -- --run examples/fase87_arquivo_escrita_minima_valido.pink
 cargo run -- --asm-s examples/fase73_backend_externo_locais_aritmetica_valido.pink
 cargo run -- --check examples/fase74_backend_externo_call_minimo_valido.pink
 cargo run -- --asm-s examples/fase75_backend_externo_frame_registradores_valido.pink

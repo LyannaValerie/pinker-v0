@@ -19,6 +19,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("abrir".to_string(), TypeIR::Bombom);
     sigs.insert("ler_arquivo".to_string(), TypeIR::Bombom);
     sigs.insert("fechar".to_string(), TypeIR::Nulo);
+    sigs.insert("escrever".to_string(), TypeIR::Nulo);
 
     for f in &program.functions {
         if f.blocks.is_empty() {

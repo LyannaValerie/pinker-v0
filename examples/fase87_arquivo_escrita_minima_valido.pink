@@ -1,0 +1,10 @@
+pacote fase87_arquivo_escrita_minima_valido;
+
+carinho principal() -> bombom {
+    nova handle: bombom = abrir("examples/fase87_output_numero.txt");
+    escrever(handle, 42);
+    nova valor: bombom = ler_arquivo(handle);
+    fechar(handle);
+    falar(valor);
+    mimo 0;
+}

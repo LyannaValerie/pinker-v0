@@ -199,6 +199,33 @@ fn abrir_intrinseca_rejeita_argumento_nao_verso() {
 }
 
 #[test]
+fn escrever_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova h: bombom = abrir("arquivo.txt");
+            escrever(h, 42);
+            fechar(h);
+            mimo 0;
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn escrever_intrinseca_rejeita_segundo_argumento_nao_bombom() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova h: bombom = abrir("arquivo.txt");
+            escrever(h, "texto");
+            fechar(h);
+            mimo 0;
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'escrever'"));
+}
+
+#[test]
 fn uso_de_funcao_sem_retorno_em_expressao() {
     let code = "
         pacote main;

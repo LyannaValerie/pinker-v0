@@ -1,29 +1,28 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 86 — leitura mínima de arquivo com `abrir`/`fechar` em `--run`**.
-- Rodada funcional mínima do Bloco 8, focada em leitura simples de arquivo sem inflar API de I/O.
+- **Fase 87 — escrita mínima de arquivo com `escrever` em `--run`**.
+- Rodada funcional mínima do Bloco 8, focada em escrita simples de arquivo sem inflar API de I/O.
 
 ## 2. O que entrou na rodada atual
-- Intrínseca `abrir("caminho") -> bombom` adicionada ao recorte funcional de `--run`, abrindo arquivo por caminho (`verso`) e retornando handle mínimo.
-- Intrínseca `ler_arquivo(handle) -> bombom` adicionada para leitura simples de conteúdo inteiro (`u64`) do arquivo aberto.
-- Intrínseca `fechar(handle)` adicionada para encerramento explícito do handle no runtime interpretado.
-- Pipeline de semântica/IR/CFG/selected/Machine/validações passou a reconhecer `abrir`, `ler_arquivo` e `fechar` como intrínsecas do subset da fase.
-- Testes e exemplo versionado adicionados: `examples/fase86_arquivo_leitura_minima_valido.pink` + casos de sucesso/falha no `--run`.
+- Intrínseca `escrever(handle, bombom)` adicionada ao recorte funcional de `--run`, sobrescrevendo conteúdo do arquivo já aberto por `abrir("caminho")`.
+- Runtime de arquivo em `--run` passou a manter caminho + conteúdo por handle, permitindo `escrever` seguido de `ler_arquivo` no mesmo handle.
+- Pipeline de semântica/IR/CFG/selected/Machine/validações passou a reconhecer `escrever` como intrínseca do subset da fase.
+- Testes e exemplo versionado adicionados: `examples/fase87_arquivo_escrita_minima_valido.pink` + casos de sucesso/falha no `--run`.
 
 ## 3. Fora de escopo da rodada atual
-- Escrita de arquivo (`escrever`).
-- Múltiplos modos de abertura, streaming incremental, diretórios e API rica de FS.
-- Leitura de arquivo para tipos além de inteiro `bombom`.
+- Modos de abertura, append, truncate selecionável e streaming.
+- Diretórios e API rica de filesystem.
+- Escrita textual ampla com `verso`.
 - `verso` operacional amplo em runtime (passagem geral por chamada/retorno/variável).
 
 ## 4. Próximo item normal
 - Trilha ativa: **Bloco 8 — I/O e ecossistema útil**.
-- Próximo item funcional sugerido: **arquivo — escrita mínima (`escrever`)** no mesmo padrão de diff pequeno e auditável.
+- Próximo item funcional sugerido: **verso operacional útil** com recorte mínimo e auditável.
 
 ## 5. Observações operacionais curtas
-- Última fase funcional concluída: **86**.
-- Fase funcional anterior: **85**.
+- Última fase funcional concluída: **87**.
+- Fase funcional anterior: **86**.
 - Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.
 - Hotfix histórico extraordinário preservado: **HF-1 (Fase 48-H1)**.
 
