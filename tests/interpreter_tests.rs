@@ -2081,6 +2081,19 @@ fn cli_run_argumento_ou_prioriza_arg_existente_com_exemplo_versionado() {
 }
 
 #[test]
+fn cli_run_corpus_tooling_verso_minimo_funciona_com_exemplo_dedicado() {
+    let out = run_cli_example_with_args(
+        "examples/run_corpus_tooling_verso_minimo.pink",
+        &["Pinker", "beta"],
+    );
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "oi Pinker 9 o\nextra beta\n2\n"
+    );
+}
+
+#[test]
 fn cli_run_abrir_arquivo_inexistente_falha_com_erro_claro() {
     let mut script_path = std::env::temp_dir();
     let unique = format!(

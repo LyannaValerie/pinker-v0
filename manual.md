@@ -144,7 +144,7 @@ falar(c);
 falar(tamanho_verso(c));
 ```
 
-Limites atuais de texto: sem indexação/slicing de `verso` e sem formatação/interpolação avançada.
+Limites atuais de texto: sem slicing de `verso`, sem indexação negativa e sem formatação/interpolação avançada.
 
 ## 9) Exemplos pequenos completos
 

@@ -1,27 +1,27 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 94 — refinamento mínimo de argv em `--run` (fallback posicional simples)**.
-- Rodada funcional pequena, focada em script/tool simples sem abrir parser amplo de CLI.
+- **Doc-16 — pacote paralelo de apoio (auditoria + corpus + mapeamento de codegen textual)**.
+- Rodada documental/paralela de baixo risco, sem disputa com trilha funcional ativa e sem abrir feature nova.
 
 ## 2. O que entrou na rodada atual
-- Nova intrínseca `argumento_ou(bombom, verso) -> verso` para fallback posicional mínimo em `--run`.
-- Integração explícita com `argumento(i)`/`tem_argumento(i)` já existentes, sem abrir coleção ampla de argv.
-- Cobertura com testes de semântica/`--run`/CLI e exemplo versionado `examples/fase94_argumento_ou_fallback_minimo_valido.pink`.
-- Atualização de `README.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/vocabulario.md`, `docs/roadmap.md` e `docs/phases.md` para continuidade factual da trilha.
+- Auditoria documental mínima com correção factual de drift em `manual.md` (limites de `verso` alinhados ao subset real já suportado).
+- Sincronização leve do `README.md` com o corpus real de backend externo (`--asm-s`) via inclusão do comando do exemplo de recusa explícita de `sempre que` (Fase 84).
+- Novo exemplo de corpus real em `examples/run_corpus_tooling_verso_minimo.pink`, combinando intrínsecas existentes (`argumento_ou`, `tem_argumento`, `quantos_argumentos`) com `falar` múltiplo e operações mínimas de `verso`.
+- Teste de integração `--run`/CLI adicionado em `tests/interpreter_tests.rs` para validar o novo exemplo sem abrir funcionalidade nova.
 
 ## 3. Fora de escopo da rodada atual
-- Parser de flags/subcomandos/env vars para tooling.
-- Biblioteca utilitária ampla de CLI/argv.
-- Diretórios, processos externos, pipes e backend externo para tooling.
+- Implementação de lowering novo no codegen/backends (`--asm-s`, backend textual, backend externo).
+- Abertura de recurso novo de runtime/CLI ou reestruturação arquitetural.
+- Expansão do subset externo além dos limites atuais (controle de fluxo geral, 3+ parâmetros, tipos não `bombom`, memória indireta geral).
 
 ## 4. Próximo item normal
 - Trilha ativa permanece: **Bloco 8 — I/O e ecossistema útil**.
-- Próximo item funcional sugerido: **seguir refinamentos pequenos de tooling útil sem inflar escopo de CLI**.
+- Próximo item funcional sugerido: **seguir refinamentos pequenos de tooling útil em `--run`, mantendo escopo mínimo e auditável**.
 
 ## 5. Observações operacionais curtas
 - Última fase funcional concluída: **94**.
-- Rodada documental mais recente: **Doc-15**.
+- Rodada documental mais recente: **Doc-16**.
 - Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.
 - Hotfix histórico extraordinário preservado: **HF-1 (Fase 48-H1)**.
 

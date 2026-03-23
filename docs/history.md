@@ -493,3 +493,11 @@ Doc-15 - criação inicial de `manual.md` como manual de uso da linguagem
 - Escopo preservado: manual orientado a uso, sem duplicar papel de `README.md`, `docs/history.md` ou `docs/roadmap.md`.
 - `README.md` recebeu apenas ponteiro curto para `manual.md` na seção de ecossistema documental.
 - `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` atualizados para refletir a nova peça documental e manter continuidade operacional.
+
+Doc-16 - pacote paralelo de apoio (auditoria + corpus + mapeamento de codegen textual)
+- Rodada de apoio paralela, sem abertura de fase funcional e sem implementação nova de backend/codegen.
+- Drift factual corrigido no `manual.md`: limites de `verso` alinhados ao estado real (indexação mínima por `indice_verso` existe; seguem fora slicing/indexação negativa/formatação).
+- `README.md` sincronizado com o corpus existente de backend externo (`--asm-s`) ao incluir comando explícito do exemplo versionado de recusa de `sempre que` (Fase 84).
+- Corpus de uso real ampliado com exemplo pequeno e auditável de runtime/tooling: `examples/run_corpus_tooling_verso_minimo.pink` (`argumento_ou`, `tem_argumento`, `quantos_argumentos`, `falar` múltiplo e operações mínimas de `verso`).
+- Cobertura de teste adicionada em `tests/interpreter_tests.rs` para o novo exemplo/corpus, sem abrir recurso novo.
+- `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` atualizados para registrar a rodada documental/paralela e preservar continuidade histórica.

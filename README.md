@@ -131,6 +131,7 @@ cargo run -- --asm-s examples/fase79_backend_externo_programa_linear_maior_valid
 cargo run -- --asm-s examples/fase80_backend_externo_cobertura_linear_ampla_valido.pink
 cargo run -- --asm-s examples/fase81_backend_externo_recusa_explicita_tres_parametros_invalido.pink
 cargo run -- --asm-s examples/fase82_backend_externo_recusa_explicita_talvez_senao_invalido.pink
+cargo run -- --asm-s examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink
 cargo run -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run -- --check examples/mut_falho.pink
 cargo run -- --check examples/check_quebrar_fora_loop.pink
