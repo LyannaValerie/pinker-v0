@@ -8,6 +8,7 @@
 - Fase funcional anterior: **88 — `verso` operacional útil mínimo em `--run`**.
 - Hotfix extraordinário ativo mais recente: **HF-2**.
 - Hotfix histórico extraordinário preservado: **Fase 48-H1**.
+- Última rodada documental: **Doc-15 — criação inicial de `manual.md`**.
 
 ## Fonte oficial
 Consulte `docs/history.md` para a linha do tempo completa de fases, hotfixes e rodadas documentais.

@@ -259,6 +259,7 @@ Limites atuais (adiado): a tipagem na Machine continua leve/local (sem inferênc
 
 O projeto mantém um ecossistema documental com papéis distintos:
 
+- `manual.md` — manual de uso da linguagem Pinker no estado atual.
 - `docs/roadmap.md` — trilha ativa oficial; define a ordem funcional em execução.
 - `docs/future.md` — inventário técnico amplo de médio/longo prazo; não dita ordem ativa.
 - `docs/parallel.md` — documento visionário; guarda identidade e direção conceitual; não é backlog técnico.

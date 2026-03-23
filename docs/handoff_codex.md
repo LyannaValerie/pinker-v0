@@ -1,30 +1,27 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 89 — operações mínimas de texto úteis em `verso` (`juntar_verso` + `tamanho_verso`)**.
-- Rodada funcional mínima do Bloco 8, focada em destravar concatenação e comprimento de `verso` sem abrir subsistema textual amplo.
+- **Doc-15 — criação inicial de `manual.md` como manual de uso da linguagem Pinker no estado atual**.
+- Rodada documental, sem abertura de nova fase funcional.
 
 ## 2. O que entrou na rodada atual
-- `verso` ganhou concatenação mínima via intrínseca `juntar_verso(a, b) -> verso` no recorte `verso + verso`.
-- `verso` ganhou comprimento mínimo via intrínseca `tamanho_verso(v) -> bombom`.
-- Pipeline/validações reconheceram as duas intrínsecas sem declaração explícita de função (semântica, CFG IR, selected e Machine).
-- Runtime passou a executar concatenação textual simples e comprimento por contagem de caracteres Unicode.
-- Testes e exemplo versionado adicionados: `examples/fase89_verso_operacoes_minimas_valido.pink` + casos positivos em semântica, `--run` e CLI.
+- Criação de `manual.md` na raiz com foco em uso real da linguagem hoje.
+- Estrutura do manual cobrindo: base do programa, tipos (`bombom`, `logica`, `verso`), fluxo (`talvez`/`senao`, `sempre que`), funções, I/O (`falar`, `ouvir`, `abrir`/`ler_arquivo`/`escrever`/`fechar`), texto com `verso`, exemplos completos e limites atuais.
+- Inclusão de ponteiro curto no `README.md` para o novo manual.
+- Atualização de `docs/history.md`, `docs/agent_state.md` e `docs/phases.md` para continuidade documental.
 
 ## 3. Fora de escopo da rodada atual
-- Modos de abertura, append, truncate selecionável e streaming.
-- Diretórios e API rica de filesystem.
-- indexação/slicing de `verso`.
-- `eterno` global de `verso` em CFG IR/runtime.
-- formatação/interpolação e API textual ampla.
+- Qualquer mudança funcional de parser/semântica/runtime/backend.
+- Ampliação de gramática ou de API de I/O/texto.
+- Reestruturação ampla do README.
 
 ## 4. Próximo item normal
-- Trilha ativa: **Bloco 8 — I/O e ecossistema útil**.
-- Próximo item funcional sugerido: **indexação mínima de `verso`** para completar o item 5 do Bloco 8 com recorte pequeno e auditável.
+- Trilha ativa permanece: **Bloco 8 — I/O e ecossistema útil**.
+- Próximo item funcional sugerido permanece: **indexação mínima de `verso`** para completar o item 5 do Bloco 8 com recorte pequeno e auditável.
 
 ## 5. Observações operacionais curtas
 - Última fase funcional concluída: **89**.
-- Fase funcional anterior: **88**.
+- Rodada documental mais recente: **Doc-15**.
 - Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.
 - Hotfix histórico extraordinário preservado: **HF-1 (Fase 48-H1)**.
 

@@ -24,16 +24,18 @@
 
 ## 5. Estado corrente
 - Fase funcional atual: **89 — operações mínimas de texto úteis em `verso` (`juntar_verso` + `tamanho_verso`)**.
+- Rodada documental mais recente: **Doc-15 — criação inicial de `manual.md` como manual de uso da linguagem**.
 - Fase funcional anterior: **88 — `verso` operacional útil mínimo em `--run`**.
 - Bloco concluído: **Bloco 6 — Memória operacional** (Fases 64–72 entregues).
 - Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
 - Bloco 7: **suficientemente consolidado para transição**, sem declaração de completude absoluta.
 - Próximo passo funcional sugerido: **completar o item de operações mínimas de texto em `verso` com indexação mínima**, mantendo recorte pequeno e auditável.
-- Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 88).
+- Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 89).
 - Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 
 ## 6. Ecossistema documental
 - `docs/roadmap.md`: trilha ativa oficial.
+- `manual.md`: manual de uso da linguagem Pinker no estado atual.
 - `docs/future.md`: inventário técnico amplo de longo prazo.
 - `docs/parallel.md`: visão/fantasia orientadora, sem ditar ordem ativa.
 - `docs/history.md`: crônica histórica única (fases/hotfixes/documentação).
