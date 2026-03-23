@@ -1,0 +1,22 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova base: verso = diretorio_atual();
+    nova nome: verso = argumento_ou(0, "README.md");
+    nova alvo: verso = juntar_caminho(base, nome);
+
+    falar(caminho_existe(alvo));
+    falar(e_arquivo(alvo));
+    falar(e_vazio(alvo));
+
+    nova tamanho: bombom = tamanho_arquivo(alvo);
+    talvez tamanho > 0 {
+        talvez e_vazio(alvo) {
+            mimo 0;
+        } senao {
+            mimo 1;
+        }
+    } senao {
+        mimo 0;
+    }
+}

@@ -102,6 +102,20 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "tamanho_arquivo".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
+        "e_vazio".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
         "diretorio_atual".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,

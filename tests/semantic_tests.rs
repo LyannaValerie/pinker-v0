@@ -305,6 +305,42 @@ fn juntar_caminho_intrinseca_rejeita_segundo_argumento_nao_verso() {
 }
 
 #[test]
+fn tamanho_arquivo_intrinseca_valida_sem_declaracao() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo tamanho_arquivo("README.md"); }"#;
+    assert!(parse_and_check(source).is_ok());
+}
+
+#[test]
+fn tamanho_arquivo_intrinseca_rejeita_argumento_nao_verso() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo tamanho_arquivo(1); }"#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'tamanho_arquivo'"));
+}
+
+#[test]
+fn e_vazio_intrinseca_valida_sem_declaracao() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez e_vazio("README.md") { mimo 1; } senao { mimo 0; }
+        }"#;
+    assert!(parse_and_check(source).is_ok());
+}
+
+#[test]
+fn e_vazio_intrinseca_rejeita_argumento_nao_verso() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom { talvez e_vazio(1) { mimo 1; } senao { mimo 0; } }"#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'e_vazio'"));
+}
+
+#[test]
 fn diretorio_atual_intrinseca_valida_sem_declaracao() {
     let source = r#"
         pacote main;

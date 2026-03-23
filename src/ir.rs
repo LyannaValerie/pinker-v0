@@ -497,6 +497,20 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "tamanho_arquivo".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "e_vazio".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Logica,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "diretorio_atual".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Verso,

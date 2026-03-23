@@ -827,6 +827,51 @@ fn try_call_intrinsic(
                 joined.to_string_lossy().to_string(),
             ))))
         }
+        "tamanho_arquivo" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'tamanho_arquivo' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(path) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'tamanho_arquivo' exige caminho em verso",
+                ));
+            };
+            let metadata = fs::metadata(path).map_err(|err| {
+                runtime_err(&format!(
+                    "falha ao obter metadados em 'tamanho_arquivo': {}",
+                    err
+                ))
+            })?;
+            if !metadata.is_file() {
+                return Err(runtime_err(
+                    "intrínseca 'tamanho_arquivo' exige caminho de arquivo regular",
+                ));
+            }
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(metadata.len()))))
+        }
+        "e_vazio" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'e_vazio' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(path) = &args[0] else {
+                return Err(runtime_err("intrínseca 'e_vazio' exige caminho em verso"));
+            };
+            let metadata = fs::metadata(path).map_err(|err| {
+                runtime_err(&format!("falha ao obter metadados em 'e_vazio': {}", err))
+            })?;
+            if !metadata.is_file() {
+                return Err(runtime_err(
+                    "intrínseca 'e_vazio' exige caminho de arquivo regular",
+                ));
+            }
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                metadata.len() == 0,
+            ))))
+        }
         "diretorio_atual" => {
             if !args.is_empty() {
                 return Err(runtime_err(

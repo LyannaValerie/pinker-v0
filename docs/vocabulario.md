@@ -51,6 +51,8 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `e_arquivo` | classificação mínima de caminho | verificar se o caminho simples é arquivo em `--run` |
 | `e_diretorio` | classificação mínima de diretório | verificar se o caminho simples é diretório em `--run` |
 | `juntar_caminho` | composição mínima de caminho | juntar base+trecho de caminho no `--run` sem API rica |
+| `tamanho_arquivo` | metadado mínimo de tamanho | obter o tamanho de arquivo regular em `--run` |
+| `e_vazio` | teste mínimo de vazio | verificar se arquivo regular está vazio em `--run` |
 | `sair`        | status de saída mínimo | encerrar script com código explícito |
 | `nope`        | bitwise NOT textual    | negação bitwise em forma Pinker (equivale a `~`) |
 
@@ -93,6 +95,10 @@ Nota de status operacional:
   - `e_diretorio(verso) -> logica` para classificação complementar de diretório;
   - `juntar_caminho(verso, verso) -> verso` para composição mínima (sem canonicalização/normalização rica);
   - sem listagem de diretórios, sem `chdir`, sem globbing e sem biblioteca ampla de paths.
+- Fase 98 (refinamento mínimo de arquivo em `--run`):
+  - `tamanho_arquivo(verso) -> bombom` para tamanho mínimo de arquivo regular;
+  - `e_vazio(verso) -> logica` para teste mínimo de vazio em arquivo regular;
+  - sem timestamps/permissões/ownership, sem criação/remoção e sem biblioteca ampla de metadados/filesystem.
 - Fora do subset textual atual: slicing, indexação negativa e formatação/interpolação.
 
 ---

@@ -412,6 +412,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado (`examples/fase97_refinamento_caminho_minimo_valido.pink`) e testes automatizados de semântica/`--run`/CLI para casos positivos, negativos e integração com `diretorio_atual`/`argumento_ou`/`caminho_existe`/`falar`.
 - Fora de escopo explícito nesta fase: canonicalização, normalização rica, listagem de diretórios, `chdir`, globbing, mutação ampla de paths, processos externos e biblioteca ampla de filesystem.
 
+98 - refinamento mínimo de arquivo em `--run`
+- Décima quarta fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfícies escolhidas: `tamanho_arquivo(verso) -> bombom` para tamanho mínimo de arquivo e `e_vazio(verso) -> logica` para teste mínimo de vazio.
+- Semântica operacional desta fase: ambas as intrínsecas exigem `verso` apontando para arquivo regular existente; caminho ausente/não-arquivo falha com diagnóstico explícito de runtime.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram as duas intrínsecas sem declaração explícita de função.
+- Cobertura adicionada com exemplo versionado (`examples/fase98_refinamento_arquivo_minimo_valido.pink`) e testes automatizados de semântica/`--run`/CLI para tamanho positivo, vazio positivo, negativo de caminho ausente e integração com `argumento_ou`/`juntar_caminho`.
+- Fora de escopo explícito nesta fase: timestamps, permissões, ownership, criação/remoção de arquivo, listagem de diretórios, leitura incremental, metadados ricos e biblioteca ampla de filesystem.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

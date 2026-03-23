@@ -2219,6 +2219,103 @@ fn run_juntar_caminho_intrinseca_compoe_sem_prometer_canonicalizacao() {
 }
 
 #[test]
+fn run_tamanho_arquivo_intrinseca_retorna_tamanho_de_arquivo_existente() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase98_tamanho_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+    std::fs::write(&file_path, "12345").expect("falha ao gravar arquivo temporário");
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            mimo tamanho_arquivo("{}");
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(5)));
+    let _ = std::fs::remove_file(&file_path);
+}
+
+#[test]
+fn run_e_vazio_intrinseca_true_para_arquivo_vazio() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase98_vazio_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+    std::fs::write(&file_path, "").expect("falha ao gravar arquivo vazio temporário");
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            talvez e_vazio("{}") {{
+                mimo 1;
+            }} senao {{
+                mimo 0;
+            }}
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+    let _ = std::fs::remove_file(&file_path);
+}
+
+#[test]
+fn run_tamanho_arquivo_intrinseca_falha_para_caminho_ausente() {
+    let err = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo tamanho_arquivo("__pinker_fase98_nao_existe__.txt");
+        }"#,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(err.contains("falha ao obter metadados em 'tamanho_arquivo'"));
+}
+
+#[test]
+fn run_tamanho_arquivo_e_e_vazio_integram_com_argumento_ou_e_juntar_caminho() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova base: verso = diretorio_atual();
+            nova nome: verso = argumento_ou(0, "README.md");
+            nova alvo: verso = juntar_caminho(base, nome);
+            nova t: bombom = tamanho_arquivo(alvo);
+            nova v: logica = e_vazio(alvo);
+            falar(alvo, caminho_existe(alvo), e_arquivo(alvo), t, v);
+            talvez t > 0 {
+                talvez v {
+                    mimo 0;
+                } senao {
+                    mimo 1;
+                }
+            } senao {
+                mimo 0;
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
 fn run_ambiente_ou_intrinseca_usa_fallback_sem_env() {
     let output = run_cli_example_with_env_and_cwd(
         "examples/fase95_ambiente_processo_minimo_valido.pink",
@@ -2275,6 +2372,16 @@ verdade
 #[test]
 fn cli_run_refinamento_caminho_fase97_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase97_refinamento_caminho_minimo_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "verdade\nverdade\nfalso\n1\n"
+    );
+}
+
+#[test]
+fn cli_run_refinamento_arquivo_fase98_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase98_refinamento_arquivo_minimo_valido.pink");
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),

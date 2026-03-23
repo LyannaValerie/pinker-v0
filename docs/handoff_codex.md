@@ -1,18 +1,18 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 97 — refinamento mínimo de caminho em `--run` (`e_diretorio` + `juntar_caminho`)**.
-- Rodada funcional curta do Bloco 8 com foco em classificação complementar + composição mínima de caminho sem abrir API ampla.
+- **Fase 98 — refinamento mínimo de arquivo em `--run` (`tamanho_arquivo` + `e_vazio`)**.
+- Rodada funcional curta do Bloco 8 com foco em metadados mínimos de arquivo sem abrir API ampla.
 
 ## 2. O que entrou na rodada atual
-- Intrínseca `e_diretorio(verso) -> logica` adicionada ao pipeline completo (semântica, IR, validações, runtime `--run`) para classificação complementar de diretório.
-- Intrínseca `juntar_caminho(verso, verso) -> verso` adicionada no mesmo recorte mínimo, usando composição por infraestrutura de path da stdlib.
-- Exemplo versionado novo: `examples/fase97_refinamento_caminho_minimo_valido.pink`.
-- Cobertura de testes ampliada em semântica e `--run`/CLI para: diretório existente, negativos em arquivo/ausente, composição mínima e integração com `diretorio_atual`/`argumento_ou`/`caminho_existe`/`falar`.
+- Intrínseca `tamanho_arquivo(verso) -> bombom` adicionada ao pipeline completo (semântica, IR, validações, runtime `--run`) para tamanho mínimo de arquivo regular.
+- Intrínseca `e_vazio(verso) -> logica` adicionada no mesmo recorte mínimo para teste de vazio em arquivo regular.
+- Exemplo versionado novo: `examples/fase98_refinamento_arquivo_minimo_valido.pink`.
+- Cobertura de testes ampliada em semântica e `--run`/CLI para: tamanho positivo, vazio positivo, negativo com caminho ausente e integração com `argumento_ou`/`juntar_caminho`/`caminho_existe`/`e_arquivo`/`falar`.
 
 ## 3. Fora de escopo da rodada atual
-- canonicalização/normalização rica, listagem de diretórios, `chdir`, globbing e mutação ampla de paths.
-- Processos externos ou biblioteca ampla de filesystem.
+- timestamps/permissões/ownership, criação/remoção de arquivo, listagem de diretórios e leitura incremental.
+- Processos externos ou biblioteca ampla de filesystem/metadados.
 - Redesign de runtime ou expansão de gramática.
 
 ## 4. Próximo item normal
@@ -20,7 +20,7 @@
 - Próximo item funcional sugerido: **manter refinamentos mínimos de tooling/I/O em `--run` preservando escopo pequeno e auditável**.
 
 ## 5. Observações operacionais curtas
-- Última fase funcional concluída: **97**.
+- Última fase funcional concluída: **98**.
 - Rodada documental mais recente preservada: **Doc-17**.
 - Rodada paralela concluída preservada: **Paralela-1** — negação bitwise dual (`~` + `nope`) + MCP mínimo (`src/bin/pinker_mcp.rs`).
 - Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.
