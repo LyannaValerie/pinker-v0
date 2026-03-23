@@ -509,3 +509,24 @@ Doc-16 - pacote paralelo de apoio (auditoria + corpus + mapeamento de codegen te
 - Corpus de uso real ampliado com exemplo pequeno e auditável de runtime/tooling: `examples/run_corpus_tooling_verso_minimo.pink` (`argumento_ou`, `tem_argumento`, `quantos_argumentos`, `falar` múltiplo e operações mínimas de `verso`).
 - Cobertura de teste adicionada em `tests/interpreter_tests.rs` para o novo exemplo/corpus, sem abrir recurso novo.
 - `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` atualizados para registrar a rodada documental/paralela e preservar continuidade histórica.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo
+- Rodada paralela de implementação; não é hotfix, não é fase funcional, não é rodada documental pura.
+- Não reordenou o roadmap nem conflitou com a trilha funcional ativa (Bloco 8).
+
+Trilha A — negação bitwise unária dual:
+- Adicionado `BitNot` ao pipeline completo: token (`Tilde`, `KwNope`), lexer, parser, AST, semântica, IR, ir_validate, cfg_ir_validate, instr_select, abstract_machine, abstract_machine_validate, interpreter, backend_text, backend_s.
+- Forma simbólica `~` e forma textual Pinker `nope` produzem a mesma operação semântica (bitwise NOT).
+- Ambas as superfícies reconhecidas como `UnaryOp::BitNot` desde o parser; sem distinção semântica posterior.
+- Tipo aceito: qualquer inteiro já suportado (`bombom`, `u8`–`u64`, `i8`–`i64`); `logica` rejeitada na semântica.
+- Testes adicionados: 6 casos em `tests/interpreter_tests.rs` cobrindo `~`, `nope`, equivalência, inversão de bits, dupla negação e tipo inválido.
+
+Trilha B — MCP mínimo:
+- Binário separado `pinker_mcp` criado em `src/bin/pinker_mcp.rs` (zero dependências externas).
+- Transporte: JSON-RPC 2.0 via stdio (newline-delimited), sem LSP, sem Tree-sitter, sem servidor complexo.
+- Ferramentas expostas: `pinker_checar`, `pinker_tokens`, `pinker_ast`, `pinker_ir` (modos: ir/cfg/selected/machine), `pinker_rodar`.
+- Cada ferramenta despacha para a pipeline existente via biblioteca `pinker_v0`; sem reescrita de arquitetura.
+- Limitação intencional: código inline apenas (sem resolução de imports entre módulos).
+- Testes adicionados: 9 casos em `tests/mcp_tests.rs` cobrindo initialize, tools/list, checar, tokens, rodar, bitnot via MCP e erro de método desconhecido.

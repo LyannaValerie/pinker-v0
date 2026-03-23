@@ -223,6 +223,7 @@ pub enum ScalarTypeIR {
 pub enum UnaryOpIR {
     Neg,
     Not,
+    BitNot,
     Deref,
 }
 
@@ -930,6 +931,7 @@ impl<'a> FunctionLowerer<'a> {
                     ty: match op {
                         UnaryOp::Neg => operand.ty,
                         UnaryOp::Not => TypeIR::Logica,
+                        UnaryOp::BitNot => operand.ty,
                         UnaryOp::Deref => unreachable!("deref tratada acima"),
                     },
                     struct_name: None,
@@ -1661,6 +1663,7 @@ impl UnaryOpIR {
         match op {
             UnaryOp::Neg => UnaryOpIR::Neg,
             UnaryOp::Not => UnaryOpIR::Not,
+            UnaryOp::BitNot => UnaryOpIR::BitNot,
             UnaryOp::Deref => UnaryOpIR::Deref,
         }
     }
@@ -1669,6 +1672,7 @@ impl UnaryOpIR {
         match self {
             UnaryOpIR::Neg => "neg",
             UnaryOpIR::Not => "not",
+            UnaryOpIR::BitNot => "bitnot",
             UnaryOpIR::Deref => "deref",
         }
     }

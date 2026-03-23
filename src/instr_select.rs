@@ -49,6 +49,10 @@ pub enum SelectedInstr {
         dest: crate::cfg_ir::TempIR,
         operand: OperandIR,
     },
+    BitNot {
+        dest: crate::cfg_ir::TempIR,
+        operand: OperandIR,
+    },
     DerefLoad {
         dest: crate::cfg_ir::TempIR,
         ptr: OperandIR,
@@ -259,6 +263,10 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
                 operand: operand.clone(),
             },
             UnaryOpIR::Not => SelectedInstr::Not {
+                dest: *dest,
+                operand: operand.clone(),
+            },
+            UnaryOpIR::BitNot => SelectedInstr::BitNot {
                 dest: *dest,
                 operand: operand.clone(),
             },
@@ -500,6 +508,9 @@ fn render_instr(inst: &SelectedInstr) -> String {
         }
         SelectedInstr::Not { dest, operand } => {
             format!("not {}, {}", render_temp(*dest), render_operand(operand))
+        }
+        SelectedInstr::BitNot { dest, operand } => {
+            format!("bitnot {}, {}", render_temp(*dest), render_operand(operand))
         }
         SelectedInstr::DerefLoad {
             dest,

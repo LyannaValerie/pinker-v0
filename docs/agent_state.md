@@ -15,6 +15,7 @@
 - **Fase N**: entrega funcional real.
 - **HF-N**: hotfix extraordinário sem abrir nova fase funcional.
 - **Doc-N**: rodada exclusivamente documental.
+- **Paralela-N**: rodada paralela de implementação (sem conflito com trilha ativa, sem ser hotfix nem fase funcional).
 - Histórico detalhado fica em `docs/history.md`.
 
 ## 4. Pipeline congelada
@@ -32,6 +33,7 @@
 - Próximo passo funcional sugerido: **seguir refinamentos mínimos de tooling em `--run` no Bloco 8, preservando recorte pequeno e auditável sem parser amplo de CLI**.
 - Eixo `--asm-s`/backend externo permanece em subset linear auditável (Fases 73–84), mapeado nesta rodada sem abertura de lowering novo.
 - Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 95).
+- Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
 - Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 
 ## 6. Ecossistema documental

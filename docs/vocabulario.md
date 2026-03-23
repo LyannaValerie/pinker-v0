@@ -48,6 +48,7 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `ambiente_ou` | leitura mínima de env com fallback | ler variável de ambiente por chave com padrão em `--run` |
 | `diretorio_atual` | leitura mínima do cwd | obter diretório atual do processo como `verso` em `--run` |
 | `sair`        | status de saída mínimo | encerrar script com código explícito |
+| `nope`        | bitwise NOT textual    | negação bitwise em forma Pinker (equivale a `~`) |
 
 ---
 

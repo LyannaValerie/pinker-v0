@@ -72,6 +72,7 @@ pub enum MachineInstr {
     StoreSlot(String),
     Neg,
     Not,
+    BitNot,
     DerefLoad { ty: TypeIR, is_volatile: bool },
     DerefStore { ty: TypeIR, is_volatile: bool },
     Cast { ty: TypeIR },
@@ -180,6 +181,11 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) {
         SelectedInstr::Not { dest, operand } => {
             emit_load(operand, code);
             code.push(MachineInstr::Not);
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
+        SelectedInstr::BitNot { dest, operand } => {
+            emit_load(operand, code);
+            code.push(MachineInstr::BitNot);
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
         SelectedInstr::DerefLoad {
@@ -604,6 +610,7 @@ fn render_instr(i: &MachineInstr) -> String {
         }
         MachineInstr::Neg => with_comment("neg".to_string(), "negação aritmética do topo"),
         MachineInstr::Not => with_comment("not".to_string(), "negação lógica do topo"),
+        MachineInstr::BitNot => with_comment("bitnot".to_string(), "negação bitwise do topo"),
         MachineInstr::DerefLoad { ty, is_volatile } => with_comment(
             format!(
                 "{} {}",

@@ -378,7 +378,7 @@ fn apply_instr_effect(
                 slot_types.insert(slot.clone(), top[0]);
             }
         }
-        MachineInstr::Neg | MachineInstr::Not => {
+        MachineInstr::Neg | MachineInstr::Not | MachineInstr::BitNot => {
             let top = pop_typed(
                 f,
                 label,
@@ -390,6 +390,7 @@ fn apply_instr_effect(
             let expected = match i {
                 MachineInstr::Neg => StackValueType::Bombom,
                 MachineInstr::Not => StackValueType::Logica,
+                MachineInstr::BitNot => StackValueType::Bombom,
                 _ => StackValueType::Unknown,
             };
             ensure_compatible(
@@ -741,6 +742,7 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::StoreSlot(_) => "store_slot",
         MachineInstr::Neg => "neg",
         MachineInstr::Not => "not",
+        MachineInstr::BitNot => "bitnot",
         MachineInstr::DerefLoad { is_volatile, .. } => {
             if *is_volatile {
                 "deref_load_fragil"

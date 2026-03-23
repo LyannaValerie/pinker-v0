@@ -516,6 +516,7 @@ fn infer_value_type(
             match op {
                 UnaryOpIR::Neg if op_ty.is_integer() => Ok(op_ty),
                 UnaryOpIR::Not if op_ty == TypeIR::Logica => Ok(TypeIR::Logica),
+                UnaryOpIR::BitNot if op_ty.is_integer() => Ok(op_ty),
                 UnaryOpIR::Deref => Err(ir_validation_error(
                     "deref deve usar nó dedicado na IR desta fase",
                     span,

@@ -2688,3 +2688,68 @@ fn cli_semantic_error_mostra_source_context() {
         stderr
     );
 }
+
+// --- Rodada Paralela-1: negação bitwise dual (~ + nope) ---
+
+#[test]
+fn run_bitnot_til_bombom_simples() {
+    // ~0 em u64 deve ser u64::MAX
+    let out =
+        run_code("pacote main; carinho principal() -> bombom { nova x: bombom = 0; mimo ~x; }")
+            .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(u64::MAX)));
+}
+
+#[test]
+fn run_bitnot_nope_bombom_simples() {
+    // nope equivale a ~ — resultado idêntico
+    let out =
+        run_code("pacote main; carinho principal() -> bombom { nova x: bombom = 0; mimo nope x; }")
+            .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(u64::MAX)));
+}
+
+#[test]
+fn run_bitnot_til_e_nope_equivalentes() {
+    // ~x e nope x produzem o mesmo resultado
+    let out_til =
+        run_code("pacote main; carinho principal() -> bombom { nova x: bombom = 12345; mimo ~x; }")
+            .unwrap();
+    let out_nope = run_code(
+        "pacote main; carinho principal() -> bombom { nova x: bombom = 12345; mimo nope x; }",
+    )
+    .unwrap();
+    assert_eq!(out_til, out_nope);
+    assert_eq!(out_til, Some(RuntimeValue::Int(!12345u64)));
+}
+
+#[test]
+fn run_bitnot_inverte_bits_conhecidos() {
+    // ~10 deve ser !10u64
+    let out =
+        run_code("pacote main; carinho principal() -> bombom { nova x: bombom = 10; mimo ~x; }")
+            .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(!10u64)));
+}
+
+#[test]
+fn run_bitnot_duplo_retorna_original() {
+    // ~~x == x
+    let out =
+        run_code("pacote main; carinho principal() -> bombom { nova x: bombom = 42; mimo ~~x; }")
+            .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(42)));
+}
+
+#[test]
+fn run_bitnot_tipo_invalido_rejeita_logica() {
+    let err = run_code(
+        "pacote main; carinho principal() -> bombom { nova b: logica = verdade; mimo ~b; }",
+    )
+    .unwrap_err();
+    assert!(
+        err.contains("negação bitwise requer operando inteiro"),
+        "erro inesperado: {}",
+        err
+    );
+}

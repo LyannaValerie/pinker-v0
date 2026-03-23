@@ -67,7 +67,9 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         }
                         check_operand(src, &slots, &temps, &globals)?;
                     }
-                    SelectedInstr::Neg { dest, operand } | SelectedInstr::Not { dest, operand } => {
+                    SelectedInstr::Neg { dest, operand }
+                    | SelectedInstr::Not { dest, operand }
+                    | SelectedInstr::BitNot { dest, operand } => {
                         check_operand(operand, &slots, &temps, &globals)?;
                         temps.insert(*dest);
                     }
