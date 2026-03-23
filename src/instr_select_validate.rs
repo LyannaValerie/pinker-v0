@@ -21,6 +21,10 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("ambiente_ou".to_string(), TypeIR::Verso);
     sigs.insert("caminho_existe".to_string(), TypeIR::Logica);
     sigs.insert("e_arquivo".to_string(), TypeIR::Logica);
+    sigs.insert("e_diretorio".to_string(), TypeIR::Logica);
+    sigs.insert("juntar_caminho".to_string(), TypeIR::Verso);
+    sigs.insert("tamanho_arquivo".to_string(), TypeIR::Bombom);
+    sigs.insert("e_vazio".to_string(), TypeIR::Logica);
     sigs.insert("diretorio_atual".to_string(), TypeIR::Verso);
     sigs.insert("quantos_argumentos".to_string(), TypeIR::Bombom);
     sigs.insert("tem_argumento".to_string(), TypeIR::Logica);
