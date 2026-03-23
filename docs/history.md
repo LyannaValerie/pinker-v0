@@ -396,3 +396,9 @@ Doc-13 - limpeza editorial do README
 - Separação explícita preservada: trilha de soberania/backend (Bloco 7) vs. trilha de I/O/ecossistema (Bloco 8).
 - Trilha ativa permanece única: apenas o Bloco 7 está marcado como próximo bloco ativo; o Bloco 8 aguarda consolidação suficiente do Bloco 7.
 - Esta rodada não cria fase funcional; registra apenas a direção planejada.
+
+Doc-14 - abertura documental do Bloco 8 e fechamento operacional do Bloco 7
+- Rodada exclusivamente documental, sem nova fase funcional e sem implementação de `ouvir`.
+- Transição registrada após consolidação suficiente do Bloco 7 (Fases 73–84), preservando que o bloco não está completo em sentido absoluto.
+- `roadmap.md` atualizado: Bloco 7 deixou de ser trilha ativa e Bloco 8 passou a trilha ativa.
+- `agent_state.md` e `handoff_codex.md` alinhados para o próximo passo funcional mínimo do Bloco 8: entrada básica com `ouvir` (ou equivalente) em `--run` para pelo menos um tipo básico.

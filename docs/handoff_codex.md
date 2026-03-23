@@ -1,28 +1,27 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 84 — recusa explícita complementar de `sempre que` no subset externo**.
-- Rodada funcional pequena e auditável no Bloco 7, sem abertura de fundamento novo e sem abrir Bloco 8.
+- **Doc-14 — abertura documental do Bloco 8 e fechamento operacional do Bloco 7**.
+- Rodada exclusivamente documental, sem abrir fase funcional nova e sem implementação de `ouvir`.
 
 ## 2. O que entrou na rodada atual
-- Backend externo `--asm-s` (`emit_external_toolchain_subset`) passou a recusar explicitamente `sempre que` com diagnóstico dedicado.
-- Contrato textual do subset externo foi atualizado para Fase 84 e agora declara também a recusa explícita de loops.
-- Testes do subset externo foram atualizados para Fase 84 e ganharam caso negativo dedicado para `sempre que`.
-- Exemplo versionado novo: `examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink`.
-- Documentação mínima sincronizada: `README.md`, `docs/history.md`, `docs/agent_state.md`, `docs/phases.md`.
+- `docs/roadmap.md` marcou o Bloco 7 como suficientemente consolidado (Fases 73–84) e encerrou sua condição de trilha ativa.
+- `docs/roadmap.md` abriu formalmente o Bloco 8 como trilha ativa atual, preservando a ordem interna sugerida já definida.
+- `docs/history.md` recebeu entrada Doc-14 registrando a transição documental após consolidação suficiente do Bloco 7, sem declarar completude absoluta.
+- `docs/agent_state.md` foi alinhado para bloco ativo = Bloco 8 e próximo passo funcional = entrada básica com `ouvir` (ou equivalente).
+- `docs/handoff_codex.md` atualizado para orientar a próxima rodada funcional mínima do Bloco 8.
 
 ## 3. Fora de escopo da rodada atual
-- Abertura de suporte parcial a loops no backend externo.
-- Lowering novo de labels/jumps/branches.
-- ABI ampla, register allocation amplo, memória indireta/ponteiros, 3+ parâmetros e novos tipos no subset externo.
-- Abertura do Bloco 8.
+- Qualquer implementação funcional de I/O (`ouvir`, arquivo, formatação, etc.).
+- Qualquer fase funcional nova do Bloco 8 nesta rodada documental.
+- Reabertura de trabalho funcional no Bloco 7 além do registro de consolidação suficiente.
 
 ## 4. Próximo item normal
-- Trilha ativa: **Bloco 7 — Backend nativo real**.
-- Próximo item funcional sugerido: **continuidade conservadora do artefato executável com reforços explícitos pequenos de fronteira (sem abrir fundamentos novos)**.
+- Trilha ativa: **Bloco 8 — I/O e ecossistema útil**.
+- Próximo item funcional sugerido: **entrada básica com `ouvir` (ou equivalente) em `--run` para pelo menos um tipo básico, no menor recorte útil possível**.
 
 ## 5. Observações operacionais curtas
-- Fase funcional atual: **84**.
+- Última fase funcional concluída: **84**.
 - Fase funcional anterior: **83**.
 - Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.
 - Hotfix histórico extraordinário preservado: **HF-1 (Fase 48-H1)**.

@@ -93,7 +93,7 @@ Os 9 itens acima representam a **ordem interna sugerida** do Bloco 6. A numeraç
 
 ### Bloco 7 — Backend nativo real
 
-**Status**: **trilha ativa seguinte**. Bloco 6 foi encerrado na Fase 72. Este é o próximo grande eixo funcional da Pinker.
+**Status**: **bloco suficientemente consolidado e encerrado como trilha ativa**. A consolidação das Fases 73–84 permitiu abrir o Bloco 8 sem declarar encerramento absoluto do Bloco 7.
 
 **Objetivo geral**: transformar gradualmente o backend textual/experimental da Pinker em backend nativo real mais utilizável — capaz de gerar código que executa de verdade na máquina, com convenções de chamada e memória concretas.
 
@@ -114,7 +114,7 @@ Os 6 itens acima representam a ordem interna sugerida do Bloco 7. A numeração 
 
 ### Bloco 8 — I/O e ecossistema útil
 
-**Status**: bloco futuro já definido, **não ativo**. Deve ser iniciado somente após o Bloco 7 estar suficientemente consolidado.
+**Status**: **trilha ativa atual**. Abertura documental realizada após consolidação suficiente do Bloco 7 (Fases 73–84).
 
 **Objetivo geral**: transformar a Pinker em linguagem mais interativa e útil para scripts, tooling e ecossistema — ampliando a superfície de I/O e tornando a linguagem mais utilizável no dia a dia.
 
