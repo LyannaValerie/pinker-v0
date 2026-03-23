@@ -7,6 +7,7 @@
 | fase funcional concluída | `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` | entrada de fase em `phases`, estado corrente atualizado, handoff curto da rodada |
 | hotfix extraordinário | `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` | entrada HF dedicada, impacto operacional e continuidade da trilha |
 | rodada documental | `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` | entrada Doc dedicada, escopo documental e limites da rodada |
+| rodada paralela de implementação | `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` | entrada Paralela dedicada, escopo paralelo e limites sem reordenar trilha ativa |
 | abertura de bloco | `docs/roadmap.md`, `docs/agent_state.md`, `docs/history.md` | bloco ativo, justificativa e ponto de transição registrado |
 | fechamento de bloco | `docs/roadmap.md`, `docs/agent_state.md`, `docs/history.md` | confirmação de fechamento e transição para próximo bloco |
 | keyword implementada | `docs/vocabulario.md`, `docs/history.md` | mover keyword para implementadas + referência da fase |
@@ -18,7 +19,7 @@
 - `roadmap.md`: trilha ativa oficial e ordem de execução real.
 - `future.md`: inventário técnico amplo de possibilidades/status; sem impor sequência ativa.
 - `parallel.md`: visão orientadora, identidade e direção conceitual; não técnico-operacional.
-- `history.md`: histórico único em três blocos fixos (FASES/HOTFIXES/DOCUMENTAÇÃO), entradas autocontidas.
+- `history.md`: histórico único em quatro blocos fixos (FASES/HOTFIXES/DOCUMENTAÇÃO/RODADAS PARALELAS), entradas autocontidas.
 - `agent_state.md`: estado presente + diretrizes operacionais; sem histórico extenso.
 - `handoff_codex.md`: handoff curto da rodada atual (objetivo, escopo, próximo passo).
 - `vocabulario.md`: catálogo vivo de keywords; implementadas separadas de sugestões.
@@ -52,8 +53,10 @@
 - Fases construtivas em seção **FASES**.
 - Hotfixes em seção **HOTFIXES**.
 - Documentação em seção **DOCUMENTAÇÃO**.
+- Rodadas paralelas em seção **RODADAS PARALELAS**.
 - Numeração independente por categoria.
 - Exemplos formais:
   - `55 - assembler/linker externo (integração mínima)`
   - `HF-1 - hotfixes de corretude e manutenção`
   - `Doc-1 - abertura documental do Bloco 6`
+  - `Paralela-1 - negação bitwise dual (~ + nope) + MCP mínimo`
