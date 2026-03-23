@@ -23,6 +23,7 @@
 ## 5. Observações operacionais curtas
 - Última fase funcional concluída: **95**.
 - Rodada documental mais recente: **Doc-16**.
+- Rodada paralela concluída: **Paralela-1** — negação bitwise dual (`~` + `nope`) + MCP mínimo (`src/bin/pinker_mcp.rs`).
 - Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.
 - Hotfix histórico extraordinário preservado: **HF-1 (Fase 48-H1)**.
 

@@ -422,6 +422,7 @@ fn validate_block(
                 let result = match op {
                     crate::ir::UnaryOpIR::Neg if operand_ty.is_integer() => operand_ty,
                     crate::ir::UnaryOpIR::Not if operand_ty == TypeIR::Logica => TypeIR::Logica,
+                    crate::ir::UnaryOpIR::BitNot if operand_ty.is_integer() => operand_ty,
                     _ => return Err(cfg_error("operando inválido para unário", function.span)),
                 };
                 temp_types.insert(*dest, result);

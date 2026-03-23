@@ -256,6 +256,11 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
             op: UnaryOpIR::Not,
             operand: operand.clone(),
         }),
+        SelectedInstr::BitNot { dest, operand } => Ok(BackendTextInstruction::Unary {
+            dest: *dest,
+            op: UnaryOpIR::BitNot,
+            operand: operand.clone(),
+        }),
         SelectedInstr::DerefLoad { dest, ptr, .. } => Ok(BackendTextInstruction::Unary {
             dest: *dest,
             op: UnaryOpIR::Deref,
@@ -608,6 +613,7 @@ fn op_name(op: UnaryOpIR) -> &'static str {
     match op {
         UnaryOpIR::Neg => "neg",
         UnaryOpIR::Not => "not",
+        UnaryOpIR::BitNot => "bitnot",
         UnaryOpIR::Deref => "deref",
     }
 }

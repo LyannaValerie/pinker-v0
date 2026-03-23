@@ -131,6 +131,7 @@ impl<'a> Lexer<'a> {
                                 TokenKind::Eq
                             }
                         }
+                        '~' => TokenKind::Tilde,
                         '!' => {
                             if self.match_char('=') {
                                 lexeme.push('=');
@@ -245,6 +246,7 @@ impl<'a> Lexer<'a> {
                                 "logica" => TokenKind::KwLogica,
                                 "verdade" => TokenKind::KwVerdade,
                                 "falso" => TokenKind::KwFalso,
+                                "nope" => TokenKind::KwNope,
                                 _ => TokenKind::Ident,
                             }
                         }

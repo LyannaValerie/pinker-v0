@@ -1155,6 +1155,16 @@ impl SemanticChecker {
                             })
                         }
                     }
+                    UnaryOp::BitNot => {
+                        if Self::is_integer_type(&inner_ty) {
+                            Ok(inner_ty.with_span(expr.span))
+                        } else {
+                            Err(PinkerError::Semantic {
+                                msg: "negação bitwise requer operando inteiro".to_string(),
+                                span: expr.span,
+                            })
+                        }
+                    }
                     UnaryOp::Deref => match inner_ty {
                         Type::Pointer { base, .. } => match base.as_ref() {
                             Type::Bombom(_) => Ok(Type::Bombom(expr.span)),

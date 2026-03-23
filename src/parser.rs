@@ -625,6 +625,8 @@ impl Parser {
             if token.kind == TokenKind::Minus
                 || token.kind == TokenKind::Bang
                 || token.kind == TokenKind::Star
+                || token.kind == TokenKind::Tilde
+                || token.kind == TokenKind::KwNope
             {
                 let op_span = token.span;
                 let token_kind = token.kind;
@@ -637,6 +639,9 @@ impl Parser {
                             UnaryOp::Neg
                         } else if token_kind == TokenKind::Bang {
                             UnaryOp::Not
+                        } else if token_kind == TokenKind::Tilde || token_kind == TokenKind::KwNope
+                        {
+                            UnaryOp::BitNot
                         } else {
                             UnaryOp::Deref
                         },

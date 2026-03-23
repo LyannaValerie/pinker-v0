@@ -321,6 +321,17 @@ fn exec_instr(
             let value = pop_bool(stack, "not exige lógica no topo")?;
             stack.push(RuntimeValue::Bool(!value));
         }
+        MachineInstr::BitNot => {
+            let value = pop_numeric(stack, "bitnot exige inteiro no topo")?;
+            let out = match value {
+                RuntimeValue::Int(v) => RuntimeValue::Int(!v),
+                RuntimeValue::IntSigned(v) => RuntimeValue::IntSigned(!v),
+                RuntimeValue::Ptr(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::Str(_) => unreachable!("pop_numeric só retorna inteiro"),
+            };
+            stack.push(out);
+        }
         MachineInstr::DerefLoad { is_volatile, .. } => {
             let ptr = pop(stack, "deref_load exige ponteiro no topo")?;
             let RuntimeValue::Ptr(addr) = ptr else {
@@ -1189,6 +1200,7 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::StoreSlot(_) => "store_slot",
         MachineInstr::Neg => "neg",
         MachineInstr::Not => "not",
+        MachineInstr::BitNot => "bitnot",
         MachineInstr::DerefLoad { is_volatile, .. } => {
             if *is_volatile {
                 "deref_load_fragil"
