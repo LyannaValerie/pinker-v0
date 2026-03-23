@@ -345,6 +345,15 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado da fase (`examples/fase89_verso_operacoes_minimas_valido.pink`) e testes automatizados de semântica/`--run`/CLI.
 - Fora de escopo explícito nesta fase: indexação de `verso`, slicing, interpolação/formatação e biblioteca textual ampla.
 
+90 - indexação mínima de `verso` com fronteira auditável (`indice_verso`)
+- Sexta fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Recorte mínimo implementado no runtime interpretado: intrínseca `indice_verso(verso, bombom) -> verso`, retornando `verso` unitário (1 caractere).
+- Superfície escolhida nesta fase: intrínseca pontual (`indice_verso`) para evitar expansão de gramática e manter diff pequeno/auditável.
+- Fronteira auditável explícita desta fase: tipo inválido é rejeitado na semântica; índice fora da faixa falha em runtime com diagnóstico claro.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações passaram a reconhecer `indice_verso` sem declaração explícita de função.
+- Cobertura adicionada com exemplo versionado da fase (`examples/fase90_verso_indexacao_minima_valido.pink`) e testes automatizados de semântica/`--run`/CLI.
+- Fora de escopo explícito nesta fase: sintaxe `v[i]` para `verso`, slicing, indexação negativa, interpolação/formatação e biblioteca textual ampla.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

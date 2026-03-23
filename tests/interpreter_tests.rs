@@ -155,6 +155,42 @@ fn run_verso_concat_minimo_e_comprimento_minimo_funcionam() {
 }
 
 #[test]
+fn run_indice_verso_minimo_funciona_e_pode_ir_para_falar() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = "lua";
+            nova letra: verso = indice_verso(texto, 1);
+            falar(letra);
+            mimo tamanho_verso(letra);
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_indice_verso_falha_com_indice_fora_da_faixa() {
+    let err = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = "oi";
+            nova letra: verso = indice_verso(texto, 2);
+            falar(letra);
+            mimo 0;
+        }"#,
+    )
+    .unwrap_err();
+    assert!(
+        err.contains("índice fora da faixa em 'indice_verso'"),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
 fn run_short_circuit_and_nao_avalia_rhs() {
     let out = run_code(
         "pacote main;
@@ -1755,6 +1791,13 @@ fn cli_run_verso_operacoes_minimas_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase89_verso_operacoes_minimas_valido.pink");
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(String::from_utf8_lossy(&out.stdout), "oi Pinker\n9\n0\n");
+}
+
+#[test]
+fn cli_run_indice_verso_minimo_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase90_verso_indexacao_minima_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "n\n1\n0\n");
 }
 
 #[test]

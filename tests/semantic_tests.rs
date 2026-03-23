@@ -249,6 +249,27 @@ fn juntar_verso_rejeita_argumento_nao_verso() {
 }
 
 #[test]
+fn indice_verso_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = "paz";
+            nova letra: verso = indice_verso(texto, 1);
+            mimo tamanho_verso(letra);
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn indice_verso_rejeita_indice_nao_bombom() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo tamanho_verso(indice_verso("oi", falso)); }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'indice_verso'"));
+}
+
+#[test]
 fn uso_de_funcao_sem_retorno_em_expressao() {
     let code = "
         pacote main;

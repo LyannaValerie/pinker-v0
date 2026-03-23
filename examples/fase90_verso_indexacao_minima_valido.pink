@@ -1,0 +1,11 @@
+pacote fase90_verso_indexacao_minima_valido;
+
+carinho principal() -> bombom {
+    nova texto: verso = "Pinker";
+    nova letra: verso = indice_verso(texto, 2);
+    falar(letra);
+
+    nova tamanho: bombom = tamanho_verso(letra);
+    falar(tamanho);
+    mimo 0;
+}

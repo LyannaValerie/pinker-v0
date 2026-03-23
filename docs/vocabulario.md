@@ -50,7 +50,10 @@ Nota de status operacional:
 - Operações mínimas de texto da Fase 89:
   - `juntar_verso(verso, verso) -> verso` (concatenação mínima);
   - `tamanho_verso(verso) -> bombom` (comprimento mínimo).
-- Indexação e demais operações de texto ainda seguem fora do subset atual.
+- Fase 90 (fechamento mínimo de indexação):
+  - `indice_verso(verso, bombom) -> verso` (retorna `verso` unitário);
+  - índice fora da faixa gera erro explícito em runtime.
+- Fora do subset textual atual: slicing, indexação negativa e formatação/interpolação.
 
 ---
 

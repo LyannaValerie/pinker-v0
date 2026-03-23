@@ -22,6 +22,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("escrever".to_string(), TypeIR::Nulo);
     sigs.insert("juntar_verso".to_string(), TypeIR::Verso);
     sigs.insert("tamanho_verso".to_string(), TypeIR::Bombom);
+    sigs.insert("indice_verso".to_string(), TypeIR::Verso);
 
     for f in &program.functions {
         if f.blocks.is_empty() {

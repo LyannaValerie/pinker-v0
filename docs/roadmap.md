@@ -143,7 +143,7 @@ Status de execução no bloco:
 - **Fase 87 concluída**: item 3 entregue no recorte mínimo em `--run`, com `escrever(handle, bombom)` para sobrescrita simples do conteúdo do arquivo já aberto por `abrir(...)`, mantendo fechamento explícito com `fechar(handle)`.
 - **Fase 88 concluída**: item 4 entregue no recorte mínimo em `--run`, com `verso` operacional em variável local, passagem por chamada, retorno e `falar(verso)` por valor.
 - **Fase 89 concluída (parcial do item 5)**: concatenação mínima (`juntar_verso(verso, verso)`) e comprimento mínimo (`tamanho_verso(verso) -> bombom`) operacionais em `--run`.
-- Pendências do item 5: indexação mínima de `verso`.
+- **Fase 90 concluída (fechamento do item 5)**: indexação mínima de `verso` em `--run` via `indice_verso(verso, bombom) -> verso`, com diagnóstico explícito de faixa e tipo no recorte mínimo.
 - Itens 6–7 permanecem pendentes.
 
 ---
