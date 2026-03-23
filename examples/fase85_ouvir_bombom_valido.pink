@@ -1,0 +1,6 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova valor: bombom = ouvir();
+    mimo valor + 1;
+}

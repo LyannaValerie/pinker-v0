@@ -23,13 +23,13 @@
 - Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
 
 ## 5. Estado corrente
-- Fase funcional atual: **84 — recusa explícita complementar de `sempre que` no subset externo** (última fase concluída do Bloco 7).
-- Fase funcional anterior: **83 — matriz de fronteira auditável do subset externo**.
+- Fase funcional atual: **85 — entrada básica com `ouvir` em `--run`** (primeira fase concluída do Bloco 8).
+- Fase funcional anterior: **84 — recusa explícita complementar de `sempre que` no subset externo**.
 - Bloco concluído: **Bloco 6 — Memória operacional** (Fases 64–72 entregues).
 - Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
 - Bloco 7: **suficientemente consolidado para transição**, sem declaração de completude absoluta.
-- Próximo passo funcional sugerido: **abrir o Bloco 8 com entrada básica (`ouvir` ou equivalente) em `--run` para pelo menos um tipo básico**.
-- Rodada funcional corrente: **nenhuma aberta nesta Doc-14** (última fase funcional segue sendo a Fase 84).
+- Próximo passo funcional sugerido: **avançar para leitura/escrita mínima de arquivo (`abrir`/`fechar`/`escrever`) ou segundo tipo básico de entrada, sem inflar escopo**.
+- Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 85).
 - Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 
 ## 6. Ecossistema documental

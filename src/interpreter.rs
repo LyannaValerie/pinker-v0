@@ -13,6 +13,7 @@ use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
 use crate::token::Span;
 use std::collections::HashMap;
+use std::io;
 
 const MAX_CALL_DEPTH: usize = 64;
 
@@ -422,7 +423,11 @@ fn exec_instr(
         }
         MachineInstr::Call { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = call_function(callee, args, program, globals, memory, call_stack)?;
+            let result = if let Some(value) = try_call_intrinsic(callee, &args)? {
+                Some(value)
+            } else {
+                call_function(callee, args, program, globals, memory, call_stack)?
+            };
             let Some(value) = result else {
                 return Err(runtime_err("call exige função com retorno"));
             };
@@ -430,7 +435,11 @@ fn exec_instr(
         }
         MachineInstr::CallVoid { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = call_function(callee, args, program, globals, memory, call_stack)?;
+            let result = if let Some(value) = try_call_intrinsic(callee, &args)? {
+                Some(value)
+            } else {
+                call_function(callee, args, program, globals, memory, call_stack)?
+            };
             if result.is_some() {
                 return Err(runtime_err("call_void exige função sem retorno"));
             }
@@ -451,6 +460,37 @@ fn exec_instr(
     }
 
     Ok(())
+}
+
+fn try_call_intrinsic(
+    callee: &str,
+    args: &[RuntimeValue],
+) -> Result<Option<RuntimeValue>, PinkerError> {
+    match callee {
+        "ouvir" => {
+            if !args.is_empty() {
+                return Err(runtime_err("intrínseca 'ouvir' exige 0 argumentos"));
+            }
+            let mut raw = String::new();
+            io::stdin()
+                .read_line(&mut raw)
+                .map_err(|err| runtime_err(&format!("falha ao ler stdin em 'ouvir': {}", err)))?;
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                return Err(runtime_err(
+                    "entrada inválida para 'ouvir': esperado inteiro bombom (u64), recebido vazio",
+                ));
+            }
+            let parsed = trimmed.parse::<u64>().map_err(|_| {
+                runtime_err(&format!(
+                    "entrada inválida para 'ouvir': '{}' não é bombom válido",
+                    trimmed
+                ))
+            })?;
+            Ok(Some(RuntimeValue::Int(parsed)))
+        }
+        _ => Ok(None),
+    }
 }
 
 fn find_function<'a>(

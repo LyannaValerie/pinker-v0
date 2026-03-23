@@ -304,6 +304,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura de teste ampliada com caso versionado dedicado da fase validando a recusa explícita de `sempre que`, mantendo as recusas explícitas já existentes de `talvez/senão` e 3+ parâmetros.
 - Fora de escopo explícito nesta fase: abertura de lowering de loops/branches/labels/saltos no backend externo, memória indireta/ponteiros, globais, parâmetros não `bombom`, ABI completa e abertura do Bloco 8.
 
+85 - entrada básica com `ouvir` em `--run`
+- Primeira fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Recorte mínimo implementado: intrínseca `ouvir()` no runtime interpretado (`--run`) com retorno `bombom` (u64) e aridade fixa zero.
+- Pipeline alinhada no recorte: semântica/IR/validações (IR, CFG IR e Machine) passaram a reconhecer `ouvir` como intrínseca válida sem declaração explícita de função.
+- Runtime passou a ler uma linha de `stdin`, interpretar como `bombom` e falhar com diagnóstico explícito em entrada inválida (incluindo entrada vazia).
+- Cobertura adicionada com exemplo versionado da fase (`examples/fase85_ouvir_bombom_valido.pink`) e testes automatizados para caso positivo e erro de parse em `--run`.
+- Fora de escopo explícito nesta fase: arquivo (`abrir`/`fechar`/`escrever`), `verso` operacional amplo, múltiplos tipos de entrada e backend externo para I/O.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

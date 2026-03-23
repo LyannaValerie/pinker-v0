@@ -15,6 +15,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     for f in &program.functions {
         sigs.insert(f.name.clone(), f.ret_type);
     }
+    sigs.insert("ouvir".to_string(), TypeIR::Bombom);
 
     for f in &program.functions {
         if f.blocks.is_empty() {

@@ -40,6 +40,13 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
             },
         );
     }
+    funcs.insert(
+        "ouvir".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![],
+        },
+    );
 
     for konst in &program.consts {
         let ty = infer_value_type(&konst.value, &HashMap::new(), &consts, &funcs, konst.span)

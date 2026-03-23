@@ -160,6 +160,23 @@ fn chamada_de_funcao_inexistente() {
 }
 
 #[test]
+fn ouvir_intrinseca_valida_sem_declaracao() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom { mimo ouvir(); }";
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn ouvir_intrinseca_rejeita_aridade_diferente_de_zero() {
+    let code = "
+        pacote main;
+        carinho principal() -> bombom { mimo ouvir(1); }";
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("chamada de 'ouvir' com aridade inválida"));
+}
+
+#[test]
 fn uso_de_funcao_sem_retorno_em_expressao() {
     let code = "
         pacote main;

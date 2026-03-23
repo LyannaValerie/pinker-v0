@@ -434,6 +434,13 @@ impl LoweringContext {
                 Item::TypeAlias(_) | Item::Struct(_) => {}
             }
         }
+        function_sigs.insert(
+            "ouvir".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
 
         Ok(Self {
             module_name,
