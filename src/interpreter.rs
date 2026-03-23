@@ -31,8 +31,13 @@ enum IntrinsicCall {
 }
 
 struct RuntimeIoState {
-    open_files: HashMap<u64, String>,
+    open_files: HashMap<u64, RuntimeOpenFile>,
     next_file_handle: u64,
+}
+
+struct RuntimeOpenFile {
+    path: String,
+    content: String,
 }
 
 #[derive(Debug, Clone)]
@@ -528,7 +533,13 @@ fn try_call_intrinsic(
             })?;
             let handle = io_state.next_file_handle;
             io_state.next_file_handle = io_state.next_file_handle.saturating_add(1);
-            io_state.open_files.insert(handle, content);
+            io_state.open_files.insert(
+                handle,
+                RuntimeOpenFile {
+                    path: path.clone(),
+                    content,
+                },
+            );
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(handle))))
         }
         "ler_arquivo" => {
@@ -540,10 +551,10 @@ fn try_call_intrinsic(
             let RuntimeValue::Int(handle) = args[0] else {
                 return Err(runtime_err("intrínseca 'ler_arquivo' exige handle bombom"));
             };
-            let Some(content) = io_state.open_files.get(&handle) else {
+            let Some(open_file) = io_state.open_files.get(&handle) else {
                 return Err(runtime_err("handle inválido em 'ler_arquivo'"));
             };
-            let trimmed = content.trim();
+            let trimmed = open_file.content.trim();
             if trimmed.is_empty() {
                 return Err(runtime_err(
                     "conteúdo inválido para 'ler_arquivo': esperado inteiro bombom (u64), recebido vazio",
@@ -556,6 +567,28 @@ fn try_call_intrinsic(
                 ))
             })?;
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(parsed))))
+        }
+        "escrever" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'escrever' exige 2 argumentos (handle, bombom)",
+                ));
+            }
+            let RuntimeValue::Int(handle) = args[0] else {
+                return Err(runtime_err("intrínseca 'escrever' exige handle bombom"));
+            };
+            let RuntimeValue::Int(value) = args[1] else {
+                return Err(runtime_err("intrínseca 'escrever' exige valor bombom"));
+            };
+            let Some(open_file) = io_state.open_files.get_mut(&handle) else {
+                return Err(runtime_err("handle inválido em 'escrever'"));
+            };
+            let next_content = value.to_string();
+            fs::write(&open_file.path, &next_content).map_err(|err| {
+                runtime_err(&format!("falha ao escrever arquivo em 'escrever': {}", err))
+            })?;
+            open_file.content = next_content;
+            Ok(IntrinsicCall::Done(None))
         }
         "fechar" => {
             if args.len() != 1 {

@@ -1651,6 +1651,62 @@ fn cli_run_arquivo_leitura_minima_funciona_com_exemplo_versionado() {
 }
 
 #[test]
+fn run_arquivo_escrita_minima_com_leitura_no_mesmo_handle() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase87_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+    fs::write(&file_path, "1\n").expect("falha ao criar arquivo temporário");
+
+    let file_path_literal = file_path.to_string_lossy().replace('\\', "\\\\");
+    let code = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{file_path_literal}");
+            escrever(h, 42);
+            nova v: bombom = ler_arquivo(h);
+            fechar(h);
+            mimo v;
+        }}
+    "#
+    );
+
+    let out = run_code(&code).expect("execução em --run deve funcionar");
+    assert_eq!(out, Some(RuntimeValue::Int(42)));
+
+    let persisted = fs::read_to_string(&file_path).expect("falha ao reler arquivo temporário");
+    let _ = fs::remove_file(&file_path);
+    assert_eq!(persisted, "42");
+}
+
+#[test]
+fn run_escrever_falha_com_handle_invalido() {
+    let err = run_code("pacote main; carinho principal() -> bombom { escrever(999, 1); mimo 0; }")
+        .unwrap_err();
+    assert!(
+        err.contains("handle inválido em 'escrever'"),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
+fn cli_run_arquivo_escrita_minima_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase87_arquivo_escrita_minima_valido.pink");
+    fs::write("examples/fase87_output_numero.txt", "1\n")
+        .expect("falha ao restaurar fixture da fase 87");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n0\n");
+}
+
+#[test]
 fn cli_run_abrir_arquivo_inexistente_falha_com_erro_claro() {
     let mut script_path = std::env::temp_dir();
     let unique = format!(

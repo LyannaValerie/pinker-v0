@@ -1330,6 +1330,44 @@ impl SemanticChecker {
             }
             return Ok(Type::Nulo(expr_span));
         }
+        if name == "escrever" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'escrever' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let handle_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(handle_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'escrever': esperado 'bombom', encontrado '{}'",
+                        handle_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let value_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(value_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'escrever': esperado 'bombom', encontrado '{}'",
+                        value_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
+        }
 
         let Some(function) = self.funcs.get(name).cloned() else {
             return Err(PinkerError::Semantic {

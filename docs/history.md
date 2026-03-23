@@ -320,6 +320,15 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado da fase (`examples/fase86_arquivo_leitura_minima_valido.pink`) e testes automatizados de sucesso e falha em `--run`.
 - Fora de escopo explícito nesta fase: `escrever`, múltiplos modos de abertura, streaming, diretórios, leitura textual ampla e `verso` operacional geral.
 
+87 - escrita mínima de arquivo com `escrever` em `--run`
+- Terceira fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Recorte mínimo implementado no runtime interpretado: `escrever(handle, bombom)` para sobrescrever o conteúdo do arquivo já aberto por `abrir("caminho")`, mantendo `ler_arquivo(handle)` e `fechar(handle)` no mesmo fluxo de handle.
+- Superfície escolhida nesta fase: **Opção A** (`abrir` retorna handle, `escrever` sem retorno, `fechar` explícito), preservando a API mínima anterior e evitando inflar status de subsistema de arquivos.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações passaram a reconhecer `escrever` como intrínseca sem declaração explícita de função.
+- Diagnósticos claros adicionados para uso incorreto de `escrever` (aridade, tipo de handle/valor, handle inválido e falha de escrita no arquivo).
+- Cobertura adicionada com exemplo versionado da fase (`examples/fase87_arquivo_escrita_minima_valido.pink`) e testes automatizados de sucesso/falha incluindo integração escrita+leitura.
+- Fora de escopo explícito nesta fase: append/modos de abertura, diretórios, streaming, escrita textual ampla e `verso` operacional geral.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

@@ -64,6 +64,13 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         "fechar".to_string(),
         (TypeIR::Nulo, vec![StackValueType::Bombom]),
     );
+    sigs.insert(
+        "escrever".to_string(),
+        (
+            TypeIR::Nulo,
+            vec![StackValueType::Bombom, StackValueType::Bombom],
+        ),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;

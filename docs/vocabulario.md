@@ -40,6 +40,7 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `falar`        | print / saída    | expressar para o mundo              |
 | `abrir`       | file open mínimo | abrir arquivo no subset de I/O      |
 | `fechar`      | file close mínimo| encerrar handle de arquivo com cuidado |
+| `escrever`    | file write mínimo| gravar `bombom` em arquivo aberto no subset de I/O |
 
 ---
 
@@ -131,7 +132,7 @@ Ao implementar, mover para a tabela de cima e riscar daqui.
 | ~~read / input~~ | ~~`ouvir`~~ | `escutar`            | implementado na Fase 85 como intrínseca `ouvir()` |
 | ~~file open~~        | ~~`abrir`~~     |                      | implementado na Fase 86 (`abrir("caminho")`)                 |
 | ~~file close~~       | ~~`fechar`~~    |                      | implementado na Fase 86 (`fechar(handle)`)                |
-| write to file    | `escrever`  | `registrar`          | deixar marca                        |
+| ~~write to file~~    | ~~`escrever`~~  | `registrar`          | implementado na Fase 87 (`escrever(handle, bombom)`) |
 
 ---
 

@@ -462,6 +462,13 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
+        function_sigs.insert(
+            "escrever".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
 
         Ok(Self {
             module_name,
