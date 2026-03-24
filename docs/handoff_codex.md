@@ -1,30 +1,36 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **HF-3 — estabilização do Bloco 8 (Fases 85–101): handles, I/O, caminho, texto**.
-- Rodada de estabilização/hotfix sem nova feature funcional, com foco em reproduzir bugs, corrigir diagnósticos de handle e ampliar cobertura de testes de borda.
+- **Fase 102 — truncamento mínimo de arquivo em `--run`**.
+- Rodada funcional pequena e auditável no Bloco 8, com dois subpassos acoplados: truncar por handle e validar explicitamente o pós-estado.
 
 ## 2. O que entrou na rodada atual
-- Correção de diagnóstico: uso de handle após `fechar` agora produz mensagem específica "handle já fechado" em vez de "handle inválido" genérico (5 intrínsecas afetadas: `ler_arquivo`, `ler_verso_arquivo`, `escrever`, `escrever_verso`, `fechar`).
-- Rastreio de handles fechados (`closed_handles: HashSet<u64>`) em `RuntimeIoState`.
-- Classificador de erros atualizado com categoria `handle_ja_fechado` e dica diagnóstica.
-- 11 testes novos de borda/estabilização no `interpreter_tests.rs`.
+- Nova intrínseca: `truncar_arquivo(handle) -> nulo` em `--run`, exigindo handle `bombom` aberto.
+- Semântica de runtime: truncamento zera o conteúdo persistido em disco e também o buffer associado ao handle aberto.
+- Integração explícita do pós-estado com superfícies já existentes:
+  - `tamanho_arquivo(verso)` reflete tamanho `0` após truncamento;
+  - `e_vazio(verso)` reflete `verdade` após truncamento;
+  - `ler_verso_arquivo(handle)` retorna `verso` vazio no mesmo fluxo.
+- Cobertura adicionada:
+  - testes semânticos para assinatura/tipagem da nova intrínseca;
+  - testes de runtime para caso positivo e negativos (handle inválido e handle já fechado);
+  - teste CLI com exemplo versionado da fase.
 
 ## 3. Fora de escopo da rodada atual
-- Nenhuma nova intrínseca, feature funcional ou modo de arquivo.
-- Redesign de runtime, pipeline ou gramática.
-- Expansão de superfície de I/O além do recorte Fase 101.
+- Sem truncamento por caminho.
+- Sem append, sem streaming e sem escrita por linha.
+- Sem novos modos de arquivo, sem redesign de runtime e sem biblioteca ampla de filesystem/texto.
 
 ## 4. Próximo item normal
 - Trilha ativa permanece: **Bloco 8 — I/O e ecossistema útil**.
-- Próximo item funcional sugerido: **manter refinamentos mínimos de tooling/I/O em `--run` preservando escopo pequeno e auditável**.
+- Próximo item sugerido: manter refinamentos mínimos e locais em `--run`, priorizando observabilidade e previsibilidade de I/O sem ampliar API.
 
 ## 5. Observações operacionais curtas
-- Última fase funcional concluída: **101**.
+- Fase funcional atual: **102**.
+- Fase funcional anterior: **101**.
 - Rodada documental mais recente preservada: **Doc-17**.
 - Rodada paralela concluída preservada: **Paralela-1** — negação bitwise dual (`~` + `nope`) + MCP mínimo (`src/bin/pinker_mcp.rs`).
-- Hotfix extraordinário mais recente: **HF-3 (Bloco 8, Fases 85–101)**.
-- Hotfixes históricos preservados: **HF-2 (Bloco 6, Fases 64–70)**, **HF-1 (Fase 48-H1)**.
+- Hotfix extraordinário mais recente preservado: **HF-3 (Bloco 8, Fases 85–101)**.
 
 ## 6. Precedência documental resumida
 - Código mergeado prevalece sobre documentação.

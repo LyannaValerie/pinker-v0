@@ -37,6 +37,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - refinamento mínimo de mutação de filesystem em `--run` com `criar_diretorio(verso) -> nulo` e `remover_arquivo(verso) -> nulo` (Fase 99)
 - refinamento mínimo complementar em `--run` com `remover_diretorio(verso) -> nulo` e leitura textual mínima `ler_verso_arquivo(handle) -> verso` (Fase 100)
 - escrita textual mínima em `--run` com `escrever_verso(handle, verso) -> nulo` e criação mínima de arquivo com `criar_arquivo(verso) -> bombom` (Fase 101)
+- truncamento mínimo de arquivo em `--run` com `truncar_arquivo(handle) -> nulo`, com observação explícita de pós-estado via `tamanho_arquivo`/`e_vazio` e releitura textual no mesmo handle (Fase 102)
 - comando de projeto `pink build <arquivo.pink>` para gerar artefato textual `.s` em disco (padrão: `build/<arquivo>.s`)
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
@@ -74,6 +75,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - leitura de arquivo além do recorte mínimo da Fase 86 (apenas conteúdo inteiro `bombom` via `ler_arquivo`)
 - leitura textual de arquivo além do recorte mínimo da Fase 100 (`ler_verso_arquivo` retorna conteúdo completo do handle, sem streaming/append/encoding avançado)
 - escrita textual além do recorte mínimo da Fase 101 (`escrever_verso` sobrescreve conteúdo inteiro do handle, sem append/streaming/escrita por linha)
+- truncamento além do recorte mínimo da Fase 102 (sem truncamento por caminho, sem append, sem streaming e sem modos ricos de arquivo)
 - formatação avançada de saída
 - freestanding/no-std operacional real (`livre;` é marca semântica de intenção, não runtime bare-metal executável)
 
@@ -151,6 +153,7 @@ echo 7 > /tmp/pinker_fase99_temp.txt
 cargo run --bin pink -- --run examples/fase99_refinamento_diretorio_arquivo_minimo_valido.pink -- fase99_saida_local /tmp/pinker_fase99_temp.txt
 cargo run --bin pink -- --run examples/fase100_refinamento_diretorio_texto_minimo_valido.pink -- fase100_saida_local README.md
 cargo run --bin pink -- --run examples/fase101_escrita_textual_minima_arquivo_valido.pink -- /tmp fase101_saida.txt "texto fase101"
+cargo run --bin pink -- --run examples/fase102_truncamento_minimo_arquivo_valido.pink -- /tmp fase102_saida.txt
 cargo run --bin pink -- --asm-s examples/fase73_backend_externo_locais_aritmetica_valido.pink
 cargo run --bin pink -- --check examples/fase74_backend_externo_call_minimo_valido.pink
 cargo run --bin pink -- --asm-s examples/fase75_backend_externo_frame_registradores_valido.pink
@@ -214,7 +217,7 @@ cargo run --bin pink -- build --out-dir saida examples/fase60_modulos_valido.pin
 - `--machine`: alvo textual abstrato de máquina de pilha (`vm` + `term`)
 - `--pseudo-asm`: backend textual normalizado final (`ins`/`term`)
 - `--asm-s`: backend textual `.s` com ABI textual mínima interna (derivado de `--selected`, sem ABI/registradores finais de plataforma)
-- `--run`: interpreta a Machine validada e executa `principal` (suporta `-- <args...>` para repasse posicional de argv em `argumento`, `tem_argumento`, `quantos_argumentos` e `argumento_ou`; inclui também leitura mínima de ambiente com `ambiente_ou`, diretório atual via `diretorio_atual`, introspecção/composição mínima de caminho com `caminho_existe`/`e_arquivo`/`e_diretorio`/`juntar_caminho`, metadados mínimos de arquivo com `tamanho_arquivo`/`e_vazio`, leitura textual mínima via `ler_verso_arquivo(handle)`, escrita textual mínima via `escrever_verso(handle, verso)`/`criar_arquivo(verso)` e mutação mínima controlada com `criar_diretorio`/`remover_arquivo`/`remover_diretorio`)
+- `--run`: interpreta a Machine validada e executa `principal` (suporta `-- <args...>` para repasse posicional de argv em `argumento`, `tem_argumento`, `quantos_argumentos` e `argumento_ou`; inclui também leitura mínima de ambiente com `ambiente_ou`, diretório atual via `diretorio_atual`, introspecção/composição mínima de caminho com `caminho_existe`/`e_arquivo`/`e_diretorio`/`juntar_caminho`, metadados mínimos de arquivo com `tamanho_arquivo`/`e_vazio`, leitura textual mínima via `ler_verso_arquivo(handle)`, escrita textual mínima via `escrever_verso(handle, verso)`/`criar_arquivo(verso)`, truncamento mínimo via `truncar_arquivo(handle)` e mutação mínima controlada com `criar_diretorio`/`remover_arquivo`/`remover_diretorio`)
 
 ## Pipeline de backend textual
 `--pseudo-asm` executa:

@@ -59,6 +59,7 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `ler_verso_arquivo` | leitura textual mínima de arquivo | ler conteúdo textual completo de handle aberto em `--run` |
 | `criar_arquivo` | criação mínima de arquivo | criar arquivo vazio e retornar handle em `--run` |
 | `escrever_verso` | escrita textual mínima de arquivo | sobrescrever conteúdo completo com `verso` em handle aberto no `--run` |
+| `truncar_arquivo` | truncamento mínimo de arquivo | truncar para vazio um arquivo por handle aberto no `--run` |
 | `sair`        | status de saída mínimo | encerrar script com código explícito |
 | `nope`        | bitwise NOT textual    | negação bitwise em forma Pinker (equivale a `~`) |
 
@@ -117,6 +118,10 @@ Nota de status operacional:
   - `escrever_verso(bombom, verso) -> nulo` para sobrescrever conteúdo textual completo no handle aberto;
   - `criar_arquivo(verso) -> bombom` para criar arquivo vazio e já devolver handle utilizável no fluxo mínimo;
   - sem append, sem streaming, sem escrita por linha, sem encoding sofisticado e sem API textual ampla de arquivo.
+- Fase 102 (truncamento mínimo em `--run`):
+  - `truncar_arquivo(bombom) -> nulo` para truncar o arquivo associado ao handle aberto;
+  - pós-estado observável no recorte mínimo existente com `tamanho_arquivo(verso)`, `e_vazio(verso)` e `ler_verso_arquivo(bombom)`;
+  - sem truncamento por caminho, sem append/streaming e sem modos ricos de arquivo.
 - Fora do subset textual atual: slicing, indexação negativa e formatação/interpolação.
 
 ---

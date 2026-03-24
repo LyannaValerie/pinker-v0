@@ -209,6 +209,13 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "truncar_arquivo".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
         "juntar_verso".to_string(),
         FunctionSig {
             ret_type: TypeIR::Verso,

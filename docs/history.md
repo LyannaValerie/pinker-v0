@@ -444,6 +444,15 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado (`examples/fase101_escrita_textual_minima_arquivo_valido.pink`) e testes automatizados de semântica/`--run`/CLI para escrita positiva, releitura positiva, negativo de handle inválido e integração com `argumento_ou`/`juntar_caminho`.
 - Fora de escopo explícito nesta fase: append, streaming, escrita por linha, encoding sofisticado, rename/move/cópia, listagem de diretórios e biblioteca ampla de filesystem/texto.
 
+102 - truncamento mínimo de arquivo em `--run`
+- Décima oitava fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfície escolhida: `truncar_arquivo(handle) -> nulo` para truncamento mínimo por handle já aberto, sem abrir superfície paralela por caminho.
+- Semântica operacional desta fase: `truncar_arquivo` exige handle `bombom` válido e aberto; em sucesso, zera o conteúdo do arquivo e do buffer em runtime para manter consistência imediata no mesmo handle.
+- Integração explícita do pós-estado: validação mínima acoplada via `tamanho_arquivo(verso) -> bombom` e `e_vazio(verso) -> logica`, com releitura textual mínima por `ler_verso_arquivo(handle)` retornando `verso` vazio após truncamento.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram `truncar_arquivo` sem declaração explícita de função.
+- Cobertura adicionada com exemplo versionado (`examples/fase102_truncamento_minimo_arquivo_valido.pink`) e testes automatizados de semântica/`--run`/CLI para caso positivo, pós-estado explícito (`tamanho_arquivo` + `e_vazio` + releitura) e negativos de handle inválido/já fechado.
+- Fora de escopo explícito nesta fase: truncamento por caminho, append, streaming, escrita por linha, modos ricos de abertura, rename/move/cópia, listagem de diretórios e biblioteca ampla de filesystem/texto.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

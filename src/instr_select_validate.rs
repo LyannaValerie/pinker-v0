@@ -39,6 +39,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("criar_arquivo".to_string(), TypeIR::Bombom);
     sigs.insert("escrever".to_string(), TypeIR::Nulo);
     sigs.insert("escrever_verso".to_string(), TypeIR::Nulo);
+    sigs.insert("truncar_arquivo".to_string(), TypeIR::Nulo);
     sigs.insert("juntar_verso".to_string(), TypeIR::Verso);
     sigs.insert("tamanho_verso".to_string(), TypeIR::Bombom);
     sigs.insert("indice_verso".to_string(), TypeIR::Verso);
