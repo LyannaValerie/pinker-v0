@@ -2405,6 +2405,146 @@ fn run_remover_arquivo_intrinseca_falha_para_diretorio() {
 }
 
 #[test]
+fn run_remover_diretorio_intrinseca_remove_diretorio_vazio() {
+    let mut dir_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase100_rm_dir_ok_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    dir_path.push(unique);
+    std::fs::create_dir(&dir_path).expect("falha ao criar diretório temporário");
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            remover_diretorio("{}");
+            talvez caminho_existe("{}") {{
+                mimo 0;
+            }} senao {{
+                mimo 1;
+            }}
+        }}"#,
+        dir_path.to_string_lossy().replace('\\', "\\\\"),
+        dir_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_remover_diretorio_intrinseca_falha_para_diretorio_nao_vazio() {
+    let mut dir_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase100_rm_dir_fail_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    dir_path.push(unique);
+    std::fs::create_dir(&dir_path).expect("falha ao criar diretório temporário");
+    let child_path = dir_path.join("conteudo.txt");
+    std::fs::write(&child_path, "conteudo").expect("falha ao criar arquivo no diretório");
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            remover_diretorio("{}");
+            mimo 0;
+        }}"#,
+        dir_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let err = run_code(&source).unwrap_err().to_string();
+    assert!(err.contains("falha ao remover diretório em 'remover_diretorio'"));
+    let _ = std::fs::remove_file(&child_path);
+    let _ = std::fs::remove_dir(&dir_path);
+}
+
+#[test]
+fn run_ler_verso_arquivo_intrinseca_retorna_texto_completo() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase100_ler_verso_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+    std::fs::write(&file_path, "linha 1\nlinha 2\n").expect("falha ao criar arquivo temporário");
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{}");
+            nova t: verso = ler_verso_arquivo(h);
+            fechar(h);
+            falar(t);
+            mimo tamanho_verso(t);
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(16)));
+    let _ = std::fs::remove_file(&file_path);
+}
+
+#[test]
+fn run_remover_diretorio_e_ler_verso_arquivo_integram_com_argumento_ou_e_juntar_caminho() {
+    let mut base_dir = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase100_integrado_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    base_dir.push(unique);
+    std::fs::create_dir(&base_dir).expect("falha ao criar base temporária");
+    let file_path = base_dir.join("entrada.txt");
+    std::fs::write(&file_path, "pinker").expect("falha ao criar arquivo temporário");
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            nova base: verso = "{}";
+            nova nome_dir: verso = argumento_ou(0, "saida");
+            nova nome_arquivo: verso = argumento_ou(1, "entrada.txt");
+            nova alvo_dir: verso = juntar_caminho(base, nome_dir);
+            nova alvo_arquivo: verso = juntar_caminho(base, nome_arquivo);
+            criar_diretorio(alvo_dir);
+            nova h: bombom = abrir(alvo_arquivo);
+            nova t: verso = ler_verso_arquivo(h);
+            fechar(h);
+            remover_diretorio(alvo_dir);
+            falar(tamanho_verso(t), caminho_existe(alvo_dir), e_diretorio(alvo_dir));
+            talvez tamanho_verso(t) > 0 {{
+                talvez caminho_existe(alvo_dir) {{
+                    mimo 0;
+                }} senao {{
+                    mimo 1;
+                }}
+            }} senao {{
+                mimo 0;
+            }}
+        }}"#,
+        base_dir.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+    let _ = std::fs::remove_file(&file_path);
+    let _ = std::fs::remove_dir(base_dir.join("saida"));
+    let _ = std::fs::remove_dir(&base_dir);
+}
+
+#[test]
 fn run_criar_diretorio_e_remover_arquivo_integram_com_argumento_ou_e_juntar_caminho() {
     let mut base_dir = std::env::temp_dir();
     let unique = format!(
@@ -2555,6 +2695,24 @@ fn cli_run_refinamento_diretorio_arquivo_fase99_funciona_com_exemplo_versionado(
     );
     let _ = std::fs::remove_dir(std::env::current_dir().unwrap().join(unique_dir));
     let _ = std::fs::remove_file(file_path);
+}
+
+#[test]
+fn cli_run_refinamento_diretorio_texto_fase100_funciona_com_exemplo_versionado() {
+    let output = run_cli_example_with_args(
+        "examples/fase100_refinamento_diretorio_texto_minimo_valido.pink",
+        &["fase100_saida_teste", "README.md"],
+    );
+    assert!(output.status.success(), "status={:?}", output.status);
+    let cwd = std::env::current_dir().expect("cwd indisponível");
+    let dir_path = cwd.join("fase100_saida_teste");
+    assert!(
+        !dir_path.exists(),
+        "diretório temporário deveria ter sido removido"
+    );
+    if dir_path.exists() {
+        let _ = std::fs::remove_dir(&dir_path);
+    }
 }
 
 #[test]

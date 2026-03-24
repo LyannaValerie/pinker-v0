@@ -27,12 +27,14 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("e_vazio".to_string(), TypeIR::Logica);
     sigs.insert("criar_diretorio".to_string(), TypeIR::Nulo);
     sigs.insert("remover_arquivo".to_string(), TypeIR::Nulo);
+    sigs.insert("remover_diretorio".to_string(), TypeIR::Nulo);
     sigs.insert("diretorio_atual".to_string(), TypeIR::Verso);
     sigs.insert("quantos_argumentos".to_string(), TypeIR::Bombom);
     sigs.insert("tem_argumento".to_string(), TypeIR::Logica);
     sigs.insert("sair".to_string(), TypeIR::Nulo);
     sigs.insert("abrir".to_string(), TypeIR::Bombom);
     sigs.insert("ler_arquivo".to_string(), TypeIR::Bombom);
+    sigs.insert("ler_verso_arquivo".to_string(), TypeIR::Verso);
     sigs.insert("fechar".to_string(), TypeIR::Nulo);
     sigs.insert("escrever".to_string(), TypeIR::Nulo);
     sigs.insert("juntar_verso".to_string(), TypeIR::Verso);

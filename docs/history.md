@@ -428,6 +428,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado (`examples/fase99_refinamento_diretorio_arquivo_minimo_valido.pink`) e testes automatizados de semântica/`--run`/CLI para caso positivo de criação, caso positivo de remoção, caso negativo de tipo/caminho e integração com `argumento_ou`/`juntar_caminho`/`caminho_existe`/`e_arquivo`/`e_diretorio`.
 - Fora de escopo explícito nesta fase: criação recursiva (`create_dir_all`), remoção de diretório, rename/move/cópia, listagem de diretórios, globbing e biblioteca ampla de filesystem.
 
+100 - remoção mínima complementar de diretório + leitura textual mínima de arquivo em `--run`
+- Décima sexta fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfícies escolhidas: `remover_diretorio(verso) -> nulo` para remoção mínima de diretório vazio e `ler_verso_arquivo(handle) -> verso` para leitura textual mínima do conteúdo completo de handle aberto via `abrir(...)`.
+- Semântica operacional desta fase: `remover_diretorio` usa remoção não-recursiva (`remove_dir`) e falha para diretório não-vazio/caminho inválido; `ler_verso_arquivo` reutiliza handle existente e retorna `verso` integral sem streaming/append.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram as duas intrínsecas sem declaração explícita de função.
+- Cobertura adicionada com exemplo versionado (`examples/fase100_refinamento_diretorio_texto_minimo_valido.pink`) e testes automatizados de semântica/`--run`/CLI para remoção positiva de diretório vazio, negativo de diretório não-vazio, leitura textual positiva e integração com `argumento_ou`/`juntar_caminho`.
+- Fora de escopo explícito nesta fase: remoção recursiva, rename/move/cópia, listagem de diretórios, leitura incremental/streaming, append, encoding sofisticado e biblioteca ampla de filesystem/texto.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

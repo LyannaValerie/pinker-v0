@@ -1,0 +1,30 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova base: verso = diretorio_atual();
+    nova nome_dir: verso = argumento_ou(0, "fase100_saida");
+    nova nome_arquivo: verso = argumento_ou(1, "README.md");
+
+    nova alvo_dir: verso = juntar_caminho(base, nome_dir);
+    nova alvo_arquivo: verso = juntar_caminho(base, nome_arquivo);
+
+    nova h: bombom = abrir(alvo_arquivo);
+    nova texto: verso = ler_verso_arquivo(h);
+    fechar(h);
+
+    falar(tamanho_verso(texto));
+
+    criar_diretorio(alvo_dir);
+    remover_diretorio(alvo_dir);
+    falar(caminho_existe(alvo_dir), e_diretorio(alvo_dir));
+
+    talvez caminho_existe(alvo_dir) {
+        mimo 0;
+    } senao {
+        talvez tamanho_verso(texto) > 0 {
+            mimo 1;
+        } senao {
+            mimo 0;
+        }
+    }
+}

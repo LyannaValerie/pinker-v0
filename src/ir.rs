@@ -525,6 +525,13 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "remover_diretorio".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "diretorio_atual".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Verso,
@@ -563,6 +570,13 @@ impl LoweringContext {
             "ler_arquivo".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "ler_verso_arquivo".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
                 ret_struct_name: None,
             },
         );

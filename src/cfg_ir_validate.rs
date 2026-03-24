@@ -130,6 +130,13 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "remover_diretorio".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
         "diretorio_atual".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
@@ -168,6 +175,13 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         "ler_arquivo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "ler_verso_arquivo".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
             params: vec![TypeIR::Bombom],
         },
     );
