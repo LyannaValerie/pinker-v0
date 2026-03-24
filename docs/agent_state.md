@@ -24,15 +24,15 @@
 - Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
 
 ## 5. Estado corrente
-- Fase funcional atual: **98 — refinamento mínimo de arquivo em `--run` (`tamanho_arquivo` + `e_vazio`)**.
+- Fase funcional atual: **99 — refinamento mínimo de mutação de filesystem em `--run` (`criar_diretorio` + `remover_arquivo`)**.
 - Rodada documental mais recente: **Doc-17 — alinhamento documental/operacional pós-Paralela-1 (binários + MCP)**.
-- Fase funcional anterior: **97 — refinamento mínimo de caminho em `--run` (`e_diretorio` + `juntar_caminho`)**.
+- Fase funcional anterior: **98 — refinamento mínimo de arquivo em `--run` (`tamanho_arquivo` + `e_vazio`)**.
 - Bloco concluído: **Bloco 6 — Memória operacional** (Fases 64–72 entregues).
 - Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
 - Bloco 7: **suficientemente consolidado para transição**, sem declaração de completude absoluta.
-- Próximo passo funcional sugerido: **seguir refinamentos mínimos de tooling/I/O em `--run` no Bloco 8 com recorte pequeno e auditável (ex.: classificação complementar de arquivo sem abrir API ampla de filesystem/metadados)**.
+- Próximo passo funcional sugerido: **seguir refinamentos mínimos de tooling/I/O em `--run` no Bloco 8 com recorte pequeno e auditável (ex.: operações pontuais adicionais sem abrir API ampla de filesystem/processos)**.
 - Eixo `--asm-s`/backend externo permanece em subset linear auditável (Fases 73–84), mapeado nesta rodada sem abertura de lowering novo.
-- Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 98).
+- Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 99).
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
 - Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
 

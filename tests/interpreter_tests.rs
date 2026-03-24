@@ -2316,6 +2316,140 @@ fn run_tamanho_arquivo_e_e_vazio_integram_com_argumento_ou_e_juntar_caminho() {
 }
 
 #[test]
+fn run_criar_diretorio_intrinseca_cria_diretorio_simples() {
+    let mut dir_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase99_dir_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    dir_path.push(unique);
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            criar_diretorio("{}");
+            talvez e_diretorio("{}") {{
+                mimo 1;
+            }} senao {{
+                mimo 0;
+            }}
+        }}"#,
+        dir_path.to_string_lossy().replace('\\', "\\\\"),
+        dir_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+    let _ = std::fs::remove_dir(&dir_path);
+}
+
+#[test]
+fn run_remover_arquivo_intrinseca_remove_arquivo_simples() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase99_rm_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+    std::fs::write(&file_path, "42").expect("falha ao criar arquivo temporário");
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            remover_arquivo("{}");
+            talvez caminho_existe("{}") {{
+                mimo 0;
+            }} senao {{
+                mimo 1;
+            }}
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\"),
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_remover_arquivo_intrinseca_falha_para_diretorio() {
+    let mut dir_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase99_rm_dir_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    dir_path.push(unique);
+    std::fs::create_dir(&dir_path).expect("falha ao criar diretório temporário");
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            remover_arquivo("{}");
+            mimo 0;
+        }}"#,
+        dir_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let err = run_code(&source).unwrap_err().to_string();
+    assert!(err.contains("falha ao remover arquivo em 'remover_arquivo'"));
+    let _ = std::fs::remove_dir(&dir_path);
+}
+
+#[test]
+fn run_criar_diretorio_e_remover_arquivo_integram_com_argumento_ou_e_juntar_caminho() {
+    let mut base_dir = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase99_integrado_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    base_dir.push(unique);
+    std::fs::create_dir(&base_dir).expect("falha ao criar base temporária");
+    let file_path = base_dir.join("temp.txt");
+    std::fs::write(&file_path, "99").expect("falha ao criar arquivo temporário");
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            nova base: verso = "{}";
+            nova nome_dir: verso = argumento_ou(0, "saida");
+            nova alvo_dir: verso = juntar_caminho(base, nome_dir);
+            criar_diretorio(alvo_dir);
+            nova arquivo: verso = juntar_caminho(base, "temp.txt");
+            remover_arquivo(arquivo);
+            falar(caminho_existe(alvo_dir), e_diretorio(alvo_dir), caminho_existe(arquivo), e_arquivo(arquivo));
+            talvez e_diretorio(alvo_dir) {{
+                talvez caminho_existe(arquivo) {{
+                    mimo 0;
+                }} senao {{
+                    mimo 1;
+                }}
+            }} senao {{
+                mimo 0;
+            }}
+        }}"#,
+        base_dir.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+    let _ = std::fs::remove_dir(base_dir.join("saida"));
+    let _ = std::fs::remove_file(&file_path);
+    let _ = std::fs::remove_dir(&base_dir);
+}
+
+#[test]
 fn run_ambiente_ou_intrinseca_usa_fallback_sem_env() {
     let output = run_cli_example_with_env_and_cwd(
         "examples/fase95_ambiente_processo_minimo_valido.pink",
@@ -2387,6 +2521,40 @@ fn cli_run_refinamento_arquivo_fase98_funciona_com_exemplo_versionado() {
         String::from_utf8_lossy(&out.stdout),
         "verdade\nverdade\nfalso\n1\n"
     );
+}
+
+#[test]
+fn cli_run_refinamento_diretorio_arquivo_fase99_funciona_com_exemplo_versionado() {
+    let unique_dir = format!(
+        "fase99_saida_cli_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    let mut file_path = std::env::temp_dir();
+    file_path.push(format!(
+        "pinker_fase99_cli_rm_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    ));
+    std::fs::write(&file_path, "7").expect("falha ao criar arquivo para o exemplo Fase 99");
+    let file_arg = file_path.to_string_lossy().to_string();
+    let out = run_cli_example_with_args(
+        "examples/fase99_refinamento_diretorio_arquivo_minimo_valido.pink",
+        &[&unique_dir, &file_arg],
+    );
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "verdade\nverdade\nfalso\n1\n"
+    );
+    let _ = std::fs::remove_dir(std::env::current_dir().unwrap().join(unique_dir));
+    let _ = std::fs::remove_file(file_path);
 }
 
 #[test]

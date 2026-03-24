@@ -97,6 +97,14 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         "e_vazio".to_string(),
         (TypeIR::Logica, vec![StackValueType::Verso]),
     );
+    sigs.insert(
+        "criar_diretorio".to_string(),
+        (TypeIR::Nulo, vec![StackValueType::Verso]),
+    );
+    sigs.insert(
+        "remover_arquivo".to_string(),
+        (TypeIR::Nulo, vec![StackValueType::Verso]),
+    );
     sigs.insert("diretorio_atual".to_string(), (TypeIR::Verso, vec![]));
     sigs.insert("quantos_argumentos".to_string(), (TypeIR::Bombom, vec![]));
     sigs.insert(

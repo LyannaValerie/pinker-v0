@@ -341,6 +341,52 @@ fn e_vazio_intrinseca_rejeita_argumento_nao_verso() {
 }
 
 #[test]
+fn criar_diretorio_intrinseca_valida_sem_declaracao() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            criar_diretorio("saida");
+            mimo 0;
+        }"#;
+    assert!(parse_and_check(source).is_ok());
+}
+
+#[test]
+fn criar_diretorio_intrinseca_rejeita_argumento_nao_verso() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            criar_diretorio(1);
+            mimo 0;
+        }"#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'criar_diretorio'"));
+}
+
+#[test]
+fn remover_arquivo_intrinseca_valida_sem_declaracao() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            remover_arquivo("temp.txt");
+            mimo 0;
+        }"#;
+    assert!(parse_and_check(source).is_ok());
+}
+
+#[test]
+fn remover_arquivo_intrinseca_rejeita_argumento_nao_verso() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            remover_arquivo(1);
+            mimo 0;
+        }"#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'remover_arquivo'"));
+}
+
+#[test]
 fn diretorio_atual_intrinseca_valida_sem_declaracao() {
     let source = r#"
         pacote main;

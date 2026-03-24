@@ -420,6 +420,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado (`examples/fase98_refinamento_arquivo_minimo_valido.pink`) e testes automatizados de semântica/`--run`/CLI para tamanho positivo, vazio positivo, negativo de caminho ausente e integração com `argumento_ou`/`juntar_caminho`.
 - Fora de escopo explícito nesta fase: timestamps, permissões, ownership, criação/remoção de arquivo, listagem de diretórios, leitura incremental, metadados ricos e biblioteca ampla de filesystem.
 
+99 - refinamento mínimo de mutação de filesystem em `--run`
+- Décima quinta fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfícies escolhidas: `criar_diretorio(verso) -> nulo` para criação mínima de diretório simples e `remover_arquivo(verso) -> nulo` para remoção mínima de arquivo simples.
+- Semântica operacional desta fase: ambas as intrínsecas exigem caminho em `verso`; `criar_diretorio` usa criação não recursiva e falha em caminho inválido/existente; `remover_arquivo` remove apenas arquivo e falha para diretório/ausência.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram as duas intrínsecas sem declaração explícita de função.
+- Cobertura adicionada com exemplo versionado (`examples/fase99_refinamento_diretorio_arquivo_minimo_valido.pink`) e testes automatizados de semântica/`--run`/CLI para caso positivo de criação, caso positivo de remoção, caso negativo de tipo/caminho e integração com `argumento_ou`/`juntar_caminho`/`caminho_existe`/`e_arquivo`/`e_diretorio`.
+- Fora de escopo explícito nesta fase: criação recursiva (`create_dir_all`), remoção de diretório, rename/move/cópia, listagem de diretórios, globbing e biblioteca ampla de filesystem.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
