@@ -872,6 +872,44 @@ fn try_call_intrinsic(
                 metadata.len() == 0,
             ))))
         }
+        "criar_diretorio" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'criar_diretorio' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(path) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'criar_diretorio' exige caminho em verso",
+                ));
+            };
+            fs::create_dir(path).map_err(|err| {
+                runtime_err(&format!(
+                    "falha ao criar diretório em 'criar_diretorio': {}",
+                    err
+                ))
+            })?;
+            Ok(IntrinsicCall::Done(None))
+        }
+        "remover_arquivo" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'remover_arquivo' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(path) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'remover_arquivo' exige caminho em verso",
+                ));
+            };
+            fs::remove_file(path).map_err(|err| {
+                runtime_err(&format!(
+                    "falha ao remover arquivo em 'remover_arquivo': {}",
+                    err
+                ))
+            })?;
+            Ok(IntrinsicCall::Done(None))
+        }
         "diretorio_atual" => {
             if !args.is_empty() {
                 return Err(runtime_err(

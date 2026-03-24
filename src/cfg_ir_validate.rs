@@ -116,6 +116,20 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "criar_diretorio".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
+        "remover_arquivo".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
         "diretorio_atual".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,

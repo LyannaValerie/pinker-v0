@@ -1,0 +1,27 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova base: verso = diretorio_atual();
+    nova nome_dir: verso = argumento_ou(0, "fase99_saida");
+    nova dir: verso = juntar_caminho(base, nome_dir);
+    criar_diretorio(dir);
+
+    nova arquivo: verso = argumento_ou(1, juntar_caminho(base, "__fase99_arquivo_para_remover__.txt"));
+
+    remover_arquivo(arquivo);
+
+    falar(caminho_existe(dir));
+    falar(e_diretorio(dir));
+    falar(caminho_existe(arquivo));
+
+    talvez e_diretorio(dir) {
+        talvez caminho_existe(arquivo) {
+            remover_arquivo(arquivo);
+            mimo 0;
+        } senao {
+            mimo 1;
+        }
+    } senao {
+        mimo 0;
+    }
+}

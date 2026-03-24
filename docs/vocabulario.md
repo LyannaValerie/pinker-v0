@@ -53,6 +53,8 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `juntar_caminho` | composição mínima de caminho | juntar base+trecho de caminho no `--run` sem API rica |
 | `tamanho_arquivo` | metadado mínimo de tamanho | obter o tamanho de arquivo regular em `--run` |
 | `e_vazio` | teste mínimo de vazio | verificar se arquivo regular está vazio em `--run` |
+| `criar_diretorio` | criação mínima de diretório | criar diretório simples (não recursivo) em `--run` |
+| `remover_arquivo` | remoção mínima de arquivo | remover arquivo simples em `--run` (não remove diretório) |
 | `sair`        | status de saída mínimo | encerrar script com código explícito |
 | `nope`        | bitwise NOT textual    | negação bitwise em forma Pinker (equivale a `~`) |
 
@@ -99,6 +101,10 @@ Nota de status operacional:
   - `tamanho_arquivo(verso) -> bombom` para tamanho mínimo de arquivo regular;
   - `e_vazio(verso) -> logica` para teste mínimo de vazio em arquivo regular;
   - sem timestamps/permissões/ownership, sem criação/remoção e sem biblioteca ampla de metadados/filesystem.
+- Fase 99 (refinamento mínimo de mutação de filesystem em `--run`):
+  - `criar_diretorio(verso) -> nulo` para criação simples de diretório (não recursiva);
+  - `remover_arquivo(verso) -> nulo` para remoção simples de arquivo (não remove diretórios);
+  - sem `create_dir_all`, sem remoção de diretório, sem rename/move/cópia e sem biblioteca ampla de filesystem.
 - Fora do subset textual atual: slicing, indexação negativa e formatação/interpolação.
 
 ---

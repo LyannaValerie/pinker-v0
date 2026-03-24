@@ -1531,6 +1531,56 @@ impl SemanticChecker {
             }
             return Ok(Type::Logica(expr_span));
         }
+        if name == "criar_diretorio" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'criar_diretorio' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let path_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(path_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'criar_diretorio': esperado 'verso', encontrado '{}'",
+                        path_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
+        }
+        if name == "remover_arquivo" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'remover_arquivo' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let path_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(path_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'remover_arquivo': esperado 'verso', encontrado '{}'",
+                        path_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
+        }
         if name == "diretorio_atual" {
             if !args.is_empty() {
                 return Err(PinkerError::Semantic {

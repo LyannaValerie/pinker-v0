@@ -511,6 +511,20 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "criar_diretorio".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "remover_arquivo".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "diretorio_atual".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Verso,
