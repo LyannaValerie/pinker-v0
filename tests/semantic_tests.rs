@@ -387,6 +387,29 @@ fn remover_arquivo_intrinseca_rejeita_argumento_nao_verso() {
 }
 
 #[test]
+fn remover_diretorio_intrinseca_valida_sem_declaracao() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            remover_diretorio("saida");
+            mimo 0;
+        }"#;
+    assert!(parse_and_check(source).is_ok());
+}
+
+#[test]
+fn remover_diretorio_intrinseca_rejeita_argumento_nao_verso() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            remover_diretorio(1);
+            mimo 0;
+        }"#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'remover_diretorio'"));
+}
+
+#[test]
 fn diretorio_atual_intrinseca_valida_sem_declaracao() {
     let source = r#"
         pacote main;
@@ -467,6 +490,28 @@ fn abrir_ler_fechar_intrinsecas_validas_sem_declaracao() {
             mimo v;
         }"#;
     assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn ler_verso_arquivo_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova h: bombom = abrir("arquivo.txt");
+            nova t: verso = ler_verso_arquivo(h);
+            fechar(h);
+            mimo tamanho_verso(t);
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn ler_verso_arquivo_intrinseca_rejeita_argumento_nao_bombom() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo tamanho_verso(ler_verso_arquivo("arquivo.txt")); }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'ler_verso_arquivo'"));
 }
 
 #[test]

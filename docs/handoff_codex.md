@@ -1,18 +1,19 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 99 — refinamento mínimo de mutação de filesystem em `--run` (`criar_diretorio` + `remover_arquivo`)**.
-- Rodada funcional curta do Bloco 8 com foco em mutação mínima controlada de filesystem sem abrir API ampla.
+- **Fase 100 — remoção mínima complementar de diretório + leitura textual mínima de arquivo em `--run` (`remover_diretorio` + `ler_verso_arquivo`)**.
+- Rodada funcional curta do Bloco 8 com foco em complemento mínimo de mutação de diretório e leitura textual simples sem abrir API ampla.
 
 ## 2. O que entrou na rodada atual
-- Intrínseca `criar_diretorio(verso) -> nulo` adicionada ao pipeline completo (semântica, IR, validações, runtime `--run`) para criação simples de diretório (não recursiva).
-- Intrínseca `remover_arquivo(verso) -> nulo` adicionada no mesmo recorte mínimo para remoção simples de arquivo.
-- Exemplo versionado novo: `examples/fase99_refinamento_diretorio_arquivo_minimo_valido.pink`.
-- Cobertura de testes ampliada em semântica e `--run`/CLI para: criação positiva, remoção positiva, negativo de tipo/caminho inadequado e integração com `argumento_ou`/`juntar_caminho`/`caminho_existe`/`e_arquivo`/`e_diretorio`/`falar`.
+- Intrínseca `remover_diretorio(verso) -> nulo` adicionada ao pipeline completo (semântica, IR, validações, runtime `--run`) para remoção simples de diretório vazio (não recursiva).
+- Intrínseca `ler_verso_arquivo(handle) -> verso` adicionada no mesmo recorte mínimo para leitura textual integral de arquivo já aberto com `abrir(...)`.
+- Exemplo versionado novo: `examples/fase100_refinamento_diretorio_texto_minimo_valido.pink`.
+- Cobertura de testes ampliada em semântica e `--run`/CLI para: remoção positiva de diretório vazio, negativo de diretório não-vazio, leitura textual positiva e integração com `argumento_ou`/`juntar_caminho`/`caminho_existe`/`e_diretorio`/`falar`.
 
 ## 3. Fora de escopo da rodada atual
-- timestamps/permissões/ownership, criação recursiva, remoção de diretório, rename/move/cópia e listagem de diretórios.
+- timestamps/permissões/ownership, criação recursiva, remoção recursiva, rename/move/cópia e listagem de diretórios.
 - Processos externos ou biblioteca ampla de filesystem/metadados.
+- streaming, append e API textual rica de arquivo.
 - Redesign de runtime ou expansão de gramática.
 
 ## 4. Próximo item normal
@@ -20,7 +21,7 @@
 - Próximo item funcional sugerido: **manter refinamentos mínimos de tooling/I/O em `--run` preservando escopo pequeno e auditável**.
 
 ## 5. Observações operacionais curtas
-- Última fase funcional concluída: **99**.
+- Última fase funcional concluída: **100**.
 - Rodada documental mais recente preservada: **Doc-17**.
 - Rodada paralela concluída preservada: **Paralela-1** — negação bitwise dual (`~` + `nope`) + MCP mínimo (`src/bin/pinker_mcp.rs`).
 - Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.

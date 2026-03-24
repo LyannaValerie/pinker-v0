@@ -153,6 +153,7 @@ Status de execução no bloco:
 - **Fase 97 concluída (refinamento mínimo pós-Fase 96)**: classificação complementar com `e_diretorio(verso) -> logica` e composição mínima com `juntar_caminho(verso, verso) -> verso` em `--run`, sem canonicalização, sem normalização rica, sem listagem de diretórios e sem biblioteca ampla de paths.
 - **Fase 98 concluída (refinamento mínimo pós-Fase 97)**: metadados mínimos de arquivo com `tamanho_arquivo(verso) -> bombom` e `e_vazio(verso) -> logica` em `--run`, sem timestamps, sem permissões, sem criação/remoção e sem biblioteca ampla de metadata/filesystem.
 - **Fase 99 concluída (refinamento mínimo pós-Fase 98)**: mutação mínima e controlada de filesystem com `criar_diretorio(verso) -> nulo` e `remover_arquivo(verso) -> nulo` em `--run`, sem criação recursiva, sem remoção de diretório, sem rename/move/cópia e sem biblioteca ampla de filesystem.
+- **Fase 100 concluída (refinamento mínimo pós-Fase 99)**: complemento mínimo de diretório + leitura textual mínima em `--run` com `remover_diretorio(verso) -> nulo` (somente diretório vazio, sem recursão) e `ler_verso_arquivo(handle) -> verso` (conteúdo textual completo do handle aberto por `abrir`), sem rename/move/cópia, sem listagem e sem streaming/append.
 
 ---
 

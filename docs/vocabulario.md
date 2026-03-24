@@ -55,6 +55,8 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `e_vazio` | teste mínimo de vazio | verificar se arquivo regular está vazio em `--run` |
 | `criar_diretorio` | criação mínima de diretório | criar diretório simples (não recursivo) em `--run` |
 | `remover_arquivo` | remoção mínima de arquivo | remover arquivo simples em `--run` (não remove diretório) |
+| `remover_diretorio` | remoção mínima de diretório | remover diretório vazio simples em `--run` (não recursivo) |
+| `ler_verso_arquivo` | leitura textual mínima de arquivo | ler conteúdo textual completo de handle aberto em `--run` |
 | `sair`        | status de saída mínimo | encerrar script com código explícito |
 | `nope`        | bitwise NOT textual    | negação bitwise em forma Pinker (equivale a `~`) |
 
@@ -105,6 +107,10 @@ Nota de status operacional:
   - `criar_diretorio(verso) -> nulo` para criação simples de diretório (não recursiva);
   - `remover_arquivo(verso) -> nulo` para remoção simples de arquivo (não remove diretórios);
   - sem `create_dir_all`, sem remoção de diretório, sem rename/move/cópia e sem biblioteca ampla de filesystem.
+- Fase 100 (refinamento mínimo complementar em `--run`):
+  - `remover_diretorio(verso) -> nulo` para remoção simples de diretório vazio (não recursiva);
+  - `ler_verso_arquivo(bombom) -> verso` para leitura textual integral do conteúdo de handle aberto por `abrir(...)`;
+  - sem remoção recursiva, sem listagem/rename/move/cópia, sem streaming/append e sem API textual rica de arquivo.
 - Fora do subset textual atual: slicing, indexação negativa e formatação/interpolação.
 
 ---
