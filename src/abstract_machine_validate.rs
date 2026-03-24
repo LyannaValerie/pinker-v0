@@ -140,6 +140,10 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         (TypeIR::Bombom, vec![StackValueType::Verso]),
     );
     sigs.insert(
+        "abrir_anexo".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Verso]),
+    );
+    sigs.insert(
         "escrever".to_string(),
         (
             TypeIR::Nulo,
@@ -156,6 +160,13 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
     sigs.insert(
         "truncar_arquivo".to_string(),
         (TypeIR::Nulo, vec![StackValueType::Bombom]),
+    );
+    sigs.insert(
+        "anexar_verso".to_string(),
+        (
+            TypeIR::Nulo,
+            vec![StackValueType::Bombom, StackValueType::Verso],
+        ),
     );
     sigs.insert(
         "juntar_verso".to_string(),

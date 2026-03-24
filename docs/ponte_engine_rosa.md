@@ -22,7 +22,7 @@ Conectar explicitamente:
 
 ### Engine já consolidado
 
-- Fase funcional atual: **105** (`vazio_verso` + `aparar_verso`).
+- Fase funcional atual: **108** (`abrir_anexo` + `anexar_verso`).
 - Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
 - Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`.
 

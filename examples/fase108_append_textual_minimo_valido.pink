@@ -1,0 +1,30 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova base: verso = argumento_ou(0, "/tmp");
+    nova nome: verso = argumento_ou(1, "fase108_append_textual_minimo.txt");
+    nova alvo: verso = juntar_caminho(base, nome);
+
+    nova h0: bombom = criar_arquivo(alvo);
+    escrever_verso(h0, "base");
+    fechar(h0);
+
+    nova h: bombom = abrir_anexo(alvo);
+    anexar_verso(h, "+A");
+    anexar_verso(h, "+B");
+    nova texto: verso = ler_verso_arquivo(h);
+    fechar(h);
+
+    nova tam: bombom = tamanho_arquivo(alvo);
+    falar(texto, tam);
+
+    talvez igual_verso(texto, "base+A+B") {
+        talvez tam == 8 {
+            mimo 1;
+        } senao {
+            mimo 0;
+        }
+    } senao {
+        mimo 0;
+    }
+}

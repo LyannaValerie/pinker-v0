@@ -5,21 +5,21 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 107 — observação textual posicional mínima em `verso` no `--run`**.
+- **Fase 108 — append textual mínimo em `--run`**.
 - Rodada funcional pequena, local e auditável no Bloco 8.
 
 ## 2. O que entrou na rodada atual
-- Intrínsecas novas de `verso`: `indice_verso_em(verso, verso) -> bombom` e `nao_vazio_verso(verso) -> logica`.
-- Contrato mínimo de ausência para busca posicional: `indice_verso_em` retorna sentinela `18446744073709551615` (`u64::MAX`) quando o trecho não é encontrado.
+- Intrínsecas novas de arquivo/texto: `abrir_anexo(verso) -> bombom` e `anexar_verso(bombom, verso) -> nulo`.
+- Semântica mínima da fase: append textual por handle aberto com `abrir_anexo`, sem newline implícito e sem append por caminho.
 - Alinhamento de semântica/IR/CFG IR/selected/Machine/validações/runtime para reconhecer as duas intrínsecas sem declaração explícita.
-- Cobertura nova em semântica + runtime + CLI com exemplo versionado da fase 107.
-- Atualização documental mínima: `README.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/vocabulario.md` e `docs/phases.md`.
+- Cobertura nova em semântica + runtime + CLI com exemplo versionado da fase 108.
+- Atualização documental mínima: `README.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/vocabulario.md`, `docs/phases.md` e correção pontual de drift em `docs/ponte_engine_rosa.md`.
 
 ## 3. Continuidade preservada
-- Fase funcional atual passa a **107**.
-- Fase funcional anterior passa a **106**.
+- Fase funcional atual passa a **108**.
+- Fase funcional anterior passa a **107**.
 - Bloco ativo permanece **Bloco 8**.
-- Recorte textual segue mínimo (sem regex, sem split/replace/slicing geral e sem biblioteca textual ampla).
+- Recorte de arquivo/texto segue mínimo (sem append por caminho, sem modos ricos, sem streaming, sem escrita por linha e sem biblioteca textual ampla).
 
 ## 4. Próximo item normal
 - Seguir refinamentos mínimos e auditáveis no Bloco 8 sem inflar API textual.

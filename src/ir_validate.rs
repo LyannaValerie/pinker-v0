@@ -195,6 +195,13 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "abrir_anexo".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    funcs.insert(
         "escrever".to_string(),
         FunctionSig {
             ret_type: TypeIR::Nulo,
@@ -213,6 +220,13 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         FunctionSig {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "anexar_verso".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Bombom, TypeIR::Verso],
         },
     );
     funcs.insert(

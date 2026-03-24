@@ -493,6 +493,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com testes semânticos e de `--run` para casos positivos/negativos (incluindo trecho ausente e string vazia), integração com `aparar_verso` + `ler_verso_arquivo(...)` e teste CLI com exemplo versionado (`examples/fase107_observacao_textual_posicional_minima_valido.pink`).
 - Fora de escopo explícito nesta fase: última/múltiplas ocorrências, regex, split/replace/slicing geral, parse textual amplo e biblioteca textual ampla.
 
+108 - append textual mínimo em `--run`
+- Vigésima quarta fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfícies escolhidas: `abrir_anexo(verso) -> bombom` e `anexar_verso(bombom, verso) -> nulo`.
+- Semântica operacional desta fase: `abrir_anexo` abre caminho textual em modo mínimo de append por handle; `anexar_verso` acrescenta texto no final do arquivo do handle sem newline implícito.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram as duas intrínsecas sem declaração explícita de função.
+- Cobertura adicionada com testes semânticos e de `--run` (sucesso/falhas), integração com `criar_arquivo`, `ler_verso_arquivo` e `tamanho_arquivo`, além de teste CLI com exemplo versionado (`examples/fase108_append_textual_minimo_valido.pink`).
+- Fora de escopo explícito nesta fase: append por caminho direto, múltiplos modos gerais de abertura, streaming, escrita por linha, seek/cursor público, encoding sofisticado e biblioteca ampla de filesystem/texto.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

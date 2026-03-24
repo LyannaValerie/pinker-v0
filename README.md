@@ -42,6 +42,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - saneamento textual mínimo em `--run` com `vazio_verso(verso) -> logica` (vazio exato) e `aparar_verso(verso) -> verso` (aparo de bordas), mantendo recorte pequeno e sem abrir API textual ampla (Fase 105)
 - normalização mínima de caixa em `--run` com `minusculo_verso(verso) -> verso` e `maiusculo_verso(verso) -> verso`, mantendo recorte local e sem abrir casefolding/locale-aware/text API ampla (Fase 106)
 - observação textual posicional mínima em `--run` com `indice_verso_em(verso, verso) -> bombom` (primeira ocorrência; retorna `18446744073709551615` quando ausente) e ergonomia mínima de presença com `nao_vazio_verso(verso) -> logica` (Fase 107)
+- append textual mínimo em `--run` com `abrir_anexo(verso) -> bombom` e `anexar_verso(bombom, verso) -> nulo`, sem newline implícito e sem abrir modos ricos de arquivo (Fase 108)
 - comando de projeto `pink build <arquivo.pink>` para gerar artefato textual `.s` em disco (padrão: `build/<arquivo>.s`)
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
@@ -70,7 +71,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - lowering operacional de `virar` fora do subset atual (executa inteiro->inteiro e `bombom <-> seta<bombom>`; demais casts continuam rejeitados)
 - lowering operacional de inline asm em CFG/Machine/runtime (`--check`/`--ir` aceitam o subset atual; `--cfg-ir`/`--run` ainda não executam `sussurro`)
 - operações de texto em `verso` além do recorte mínimo atual (ex.: slicing, indexação negativa e formatação) ainda fora do subset operacional
-- API rica de arquivo (múltiplos modos, append/streaming/diretórios)
+- API rica de arquivo (múltiplos modos gerais, streaming/diretórios e variações além de `abrir_anexo` + `anexar_verso`)
 - metadados de arquivo além do recorte mínimo atual (`tamanho_arquivo` e `e_vazio`)
 - mutação de filesystem além do recorte mínimo atual (`criar_diretorio` simples, `remover_arquivo` simples e `remover_diretorio` simples sem recursão)
 - mutação/listagem ampla de ambiente de processo (apenas leitura mínima com fallback)
@@ -79,7 +80,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - leitura de arquivo além do recorte mínimo da Fase 86 (apenas conteúdo inteiro `bombom` via `ler_arquivo`)
 - leitura textual de arquivo além do recorte mínimo da Fase 100 (`ler_verso_arquivo` retorna conteúdo completo do handle, sem streaming/append/encoding avançado)
 - escrita textual além do recorte mínimo da Fase 101 (`escrever_verso` sobrescreve conteúdo inteiro do handle, sem append/streaming/escrita por linha)
-- truncamento além do recorte mínimo da Fase 102 (sem truncamento por caminho, sem append, sem streaming e sem modos ricos de arquivo)
+- truncamento além do recorte mínimo da Fase 102 (sem truncamento por caminho, sem streaming e sem modos ricos de arquivo)
 - operações textuais além do recorte mínimo da Fase 107 (sem última/múltiplas ocorrências, sem split/replace/regex/trim avançado, sem casefolding/locale-aware e sem biblioteca textual ampla)
 - formatação avançada de saída
 - freestanding/no-std operacional real (`livre;` é marca semântica de intenção, não runtime bare-metal executável)
@@ -164,6 +165,7 @@ cargo run --bin pink -- --run examples/fase104_observacao_textual_complementar_m
 cargo run --bin pink -- --run examples/fase105_saneamento_textual_minimo_valido.pink -- /tmp fase105_entrada.txt
 cargo run --bin pink -- --run examples/fase106_normalizacao_minima_caixa_valido.pink -- "PiNkEr V0"
 cargo run --bin pink -- --run examples/fase107_observacao_textual_posicional_minima_valido.pink -- "   pinker v0   "
+cargo run --bin pink -- --run examples/fase108_append_textual_minimo_valido.pink -- /tmp fase108_saida.txt
 cargo run --bin pink -- --asm-s examples/fase73_backend_externo_locais_aritmetica_valido.pink
 cargo run --bin pink -- --check examples/fase74_backend_externo_call_minimo_valido.pink
 cargo run --bin pink -- --asm-s examples/fase75_backend_externo_frame_registradores_valido.pink

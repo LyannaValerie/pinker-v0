@@ -2445,6 +2445,154 @@ fn cli_run_arquivo_escrita_minima_funciona_com_exemplo_versionado() {
 }
 
 #[test]
+fn run_abrir_anexo_e_anexar_verso_minimos_funcionam_com_releitura() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase108_append_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            nova alvo: verso = "{}";
+            nova criado: bombom = criar_arquivo(alvo);
+            escrever_verso(criado, "base");
+            fechar(criado);
+            nova h: bombom = abrir_anexo(alvo);
+            anexar_verso(h, "-A");
+            anexar_verso(h, "-B");
+            nova texto: verso = ler_verso_arquivo(h);
+            fechar(h);
+            nova tam: bombom = tamanho_arquivo(alvo);
+            falar(texto, tam);
+            talvez igual_verso(texto, "base-A-B") {{
+                talvez tam == 8 {{
+                    mimo 1;
+                }} senao {{
+                    mimo 0;
+                }}
+            }} senao {{
+                mimo 0;
+            }}
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+    let _ = std::fs::remove_file(&file_path);
+}
+
+#[test]
+fn run_anexar_verso_falha_com_handle_invalido() {
+    let err = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            anexar_verso(999, "x");
+            mimo 0;
+        }"#,
+    )
+    .unwrap_err();
+    assert!(
+        err.contains("handle inválido em 'anexar_verso'"),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
+fn run_anexar_verso_falha_apos_fechar_handle() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase108_append_apos_fechar_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+    std::fs::write(&file_path, "base").expect("falha ao criar arquivo temporário");
+
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir_anexo("{}");
+            fechar(h);
+            anexar_verso(h, "x");
+            mimo 0;
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("handle já fechado em 'anexar_verso'"),
+        "erro: {}",
+        err
+    );
+    let _ = std::fs::remove_file(&file_path);
+}
+
+#[test]
+fn run_anexar_verso_falha_em_handle_aberto_sem_append() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase108_append_modo_errado_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+    std::fs::write(&file_path, "base").expect("falha ao criar arquivo temporário");
+
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{}");
+            anexar_verso(h, "x");
+            fechar(h);
+            mimo 0;
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("handle não foi aberto com 'abrir_anexo' em 'anexar_verso'"),
+        "erro: {}",
+        err
+    );
+    let _ = std::fs::remove_file(&file_path);
+}
+
+#[test]
+fn run_abrir_anexo_falha_com_caminho_invalido() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova h: bombom = abrir_anexo("/pinker/fase108/caminho/invalido/arquivo.txt");
+            fechar(h);
+            mimo 0;
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("falha ao abrir arquivo em 'abrir_anexo'"),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
 fn run_criar_arquivo_e_escrever_verso_integram_com_argumento_ou_e_juntar_caminho() {
     let mut base_dir = std::env::temp_dir();
     let unique = format!(
@@ -2532,6 +2680,13 @@ fn cli_run_observacao_textual_posicional_minima_fase107_funciona_com_exemplo_ver
     let out = run_cli_example("examples/fase107_observacao_textual_posicional_minima_valido.pink");
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(String::from_utf8_lossy(&out.stdout), "7 verdade\n1\n");
+}
+
+#[test]
+fn cli_run_append_textual_minimo_fase108_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase108_append_textual_minimo_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "base+A+B 8\n1\n");
 }
 
 #[test]

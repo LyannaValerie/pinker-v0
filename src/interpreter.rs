@@ -15,6 +15,7 @@ use crate::token::Span;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
+use std::fs::OpenOptions;
 use std::io;
 
 const MAX_CALL_DEPTH: usize = 64;
@@ -42,6 +43,7 @@ struct RuntimeIoState {
 struct RuntimeOpenFile {
     path: String,
     content: String,
+    append_enabled: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -588,6 +590,7 @@ fn try_call_intrinsic(
                 RuntimeOpenFile {
                     path: path.clone(),
                     content,
+                    append_enabled: false,
                 },
             );
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(handle))))
@@ -616,6 +619,43 @@ fn try_call_intrinsic(
                 RuntimeOpenFile {
                     path: path.clone(),
                     content: String::new(),
+                    append_enabled: false,
+                },
+            );
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(handle))))
+        }
+        "abrir_anexo" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'abrir_anexo' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(path) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'abrir_anexo' exige caminho em verso",
+                ));
+            };
+            OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(path)
+                .map_err(|err| {
+                    runtime_err(&format!("falha ao abrir arquivo em 'abrir_anexo': {}", err))
+                })?;
+            let content = fs::read_to_string(path).map_err(|err| {
+                runtime_err(&format!(
+                    "falha ao carregar conteúdo em 'abrir_anexo': {}",
+                    err
+                ))
+            })?;
+            let handle = io_state.next_file_handle;
+            io_state.next_file_handle = io_state.next_file_handle.saturating_add(1);
+            io_state.open_files.insert(
+                handle,
+                RuntimeOpenFile {
+                    path: path.clone(),
+                    content,
+                    append_enabled: true,
                 },
             );
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(handle))))
@@ -750,6 +790,50 @@ fn try_call_intrinsic(
                 ))
             })?;
             open_file.content.clear();
+            Ok(IntrinsicCall::Done(None))
+        }
+        "anexar_verso" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'anexar_verso' exige 2 argumentos (handle, verso)",
+                ));
+            }
+            let RuntimeValue::Int(handle) = args[0] else {
+                return Err(runtime_err("intrínseca 'anexar_verso' exige handle bombom"));
+            };
+            let RuntimeValue::Str(value) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'anexar_verso' exige valor em verso",
+                ));
+            };
+            let Some(open_file) = io_state.open_files.get_mut(&handle) else {
+                if io_state.closed_handles.contains(&handle) {
+                    return Err(runtime_err("handle já fechado em 'anexar_verso'"));
+                }
+                return Err(runtime_err("handle inválido em 'anexar_verso'"));
+            };
+            if !open_file.append_enabled {
+                return Err(runtime_err(
+                    "handle não foi aberto com 'abrir_anexo' em 'anexar_verso'",
+                ));
+            }
+            let mut file = OpenOptions::new()
+                .append(true)
+                .open(&open_file.path)
+                .map_err(|err| {
+                    runtime_err(&format!(
+                        "falha ao anexar verso em arquivo em 'anexar_verso': {}",
+                        err
+                    ))
+                })?;
+            use std::io::Write as _;
+            file.write_all(value.as_bytes()).map_err(|err| {
+                runtime_err(&format!(
+                    "falha ao anexar verso em arquivo em 'anexar_verso': {}",
+                    err
+                ))
+            })?;
+            open_file.content.push_str(value);
             Ok(IntrinsicCall::Done(None))
         }
         "fechar" => {
@@ -1566,7 +1650,7 @@ fn classify_runtime_msg(msg: &str) -> (&'static str, Option<&'static str>) {
     } else if msg.contains("handle já fechado") {
         (
             "handle_ja_fechado",
-            Some("o handle já foi fechado com 'fechar'; abra novamente com 'abrir' ou 'criar_arquivo' se necessário"),
+            Some("o handle já foi fechado com 'fechar'; abra novamente com 'abrir', 'criar_arquivo' ou 'abrir_anexo' se necessário"),
         )
     } else if msg.contains("global inexistente") {
         (
