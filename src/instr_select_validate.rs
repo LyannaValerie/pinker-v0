@@ -16,6 +16,8 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
         sigs.insert(f.name.clone(), f.ret_type);
     }
     sigs.insert("ouvir".to_string(), TypeIR::Bombom);
+    sigs.insert("ouvir_verso".to_string(), TypeIR::Verso);
+    sigs.insert("ouvir_verso_ou".to_string(), TypeIR::Verso);
     sigs.insert("argumento".to_string(), TypeIR::Verso);
     sigs.insert("argumento_ou".to_string(), TypeIR::Verso);
     sigs.insert("ambiente_ou".to_string(), TypeIR::Verso);

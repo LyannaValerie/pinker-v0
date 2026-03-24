@@ -22,7 +22,7 @@ Conectar explicitamente:
 
 ### Engine já consolidado
 
-- Fase funcional atual: **109** (`ler_arquivo_verso` + `arquivo_ou`).
+- Fase funcional atual: **110** (`ouvir_verso` + `ouvir_verso_ou`).
 - Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
 - Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`.
 

@@ -53,6 +53,20 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "ouvir_verso".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
+            params: vec![],
+        },
+    );
+    function_sigs.insert(
+        "ouvir_verso_ou".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
         "argumento".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,

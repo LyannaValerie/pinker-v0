@@ -48,6 +48,20 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "ouvir_verso".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![],
+        },
+    );
+    funcs.insert(
+        "ouvir_verso_ou".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    funcs.insert(
         "argumento".to_string(),
         FunctionSig {
             ret_type: TypeIR::Verso,

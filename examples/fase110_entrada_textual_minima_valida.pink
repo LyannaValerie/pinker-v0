@@ -1,0 +1,12 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova texto: verso = ouvir_verso();
+    falar(texto);
+    falar(nao_vazio_verso(aparar_verso(texto)));
+
+    nova fallback: verso = ouvir_verso_ou("padrão-fase110");
+    falar(fallback);
+
+    mimo 0;
+}
