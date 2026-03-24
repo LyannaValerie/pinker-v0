@@ -551,6 +551,54 @@ fn escrever_intrinseca_rejeita_segundo_argumento_nao_bombom() {
 }
 
 #[test]
+fn criar_arquivo_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova h: bombom = criar_arquivo("arquivo.txt");
+            fechar(h);
+            mimo 0;
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn criar_arquivo_intrinseca_rejeita_argumento_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo criar_arquivo(1); }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'criar_arquivo'"));
+}
+
+#[test]
+fn escrever_verso_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova h: bombom = abrir("arquivo.txt");
+            escrever_verso(h, "texto");
+            fechar(h);
+            mimo 0;
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn escrever_verso_intrinseca_rejeita_segundo_argumento_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova h: bombom = abrir("arquivo.txt");
+            escrever_verso(h, 7);
+            fechar(h);
+            mimo 0;
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'escrever_verso'"));
+}
+
+#[test]
 fn juntar_e_tamanho_verso_intrinsecas_validas_sem_declaracao() {
     let code = r#"
         pacote main;

@@ -1992,12 +1992,108 @@ fn run_escrever_falha_com_handle_invalido() {
 }
 
 #[test]
+fn run_criar_arquivo_e_escrever_verso_minimos_funcionam_com_releitura() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase101_escrever_verso_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = criar_arquivo("{}");
+            escrever_verso(h, "olá pinker");
+            nova lido: verso = ler_verso_arquivo(h);
+            fechar(h);
+            falar(lido);
+            mimo tamanho_verso(lido);
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(10)));
+    let persisted = std::fs::read_to_string(&file_path).expect("falha ao reler arquivo");
+    assert_eq!(persisted, "olá pinker");
+    let _ = std::fs::remove_file(&file_path);
+}
+
+#[test]
+fn run_escrever_verso_falha_com_handle_invalido() {
+    let err = run_code(
+        r#"pacote main;
+        carinho principal() -> bombom {
+            escrever_verso(999, "x");
+            mimo 0;
+        }"#,
+    )
+    .unwrap_err();
+    assert!(
+        err.contains("handle inválido em 'escrever_verso'"),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
 fn cli_run_arquivo_escrita_minima_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase87_arquivo_escrita_minima_valido.pink");
     fs::write("examples/fase87_output_numero.txt", "1\n")
         .expect("falha ao restaurar fixture da fase 87");
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n0\n");
+}
+
+#[test]
+fn run_criar_arquivo_e_escrever_verso_integram_com_argumento_ou_e_juntar_caminho() {
+    let mut base_dir = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase101_integrado_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    base_dir.push(unique);
+    std::fs::create_dir(&base_dir).expect("falha ao criar diretório-base");
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            nova base: verso = "{}";
+            nova nome: verso = argumento_ou(0, "saida.txt");
+            nova alvo: verso = juntar_caminho(base, nome);
+            nova h: bombom = criar_arquivo(alvo);
+            escrever_verso(h, "ok");
+            nova texto: verso = ler_verso_arquivo(h);
+            fechar(h);
+            falar(caminho_existe(alvo), e_arquivo(alvo), texto);
+            talvez caminho_existe(alvo) {{
+                talvez e_arquivo(alvo) {{
+                    talvez tamanho_verso(texto) == 2 {{
+                        mimo 1;
+                    }} senao {{
+                        mimo 0;
+                    }}
+                }} senao {{
+                    mimo 0;
+                }}
+            }} senao {{
+                mimo 0;
+            }}
+        }}"#,
+        base_dir.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+    let _ = std::fs::remove_file(base_dir.join("saida.txt"));
+    let _ = std::fs::remove_dir(&base_dir);
 }
 
 #[test]
@@ -2713,6 +2809,36 @@ fn cli_run_refinamento_diretorio_texto_fase100_funciona_com_exemplo_versionado()
     if dir_path.exists() {
         let _ = std::fs::remove_dir(&dir_path);
     }
+}
+
+#[test]
+fn cli_run_escrita_textual_minima_fase101_funciona_com_exemplo_versionado() {
+    let mut base_dir = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase101_cli_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    base_dir.push(unique);
+    std::fs::create_dir(&base_dir).expect("falha ao criar diretório-base da fase101");
+    let out = run_cli_example_with_args(
+        "examples/fase101_escrita_textual_minima_arquivo_valido.pink",
+        &[
+            base_dir.to_string_lossy().as_ref(),
+            "fase101_saida.txt",
+            "texto fase101",
+        ],
+    );
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "texto fase101\n1\n");
+    let persisted = std::fs::read_to_string(base_dir.join("fase101_saida.txt"))
+        .expect("falha ao reler saída da fase101");
+    assert_eq!(persisted, "texto fase101");
+    let _ = std::fs::remove_file(base_dir.join("fase101_saida.txt"));
+    let _ = std::fs::remove_dir(&base_dir);
 }
 
 #[test]

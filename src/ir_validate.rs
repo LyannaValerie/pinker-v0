@@ -188,10 +188,24 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "criar_arquivo".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    funcs.insert(
         "escrever".to_string(),
         FunctionSig {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "escrever_verso".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Bombom, TypeIR::Verso],
         },
     );
     funcs.insert(

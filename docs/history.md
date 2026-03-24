@@ -436,6 +436,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado (`examples/fase100_refinamento_diretorio_texto_minimo_valido.pink`) e testes automatizados de semântica/`--run`/CLI para remoção positiva de diretório vazio, negativo de diretório não-vazio, leitura textual positiva e integração com `argumento_ou`/`juntar_caminho`.
 - Fora de escopo explícito nesta fase: remoção recursiva, rename/move/cópia, listagem de diretórios, leitura incremental/streaming, append, encoding sofisticado e biblioteca ampla de filesystem/texto.
 
+101 - escrita textual mínima de arquivo em `--run`
+- Décima sétima fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfícies escolhidas: `escrever_verso(handle, verso) -> nulo` para escrita textual mínima e `criar_arquivo(verso) -> bombom` como complemento operacional mínimo para criação + handle no mesmo fluxo.
+- Semântica operacional desta fase: `escrever_verso` sobrescreve o conteúdo textual completo do handle aberto (sem append/streaming) e `criar_arquivo` cria arquivo vazio em caminho informado e já retorna handle válido.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram as duas intrínsecas sem declaração explícita de função.
+- Cobertura adicionada com exemplo versionado (`examples/fase101_escrita_textual_minima_arquivo_valido.pink`) e testes automatizados de semântica/`--run`/CLI para escrita positiva, releitura positiva, negativo de handle inválido e integração com `argumento_ou`/`juntar_caminho`.
+- Fora de escopo explícito nesta fase: append, streaming, escrita por linha, encoding sofisticado, rename/move/cópia, listagem de diretórios e biblioteca ampla de filesystem/texto.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

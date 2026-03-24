@@ -193,10 +193,24 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "criar_arquivo".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
         "escrever".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "escrever_verso".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Bombom, TypeIR::Verso],
         },
     );
     function_sigs.insert(

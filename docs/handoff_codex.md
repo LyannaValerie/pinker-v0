@@ -1,19 +1,19 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 100 — remoção mínima complementar de diretório + leitura textual mínima de arquivo em `--run` (`remover_diretorio` + `ler_verso_arquivo`)**.
-- Rodada funcional curta do Bloco 8 com foco em complemento mínimo de mutação de diretório e leitura textual simples sem abrir API ampla.
+- **Fase 101 — escrita textual mínima de arquivo em `--run` (`escrever_verso` + `criar_arquivo`)**.
+- Rodada funcional curta do Bloco 8 com foco em escrita textual mínima + complemento operacional de criação sem abrir API ampla.
 
 ## 2. O que entrou na rodada atual
-- Intrínseca `remover_diretorio(verso) -> nulo` adicionada ao pipeline completo (semântica, IR, validações, runtime `--run`) para remoção simples de diretório vazio (não recursiva).
-- Intrínseca `ler_verso_arquivo(handle) -> verso` adicionada no mesmo recorte mínimo para leitura textual integral de arquivo já aberto com `abrir(...)`.
-- Exemplo versionado novo: `examples/fase100_refinamento_diretorio_texto_minimo_valido.pink`.
-- Cobertura de testes ampliada em semântica e `--run`/CLI para: remoção positiva de diretório vazio, negativo de diretório não-vazio, leitura textual positiva e integração com `argumento_ou`/`juntar_caminho`/`caminho_existe`/`e_diretorio`/`falar`.
+- Intrínseca `escrever_verso(handle, verso) -> nulo` adicionada ao pipeline completo (semântica, IR, validações, runtime `--run`) para sobrescrita textual integral em handle aberto.
+- Intrínseca `criar_arquivo(verso) -> bombom` adicionada no mesmo recorte mínimo para criação de arquivo vazio com retorno imediato de handle.
+- Exemplo versionado novo: `examples/fase101_escrita_textual_minima_arquivo_valido.pink`.
+- Cobertura de testes ampliada em semântica e `--run`/CLI para: escrita textual positiva, releitura positiva, negativo de handle inválido e integração com `argumento_ou`/`juntar_caminho`/`caminho_existe`/`e_arquivo`.
 
 ## 3. Fora de escopo da rodada atual
 - timestamps/permissões/ownership, criação recursiva, remoção recursiva, rename/move/cópia e listagem de diretórios.
 - Processos externos ou biblioteca ampla de filesystem/metadados.
-- streaming, append e API textual rica de arquivo.
+- streaming, append, escrita por linha e API textual rica de arquivo.
 - Redesign de runtime ou expansão de gramática.
 
 ## 4. Próximo item normal
@@ -21,7 +21,7 @@
 - Próximo item funcional sugerido: **manter refinamentos mínimos de tooling/I/O em `--run` preservando escopo pequeno e auditável**.
 
 ## 5. Observações operacionais curtas
-- Última fase funcional concluída: **100**.
+- Última fase funcional concluída: **101**.
 - Rodada documental mais recente preservada: **Doc-17**.
 - Rodada paralela concluída preservada: **Paralela-1** — negação bitwise dual (`~` + `nope`) + MCP mínimo (`src/bin/pinker_mcp.rs`).
 - Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.

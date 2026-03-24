@@ -588,7 +588,21 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "criar_arquivo".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "escrever".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "escrever_verso".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Nulo,
                 ret_struct_name: None,
