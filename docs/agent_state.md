@@ -27,8 +27,8 @@
 - Saídas: `--pseudo-asm`, `--asm-s`, `--run`.
 
 ## 5. Estado corrente
-- Fase funcional atual: **109 — leitura textual mínima direta por caminho em `--run` (`ler_arquivo_verso` + `arquivo_ou`)**.
-- Fase funcional anterior: **108 — append textual mínimo em `--run` (`abrir_anexo` + `anexar_verso`)**.
+- Fase funcional atual: **110 — entrada textual mínima em `--run` (`ouvir_verso` + `ouvir_verso_ou`)**.
+- Fase funcional anterior: **109 — leitura textual mínima direta por caminho em `--run` (`ler_arquivo_verso` + `arquivo_ou`)**.
 - Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
 - Rodada documental mais recente: **Doc-18 — arquitetura documental dual (Engine + Pinker/Rosa)**.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.

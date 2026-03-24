@@ -24,6 +24,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - operações mínimas de texto em `--run` com `verso`: `juntar_verso(a, b)` para concatenação (apenas `verso + verso` via intrínseca), `tamanho_verso(v)` retornando `bombom` e indexação mínima por intrínseca `indice_verso(v, i)` (`verso`, `bombom`) retornando `verso` unitário
 - saída básica com `falar(arg1, arg2, ...);` no `--run`, com múltiplos argumentos e separação por espaço simples no subset tipado (`bombom`, `u8`, `u16`, `u32`, `u64`, `i8`, `i16`, `i32`, `i64`, `logica`, `verso`)
 - entrada básica com intrínseca `ouvir()` em `--run`, com leitura de stdin para `bombom` (u64) no recorte mínimo da Fase 85
+- entrada textual mínima em `--run` com `ouvir_verso() -> verso` e `ouvir_verso_ou(verso) -> verso`, com remoção mínima de newline final e fallback simples em EOF/impossibilidade operacional simples (Fase 110)
 - leitura mínima de arquivo em `--run` com intrínsecas `abrir("caminho") -> bombom`, `ler_arquivo(handle) -> bombom` e `fechar(handle)` (Fase 86)
 - escrita mínima de arquivo em `--run` com intrínseca `escrever(handle, bombom)` após `abrir("caminho")`, com fechamento explícito via `fechar(handle)` (Fase 87)
 - base mínima de tooling em `--run` com `argumento(i)` para argv posicional e `sair(codigo)` para status explícito de saída (Fase 92)
@@ -168,6 +169,7 @@ cargo run --bin pink -- --run examples/fase106_normalizacao_minima_caixa_valido.
 cargo run --bin pink -- --run examples/fase107_observacao_textual_posicional_minima_valido.pink -- "   pinker v0   "
 cargo run --bin pink -- --run examples/fase108_append_textual_minimo_valido.pink -- /tmp fase108_saida.txt
 cargo run --bin pink -- --run examples/fase109_leitura_textual_direta_por_caminho_valido.pink -- /tmp/pinker_fase109_saida.txt
+printf 'linha110\n' | cargo run --bin pink -- --run examples/fase110_entrada_textual_minima_valida.pink
 cargo run --bin pink -- --asm-s examples/fase73_backend_externo_locais_aritmetica_valido.pink
 cargo run --bin pink -- --check examples/fase74_backend_externo_call_minimo_valido.pink
 cargo run --bin pink -- --asm-s examples/fase75_backend_externo_frame_registradores_valido.pink

@@ -1267,6 +1267,43 @@ impl SemanticChecker {
             }
             return Ok(Type::Bombom(expr_span));
         }
+        if name == "ouvir_verso" {
+            if !args.is_empty() {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'ouvir_verso' com aridade inválida: esperado 0, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            return Ok(Type::Verso(expr_span));
+        }
+        if name == "ouvir_verso_ou" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'ouvir_verso_ou' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let default_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(default_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'ouvir_verso_ou': esperado 'verso', encontrado '{}'",
+                        default_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Verso(expr_span));
+        }
         if name == "argumento" {
             if args.len() != 1 {
                 return Err(PinkerError::Semantic {

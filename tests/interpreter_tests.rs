@@ -2238,6 +2238,19 @@ fn cli_run_ouvir_bombom_invalido_falha_com_erro_claro() {
 }
 
 #[test]
+fn cli_run_entrada_textual_minima_fase110_funciona_com_exemplo_versionado() {
+    let out = run_cli_example_with_stdin(
+        "examples/fase110_entrada_textual_minima_valida.pink",
+        "  pinker v0  \n",
+    );
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "  pinker v0  \nverdade\npadrão-fase110\n0\n"
+    );
+}
+
+#[test]
 fn cli_run_arquivo_leitura_minima_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase86_arquivo_leitura_minima_valido.pink");
     assert!(out.status.success(), "{:?}", out);
@@ -2657,6 +2670,76 @@ fn run_ler_arquivo_verso_falha_com_caminho_invalido() {
     let err = run_code(source).unwrap_err();
     assert!(
         err.contains("falha ao ler arquivo em 'ler_arquivo_verso'"),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
+fn run_ouvir_verso_ler_texto_minimo_remove_newline_final() {
+    let out = run_cli_example_with_stdin(
+        "examples/fase110_entrada_textual_minima_valida.pink",
+        "linha110\n",
+    );
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "linha110\nverdade\npadrão-fase110\n0\n"
+    );
+}
+
+#[test]
+fn run_ouvir_verso_ou_retorna_padrao_em_eof_imediato() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase110_ouvir_verso_ou_{}_{}.pink",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+    fs::write(
+        &file_path,
+        r#"
+pacote main;
+carinho principal() -> bombom {
+    nova texto: verso = ouvir_verso_ou("padrao110");
+    falar(texto, igual_verso(texto, "padrao110"));
+    mimo 0;
+}"#,
+    )
+    .expect("falha ao gravar programa temporário");
+
+    let out = run_cli_example_with_stdin(&file_path.to_string_lossy(), "");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "padrao110 verdade\n0\n"
+    );
+    let _ = fs::remove_file(&file_path);
+}
+
+#[test]
+fn run_ouvir_verso_falha_com_eof_imediato() {
+    let out = run_cli_example_with_stdin("examples/fase110_entrada_textual_minima_valida.pink", "");
+    assert!(!out.status.success(), "{:?}", out);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("falha ao ler stdin em 'ouvir_verso'"),
+        "stderr: {}",
+        stderr
+    );
+}
+
+#[test]
+fn run_ouvir_verso_falha_com_aridade_invalida_no_runtime() {
+    let err =
+        run_code("pacote main; carinho principal() -> bombom { nova t: verso = ouvir_verso(\"x\"); falar(t); mimo 0; }")
+            .unwrap_err();
+    assert!(
+        err.contains("chamada de 'ouvir_verso' com aridade inválida"),
         "erro: {}",
         err
     );

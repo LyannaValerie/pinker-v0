@@ -573,6 +573,40 @@ fn try_call_intrinsic(
             })?;
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(parsed))))
         }
+        "ouvir_verso" => {
+            if !args.is_empty() {
+                return Err(runtime_err("intrínseca 'ouvir_verso' exige 0 argumentos"));
+            }
+            let maybe_line = read_stdin_line_minima("ouvir_verso")?;
+            let Some(line) = maybe_line else {
+                return Err(runtime_err(
+                    "falha ao ler stdin em 'ouvir_verso': EOF imediato sem linha disponível",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
+                trim_final_newline_minimo(line),
+            ))))
+        }
+        "ouvir_verso_ou" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'ouvir_verso_ou' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(default_value) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'ouvir_verso_ou' exige valor padrão em verso",
+                ));
+            };
+            match read_stdin_line_minima("ouvir_verso_ou") {
+                Ok(Some(line)) => Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
+                    trim_final_newline_minimo(line),
+                )))),
+                Ok(None) | Err(_) => Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
+                    default_value.clone(),
+                )))),
+            }
+        }
         "abrir" => {
             if args.len() != 1 {
                 return Err(runtime_err("intrínseca 'abrir' exige 1 argumento (verso)"));
@@ -1400,6 +1434,30 @@ fn try_call_intrinsic(
         }
         _ => Ok(IntrinsicCall::NotIntrinsic),
     }
+}
+
+fn read_stdin_line_minima(intrinsic_name: &str) -> Result<Option<String>, PinkerError> {
+    let mut raw = String::new();
+    let bytes = io::stdin().read_line(&mut raw).map_err(|err| {
+        runtime_err(&format!(
+            "falha ao ler stdin em '{}': {}",
+            intrinsic_name, err
+        ))
+    })?;
+    if bytes == 0 {
+        return Ok(None);
+    }
+    Ok(Some(raw))
+}
+
+fn trim_final_newline_minimo(mut line: String) -> String {
+    if line.ends_with('\n') {
+        line.pop();
+        if line.ends_with('\r') {
+            line.pop();
+        }
+    }
+    line
 }
 
 fn find_function<'a>(

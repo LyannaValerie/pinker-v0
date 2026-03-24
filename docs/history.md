@@ -509,6 +509,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com testes semânticos (reconhecimento, aridade e tipos), testes de `--run` (sucesso/fallback/falha de leitura por caminho) e teste CLI com exemplo versionado (`examples/fase109_leitura_textual_direta_por_caminho_valido.pink`).
 - Fora de escopo explícito nesta fase: streaming, leitura incremental, escrita/append por caminho, modos ricos de abertura, seek/cursor público, encoding sofisticado, listagem de diretório e biblioteca ampla de filesystem/texto.
 
+110 - entrada textual mínima em `--run`
+- Vigésima sexta fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfícies escolhidas: `ouvir_verso() -> verso` e `ouvir_verso_ou(verso) -> verso`.
+- Semântica operacional mínima: leitura textual mínima da stdin com retorno em `verso`, remoção mínima de newline final (`\n` e `\r\n`) e fallback textual simples em `ouvir_verso_ou` para EOF imediato/impossibilidade operacional simples de leitura.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram as duas intrínsecas sem declaração explícita de função.
+- Cobertura adicionada com testes semânticos (reconhecimento, aridade e tipo), testes de `--run`/CLI para sucesso e fallback em EOF, integração com `falar`, `aparar_verso`, `nao_vazio_verso`, `igual_verso` e exemplo versionado (`examples/fase110_entrada_textual_minima_valida.pink`).
+- Fora de escopo explícito nesta fase: streaming, leitura por delimitador arbitrário, múltiplas linhas em lote, API rica de terminal, timeout, leitura não bloqueante, encoding sofisticado e biblioteca ampla de entrada textual.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

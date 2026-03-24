@@ -448,6 +448,20 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "ouvir_verso".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "ouvir_verso_ou".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "argumento".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Verso,
