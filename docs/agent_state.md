@@ -34,7 +34,7 @@
 - Eixo `--asm-s`/backend externo permanece em subset linear auditável (Fases 73–84), mapeado nesta rodada sem abertura de lowering novo.
 - Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 101).
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
-- Último hotfix aplicado: **HF-2 — varredura de corretude do Bloco 6 (Fases 64–70)**.
+- Último hotfix aplicado: **HF-3 — estabilização do Bloco 8 (Fases 85–101): handles, I/O, caminho, texto**.
 
 ## 6. Ecossistema documental
 - `docs/roadmap.md`: trilha ativa oficial.

@@ -3452,3 +3452,288 @@ fn run_bitnot_tipo_invalido_rejeita_logica() {
         err
     );
 }
+
+// ── HF-3: estabilização do Bloco 8 — testes de borda de handles/I/O ──────
+
+#[test]
+fn run_hf3_ler_arquivo_falha_apos_fechar_handle() {
+    let mut file_path = std::env::temp_dir();
+    file_path.push(format!(
+        "pinker_hf3_ler_apos_fechar_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    std::fs::write(&file_path, "42").expect("falha ao criar fixture");
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{}");
+            fechar(h);
+            nova v: bombom = ler_arquivo(h);
+            mimo v;
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let err = run_code(&source).unwrap_err();
+    let _ = std::fs::remove_file(&file_path);
+    assert!(
+        err.contains("handle já fechado em 'ler_arquivo'"),
+        "esperava erro de handle já fechado, obteve: {}",
+        err
+    );
+}
+
+#[test]
+fn run_hf3_ler_verso_arquivo_falha_apos_fechar_handle() {
+    let mut file_path = std::env::temp_dir();
+    file_path.push(format!(
+        "pinker_hf3_ler_verso_apos_fechar_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    std::fs::write(&file_path, "texto").expect("falha ao criar fixture");
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{}");
+            fechar(h);
+            nova v: verso = ler_verso_arquivo(h);
+            mimo 0;
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let err = run_code(&source).unwrap_err();
+    let _ = std::fs::remove_file(&file_path);
+    assert!(
+        err.contains("handle já fechado em 'ler_verso_arquivo'"),
+        "esperava erro de handle já fechado, obteve: {}",
+        err
+    );
+}
+
+#[test]
+fn run_hf3_escrever_falha_apos_fechar_handle() {
+    let mut file_path = std::env::temp_dir();
+    file_path.push(format!(
+        "pinker_hf3_escrever_apos_fechar_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    std::fs::write(&file_path, "1").expect("falha ao criar fixture");
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{}");
+            fechar(h);
+            escrever(h, 99);
+            mimo 0;
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let err = run_code(&source).unwrap_err();
+    let _ = std::fs::remove_file(&file_path);
+    assert!(
+        err.contains("handle já fechado em 'escrever'"),
+        "esperava erro de handle já fechado, obteve: {}",
+        err
+    );
+}
+
+#[test]
+fn run_hf3_escrever_verso_falha_apos_fechar_handle() {
+    let mut file_path = std::env::temp_dir();
+    file_path.push(format!(
+        "pinker_hf3_escrever_verso_apos_fechar_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    std::fs::write(&file_path, "").expect("falha ao criar fixture");
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{}");
+            fechar(h);
+            escrever_verso(h, "texto");
+            mimo 0;
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let err = run_code(&source).unwrap_err();
+    let _ = std::fs::remove_file(&file_path);
+    assert!(
+        err.contains("handle já fechado em 'escrever_verso'"),
+        "esperava erro de handle já fechado, obteve: {}",
+        err
+    );
+}
+
+#[test]
+fn run_hf3_fechar_duplo_falha_com_handle_ja_fechado() {
+    let mut file_path = std::env::temp_dir();
+    file_path.push(format!(
+        "pinker_hf3_fechar_duplo_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    std::fs::write(&file_path, "1").expect("falha ao criar fixture");
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{}");
+            fechar(h);
+            fechar(h);
+            mimo 0;
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let err = run_code(&source).unwrap_err();
+    let _ = std::fs::remove_file(&file_path);
+    assert!(
+        err.contains("handle já fechado em 'fechar'"),
+        "esperava erro de handle já fechado, obteve: {}",
+        err
+    );
+}
+
+#[test]
+fn run_hf3_ler_verso_arquivo_retorna_vazio_em_arquivo_vazio() {
+    let mut file_path = std::env::temp_dir();
+    file_path.push(format!(
+        "pinker_hf3_ler_verso_vazio_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    std::fs::write(&file_path, "").expect("falha ao criar fixture");
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{}");
+            nova v: verso = ler_verso_arquivo(h);
+            fechar(h);
+            mimo tamanho_verso(v);
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    let _ = std::fs::remove_file(&file_path);
+    assert_eq!(out, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn run_hf3_escrever_bombom_depois_ler_verso_retorna_texto_numerico() {
+    let mut file_path = std::env::temp_dir();
+    file_path.push(format!(
+        "pinker_hf3_cross_type_escrever_ler_verso_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    std::fs::write(&file_path, "0").expect("falha ao criar fixture");
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{}");
+            escrever(h, 42);
+            nova v: verso = ler_verso_arquivo(h);
+            fechar(h);
+            mimo tamanho_verso(v);
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    let _ = std::fs::remove_file(&file_path);
+    // "42" has 2 characters
+    assert_eq!(out, Some(RuntimeValue::Int(2)));
+}
+
+#[test]
+fn run_hf3_tamanho_arquivo_falha_em_diretorio() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            mimo tamanho_arquivo("/tmp");
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("arquivo regular"),
+        "esperava erro de arquivo regular, obteve: {}",
+        err
+    );
+}
+
+#[test]
+fn run_hf3_e_vazio_falha_em_diretorio() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova v: logica = e_vazio("/tmp");
+            mimo 0;
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("arquivo regular"),
+        "esperava erro de arquivo regular, obteve: {}",
+        err
+    );
+}
+
+#[test]
+fn run_hf3_e_vazio_falha_em_caminho_ausente() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova v: logica = e_vazio("/caminho/que/nao/existe/hf3_xyzzy.txt");
+            mimo 0;
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("falha ao obter metadados em 'e_vazio'"),
+        "esperava erro de metadados, obteve: {}",
+        err
+    );
+}
+
+#[test]
+fn run_hf3_criar_arquivo_escrever_verso_ler_verso_fechar_fluxo_completo() {
+    let mut file_path = std::env::temp_dir();
+    file_path.push(format!(
+        "pinker_hf3_fluxo_completo_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = criar_arquivo("{}");
+            escrever_verso(h, "pinker hf3");
+            nova lido: verso = ler_verso_arquivo(h);
+            fechar(h);
+            mimo tamanho_verso(lido);
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    let _ = std::fs::remove_file(&file_path);
+    // "pinker hf3" has 10 characters
+    assert_eq!(out, Some(RuntimeValue::Int(10)));
+}

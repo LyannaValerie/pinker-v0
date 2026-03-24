@@ -34,6 +34,7 @@ enum IntrinsicCall {
 struct RuntimeIoState {
     open_files: HashMap<u64, RuntimeOpenFile>,
     next_file_handle: u64,
+    closed_handles: std::collections::HashSet<u64>,
     cli_args: Vec<String>,
     exit_status: Option<i32>,
 }
@@ -79,6 +80,7 @@ pub fn run_program_with_args(
     let mut io_state = RuntimeIoState {
         open_files: HashMap::new(),
         next_file_handle: 1,
+        closed_handles: std::collections::HashSet::new(),
         cli_args: cli_args.to_vec(),
         exit_status: None,
     };
@@ -628,6 +630,9 @@ fn try_call_intrinsic(
                 return Err(runtime_err("intrínseca 'ler_arquivo' exige handle bombom"));
             };
             let Some(open_file) = io_state.open_files.get(&handle) else {
+                if io_state.closed_handles.contains(&handle) {
+                    return Err(runtime_err("handle já fechado em 'ler_arquivo'"));
+                }
                 return Err(runtime_err("handle inválido em 'ler_arquivo'"));
             };
             let trimmed = open_file.content.trim();
@@ -656,6 +661,9 @@ fn try_call_intrinsic(
                 ));
             };
             let Some(open_file) = io_state.open_files.get(&handle) else {
+                if io_state.closed_handles.contains(&handle) {
+                    return Err(runtime_err("handle já fechado em 'ler_verso_arquivo'"));
+                }
                 return Err(runtime_err("handle inválido em 'ler_verso_arquivo'"));
             };
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
@@ -675,6 +683,9 @@ fn try_call_intrinsic(
                 return Err(runtime_err("intrínseca 'escrever' exige valor bombom"));
             };
             let Some(open_file) = io_state.open_files.get_mut(&handle) else {
+                if io_state.closed_handles.contains(&handle) {
+                    return Err(runtime_err("handle já fechado em 'escrever'"));
+                }
                 return Err(runtime_err("handle inválido em 'escrever'"));
             };
             let next_content = value.to_string();
@@ -701,6 +712,9 @@ fn try_call_intrinsic(
                 ));
             };
             let Some(open_file) = io_state.open_files.get_mut(&handle) else {
+                if io_state.closed_handles.contains(&handle) {
+                    return Err(runtime_err("handle já fechado em 'escrever_verso'"));
+                }
                 return Err(runtime_err("handle inválido em 'escrever_verso'"));
             };
             fs::write(&open_file.path, value).map_err(|err| {
@@ -722,8 +736,12 @@ fn try_call_intrinsic(
                 return Err(runtime_err("intrínseca 'fechar' exige handle bombom"));
             };
             if io_state.open_files.remove(&handle).is_none() {
+                if io_state.closed_handles.contains(&handle) {
+                    return Err(runtime_err("handle já fechado em 'fechar'"));
+                }
                 return Err(runtime_err("handle inválido em 'fechar'"));
             }
+            io_state.closed_handles.insert(handle);
             Ok(IntrinsicCall::Done(None))
         }
         "juntar_verso" => {
@@ -1346,6 +1364,11 @@ fn classify_runtime_msg(msg: &str) -> (&'static str, Option<&'static str>) {
         (
             "aridade_invalida",
             Some("confira a quantidade de argumentos passados na chamada"),
+        )
+    } else if msg.contains("handle já fechado") {
+        (
+            "handle_ja_fechado",
+            Some("o handle já foi fechado com 'fechar'; abra novamente com 'abrir' ou 'criar_arquivo' se necessário"),
         )
     } else if msg.contains("global inexistente") {
         (
