@@ -207,6 +207,82 @@ fn run_indice_verso_falha_com_indice_fora_da_faixa() {
 }
 
 #[test]
+fn run_contem_verso_intrinseca_true_em_caso_positivo() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = contem_verso("pinker v0", "ker");
+            falar(ok);
+            talvez ok {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_contem_verso_intrinseca_false_em_caso_negativo() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = contem_verso("pinker v0", "zzz");
+            falar(ok);
+            talvez ok {
+                mimo 0;
+            } senao {
+                mimo 1;
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_comeca_com_intrinseca_true_em_caso_positivo() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = comeca_com("pinker", "pin");
+            falar(ok);
+            talvez ok {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_comeca_com_intrinseca_false_em_caso_negativo() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = comeca_com("pinker", "ker");
+            falar(ok);
+            talvez ok {
+                mimo 0;
+            } senao {
+                mimo 1;
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
 fn run_argumento_intrinseca_ler_posicional_minimo() {
     let out = run_code_with_args(
         r#"
@@ -2199,6 +2275,13 @@ fn cli_run_truncamento_minimo_fase102_funciona_com_exemplo_versionado() {
 }
 
 #[test]
+fn cli_run_observacao_textual_minima_fase103_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase103_observacao_textual_minima_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "verdade verdade\n1\n");
+}
+
+#[test]
 fn cli_run_verso_operacional_minimo_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase88_verso_operacional_minimo_valido.pink");
     assert!(out.status.success(), "{:?}", out);
@@ -2690,6 +2773,47 @@ fn run_ler_verso_arquivo_intrinseca_retorna_texto_completo() {
     );
     let out = run_code(&source).unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(16)));
+    let _ = std::fs::remove_file(&file_path);
+}
+
+#[test]
+fn run_contem_e_comeca_com_integram_com_ler_verso_arquivo() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase103_verso_observacao_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+    std::fs::write(&file_path, "prefixo: conteudo útil")
+        .expect("falha ao criar arquivo da fase 103");
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{}");
+            nova texto: verso = ler_verso_arquivo(h);
+            fechar(h);
+            nova tem: logica = contem_verso(texto, "conteudo");
+            nova prefixo_ok: logica = comeca_com(texto, "prefixo:");
+            falar(tem, prefixo_ok);
+            talvez tem {{
+                talvez prefixo_ok {{
+                    mimo 1;
+                }} senao {{
+                    mimo 0;
+                }}
+            }} senao {{
+                mimo 0;
+            }}
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
     let _ = std::fs::remove_file(&file_path);
 }
 

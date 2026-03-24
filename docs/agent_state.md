@@ -24,15 +24,15 @@
 - Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
 
 ## 5. Estado corrente
-- Fase funcional atual: **102 — truncamento mínimo de arquivo em `--run` (`truncar_arquivo` + observação explícita de pós-estado com `tamanho_arquivo`/`e_vazio`)**.
+- Fase funcional atual: **103 — observação textual mínima em `--run` (`contem_verso` + `comeca_com`)**.
 - Rodada documental mais recente: **Doc-17 — alinhamento documental/operacional pós-Paralela-1 (binários + MCP)**.
-- Fase funcional anterior: **101 — escrita textual mínima de arquivo em `--run` (`escrever_verso` + `criar_arquivo`)**.
+- Fase funcional anterior: **102 — truncamento mínimo de arquivo em `--run` (`truncar_arquivo` + observação explícita de pós-estado com `tamanho_arquivo`/`e_vazio`)**.
 - Bloco concluído: **Bloco 6 — Memória operacional** (Fases 64–72 entregues).
 - Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
 - Bloco 7: **suficientemente consolidado para transição**, sem declaração de completude absoluta.
-- Próximo passo funcional sugerido: **seguir refinamentos mínimos de tooling/I/O em `--run` no Bloco 8 com recorte pequeno e auditável (ex.: validações pontuais de estado pós-I/O e utilitários mínimos sem API ampla)**.
+- Próximo passo funcional sugerido: **seguir refinamentos mínimos de tooling/I/O em `--run` no Bloco 8 com recorte pequeno e auditável, mantendo predicados textuais simples sem abrir biblioteca textual ampla**.
 - Eixo `--asm-s`/backend externo permanece em subset linear auditável (Fases 73–84), mapeado nesta rodada sem abertura de lowering novo.
-- Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 101).
+- Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 103).
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
 - Último hotfix aplicado: **HF-3 — estabilização do Bloco 8 (Fases 85–101): handles, I/O, caminho, texto**.
 

@@ -1,33 +1,35 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 102 — truncamento mínimo de arquivo em `--run`**.
-- Rodada funcional pequena e auditável no Bloco 8, com dois subpassos acoplados: truncar por handle e validar explicitamente o pós-estado.
+- **Fase 103 — observação textual mínima em `--run`**.
+- Rodada funcional pequena e auditável no Bloco 8, com dois subpassos acoplados: contenção textual e prefixo textual.
 
 ## 2. O que entrou na rodada atual
-- Nova intrínseca: `truncar_arquivo(handle) -> nulo` em `--run`, exigindo handle `bombom` aberto.
-- Semântica de runtime: truncamento zera o conteúdo persistido em disco e também o buffer associado ao handle aberto.
-- Integração explícita do pós-estado com superfícies já existentes:
-  - `tamanho_arquivo(verso)` reflete tamanho `0` após truncamento;
-  - `e_vazio(verso)` reflete `verdade` após truncamento;
-  - `ler_verso_arquivo(handle)` retorna `verso` vazio no mesmo fluxo.
+- Novas intrínsecas: `contem_verso(verso, verso) -> logica` e `comeca_com(verso, verso) -> logica` em `--run`.
+- Semântica de runtime:
+  - `contem_verso` verifica presença de trecho textual simples;
+  - `comeca_com` verifica prefixo textual simples.
+- Integração explícita com superfícies já existentes:
+  - fluxo com `ler_verso_arquivo(handle)` para observação textual em conteúdo lido de arquivo;
+  - fluxo com `escrever_verso(handle, verso)` + `falar(...)` para decisão/saída em script mínimo.
 - Cobertura adicionada:
-  - testes semânticos para assinatura/tipagem da nova intrínseca;
-  - testes de runtime para caso positivo e negativos (handle inválido e handle já fechado);
+  - testes semânticos para assinatura/tipagem das duas intrínsecas;
+  - testes de runtime para casos positivos/negativos de contenção e prefixo;
+  - teste de integração com leitura textual de arquivo;
   - teste CLI com exemplo versionado da fase.
 
 ## 3. Fora de escopo da rodada atual
-- Sem truncamento por caminho.
-- Sem append, sem streaming e sem escrita por linha.
-- Sem novos modos de arquivo, sem redesign de runtime e sem biblioteca ampla de filesystem/texto.
+- Sem `termina_com`.
+- Sem split/replace/regex/trim.
+- Sem redesign de runtime e sem biblioteca textual ampla.
 
 ## 4. Próximo item normal
 - Trilha ativa permanece: **Bloco 8 — I/O e ecossistema útil**.
-- Próximo item sugerido: manter refinamentos mínimos e locais em `--run`, priorizando observabilidade e previsibilidade de I/O sem ampliar API.
+- Próximo item sugerido: manter refinamentos mínimos e locais em `--run`, priorizando observabilidade e previsibilidade sem ampliar API textual.
 
 ## 5. Observações operacionais curtas
-- Fase funcional atual: **102**.
-- Fase funcional anterior: **101**.
+- Fase funcional atual: **103**.
+- Fase funcional anterior: **102**.
 - Rodada documental mais recente preservada: **Doc-17**.
 - Rodada paralela concluída preservada: **Paralela-1** — negação bitwise dual (`~` + `nope`) + MCP mínimo (`src/bin/pinker_mcp.rs`).
 - Hotfix extraordinário mais recente preservado: **HF-3 (Bloco 8, Fases 85–101)**.

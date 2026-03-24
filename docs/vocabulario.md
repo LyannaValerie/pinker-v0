@@ -60,6 +60,8 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `criar_arquivo` | criação mínima de arquivo | criar arquivo vazio e retornar handle em `--run` |
 | `escrever_verso` | escrita textual mínima de arquivo | sobrescrever conteúdo completo com `verso` em handle aberto no `--run` |
 | `truncar_arquivo` | truncamento mínimo de arquivo | truncar para vazio um arquivo por handle aberto no `--run` |
+| `contem_verso` | contenção textual mínima | verificar se um `verso` contém outro no `--run` |
+| `comeca_com` | prefixo textual mínimo | verificar se um `verso` começa com outro no `--run` |
 | `sair`        | status de saída mínimo | encerrar script com código explícito |
 | `nope`        | bitwise NOT textual    | negação bitwise em forma Pinker (equivale a `~`) |
 
@@ -122,6 +124,10 @@ Nota de status operacional:
   - `truncar_arquivo(bombom) -> nulo` para truncar o arquivo associado ao handle aberto;
   - pós-estado observável no recorte mínimo existente com `tamanho_arquivo(verso)`, `e_vazio(verso)` e `ler_verso_arquivo(bombom)`;
   - sem truncamento por caminho, sem append/streaming e sem modos ricos de arquivo.
+- Fase 103 (observação textual mínima em `--run`):
+  - `contem_verso(verso, verso) -> logica` para teste simples de contenção textual;
+  - `comeca_com(verso, verso) -> logica` para teste simples de prefixo textual;
+  - sem `termina_com`, sem split/replace/regex/trim e sem biblioteca textual ampla.
 - Fora do subset textual atual: slicing, indexação negativa e formatação/interpolação.
 
 ---
