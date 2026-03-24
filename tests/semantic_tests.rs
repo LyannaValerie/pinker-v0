@@ -791,6 +791,29 @@ fn aparar_verso_intrinseca_rejeita_argumento_nao_verso() {
 }
 
 #[test]
+fn minusculo_verso_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova v: verso = minusculo_verso("PiNkEr");
+            talvez igual_verso(v, "pinker") { mimo 1; } senao { mimo 0; }
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn maiusculo_verso_intrinseca_rejeita_argumento_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova v: verso = maiusculo_verso(7);
+            mimo tamanho_verso(v);
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'maiusculo_verso'"));
+}
+
+#[test]
 fn uso_de_funcao_sem_retorno_em_expressao() {
     let code = "
         pacote main;

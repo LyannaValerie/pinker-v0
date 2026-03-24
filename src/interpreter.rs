@@ -937,6 +937,36 @@ fn try_call_intrinsic(
                 texto.trim().to_string(),
             ))))
         }
+        "minusculo_verso" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'minusculo_verso' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(texto) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'minusculo_verso' exige argumento em verso",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
+                texto.to_lowercase(),
+            ))))
+        }
+        "maiusculo_verso" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'maiusculo_verso' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(texto) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'maiusculo_verso' exige argumento em verso",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
+                texto.to_uppercase(),
+            ))))
+        }
         "argumento" => {
             if args.len() != 1 {
                 return Err(runtime_err(

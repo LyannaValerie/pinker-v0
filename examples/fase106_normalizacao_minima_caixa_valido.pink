@@ -1,0 +1,22 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova entrada: verso = argumento_ou(0, "PiNkEr V0");
+    nova baixo: verso = minusculo_verso(entrada);
+    nova alto: verso = maiusculo_verso(entrada);
+
+    nova ok_baixo: logica = igual_verso(baixo, "pinker v0");
+    nova ok_alto: logica = contem_verso(alto, "PINKER");
+
+    falar(ok_baixo, ok_alto);
+
+    talvez ok_baixo {
+        talvez ok_alto {
+            mimo 1;
+        } senao {
+            mimo 0;
+        }
+    } senao {
+        mimo 0;
+    }
+}

@@ -27,8 +27,8 @@
 - Saídas: `--pseudo-asm`, `--asm-s`, `--run`.
 
 ## 5. Estado corrente
-- Fase funcional atual: **105 — saneamento textual mínimo em `--run` (`vazio_verso` + `aparar_verso`)**.
-- Fase funcional anterior: **104 — observação textual complementar mínima (`termina_com` + `igual_verso`)**.
+- Fase funcional atual: **106 — normalização mínima de caixa em `--run` (`minusculo_verso` + `maiusculo_verso`)**.
+- Fase funcional anterior: **105 — saneamento textual mínimo em `--run` (`vazio_verso` + `aparar_verso`)**.
 - Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
 - Rodada documental mais recente: **Doc-18 — arquitetura documental dual (Engine + Pinker/Rosa)**.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
@@ -56,4 +56,3 @@
 - Binário MCP: `pinker_mcp`.
 - Padrão recomendado: `cargo run --bin pink -- ...`.
 - `default-run = "pink"` preserva ergonomia.
-

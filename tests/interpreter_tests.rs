@@ -417,6 +417,36 @@ fn run_aparar_verso_pode_resultar_em_vazio() {
 }
 
 #[test]
+fn run_minusculo_verso_intrinseca_funciona_em_caso_positivo() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = minusculo_verso("PiNkEr V0");
+            nova ok: logica = igual_verso(texto, "pinker v0");
+            talvez ok { mimo 1; } senao { mimo 0; }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_maiusculo_verso_intrinseca_funciona_em_caso_positivo() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = maiusculo_verso("PiNkEr v0");
+            nova ok: logica = igual_verso(texto, "PINKER V0");
+            talvez ok { mimo 1; } senao { mimo 0; }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
 fn run_argumento_intrinseca_ler_posicional_minimo() {
     let out = run_code_with_args(
         r#"
@@ -2431,6 +2461,13 @@ fn cli_run_saneamento_textual_minimo_fase105_funciona_com_exemplo_versionado() {
 }
 
 #[test]
+fn cli_run_normalizacao_minima_caixa_fase106_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase106_normalizacao_minima_caixa_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "verdade verdade\n1\n");
+}
+
+#[test]
 fn cli_run_verso_operacional_minimo_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase88_verso_operacional_minimo_valido.pink");
     assert!(out.status.success(), "{:?}", out);
@@ -3031,6 +3068,48 @@ fn run_aparar_e_vazio_verso_integram_com_ler_verso_arquivo() {
             falar(vazio, tamanho_verso(limpo));
             talvez vazio {{
                 mimo 1;
+            }} senao {{
+                mimo 0;
+            }}
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+    let _ = std::fs::remove_file(&file_path);
+}
+
+#[test]
+fn run_minusculo_e_maiusculo_verso_integram_com_ler_verso_arquivo_e_contem() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase106_verso_caixa_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+    std::fs::write(&file_path, "PiNkEr v0").expect("falha ao criar arquivo da fase 106");
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{}");
+            nova texto: verso = ler_verso_arquivo(h);
+            fechar(h);
+            nova baixo: verso = minusculo_verso(texto);
+            nova alto: verso = maiusculo_verso(texto);
+            nova ok_baixo: logica = contem_verso(baixo, "pinker");
+            nova ok_alto: logica = igual_verso(alto, "PINKER V0");
+            falar(ok_baixo, ok_alto);
+            talvez ok_baixo {{
+                talvez ok_alto {{
+                    mimo 1;
+                }} senao {{
+                    mimo 0;
+                }}
             }} senao {{
                 mimo 0;
             }}

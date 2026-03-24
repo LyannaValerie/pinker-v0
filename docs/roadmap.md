@@ -159,6 +159,7 @@ Status de execução no bloco:
 - **Fase 103 concluída (refinamento mínimo pós-Fase 102)**: observação textual mínima em `--run` com `contem_verso(verso, verso) -> logica` e `comeca_com(verso, verso) -> logica`, integrada ao fluxo já existente de arquivo/argv/ambiente sem abrir API textual ampla (sem `termina_com`, split/replace/regex/trim).
 - **Fase 104 concluída (refinamento mínimo pós-Fase 103)**: observação textual complementar mínima em `--run` com `termina_com(verso, verso) -> logica` e `igual_verso(verso, verso) -> logica`, fechando o conjunto mínimo de comparação/observação textual do bloco sem abrir API textual ampla (sem split/replace/regex/trim).
 - **Fase 105 concluída (refinamento mínimo pós-Fase 104)**: saneamento textual mínimo em `--run` com `vazio_verso(verso) -> logica` (vazio exato) e `aparar_verso(verso) -> verso` (aparo de bordas), para permitir limpeza local de entrada sem abrir split/replace/regex/trim variants ou biblioteca textual ampla.
+- **Fase 106 concluída (refinamento mínimo pós-Fase 105)**: normalização mínima de caixa em `--run` com `minusculo_verso(verso) -> verso` e `maiusculo_verso(verso) -> verso`, mantendo recorte local e auditável sem casefolding, sem locale-aware behavior e sem API textual ampla.
 
 ---
 

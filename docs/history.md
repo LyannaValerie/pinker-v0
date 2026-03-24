@@ -477,6 +477,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com testes semânticos e de `--run` para casos positivos/negativos, caso onde `aparar_verso` resulta vazio e integração com `ler_verso_arquivo(...)`; CLI coberta por exemplo versionado (`examples/fase105_saneamento_textual_minimo_valido.pink`).
 - Fora de escopo explícito nesta fase: split/replace/regex, variantes de trim separadas (`left/right`), normalização sofisticada, parse textual amplo e biblioteca textual ampla.
 
+106 - normalização mínima de caixa em `--run`
+- Vigésima segunda fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfícies escolhidas: `minusculo_verso(verso) -> verso` e `maiusculo_verso(verso) -> verso`.
+- Semântica operacional desta fase: conversão textual mínima de caixa no runtime usando comportamento padrão de `String` (sem casefolding e sem contrato locale-aware explícito).
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram as duas intrínsecas sem declaração explícita de função.
+- Cobertura adicionada com testes semânticos e de `--run` para casos positivos, integração com `igual_verso`/`contem_verso`, integração com `ler_verso_arquivo(...)` e teste CLI com exemplo versionado (`examples/fase106_normalizacao_minima_caixa_valido.pink`).
+- Fora de escopo explícito nesta fase: casefolding, locale-aware behavior, normalização Unicode sofisticada, split/replace/regex e biblioteca textual ampla.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
