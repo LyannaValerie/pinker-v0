@@ -162,6 +162,7 @@ Status de execução no bloco:
 - **Fase 106 concluída (refinamento mínimo pós-Fase 105)**: normalização mínima de caixa em `--run` com `minusculo_verso(verso) -> verso` e `maiusculo_verso(verso) -> verso`, mantendo recorte local e auditável sem casefolding, sem locale-aware behavior e sem API textual ampla.
 - **Fase 107 concluída (refinamento mínimo pós-Fase 106)**: observação textual posicional mínima em `--run` com `indice_verso_em(verso, verso) -> bombom` (primeira ocorrência; sentinela `u64::MAX` quando ausente) e ergonomia mínima de presença com `nao_vazio_verso(verso) -> logica`, sem abrir última/múltiplas ocorrências, regex, split/replace/slicing geral ou biblioteca textual ampla.
 - **Fase 108 concluída (refinamento mínimo pós-Fase 107)**: append textual mínimo em `--run` com `abrir_anexo(verso) -> bombom` e `anexar_verso(bombom, verso) -> nulo`, com append por handle sem newline implícito e sem abrir append por caminho, múltiplos modos gerais, streaming, escrita por linha, seek/cursor público ou API ampla de filesystem/texto.
+- **Fase 109 concluída (refinamento mínimo pós-Fase 108)**: leitura textual mínima direta por caminho em `--run` com `ler_arquivo_verso(verso) -> verso` e fallback ergonômico `arquivo_ou(verso, verso) -> verso`, com leitura completa por caminho e fallback textual para ausência/impossibilidade simples de leitura, sem streaming, sem escrita/append por caminho, sem modos ricos, sem seek/cursor e sem biblioteca ampla de filesystem/texto.
 
 ---
 

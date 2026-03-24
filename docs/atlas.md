@@ -26,7 +26,7 @@ Documentos canônicos para estado real e continuidade técnica:
 - `docs/agent_state.md` — estado operacional corrente e diretrizes de execução.
 - `docs/handoff_codex.md` — handoff curto da rodada vigente.
 - `docs/doc_rules.md` — regras obrigatórias de atualização documental.
-- `manual.md` — manual prático de uso da linguagem no estado implementado.
+- `MANUAL.md` — manual prático de uso da linguagem no estado implementado.
 
 Documento de apoio do hemisfério Engine:
 
@@ -76,4 +76,3 @@ Sempre que um documento ganhar papel estrutural, declarar no topo:
 4. `docs/history.md` (crônica factual)
 5. `docs/future.md` (inventário técnico)
 6. `docs/rosa.md` + `docs/vocabulario.md` + `docs/parallel.md` (identidade e visão)
-

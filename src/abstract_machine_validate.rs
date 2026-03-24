@@ -132,6 +132,17 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );
     sigs.insert(
+        "ler_arquivo_verso".to_string(),
+        (TypeIR::Verso, vec![StackValueType::Verso]),
+    );
+    sigs.insert(
+        "arquivo_ou".to_string(),
+        (
+            TypeIR::Verso,
+            vec![StackValueType::Verso, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
         "fechar".to_string(),
         (TypeIR::Nulo, vec![StackValueType::Bombom]),
     );

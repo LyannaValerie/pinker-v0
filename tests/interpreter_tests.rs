@@ -2593,6 +2593,76 @@ fn run_abrir_anexo_falha_com_caminho_invalido() {
 }
 
 #[test]
+fn run_ler_arquivo_verso_minimo_por_caminho_funciona() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase109_ler_arquivo_verso_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            nova alvo: verso = "{}";
+            nova h: bombom = criar_arquivo(alvo);
+            escrever_verso(h, "fase109-ok");
+            fechar(h);
+            nova texto: verso = ler_arquivo_verso(alvo);
+            falar(texto, contem_verso(texto, "109"));
+            talvez igual_verso(texto, "fase109-ok") {{
+                mimo 1;
+            }} senao {{
+                mimo 0;
+            }}
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+    let _ = std::fs::remove_file(&file_path);
+}
+
+#[test]
+fn run_arquivo_ou_retorna_padrao_para_caminho_ausente() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = arquivo_ou("__pinker_fase109_nao_existe__.txt", "padrao109");
+            falar(texto, nao_vazio_verso(texto));
+            talvez igual_verso(texto, "padrao109") {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_ler_arquivo_verso_falha_com_caminho_invalido() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = ler_arquivo_verso("/pinker/fase109/caminho/invalido.txt");
+            falar(texto);
+            mimo 0;
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("falha ao ler arquivo em 'ler_arquivo_verso'"),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
 fn run_criar_arquivo_e_escrever_verso_integram_com_argumento_ou_e_juntar_caminho() {
     let mut base_dir = std::env::temp_dir();
     let unique = format!(
@@ -2687,6 +2757,16 @@ fn cli_run_append_textual_minimo_fase108_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase108_append_textual_minimo_valido.pink");
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(String::from_utf8_lossy(&out.stdout), "base+A+B 8\n1\n");
+}
+
+#[test]
+fn cli_run_leitura_textual_direta_por_caminho_fase109_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase109_leitura_textual_direta_por_caminho_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "fase109\npadrao109\n1\n"
+    );
 }
 
 #[test]

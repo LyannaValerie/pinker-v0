@@ -43,6 +43,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - normalização mínima de caixa em `--run` com `minusculo_verso(verso) -> verso` e `maiusculo_verso(verso) -> verso`, mantendo recorte local e sem abrir casefolding/locale-aware/text API ampla (Fase 106)
 - observação textual posicional mínima em `--run` com `indice_verso_em(verso, verso) -> bombom` (primeira ocorrência; retorna `18446744073709551615` quando ausente) e ergonomia mínima de presença com `nao_vazio_verso(verso) -> logica` (Fase 107)
 - append textual mínimo em `--run` com `abrir_anexo(verso) -> bombom` e `anexar_verso(bombom, verso) -> nulo`, sem newline implícito e sem abrir modos ricos de arquivo (Fase 108)
+- leitura textual mínima direta por caminho em `--run` com `ler_arquivo_verso(verso) -> verso` e fallback ergonômico `arquivo_ou(verso, verso) -> verso`, sem streaming, sem escrita por caminho e sem API rica de handles (Fase 109)
 - comando de projeto `pink build <arquivo.pink>` para gerar artefato textual `.s` em disco (padrão: `build/<arquivo>.s`)
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
@@ -166,6 +167,7 @@ cargo run --bin pink -- --run examples/fase105_saneamento_textual_minimo_valido.
 cargo run --bin pink -- --run examples/fase106_normalizacao_minima_caixa_valido.pink -- "PiNkEr V0"
 cargo run --bin pink -- --run examples/fase107_observacao_textual_posicional_minima_valido.pink -- "   pinker v0   "
 cargo run --bin pink -- --run examples/fase108_append_textual_minimo_valido.pink -- /tmp fase108_saida.txt
+cargo run --bin pink -- --run examples/fase109_leitura_textual_direta_por_caminho_valido.pink -- /tmp/pinker_fase109_saida.txt
 cargo run --bin pink -- --asm-s examples/fase73_backend_externo_locais_aritmetica_valido.pink
 cargo run --bin pink -- --check examples/fase74_backend_externo_call_minimo_valido.pink
 cargo run --bin pink -- --asm-s examples/fase75_backend_externo_frame_registradores_valido.pink
@@ -229,7 +231,7 @@ cargo run --bin pink -- build --out-dir saida examples/fase60_modulos_valido.pin
 - `--machine`: alvo textual abstrato de máquina de pilha (`vm` + `term`)
 - `--pseudo-asm`: backend textual normalizado final (`ins`/`term`)
 - `--asm-s`: backend textual `.s` com ABI textual mínima interna (derivado de `--selected`, sem ABI/registradores finais de plataforma)
-- `--run`: interpreta a Machine validada e executa `principal` (suporta `-- <args...>` para repasse posicional de argv em `argumento`, `tem_argumento`, `quantos_argumentos` e `argumento_ou`; inclui também leitura mínima de ambiente com `ambiente_ou`, diretório atual via `diretorio_atual`, introspecção/composição mínima de caminho com `caminho_existe`/`e_arquivo`/`e_diretorio`/`juntar_caminho`, metadados mínimos de arquivo com `tamanho_arquivo`/`e_vazio`, leitura textual mínima via `ler_verso_arquivo(handle)`, escrita textual mínima via `escrever_verso(handle, verso)`/`criar_arquivo(verso)`, truncamento mínimo via `truncar_arquivo(handle)`, observação textual mínima com `contem_verso`/`comeca_com`/`termina_com`/`igual_verso` e mutação mínima controlada com `criar_diretorio`/`remover_arquivo`/`remover_diretorio`)
+- `--run`: interpreta a Machine validada e executa `principal` (suporta `-- <args...>` para repasse posicional de argv em `argumento`, `tem_argumento`, `quantos_argumentos` e `argumento_ou`; inclui também leitura mínima de ambiente com `ambiente_ou`, diretório atual via `diretorio_atual`, introspecção/composição mínima de caminho com `caminho_existe`/`e_arquivo`/`e_diretorio`/`juntar_caminho`, metadados mínimos de arquivo com `tamanho_arquivo`/`e_vazio`, leitura textual mínima via `ler_verso_arquivo(handle)` e leitura textual direta por caminho via `ler_arquivo_verso(verso)`/`arquivo_ou(verso, verso)`, escrita textual mínima via `escrever_verso(handle, verso)`/`criar_arquivo(verso)`, truncamento mínimo via `truncar_arquivo(handle)`, observação textual mínima com `contem_verso`/`comeca_com`/`termina_com`/`igual_verso` e mutação mínima controlada com `criar_diretorio`/`remover_arquivo`/`remover_diretorio`)
 
 ## Pipeline de backend textual
 `--pseudo-asm` executa:
@@ -321,7 +323,7 @@ A navegação documental principal está em `docs/atlas.md`, com arquitetura dua
 Referências centrais:
 
 - `docs/atlas.md` — arquivo mestre de navegação.
-- `manual.md` — manual de uso da linguagem no estado implementado.
+- `MANUAL.md` — manual de uso da linguagem no estado implementado.
 - `docs/roadmap.md` — trilha ativa oficial.
 - `docs/history.md` — crônica histórica oficial.
 - `docs/rosa.md` — manifesto conceitual estruturado do hemisfério Rosa.

@@ -1,0 +1,23 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova alvo: verso = argumento_ou(0, "/tmp/pinker_fase109_exemplo.txt");
+    nova h: bombom = criar_arquivo(alvo);
+    escrever_verso(h, "fase109");
+    fechar(h);
+
+    nova lido: verso = ler_arquivo_verso(alvo);
+    nova fallback: verso = arquivo_ou("__pinker_fase109_inexistente__.txt", "padrao109");
+    falar(lido);
+    falar(fallback);
+
+    talvez igual_verso(lido, "fase109") {
+        talvez igual_verso(fallback, "padrao109") {
+            mimo 1;
+        } senao {
+            mimo 0;
+        }
+    } senao {
+        mimo 0;
+    }
+}

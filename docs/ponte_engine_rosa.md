@@ -22,7 +22,7 @@ Conectar explicitamente:
 
 ### Engine já consolidado
 
-- Fase funcional atual: **108** (`abrir_anexo` + `anexar_verso`).
+- Fase funcional atual: **109** (`ler_arquivo_verso` + `arquivo_ou`).
 - Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
 - Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`.
 
@@ -46,4 +46,3 @@ Checklist mínimo:
 - Há links cruzados entre Engine e Rosa?
 - Houve atualização de `history.md`, `agent_state.md` e `handoff_codex.md`?
 - O atlas (`docs/atlas.md`) continua apontando para os canônicos corretos?
-

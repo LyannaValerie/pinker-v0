@@ -501,6 +501,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com testes semânticos e de `--run` (sucesso/falhas), integração com `criar_arquivo`, `ler_verso_arquivo` e `tamanho_arquivo`, além de teste CLI com exemplo versionado (`examples/fase108_append_textual_minimo_valido.pink`).
 - Fora de escopo explícito nesta fase: append por caminho direto, múltiplos modos gerais de abertura, streaming, escrita por linha, seek/cursor público, encoding sofisticado e biblioteca ampla de filesystem/texto.
 
+109 - leitura textual mínima direta por caminho em `--run`
+- Vigésima quinta fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfícies escolhidas: `ler_arquivo_verso(verso) -> verso` e `arquivo_ou(verso, verso) -> verso`.
+- Semântica operacional mínima: `ler_arquivo_verso` lê conteúdo textual completo diretamente por caminho e falha com diagnóstico claro quando não for possível ler; `arquivo_ou` tenta a mesma leitura mínima por caminho e retorna o `padrao` para ausência/impossibilidade simples de leitura no runtime atual.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram as duas intrínsecas sem declaração explícita de função.
+- Cobertura adicionada com testes semânticos (reconhecimento, aridade e tipos), testes de `--run` (sucesso/fallback/falha de leitura por caminho) e teste CLI com exemplo versionado (`examples/fase109_leitura_textual_direta_por_caminho_valido.pink`).
+- Fora de escopo explícito nesta fase: streaming, leitura incremental, escrita/append por caminho, modos ricos de abertura, seek/cursor público, encoding sofisticado, listagem de diretório e biblioteca ampla de filesystem/texto.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
