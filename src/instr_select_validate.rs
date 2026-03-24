@@ -35,6 +35,8 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("abrir".to_string(), TypeIR::Bombom);
     sigs.insert("ler_arquivo".to_string(), TypeIR::Bombom);
     sigs.insert("ler_verso_arquivo".to_string(), TypeIR::Verso);
+    sigs.insert("ler_arquivo_verso".to_string(), TypeIR::Verso);
+    sigs.insert("arquivo_ou".to_string(), TypeIR::Verso);
     sigs.insert("fechar".to_string(), TypeIR::Nulo);
     sigs.insert("criar_arquivo".to_string(), TypeIR::Bombom);
     sigs.insert("abrir_anexo".to_string(), TypeIR::Bombom);

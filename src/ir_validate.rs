@@ -181,6 +181,20 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "ler_arquivo_verso".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "arquivo_ou".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
         "fechar".to_string(),
         FunctionSig {
             ret_type: TypeIR::Nulo,

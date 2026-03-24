@@ -581,6 +581,20 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "ler_arquivo_verso".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "arquivo_ou".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "fechar".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Nulo,

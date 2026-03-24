@@ -710,6 +710,48 @@ fn try_call_intrinsic(
                 open_file.content.clone(),
             ))))
         }
+        "ler_arquivo_verso" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'ler_arquivo_verso' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(path) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'ler_arquivo_verso' exige caminho em verso",
+                ));
+            };
+            let content = fs::read_to_string(path).map_err(|err| {
+                runtime_err(&format!(
+                    "falha ao ler arquivo em 'ler_arquivo_verso': {}",
+                    err
+                ))
+            })?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(content))))
+        }
+        "arquivo_ou" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'arquivo_ou' exige 2 argumentos (verso, verso)",
+                ));
+            }
+            let RuntimeValue::Str(path) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'arquivo_ou' exige caminho em verso",
+                ));
+            };
+            let RuntimeValue::Str(default_value) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'arquivo_ou' exige valor padrão em verso",
+                ));
+            };
+            match fs::read_to_string(path) {
+                Ok(content) => Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(content)))),
+                Err(_) => Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
+                    default_value.clone(),
+                )))),
+            }
+        }
         "escrever" => {
             if args.len() != 2 {
                 return Err(runtime_err(

@@ -8,8 +8,8 @@
 > A crônica histórica oficial é `docs/history.md`.
 
 ## Estado atual
-- Fase funcional atual: **108 — append textual mínimo em `--run` (`abrir_anexo` + `anexar_verso`)**.
-- Fase funcional anterior: **107 — observação textual posicional mínima em `--run` (`indice_verso_em` + `nao_vazio_verso`)**.
+- Fase funcional atual: **109 — leitura textual mínima direta por caminho em `--run` (`ler_arquivo_verso` + `arquivo_ou`)**.
+- Fase funcional anterior: **108 — append textual mínimo em `--run` (`abrir_anexo` + `anexar_verso`)**.
 - Hotfix extraordinário ativo mais recente: **HF-3**.
 - Última rodada documental: **Doc-18 — arquitetura documental dual (Engine + Pinker/Rosa)**.
 
