@@ -51,6 +51,8 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("aparar_verso".to_string(), TypeIR::Verso);
     sigs.insert("minusculo_verso".to_string(), TypeIR::Verso);
     sigs.insert("maiusculo_verso".to_string(), TypeIR::Verso);
+    sigs.insert("indice_verso_em".to_string(), TypeIR::Bombom);
+    sigs.insert("nao_vazio_verso".to_string(), TypeIR::Logica);
 
     for f in &program.functions {
         if f.blocks.is_empty() {
