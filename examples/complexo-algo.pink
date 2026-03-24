@@ -1,0 +1,776 @@
+// ═══════════════════════════════════════════════════════════════════
+//  PINKER SWISS ARMY KNIFE — O canivete suíço cor-de-rosa
+//  Usa: pacote, eterno, ninho, apelido, carinho, mimo,
+//       talvez/senao, sempre que, quebrar, continuar, nova muda,
+//       falar, ouvir, sussurro, virar, peso, alinhamento, nope,
+//       seta, fragil, verso, logica, verdade, falso,
+//       todos os operadores, todas as built-ins de string, arquivo,
+//       caminho, ambiente, argumentos CLI e metadados.
+// ═══════════════════════════════════════════════════════════════════
+pacote canivete;
+
+// ─── Constantes globais ──────────────────────────────────────────
+eterno VERSAO_MAJOR: bombom = 1;
+eterno VERSAO_MINOR: bombom = 9;
+eterno VERSAO_PATCH: bombom = 7;
+eterno MAX_ITER: bombom = 1000;
+eterno FNV_OFFSET: bombom = 14695981039346656037;
+eterno FNV_PRIME: bombom = 1099511628211;
+eterno CAESAR_SHIFT: bombom = 13;
+eterno MAGIC: bombom = 3735928559;
+eterno TAMANHO_PAGINA: bombom = 4096;
+eterno BITS_POR_BYTE: bombom = 8;
+
+// ─── Aliases de tipo ─────────────────────────────────────────────
+apelido Handle = bombom;
+apelido Codigo = bombom;
+apelido Hash = bombom;
+apelido Byte = u8;
+apelido Palavra = u64;
+apelido Registro = seta<bombom>;
+apelido PortaHW = fragil seta<u8>;
+
+// ─── Structs (ninhos) ───────────────────────────────────────────
+ninho Info {
+    major: bombom;
+    minor: bombom;
+    patch: bombom;
+}
+
+ninho Par {
+    chave: bombom;
+    valor: bombom;
+}
+
+ninho Metricas {
+    total_ops: bombom;
+    colisoes: bombom;
+    profundidade_max: bombom;
+    bytes_escritos: bombom;
+}
+
+ninho Intervalo {
+    inicio: bombom;
+    fim: bombom;
+    passo: bombom;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SEÇÃO 1 — Aritmética & Teoria dos Números
+// ═══════════════════════════════════════════════════════════════════
+
+// Fibonacci iterativo com saturação
+carinho fibonacci(n: bombom) -> bombom {
+    talvez n == 0 {
+        mimo 0;
+    }
+    talvez n == 1 {
+        mimo 1;
+    }
+    nova muda a: bombom = 0;
+    nova muda b: bombom = 1;
+    nova muda i: bombom = 2;
+    sempre que i <= n {
+        nova muda temp: bombom = a + b;
+        // Detecção de overflow por saturação
+        talvez temp < a {
+            mimo b;
+        }
+        a = b;
+        b = temp;
+        i = i + 1;
+    }
+    mimo b;
+}
+
+// Fatorial com proteção de overflow
+carinho fatorial(n: bombom) -> bombom {
+    nova muda resultado: bombom = 1;
+    nova muda i: bombom = 2;
+    sempre que i <= n {
+        nova muda novo: bombom = resultado * i;
+        talvez novo / i != resultado {
+            mimo resultado;
+        }
+        resultado = novo;
+        i = i + 1;
+    }
+    mimo resultado;
+}
+
+// Maior Divisor Comum — Euclides iterativo
+carinho mdc(a: bombom, b: bombom) -> bombom {
+    nova muda x: bombom = a;
+    nova muda y: bombom = b;
+    sempre que y != 0 {
+        nova muda temp: bombom = y;
+        y = x % y;
+        x = temp;
+    }
+    mimo x;
+}
+
+// Menor Múltiplo Comum
+carinho mmc(a: bombom, b: bombom) -> bombom {
+    mimo (a / mdc(a, b)) * b;
+}
+
+// Teste de primalidade por divisão tentativa
+carinho e_primo(n: bombom) -> logica {
+    talvez n < 2 {
+        mimo falso;
+    }
+    talvez n < 4 {
+        mimo verdade;
+    }
+    talvez n % 2 == 0 {
+        mimo falso;
+    }
+    talvez n % 3 == 0 {
+        mimo falso;
+    }
+    nova muda i: bombom = 5;
+    sempre que i * i <= n {
+        talvez n % i == 0 {
+            mimo falso;
+        }
+        talvez n % (i + 2) == 0 {
+            mimo falso;
+        }
+        i = i + 6;
+    }
+    mimo verdade;
+}
+
+// Exponenciação modular por quadratura repetida (bitwise)
+carinho exp_mod(base: bombom, exp: bombom, modulo: bombom) -> bombom {
+    nova muda resultado: bombom = 1;
+    nova muda b: bombom = base % modulo;
+    nova muda e: bombom = exp;
+    sempre que e > 0 {
+        talvez (e & 1) == 1 {
+            resultado = (resultado * b) % modulo;
+        }
+        e = e >> 1;
+        b = (b * b) % modulo;
+    }
+    mimo resultado;
+}
+
+// Contagem de bits setados (population count / Hamming weight)
+carinho popcount(n: bombom) -> bombom {
+    nova muda x: bombom = n;
+    nova muda contagem: bombom = 0;
+    sempre que x != 0 {
+        contagem = contagem + (x & 1);
+        x = x >> 1;
+    }
+    mimo contagem;
+}
+
+// Bit reversal de 8 bits
+carinho reverter_bits(n: bombom) -> bombom {
+    nova muda x: bombom = n & 255;
+    nova muda resultado: bombom = 0;
+    nova muda i: bombom = 0;
+    sempre que i < BITS_POR_BYTE {
+        resultado = (resultado << 1) | (x & 1);
+        x = x >> 1;
+        i = i + 1;
+    }
+    mimo resultado;
+}
+
+// Raiz quadrada inteira (método babilônico / Newton)
+carinho raiz_inteira(n: bombom) -> bombom {
+    talvez n == 0 {
+        mimo 0;
+    }
+    nova muda x: bombom = n;
+    nova muda y: bombom = (x + 1) / 2;
+    sempre que y < x {
+        x = y;
+        y = (x + n / x) / 2;
+    }
+    mimo x;
+}
+
+// Sequência de Collatz — retorna número de passos
+carinho collatz_passos(n: bombom) -> bombom {
+    nova muda x: bombom = n;
+    nova muda passos: bombom = 0;
+    sempre que x != 1 {
+        talvez passos > MAX_ITER {
+            mimo passos;
+        }
+        talvez x % 2 == 0 {
+            x = x / 2;
+        } senao {
+            x = 3 * x + 1;
+        }
+        passos = passos + 1;
+    }
+    mimo passos;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SEÇÃO 2 — Hashing & Criptografia (bitwise pesada)
+// ═══════════════════════════════════════════════════════════════════
+
+// FNV-1a hash para bombom
+carinho fnv1a_bombom(valor: bombom) -> Hash {
+    nova muda hash: bombom = FNV_OFFSET;
+    nova muda v: bombom = valor;
+    nova muda i: bombom = 0;
+    sempre que i < 8 {
+        nova byte: bombom = v & 255;
+        hash = hash ^ byte;
+        hash = hash * FNV_PRIME;
+        v = v >> 8;
+        i = i + 1;
+    }
+    mimo hash;
+}
+
+// FNV-1a hash para verso (string)
+carinho fnv1a_verso(texto: verso) -> Hash {
+    nova muda hash: bombom = FNV_OFFSET;
+    nova tam: bombom = tamanho_verso(texto);
+    nova muda i: bombom = 0;
+    sempre que i < tam {
+        nova ch: verso = indice_verso(texto, i);
+        nova byte: bombom = tamanho_verso(ch);
+        hash = hash ^ byte;
+        hash = hash * FNV_PRIME;
+        i = i + 1;
+    }
+    mimo hash;
+}
+
+// Mistura de bits estilo MurmurHash finalizer
+carinho misturar_bits(valor: bombom) -> bombom {
+    nova muda h: bombom = valor;
+    h = h ^ (h >> 33);
+    h = h * 18397679294719823053;
+    h = h ^ (h >> 29);
+    h = h * 14181476777654086739;
+    h = h ^ (h >> 32);
+    mimo h;
+}
+
+// Cifra de César em verso
+carinho cifrar_cesar(texto: verso, deslocamento: bombom) -> verso {
+    nova muda resultado: verso = "";
+    nova tam: bombom = tamanho_verso(texto);
+    nova muda i: bombom = 0;
+    sempre que i < tam {
+        nova ch: verso = indice_verso(texto, i);
+        resultado = juntar_verso(resultado, ch);
+        i = i + 1;
+    }
+    mimo resultado;
+}
+
+// XOR checksum de um valor (fold de 16 bits)
+carinho checksum_xor(valor: bombom) -> bombom {
+    nova muda resultado: bombom = 0;
+    nova muda v: bombom = valor;
+    nova muda i: bombom = 0;
+    sempre que i < 4 {
+        resultado = resultado ^ (v & 65535);
+        v = v >> 16;
+        i = i + 1;
+    }
+    mimo resultado;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SEÇÃO 3 — Operações com Strings (verso)
+// ═══════════════════════════════════════════════════════════════════
+
+// Verifica se um verso é palíndromo
+carinho e_palindromo(texto: verso) -> logica {
+    nova tam: bombom = tamanho_verso(texto);
+    talvez tam < 2 {
+        mimo verdade;
+    }
+    nova muda esq: bombom = 0;
+    nova muda dir: bombom = tam - 1;
+    sempre que esq < dir {
+        nova ch_e: verso = indice_verso(texto, esq);
+        nova ch_d: verso = indice_verso(texto, dir);
+        nova iguais: logica = contem_verso(ch_e, ch_d);
+        talvez !iguais {
+            mimo falso;
+        }
+        esq = esq + 1;
+        dir = dir - 1;
+    }
+    mimo verdade;
+}
+
+// Repete um verso N vezes
+carinho repetir_verso(texto: verso, vezes: bombom) -> verso {
+    nova muda resultado: verso = "";
+    nova muda i: bombom = 0;
+    sempre que i < vezes {
+        resultado = juntar_verso(resultado, texto);
+        i = i + 1;
+    }
+    mimo resultado;
+}
+
+// Contar ocorrências de um caractere em um verso
+carinho contar_char(texto: verso, alvo: verso) -> bombom {
+    nova tam: bombom = tamanho_verso(texto);
+    nova muda contagem: bombom = 0;
+    nova muda i: bombom = 0;
+    sempre que i < tam {
+        nova ch: verso = indice_verso(texto, i);
+        talvez contem_verso(alvo, ch) {
+            contagem = contagem + 1;
+        }
+        i = i + 1;
+    }
+    mimo contagem;
+}
+
+// Construir barra de progresso visual
+carinho barra_progresso(atual: bombom, total: bombom) -> verso {
+    nova largura: bombom = 20;
+    nova preenchido: bombom = (atual * largura) / total;
+    nova muda barra: verso = "[";
+    nova muda i: bombom = 0;
+    sempre que i < largura {
+        talvez i < preenchido {
+            barra = juntar_verso(barra, "#");
+        } senao {
+            barra = juntar_verso(barra, ".");
+        }
+        i = i + 1;
+    }
+    barra = juntar_verso(barra, "]");
+    mimo barra;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SEÇÃO 4 — Sistema de Arquivos & Persistência
+// ═══════════════════════════════════════════════════════════════════
+
+// Salvar um par chave=valor num arquivo
+carinho salvar_par(caminho: verso, chave: bombom, valor: bombom) -> logica {
+    talvez caminho_existe(caminho) == falso {
+        nova h: Handle = criar_arquivo(caminho);
+        fechar(h);
+    }
+    nova handle: Handle = abrir(caminho);
+    truncar_arquivo(handle);
+    escrever(handle, chave * TAMANHO_PAGINA + valor);
+    fechar(handle);
+    mimo verdade;
+}
+
+// Ler par codificado de um arquivo
+carinho carregar_par(caminho: verso) -> bombom {
+    talvez caminho_existe(caminho) == falso {
+        mimo 0;
+    }
+    talvez e_arquivo(caminho) == falso {
+        mimo 0;
+    }
+    talvez e_vazio(caminho) {
+        mimo 0;
+    }
+    nova handle: Handle = abrir(caminho);
+    nova dados: bombom = ler_arquivo(handle);
+    fechar(handle);
+    mimo dados;
+}
+
+// Criar relatório em arquivo texto
+carinho gerar_relatorio(dir_base: verso) -> logica {
+    nova caminho: verso = juntar_caminho(dir_base, "relatorio.txt");
+    nova handle: Handle = criar_arquivo(caminho);
+
+    escrever_verso(handle, "=== RELATORIO PINKER ===");
+    escrever_verso(handle, " ");
+
+    nova cwd: verso = diretorio_atual();
+    nova linha: verso = juntar_verso("Diretorio: ", cwd);
+    escrever_verso(handle, linha);
+
+    nova fib10: bombom = fibonacci(10);
+    escrever(handle, fib10);
+
+    nova muda primos_encontrados: bombom = 0;
+    nova muda num: bombom = 2;
+    sempre que num < 100 {
+        talvez e_primo(num) {
+            primos_encontrados = primos_encontrados + 1;
+        }
+        num = num + 1;
+    }
+    escrever(handle, primos_encontrados);
+
+    fechar(handle);
+    mimo verdade;
+}
+
+// Escanear diretório e verificar artefatos
+carinho verificar_artefatos(base: verso) -> bombom {
+    nova muda total: bombom = 0;
+
+    nova p1: verso = juntar_caminho(base, "dados.pink");
+    talvez caminho_existe(p1) {
+        talvez e_arquivo(p1) {
+            nova tam: bombom = tamanho_arquivo(p1);
+            total = total + tam;
+        }
+    }
+
+    nova p2: verso = juntar_caminho(base, "cache");
+    talvez caminho_existe(p2) {
+        talvez e_diretorio(p2) {
+            total = total + TAMANHO_PAGINA;
+        }
+    }
+
+    mimo total;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SEÇÃO 5 — Informações do Sistema & Introspecção de Tipos
+// ═══════════════════════════════════════════════════════════════════
+
+carinho info_sistema() -> bombom {
+    falar("=================================");
+    falar("   PINKER CANIVETE v1.9.7");
+    falar("=================================");
+    falar(" ");
+
+    nova tam_bombom: bombom = peso(bombom);
+    nova tam_u8: bombom = peso(u8);
+    nova tam_u16: bombom = peso(u16);
+    nova tam_u32: bombom = peso(u32);
+    nova tam_u64: bombom = peso(u64);
+    nova tam_i8: bombom = peso(i8);
+    nova tam_i16: bombom = peso(i16);
+    nova tam_i32: bombom = peso(i32);
+    nova tam_i64: bombom = peso(i64);
+    nova tam_logica: bombom = peso(logica);
+
+    nova align_bombom: bombom = alinhamento(bombom);
+    nova align_u64: bombom = alinhamento(u64);
+
+    falar("Tamanhos de tipo (bytes):");
+    falar("  bombom:", tam_bombom, "| alinhamento:", align_bombom);
+    falar("  u8:", tam_u8, "| u16:", tam_u16, "| u32:", tam_u32, "| u64:", tam_u64);
+    falar("  i8:", tam_i8, "| i16:", tam_i16, "| i32:", tam_i32, "| i64:", tam_i64);
+    falar("  logica:", tam_logica);
+    falar(" ");
+
+    nova home: verso = ambiente_ou("HOME", "/desconhecido");
+    nova user: verso = ambiente_ou("USER", "anonimo");
+    nova cwd: verso = diretorio_atual();
+    falar("HOME:", home);
+    falar("USER:", user);
+    falar("CWD:", cwd);
+
+    mimo tam_bombom + tam_u8 + tam_u16 + tam_u32 + tam_u64;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SEÇÃO 6 — Demonstração de operações bitwise completas
+// ═══════════════════════════════════════════════════════════════════
+
+carinho demo_bitwise(valor: bombom) -> bombom {
+    nova muda resultado: bombom = valor;
+
+    nova and_mask: bombom = resultado & 4294967295;
+    nova or_bits: bombom = resultado | MAGIC;
+    nova xor_flip: bombom = resultado ^ 12345678;
+    nova not_bits: bombom = nope resultado;
+    nova shift_l: bombom = (resultado & 255) << 4;
+    nova shift_r: bombom = resultado >> 16;
+
+    nova nibble_0: bombom = resultado & 15;
+    nova nibble_1: bombom = (resultado >> 4) & 15;
+    nova nibble_2: bombom = (resultado >> 8) & 15;
+    nova nibble_3: bombom = (resultado >> 12) & 15;
+
+    nova bits_setados: bombom = popcount(resultado);
+    nova bits_reversos: bombom = reverter_bits(resultado);
+
+    nova chk: bombom = checksum_xor(resultado);
+
+    resultado = misturar_bits(and_mask ^ or_bits ^ xor_flip);
+    resultado = resultado ^ (shift_l | shift_r);
+    resultado = resultado ^ ((nibble_0 + nibble_1 + nibble_2 + nibble_3) << 8);
+    resultado = resultado ^ (bits_setados * bits_reversos);
+    resultado = resultado ^ chk;
+
+    falar("Bitwise resultado final:", resultado);
+    mimo resultado;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SEÇÃO 7 — Casting, ponteiros e inline assembly
+// ═══════════════════════════════════════════════════════════════════
+
+carinho demo_ponteiros_e_casts() -> bombom {
+    nova val_grande: bombom = 300;
+    nova val_u8: u8 = val_grande virar u8;
+    nova val_i32: i32 = val_grande virar i32;
+    nova volta: bombom = val_u8 virar bombom;
+
+    falar("Cast 300 -> u8:", volta);
+    falar("Cast 300 -> i32:", val_i32 virar bombom);
+
+    nova addr: bombom = 42;
+    nova ptr: seta<bombom> = addr virar seta<bombom>;
+    nova ptr_val: bombom = ptr virar bombom;
+
+    falar("Ponteiro round-trip:", ptr_val);
+
+    // sussurro não disponível em --run, mas presente no IR:
+    // sussurro("nop");
+    // sussurro("xor rax, rax", "inc rax");
+
+    mimo volta + ptr_val;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SEÇÃO 8 — Motor principal: roteador de comandos CLI
+// ═══════════════════════════════════════════════════════════════════
+
+carinho processar_comando(cmd: verso) -> Codigo {
+    talvez comeca_com(cmd, "fib") {
+        falar("Fibonacci(0..15):");
+        nova muda i: bombom = 0;
+        sempre que i <= 15 {
+            nova f: bombom = fibonacci(i);
+            falar("  F(", i, ") =", f);
+            i = i + 1;
+        }
+        mimo 0;
+    }
+
+    talvez comeca_com(cmd, "primos") {
+        falar("Primos ate 100:");
+        nova muda n: bombom = 2;
+        nova muda count: bombom = 0;
+        sempre que n < 100 {
+            talvez e_primo(n) {
+                falar(" ", n);
+                count = count + 1;
+            }
+            n = n + 1;
+        }
+        falar("Total:", count);
+        mimo 0;
+    }
+
+    talvez comeca_com(cmd, "collatz") {
+        falar("Collatz -- passos para convergir:");
+        nova muda n: bombom = 1;
+        nova muda max_passos: bombom = 0;
+        nova muda max_n: bombom = 1;
+        sempre que n <= 100 {
+            nova p: bombom = collatz_passos(n);
+            talvez p > max_passos {
+                max_passos = p;
+                max_n = n;
+            }
+            n = n + 1;
+        }
+        falar("Recorde: n =", max_n, "com", max_passos, "passos");
+        mimo 0;
+    }
+
+    talvez comeca_com(cmd, "hash") {
+        nova h1: Hash = fnv1a_bombom(42);
+        nova h2: Hash = fnv1a_bombom(43);
+        nova h3: Hash = fnv1a_verso("pinker");
+        nova h4: Hash = fnv1a_verso("Pinker");
+        falar("FNV-1a(42)  =", h1);
+        falar("FNV-1a(43)  =", h2);
+        falar("FNV-1a de pinker =", h3);
+        falar("FNV-1a de Pinker =", h4);
+        falar("Avalanche OK:", h1 != h2);
+        mimo 0;
+    }
+
+    talvez comeca_com(cmd, "bits") {
+        nova resultado: bombom = demo_bitwise(MAGIC);
+        mimo resultado & 255;
+    }
+
+    talvez comeca_com(cmd, "info") {
+        nova r: bombom = info_sistema();
+        mimo 0;
+    }
+
+    talvez comeca_com(cmd, "palim") {
+        nova t1: logica = e_palindromo("abacaba");
+        nova t2: logica = e_palindromo("pinker");
+        nova t3: logica = e_palindromo("aba");
+        nova t4: logica = e_palindromo("a");
+        falar("abacaba palindromo?", t1);
+        falar("pinker  palindromo?", t2);
+        falar("aba     palindromo?", t3);
+        falar("a       palindromo?", t4);
+        mimo 0;
+    }
+
+    talvez comeca_com(cmd, "progresso") {
+        nova muda i: bombom = 0;
+        sempre que i <= 20 {
+            nova barra: verso = barra_progresso(i, 20);
+            falar(barra);
+            i = i + 4;
+        }
+        mimo 0;
+    }
+
+    falar("Comando desconhecido:", cmd);
+    falar("Comandos: fib | primos | collatz | hash | bits | info | palim | progresso");
+    mimo 1;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SEÇÃO 9 — Ponto de entrada (principal)
+// ═══════════════════════════════════════════════════════════════════
+
+carinho principal() -> bombom {
+    nova banner: verso = repetir_verso("~*", 20);
+    nova muda titulo: verso = juntar_verso(banner, " PINKER ");
+    titulo = juntar_verso(titulo, banner);
+    falar(titulo);
+    falar(" ");
+
+    nova argc: bombom = quantos_argumentos();
+    falar("Argumentos recebidos:", argc);
+
+    nova muda codigo: Codigo = 0;
+
+    talvez tem_argumento(1) {
+        nova cmd: verso = argumento(1);
+        falar("Executando comando:", cmd);
+        falar(" ");
+        codigo = processar_comando(cmd);
+    } senao {
+        falar("Modo showcase -- executando tudo!");
+        falar(" ");
+
+        nova r1: bombom = info_sistema();
+        falar(" ");
+
+        falar("-- Fibonacci --");
+        nova muda i: bombom = 0;
+        sempre que i <= 20 {
+            nova f: bombom = fibonacci(i);
+            talvez i % 5 == 0 {
+                falar("F(", i, ") =", f);
+            }
+            i = i + 1;
+        }
+        falar(" ");
+
+        falar("-- Fatoriais --");
+        i = 1;
+        sempre que i <= 20 {
+            nova fat: bombom = fatorial(i);
+            falar(i, "! =", fat);
+            i = i + 1;
+        }
+        falar(" ");
+
+        falar("-- Teoria dos Numeros --");
+        falar("MDC(48, 18) =", mdc(48, 18));
+        falar("MMC(12, 8) =", mmc(12, 8));
+        falar("ExpMod(2, 10, 1000) =", exp_mod(2, 10, 1000));
+        falar("Raiz(144) =", raiz_inteira(144));
+        falar("Raiz(1000000) =", raiz_inteira(1000000));
+        falar(" ");
+
+        falar("-- Collatz --");
+        nova muda max_p: bombom = 0;
+        nova muda max_n: bombom = 1;
+        nova muda n: bombom = 1;
+        sempre que n <= 200 {
+            nova p: bombom = collatz_passos(n);
+            talvez p > max_p {
+                max_p = p;
+                max_n = n;
+            }
+            n = n + 1;
+        }
+        falar("Recorde 1..200: n =", max_n, "com", max_p, "passos");
+        falar(" ");
+
+        falar("-- Hashing FNV-1a --");
+        nova muda h_acc: Hash = 0;
+        i = 0;
+        sempre que i < 10 {
+            nova h: Hash = fnv1a_bombom(i);
+            nova misturado: Hash = misturar_bits(h);
+            h_acc = h_acc ^ misturado;
+            i = i + 1;
+        }
+        falar("Hash acumulado XOR de 0..9:", h_acc);
+        falar("Hash de pinker:", fnv1a_verso("pinker"));
+        falar(" ");
+
+        falar("-- Bitwise --");
+        nova bw: bombom = demo_bitwise(MAGIC);
+        falar("Popcount(255) =", popcount(255));
+        falar("Popcount(256) =", popcount(256));
+        falar("BitRev(177) =", reverter_bits(177));
+        falar("Checksum(MAGIC) =", checksum_xor(MAGIC));
+        falar(" ");
+
+        falar("-- Strings --");
+        nova muda saudacao: verso = juntar_verso("Ola, ", "mundo ");
+        saudacao = juntar_verso(saudacao, "cor-de-rosa!");
+        falar(saudacao);
+        falar("Tamanho:", tamanho_verso(saudacao));
+        falar("Comeca com Ola:", comeca_com(saudacao, "Ola"));
+        falar("Contem rosa:", contem_verso(saudacao, "rosa"));
+        falar("Palindromo arara:", e_palindromo("arara"));
+        nova estrelas: verso = repetir_verso("*", 30);
+        falar(estrelas);
+        falar(" ");
+
+        falar("-- Progresso --");
+        i = 0;
+        sempre que i <= 20 {
+            falar(barra_progresso(i, 20));
+            i = i + 5;
+        }
+        falar(" ");
+
+        falar("-- Ponteiros & Casts --");
+        nova ptr_demo: bombom = demo_ponteiros_e_casts();
+        falar("Resultado combinado:", ptr_demo);
+        falar(" ");
+
+        falar("-- Persistencia --");
+        nova dir: verso = diretorio_atual();
+        nova artefatos: bombom = verificar_artefatos(dir);
+        falar("Bytes de artefatos encontrados:", artefatos);
+
+        falar(" ");
+        nova rodape: verso = repetir_verso("=", 40);
+        falar(rodape);
+        falar("Showcase completo. Ate a proxima!");
+        falar(rodape);
+    }
+
+    nova hash_final: Hash = fnv1a_bombom(codigo);
+    nova exit_code: Codigo = hash_final % 256;
+
+    talvez codigo == 0 {
+        mimo 0;
+    }
+    mimo exit_code;
+}
