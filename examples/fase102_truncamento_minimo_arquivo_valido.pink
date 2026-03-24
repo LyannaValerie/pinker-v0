@@ -1,0 +1,20 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova base: verso = argumento_ou(0, "/tmp");
+    nova nome: verso = argumento_ou(1, "pinker_fase102_saida.txt");
+    nova alvo: verso = juntar_caminho(base, nome);
+
+    nova h: bombom = criar_arquivo(alvo);
+    escrever_verso(h, "conteudo fase102");
+    truncar_arquivo(h);
+
+    nova texto: verso = ler_verso_arquivo(h);
+    fechar(h);
+
+    nova tamanho: bombom = tamanho_arquivo(alvo);
+    nova vazio: logica = e_vazio(alvo);
+
+    falar(tamanho, vazio, tamanho_verso(texto));
+    mimo 0;
+}

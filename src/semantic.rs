@@ -1881,6 +1881,31 @@ impl SemanticChecker {
             }
             return Ok(Type::Nulo(expr_span));
         }
+        if name == "truncar_arquivo" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'truncar_arquivo' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let handle_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(handle_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'truncar_arquivo': esperado 'bombom', encontrado '{}'",
+                        handle_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
+        }
         if name == "juntar_verso" {
             if args.len() != 2 {
                 return Err(PinkerError::Semantic {

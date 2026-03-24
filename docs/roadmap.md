@@ -155,6 +155,7 @@ Status de execução no bloco:
 - **Fase 99 concluída (refinamento mínimo pós-Fase 98)**: mutação mínima e controlada de filesystem com `criar_diretorio(verso) -> nulo` e `remover_arquivo(verso) -> nulo` em `--run`, sem criação recursiva, sem remoção de diretório, sem rename/move/cópia e sem biblioteca ampla de filesystem.
 - **Fase 100 concluída (refinamento mínimo pós-Fase 99)**: complemento mínimo de diretório + leitura textual mínima em `--run` com `remover_diretorio(verso) -> nulo` (somente diretório vazio, sem recursão) e `ler_verso_arquivo(handle) -> verso` (conteúdo textual completo do handle aberto por `abrir`), sem rename/move/cópia, sem listagem e sem streaming/append.
 - **Fase 101 concluída (refinamento mínimo pós-Fase 100)**: escrita textual mínima em `--run` com `escrever_verso(handle, verso) -> nulo` e complemento mínimo operacional `criar_arquivo(verso) -> bombom` para criação + obtenção de handle no mesmo recorte; sem append, sem streaming, sem escrita por linha, sem encoding sofisticado e sem biblioteca ampla de filesystem/texto.
+- **Fase 102 concluída (refinamento mínimo pós-Fase 101)**: truncamento mínimo em `--run` com `truncar_arquivo(handle) -> nulo`, validado explicitamente por `tamanho_arquivo(verso) -> bombom` e `e_vazio(verso) -> logica` no pós-estado (com releitura textual mínima do mesmo handle), sem truncamento por caminho, sem append, sem streaming, sem escrita por linha e sem biblioteca ampla de filesystem/texto.
 
 ---
 

@@ -2041,6 +2041,101 @@ fn run_escrever_verso_falha_com_handle_invalido() {
 }
 
 #[test]
+fn run_truncar_arquivo_minimo_funciona_e_reflete_em_tamanho_e_vazio() {
+    let mut file_path = std::env::temp_dir();
+    file_path.push(format!(
+        "pinker_fase102_truncar_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = criar_arquivo("{}");
+            escrever_verso(h, "conteudo fase 102");
+            truncar_arquivo(h);
+            nova texto: verso = ler_verso_arquivo(h);
+            fechar(h);
+            nova t: bombom = tamanho_arquivo("{}");
+            nova v: logica = e_vazio("{}");
+            falar(t, v, tamanho_verso(texto));
+            talvez t == 0 {{
+                talvez v {{
+                    talvez tamanho_verso(texto) == 0 {{
+                        mimo 1;
+                    }} senao {{
+                        mimo 0;
+                    }}
+                }} senao {{
+                    mimo 0;
+                }}
+            }} senao {{
+                mimo 0;
+            }}
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\"),
+        file_path.to_string_lossy().replace('\\', "\\\\"),
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+    let persisted = std::fs::read_to_string(&file_path).expect("falha ao reler arquivo");
+    assert_eq!(persisted, "");
+    let _ = std::fs::remove_file(&file_path);
+}
+
+#[test]
+fn run_truncar_arquivo_falha_com_handle_invalido() {
+    let err = run_code(
+        r#"pacote main;
+        carinho principal() -> bombom {
+            truncar_arquivo(999);
+            mimo 0;
+        }"#,
+    )
+    .unwrap_err();
+    assert!(
+        err.contains("handle inválido em 'truncar_arquivo'"),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
+fn run_truncar_arquivo_falha_apos_fechar_handle() {
+    let mut file_path = std::env::temp_dir();
+    file_path.push(format!(
+        "pinker_fase102_truncar_apos_fechar_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    std::fs::write(&file_path, "x").expect("falha ao preparar arquivo");
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{}");
+            fechar(h);
+            truncar_arquivo(h);
+            mimo 0;
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let err = run_code(&source).unwrap_err();
+    let _ = std::fs::remove_file(&file_path);
+    assert!(
+        err.contains("handle já fechado em 'truncar_arquivo'"),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
 fn cli_run_arquivo_escrita_minima_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase87_arquivo_escrita_minima_valido.pink");
     fs::write("examples/fase87_output_numero.txt", "1\n")
@@ -2094,6 +2189,13 @@ fn run_criar_arquivo_e_escrever_verso_integram_com_argumento_ou_e_juntar_caminho
     assert_eq!(out, Some(RuntimeValue::Int(1)));
     let _ = std::fs::remove_file(base_dir.join("saida.txt"));
     let _ = std::fs::remove_dir(&base_dir);
+}
+
+#[test]
+fn cli_run_truncamento_minimo_fase102_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase102_truncamento_minimo_arquivo_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "0 verdade 0\n0\n");
 }
 
 #[test]

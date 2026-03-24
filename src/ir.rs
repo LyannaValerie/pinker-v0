@@ -609,6 +609,13 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "truncar_arquivo".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "juntar_verso".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Verso,

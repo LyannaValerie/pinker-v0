@@ -726,6 +726,32 @@ fn try_call_intrinsic(
             open_file.content.clone_from(value);
             Ok(IntrinsicCall::Done(None))
         }
+        "truncar_arquivo" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'truncar_arquivo' exige 1 argumento (handle)",
+                ));
+            }
+            let RuntimeValue::Int(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'truncar_arquivo' exige handle bombom",
+                ));
+            };
+            let Some(open_file) = io_state.open_files.get_mut(&handle) else {
+                if io_state.closed_handles.contains(&handle) {
+                    return Err(runtime_err("handle já fechado em 'truncar_arquivo'"));
+                }
+                return Err(runtime_err("handle inválido em 'truncar_arquivo'"));
+            };
+            fs::write(&open_file.path, "").map_err(|err| {
+                runtime_err(&format!(
+                    "falha ao truncar arquivo em 'truncar_arquivo': {}",
+                    err
+                ))
+            })?;
+            open_file.content.clear();
+            Ok(IntrinsicCall::Done(None))
+        }
         "fechar" => {
             if args.len() != 1 {
                 return Err(runtime_err(

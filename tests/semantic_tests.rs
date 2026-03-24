@@ -599,6 +599,31 @@ fn escrever_verso_intrinseca_rejeita_segundo_argumento_nao_verso() {
 }
 
 #[test]
+fn truncar_arquivo_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova h: bombom = abrir("arquivo.txt");
+            truncar_arquivo(h);
+            fechar(h);
+            mimo 0;
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn truncar_arquivo_intrinseca_rejeita_argumento_nao_bombom() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            truncar_arquivo("arquivo.txt");
+            mimo 0;
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'truncar_arquivo'"));
+}
+
+#[test]
 fn juntar_e_tamanho_verso_intrinsecas_validas_sem_declaracao() {
     let code = r#"
         pacote main;

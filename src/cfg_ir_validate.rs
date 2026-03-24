@@ -214,6 +214,13 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "truncar_arquivo".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
         "juntar_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,

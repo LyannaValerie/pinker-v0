@@ -154,6 +154,10 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         ),
     );
     sigs.insert(
+        "truncar_arquivo".to_string(),
+        (TypeIR::Nulo, vec![StackValueType::Bombom]),
+    );
+    sigs.insert(
         "juntar_verso".to_string(),
         (
             TypeIR::Verso,
