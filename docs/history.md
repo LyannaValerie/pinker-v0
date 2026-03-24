@@ -461,6 +461,14 @@ HF-2 - Bloco 6 (Fases 64–70): varredura de corretude e estabilização
 - Teste de regressão adicionado: `run_signed_literal_lhs_operacoes_nao_comutativas`.
 - Suite completa: 356 testes, 0 falhas.
 
+HF-3 - Bloco 8 (Fases 85–101): estabilização do `--run` (handles, I/O, caminho, texto)
+- Pacote extraordinário de estabilização do Bloco 8 sem avançar trilha funcional.
+- Bug #1 (interpreter.rs): uso de handle após `fechar` (use-after-close) produzia mensagem genérica "handle inválido", indistinguível de handle nunca aberto. Corrigido com rastreio de handles fechados (`closed_handles`) e mensagem específica "handle já fechado" em `ler_arquivo`, `ler_verso_arquivo`, `escrever`, `escrever_verso` e `fechar` (duplo). Classificador de erros atualizado com categoria `handle_ja_fechado` e dica diagnóstica.
+- 11 testes novos adicionados cobrindo: uso de handle após `fechar` (4 intrínsecas), `fechar` duplo, leitura textual de arquivo vazio, leitura textual após escrita numérica (cross-type), `tamanho_arquivo` em diretório, `e_vazio` em diretório, `e_vazio` em caminho ausente, fluxo completo `criar_arquivo` → `escrever_verso` → `ler_verso_arquivo` → `fechar`.
+- Cenários investigados sem bug reproduzível: `remover_arquivo` em diretório (já testado, erro OS claro), `remover_diretorio` em diretório não-vazio (já testado), `tamanho_arquivo`/`e_vazio` em caminho ausente (erro OS claro), `juntar_caminho` com strings vazias (semântica padrão de `PathBuf`), predicados de caminho em path inexistente (retornam `false` sem erro), validação semântica de tipos em todas as intrínsecas (correta).
+- Nenhuma nova feature funcional adicionada.
+- Suite completa pós-correção: todos os testes passam, `cargo clippy`/`fmt`/`doc` limpos.
+
 ########################## DOCUMENTAÇÃO ##########################
 
 Doc-1 - viabilidade de escrita em globals (análise)

@@ -1,20 +1,19 @@
 # Handoff Codex (operacional curto)
 
 ## 1. Rodada atual
-- **Fase 101 — escrita textual mínima de arquivo em `--run` (`escrever_verso` + `criar_arquivo`)**.
-- Rodada funcional curta do Bloco 8 com foco em escrita textual mínima + complemento operacional de criação sem abrir API ampla.
+- **HF-3 — estabilização do Bloco 8 (Fases 85–101): handles, I/O, caminho, texto**.
+- Rodada de estabilização/hotfix sem nova feature funcional, com foco em reproduzir bugs, corrigir diagnósticos de handle e ampliar cobertura de testes de borda.
 
 ## 2. O que entrou na rodada atual
-- Intrínseca `escrever_verso(handle, verso) -> nulo` adicionada ao pipeline completo (semântica, IR, validações, runtime `--run`) para sobrescrita textual integral em handle aberto.
-- Intrínseca `criar_arquivo(verso) -> bombom` adicionada no mesmo recorte mínimo para criação de arquivo vazio com retorno imediato de handle.
-- Exemplo versionado novo: `examples/fase101_escrita_textual_minima_arquivo_valido.pink`.
-- Cobertura de testes ampliada em semântica e `--run`/CLI para: escrita textual positiva, releitura positiva, negativo de handle inválido e integração com `argumento_ou`/`juntar_caminho`/`caminho_existe`/`e_arquivo`.
+- Correção de diagnóstico: uso de handle após `fechar` agora produz mensagem específica "handle já fechado" em vez de "handle inválido" genérico (5 intrínsecas afetadas: `ler_arquivo`, `ler_verso_arquivo`, `escrever`, `escrever_verso`, `fechar`).
+- Rastreio de handles fechados (`closed_handles: HashSet<u64>`) em `RuntimeIoState`.
+- Classificador de erros atualizado com categoria `handle_ja_fechado` e dica diagnóstica.
+- 11 testes novos de borda/estabilização no `interpreter_tests.rs`.
 
 ## 3. Fora de escopo da rodada atual
-- timestamps/permissões/ownership, criação recursiva, remoção recursiva, rename/move/cópia e listagem de diretórios.
-- Processos externos ou biblioteca ampla de filesystem/metadados.
-- streaming, append, escrita por linha e API textual rica de arquivo.
-- Redesign de runtime ou expansão de gramática.
+- Nenhuma nova intrínseca, feature funcional ou modo de arquivo.
+- Redesign de runtime, pipeline ou gramática.
+- Expansão de superfície de I/O além do recorte Fase 101.
 
 ## 4. Próximo item normal
 - Trilha ativa permanece: **Bloco 8 — I/O e ecossistema útil**.
@@ -24,8 +23,8 @@
 - Última fase funcional concluída: **101**.
 - Rodada documental mais recente preservada: **Doc-17**.
 - Rodada paralela concluída preservada: **Paralela-1** — negação bitwise dual (`~` + `nope`) + MCP mínimo (`src/bin/pinker_mcp.rs`).
-- Hotfix extraordinário mais recente preservado: **HF-2 (Bloco 6, Fases 64–70)**.
-- Hotfix histórico extraordinário preservado: **HF-1 (Fase 48-H1)**.
+- Hotfix extraordinário mais recente: **HF-3 (Bloco 8, Fases 85–101)**.
+- Hotfixes históricos preservados: **HF-2 (Bloco 6, Fases 64–70)**, **HF-1 (Fase 48-H1)**.
 
 ## 6. Precedência documental resumida
 - Código mergeado prevalece sobre documentação.
