@@ -1,45 +1,35 @@
 # Handoff Codex (operacional curto)
 
+- **Classe:** Engine
+- **Papel:** estado
+- **Status:** operacional
+
 ## 1. Rodada atual
-- **Fase 105 — saneamento textual mínimo em `--run`**.
-- Rodada funcional pequena e auditável no Bloco 8, com dois subpassos acoplados: detecção de vazio textual e aparo mínimo de bordas.
+- **Doc-18 — reorganização estrutural da documentação (arquitetura dual Engine + Pinker/Rosa)**.
+- Rodada exclusivamente documental; sem alteração funcional de linguagem/runtime.
 
 ## 2. O que entrou na rodada atual
-- Novas intrínsecas: `vazio_verso(verso) -> logica` e `aparar_verso(verso) -> verso` em `--run`.
-- Semântica de runtime:
-  - `vazio_verso` verifica vazio textual exato (sem aparo implícito);
-  - `aparar_verso` remove whitespace nas bordas e retorna `verso`.
-- Integração explícita com superfícies já existentes:
-  - fluxo com `ler_verso_arquivo(handle)` para saneamento mínimo de conteúdo lido de arquivo;
-  - fluxo com `escrever_verso(handle, verso)` + `falar(...)` para decisão/saída em script mínimo.
-- Cobertura adicionada:
-  - testes semânticos para assinatura/tipagem das duas intrínsecas;
-  - testes de runtime para casos positivos/negativos de vazio e aparo;
-  - teste de integração com leitura textual de arquivo (incluindo arquivo com whitespace);
-  - teste CLI com exemplo versionado da fase.
+- Criação de `docs/atlas.md` como arquivo mestre de navegação.
+- Criação de `docs/rosa.md` como canônico de identidade/visão.
+- Criação de `docs/ponte_engine_rosa.md` como ponte explícita factual ↔ identitário.
+- Reorganização de `docs/vocabulario.md` para arquitetura lexical (critérios, famílias, aceitas/rejeitadas/provisórias).
+- Reposicionamento de `docs/future.md` como inventário técnico Engine compacto.
+- Reposicionamento de `docs/parallel.md` como acervo visionário de apoio (não backlog).
+- Sincronização de `README.md`, `docs/doc_rules.md`, `docs/agent_state.md` e `docs/phases.md` com a nova navegação.
 
-## 3. Fora de escopo da rodada atual
-- Sem split/replace/regex/trim.
-- Sem biblioteca textual ampla.
-- Sem redesign de runtime.
+## 3. Continuidade preservada
+- Fase funcional atual permanece **105**.
+- Fase funcional anterior permanece **104**.
+- Bloco ativo permanece **Bloco 8**.
+- Nenhuma abertura de fase funcional nova.
 
 ## 4. Próximo item normal
-- Trilha ativa permanece: **Bloco 8 — I/O e ecossistema útil**.
-- Próximo item sugerido: manter refinamentos mínimos e locais em `--run`, priorizando observabilidade e previsibilidade sem ampliar API textual.
+- Seguir a trilha funcional do Bloco 8 em rodada específica de feature, mantendo esta arquitetura documental dual como base.
 
-## 5. Observações operacionais curtas
-- Fase funcional atual: **105**.
-- Fase funcional anterior: **104**.
-- Rodada documental mais recente preservada: **Doc-17**.
-- Rodada paralela concluída preservada: **Paralela-1** — negação bitwise dual (`~` + `nope`) + MCP mínimo (`src/bin/pinker_mcp.rs`).
-- Hotfix extraordinário mais recente preservado: **HF-3 (Bloco 8, Fases 85–101)**.
-
-## 6. Precedência documental resumida
-- Código mergeado prevalece sobre documentação.
+## 5. Precedência resumida
+- Código mergeado prevalece.
 - `roadmap.md` define trilha ativa.
-- `future.md` organiza inventário técnico amplo.
-- `parallel.md` mantém visão orientadora.
-- `history.md` mantém histórico.
-- `agent_state.md` mantém estado corrente.
-- `handoff_codex.md` mantém handoff operacional curto.
-- `doc_rules.md` mantém regras de documentação.
+- `history.md` guarda continuidade factual.
+- `atlas.md` organiza navegação dual.
+- `rosa.md`/`vocabulario.md` guardam identidade lexical e visão.
+

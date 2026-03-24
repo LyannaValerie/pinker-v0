@@ -1,9 +1,13 @@
 # Estado operacional da Pinker v0 (versão slim)
 
+- **Classe:** Engine
+- **Papel:** estado
+- **Status:** operacional
+
 ## 1. Metadados do projeto
 - Projeto: **Pinker v0**.
 - Natureza: frontend/pipeline textual em Rust, com runtime interpretado em `--run`.
-- Fonte de verdade: código mergeado + documentação ativa do repositório local.
+- Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
 ## 2. Diretrizes consolidadas de execução
 - Manter fases pequenas, auditáveis e coerentes com `docs/roadmap.md`.
@@ -15,62 +19,41 @@
 - **Fase N**: entrega funcional real.
 - **HF-N**: hotfix extraordinário sem abrir nova fase funcional.
 - **Doc-N**: rodada exclusivamente documental.
-- **Paralela-N**: rodada paralela de implementação (sem conflito com trilha ativa, sem ser hotfix nem fase funcional).
-- Histórico detalhado fica em `docs/history.md`.
+- **Paralela-N**: rodada paralela de implementação.
+- Histórico detalhado: `docs/history.md`.
 
 ## 4. Pipeline congelada
 - Fluxo base: semântica -> IR -> validação IR -> CFG IR -> validação CFG -> selected -> validação selected -> Machine -> validação Machine.
-- Saídas: `--pseudo-asm`, `--asm-s`, `--run` (cada modo respeitando seu caminho interno atual).
-- Estado: sem backend nativo completo e sem redesign estrutural aberto nesta rodada.
+- Saídas: `--pseudo-asm`, `--asm-s`, `--run`.
 
 ## 5. Estado corrente
 - Fase funcional atual: **105 — saneamento textual mínimo em `--run` (`vazio_verso` + `aparar_verso`)**.
-- Rodada documental mais recente: **Doc-17 — alinhamento documental/operacional pós-Paralela-1 (binários + MCP)**.
-- Fase funcional anterior: **104 — observação textual complementar mínima em `--run` (`termina_com` + `igual_verso`)**.
-- Bloco concluído: **Bloco 6 — Memória operacional** (Fases 64–72 entregues).
+- Fase funcional anterior: **104 — observação textual complementar mínima (`termina_com` + `igual_verso`)**.
 - Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
-- Bloco 7: **suficientemente consolidado para transição**, sem declaração de completude absoluta.
-- Próximo passo funcional sugerido: **seguir refinamentos mínimos de tooling/I/O em `--run` no Bloco 8 com recorte pequeno e auditável, preservando saneamento/observação textual simples sem abrir biblioteca textual ampla**.
-- Eixo `--asm-s`/backend externo permanece em subset linear auditável (Fases 73–84), mapeado nesta rodada sem abertura de lowering novo.
-- Rodada funcional corrente: **nenhuma aberta** (última fase funcional concluída é a Fase 105).
+- Rodada documental mais recente: **Doc-18 — arquitetura documental dual (Engine + Pinker/Rosa)**.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
-- Último hotfix aplicado: **HF-3 — estabilização do Bloco 8 (Fases 85–101): handles, I/O, caminho, texto**.
+- Último hotfix aplicado: **HF-3 — estabilização do Bloco 8 (Fases 85–101)**.
 
-## 6. Ecossistema documental
-- `docs/roadmap.md`: trilha ativa oficial.
-- `manual.md`: manual de uso da linguagem Pinker no estado atual.
-- `docs/future.md`: inventário técnico amplo de longo prazo.
-- `docs/parallel.md`: visão/fantasia orientadora, sem ditar ordem ativa.
-- `docs/history.md`: crônica histórica única (fases/hotfixes/documentação).
-- `docs/handoff_codex.md`: handoff operacional curto da rodada.
-- `docs/doc_rules.md`: convenções obrigatórias de documentação.
+## 6. Arquitetura documental dual ativa
+- Navegação mestre: `docs/atlas.md`.
+- Hemisfério Engine: `roadmap`, `history`, `agent_state`, `handoff`, `doc_rules`, `future`.
+- Hemisfério Rosa: `rosa`, `vocabulario`, `parallel`.
+- Documento-ponte: `docs/ponte_engine_rosa.md`.
 
-## 7. Infraestrutura mínima ativa
-- Toolchain com MSRV fixada (`rust-toolchain.toml`).
-- CI com build/check/fmt/clippy/test/doc.
-- Validação local padrão com `cargo build` e `cargo test` (e variantes `--locked` quando requerido).
-
-## 8. Restrições do projeto
+## 7. Restrições do projeto
 - Não abrir fase funcional fora da ordem ativa do roadmap.
 - Não transformar `future.md` em roadmap.
 - Não transformar `parallel.md` em backlog técnico.
 - Não declarar funcionalidade como pronta sem validação objetiva.
 
-## 9. Itens adiados
-- Escrita de campo em `ninho`, acesso por valor `p.campo` e extensão para campos não escalares.
-- Escrita por índice em arrays e suporte operacional além do subset `(*ptr)[i]` com `[bombom; N]`.
-- Cast operacional além do subset da Fase 71 (`bombom <-> seta<bombom>` e inteiro->inteiro), incluindo `seta<T> -> bombom` genérico e casts entre compostos.
-- Efeito operacional robusto/completo de `fragil` (MMIO, fences, ordenação de memória e backend nativo).
-- Backend nativo completo e runtime bare-metal robusto.
-
-## 10. Instrução para novo agente
-1. Ler: `README.md`, `docs/roadmap.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/history.md`, `docs/doc_rules.md`.
+## 8. Instrução para novo agente
+1. Ler: `README.md`, `docs/atlas.md`, `docs/roadmap.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/history.md`, `docs/doc_rules.md`.
 2. Executar validações exigidas da rodada antes de encerrar.
-3. Atualizar ao final: `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` quando houver mudança documental/operacional.
+3. Atualizar ao final: `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` quando houver mudança documental/operacional.
 
+## 9. Padrão operacional de binários
+- Binário principal: `pink`.
+- Binário MCP: `pinker_mcp`.
+- Padrão recomendado: `cargo run --bin pink -- ...`.
+- `default-run = "pink"` preserva ergonomia.
 
-## 11. Padrão operacional de binários
-- Binário principal: `pink` (CLI da linguagem).
-- Binário MCP: `pinker_mcp` (JSON-RPC 2.0 via stdio, linha a linha).
-- Padrão recomendado para evitar ambiguidade: `cargo run --bin pink -- ...`.
-- Ergonomia preservada no manifesto com `default-run = "pink"`, sem remover a necessidade de documentar o uso explícito quando houver múltiplos binários.

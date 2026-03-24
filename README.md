@@ -306,16 +306,22 @@ Limites atuais (adiado): a tipagem na Machine continua leve/local (sem inferênc
 
 ## Documentação do projeto
 
-O projeto mantém um ecossistema documental com papéis distintos:
+A navegação documental principal está em `docs/atlas.md`, com arquitetura dual explícita:
 
-- `manual.md` — manual de uso da linguagem Pinker no estado atual.
-- `docs/roadmap.md` — trilha ativa oficial; define a ordem funcional em execução.
-- `docs/future.md` — inventário técnico amplo de médio/longo prazo; não dita ordem ativa.
-- `docs/parallel.md` — documento visionário; guarda identidade e direção conceitual; não é backlog técnico.
-- `docs/history.md` — crônica histórica oficial (fases funcionais, hotfixes e rodadas documentais).
-- `docs/agent_state.md` — estado corrente enxuto + diretrizes operacionais consolidadas.
-- `docs/handoff_codex.md` — handoff operacional curto da rodada atual.
-- `docs/doc_rules.md` — convenções obrigatórias de atualização e precedência documental.
+- hemisfério **Engine** (factual/operacional);
+- hemisfério **Rosa** (identitário/lexical/visionário);
+- documento-ponte para manter conversa entre os dois lados.
+
+Referências centrais:
+
+- `docs/atlas.md` — arquivo mestre de navegação.
+- `manual.md` — manual de uso da linguagem no estado implementado.
+- `docs/roadmap.md` — trilha ativa oficial.
+- `docs/history.md` — crônica histórica oficial.
+- `docs/rosa.md` — manifesto conceitual estruturado do hemisfério Rosa.
+- `docs/vocabulario.md` — arquitetura lexical canônica.
+- `docs/ponte_engine_rosa.md` — ponte explícita entre factual e visão.
+- `docs/future.md` e `docs/parallel.md` — acervos de apoio (técnico e visionário).
 
 ## Licença
 [MIT](LICENSE)
