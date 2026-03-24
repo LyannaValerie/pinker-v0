@@ -283,6 +283,82 @@ fn run_comeca_com_intrinseca_false_em_caso_negativo() {
 }
 
 #[test]
+fn run_termina_com_intrinseca_true_em_caso_positivo() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = termina_com("pinker", "ker");
+            falar(ok);
+            talvez ok {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_termina_com_intrinseca_false_em_caso_negativo() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = termina_com("pinker", "pin");
+            falar(ok);
+            talvez ok {
+                mimo 0;
+            } senao {
+                mimo 1;
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_igual_verso_intrinseca_true_em_caso_positivo() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = igual_verso("pinker", "pinker");
+            falar(ok);
+            talvez ok {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_igual_verso_intrinseca_false_em_caso_negativo() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = igual_verso("pinker", "Pinker");
+            falar(ok);
+            talvez ok {
+                mimo 0;
+            } senao {
+                mimo 1;
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
 fn run_argumento_intrinseca_ler_posicional_minimo() {
     let out = run_code_with_args(
         r#"
@@ -2282,6 +2358,14 @@ fn cli_run_observacao_textual_minima_fase103_funciona_com_exemplo_versionado() {
 }
 
 #[test]
+fn cli_run_observacao_textual_complementar_minima_fase104_funciona_com_exemplo_versionado() {
+    let out =
+        run_cli_example("examples/fase104_observacao_textual_complementar_minima_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "verdade verdade\n1\n");
+}
+
+#[test]
 fn cli_run_verso_operacional_minimo_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase88_verso_operacional_minimo_valido.pink");
     assert!(out.status.success(), "{:?}", out);
@@ -2802,6 +2886,46 @@ fn run_contem_e_comeca_com_integram_com_ler_verso_arquivo() {
             falar(tem, prefixo_ok);
             talvez tem {{
                 talvez prefixo_ok {{
+                    mimo 1;
+                }} senao {{
+                    mimo 0;
+                }}
+            }} senao {{
+                mimo 0;
+            }}
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+    let _ = std::fs::remove_file(&file_path);
+}
+
+#[test]
+fn run_termina_com_e_igual_verso_integram_com_ler_verso_arquivo() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase104_verso_observacao_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+    std::fs::write(&file_path, "status: ok").expect("falha ao criar arquivo da fase 104");
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{}");
+            nova texto: verso = ler_verso_arquivo(h);
+            fechar(h);
+            nova sufixo_ok: logica = termina_com(texto, "ok");
+            nova igual_ok: logica = igual_verso(texto, "status: ok");
+            falar(sufixo_ok, igual_ok);
+            talvez sufixo_ok {{
+                talvez igual_ok {{
                     mimo 1;
                 }} senao {{
                     mimo 0;

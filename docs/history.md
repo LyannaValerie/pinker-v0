@@ -461,6 +461,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com testes automatizados de semântica/`--run` (casos positivos/negativos para cada intrínseca), integração com `ler_verso_arquivo(...)` e teste CLI com exemplo versionado (`examples/fase103_observacao_textual_minima_valido.pink`).
 - Fora de escopo explícito nesta fase: `termina_com`, split/replace/regex/trim, busca por índice rica, parse textual amplo e biblioteca textual ampla.
 
+104 - observação textual complementar mínima em `--run`
+- Vigésima fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfícies escolhidas: `termina_com(verso, verso) -> logica` para sufixo textual mínimo e `igual_verso(verso, verso) -> logica` para comparação textual explícita mínima.
+- Semântica operacional desta fase: ambas as intrínsecas operam somente sobre `verso` e retornam `logica`, mantendo o subset textual pequeno sem novos tipos e sem redesign de runtime.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram `termina_com` e `igual_verso` sem declaração explícita de função.
+- Cobertura adicionada com testes automatizados de semântica/`--run` (casos positivos/negativos para cada intrínseca), integração com `ler_verso_arquivo(...)` e teste CLI com exemplo versionado (`examples/fase104_observacao_textual_complementar_minima_valido.pink`).
+- Fora de escopo explícito nesta fase: split/replace/regex/trim, busca textual rica, parse textual amplo e biblioteca textual ampla.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

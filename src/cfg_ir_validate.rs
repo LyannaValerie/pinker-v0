@@ -255,6 +255,20 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
+    function_sigs.insert(
+        "termina_com".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
+        "igual_verso".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
 
     for function in &program.functions {
         validate_function(function, &global_consts, &function_sigs)?;

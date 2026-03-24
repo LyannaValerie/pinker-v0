@@ -1,0 +1,26 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova base: verso = argumento_ou(0, "/tmp");
+    nova nome: verso = argumento_ou(1, "pinker_fase104_entrada.txt");
+    nova alvo: verso = juntar_caminho(base, nome);
+
+    nova h: bombom = criar_arquivo(alvo);
+    escrever_verso(h, "status: ok");
+    nova texto: verso = ler_verso_arquivo(h);
+    fechar(h);
+
+    nova sufixo_ok: logica = termina_com(texto, "ok");
+    nova igual_ok: logica = igual_verso(texto, "status: ok");
+    falar(sufixo_ok, igual_ok);
+
+    talvez sufixo_ok {
+        talvez igual_ok {
+            mimo 1;
+        } senao {
+            mimo 0;
+        }
+    } senao {
+        mimo 0;
+    }
+}
