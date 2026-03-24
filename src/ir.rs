@@ -595,6 +595,13 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "abrir_anexo".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "escrever".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Nulo,
@@ -610,6 +617,13 @@ impl LoweringContext {
         );
         function_sigs.insert(
             "truncar_arquivo".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "anexar_verso".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Nulo,
                 ret_struct_name: None,

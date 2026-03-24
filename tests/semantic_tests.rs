@@ -572,6 +572,80 @@ fn criar_arquivo_intrinseca_rejeita_argumento_nao_verso() {
 }
 
 #[test]
+fn abrir_anexo_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova h: bombom = abrir_anexo("arquivo.txt");
+            fechar(h);
+            mimo 0;
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn abrir_anexo_intrinseca_rejeita_aridade_invalida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo abrir_anexo("a.txt", "b.txt"); }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("chamada de 'abrir_anexo' com aridade inválida"));
+}
+
+#[test]
+fn anexar_verso_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova h: bombom = abrir_anexo("arquivo.txt");
+            anexar_verso(h, "texto");
+            fechar(h);
+            mimo 0;
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn anexar_verso_intrinseca_rejeita_aridade_invalida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova h: bombom = abrir_anexo("arquivo.txt");
+            anexar_verso(h);
+            fechar(h);
+            mimo 0;
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("chamada de 'anexar_verso' com aridade inválida"));
+}
+
+#[test]
+fn anexar_verso_intrinseca_rejeita_handle_nao_bombom() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            anexar_verso("arquivo.txt", "texto");
+            mimo 0;
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'anexar_verso'"));
+}
+
+#[test]
+fn anexar_verso_intrinseca_rejeita_texto_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova h: bombom = abrir_anexo("arquivo.txt");
+            anexar_verso(h, 7);
+            fechar(h);
+            mimo 0;
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'anexar_verso'"));
+}
+
+#[test]
 fn escrever_verso_intrinseca_valida_sem_declaracao() {
     let code = r#"
         pacote main;
