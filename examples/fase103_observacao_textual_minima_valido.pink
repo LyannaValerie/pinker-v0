@@ -1,0 +1,26 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova base: verso = argumento_ou(0, "/tmp");
+    nova nome: verso = argumento_ou(1, "pinker_fase103_entrada.txt");
+    nova alvo: verso = juntar_caminho(base, nome);
+
+    nova h: bombom = criar_arquivo(alvo);
+    escrever_verso(h, "prefixo: pinker v0");
+    nova texto: verso = ler_verso_arquivo(h);
+    fechar(h);
+
+    nova tem: logica = contem_verso(texto, "pinker");
+    nova prefixo_ok: logica = comeca_com(texto, "prefixo:");
+    falar(tem, prefixo_ok);
+
+    talvez tem {
+        talvez prefixo_ok {
+            mimo 1;
+        } senao {
+            mimo 0;
+        }
+    } senao {
+        mimo 0;
+    }
+}

@@ -829,6 +829,46 @@ fn try_call_intrinsic(
             };
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(ch.to_string()))))
         }
+        "contem_verso" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'contem_verso' exige 2 argumentos (verso, verso)",
+                ));
+            }
+            let RuntimeValue::Str(texto) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'contem_verso' exige primeiro argumento em verso",
+                ));
+            };
+            let RuntimeValue::Str(trecho) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'contem_verso' exige segundo argumento em verso",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                texto.contains(trecho),
+            ))))
+        }
+        "comeca_com" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'comeca_com' exige 2 argumentos (verso, verso)",
+                ));
+            }
+            let RuntimeValue::Str(texto) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'comeca_com' exige primeiro argumento em verso",
+                ));
+            };
+            let RuntimeValue::Str(prefixo) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'comeca_com' exige segundo argumento em verso",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                texto.starts_with(prefixo),
+            ))))
+        }
         "argumento" => {
             if args.len() != 1 {
                 return Err(runtime_err(

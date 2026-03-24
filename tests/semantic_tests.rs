@@ -668,6 +668,60 @@ fn indice_verso_rejeita_indice_nao_bombom() {
 }
 
 #[test]
+fn contem_verso_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = contem_verso("pinker", "ink");
+            talvez ok {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn contem_verso_intrinseca_rejeita_segundo_argumento_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = contem_verso("pinker", 1);
+            talvez ok { mimo 1; } senao { mimo 0; }
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'contem_verso'"));
+}
+
+#[test]
+fn comeca_com_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = comeca_com("pinker", "pin");
+            talvez ok {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn comeca_com_intrinseca_rejeita_primeiro_argumento_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = comeca_com(1, "pin");
+            talvez ok { mimo 1; } senao { mimo 0; }
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'comeca_com'"));
+}
+
+#[test]
 fn uso_de_funcao_sem_retorno_em_expressao() {
     let code = "
         pacote main;

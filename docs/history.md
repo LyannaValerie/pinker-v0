@@ -453,6 +453,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com exemplo versionado (`examples/fase102_truncamento_minimo_arquivo_valido.pink`) e testes automatizados de semântica/`--run`/CLI para caso positivo, pós-estado explícito (`tamanho_arquivo` + `e_vazio` + releitura) e negativos de handle inválido/já fechado.
 - Fora de escopo explícito nesta fase: truncamento por caminho, append, streaming, escrita por linha, modos ricos de abertura, rename/move/cópia, listagem de diretórios e biblioteca ampla de filesystem/texto.
 
+103 - observação textual mínima em `--run`
+- Décima nona fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfícies escolhidas: `contem_verso(verso, verso) -> logica` para contenção textual mínima e `comeca_com(verso, verso) -> logica` para prefixo textual mínimo.
+- Semântica operacional desta fase: ambas as intrínsecas operam apenas sobre `verso` e retornam `logica`, sem novos tipos e sem ampliar a API textual além de predicados simples.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram `contem_verso` e `comeca_com` sem declaração explícita de função.
+- Cobertura adicionada com testes automatizados de semântica/`--run` (casos positivos/negativos para cada intrínseca), integração com `ler_verso_arquivo(...)` e teste CLI com exemplo versionado (`examples/fase103_observacao_textual_minima_valido.pink`).
+- Fora de escopo explícito nesta fase: `termina_com`, split/replace/regex/trim, busca por índice rica, parse textual amplo e biblioteca textual ampla.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
