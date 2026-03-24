@@ -189,6 +189,20 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
+    sigs.insert(
+        "termina_com".to_string(),
+        (
+            TypeIR::Logica,
+            vec![StackValueType::Verso, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
+        "igual_verso".to_string(),
+        (
+            TypeIR::Logica,
+            vec![StackValueType::Verso, StackValueType::Verso],
+        ),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;

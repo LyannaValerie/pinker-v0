@@ -157,6 +157,7 @@ Status de execução no bloco:
 - **Fase 101 concluída (refinamento mínimo pós-Fase 100)**: escrita textual mínima em `--run` com `escrever_verso(handle, verso) -> nulo` e complemento mínimo operacional `criar_arquivo(verso) -> bombom` para criação + obtenção de handle no mesmo recorte; sem append, sem streaming, sem escrita por linha, sem encoding sofisticado e sem biblioteca ampla de filesystem/texto.
 - **Fase 102 concluída (refinamento mínimo pós-Fase 101)**: truncamento mínimo em `--run` com `truncar_arquivo(handle) -> nulo`, validado explicitamente por `tamanho_arquivo(verso) -> bombom` e `e_vazio(verso) -> logica` no pós-estado (com releitura textual mínima do mesmo handle), sem truncamento por caminho, sem append, sem streaming, sem escrita por linha e sem biblioteca ampla de filesystem/texto.
 - **Fase 103 concluída (refinamento mínimo pós-Fase 102)**: observação textual mínima em `--run` com `contem_verso(verso, verso) -> logica` e `comeca_com(verso, verso) -> logica`, integrada ao fluxo já existente de arquivo/argv/ambiente sem abrir API textual ampla (sem `termina_com`, split/replace/regex/trim).
+- **Fase 104 concluída (refinamento mínimo pós-Fase 103)**: observação textual complementar mínima em `--run` com `termina_com(verso, verso) -> logica` e `igual_verso(verso, verso) -> logica`, fechando o conjunto mínimo de comparação/observação textual do bloco sem abrir API textual ampla (sem split/replace/regex/trim).
 
 ---
 

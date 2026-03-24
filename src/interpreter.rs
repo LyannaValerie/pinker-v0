@@ -869,6 +869,44 @@ fn try_call_intrinsic(
                 texto.starts_with(prefixo),
             ))))
         }
+        "termina_com" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'termina_com' exige 2 argumentos (verso, verso)",
+                ));
+            }
+            let RuntimeValue::Str(texto) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'termina_com' exige primeiro argumento em verso",
+                ));
+            };
+            let RuntimeValue::Str(sufixo) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'termina_com' exige segundo argumento em verso",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                texto.ends_with(sufixo),
+            ))))
+        }
+        "igual_verso" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'igual_verso' exige 2 argumentos (verso, verso)",
+                ));
+            }
+            let RuntimeValue::Str(lhs) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'igual_verso' exige primeiro argumento em verso",
+                ));
+            };
+            let RuntimeValue::Str(rhs) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'igual_verso' exige segundo argumento em verso",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(lhs == rhs))))
+        }
         "argumento" => {
             if args.len() != 1 {
                 return Err(runtime_err(
