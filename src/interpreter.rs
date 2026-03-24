@@ -590,6 +590,34 @@ fn try_call_intrinsic(
             );
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(handle))))
         }
+        "criar_arquivo" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'criar_arquivo' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(path) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'criar_arquivo' exige caminho em verso",
+                ));
+            };
+            fs::write(path, "").map_err(|err| {
+                runtime_err(&format!(
+                    "falha ao criar arquivo em 'criar_arquivo': {}",
+                    err
+                ))
+            })?;
+            let handle = io_state.next_file_handle;
+            io_state.next_file_handle = io_state.next_file_handle.saturating_add(1);
+            io_state.open_files.insert(
+                handle,
+                RuntimeOpenFile {
+                    path: path.clone(),
+                    content: String::new(),
+                },
+            );
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(handle))))
+        }
         "ler_arquivo" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -654,6 +682,34 @@ fn try_call_intrinsic(
                 runtime_err(&format!("falha ao escrever arquivo em 'escrever': {}", err))
             })?;
             open_file.content = next_content;
+            Ok(IntrinsicCall::Done(None))
+        }
+        "escrever_verso" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'escrever_verso' exige 2 argumentos (handle, verso)",
+                ));
+            }
+            let RuntimeValue::Int(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'escrever_verso' exige handle bombom",
+                ));
+            };
+            let RuntimeValue::Str(value) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'escrever_verso' exige valor em verso",
+                ));
+            };
+            let Some(open_file) = io_state.open_files.get_mut(&handle) else {
+                return Err(runtime_err("handle inválido em 'escrever_verso'"));
+            };
+            fs::write(&open_file.path, value).map_err(|err| {
+                runtime_err(&format!(
+                    "falha ao escrever verso em arquivo em 'escrever_verso': {}",
+                    err
+                ))
+            })?;
+            open_file.content.clone_from(value);
             Ok(IntrinsicCall::Done(None))
         }
         "fechar" => {

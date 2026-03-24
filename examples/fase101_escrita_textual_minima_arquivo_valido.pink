@@ -1,0 +1,29 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova base: verso = argumento_ou(0, diretorio_atual());
+    nova nome: verso = argumento_ou(1, "fase101_saida.txt");
+    nova texto: verso = argumento_ou(2, "ola fase101");
+
+    nova alvo: verso = juntar_caminho(base, nome);
+    nova h: bombom = criar_arquivo(alvo);
+    escrever_verso(h, texto);
+    nova relido: verso = ler_verso_arquivo(h);
+    fechar(h);
+
+    falar(relido);
+
+    talvez caminho_existe(alvo) {
+        talvez e_arquivo(alvo) {
+            talvez tamanho_verso(relido) > 0 {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        } senao {
+            mimo 0;
+        }
+    } senao {
+        mimo 0;
+    }
+}

@@ -1780,6 +1780,31 @@ impl SemanticChecker {
             }
             return Ok(Type::Nulo(expr_span));
         }
+        if name == "criar_arquivo" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'criar_arquivo' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let arg_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(arg_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'criar_arquivo': esperado 'verso', encontrado '{}'",
+                        arg_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
         if name == "escrever" {
             if args.len() != 2 {
                 return Err(PinkerError::Semantic {
@@ -1811,6 +1836,44 @@ impl SemanticChecker {
                 return Err(PinkerError::Semantic {
                     msg: format!(
                         "tipo inválido no argumento 2 da chamada 'escrever': esperado 'bombom', encontrado '{}'",
+                        value_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
+        }
+        if name == "escrever_verso" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'escrever_verso' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let handle_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(handle_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'escrever_verso': esperado 'bombom', encontrado '{}'",
+                        handle_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let value_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(value_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'escrever_verso': esperado 'verso', encontrado '{}'",
                         value_ty.name()
                     ),
                     span: args[1].span,
