@@ -8,8 +8,8 @@
 > A crônica histórica oficial é `docs/history.md`.
 
 ## Estado atual
-- Fase funcional atual: **106 — normalização mínima de caixa em `--run` (`minusculo_verso` + `maiusculo_verso`)**.
-- Fase funcional anterior: **105 — saneamento textual mínimo em `--run` (`vazio_verso` + `aparar_verso`)**.
+- Fase funcional atual: **107 — observação textual posicional mínima em `--run` (`indice_verso_em` + `nao_vazio_verso`)**.
+- Fase funcional anterior: **106 — normalização mínima de caixa em `--run` (`minusculo_verso` + `maiusculo_verso`)**.
 - Hotfix extraordinário ativo mais recente: **HF-3**.
 - Última rodada documental: **Doc-18 — arquitetura documental dual (Engine + Pinker/Rosa)**.
 

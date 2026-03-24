@@ -485,6 +485,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com testes semânticos e de `--run` para casos positivos, integração com `igual_verso`/`contem_verso`, integração com `ler_verso_arquivo(...)` e teste CLI com exemplo versionado (`examples/fase106_normalizacao_minima_caixa_valido.pink`).
 - Fora de escopo explícito nesta fase: casefolding, locale-aware behavior, normalização Unicode sofisticada, split/replace/regex e biblioteca textual ampla.
 
+107 - observação textual posicional mínima em `--run`
+- Vigésima terceira fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfícies escolhidas: `indice_verso_em(verso, verso) -> bombom` para primeira busca posicional mínima e `nao_vazio_verso(verso) -> logica` para ergonomia mínima de presença textual.
+- Semântica operacional desta fase: `indice_verso_em` retorna o índice da primeira ocorrência do trecho e usa sentinela `18446744073709551615` (`u64::MAX`) quando o trecho está ausente; `nao_vazio_verso` retorna `verdade` apenas quando o texto possui comprimento maior que zero.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram as duas intrínsecas sem declaração explícita de função.
+- Cobertura adicionada com testes semânticos e de `--run` para casos positivos/negativos (incluindo trecho ausente e string vazia), integração com `aparar_verso` + `ler_verso_arquivo(...)` e teste CLI com exemplo versionado (`examples/fase107_observacao_textual_posicional_minima_valido.pink`).
+- Fora de escopo explícito nesta fase: última/múltiplas ocorrências, regex, split/replace/slicing geral, parse textual amplo e biblioteca textual ampla.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

@@ -1,0 +1,18 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova entrada: verso = argumento_ou(0, "   pinker v0   ");
+    nova texto: verso = aparar_verso(entrada);
+    nova pos: bombom = indice_verso_em(texto, "v0");
+    nova ok: logica = nao_vazio_verso(texto);
+    falar(pos, ok);
+    talvez ok {
+        talvez pos == 7 {
+            mimo 1;
+        } senao {
+            mimo 0;
+        }
+    } senao {
+        mimo 0;
+    }
+}

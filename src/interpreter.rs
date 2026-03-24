@@ -967,6 +967,40 @@ fn try_call_intrinsic(
                 texto.to_uppercase(),
             ))))
         }
+        "indice_verso_em" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'indice_verso_em' exige 2 argumentos (verso, verso)",
+                ));
+            }
+            let RuntimeValue::Str(texto) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'indice_verso_em' exige primeiro argumento em verso",
+                ));
+            };
+            let RuntimeValue::Str(trecho) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'indice_verso_em' exige segundo argumento em verso",
+                ));
+            };
+            let pos = texto.find(trecho).map_or(u64::MAX, |v| v as u64);
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(pos))))
+        }
+        "nao_vazio_verso" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'nao_vazio_verso' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(texto) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'nao_vazio_verso' exige argumento em verso",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                !texto.is_empty(),
+            ))))
+        }
         "argumento" => {
             if args.len() != 1 {
                 return Err(runtime_err(

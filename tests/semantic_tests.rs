@@ -814,6 +814,29 @@ fn maiusculo_verso_intrinseca_rejeita_argumento_nao_verso() {
 }
 
 #[test]
+fn indice_verso_em_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova idx: bombom = indice_verso_em("pinker", "ink");
+            talvez idx == 1 { mimo 1; } senao { mimo 0; }
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn nao_vazio_verso_intrinseca_rejeita_argumento_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = nao_vazio_verso(7);
+            talvez ok { mimo 1; } senao { mimo 0; }
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'nao_vazio_verso'"));
+}
+
+#[test]
 fn uso_de_funcao_sem_retorno_em_expressao() {
     let code = "
         pacote main;

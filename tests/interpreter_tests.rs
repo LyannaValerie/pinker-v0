@@ -447,6 +447,66 @@ fn run_maiusculo_verso_intrinseca_funciona_em_caso_positivo() {
 }
 
 #[test]
+fn run_indice_verso_em_intrinseca_retorna_primeira_posicao_em_caso_positivo() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova pos: bombom = indice_verso_em("ola pinker", "pin");
+            talvez pos == 4 { mimo 1; } senao { mimo 0; }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_indice_verso_em_intrinseca_retorna_u64_max_quando_trecho_ausente() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova pos: bombom = indice_verso_em("ola pinker", "zzz");
+            talvez pos == 18446744073709551615 {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_nao_vazio_verso_intrinseca_true_em_conteudo_real() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = nao_vazio_verso("x");
+            talvez ok { mimo 1; } senao { mimo 0; }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_nao_vazio_verso_intrinseca_false_em_string_vazia() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = nao_vazio_verso("");
+            talvez ok { mimo 0; } senao { mimo 1; }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
 fn run_argumento_intrinseca_ler_posicional_minimo() {
     let out = run_code_with_args(
         r#"
@@ -2468,6 +2528,13 @@ fn cli_run_normalizacao_minima_caixa_fase106_funciona_com_exemplo_versionado() {
 }
 
 #[test]
+fn cli_run_observacao_textual_posicional_minima_fase107_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase107_observacao_textual_posicional_minima_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "7 verdade\n1\n");
+}
+
+#[test]
 fn cli_run_verso_operacional_minimo_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase88_verso_operacional_minimo_valido.pink");
     assert!(out.status.success(), "{:?}", out);
@@ -3106,6 +3173,47 @@ fn run_minusculo_e_maiusculo_verso_integram_com_ler_verso_arquivo_e_contem() {
             falar(ok_baixo, ok_alto);
             talvez ok_baixo {{
                 talvez ok_alto {{
+                    mimo 1;
+                }} senao {{
+                    mimo 0;
+                }}
+            }} senao {{
+                mimo 0;
+            }}
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+    let _ = std::fs::remove_file(&file_path);
+}
+
+#[test]
+fn run_indice_verso_em_e_nao_vazio_verso_integram_com_ler_verso_arquivo_e_aparar() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase107_verso_posicao_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+    std::fs::write(&file_path, "   pinker v0   ").expect("falha ao criar arquivo da fase 107");
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{}");
+            nova bruto: verso = ler_verso_arquivo(h);
+            fechar(h);
+            nova texto: verso = aparar_verso(bruto);
+            nova pos: bombom = indice_verso_em(texto, "v0");
+            nova ok: logica = nao_vazio_verso(texto);
+            falar(pos, ok);
+            talvez ok {{
+                talvez pos == 7 {{
                     mimo 1;
                 }} senao {{
                     mimo 0;
