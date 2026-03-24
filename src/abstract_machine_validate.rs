@@ -203,6 +203,14 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
+    sigs.insert(
+        "vazio_verso".to_string(),
+        (TypeIR::Logica, vec![StackValueType::Verso]),
+    );
+    sigs.insert(
+        "aparar_verso".to_string(),
+        (TypeIR::Verso, vec![StackValueType::Verso]),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;

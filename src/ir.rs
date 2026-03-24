@@ -664,6 +664,20 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
+        function_sigs.insert(
+            "vazio_verso".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Logica,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "aparar_verso".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
 
         Ok(Self {
             module_name,

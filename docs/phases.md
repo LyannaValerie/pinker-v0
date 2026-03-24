@@ -4,8 +4,8 @@
 > A crônica histórica oficial foi renomeada para `docs/history.md` (Doc-10).
 
 ## Estado atual
-- Fase funcional atual: **104 — observação textual complementar mínima em `--run` (`termina_com` + `igual_verso`)**.
-- Fase funcional anterior: **103 — observação textual mínima em `--run` (`contem_verso` + `comeca_com`)**.
+- Fase funcional atual: **105 — saneamento textual mínimo em `--run` (`vazio_verso` + `aparar_verso`)**.
+- Fase funcional anterior: **104 — observação textual complementar mínima em `--run` (`termina_com` + `igual_verso`)**.
 - Hotfix extraordinário ativo mais recente: **HF-3**.
 - Hotfix histórico extraordinário preservado: **Fase 48-H1**.
 - Última rodada documental: **Doc-17 — alinhamento documental/operacional pós-Paralela-1 (binários + MCP)**.

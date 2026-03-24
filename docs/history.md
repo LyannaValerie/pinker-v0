@@ -469,6 +469,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com testes automatizados de semântica/`--run` (casos positivos/negativos para cada intrínseca), integração com `ler_verso_arquivo(...)` e teste CLI com exemplo versionado (`examples/fase104_observacao_textual_complementar_minima_valido.pink`).
 - Fora de escopo explícito nesta fase: split/replace/regex/trim, busca textual rica, parse textual amplo e biblioteca textual ampla.
 
+105 - saneamento textual mínimo em `--run`
+- Vigésima primeira fase funcional do Bloco 8 — I/O e ecossistema útil.
+- Superfícies escolhidas: `vazio_verso(verso) -> logica` para detecção de vazio textual exato e `aparar_verso(verso) -> verso` para aparo mínimo de bordas.
+- Semântica operacional desta fase: `vazio_verso` retorna `verdade` apenas para string vazia; `aparar_verso` remove whitespace de borda e preserva o miolo do texto.
+- Pipeline alinhada no recorte: semântica/IR/CFG IR/selected/Machine/validações/runtime reconheceram `vazio_verso` e `aparar_verso` sem declaração explícita de função.
+- Cobertura adicionada com testes semânticos e de `--run` para casos positivos/negativos, caso onde `aparar_verso` resulta vazio e integração com `ler_verso_arquivo(...)`; CLI coberta por exemplo versionado (`examples/fase105_saneamento_textual_minimo_valido.pink`).
+- Fora de escopo explícito nesta fase: split/replace/regex, variantes de trim separadas (`left/right`), normalização sofisticada, parse textual amplo e biblioteca textual ampla.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

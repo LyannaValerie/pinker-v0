@@ -47,6 +47,8 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("comeca_com".to_string(), TypeIR::Logica);
     sigs.insert("termina_com".to_string(), TypeIR::Logica);
     sigs.insert("igual_verso".to_string(), TypeIR::Logica);
+    sigs.insert("vazio_verso".to_string(), TypeIR::Logica);
+    sigs.insert("aparar_verso".to_string(), TypeIR::Verso);
 
     for f in &program.functions {
         if f.blocks.is_empty() {
