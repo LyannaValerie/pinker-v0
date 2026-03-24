@@ -211,6 +211,14 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         "aparar_verso".to_string(),
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );
+    sigs.insert(
+        "minusculo_verso".to_string(),
+        (TypeIR::Verso, vec![StackValueType::Verso]),
+    );
+    sigs.insert(
+        "maiusculo_verso".to_string(),
+        (TypeIR::Verso, vec![StackValueType::Verso]),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;
