@@ -607,6 +607,17 @@ Doc-17 - alinhamento documental/operacional pós-Paralela-1 (binários + MCP)
 - README alinhado para remover padrões antigos ambíguos de auditoria/uso (ex.: `cargo run -- --check ...`, `cargo run -- --selected ...`) e para explicitar a existência/uso mínimo do binário `pinker_mcp`.
 - Verificação prática do `pinker_mcp` executada no estado atual: transporte JSON-RPC 2.0 via stdio (JSON por linha), resposta positiva para `initialize`, `tools/list` e `tools/call` (`pinker_rodar`).
 
+
+Doc-18 - reorganização estrutural da documentação (arquitetura dual Engine + Pinker/Rosa)
+- Rodada exclusivamente documental, sem mudança funcional de linguagem/runtime.
+- Arquivo mestre de navegação criado: `docs/atlas.md`.
+- Arquivos estruturais novos: `docs/rosa.md` (canônico identitário) e `docs/ponte_engine_rosa.md` (ponte explícita factual ↔ visão).
+- `docs/future.md` reposicionado como inventário técnico Engine de referência (não roadmap).
+- `docs/parallel.md` reposicionado como acervo visionário de apoio (não backlog técnico).
+- `docs/vocabulario.md` reestruturado para papel lexical maduro: critérios de keyword forte, sinais de keyword ruim, famílias lexicais, aceitas/rejeitadas/provisórias e distinção técnico/final/provisório.
+- `README.md`, `docs/doc_rules.md`, `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` sincronizados com a nova arquitetura dual.
+- Continuidade factual preservada: Fase atual 105, fase anterior 104, bloco ativo 8.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo

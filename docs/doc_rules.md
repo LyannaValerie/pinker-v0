@@ -1,62 +1,76 @@
 # Regras de documentação da Pinker — referência obrigatória para agentes de IA
 
-## 1. Quando atualizar cada documento
+- **Classe:** Engine
+- **Papel:** regra
+- **Status:** ativo
+
+## 1. Arquitetura documental oficial
+
+A documentação da Pinker segue arquitetura dual:
+
+- **Engine**: estado factual/operacional.
+- **Rosa**: identidade lexical/estética/visionária.
+- **Ponte**: documentos que conectam ambos sem confundir presente e aspiração.
+
+Arquivo mestre de navegação: `docs/atlas.md`.
+
+## 2. Quando atualizar cada documento
 
 | Evento | Documento(s) | O que registrar |
 |---|---|---|
-| fase funcional concluída | `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` | entrada de fase em `phases`, estado corrente atualizado, handoff curto da rodada |
-| hotfix extraordinário | `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` | entrada HF dedicada, impacto operacional e continuidade da trilha |
-| rodada documental | `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` | entrada Doc dedicada, escopo documental e limites da rodada |
-| rodada paralela de implementação | `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` | entrada Paralela dedicada, escopo paralelo e limites sem reordenar trilha ativa |
-| abertura de bloco | `docs/roadmap.md`, `docs/agent_state.md`, `docs/history.md` | bloco ativo, justificativa e ponto de transição registrado |
-| fechamento de bloco | `docs/roadmap.md`, `docs/agent_state.md`, `docs/history.md` | confirmação de fechamento e transição para próximo bloco |
-| keyword implementada | `docs/vocabulario.md`, `docs/history.md` | mover keyword para implementadas + referência da fase |
-| item de future implementado | `docs/future.md`, `docs/history.md` | marcar como implementado e referenciar fase |
-| item de future parcialmente implementado | `docs/future.md`, `docs/history.md` | marcar parcial (🔶) e limitar escopo real entregue |
-| criação de documento novo | `README.md`, `docs/history.md`, `docs/handoff_codex.md` | incluir no ecossistema documental e registrar propósito |
+| fase funcional concluída | `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` | entrada de fase, estado corrente e handoff curto |
+| hotfix extraordinário | `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` | entrada HF dedicada e impacto operacional |
+| rodada documental | `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` | entrada Doc dedicada e limites da rodada |
+| rodada paralela de implementação | `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` | entrada Paralela dedicada |
+| abertura/fechamento de bloco | `docs/roadmap.md`, `docs/agent_state.md`, `docs/history.md` | transição de bloco e justificativa |
+| decisão lexical relevante | `docs/vocabulario.md`, `docs/history.md` | aceitação/rejeição/provisório + referência histórica |
+| criação/mudança estrutural de docs | `docs/atlas.md`, `README.md`, `docs/history.md`, `docs/handoff_codex.md` | navegação atualizada e migração registrada |
 
-## 2. Formato por documento
+## 3. Formato por documento
+
+- `docs/atlas.md`: navegação mestre e classes documentais.
 - `roadmap.md`: trilha ativa oficial e ordem de execução real.
-- `future.md`: inventário técnico amplo de possibilidades/status; sem impor sequência ativa.
-- `parallel.md`: visão orientadora, identidade e direção conceitual; não técnico-operacional.
-- `history.md`: histórico único em quatro blocos fixos (FASES/HOTFIXES/DOCUMENTAÇÃO/RODADAS PARALELAS), entradas autocontidas.
-- `agent_state.md`: estado presente + diretrizes operacionais; sem histórico extenso.
-- `handoff_codex.md`: handoff curto da rodada atual (objetivo, escopo, próximo passo).
-- `vocabulario.md`: catálogo vivo de keywords; implementadas separadas de sugestões.
+- `future.md`: inventário técnico amplo; não impõe sequência ativa.
+- `rosa.md`: visão identitária canônica da linguagem.
+- `parallel.md`: acervo visionário de apoio (não backlog).
+- `ponte_engine_rosa.md`: conexão explícita entre factual e visão.
+- `history.md`: histórico único (FASES/HOTFIXES/DOCUMENTAÇÃO/RODADAS PARALELAS).
+- `agent_state.md`: estado presente + diretrizes operacionais.
+- `handoff_codex.md`: handoff curto da rodada atual.
+- `vocabulario.md`: arquitetura lexical canônica.
 
-## 3. O que NÃO colocar em cada documento
-- `agent_state.md` não acumula histórico completo de fases.
-- `history.md` não acumula diretrizes operacionais de agente.
-- `handoff_codex.md` não duplica histórico completo do projeto.
-- `future.md` não dita ordem ativa de execução.
-- `parallel.md` não cria fases nem backlog técnico executável.
-- `roadmap.md` não vira backlog amplo e difuso.
+## 4. Classificação obrigatória para papéis estruturais
 
-## 4. Precedência documental
-- Código mergeado prevalece sobre documentação.
-- `roadmap.md` decide a trilha ativa.
-- `future.md` organiza backlog/inventário amplo.
-- `parallel.md` guarda a visão orientadora.
-- `history.md` guarda o histórico.
-- `agent_state.md` guarda o estado corrente.
-- `handoff_codex.md` guarda o handoff operacional curto.
-- `doc_rules.md` guarda as convenções documentais.
+Documentos novos (ou antigos com papel estrutural novo) devem declarar no topo, quando fizer sentido:
 
-## 5. Tom e linguagem
-- português.
-- objetivo.
-- autocontido.
-- sem inflação retórica.
+- **Classe:** Engine / Rosa / Ponte
+- **Papel:** histórico / estado / visão / léxico / navegação / regra / referência / híbrido
+- **Status:** ativo / operacional / referência / aspiracional / híbrido
+
+## 5. O que NÃO colocar em cada documento
+
+- `agent_state.md` não vira histórico extenso.
+- `history.md` não vira guia operacional.
+- `handoff_codex.md` não duplica crônica completa.
+- `future.md` não vira roadmap.
+- `parallel.md` não vira backlog técnico executável.
+- `rosa.md` não declara funcionalidades como implementadas sem evidência Engine.
+
+## 6. Precedência documental
+
+1. Código mergeado.
+2. `roadmap.md` (ordem ativa).
+3. `agent_state.md` + `handoff_codex.md` (estado operacional da rodada).
+4. `history.md` (continuidade factual).
+5. `future.md` (inventário técnico).
+6. `rosa.md` + `vocabulario.md` + `parallel.md` (identidade e visão).
+7. `ponte_engine_rosa.md` e `atlas.md` (mediação e navegação).
+
+## 7. Tom e linguagem
+
+- português;
+- objetivo;
+- autocontido;
+- sem inflar retórica;
 - sem duplicação desnecessária.
 
-## 6. Convenção visual obrigatória
-- Fases construtivas em seção **FASES**.
-- Hotfixes em seção **HOTFIXES**.
-- Documentação em seção **DOCUMENTAÇÃO**.
-- Rodadas paralelas em seção **RODADAS PARALELAS**.
-- Numeração independente por categoria.
-- Exemplos formais:
-  - `55 - assembler/linker externo (integração mínima)`
-  - `HF-1 - hotfixes de corretude e manutenção`
-  - `Doc-1 - abertura documental do Bloco 6`
-  - `Paralela-1 - negação bitwise dual (~ + nope) + MCP mínimo`
