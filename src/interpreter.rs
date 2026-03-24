@@ -907,6 +907,36 @@ fn try_call_intrinsic(
             };
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(lhs == rhs))))
         }
+        "vazio_verso" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'vazio_verso' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(texto) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'vazio_verso' exige argumento em verso",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                texto.is_empty(),
+            ))))
+        }
+        "aparar_verso" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'aparar_verso' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(texto) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'aparar_verso' exige argumento em verso",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
+                texto.trim().to_string(),
+            ))))
+        }
         "argumento" => {
             if args.len() != 1 {
                 return Err(runtime_err(

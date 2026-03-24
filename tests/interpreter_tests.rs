@@ -359,6 +359,64 @@ fn run_igual_verso_intrinseca_false_em_caso_negativo() {
 }
 
 #[test]
+fn run_vazio_verso_intrinseca_true_em_string_vazia() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = vazio_verso("");
+            talvez ok { mimo 1; } senao { mimo 0; }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_vazio_verso_intrinseca_false_em_conteudo_real() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ok: logica = vazio_verso("x");
+            talvez ok { mimo 0; } senao { mimo 1; }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_aparar_verso_intrinseca_remove_bordas() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova limpo: verso = aparar_verso("  pinker  ");
+            nova ok: logica = igual_verso(limpo, "pinker");
+            talvez ok { mimo 1; } senao { mimo 0; }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_aparar_verso_pode_resultar_em_vazio() {
+    let out = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova limpo: verso = aparar_verso("   ");
+            nova ok: logica = vazio_verso(limpo);
+            talvez ok { mimo 1; } senao { mimo 0; }
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
 fn run_argumento_intrinseca_ler_posicional_minimo() {
     let out = run_code_with_args(
         r#"
@@ -2366,6 +2424,13 @@ fn cli_run_observacao_textual_complementar_minima_fase104_funciona_com_exemplo_v
 }
 
 #[test]
+fn cli_run_saneamento_textual_minimo_fase105_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase105_saneamento_textual_minimo_valido.pink");
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "verdade\n1\n");
+}
+
+#[test]
 fn cli_run_verso_operacional_minimo_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase88_verso_operacional_minimo_valido.pink");
     assert!(out.status.success(), "{:?}", out);
@@ -2930,6 +2995,42 @@ fn run_termina_com_e_igual_verso_integram_com_ler_verso_arquivo() {
                 }} senao {{
                     mimo 0;
                 }}
+            }} senao {{
+                mimo 0;
+            }}
+        }}"#,
+        file_path.to_string_lossy().replace('\\', "\\\\")
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+    let _ = std::fs::remove_file(&file_path);
+}
+
+#[test]
+fn run_aparar_e_vazio_verso_integram_com_ler_verso_arquivo() {
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase105_verso_saneamento_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+    std::fs::write(&file_path, "   \n\t  ").expect("falha ao criar arquivo da fase 105");
+    let source = format!(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {{
+            nova h: bombom = abrir("{}");
+            nova texto: verso = ler_verso_arquivo(h);
+            fechar(h);
+            nova limpo: verso = aparar_verso(texto);
+            nova vazio: logica = vazio_verso(limpo);
+            falar(vazio, tamanho_verso(limpo));
+            talvez vazio {{
+                mimo 1;
             }} senao {{
                 mimo 0;
             }}

@@ -64,6 +64,8 @@ Consultar antes de implementar uma feature nova — riscar ao implementar.
 | `comeca_com` | prefixo textual mínimo | verificar se um `verso` começa com outro no `--run` |
 | `termina_com` | sufixo textual mínimo | verificar se um `verso` termina com outro no `--run` |
 | `igual_verso` | igualdade textual explícita mínima | comparar dois `verso` por igualdade exata no `--run` |
+| `vazio_verso` | detecção textual mínima de vazio | verificar se um `verso` é vazio (vazio exato) no `--run` |
+| `aparar_verso` | saneamento textual mínimo de borda | remover whitespace nas bordas de um `verso` no `--run` |
 | `sair`        | status de saída mínimo | encerrar script com código explícito |
 | `nope`        | bitwise NOT textual    | negação bitwise em forma Pinker (equivale a `~`) |
 
@@ -133,6 +135,10 @@ Nota de status operacional:
   - `termina_com(verso, verso) -> logica` para teste simples de sufixo textual;
   - `igual_verso(verso, verso) -> logica` para comparação textual explícita de igualdade exata;
   - sem split/replace/regex/trim e sem biblioteca textual ampla.
+- Fase 105 (saneamento textual mínimo em `--run`):
+  - `vazio_verso(verso) -> logica` para verificar vazio textual exato;
+  - `aparar_verso(verso) -> verso` para aparar bordas de whitespace;
+  - sem split/replace/regex/trim variants, sem normalização sofisticada e sem biblioteca textual ampla.
 - Fora do subset textual atual: slicing, indexação negativa e formatação/interpolação.
 
 ---
