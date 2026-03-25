@@ -21,7 +21,7 @@ A documentação só está correta quando esses hemisférios conseguem conversar
 
 Documentos canônicos para estado real e continuidade técnica:
 
-- `docs/roadmap.md` — trilha ativa oficial e bloco corrente.
+- `docs/roadmap.md` — trilha ativa oficial e estado de bloco corrente (incluindo encerramentos conservadores).
 - `docs/history.md` — linha do tempo factual (fases, hotfixes, docs e paralelas).
 - `docs/agent_state.md` — estado operacional corrente e diretrizes de execução.
 - `docs/handoff_codex.md` — handoff curto da rodada vigente.

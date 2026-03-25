@@ -741,6 +741,16 @@ Fase 119 - compostos mínimos (camada 4 conservadora, fechamento do recorte homo
 - Fora de escopo explícito preservado: structs gerais, arrays gerais, compostos heterogêneos, composto por valor em ABI, retorno composto, layout/alinhamento geral sofisticado e runtime nativa nova.
 
 
+Doc-20 - encerramento conservador do Bloco 9
+- Rodada exclusivamente documental, sem implementação funcional nova.
+- Bloco 9 reconhecido como encerrado enquanto trilha ativa por suficiência conservadora, sem declarar exaustão total do espaço de backend nativo.
+- Consolidação explícita do que o backend nativo externo realmente passou a suportar no bloco: 9.1 (múltiplos blocos/labels/`jmp`), 9.2 (branch condicional mínimo), 9.3 (loops mínimos), 9.4 (globais mínimas + base `.rodata`), 9.5 (ABI mínima mais larga em camada conservadora) e 9.6 (compostos mínimos).
+- Item 9.6 reafirmado como fechado apenas no recorte homogêneo conservador atual (`seta<bombom>`, `deref_load` mínimo, offset explícito e `deref_store` mínimo homogêneo), sem heterogeneidade, sem composto por valor e sem sistema geral de agregados.
+- Exclusões do bloco reforçadas para evitar superestimação do backend: sem backend pleno, sem ABI ampla/plena, sem composto por valor na ABI, sem retorno composto amplo, sem structs/arrays gerais e sem sistema geral de globais/layout sofisticado.
+- Handoff operacional ajustado para impedir continuidade automática de 9.6 e para manter a próxima frente funcional em aberto disciplinado, sem reabertura do Bloco 9 por inércia.
+- Observação de continuidade preservada: a higiene estrutural da categorização das Fases 111–119 no `history.md` permanece reservada para a micro-rodada pós-Fase 120 junto com busca por bugs.
+
+
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

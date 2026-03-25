@@ -177,7 +177,7 @@ Status de execução no bloco:
 
 ### Bloco 9 — ampliação do backend nativo real
 
-**Status**: **trilha ativa atual** (abertura canônica após encerramento formal do Bloco 8).
+**Status**: **encerrado como trilha ativa por suficiência conservadora** (consolidação canônica após as Fases 111–119).
 
 **Tese do bloco**:
 - o backend nativo real já existe e é o ponto de partida;
@@ -205,9 +205,9 @@ Status de execução no bloco:
    - ampliar capacidade de chamadas sem prometer ABI plena;
    - etapa mais larga que o subset anterior, mantendo recorte mínimo;
    - pode evoluir em duas camadas conservadoras em vez de salto único.
-6. **9.6 — tipos compostos mínimos no backend nativo real**
-   - primeiros passos honestos com structs/tuplas/arrays no backend nativo;
-   - sem allocator completo, sem layout universal rico e sem promessa de cobertura total imediata.
+6. **9.6 — compostos mínimos no backend nativo real (fechado no recorte homogêneo conservador atual)**
+   - fechamento conservador em `seta<bombom>` com `deref_load`/`deref_store` mínimos e offsets explícitos;
+   - sem heterogeneidade, sem composto por valor na ABI, sem structs/arrays gerais e sem sistema geral de agregados.
 
 **Status de execução no bloco**:
 - **Fase 111 concluída (entrada inicial do item 9.1)**: backend nativo externo passou a aceitar múltiplos blocos por função com labels e `jmp` incondicional auditável, mantendo rejeição explícita para branch condicional (`talvez/senao`/`sempre que`) neste recorte.
@@ -220,6 +220,14 @@ Status de execução no bloco:
 - **Fase 118 concluída (camada 3 conservadora do item 9.6)**: backend nativo externo ampliou o mesmo recorte homogêneo para aceitar `deref_store` mínimo (`*ptr = valor`) em `seta<bombom>`, preservando offset explícito auditável, sem abrir composto por valor, structs/arrays gerais, heterogeneidade ou ABI composta.
 - **Fase 119 concluída (camada 4 conservadora do item 9.6)**: backend nativo externo consolidou o recorte homogêneo de `seta<bombom>` como par mínimo utilizável com sequência coesa de `deref_load` + `deref_store` + releitura auditável (offsets explícitos), sem abrir composto amplo, ABI composta ou layout geral.
 
+#### Encerramento conservador do Bloco 9
+
+- O Bloco 9 cumpriu sua função: ampliou de forma real, pequena e auditável o backend nativo externo já existente.
+- O bloco **não** foi desenhado para virar backend pleno, nem para buscar otimização/performance ou runtime nativa grande.
+- O encerramento é por **suficiência conservadora de trilha**, não por exaustão total do espaço de backend.
+- O item **9.6** fica formalmente fechado **apenas** no recorte homogêneo conservador atual (`seta<bombom>` + `deref_load`/`deref_store` mínimos + offsets explícitos).
+- Futuras ampliações de backend nativo externo continuam possíveis, porém subordinadas a outra maturidade do projeto, sem continuação automática e indefinida do Bloco 9.
+
 #### Exclusões explícitas do Bloco 9
 
 Por padrão, o Bloco 9 **não cobre**:
@@ -227,6 +235,15 @@ Por padrão, o Bloco 9 **não cobre**:
 - otimizador/otimizações relevantes;
 - allocator completo;
 - runtime grande;
+- ABI ampla/plena;
+- compostos por valor na ABI;
+- retorno composto amplo;
+- structs gerais;
+- arrays gerais;
+- compostos heterogêneos amplos;
+- strings amplas;
+- sistema geral de globais;
+- layout/alinhamento geral sofisticado;
 - subsistema amplo de strings;
 - ecossistema de terminal rico;
 - suporte geral a `sussurro` amplo;
@@ -234,6 +251,13 @@ Por padrão, o Bloco 9 **não cobre**:
 - performance tuning como objetivo principal;
 - autohospedagem;
 - independência total do backend para todos os recortes futuros da linguagem.
+
+
+#### Próxima abertura funcional
+
+- Após o encerramento conservador do Bloco 9, a próxima frente funcional fica **a definir conscientemente**.
+- Não presumir continuidade automática de 9.6.
+- Não reabrir o Bloco 9 por inércia documental; só por necessidade extraordinária, pequena e bem justificada.
 
 #### Trava de runtime nativa mínima no Bloco 9
 

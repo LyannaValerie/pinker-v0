@@ -23,14 +23,14 @@ Conectar explicitamente:
 ### Engine já consolidado
 
 - Fase funcional atual: **119** (compostos mínimos, camada 4 conservadora e fechamento do recorte homogêneo, no backend nativo externo).
-- Bloco ativo: **Bloco 9 — ampliação do backend nativo real** (com Bloco 8 formalmente encerrado como trilha ativa).
-- Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`; nova trilha ativa focada em ampliar cobertura semântica real do backend nativo.
+- Estado de bloco: **Bloco 9 encerrado conservadoramente como trilha ativa** (com Bloco 8 já encerrado).
+- Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`; após Doc-20, a próxima trilha funcional fica em definição disciplinada (sem continuidade automática do B9).
 
 ### Rosa em consolidação documental
 
 - Léxico amadurecido como disciplina arquitetural (não só lista de keywords).
 - Estratégia de absorção explícita (aprender função estrutural sem copiar temperamento).
-- Visão de terminal/Pinkefile/ecossistema próprio registrada como aspiracional, sem competir com a prioridade factual do Bloco 9.
+- Visão de terminal/Pinkefile/ecossistema próprio registrada como aspiracional, sem competir com a prioridade factual de consolidação pós-B9.
 
 ## 4. Decisão prática por tipo de tema
 
