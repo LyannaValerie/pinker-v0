@@ -11,7 +11,7 @@
 - Fase funcional atual: **110 — entrada textual mínima em `--run` (`ouvir_verso` + `ouvir_verso_ou`)**.
 - Fase funcional anterior: **109 — leitura textual mínima direta por caminho em `--run` (`ler_arquivo_verso` + `arquivo_ou`)**.
 - Hotfix extraordinário ativo mais recente: **HF-3**.
-- Última rodada documental: **Doc-18 — arquitetura documental dual (Engine + Pinker/Rosa)**.
+- Última rodada documental: **Doc-19 — encerramento formal do Bloco 8 e abertura canônica do Bloco 9**.
 
 ## Fonte oficial
 - Linha do tempo completa: `docs/history.md`.

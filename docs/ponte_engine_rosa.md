@@ -23,14 +23,14 @@ Conectar explicitamente:
 ### Engine já consolidado
 
 - Fase funcional atual: **110** (`ouvir_verso` + `ouvir_verso_ou`).
-- Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
-- Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`.
+- Bloco ativo: **Bloco 9 — ampliação do backend nativo real** (com Bloco 8 formalmente encerrado como trilha ativa).
+- Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`; nova trilha ativa focada em ampliar cobertura semântica real do backend nativo.
 
 ### Rosa em consolidação documental
 
 - Léxico amadurecido como disciplina arquitetural (não só lista de keywords).
 - Estratégia de absorção explícita (aprender função estrutural sem copiar temperamento).
-- Visão de terminal/Pinkefile/ecossistema próprio registrada como aspiracional.
+- Visão de terminal/Pinkefile/ecossistema próprio registrada como aspiracional, sem competir com a prioridade factual do Bloco 9.
 
 ## 4. Decisão prática por tipo de tema
 

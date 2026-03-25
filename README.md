@@ -60,7 +60,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 
 ## O que não faz
 - codegen nativo real
-- backend nativo
+- backend nativo pleno
 - LLVM / Cranelift
 - otimizações grandes
 - FFI, enums, generics, traits

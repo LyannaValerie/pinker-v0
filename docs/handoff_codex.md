@@ -5,24 +5,24 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 110 — entrada textual mínima em `--run`**.
-- Rodada funcional pequena, local e auditável no Bloco 8.
+- **Doc-19 — encerramento formal do Bloco 8 e abertura canônica do Bloco 9**.
+- Rodada exclusivamente documental, sem abertura de fase funcional nova.
 
 ## 2. O que entrou na rodada atual
-- Intrínsecas novas de entrada textual: `ouvir_verso() -> verso` e `ouvir_verso_ou(verso) -> verso`.
-- Semântica mínima da fase: leitura textual única da stdin com remoção mínima de newline final; fallback textual mínimo para EOF/impossibilidade operacional simples em `ouvir_verso_ou`.
-- Alinhamento de semântica/IR/CFG IR/selected/Machine/validações/runtime para reconhecer as duas intrínsecas sem declaração explícita.
-- Cobertura nova em semântica + runtime + CLI com exemplo versionado da fase 110.
-- Atualização documental mínima: `README.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/vocabulario.md`, `docs/phases.md` e `docs/ponte_engine_rosa.md`.
+- Bloco 8 encerrado como trilha ativa por suficiência funcional/documental após Fases 85–110.
+- Roadmap abriu formalmente o Bloco 9 como nova trilha principal: ampliação do backend nativo real já conquistado.
+- Escada interna do Bloco 9 registrada em 6 degraus auditáveis (9.1 a 9.6), com exclusões explícitas para conter scope creep.
+- Trava canônica registrada: runtime nativa mínima só entra para demonstrar capacidade semântica já conquistada no backend; runtime serve ao backend e não vira trilha paralela.
 
 ## 3. Continuidade preservada
-- Fase funcional atual passa a **110**.
-- Fase funcional anterior passa a **109**.
-- Bloco ativo permanece **Bloco 8**.
-- Recorte de entrada textual segue mínimo (sem streaming, sem API rica de terminal, sem timeout/leitura não bloqueante, sem encoding sofisticado e sem biblioteca textual ampla).
+- Fase funcional atual permanece **110**.
+- Fase funcional anterior permanece **109**.
+- Bloco ativo passa a **Bloco 9 — ampliação do backend nativo real**.
+- Bloco 8 permanece fechado como trilha ativa; pode receber ampliações futuras apenas de forma subordinada e extraordinária.
 
 ## 4. Próximo item normal
-- Seguir refinamentos mínimos e auditáveis no Bloco 8 sem inflar API textual.
+- Iniciar a **primeira fase funcional do Bloco 9** em recorte pequeno e auditável, alinhada ao item **9.1** (múltiplos blocos, labels e salto incondicional).
+- Não reabrir Bloco 8 salvo necessidade extraordinária, objetiva e bem justificada.
 
 ## 5. Precedência resumida
 - Código mergeado prevalece.

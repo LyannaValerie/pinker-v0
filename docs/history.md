@@ -658,6 +658,17 @@ Doc-18 - reorganização estrutural da documentação (arquitetura dual Engine +
 - `README.md`, `docs/doc_rules.md`, `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` sincronizados com a nova arquitetura dual.
 - Continuidade factual preservada: Fase atual 105, fase anterior 104, bloco ativo 8.
 
+Doc-19 - encerramento formal do Bloco 8 e abertura canônica do Bloco 9
+- Rodada exclusivamente documental, sem implementação funcional nova.
+- Bloco 8 reconhecido como encerrado enquanto trilha ativa por suficiência funcional/documental no recorte entregue (Fases 85–110).
+- Encerramento registrado como suficiência de trilha (não exaustão): futuras ampliações de I/O podem existir, mas deixam de ser frente principal ativa.
+- Bloco 9 aberto como nova frente principal com tese explícita: ampliar cobertura semântica do backend nativo real já conquistado, sem reiniciar backend.
+- Escada interna do Bloco 9 registrada em seis degraus auditáveis: 9.1 (blocos/labels/jump), 9.2 (branch condicional), 9.3 (loops), 9.4 (globais + base `.rodata`), 9.5 (ABI mínima mais larga), 9.6 (compostos mínimos).
+- Exclusões explícitas registradas para conter scope creep (sem backend pleno, sem otimizador relevante, sem runtime grande, sem allocator completo, sem redesign amplo de pipeline, sem autohospedagem).
+- Trava canônica de runtime nativa mínima registrada: runtime só entra para demonstrar capacidade semântica já conquistada no backend e não pode sequestrar o bloco.
+- `agent_state.md`, `handoff_codex.md`, `phases.md`, `roadmap.md`, `ponte_engine_rosa.md`, `vocabulario.md` e `README.md` sincronizados com a transição B8 -> B9.
+
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo

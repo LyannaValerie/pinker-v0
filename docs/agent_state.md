@@ -29,8 +29,8 @@
 ## 5. Estado corrente
 - Fase funcional atual: **110 — entrada textual mínima em `--run` (`ouvir_verso` + `ouvir_verso_ou`)**.
 - Fase funcional anterior: **109 — leitura textual mínima direta por caminho em `--run` (`ler_arquivo_verso` + `arquivo_ou`)**.
-- Bloco ativo: **Bloco 8 — I/O e ecossistema útil**.
-- Rodada documental mais recente: **Doc-18 — arquitetura documental dual (Engine + Pinker/Rosa)**.
+- Bloco ativo: **Bloco 9 — ampliação do backend nativo real** (Bloco 8 encerrado formalmente por suficiência de trilha).
+- Rodada documental mais recente: **Doc-19 — encerramento formal do Bloco 8 e abertura canônica do Bloco 9**.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
 - Último hotfix aplicado: **HF-3 — estabilização do Bloco 8 (Fases 85–101)**.
 
@@ -50,6 +50,7 @@
 1. Ler: `README.md`, `docs/atlas.md`, `docs/roadmap.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/history.md`, `docs/doc_rules.md`.
 2. Executar validações exigidas da rodada antes de encerrar.
 3. Atualizar ao final: `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` quando houver mudança documental/operacional.
+4. Próxima rodada normal esperada: primeira fase funcional do Bloco 9 (item 9.1), evitando reabrir refinamentos do Bloco 8 sem necessidade extraordinária.
 
 ## 9. Padrão operacional de binários
 - Binário principal: `pink`.
