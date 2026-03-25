@@ -1,0 +1,9 @@
+pacote fase116_compostos_minimos_camada1_invalida;
+
+carinho soma_par_fragil(base: fragil seta<bombom>) -> bombom {
+    mimo *base;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}

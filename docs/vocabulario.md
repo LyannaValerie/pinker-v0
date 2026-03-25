@@ -94,4 +94,4 @@ Antes de aceitar keyword nova:
 
 - Encerramento formal do Bloco 8 não reduz o valor lexical das intrínsecas de I/O já aceitas; apenas muda a prioridade da trilha ativa.
 - A abertura do Bloco 9 não introduz keyword nova por padrão; foco imediato é ampliar cobertura semântica no backend nativo real existente.
-- As Fases 111, 112, 113, 114 e 115 (itens 9.1, 9.2, 9.3, 9.4 e camada 1 do 9.5) mantiveram essa diretriz: ampliação de blocos/labels/jump, branch condicional mínimo, loops reais mínimos, globais estáticas mínimas em `.rodata` e ABI mínima mais larga (até 3 argumentos `bombom`) no backend nativo ocorreu sem adicionar keywords públicas novas.
+- As Fases 111, 112, 113, 114, 115 e 116 (itens 9.1, 9.2, 9.3, 9.4, camada 1 do 9.5 e camada 1 do 9.6) mantiveram essa diretriz: ampliação de blocos/labels/jump, branch condicional mínimo, loops reais mínimos, globais estáticas mínimas em `.rodata`, ABI mínima mais larga (até 3 argumentos `bombom`) e composto mínimo por ponteiro (`seta<bombom>` + `*ptr`) no backend nativo ocorreu sem adicionar keywords públicas novas.

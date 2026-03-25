@@ -1,0 +1,11 @@
+pacote fase116_compostos_minimos_camada1_valida;
+
+carinho soma_par_minimo(base: seta<bombom>) -> bombom {
+    nova primeiro: bombom = *base;
+    nova segundo: bombom = *(base + 8);
+    mimo primeiro + segundo;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
