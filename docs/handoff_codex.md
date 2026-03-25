@@ -5,18 +5,18 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 117 — compostos mínimos (camada 2 conservadora) no backend nativo externo**.
-- Sétima fase funcional do Bloco 9 concluída em recorte mínimo e auditável.
+- **Fase 118 — compostos mínimos (camada 3 conservadora) no backend nativo externo**.
+- Oitava fase funcional do Bloco 9 concluída em recorte mínimo e auditável.
 
 ## 2. O que entrou na rodada atual
-- Backend externo montável ampliou o recorte do item 9.6 com camada 2 conservadora: além do parâmetro `seta<bombom>`, agora aceita local `seta<bombom>` para materializar cursor com offset explícito mínimo e realizar dois `deref_load` homogêneos auditáveis.
-- Recorte estrutural explícito da camada: dois loads homogêneos de `bombom` via `seta<bombom>` + `base + 8`, sem composto por valor na ABI.
-- Validações mínimas no caminho externo ampliadas para manter honestidade de subset: local fora de `bombom`/`seta<bombom>` segue recusado e caminho `fragil` segue fora do subset externo.
-- Exemplos versionados da fase adicionados (`examples/fase117_compostos_minimos_camada2_valida.pink` e `examples/fase117_compostos_minimos_camada2_invalida.pink`) com cobertura de testes para emissão auditável do novo degrau.
+- Backend externo montável ampliou o recorte do item 9.6 com camada 3 conservadora: além de parâmetros/locais `seta<bombom>` e `deref_load`, agora aceita `deref_store` mínimo homogêneo (`*ptr = valor`) no caminho externo.
+- Recorte estrutural explícito da camada: leitura e escrita homogêneas de `bombom` via `seta<bombom>` com offset explícito auditável, sem composto por valor na ABI.
+- Validações mínimas no caminho externo ampliadas para manter honestidade de subset: `deref_store` fora de `bombom` segue recusado, `fragil` em acesso indireto externo segue fora e locals/parâmetros fora de `bombom`/`seta<bombom>` continuam recusados.
+- Exemplos versionados da fase adicionados (`examples/fase118_compostos_minimos_camada3_valida.pink` e `examples/fase118_compostos_minimos_camada3_invalida.pink`) com cobertura de testes para emissão auditável do novo degrau.
 
 ## 3. Continuidade preservada
-- Fase funcional atual passa para **117**.
-- Fase funcional anterior passa para **116**.
+- Fase funcional atual passa para **118**.
+- Fase funcional anterior passa para **117**.
 - Bloco ativo permanece **Bloco 9 — ampliação do backend nativo real**.
 - Bloco 8 permanece fechado como trilha ativa; pode receber ampliações futuras apenas de forma subordinada e extraordinária.
 

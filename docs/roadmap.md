@@ -217,6 +217,7 @@ Status de execução no bloco:
 - **Fase 115 concluída (primeira camada do item 9.5)**: backend nativo externo ampliou a ABI mínima de call direta de até 2 para até 3 argumentos `bombom` (`%rdi/%rsi/%rdx`), mantendo recusa explícita de 4+ argumentos e sem abrir ABI plena.
 - **Fase 116 concluída (entrada inicial do item 9.6)**: backend nativo externo abriu composto mínimo camada 1 por ponteiro homogêneo (`seta<bombom>`) com `deref_load` auditável em função externa, mantendo fora compostos amplos e ABI composta por valor.
 - **Fase 117 concluída (camada 2 conservadora do item 9.6)**: backend nativo externo ampliou o recorte homogêneo para aceitar local `seta<bombom>` no fluxo externo e leitura auditável de dois elementos via offset explícito mínimo (`base + 8` + `deref_load`), preservando fora composto por valor, structs/arrays gerais e ABI composta.
+- **Fase 118 concluída (camada 3 conservadora do item 9.6)**: backend nativo externo ampliou o mesmo recorte homogêneo para aceitar `deref_store` mínimo (`*ptr = valor`) em `seta<bombom>`, preservando offset explícito auditável, sem abrir composto por valor, structs/arrays gerais, heterogeneidade ou ABI composta.
 
 #### Exclusões explícitas do Bloco 9
 
