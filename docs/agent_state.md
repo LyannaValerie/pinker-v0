@@ -27,8 +27,8 @@
 - Saídas: `--pseudo-asm`, `--asm-s`, `--run`.
 
 ## 5. Estado corrente
-- Fase funcional atual: **116 — compostos mínimos (camada 1 conservadora) no backend nativo externo**.
-- Fase funcional anterior: **115 — ABI mínima mais larga (camada 1 conservadora) no backend nativo externo**.
+- Fase funcional atual: **117 — compostos mínimos (camada 2 conservadora) no backend nativo externo**.
+- Fase funcional anterior: **116 — compostos mínimos (camada 1 conservadora) no backend nativo externo**.
 - Bloco ativo: **Bloco 9 — ampliação do backend nativo real** (Bloco 8 encerrado formalmente por suficiência de trilha).
 - Rodada documental mais recente: **Doc-19 — encerramento formal do Bloco 8 e abertura canônica do Bloco 9**.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.

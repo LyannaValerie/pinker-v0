@@ -1,0 +1,12 @@
+pacote fase117_compostos_minimos_camada2_invalida;
+
+carinho soma_par_offset_local_invalido(base: seta<bombom>) -> bombom {
+    nova cursor: fragil seta<bombom> = 1;
+    nova primeiro: bombom = *base;
+    nova segundo: bombom = *cursor;
+    mimo primeiro + segundo;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}

@@ -8,8 +8,8 @@
 > A crônica histórica oficial é `docs/history.md`.
 
 ## Estado atual
-- Fase funcional atual: **116 — compostos mínimos (camada 1 conservadora) no backend nativo externo**.
-- Fase funcional anterior: **115 — ABI mínima mais larga (camada 1 conservadora) no backend nativo externo**.
+- Fase funcional atual: **117 — compostos mínimos (camada 2 conservadora) no backend nativo externo**.
+- Fase funcional anterior: **116 — compostos mínimos (camada 1 conservadora) no backend nativo externo**.
 - Hotfix extraordinário ativo mais recente: **HF-3**.
 - Última rodada documental: **Doc-19 — encerramento formal do Bloco 8 e abertura canônica do Bloco 9**.
 

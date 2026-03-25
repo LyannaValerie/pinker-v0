@@ -716,6 +716,14 @@ Fase 116 - compostos mínimos (camada 1 conservadora) no backend nativo externo
 - Exemplo versionado incluído: `examples/fase116_compostos_minimos_camada1_valida.pink`.
 - Fora de escopo explícito preservado: structs gerais, tuplas amplas, arrays gerais, compostos heterogêneos amplos, composto por valor em ABI, `deref_store` externo e layout/alinhamento geral sofisticado.
 
+Fase 117 - compostos mínimos (camada 2 conservadora) no backend nativo externo
+- Sétima fase funcional do Bloco 9 (item 9.6, camada 2) concluída em recorte mínimo, auditável e sem abrir compostos gerais.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar local `seta<bombom>` no mesmo recorte homogêneo da camada 1, permitindo materializar cursor com offset explícito e fazer dois `deref_load` auditáveis no fluxo real.
+- Recorte estrutural explícito desta fase: dois loads homogêneos de `bombom` via `seta<bombom>` + offset explícito (`base + 8`) em função externa, sem composto por valor na ABI.
+- Validações mínimas ampliadas no caminho externo: local fora de `bombom`/`seta<bombom>` continua recusado e caminho `fragil` em acesso indireto externo continua fora do subset.
+- Exemplos versionados incluídos: `examples/fase117_compostos_minimos_camada2_valida.pink` e `examples/fase117_compostos_minimos_camada2_invalida.pink`.
+- Fora de escopo explícito preservado: structs gerais, arrays gerais, compostos heterogêneos, composto por valor em ABI, retorno composto, `deref_store` externo, layout/alinhamento geral sofisticado e runtime nativa nova.
+
 
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
