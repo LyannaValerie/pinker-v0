@@ -615,6 +615,15 @@ HF-3 - Bloco 8 (Fases 85–101): estabilização do `--run` (handles, I/O, camin
 - Nenhuma nova feature funcional adicionada.
 - Suite completa pós-correção: todos os testes passam, `cargo clippy`/`fmt`/`doc` limpos.
 
+HF-4 — varredura completa de repositório e higiene estrutural pós-B9
+- Pacote extraordinário de hotfix transversal sem abertura de fase funcional nova.
+- Correção estrutural do `history.md`: Fases 111–119 reencaixadas na seção FASES (antes eram listadas após DOCUMENTAÇÃO); Doc-20 reencaixada na seção DOCUMENTAÇÃO; ordem cronológica, categorias próprias e conteúdo histórico preservados.
+- Mensagens de erro desatualizadas corrigidas em `backend_s.rs`: referências a "Fase 54" removidas de 3 diagnósticos do backend .s textual (retorno, slot e call), que permaneciam congeladas desde a fase original e ficaram enganosas após 65 fases de evolução.
+- Texto de ajuda da CLI corrigido em `main.rs`: referência a "(Fase 54, ABI textual mínima)" removida do help de `--asm-s`; comentário de seção alinhado.
+- Drift documental corrigido em `future.md`: "até 2 args" atualizado para "até 3 args" (alinhamento com Fase 115).
+- Varredura completa de código, testes, exemplos e documentação sem introdução de feature funcional nova.
+- Suite completa pós-correção: todos os testes passam, `cargo build`/`check`/`fmt --check`/`clippy`/`doc` limpos.
+
 ########################## DOCUMENTAÇÃO ##########################
 
 Doc-1 - viabilidade de escrita em globals (análise)
@@ -758,14 +767,6 @@ Doc-21 - abertura canônica do Bloco 10
 - `verso` posicionada como item final e condicional, com trava de cautela para não sequestrar o bloco.
 - Exclusões explícitas reforçadas para conter growth indevido (sem backend pleno, sem otimizador relevante, sem runtime grande, sem ABI ampla/plena, sem sistema geral de texto/compostos).
 
-HF-4 — varredura completa de repositório e higiene estrutural pós-B9
-- Pacote extraordinário de hotfix transversal sem abertura de fase funcional nova.
-- Correção estrutural do `history.md`: Fases 111–119 reencaixadas na seção FASES (antes eram listadas após DOCUMENTAÇÃO); Doc-20 reencaixada na seção DOCUMENTAÇÃO; ordem cronológica, categorias próprias e conteúdo histórico preservados.
-- Mensagens de erro desatualizadas corrigidas em `backend_s.rs`: referências a "Fase 54" removidas de 3 diagnósticos do backend .s textual (retorno, slot e call), que permaneciam congeladas desde a fase original e ficaram enganosas após 65 fases de evolução.
-- Texto de ajuda da CLI corrigido em `main.rs`: referência a "(Fase 54, ABI textual mínima)" removida do help de `--asm-s`; comentário de seção alinhado.
-- Drift documental corrigido em `future.md`: "até 2 args" atualizado para "até 3 args" (alinhamento com Fase 115).
-- Varredura completa de código, testes, exemplos e documentação sem introdução de feature funcional nova.
-- Suite completa pós-correção: todos os testes passam, `cargo build`/`check`/`fmt --check`/`clippy`/`doc` limpos.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
