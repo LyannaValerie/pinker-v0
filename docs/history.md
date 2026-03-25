@@ -691,6 +691,14 @@ Fase 113 - loops reais mínimos no backend nativo externo
 - Exemplo versionado incluído: `examples/fase113_loops_reais_minimos_validos.pink`.
 - Fora de escopo explícito preservado: loops amplos, `break`/`continue` gerais, comparações além de `==`/`<`, globais, `.rodata`, ABI mais larga, compostos e runtime nativa nova.
 
+Fase 114 - globais mínimas e base inicial de `.rodata` no backend nativo externo
+- Quarta fase funcional do Bloco 9 (item 9.4) concluída em recorte mínimo, auditável e sem puxar o item 9.5.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar globais estáticas mínimas (`eterno`) de valor literal `bombom`/`logica`, com emissão auditável em `.section .rodata`.
+- Leitura mínima de global estática no fluxo externo habilitada por load por símbolo (`movq simbolo(%rip), %reg`) no subset já suportado de instruções/terminadores.
+- Validações mínimas adicionadas no caminho externo: símbolo global duplicado inválido, tipo global fora do recorte mínimo inválido e inicialização global não literal inválida.
+- Exemplo versionado incluído: `examples/fase114_globais_minimas_rodata_base_valido.pink`.
+- Fora de escopo explícito preservado: strings amplas, sistema global rico, arrays/structs globais, inicialização complexa, ABI mais larga, compostos e runtime nativa nova.
+
 
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -94,4 +94,4 @@ Antes de aceitar keyword nova:
 
 - Encerramento formal do Bloco 8 não reduz o valor lexical das intrínsecas de I/O já aceitas; apenas muda a prioridade da trilha ativa.
 - A abertura do Bloco 9 não introduz keyword nova por padrão; foco imediato é ampliar cobertura semântica no backend nativo real existente.
-- As Fases 111, 112 e 113 (itens 9.1, 9.2 e 9.3) mantiveram essa diretriz: ampliação de blocos/labels/jump, branch condicional mínimo e loops reais mínimos no backend nativo ocorreu sem adicionar keywords públicas novas.
+- As Fases 111, 112, 113 e 114 (itens 9.1, 9.2, 9.3 e 9.4) mantiveram essa diretriz: ampliação de blocos/labels/jump, branch condicional mínimo, loops reais mínimos e globais estáticas mínimas em `.rodata` no backend nativo ocorreu sem adicionar keywords públicas novas.

@@ -22,7 +22,7 @@ Conectar explicitamente:
 
 ### Engine já consolidado
 
-- Fase funcional atual: **113** (loops reais mínimos no backend nativo externo).
+- Fase funcional atual: **114** (globais mínimas e base inicial de `.rodata` no backend nativo externo).
 - Bloco ativo: **Bloco 9 — ampliação do backend nativo real** (com Bloco 8 formalmente encerrado como trilha ativa).
 - Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`; nova trilha ativa focada em ampliar cobertura semântica real do backend nativo.
 
