@@ -2,6 +2,8 @@
 
 Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 
+Status documental corrente: **Doc-21 abriu o Bloco 10** como trilha ativa do roadmap, com tese de **cobertura semântica do backend nativo** (sem prometer backend pleno).
+
 ## O que o frontend faz hoje
 - léxico com spans
 - parser para `pacote`, `trazer`, `carinho`, `mimo`, `talvez/senão`, `sempre que`, `eterno`, `nova`, `muda`
