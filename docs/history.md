@@ -708,6 +708,14 @@ Fase 115 - ABI mínima mais larga (camada 1 conservadora) no backend nativo exte
 - Limite explícito da fase: antes **até 2 argumentos `bombom`**; após a fase **até 3 argumentos `bombom`**.
 - Fora de escopo explícito preservado: ABI ampla/plena, varargs, alinhamento geral sofisticado, múltiplos retornos, compostos por valor e item 9.6.
 
+Fase 116 - compostos mínimos (camada 1 conservadora) no backend nativo externo
+- Sexta fase funcional do Bloco 9 (item 9.6, camada 1) concluída em recorte mínimo, auditável e sem abrir compostos gerais.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar parâmetro `seta<bombom>` e `deref_load` mínimo (`*ptr`) em função externa, mantendo ABI por registrador sem composto por valor.
+- Recorte estrutural explícito desta fase: par homogêneo de `bombom` em memória externa explícita, acessado por ponteiro e offsets definidos no código, sem layout geral automático.
+- Validações mínimas ampliadas no caminho externo: recusa explícita para parâmetro fora do recorte (`seta<ninho>`, tipos gerais), recusa de `deref_load` fora de `bombom` e manutenção das recusas já existentes.
+- Exemplo versionado incluído: `examples/fase116_compostos_minimos_camada1_valida.pink`.
+- Fora de escopo explícito preservado: structs gerais, tuplas amplas, arrays gerais, compostos heterogêneos amplos, composto por valor em ABI, `deref_store` externo e layout/alinhamento geral sofisticado.
+
 
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
