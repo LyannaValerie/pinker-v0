@@ -22,9 +22,9 @@ Conectar explicitamente:
 
 ### Engine já consolidado
 
-- Fase funcional atual: **119** (compostos mínimos, camada 4 conservadora e fechamento do recorte homogêneo, no backend nativo externo).
+- Fase funcional atual: **120** (tipos inteiros mais largos no backend nativo externo, com abertura mínima de `u32` em params/locals).
 - Estado de bloco: **Bloco 10 ativo** (aberto canonicamente pela Doc-21), com Blocos 8 e 9 encerrados como trilhas ativas.
-- Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`; após Doc-21, a trilha ativa passa a ampliar cobertura semântica do backend nativo de forma disciplinada (10.1→10.6, com `verso` condicional).
+- Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`; após Doc-21, a trilha ativa passa a ampliar cobertura semântica do backend nativo de forma disciplinada (10.1→10.6, com `verso` condicional), e a Fase 120 abriu o primeiro degrau funcional de 10.1.
 
 ### Rosa em consolidação documental
 

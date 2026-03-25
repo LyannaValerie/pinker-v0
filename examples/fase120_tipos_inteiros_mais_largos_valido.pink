@@ -1,0 +1,12 @@
+pacote main;
+
+carinho eco_u32_minimo(v: u32) -> bombom {
+    nova copia: u32 = v;
+    nova saida: bombom = 120;
+    mimo saida;
+}
+
+carinho principal() -> bombom {
+    nova valor: u32 = 120;
+    mimo eco_u32_minimo(valor);
+}

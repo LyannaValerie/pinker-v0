@@ -590,6 +590,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo versionado incluído: `examples/fase119_compostos_minimos_camada4_valida.pink`.
 - Fora de escopo explícito preservado: structs gerais, arrays gerais, compostos heterogêneos, composto por valor em ABI, retorno composto, layout/alinhamento geral sofisticado e runtime nativa nova.
 
+120 - tipos inteiros mais largos no backend nativo externo
+- Primeira fase funcional do Bloco 10 (item 10.1) concluída em recorte mínimo, auditável e sem pacote amplo de tipos.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar `u32` em parâmetros e locais, preservando o recorte anterior (`bombom` e `seta<bombom>`) e sem abrir ABI plena.
+- Operação mínima aberta nesta fase: movimentação/call no mesmo frame mínimo já existente para `u32`, com saída auditável no `.s` externo e fluxo real compilado/linkado/executado no exemplo da fase.
+- Validações mínimas preservadas: tipos fora de `bombom`/`u32`/`seta<bombom>` continuam recusados no recorte externo desta fase.
+- Exemplo versionado incluído: `examples/fase120_tipos_inteiros_mais_largos_valido.pink`.
+- Fora de escopo explícito preservado: comparações ampliadas do item 10.2, casts amplos, ABI ampla/plena, família inteira de inteiros, compostos heterogêneos e redesign de pipeline.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
