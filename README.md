@@ -46,7 +46,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - append textual mínimo em `--run` com `abrir_anexo(verso) -> bombom` e `anexar_verso(bombom, verso) -> nulo`, sem newline implícito e sem abrir modos ricos de arquivo (Fase 108)
 - leitura textual mínima direta por caminho em `--run` com `ler_arquivo_verso(verso) -> verso` e fallback ergonômico `arquivo_ou(verso, verso) -> verso`, sem streaming, sem escrita por caminho e sem API rica de handles (Fase 109)
 - comando de projeto `pink build <arquivo.pink>` para gerar artefato textual `.s` em disco (padrão: `build/<arquivo>.s`)
-- backend nativo real (subset externo montável) ampliado para múltiplos blocos, labels e salto incondicional (`jmp`) no recorte da Fase 111, mantendo branch condicional fora do subset
+- backend nativo real (subset externo montável) ampliado para múltiplos blocos, labels, salto incondicional (`jmp`) e branch condicional mínimo (`br`) no recorte da Fase 112
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
 - AST textual estável
@@ -181,7 +181,7 @@ cargo run --bin pink -- --asm-s examples/fase78_backend_externo_composicao_inter
 cargo run --bin pink -- --asm-s examples/fase79_backend_externo_programa_linear_maior_valido.pink
 cargo run --bin pink -- --asm-s examples/fase80_backend_externo_cobertura_linear_ampla_valido.pink
 cargo run --bin pink -- --asm-s examples/fase81_backend_externo_recusa_explicita_tres_parametros_invalido.pink
-cargo run --bin pink -- --asm-s examples/fase82_backend_externo_recusa_explicita_talvez_senao_invalido.pink
+cargo run --bin pink -- --asm-s examples/fase112_branch_condicional_minimo_valido.pink
 cargo run --bin pink -- --asm-s examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink
 cargo run --bin pink -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run --bin pink -- --check examples/mut_falho.pink
@@ -256,17 +256,17 @@ Existe também integração externa **experimental e mínima** para Linux x86_64
 - frame mínimo explícito por função: `%rbp`, slots lineares para parâmetros/locais/temporários, `%r10` como temporário volátil de binárias;
 - load/store em slots de frame via `%rbp` (`movq -off(%rbp), %reg` / `movq %reg, -off(%rbp)`);
 - composição linear interprocedural (encadeamento de chamadas diretas em múltiplos níveis no mesmo executável);
-- múltiplos blocos por função com labels nomeadas e `jmp` incondicional no backend externo (Fase 111, sem branch condicional).
+- múltiplos blocos por função com labels nomeadas, `jmp` e branch condicional mínimo (`cmp` + `jcc`) no backend externo (Fase 112).
 
 Fora do subset externo montável atual:
-- sem branch condicional (`talvez/senão`, loops);
+- sem loops (`sempre que`);
 - sem memória indireta geral/ponteiros;
 - sem globais, sem 3+ parâmetros, sem parâmetros não `bombom`;
 - sem recursão externa e sem ABI completa de plataforma/register allocation amplo.
 
 Recusas explícitas e auditáveis:
 - 3+ parâmetros por função/call → rejeitado com diagnóstico explícito;
-- branch condicional no backend externo (`talvez/senão` e `sempre que`) → rejeitado com diagnóstico explícito.
+- loops (`sempre que`) e comparações além do recorte mínimo (`==`) → rejeitado com diagnóstico explícito.
 
 Fluxo experimental reproduzível:
 ```bash
@@ -282,8 +282,9 @@ Fronteira auditável atual do subset externo (`--asm-s` montável):
 | chamadas diretas com até 2 parâmetros `bombom` | garantido | exemplos `fase76`/`fase78`/`fase80` + testes externos |
 | memória mínima de frame via `%rbp` (load/store em slots) | garantido | exemplo `fase77_backend_externo_memoria_frame_valido` + teste externo |
 | múltiplos blocos + labels + `jmp` incondicional | garantido | exemplo `fase111_blocos_labels_salto_incondicional_valido` + testes externos |
+| branch condicional mínimo com `==` + `cmp`/`jcc` | garantido | exemplo `fase112_branch_condicional_minimo_valido` + testes externos |
 | 3+ parâmetros por função/call | rejeitado explicitamente | exemplo `fase81_backend_externo_recusa_explicita_tres_parametros_invalido` + testes negativos |
-| branch condicional no backend externo (`talvez/senão`/`sempre que`) | rejeitado explicitamente | exemplos `fase82`/`fase84` + testes negativos |
+| loops (`sempre que`) e condicionais fora do recorte mínimo | rejeitado explicitamente | exemplo `fase84_backend_externo_recusa_explicita_sempre_que_invalido` + testes negativos |
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 

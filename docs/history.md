@@ -676,6 +676,14 @@ Fase 111 - múltiplos blocos, labels e salto incondicional no backend nativo rea
 - Exemplo versionado incluído: `examples/fase111_blocos_labels_salto_incondicional_valido.pink`.
 - Base preparada para 9.2 sem antecipar `cmp`/`jcc`, loops, globais, `.rodata`, ABI mais larga ou tipos compostos.
 
+Fase 112 - branch condicional real mínimo no backend nativo externo
+- Segunda fase funcional do Bloco 9 (item 9.2) concluída em recorte mínimo, auditável e sem abrir loops.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar terminador condicional `br` com validação de alvos verdadeiro/falso e emissão `cmp $0` + `jne` no `.s`.
+- Comparação mínima desta fase: `==` no corpo de bloco, com lowering direto para `cmp` + `sete` + `movzbq` antes do branch.
+- Continuidade preservada do recorte 9.1: múltiplos blocos, labels, `jmp` incondicional, validação de `entry` e rejeição de label duplicado/`jmp` inexistente.
+- Exemplo versionado incluído: `examples/fase112_branch_condicional_minimo_valido.pink`.
+- Fora de escopo explícito preservado: loops (`sempre que`), comparações além de `==`, globais, `.rodata`, ABI mais larga, compostos e runtime nativa nova.
+
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

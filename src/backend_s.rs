@@ -19,12 +19,12 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 
 /// Emite um `.s` mínimo montável por toolchain externa (assembler+linker do sistema).
 ///
-/// Escopo deliberadamente mínimo para a Fase 111:
+/// Escopo deliberadamente mínimo para a Fase 112:
 /// - target assumido: Linux x86_64 (SysV) hospedado;
-/// - subset aceito: funções `-> bombom` com múltiplos blocos/labels e `jmp` incondicional;
+/// - subset aceito: funções `-> bombom` com múltiplos blocos/labels, `jmp` incondicional e branch condicional mínimo;
 /// - disciplina mínima de registradores/frame: `%rax` (retorno/acumulador), `%rdi` (arg0), `%rsi` (arg1), `%r10` (temporário volátil), slots em frame `%rbp`;
 /// - memória mínima real garantida: load/store em slots de frame via `movq -off(%rbp), %reg` e `movq %reg, -off(%rbp)`;
-/// - sem branch condicional nesse caminho (`talvez/senao` e `sempre que`) e sem ABI completa.
+/// - branch condicional mínimo via teste contra zero (`cmpq $0` + `jne`) e sem ABI completa.
 ///
 /// O resultado mapeia `principal` para o símbolo `main`, para permitir linkedição
 /// via driver C (`cc`/`gcc`/`clang`) sem runtime próprio.
@@ -91,6 +91,11 @@ struct ExternalCallConvBlock {
 
 enum ExternalCallConvTerminator {
     Jmp(String),
+    Br {
+        cond: OperandIR,
+        then_label: String,
+        else_label: String,
+    },
     Ret(OperandIR),
 }
 
@@ -193,14 +198,18 @@ fn extract_external_callconv_program(
                 SelectedTerminator::Ret(Some(value)) => {
                     ExternalCallConvTerminator::Ret(value.clone())
                 }
-                SelectedTerminator::Br { .. } => {
-                    return Err(err(
-                        "subset externo montável (Fase 111) recusa branch condicional (`br`/`talvez`/`sempre que`); este recorte cobre apenas labels + salto incondicional",
-                    ));
-                }
+                SelectedTerminator::Br {
+                    cond,
+                    then_label,
+                    else_label,
+                } => ExternalCallConvTerminator::Br {
+                    cond: cond.clone(),
+                    then_label: then_label.clone(),
+                    else_label: else_label.clone(),
+                },
                 _ => {
                     return Err(err(
-                        "subset externo montável (Fase 111) exige terminador `jmp` ou `ret <valor>` em cada bloco",
+                        "subset externo montável (Fase 112) exige terminador `jmp`, `br` ou `ret <valor>` em cada bloco",
                     ));
                 }
             };
@@ -220,6 +229,9 @@ fn extract_external_callconv_program(
                     }
                     SelectedInstr::Mul { dest, lhs, rhs } => {
                         body.extend(lower_linear_binop("imulq", *dest, lhs, rhs, &slot_offsets)?);
+                    }
+                    SelectedInstr::CmpEq { dest, lhs, rhs } => {
+                        body.extend(lower_cmp_eq(*dest, lhs, rhs, &slot_offsets)?);
                     }
                     SelectedInstr::Call {
                         dest,
@@ -259,7 +271,7 @@ fn extract_external_callconv_program(
                     }
                     _ => {
                         return Err(err(
-                            "subset externo montável (Fase 84) aceita apenas atribuição, aritmética linear (+,-,*), call direta com até 2 argumentos `bombom` e load/store em slots de frame",
+                            "subset externo montável (Fase 112) aceita apenas atribuição, aritmética linear (+,-,*), comparação mínima (`==`), call direta com até 2 argumentos `bombom` e load/store em slots de frame",
                         ));
                     }
                 }
@@ -288,7 +300,7 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
     line(
         &mut out,
         0,
-        "# pinker v0 external toolchain subset (fase 111, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp incondicional + recusa branch condicional)",
+        "# pinker v0 external toolchain subset (fase 112, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp + branch condicional minimo)",
     );
     line(&mut out, 0, ".text");
 
@@ -339,6 +351,28 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
                 ExternalCallConvTerminator::Jmp(target) => {
                     line(&mut out, 1, &format!("jmp .L{}_{}", function.name, target));
                 }
+                ExternalCallConvTerminator::Br {
+                    cond,
+                    then_label,
+                    else_label,
+                } => {
+                    for stmt in load_operand(REG_RET, cond, &function.slot_offsets)
+                        .expect("condição do branch deve ser carregável")
+                    {
+                        line(&mut out, 1, &stmt);
+                    }
+                    line(&mut out, 1, "cmpq $0, %rax");
+                    line(
+                        &mut out,
+                        1,
+                        &format!("jne .L{}_{}", function.name, then_label),
+                    );
+                    line(
+                        &mut out,
+                        1,
+                        &format!("jmp .L{}_{}", function.name, else_label),
+                    );
+                }
                 ExternalCallConvTerminator::Ret(value) => {
                     for stmt in load_operand(REG_RET, value, &function.slot_offsets)
                         .expect("retorno deve ser carregável")
@@ -380,6 +414,26 @@ fn lower_linear_binop(
     body.extend(load_operand(REG_RET, lhs, slot_offsets)?);
     body.extend(load_operand(REG_TMP, rhs, slot_offsets)?);
     body.push(format!("{} {}, {}", opcode, REG_TMP, REG_RET));
+    body.push(format!(
+        "movq {}, -{}(%rbp)",
+        REG_RET,
+        slot_offsets[&temp_key(dest)]
+    ));
+    Ok(body)
+}
+
+fn lower_cmp_eq(
+    dest: crate::cfg_ir::TempIR,
+    lhs: &OperandIR,
+    rhs: &OperandIR,
+    slot_offsets: &HashMap<String, u32>,
+) -> Result<Vec<String>, PinkerError> {
+    let mut body = Vec::new();
+    body.extend(load_operand(REG_RET, lhs, slot_offsets)?);
+    body.extend(load_operand(REG_TMP, rhs, slot_offsets)?);
+    body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
+    body.push("sete %al".to_string());
+    body.push("movzbq %al, %rax".to_string());
     body.push(format!(
         "movq {}, -{}(%rbp)",
         REG_RET,
@@ -437,6 +491,7 @@ fn load_operand(
     let mut lines = Vec::new();
     match operand {
         OperandIR::Int(v) => lines.push(format!("movabsq ${}, {}", v, reg)),
+        OperandIR::Bool(v) => lines.push(format!("movabsq ${}, {}", if *v { 1 } else { 0 }, reg)),
         OperandIR::Local(slot) => {
             let Some(offset) = slot_offsets.get(slot) else {
                 return Err(err(
@@ -474,27 +529,57 @@ fn validate_external_block_labels(
     for block in &function.blocks {
         if block.label.trim().is_empty() {
             return Err(err(
-                "subset externo montável (Fase 111) encontrou bloco sem label",
+                "subset externo montável (Fase 112) encontrou bloco sem label",
             ));
         }
         if !labels.insert(block.label.clone()) {
             return Err(err(
-                "subset externo montável (Fase 111) encontrou label duplicado em função",
+                "subset externo montável (Fase 112) encontrou label duplicado em função",
             ));
         }
     }
     if !labels.contains("entry") {
         return Err(err(
-            "subset externo montável (Fase 111) exige bloco `entry` em cada função",
+            "subset externo montável (Fase 112) exige bloco `entry` em cada função",
         ));
     }
     for block in &function.blocks {
-        if let SelectedTerminator::Jmp(target) = &block.terminator {
-            if !labels.contains(target) {
-                return Err(err(
-                    "subset externo montável (Fase 111) encontrou `jmp` para label inexistente",
-                ));
+        match &block.terminator {
+            SelectedTerminator::Jmp(target) => {
+                if !labels.contains(target) {
+                    return Err(err(
+                        "subset externo montável (Fase 112) encontrou `jmp` para label inexistente",
+                    ));
+                }
             }
+            SelectedTerminator::Br {
+                cond,
+                then_label,
+                else_label,
+            } => {
+                if !matches!(
+                    cond,
+                    OperandIR::Int(_)
+                        | OperandIR::Bool(_)
+                        | OperandIR::Local(_)
+                        | OperandIR::Temp(_)
+                ) {
+                    return Err(err(
+                        "subset externo montável (Fase 112) exige condição de `br` em inteiro local/temporário/imediato",
+                    ));
+                }
+                if !labels.contains(then_label) {
+                    return Err(err(
+                        "subset externo montável (Fase 112) encontrou `br` com alvo verdadeiro inexistente",
+                    ));
+                }
+                if !labels.contains(else_label) {
+                    return Err(err(
+                        "subset externo montável (Fase 112) encontrou `br` com alvo falso inexistente",
+                    ));
+                }
+            }
+            _ => {}
         }
     }
     Ok(())

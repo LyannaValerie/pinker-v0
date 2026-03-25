@@ -82,7 +82,7 @@ sempre que x < 3 {
 ```
 
 Observação importante: no `--run`, esse fluxo funciona no subset atual.
-No backend externo de `--asm-s` (montável em toolchain C), `talvez/senao` e `sempre que` ainda são recusados explicitamente.
+No backend externo de `--asm-s` (montável em toolchain C), a Fase 112 abriu branch condicional mínimo para `talvez/senao` com comparação `==`; loops (`sempre que`) seguem fora do subset externo.
 
 ## 6) Funções e chamadas
 
@@ -206,7 +206,7 @@ carinho principal() -> bombom {
 
 No estado atual, ainda há limites importantes para uso geral:
 - backend nativo completo ainda não existe;
-- backend externo montável é subset linear (sem `talvez/senao` e sem `sempre que`);
+- backend externo montável ainda é subset mínimo (branch condicional apenas no recorte `==` + `cmp`/`jcc`; sem `sempre que`);
 - texto em `verso` ainda está em recorte mínimo (`juntar_verso` e `tamanho_verso`);
 - API de arquivo ainda é mínima (sem modos avançados, append ou streaming);
 - recursos avançados (generics/traits/enums completos etc.) seguem fora do escopo atual.

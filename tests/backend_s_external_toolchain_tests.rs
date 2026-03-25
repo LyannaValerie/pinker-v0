@@ -17,7 +17,7 @@ fn asm_s_external_subset_emite_main_montavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 42; }";
     let out = render_backend_s_external_subset(code).unwrap();
     assert!(out.contains(
-        "# pinker v0 external toolchain subset (fase 111, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp incondicional + recusa branch condicional)"
+        "# pinker v0 external toolchain subset (fase 112, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp + branch condicional minimo)"
     ));
     assert!(out.contains(".globl main"));
     assert!(out.contains("jmp .Lprincipal_entry"));
@@ -34,6 +34,16 @@ fn asm_s_external_subset_fase111_exemplo_versionado_emite_labels_e_jmp_incondici
 }
 
 #[test]
+fn asm_s_external_subset_fase112_exemplo_versionado_emite_cmp_e_jcc() {
+    let code = include_str!("../examples/fase112_branch_condicional_minimo_valido.pink");
+    let out = render_backend_s_external_subset(code).unwrap();
+    assert!(out.contains(".Lprincipal_entry:"));
+    assert!(out.contains("cmpq %r10, %rax"));
+    assert!(out.contains("cmpq $0, %rax"));
+    assert!(out.contains("jne .Lprincipal_"));
+}
+
+#[test]
 fn asm_s_external_subset_fluxo_real_condicional() {
     if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
         return;
@@ -43,7 +53,7 @@ fn asm_s_external_subset_fluxo_real_condicional() {
         return;
     };
 
-    let code = "pacote main; carinho principal() -> bombom { mimo 42; }";
+    let code = include_str!("../examples/fase112_branch_condicional_minimo_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
 
     let workdir = unique_temp_dir();
@@ -70,7 +80,7 @@ fn asm_s_external_subset_fluxo_real_condicional() {
         .output()
         .expect("falha ao executar binário gerado");
 
-    assert_eq!(run.status.code(), Some(42));
+    assert_eq!(run.status.code(), Some(7));
 
     let _ = fs::remove_file(&asm_path);
     let _ = fs::remove_file(&bin_path);
@@ -479,26 +489,25 @@ fn asm_s_external_subset_fase84_preserva_recusa_explicita_tres_parametros_por_fu
 }
 
 #[test]
-fn asm_s_external_subset_fase84_recusa_explicita_talvez_senao() {
+fn asm_s_external_subset_fase112_aceita_talvez_senao_no_recorte_minimo() {
     let code = include_str!(
         "../examples/fase82_backend_externo_recusa_explicita_talvez_senao_invalido.pink",
     );
 
-    let err = render_backend_s_external_subset(code).unwrap_err();
-    assert!(err.to_string().contains(
-        "subset externo montável (Fase 111) recusa branch condicional (`br`/`talvez`/`sempre que`)"
-    ));
+    let asm = render_backend_s_external_subset(code).unwrap();
+    assert!(asm.contains("cmpq $0, %rax"));
+    assert!(asm.contains("jne .Lprincipal_"));
 }
 
 #[test]
-fn asm_s_external_subset_fase84_recusa_explicita_sempre_que() {
+fn asm_s_external_subset_fase84_recusa_explicita_sempre_que_por_instrucao_fora_do_recorte() {
     let code = include_str!(
         "../examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink",
     );
 
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains(
-        "subset externo montável (Fase 111) recusa branch condicional (`br`/`talvez`/`sempre que`)"
+        "subset externo montável (Fase 112) aceita apenas atribuição, aritmética linear (+,-,*), comparação mínima (`==`), call direta com até 2 argumentos `bombom` e load/store em slots de frame"
     ));
 }
 
@@ -512,7 +521,7 @@ fn asm_s_external_subset_fase84_matriz_fronteira_auditavel() {
 
     for code in casos_garantidos {
         let asm = render_backend_s_external_subset(code).expect("subset garantido deve emitir .s");
-        assert!(asm.contains("# pinker v0 external toolchain subset (fase 111"));
+        assert!(asm.contains("# pinker v0 external toolchain subset (fase 112"));
     }
 
     let caso_rejeitado_tres_params = include_str!(
@@ -523,25 +532,23 @@ fn asm_s_external_subset_fase84_matriz_fronteira_auditavel() {
         "subset externo montável (Fase 84) recusa explicitamente 3+ parâmetros por função"
     ));
 
-    let caso_rejeitado_talvez = include_str!(
-        "../examples/fase82_backend_externo_recusa_explicita_talvez_senao_invalido.pink",
-    );
-    let err_talvez = render_backend_s_external_subset(caso_rejeitado_talvez).unwrap_err();
-    assert!(err_talvez.to_string().contains(
-        "subset externo montável (Fase 111) recusa branch condicional (`br`/`talvez`/`sempre que`)"
-    ));
+    let caso_branch_valido =
+        include_str!("../examples/fase112_branch_condicional_minimo_valido.pink");
+    let asm_branch = render_backend_s_external_subset(caso_branch_valido).unwrap();
+    assert!(asm_branch.contains("cmpq $0, %rax"));
+    assert!(asm_branch.contains("jne .Lprincipal_"));
 
     let caso_rejeitado_sempre_que = include_str!(
         "../examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink",
     );
     let err_sempre_que = render_backend_s_external_subset(caso_rejeitado_sempre_que).unwrap_err();
     assert!(err_sempre_que.to_string().contains(
-        "subset externo montável (Fase 111) recusa branch condicional (`br`/`talvez`/`sempre que`)"
+        "subset externo montável (Fase 112) aceita apenas atribuição, aritmética linear (+,-,*), comparação mínima (`==`), call direta com até 2 argumentos `bombom` e load/store em slots de frame"
     ));
 }
 
 #[test]
-fn asm_s_external_subset_fase111_falha_em_jmp_para_label_inexistente() {
+fn asm_s_external_subset_fase112_falha_em_jmp_para_label_inexistente() {
     let mut slot_types = HashMap::new();
     slot_types.insert("x".to_string(), TypeIR::Bombom);
     let program = SelectedProgram {
@@ -565,11 +572,11 @@ fn asm_s_external_subset_fase111_falha_em_jmp_para_label_inexistente() {
     let err = emit_external_toolchain_subset(&program).unwrap_err();
     assert!(err
         .to_string()
-        .contains("subset externo montável (Fase 111) encontrou `jmp` para label inexistente"));
+        .contains("subset externo montável (Fase 112) encontrou `jmp` para label inexistente"));
 }
 
 #[test]
-fn asm_s_external_subset_fase111_falha_em_label_duplicado() {
+fn asm_s_external_subset_fase112_falha_em_label_duplicado() {
     let mut slot_types = HashMap::new();
     slot_types.insert("x".to_string(), TypeIR::Bombom);
     let program = SelectedProgram {
@@ -600,7 +607,81 @@ fn asm_s_external_subset_fase111_falha_em_label_duplicado() {
     let err = emit_external_toolchain_subset(&program).unwrap_err();
     assert!(err
         .to_string()
-        .contains("subset externo montável (Fase 111) encontrou label duplicado em função"));
+        .contains("subset externo montável (Fase 112) encontrou label duplicado em função"));
+}
+
+#[test]
+fn asm_s_external_subset_fase112_falha_em_br_com_alvo_verdadeiro_inexistente() {
+    let program = SelectedProgram {
+        module_name: "main".to_string(),
+        is_freestanding: false,
+        globals: vec![],
+        functions: vec![SelectedFunction {
+            name: "principal".to_string(),
+            ret_type: TypeIR::Bombom,
+            params: vec![],
+            locals: vec![],
+            slot_types: HashMap::new(),
+            blocks: vec![
+                SelectedBlock {
+                    label: "entry".to_string(),
+                    instructions: vec![],
+                    terminator: SelectedTerminator::Br {
+                        cond: OperandIR::Int(1),
+                        then_label: "sumiu".to_string(),
+                        else_label: "ok".to_string(),
+                    },
+                },
+                SelectedBlock {
+                    label: "ok".to_string(),
+                    instructions: vec![],
+                    terminator: SelectedTerminator::Ret(Some(OperandIR::Int(0))),
+                },
+            ],
+        }],
+    };
+
+    let err = emit_external_toolchain_subset(&program).unwrap_err();
+    assert!(err.to_string().contains(
+        "subset externo montável (Fase 112) encontrou `br` com alvo verdadeiro inexistente"
+    ));
+}
+
+#[test]
+fn asm_s_external_subset_fase112_falha_em_br_com_alvo_falso_inexistente() {
+    let program = SelectedProgram {
+        module_name: "main".to_string(),
+        is_freestanding: false,
+        globals: vec![],
+        functions: vec![SelectedFunction {
+            name: "principal".to_string(),
+            ret_type: TypeIR::Bombom,
+            params: vec![],
+            locals: vec![],
+            slot_types: HashMap::new(),
+            blocks: vec![
+                SelectedBlock {
+                    label: "entry".to_string(),
+                    instructions: vec![],
+                    terminator: SelectedTerminator::Br {
+                        cond: OperandIR::Int(1),
+                        then_label: "ok".to_string(),
+                        else_label: "sumiu".to_string(),
+                    },
+                },
+                SelectedBlock {
+                    label: "ok".to_string(),
+                    instructions: vec![],
+                    terminator: SelectedTerminator::Ret(Some(OperandIR::Int(0))),
+                },
+            ],
+        }],
+    };
+
+    let err = emit_external_toolchain_subset(&program).unwrap_err();
+    assert!(err
+        .to_string()
+        .contains("subset externo montável (Fase 112) encontrou `br` com alvo falso inexistente"));
 }
 
 fn detect_cc_driver() -> Option<String> {
