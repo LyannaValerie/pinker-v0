@@ -1,6 +1,13 @@
 mod common;
 
 use common::render_backend_s_external_subset;
+use pinker_v0::backend_s::emit_external_toolchain_subset;
+use pinker_v0::cfg_ir::OperandIR;
+use pinker_v0::instr_select::{
+    SelectedBlock, SelectedFunction, SelectedProgram, SelectedTerminator,
+};
+use pinker_v0::ir::TypeIR;
+use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -10,10 +17,20 @@ fn asm_s_external_subset_emite_main_montavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 42; }";
     let out = render_backend_s_external_subset(code).unwrap();
     assert!(out.contains(
-        "# pinker v0 external toolchain subset (fase 84, linux x86_64, frame/reg + memoria minima + recusa 3+ params + recusa talvez/senao + recusa sempre que)"
+        "# pinker v0 external toolchain subset (fase 111, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp incondicional + recusa branch condicional)"
     ));
     assert!(out.contains(".globl main"));
+    assert!(out.contains("jmp .Lprincipal_entry"));
+    assert!(out.contains(".Lprincipal_entry:"));
     assert!(out.contains("movabsq $42, %rax"));
+}
+
+#[test]
+fn asm_s_external_subset_fase111_exemplo_versionado_emite_labels_e_jmp_incondicional() {
+    let code = include_str!("../examples/fase111_blocos_labels_salto_incondicional_valido.pink");
+    let out = render_backend_s_external_subset(code).unwrap();
+    assert!(out.contains(".Lprincipal_entry:"));
+    assert!(out.contains("jmp .Lprincipal_entry"));
 }
 
 #[test]
@@ -468,9 +485,9 @@ fn asm_s_external_subset_fase84_recusa_explicita_talvez_senao() {
     );
 
     let err = render_backend_s_external_subset(code).unwrap_err();
-    assert!(err
-        .to_string()
-        .contains("subset externo montável (Fase 84) recusa explicitamente `talvez/senao`",));
+    assert!(err.to_string().contains(
+        "subset externo montável (Fase 111) recusa branch condicional (`br`/`talvez`/`sempre que`)"
+    ));
 }
 
 #[test]
@@ -480,9 +497,9 @@ fn asm_s_external_subset_fase84_recusa_explicita_sempre_que() {
     );
 
     let err = render_backend_s_external_subset(code).unwrap_err();
-    assert!(err
-        .to_string()
-        .contains("subset externo montável (Fase 84) recusa explicitamente `sempre que`"));
+    assert!(err.to_string().contains(
+        "subset externo montável (Fase 111) recusa branch condicional (`br`/`talvez`/`sempre que`)"
+    ));
 }
 
 #[test]
@@ -495,7 +512,7 @@ fn asm_s_external_subset_fase84_matriz_fronteira_auditavel() {
 
     for code in casos_garantidos {
         let asm = render_backend_s_external_subset(code).expect("subset garantido deve emitir .s");
-        assert!(asm.contains("# pinker v0 external toolchain subset (fase 84"));
+        assert!(asm.contains("# pinker v0 external toolchain subset (fase 111"));
     }
 
     let caso_rejeitado_tres_params = include_str!(
@@ -510,17 +527,80 @@ fn asm_s_external_subset_fase84_matriz_fronteira_auditavel() {
         "../examples/fase82_backend_externo_recusa_explicita_talvez_senao_invalido.pink",
     );
     let err_talvez = render_backend_s_external_subset(caso_rejeitado_talvez).unwrap_err();
-    assert!(err_talvez
-        .to_string()
-        .contains("subset externo montável (Fase 84) recusa explicitamente `talvez/senao`"));
+    assert!(err_talvez.to_string().contains(
+        "subset externo montável (Fase 111) recusa branch condicional (`br`/`talvez`/`sempre que`)"
+    ));
 
     let caso_rejeitado_sempre_que = include_str!(
         "../examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink",
     );
     let err_sempre_que = render_backend_s_external_subset(caso_rejeitado_sempre_que).unwrap_err();
-    assert!(err_sempre_que
+    assert!(err_sempre_que.to_string().contains(
+        "subset externo montável (Fase 111) recusa branch condicional (`br`/`talvez`/`sempre que`)"
+    ));
+}
+
+#[test]
+fn asm_s_external_subset_fase111_falha_em_jmp_para_label_inexistente() {
+    let mut slot_types = HashMap::new();
+    slot_types.insert("x".to_string(), TypeIR::Bombom);
+    let program = SelectedProgram {
+        module_name: "main".to_string(),
+        is_freestanding: false,
+        globals: vec![],
+        functions: vec![SelectedFunction {
+            name: "principal".to_string(),
+            ret_type: TypeIR::Bombom,
+            params: vec![],
+            locals: vec!["x".to_string()],
+            slot_types,
+            blocks: vec![SelectedBlock {
+                label: "entry".to_string(),
+                instructions: vec![],
+                terminator: SelectedTerminator::Jmp("sumiu".to_string()),
+            }],
+        }],
+    };
+
+    let err = emit_external_toolchain_subset(&program).unwrap_err();
+    assert!(err
         .to_string()
-        .contains("subset externo montável (Fase 84) recusa explicitamente `sempre que`"));
+        .contains("subset externo montável (Fase 111) encontrou `jmp` para label inexistente"));
+}
+
+#[test]
+fn asm_s_external_subset_fase111_falha_em_label_duplicado() {
+    let mut slot_types = HashMap::new();
+    slot_types.insert("x".to_string(), TypeIR::Bombom);
+    let program = SelectedProgram {
+        module_name: "main".to_string(),
+        is_freestanding: false,
+        globals: vec![],
+        functions: vec![SelectedFunction {
+            name: "principal".to_string(),
+            ret_type: TypeIR::Bombom,
+            params: vec![],
+            locals: vec!["x".to_string()],
+            slot_types,
+            blocks: vec![
+                SelectedBlock {
+                    label: "entry".to_string(),
+                    instructions: vec![],
+                    terminator: SelectedTerminator::Jmp("entry".to_string()),
+                },
+                SelectedBlock {
+                    label: "entry".to_string(),
+                    instructions: vec![],
+                    terminator: SelectedTerminator::Ret(Some(OperandIR::Int(0))),
+                },
+            ],
+        }],
+    };
+
+    let err = emit_external_toolchain_subset(&program).unwrap_err();
+    assert!(err
+        .to_string()
+        .contains("subset externo montável (Fase 111) encontrou label duplicado em função"));
 }
 
 fn detect_cc_driver() -> Option<String> {

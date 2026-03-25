@@ -209,6 +209,9 @@ Status de execução no bloco:
    - primeiros passos honestos com structs/tuplas/arrays no backend nativo;
    - sem allocator completo, sem layout universal rico e sem promessa de cobertura total imediata.
 
+**Status de execução no bloco**:
+- **Fase 111 concluída (entrada inicial do item 9.1)**: backend nativo externo passou a aceitar múltiplos blocos por função com labels e `jmp` incondicional auditável, mantendo rejeição explícita para branch condicional (`talvez/senao`/`sempre que`) neste recorte.
+
 #### Exclusões explícitas do Bloco 9
 
 Por padrão, o Bloco 9 **não cobre**:

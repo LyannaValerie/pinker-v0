@@ -9,7 +9,7 @@ use crate::error::PinkerError;
 use crate::instr_select::{SelectedInstr, SelectedProgram, SelectedTerminator};
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
 use crate::token::{Position, Span};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerError> {
     validate_supported_subset(selected)?;
@@ -19,12 +19,12 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 
 /// Emite um `.s` mínimo montável por toolchain externa (assembler+linker do sistema).
 ///
-/// Escopo deliberadamente mínimo para a Fase 84:
+/// Escopo deliberadamente mínimo para a Fase 111:
 /// - target assumido: Linux x86_64 (SysV) hospedado;
-/// - subset aceito: funções `-> bombom` com bloco único linear, incluindo `call` direta;
+/// - subset aceito: funções `-> bombom` com múltiplos blocos/labels e `jmp` incondicional;
 /// - disciplina mínima de registradores/frame: `%rax` (retorno/acumulador), `%rdi` (arg0), `%rsi` (arg1), `%r10` (temporário volátil), slots em frame `%rbp`;
 /// - memória mínima real garantida: load/store em slots de frame via `movq -off(%rbp), %reg` e `movq %reg, -off(%rbp)`;
-/// - sem globais, sem fluxo de controle e sem ABI completa.
+/// - sem branch condicional nesse caminho (`talvez/senao` e `sempre que`) e sem ABI completa.
 ///
 /// O resultado mapeia `principal` para o símbolo `main`, para permitir linkedição
 /// via driver C (`cc`/`gcc`/`clang`) sem runtime próprio.
@@ -79,9 +79,19 @@ struct ExternalCallConvFunction {
     name: String,
     stack_size: u32,
     slot_offsets: HashMap<String, u32>,
-    body: Vec<String>,
-    ret: OperandIR,
+    blocks: Vec<ExternalCallConvBlock>,
     params: Vec<String>,
+}
+
+struct ExternalCallConvBlock {
+    label: String,
+    body: Vec<String>,
+    terminator: ExternalCallConvTerminator,
+}
+
+enum ExternalCallConvTerminator {
+    Jmp(String),
+    Ret(OperandIR),
 }
 
 const REG_RET: &str = "%rax";
@@ -147,33 +157,14 @@ fn extract_external_callconv_program(
                 )));
             }
         }
-        if has_control_flow_talvez_senao(function) {
+        if function.blocks.is_empty() {
             return Err(err(
-                "subset externo montável (Fase 84) recusa explicitamente `talvez/senao`; controle de fluxo geral continua fora do subset externo",
+                "subset externo montável (Fase 111) exige ao menos um bloco por função",
             ));
         }
-        if has_control_flow_sempre_que(function) {
-            return Err(err(
-                "subset externo montável (Fase 84) recusa explicitamente `sempre que`; loops continuam fora do subset externo",
-            ));
-        }
-        if function.blocks.len() != 1 {
-            return Err(err(
-                "subset externo montável (Fase 84) exige bloco único por função",
-            ));
-        }
+        validate_external_block_labels(function)?;
 
-        let block = &function.blocks[0];
-        let ret = match &block.terminator {
-            SelectedTerminator::Ret(Some(value)) => value.clone(),
-            _ => {
-                return Err(err(
-                    "subset externo montável (Fase 84) exige `mimo <valor>;` em cada função",
-                ))
-            }
-        };
-
-        let temp_ids = collect_temp_ids(function, &ret);
+        let temp_ids = collect_temp_ids(function);
         let mut slot_offsets = HashMap::new();
         let mut slot_index = 1u32;
         for param in &function.params {
@@ -195,73 +186,96 @@ fn extract_external_callconv_program(
             raw_stack.div_ceil(16) * 16
         };
 
-        let mut body = Vec::new();
-        for inst in &block.instructions {
-            match inst {
-                SelectedInstr::Mov { dest, src } => {
-                    ensure_dest_is_local_or_param(dest, function)?;
-                    body.extend(load_operand(REG_RET, src, &slot_offsets)?);
-                    body.push(format!("movq {}, -{}(%rbp)", REG_RET, slot_offsets[dest]));
+        let mut blocks = Vec::new();
+        for block in &function.blocks {
+            let terminator = match &block.terminator {
+                SelectedTerminator::Jmp(target) => ExternalCallConvTerminator::Jmp(target.clone()),
+                SelectedTerminator::Ret(Some(value)) => {
+                    ExternalCallConvTerminator::Ret(value.clone())
                 }
-                SelectedInstr::Add { dest, lhs, rhs } => {
-                    body.extend(lower_linear_binop("addq", *dest, lhs, rhs, &slot_offsets)?);
-                }
-                SelectedInstr::Sub { dest, lhs, rhs } => {
-                    body.extend(lower_linear_binop("subq", *dest, lhs, rhs, &slot_offsets)?);
-                }
-                SelectedInstr::Mul { dest, lhs, rhs } => {
-                    body.extend(lower_linear_binop("imulq", *dest, lhs, rhs, &slot_offsets)?);
-                }
-                SelectedInstr::Call {
-                    dest,
-                    callee,
-                    args,
-                    ret_type,
-                } => {
-                    if *ret_type != TypeIR::Bombom {
-                        return Err(err(
-                            "subset externo montável (Fase 84) só aceita call com retorno `bombom`",
-                        ));
-                    }
-                    if !selected.functions.iter().any(|f| &f.name == callee) {
-                        return Err(err(
-                            "subset externo montável (Fase 84) encontrou call para função inexistente",
-                        ));
-                    }
-                    if callee == &function.name {
-                        return Err(err(
-                            "subset externo montável (Fase 84) não suporta recursão externa",
-                        ));
-                    }
-                    if args.len() > ARG_REGS.len() {
-                        return Err(err(
-                            "subset externo montável (Fase 84) recusa explicitamente call com 3+ argumentos; limite garantido: até 2 argumentos `bombom`",
-                        ));
-                    }
-                    for (idx, arg) in args.iter().enumerate() {
-                        body.extend(load_operand(ARG_REGS[idx], arg, &slot_offsets)?);
-                    }
-                    body.push(format!("call {}", callee));
-                    body.push(format!(
-                        "movq {}, -{}(%rbp)",
-                        REG_RET,
-                        slot_offsets[&temp_key(*dest)]
+                SelectedTerminator::Br { .. } => {
+                    return Err(err(
+                        "subset externo montável (Fase 111) recusa branch condicional (`br`/`talvez`/`sempre que`); este recorte cobre apenas labels + salto incondicional",
                     ));
                 }
                 _ => {
                     return Err(err(
-                        "subset externo montável (Fase 84) aceita apenas atribuição, aritmética linear (+,-,*), call direta com até 2 argumentos `bombom` e load/store em slots de frame",
+                        "subset externo montável (Fase 111) exige terminador `jmp` ou `ret <valor>` em cada bloco",
                     ));
                 }
+            };
+            let mut body = Vec::new();
+            for inst in &block.instructions {
+                match inst {
+                    SelectedInstr::Mov { dest, src } => {
+                        ensure_dest_is_local_or_param(dest, function)?;
+                        body.extend(load_operand(REG_RET, src, &slot_offsets)?);
+                        body.push(format!("movq {}, -{}(%rbp)", REG_RET, slot_offsets[dest]));
+                    }
+                    SelectedInstr::Add { dest, lhs, rhs } => {
+                        body.extend(lower_linear_binop("addq", *dest, lhs, rhs, &slot_offsets)?);
+                    }
+                    SelectedInstr::Sub { dest, lhs, rhs } => {
+                        body.extend(lower_linear_binop("subq", *dest, lhs, rhs, &slot_offsets)?);
+                    }
+                    SelectedInstr::Mul { dest, lhs, rhs } => {
+                        body.extend(lower_linear_binop("imulq", *dest, lhs, rhs, &slot_offsets)?);
+                    }
+                    SelectedInstr::Call {
+                        dest,
+                        callee,
+                        args,
+                        ret_type,
+                    } => {
+                        if *ret_type != TypeIR::Bombom {
+                            return Err(err(
+                                "subset externo montável (Fase 84) só aceita call com retorno `bombom`",
+                            ));
+                        }
+                        if !selected.functions.iter().any(|f| &f.name == callee) {
+                            return Err(err(
+                                "subset externo montável (Fase 84) encontrou call para função inexistente",
+                            ));
+                        }
+                        if callee == &function.name {
+                            return Err(err(
+                                "subset externo montável (Fase 84) não suporta recursão externa",
+                            ));
+                        }
+                        if args.len() > ARG_REGS.len() {
+                            return Err(err(
+                                "subset externo montável (Fase 84) recusa explicitamente call com 3+ argumentos; limite garantido: até 2 argumentos `bombom`",
+                            ));
+                        }
+                        for (idx, arg) in args.iter().enumerate() {
+                            body.extend(load_operand(ARG_REGS[idx], arg, &slot_offsets)?);
+                        }
+                        body.push(format!("call {}", callee));
+                        body.push(format!(
+                            "movq {}, -{}(%rbp)",
+                            REG_RET,
+                            slot_offsets[&temp_key(*dest)]
+                        ));
+                    }
+                    _ => {
+                        return Err(err(
+                            "subset externo montável (Fase 84) aceita apenas atribuição, aritmética linear (+,-,*), call direta com até 2 argumentos `bombom` e load/store em slots de frame",
+                        ));
+                    }
+                }
             }
+            blocks.push(ExternalCallConvBlock {
+                label: block.label.clone(),
+                body,
+                terminator,
+            });
         }
 
         functions.push(ExternalCallConvFunction {
             name: function.name.clone(),
             stack_size,
             slot_offsets,
-            body,
-            ret,
+            blocks,
             params: function.params.clone(),
         });
     }
@@ -274,7 +288,7 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
     line(
         &mut out,
         0,
-        "# pinker v0 external toolchain subset (fase 84, linux x86_64, frame/reg + memoria minima + recusa 3+ params + recusa talvez/senao + recusa sempre que)",
+        "# pinker v0 external toolchain subset (fase 111, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp incondicional + recusa branch condicional)",
     );
     line(&mut out, 0, ".text");
 
@@ -311,16 +325,31 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
                 ),
             );
         }
-        for stmt in &function.body {
-            line(&mut out, 1, stmt);
+        line(&mut out, 1, &format!("jmp .L{}_entry", function.name));
+        for block in &function.blocks {
+            line(
+                &mut out,
+                0,
+                &format!(".L{}_{}:", function.name, block.label),
+            );
+            for stmt in &block.body {
+                line(&mut out, 1, stmt);
+            }
+            match &block.terminator {
+                ExternalCallConvTerminator::Jmp(target) => {
+                    line(&mut out, 1, &format!("jmp .L{}_{}", function.name, target));
+                }
+                ExternalCallConvTerminator::Ret(value) => {
+                    for stmt in load_operand(REG_RET, value, &function.slot_offsets)
+                        .expect("retorno deve ser carregável")
+                    {
+                        line(&mut out, 1, &stmt);
+                    }
+                    line(&mut out, 1, "leave");
+                    line(&mut out, 1, "ret");
+                }
+            }
         }
-        for stmt in load_operand(REG_RET, &function.ret, &function.slot_offsets)
-            .expect("retorno deve ser carregável")
-        {
-            line(&mut out, 1, &stmt);
-        }
-        line(&mut out, 1, "leave");
-        line(&mut out, 1, "ret");
     }
     out
 }
@@ -359,10 +388,7 @@ fn lower_linear_binop(
     Ok(body)
 }
 
-fn collect_temp_ids(
-    function: &crate::instr_select::SelectedFunction,
-    ret: &OperandIR,
-) -> BTreeSet<String> {
+fn collect_temp_ids(function: &crate::instr_select::SelectedFunction) -> BTreeSet<String> {
     let mut ids = BTreeSet::new();
     for block in &function.blocks {
         for inst in &block.instructions {
@@ -395,8 +421,10 @@ fn collect_temp_ids(
             }
         }
     }
-    if let OperandIR::Temp(temp) = ret {
-        ids.insert(temp_key(*temp));
+    for block in &function.blocks {
+        if let SelectedTerminator::Ret(Some(OperandIR::Temp(temp))) = &block.terminator {
+            ids.insert(temp_key(*temp));
+        }
     }
     ids
 }
@@ -439,19 +467,37 @@ fn temp_key(temp: crate::cfg_ir::TempIR) -> String {
     format!("%t{}", temp.0)
 }
 
-fn has_control_flow_talvez_senao(function: &crate::instr_select::SelectedFunction) -> bool {
-    function
-        .blocks
-        .iter()
-        .any(|block| block.label.starts_with("then_") || block.label.starts_with("else_"))
-}
-
-fn has_control_flow_sempre_que(function: &crate::instr_select::SelectedFunction) -> bool {
-    function.blocks.iter().any(|block| {
-        block.label.starts_with("loop_cond_")
-            || block.label.starts_with("loop_body_")
-            || block.label.starts_with("loop_end_")
-    })
+fn validate_external_block_labels(
+    function: &crate::instr_select::SelectedFunction,
+) -> Result<(), PinkerError> {
+    let mut labels = HashSet::new();
+    for block in &function.blocks {
+        if block.label.trim().is_empty() {
+            return Err(err(
+                "subset externo montável (Fase 111) encontrou bloco sem label",
+            ));
+        }
+        if !labels.insert(block.label.clone()) {
+            return Err(err(
+                "subset externo montável (Fase 111) encontrou label duplicado em função",
+            ));
+        }
+    }
+    if !labels.contains("entry") {
+        return Err(err(
+            "subset externo montável (Fase 111) exige bloco `entry` em cada função",
+        ));
+    }
+    for block in &function.blocks {
+        if let SelectedTerminator::Jmp(target) = &block.terminator {
+            if !labels.contains(target) {
+                return Err(err(
+                    "subset externo montável (Fase 111) encontrou `jmp` para label inexistente",
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn is_supported_type(ty: TypeIR) -> bool {

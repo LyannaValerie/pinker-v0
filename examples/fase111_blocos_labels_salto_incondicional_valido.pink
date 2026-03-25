@@ -1,0 +1,9 @@
+pacote main;
+
+// Fase 111: exemplo canônico mínimo para backend nativo real com
+// múltiplos blocos/labels e salto incondicional interno no emissor externo.
+carinho principal() -> bombom {
+    nova muda base: bombom = 39;
+    base = base + 3;
+    mimo base;
+}
