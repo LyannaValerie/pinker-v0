@@ -699,6 +699,15 @@ Fase 114 - globais mínimas e base inicial de `.rodata` no backend nativo extern
 - Exemplo versionado incluído: `examples/fase114_globais_minimas_rodata_base_valido.pink`.
 - Fora de escopo explícito preservado: strings amplas, sistema global rico, arrays/structs globais, inicialização complexa, ABI mais larga, compostos e runtime nativa nova.
 
+Fase 115 - ABI mínima mais larga (camada 1 conservadora) no backend nativo externo
+- Quinta fase funcional do Bloco 9 (item 9.5, camada 1) concluída em recorte mínimo, auditável e sem puxar o item 9.6.
+- Backend externo montável (`emit_external_toolchain_subset`) ampliou chamadas diretas de **até 2** para **até 3 argumentos `bombom`**, preservando frame mínimo e subset já consolidado.
+- Convenção concreta desta camada no recorte Linux x86_64 hospedado: `%rdi` (arg0), `%rsi` (arg1), `%rdx` (arg2), `%rax` (retorno) e `%r10` (temporário volátil).
+- Validações mínimas ampliadas no caminho externo: recusa explícita e auditável de função/call com **4+ argumentos**, mantendo as recusas de tipos não `bombom` e recursos fora do subset.
+- Exemplo versionado incluído: `examples/fase115_abi_minima_mais_larga_camada1_valida.pink`.
+- Limite explícito da fase: antes **até 2 argumentos `bombom`**; após a fase **até 3 argumentos `bombom`**.
+- Fora de escopo explícito preservado: ABI ampla/plena, varargs, alinhamento geral sofisticado, múltiplos retornos, compostos por valor e item 9.6.
+
 
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

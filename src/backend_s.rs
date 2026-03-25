@@ -19,10 +19,10 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 
 /// Emite um `.s` mínimo montável por toolchain externa (assembler+linker do sistema).
 ///
-/// Escopo deliberadamente mínimo para a Fase 114:
+/// Escopo deliberadamente mínimo para a Fase 115:
 /// - target assumido: Linux x86_64 (SysV) hospedado;
 /// - subset aceito: funções `-> bombom` com múltiplos blocos/labels, `jmp` incondicional, branch condicional mínimo e loop mínimo por retorno de salto entre blocos;
-/// - disciplina mínima de registradores/frame: `%rax` (retorno/acumulador), `%rdi` (arg0), `%rsi` (arg1), `%r10` (temporário volátil), slots em frame `%rbp`;
+/// - disciplina mínima de registradores/frame: `%rax` (retorno/acumulador), `%rdi` (arg0), `%rsi` (arg1), `%rdx` (arg2), `%r10` (temporário volátil), slots em frame `%rbp`;
 /// - memória mínima real garantida: load/store em slots de frame via `movq -off(%rbp), %reg` e `movq %reg, -off(%rbp)`;
 /// - branch condicional mínimo via teste contra zero (`cmpq $0` + `jne`) e sem ABI completa.
 /// - globais estáticas mínimas somente-leitura em `.rodata`: `eterno` de valor literal inteiro/lógico com leitura por símbolo `@nome(%rip)`.
@@ -107,7 +107,7 @@ enum ExternalCallConvTerminator {
 }
 
 const REG_RET: &str = "%rax";
-const ARG_REGS: [&str; 2] = ["%rdi", "%rsi"];
+const ARG_REGS: [&str; 3] = ["%rdi", "%rsi", "%rdx"];
 const REG_TMP: &str = "%r10";
 
 fn extract_external_callconv_program(
@@ -162,7 +162,7 @@ fn extract_external_callconv_program(
         }
         if function.params.len() > ARG_REGS.len() {
             return Err(err(
-                "subset externo montável (Fase 84) recusa explicitamente 3+ parâmetros por função; limite garantido: até 2 parâmetros `bombom`",
+                "subset externo montável (Fase 115) recusa explicitamente 4+ parâmetros por função; limite garantido: até 3 parâmetros `bombom`",
             ));
         }
         for param in &function.params {
@@ -288,7 +288,7 @@ fn extract_external_callconv_program(
                         }
                         if args.len() > ARG_REGS.len() {
                             return Err(err(
-                                "subset externo montável (Fase 84) recusa explicitamente call com 3+ argumentos; limite garantido: até 2 argumentos `bombom`",
+                                "subset externo montável (Fase 115) recusa explicitamente call com 4+ argumentos; limite garantido: até 3 argumentos `bombom`",
                             ));
                         }
                         for (idx, arg) in args.iter().enumerate() {
@@ -303,7 +303,7 @@ fn extract_external_callconv_program(
                     }
                     _ => {
                         return Err(err(
-                            "subset externo montável (Fase 113) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==` e `<`), call direta com até 2 argumentos `bombom` e load/store em slots de frame",
+                            "subset externo montável (Fase 115) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==` e `<`), call direta com até 3 argumentos `bombom` e load/store em slots de frame",
                         ));
                     }
                 }
@@ -335,7 +335,7 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
     line(
         &mut out,
         0,
-        "# pinker v0 external toolchain subset (fase 114, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + globais estaticas minimas em .rodata)",
+        "# pinker v0 external toolchain subset (fase 115, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args)",
     );
     if !program.rodata_globals.is_empty() {
         line(&mut out, 0, ".section .rodata");
