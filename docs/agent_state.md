@@ -32,7 +32,7 @@
 - Bloco ativo: **nenhum bloco funcional em continuidade automática** (Bloco 9 encerrado conservadoramente como trilha ativa; Bloco 8 já encerrado).
 - Rodada documental mais recente: **Doc-20 — encerramento conservador do Bloco 9**.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
-- Último hotfix aplicado: **HF-3 — estabilização do Bloco 8 (Fases 85–101)**.
+- Último hotfix aplicado: **HF-4 — varredura completa de repositório e higiene estrutural pós-B9**.
 
 ## 6. Arquitetura documental dual ativa
 - Navegação mestre: `docs/atlas.md`.

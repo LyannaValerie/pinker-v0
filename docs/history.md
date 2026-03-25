@@ -517,6 +517,79 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com testes semânticos (reconhecimento, aridade e tipo), testes de `--run`/CLI para sucesso e fallback em EOF, integração com `falar`, `aparar_verso`, `nao_vazio_verso`, `igual_verso` e exemplo versionado (`examples/fase110_entrada_textual_minima_valida.pink`).
 - Fora de escopo explícito nesta fase: streaming, leitura por delimitador arbitrário, múltiplas linhas em lote, API rica de terminal, timeout, leitura não bloqueante, encoding sofisticado e biblioteca ampla de entrada textual.
 
+111 - múltiplos blocos, labels e salto incondicional no backend nativo real
+- Primeira fase funcional do Bloco 9 (item 9.1) concluída em recorte mínimo, auditável e sem abrir branch condicional.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar múltiplos blocos por função com labels e terminadores `jmp`/`ret`.
+- Rejeições explícitas mantidas para branch condicional (`talvez/senao` e `sempre que`) no subset externo desta fase.
+- Validações mínimas adicionadas para labels no caminho externo: bloco `entry` obrigatório, label duplicado inválido e `jmp` para label inexistente inválido.
+- Exemplo versionado incluído: `examples/fase111_blocos_labels_salto_incondicional_valido.pink`.
+- Base preparada para 9.2 sem antecipar `cmp`/`jcc`, loops, globais, `.rodata`, ABI mais larga ou tipos compostos.
+
+112 - branch condicional real mínimo no backend nativo externo
+- Segunda fase funcional do Bloco 9 (item 9.2) concluída em recorte mínimo, auditável e sem abrir loops.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar terminador condicional `br` com validação de alvos verdadeiro/falso e emissão `cmp $0` + `jne` no `.s`.
+- Comparação mínima desta fase: `==` no corpo de bloco, com lowering direto para `cmp` + `sete` + `movzbq` antes do branch.
+- Continuidade preservada do recorte 9.1: múltiplos blocos, labels, `jmp` incondicional, validação de `entry` e rejeição de label duplicado/`jmp` inexistente.
+- Exemplo versionado incluído: `examples/fase112_branch_condicional_minimo_valido.pink`.
+- Fora de escopo explícito preservado: loops (`sempre que`), comparações além de `==`, globais, `.rodata`, ABI mais larga, compostos e runtime nativa nova.
+
+113 - loops reais mínimos no backend nativo externo
+- Terceira fase funcional do Bloco 9 (item 9.3) concluída em recorte mínimo, auditável e sem puxar o item 9.4.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar loop mínimo real entre blocos no caminho de `sempre que`, com ciclo explícito por label de condição e `jmp` de retorno ao cabeçalho.
+- Recorte de comparação do subset externo ampliado de forma mínima para `==` e `<` (com lowering auditável para `cmp` + `setcc` + `movzbq`), preservando as restrições de ABI e de superfície já consolidadas.
+- Continuidade preservada do recorte 9.1/9.2: múltiplos blocos, labels, `jmp`, `br`, validação de `entry` e rejeição de label/alvo inexistente.
+- Exemplo versionado incluído: `examples/fase113_loops_reais_minimos_validos.pink`.
+- Fora de escopo explícito preservado: loops amplos, `break`/`continue` gerais, comparações além de `==`/`<`, globais, `.rodata`, ABI mais larga, compostos e runtime nativa nova.
+
+114 - globais mínimas e base inicial de `.rodata` no backend nativo externo
+- Quarta fase funcional do Bloco 9 (item 9.4) concluída em recorte mínimo, auditável e sem puxar o item 9.5.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar globais estáticas mínimas (`eterno`) de valor literal `bombom`/`logica`, com emissão auditável em `.section .rodata`.
+- Leitura mínima de global estática no fluxo externo habilitada por load por símbolo (`movq simbolo(%rip), %reg`) no subset já suportado de instruções/terminadores.
+- Validações mínimas adicionadas no caminho externo: símbolo global duplicado inválido, tipo global fora do recorte mínimo inválido e inicialização global não literal inválida.
+- Exemplo versionado incluído: `examples/fase114_globais_minimas_rodata_base_valido.pink`.
+- Fora de escopo explícito preservado: strings amplas, sistema global rico, arrays/structs globais, inicialização complexa, ABI mais larga, compostos e runtime nativa nova.
+
+115 - ABI mínima mais larga (camada 1 conservadora) no backend nativo externo
+- Quinta fase funcional do Bloco 9 (item 9.5, camada 1) concluída em recorte mínimo, auditável e sem puxar o item 9.6.
+- Backend externo montável (`emit_external_toolchain_subset`) ampliou chamadas diretas de **até 2** para **até 3 argumentos `bombom`**, preservando frame mínimo e subset já consolidado.
+- Convenção concreta desta camada no recorte Linux x86_64 hospedado: `%rdi` (arg0), `%rsi` (arg1), `%rdx` (arg2), `%rax` (retorno) e `%r10` (temporário volátil).
+- Validações mínimas ampliadas no caminho externo: recusa explícita e auditável de função/call com **4+ argumentos**, mantendo as recusas de tipos não `bombom` e recursos fora do subset.
+- Exemplo versionado incluído: `examples/fase115_abi_minima_mais_larga_camada1_valida.pink`.
+- Limite explícito da fase: antes **até 2 argumentos `bombom`**; após a fase **até 3 argumentos `bombom`**.
+- Fora de escopo explícito preservado: ABI ampla/plena, varargs, alinhamento geral sofisticado, múltiplos retornos, compostos por valor e item 9.6.
+
+116 - compostos mínimos (camada 1 conservadora) no backend nativo externo
+- Sexta fase funcional do Bloco 9 (item 9.6, camada 1) concluída em recorte mínimo, auditável e sem abrir compostos gerais.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar parâmetro `seta<bombom>` e `deref_load` mínimo (`*ptr`) em função externa, mantendo ABI por registrador sem composto por valor.
+- Recorte estrutural explícito desta fase: par homogêneo de `bombom` em memória externa explícita, acessado por ponteiro e offsets definidos no código, sem layout geral automático.
+- Validações mínimas ampliadas no caminho externo: recusa explícita para parâmetro fora do recorte (`seta<ninho>`, tipos gerais), recusa de `deref_load` fora de `bombom` e manutenção das recusas já existentes.
+- Exemplo versionado incluído: `examples/fase116_compostos_minimos_camada1_valida.pink`.
+- Fora de escopo explícito preservado: structs gerais, tuplas amplas, arrays gerais, compostos heterogêneos amplos, composto por valor em ABI, `deref_store` externo e layout/alinhamento geral sofisticado.
+
+117 - compostos mínimos (camada 2 conservadora) no backend nativo externo
+- Sétima fase funcional do Bloco 9 (item 9.6, camada 2) concluída em recorte mínimo, auditável e sem abrir compostos gerais.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar local `seta<bombom>` no mesmo recorte homogêneo da camada 1, permitindo materializar cursor com offset explícito e fazer dois `deref_load` auditáveis no fluxo real.
+- Recorte estrutural explícito desta fase: dois loads homogêneos de `bombom` via `seta<bombom>` + offset explícito (`base + 8`) em função externa, sem composto por valor na ABI.
+- Validações mínimas ampliadas no caminho externo: local fora de `bombom`/`seta<bombom>` continua recusado e caminho `fragil` em acesso indireto externo continua fora do subset.
+- Exemplos versionados incluídos: `examples/fase117_compostos_minimos_camada2_valida.pink` e `examples/fase117_compostos_minimos_camada2_invalida.pink`.
+- Fora de escopo explícito preservado: structs gerais, arrays gerais, compostos heterogêneos, composto por valor em ABI, retorno composto, `deref_store` externo, layout/alinhamento geral sofisticado e runtime nativa nova.
+
+118 - compostos mínimos (camada 3 conservadora) no backend nativo externo
+- Oitava fase funcional do Bloco 9 (item 9.6, camada 3) concluída em recorte mínimo, auditável e sem abrir compostos gerais.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar `deref_store` mínimo homogêneo (`*ptr = valor`) para `seta<bombom>` + `bombom`, preservando o recorte por ponteiro e sem composto por valor na ABI.
+- Recorte estrutural explícito desta fase: leitura/escrita homogênea em `seta<bombom>` com `deref_load`/`deref_store` e offset explícito auditável no fluxo externo, sem sistema geral de campos/index/heterogeneidade.
+- Validações mínimas ampliadas no caminho externo: `deref_store` continua restrito a `bombom`, caminho `fragil` em acesso indireto externo segue recusado e locals/parâmetros fora de `bombom`/`seta<bombom>` permanecem fora.
+- Exemplos versionados incluídos: `examples/fase118_compostos_minimos_camada3_valida.pink` e `examples/fase118_compostos_minimos_camada3_invalida.pink`.
+- Fora de escopo explícito preservado: structs gerais, arrays gerais, compostos heterogêneos, composto por valor em ABI, retorno composto, layout/alinhamento geral sofisticado e runtime nativa nova.
+
+119 - compostos mínimos (camada 4 conservadora, fechamento do recorte homogêneo) no backend nativo externo
+- Nona fase funcional do Bloco 9 (item 9.6, camada 4) concluída em recorte mínimo, auditável e sem abrir compostos gerais.
+- Backend externo montável (`emit_external_toolchain_subset`) preservou parâmetros/locais `bombom` e `seta<bombom>` e consolidou a composição homogênea mínima em memória externa com sequência coesa de `deref_load` + `deref_store` + releitura, mantendo offsets explícitos auditáveis.
+- Recorte estrutural explícito desta fase: unidade mínima de par homogêneo (`bombom` + `bombom`) manipulada por ponteiro (`seta<bombom>`) com leitura do primeiro, escrita no segundo, escrita de volta no primeiro e leitura final para resultado observável de composição, sem composto por valor na ABI.
+- Validações mínimas preservadas no caminho externo: tipos fora de `bombom`/`seta<bombom>` seguem recusados, `fragil` em acesso indireto externo continua fora e recursos de composto amplo permanecem rejeitados.
+- Exemplo versionado incluído: `examples/fase119_compostos_minimos_camada4_valida.pink`.
+- Fora de escopo explícito preservado: structs gerais, arrays gerais, compostos heterogêneos, composto por valor em ABI, retorno composto, layout/alinhamento geral sofisticado e runtime nativa nova.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
@@ -668,79 +741,6 @@ Doc-19 - encerramento formal do Bloco 8 e abertura canônica do Bloco 9
 - Trava canônica de runtime nativa mínima registrada: runtime só entra para demonstrar capacidade semântica já conquistada no backend e não pode sequestrar o bloco.
 - `agent_state.md`, `handoff_codex.md`, `phases.md`, `roadmap.md`, `ponte_engine_rosa.md`, `vocabulario.md` e `README.md` sincronizados com a transição B8 -> B9.
 
-Fase 111 - múltiplos blocos, labels e salto incondicional no backend nativo real
-- Primeira fase funcional do Bloco 9 (item 9.1) concluída em recorte mínimo, auditável e sem abrir branch condicional.
-- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar múltiplos blocos por função com labels e terminadores `jmp`/`ret`.
-- Rejeições explícitas mantidas para branch condicional (`talvez/senao` e `sempre que`) no subset externo desta fase.
-- Validações mínimas adicionadas para labels no caminho externo: bloco `entry` obrigatório, label duplicado inválido e `jmp` para label inexistente inválido.
-- Exemplo versionado incluído: `examples/fase111_blocos_labels_salto_incondicional_valido.pink`.
-- Base preparada para 9.2 sem antecipar `cmp`/`jcc`, loops, globais, `.rodata`, ABI mais larga ou tipos compostos.
-
-Fase 112 - branch condicional real mínimo no backend nativo externo
-- Segunda fase funcional do Bloco 9 (item 9.2) concluída em recorte mínimo, auditável e sem abrir loops.
-- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar terminador condicional `br` com validação de alvos verdadeiro/falso e emissão `cmp $0` + `jne` no `.s`.
-- Comparação mínima desta fase: `==` no corpo de bloco, com lowering direto para `cmp` + `sete` + `movzbq` antes do branch.
-- Continuidade preservada do recorte 9.1: múltiplos blocos, labels, `jmp` incondicional, validação de `entry` e rejeição de label duplicado/`jmp` inexistente.
-- Exemplo versionado incluído: `examples/fase112_branch_condicional_minimo_valido.pink`.
-- Fora de escopo explícito preservado: loops (`sempre que`), comparações além de `==`, globais, `.rodata`, ABI mais larga, compostos e runtime nativa nova.
-Fase 113 - loops reais mínimos no backend nativo externo
-- Terceira fase funcional do Bloco 9 (item 9.3) concluída em recorte mínimo, auditável e sem puxar o item 9.4.
-- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar loop mínimo real entre blocos no caminho de `sempre que`, com ciclo explícito por label de condição e `jmp` de retorno ao cabeçalho.
-- Recorte de comparação do subset externo ampliado de forma mínima para `==` e `<` (com lowering auditável para `cmp` + `setcc` + `movzbq`), preservando as restrições de ABI e de superfície já consolidadas.
-- Continuidade preservada do recorte 9.1/9.2: múltiplos blocos, labels, `jmp`, `br`, validação de `entry` e rejeição de label/alvo inexistente.
-- Exemplo versionado incluído: `examples/fase113_loops_reais_minimos_validos.pink`.
-- Fora de escopo explícito preservado: loops amplos, `break`/`continue` gerais, comparações além de `==`/`<`, globais, `.rodata`, ABI mais larga, compostos e runtime nativa nova.
-
-Fase 114 - globais mínimas e base inicial de `.rodata` no backend nativo externo
-- Quarta fase funcional do Bloco 9 (item 9.4) concluída em recorte mínimo, auditável e sem puxar o item 9.5.
-- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar globais estáticas mínimas (`eterno`) de valor literal `bombom`/`logica`, com emissão auditável em `.section .rodata`.
-- Leitura mínima de global estática no fluxo externo habilitada por load por símbolo (`movq simbolo(%rip), %reg`) no subset já suportado de instruções/terminadores.
-- Validações mínimas adicionadas no caminho externo: símbolo global duplicado inválido, tipo global fora do recorte mínimo inválido e inicialização global não literal inválida.
-- Exemplo versionado incluído: `examples/fase114_globais_minimas_rodata_base_valido.pink`.
-- Fora de escopo explícito preservado: strings amplas, sistema global rico, arrays/structs globais, inicialização complexa, ABI mais larga, compostos e runtime nativa nova.
-
-Fase 115 - ABI mínima mais larga (camada 1 conservadora) no backend nativo externo
-- Quinta fase funcional do Bloco 9 (item 9.5, camada 1) concluída em recorte mínimo, auditável e sem puxar o item 9.6.
-- Backend externo montável (`emit_external_toolchain_subset`) ampliou chamadas diretas de **até 2** para **até 3 argumentos `bombom`**, preservando frame mínimo e subset já consolidado.
-- Convenção concreta desta camada no recorte Linux x86_64 hospedado: `%rdi` (arg0), `%rsi` (arg1), `%rdx` (arg2), `%rax` (retorno) e `%r10` (temporário volátil).
-- Validações mínimas ampliadas no caminho externo: recusa explícita e auditável de função/call com **4+ argumentos**, mantendo as recusas de tipos não `bombom` e recursos fora do subset.
-- Exemplo versionado incluído: `examples/fase115_abi_minima_mais_larga_camada1_valida.pink`.
-- Limite explícito da fase: antes **até 2 argumentos `bombom`**; após a fase **até 3 argumentos `bombom`**.
-- Fora de escopo explícito preservado: ABI ampla/plena, varargs, alinhamento geral sofisticado, múltiplos retornos, compostos por valor e item 9.6.
-
-Fase 116 - compostos mínimos (camada 1 conservadora) no backend nativo externo
-- Sexta fase funcional do Bloco 9 (item 9.6, camada 1) concluída em recorte mínimo, auditável e sem abrir compostos gerais.
-- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar parâmetro `seta<bombom>` e `deref_load` mínimo (`*ptr`) em função externa, mantendo ABI por registrador sem composto por valor.
-- Recorte estrutural explícito desta fase: par homogêneo de `bombom` em memória externa explícita, acessado por ponteiro e offsets definidos no código, sem layout geral automático.
-- Validações mínimas ampliadas no caminho externo: recusa explícita para parâmetro fora do recorte (`seta<ninho>`, tipos gerais), recusa de `deref_load` fora de `bombom` e manutenção das recusas já existentes.
-- Exemplo versionado incluído: `examples/fase116_compostos_minimos_camada1_valida.pink`.
-- Fora de escopo explícito preservado: structs gerais, tuplas amplas, arrays gerais, compostos heterogêneos amplos, composto por valor em ABI, `deref_store` externo e layout/alinhamento geral sofisticado.
-
-Fase 117 - compostos mínimos (camada 2 conservadora) no backend nativo externo
-- Sétima fase funcional do Bloco 9 (item 9.6, camada 2) concluída em recorte mínimo, auditável e sem abrir compostos gerais.
-- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar local `seta<bombom>` no mesmo recorte homogêneo da camada 1, permitindo materializar cursor com offset explícito e fazer dois `deref_load` auditáveis no fluxo real.
-- Recorte estrutural explícito desta fase: dois loads homogêneos de `bombom` via `seta<bombom>` + offset explícito (`base + 8`) em função externa, sem composto por valor na ABI.
-- Validações mínimas ampliadas no caminho externo: local fora de `bombom`/`seta<bombom>` continua recusado e caminho `fragil` em acesso indireto externo continua fora do subset.
-- Exemplos versionados incluídos: `examples/fase117_compostos_minimos_camada2_valida.pink` e `examples/fase117_compostos_minimos_camada2_invalida.pink`.
-- Fora de escopo explícito preservado: structs gerais, arrays gerais, compostos heterogêneos, composto por valor em ABI, retorno composto, `deref_store` externo, layout/alinhamento geral sofisticado e runtime nativa nova.
-
-Fase 118 - compostos mínimos (camada 3 conservadora) no backend nativo externo
-- Oitava fase funcional do Bloco 9 (item 9.6, camada 3) concluída em recorte mínimo, auditável e sem abrir compostos gerais.
-- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar `deref_store` mínimo homogêneo (`*ptr = valor`) para `seta<bombom>` + `bombom`, preservando o recorte por ponteiro e sem composto por valor na ABI.
-- Recorte estrutural explícito desta fase: leitura/escrita homogênea em `seta<bombom>` com `deref_load`/`deref_store` e offset explícito auditável no fluxo externo, sem sistema geral de campos/index/heterogeneidade.
-- Validações mínimas ampliadas no caminho externo: `deref_store` continua restrito a `bombom`, caminho `fragil` em acesso indireto externo segue recusado e locals/parâmetros fora de `bombom`/`seta<bombom>` permanecem fora.
-- Exemplos versionados incluídos: `examples/fase118_compostos_minimos_camada3_valida.pink` e `examples/fase118_compostos_minimos_camada3_invalida.pink`.
-- Fora de escopo explícito preservado: structs gerais, arrays gerais, compostos heterogêneos, composto por valor em ABI, retorno composto, layout/alinhamento geral sofisticado e runtime nativa nova.
-
-Fase 119 - compostos mínimos (camada 4 conservadora, fechamento do recorte homogêneo) no backend nativo externo
-- Nona fase funcional do Bloco 9 (item 9.6, camada 4) concluída em recorte mínimo, auditável e sem abrir compostos gerais.
-- Backend externo montável (`emit_external_toolchain_subset`) preservou parâmetros/locais `bombom` e `seta<bombom>` e consolidou a composição homogênea mínima em memória externa com sequência coesa de `deref_load` + `deref_store` + releitura, mantendo offsets explícitos auditáveis.
-- Recorte estrutural explícito desta fase: unidade mínima de par homogêneo (`bombom` + `bombom`) manipulada por ponteiro (`seta<bombom>`) com leitura do primeiro, escrita no segundo, escrita de volta no primeiro e leitura final para resultado observável de composição, sem composto por valor na ABI.
-- Validações mínimas preservadas no caminho externo: tipos fora de `bombom`/`seta<bombom>` seguem recusados, `fragil` em acesso indireto externo continua fora e recursos de composto amplo permanecem rejeitados.
-- Exemplo versionado incluído: `examples/fase119_compostos_minimos_camada4_valida.pink`.
-- Fora de escopo explícito preservado: structs gerais, arrays gerais, compostos heterogêneos, composto por valor em ABI, retorno composto, layout/alinhamento geral sofisticado e runtime nativa nova.
-
-
 Doc-20 - encerramento conservador do Bloco 9
 - Rodada exclusivamente documental, sem implementação funcional nova.
 - Bloco 9 reconhecido como encerrado enquanto trilha ativa por suficiência conservadora, sem declarar exaustão total do espaço de backend nativo.
@@ -748,9 +748,15 @@ Doc-20 - encerramento conservador do Bloco 9
 - Item 9.6 reafirmado como fechado apenas no recorte homogêneo conservador atual (`seta<bombom>`, `deref_load` mínimo, offset explícito e `deref_store` mínimo homogêneo), sem heterogeneidade, sem composto por valor e sem sistema geral de agregados.
 - Exclusões do bloco reforçadas para evitar superestimação do backend: sem backend pleno, sem ABI ampla/plena, sem composto por valor na ABI, sem retorno composto amplo, sem structs/arrays gerais e sem sistema geral de globais/layout sofisticado.
 - Handoff operacional ajustado para impedir continuidade automática de 9.6 e para manter a próxima frente funcional em aberto disciplinado, sem reabertura do Bloco 9 por inércia.
-- Observação de continuidade preservada: a higiene estrutural da categorização das Fases 111–119 no `history.md` permanece reservada para a micro-rodada pós-Fase 120 junto com busca por bugs.
 
-
+HF-4 — varredura completa de repositório e higiene estrutural pós-B9
+- Pacote extraordinário de hotfix transversal sem abertura de fase funcional nova.
+- Correção estrutural do `history.md`: Fases 111–119 reencaixadas na seção FASES (antes eram listadas após DOCUMENTAÇÃO); Doc-20 reencaixada na seção DOCUMENTAÇÃO; ordem cronológica, categorias próprias e conteúdo histórico preservados.
+- Mensagens de erro desatualizadas corrigidas em `backend_s.rs`: referências a "Fase 54" removidas de 3 diagnósticos do backend .s textual (retorno, slot e call), que permaneciam congeladas desde a fase original e ficaram enganosas após 65 fases de evolução.
+- Texto de ajuda da CLI corrigido em `main.rs`: referência a "(Fase 54, ABI textual mínima)" removida do help de `--asm-s`; comentário de seção alinhado.
+- Drift documental corrigido em `future.md`: "até 2 args" atualizado para "até 3 args" (alinhamento com Fase 115).
+- Varredura completa de código, testes, exemplos e documentação sem introdução de feature funcional nova.
+- Suite completa pós-correção: todos os testes passam, `cargo build`/`check`/`fmt --check`/`clippy`/`doc` limpos.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

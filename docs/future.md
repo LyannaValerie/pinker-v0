@@ -28,7 +28,7 @@
 
 - controle de fluxo geral no backend externo;
 - cobertura de memória indireta/ponteiros;
-- ABI mais completa (além de até 2 args `bombom`);
+- ABI mais completa (além de até 3 args `bombom`);
 - passos para artefato executável mais amplo e reproduzível.
 
 ### 2.3 Biblioteca e ecossistema útil

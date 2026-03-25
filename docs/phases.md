@@ -10,7 +10,7 @@
 ## Estado atual
 - Fase funcional atual: **119 — compostos mínimos (camada 4 conservadora, fechamento do recorte homogêneo) no backend nativo externo**.
 - Fase funcional anterior: **118 — compostos mínimos (camada 3 conservadora) no backend nativo externo**.
-- Hotfix extraordinário ativo mais recente: **HF-3**.
+- Hotfix extraordinário ativo mais recente: **HF-4**.
 - Última rodada documental: **Doc-20 — encerramento conservador do Bloco 9**.
 
 ## Fonte oficial
