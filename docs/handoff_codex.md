@@ -5,23 +5,23 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 116 — compostos mínimos (camada 1 conservadora) no backend nativo externo**.
-- Sexta fase funcional do Bloco 9 concluída em recorte mínimo e auditável.
+- **Fase 117 — compostos mínimos (camada 2 conservadora) no backend nativo externo**.
+- Sétima fase funcional do Bloco 9 concluída em recorte mínimo e auditável.
 
 ## 2. O que entrou na rodada atual
-- Backend externo montável abriu o primeiro recorte de composto mínimo no item 9.6: parâmetro `seta<bombom>` + `deref_load` (`*ptr`) para leitura auditável em função nativa externa.
-- Recorte estrutural explícito da camada: par homogêneo de `bombom` em memória externa explícita, sem composto por valor na ABI.
-- Validações mínimas no caminho externo ampliadas para manter honestidade de subset: recusa de parâmetro fora de `bombom`/`seta<bombom>`, recusa de `deref_load` fora de `bombom` e manutenção das recusas já existentes.
-- Exemplo versionado da fase adicionado (`examples/fase116_compostos_minimos_camada1_valida.pink`) e cobertura de testes ampliada para emissão auditável do acesso indireto mínimo.
+- Backend externo montável ampliou o recorte do item 9.6 com camada 2 conservadora: além do parâmetro `seta<bombom>`, agora aceita local `seta<bombom>` para materializar cursor com offset explícito mínimo e realizar dois `deref_load` homogêneos auditáveis.
+- Recorte estrutural explícito da camada: dois loads homogêneos de `bombom` via `seta<bombom>` + `base + 8`, sem composto por valor na ABI.
+- Validações mínimas no caminho externo ampliadas para manter honestidade de subset: local fora de `bombom`/`seta<bombom>` segue recusado e caminho `fragil` segue fora do subset externo.
+- Exemplos versionados da fase adicionados (`examples/fase117_compostos_minimos_camada2_valida.pink` e `examples/fase117_compostos_minimos_camada2_invalida.pink`) com cobertura de testes para emissão auditável do novo degrau.
 
 ## 3. Continuidade preservada
-- Fase funcional atual passa para **116**.
-- Fase funcional anterior passa para **115**.
+- Fase funcional atual passa para **117**.
+- Fase funcional anterior passa para **116**.
 - Bloco ativo permanece **Bloco 9 — ampliação do backend nativo real**.
 - Bloco 8 permanece fechado como trilha ativa; pode receber ampliações futuras apenas de forma subordinada e extraordinária.
 
 ## 4. Próximo item normal
-- Continuar o item **9.6** em camada conservadora adicional, somente se houver necessidade concreta e pequena.
+- Continuar o item **9.6** apenas se houver necessidade concreta e pequena para eventual fechamento conservador, sem abrir composto amplo/ABI composta.
 - Não reabrir Bloco 8 salvo necessidade extraordinária, objetiva e bem justificada.
 
 ## 5. Precedência resumida
