@@ -1,0 +1,20 @@
+pacote fase119_compostos_minimos_camada4_valida;
+
+carinho consolida_par_homogeneo_minimo(base: seta<bombom>) -> bombom {
+    nova cursor_segundo: seta<bombom> = base + 8;
+    nova cursor_terceiro: seta<bombom> = base + 16;
+
+    nova primeiro_inicial: bombom = *base;
+    nova terceiro: bombom = *cursor_terceiro;
+    *cursor_segundo = primeiro_inicial + terceiro;
+
+    nova segundo_atualizado: bombom = *cursor_segundo;
+    *base = segundo_atualizado + 1;
+
+    nova primeiro_atualizado: bombom = *base;
+    mimo primeiro_atualizado + segundo_atualizado;
+}
+
+carinho principal() -> bombom {
+    mimo 119;
+}
