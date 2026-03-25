@@ -82,7 +82,7 @@ sempre que x < 3 {
 ```
 
 Observação importante: no `--run`, esse fluxo funciona no subset atual.
-No backend externo de `--asm-s` (montável em toolchain C), a Fase 112 abriu branch condicional mínimo para `talvez/senao` com comparação `==`; loops (`sempre que`) seguem fora do subset externo.
+No backend externo de `--asm-s` (montável em toolchain C), a Fase 113 abriu loops reais mínimos com condição `==`/`<` no recorte auditável (sem `break`/`continue` amplos e sem comparações gerais).
 
 ## 6) Funções e chamadas
 

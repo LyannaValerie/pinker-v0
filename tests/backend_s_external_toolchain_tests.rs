@@ -17,7 +17,7 @@ fn asm_s_external_subset_emite_main_montavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 42; }";
     let out = render_backend_s_external_subset(code).unwrap();
     assert!(out.contains(
-        "# pinker v0 external toolchain subset (fase 112, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp + branch condicional minimo)"
+        "# pinker v0 external toolchain subset (fase 113, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo)"
     ));
     assert!(out.contains(".globl main"));
     assert!(out.contains("jmp .Lprincipal_entry"));
@@ -41,6 +41,15 @@ fn asm_s_external_subset_fase112_exemplo_versionado_emite_cmp_e_jcc() {
     assert!(out.contains("cmpq %r10, %rax"));
     assert!(out.contains("cmpq $0, %rax"));
     assert!(out.contains("jne .Lprincipal_"));
+}
+
+#[test]
+fn asm_s_external_subset_fase113_exemplo_versionado_emite_ciclo_com_label_de_loop() {
+    let code = include_str!("../examples/fase113_loops_reais_minimos_validos.pink");
+    let out = render_backend_s_external_subset(code).unwrap();
+    assert!(out.contains(".Lprincipal_loop_cond_0:"));
+    assert!(out.contains("setb %al"));
+    assert!(out.contains("jmp .Lprincipal_loop_cond_0"));
 }
 
 #[test]
@@ -81,6 +90,52 @@ fn asm_s_external_subset_fluxo_real_condicional() {
         .expect("falha ao executar binário gerado");
 
     assert_eq!(run.status.code(), Some(7));
+
+    let _ = fs::remove_file(&asm_path);
+    let _ = fs::remove_file(&bin_path);
+    let _ = fs::remove_dir(&workdir);
+}
+
+#[test]
+fn asm_s_external_subset_fluxo_real_loop_minimo() {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return;
+    }
+
+    let Some(driver) = detect_cc_driver() else {
+        return;
+    };
+
+    let code = include_str!("../examples/fase113_loops_reais_minimos_validos.pink");
+    let asm = render_backend_s_external_subset(code).unwrap();
+    assert!(asm.contains(".Lprincipal_loop_cond_0:"));
+    assert!(asm.contains("jmp .Lprincipal_loop_cond_0"));
+    assert!(asm.contains("setb %al"));
+
+    let workdir = unique_temp_dir();
+    fs::create_dir_all(&workdir).expect("falha ao criar diretório temporário");
+    let asm_path = workdir.join("principal.s");
+    let bin_path = workdir.join("principal");
+    fs::write(&asm_path, asm).expect("falha ao escrever .s temporário");
+
+    let compile = Command::new(&driver)
+        .arg(&asm_path)
+        .arg("-o")
+        .arg(&bin_path)
+        .output()
+        .expect("falha ao invocar driver C");
+
+    assert!(
+        compile.status.success(),
+        "compilação falhou com {}: {}",
+        driver,
+        String::from_utf8_lossy(&compile.stderr)
+    );
+
+    let run = Command::new(&bin_path)
+        .output()
+        .expect("falha ao executar binário gerado");
+    assert_eq!(run.status.code(), Some(3));
 
     let _ = fs::remove_file(&asm_path);
     let _ = fs::remove_file(&bin_path);
@@ -500,14 +555,12 @@ fn asm_s_external_subset_fase112_aceita_talvez_senao_no_recorte_minimo() {
 }
 
 #[test]
-fn asm_s_external_subset_fase84_recusa_explicita_sempre_que_por_instrucao_fora_do_recorte() {
-    let code = include_str!(
-        "../examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink",
-    );
+fn asm_s_external_subset_fase113_recusa_loop_com_condicao_fora_do_recorte() {
+    let code = include_str!("../examples/fase113_loop_condicao_invalida_invalido.pink");
 
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains(
-        "subset externo montável (Fase 112) aceita apenas atribuição, aritmética linear (+,-,*), comparação mínima (`==`), call direta com até 2 argumentos `bombom` e load/store em slots de frame"
+        "subset externo montável (Fase 113) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==` e `<`), call direta com até 2 argumentos `bombom` e load/store em slots de frame"
     ));
 }
 
@@ -521,7 +574,7 @@ fn asm_s_external_subset_fase84_matriz_fronteira_auditavel() {
 
     for code in casos_garantidos {
         let asm = render_backend_s_external_subset(code).expect("subset garantido deve emitir .s");
-        assert!(asm.contains("# pinker v0 external toolchain subset (fase 112"));
+        assert!(asm.contains("# pinker v0 external toolchain subset (fase 113"));
     }
 
     let caso_rejeitado_tres_params = include_str!(
@@ -538,12 +591,16 @@ fn asm_s_external_subset_fase84_matriz_fronteira_auditavel() {
     assert!(asm_branch.contains("cmpq $0, %rax"));
     assert!(asm_branch.contains("jne .Lprincipal_"));
 
-    let caso_rejeitado_sempre_que = include_str!(
-        "../examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink",
-    );
+    let caso_loop_valido = include_str!("../examples/fase113_loops_reais_minimos_validos.pink");
+    let asm_loop = render_backend_s_external_subset(caso_loop_valido).unwrap();
+    assert!(asm_loop.contains(".Lprincipal_loop_cond_0:"));
+    assert!(asm_loop.contains("jmp .Lprincipal_loop_cond_0"));
+
+    let caso_rejeitado_sempre_que =
+        include_str!("../examples/fase113_loop_condicao_invalida_invalido.pink");
     let err_sempre_que = render_backend_s_external_subset(caso_rejeitado_sempre_que).unwrap_err();
     assert!(err_sempre_que.to_string().contains(
-        "subset externo montável (Fase 112) aceita apenas atribuição, aritmética linear (+,-,*), comparação mínima (`==`), call direta com até 2 argumentos `bombom` e load/store em slots de frame"
+        "subset externo montável (Fase 113) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==` e `<`), call direta com até 2 argumentos `bombom` e load/store em slots de frame"
     ));
 }
 
@@ -572,7 +629,7 @@ fn asm_s_external_subset_fase112_falha_em_jmp_para_label_inexistente() {
     let err = emit_external_toolchain_subset(&program).unwrap_err();
     assert!(err
         .to_string()
-        .contains("subset externo montável (Fase 112) encontrou `jmp` para label inexistente"));
+        .contains("subset externo montável (Fase 113) encontrou `jmp` para label inexistente"));
 }
 
 #[test]
@@ -607,7 +664,7 @@ fn asm_s_external_subset_fase112_falha_em_label_duplicado() {
     let err = emit_external_toolchain_subset(&program).unwrap_err();
     assert!(err
         .to_string()
-        .contains("subset externo montável (Fase 112) encontrou label duplicado em função"));
+        .contains("subset externo montável (Fase 113) encontrou label duplicado em função"));
 }
 
 #[test]
@@ -643,7 +700,7 @@ fn asm_s_external_subset_fase112_falha_em_br_com_alvo_verdadeiro_inexistente() {
 
     let err = emit_external_toolchain_subset(&program).unwrap_err();
     assert!(err.to_string().contains(
-        "subset externo montável (Fase 112) encontrou `br` com alvo verdadeiro inexistente"
+        "subset externo montável (Fase 113) encontrou `br` com alvo verdadeiro inexistente"
     ));
 }
 
@@ -681,7 +738,7 @@ fn asm_s_external_subset_fase112_falha_em_br_com_alvo_falso_inexistente() {
     let err = emit_external_toolchain_subset(&program).unwrap_err();
     assert!(err
         .to_string()
-        .contains("subset externo montável (Fase 112) encontrou `br` com alvo falso inexistente"));
+        .contains("subset externo montável (Fase 113) encontrou `br` com alvo falso inexistente"));
 }
 
 fn detect_cc_driver() -> Option<String> {
@@ -700,5 +757,5 @@ fn unique_temp_dir() -> std::path::PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("tempo do sistema inválido")
         .as_nanos();
-    std::env::temp_dir().join(format!("pinker_phase84_{}", nanos))
+    std::env::temp_dir().join(format!("pinker_phase113_{}", nanos))
 }

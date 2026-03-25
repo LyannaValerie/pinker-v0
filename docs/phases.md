@@ -8,8 +8,8 @@
 > A crônica histórica oficial é `docs/history.md`.
 
 ## Estado atual
-- Fase funcional atual: **112 — branch condicional real mínimo no backend nativo externo**.
-- Fase funcional anterior: **111 — múltiplos blocos, labels e salto incondicional no backend nativo real**.
+- Fase funcional atual: **113 — loops reais mínimos no backend nativo externo**.
+- Fase funcional anterior: **112 — branch condicional real mínimo no backend nativo externo**.
 - Hotfix extraordinário ativo mais recente: **HF-3**.
 - Última rodada documental: **Doc-19 — encerramento formal do Bloco 8 e abertura canônica do Bloco 9**.
 

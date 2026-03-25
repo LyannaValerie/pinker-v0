@@ -19,9 +19,9 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 
 /// Emite um `.s` mínimo montável por toolchain externa (assembler+linker do sistema).
 ///
-/// Escopo deliberadamente mínimo para a Fase 112:
+/// Escopo deliberadamente mínimo para a Fase 113:
 /// - target assumido: Linux x86_64 (SysV) hospedado;
-/// - subset aceito: funções `-> bombom` com múltiplos blocos/labels, `jmp` incondicional e branch condicional mínimo;
+/// - subset aceito: funções `-> bombom` com múltiplos blocos/labels, `jmp` incondicional, branch condicional mínimo e loop mínimo por retorno de salto entre blocos;
 /// - disciplina mínima de registradores/frame: `%rax` (retorno/acumulador), `%rdi` (arg0), `%rsi` (arg1), `%r10` (temporário volátil), slots em frame `%rbp`;
 /// - memória mínima real garantida: load/store em slots de frame via `movq -off(%rbp), %reg` e `movq %reg, -off(%rbp)`;
 /// - branch condicional mínimo via teste contra zero (`cmpq $0` + `jne`) e sem ABI completa.
@@ -209,7 +209,7 @@ fn extract_external_callconv_program(
                 },
                 _ => {
                     return Err(err(
-                        "subset externo montável (Fase 112) exige terminador `jmp`, `br` ou `ret <valor>` em cada bloco",
+                        "subset externo montável (Fase 113) exige terminador `jmp`, `br` ou `ret <valor>` em cada bloco",
                     ));
                 }
             };
@@ -232,6 +232,9 @@ fn extract_external_callconv_program(
                     }
                     SelectedInstr::CmpEq { dest, lhs, rhs } => {
                         body.extend(lower_cmp_eq(*dest, lhs, rhs, &slot_offsets)?);
+                    }
+                    SelectedInstr::CmpLt { dest, lhs, rhs } => {
+                        body.extend(lower_cmp_lt(*dest, lhs, rhs, &slot_offsets)?);
                     }
                     SelectedInstr::Call {
                         dest,
@@ -271,7 +274,7 @@ fn extract_external_callconv_program(
                     }
                     _ => {
                         return Err(err(
-                            "subset externo montável (Fase 112) aceita apenas atribuição, aritmética linear (+,-,*), comparação mínima (`==`), call direta com até 2 argumentos `bombom` e load/store em slots de frame",
+                            "subset externo montável (Fase 113) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==` e `<`), call direta com até 2 argumentos `bombom` e load/store em slots de frame",
                         ));
                     }
                 }
@@ -300,7 +303,7 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
     line(
         &mut out,
         0,
-        "# pinker v0 external toolchain subset (fase 112, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp + branch condicional minimo)",
+        "# pinker v0 external toolchain subset (fase 113, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo)",
     );
     line(&mut out, 0, ".text");
 
@@ -442,6 +445,26 @@ fn lower_cmp_eq(
     Ok(body)
 }
 
+fn lower_cmp_lt(
+    dest: crate::cfg_ir::TempIR,
+    lhs: &OperandIR,
+    rhs: &OperandIR,
+    slot_offsets: &HashMap<String, u32>,
+) -> Result<Vec<String>, PinkerError> {
+    let mut body = Vec::new();
+    body.extend(load_operand(REG_RET, lhs, slot_offsets)?);
+    body.extend(load_operand(REG_TMP, rhs, slot_offsets)?);
+    body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
+    body.push("setb %al".to_string());
+    body.push("movzbq %al, %rax".to_string());
+    body.push(format!(
+        "movq {}, -{}(%rbp)",
+        REG_RET,
+        slot_offsets[&temp_key(dest)]
+    ));
+    Ok(body)
+}
+
 fn collect_temp_ids(function: &crate::instr_select::SelectedFunction) -> BTreeSet<String> {
     let mut ids = BTreeSet::new();
     for block in &function.blocks {
@@ -529,18 +552,18 @@ fn validate_external_block_labels(
     for block in &function.blocks {
         if block.label.trim().is_empty() {
             return Err(err(
-                "subset externo montável (Fase 112) encontrou bloco sem label",
+                "subset externo montável (Fase 113) encontrou bloco sem label",
             ));
         }
         if !labels.insert(block.label.clone()) {
             return Err(err(
-                "subset externo montável (Fase 112) encontrou label duplicado em função",
+                "subset externo montável (Fase 113) encontrou label duplicado em função",
             ));
         }
     }
     if !labels.contains("entry") {
         return Err(err(
-            "subset externo montável (Fase 112) exige bloco `entry` em cada função",
+            "subset externo montável (Fase 113) exige bloco `entry` em cada função",
         ));
     }
     for block in &function.blocks {
@@ -548,7 +571,7 @@ fn validate_external_block_labels(
             SelectedTerminator::Jmp(target) => {
                 if !labels.contains(target) {
                     return Err(err(
-                        "subset externo montável (Fase 112) encontrou `jmp` para label inexistente",
+                        "subset externo montável (Fase 113) encontrou `jmp` para label inexistente",
                     ));
                 }
             }
@@ -565,17 +588,17 @@ fn validate_external_block_labels(
                         | OperandIR::Temp(_)
                 ) {
                     return Err(err(
-                        "subset externo montável (Fase 112) exige condição de `br` em inteiro local/temporário/imediato",
+                        "subset externo montável (Fase 113) exige condição de `br` em inteiro local/temporário/imediato",
                     ));
                 }
                 if !labels.contains(then_label) {
                     return Err(err(
-                        "subset externo montável (Fase 112) encontrou `br` com alvo verdadeiro inexistente",
+                        "subset externo montável (Fase 113) encontrou `br` com alvo verdadeiro inexistente",
                     ));
                 }
                 if !labels.contains(else_label) {
                     return Err(err(
-                        "subset externo montável (Fase 112) encontrou `br` com alvo falso inexistente",
+                        "subset externo montável (Fase 113) encontrou `br` com alvo falso inexistente",
                     ));
                 }
             }

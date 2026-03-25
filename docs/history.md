@@ -683,6 +683,14 @@ Fase 112 - branch condicional real mínimo no backend nativo externo
 - Continuidade preservada do recorte 9.1: múltiplos blocos, labels, `jmp` incondicional, validação de `entry` e rejeição de label duplicado/`jmp` inexistente.
 - Exemplo versionado incluído: `examples/fase112_branch_condicional_minimo_valido.pink`.
 - Fora de escopo explícito preservado: loops (`sempre que`), comparações além de `==`, globais, `.rodata`, ABI mais larga, compostos e runtime nativa nova.
+Fase 113 - loops reais mínimos no backend nativo externo
+- Terceira fase funcional do Bloco 9 (item 9.3) concluída em recorte mínimo, auditável e sem puxar o item 9.4.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar loop mínimo real entre blocos no caminho de `sempre que`, com ciclo explícito por label de condição e `jmp` de retorno ao cabeçalho.
+- Recorte de comparação do subset externo ampliado de forma mínima para `==` e `<` (com lowering auditável para `cmp` + `setcc` + `movzbq`), preservando as restrições de ABI e de superfície já consolidadas.
+- Continuidade preservada do recorte 9.1/9.2: múltiplos blocos, labels, `jmp`, `br`, validação de `entry` e rejeição de label/alvo inexistente.
+- Exemplo versionado incluído: `examples/fase113_loops_reais_minimos_validos.pink`.
+- Fora de escopo explícito preservado: loops amplos, `break`/`continue` gerais, comparações além de `==`/`<`, globais, `.rodata`, ABI mais larga, compostos e runtime nativa nova.
+
 
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
