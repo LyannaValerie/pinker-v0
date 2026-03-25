@@ -44,7 +44,7 @@ Evitar keywords que:
 
 `apelido`, `ninho`, `seta`, `virar`, `peso`, `alinhamento`, `fragil`, `sussurro`, `livre`, `trazer`, `verso`.
 
-### Runtime textual/I/O (Bloco 8)
+### Runtime textual/I/O (Bloco 8, encerrado como trilha ativa)
 
 `falar`, `ouvir`, `ouvir_verso`, `ouvir_verso_ou`, `abrir`, `fechar`, `escrever`, `ler_arquivo`, `juntar_verso`, `tamanho_verso`, `indice_verso`, `argumento`, `argumento_ou`, `quantos_argumentos`, `tem_argumento`, `ambiente_ou`, `diretorio_atual`, `caminho_existe`, `e_arquivo`, `e_diretorio`, `juntar_caminho`, `tamanho_arquivo`, `e_vazio`, `criar_diretorio`, `remover_arquivo`, `remover_diretorio`, `ler_verso_arquivo`, `ler_arquivo_verso`, `arquivo_ou`, `criar_arquivo`, `escrever_verso`, `truncar_arquivo`, `abrir_anexo`, `anexar_verso`, `contem_verso`, `comeca_com`, `termina_com`, `igual_verso`, `vazio_verso`, `aparar_verso`, `minusculo_verso`, `maiusculo_verso`, `indice_verso_em`, `nao_vazio_verso`, `sair`.
 
@@ -88,3 +88,9 @@ Antes de aceitar keyword nova:
 2. avaliar colisão com família lexical já existente;
 3. registrar status (aceita/rejeitada/provisória);
 4. atualizar `docs/history.md` quando houver decisão material.
+
+
+## 10. Nota de continuidade Engine ↔ Rosa
+
+- Encerramento formal do Bloco 8 não reduz o valor lexical das intrínsecas de I/O já aceitas; apenas muda a prioridade da trilha ativa.
+- A abertura do Bloco 9 não introduz keyword nova por padrão; foco imediato é ampliar cobertura semântica no backend nativo real existente.

@@ -114,7 +114,7 @@ Os 6 itens acima representam a ordem interna sugerida do Bloco 7. A numeração 
 
 ### Bloco 8 — I/O e ecossistema útil
 
-**Status**: **trilha ativa atual**. Abertura documental realizada após consolidação suficiente do Bloco 7 (Fases 73–84).
+**Status**: **encerrado como trilha ativa por suficiência funcional/documental**. A consolidação das Fases 85–110 tornou o recorte de I/O/ecossistema útil suficientemente estável e auditável para encerrar o bloco sem exaustão total das possibilidades.
 
 **Objetivo geral**: transformar a Pinker em linguagem mais interativa e útil para scripts, tooling e ecossistema — ampliando a superfície de I/O e tornando a linguagem mais utilizável no dia a dia.
 
@@ -164,6 +164,72 @@ Status de execução no bloco:
 - **Fase 108 concluída (refinamento mínimo pós-Fase 107)**: append textual mínimo em `--run` com `abrir_anexo(verso) -> bombom` e `anexar_verso(bombom, verso) -> nulo`, com append por handle sem newline implícito e sem abrir append por caminho, múltiplos modos gerais, streaming, escrita por linha, seek/cursor público ou API ampla de filesystem/texto.
 - **Fase 109 concluída (refinamento mínimo pós-Fase 108)**: leitura textual mínima direta por caminho em `--run` com `ler_arquivo_verso(verso) -> verso` e fallback ergonômico `arquivo_ou(verso, verso) -> verso`, com leitura completa por caminho e fallback textual para ausência/impossibilidade simples de leitura, sem streaming, sem escrita/append por caminho, sem modos ricos, sem seek/cursor e sem biblioteca ampla de filesystem/texto.
 - **Fase 110 concluída (refinamento mínimo pós-Fase 109)**: entrada textual mínima em `--run` com `ouvir_verso() -> verso` e `ouvir_verso_ou(verso) -> verso`, com leitura textual única da stdin, remoção mínima de newline final e fallback textual simples para EOF/impossibilidade operacional simples, sem streaming, sem leitura não bloqueante, sem timeout, sem API rica de terminal e sem biblioteca ampla de entrada textual.
+
+#### Encerramento formal do Bloco 8
+
+- O Bloco 8 cumpriu sua função de ampliar a utilidade prática da Pinker em `--run` com I/O/ecossistema útil em recorte mínimo, auditável e historicamente consistente.
+- O bloco consolidou `argv`/ambiente/path/arquivo/texto/entrada em subset funcional suficiente para scripts e tooling simples, sem competir com ecossistemas ricos.
+- O encerramento é por **suficiência de trilha**, não por exaustão de possibilidades.
+- Este encerramento **não proíbe** futuras fases relacionadas a I/O; apenas remove o tema como trilha principal ativa.
+- Qualquer ampliação futura de I/O deve surgir subordinada à maturidade global do projeto, e não como continuação aberta imediata do Bloco 8.
+
+---
+
+### Bloco 9 — ampliação do backend nativo real
+
+**Status**: **trilha ativa atual** (abertura canônica após encerramento formal do Bloco 8).
+
+**Tese do bloco**:
+- o backend nativo real já existe e é o ponto de partida;
+- o Bloco 9 não reinicia backend;
+- o objetivo é ampliar cobertura semântica real sustentada no backend nativo;
+- foco em cobertura/robustez incremental do subset, não em performance, otimização ou backend pleno.
+
+**Escada interna (ordem sugerida e auditável)**:
+
+1. **9.1 — múltiplos blocos, labels e salto incondicional**
+   - sair do modelo excessivamente linear/bloco único;
+   - suporte mínimo a labels/blocos e transferência explícita de controle;
+   - sem inflar condicionais nesta etapa.
+2. **9.2 — branch condicional real**
+   - comparações mínimas + `cmp`/`jcc` (ou equivalente no recorte adotado);
+   - desvio condicional auditável, focado em controle de fluxo real.
+3. **9.3 — loops reais**
+   - `while`/looping mínimo coerente com a etapa de branch;
+   - sem abrir subsistema complexo de controle de fluxo.
+4. **9.4 — globais mínimas e base de `.rodata`**
+   - armazenamento global mínimo;
+   - base estrutural para constantes estáticas/`.rodata`;
+   - preparação explícita para usos futuros (incluindo literais/strings mínimas) sem antecipar API ampla de strings.
+5. **9.5 — ABI mínima mais larga, ainda conservadora**
+   - ampliar capacidade de chamadas sem prometer ABI plena;
+   - etapa mais larga que o subset anterior, mantendo recorte mínimo;
+   - pode evoluir em duas camadas conservadoras em vez de salto único.
+6. **9.6 — tipos compostos mínimos no backend nativo real**
+   - primeiros passos honestos com structs/tuplas/arrays no backend nativo;
+   - sem allocator completo, sem layout universal rico e sem promessa de cobertura total imediata.
+
+#### Exclusões explícitas do Bloco 9
+
+Por padrão, o Bloco 9 **não cobre**:
+- backend nativo pleno;
+- otimizador/otimizações relevantes;
+- allocator completo;
+- runtime grande;
+- subsistema amplo de strings;
+- ecossistema de terminal rico;
+- suporte geral a `sussurro` amplo;
+- redesign completo da pipeline;
+- performance tuning como objetivo principal;
+- autohospedagem;
+- independência total do backend para todos os recortes futuros da linguagem.
+
+#### Trava de runtime nativa mínima no Bloco 9
+
+- qualquer runtime nativa mínima do Bloco 9 só pode entrar para desbloquear demonstração observável de capacidade semântica já conquistada no backend;
+- a runtime serve ao backend;
+- a runtime não pode sequestrar o bloco;
+- a runtime não pode virar trilha paralela de conveniência.
 
 ---
 
