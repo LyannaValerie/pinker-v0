@@ -75,7 +75,7 @@ carinho principal() -> bombom { mimo 0; }";
     let err = render_backend_s(code).unwrap_err();
     assert!(err
         .to_string()
-        .contains("backend .s textual da Fase 54 ainda não suporta slot"));
+        .contains("backend .s textual ainda não suporta slot"));
 }
 
 #[test]

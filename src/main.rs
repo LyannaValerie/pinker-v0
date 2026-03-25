@@ -60,7 +60,7 @@ fn usage(binary: &str) -> String {
            --selected  imprime a camada de seleção de instruções textual\n\
            --machine   imprime o alvo textual abstrato (máquina de pilha)\n\
            --pseudo-asm imprime backend textual pseudo-assembly final\n\
-           --asm-s     imprime backend textual `.s` (Fase 54, ABI textual mínima)\n\
+           --asm-s     imprime backend textual `.s` (ABI textual mínima)\n\
            --run       interpreta a machine validada e executa principal\n\
            --          separa argumentos posicionais repassados para `argumento(i)`/`argumento_ou(i, padrao)` em --run\n\
            --check     executa apenas a validação semântica\n"
@@ -393,7 +393,7 @@ fn run_analyze(config: Config) {
         );
     }
 
-    // --- Backend textual `.s` (Fase 54) ---
+    // --- Backend textual `.s` ---
     // Esta saída textual parte de `selected_program`, com ABI textual mínima interna
     // (ainda sem ABI/registradores reais de plataforma).
     if config.print_asm_s {

@@ -5,13 +5,16 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Doc-20 — encerramento conservador do Bloco 9**.
-- Rodada documental, sem implementação funcional nova.
+- **HF-4 — varredura completa de repositório e higiene estrutural pós-B9**.
+- Hotfix transversal sem implementação funcional nova.
 
-## 2. Consolidação factual do Bloco 9
-- O Bloco 9 foi encerrado como trilha ativa por suficiência conservadora: ampliou de modo real e auditável o backend nativo externo, sem transformá-lo em backend pleno.
-- Recorte entregue no backend externo consolidado em seis degraus: 9.1 (múltiplos blocos/labels/`jmp`), 9.2 (branch condicional mínimo), 9.3 (loops mínimos), 9.4 (globais mínimas com base `.rodata`), 9.5 (ABI mínima mais larga, ainda conservadora) e 9.6 (compostos mínimos).
-- Item 9.6 está fechado apenas no recorte homogêneo conservador atual: `seta<bombom>`, `deref_load` mínimo, offset explícito e `deref_store` mínimo homogêneo; sem heterogeneidade, sem composto por valor na ABI e sem sistema geral de agregados.
+## 2. Escopo do HF-4
+- Correção estrutural de `history.md`: Fases 111–119 reencaixadas na seção FASES; Doc-20 reencaixada na seção DOCUMENTAÇÃO.
+- Mensagens de erro desatualizadas corrigidas em `backend_s.rs` (referências a "Fase 54" removidas de diagnósticos).
+- Texto de ajuda da CLI corrigido em `main.rs` (referência a "Fase 54" removida de `--asm-s`).
+- Drift documental corrigido em `future.md` ("até 2 args" → "até 3 args").
+- Varredura completa de código, testes, exemplos e documentação.
+- Nenhuma feature funcional nova introduzida.
 
 ## 3. Continuidade preservada
 - Fase funcional atual permanece **119**.

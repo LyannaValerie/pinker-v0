@@ -39,7 +39,7 @@ fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerErr
     for function in &selected.functions {
         if !is_supported_type(function.ret_type) {
             return Err(err(&format!(
-                "backend .s textual da Fase 54 ainda não suporta retorno '{}' em '{}'",
+                "backend .s textual ainda não suporta retorno '{}' em '{}'",
                 function.ret_type.name(),
                 function.name
             )));
@@ -48,7 +48,7 @@ fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerErr
         for (slot, ty) in &function.slot_types {
             if !is_supported_type(*ty) {
                 return Err(err(&format!(
-                    "backend .s textual da Fase 54 ainda não suporta slot '{}' do tipo '{}' em '{}'",
+                    "backend .s textual ainda não suporta slot '{}' do tipo '{}' em '{}'",
                     slot,
                     ty.name(),
                     function.name
@@ -61,7 +61,7 @@ fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerErr
                 if let SelectedInstr::Call { ret_type, .. } = inst {
                     if !is_supported_type(*ret_type) {
                         return Err(err(&format!(
-                            "backend .s textual da Fase 54 ainda não suporta call com retorno '{}'",
+                            "backend .s textual ainda não suporta call com retorno '{}'",
                             ret_type.name()
                         )));
                     }
