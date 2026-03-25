@@ -1,0 +1,13 @@
+pacote main;
+
+// Fase 113: loop real mínimo no backend externo.
+// Recorte: condição de loop com `<` entre `bombom`, atualização local simples e saída por branch.
+carinho principal() -> bombom {
+    nova muda x: bombom = 0;
+
+    sempre que x < 3 {
+        x = x + 1;
+    }
+
+    mimo x;
+}

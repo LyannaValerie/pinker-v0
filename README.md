@@ -46,7 +46,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - append textual mínimo em `--run` com `abrir_anexo(verso) -> bombom` e `anexar_verso(bombom, verso) -> nulo`, sem newline implícito e sem abrir modos ricos de arquivo (Fase 108)
 - leitura textual mínima direta por caminho em `--run` com `ler_arquivo_verso(verso) -> verso` e fallback ergonômico `arquivo_ou(verso, verso) -> verso`, sem streaming, sem escrita por caminho e sem API rica de handles (Fase 109)
 - comando de projeto `pink build <arquivo.pink>` para gerar artefato textual `.s` em disco (padrão: `build/<arquivo>.s`)
-- backend nativo real (subset externo montável) ampliado para múltiplos blocos, labels, salto incondicional (`jmp`) e branch condicional mínimo (`br`) no recorte da Fase 112
+- backend nativo real (subset externo montável) ampliado para múltiplos blocos, labels, salto incondicional (`jmp`), branch condicional mínimo (`br`) e loops reais mínimos no recorte da Fase 113
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
 - AST textual estável
@@ -256,17 +256,17 @@ Existe também integração externa **experimental e mínima** para Linux x86_64
 - frame mínimo explícito por função: `%rbp`, slots lineares para parâmetros/locais/temporários, `%r10` como temporário volátil de binárias;
 - load/store em slots de frame via `%rbp` (`movq -off(%rbp), %reg` / `movq %reg, -off(%rbp)`);
 - composição linear interprocedural (encadeamento de chamadas diretas em múltiplos níveis no mesmo executável);
-- múltiplos blocos por função com labels nomeadas, `jmp` e branch condicional mínimo (`cmp` + `jcc`) no backend externo (Fase 112).
+- múltiplos blocos por função com labels nomeadas, `jmp`, branch condicional mínimo (`cmp` + `jcc`) e loops reais mínimos no backend externo (Fase 113).
 
 Fora do subset externo montável atual:
-- sem loops (`sempre que`);
+- sem loops amplos (`sempre que`) além do recorte mínimo da Fase 113;
 - sem memória indireta geral/ponteiros;
 - sem globais, sem 3+ parâmetros, sem parâmetros não `bombom`;
 - sem recursão externa e sem ABI completa de plataforma/register allocation amplo.
 
 Recusas explícitas e auditáveis:
 - 3+ parâmetros por função/call → rejeitado com diagnóstico explícito;
-- loops (`sempre que`) e comparações além do recorte mínimo (`==`) → rejeitado com diagnóstico explícito.
+- loops (`sempre que`) fora do recorte mínimo (`==` e `<`) e comparações adicionais além desse recorte → rejeitado com diagnóstico explícito.
 
 Fluxo experimental reproduzível:
 ```bash
@@ -283,8 +283,9 @@ Fronteira auditável atual do subset externo (`--asm-s` montável):
 | memória mínima de frame via `%rbp` (load/store em slots) | garantido | exemplo `fase77_backend_externo_memoria_frame_valido` + teste externo |
 | múltiplos blocos + labels + `jmp` incondicional | garantido | exemplo `fase111_blocos_labels_salto_incondicional_valido` + testes externos |
 | branch condicional mínimo com `==` + `cmp`/`jcc` | garantido | exemplo `fase112_branch_condicional_minimo_valido` + testes externos |
+| loops reais mínimos com condição `<` e retorno ao cabeçalho via `jmp` | garantido | exemplo `fase113_loops_reais_minimos_validos` + testes externos |
 | 3+ parâmetros por função/call | rejeitado explicitamente | exemplo `fase81_backend_externo_recusa_explicita_tres_parametros_invalido` + testes negativos |
-| loops (`sempre que`) e condicionais fora do recorte mínimo | rejeitado explicitamente | exemplo `fase84_backend_externo_recusa_explicita_sempre_que_invalido` + testes negativos |
+| loops/condições fora do recorte mínimo (`==` e `<`) | rejeitado explicitamente | exemplo `fase113_loop_condicao_invalida_invalido` + testes negativos |
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 

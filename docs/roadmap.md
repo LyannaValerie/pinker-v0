@@ -212,6 +212,7 @@ Status de execução no bloco:
 **Status de execução no bloco**:
 - **Fase 111 concluída (entrada inicial do item 9.1)**: backend nativo externo passou a aceitar múltiplos blocos por função com labels e `jmp` incondicional auditável, mantendo rejeição explícita para branch condicional (`talvez/senao`/`sempre que`) neste recorte.
 - **Fase 112 concluída (entrada inicial do item 9.2)**: backend nativo externo passou a aceitar branch condicional mínimo auditável com comparação `==` e emissão `cmp`/`jcc`, preservando recorte pequeno e sem abrir loops.
+- **Fase 113 concluída (entrada inicial do item 9.3)**: backend nativo externo passou a aceitar loops reais mínimos (`sempre que`) no recorte auditável com condição `==`/`<`, mantendo fora `break`/`continue` amplos e comparações gerais.
 
 #### Exclusões explícitas do Bloco 9
 
