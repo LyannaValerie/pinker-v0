@@ -668,6 +668,14 @@ Doc-19 - encerramento formal do Bloco 8 e abertura canônica do Bloco 9
 - Trava canônica de runtime nativa mínima registrada: runtime só entra para demonstrar capacidade semântica já conquistada no backend e não pode sequestrar o bloco.
 - `agent_state.md`, `handoff_codex.md`, `phases.md`, `roadmap.md`, `ponte_engine_rosa.md`, `vocabulario.md` e `README.md` sincronizados com a transição B8 -> B9.
 
+Fase 111 - múltiplos blocos, labels e salto incondicional no backend nativo real
+- Primeira fase funcional do Bloco 9 (item 9.1) concluída em recorte mínimo, auditável e sem abrir branch condicional.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar múltiplos blocos por função com labels e terminadores `jmp`/`ret`.
+- Rejeições explícitas mantidas para branch condicional (`talvez/senao` e `sempre que`) no subset externo desta fase.
+- Validações mínimas adicionadas para labels no caminho externo: bloco `entry` obrigatório, label duplicado inválido e `jmp` para label inexistente inválido.
+- Exemplo versionado incluído: `examples/fase111_blocos_labels_salto_incondicional_valido.pink`.
+- Base preparada para 9.2 sem antecipar `cmp`/`jcc`, loops, globais, `.rodata`, ABI mais larga ou tipos compostos.
+
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

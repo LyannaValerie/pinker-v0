@@ -46,6 +46,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - append textual mínimo em `--run` com `abrir_anexo(verso) -> bombom` e `anexar_verso(bombom, verso) -> nulo`, sem newline implícito e sem abrir modos ricos de arquivo (Fase 108)
 - leitura textual mínima direta por caminho em `--run` com `ler_arquivo_verso(verso) -> verso` e fallback ergonômico `arquivo_ou(verso, verso) -> verso`, sem streaming, sem escrita por caminho e sem API rica de handles (Fase 109)
 - comando de projeto `pink build <arquivo.pink>` para gerar artefato textual `.s` em disco (padrão: `build/<arquivo>.s`)
+- backend nativo real (subset externo montável) ampliado para múltiplos blocos, labels e salto incondicional (`jmp`) no recorte da Fase 111, mantendo branch condicional fora do subset
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
 - AST textual estável
@@ -254,18 +255,18 @@ Existe também integração externa **experimental e mínima** para Linux x86_64
 - chamadas diretas com **até 2 argumentos `bombom`**, com convenção concreta mínima: `%rdi` (arg0), `%rsi` (arg1), retorno em `%rax`;
 - frame mínimo explícito por função: `%rbp`, slots lineares para parâmetros/locais/temporários, `%r10` como temporário volátil de binárias;
 - load/store em slots de frame via `%rbp` (`movq -off(%rbp), %reg` / `movq %reg, -off(%rbp)`);
-- composição linear interprocedural (encadeamento de chamadas diretas em múltiplos níveis no mesmo executável).
+- composição linear interprocedural (encadeamento de chamadas diretas em múltiplos níveis no mesmo executável);
+- múltiplos blocos por função com labels nomeadas e `jmp` incondicional no backend externo (Fase 111, sem branch condicional).
 
 Fora do subset externo montável atual:
-- sem controle de fluxo geral (`talvez/senão`, loops);
+- sem branch condicional (`talvez/senão`, loops);
 - sem memória indireta geral/ponteiros;
 - sem globais, sem 3+ parâmetros, sem parâmetros não `bombom`;
 - sem recursão externa e sem ABI completa de plataforma/register allocation amplo.
 
 Recusas explícitas e auditáveis:
 - 3+ parâmetros por função/call → rejeitado com diagnóstico explícito;
-- `talvez/senão` no backend externo → rejeitado com diagnóstico explícito.
-- `sempre que` no backend externo → rejeitado com diagnóstico explícito.
+- branch condicional no backend externo (`talvez/senão` e `sempre que`) → rejeitado com diagnóstico explícito.
 
 Fluxo experimental reproduzível:
 ```bash
@@ -280,9 +281,9 @@ Fronteira auditável atual do subset externo (`--asm-s` montável):
 | `principal() -> bombom` com locals `bombom` + aritmética linear | garantido | exemplo `fase73_backend_externo_locais_aritmetica_valido` + teste externo |
 | chamadas diretas com até 2 parâmetros `bombom` | garantido | exemplos `fase76`/`fase78`/`fase80` + testes externos |
 | memória mínima de frame via `%rbp` (load/store em slots) | garantido | exemplo `fase77_backend_externo_memoria_frame_valido` + teste externo |
+| múltiplos blocos + labels + `jmp` incondicional | garantido | exemplo `fase111_blocos_labels_salto_incondicional_valido` + testes externos |
 | 3+ parâmetros por função/call | rejeitado explicitamente | exemplo `fase81_backend_externo_recusa_explicita_tres_parametros_invalido` + testes negativos |
-| `talvez/senão` no backend externo | rejeitado explicitamente | exemplo `fase82_backend_externo_recusa_explicita_talvez_senao_invalido` + testes negativos |
-| `sempre que` no backend externo | rejeitado explicitamente | exemplo `fase84_backend_externo_recusa_explicita_sempre_que_invalido` + testes negativos |
+| branch condicional no backend externo (`talvez/senão`/`sempre que`) | rejeitado explicitamente | exemplos `fase82`/`fase84` + testes negativos |
 
 `--check` continua restrito à validação semântica (não executa lowering IR/CFG nem emissão textual).
 
