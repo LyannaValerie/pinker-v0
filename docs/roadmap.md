@@ -214,6 +214,7 @@ Status de execução no bloco:
 - **Fase 112 concluída (entrada inicial do item 9.2)**: backend nativo externo passou a aceitar branch condicional mínimo auditável com comparação `==` e emissão `cmp`/`jcc`, preservando recorte pequeno e sem abrir loops.
 - **Fase 113 concluída (entrada inicial do item 9.3)**: backend nativo externo passou a aceitar loops reais mínimos (`sempre que`) no recorte auditável com condição `==`/`<`, mantendo fora `break`/`continue` amplos e comparações gerais.
 - **Fase 114 concluída (entrada inicial do item 9.4)**: backend nativo externo passou a aceitar globais estáticas mínimas (`eterno` literal `bombom`/`logica`) com emissão auditável de `.section .rodata` e leitura por símbolo no fluxo externo, sem abrir strings amplas nem sistema global rico.
+- **Fase 115 concluída (primeira camada do item 9.5)**: backend nativo externo ampliou a ABI mínima de call direta de até 2 para até 3 argumentos `bombom` (`%rdi/%rsi/%rdx`), mantendo recusa explícita de 4+ argumentos e sem abrir ABI plena.
 
 #### Exclusões explícitas do Bloco 9
 
