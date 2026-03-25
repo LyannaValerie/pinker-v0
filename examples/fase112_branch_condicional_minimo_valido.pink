@@ -1,0 +1,15 @@
+pacote main;
+
+// Fase 112: branch condicional real mínimo no backend externo.
+// Recorte adotado: comparação `==` mínima para produzir condição lógica
+// seguida de branch entre dois blocos válidos.
+carinho principal() -> bombom {
+    nova x: bombom = 4;
+    nova y: bombom = 4;
+
+    talvez x == y {
+        mimo 7;
+    } senao {
+        mimo 3;
+    }
+}
