@@ -5,28 +5,29 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 119 — compostos mínimos (camada 4 conservadora, fechamento do recorte homogêneo) no backend nativo externo**.
-- Nona fase funcional do Bloco 9 concluída em recorte mínimo, auditável e conservador.
+- **Doc-20 — encerramento conservador do Bloco 9**.
+- Rodada documental, sem implementação funcional nova.
 
-## 2. O que entrou na rodada atual
-- Backend externo montável consolidou o recorte do item 9.6 em camada 4 conservadora: manteve `seta<bombom>`, `deref_load` e `deref_store` homogêneos e fechou o uso como par mínimo auditável com sequência coesa de leituras/escritas e releitura por offsets explícitos.
-- Recorte estrutural explícito da camada: unidade mínima homogênea externa (par de `bombom` em memória apontada) com manipulação observável mais forte no output (`--asm-s`) sem composto por valor na ABI.
-- Validações mínimas preservadas no caminho externo: usos fora de `bombom`/`seta<bombom>` seguem recusados; caminho `fragil` em acesso indireto externo continua fora; composto amplo/heterogêneo continua fora.
-- Exemplo versionado da fase adicionado (`examples/fase119_compostos_minimos_camada4_valida.pink`) com cobertura de testes para emissão auditável e fluxo real do novo fechamento conservador.
+## 2. Consolidação factual do Bloco 9
+- O Bloco 9 foi encerrado como trilha ativa por suficiência conservadora: ampliou de modo real e auditável o backend nativo externo, sem transformá-lo em backend pleno.
+- Recorte entregue no backend externo consolidado em seis degraus: 9.1 (múltiplos blocos/labels/`jmp`), 9.2 (branch condicional mínimo), 9.3 (loops mínimos), 9.4 (globais mínimas com base `.rodata`), 9.5 (ABI mínima mais larga, ainda conservadora) e 9.6 (compostos mínimos).
+- Item 9.6 está fechado apenas no recorte homogêneo conservador atual: `seta<bombom>`, `deref_load` mínimo, offset explícito e `deref_store` mínimo homogêneo; sem heterogeneidade, sem composto por valor na ABI e sem sistema geral de agregados.
 
 ## 3. Continuidade preservada
-- Fase funcional atual passa para **119**.
-- Fase funcional anterior passa para **118**.
-- Bloco ativo permanece **Bloco 9 — ampliação do backend nativo real**.
-- Bloco 8 permanece fechado como trilha ativa; pode receber ampliações futuras apenas de forma subordinada e extraordinária.
+- Fase funcional atual permanece **119**.
+- Fase funcional anterior permanece **118**.
+- Bloco 9 deixa de ser trilha principal ativa.
+- Encerramento do Bloco 9 não proíbe evolução futura de backend externo; apenas remove continuidade automática desta trilha.
 
-## 4. Próximo item normal
-- Item **9.6** encontra-se fechado no recorte homogêneo conservador atual; qualquer nova evolução deve ser excepcional, pequena e explícita, sem abrir composto amplo/ABI composta.
-- Não reabrir Bloco 8 salvo necessidade extraordinária, objetiva e bem justificada.
+## 4. Restrições operacionais explícitas
+- Não continuar automaticamente o item 9.6.
+- Não reabrir o Bloco 9 salvo necessidade extraordinária, pequena e bem justificada.
+- Manter exclusões explícitas: sem backend pleno, sem ABI ampla/plena, sem composto por valor na ABI, sem retorno composto amplo, sem structs/arrays gerais e sem sistema global/layout geral sofisticado.
+- A próxima frente funcional deve ser definida conscientemente, não por inércia documental.
 
 ## 5. Precedência resumida
 - Código mergeado prevalece.
-- `roadmap.md` define trilha ativa.
+- `roadmap.md` define a ordem ativa.
 - `history.md` guarda continuidade factual.
 - `atlas.md` organiza navegação dual.
 - `rosa.md`/`vocabulario.md` guardam identidade lexical e visão.
