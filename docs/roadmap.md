@@ -292,6 +292,9 @@ Por padrão, o Bloco 9 **não cobre**:
 6. **10.6 — `verso` mínima (condicional)**
    - item final e condicional do bloco, sem garantia de execução.
 
+**Status de execução no bloco**:
+- **Fase 120 concluída (entrada inicial do item 10.1)**: backend nativo externo abriu recorte mínimo e auditável para inteiro fixo adicional `u32` em parâmetros/locais no fluxo externo, preservando o subset anterior, sem abrir comparações ampliadas, casts amplos ou ABI plena.
+
 #### Exclusões explícitas do Bloco 10
 
 Por padrão, o Bloco 10 **não cobre**:

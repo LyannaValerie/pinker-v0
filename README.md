@@ -2,7 +2,7 @@
 
 Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 
-Status documental corrente: **Doc-21 abriu o Bloco 10** como trilha ativa do roadmap, com tese de **cobertura semântica do backend nativo** (sem prometer backend pleno).
+Status documental corrente: **Fase 120 abriu o item 10.1 do Bloco 10** com recorte mínimo de inteiro fixo adicional (`u32`) no backend nativo externo, mantendo tese de **cobertura semântica do backend nativo** (sem prometer backend pleno).
 
 ## O que o frontend faz hoje
 - léxico com spans
@@ -48,7 +48,7 @@ Status documental corrente: **Doc-21 abriu o Bloco 10** como trilha ativa do roa
 - append textual mínimo em `--run` com `abrir_anexo(verso) -> bombom` e `anexar_verso(bombom, verso) -> nulo`, sem newline implícito e sem abrir modos ricos de arquivo (Fase 108)
 - leitura textual mínima direta por caminho em `--run` com `ler_arquivo_verso(verso) -> verso` e fallback ergonômico `arquivo_ou(verso, verso) -> verso`, sem streaming, sem escrita por caminho e sem API rica de handles (Fase 109)
 - comando de projeto `pink build <arquivo.pink>` para gerar artefato textual `.s` em disco (padrão: `build/<arquivo>.s`)
-- backend nativo real (subset externo montável) ampliado para múltiplos blocos, labels, salto incondicional (`jmp`), branch condicional mínimo (`br`) e loops reais mínimos (Fase 113), globais estáticas mínimas em `.rodata` (Fase 114), ABI mínima mais larga (Fase 115) com call direta de até 3 argumentos `bombom` via `%rdi/%rsi/%rdx`, compostos mínimos camada 1 (Fase 116) via parâmetro `seta<bombom>` + `deref_load` (`*ptr`), compostos mínimos camada 2 conservadora (Fase 117) com local `seta<bombom>` + offset explícito e compostos mínimos camada 3 conservadora (Fase 118) com `deref_store` homogêneo mínimo (`*ptr = valor`) e camada 4 conservadora (Fase 119) com consolidação auditável de par homogêneo mínimo (leituras/escritas coesas via `seta<bombom>` + offsets explícitos) no mesmo recorte
+- backend nativo real (subset externo montável) ampliado para múltiplos blocos, labels, salto incondicional (`jmp`), branch condicional mínimo (`br`) e loops reais mínimos (Fase 113), globais estáticas mínimas em `.rodata` (Fase 114), ABI mínima mais larga (Fase 115) com call direta de até 3 argumentos, compostos mínimos camada 1 (Fase 116) via parâmetro `seta<bombom>` + `deref_load` (`*ptr`), compostos mínimos camada 2 conservadora (Fase 117) com local `seta<bombom>` + offset explícito e compostos mínimos camada 3 conservadora (Fase 118) com `deref_store` homogêneo mínimo (`*ptr = valor`) e camada 4 conservadora (Fase 119) com consolidação auditável de par homogêneo mínimo (leituras/escritas coesas via `seta<bombom>` + offsets explícitos), além da abertura mínima da Fase 120 para `u32` em parâmetros/locais no caminho externo
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
 - AST textual estável
@@ -185,6 +185,7 @@ cargo run --bin pink -- --asm-s examples/fase80_backend_externo_cobertura_linear
 cargo run --bin pink -- --asm-s examples/fase81_backend_externo_recusa_explicita_tres_parametros_invalido.pink
 cargo run --bin pink -- --asm-s examples/fase112_branch_condicional_minimo_valido.pink
 cargo run --bin pink -- --asm-s examples/fase118_compostos_minimos_camada3_valida.pink
+cargo run --bin pink -- --asm-s examples/fase120_tipos_inteiros_mais_largos_valido.pink
 cargo run --bin pink -- --asm-s examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink
 cargo run --bin pink -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run --bin pink -- --check examples/mut_falho.pink
@@ -255,7 +256,7 @@ semântica → IR estruturada → validação IR → CFG IR → validação CFG 
 
 Existe também integração externa **experimental e mínima** para Linux x86_64 via testes (`cc`/`gcc`/`clang`). O subset externo montável atual suporta:
 - `principal() -> bombom` com variáveis locais `bombom`, atribuição local e aritmética escalar linear (`+`, `-`, `*`);
-- chamadas diretas com **até 2 argumentos `bombom`**, com convenção concreta mínima: `%rdi` (arg0), `%rsi` (arg1), retorno em `%rax`;
+- chamadas diretas com **até 3 argumentos** no recorte conservador (com cobertura consolidada de `bombom` e abertura mínima para `u32` em params/locals na Fase 120), com convenção concreta mínima `%rdi/%rsi/%rdx` e retorno em `%rax`;
 - frame mínimo explícito por função: `%rbp`, slots lineares para parâmetros/locais/temporários, `%r10` como temporário volátil de binárias;
 - load/store em slots de frame via `%rbp` (`movq -off(%rbp), %reg` / `movq %reg, -off(%rbp)`);
 - composição linear interprocedural (encadeamento de chamadas diretas em múltiplos níveis no mesmo executável);
