@@ -268,7 +268,58 @@ Por padrão, o Bloco 9 **não cobre**:
 
 ---
 
+### Bloco 10 — cobertura semântica do backend nativo
+
+**Status**: **trilha ativa aberta canonicamente (Doc-21)**.
+
+**Tese do bloco**:
+- o backend nativo real já existe e é o ponto de partida;
+- o Bloco 10 existe para ampliar quanto da semântica que a Pinker já domina em outras camadas pode ser sustentada honestamente no backend nativo;
+- foco em cobertura semântica real, não em backend pleno;
+- sem transformar o bloco em trilha de performance, otimizador, runtime grande ou “embelezamento” de compilador.
+
+**Ordem interna canônica (refinada)**:
+1. **10.1 — tipos inteiros mais largos**
+   - ampliar o backend além do recorte escalar mínimo atual, com abertura pequena e auditável.
+2. **10.2 — comparações ampliadas**
+   - ampliar comparações além do recorte mínimo atual, com honestidade sobre signed/unsigned e sem abrir universo total de uma vez.
+3. **10.3 — `quebrar` / `continuar`**
+   - destravar controle de fluxo de laço em recorte mínimo e auditável, sem virar subsistema geral complexo.
+4. **10.4 — `ninho` / compostos heterogêneos mínimos**
+   - primeiro salto estrutural de heterogeneidade mínima; este item vem **antes** de `virar`.
+5. **10.5 — `virar` / cast operacional mínimo**
+   - cast útil no recorte escalar, posicionado após o primeiro salto estrutural de compostos heterogêneos mínimos.
+6. **10.6 — `verso` mínima (condicional)**
+   - item final e condicional do bloco, sem garantia de execução.
+
+#### Exclusões explícitas do Bloco 10
+
+Por padrão, o Bloco 10 **não cobre**:
+- backend nativo pleno;
+- otimizador relevante;
+- performance tuning como objetivo principal;
+- runtime grande;
+- ABI ampla/plena;
+- strings amplas por padrão;
+- sistema geral de texto;
+- sistema geral de compostos avançados;
+- redesign completo da pipeline;
+- autohospedagem;
+- independência total do backend para todos os recortes da linguagem;
+- abertura simultânea de muitos tipos/semânticas para “fechar bloco rápido”.
+
+#### Trava específica para 10.6 (`verso`)
+
+- `verso` mínima no backend nativo só pode entrar no **fim** do bloco e apenas se ainda houver chão técnico e documental.
+- Mesmo recorte pequeno de `verso` arrasta representação, `.rodata`, calling convention textual e expectativa de operações futuras.
+- Por isso, `verso` é item **condicional** e não pode sequestrar o bloco.
+- O Bloco 10 pode ser considerado bem-sucedido mesmo sem chegar a `verso`.
+
+---
+
 ## Interpretação obrigatória da trilha
+
+- Bloco 10 é a trilha ativa atual com foco disciplinado em cobertura semântica do backend nativo (sem backend pleno).
 
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.

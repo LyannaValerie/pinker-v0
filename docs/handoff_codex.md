@@ -5,32 +5,28 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **HF-4 — varredura completa de repositório e higiene estrutural pós-B9**.
-- Hotfix transversal sem implementação funcional nova.
+- **Doc-21 — abertura canônica do Bloco 10**.
+- Rodada exclusivamente documental, sem implementação funcional nova.
 
-## 2. Escopo do HF-4
-- Correção estrutural de `history.md`: Fases 111–119 reencaixadas na seção FASES; Doc-20 reencaixada na seção DOCUMENTAÇÃO.
-- Mensagens de erro desatualizadas corrigidas em `backend_s.rs` (referências a "Fase 54" removidas de diagnósticos).
-- Texto de ajuda da CLI corrigido em `main.rs` (referência a "Fase 54" removida de `--asm-s`).
-- Drift documental corrigido em `future.md` ("até 2 args" → "até 3 args").
-- Varredura completa de código, testes, exemplos e documentação.
-- Nenhuma feature funcional nova introduzida.
+## 2. Resultado operacional da rodada
+- Bloco 9 permanece encerrado conservadoramente como trilha ativa.
+- Bloco 10 foi aberto canonicamente como nova trilha ativa do roadmap.
+- Tese do Bloco 10 fixada: **cobertura semântica do backend nativo** (não backend pleno).
+- Ordem interna canônica fixada: 10.1 inteiros mais largos; 10.2 comparações ampliadas; 10.3 `quebrar`/`continuar`; 10.4 `ninho`/heterogêneo mínimo; 10.5 `virar`; 10.6 `verso` condicional.
 
 ## 3. Continuidade preservada
 - Fase funcional atual permanece **119**.
 - Fase funcional anterior permanece **118**.
-- Bloco 9 deixa de ser trilha principal ativa.
-- Encerramento do Bloco 9 não proíbe evolução futura de backend externo; apenas remove continuidade automática desta trilha.
+- Sem feature funcional nova nesta rodada.
 
-## 4. Restrições operacionais explícitas
-- Não continuar automaticamente o item 9.6.
-- Não reabrir o Bloco 9 salvo necessidade extraordinária, pequena e bem justificada.
-- Manter exclusões explícitas: sem backend pleno, sem ABI ampla/plena, sem composto por valor na ABI, sem retorno composto amplo, sem structs/arrays gerais e sem sistema global/layout geral sofisticado.
-- A próxima frente funcional deve ser definida conscientemente, não por inércia documental.
+## 4. Próximo passo correto
+- Próxima rodada normal: primeira fase funcional do item **10.1**.
+- Não pular ordem interna do Bloco 10.
+- Não inverter `ninho` e `virar`.
+- Não antecipar `verso`; item final e condicional.
 
-## 5. Precedência resumida
-- Código mergeado prevalece.
-- `roadmap.md` define a ordem ativa.
-- `history.md` guarda continuidade factual.
-- `atlas.md` organiza navegação dual.
-- `rosa.md`/`vocabulario.md` guardam identidade lexical e visão.
+## 5. Restrições explícitas do bloco
+- Sem backend nativo pleno.
+- Sem trilha de performance/otimizador como foco principal.
+- Sem runtime grande, ABI ampla/plena, sistema geral de texto ou compostos avançados.
+- Sem abertura simultânea de muitos tipos/semânticas para acelerar fechamento artificial do bloco.

@@ -6,6 +6,8 @@
 
 Este é o arquivo mestre de navegação documental da Pinker v0.
 
+Estado de navegação da rodada: trilha ativa em Engine = **Bloco 10 (cobertura semântica do backend nativo)**.
+
 ## Tese estrutural desta arquitetura
 
 A documentação da Pinker está organizada em dois hemisférios complementares:

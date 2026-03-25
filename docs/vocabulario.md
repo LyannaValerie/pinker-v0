@@ -93,5 +93,7 @@ Antes de aceitar keyword nova:
 ## 10. Nota de continuidade Engine ↔ Rosa
 
 - Encerramento formal do Bloco 8 não reduz o valor lexical das intrínsecas de I/O já aceitas; apenas mudou a prioridade da trilha ativa.
-- O encerramento conservador do Bloco 9 (Doc-20) também não introduz keyword nova por padrão; ele consolida um ganho de backend nativo externo já implementado.
-- As Fases 111, 112, 113, 114, 115, 116, 117, 118 e 119 (itens 9.1, 9.2, 9.3, 9.4, camada 1 do 9.5 e camadas 1–4 do 9.6) mantiveram essa diretriz: ampliação de blocos/labels/jump, branch condicional mínimo, loops reais mínimos, globais estáticas mínimas em `.rodata`, ABI mínima mais larga (até 3 argumentos `bombom`) e composto mínimo homogêneo por ponteiro (`seta<bombom>` com `deref_load`/`deref_store` mínimos, offsets explícitos e fechamento conservador do recorte homogêneo) no backend nativo, sem adicionar keywords públicas novas.
+- O encerramento conservador do Bloco 9 (Doc-20) não introduziu keyword nova por padrão; consolidou ganho de backend nativo externo já implementado.
+- A abertura canônica do Bloco 10 (Doc-21) também não abre keyword nova por si: define foco de cobertura semântica no backend nativo com ordem disciplinada (incluindo `ninho` antes de `virar` e `verso` como item final condicional).
+- As Fases 111, 112, 113, 114, 115, 116, 117, 118 e 119 mantiveram a diretriz de ampliar backend nativo sem inflar superfície lexical pública.
+

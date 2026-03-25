@@ -749,6 +749,15 @@ Doc-20 - encerramento conservador do Bloco 9
 - Exclusões do bloco reforçadas para evitar superestimação do backend: sem backend pleno, sem ABI ampla/plena, sem composto por valor na ABI, sem retorno composto amplo, sem structs/arrays gerais e sem sistema geral de globais/layout sofisticado.
 - Handoff operacional ajustado para impedir continuidade automática de 9.6 e para manter a próxima frente funcional em aberto disciplinado, sem reabertura do Bloco 9 por inércia.
 
+Doc-21 - abertura canônica do Bloco 10
+- Rodada exclusivamente documental, sem implementação funcional nova.
+- Bloco 10 estabelecido como nova trilha ativa do roadmap após encerramento conservador do Bloco 9.
+- Tese do bloco fixada como cobertura semântica do backend nativo real já existente, sem prometer backend pleno.
+- Ordem interna refinada registrada como canônica: 10.1 tipos inteiros mais largos; 10.2 comparações ampliadas; 10.3 `quebrar`/`continuar`; 10.4 `ninho`/compostos heterogêneos mínimos; 10.5 `virar`; 10.6 `verso` mínima condicional.
+- Decisão estrutural explicitada: `ninho` vem antes de `virar`.
+- `verso` posicionada como item final e condicional, com trava de cautela para não sequestrar o bloco.
+- Exclusões explícitas reforçadas para conter growth indevido (sem backend pleno, sem otimizador relevante, sem runtime grande, sem ABI ampla/plena, sem sistema geral de texto/compostos).
+
 HF-4 — varredura completa de repositório e higiene estrutural pós-B9
 - Pacote extraordinário de hotfix transversal sem abertura de fase funcional nova.
 - Correção estrutural do `history.md`: Fases 111–119 reencaixadas na seção FASES (antes eram listadas após DOCUMENTAÇÃO); Doc-20 reencaixada na seção DOCUMENTAÇÃO; ordem cronológica, categorias próprias e conteúdo histórico preservados.
