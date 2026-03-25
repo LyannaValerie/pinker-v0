@@ -4,7 +4,7 @@ use common::render_backend_s_external_subset;
 use pinker_v0::backend_s::emit_external_toolchain_subset;
 use pinker_v0::cfg_ir::OperandIR;
 use pinker_v0::instr_select::{
-    SelectedBlock, SelectedFunction, SelectedProgram, SelectedTerminator,
+    SelectedBlock, SelectedFunction, SelectedGlobal, SelectedProgram, SelectedTerminator,
 };
 use pinker_v0::ir::TypeIR;
 use std::collections::HashMap;
@@ -17,7 +17,7 @@ fn asm_s_external_subset_emite_main_montavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 42; }";
     let out = render_backend_s_external_subset(code).unwrap();
     assert!(out.contains(
-        "# pinker v0 external toolchain subset (fase 113, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo)"
+        "# pinker v0 external toolchain subset (fase 114, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + globais estaticas minimas em .rodata)"
     ));
     assert!(out.contains(".globl main"));
     assert!(out.contains("jmp .Lprincipal_entry"));
@@ -50,6 +50,16 @@ fn asm_s_external_subset_fase113_exemplo_versionado_emite_ciclo_com_label_de_loo
     assert!(out.contains(".Lprincipal_loop_cond_0:"));
     assert!(out.contains("setb %al"));
     assert!(out.contains("jmp .Lprincipal_loop_cond_0"));
+}
+
+#[test]
+fn asm_s_external_subset_fase114_exemplo_versionado_emite_rodata_e_load_global() {
+    let code = include_str!("../examples/fase114_globais_minimas_rodata_base_valido.pink");
+    let out = render_backend_s_external_subset(code).unwrap();
+    assert!(out.contains(".section .rodata"));
+    assert!(out.contains(".globl BASE"));
+    assert!(out.contains("BASE:"));
+    assert!(out.contains("movq BASE(%rip), %rax"));
 }
 
 #[test]
@@ -574,7 +584,7 @@ fn asm_s_external_subset_fase84_matriz_fronteira_auditavel() {
 
     for code in casos_garantidos {
         let asm = render_backend_s_external_subset(code).expect("subset garantido deve emitir .s");
-        assert!(asm.contains("# pinker v0 external toolchain subset (fase 113"));
+        assert!(asm.contains("# pinker v0 external toolchain subset (fase 114"));
     }
 
     let caso_rejeitado_tres_params = include_str!(
@@ -602,6 +612,43 @@ fn asm_s_external_subset_fase84_matriz_fronteira_auditavel() {
     assert!(err_sempre_que.to_string().contains(
         "subset externo montável (Fase 113) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==` e `<`), call direta com até 2 argumentos `bombom` e load/store em slots de frame"
     ));
+}
+
+#[test]
+fn asm_s_external_subset_fase114_falha_em_global_duplicada() {
+    let program = SelectedProgram {
+        module_name: "main".to_string(),
+        is_freestanding: false,
+        globals: vec![
+            SelectedGlobal {
+                name: "BASE".to_string(),
+                ty: TypeIR::Bombom,
+                value: OperandIR::Int(10),
+            },
+            SelectedGlobal {
+                name: "BASE".to_string(),
+                ty: TypeIR::Bombom,
+                value: OperandIR::Int(20),
+            },
+        ],
+        functions: vec![SelectedFunction {
+            name: "principal".to_string(),
+            ret_type: TypeIR::Bombom,
+            params: vec![],
+            locals: vec![],
+            slot_types: HashMap::new(),
+            blocks: vec![SelectedBlock {
+                label: "entry".to_string(),
+                instructions: vec![],
+                terminator: SelectedTerminator::Ret(Some(OperandIR::Int(0))),
+            }],
+        }],
+    };
+
+    let err = emit_external_toolchain_subset(&program).unwrap_err();
+    assert!(err
+        .to_string()
+        .contains("subset externo montável (Fase 114) encontrou símbolo global duplicado"));
 }
 
 #[test]

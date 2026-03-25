@@ -1,0 +1,9 @@
+pacote main;
+
+// Fase 114: globais mínimas e base inicial de .rodata no backend externo.
+// Recorte: `eterno` literal `bombom` com leitura por símbolo global em função nativa.
+eterno BASE: bombom = 41;
+
+carinho principal() -> bombom {
+    mimo BASE + 1;
+}

@@ -19,12 +19,13 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 
 /// Emite um `.s` mínimo montável por toolchain externa (assembler+linker do sistema).
 ///
-/// Escopo deliberadamente mínimo para a Fase 113:
+/// Escopo deliberadamente mínimo para a Fase 114:
 /// - target assumido: Linux x86_64 (SysV) hospedado;
 /// - subset aceito: funções `-> bombom` com múltiplos blocos/labels, `jmp` incondicional, branch condicional mínimo e loop mínimo por retorno de salto entre blocos;
 /// - disciplina mínima de registradores/frame: `%rax` (retorno/acumulador), `%rdi` (arg0), `%rsi` (arg1), `%r10` (temporário volátil), slots em frame `%rbp`;
 /// - memória mínima real garantida: load/store em slots de frame via `movq -off(%rbp), %reg` e `movq %reg, -off(%rbp)`;
 /// - branch condicional mínimo via teste contra zero (`cmpq $0` + `jne`) e sem ABI completa.
+/// - globais estáticas mínimas somente-leitura em `.rodata`: `eterno` de valor literal inteiro/lógico com leitura por símbolo `@nome(%rip)`.
 ///
 /// O resultado mapeia `principal` para o símbolo `main`, para permitir linkedição
 /// via driver C (`cc`/`gcc`/`clang`) sem runtime próprio.
@@ -72,7 +73,13 @@ fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerErr
 }
 
 struct ExternalCallConvProgram {
+    rodata_globals: Vec<ExternalCallConvGlobal>,
     functions: Vec<ExternalCallConvFunction>,
+}
+
+struct ExternalCallConvGlobal {
+    name: String,
+    value: u64,
 }
 
 struct ExternalCallConvFunction {
@@ -106,10 +113,32 @@ const REG_TMP: &str = "%r10";
 fn extract_external_callconv_program(
     selected: &SelectedProgram,
 ) -> Result<ExternalCallConvProgram, PinkerError> {
-    if !selected.globals.is_empty() {
-        return Err(err(
-            "subset externo montável (Fase 84) não suporta globais; esperado programa sem `eterno`",
-        ));
+    let mut seen_globals = HashSet::new();
+    let mut rodata_globals = Vec::new();
+    for global in &selected.globals {
+        if !seen_globals.insert(global.name.clone()) {
+            return Err(err(
+                "subset externo montável (Fase 114) encontrou símbolo global duplicado",
+            ));
+        }
+        if global.ty != TypeIR::Bombom && global.ty != TypeIR::Logica {
+            return Err(err(
+                "subset externo montável (Fase 114) aceita apenas globais estáticas `bombom`/`logica`",
+            ));
+        }
+        let value = match &global.value {
+            OperandIR::Int(v) => *v,
+            OperandIR::Bool(v) => u64::from(*v),
+            _ => {
+                return Err(err(
+                    "subset externo montável (Fase 114) aceita apenas inicialização literal inteira/lógica em globais estáticas",
+                ));
+            }
+        };
+        rodata_globals.push(ExternalCallConvGlobal {
+            name: global.name.clone(),
+            value,
+        });
     }
 
     let has_main = selected.functions.iter().any(|f| f.name == "principal");
@@ -295,7 +324,10 @@ fn extract_external_callconv_program(
         });
     }
 
-    Ok(ExternalCallConvProgram { functions })
+    Ok(ExternalCallConvProgram {
+        rodata_globals,
+        functions,
+    })
 }
 
 fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> String {
@@ -303,8 +335,16 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
     line(
         &mut out,
         0,
-        "# pinker v0 external toolchain subset (fase 113, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo)",
+        "# pinker v0 external toolchain subset (fase 114, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + globais estaticas minimas em .rodata)",
     );
+    if !program.rodata_globals.is_empty() {
+        line(&mut out, 0, ".section .rodata");
+        for global in &program.rodata_globals {
+            line(&mut out, 0, &format!(".globl {}", global.name));
+            line(&mut out, 0, &format!("{}:", global.name));
+            line(&mut out, 1, &format!(".quad {}", global.value));
+        }
+    }
     line(&mut out, 0, ".text");
 
     for function in &program.functions {
@@ -532,9 +572,12 @@ fn load_operand(
             };
             lines.push(format!("movq -{}(%rbp), {}", offset, reg));
         }
+        OperandIR::GlobalConst(name) => {
+            lines.push(format!("movq {}(%rip), {}", name, reg));
+        }
         _ => {
             return Err(err(
-                "subset externo montável (Fase 84) só aceita operandos inteiros, locais e temporários",
+                "subset externo montável (Fase 114) só aceita operandos inteiros, locais, temporários e global estática literal",
             ));
         }
     }

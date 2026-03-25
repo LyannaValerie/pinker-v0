@@ -27,8 +27,8 @@
 - Saídas: `--pseudo-asm`, `--asm-s`, `--run`.
 
 ## 5. Estado corrente
-- Fase funcional atual: **113 — loops reais mínimos no backend nativo externo**.
-- Fase funcional anterior: **112 — branch condicional real mínimo no backend nativo externo**.
+- Fase funcional atual: **114 — globais mínimas e base inicial de `.rodata` no backend nativo externo**.
+- Fase funcional anterior: **113 — loops reais mínimos no backend nativo externo**.
 - Bloco ativo: **Bloco 9 — ampliação do backend nativo real** (Bloco 8 encerrado formalmente por suficiência de trilha).
 - Rodada documental mais recente: **Doc-19 — encerramento formal do Bloco 8 e abertura canônica do Bloco 9**.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
@@ -50,7 +50,7 @@
 1. Ler: `README.md`, `docs/atlas.md`, `docs/roadmap.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/history.md`, `docs/doc_rules.md`.
 2. Executar validações exigidas da rodada antes de encerrar.
 3. Atualizar ao final: `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` quando houver mudança documental/operacional.
-4. Próxima rodada normal esperada: evolução do Bloco 9 para o item 9.4 (globais mínimas + base `.rodata`), mantendo escopo mínimo e sem reabrir refinamentos do Bloco 8 sem necessidade extraordinária.
+4. Próxima rodada normal esperada: evolução do Bloco 9 para o item 9.5 (ABI mínima mais larga, ainda conservadora), mantendo escopo mínimo e sem reabrir refinamentos do Bloco 8 sem necessidade extraordinária.
 
 ## 9. Padrão operacional de binários
 - Binário principal: `pink`.
