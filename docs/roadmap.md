@@ -218,6 +218,7 @@ Status de execução no bloco:
 - **Fase 116 concluída (entrada inicial do item 9.6)**: backend nativo externo abriu composto mínimo camada 1 por ponteiro homogêneo (`seta<bombom>`) com `deref_load` auditável em função externa, mantendo fora compostos amplos e ABI composta por valor.
 - **Fase 117 concluída (camada 2 conservadora do item 9.6)**: backend nativo externo ampliou o recorte homogêneo para aceitar local `seta<bombom>` no fluxo externo e leitura auditável de dois elementos via offset explícito mínimo (`base + 8` + `deref_load`), preservando fora composto por valor, structs/arrays gerais e ABI composta.
 - **Fase 118 concluída (camada 3 conservadora do item 9.6)**: backend nativo externo ampliou o mesmo recorte homogêneo para aceitar `deref_store` mínimo (`*ptr = valor`) em `seta<bombom>`, preservando offset explícito auditável, sem abrir composto por valor, structs/arrays gerais, heterogeneidade ou ABI composta.
+- **Fase 119 concluída (camada 4 conservadora do item 9.6)**: backend nativo externo consolidou o recorte homogêneo de `seta<bombom>` como par mínimo utilizável com sequência coesa de `deref_load` + `deref_store` + releitura auditável (offsets explícitos), sem abrir composto amplo, ABI composta ou layout geral.
 
 #### Exclusões explícitas do Bloco 9
 

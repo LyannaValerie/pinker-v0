@@ -5,23 +5,23 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 118 — compostos mínimos (camada 3 conservadora) no backend nativo externo**.
-- Oitava fase funcional do Bloco 9 concluída em recorte mínimo e auditável.
+- **Fase 119 — compostos mínimos (camada 4 conservadora, fechamento do recorte homogêneo) no backend nativo externo**.
+- Nona fase funcional do Bloco 9 concluída em recorte mínimo, auditável e conservador.
 
 ## 2. O que entrou na rodada atual
-- Backend externo montável ampliou o recorte do item 9.6 com camada 3 conservadora: além de parâmetros/locais `seta<bombom>` e `deref_load`, agora aceita `deref_store` mínimo homogêneo (`*ptr = valor`) no caminho externo.
-- Recorte estrutural explícito da camada: leitura e escrita homogêneas de `bombom` via `seta<bombom>` com offset explícito auditável, sem composto por valor na ABI.
-- Validações mínimas no caminho externo ampliadas para manter honestidade de subset: `deref_store` fora de `bombom` segue recusado, `fragil` em acesso indireto externo segue fora e locals/parâmetros fora de `bombom`/`seta<bombom>` continuam recusados.
-- Exemplos versionados da fase adicionados (`examples/fase118_compostos_minimos_camada3_valida.pink` e `examples/fase118_compostos_minimos_camada3_invalida.pink`) com cobertura de testes para emissão auditável do novo degrau.
+- Backend externo montável consolidou o recorte do item 9.6 em camada 4 conservadora: manteve `seta<bombom>`, `deref_load` e `deref_store` homogêneos e fechou o uso como par mínimo auditável com sequência coesa de leituras/escritas e releitura por offsets explícitos.
+- Recorte estrutural explícito da camada: unidade mínima homogênea externa (par de `bombom` em memória apontada) com manipulação observável mais forte no output (`--asm-s`) sem composto por valor na ABI.
+- Validações mínimas preservadas no caminho externo: usos fora de `bombom`/`seta<bombom>` seguem recusados; caminho `fragil` em acesso indireto externo continua fora; composto amplo/heterogêneo continua fora.
+- Exemplo versionado da fase adicionado (`examples/fase119_compostos_minimos_camada4_valida.pink`) com cobertura de testes para emissão auditável e fluxo real do novo fechamento conservador.
 
 ## 3. Continuidade preservada
-- Fase funcional atual passa para **118**.
-- Fase funcional anterior passa para **117**.
+- Fase funcional atual passa para **119**.
+- Fase funcional anterior passa para **118**.
 - Bloco ativo permanece **Bloco 9 — ampliação do backend nativo real**.
 - Bloco 8 permanece fechado como trilha ativa; pode receber ampliações futuras apenas de forma subordinada e extraordinária.
 
 ## 4. Próximo item normal
-- Continuar o item **9.6** apenas se houver necessidade concreta e pequena para eventual fechamento conservador, sem abrir composto amplo/ABI composta.
+- Item **9.6** encontra-se fechado no recorte homogêneo conservador atual; qualquer nova evolução deve ser excepcional, pequena e explícita, sem abrir composto amplo/ABI composta.
 - Não reabrir Bloco 8 salvo necessidade extraordinária, objetiva e bem justificada.
 
 ## 5. Precedência resumida
