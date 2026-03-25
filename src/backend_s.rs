@@ -19,14 +19,14 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 
 /// Emite um `.s` mínimo montável por toolchain externa (assembler+linker do sistema).
 ///
-/// Escopo deliberadamente mínimo para a Fase 117:
+/// Escopo deliberadamente mínimo para a Fase 118:
 /// - target assumido: Linux x86_64 (SysV) hospedado;
 /// - subset aceito: funções `-> bombom` com múltiplos blocos/labels, `jmp` incondicional, branch condicional mínimo e loop mínimo por retorno de salto entre blocos;
 /// - disciplina mínima de registradores/frame: `%rax` (retorno/acumulador), `%rdi` (arg0), `%rsi` (arg1), `%rdx` (arg2), `%r10` (temporário volátil), slots em frame `%rbp`;
 /// - memória mínima real garantida: load/store em slots de frame via `movq -off(%rbp), %reg` e `movq %reg, -off(%rbp)`;
 /// - branch condicional mínimo via teste contra zero (`cmpq $0` + `jne`) e sem ABI completa.
 /// - globais estáticas mínimas somente-leitura em `.rodata`: `eterno` de valor literal inteiro/lógico com leitura por símbolo `@nome(%rip)`.
-/// - composto mínimo conservador (camada 2): ponteiro homogêneo `seta<bombom>` com `deref_load` (`*ptr`) e offset explícito mínimo para dois loads auditáveis em função externa.
+/// - composto mínimo conservador (camada 3): ponteiro homogêneo `seta<bombom>` com `deref_load` (`*ptr`) e `deref_store` (`*ptr = v`) mínimos, além de offset explícito auditável em função externa.
 ///
 /// O resultado mapeia `principal` para o símbolo `main`, para permitir linkedição
 /// via driver C (`cc`/`gcc`/`clang`) sem runtime próprio.
@@ -174,7 +174,7 @@ fn extract_external_callconv_program(
             };
             if !is_external_param_type(ty) {
                 return Err(err(
-                "subset externo montável (Fase 117) aceita parâmetro `bombom` ou `seta<bombom>` (camada 2 conservadora de composto mínimo)",
+                "subset externo montável (Fase 118) aceita parâmetro `bombom` ou `seta<bombom>` (camada 3 conservadora de composto mínimo)",
                 ));
             }
         }
@@ -186,7 +186,7 @@ fn extract_external_callconv_program(
             };
             if !is_external_local_type(ty) {
                 return Err(err(&format!(
-                    "subset externo montável (Fase 117) só aceita local `bombom` ou `seta<bombom>`; '{}' é '{}'",
+                    "subset externo montável (Fase 118) só aceita local `bombom` ou `seta<bombom>`; '{}' é '{}'",
                     local,
                     ty.name()
                 )));
@@ -274,12 +274,12 @@ fn extract_external_callconv_program(
                     } => {
                         if *ty != TypeIR::Bombom {
                             return Err(err(
-                                "subset externo montável (Fase 117) aceita `deref_load` apenas para `seta<bombom>` (camada 2 conservadora de composto mínimo)",
+                                "subset externo montável (Fase 118) aceita `deref_load` apenas para `seta<bombom>` (camada 3 conservadora de composto mínimo)",
                             ));
                         }
                         if *is_volatile {
                             return Err(err(
-                                "subset externo montável (Fase 117) ainda não suporta caminho `fragil` no acesso indireto externo",
+                                "subset externo montável (Fase 118) ainda não suporta caminho `fragil` no acesso indireto externo",
                             ));
                         }
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets)?);
@@ -289,6 +289,26 @@ fn extract_external_callconv_program(
                             REG_RET,
                             slot_offsets[&temp_key(*dest)]
                         ));
+                    }
+                    SelectedInstr::DerefStore {
+                        ptr,
+                        value,
+                        ty,
+                        is_volatile,
+                    } => {
+                        if *ty != TypeIR::Bombom {
+                            return Err(err(
+                                "subset externo montável (Fase 118) aceita `deref_store` apenas para `seta<bombom>` (camada 3 conservadora de composto mínimo)",
+                            ));
+                        }
+                        if *is_volatile {
+                            return Err(err(
+                                "subset externo montável (Fase 118) ainda não suporta caminho `fragil` no acesso indireto externo",
+                            ));
+                        }
+                        body.extend(load_operand(REG_RET, ptr, &slot_offsets)?);
+                        body.extend(load_operand(REG_TMP, value, &slot_offsets)?);
+                        body.push(format!("movq {}, ({})", REG_TMP, REG_RET));
                     }
                     SelectedInstr::Call {
                         dest,
@@ -328,7 +348,7 @@ fn extract_external_callconv_program(
                     }
                     _ => {
                         return Err(err(
-                            "subset externo montável (Fase 117) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==` e `<`), call direta com até 3 argumentos (`bombom`/`seta<bombom>`), `deref_load` homogêneo com offset explícito mínimo e load/store em slots de frame",
+                            "subset externo montável (Fase 118) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==` e `<`), call direta com até 3 argumentos (`bombom`/`seta<bombom>`), `deref_load`/`deref_store` homogêneos com offset explícito mínimo e load/store em slots de frame",
                         ));
                     }
                 }
@@ -360,7 +380,7 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
     line(
         &mut out,
         0,
-        "# pinker v0 external toolchain subset (fase 117, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args + composto minimo por ponteiro com offset explicito)",
+        "# pinker v0 external toolchain subset (fase 118, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args + composto minimo por ponteiro com deref_load/deref_store e offset explicito)",
     );
     if !program.rodata_globals.is_empty() {
         line(&mut out, 0, ".section .rodata");

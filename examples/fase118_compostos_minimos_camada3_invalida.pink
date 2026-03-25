@@ -1,0 +1,10 @@
+pacote fase118_compostos_minimos_camada3_invalida;
+
+carinho store_fragil_invalido(base: fragil seta<bombom>) -> bombom {
+    *base = 7;
+    mimo 0;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}

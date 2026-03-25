@@ -724,6 +724,14 @@ Fase 117 - compostos mínimos (camada 2 conservadora) no backend nativo externo
 - Exemplos versionados incluídos: `examples/fase117_compostos_minimos_camada2_valida.pink` e `examples/fase117_compostos_minimos_camada2_invalida.pink`.
 - Fora de escopo explícito preservado: structs gerais, arrays gerais, compostos heterogêneos, composto por valor em ABI, retorno composto, `deref_store` externo, layout/alinhamento geral sofisticado e runtime nativa nova.
 
+Fase 118 - compostos mínimos (camada 3 conservadora) no backend nativo externo
+- Oitava fase funcional do Bloco 9 (item 9.6, camada 3) concluída em recorte mínimo, auditável e sem abrir compostos gerais.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar `deref_store` mínimo homogêneo (`*ptr = valor`) para `seta<bombom>` + `bombom`, preservando o recorte por ponteiro e sem composto por valor na ABI.
+- Recorte estrutural explícito desta fase: leitura/escrita homogênea em `seta<bombom>` com `deref_load`/`deref_store` e offset explícito auditável no fluxo externo, sem sistema geral de campos/index/heterogeneidade.
+- Validações mínimas ampliadas no caminho externo: `deref_store` continua restrito a `bombom`, caminho `fragil` em acesso indireto externo segue recusado e locals/parâmetros fora de `bombom`/`seta<bombom>` permanecem fora.
+- Exemplos versionados incluídos: `examples/fase118_compostos_minimos_camada3_valida.pink` e `examples/fase118_compostos_minimos_camada3_invalida.pink`.
+- Fora de escopo explícito preservado: structs gerais, arrays gerais, compostos heterogêneos, composto por valor em ABI, retorno composto, layout/alinhamento geral sofisticado e runtime nativa nova.
+
 
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

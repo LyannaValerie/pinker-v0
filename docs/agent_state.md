@@ -27,8 +27,8 @@
 - Saídas: `--pseudo-asm`, `--asm-s`, `--run`.
 
 ## 5. Estado corrente
-- Fase funcional atual: **117 — compostos mínimos (camada 2 conservadora) no backend nativo externo**.
-- Fase funcional anterior: **116 — compostos mínimos (camada 1 conservadora) no backend nativo externo**.
+- Fase funcional atual: **118 — compostos mínimos (camada 3 conservadora) no backend nativo externo**.
+- Fase funcional anterior: **117 — compostos mínimos (camada 2 conservadora) no backend nativo externo**.
 - Bloco ativo: **Bloco 9 — ampliação do backend nativo real** (Bloco 8 encerrado formalmente por suficiência de trilha).
 - Rodada documental mais recente: **Doc-19 — encerramento formal do Bloco 8 e abertura canônica do Bloco 9**.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
@@ -50,7 +50,7 @@
 1. Ler: `README.md`, `docs/atlas.md`, `docs/roadmap.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/history.md`, `docs/doc_rules.md`.
 2. Executar validações exigidas da rodada antes de encerrar.
 3. Atualizar ao final: `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` quando houver mudança documental/operacional.
-4. Próxima rodada normal esperada: continuidade conservadora do item 9.6 em camada incremental pequena (sem abrir composto amplo, sem ABI composta e sem redesign de layout/memória).
+4. Próxima rodada normal esperada: continuidade conservadora do item 9.6 apenas se houver necessidade concreta restante, mantendo recorte mínimo auditável (sem composto amplo, sem ABI composta e sem redesign de layout/memória).
 
 ## 9. Padrão operacional de binários
 - Binário principal: `pink`.

@@ -1,0 +1,15 @@
+pacote fase118_compostos_minimos_camada3_valida;
+
+carinho soma_tripla_com_store_minimo(base: seta<bombom>) -> bombom {
+    nova cursor_segundo: seta<bombom> = base + 8;
+    nova cursor_terceiro: seta<bombom> = base + 16;
+    *cursor_segundo = 30;
+    nova primeiro: bombom = *base;
+    nova segundo: bombom = *cursor_segundo;
+    nova terceiro: bombom = *cursor_terceiro;
+    mimo primeiro + segundo + terceiro;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}

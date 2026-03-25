@@ -46,7 +46,7 @@ Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 - append textual mínimo em `--run` com `abrir_anexo(verso) -> bombom` e `anexar_verso(bombom, verso) -> nulo`, sem newline implícito e sem abrir modos ricos de arquivo (Fase 108)
 - leitura textual mínima direta por caminho em `--run` com `ler_arquivo_verso(verso) -> verso` e fallback ergonômico `arquivo_ou(verso, verso) -> verso`, sem streaming, sem escrita por caminho e sem API rica de handles (Fase 109)
 - comando de projeto `pink build <arquivo.pink>` para gerar artefato textual `.s` em disco (padrão: `build/<arquivo>.s`)
-- backend nativo real (subset externo montável) ampliado para múltiplos blocos, labels, salto incondicional (`jmp`), branch condicional mínimo (`br`) e loops reais mínimos (Fase 113), globais estáticas mínimas em `.rodata` (Fase 114), ABI mínima mais larga (Fase 115) com call direta de até 3 argumentos `bombom` via `%rdi/%rsi/%rdx`, compostos mínimos camada 1 (Fase 116) via parâmetro `seta<bombom>` + `deref_load` (`*ptr`) e compostos mínimos camada 2 conservadora (Fase 117) com local `seta<bombom>` + offset explícito para dois loads homogêneos auditáveis
+- backend nativo real (subset externo montável) ampliado para múltiplos blocos, labels, salto incondicional (`jmp`), branch condicional mínimo (`br`) e loops reais mínimos (Fase 113), globais estáticas mínimas em `.rodata` (Fase 114), ABI mínima mais larga (Fase 115) com call direta de até 3 argumentos `bombom` via `%rdi/%rsi/%rdx`, compostos mínimos camada 1 (Fase 116) via parâmetro `seta<bombom>` + `deref_load` (`*ptr`), compostos mínimos camada 2 conservadora (Fase 117) com local `seta<bombom>` + offset explícito e compostos mínimos camada 3 conservadora (Fase 118) com `deref_store` homogêneo mínimo (`*ptr = valor`) no mesmo recorte
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
 - AST textual estável
@@ -182,6 +182,7 @@ cargo run --bin pink -- --asm-s examples/fase79_backend_externo_programa_linear_
 cargo run --bin pink -- --asm-s examples/fase80_backend_externo_cobertura_linear_ampla_valido.pink
 cargo run --bin pink -- --asm-s examples/fase81_backend_externo_recusa_explicita_tres_parametros_invalido.pink
 cargo run --bin pink -- --asm-s examples/fase112_branch_condicional_minimo_valido.pink
+cargo run --bin pink -- --asm-s examples/fase118_compostos_minimos_camada3_valida.pink
 cargo run --bin pink -- --asm-s examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink
 cargo run --bin pink -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run --bin pink -- --check examples/mut_falho.pink
