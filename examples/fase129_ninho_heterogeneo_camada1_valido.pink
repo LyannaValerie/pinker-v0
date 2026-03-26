@@ -1,0 +1,24 @@
+pacote main;
+
+// Fase 129: `ninho` heterogêneo mínimo (camada 1 conservadora) no backend externo.
+// Recorte: leitura auditável de campo `u32` via `(*ptr).campo` em `seta<ninho>`,
+// preservando escrita indireta homogênea (`seta<bombom>`) e sem abrir sistema geral de compostos.
+ninho ParHeterogeneoMinimo {
+    cabeca: bombom;
+    marca: u32;
+}
+
+carinho ler_marca_heterogenea_minima(base: seta<ParHeterogeneoMinimo>) -> bombom {
+    nova marca_local: u32 = (*base).marca;
+    nova esperado: u32 = 7;
+
+    talvez marca_local == esperado {
+        mimo 129;
+    } senao {
+        mimo 0;
+    }
+}
+
+carinho principal() -> bombom {
+    mimo 129;
+}

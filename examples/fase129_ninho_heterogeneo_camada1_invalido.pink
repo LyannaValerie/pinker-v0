@@ -1,0 +1,19 @@
+pacote main;
+
+ninho ParHeterogeneoForaRecorte {
+    cabeca: bombom;
+    ativo: logica;
+}
+
+carinho ler_logica_fora_recorte(base: seta<ParHeterogeneoForaRecorte>) -> bombom {
+    nova ativo: logica = (*base).ativo;
+    talvez ativo {
+        mimo 1;
+    } senao {
+        mimo 0;
+    }
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
