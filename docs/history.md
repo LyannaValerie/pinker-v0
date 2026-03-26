@@ -670,6 +670,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo versionado incluído: `examples/fase129_ninho_heterogeneo_camada1_valido.pink`.
 - Fora de escopo explícito preservado: `virar` (10.5), `verso` (10.6), composto por valor na ABI, retorno composto amplo, arrays gerais, sistema geral de campos e layout/alinhamento geral sofisticado.
 
+130 - `ninho` / compostos heterogêneos mínimos (camada 2 conservadora) no backend nativo externo
+- Décima primeira fase funcional do Bloco 10 (continuidade do item 10.4) concluída em recorte pequeno, explícito e auditável.
+- Backend externo montável (`emit_external_toolchain_subset`) ampliou apenas o degrau heterogêneo mínimo já aberto na Fase 129: leitura de campo `u64` em base `seta<ninho>` via `(*ptr).campo`, materializada como `deref_load` + offset explícito no fluxo externo.
+- Formulação canônica desta fase: abrir apenas um recorte pequeno, explícito e auditável além da Fase 129; sem inferir suporte geral a structs/tuplas heterogêneas; sem misturar com ABI composta ampla/arrays gerais/sistema geral de layout.
+- Recorte semântico desta fase: `deref_load` externo passa a aceitar `bombom` (legado homogêneo), `u32` (camada 1) e `u64` (novo degrau da camada 2), preservando `deref_store` restrito a `seta<bombom>`.
+- Exemplo versionado incluído: `examples/fase130_ninho_heterogeneo_camada2_valido.pink`.
+- Fora de escopo explícito preservado: `virar` (10.5), `verso` (10.6), composto por valor na ABI, retorno composto amplo, arrays gerais, sistema geral de campos e layout/alinhamento geral sofisticado.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
