@@ -17,7 +17,7 @@ fn asm_s_external_subset_emite_main_montavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 42; }";
     let out = render_backend_s_external_subset(code).unwrap();
     assert!(out.contains(
-        "# pinker v0 external toolchain subset (fase 123, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args + composto minimo por ponteiro com deref_load/deref_store + u32/u64 minimos em params/locals + comparacao `>` minima (camada 2 conservadora de 10.2))"
+        "# pinker v0 external toolchain subset (fase 124, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args + composto minimo por ponteiro com deref_load/deref_store + u32/u64 minimos em params/locals + comparacao `<=` minima (camada 3 conservadora de 10.2))"
     ));
     assert!(out.contains(".globl main"));
     assert!(out.contains("jmp .Lprincipal_entry"));
@@ -140,6 +140,15 @@ fn asm_s_external_subset_fase123_exemplo_versionado_comparacao_gt_minima() {
     let out = render_backend_s_external_subset(code).unwrap();
     assert!(out.contains(".globl maior_u64_minimo"));
     assert!(out.contains("seta %al"));
+    assert!(out.contains("cmpq %r10, %rax"));
+}
+
+#[test]
+fn asm_s_external_subset_fase124_exemplo_versionado_comparacao_le_minima() {
+    let code = include_str!("../examples/fase124_comparacoes_ampliadas_camada3_valido.pink");
+    let out = render_backend_s_external_subset(code).unwrap();
+    assert!(out.contains(".globl menor_ou_igual_u64_minimo"));
+    assert!(out.contains("setbe %al"));
     assert!(out.contains("cmpq %r10, %rax"));
 }
 
@@ -447,6 +456,50 @@ fn asm_s_external_subset_fluxo_real_fase123_comparacao_gt_minima() {
         .output()
         .expect("falha ao executar binário gerado");
     assert_eq!(run.status.code(), Some(123));
+
+    let _ = fs::remove_file(&asm_path);
+    let _ = fs::remove_file(&bin_path);
+    let _ = fs::remove_dir(&workdir);
+}
+
+#[test]
+fn asm_s_external_subset_fluxo_real_fase124_comparacao_le_minima() {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return;
+    }
+
+    let Some(driver) = detect_cc_driver() else {
+        return;
+    };
+
+    let code = include_str!("../examples/fase124_comparacoes_ampliadas_camada3_valido.pink");
+    let asm = render_backend_s_external_subset(code).unwrap();
+    assert!(asm.contains(".globl menor_ou_igual_u64_minimo"));
+    assert!(asm.contains("setbe %al"));
+
+    let workdir = unique_temp_dir();
+    fs::create_dir_all(&workdir).expect("falha ao criar diretório temporário");
+    let asm_path = workdir.join("principal.s");
+    let bin_path = workdir.join("principal");
+    fs::write(&asm_path, asm).expect("falha ao escrever .s temporário");
+
+    let compile = Command::new(&driver)
+        .arg(&asm_path)
+        .arg("-o")
+        .arg(&bin_path)
+        .output()
+        .expect("falha ao invocar driver C");
+    assert!(
+        compile.status.success(),
+        "compilação falhou com {}: {}",
+        driver,
+        String::from_utf8_lossy(&compile.stderr)
+    );
+
+    let run = Command::new(&bin_path)
+        .output()
+        .expect("falha ao executar binário gerado");
+    assert_eq!(run.status.code(), Some(124));
 
     let _ = fs::remove_file(&asm_path);
     let _ = fs::remove_file(&bin_path);
@@ -1050,7 +1103,7 @@ fn asm_s_external_subset_fase113_recusa_loop_com_condicao_fora_do_recorte() {
 
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains(
-        "subset externo montável (Fase 123) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<` e `>`), call direta com até 3 argumentos (`bombom`/`u32`/`u64`/`seta<bombom>`), `deref_load`/`deref_store` homogêneos com offset explícito mínimo e load/store em slots de frame"
+        "subset externo montável (Fase 124) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<`, `>` e `<=`), call direta com até 3 argumentos (`bombom`/`u32`/`u64`/`seta<bombom>`), `deref_load`/`deref_store` homogêneos com offset explícito mínimo e load/store em slots de frame"
     ));
 }
 
@@ -1064,7 +1117,7 @@ fn asm_s_external_subset_fase84_matriz_fronteira_auditavel() {
 
     for code in casos_garantidos {
         let asm = render_backend_s_external_subset(code).expect("subset garantido deve emitir .s");
-        assert!(asm.contains("# pinker v0 external toolchain subset (fase 123"));
+        assert!(asm.contains("# pinker v0 external toolchain subset (fase 124"));
     }
 
     let caso_rejeitado_tres_params = include_str!(
@@ -1090,7 +1143,7 @@ fn asm_s_external_subset_fase84_matriz_fronteira_auditavel() {
         include_str!("../examples/fase113_loop_condicao_invalida_invalido.pink");
     let err_sempre_que = render_backend_s_external_subset(caso_rejeitado_sempre_que).unwrap_err();
     assert!(err_sempre_que.to_string().contains(
-        "subset externo montável (Fase 123) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<` e `>`), call direta com até 3 argumentos (`bombom`/`u32`/`u64`/`seta<bombom>`), `deref_load`/`deref_store` homogêneos com offset explícito mínimo e load/store em slots de frame"
+        "subset externo montável (Fase 124) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<`, `>` e `<=`), call direta com até 3 argumentos (`bombom`/`u32`/`u64`/`seta<bombom>`), `deref_load`/`deref_store` homogêneos com offset explícito mínimo e load/store em slots de frame"
     ));
 }
 

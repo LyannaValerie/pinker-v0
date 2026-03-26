@@ -27,8 +27,8 @@
 - Saídas: `--pseudo-asm`, `--asm-s`, `--run`.
 
 ## 5. Estado corrente
-- Fase funcional atual: **123 — comparações ampliadas (camada 2 conservadora) no backend nativo externo**.
-- Fase funcional anterior: **122 — comparações ampliadas (camada 1 conservadora) no backend nativo externo**.
+- Fase funcional atual: **124 — comparações ampliadas (camada 3 conservadora) no backend nativo externo**.
+- Fase funcional anterior: **123 — comparações ampliadas (camada 2 conservadora) no backend nativo externo**.
 - Bloco ativo: **Bloco 10 — cobertura semântica do backend nativo** (aberto canonicamente na Doc-21).
 - Rodada documental mais recente: **Doc-21 — abertura canônica do Bloco 10**.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.

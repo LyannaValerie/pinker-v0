@@ -1,10 +1,10 @@
 pacote main;
 
-// Fase 113 mantém recorte mínimo: `<=` ainda fora no backend externo.
+// Fase 124 mantém recorte mínimo: `>=` ainda fora no backend externo.
 carinho principal() -> bombom {
     nova muda x: bombom = 0;
 
-    sempre que x <= 2 {
+    sempre que x >= 2 {
         x = x + 1;
     }
 
