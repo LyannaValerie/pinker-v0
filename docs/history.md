@@ -606,6 +606,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo versionado incluído: `examples/fase121_tipos_inteiros_mais_largos_camada2_valido.pink`.
 - Fora de escopo explícito preservado: comparações ampliadas do item 10.2, casts amplos, ABI ampla/plena, família inteira de inteiros, compostos heterogêneos e redesign de pipeline.
 
+122 - comparações ampliadas (camada 1 conservadora) no backend nativo externo
+- Terceira fase funcional do Bloco 10 (entrada do item 10.2) concluída em recorte pequeno, auditável e sem abrir universo amplo de comparações.
+- Backend externo montável (`emit_external_toolchain_subset`) passou a aceitar comparação `!=` no mesmo fluxo externo já existente, preservando o recorte anterior (`==` e `<`) e mantendo semântica conservadora explícita.
+- Recorte semântico desta fase: comparações mínimas suportadas no caminho externo ficam restritas a `==`, `!=` e `<`, sem ampliar para `<=`, `>`, `>=` ou pacote geral signed/unsigned.
+- Emissão textual auditável aberta nesta fase: lowering de `CmpNe` com `cmpq` + `setne` + normalização booleana (`movzbq`) no `.s` externo.
+- Exemplo versionado incluído: `examples/fase122_comparacoes_ampliadas_camada1_valido.pink`.
+- Fora de escopo explícito preservado: comparações relacionais amplas, casts amplos, coerções implícitas gerais, ABI ampla/plena, item 10.3 (`quebrar`/`continuar`) e redesign de pipeline.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

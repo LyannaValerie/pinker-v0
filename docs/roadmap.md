@@ -270,7 +270,7 @@ Por padrão, o Bloco 9 **não cobre**:
 
 ### Bloco 10 — cobertura semântica do backend nativo
 
-**Status**: **trilha ativa aberta canonicamente (Doc-21)**.
+**Status**: **trilha ativa em execução (Doc-21; Fase 122 já abriu 10.2 em camada 1 conservadora)**.
 
 **Tese do bloco**:
 - o backend nativo real já existe e é o ponto de partida;
@@ -295,6 +295,7 @@ Por padrão, o Bloco 9 **não cobre**:
 **Status de execução no bloco**:
 - **Fase 120 concluída (entrada inicial do item 10.1)**: backend nativo externo abriu recorte mínimo e auditável para inteiro fixo adicional `u32` em parâmetros/locais no fluxo externo, preservando o subset anterior, sem abrir comparações ampliadas, casts amplos ou ABI plena.
 - **Fase 121 concluída (camada 2 conservadora do item 10.1)**: backend nativo externo ampliou o mesmo recorte mínimo para aceitar também `u64` em parâmetros/locais, sem abrir comparações ampliadas (10.2), sem casts amplos e sem ABI plena.
+- **Fase 122 concluída (entrada inicial do item 10.2)**: backend nativo externo abriu comparação ampliada mínima `!=` no fluxo externo, preservando recorte conservador (`==`, `!=`, `<`) sem abrir casts amplos, sem coerções implícitas e sem avançar 10.3.
 
 #### Exclusões explícitas do Bloco 10
 
