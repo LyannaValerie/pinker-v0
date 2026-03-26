@@ -1,0 +1,12 @@
+pacote main;
+
+carinho eco_u64_minimo(v: u64) -> bombom {
+    nova copia: u64 = v;
+    nova saida: bombom = 121;
+    mimo saida;
+}
+
+carinho principal() -> bombom {
+    nova valor: u64 = 121;
+    mimo eco_u64_minimo(valor);
+}

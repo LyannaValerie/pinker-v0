@@ -96,4 +96,4 @@ Antes de aceitar keyword nova:
 - O encerramento conservador do Bloco 9 (Doc-20) não introduziu keyword nova por padrão; consolidou ganho de backend nativo externo já implementado.
 - A abertura canônica do Bloco 10 (Doc-21) também não abre keyword nova por si: define foco de cobertura semântica no backend nativo com ordem disciplinada (incluindo `ninho` antes de `virar` e `verso` como item final condicional).
 - As Fases 111, 112, 113, 114, 115, 116, 117, 118 e 119 mantiveram a diretriz de ampliar backend nativo sem inflar superfície lexical pública.
-- A Fase 120 (inteiros mais largos no backend nativo externo) também não introduziu keyword nova: abriu cobertura semântica mínima de tipo já existente (`u32`) no caminho externo.
+- As Fases 120–121 (inteiros mais largos no backend nativo externo) também não introduziram keyword nova: abriram cobertura semântica mínima de tipos já existentes (`u32` e `u64`) no caminho externo.
