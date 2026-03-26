@@ -8,8 +8,8 @@
 > A crônica histórica oficial é `docs/history.md`.
 
 ## Estado atual
-- Fase funcional atual: **127 — `quebrar` / `continuar` (camada 2 conservadora) no backend nativo externo**.
-- Fase funcional anterior: **126 — `quebrar` / `continuar` (camada 1 conservadora) no backend nativo externo**.
+- Fase funcional atual: **128 — `quebrar` / `continuar` (camada 3 conservadora) no backend nativo externo**.
+- Fase funcional anterior: **127 — `quebrar` / `continuar` (camada 2 conservadora) no backend nativo externo**.
 - Hotfix extraordinário ativo mais recente: **HF-4**.
 - Última rodada documental: **Doc-21 — abertura canônica do Bloco 10**.
 
@@ -21,4 +21,4 @@
 ## Registro documental corrente
 - Doc-21 abriu o **Bloco 10 — cobertura semântica do backend nativo** como nova trilha ativa.
 - Ordem canônica do bloco registrada: 10.1 inteiros mais largos; 10.2 comparações ampliadas; 10.3 `quebrar`/`continuar`; 10.4 `ninho`; 10.5 `virar`; 10.6 `verso` condicional.
-- Próxima rodada normal esperada: continuação disciplinada de 10.3 em recortes pequenos (se necessária), sem abrir 10.4 junto, sem antecipar 10.6 e sem inverter 10.4/10.5.
+- Próxima rodada normal esperada: avaliar fechamento disciplinado de 10.3 (ou novo degrau mínimo estritamente necessário), sem abrir 10.4 junto, sem antecipar 10.6 e sem inverter 10.4/10.5.

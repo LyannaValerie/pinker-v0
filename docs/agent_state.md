@@ -27,8 +27,8 @@
 - Saídas: `--pseudo-asm`, `--asm-s`, `--run`.
 
 ## 5. Estado corrente
-- Fase funcional atual: **127 — `quebrar` / `continuar` (camada 2 conservadora) no backend nativo externo**.
-- Fase funcional anterior: **126 — `quebrar` / `continuar` (camada 1 conservadora) no backend nativo externo**.
+- Fase funcional atual: **128 — `quebrar` / `continuar` (camada 3 conservadora) no backend nativo externo**.
+- Fase funcional anterior: **127 — `quebrar` / `continuar` (camada 2 conservadora) no backend nativo externo**.
 - Bloco ativo: **Bloco 10 — cobertura semântica do backend nativo** (aberto canonicamente na Doc-21).
 - Rodada documental mais recente: **Doc-21 — abertura canônica do Bloco 10**.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
@@ -50,7 +50,7 @@
 1. Ler: `README.md`, `docs/atlas.md`, `docs/roadmap.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/history.md`, `docs/doc_rules.md`.
 2. Executar validações exigidas da rodada antes de encerrar.
 3. Atualizar ao final: `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` quando houver mudança documental/operacional.
-4. Próxima rodada normal esperada: continuar o item **10.3 (`quebrar`/`continuar`)** em degrau conservador seguinte (se houver), sem abrir 10.4 junto, sem inverter `ninho`/`virar` e sem antecipar `verso`.
+4. Próxima rodada normal esperada: avaliar fechamento ou novo degrau mínimo de 10.3 (`quebrar`/`continuar`) sem abrir 10.4 junto, sem inverter `ninho`/`virar` e sem antecipar `verso`.
 
 ## 9. Padrão operacional de binários
 - Binário principal: `pink`.
