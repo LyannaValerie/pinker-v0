@@ -294,6 +294,7 @@ Por padrão, o Bloco 9 **não cobre**:
 
 **Status de execução no bloco**:
 - **Fase 120 concluída (entrada inicial do item 10.1)**: backend nativo externo abriu recorte mínimo e auditável para inteiro fixo adicional `u32` em parâmetros/locais no fluxo externo, preservando o subset anterior, sem abrir comparações ampliadas, casts amplos ou ABI plena.
+- **Fase 121 concluída (camada 2 conservadora do item 10.1)**: backend nativo externo ampliou o mesmo recorte mínimo para aceitar também `u64` em parâmetros/locais, sem abrir comparações ampliadas (10.2), sem casts amplos e sem ABI plena.
 
 #### Exclusões explícitas do Bloco 10
 

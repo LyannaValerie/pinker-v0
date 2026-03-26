@@ -598,6 +598,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo versionado incluído: `examples/fase120_tipos_inteiros_mais_largos_valido.pink`.
 - Fora de escopo explícito preservado: comparações ampliadas do item 10.2, casts amplos, ABI ampla/plena, família inteira de inteiros, compostos heterogêneos e redesign de pipeline.
 
+121 - tipos inteiros mais largos (camada 2 conservadora) no backend nativo externo
+- Segunda fase funcional do Bloco 10 (item 10.1) concluída em recorte pequeno, auditável e sem abrir pacote amplo de inteiros.
+- Backend externo montável (`emit_external_toolchain_subset`) ampliou o mesmo eixo mínimo da Fase 120 para aceitar também `u64` em parâmetros e locais, preservando o subset anterior (`bombom`, `u32` e `seta<bombom>`).
+- Operação aberta nesta fase: movimentação/call no mesmo frame mínimo já existente para `u64`, com emissão textual auditável no `.s` externo e fluxo real compilado/linkado/executado no exemplo da fase.
+- Validações mínimas preservadas: tipos fora de `bombom`/`u32`/`u64`/`seta<bombom>` continuam recusados no recorte externo desta fase.
+- Exemplo versionado incluído: `examples/fase121_tipos_inteiros_mais_largos_camada2_valido.pink`.
+- Fora de escopo explícito preservado: comparações ampliadas do item 10.2, casts amplos, ABI ampla/plena, família inteira de inteiros, compostos heterogêneos e redesign de pipeline.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

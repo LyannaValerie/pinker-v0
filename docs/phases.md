@@ -8,8 +8,8 @@
 > A crônica histórica oficial é `docs/history.md`.
 
 ## Estado atual
-- Fase funcional atual: **120 — tipos inteiros mais largos no backend nativo externo**.
-- Fase funcional anterior: **119 — compostos mínimos (camada 4 conservadora, fechamento do recorte homogêneo) no backend nativo externo**.
+- Fase funcional atual: **121 — tipos inteiros mais largos (camada 2 conservadora) no backend nativo externo**.
+- Fase funcional anterior: **120 — tipos inteiros mais largos no backend nativo externo**.
 - Hotfix extraordinário ativo mais recente: **HF-4**.
 - Última rodada documental: **Doc-21 — abertura canônica do Bloco 10**.
 
