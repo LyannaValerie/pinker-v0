@@ -1,0 +1,25 @@
+pacote main;
+
+// Fase 126: `quebrar` / `continuar` (camada 1 conservadora) no backend externo.
+// Recorte: uso mínimo de ambos dentro de `sempre que`, sem aninhamento amplo.
+carinho principal() -> bombom {
+    nova muda x: bombom = 0;
+    nova muda soma: bombom = 0;
+
+    sempre que x < 6 {
+        x = x + 1;
+
+        talvez x == 3 {
+            continuar;
+        }
+
+        soma = soma + x;
+
+        talvez soma >= 9 {
+            quebrar;
+        }
+    }
+
+    // Caminho esperado: 1 + 2 + 4 + 5 = 12 (com continue em x==3 e break ao atingir >=9).
+    mimo soma;
+}
