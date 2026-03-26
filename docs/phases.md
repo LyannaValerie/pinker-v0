@@ -8,8 +8,8 @@
 > A crônica histórica oficial é `docs/history.md`.
 
 ## Estado atual
-- Fase funcional atual: **124 — comparações ampliadas (camada 3 conservadora) no backend nativo externo**.
-- Fase funcional anterior: **123 — comparações ampliadas (camada 2 conservadora) no backend nativo externo**.
+- Fase funcional atual: **125 — comparações ampliadas (camada 4 conservadora) no backend nativo externo**.
+- Fase funcional anterior: **124 — comparações ampliadas (camada 3 conservadora) no backend nativo externo**.
 - Hotfix extraordinário ativo mais recente: **HF-4**.
 - Última rodada documental: **Doc-21 — abertura canônica do Bloco 10**.
 

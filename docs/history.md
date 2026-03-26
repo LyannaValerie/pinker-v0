@@ -630,6 +630,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo versionado incluído: `examples/fase124_comparacoes_ampliadas_camada3_valido.pink`.
 - Fora de escopo explícito preservado: `>=`, comparações relacionais amplas, casts amplos, coerções implícitas gerais, ABI ampla/plena, item 10.3 (`quebrar`/`continuar`) e redesign de pipeline.
 
+125 - comparações ampliadas (camada 4 conservadora) no backend nativo externo
+- Sexta fase funcional do Bloco 10 (item 10.2) concluída em recorte pequeno, auditável e sem abrir universo amplo de comparações.
+- Backend externo montável (`emit_external_toolchain_subset`) ampliou o recorte comparativo com `>=` no mesmo fluxo externo já existente, preservando o subset anterior (`==`, `!=`, `<`, `>`, `<=`).
+- Recorte semântico desta fase: comparações mínimas suportadas no caminho externo ficam restritas a `==`, `!=`, `<`, `>`, `<=` e `>=` com semântica relacional **não assinada** no subset vigente (`bombom`, `u32`, `u64`), sem abrir pacote geral signed/unsigned.
+- Emissão textual auditável aberta nesta fase: lowering de `CmpGe` com `cmpq` + `setae` + normalização booleana (`movzbq`) no `.s` externo.
+- Exemplo versionado incluído: `examples/fase125_comparacoes_ampliadas_camada4_valido.pink`.
+- Fora de escopo explícito preservado: comparações relacionais gerais fora do recorte mínimo acima, casts amplos, coerções implícitas gerais, ABI ampla/plena, item 10.3 (`quebrar`/`continuar`) e redesign de pipeline.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
