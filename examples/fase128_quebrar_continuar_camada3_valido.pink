@@ -1,0 +1,54 @@
+pacote main;
+
+// Fase 128: `quebrar` / `continuar` (camada 3 conservadora) no backend externo.
+// Recorte: composição mínima adicional com três níveis de `sempre que` aninhado,
+// mantendo alvos distintos e auditáveis de `quebrar`/`continuar` em cada nível.
+carinho principal() -> bombom {
+    nova muda externo: bombom = 0;
+    nova muda soma: bombom = 0;
+
+    sempre que externo < 3 {
+        externo = externo + 1;
+
+        nova muda meio: bombom = 0;
+        sempre que meio < 4 {
+            meio = meio + 1;
+
+            talvez meio == 2 {
+                continuar;
+            }
+
+            nova muda interno: bombom = 0;
+            sempre que interno < 5 {
+                interno = interno + 1;
+
+                talvez interno == 2 {
+                    continuar;
+                }
+
+                talvez interno == 4 {
+                    quebrar;
+                }
+
+                soma = soma + 1;
+            }
+
+            talvez meio >= 3 {
+                quebrar;
+            }
+        }
+
+        soma = soma + 10;
+
+        talvez externo == 2 {
+            continuar;
+        }
+
+        talvez soma >= 25 {
+            quebrar;
+        }
+    }
+
+    // Caminho esperado: 42.
+    mimo soma;
+}
