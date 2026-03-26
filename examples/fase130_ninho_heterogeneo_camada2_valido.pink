@@ -1,0 +1,24 @@
+pacote main;
+
+// Fase 130: `ninho` heterogêneo mínimo (camada 2 conservadora) no backend externo.
+// Recorte: além do `u32` da Fase 129, libera leitura auditável de campo `u64`
+// via `(*ptr).campo` em `seta<ninho>`, mantendo offset explícito e sem abrir composto amplo.
+ninho RegistroHeterogeneoCamada2 {
+    cabeca: bombom;
+    selo: u64;
+}
+
+carinho ler_selo_heterogeneo_camada2(base: seta<RegistroHeterogeneoCamada2>) -> bombom {
+    nova selo_local: u64 = (*base).selo;
+    nova esperado: u64 = 130;
+
+    talvez selo_local == esperado {
+        mimo 130;
+    } senao {
+        mimo 0;
+    }
+}
+
+carinho principal() -> bombom {
+    mimo 130;
+}
