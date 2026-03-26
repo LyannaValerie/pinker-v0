@@ -2,7 +2,7 @@
 
 Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 
-Status documental corrente: **Fase 126 abriu o item 10.3 do Bloco 10** com camada 1 conservadora de `quebrar`/`continuar` no backend nativo externo, mantendo tese de **cobertura semântica do backend nativo** (sem prometer backend pleno).
+Status documental corrente: **Fase 127 ampliou o item 10.3 do Bloco 10** com camada 2 conservadora de `quebrar`/`continuar` no backend nativo externo, mantendo tese de **cobertura semântica do backend nativo** (sem prometer backend pleno).
 
 ## O que o frontend faz hoje
 - léxico com spans
@@ -48,7 +48,7 @@ Status documental corrente: **Fase 126 abriu o item 10.3 do Bloco 10** com camad
 - append textual mínimo em `--run` com `abrir_anexo(verso) -> bombom` e `anexar_verso(bombom, verso) -> nulo`, sem newline implícito e sem abrir modos ricos de arquivo (Fase 108)
 - leitura textual mínima direta por caminho em `--run` com `ler_arquivo_verso(verso) -> verso` e fallback ergonômico `arquivo_ou(verso, verso) -> verso`, sem streaming, sem escrita por caminho e sem API rica de handles (Fase 109)
 - comando de projeto `pink build <arquivo.pink>` para gerar artefato textual `.s` em disco (padrão: `build/<arquivo>.s`)
-- backend nativo real (subset externo montável) ampliado para múltiplos blocos, labels, salto incondicional (`jmp`), branch condicional mínimo (`br`) e loops reais mínimos (Fase 113), globais estáticas mínimas em `.rodata` (Fase 114), ABI mínima mais larga (Fase 115) com call direta de até 3 argumentos, compostos mínimos camada 1 (Fase 116) via parâmetro `seta<bombom>` + `deref_load` (`*ptr`), compostos mínimos camada 2 conservadora (Fase 117) com local `seta<bombom>` + offset explícito e compostos mínimos camada 3 conservadora (Fase 118) com `deref_store` homogêneo mínimo (`*ptr = valor`) e camada 4 conservadora (Fase 119) com consolidação auditável de par homogêneo mínimo (leituras/escritas coesas via `seta<bombom>` + offsets explícitos), além da abertura mínima da Fase 120 para `u32` em parâmetros/locais, da Fase 121 para `u64` em parâmetros/locais, da Fase 122 para `!=` mínima, da Fase 123 para `>` mínimo, da Fase 124 para `<=` mínimo, da Fase 125 para `>=` mínimo e da Fase 126 para `quebrar`/`continuar` em recorte mínimo de loop no caminho externo
+- backend nativo real (subset externo montável) ampliado para múltiplos blocos, labels, salto incondicional (`jmp`), branch condicional mínimo (`br`) e loops reais mínimos (Fase 113), globais estáticas mínimas em `.rodata` (Fase 114), ABI mínima mais larga (Fase 115) com call direta de até 3 argumentos, compostos mínimos camada 1 (Fase 116) via parâmetro `seta<bombom>` + `deref_load` (`*ptr`), compostos mínimos camada 2 conservadora (Fase 117) com local `seta<bombom>` + offset explícito e compostos mínimos camada 3 conservadora (Fase 118) com `deref_store` homogêneo mínimo (`*ptr = valor`) e camada 4 conservadora (Fase 119) com consolidação auditável de par homogêneo mínimo (leituras/escritas coesas via `seta<bombom>` + offsets explícitos), além da abertura mínima da Fase 120 para `u32` em parâmetros/locais, da Fase 121 para `u64` em parâmetros/locais, da Fase 122 para `!=` mínima, da Fase 123 para `>` mínimo, da Fase 124 para `<=` mínimo, da Fase 125 para `>=` mínimo e da Fase 126 para `quebrar`/`continuar` em recorte mínimo de loop no caminho externo e da Fase 127 para aninhamento mínimo controlado de `quebrar`/`continuar` em `sempre que` aninhado
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
 - AST textual estável
@@ -192,6 +192,7 @@ cargo run --bin pink -- --asm-s examples/fase123_comparacoes_ampliadas_camada2_v
 cargo run --bin pink -- --asm-s examples/fase124_comparacoes_ampliadas_camada3_valido.pink
 cargo run --bin pink -- --asm-s examples/fase125_comparacoes_ampliadas_camada4_valido.pink
 cargo run --bin pink -- build examples/fase126_quebrar_continuar_camada1_valido.pink
+cargo run --bin pink -- build examples/fase127_quebrar_continuar_camada2_valido.pink
 cargo run --bin pink -- --asm-s examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink
 cargo run --bin pink -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run --bin pink -- --check examples/mut_falho.pink

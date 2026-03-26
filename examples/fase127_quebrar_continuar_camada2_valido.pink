@@ -1,0 +1,39 @@
+pacote main;
+
+// Fase 127: `quebrar` / `continuar` (camada 2 conservadora) no backend externo.
+// Recorte: aninhamento mínimo controlado de `sempre que` com `quebrar`/`continuar`
+// no laço interno e no laço externo, sem abrir suporte geral de controle de fluxo.
+carinho principal() -> bombom {
+    nova muda externo: bombom = 0;
+    nova muda soma: bombom = 0;
+
+    sempre que externo < 3 {
+        externo = externo + 1;
+
+        nova muda interno: bombom = 0;
+        sempre que interno < 5 {
+            interno = interno + 1;
+
+            talvez interno == 2 {
+                continuar;
+            }
+
+            talvez interno == 4 {
+                quebrar;
+            }
+
+            soma = soma + interno;
+        }
+
+        talvez externo == 2 {
+            continuar;
+        }
+
+        talvez soma >= 8 {
+            quebrar;
+        }
+    }
+
+    // Caminho esperado: 12
+    mimo soma;
+}

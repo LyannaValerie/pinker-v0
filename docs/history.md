@@ -646,6 +646,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo versionado incluído: `examples/fase126_quebrar_continuar_camada1_valido.pink`.
 - Fora de escopo explícito preservado: 10.4 (`ninho` heterogêneo mínimo), 10.5 (`virar`), 10.6 (`verso` condicional), controle de fluxo geral além do recorte acima, coerções implícitas amplas, ABI ampla/plena e redesign de pipeline.
 
+127 - `quebrar` / `continuar` (camada 2 conservadora) no backend nativo externo
+- Oitava fase funcional do Bloco 10 (item 10.3) concluída em recorte pequeno, explícito e auditável.
+- Backend externo montável (`emit_external_toolchain_subset`) manteve o recorte de `sempre que` da Fase 126 e passou a registrar cobertura auditável de aninhamento mínimo controlado (laço interno dentro de laço externo) com `quebrar`/`continuar` no mesmo caminho externo.
+- Recorte semântico desta fase: `quebrar` e `continuar` seguem restritos ao contexto de `sempre que`, com garantia adicional para um padrão mínimo aninhado controlado; não há promessa de suporte geral para aninhamento amplo/controle de fluxo geral.
+- Emissão textual auditável nesta fase: presença simultânea de dois níveis de labels de loop (`loop_cond_0` + `loop_cond_2`) com labels auxiliares `loop_break_cont_*` e `loop_continue_cont_*` no `.s` externo.
+- Exemplo versionado incluído: `examples/fase127_quebrar_continuar_camada2_valido.pink`.
+- Fora de escopo explícito preservado: 10.4 (`ninho` heterogêneo mínimo), 10.5 (`virar`), 10.6 (`verso` condicional), suporte geral de `quebrar`/`continuar` fora do recorte acima, coerções implícitas amplas, ABI ampla/plena e redesign de pipeline.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

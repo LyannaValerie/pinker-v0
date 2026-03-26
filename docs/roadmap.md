@@ -270,7 +270,7 @@ Por padrão, o Bloco 9 **não cobre**:
 
 ### Bloco 10 — cobertura semântica do backend nativo
 
-**Status**: **trilha ativa em execução (Doc-21; Fases 122–125 abriram 10.2 em camadas conservadoras 1, 2, 3 e 4; Fase 126 abriu 10.3 em camada 1 conservadora)**.
+**Status**: **trilha ativa em execução (Doc-21; Fases 122–125 abriram 10.2 em camadas conservadoras 1, 2, 3 e 4; Fases 126–127 avançaram 10.3 em camadas conservadoras 1 e 2)**.
 
 **Tese do bloco**:
 - o backend nativo real já existe e é o ponto de partida;
@@ -300,6 +300,7 @@ Por padrão, o Bloco 9 **não cobre**:
 - **Fase 124 concluída (camada 3 conservadora do item 10.2)**: backend nativo externo ampliou o recorte comparativo mínimo com `<=` no mesmo fluxo externo, mantendo semântica relacional **não assinada** no subset vigente (`bombom`/`u32`/`u64`), sem abrir `>=`, sem coerções implícitas, sem casts amplos e sem avançar 10.3.
 - **Fase 125 concluída (camada 4 conservadora do item 10.2)**: backend nativo externo ampliou o recorte comparativo mínimo com `>=` no mesmo fluxo externo, mantendo semântica relacional **não assinada** no subset vigente (`bombom`/`u32`/`u64`), sem abrir pacote geral signed/unsigned, sem coerções implícitas, sem casts amplos e sem avançar 10.3.
 - **Fase 126 concluída (camada 1 conservadora do item 10.3)**: backend nativo externo abriu recorte mínimo e auditável de `quebrar`/`continuar` no contexto de `sempre que` já suportado, reaproveitando labels/saltos já materializados no `selected`, sem abrir controle de fluxo geral, sem aninhamento amplo garantido e sem avançar 10.4.
+- **Fase 127 concluída (camada 2 conservadora do item 10.3)**: backend nativo externo ampliou o mesmo recorte com aninhamento mínimo controlado de `sempre que` (laço interno em laço externo), com `quebrar`/`continuar` auditáveis no fluxo externo sem abrir controle de fluxo geral, sem abrir 10.4 e sem prometer suporte amplo de aninhamento.
 
 #### Exclusões explícitas do Bloco 10
 
