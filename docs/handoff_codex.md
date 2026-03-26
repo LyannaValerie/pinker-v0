@@ -5,18 +5,18 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 120 — tipos inteiros mais largos no backend nativo externo**.
-- Rodada funcional mínima do item 10.1 do Bloco 10.
+- **Fase 121 — tipos inteiros mais largos (camada 2 conservadora) no backend nativo externo**.
+- Rodada funcional mínima de continuação do item 10.1 do Bloco 10.
 
 ## 2. Resultado operacional da rodada
 - Bloco 10 permanece como trilha ativa.
-- Item 10.1 foi aberto funcionalmente com recorte mínimo auditável: `u32` em parâmetros/locais no backend nativo externo.
+- Item 10.1 avançou para camada 2 conservadora com recorte mínimo auditável: `u32` + `u64` em parâmetros/locais no backend nativo externo.
 - Subset anterior (Fases 111–119) foi preservado sem regressão.
 - Ordem interna canônica permanece a mesma: 10.1 inteiros mais largos; 10.2 comparações ampliadas; 10.3 `quebrar`/`continuar`; 10.4 `ninho`/heterogêneo mínimo; 10.5 `virar`; 10.6 `verso` condicional.
 
 ## 3. Continuidade preservada
-- Fase funcional atual: **120**.
-- Fase funcional anterior: **119**.
+- Fase funcional atual: **121**.
+- Fase funcional anterior: **120**.
 - Rodada documental mais recente permanece **Doc-21**.
 
 ## 4. Próximo passo correto

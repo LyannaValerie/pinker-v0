@@ -19,7 +19,7 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 
 /// Emite um `.s` mínimo montável por toolchain externa (assembler+linker do sistema).
 ///
-/// Escopo deliberadamente mínimo para a Fase 120:
+/// Escopo deliberadamente mínimo para a Fase 121:
 /// - target assumido: Linux x86_64 (SysV) hospedado;
 /// - subset aceito: funções `-> bombom` com múltiplos blocos/labels, `jmp` incondicional, branch condicional mínimo e loop mínimo por retorno de salto entre blocos;
 /// - disciplina mínima de registradores/frame: `%rax` (retorno/acumulador), `%rdi` (arg0), `%rsi` (arg1), `%rdx` (arg2), `%r10` (temporário volátil), slots em frame `%rbp`;
@@ -27,7 +27,7 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 /// - branch condicional mínimo via teste contra zero (`cmpq $0` + `jne`) e sem ABI completa.
 /// - globais estáticas mínimas somente-leitura em `.rodata`: `eterno` de valor literal inteiro/lógico com leitura por símbolo `@nome(%rip)`.
 /// - composto mínimo conservador (camada 4): ponteiro homogêneo `seta<bombom>` com `deref_load`/`deref_store` mínimos, offsets explícitos e consolidação auditável de par homogêneo mínimo em memória externa;
-/// - primeiro inteiro fixo adicional no recorte externo: `u32` em parâmetros e locais (movimentação/call no mesmo frame/ABI mínima existente).
+/// - recorte conservador de inteiros fixos no caminho externo: `u32` (Fase 120) + `u64` (Fase 121) em parâmetros e locais, sem ABI ampla.
 ///
 /// O resultado mapeia `principal` para o símbolo `main`, para permitir linkedição
 /// via driver C (`cc`/`gcc`/`clang`) sem runtime próprio.
@@ -175,7 +175,7 @@ fn extract_external_callconv_program(
             };
             if !is_external_param_type(ty) {
                 return Err(err(
-                "subset externo montável (Fase 120) aceita parâmetro `bombom`, `u32` ou `seta<bombom>` (abertura mínima de inteiro mais largo + camada 3 conservadora de composto mínimo)",
+                "subset externo montável (Fase 121) aceita parâmetro `bombom`, `u32`, `u64` ou `seta<bombom>` (camada conservadora de inteiros mais largos + composto mínimo)",
                 ));
             }
         }
@@ -187,7 +187,7 @@ fn extract_external_callconv_program(
             };
             if !is_external_local_type(ty) {
                 return Err(err(&format!(
-                    "subset externo montável (Fase 120) só aceita local `bombom`, `u32` ou `seta<bombom>`; '{}' é '{}'",
+                    "subset externo montável (Fase 121) só aceita local `bombom`, `u32`, `u64` ou `seta<bombom>`; '{}' é '{}'",
                     local,
                     ty.name()
                 )));
@@ -349,7 +349,7 @@ fn extract_external_callconv_program(
                     }
                     _ => {
                         return Err(err(
-                            "subset externo montável (Fase 120) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==` e `<`), call direta com até 3 argumentos (`bombom`/`u32`/`seta<bombom>`), `deref_load`/`deref_store` homogêneos com offset explícito mínimo e load/store em slots de frame",
+                            "subset externo montável (Fase 121) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==` e `<`), call direta com até 3 argumentos (`bombom`/`u32`/`u64`/`seta<bombom>`), `deref_load`/`deref_store` homogêneos com offset explícito mínimo e load/store em slots de frame",
                         ));
                     }
                 }
@@ -381,7 +381,7 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
     line(
         &mut out,
         0,
-        "# pinker v0 external toolchain subset (fase 120, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args + composto minimo por ponteiro com deref_load/deref_store + u32 minimo em params/locals)",
+        "# pinker v0 external toolchain subset (fase 121, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args + composto minimo por ponteiro com deref_load/deref_store + u32/u64 minimos em params/locals)",
     );
     if !program.rodata_globals.is_empty() {
         line(&mut out, 0, ".section .rodata");
@@ -715,7 +715,10 @@ fn is_supported_type(ty: TypeIR) -> bool {
 }
 
 fn is_external_param_type(ty: &TypeIR) -> bool {
-    *ty == TypeIR::Bombom || *ty == TypeIR::U32 || *ty == TypeIR::Pointer { is_volatile: false }
+    *ty == TypeIR::Bombom
+        || *ty == TypeIR::U32
+        || *ty == TypeIR::U64
+        || *ty == TypeIR::Pointer { is_volatile: false }
 }
 
 fn is_external_local_type(ty: &TypeIR) -> bool {
