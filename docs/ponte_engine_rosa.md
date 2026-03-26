@@ -22,9 +22,9 @@ Conectar explicitamente:
 
 ### Engine já consolidado
 
-- Fase funcional atual: **125** (comparações ampliadas no backend nativo externo, com camada 4 conservadora de `>=` e preservação das camadas anteriores `==`/`!=`/`<`/`>`/`<=` com `u32` + `u64` em params/locals).
+- Fase funcional atual: **126** (`quebrar`/`continuar` em camada 1 conservadora no backend nativo externo, preservando as camadas anteriores de 10.1 e 10.2).
 - Estado de bloco: **Bloco 10 ativo** (aberto canonicamente pela Doc-21), com Blocos 8 e 9 encerrados como trilhas ativas.
-- Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`; após Doc-21, a trilha ativa passa a ampliar cobertura semântica do backend nativo de forma disciplinada (10.1→10.6, com `verso` condicional), e as Fases 120–125 abriram dois degraus conservadores de 10.1 e quatro degraus conservadores de 10.2.
+- Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`; após Doc-21, a trilha ativa passa a ampliar cobertura semântica do backend nativo de forma disciplinada (10.1→10.6, com `verso` condicional), e as Fases 120–126 abriram dois degraus conservadores de 10.1, quatro degraus conservadores de 10.2 e o primeiro degrau conservador de 10.3.
 
 ### Rosa em consolidação documental
 

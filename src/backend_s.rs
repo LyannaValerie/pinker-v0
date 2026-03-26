@@ -19,7 +19,7 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 
 /// Emite um `.s` mínimo montável por toolchain externa (assembler+linker do sistema).
 ///
-/// Escopo deliberadamente mínimo para a Fase 125:
+/// Escopo deliberadamente mínimo para a Fase 126:
 /// - target assumido: Linux x86_64 (SysV) hospedado;
 /// - subset aceito: funções `-> bombom` com múltiplos blocos/labels, `jmp` incondicional, branch condicional mínimo e loop mínimo por retorno de salto entre blocos;
 /// - disciplina mínima de registradores/frame: `%rax` (retorno/acumulador), `%rdi` (arg0), `%rsi` (arg1), `%rdx` (arg2), `%r10` (temporário volátil), slots em frame `%rbp`;
@@ -27,7 +27,8 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 /// - branch condicional mínimo via teste contra zero (`cmpq $0` + `jne`) e sem ABI completa.
 /// - globais estáticas mínimas somente-leitura em `.rodata`: `eterno` de valor literal inteiro/lógico com leitura por símbolo `@nome(%rip)`.
 /// - composto mínimo conservador (camada 4): ponteiro homogêneo `seta<bombom>` com `deref_load`/`deref_store` mínimos, offsets explícitos e consolidação auditável de par homogêneo mínimo em memória externa;
-/// - inteiros fixos adicionais no recorte externo: `u32` (Fase 120) e `u64` (Fase 121) em parâmetros e locais, reaproveitando movimentação/call no mesmo frame/ABI mínima existente.
+/// - inteiros fixos adicionais no recorte externo: `u32` (Fase 120) e `u64` (Fase 121) em parâmetros e locais, reaproveitando movimentação/call no mesmo frame/ABI mínima existente;
+/// - `quebrar`/`continuar` (Fase 126, camada 1 conservadora) no recorte mínimo já materializado em `selected` para `sempre que` (labels auxiliares + saltos explícitos), sem abrir subsistema geral de controle de fluxo.
 ///
 /// O resultado mapeia `principal` para o símbolo `main`, para permitir linkedição
 /// via driver C (`cc`/`gcc`/`clang`) sem runtime próprio.
@@ -175,7 +176,7 @@ fn extract_external_callconv_program(
             };
             if !is_external_param_type(ty) {
                 return Err(err(
-                "subset externo montável (Fase 125) aceita parâmetro `bombom`, `u32`, `u64` ou `seta<bombom>` (camadas conservadoras de inteiros mais largos + composto mínimo)",
+                "subset externo montável (Fase 126) aceita parâmetro `bombom`, `u32`, `u64` ou `seta<bombom>` (camadas conservadoras de inteiros mais largos + composto mínimo + quebra/continua mínima em loop)",
                 ));
             }
         }
@@ -187,7 +188,7 @@ fn extract_external_callconv_program(
             };
             if !is_external_local_type(ty) {
                 return Err(err(&format!(
-                    "subset externo montável (Fase 125) só aceita local `bombom`, `u32`, `u64` ou `seta<bombom>`; '{}' é '{}'",
+                    "subset externo montável (Fase 126) só aceita local `bombom`, `u32`, `u64` ou `seta<bombom>`; '{}' é '{}'",
                     local,
                     ty.name()
                 )));
@@ -361,7 +362,7 @@ fn extract_external_callconv_program(
                     }
                     _ => {
                         return Err(err(
-                            "subset externo montável (Fase 125) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<`, `>`, `<=` e `>=`), call direta com até 3 argumentos (`bombom`/`u32`/`u64`/`seta<bombom>`), `deref_load`/`deref_store` homogêneos com offset explícito mínimo e load/store em slots de frame",
+                            "subset externo montável (Fase 126) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<`, `>`, `<=` e `>=`), call direta com até 3 argumentos (`bombom`/`u32`/`u64`/`seta<bombom>`), `deref_load`/`deref_store` homogêneos com offset explícito mínimo, load/store em slots de frame e recorte mínimo de `quebrar`/`continuar` via saltos de loop já materializados",
                         ));
                     }
                 }
@@ -393,7 +394,7 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
     line(
         &mut out,
         0,
-        "# pinker v0 external toolchain subset (fase 125, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args + composto minimo por ponteiro com deref_load/deref_store + u32/u64 minimos em params/locals + comparacao `>=` minima (camada 4 conservadora de 10.2))",
+        "# pinker v0 external toolchain subset (fase 126, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + quebrar/continuar camada 1 conservadora + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args + composto minimo por ponteiro com deref_load/deref_store + u32/u64 minimos em params/locals + comparacao `>=` minima (camada 4 conservadora de 10.2))",
     );
     if !program.rodata_globals.is_empty() {
         line(&mut out, 0, ".section .rodata");
