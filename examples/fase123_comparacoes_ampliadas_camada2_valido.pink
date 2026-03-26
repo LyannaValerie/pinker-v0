@@ -1,0 +1,15 @@
+pacote main;
+
+carinho maior_u64_minimo(a: u64, b: u64) -> bombom {
+    talvez a > b {
+        mimo 123;
+    } senao {
+        mimo 12;
+    }
+}
+
+carinho principal() -> bombom {
+    nova esquerdo: u64 = 9;
+    nova direito: u64 = 7;
+    mimo maior_u64_minimo(esquerdo, direito);
+}

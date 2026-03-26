@@ -2,7 +2,7 @@
 
 Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 
-Status documental corrente: **Fase 122 abriu o item 10.2 do Bloco 10** com camada 1 conservadora de comparações ampliadas (`!=`) no backend nativo externo, mantendo tese de **cobertura semântica do backend nativo** (sem prometer backend pleno).
+Status documental corrente: **Fase 123 ampliou o item 10.2 do Bloco 10** com camada 2 conservadora de comparações ampliadas (`>`) no backend nativo externo, mantendo tese de **cobertura semântica do backend nativo** (sem prometer backend pleno).
 
 ## O que o frontend faz hoje
 - léxico com spans
@@ -48,7 +48,7 @@ Status documental corrente: **Fase 122 abriu o item 10.2 do Bloco 10** com camad
 - append textual mínimo em `--run` com `abrir_anexo(verso) -> bombom` e `anexar_verso(bombom, verso) -> nulo`, sem newline implícito e sem abrir modos ricos de arquivo (Fase 108)
 - leitura textual mínima direta por caminho em `--run` com `ler_arquivo_verso(verso) -> verso` e fallback ergonômico `arquivo_ou(verso, verso) -> verso`, sem streaming, sem escrita por caminho e sem API rica de handles (Fase 109)
 - comando de projeto `pink build <arquivo.pink>` para gerar artefato textual `.s` em disco (padrão: `build/<arquivo>.s`)
-- backend nativo real (subset externo montável) ampliado para múltiplos blocos, labels, salto incondicional (`jmp`), branch condicional mínimo (`br`) e loops reais mínimos (Fase 113), globais estáticas mínimas em `.rodata` (Fase 114), ABI mínima mais larga (Fase 115) com call direta de até 3 argumentos, compostos mínimos camada 1 (Fase 116) via parâmetro `seta<bombom>` + `deref_load` (`*ptr`), compostos mínimos camada 2 conservadora (Fase 117) com local `seta<bombom>` + offset explícito e compostos mínimos camada 3 conservadora (Fase 118) com `deref_store` homogêneo mínimo (`*ptr = valor`) e camada 4 conservadora (Fase 119) com consolidação auditável de par homogêneo mínimo (leituras/escritas coesas via `seta<bombom>` + offsets explícitos), além da abertura mínima da Fase 120 para `u32` em parâmetros/locais, da Fase 121 para `u64` em parâmetros/locais e da Fase 122 para comparação `!=` mínima no caminho externo
+- backend nativo real (subset externo montável) ampliado para múltiplos blocos, labels, salto incondicional (`jmp`), branch condicional mínimo (`br`) e loops reais mínimos (Fase 113), globais estáticas mínimas em `.rodata` (Fase 114), ABI mínima mais larga (Fase 115) com call direta de até 3 argumentos, compostos mínimos camada 1 (Fase 116) via parâmetro `seta<bombom>` + `deref_load` (`*ptr`), compostos mínimos camada 2 conservadora (Fase 117) com local `seta<bombom>` + offset explícito e compostos mínimos camada 3 conservadora (Fase 118) com `deref_store` homogêneo mínimo (`*ptr = valor`) e camada 4 conservadora (Fase 119) com consolidação auditável de par homogêneo mínimo (leituras/escritas coesas via `seta<bombom>` + offsets explícitos), além da abertura mínima da Fase 120 para `u32` em parâmetros/locais, da Fase 121 para `u64` em parâmetros/locais, da Fase 122 para `!=` mínima e da Fase 123 para `>` mínimo no caminho externo
 - chamadas diretas por nome
 - checagem semântica de `principal`, retorno, mutabilidade, aridade e tipos
 - AST textual estável
@@ -188,6 +188,7 @@ cargo run --bin pink -- --asm-s examples/fase118_compostos_minimos_camada3_valid
 cargo run --bin pink -- --asm-s examples/fase120_tipos_inteiros_mais_largos_valido.pink
 cargo run --bin pink -- --asm-s examples/fase121_tipos_inteiros_mais_largos_camada2_valido.pink
 cargo run --bin pink -- --asm-s examples/fase122_comparacoes_ampliadas_camada1_valido.pink
+cargo run --bin pink -- --asm-s examples/fase123_comparacoes_ampliadas_camada2_valido.pink
 cargo run --bin pink -- --asm-s examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink
 cargo run --bin pink -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run --bin pink -- --check examples/mut_falho.pink
@@ -272,7 +273,7 @@ Fora do subset externo montável atual:
 
 Recusas explícitas e auditáveis:
 - 3+ parâmetros por função/call → rejeitado com diagnóstico explícito;
-- loops (`sempre que`) fora do recorte mínimo (`==`, `!=` e `<`) e comparações adicionais além desse recorte → rejeitado com diagnóstico explícito.
+- loops (`sempre que`) fora do recorte mínimo (`==`, `!=`, `<` e `>`) e comparações adicionais além desse recorte → rejeitado com diagnóstico explícito.
 
 Fluxo experimental reproduzível:
 ```bash
