@@ -273,6 +273,9 @@ fn extract_external_callconv_program(
                     SelectedInstr::CmpGt { dest, lhs, rhs } => {
                         body.extend(lower_cmp_gt(*dest, lhs, rhs, &slot_offsets)?);
                     }
+                    SelectedInstr::CmpLe { dest, lhs, rhs } => {
+                        body.extend(lower_cmp_le(*dest, lhs, rhs, &slot_offsets)?);
+                    }
                     SelectedInstr::DerefLoad {
                         dest,
                         ptr,
@@ -355,7 +358,7 @@ fn extract_external_callconv_program(
                     }
                     _ => {
                         return Err(err(
-                            "subset externo montável (Fase 123) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<` e `>`), call direta com até 3 argumentos (`bombom`/`u32`/`u64`/`seta<bombom>`), `deref_load`/`deref_store` homogêneos com offset explícito mínimo e load/store em slots de frame",
+                            "subset externo montável (Fase 124) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<`, `>` e `<=`), call direta com até 3 argumentos (`bombom`/`u32`/`u64`/`seta<bombom>`), `deref_load`/`deref_store` homogêneos com offset explícito mínimo e load/store em slots de frame",
                         ));
                     }
                 }
@@ -387,7 +390,7 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
     line(
         &mut out,
         0,
-        "# pinker v0 external toolchain subset (fase 123, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args + composto minimo por ponteiro com deref_load/deref_store + u32/u64 minimos em params/locals + comparacao `>` minima (camada 2 conservadora de 10.2))",
+        "# pinker v0 external toolchain subset (fase 124, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args + composto minimo por ponteiro com deref_load/deref_store + u32/u64 minimos em params/locals + comparacao `<=` minima (camada 3 conservadora de 10.2))",
     );
     if !program.rodata_globals.is_empty() {
         line(&mut out, 0, ".section .rodata");
@@ -588,6 +591,26 @@ fn lower_cmp_gt(
     body.extend(load_operand(REG_TMP, rhs, slot_offsets)?);
     body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
     body.push("seta %al".to_string());
+    body.push("movzbq %al, %rax".to_string());
+    body.push(format!(
+        "movq {}, -{}(%rbp)",
+        REG_RET,
+        slot_offsets[&temp_key(dest)]
+    ));
+    Ok(body)
+}
+
+fn lower_cmp_le(
+    dest: crate::cfg_ir::TempIR,
+    lhs: &OperandIR,
+    rhs: &OperandIR,
+    slot_offsets: &HashMap<String, u32>,
+) -> Result<Vec<String>, PinkerError> {
+    let mut body = Vec::new();
+    body.extend(load_operand(REG_RET, lhs, slot_offsets)?);
+    body.extend(load_operand(REG_TMP, rhs, slot_offsets)?);
+    body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
+    body.push("setbe %al".to_string());
     body.push("movzbq %al, %rax".to_string());
     body.push(format!(
         "movq {}, -{}(%rbp)",

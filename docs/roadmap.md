@@ -270,7 +270,7 @@ Por padrão, o Bloco 9 **não cobre**:
 
 ### Bloco 10 — cobertura semântica do backend nativo
 
-**Status**: **trilha ativa em execução (Doc-21; Fases 122–123 já abriram 10.2 em camadas conservadoras 1 e 2)**.
+**Status**: **trilha ativa em execução (Doc-21; Fases 122–124 já abriram 10.2 em camadas conservadoras 1, 2 e 3)**.
 
 **Tese do bloco**:
 - o backend nativo real já existe e é o ponto de partida;
@@ -297,6 +297,7 @@ Por padrão, o Bloco 9 **não cobre**:
 - **Fase 121 concluída (camada 2 conservadora do item 10.1)**: backend nativo externo ampliou o mesmo recorte mínimo para aceitar também `u64` em parâmetros/locais, sem abrir comparações ampliadas (10.2), sem casts amplos e sem ABI plena.
 - **Fase 122 concluída (entrada inicial do item 10.2)**: backend nativo externo abriu comparação ampliada mínima `!=` no fluxo externo, preservando recorte conservador (`==`, `!=`, `<`) sem abrir casts amplos, sem coerções implícitas e sem avançar 10.3.
 - **Fase 123 concluída (camada 2 conservadora do item 10.2)**: backend nativo externo ampliou o recorte comparativo mínimo com `>` no mesmo fluxo externo, mantendo semântica relacional **não assinada** no subset vigente (`bombom`/`u32`/`u64`), sem abrir `<=`/`>=`, sem coerções implícitas, sem casts amplos e sem avançar 10.3.
+- **Fase 124 concluída (camada 3 conservadora do item 10.2)**: backend nativo externo ampliou o recorte comparativo mínimo com `<=` no mesmo fluxo externo, mantendo semântica relacional **não assinada** no subset vigente (`bombom`/`u32`/`u64`), sem abrir `>=`, sem coerções implícitas, sem casts amplos e sem avançar 10.3.
 
 #### Exclusões explícitas do Bloco 10
 
