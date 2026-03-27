@@ -2509,6 +2509,97 @@ impl SemanticChecker {
             }
             return Ok(Type::Logica(expr_span));
         }
+        // Fase 137 — dividir_verso_em(texto, sep, indice) -> verso
+        if name == "dividir_verso_em" {
+            if args.len() != 3 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'dividir_verso_em' com aridade inválida: esperado 3, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let texto_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(texto_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'dividir_verso_em': esperado 'verso', encontrado '{}'",
+                        texto_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let sep_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(sep_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'dividir_verso_em': esperado 'verso', encontrado '{}'",
+                        sep_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            let indice_ty = self.check_value_expr(
+                &args[2],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(indice_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 3 da chamada 'dividir_verso_em': esperado 'bombom', encontrado '{}'",
+                        indice_ty.name()
+                    ),
+                    span: args[2].span,
+                });
+            }
+            return Ok(Type::Verso(expr_span));
+        }
+        // Fase 137 — dividir_verso_contar(texto, sep) -> bombom
+        if name == "dividir_verso_contar" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'dividir_verso_contar' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let texto_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(texto_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'dividir_verso_contar': esperado 'verso', encontrado '{}'",
+                        texto_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let sep_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(sep_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'dividir_verso_contar': esperado 'verso', encontrado '{}'",
+                        sep_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
 
         let Some(function) = self.funcs.get(name).cloned() else {
             return Err(PinkerError::Semantic {

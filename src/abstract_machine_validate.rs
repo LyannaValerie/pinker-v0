@@ -257,6 +257,25 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         "nao_vazio_verso".to_string(),
         (TypeIR::Logica, vec![StackValueType::Verso]),
     );
+    // Fase 137
+    sigs.insert(
+        "dividir_verso_em".to_string(),
+        (
+            TypeIR::Verso,
+            vec![
+                StackValueType::Verso,
+                StackValueType::Verso,
+                StackValueType::Bombom,
+            ],
+        ),
+    );
+    sigs.insert(
+        "dividir_verso_contar".to_string(),
+        (
+            TypeIR::Bombom,
+            vec![StackValueType::Verso, StackValueType::Verso],
+        ),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;

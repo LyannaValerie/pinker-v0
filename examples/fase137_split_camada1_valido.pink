@@ -1,0 +1,25 @@
+pacote main;
+
+// Fase 137: manipulação textual útil — `split` (camada 1 conservadora).
+// Recorte desta fase:
+// - dividir_verso_em(texto, sep, indice) -> verso: retorna o N-ésimo pedaço (base 0);
+// - dividir_verso_contar(texto, sep) -> bombom: retorna o número de pedaços;
+// - separador simples em verso, sem regex, sem coleção geral;
+// - retorno em tipos já existentes (verso e bombom).
+
+carinho principal() -> bombom {
+    nova linha: verso = "nome:idade:cidade";
+    nova sep: verso = ":";
+
+    nova total: bombom = dividir_verso_contar(linha, sep);
+    nova campo0: verso = dividir_verso_em(linha, sep, 0);
+    nova campo1: verso = dividir_verso_em(linha, sep, 1);
+    nova campo2: verso = dividir_verso_em(linha, sep, 2);
+
+    falar(campo0);
+    falar(campo1);
+    falar(campo2);
+    falar(total);
+
+    mimo 0;
+}
