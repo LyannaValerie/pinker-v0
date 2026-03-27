@@ -22,9 +22,9 @@ Conectar explicitamente:
 
 ### Engine já consolidado
 
-- Fase funcional atual: **134** (`virar`/cast operacional mínimo em camada 2 conservadora no backend nativo externo, com recorte explícito `u32 -> u64` e `u64 -> u32` por slot, preservando as camadas anteriores de 10.1, 10.2, 10.3 e 10.4).
+- Fase funcional atual: **135** (`verso` mínima em camada 1 conservadora e condicional no backend nativo externo, com literal estático em `.rodata` + carga de endereço + tráfego opaco por slot/parâmetro, preservando as camadas anteriores de 10.1–10.5).
 - Estado de bloco: **Bloco 10 ativo** (aberto canonicamente pela Doc-21), com Blocos 8 e 9 encerrados como trilhas ativas.
-- Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`; após Doc-21, a trilha ativa passa a ampliar cobertura semântica do backend nativo de forma disciplinada (10.1→10.6, com `verso` condicional), e as Fases 120–134 abriram dois degraus conservadores de 10.1, quatro degraus conservadores de 10.2, três degraus conservadores de 10.3, quatro camadas conservadoras de 10.4 (`ninho` heterogêneo mínimo com leitura/escrita e composição mínima auditável no mesmo registro) e duas camadas conservadoras de 10.5 (`virar` mínimo `u32 -> u64` e `u64 -> u32`).
+- Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`; após Doc-21, a trilha ativa passa a ampliar cobertura semântica do backend nativo de forma disciplinada (10.1→10.6, com `verso` condicional), e as Fases 120–135 abriram dois degraus conservadores de 10.1, quatro degraus conservadores de 10.2, três degraus conservadores de 10.3, quatro camadas conservadoras de 10.4 (`ninho` heterogêneo mínimo com leitura/escrita e composição mínima auditável no mesmo registro), duas camadas conservadoras de 10.5 (`virar` mínimo `u32 -> u64` e `u64 -> u32`) e a camada 1 conservadora/condicional de 10.6 (`verso` mínimo estático/opaco no caminho externo).
 
 ### Rosa em consolidação documental
 

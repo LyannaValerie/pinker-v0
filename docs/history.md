@@ -711,6 +711,13 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplos versionados incluídos: `examples/fase134_virar_camada2_valido.pink` e `examples/fase134_virar_camada2_invalido.pink`.
 - Fora de escopo explícito preservado: demais direções de `virar`, coerções implícitas gerais, `verso` (10.6), ABI ampla/plena e sistema geral de casts.
 
+135 - `verso` mínima (camada 1 conservadora e condicional) no backend nativo externo
+- Décima sexta fase funcional do Bloco 10 (abertura inicial do item 10.6) concluída em recorte pequeno, explícito e auditável.
+- Backend externo montável (`emit_external_toolchain_subset`) abriu um primeiro degrau mínimo de `verso`: literal textual estático materializado em `.rodata` (`.asciz`) + carga de endereço (`leaq ...(%rip)`) e tráfego opaco em slot/parâmetro/call já suportados.
+- Formulação canônica desta fase: abrir apenas um recorte pequeno, explícito e auditável de textualidade no backend externo; sem inferir suporte geral a strings/texto e sem misturar com runtime textual ampla, ABI textual ampla, concatenação/comparação geral ou sistema amplo de memória textual.
+- Exemplos versionados incluídos: `examples/fase135_verso_camada1_valido.pink` e `examples/fase135_verso_camada1_invalido.pink`.
+- Fora de escopo explícito preservado: retorno `verso` no backend externo, operações textuais gerais (`juntar_verso`, tamanho/indexação/comparações), strings dinâmicas, ABI textual ampla, runtime textual rica e sistema geral de strings.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
