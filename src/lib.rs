@@ -15,6 +15,7 @@ pub mod ir;
 pub mod ir_validate;
 pub mod layout;
 pub mod lexer;
+pub mod palette;
 pub mod parser;
 pub mod printer;
 pub mod semantic;
