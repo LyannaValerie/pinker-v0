@@ -2,7 +2,7 @@
 
 Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 
-Status documental corrente: **Fase 130 ampliou o item 10.4 do Bloco 10** com camada 2 conservadora de `ninho` heterogêneo mínimo no backend nativo externo, mantendo tese de **cobertura semântica do backend nativo** (sem prometer backend pleno).
+Status documental corrente: **Fase 131 ampliou o item 10.4 do Bloco 10** com camada 3 conservadora de `ninho` heterogêneo mínimo no backend nativo externo (escrita heterogênea mínima de campo `u32`/`u64` via `(*ptr).campo = valor`), mantendo tese de **cobertura semântica do backend nativo** (sem prometer backend pleno).
 
 ## O que o frontend faz hoje
 - léxico com spans

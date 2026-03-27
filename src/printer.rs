@@ -194,6 +194,7 @@ fn render_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
                     ExprKind::Ident(name) => format!("*{}", name),
                     _ => "*<expr>".to_string(),
                 },
+                AssignTarget::FieldDeref { field, .. } => format!("(*<expr>).{}", field),
             };
             line(
                 out,

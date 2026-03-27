@@ -463,6 +463,10 @@ pub struct AssignStmt {
 pub enum AssignTarget {
     Ident(String),
     Deref(Box<Expr>),
+    FieldDeref {
+        base: Box<Expr>,
+        field: String,
+    },
 }
 
 impl AssignStmt {
@@ -481,6 +485,13 @@ impl AssignStmt {
                 writer.begin_object();
                 writer.field_str("node", "AssignTargetDeref");
                 writer.field_value("ptr", |writer| ptr.write_json(writer));
+                writer.end_object();
+            }
+            AssignTarget::FieldDeref { base, field } => {
+                writer.begin_object();
+                writer.field_str("node", "AssignTargetFieldDeref");
+                writer.field_value("base", |writer| base.write_json(writer));
+                writer.field_str("field", field);
                 writer.end_object();
             }
         });

@@ -1,0 +1,27 @@
+pacote main;
+
+// Fase 131: `ninho` heterogêneo mínimo (camada 3 conservadora) no backend externo.
+// Recorte: além da leitura heterogênea de `u32`/`u64` (Fases 129–130),
+// abre escrita heterogênea mínima de campo `u32` via `(*ptr).campo = valor`
+// em `seta<ninho>`, com offset explícito e sem abrir sistema geral de compostos.
+ninho RegistroHeterogeneoCamada3 {
+    cabeca: bombom;
+    selo: u32;
+}
+
+carinho escrever_selo_heterogeneo_camada3(base: seta<RegistroHeterogeneoCamada3>) -> bombom {
+    nova valor_selo: u32 = 131;
+    (*base).selo = valor_selo;
+    nova selo_lido: u32 = (*base).selo;
+    nova esperado: u32 = 131;
+
+    talvez selo_lido == esperado {
+        mimo 131;
+    } senao {
+        mimo 0;
+    }
+}
+
+carinho principal() -> bombom {
+    mimo 131;
+}

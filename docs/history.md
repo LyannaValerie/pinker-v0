@@ -678,6 +678,15 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo versionado incluído: `examples/fase130_ninho_heterogeneo_camada2_valido.pink`.
 - Fora de escopo explícito preservado: `virar` (10.5), `verso` (10.6), composto por valor na ABI, retorno composto amplo, arrays gerais, sistema geral de campos e layout/alinhamento geral sofisticado.
 
+131 - `ninho` / compostos heterogêneos mínimos (camada 3 conservadora) no backend nativo externo
+- Décima segunda fase funcional do Bloco 10 (continuidade do item 10.4) concluída em recorte pequeno, explícito e auditável.
+- Backend externo montável (`emit_external_toolchain_subset`) abriu escrita heterogênea mínima de campo `u32`/`u64` em base `seta<ninho>` via `(*ptr).campo = valor`, materializada como `deref_store` + offset explícito no fluxo externo, fechando a assimetria entre leitura e escrita heterogênea no recorte mínimo.
+- Formulação canônica desta fase: abrir apenas um recorte pequeno, explícito e auditável além das Fases 129–130; sem inferir suporte geral a structs/tuplas heterogêneas; sem misturar com ABI composta ampla/arrays gerais/sistema geral de layout.
+- Recorte semântico desta fase: `deref_store` externo passa a aceitar `bombom` (legado homogêneo), `u32` e `u64` (novo degrau da camada 3), preservando simetria com `deref_load` já aberto nas camadas 1 e 2.
+- Infraestrutura adicionada: `AssignTarget::FieldDeref` no parser/AST, `StoreFieldIndirect` no IR, `lower_field_store` no CFG, `is_external_deref_store_type` no backend.
+- Exemplo versionado incluído: `examples/fase131_ninho_heterogeneo_camada3_valido.pink`.
+- Fora de escopo explícito preservado: `virar` (10.5), `verso` (10.6), composto por valor na ABI, retorno composto amplo, arrays gerais, sistema geral de campos, layout/alinhamento geral sofisticado e store heterogêneo geral para qualquer tipo.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

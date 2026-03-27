@@ -96,6 +96,15 @@ pub enum InstructionIR {
         is_volatile: bool,
         span: Span,
     },
+    StoreFieldIndirect {
+        base: ValueIR,
+        field: String,
+        field_offset: u64,
+        value: ValueIR,
+        value_type: TypeIR,
+        is_volatile: bool,
+        span: Span,
+    },
     Expr {
         value: ValueIR,
         span: Span,
@@ -876,6 +885,55 @@ impl<'a> FunctionLowerer<'a> {
                             span: assign_stmt.span,
                         })
                     }
+                    AssignTarget::FieldDeref { base, field } => {
+                        let base_lowered = self.lower_value(base)?;
+                        let Some(base_struct_name) = base_lowered.struct_name.as_ref() else {
+                            return Err(PinkerError::Ir {
+                                msg: "escrita a campo exige base do tipo 'ninho' no lowering IR"
+                                    .to_string(),
+                                span: assign_stmt.span,
+                            });
+                        };
+                        let field_type = self
+                            .context
+                            .struct_fields
+                            .get(base_struct_name)
+                            .and_then(|fields| fields.get(field.as_str()))
+                            .copied()
+                            .ok_or_else(|| PinkerError::Ir {
+                                msg: format!(
+                                    "campo '{}' não encontrado em '{}' para escrita",
+                                    field, base_struct_name
+                                ),
+                                span: assign_stmt.span,
+                            })?;
+                        let field_offset = self
+                            .context
+                            .struct_field_offsets
+                            .get(base_struct_name)
+                            .and_then(|fields| fields.get(field.as_str()))
+                            .copied()
+                            .ok_or_else(|| PinkerError::Ir {
+                                msg: format!(
+                                    "offset de campo '{}' não encontrado no layout de '{}' para escrita",
+                                    field, base_struct_name
+                                ),
+                                span: assign_stmt.span,
+                            })?;
+                        let is_volatile = match &base_lowered.value {
+                            ValueIR::Deref { is_volatile, .. } => *is_volatile,
+                            _ => false,
+                        };
+                        Ok(InstructionIR::StoreFieldIndirect {
+                            base: base_lowered.value,
+                            field: field.clone(),
+                            field_offset,
+                            value: value.value,
+                            value_type: field_type,
+                            is_volatile,
+                            span: assign_stmt.span,
+                        })
+                    }
                 }
             }
             Stmt::Return(return_stmt) => self.lower_return(return_stmt),
@@ -1542,6 +1600,25 @@ fn render_instruction(instruction: &InstructionIR, indent: usize, out: &mut Stri
                 &format!(
                     "store_indirect {} <- {}",
                     render_value(ptr),
+                    render_value(value)
+                ),
+            );
+        }
+        InstructionIR::StoreFieldIndirect {
+            base,
+            field,
+            field_offset,
+            value,
+            ..
+        } => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "store_field_indirect {}.{}/*+{}*/ <- {}",
+                    render_value(base),
+                    field,
+                    field_offset,
                     render_value(value)
                 ),
             );

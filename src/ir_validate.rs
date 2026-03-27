@@ -557,6 +557,44 @@ fn validate_block(
                     ));
                 }
             }
+            InstructionIR::StoreFieldIndirect {
+                base,
+                value,
+                value_type,
+                span,
+                ..
+            } => {
+                let _base_ty =
+                    infer_value_type(base, slots, consts, funcs, *span).map_err(|err| {
+                        enrich_ir_error(
+                            err,
+                            Some(function),
+                            Some(block),
+                            Some("instr='store_field_indirect'"),
+                        )
+                    })?;
+                let actual_ty =
+                    infer_value_type(value, slots, consts, funcs, *span).map_err(|err| {
+                        enrich_ir_error(
+                            err,
+                            Some(function),
+                            Some(block),
+                            Some("instr='store_field_indirect'"),
+                        )
+                    })?;
+                if !value_matches_expected(value, actual_ty, *value_type) {
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "store_field_indirect com tipo incompatível",
+                        Some(&format!(
+                            "instr='store_field_indirect', esperado={:?}, recebido={:?}",
+                            value_type, actual_ty
+                        )),
+                        *span,
+                    ));
+                }
+            }
             InstructionIR::Expr { value, span } => {
                 let ty = infer_value_type(value, slots, consts, funcs, *span).map_err(|err| {
                     enrich_ir_error(err, Some(function), Some(block), Some("instr='expr'"))
