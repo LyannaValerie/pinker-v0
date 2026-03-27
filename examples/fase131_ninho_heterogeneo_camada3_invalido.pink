@@ -1,0 +1,19 @@
+pacote main;
+
+ninho RegistroHeterogeneoForaCamada3 {
+    cabeca: bombom;
+    ativo: logica;
+}
+
+carinho escrever_logica_fora_camada3(base: seta<RegistroHeterogeneoForaCamada3>) -> bombom {
+    (*base).ativo = verdade;
+    talvez (*base).ativo {
+        mimo 1;
+    } senao {
+        mimo 0;
+    }
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}

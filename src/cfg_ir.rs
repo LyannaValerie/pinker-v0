@@ -372,6 +372,23 @@ impl FunctionLowerer {
                     });
                 Ok(next_current)
             }
+            InstructionIR::StoreFieldIndirect {
+                base,
+                field: _,
+                field_offset,
+                value,
+                value_type,
+                is_volatile,
+                span,
+            } => self.lower_field_store(
+                base,
+                *field_offset,
+                value,
+                *value_type,
+                *is_volatile,
+                current,
+                *span,
+            ),
             InstructionIR::Expr { value, span } => self.lower_expr_stmt(value, current, *span),
             InstructionIR::Return { value, span } => {
                 let (ret, next_current) = match value {
@@ -777,6 +794,65 @@ impl FunctionLowerer {
                 is_volatile: *is_volatile,
             });
         Ok((OperandIR::Temp(dest), next_current))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn lower_field_store(
+        &mut self,
+        base: &ValueIR,
+        field_offset: u64,
+        value: &ValueIR,
+        value_type: TypeIR,
+        is_volatile: bool,
+        current: usize,
+        span: Span,
+    ) -> Result<usize, PinkerError> {
+        let ValueIR::Deref {
+            ptr,
+            result_type: base_result_type,
+            is_volatile: base_is_volatile,
+        } = base
+        else {
+            return Err(PinkerError::Ir {
+                msg: "escrita operacional de campo nesta fase exige base no formato '(*ptr).campo'"
+                    .to_string(),
+                span,
+            });
+        };
+        if *base_result_type != TypeIR::Struct {
+            return Err(PinkerError::Ir {
+                msg: "escrita operacional de campo nesta fase exige ponteiro para 'ninho'"
+                    .to_string(),
+                span,
+            });
+        }
+
+        let (base_ptr, ptr_current) = self.lower_value_operand(ptr, current, span)?;
+        let field_ptr = if field_offset == 0 {
+            base_ptr
+        } else {
+            let dest_ptr = self.next_temp();
+            self.blocks[ptr_current]
+                .instructions
+                .push(InstructionCfgIR::Binary {
+                    dest: dest_ptr,
+                    op: BinaryOpIR::Add,
+                    lhs: base_ptr,
+                    rhs: OperandIR::Int(field_offset),
+                });
+            OperandIR::Temp(dest_ptr)
+        };
+
+        let (val_operand, next_current) = self.lower_value_operand(value, ptr_current, span)?;
+        self.blocks[next_current]
+            .instructions
+            .push(InstructionCfgIR::DerefStore {
+                ptr: field_ptr,
+                value: val_operand,
+                ty: value_type,
+                is_volatile: is_volatile || *base_is_volatile,
+            });
+        Ok(next_current)
     }
 
     fn lower_index_access(
