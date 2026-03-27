@@ -19,7 +19,7 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 
 /// Emite um `.s` mínimo montável por toolchain externa (assembler+linker do sistema).
 ///
-/// Escopo deliberadamente mínimo para a Fase 133:
+/// Escopo deliberadamente mínimo para a Fase 134:
 /// - target assumido: Linux x86_64 (SysV) hospedado;
 /// - subset aceito: funções `-> bombom` com múltiplos blocos/labels, `jmp` incondicional, branch condicional mínimo e loop mínimo por retorno de salto entre blocos;
 /// - disciplina mínima de registradores/frame: `%rax` (retorno/acumulador), `%rdi` (arg0), `%rsi` (arg1), `%rdx` (arg2), `%r10` (temporário volátil), slots em frame `%rbp`;
@@ -29,7 +29,7 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 /// - composto mínimo conservador: base homogênea `seta<bombom>` com `deref_store`/`deref_load` mínimo e abertura heterogênea em quatro camadas para `ninho`, incluindo composição mínima auditável no mesmo registro (`u32` + `u64`) via offset explícito;
 /// - inteiros fixos adicionais no recorte externo: `u32` (Fase 120) e `u64` (Fase 121) em parâmetros e locais, reaproveitando movimentação/call no mesmo frame/ABI mínima existente;
 /// - `quebrar`/`continuar` (Fase 128, camada 3 conservadora) no recorte de `sempre que` já materializado em `selected`, com composição mínima auditável de três níveis de laço (`sempre que` externo/meio/interno) sem abrir subsistema geral de controle de fluxo;
-/// - `virar` (Fase 133, camada 1 conservadora) no recorte mínimo explícito `u32 -> u64` quando a origem é slot local/parâmetro tipado como `u32`.
+/// - `virar` (Fase 134, camada 2 conservadora) no recorte mínimo explícito `u32 -> u64` e `u64 -> u32` quando a origem é slot local/parâmetro tipado.
 ///
 /// O resultado mapeia `principal` para o símbolo `main`, para permitir linkedição
 /// via driver C (`cc`/`gcc`/`clang`) sem runtime próprio.
@@ -177,7 +177,7 @@ fn extract_external_callconv_program(
             };
             if !is_external_param_type(ty) {
                 return Err(err(
-                "subset externo montável (Fase 133) aceita parâmetro `bombom`, `u32`, `u64` ou `seta<T>` no recorte conservador (inteiros mais largos + composto mínimo homogêneo/heterogêneo camada 1 + `quebrar`/`continuar` em loop mínimo)",
+                "subset externo montável (Fase 134) aceita parâmetro `bombom`, `u32`, `u64` ou `seta<T>` no recorte conservador (inteiros mais largos + composto mínimo homogêneo/heterogêneo camada 1 + `quebrar`/`continuar` em loop mínimo)",
                 ));
             }
         }
@@ -189,7 +189,7 @@ fn extract_external_callconv_program(
             };
             if !is_external_local_type(ty) {
                 return Err(err(&format!(
-                    "subset externo montável (Fase 133) só aceita local `bombom`, `u32`, `u64` ou `seta<T>`; '{}' é '{}'",
+                    "subset externo montável (Fase 134) só aceita local `bombom`, `u32`, `u64` ou `seta<T>`; '{}' é '{}'",
                     local,
                     ty.name()
                 )));
@@ -289,12 +289,12 @@ fn extract_external_callconv_program(
                     } => {
                         if !is_external_deref_load_type(ty) {
                             return Err(err(
-                                "subset externo montável (Fase 133) aceita `deref_load` apenas no recorte mínimo `bombom`/`u32`/`u64` (camada 4 conservadora de `ninho` heterogêneo + legado homogêneo)",
+                                "subset externo montável (Fase 134) aceita `deref_load` apenas no recorte mínimo `bombom`/`u32`/`u64` (camada 4 conservadora de `ninho` heterogêneo + legado homogêneo)",
                             ));
                         }
                         if *is_volatile {
                             return Err(err(
-                                "subset externo montável (Fase 133) ainda não suporta caminho `fragil` no acesso indireto externo",
+                                "subset externo montável (Fase 134) ainda não suporta caminho `fragil` no acesso indireto externo",
                             ));
                         }
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets)?);
@@ -313,12 +313,12 @@ fn extract_external_callconv_program(
                     } => {
                         if !is_external_deref_store_type(ty) {
                             return Err(err(
-                                "subset externo montável (Fase 133) aceita `deref_store` apenas no recorte mínimo `bombom`/`u32`/`u64` (camada 4 conservadora de `ninho` heterogêneo + legado homogêneo)",
+                                "subset externo montável (Fase 134) aceita `deref_store` apenas no recorte mínimo `bombom`/`u32`/`u64` (camada 4 conservadora de `ninho` heterogêneo + legado homogêneo)",
                             ));
                         }
                         if *is_volatile {
                             return Err(err(
-                                "subset externo montável (Fase 133) ainda não suporta caminho `fragil` no acesso indireto externo",
+                                "subset externo montável (Fase 134) ainda não suporta caminho `fragil` no acesso indireto externo",
                             ));
                         }
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets)?);
@@ -330,24 +330,27 @@ fn extract_external_callconv_program(
                         value,
                         target_type,
                     } => {
-                        if *target_type != TypeIR::U64 {
+                        if *target_type != TypeIR::U64 && *target_type != TypeIR::U32 {
                             return Err(err(
-                                "subset externo montável (Fase 133) aceita `virar` apenas no recorte mínimo `u32 -> u64`",
+                                "subset externo montável (Fase 134) aceita `virar` apenas no recorte mínimo `u32 -> u64` e `u64 -> u32`",
                             ));
                         }
                         let OperandIR::Local(source_slot) = value else {
                             return Err(err(
-                                "subset externo montável (Fase 133) exige origem em slot local/parâmetro `u32` para `virar` mínimo",
+                                "subset externo montável (Fase 134) exige origem em slot local/parâmetro tipado para `virar` mínimo",
                             ));
                         };
                         let Some(source_ty) = function.slot_types.get(source_slot) else {
                             return Err(err(
-                                "subset externo montável (Fase 133) encontrou origem de cast sem tipo de slot",
+                                "subset externo montável (Fase 134) encontrou origem de cast sem tipo de slot",
                             ));
                         };
-                        if *source_ty != TypeIR::U32 {
+                        let cast_supported = (*source_ty == TypeIR::U32
+                            && *target_type == TypeIR::U64)
+                            || (*source_ty == TypeIR::U64 && *target_type == TypeIR::U32);
+                        if !cast_supported {
                             return Err(err(
-                                "subset externo montável (Fase 133) aceita `virar` mínimo apenas de slot `u32` para alvo `u64`",
+                                "subset externo montável (Fase 134) aceita `virar` mínimo apenas de slot `u32 -> u64` ou `u64 -> u32`",
                             ));
                         }
                         body.extend(load_operand(REG_RET, value, &slot_offsets)?);
@@ -396,7 +399,7 @@ fn extract_external_callconv_program(
                     }
                     _ => {
                         return Err(err(
-                            "subset externo montável (Fase 133) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<`, `>`, `<=` e `>=`), `virar` mínimo explícito (`u32` slot -> `u64`), call direta com até 3 argumentos (`bombom`/`u32`/`u64`/`seta<T>`), `deref_store` mínimo em `bombom`/`u32`/`u64` (incluindo escrita heterogênea de campo de `ninho` via offset explícito), `deref_load` mínimo em `bombom`/`u32`/`u64` (incluindo campo heterogêneo de `ninho` via offset explícito), composição heterogênea mínima auditável no mesmo `ninho` (`u32` + `u64` por offset) e load/store em slots de frame, preservando recorte conservador de `quebrar`/`continuar` em `sempre que` via saltos já materializados (até três níveis de laço aninhado)",
+                            "subset externo montável (Fase 134) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<`, `>`, `<=` e `>=`), `virar` mínimo explícito (`u32` slot -> `u64` e `u64` slot -> `u32`), call direta com até 3 argumentos (`bombom`/`u32`/`u64`/`seta<T>`), `deref_store` mínimo em `bombom`/`u32`/`u64` (incluindo escrita heterogênea de campo de `ninho` via offset explícito), `deref_load` mínimo em `bombom`/`u32`/`u64` (incluindo campo heterogêneo de `ninho` via offset explícito), composição heterogênea mínima auditável no mesmo `ninho` (`u32` + `u64` por offset) e load/store em slots de frame, preservando recorte conservador de `quebrar`/`continuar` em `sempre que` via saltos já materializados (até três níveis de laço aninhado)",
                         ));
                     }
                 }
@@ -428,7 +431,7 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
     line(
         &mut out,
         0,
-        "# pinker v0 external toolchain subset (fase 133, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + quebrar/continuar camada 3 conservadora (composicao minima ate tres niveis de laço) + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args + composto minimo com deref_store/deref_load heterogeneo camada 4 (composicao `u32`+`u64` no mesmo ninho por offset) + u32/u64 minimos em params/locals + comparacao `>=` minima (camada 4 conservadora de 10.2) + `virar` minimo `u32->u64` em slot)",
+        "# pinker v0 external toolchain subset (fase 134, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + quebrar/continuar camada 3 conservadora (composicao minima ate tres niveis de laço) + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args + composto minimo com deref_store/deref_load heterogeneo camada 4 (composicao `u32`+`u64` no mesmo ninho por offset) + u32/u64 minimos em params/locals + comparacao `>=` minima (camada 4 conservadora de 10.2) + `virar` minimo bidirecional por slot (`u32->u64` e `u64->u32`))",
     );
     if !program.rodata_globals.is_empty() {
         line(&mut out, 0, ".section .rodata");
