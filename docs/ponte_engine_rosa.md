@@ -23,15 +23,15 @@ Conectar explicitamente:
 ### Engine já consolidado
 
 - Fase funcional atual: **136** (abertura funcional do editor/TUI oficial da Pinker em camada 1 conservadora).
-- Estado de bloco: **Bloco 10 encerrado por suficiência conservadora na Doc-24**, com Blocos 8 e 9 já encerrados como trilhas ativas e backend preservado no recorte consolidado.
-- Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`; as Fases 120–135 cobriram 10.1→10.6 e a Fase 136 abriu a primeira casca funcional do editor/TUI sem virar IDE ampla.
+- Estado de bloco: **Bloco 11 aberto canonicamente na Doc-25** (texto prático, scripts e ergonomia cotidiana), com Bloco 10 encerrado na Doc-24 e Blocos 8/9 já encerrados como trilhas ativas.
+- Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`; as Fases 120–135 cobriram 10.1→10.6, a Fase 136 abriu a primeira casca funcional do editor/TUI e a Doc-25 reposicionou o foco ativo para fechar lacunas práticas de texto sem abandonar o editor.
 
 ### Rosa em consolidação documental
 
 - Léxico amadurecido como disciplina arquitetural (não só lista de keywords).
 - Estratégia de absorção explícita (aprender função estrutural sem copiar temperamento).
 - Visão de terminal/Pinkefile/ecossistema próprio registrada como aspiracional, sem competir com a prioridade factual de consolidação pós-B9.
-- Doc-23 reconheceu o editor/TUI oficial como direção futura legítima; Doc-24 liberou sua abertura; a Fase 136 materializa o início funcional real dessa frente em recorte mínimo.
+- Doc-23 reconheceu o editor/TUI oficial como direção futura legítima; Doc-24 liberou sua abertura; a Fase 136 materializou o início funcional real dessa frente; e a Doc-25 abriu o Bloco 11 para absorver utilidade prática de scripts sem herdar frouxidão do Python.
 
 ## 4. Decisão prática por tipo de tema
 

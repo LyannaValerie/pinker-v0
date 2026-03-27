@@ -36,12 +36,22 @@
 - I/O mais rica (arquivo/texto) com recorte incremental;
 - tooling de projeto além do `pink build` mínimo;
 - evolução prudente de `verso` sem abrir biblioteca textual gigante de uma vez.
+- No Bloco 11, o arranque funcional esperado é textual (`split`, `join` com separador real, busca e substituição/replace), fechando a lacuna prática imediata de scripts.
 
-### 2.4 Editor/TUI oficial da Pinker (frente funcional aberta em camada 1)
+Itens explicitamente para depois do foco inicial do Bloco 11:
+- REPL;
+- linguagem-cola;
+- execução de processos externos + captura de saída de comandos;
+- integração rica com stdin/stdout/stderr;
+- coleções básicas (lista, mapa/dicionário, iteração mais confortável);
+- JSON, CSV, datas/tempo, aleatoriedade básica e formatação simples.
+
+### 2.4 Editor/TUI oficial da Pinker (frente funcional aberta em camada 1, atualmente pausada)
 
 - A Fase 136 abriu a base funcional inicial do editor/TUI oficial da Pinker.
 - O recorte atual permanece pequeno: abrir `.pink`, mostrar conteúdo em TUI mínima e executar ação Pinker real com saída no painel.
 - O editor/TUI continua sem substituir o compilador/backend como fundação técnica; o backend permanece consolidado e preservado.
+- Após a Doc-25, a continuidade funcional do editor/TUI foi pausada por decisão estratégica para priorizar a abertura do Bloco 11.
 
 Papel inicial do subprojeto:
 - superfície própria de uso da Pinker para edição, execução e visualização de diagnósticos;
