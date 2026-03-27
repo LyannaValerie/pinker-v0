@@ -316,7 +316,7 @@ fn main() {
 }
 
 fn run_editor(config: EditorConfig) {
-    let mut editor = match EditorTui::from_path(&config.input) {
+    let mut editor = match EditorTui::from_path(config.input) {
         Ok(editor) => editor,
         Err(err) => {
             eprintln!("{err}");

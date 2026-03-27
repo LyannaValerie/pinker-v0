@@ -14,6 +14,7 @@
 - Ação Pinker real integrada ao painel: `:tokens` (léxico) e `:ast` (parse + semântica + render da AST em preview curto).
 - Exemplo versionado incluído para demonstração: `examples/fase136_editor_tui_camada1_valido.pink`.
 - Compilador/backend preservados sem mudanças de escopo amplo.
+- Ajuste pós-entrega aplicado como HF-5: correção de conformidade Clippy (`needless_borrows_for_generic_args`) sem alterar comportamento funcional.
 
 ## 3. Continuidade preservada
 - Fase funcional atual: **136**.

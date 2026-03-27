@@ -10,7 +10,7 @@
 ## Estado atual
 - Fase funcional atual: **136 — abertura funcional do editor/TUI oficial da Pinker (camada 1 conservadora)**.
 - Fase funcional anterior: **135 — `verso` mínima (camada 1 conservadora e condicional) no backend nativo externo**.
-- Hotfix extraordinário ativo mais recente: **HF-4**.
+- Hotfix extraordinário ativo mais recente: **HF-5**.
 - Última rodada documental: **Doc-24 — encerramento conservador do Bloco 10 e liberação estratégica da trilha do editor/TUI**.
 
 ## Fonte oficial

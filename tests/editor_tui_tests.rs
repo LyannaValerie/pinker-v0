@@ -21,7 +21,7 @@ fn editor_tui_tokens_acao_minima_funciona() {
     )
     .expect("write fixture");
 
-    let mut editor = EditorTui::from_path(&path).expect("open editor");
+    let mut editor = EditorTui::from_path(path.as_path()).expect("open editor");
     editor.execute_command(":tokens").expect("tokens command");
 
     assert!(editor
@@ -41,7 +41,7 @@ fn editor_tui_ast_falha_em_codigo_invalido() {
     )
     .expect("write fixture");
 
-    let mut editor = EditorTui::from_path(&path).expect("open editor");
+    let mut editor = EditorTui::from_path(path.as_path()).expect("open editor");
     let result = editor.execute_command(":ast");
     assert!(result.is_err());
 

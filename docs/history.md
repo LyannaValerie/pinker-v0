@@ -760,6 +760,12 @@ HF-4 — varredura completa de repositório e higiene estrutural pós-B9
 - Varredura completa de código, testes, exemplos e documentação sem introdução de feature funcional nova.
 - Suite completa pós-correção: todos os testes passam, `cargo build`/`check`/`fmt --check`/`clippy`/`doc` limpos.
 
+HF-5 — ajuste de conformidade Clippy pós-Fase 136
+- Hotfix pontual sem abertura de nova fase funcional.
+- Correção de `clippy::needless_borrows_for_generic_args` no editor/TUI (`EditorTui::from_path`) em `src/main.rs`, testes de `src/editor_tui.rs` e `tests/editor_tui_tests.rs`.
+- Escopo estritamente conservador: sem mudança de comportamento funcional do editor/TUI, compilador ou backend.
+- Suite de validação repetida incluindo `cargo clippy --all-targets --all-features -- -D warnings`.
+
 ########################## DOCUMENTAÇÃO ##########################
 
 Doc-1 - viabilidade de escrita em globals (análise)

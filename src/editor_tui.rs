@@ -245,7 +245,7 @@ mod tests {
         )
         .expect("write fixture");
 
-        let editor = EditorTui::from_path(&path).expect("open editor");
+        let editor = EditorTui::from_path(path.as_path()).expect("open editor");
         assert_eq!(editor.lines.len(), 2);
 
         std::fs::remove_file(path).expect("cleanup");
@@ -254,7 +254,7 @@ mod tests {
     #[test]
     fn editor_falha_para_arquivo_inexistente() {
         let path = temp_file_path("pinker_editor_missing");
-        let result = EditorTui::from_path(&path);
+        let result = EditorTui::from_path(path.as_path());
         assert!(result.is_err());
         let error = result.err().unwrap_or_default();
         assert!(error.contains("Falha ao abrir"));
@@ -269,7 +269,7 @@ mod tests {
         )
         .expect("write fixture");
 
-        let mut editor = EditorTui::from_path(&path).expect("open editor");
+        let mut editor = EditorTui::from_path(path.as_path()).expect("open editor");
         let keep_running = editor.execute_command(":tokens").expect("run tokens");
         assert!(keep_running);
         assert!(editor.output.iter().any(|line| line.starts_with("TOKENS:")));
@@ -282,7 +282,7 @@ mod tests {
         let path = temp_file_path("pinker_editor_set");
         std::fs::write(&path, "linha1\nlinha2").expect("write fixture");
 
-        let mut editor = EditorTui::from_path(&path).expect("open editor");
+        let mut editor = EditorTui::from_path(path.as_path()).expect("open editor");
         editor.execute_command(":set 2 alterada").expect("set line");
         assert_eq!(editor.lines[1], "alterada");
 

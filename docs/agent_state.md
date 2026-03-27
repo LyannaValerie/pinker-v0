@@ -33,7 +33,7 @@
 - Bloco ativo de compilador/backend: **nenhum** (Bloco 10 segue encerrado desde a Doc-24).
 - Rodada documental mais recente: **Doc-24 — encerramento conservador do Bloco 10 e liberação estratégica da trilha do editor/TUI**.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
-- Último hotfix aplicado: **HF-4 — varredura completa de repositório e higiene estrutural pós-B9**.
+- Último hotfix aplicado: **HF-5 — ajuste de conformidade Clippy pós-Fase 136**.
 
 ## 6. Arquitetura documental dual ativa
 - Navegação mestre: `docs/atlas.md`.
