@@ -463,10 +463,7 @@ pub struct AssignStmt {
 pub enum AssignTarget {
     Ident(String),
     Deref(Box<Expr>),
-    FieldDeref {
-        base: Box<Expr>,
-        field: String,
-    },
+    FieldDeref { base: Box<Expr>, field: String },
 }
 
 impl AssignStmt {

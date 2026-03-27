@@ -746,7 +746,8 @@ impl SemanticChecker {
                                 base,
                                 "resultado de função sem retorno não pode ser base de escrita a campo",
                             )?;
-                            let field_ty = self.resolve_struct_field_type(&base_ty, field, assign_stmt.span)?;
+                            let field_ty =
+                                self.resolve_struct_field_type(&base_ty, field, assign_stmt.span)?;
                             if !Self::check_expected_type_for_expr(
                                 &field_ty,
                                 &value_ty,
@@ -762,10 +763,7 @@ impl SemanticChecker {
                                     span: assign_stmt.expr.span,
                                 });
                             }
-                            Self::validate_int_literal_range(
-                                &field_ty,
-                                &assign_stmt.expr,
-                            )?;
+                            Self::validate_int_literal_range(&field_ty, &assign_stmt.expr)?;
                         }
                     }
                 }

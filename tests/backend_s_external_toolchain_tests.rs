@@ -215,7 +215,14 @@ fn asm_s_external_subset_fase131_recusa_campo_heterogeneo_fora_recorte() {
     let code = include_str!("../examples/fase131_ninho_heterogeneo_camada3_invalido.pink");
     let err = render_backend_s_external_subset(code).unwrap_err();
     let msg = err.to_string();
-    assert!(msg.contains("Fase 131") || msg.contains("deref_load") || msg.contains("deref_store") || msg.contains("slot") || msg.contains("seta") || msg.contains("logica"));
+    assert!(
+        msg.contains("Fase 131")
+            || msg.contains("deref_load")
+            || msg.contains("deref_store")
+            || msg.contains("slot")
+            || msg.contains("seta")
+            || msg.contains("logica")
+    );
 }
 
 #[test]

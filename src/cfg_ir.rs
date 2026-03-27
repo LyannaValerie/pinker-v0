@@ -380,18 +380,16 @@ impl FunctionLowerer {
                 value_type,
                 is_volatile,
                 span,
-            } => {
-                self.lower_field_store(
-                    base,
-                    field,
-                    *field_offset,
-                    value,
-                    *value_type,
-                    *is_volatile,
-                    current,
-                    *span,
-                )
-            }
+            } => self.lower_field_store(
+                base,
+                field,
+                *field_offset,
+                value,
+                *value_type,
+                *is_volatile,
+                current,
+                *span,
+            ),
             InstructionIR::Expr { value, span } => self.lower_expr_stmt(value, current, *span),
             InstructionIR::Return { value, span } => {
                 let (ret, next_current) = match value {

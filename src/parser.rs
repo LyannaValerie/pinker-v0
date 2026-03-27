@@ -549,12 +549,10 @@ impl Parser {
                 ExprKind::Unary(UnaryOp::Deref, ptr_expr) => {
                     AssignTarget::Deref(Box::new((**ptr_expr).clone()))
                 }
-                ExprKind::FieldAccess { base, field } => {
-                    AssignTarget::FieldDeref {
-                        base: base.clone(),
-                        field: field.clone(),
-                    }
-                }
+                ExprKind::FieldAccess { base, field } => AssignTarget::FieldDeref {
+                    base: base.clone(),
+                    field: field.clone(),
+                },
                 _ => {
                     return Err(PinkerError::Parse {
                         msg: "atribuição inválida: o lado esquerdo deve ser um identificador, dereferência '*expr' ou acesso a campo '(*ptr).campo'".to_string(),
