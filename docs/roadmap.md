@@ -371,9 +371,9 @@ Por padrão, o fechamento do Bloco 10 **não** implica:
 ## Interpretação obrigatória da trilha
 
 - O Bloco 10 está formalmente encerrado por suficiência conservadora (Doc-24), sem backend pleno.
-
-- O editor/TUI oficial da Pinker deixa de ser apenas direção futura reconhecida e passa a ser a **próxima frente funcional oficial a ser aberta**.
-- A próxima rodada esperada do projeto é a abertura funcional oficial da trilha do editor/TUI (sem iniciar implementação nesta rodada documental).
+- O Bloco 11 está formalmente aberto pela Doc-25 como trilha ativa imediata: scripts, utilidade prática e ergonomia cotidiana.
+- O editor/TUI oficial da Pinker segue como frente oficial já aberta (Fase 136), porém pausada por decisão estratégica; não está abandonado.
+- A próxima rodada funcional esperada do projeto é a primeira fase do Bloco 11.
 
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.
@@ -406,3 +406,100 @@ Um bloco só pode ser considerado suficientemente concluído para liberar o pró
 
 - `docs/future.md` = inventário amplo de possibilidades.
 - `docs/roadmap.md` = ordem oficial ativa de implementação.
+
+---
+
+### Bloco 11 — scripts, utilidade prática e ergonomia cotidiana
+
+**Status**: **aberto canonicamente na Doc-25 como nova trilha ativa imediata**.
+
+**Formulação canônica única do bloco**:
+- a Pinker passa a ampliar sua utilidade prática para scripts, automação leve e tarefas reais do cotidiano;
+- essa ampliação deve preservar:
+  - legibilidade rápida,
+  - sintaxe leve,
+  - ciclo curto de teste,
+  - execução simples de arquivos,
+  - produtividade imediata,
+  - boa vida para scripts pequenos,
+  - manipulação textual útil,
+  - utilidades práticas de arquivo/caminho/ambiente,
+  - parsing de argumentos,
+  - baixa fricção para começar,
+  - ergonomia para tarefas reais;
+- isso NÃO equivale a copiar frouxidão semântica, permissividade excessiva, tipagem vaga, magia implícita ou cultura de gambiarra do Python;
+- o objetivo é roubar utilidade, não herdar caos.
+
+**Tese do bloco**:
+- ampliar a Pinker como ferramenta de uso real para scripts, automação leve e tarefas práticas;
+- reforçar produtividade imediata e baixa fricção;
+- manter disciplina estrutural da linguagem;
+- não copiar permissividade excessiva do Python.
+
+**Foco que entra agora (Bloco 11 ativo)**:
+- legibilidade rápida;
+- sintaxe leve;
+- ciclo curto de teste;
+- execução simples de arquivos;
+- produtividade imediata;
+- boa vida para scripts pequenos;
+- automação prática;
+- manipulação de texto forte;
+- `split`;
+- `join`;
+- busca e substituição;
+- utilidades de arquivo;
+- utilidades de caminho;
+- utilidades de ambiente;
+- parsing de argumentos;
+- feedback rápido;
+- baixa fricção para começar;
+- facilidade para experimentar ideias;
+- ergonomia para tarefas reais.
+
+**Backlog posterior (não foco atual do Bloco 11)**:
+- REPL;
+- linguagem-cola;
+- execução de processos externos;
+- captura de saída de comandos;
+- integração rica com stdin/stdout/stderr;
+- biblioteca padrão útil mais ampla;
+- coleções básicas;
+- lista;
+- mapa/dicionário;
+- iteração confortável;
+- JSON;
+- CSV;
+- datas e tempo;
+- aleatoriedade básica;
+- formatação simples;
+- sensação de ferramenta cotidiana mais madura;
+- facilidade para prototipar em escala maior;
+- clareza em código médio;
+- núcleo padrão mais amplo.
+
+**Exclusões canônicas do bloco (o que NÃO vale herdar do Python)**:
+- frouxidão excessiva;
+- permissividade demais;
+- tipagem vaga demais;
+- gambiarra cultural como norma;
+- dependência de “depois ajeita”;
+- inconsistência em projetos grandes;
+- facilidade de virar bagunça;
+- excesso de magia implícita;
+- ergonomia boa no pequeno e caótica no grande;
+- tolerância alta a arquitetura desleixada.
+
+**Estrutura interna enxuta do bloco**:
+- 11.1 — execução simples e experiência curta de script;
+- 11.2 — manipulação textual útil;
+- 11.3 — utilidades de arquivo, caminho e ambiente;
+- 11.4 — parsing de argumentos;
+- 11.5 — costura de ergonomia prática de script.
+
+**Posição oficial do editor/TUI após a abertura do Bloco 11**:
+- continua parte oficial do ecossistema;
+- já foi aberto funcionalmente na Fase 136;
+- continuidade pausada por decisão estratégica;
+- frente aberta porém pausada, não abandonada;
+- foco ativo imediato volta para evolução da linguagem/ecossistema no Bloco 11.

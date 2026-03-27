@@ -6,7 +6,7 @@
 
 Este é o arquivo mestre de navegação documental da Pinker v0.
 
-Estado de navegação da rodada: frente ativa em Engine = **editor/TUI oficial da Pinker (Fase 136, camada 1 conservadora)**.
+Estado de navegação da rodada: frente ativa em Engine = **Bloco 11 — scripts, utilidade prática e ergonomia cotidiana (aberto na Doc-25)**; editor/TUI permanece frente oficial aberta, porém pausada.
 
 ## Tese estrutural desta arquitetura
 

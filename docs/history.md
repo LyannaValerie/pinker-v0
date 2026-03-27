@@ -923,6 +923,15 @@ Doc-24 - encerramento conservador do Bloco 10 e liberação estratégica da tril
 - Exclusões reforçadas para evitar superestimação do backend externo: sem backend nativo pleno, sem ABI ampla/plena, sem textualidade rica, sem sistema geral de layout/campos, sem casts gerais, sem loops arbitrários amplos e sem redesign de pipeline/backend.
 - Transição estratégica registrada: com o encerramento do Bloco 10, o compilador/backend sai desta trilha em estado suficiente e a próxima frente funcional oficial a ser aberta passa a ser o editor/TUI.
 
+Doc-25 - abertura canônica do Bloco 11
+- Rodada exclusivamente documental, sem implementação funcional.
+- Registra a mudança de foco ativo do projeto para o Bloco 11 — scripts, utilidade prática e ergonomia cotidiana.
+- Abre o Bloco 11 com tese explícita de ampliar utilidade prática para scripts/automação leve/tarefas reais, mantendo disciplina estrutural da linguagem.
+- Separa explicitamente o que entra agora, o que fica para depois e o que não deve ser herdado do Python.
+- Define exclusão operacional de frouxidão/permissividade/tipagem vaga/magia implícita/cultura de gambiarra.
+- Mantém o editor/TUI como frente oficial já aberta (Fase 136), porém pausada por decisão estratégica e não abandonada.
+- Alinha a continuidade: próxima rodada funcional esperada passa a ser a primeira fase do Bloco 11.
+
 
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
