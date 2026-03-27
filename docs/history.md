@@ -726,6 +726,17 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo versionado incluído: `examples/fase136_editor_tui_camada1_valido.pink`.
 - Preserva integralmente o compilador/backend já consolidado e explicita limites: sem IDE ampla, sem LSP/autocomplete, sem watch sofisticado e sem terminal geral embutido.
 
+137 - manipulação textual útil: `split` (camada 1 conservadora)
+- Primeira fase funcional do Bloco 11; abre o item 11.1 (texto útil) com o menor degrau prático auditável.
+- Adiciona dois intrínsecos textuais ao runtime `--run`: `dividir_verso_em(texto, sep, indice) -> verso` e `dividir_verso_contar(texto, sep) -> bombom`.
+- `dividir_verso_em`: retorna o N-ésimo pedaço (base 0) da divisão de `texto` pelo separador `sep`; falha honesta em índice fora de faixa e em separador vazio.
+- `dividir_verso_contar`: retorna o número de pedaços resultantes da divisão; falha honesta em separador vazio.
+- Separador simples em `verso`, sem regex, sem coleção geral, sem abertura de `replace`/`join` nesta fase.
+- Resultado representado em tipos já existentes (`verso` e `bombom`): nenhum novo tipo estrutural introduzido.
+- 11 novos testes adicionados à suíte de intérprete; regressão zero sobre as 252 validações anteriores.
+- Exemplo canônico criado: `examples/fase137_split_camada1_valido.pink`.
+- O que continua fora: `replace`, `join`, regex, busca textual ampla, coleções gerais, JSON/CSV, REPL, subprocessos.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

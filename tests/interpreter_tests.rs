@@ -4693,3 +4693,158 @@ fn run_hf3_criar_arquivo_escrever_verso_ler_verso_fechar_fluxo_completo() {
     // "pinker hf3" has 10 characters
     assert_eq!(out, Some(RuntimeValue::Int(10)));
 }
+
+// ─── Fase 137 — split camada 1 conservadora ───────────────────────────────────
+
+#[test]
+fn run_fase137_dividir_verso_contar_dois_pedacos() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova n: bombom = dividir_verso_contar("a:b", ":");
+            mimo n;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(2)));
+}
+
+#[test]
+fn run_fase137_dividir_verso_contar_tres_pedacos() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova n: bombom = dividir_verso_contar("nome:idade:cidade", ":");
+            mimo n;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(3)));
+}
+
+#[test]
+fn run_fase137_dividir_verso_contar_sem_separador_retorna_um() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova n: bombom = dividir_verso_contar("pinker", ":");
+            mimo n;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_fase137_dividir_verso_em_primeiro_pedaco() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova p: verso = dividir_verso_em("nome:idade:cidade", ":", 0);
+            falar(p);
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn run_fase137_dividir_verso_em_segundo_pedaco() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova p: verso = dividir_verso_em("nome:idade:cidade", ":", 1);
+            nova ok: logica = igual_verso(p, "idade");
+            talvez ok {
+                mimo 137;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(137)));
+}
+
+#[test]
+fn run_fase137_dividir_verso_em_terceiro_pedaco() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova p: verso = dividir_verso_em("nome:idade:cidade", ":", 2);
+            nova ok: logica = igual_verso(p, "cidade");
+            talvez ok {
+                mimo 137;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(137)));
+}
+
+#[test]
+fn run_fase137_dividir_verso_em_separador_espaco() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova p: verso = dividir_verso_em("hello world pinker", " ", 2);
+            nova ok: logica = igual_verso(p, "pinker");
+            talvez ok {
+                mimo 137;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(137)));
+}
+
+#[test]
+fn run_fase137_dividir_verso_em_indice_fora_de_faixa_falha() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova p: verso = dividir_verso_em("a:b", ":", 5);
+            mimo 0;
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("índice fora da faixa"),
+        "esperava erro de índice, obteve: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase137_dividir_verso_contar_separador_vazio_falha() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova n: bombom = dividir_verso_contar("pinker", "");
+            mimo n;
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("separador vazio"),
+        "esperava erro de separador vazio, obteve: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase137_dividir_verso_em_separador_vazio_falha() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova p: verso = dividir_verso_em("pinker", "", 0);
+            mimo 0;
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("separador vazio"),
+        "esperava erro de separador vazio, obteve: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase137_dividir_verso_em_combina_com_contar() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = "a,b,c,d";
+            nova sep: verso = ",";
+            nova n: bombom = dividir_verso_contar(texto, sep);
+            nova ultimo: verso = dividir_verso_em(texto, sep, 3);
+            nova ok: logica = igual_verso(ultimo, "d");
+            talvez ok {
+                mimo n;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(4)));
+}

@@ -371,9 +371,9 @@ Por padrão, o fechamento do Bloco 10 **não** implica:
 ## Interpretação obrigatória da trilha
 
 - O Bloco 10 está formalmente encerrado por suficiência conservadora (Doc-24), sem backend pleno.
-- O Bloco 11 está formalmente aberto pela Doc-25 como trilha ativa imediata: texto prático, scripts e ergonomia cotidiana.
+- O Bloco 11 está em progresso ativo: a Fase 137 abriu o primeiro recorte funcional do item 11.1 (texto útil) com `split` mínimo e auditável.
 - O editor/TUI oficial da Pinker segue como frente oficial já aberta (Fase 136), porém pausada por decisão estratégica; não está abandonado.
-- A próxima rodada funcional esperada do projeto é a primeira fase do Bloco 11, começando por texto (11.1).
+- A próxima rodada funcional esperada do Bloco 11 é continuar o item 11.1 com `replace` ou `join`, ou avançar para 11.2 (scripts e CLI).
 
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.

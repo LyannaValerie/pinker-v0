@@ -1161,6 +1161,68 @@ fn try_call_intrinsic(
                 !texto.is_empty(),
             ))))
         }
+        // Fase 137 — dividir_verso_em(texto, sep, indice) -> verso
+        "dividir_verso_em" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca 'dividir_verso_em' exige 3 argumentos (verso, verso, bombom)",
+                ));
+            }
+            let RuntimeValue::Str(texto) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'dividir_verso_em' exige primeiro argumento em verso",
+                ));
+            };
+            let RuntimeValue::Str(sep) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'dividir_verso_em' exige segundo argumento em verso",
+                ));
+            };
+            let RuntimeValue::Int(indice) = args[2] else {
+                return Err(runtime_err(
+                    "intrínseca 'dividir_verso_em' exige terceiro argumento em bombom",
+                ));
+            };
+            if sep.is_empty() {
+                return Err(runtime_err(
+                    "intrínseca 'dividir_verso_em' não aceita separador vazio",
+                ));
+            }
+            let partes: Vec<&str> = texto.split(sep.as_str()).collect();
+            let Some(parte) = partes.get(indice as usize) else {
+                return Err(runtime_err(
+                    "índice fora da faixa em 'dividir_verso_em' para o verso informado",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
+                parte.to_string(),
+            ))))
+        }
+        // Fase 137 — dividir_verso_contar(texto, sep) -> bombom
+        "dividir_verso_contar" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'dividir_verso_contar' exige 2 argumentos (verso, verso)",
+                ));
+            }
+            let RuntimeValue::Str(texto) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'dividir_verso_contar' exige primeiro argumento em verso",
+                ));
+            };
+            let RuntimeValue::Str(sep) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'dividir_verso_contar' exige segundo argumento em verso",
+                ));
+            };
+            if sep.is_empty() {
+                return Err(runtime_err(
+                    "intrínseca 'dividir_verso_contar' não aceita separador vazio",
+                ));
+            }
+            let count = texto.split(sep.as_str()).count() as u64;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(count))))
+        }
         "argumento" => {
             if args.len() != 1 {
                 return Err(runtime_err(

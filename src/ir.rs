@@ -757,6 +757,21 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
+        // Fase 137
+        function_sigs.insert(
+            "dividir_verso_em".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "dividir_verso_contar".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
 
         Ok(Self {
             module_name,
