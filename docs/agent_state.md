@@ -30,7 +30,7 @@
 - Fase funcional atual: **132 — `ninho` / compostos heterogêneos mínimos (camada 4 conservadora, composição mínima auditável) no backend nativo externo**.
 - Fase funcional anterior: **131 — `ninho` / compostos heterogêneos mínimos (camada 3 conservadora) no backend nativo externo**.
 - Bloco ativo: **Bloco 10 — cobertura semântica do backend nativo** (aberto canonicamente na Doc-21).
-- Rodada documental mais recente: **Doc-21 — abertura canônica do Bloco 10**.
+- Rodada documental mais recente: **Doc-23 — incorporação documental do editor/TUI ao ecossistema Pinker**.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
 - Último hotfix aplicado: **HF-4 — varredura completa de repositório e higiene estrutural pós-B9**.
 
@@ -57,3 +57,9 @@
 - Binário MCP: `pinker_mcp`.
 - Padrão recomendado: `cargo run --bin pink -- ...`.
 - `default-run = "pink"` preserva ergonomia.
+
+
+## 10. Direção futura reconhecida (Doc-23)
+- O editor/TUI oficial da Pinker passa a existir como direção reconhecida do ecossistema.
+- Essa direção é futura e não abre trilha funcional imediata nesta rodada.
+- Ordem estratégica explícita: concluir o Bloco 10 do compilador/backend e, após esse fechamento, iniciar o subprojeto editor/TUI.

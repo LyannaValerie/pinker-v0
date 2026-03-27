@@ -31,6 +31,7 @@ Conectar explicitamente:
 - Léxico amadurecido como disciplina arquitetural (não só lista de keywords).
 - Estratégia de absorção explícita (aprender função estrutural sem copiar temperamento).
 - Visão de terminal/Pinkefile/ecossistema próprio registrada como aspiracional, sem competir com a prioridade factual de consolidação pós-B9.
+- Doc-23 reconheceu o editor/TUI oficial como direção futura legítima do ecossistema, com início após o fechamento do bloco atual do compilador/backend (sem deslocar o foco técnico presente do Bloco 10).
 
 ## 4. Decisão prática por tipo de tema
 

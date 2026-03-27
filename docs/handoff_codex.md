@@ -5,25 +5,25 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 132 — `ninho` / compostos heterogêneos mínimos (camada 4 conservadora, composição mínima auditável) no backend nativo externo**.
-- Rodada funcional mínima de continuidade do item 10.4 do Bloco 10.
+- **Doc-23 — incorporação documental do editor/TUI ao ecossistema Pinker**.
+- Rodada exclusivamente documental, sem implementação funcional do editor/TUI e sem abertura de nova fase funcional.
 
 ## 2. Resultado operacional da rodada
-- Bloco 10 permanece como trilha ativa.
-- Itens 10.1, 10.2 e 10.3 foram preservados (`u32`/`u64` em parâmetros/locais, comparações mínimas `==`, `!=`, `<`, `>`, `<=`, `>=` e `quebrar`/`continuar` até camada 3) e o item 10.4 avançou para camada 4 com composição heterogênea mínima auditável no mesmo `ninho` (`u32` + `u64`) via `seta<ninho>` + offset explícito, preservando o recorte pequeno e sem abrir sistema geral de campos/layout.
-- Subset anterior (Fases 111–130) foi preservado sem regressão.
-- Ordem interna canônica permanece a mesma: 10.1 inteiros mais largos; 10.2 comparações ampliadas; 10.3 `quebrar`/`continuar`; 10.4 `ninho`/heterogêneo mínimo; 10.5 `virar`; 10.6 `verso` condicional.
+- Bloco 10 permanece como trilha ativa e foco técnico principal do compilador/backend.
+- O editor/TUI oficial foi incorporado documentalmente como subprojeto futuro legítimo do ecossistema Pinker.
+- Ordem estratégica registrada de forma explícita: continuar e fechar o Bloco 10 primeiro; só depois iniciar a trilha funcional do editor/TUI.
+- Enquadramento técnico inicial do editor/TUI foi concentrado em `docs/future.md`, sem transformar `roadmap.md` em roadmap do editor.
 
 ## 3. Continuidade preservada
-- Fase funcional atual: **132**.
-- Fase funcional anterior: **131**.
-- Rodada documental mais recente permanece **Doc-21**.
+- Fase funcional atual permanece: **132**.
+- Fase funcional anterior permanece: **131**.
+- Rodada documental mais recente passa a ser: **Doc-23**.
 
 ## 4. Próximo passo correto
-- Próxima rodada normal: considerar encerramento conservador de 10.4 após a camada 4, ou abrir 10.5 (`virar`) em recorte mínimo e auditável, sem abrir 10.5 e 10.4 simultaneamente.
+- Próxima rodada normal: continuar a trilha ativa do Bloco 10 (encerramento conservador de 10.4 ou abertura de 10.5 com recorte mínimo e auditável).
+- Não iniciar implementação do editor/TUI antes do fechamento do bloco atual do compilador/backend.
 - Não pular ordem interna do Bloco 10.
-- Não inverter `ninho` e `virar`.
-- Não antecipar `verso`; item final e condicional.
+- Não inverter `ninho` e `virar`; não antecipar `verso` (item final e condicional).
 
 ## 5. Restrições explícitas do bloco
 - Sem backend nativo pleno.
