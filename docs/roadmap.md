@@ -270,7 +270,7 @@ Por padrão, o Bloco 9 **não cobre**:
 
 ### Bloco 10 — cobertura semântica do backend nativo
 
-**Status**: **trilha ativa em execução (Doc-21; Fases 122–125 abriram 10.2 em camadas conservadoras 1, 2, 3 e 4; Fases 126–128 avançaram 10.3 em camadas conservadoras 1, 2 e 3; Fases 129–132 avançaram 10.4 em camadas conservadoras 1, 2, 3 e 4; Fases 133 e 134 avançaram 10.5 em camadas conservadoras 1 e 2; Fase 135 abriu 10.6 em camada 1 conservadora e condicional)**.
+**Status**: **encerrado por suficiência conservadora (Doc-24)**. O bloco percorreu 10.1–10.6 em recortes pequenos, honestos e auditáveis, culminando na Fase 135 (`verso` mínima condicional) sem converter o backend externo em backend pleno.
 
 **Tese do bloco**:
 - o backend nativo real já existe e é o ponto de partida;
@@ -328,19 +328,51 @@ Por padrão, o Bloco 10 **não cobre**:
 
 #### Trava específica para 10.6 (`verso`)
 
-- `verso` mínima no backend nativo só pode entrar no **fim** do bloco e apenas se ainda houver chão técnico e documental.
-- Mesmo recorte pequeno de `verso` arrasta representação, `.rodata`, calling convention textual e expectativa de operações futuras.
-- Por isso, `verso` é item **condicional** e não pode sequestrar o bloco.
-- A Fase 135 abriu apenas a camada 1 mínima; qualquer avanço adicional em `verso` continua condicional e deve permanecer estrito.
+- `verso` no backend externo permanece no recorte mínimo condicional já aberto na Fase 135.
+- O fechamento do bloco não autoriza escalar `verso` para textualidade ampla por padrão.
+- Qualquer retorno futuro ao item 10.6 deve ser excepcional, pequeno e bem justificado.
+
+#### Encerramento canônico do Bloco 10 (Doc-24)
+
+- o Bloco 10 cumpriu sua função de ampliar a cobertura semântica do backend nativo externo de forma conservadora e auditável;
+- cada subitem do bloco foi aberto em recortes pequenos, honestos e progressivos;
+- o resultado não equivale a backend pleno;
+- o resultado não equivale a suporte amplo e geral de todas as superfícies da linguagem;
+- o Bloco 10 está encerrado por suficiência conservadora do recorte efetivamente conquistado, não por exaustão total do tema;
+- qualquer retorno futuro a temas do Bloco 10 deve ser excepcional, pequeno e bem justificado.
+
+#### Consolidação factual do que 10.1–10.6 entregaram
+
+- **10.1**: `u32` e `u64` em params/locals no backend externo.
+- **10.2**: comparações mínimas `!=`, `>`, `<=` e `>=` no recorte conservador não assinado vigente.
+- **10.3**: `quebrar`/`continuar` em `sempre que` com camada mínima, aninhamento controlado e composição auditável até três níveis.
+- **10.4**: `ninho` heterogêneo mínimo com leitura `u32`/`u64`, escrita heterogênea mínima controlada e composição mínima auditável no mesmo `ninho`.
+- **10.5**: `virar` mínimo explícito `u32 -> u64` e `u64 -> u32` no recorte por slot local/parâmetro.
+- **10.6**: `verso` mínimo estático/opaco (`.rodata` + `.asciz` + `leaq` + tráfego opaco por slot/parâmetro/call), sem textualidade ampla.
+
+#### Exclusões que permanecem explícitas após o fechamento
+
+Por padrão, o fechamento do Bloco 10 **não** implica:
+- backend nativo pleno;
+- ABI ampla/plena;
+- sistema geral de strings/texto;
+- textualidade rica no backend externo;
+- structs/compostos gerais amplos;
+- sistema geral de layout/campos;
+- controle de fluxo amplo para loops arbitrários;
+- coerções implícitas amplas;
+- casts gerais entre todos os tipos;
+- runtime textual rica;
+- redesign de pipeline/backend.
 
 ---
 
 ## Interpretação obrigatória da trilha
 
-- Bloco 10 é a trilha ativa atual com foco disciplinado em cobertura semântica do backend nativo (sem backend pleno).
+- O Bloco 10 está formalmente encerrado por suficiência conservadora (Doc-24), sem backend pleno.
 
-- O editor/TUI oficial da Pinker está reconhecido como frente futura do ecossistema (Doc-23), com enquadramento técnico inicial em `docs/future.md`, sem virar trilha ativa agora.
-- Ordem estratégica explícita: concluir o bloco atual do compilador/backend e só depois iniciar a trilha funcional do editor/TUI.
+- O editor/TUI oficial da Pinker deixa de ser apenas direção futura reconhecida e passa a ser a **próxima frente funcional oficial a ser aberta**.
+- A próxima rodada esperada do projeto é a abertura funcional oficial da trilha do editor/TUI (sem iniciar implementação nesta rodada documental).
 
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.

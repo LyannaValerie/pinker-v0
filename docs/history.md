@@ -902,6 +902,14 @@ Doc-23 - incorporação documental do editor/TUI ao ecossistema Pinker
 - Enquadramento técnico inicial do subprojeto consolidado em `docs/future.md`: editor textual/TUI oficial, integração com execução/diagnóstico/comandos Pinker e limites explícitos de escopo inicial (sem IDE ampla).
 - Continuidade preservada: Fase funcional atual permanece 132 e o foco técnico imediato não foi deslocado do backend nativo externo.
 
+Doc-24 - encerramento conservador do Bloco 10 e liberação estratégica da trilha do editor/TUI
+- Rodada exclusivamente documental, sem implementação funcional de compilador/backend nem do editor/TUI.
+- Bloco 10 reconhecido como encerrado por suficiência conservadora, sem declarar backend pleno e sem tratar o tema como exaustão total.
+- Consolidação factual registrada para 10.1–10.6 no backend externo: `u32`/`u64` em params/locals; comparações `!=`, `>`, `<=`, `>=`; `quebrar`/`continuar` em três camadas conservadoras; `ninho` heterogêneo mínimo com leitura/escrita controladas; `virar` mínimo explícito `u32 -> u64` e `u64 -> u32`; `verso` mínimo estático/opaco (`.rodata` + `.asciz` + `leaq` + tráfego opaco por slot/parâmetro/call).
+- Exclusões reforçadas para evitar superestimação do backend externo: sem backend nativo pleno, sem ABI ampla/plena, sem textualidade rica, sem sistema geral de layout/campos, sem casts gerais, sem loops arbitrários amplos e sem redesign de pipeline/backend.
+- Transição estratégica registrada: com o encerramento do Bloco 10, o compilador/backend sai desta trilha em estado suficiente e a próxima frente funcional oficial a ser aberta passa a ser o editor/TUI.
+
+
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -11,7 +11,7 @@
 - Fase funcional atual: **135 — `verso` mínima (camada 1 conservadora e condicional) no backend nativo externo**.
 - Fase funcional anterior: **134 — `virar` / cast operacional mínimo (camada 2 conservadora) no backend nativo externo**.
 - Hotfix extraordinário ativo mais recente: **HF-4**.
-- Última rodada documental: **Doc-23 — incorporação documental do editor/TUI ao ecossistema Pinker**.
+- Última rodada documental: **Doc-24 — encerramento conservador do Bloco 10 e liberação estratégica da trilha do editor/TUI**.
 
 ## Fonte oficial
 - Linha do tempo completa: `docs/history.md`.
@@ -20,6 +20,6 @@
 
 ## Registro documental corrente
 - Doc-21 abriu o **Bloco 10 — cobertura semântica do backend nativo** como trilha ativa.
-- Doc-23 incorporou oficialmente o editor/TUI da Pinker como direção futura do ecossistema, com início adiado para depois do fechamento do bloco atual do compilador/backend.
-- Ordem canônica do bloco permanece: 10.1 inteiros mais largos; 10.2 comparações ampliadas; 10.3 `quebrar`/`continuar`; 10.4 `ninho`; 10.5 `virar`; 10.6 `verso` condicional.
-- Próxima rodada normal esperada: manter continuidade do Bloco 10 com evolução conservadora de 10.6 (`verso`) sobre o recorte mínimo já aberto na Fase 135, sem inflar escopo textual e sem iniciar implementação funcional do editor/TUI nesta etapa.
+- Doc-24 registrou o encerramento conservador do Bloco 10 por suficiência do recorte efetivamente conquistado, sem declarar backend pleno.
+- Consolidação factual do bloco registrada em 10.1–10.6: `u32`/`u64`; comparações `!=`, `>`, `<=`, `>=`; `quebrar`/`continuar` em três camadas; `ninho` heterogêneo mínimo; `virar` mínimo `u32 <-> u64`; `verso` mínimo estático/opaco.
+- Próxima rodada normal esperada: abertura funcional oficial da trilha do editor/TUI, sem reabrir o Bloco 10 por inércia e sem iniciar implementação do editor/TUI nesta rodada documental.
