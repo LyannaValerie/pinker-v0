@@ -1,0 +1,6 @@
+pacote main;
+
+carinho principal() -> bombom {
+    falar("editor tui pinker fase 136");
+    mimo 0;
+}

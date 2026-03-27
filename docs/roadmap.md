@@ -253,11 +253,12 @@ Por padrão, o Bloco 9 **não cobre**:
 - independência total do backend para todos os recortes futuros da linguagem.
 
 
-#### Próxima abertura funcional
+#### Frente funcional aberta após backend
 
-- Após o encerramento conservador do Bloco 9, a próxima frente funcional fica **a definir conscientemente**.
-- Não presumir continuidade automática de 9.6.
-- Não reabrir o Bloco 9 por inércia documental; só por necessidade extraordinária, pequena e bem justificada.
+- Após o encerramento conservador do Bloco 10 na Doc-24, a frente funcional oficial passou a ser o **editor/TUI da Pinker**.
+- A **Fase 136** abriu essa frente em camada 1 conservadora com base mínima funcional: abrir `.pink`, exibir conteúdo em TUI simples, editar minimamente por comando e acionar ação Pinker real (`:tokens` / `:ast`) com saída no painel.
+- Não presumir continuidade automática de 9.6 ou 10.x; o backend permanece preservado no estado conservador já consolidado.
+- Não reabrir Bloco 9/10 por inércia documental; só por necessidade extraordinária, pequena e bem justificada.
 
 #### Trava de runtime nativa mínima no Bloco 9
 

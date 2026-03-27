@@ -37,24 +37,21 @@
 - tooling de projeto além do `pink build` mínimo;
 - evolução prudente de `verso` sem abrir biblioteca textual gigante de uma vez.
 
-### 2.4 Editor/TUI oficial da Pinker (subprojeto futuro do ecossistema)
+### 2.4 Editor/TUI oficial da Pinker (frente funcional aberta em camada 1)
 
-- O editor/TUI oficial da Pinker passa a existir como direção reconhecida do ecossistema do projeto.
-- Ele não substitui o compilador/backend como foco técnico atual.
-- Com a Doc-24, ele passa de direção futura reconhecida para próxima frente funcional oficial a ser aberta na sequência do projeto.
+- A Fase 136 abriu a base funcional inicial do editor/TUI oficial da Pinker.
+- O recorte atual permanece pequeno: abrir `.pink`, mostrar conteúdo em TUI mínima e executar ação Pinker real com saída no painel.
+- O editor/TUI continua sem substituir o compilador/backend como fundação técnica; o backend permanece consolidado e preservado.
 
 Papel inicial do subprojeto:
 - superfície própria de uso da Pinker para edição, execução e visualização de diagnósticos;
 - interface de uso do compilador/ecossistema com identidade visual coerente com a paleta Pinker;
 - editor textual/TUI oficial do ecossistema (não IDE ampla).
 
-Funções iniciais previstas (recorte pequeno e disciplinado):
-- abrir/salvar arquivos `.pink`;
-- edição textual básica;
-- realce/sinalização mínima;
-- barra de status;
-- painel de saída/diagnóstico;
-- comandos Pinker visíveis no fluxo principal (`rodar`, `testar`, `tokens`, `ast`, `maquina`, `diagnostico`, `montar`, `limpar`).
+Funções iniciais previstas (próximas camadas, após a Fase 136):
+- ampliar edição textual básica ainda conservadora;
+- reforçar sinalização/diagnóstico mínimos;
+- expandir gradualmente comandos Pinker no fluxo principal além do recorte já ativo (`tokens` e `ast`).
 
 Limites iniciais explícitos:
 - não começar como IDE ampla;
@@ -76,4 +73,3 @@ Limites iniciais explícitos:
 - Este arquivo diz **o que falta tecnicamente**.
 - `docs/rosa.md` diz **por que e com que identidade** evoluir.
 - `docs/ponte_engine_rosa.md` conecta ambas as perspectivas sem confusão.
-

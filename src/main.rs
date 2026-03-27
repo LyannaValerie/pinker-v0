@@ -5,6 +5,7 @@ use pinker_v0::backend_text;
 use pinker_v0::backend_text_validate;
 use pinker_v0::cfg_ir;
 use pinker_v0::cfg_ir_validate;
+use pinker_v0::editor_tui::EditorTui;
 use pinker_v0::instr_select;
 use pinker_v0::instr_select_validate;
 use pinker_v0::interpreter;
@@ -42,14 +43,21 @@ struct BuildConfig {
     out_dir: String,
 }
 
+struct EditorConfig {
+    input: String,
+}
+
 enum CliCommand {
     Analyze(Config),
     Build(BuildConfig),
+    Editor(EditorConfig),
 }
 
 fn usage(binary: &str) -> String {
     format!(
         "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--cfg-ir] [--selected] [--machine] [--pseudo-asm] [--asm-s] [--run] [--check] <arquivo.pink> [-- <args...>]\n\
+         Uso: {binary} build [--out-dir <diretorio>] <arquivo.pink>\n\
+         Uso: {binary} editor <arquivo.pink>\n\
          \n\
          Modos:\n\
            --tokens    imprime a lista de tokens com spans\n\
@@ -63,7 +71,11 @@ fn usage(binary: &str) -> String {
            --asm-s     imprime backend textual `.s` (ABI textual mínima)\n\
            --run       interpreta a machine validada e executa principal\n\
            --          separa argumentos posicionais repassados para `argumento(i)`/`argumento_ou(i, padrao)` em --run\n\
-           --check     executa apenas a validação semântica\n"
+           --check     executa apenas a validação semântica\n\
+         \n\
+         Comandos:\n\
+           build       gera artefato textual `.s` em disco\n\
+           editor      abre a TUI oficial mínima da Pinker (Fase 136)\n"
     )
 }
 
@@ -76,6 +88,23 @@ fn build_usage(binary: &str) -> String {
          \n\
          Opções:\n\
            --out-dir  diretório de saída (padrão: build)\n"
+    )
+}
+
+fn editor_usage(binary: &str) -> String {
+    format!(
+        "Uso: {binary} editor <arquivo.pink>\n\
+         \n\
+         Comando:\n\
+           editor     abre a TUI oficial mínima da Pinker (Fase 136)\n\
+         \n\
+         Comandos disponíveis na TUI:\n\
+           :tokens    executa ação Pinker real e mostra saída no painel\n\
+           :ast       mostra preview da AST no painel\n\
+           :append    adiciona uma linha no final\n\
+           :set       altera linha existente\n\
+           :save      salva arquivo atual\n\
+           :quit      sai do editor (requer :save se houver alterações)\n"
     )
 }
 
@@ -124,6 +153,36 @@ fn parse_build_args(binary: &str, args: &[String]) -> Result<BuildConfig, String
     Ok(BuildConfig { input, out_dir })
 }
 
+fn parse_editor_args(binary: &str, args: &[String]) -> Result<EditorConfig, String> {
+    let mut input: Option<String> = None;
+    for arg in args {
+        match arg.as_str() {
+            "--help" | "-h" => return Err(editor_usage(binary)),
+            _ if arg.starts_with("--") => {
+                return Err(format!(
+                    "Flag desconhecida no comando editor: '{}'\n\n{}",
+                    arg,
+                    editor_usage(binary)
+                ));
+            }
+            _ => {
+                if input.is_some() {
+                    return Err(format!(
+                        "Apenas um arquivo de entrada é suportado em 'editor'.\n\n{}",
+                        editor_usage(binary)
+                    ));
+                }
+                input = Some(arg.clone());
+            }
+        }
+    }
+
+    let Some(input) = input else {
+        return Err(editor_usage(binary));
+    };
+    Ok(EditorConfig { input })
+}
+
 fn parse_args() -> Result<CliCommand, String> {
     let mut input: Option<String> = None;
     let mut print_tokens = false;
@@ -161,6 +220,9 @@ fn parse_args() -> Result<CliCommand, String> {
     if let Some(cmd) = flag_args.first() {
         if cmd == "build" {
             return parse_build_args(&binary, &flag_args[1..]).map(CliCommand::Build);
+        }
+        if cmd == "editor" {
+            return parse_editor_args(&binary, &flag_args[1..]).map(CliCommand::Editor);
         }
     }
 
@@ -249,6 +311,21 @@ fn main() {
     match command {
         CliCommand::Analyze(config) => run_analyze(config),
         CliCommand::Build(config) => run_build(config),
+        CliCommand::Editor(config) => run_editor(config),
+    }
+}
+
+fn run_editor(config: EditorConfig) {
+    let mut editor = match EditorTui::from_path(config.input) {
+        Ok(editor) => editor,
+        Err(err) => {
+            eprintln!("{err}");
+            std::process::exit(1);
+        }
+    };
+    if let Err(err) = editor.run() {
+        eprintln!("{err}");
+        std::process::exit(1);
     }
 }
 

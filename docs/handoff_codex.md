@@ -5,26 +5,28 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Doc-24 — encerramento conservador do Bloco 10 e liberação estratégica da trilha do editor/TUI**.
-- Rodada exclusivamente documental: sem implementação funcional nova no compilador/backend e sem início de implementação do editor/TUI.
+- **Fase 136 — abertura funcional do editor/TUI oficial da Pinker (camada 1 conservadora)**.
+- Rodada funcional pequena e auditável: sem reabertura de Bloco 10 e sem redesign do compilador/backend.
 
 ## 2. Resultado operacional da rodada
-- Bloco 10 foi encerrado por suficiência conservadora após percorrer 10.1–10.6 em recortes pequenos, honestos e auditáveis.
-- Formulação canônica registrada: o bloco ampliou cobertura semântica do backend externo sem equivaler a backend pleno nem a suporte amplo de todas as superfícies da linguagem.
-- Consolidação factual registrada: 10.1 (`u32`/`u64` em params/locals), 10.2 (`!=`, `>`, `<=`, `>=`), 10.3 (`quebrar`/`continuar` em três camadas), 10.4 (`ninho` heterogêneo mínimo), 10.5 (`virar` mínimo `u32 <-> u64`), 10.6 (`verso` estático/opaco mínimo).
-- Exclusões relevantes reafirmadas para evitar superestimação: sem backend pleno, sem ABI ampla/plena, sem textualidade rica e sem redesign de pipeline/backend.
+- Editor/TUI oficial mínimo entrou no binário `pink` via `pink editor <arquivo.pink>`.
+- Superfície entregue nesta camada 1: header/status com identidade Pinker, área principal de arquivo `.pink`, painel de saída e comandos mínimos (`:tokens`, `:ast`, `:append`, `:set`, `:save`, `:quit`).
+- Ação Pinker real integrada ao painel: `:tokens` (léxico) e `:ast` (parse + semântica + render da AST em preview curto).
+- Exemplo versionado incluído para demonstração: `examples/fase136_editor_tui_camada1_valido.pink`.
+- Compilador/backend preservados sem mudanças de escopo amplo.
+- Ajuste pós-entrega aplicado como HF-5: correção de conformidade Clippy (`needless_borrows_for_generic_args`) sem alterar comportamento funcional.
 
 ## 3. Continuidade preservada
-- Fase funcional atual: **135**.
-- Fase funcional anterior: **134**.
+- Fase funcional atual: **136**.
+- Fase funcional anterior: **135**.
 - Rodada documental mais recente: **Doc-24**.
 
 ## 4. Próximo passo correto
-- Próxima rodada normal: abertura funcional oficial da trilha do editor/TUI em recorte pequeno e auditável.
+- Próxima rodada normal: ampliar a frente do editor/TUI em recortes pequenos e auditáveis, mantendo integração com comandos Pinker reais.
 - Não reabrir o Bloco 10 por impulso; qualquer retorno a 10.1–10.6 deve ser excepcional, pequeno e bem justificado.
-- Não transformar a abertura do editor/TUI em fase ampla de uma vez.
+- Não transformar o editor/TUI inicial em IDE ampla.
 
 ## 5. Restrições explícitas
 - Sem backend nativo pleno por declaração documental.
 - Sem ABI ampla/plena, sem sistema geral de strings/texto, sem sistema geral de layout/campos e sem casts gerais entre todos os tipos.
-- Sem implementação do editor/TUI nesta rodada; apenas liberação estratégica para a próxima frente funcional oficial.
+- Sem LSP/autocomplete, sem árvore de símbolos, sem watch sofisticado e sem terminal geral embutido nesta camada 1 do editor/TUI.

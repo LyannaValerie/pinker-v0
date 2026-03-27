@@ -27,12 +27,13 @@
 - Saídas: `--pseudo-asm`, `--asm-s`, `--run`.
 
 ## 5. Estado corrente
-- Fase funcional atual: **135 — `verso` mínima (camada 1 conservadora e condicional) no backend nativo externo**.
-- Fase funcional anterior: **134 — `virar` / cast operacional mínimo (camada 2 conservadora) no backend nativo externo**.
-- Bloco ativo: **nenhum bloco de compilador/backend ativo após encerramento do Bloco 10 na Doc-24**.
+- Fase funcional atual: **136 — abertura funcional do editor/TUI oficial da Pinker (camada 1 conservadora)**.
+- Fase funcional anterior: **135 — `verso` mínima (camada 1 conservadora e condicional) no backend nativo externo**.
+- Frente ativa: **editor/TUI oficial da Pinker**.
+- Bloco ativo de compilador/backend: **nenhum** (Bloco 10 segue encerrado desde a Doc-24).
 - Rodada documental mais recente: **Doc-24 — encerramento conservador do Bloco 10 e liberação estratégica da trilha do editor/TUI**.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
-- Último hotfix aplicado: **HF-4 — varredura completa de repositório e higiene estrutural pós-B9**.
+- Último hotfix aplicado: **HF-5 — ajuste de conformidade Clippy pós-Fase 136**.
 
 ## 6. Arquitetura documental dual ativa
 - Navegação mestre: `docs/atlas.md`.
@@ -50,7 +51,7 @@
 1. Ler: `README.md`, `docs/atlas.md`, `docs/roadmap.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/history.md`, `docs/doc_rules.md`.
 2. Executar validações exigidas da rodada antes de encerrar.
 3. Atualizar ao final: `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` quando houver mudança documental/operacional.
-4. Próxima rodada normal esperada: abrir oficialmente a trilha funcional do editor/TUI em recorte pequeno e auditável, sem reabrir o Bloco 10 por impulso.
+4. Próxima rodada normal esperada: evoluir o editor/TUI em recortes pequenos e auditáveis, sem transformar em IDE ampla e sem reabrir o Bloco 10 por impulso.
 
 ## 9. Padrão operacional de binários
 - Binário principal: `pink`.
@@ -59,7 +60,7 @@
 - `default-run = "pink"` preserva ergonomia.
 
 
-## 10. Direção estratégica atualizada (Doc-24)
-- O editor/TUI oficial da Pinker permanece incorporado ao ecossistema e passa do estado de “direção futura reconhecida” para “próxima frente funcional oficial a ser aberta”.
-- O Bloco 10 do compilador/backend foi encerrado por suficiência conservadora nesta rodada documental.
-- Ordem estratégica explícita: abrir a trilha funcional do editor/TUI na próxima rodada, sem reabrir o Bloco 10 por inércia.
+## 10. Direção estratégica atualizada (Fase 136)
+- O editor/TUI oficial da Pinker deixou de ser apenas direção liberada e passou a existir funcionalmente em camada 1 conservadora.
+- O Bloco 10 do compilador/backend permanece encerrado por suficiência conservadora (Doc-24), sem reabertura nesta fase.
+- Ordem estratégica explícita: evoluir editor/TUI por camadas pequenas, com integração real ao fluxo Pinker e sem inflar escopo para IDE ampla.
