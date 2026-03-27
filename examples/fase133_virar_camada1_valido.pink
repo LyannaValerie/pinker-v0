@@ -1,0 +1,15 @@
+pacote main;
+
+// Fase 133: `virar` mínimo no backend externo (camada 1 conservadora).
+// Recorte explícito: apenas `u32 -> u64` com origem em slot local/parâmetro `u32`.
+
+carinho principal() -> bombom {
+    nova origem: u32 = 42;
+    nova alargado: u64 = origem virar u64;
+
+    talvez alargado == 42 {
+        mimo 133;
+    } senao {
+        mimo 0;
+    }
+}

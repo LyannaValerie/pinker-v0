@@ -1,0 +1,15 @@
+pacote main;
+
+// Inválido para o recorte mínimo da Fase 133 no backend externo:
+// `u64 -> u32` permanece fora do subset de `virar` no caminho `--asm-s` externo.
+
+carinho principal() -> bombom {
+    nova base: u64 = 7;
+    nova reduzido: u32 = base virar u32;
+
+    talvez reduzido == 7 {
+        mimo 1;
+    }
+
+    mimo 0;
+}

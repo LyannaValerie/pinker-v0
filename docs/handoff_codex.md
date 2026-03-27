@@ -5,22 +5,22 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Doc-23 — incorporação documental do editor/TUI ao ecossistema Pinker**.
-- Rodada exclusivamente documental, sem implementação funcional do editor/TUI e sem abertura de nova fase funcional.
+- **Fase 133 — `virar` / cast operacional mínimo (camada 1 conservadora) no backend nativo externo**.
+- Rodada funcional mínima no item 10.5, sem abrir 10.6 (`verso`) e sem ampliar para sistema geral de casts.
 
 ## 2. Resultado operacional da rodada
 - Bloco 10 permanece como trilha ativa e foco técnico principal do compilador/backend.
-- O editor/TUI oficial foi incorporado documentalmente como subprojeto futuro legítimo do ecossistema Pinker.
-- Ordem estratégica registrada de forma explícita: continuar e fechar o Bloco 10 primeiro; só depois iniciar a trilha funcional do editor/TUI.
-- Enquadramento técnico inicial do editor/TUI foi concentrado em `docs/future.md`, sem transformar `roadmap.md` em roadmap do editor.
+- Item ativo avançou para **10.5 (`virar`)** com recorte operacional mínimo explícito no backend externo: apenas `u32 -> u64` com origem em slot local/parâmetro.
+- Emissão auditável adicionada no `.s` externo para esse recorte (`movl %eax, %eax`) e recusa explícita para casts fora do subset da fase.
+- Trilha futura do editor/TUI segue reconhecida documentalmente (Doc-23), sem abertura funcional nesta rodada.
 
 ## 3. Continuidade preservada
-- Fase funcional atual permanece: **132**.
-- Fase funcional anterior permanece: **131**.
-- Rodada documental mais recente passa a ser: **Doc-23**.
+- Fase funcional atual: **133**.
+- Fase funcional anterior: **132**.
+- Rodada documental mais recente permanece: **Doc-23**.
 
 ## 4. Próximo passo correto
-- Próxima rodada normal: continuar a trilha ativa do Bloco 10 (encerramento conservador de 10.4 ou abertura de 10.5 com recorte mínimo e auditável).
+- Próxima rodada normal: continuar a trilha ativa do Bloco 10 dentro de 10.5 (`virar`) em expansão conservadora e auditável.
 - Não iniciar implementação do editor/TUI antes do fechamento do bloco atual do compilador/backend.
 - Não pular ordem interna do Bloco 10.
 - Não inverter `ninho` e `virar`; não antecipar `verso` (item final e condicional).

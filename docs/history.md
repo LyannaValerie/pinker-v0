@@ -695,6 +695,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo versionado incluído: `examples/fase132_ninho_heterogeneo_camada4_valido.pink`.
 - Fora de escopo explícito preservado: `virar` (10.5), `verso` (10.6), composto por valor na ABI, retorno composto amplo, arrays gerais, sistema geral de campos, layout/alinhamento geral sofisticado e heterogeneidade ampla fora do recorte mínimo.
 
+133 - `virar` / cast operacional mínimo (camada 1 conservadora) no backend nativo externo
+- Décima quarta fase funcional do Bloco 10 (abertura do item 10.5) concluída em recorte pequeno, explícito e auditável.
+- Backend externo montável (`emit_external_toolchain_subset`) abriu o primeiro recorte operacional real de `virar` no caminho `--asm-s`: cast explícito **apenas** de `u32 -> u64` quando a origem é slot local/parâmetro tipado como `u32`.
+- Formulação canônica desta fase: abrir apenas um recorte pequeno, explícito e auditável de cast operacional; sem inferir suporte geral a casts; sem coerções implícitas, sem ABI ampla e sem redesign de typing/lowering.
+- Emissão textual auditável aberta nesta fase: `movl %eax, %eax` para zero-extend explícito do valor antes do armazenamento do temporário de cast no frame externo.
+- Exemplos versionados incluídos: `examples/fase133_virar_camada1_valido.pink` e `examples/fase133_virar_camada1_invalido.pink`.
+- Fora de escopo explícito preservado: direções adicionais de `virar` (incluindo narrowing e casts de ponteiro no backend externo), coerções implícitas gerais, `verso` (10.6), ABI ampla/plena e sistema geral de casts.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

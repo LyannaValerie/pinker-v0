@@ -16,7 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 fn asm_s_external_subset_emite_main_montavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 42; }";
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains("# pinker v0 external toolchain subset (fase 132"));
+    assert!(out.contains("# pinker v0 external toolchain subset (fase 133"));
     assert!(out.contains("composto minimo com deref_store/deref_load heterogeneo camada 4"));
     assert!(out.contains(".globl main"));
     assert!(out.contains("jmp .Lprincipal_entry"));
@@ -185,7 +185,7 @@ fn asm_s_external_subset_fase129_recusa_campo_heterogeneo_fora_recorte() {
     let code = include_str!("../examples/fase129_ninho_heterogeneo_camada1_invalido.pink");
     let err = render_backend_s_external_subset(code).unwrap_err();
     let msg = err.to_string();
-    assert!(msg.contains("Fase 132"));
+    assert!(msg.contains("Fase 133"));
     assert!(msg.contains("deref_load") || msg.contains("slot") || msg.contains("seta"));
 }
 
@@ -194,7 +194,7 @@ fn asm_s_external_subset_fase130_recusa_campo_heterogeneo_fora_recorte() {
     let code = include_str!("../examples/fase130_ninho_heterogeneo_camada2_invalido.pink");
     let err = render_backend_s_external_subset(code).unwrap_err();
     let msg = err.to_string();
-    assert!(msg.contains("Fase 132"));
+    assert!(msg.contains("Fase 133"));
     assert!(msg.contains("deref_load") || msg.contains("slot") || msg.contains("seta"));
 }
 
@@ -215,7 +215,7 @@ fn asm_s_external_subset_fase131_recusa_campo_heterogeneo_fora_recorte() {
     let err = render_backend_s_external_subset(code).unwrap_err();
     let msg = err.to_string();
     assert!(
-        msg.contains("Fase 132")
+        msg.contains("Fase 133")
             || msg.contains("deref_load")
             || msg.contains("deref_store")
             || msg.contains("slot")
@@ -242,13 +242,31 @@ fn asm_s_external_subset_fase132_recusa_campo_heterogeneo_fora_recorte() {
     let err = render_backend_s_external_subset(code).unwrap_err();
     let msg = err.to_string();
     assert!(
-        msg.contains("Fase 132")
+        msg.contains("Fase 133")
             || msg.contains("deref_load")
             || msg.contains("deref_store")
             || msg.contains("slot")
             || msg.contains("seta")
             || msg.contains("u16")
     );
+}
+
+#[test]
+fn asm_s_external_subset_fase133_exemplo_versionado_virar_camada1() {
+    let code = include_str!("../examples/fase133_virar_camada1_valido.pink");
+    let out = render_backend_s_external_subset(code).unwrap();
+    assert!(out.contains("movl %eax, %eax"));
+    assert!(out.contains("movabsq $133, %rax"));
+    assert!(out.contains("# pinker v0 external toolchain subset (fase 133"));
+}
+
+#[test]
+fn asm_s_external_subset_fase133_recusa_cast_fora_do_recorte_minimo() {
+    let code = include_str!("../examples/fase133_virar_camada1_invalido.pink");
+    let err = render_backend_s_external_subset(code).unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("Fase 133"));
+    assert!(msg.contains("`virar`"));
 }
 
 #[test]
@@ -853,6 +871,49 @@ fn asm_s_external_subset_fluxo_real_fase132_ninho_heterogeneo_camada4() {
         .output()
         .expect("falha ao executar binário gerado");
     assert_eq!(run.status.code(), Some(132));
+
+    let _ = fs::remove_file(&asm_path);
+    let _ = fs::remove_file(&bin_path);
+    let _ = fs::remove_dir(&workdir);
+}
+
+#[test]
+fn asm_s_external_subset_fluxo_real_fase133_virar_camada1() {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return;
+    }
+
+    let Some(driver) = detect_cc_driver() else {
+        return;
+    };
+
+    let code = include_str!("../examples/fase133_virar_camada1_valido.pink");
+    let asm = render_backend_s_external_subset(code).unwrap();
+    assert!(asm.contains("movl %eax, %eax"));
+
+    let workdir = unique_temp_dir();
+    fs::create_dir_all(&workdir).expect("falha ao criar diretório temporário");
+    let asm_path = workdir.join("principal.s");
+    let bin_path = workdir.join("principal");
+    fs::write(&asm_path, asm).expect("falha ao escrever .s temporário");
+
+    let compile = Command::new(&driver)
+        .arg(&asm_path)
+        .arg("-o")
+        .arg(&bin_path)
+        .output()
+        .expect("falha ao invocar driver C");
+    assert!(
+        compile.status.success(),
+        "compilação falhou com {}: {}",
+        driver,
+        String::from_utf8_lossy(&compile.stderr)
+    );
+
+    let run = Command::new(&bin_path)
+        .output()
+        .expect("falha ao executar binário gerado");
+    assert_eq!(run.status.code(), Some(133));
 
     let _ = fs::remove_file(&asm_path);
     let _ = fs::remove_file(&bin_path);
@@ -1561,7 +1622,7 @@ fn asm_s_external_subset_falha_parametro_nao_bombom() {
 
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains(
-        "subset externo montável (Fase 132) aceita parâmetro `bombom`, `u32`, `u64` ou `seta<T>`"
+        "subset externo montável (Fase 133) aceita parâmetro `bombom`, `u32`, `u64` ou `seta<T>`"
     ));
 }
 
@@ -1593,7 +1654,7 @@ fn asm_s_external_subset_fase113_recusa_loop_com_condicao_fora_do_recorte() {
 
     let err = render_backend_s_external_subset(code).unwrap_err();
     let msg = err.to_string();
-    assert!(msg.contains("subset externo montável (Fase 132) aceita apenas atribuição"));
+    assert!(msg.contains("subset externo montável (Fase 133) aceita apenas atribuição"));
     assert!(msg.contains("composição heterogênea mínima auditável no mesmo `ninho`"));
 }
 
@@ -1614,7 +1675,7 @@ fn asm_s_external_subset_fase84_matriz_fronteira_auditavel() {
 
     for code in casos_garantidos {
         let asm = render_backend_s_external_subset(code).expect("subset garantido deve emitir .s");
-        assert!(asm.contains("# pinker v0 external toolchain subset (fase 132"));
+        assert!(asm.contains("# pinker v0 external toolchain subset (fase 133"));
     }
 
     let caso_rejeitado_tres_params = include_str!(
@@ -1640,7 +1701,7 @@ fn asm_s_external_subset_fase84_matriz_fronteira_auditavel() {
         include_str!("../examples/fase113_loop_condicao_invalida_invalido.pink");
     let err_sempre_que = render_backend_s_external_subset(caso_rejeitado_sempre_que).unwrap_err();
     let msg = err_sempre_que.to_string();
-    assert!(msg.contains("subset externo montável (Fase 132) aceita apenas atribuição"));
+    assert!(msg.contains("subset externo montável (Fase 133) aceita apenas atribuição"));
     assert!(msg.contains("composição heterogênea mínima auditável no mesmo `ninho`"));
 }
 
@@ -1649,7 +1710,7 @@ fn asm_s_external_subset_fase116_recusa_composto_fora_da_camada1() {
     let code = include_str!("../examples/fase116_compostos_minimos_camada1_invalida.pink");
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains(
-        "subset externo montável (Fase 132) aceita parâmetro `bombom`, `u32`, `u64` ou `seta<T>`"
+        "subset externo montável (Fase 133) aceita parâmetro `bombom`, `u32`, `u64` ou `seta<T>`"
     ));
 }
 
@@ -1658,7 +1719,7 @@ fn asm_s_external_subset_fase117_recusa_local_composto_fora_da_camada2() {
     let code = include_str!("../examples/fase117_compostos_minimos_camada2_invalida.pink");
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains(
-        "subset externo montável (Fase 132) só aceita local `bombom`, `u32`, `u64` ou `seta<T>`"
+        "subset externo montável (Fase 133) só aceita local `bombom`, `u32`, `u64` ou `seta<T>`"
     ));
 }
 
@@ -1667,7 +1728,7 @@ fn asm_s_external_subset_fase118_recusa_store_fragil_fora_do_subset() {
     let code = include_str!("../examples/fase118_compostos_minimos_camada3_invalida.pink");
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains(
-        "subset externo montável (Fase 132) aceita parâmetro `bombom`, `u32`, `u64` ou `seta<T>`"
+        "subset externo montável (Fase 133) aceita parâmetro `bombom`, `u32`, `u64` ou `seta<T>`"
     ));
 }
 
@@ -1684,7 +1745,7 @@ carinho principal() -> bombom {
 "#;
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains(
-        "subset externo montável (Fase 132) aceita parâmetro `bombom`, `u32`, `u64` ou `seta<T>`"
+        "subset externo montável (Fase 133) aceita parâmetro `bombom`, `u32`, `u64` ou `seta<T>`"
     ));
 }
 
