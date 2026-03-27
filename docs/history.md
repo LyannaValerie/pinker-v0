@@ -872,6 +872,13 @@ Doc-21 - abertura canônica do Bloco 10
 - `verso` posicionada como item final e condicional, com trava de cautela para não sequestrar o bloco.
 - Exclusões explícitas reforçadas para conter growth indevido (sem backend pleno, sem otimizador relevante, sem runtime grande, sem ABI ampla/plena, sem sistema geral de texto/compostos).
 
+Doc-23 - incorporação documental do editor/TUI ao ecossistema Pinker
+- Rodada exclusivamente documental, sem implementação funcional do editor/TUI.
+- O editor/TUI oficial da Pinker foi reconhecido como direção futura legítima do ecossistema, não como extra decorativo.
+- Ordem estratégica registrada: manter foco técnico no Bloco 10 do compilador/backend, concluir o bloco atual e só depois iniciar a trilha funcional do editor/TUI.
+- Enquadramento técnico inicial do subprojeto consolidado em `docs/future.md`: editor textual/TUI oficial, integração com execução/diagnóstico/comandos Pinker e limites explícitos de escopo inicial (sem IDE ampla).
+- Continuidade preservada: Fase funcional atual permanece 132 e o foco técnico imediato não foi deslocado do backend nativo externo.
+
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

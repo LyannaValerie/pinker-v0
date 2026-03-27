@@ -37,6 +37,32 @@
 - tooling de projeto além do `pink build` mínimo;
 - evolução prudente de `verso` sem abrir biblioteca textual gigante de uma vez.
 
+### 2.4 Editor/TUI oficial da Pinker (subprojeto futuro do ecossistema)
+
+- O editor/TUI oficial da Pinker passa a existir como direção reconhecida do ecossistema do projeto.
+- Ele não substitui o compilador/backend como foco técnico atual.
+- Ele será iniciado após o fechamento do bloco atual do compilador/backend (Bloco 10).
+
+Papel inicial do subprojeto:
+- superfície própria de uso da Pinker para edição, execução e visualização de diagnósticos;
+- interface de uso do compilador/ecossistema com identidade visual coerente com a paleta Pinker;
+- editor textual/TUI oficial do ecossistema (não IDE ampla).
+
+Funções iniciais previstas (recorte pequeno e disciplinado):
+- abrir/salvar arquivos `.pink`;
+- edição textual básica;
+- realce/sinalização mínima;
+- barra de status;
+- painel de saída/diagnóstico;
+- comandos Pinker visíveis no fluxo principal (`rodar`, `testar`, `tokens`, `ast`, `maquina`, `diagnostico`, `montar`, `limpar`).
+
+Limites iniciais explícitos:
+- não começar como IDE ampla;
+- não competir cedo com editores maduros;
+- não prometer edição "perfeita" no início;
+- não virar shell genérico;
+- não inflar no arranque watch, árvore de símbolos, linguagem estrutural rica ou ecossistema completo.
+
 ## 3. Itens de longo prazo (sem compromisso de ordem)
 
 - sistema de módulos mais completo;

@@ -336,6 +336,9 @@ Por padrão, o Bloco 10 **não cobre**:
 
 - Bloco 10 é a trilha ativa atual com foco disciplinado em cobertura semântica do backend nativo (sem backend pleno).
 
+- O editor/TUI oficial da Pinker está reconhecido como frente futura do ecossistema (Doc-23), com enquadramento técnico inicial em `docs/future.md`, sem virar trilha ativa agora.
+- Ordem estratégica explícita: concluir o bloco atual do compilador/backend e só depois iniciar a trilha funcional do editor/TUI.
+
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.
 - arrays fixos e structs vêm antes de memória explícita mais pesada.

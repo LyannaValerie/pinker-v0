@@ -31,6 +31,7 @@ Ele preserva e expande narrativas de longo alcance sobre:
 - diagnósticos com personalidade controlada (sem crueldade);
 - semântica de pergunta e linguagem como parceria com quem programa;
 - ecossistema próprio (terminal, tooling, package manager, self-hosting).
+- editor/TUI oficial da Pinker como superfície própria de uso (direção reconhecida do ecossistema, com início funcional após fechamento do bloco ativo de backend).
 
 ## 4. Relação com documentos canônicos
 
