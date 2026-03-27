@@ -374,7 +374,7 @@ impl FunctionLowerer {
             }
             InstructionIR::StoreFieldIndirect {
                 base,
-                field,
+                field: _,
                 field_offset,
                 value,
                 value_type,
@@ -382,7 +382,6 @@ impl FunctionLowerer {
                 span,
             } => self.lower_field_store(
                 base,
-                field,
                 *field_offset,
                 value,
                 *value_type,
@@ -797,10 +796,10 @@ impl FunctionLowerer {
         Ok((OperandIR::Temp(dest), next_current))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn lower_field_store(
         &mut self,
         base: &ValueIR,
-        _field: &str,
         field_offset: u64,
         value: &ValueIR,
         value_type: TypeIR,
