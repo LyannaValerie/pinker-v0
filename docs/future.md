@@ -41,7 +41,7 @@
 
 - O editor/TUI oficial da Pinker passa a existir como direção reconhecida do ecossistema do projeto.
 - Ele não substitui o compilador/backend como foco técnico atual.
-- Ele será iniciado após o fechamento do bloco atual do compilador/backend (Bloco 10).
+- Com a Doc-24, ele passa de direção futura reconhecida para próxima frente funcional oficial a ser aberta na sequência do projeto.
 
 Papel inicial do subprojeto:
 - superfície própria de uso da Pinker para edição, execução e visualização de diagnósticos;
