@@ -23,8 +23,8 @@ Conectar explicitamente:
 ### Engine já consolidado
 
 - Fase funcional atual: **136** (abertura funcional do editor/TUI oficial da Pinker em camada 1 conservadora).
-- Estado de bloco: **Bloco 11 aberto canonicamente na Doc-25** (scripts, utilidade prática e ergonomia cotidiana), com Bloco 10 encerrado na Doc-24 e Blocos 8/9 já encerrados como trilhas ativas.
-- Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`; as Fases 120–135 cobriram 10.1→10.6, a Fase 136 abriu a primeira casca funcional do editor/TUI e a Doc-25 reposicionou o foco ativo para utilidade prática de scripts sem abandonar o editor.
+- Estado de bloco: **Bloco 11 aberto canonicamente na Doc-25** (texto prático, scripts e ergonomia cotidiana), com Bloco 10 encerrado na Doc-24 e Blocos 8/9 já encerrados como trilhas ativas.
+- Base operacional estável: pipeline textual + `--run` + subset externo auditável do `--asm-s`; as Fases 120–135 cobriram 10.1→10.6, a Fase 136 abriu a primeira casca funcional do editor/TUI e a Doc-25 reposicionou o foco ativo para fechar lacunas práticas de texto sem abandonar o editor.
 
 ### Rosa em consolidação documental
 

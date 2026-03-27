@@ -2,7 +2,7 @@
 
 Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 
-Status documental corrente: **Fase 136 abriu funcionalmente o editor/TUI oficial da Pinker em camada 1 conservadora**, a **Doc-25 abriu canonicamente o Bloco 11 (scripts, utilidade prática e ergonomia cotidiana)** como frente ativa imediata, e o editor/TUI permanece como frente oficial **aberta porém pausada** por decisão estratégica. O compilador/backend segue preservado no estado conservador já conquistado.
+Status documental corrente: **Fase 136 abriu funcionalmente o editor/TUI oficial da Pinker em camada 1 conservadora**, a **Doc-25 abriu canonicamente o Bloco 11 (texto prático, scripts e ergonomia cotidiana)** como frente ativa imediata, com arranque textual (lacunas como `split`, `join` com separador real e substituição/`replace`), e o editor/TUI permanece como frente oficial **aberta porém pausada** por decisão estratégica. O compilador/backend segue preservado no estado conservador já conquistado.
 
 ## O que o frontend faz hoje
 - léxico com spans

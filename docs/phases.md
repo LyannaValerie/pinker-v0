@@ -20,6 +20,6 @@
 
 ## Registro documental corrente
 - Doc-24 registrou o encerramento conservador do **Bloco 10 — cobertura semântica do backend nativo** por suficiência do recorte efetivamente conquistado, sem declarar backend pleno.
-- Doc-25 abriu canonicamente o **Bloco 11 — scripts, utilidade prática e ergonomia cotidiana** como nova trilha ativa imediata.
+- Doc-25 abriu canonicamente o **Bloco 11 — texto prático, scripts e ergonomia cotidiana** como nova trilha ativa imediata.
 - O editor/TUI permanece frente oficial já aberta na Fase 136, porém pausada por decisão estratégica e sem abandono.
-- Próxima rodada funcional esperada: primeira fase do Bloco 11, sem continuidade do editor/TUI nesta transição documental.
+- Próxima rodada funcional esperada: primeira fase do Bloco 11 começando por 11.1 (manipulação textual útil), sem continuidade do editor/TUI nesta transição documental.

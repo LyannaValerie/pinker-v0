@@ -371,9 +371,9 @@ Por padrão, o fechamento do Bloco 10 **não** implica:
 ## Interpretação obrigatória da trilha
 
 - O Bloco 10 está formalmente encerrado por suficiência conservadora (Doc-24), sem backend pleno.
-- O Bloco 11 está formalmente aberto pela Doc-25 como trilha ativa imediata: scripts, utilidade prática e ergonomia cotidiana.
+- O Bloco 11 está formalmente aberto pela Doc-25 como trilha ativa imediata: texto prático, scripts e ergonomia cotidiana.
 - O editor/TUI oficial da Pinker segue como frente oficial já aberta (Fase 136), porém pausada por decisão estratégica; não está abandonado.
-- A próxima rodada funcional esperada do projeto é a primeira fase do Bloco 11.
+- A próxima rodada funcional esperada do projeto é a primeira fase do Bloco 11, começando por texto (11.1).
 
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.
@@ -409,53 +409,52 @@ Um bloco só pode ser considerado suficientemente concluído para liberar o pró
 
 ---
 
-### Bloco 11 — scripts, utilidade prática e ergonomia cotidiana
+### Bloco 11 — texto prático, scripts e ergonomia cotidiana
 
 **Status**: **aberto canonicamente na Doc-25 como nova trilha ativa imediata**.
 
 **Formulação canônica única do bloco**:
 - a Pinker passa a ampliar sua utilidade prática para scripts, automação leve e tarefas reais do cotidiano;
-- essa ampliação deve preservar:
-  - legibilidade rápida,
-  - sintaxe leve,
-  - ciclo curto de teste,
-  - execução simples de arquivos,
-  - produtividade imediata,
-  - boa vida para scripts pequenos,
-  - manipulação textual útil,
-  - utilidades práticas de arquivo/caminho/ambiente,
-  - parsing de argumentos,
-  - baixa fricção para começar,
-  - ergonomia para tarefas reais;
-- isso NÃO equivale a copiar frouxidão semântica, permissividade excessiva, tipagem vaga, magia implícita ou cultura de gambiarra do Python;
-- o objetivo é roubar utilidade, não herdar caos.
+- essa ampliação deve priorizar primeiro as lacunas ainda não cobertas de forma suficiente;
+- o foco inicial do bloco é texto útil e processamento textual prático;
+- o objetivo não é copiar o Python como cultura ou permissividade;
+- o objetivo é roubar utilidade concreta sem herdar frouxidão, tipagem vaga, magia implícita ou bagunça estrutural;
+- o bloco deve tornar a Pinker mais útil para tarefas reais sem perder disciplina.
 
 **Tese do bloco**:
-- ampliar a Pinker como ferramenta de uso real para scripts, automação leve e tarefas práticas;
-- reforçar produtividade imediata e baixa fricção;
-- manter disciplina estrutural da linguagem;
-- não copiar permissividade excessiva do Python.
+- ampliar a Pinker como ferramenta de script e uso real;
+- começar pelas lacunas práticas ainda não cobertas;
+- priorizar texto e processamento textual útil;
+- reforçar produtividade imediata e baixa fricção sem sacrificar disciplina;
+- não copiar frouxidão semântica do Python.
 
-**Foco que entra agora (Bloco 11 ativo)**:
+**Já herdado de forma suficiente para não ser o primeiro foco do Bloco 11**:
 - legibilidade rápida;
 - sintaxe leve;
 - ciclo curto de teste;
 - execução simples de arquivos;
 - produtividade imediata;
 - boa vida para scripts pequenos;
-- automação prática;
-- manipulação de texto forte;
-- `split`;
-- `join`;
-- busca e substituição;
-- utilidades de arquivo;
-- utilidades de caminho;
-- utilidades de ambiente;
-- parsing de argumentos;
+- automação prática básica;
+- utilidades iniciais de arquivo;
+- utilidades iniciais de caminho;
+- utilidades iniciais de ambiente;
+- argv posicional / parsing simples inicial;
 - feedback rápido;
 - baixa fricção para começar;
-- facilidade para experimentar ideias;
-- ergonomia para tarefas reais.
+- facilidade inicial de experimentar ideias;
+- ergonomia inicial para tarefas reais.
+
+Observação: esses pontos não estão “perfeitamente resolvidos”; apenas não são o gap prático mais crítico imediato.
+
+**Entram agora como foco do Bloco 11 (prioridade inicial em texto)**:
+- manipulação de texto forte;
+- `split`;
+- `join` com separador real;
+- busca textual;
+- substituição / `replace`;
+- ergonomia real para processar texto lido de arquivos e argumentos;
+- fechamento das lacunas que ainda impedem a Pinker de ser ferramenta cotidiana útil para script.
 
 **Backlog posterior (não foco atual do Bloco 11)**:
 - REPL;
@@ -463,7 +462,7 @@ Um bloco só pode ser considerado suficientemente concluído para liberar o pró
 - execução de processos externos;
 - captura de saída de comandos;
 - integração rica com stdin/stdout/stderr;
-- biblioteca padrão útil mais ampla;
+- biblioteca padrão mais ampla;
 - coleções básicas;
 - lista;
 - mapa/dicionário;
@@ -474,9 +473,11 @@ Um bloco só pode ser considerado suficientemente concluído para liberar o pró
 - aleatoriedade básica;
 - formatação simples;
 - sensação de ferramenta cotidiana mais madura;
-- facilidade para prototipar em escala maior;
+- prototipagem mais ampla;
 - clareza em código médio;
 - núcleo padrão mais amplo.
+
+Observação: esses itens não estão negados; apenas não são o ponto de partida do bloco.
 
 **Exclusões canônicas do bloco (o que NÃO vale herdar do Python)**:
 - frouxidão excessiva;
@@ -491,11 +492,13 @@ Um bloco só pode ser considerado suficientemente concluído para liberar o pró
 - tolerância alta a arquitetura desleixada.
 
 **Estrutura interna enxuta do bloco**:
-- 11.1 — execução simples e experiência curta de script;
-- 11.2 — manipulação textual útil;
-- 11.3 — utilidades de arquivo, caminho e ambiente;
-- 11.4 — parsing de argumentos;
-- 11.5 — costura de ergonomia prática de script.
+- 11.1 — manipulação textual útil;
+- 11.2 — busca, substituição e costura textual prática;
+- 11.3 — utilidades de arquivo, caminho e ambiente refinadas;
+- 11.4 — parsing de argumentos mais útil;
+- 11.5 — ergonomia prática de script.
+
+Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11.1 (texto), sem voltar primeiro a temas já suficientemente cobertos.
 
 **Posição oficial do editor/TUI após a abertura do Bloco 11**:
 - continua parte oficial do ecossistema;
