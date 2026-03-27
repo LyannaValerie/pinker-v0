@@ -270,7 +270,7 @@ Por padrão, o Bloco 9 **não cobre**:
 
 ### Bloco 10 — cobertura semântica do backend nativo
 
-**Status**: **trilha ativa em execução (Doc-21; Fases 122–125 abriram 10.2 em camadas conservadoras 1, 2, 3 e 4; Fases 126–128 avançaram 10.3 em camadas conservadoras 1, 2 e 3; Fases 129–131 avançaram 10.4 em camadas conservadoras 1, 2 e 3)**.
+**Status**: **trilha ativa em execução (Doc-21; Fases 122–125 abriram 10.2 em camadas conservadoras 1, 2, 3 e 4; Fases 126–128 avançaram 10.3 em camadas conservadoras 1, 2 e 3; Fases 129–132 avançaram 10.4 em camadas conservadoras 1, 2, 3 e 4)**.
 
 **Tese do bloco**:
 - o backend nativo real já existe e é o ponto de partida;
@@ -305,6 +305,7 @@ Por padrão, o Bloco 9 **não cobre**:
 - **Fase 129 concluída (camada 1 conservadora do item 10.4)**: backend nativo externo abriu primeiro recorte heterogêneo mínimo e auditável de `ninho` via leitura de campo `u32` em base `seta<ninho>` (`(*ptr).campo`) com offset explícito no caminho externo, preservando escrita indireta homogênea em `seta<bombom>`, sem abrir composto por valor na ABI, sem sistema geral de campos e sem antecipar 10.5 (`virar`).
 - **Fase 130 concluída (camada 2 conservadora do item 10.4)**: backend nativo externo ampliou estritamente o mesmo recorte heterogêneo mínimo de `ninho` para leitura de campo `u64` em base `seta<ninho>` (`(*ptr).campo`) com offset explícito, mantendo `deref_store` homogêneo, sem composto por valor na ABI, sem sistema geral de campos e sem abrir 10.5 (`virar`).
 - **Fase 131 concluída (camada 3 conservadora do item 10.4)**: backend nativo externo abriu escrita heterogênea mínima de campo `u32`/`u64` em base `seta<ninho>` (`(*ptr).campo = valor`) com offset explícito, fechando a assimetria entre leitura e escrita heterogênea no recorte mínimo, sem composto por valor na ABI, sem sistema geral de campos e sem abrir 10.5 (`virar`).
+- **Fase 132 concluída (camada 4 conservadora do item 10.4)**: backend nativo externo manteve o mesmo recorte mínimo e abriu composição heterogênea mínima auditável no mesmo `seta<ninho>` (`u32` + `u64`), permitindo sequência pequena de escrita em um campo e leitura de outro campo heterogêneo no mesmo fluxo com offset explícito, sem composto por valor na ABI, sem sistema geral de campos/layout e sem abrir 10.5 (`virar`).
 
 #### Exclusões explícitas do Bloco 10
 

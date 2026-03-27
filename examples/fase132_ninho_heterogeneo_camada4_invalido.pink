@@ -1,0 +1,20 @@
+pacote main;
+
+ninho RegistroHeterogeneoForaCamada4 {
+    selo: u16;
+    trilha: u64;
+}
+
+carinho compor_ninho_heterogeneo_fora_camada4(base: seta<RegistroHeterogeneoForaCamada4>) -> bombom {
+    (*base).selo = 1;
+    nova lido: u16 = (*base).selo;
+    talvez lido == 1 {
+        mimo 1;
+    } senao {
+        mimo 0;
+    }
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
