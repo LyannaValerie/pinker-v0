@@ -1,0 +1,32 @@
+pacote main;
+
+// Fase 132: `ninho` heterogêneo mínimo (camada 4 conservadora) no backend externo.
+// Recorte: composição mínima auditável no mesmo `seta<ninho>` com escrita de um
+// campo heterogêneo (`u32`) e leitura de outro campo heterogêneo (`u64`),
+// mantendo offset explícito e sem abrir sistema geral de compostos/layout.
+ninho RegistroHeterogeneoCamada4 {
+    selo: u32;
+    trilha: u64;
+}
+
+carinho compor_ninho_heterogeneo_camada4(base: seta<RegistroHeterogeneoCamada4>) -> bombom {
+    (*base).selo = 9;
+    (*base).trilha = 132;
+
+    nova selo_lido: u32 = (*base).selo;
+    nova trilha_lida: u64 = (*base).trilha;
+
+    talvez selo_lido == 9 {
+        talvez trilha_lida == 132 {
+            mimo 132;
+        } senao {
+            mimo 0;
+        }
+    } senao {
+        mimo 0;
+    }
+}
+
+carinho principal() -> bombom {
+    mimo 132;
+}

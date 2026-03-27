@@ -687,6 +687,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo versionado incluído: `examples/fase131_ninho_heterogeneo_camada3_valido.pink`.
 - Fora de escopo explícito preservado: `virar` (10.5), `verso` (10.6), composto por valor na ABI, retorno composto amplo, arrays gerais, sistema geral de campos, layout/alinhamento geral sofisticado e store heterogêneo geral para qualquer tipo.
 
+132 - `ninho` / compostos heterogêneos mínimos (camada 4 conservadora, composição mínima auditável) no backend nativo externo
+- Décima terceira fase funcional do Bloco 10 (continuidade do item 10.4) concluída em recorte pequeno, explícito e auditável.
+- Backend externo montável (`emit_external_toolchain_subset`) manteve leitura/escrita heterogêneas mínimas de `u32`/`u64` por offset explícito e abriu composição heterogênea mínima auditável no mesmo `seta<ninho>`: escrita de um campo + leitura de outro campo heterogêneo no mesmo fluxo.
+- Formulação canônica desta fase: abrir apenas um recorte pequeno, explícito e auditável além das Fases 129–131; sem inferir suporte geral a structs/tuplas heterogêneas; sem misturar com ABI composta ampla/arrays gerais/sistema geral de layout.
+- Recorte semântico desta fase: `deref_load`/`deref_store` externos permanecem restritos a `bombom`/`u32`/`u64`; a novidade é a composição heterogênea mínima no mesmo `ninho` (`u32` + `u64`) com offsets explícitos auditáveis.
+- Exemplo versionado incluído: `examples/fase132_ninho_heterogeneo_camada4_valido.pink`.
+- Fora de escopo explícito preservado: `virar` (10.5), `verso` (10.6), composto por valor na ABI, retorno composto amplo, arrays gerais, sistema geral de campos, layout/alinhamento geral sofisticado e heterogeneidade ampla fora do recorte mínimo.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
