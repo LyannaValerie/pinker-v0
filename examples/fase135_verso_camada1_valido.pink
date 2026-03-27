@@ -1,0 +1,22 @@
+pacote main;
+
+// Fase 135: `verso` mínima (camada 1 conservadora e condicional) no backend externo.
+// Recorte desta fase no `--asm-s` externo:
+// - literal `verso` estático materializado em `.rodata`;
+// - tráfego opaco por slot/parâmetro (sem operações textuais gerais);
+// - sem retorno `verso`, sem concatenação, sem comparação textual, sem ABI textual ampla.
+
+carinho mede_tag(tag: verso) -> bombom {
+    // Uso deliberadamente opaco: a função aceita `verso`, mas não abre operações textuais.
+    nova sentinela: bombom = 1;
+    talvez sentinela == 1 {
+        mimo 135;
+    }
+    mimo 0;
+}
+
+carinho principal() -> bombom {
+    nova rotulo: verso = "fase135";
+    nova codigo: bombom = mede_tag(rotulo);
+    mimo codigo;
+}

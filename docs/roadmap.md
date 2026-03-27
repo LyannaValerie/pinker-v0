@@ -270,7 +270,7 @@ Por padrão, o Bloco 9 **não cobre**:
 
 ### Bloco 10 — cobertura semântica do backend nativo
 
-**Status**: **trilha ativa em execução (Doc-21; Fases 122–125 abriram 10.2 em camadas conservadoras 1, 2, 3 e 4; Fases 126–128 avançaram 10.3 em camadas conservadoras 1, 2 e 3; Fases 129–132 avançaram 10.4 em camadas conservadoras 1, 2, 3 e 4; Fases 133 e 134 avançaram 10.5 em camadas conservadoras 1 e 2)**.
+**Status**: **trilha ativa em execução (Doc-21; Fases 122–125 abriram 10.2 em camadas conservadoras 1, 2, 3 e 4; Fases 126–128 avançaram 10.3 em camadas conservadoras 1, 2 e 3; Fases 129–132 avançaram 10.4 em camadas conservadoras 1, 2, 3 e 4; Fases 133 e 134 avançaram 10.5 em camadas conservadoras 1 e 2; Fase 135 abriu 10.6 em camada 1 conservadora e condicional)**.
 
 **Tese do bloco**:
 - o backend nativo real já existe e é o ponto de partida;
@@ -308,6 +308,7 @@ Por padrão, o Bloco 9 **não cobre**:
 - **Fase 132 concluída (camada 4 conservadora do item 10.4)**: backend nativo externo manteve o mesmo recorte mínimo e abriu composição heterogênea mínima auditável no mesmo `seta<ninho>` (`u32` + `u64`), permitindo sequência pequena de escrita em um campo e leitura de outro campo heterogêneo no mesmo fluxo com offset explícito, sem composto por valor na ABI, sem sistema geral de campos/layout e sem abrir 10.5 (`virar`).
 - **Fase 133 concluída (camada 1 conservadora do item 10.5)**: backend nativo externo abriu `virar` em recorte mínimo, explícito e auditável apenas para `u32 -> u64` quando a origem é slot local/parâmetro, com emissão textual explícita (`movl %eax, %eax`) e validação de recusa para casts fora do recorte; sem coerções implícitas, sem `verso` (10.6), sem ABI ampla e sem redesign de typing/lowering.
 - **Fase 134 concluída (camada 2 conservadora do item 10.5)**: backend nativo externo ampliou estritamente o mesmo recorte de `virar` para incluir também `u64 -> u32` explícito (origem em slot local/parâmetro), mantendo emissão auditável mínima (`movl %eax, %eax`), recusas explícitas fora do subset e sem abrir coerções implícitas, `verso` (10.6), ABI ampla ou sistema geral de casts.
+- **Fase 135 concluída (camada 1 conservadora e condicional do item 10.6)**: backend nativo externo abriu recorte mínimo, explícito e auditável de `verso` apenas como literal estático em `.rodata` carregado por endereço e trafegado de forma opaca em slot/parâmetro/call já suportados; sem retorno `verso`, sem concatenação, sem comparação textual geral, sem ABI textual ampla e sem runtime textual rica.
 
 #### Exclusões explícitas do Bloco 10
 
@@ -330,7 +331,7 @@ Por padrão, o Bloco 10 **não cobre**:
 - `verso` mínima no backend nativo só pode entrar no **fim** do bloco e apenas se ainda houver chão técnico e documental.
 - Mesmo recorte pequeno de `verso` arrasta representação, `.rodata`, calling convention textual e expectativa de operações futuras.
 - Por isso, `verso` é item **condicional** e não pode sequestrar o bloco.
-- O Bloco 10 pode ser considerado bem-sucedido mesmo sem chegar a `verso`.
+- A Fase 135 abriu apenas a camada 1 mínima; qualquer avanço adicional em `verso` continua condicional e deve permanecer estrito.
 
 ---
 

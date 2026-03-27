@@ -1,0 +1,17 @@
+pacote main;
+
+// Inválido no recorte mínimo da Fase 135 para o backend externo:
+// função com retorno `verso` continua fora do subset externo.
+
+carinho eco_texto(v: verso) -> verso {
+    mimo v;
+}
+
+carinho principal() -> bombom {
+    nova txt: verso = "fora";
+    nova copia: verso = eco_texto(txt);
+    talvez copia == "fora" {
+        mimo 1;
+    }
+    mimo 0;
+}

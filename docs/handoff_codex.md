@@ -5,25 +5,25 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 134 — `virar` / cast operacional mínimo (camada 2 conservadora) no backend nativo externo**.
-- Rodada funcional mínima no item 10.5, sem abrir 10.6 (`verso`) e sem ampliar para sistema geral de casts.
+- **Fase 135 — `verso` mínima (camada 1 conservadora e condicional) no backend nativo externo**.
+- Rodada funcional mínima no item 10.6, abrindo apenas literal estático em `.rodata` + tráfego opaco de endereço por slot/parâmetro no caminho externo, sem abrir sistema geral de texto.
 
 ## 2. Resultado operacional da rodada
 - Bloco 10 permanece como trilha ativa e foco técnico principal do compilador/backend.
-- Item ativo avançou para **10.5 (`virar`)** com recorte operacional mínimo explícito no backend externo: `u32 -> u64` e `u64 -> u32` com origem em slot local/parâmetro.
-- Emissão auditável adicionada no `.s` externo para esse recorte (`movl %eax, %eax`) e recusa explícita para casts fora do subset da fase.
+- Item ativo avançou para **10.6 (`verso`)** com recorte operacional mínimo explícito no backend externo: literal `verso` estático em `.rodata`, carga de endereço (`leaq`) e tráfego opaco por slot/parâmetro.
+- Emissão auditável adicionada no `.s` externo para esse recorte (`.asciz` + label dedicada + `leaq ...(%rip)`), com recusas explícitas para textualidade fora do subset mínimo.
 - Trilha futura do editor/TUI segue reconhecida documentalmente (Doc-23), sem abertura funcional nesta rodada.
 
 ## 3. Continuidade preservada
-- Fase funcional atual: **134**.
-- Fase funcional anterior: **133**.
+- Fase funcional atual: **135**.
+- Fase funcional anterior: **134**.
 - Rodada documental mais recente permanece: **Doc-23**.
 
 ## 4. Próximo passo correto
-- Próxima rodada normal: continuar a trilha ativa do Bloco 10 dentro de 10.5 (`virar`) em expansão conservadora e auditável.
+- Próxima rodada normal: continuar a trilha ativa do Bloco 10 dentro de 10.6 (`verso`) apenas se a expansão seguir conservadora, condicional e auditável.
 - Não iniciar implementação do editor/TUI antes do fechamento do bloco atual do compilador/backend.
 - Não pular ordem interna do Bloco 10.
-- Não inverter `ninho` e `virar`; não antecipar `verso` (item final e condicional).
+- Não transformar 10.6 em sistema textual amplo; manter `verso` condicional e estrito.
 
 ## 5. Restrições explícitas do bloco
 - Sem backend nativo pleno.

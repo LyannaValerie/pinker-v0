@@ -19,7 +19,7 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 
 /// Emite um `.s` mínimo montável por toolchain externa (assembler+linker do sistema).
 ///
-/// Escopo deliberadamente mínimo para a Fase 134:
+/// Escopo deliberadamente mínimo para a Fase 135:
 /// - target assumido: Linux x86_64 (SysV) hospedado;
 /// - subset aceito: funções `-> bombom` com múltiplos blocos/labels, `jmp` incondicional, branch condicional mínimo e loop mínimo por retorno de salto entre blocos;
 /// - disciplina mínima de registradores/frame: `%rax` (retorno/acumulador), `%rdi` (arg0), `%rsi` (arg1), `%rdx` (arg2), `%r10` (temporário volátil), slots em frame `%rbp`;
@@ -29,7 +29,8 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 /// - composto mínimo conservador: base homogênea `seta<bombom>` com `deref_store`/`deref_load` mínimo e abertura heterogênea em quatro camadas para `ninho`, incluindo composição mínima auditável no mesmo registro (`u32` + `u64`) via offset explícito;
 /// - inteiros fixos adicionais no recorte externo: `u32` (Fase 120) e `u64` (Fase 121) em parâmetros e locais, reaproveitando movimentação/call no mesmo frame/ABI mínima existente;
 /// - `quebrar`/`continuar` (Fase 128, camada 3 conservadora) no recorte de `sempre que` já materializado em `selected`, com composição mínima auditável de três níveis de laço (`sempre que` externo/meio/interno) sem abrir subsistema geral de controle de fluxo;
-/// - `virar` (Fase 134, camada 2 conservadora) no recorte mínimo explícito `u32 -> u64` e `u64 -> u32` quando a origem é slot local/parâmetro tipado.
+/// - `virar` (Fase 134, camada 2 conservadora) no recorte mínimo explícito `u32 -> u64` e `u64 -> u32` quando a origem é slot local/parâmetro tipado;
+/// - `verso` (Fase 135, camada 1 conservadora e condicional) apenas no recorte mínimo opaco: literal estático em `.rodata` + carga de endereço + tráfego por slot/parâmetro, sem operações textuais gerais.
 ///
 /// O resultado mapeia `principal` para o símbolo `main`, para permitir linkedição
 /// via driver C (`cc`/`gcc`/`clang`) sem runtime próprio.
@@ -78,12 +79,18 @@ fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerErr
 
 struct ExternalCallConvProgram {
     rodata_globals: Vec<ExternalCallConvGlobal>,
+    rodata_strings: Vec<ExternalCallConvString>,
     functions: Vec<ExternalCallConvFunction>,
 }
 
 struct ExternalCallConvGlobal {
     name: String,
     value: u64,
+}
+
+struct ExternalCallConvString {
+    label: String,
+    value: String,
 }
 
 struct ExternalCallConvFunction {
@@ -153,6 +160,8 @@ fn extract_external_callconv_program(
     }
 
     let mut functions = Vec::new();
+    let mut rodata_string_labels = HashMap::new();
+    let mut rodata_strings = Vec::new();
     for function in &selected.functions {
         if function.ret_type != TypeIR::Bombom {
             return Err(err(
@@ -177,7 +186,7 @@ fn extract_external_callconv_program(
             };
             if !is_external_param_type(ty) {
                 return Err(err(
-                "subset externo montável (Fase 134) aceita parâmetro `bombom`, `u32`, `u64` ou `seta<T>` no recorte conservador (inteiros mais largos + composto mínimo homogêneo/heterogêneo camada 1 + `quebrar`/`continuar` em loop mínimo)",
+                "subset externo montável (Fase 135) aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo ou `seta<T>` no recorte conservador",
                 ));
             }
         }
@@ -189,7 +198,7 @@ fn extract_external_callconv_program(
             };
             if !is_external_local_type(ty) {
                 return Err(err(&format!(
-                    "subset externo montável (Fase 134) só aceita local `bombom`, `u32`, `u64` ou `seta<T>`; '{}' é '{}'",
+                    "subset externo montável (Fase 135) só aceita local `bombom`, `u32`, `u64`, `verso` opaco mínimo ou `seta<T>`; '{}' é '{}'",
                     local,
                     ty.name()
                 )));
@@ -251,35 +260,106 @@ fn extract_external_callconv_program(
                 match inst {
                     SelectedInstr::Mov { dest, src } => {
                         ensure_dest_is_local_or_param(dest, function)?;
-                        body.extend(load_operand(REG_RET, src, &slot_offsets)?);
+                        register_rodata_strings_for_operand(
+                            src,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        );
+                        body.extend(load_operand(REG_RET, src, &slot_offsets, &rodata_strings)?);
                         body.push(format!("movq {}, -{}(%rbp)", REG_RET, slot_offsets[dest]));
                     }
                     SelectedInstr::Add { dest, lhs, rhs } => {
-                        body.extend(lower_linear_binop("addq", *dest, lhs, rhs, &slot_offsets)?);
+                        body.extend(lower_linear_binop(
+                            "addq",
+                            *dest,
+                            lhs,
+                            rhs,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
                     }
                     SelectedInstr::Sub { dest, lhs, rhs } => {
-                        body.extend(lower_linear_binop("subq", *dest, lhs, rhs, &slot_offsets)?);
+                        body.extend(lower_linear_binop(
+                            "subq",
+                            *dest,
+                            lhs,
+                            rhs,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
                     }
                     SelectedInstr::Mul { dest, lhs, rhs } => {
-                        body.extend(lower_linear_binop("imulq", *dest, lhs, rhs, &slot_offsets)?);
+                        body.extend(lower_linear_binop(
+                            "imulq",
+                            *dest,
+                            lhs,
+                            rhs,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
                     }
                     SelectedInstr::CmpEq { dest, lhs, rhs } => {
-                        body.extend(lower_cmp_eq(*dest, lhs, rhs, &slot_offsets)?);
+                        body.extend(lower_cmp_eq(
+                            *dest,
+                            lhs,
+                            rhs,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
                     }
                     SelectedInstr::CmpNe { dest, lhs, rhs } => {
-                        body.extend(lower_cmp_ne(*dest, lhs, rhs, &slot_offsets)?);
+                        body.extend(lower_cmp_ne(
+                            *dest,
+                            lhs,
+                            rhs,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
                     }
                     SelectedInstr::CmpLt { dest, lhs, rhs } => {
-                        body.extend(lower_cmp_lt(*dest, lhs, rhs, &slot_offsets)?);
+                        body.extend(lower_cmp_lt(
+                            *dest,
+                            lhs,
+                            rhs,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
                     }
                     SelectedInstr::CmpGt { dest, lhs, rhs } => {
-                        body.extend(lower_cmp_gt(*dest, lhs, rhs, &slot_offsets)?);
+                        body.extend(lower_cmp_gt(
+                            *dest,
+                            lhs,
+                            rhs,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
                     }
                     SelectedInstr::CmpLe { dest, lhs, rhs } => {
-                        body.extend(lower_cmp_le(*dest, lhs, rhs, &slot_offsets)?);
+                        body.extend(lower_cmp_le(
+                            *dest,
+                            lhs,
+                            rhs,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
                     }
                     SelectedInstr::CmpGe { dest, lhs, rhs } => {
-                        body.extend(lower_cmp_ge(*dest, lhs, rhs, &slot_offsets)?);
+                        body.extend(lower_cmp_ge(
+                            *dest,
+                            lhs,
+                            rhs,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
                     }
                     SelectedInstr::DerefLoad {
                         dest,
@@ -297,7 +377,12 @@ fn extract_external_callconv_program(
                                 "subset externo montável (Fase 134) ainda não suporta caminho `fragil` no acesso indireto externo",
                             ));
                         }
-                        body.extend(load_operand(REG_RET, ptr, &slot_offsets)?);
+                        register_rodata_strings_for_operand(
+                            ptr,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        );
+                        body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
                         body.push(format!("movq ({}), {}", REG_RET, REG_RET));
                         body.push(format!(
                             "movq {}, -{}(%rbp)",
@@ -321,8 +406,23 @@ fn extract_external_callconv_program(
                                 "subset externo montável (Fase 134) ainda não suporta caminho `fragil` no acesso indireto externo",
                             ));
                         }
-                        body.extend(load_operand(REG_RET, ptr, &slot_offsets)?);
-                        body.extend(load_operand(REG_TMP, value, &slot_offsets)?);
+                        register_rodata_strings_for_operand(
+                            ptr,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        );
+                        register_rodata_strings_for_operand(
+                            value,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        );
+                        body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
+                        body.extend(load_operand(
+                            REG_TMP,
+                            value,
+                            &slot_offsets,
+                            &rodata_strings,
+                        )?);
                         body.push(format!("movq {}, ({})", REG_TMP, REG_RET));
                     }
                     SelectedInstr::Cast {
@@ -353,7 +453,17 @@ fn extract_external_callconv_program(
                                 "subset externo montável (Fase 134) aceita `virar` mínimo apenas de slot `u32 -> u64` ou `u64 -> u32`",
                             ));
                         }
-                        body.extend(load_operand(REG_RET, value, &slot_offsets)?);
+                        register_rodata_strings_for_operand(
+                            value,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        );
+                        body.extend(load_operand(
+                            REG_RET,
+                            value,
+                            &slot_offsets,
+                            &rodata_strings,
+                        )?);
                         body.push("movl %eax, %eax".to_string());
                         body.push(format!(
                             "movq {}, -{}(%rbp)",
@@ -388,7 +498,17 @@ fn extract_external_callconv_program(
                             ));
                         }
                         for (idx, arg) in args.iter().enumerate() {
-                            body.extend(load_operand(ARG_REGS[idx], arg, &slot_offsets)?);
+                            register_rodata_strings_for_operand(
+                                arg,
+                                &mut rodata_string_labels,
+                                &mut rodata_strings,
+                            );
+                            body.extend(load_operand(
+                                ARG_REGS[idx],
+                                arg,
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
                         }
                         body.push(format!("call {}", callee));
                         body.push(format!(
@@ -399,7 +519,7 @@ fn extract_external_callconv_program(
                     }
                     _ => {
                         return Err(err(
-                            "subset externo montável (Fase 134) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<`, `>`, `<=` e `>=`), `virar` mínimo explícito (`u32` slot -> `u64` e `u64` slot -> `u32`), call direta com até 3 argumentos (`bombom`/`u32`/`u64`/`seta<T>`), `deref_store` mínimo em `bombom`/`u32`/`u64` (incluindo escrita heterogênea de campo de `ninho` via offset explícito), `deref_load` mínimo em `bombom`/`u32`/`u64` (incluindo campo heterogêneo de `ninho` via offset explícito), composição heterogênea mínima auditável no mesmo `ninho` (`u32` + `u64` por offset) e load/store em slots de frame, preservando recorte conservador de `quebrar`/`continuar` em `sempre que` via saltos já materializados (até três níveis de laço aninhado)",
+                            "subset externo montável (Fase 135) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<`, `>`, `<=` e `>=`), `virar` mínimo explícito (`u32` slot -> `u64` e `u64` slot -> `u32`), call direta com até 3 argumentos (`bombom`/`u32`/`u64`/`verso` opaco/`seta<T>`), `deref_store` mínimo em `bombom`/`u32`/`u64` (incluindo escrita heterogênea de campo de `ninho` via offset explícito), `deref_load` mínimo em `bombom`/`u32`/`u64` (incluindo campo heterogêneo de `ninho` via offset explícito), literal `verso` estático mínimo em `.rodata` carregado por endereço e tráfego opaco por slot/parâmetro, composição heterogênea mínima auditável no mesmo `ninho` (`u32` + `u64` por offset) e load/store em slots de frame, preservando recorte conservador de `quebrar`/`continuar` em `sempre que` via saltos já materializados (até três níveis de laço aninhado)",
                         ));
                     }
                 }
@@ -422,6 +542,7 @@ fn extract_external_callconv_program(
 
     Ok(ExternalCallConvProgram {
         rodata_globals,
+        rodata_strings,
         functions,
     })
 }
@@ -431,14 +552,22 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
     line(
         &mut out,
         0,
-        "# pinker v0 external toolchain subset (fase 134, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + quebrar/continuar camada 3 conservadora (composicao minima ate tres niveis de laço) + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args + composto minimo com deref_store/deref_load heterogeneo camada 4 (composicao `u32`+`u64` no mesmo ninho por offset) + u32/u64 minimos em params/locals + comparacao `>=` minima (camada 4 conservadora de 10.2) + `virar` minimo bidirecional por slot (`u32->u64` e `u64->u32`))",
+        "# pinker v0 external toolchain subset (fase 135, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + quebrar/continuar camada 3 conservadora (composicao minima ate tres niveis de laço) + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args + composto minimo com deref_store/deref_load heterogeneo camada 4 (composicao `u32`+`u64` no mesmo ninho por offset) + u32/u64 minimos em params/locals + comparacao `>=` minima (camada 4 conservadora de 10.2) + `virar` minimo bidirecional por slot (`u32->u64` e `u64->u32`) + `verso` minimo condicional (literal estatico em .rodata, carga de endereco e trafego opaco em slot/parametro))",
     );
-    if !program.rodata_globals.is_empty() {
+    if !program.rodata_globals.is_empty() || !program.rodata_strings.is_empty() {
         line(&mut out, 0, ".section .rodata");
         for global in &program.rodata_globals {
             line(&mut out, 0, &format!(".globl {}", global.name));
             line(&mut out, 0, &format!("{}:", global.name));
             line(&mut out, 1, &format!(".quad {}", global.value));
+        }
+        for text in &program.rodata_strings {
+            line(&mut out, 0, &format!("{}:", text.label));
+            line(
+                &mut out,
+                1,
+                &format!(".asciz \"{}\"", escape_gas_string(&text.value)),
+            );
         }
     }
     line(&mut out, 0, ".text");
@@ -495,8 +624,13 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
                     then_label,
                     else_label,
                 } => {
-                    for stmt in load_operand(REG_RET, cond, &function.slot_offsets)
-                        .expect("condição do branch deve ser carregável")
+                    for stmt in load_operand(
+                        REG_RET,
+                        cond,
+                        &function.slot_offsets,
+                        &program.rodata_strings,
+                    )
+                    .expect("condição do branch deve ser carregável")
                     {
                         line(&mut out, 1, &stmt);
                     }
@@ -513,8 +647,13 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
                     );
                 }
                 ExternalCallConvTerminator::Ret(value) => {
-                    for stmt in load_operand(REG_RET, value, &function.slot_offsets)
-                        .expect("retorno deve ser carregável")
+                    for stmt in load_operand(
+                        REG_RET,
+                        value,
+                        &function.slot_offsets,
+                        &program.rodata_strings,
+                    )
+                    .expect("retorno deve ser carregável")
                     {
                         line(&mut out, 1, &stmt);
                     }
@@ -548,10 +687,14 @@ fn lower_linear_binop(
     lhs: &OperandIR,
     rhs: &OperandIR,
     slot_offsets: &HashMap<String, u32>,
+    rodata_string_labels: &mut HashMap<String, String>,
+    rodata_strings: &mut Vec<ExternalCallConvString>,
 ) -> Result<Vec<String>, PinkerError> {
     let mut body = Vec::new();
-    body.extend(load_operand(REG_RET, lhs, slot_offsets)?);
-    body.extend(load_operand(REG_TMP, rhs, slot_offsets)?);
+    register_rodata_strings_for_operand(lhs, rodata_string_labels, rodata_strings);
+    register_rodata_strings_for_operand(rhs, rodata_string_labels, rodata_strings);
+    body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
+    body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("{} {}, {}", opcode, REG_TMP, REG_RET));
     body.push(format!(
         "movq {}, -{}(%rbp)",
@@ -566,10 +709,14 @@ fn lower_cmp_eq(
     lhs: &OperandIR,
     rhs: &OperandIR,
     slot_offsets: &HashMap<String, u32>,
+    rodata_string_labels: &mut HashMap<String, String>,
+    rodata_strings: &mut Vec<ExternalCallConvString>,
 ) -> Result<Vec<String>, PinkerError> {
     let mut body = Vec::new();
-    body.extend(load_operand(REG_RET, lhs, slot_offsets)?);
-    body.extend(load_operand(REG_TMP, rhs, slot_offsets)?);
+    register_rodata_strings_for_operand(lhs, rodata_string_labels, rodata_strings);
+    register_rodata_strings_for_operand(rhs, rodata_string_labels, rodata_strings);
+    body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
+    body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
     body.push("sete %al".to_string());
     body.push("movzbq %al, %rax".to_string());
@@ -586,10 +733,14 @@ fn lower_cmp_ne(
     lhs: &OperandIR,
     rhs: &OperandIR,
     slot_offsets: &HashMap<String, u32>,
+    rodata_string_labels: &mut HashMap<String, String>,
+    rodata_strings: &mut Vec<ExternalCallConvString>,
 ) -> Result<Vec<String>, PinkerError> {
     let mut body = Vec::new();
-    body.extend(load_operand(REG_RET, lhs, slot_offsets)?);
-    body.extend(load_operand(REG_TMP, rhs, slot_offsets)?);
+    register_rodata_strings_for_operand(lhs, rodata_string_labels, rodata_strings);
+    register_rodata_strings_for_operand(rhs, rodata_string_labels, rodata_strings);
+    body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
+    body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
     body.push("setne %al".to_string());
     body.push("movzbq %al, %rax".to_string());
@@ -606,10 +757,14 @@ fn lower_cmp_lt(
     lhs: &OperandIR,
     rhs: &OperandIR,
     slot_offsets: &HashMap<String, u32>,
+    rodata_string_labels: &mut HashMap<String, String>,
+    rodata_strings: &mut Vec<ExternalCallConvString>,
 ) -> Result<Vec<String>, PinkerError> {
     let mut body = Vec::new();
-    body.extend(load_operand(REG_RET, lhs, slot_offsets)?);
-    body.extend(load_operand(REG_TMP, rhs, slot_offsets)?);
+    register_rodata_strings_for_operand(lhs, rodata_string_labels, rodata_strings);
+    register_rodata_strings_for_operand(rhs, rodata_string_labels, rodata_strings);
+    body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
+    body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
     body.push("setb %al".to_string());
     body.push("movzbq %al, %rax".to_string());
@@ -626,10 +781,14 @@ fn lower_cmp_gt(
     lhs: &OperandIR,
     rhs: &OperandIR,
     slot_offsets: &HashMap<String, u32>,
+    rodata_string_labels: &mut HashMap<String, String>,
+    rodata_strings: &mut Vec<ExternalCallConvString>,
 ) -> Result<Vec<String>, PinkerError> {
     let mut body = Vec::new();
-    body.extend(load_operand(REG_RET, lhs, slot_offsets)?);
-    body.extend(load_operand(REG_TMP, rhs, slot_offsets)?);
+    register_rodata_strings_for_operand(lhs, rodata_string_labels, rodata_strings);
+    register_rodata_strings_for_operand(rhs, rodata_string_labels, rodata_strings);
+    body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
+    body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
     body.push("seta %al".to_string());
     body.push("movzbq %al, %rax".to_string());
@@ -646,10 +805,14 @@ fn lower_cmp_le(
     lhs: &OperandIR,
     rhs: &OperandIR,
     slot_offsets: &HashMap<String, u32>,
+    rodata_string_labels: &mut HashMap<String, String>,
+    rodata_strings: &mut Vec<ExternalCallConvString>,
 ) -> Result<Vec<String>, PinkerError> {
     let mut body = Vec::new();
-    body.extend(load_operand(REG_RET, lhs, slot_offsets)?);
-    body.extend(load_operand(REG_TMP, rhs, slot_offsets)?);
+    register_rodata_strings_for_operand(lhs, rodata_string_labels, rodata_strings);
+    register_rodata_strings_for_operand(rhs, rodata_string_labels, rodata_strings);
+    body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
+    body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
     body.push("setbe %al".to_string());
     body.push("movzbq %al, %rax".to_string());
@@ -666,10 +829,14 @@ fn lower_cmp_ge(
     lhs: &OperandIR,
     rhs: &OperandIR,
     slot_offsets: &HashMap<String, u32>,
+    rodata_string_labels: &mut HashMap<String, String>,
+    rodata_strings: &mut Vec<ExternalCallConvString>,
 ) -> Result<Vec<String>, PinkerError> {
     let mut body = Vec::new();
-    body.extend(load_operand(REG_RET, lhs, slot_offsets)?);
-    body.extend(load_operand(REG_TMP, rhs, slot_offsets)?);
+    register_rodata_strings_for_operand(lhs, rodata_string_labels, rodata_strings);
+    register_rodata_strings_for_operand(rhs, rodata_string_labels, rodata_strings);
+    body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
+    body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
     body.push("setae %al".to_string());
     body.push("movzbq %al, %rax".to_string());
@@ -726,6 +893,7 @@ fn load_operand(
     reg: &str,
     operand: &OperandIR,
     slot_offsets: &HashMap<String, u32>,
+    rodata_strings: &[ExternalCallConvString],
 ) -> Result<Vec<String>, PinkerError> {
     let mut lines = Vec::new();
     match operand {
@@ -751,10 +919,14 @@ fn load_operand(
         OperandIR::GlobalConst(name) => {
             lines.push(format!("movq {}(%rip), {}", name, reg));
         }
-        _ => {
-            return Err(err(
-                "subset externo montável (Fase 114) só aceita operandos inteiros, locais, temporários e global estática literal",
-            ));
+        OperandIR::Str(value) => {
+            let Some(string_meta) = rodata_strings.iter().find(|entry| entry.value == *value)
+            else {
+                return Err(err(
+                    "subset externo montável (Fase 135) não encontrou literal `verso` materializado em .rodata",
+                ));
+            };
+            lines.push(format!("leaq {}(%rip), {}", string_meta.label, reg));
         }
     }
     Ok(lines)
@@ -856,11 +1028,53 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
     *ty == TypeIR::Bombom
         || *ty == TypeIR::U32
         || *ty == TypeIR::U64
+        || *ty == TypeIR::Verso
         || *ty == TypeIR::Pointer { is_volatile: false }
 }
 
 fn is_external_local_type(ty: &TypeIR) -> bool {
     is_external_param_type(ty)
+}
+
+fn collect_rodata_string_label(
+    value: &str,
+    labels: &mut HashMap<String, String>,
+    strings: &mut Vec<ExternalCallConvString>,
+) -> String {
+    if let Some(existing) = labels.get(value) {
+        return existing.clone();
+    }
+    let label = format!(".Lpinker_verso_{}", strings.len());
+    labels.insert(value.to_string(), label.clone());
+    strings.push(ExternalCallConvString {
+        label: label.clone(),
+        value: value.to_string(),
+    });
+    label
+}
+
+fn register_rodata_strings_for_operand(
+    operand: &OperandIR,
+    labels: &mut HashMap<String, String>,
+    strings: &mut Vec<ExternalCallConvString>,
+) {
+    if let OperandIR::Str(value) = operand {
+        let _ = collect_rodata_string_label(value, labels, strings);
+    }
+}
+
+fn escape_gas_string(value: &str) -> String {
+    let mut escaped = String::new();
+    for ch in value.chars() {
+        match ch {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\n' => escaped.push_str("\\n"),
+            '\t' => escaped.push_str("\\t"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
 }
 
 pub fn render_program(program: &BackendTextProgram) -> String {

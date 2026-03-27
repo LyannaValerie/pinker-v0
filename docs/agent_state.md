@@ -27,8 +27,8 @@
 - Saídas: `--pseudo-asm`, `--asm-s`, `--run`.
 
 ## 5. Estado corrente
-- Fase funcional atual: **134 — `virar` / cast operacional mínimo (camada 2 conservadora) no backend nativo externo**.
-- Fase funcional anterior: **133 — `virar` / cast operacional mínimo (camada 1 conservadora) no backend nativo externo**.
+- Fase funcional atual: **135 — `verso` mínima (camada 1 conservadora e condicional) no backend nativo externo**.
+- Fase funcional anterior: **134 — `virar` / cast operacional mínimo (camada 2 conservadora) no backend nativo externo**.
 - Bloco ativo: **Bloco 10 — cobertura semântica do backend nativo** (aberto canonicamente na Doc-21).
 - Rodada documental mais recente: **Doc-23 — incorporação documental do editor/TUI ao ecossistema Pinker**.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
@@ -50,7 +50,7 @@
 1. Ler: `README.md`, `docs/atlas.md`, `docs/roadmap.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/history.md`, `docs/doc_rules.md`.
 2. Executar validações exigidas da rodada antes de encerrar.
 3. Atualizar ao final: `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` quando houver mudança documental/operacional.
-4. Próxima rodada normal esperada: continuar 10.5 (`virar`) com expansão conservadora auditável sobre a base da Fase 134, sem antecipar 10.6 (`verso`).
+4. Próxima rodada normal esperada: avaliar continuidade estrita de 10.6 (`verso`) apenas se houver chão técnico/documental para camada adicional mínima, sem inflar para sistema textual amplo.
 
 ## 9. Padrão operacional de binários
 - Binário principal: `pink`.
