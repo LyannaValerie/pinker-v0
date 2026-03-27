@@ -5,18 +5,18 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 133 — `virar` / cast operacional mínimo (camada 1 conservadora) no backend nativo externo**.
+- **Fase 134 — `virar` / cast operacional mínimo (camada 2 conservadora) no backend nativo externo**.
 - Rodada funcional mínima no item 10.5, sem abrir 10.6 (`verso`) e sem ampliar para sistema geral de casts.
 
 ## 2. Resultado operacional da rodada
 - Bloco 10 permanece como trilha ativa e foco técnico principal do compilador/backend.
-- Item ativo avançou para **10.5 (`virar`)** com recorte operacional mínimo explícito no backend externo: apenas `u32 -> u64` com origem em slot local/parâmetro.
+- Item ativo avançou para **10.5 (`virar`)** com recorte operacional mínimo explícito no backend externo: `u32 -> u64` e `u64 -> u32` com origem em slot local/parâmetro.
 - Emissão auditável adicionada no `.s` externo para esse recorte (`movl %eax, %eax`) e recusa explícita para casts fora do subset da fase.
 - Trilha futura do editor/TUI segue reconhecida documentalmente (Doc-23), sem abertura funcional nesta rodada.
 
 ## 3. Continuidade preservada
-- Fase funcional atual: **133**.
-- Fase funcional anterior: **132**.
+- Fase funcional atual: **134**.
+- Fase funcional anterior: **133**.
 - Rodada documental mais recente permanece: **Doc-23**.
 
 ## 4. Próximo passo correto
