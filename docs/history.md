@@ -718,6 +718,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplos versionados incluídos: `examples/fase135_verso_camada1_valido.pink` e `examples/fase135_verso_camada1_invalido.pink`.
 - Fora de escopo explícito preservado: retorno `verso` no backend externo, operações textuais gerais (`juntar_verso`, tamanho/indexação/comparações), strings dinâmicas, ABI textual ampla, runtime textual rica e sistema geral de strings.
 
+136 - abertura funcional do editor/TUI oficial da Pinker (camada 1 conservadora)
+- Primeira fase funcional da nova frente oficial do editor/TUI, após encerramento conservador do Bloco 10.
+- Adiciona base mínima, auditável e utilizável do editor/TUI via comando `pink editor <arquivo.pink>`.
+- Interface TUI mínima com identidade Pinker: cabeçalho, área principal de arquivo e painel inferior de saída.
+- Recorte funcional desta fase: abrir `.pink`, visualizar conteúdo, edição mínima por comando (`:append`, `:set`, `:save`) e acionamento de ação Pinker real (`:tokens` e `:ast`) com saída exibida no próprio painel.
+- Exemplo versionado incluído: `examples/fase136_editor_tui_camada1_valido.pink`.
+- Preserva integralmente o compilador/backend já consolidado e explicita limites: sem IDE ampla, sem LSP/autocomplete, sem watch sofisticado e sem terminal geral embutido.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

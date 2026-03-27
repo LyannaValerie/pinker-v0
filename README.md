@@ -2,7 +2,7 @@
 
 Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 
-Status documental corrente: **Doc-24 encerrou o Bloco 10 por suficiência conservadora** após a Fase 135 (`verso` mínima, camada 1 conservadora e condicional) no backend nativo externo. O bloco cumpriu a ampliação semântica planejada em recortes pequenos e auditáveis (10.1–10.6), sem equivaler a backend pleno. Com esse fechamento, a próxima frente funcional oficial a ser aberta passa a ser a trilha do editor/TUI.
+Status documental corrente: **Fase 136 abriu funcionalmente o editor/TUI oficial da Pinker em camada 1 conservadora**, após o encerramento do Bloco 10 na Doc-24 e da Fase 135 no backend nativo externo. O compilador/backend segue preservado no estado conservador já conquistado, e a nova frente entra com recorte mínimo, auditável e sem pretensão de IDE ampla.
 
 ## O que o frontend faz hoje
 - léxico com spans
@@ -60,6 +60,7 @@ Status documental corrente: **Doc-24 encerrou o Bloco 10 por suficiência conser
 - backend textual pseudo-assembly + validacao interna
 - proteção preventiva de recursão no runtime (`--run`) com limite interno de profundidade de chamadas
 - metadata mínima de boot entry + linker script textual em modo `livre` na saída `--asm-s`
+- editor/TUI oficial mínimo (`pink editor <arquivo.pink>`) com abertura de `.pink`, visualização textual em layout TUI simples (header + editor + painel de saída), edição mínima por comando (`:append`, `:set`, `:save`) e ação Pinker real no painel (`:tokens`, `:ast`)
 
 ## O que não faz
 - codegen nativo real
@@ -89,6 +90,7 @@ Status documental corrente: **Doc-24 encerrou o Bloco 10 por suficiência conser
 - operações textuais além do recorte mínimo da Fase 107 (sem última/múltiplas ocorrências, sem split/replace/regex/trim avançado, sem casefolding/locale-aware e sem biblioteca textual ampla)
 - formatação avançada de saída
 - freestanding/no-std operacional real (`livre;` é marca semântica de intenção, não runtime bare-metal executável)
+- editor completo/IDE ampla (sem LSP/autocomplete, sem árvore de símbolos, sem watch sofisticado, sem terminal geral embutido)
 
 ## Build e testes
 ```bash
@@ -200,6 +202,7 @@ cargo run --bin pink -- --asm-s examples/fase132_ninho_heterogeneo_camada4_valid
 cargo run --bin pink -- --asm-s examples/fase133_virar_camada1_valido.pink
 cargo run --bin pink -- --asm-s examples/fase134_virar_camada2_valido.pink
 cargo run --bin pink -- --asm-s examples/fase135_verso_camada1_valido.pink
+cargo run --bin pink -- editor examples/fase136_editor_tui_camada1_valido.pink
 cargo run --bin pink -- --asm-s examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink
 cargo run --bin pink -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run --bin pink -- --check examples/mut_falho.pink
