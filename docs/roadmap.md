@@ -270,7 +270,7 @@ Por padrão, o Bloco 9 **não cobre**:
 
 ### Bloco 10 — cobertura semântica do backend nativo
 
-**Status**: **trilha ativa em execução (Doc-21; Fases 122–125 abriram 10.2 em camadas conservadoras 1, 2, 3 e 4; Fases 126–128 avançaram 10.3 em camadas conservadoras 1, 2 e 3; Fases 129–132 avançaram 10.4 em camadas conservadoras 1, 2, 3 e 4)**.
+**Status**: **trilha ativa em execução (Doc-21; Fases 122–125 abriram 10.2 em camadas conservadoras 1, 2, 3 e 4; Fases 126–128 avançaram 10.3 em camadas conservadoras 1, 2 e 3; Fases 129–132 avançaram 10.4 em camadas conservadoras 1, 2, 3 e 4; Fase 133 abriu 10.5 em camada conservadora 1)**.
 
 **Tese do bloco**:
 - o backend nativo real já existe e é o ponto de partida;
@@ -306,6 +306,7 @@ Por padrão, o Bloco 9 **não cobre**:
 - **Fase 130 concluída (camada 2 conservadora do item 10.4)**: backend nativo externo ampliou estritamente o mesmo recorte heterogêneo mínimo de `ninho` para leitura de campo `u64` em base `seta<ninho>` (`(*ptr).campo`) com offset explícito, mantendo `deref_store` homogêneo, sem composto por valor na ABI, sem sistema geral de campos e sem abrir 10.5 (`virar`).
 - **Fase 131 concluída (camada 3 conservadora do item 10.4)**: backend nativo externo abriu escrita heterogênea mínima de campo `u32`/`u64` em base `seta<ninho>` (`(*ptr).campo = valor`) com offset explícito, fechando a assimetria entre leitura e escrita heterogênea no recorte mínimo, sem composto por valor na ABI, sem sistema geral de campos e sem abrir 10.5 (`virar`).
 - **Fase 132 concluída (camada 4 conservadora do item 10.4)**: backend nativo externo manteve o mesmo recorte mínimo e abriu composição heterogênea mínima auditável no mesmo `seta<ninho>` (`u32` + `u64`), permitindo sequência pequena de escrita em um campo e leitura de outro campo heterogêneo no mesmo fluxo com offset explícito, sem composto por valor na ABI, sem sistema geral de campos/layout e sem abrir 10.5 (`virar`).
+- **Fase 133 concluída (camada 1 conservadora do item 10.5)**: backend nativo externo abriu `virar` em recorte mínimo, explícito e auditável apenas para `u32 -> u64` quando a origem é slot local/parâmetro, com emissão textual explícita (`movl %eax, %eax`) e validação de recusa para casts fora do recorte; sem coerções implícitas, sem `verso` (10.6), sem ABI ampla e sem redesign de typing/lowering.
 
 #### Exclusões explícitas do Bloco 10
 
