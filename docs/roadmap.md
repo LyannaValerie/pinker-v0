@@ -507,3 +507,19 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 - continuidade pausada por decisão estratégica;
 - frente aberta porém pausada, não abandonada;
 - foco ativo imediato volta para evolução da linguagem/ecossistema no Bloco 11.
+
+---
+
+### Bloco 12 — sistema de módulos tipado
+
+**Status**: pendente; seed registrado como próximo bloco natural após Bloco 11.
+
+**Pendência inaugural registrada**:
+- **12.1 — exportação de tipos pelo sistema de módulos**: `ninho` e `apelido` não são exportáveis via `trazer`; hoje somente `carinho` e `eterno` podem ser importados de outro módulo; para que bibliotecas `.pink` compartilhem tipos estruturados entre arquivos, esse fechamento é necessário; sem ele, cada arquivo que precise de um `ninho` deve redeclará-lo localmente, impedindo reutilização real de tipos em bibliotecas.
+
+**Escopo mínimo esperado para 12.1**:
+- `ninho` declarado em módulo exportador deve ser resolvível no módulo importador via `trazer`;
+- `apelido` declarado em módulo exportador deve ser resolvível no módulo importador via `trazer`;
+- sem abrir visibilidade `pub/priv`, herança de tipos, generics ou sistema amplo de módulos nesta fase.
+
+**Observação**: este seed não implica abertura imediata. O Bloco 12 só deve ser aberto como trilha ativa após o Bloco 11 atingir suficiência funcional/documental.
