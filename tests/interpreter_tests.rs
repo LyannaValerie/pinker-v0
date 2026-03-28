@@ -2998,29 +2998,92 @@ fn run_criar_arquivo_e_escrever_verso_integram_com_argumento_ou_e_juntar_caminho
 
 #[test]
 fn cli_run_truncamento_minimo_fase102_funciona_com_exemplo_versionado() {
-    let out = run_cli_example("examples/fase102_truncamento_minimo_arquivo_valido.pink");
+    let mut base_dir = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase102_cli_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    base_dir.push(unique);
+    std::fs::create_dir(&base_dir).expect("falha ao criar diretório-base da fase102");
+    let out = run_cli_example_with_args(
+        "examples/fase102_truncamento_minimo_arquivo_valido.pink",
+        &[base_dir.to_string_lossy().as_ref(), "pinker_fase102_saida.txt"],
+    );
+    let _ = std::fs::remove_file(base_dir.join("pinker_fase102_saida.txt"));
+    let _ = std::fs::remove_dir(&base_dir);
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(String::from_utf8_lossy(&out.stdout), "0 verdade 0\n0\n");
 }
 
 #[test]
 fn cli_run_observacao_textual_minima_fase103_funciona_com_exemplo_versionado() {
-    let out = run_cli_example("examples/fase103_observacao_textual_minima_valido.pink");
+    let mut base_dir = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase103_cli_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    base_dir.push(unique);
+    std::fs::create_dir(&base_dir).expect("falha ao criar diretório-base da fase103");
+    let out = run_cli_example_with_args(
+        "examples/fase103_observacao_textual_minima_valido.pink",
+        &[base_dir.to_string_lossy().as_ref(), "pinker_fase103_entrada.txt"],
+    );
+    let _ = std::fs::remove_file(base_dir.join("pinker_fase103_entrada.txt"));
+    let _ = std::fs::remove_dir(&base_dir);
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(String::from_utf8_lossy(&out.stdout), "verdade verdade\n1\n");
 }
 
 #[test]
 fn cli_run_observacao_textual_complementar_minima_fase104_funciona_com_exemplo_versionado() {
-    let out =
-        run_cli_example("examples/fase104_observacao_textual_complementar_minima_valido.pink");
+    let mut base_dir = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase104_cli_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    base_dir.push(unique);
+    std::fs::create_dir(&base_dir).expect("falha ao criar diretório-base da fase104");
+    let out = run_cli_example_with_args(
+        "examples/fase104_observacao_textual_complementar_minima_valido.pink",
+        &[base_dir.to_string_lossy().as_ref(), "pinker_fase104_entrada.txt"],
+    );
+    let _ = std::fs::remove_file(base_dir.join("pinker_fase104_entrada.txt"));
+    let _ = std::fs::remove_dir(&base_dir);
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(String::from_utf8_lossy(&out.stdout), "verdade verdade\n1\n");
 }
 
 #[test]
 fn cli_run_saneamento_textual_minimo_fase105_funciona_com_exemplo_versionado() {
-    let out = run_cli_example("examples/fase105_saneamento_textual_minimo_valido.pink");
+    let mut base_dir = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase105_cli_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    base_dir.push(unique);
+    std::fs::create_dir(&base_dir).expect("falha ao criar diretório-base da fase105");
+    let out = run_cli_example_with_args(
+        "examples/fase105_saneamento_textual_minimo_valido.pink",
+        &[base_dir.to_string_lossy().as_ref(), "pinker_fase105_entrada.txt"],
+    );
+    let _ = std::fs::remove_file(base_dir.join("pinker_fase105_entrada.txt"));
+    let _ = std::fs::remove_dir(&base_dir);
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(String::from_utf8_lossy(&out.stdout), "verdade\n1\n");
 }
@@ -3041,14 +3104,44 @@ fn cli_run_observacao_textual_posicional_minima_fase107_funciona_com_exemplo_ver
 
 #[test]
 fn cli_run_append_textual_minimo_fase108_funciona_com_exemplo_versionado() {
-    let out = run_cli_example("examples/fase108_append_textual_minimo_valido.pink");
+    let mut base_dir = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase108_cli_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    base_dir.push(unique);
+    std::fs::create_dir(&base_dir).expect("falha ao criar diretório-base da fase108");
+    let out = run_cli_example_with_args(
+        "examples/fase108_append_textual_minimo_valido.pink",
+        &[base_dir.to_string_lossy().as_ref(), "fase108_append_textual_minimo.txt"],
+    );
+    let _ = std::fs::remove_file(base_dir.join("fase108_append_textual_minimo.txt"));
+    let _ = std::fs::remove_dir(&base_dir);
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(String::from_utf8_lossy(&out.stdout), "base+A+B 8\n1\n");
 }
 
 #[test]
 fn cli_run_leitura_textual_direta_por_caminho_fase109_funciona_com_exemplo_versionado() {
-    let out = run_cli_example("examples/fase109_leitura_textual_direta_por_caminho_valido.pink");
+    let mut file_path = std::env::temp_dir();
+    let unique = format!(
+        "pinker_fase109_cli_{}_{}.txt",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock monotônico")
+            .as_nanos()
+    );
+    file_path.push(unique);
+    let out = run_cli_example_with_args(
+        "examples/fase109_leitura_textual_direta_por_caminho_valido.pink",
+        &[file_path.to_string_lossy().as_ref()],
+    );
+    let _ = std::fs::remove_file(&file_path);
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
