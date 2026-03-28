@@ -371,6 +371,14 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
         },
     );
+    // Fase 139
+    funcs.insert(
+        "juntar_verso_com".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
+        },
+    );
 
     for konst in &program.consts {
         let ty = infer_value_type(&konst.value, &HashMap::new(), &consts, &funcs, konst.span)

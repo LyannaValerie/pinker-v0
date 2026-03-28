@@ -2653,6 +2653,59 @@ impl SemanticChecker {
             return Ok(Type::Verso(expr_span));
         }
 
+        // Fase 139 — juntar_verso_com(a, sep, b) -> verso
+        if name == "juntar_verso_com" {
+            if args.len() != 3 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'juntar_verso_com' com aridade inválida: esperado 3, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let a_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(a_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'juntar_verso_com': esperado 'verso', encontrado '{}'",
+                        a_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let sep_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(sep_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'juntar_verso_com': esperado 'verso', encontrado '{}'",
+                        sep_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            let b_ty = self.check_value_expr(
+                &args[2],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(b_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 3 da chamada 'juntar_verso_com': esperado 'verso', encontrado '{}'",
+                        b_ty.name()
+                    ),
+                    span: args[2].span,
+                });
+            }
+            return Ok(Type::Verso(expr_span));
+        }
+
         let Some(function) = self.funcs.get(name).cloned() else {
             return Err(PinkerError::Semantic {
                 msg: format!("função '{}' não declarada", name),

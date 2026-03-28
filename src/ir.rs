@@ -780,6 +780,14 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
+        // Fase 139
+        function_sigs.insert(
+            "juntar_verso_com".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
 
         Ok(Self {
             module_name,

@@ -1253,6 +1253,31 @@ fn try_call_intrinsic(
             let resultado = texto.replace(de.as_str(), para.as_str());
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(resultado))))
         }
+        // Fase 139 — juntar_verso_com(a, sep, b) -> verso
+        "juntar_verso_com" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca 'juntar_verso_com' exige 3 argumentos (verso, verso, verso)",
+                ));
+            }
+            let RuntimeValue::Str(a) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'juntar_verso_com' exige primeiro argumento em verso",
+                ));
+            };
+            let RuntimeValue::Str(sep) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'juntar_verso_com' exige segundo argumento em verso",
+                ));
+            };
+            let RuntimeValue::Str(b) = &args[2] else {
+                return Err(runtime_err(
+                    "intrínseca 'juntar_verso_com' exige terceiro argumento em verso",
+                ));
+            };
+            let resultado = format!("{}{}{}", a, sep, b);
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(resultado))))
+        }
         "argumento" => {
             if args.len() != 1 {
                 return Err(runtime_err(
