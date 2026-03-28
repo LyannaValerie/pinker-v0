@@ -204,7 +204,6 @@ cargo run --bin pink -- --asm-s examples/fase132_ninho_heterogeneo_camada4_valid
 cargo run --bin pink -- --asm-s examples/fase133_virar_camada1_valido.pink
 cargo run --bin pink -- --asm-s examples/fase134_virar_camada2_valido.pink
 cargo run --bin pink -- --asm-s examples/fase135_verso_camada1_valido.pink
-cargo run --bin pink -- editor examples/fase136_editor_tui_camada1_valido.pink
 cargo run --bin pink -- --run examples/fase138_replace_camada1_valido.pink
 cargo run --bin pink -- --asm-s examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink
 cargo run --bin pink -- --check examples/fase76_backend_externo_tres_args_invalido.pink
