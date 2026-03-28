@@ -409,6 +409,7 @@ Um bloco só pode ser considerado suficientemente concluído para liberar o pró
 
 ---
 
+<!-- ACTIVE_BLOCK -->
 ### Bloco 11 — texto prático, scripts e ergonomia cotidiana
 
 **Status**: **aberto canonicamente na Doc-25 como nova trilha ativa imediata**.
