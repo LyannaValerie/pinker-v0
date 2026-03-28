@@ -73,11 +73,19 @@ Limites iniciais explícitos:
 
 ## 3. Itens de longo prazo (sem compromisso de ordem)
 
-- sistema de módulos mais completo;
+Os itens abaixo que antes estavam listados aqui como backlog amplo foram reorganizados na trilha canônica dos Blocos 12–16 em `docs/roadmap.md`:
+- módulos tipados (`ninho`/`apelido` exportáveis) → Bloco 12;
+- coleções, iteração, aleatoriedade → Bloco 13;
+- formatação, CSV, JSON, datas → Bloco 14;
+- processos externos, captura, stdin/stdout/stderr → Bloco 15;
+- REPL, linguagem-cola → Bloco 16.
+
+Itens de longo prazo ainda sem bloco definido:
 - abstrações avançadas (traits/generics);
-- biblioteca padrão mais robusta;
+- biblioteca padrão mais robusta além da trilha 12–16;
 - self-hosting (horizonte distante);
-- kernel/ambiente bare-metal mais robusto.
+- kernel/ambiente bare-metal mais robusto;
+- package manager soberano.
 
 ## 4. Relação com a camada Rosa
 
