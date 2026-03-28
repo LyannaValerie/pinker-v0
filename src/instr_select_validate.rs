@@ -58,6 +58,8 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("minusculo_verso".to_string(), TypeIR::Verso);
     sigs.insert("maiusculo_verso".to_string(), TypeIR::Verso);
     sigs.insert("indice_verso_em".to_string(), TypeIR::Bombom);
+    // Fase 140
+    sigs.insert("buscar_verso".to_string(), TypeIR::Bombom);
     sigs.insert("nao_vazio_verso".to_string(), TypeIR::Logica);
     // Fase 137
     sigs.insert("dividir_verso_em".to_string(), TypeIR::Verso);

@@ -758,6 +758,18 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo canônico criado: `examples/fase139_join_camada1_valido.pink`.
 - O que continua fora: regex, busca textual ampla, coleções gerais, `join` de coleção arbitrária, múltiplos modos de junção, JSON/CSV, REPL, subprocessos.
 
+140 - manipulação textual útil: busca textual mínima (camada 1 conservadora)
+- Quarta fase funcional do Bloco 11.
+- Primeiro recorte mínimo e auditável de busca textual útil.
+- Adiciona o intrínseco textual `buscar_verso(texto, padrao) -> bombom` no runtime `--run`.
+- `buscar_verso` retorna a posição da primeira ocorrência literal de `padrao` em `texto`.
+- Resultado ausente usa sentinela explícita `18446744073709551615` (`u64::MAX`) em `bombom`, preservando o estilo posicional já adotado.
+- Padrão vazio é rejeitado com erro claro no runtime para evitar ambiguidade operacional no recorte mínimo.
+- Resultado representado em tipo já existente (`bombom`): nenhum novo tipo estrutural introduzido.
+- Cobertura adicionada com testes semânticos, testes de runtime (encontrado/ausente/negativo) e teste de CLI para exemplo versionado.
+- Exemplo canônico criado: `examples/fase140_busca_textual_camada1_valido.pink`.
+- O que continua fora: regex, busca de todas as ocorrências, busca reversa, múltiplos modos de busca, coleções de resultados, parsing textual amplo, JSON/CSV, REPL e subprocessos.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

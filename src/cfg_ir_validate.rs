@@ -346,6 +346,14 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
+    // Fase 140
+    function_sigs.insert(
+        "buscar_verso".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
     function_sigs.insert(
         "nao_vazio_verso".to_string(),
         FunctionSigCfg {

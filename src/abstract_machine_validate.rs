@@ -253,6 +253,14 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
+    // Fase 140
+    sigs.insert(
+        "buscar_verso".to_string(),
+        (
+            TypeIR::Bombom,
+            vec![StackValueType::Verso, StackValueType::Verso],
+        ),
+    );
     sigs.insert(
         "nao_vazio_verso".to_string(),
         (TypeIR::Logica, vec![StackValueType::Verso]),

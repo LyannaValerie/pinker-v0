@@ -1011,6 +1011,29 @@ fn indice_verso_em_intrinseca_valida_sem_declaracao() {
 }
 
 #[test]
+fn buscar_verso_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova idx: bombom = buscar_verso("pinker", "ink");
+            talvez idx == 1 { mimo 1; } senao { mimo 0; }
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn buscar_verso_intrinseca_rejeita_segundo_argumento_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova idx: bombom = buscar_verso("pinker", 1);
+            mimo idx;
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'buscar_verso'"));
+}
+
+#[test]
 fn nao_vazio_verso_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
         pacote main;

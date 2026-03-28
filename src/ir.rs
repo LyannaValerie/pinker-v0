@@ -750,6 +750,14 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
+        // Fase 140
+        function_sigs.insert(
+            "buscar_verso".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
         function_sigs.insert(
             "nao_vazio_verso".to_string(),
             FunctionSigIR {

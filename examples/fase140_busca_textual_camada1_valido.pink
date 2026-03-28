@@ -1,0 +1,18 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova log: verso = "status=ok;code=42";
+    nova pos_status: bombom = buscar_verso(log, "status=");
+    nova pos_ausente: bombom = buscar_verso(log, "erro=");
+
+    falar(pos_status);
+    falar(pos_ausente);
+
+    talvez pos_status == 0 {
+        talvez pos_ausente == 18446744073709551615 {
+            mimo 0;
+        }
+    }
+
+    mimo 1;
+}

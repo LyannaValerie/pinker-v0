@@ -8,8 +8,8 @@
 > A crônica histórica oficial é `docs/history.md`.
 
 ## Estado atual
-- Fase funcional atual: **139 — manipulação textual útil: `join` (camada 1 conservadora)**.
-- Fase funcional anterior: **138 — manipulação textual útil: `replace` (camada 1 conservadora)**.
+- Fase funcional atual: **140 — manipulação textual útil: busca textual mínima (camada 1 conservadora)**.
+- Fase funcional anterior: **139 — manipulação textual útil: `join` (camada 1 conservadora)**.
 - Hotfix extraordinário ativo mais recente: **HF-5**.
 - Última rodada documental: **Doc-25 — abertura canônica do Bloco 11**.
 
@@ -24,5 +24,6 @@
 - A Fase 137 abriu o primeiro recorte funcional do Bloco 11: `split` mínimo e auditável (item 11.1), com dois intrínsecos novos no runtime `--run`.
 - A Fase 138 abriu o segundo recorte funcional do Bloco 11: `replace` camada 1 conservadora (item 11.2), com `substituir_verso` no runtime `--run`.
 - A Fase 139 abriu o terceiro recorte funcional do Bloco 11: `join` camada 1 conservadora (item 11.3), com `juntar_verso_com` no runtime `--run`.
+- A Fase 140 abriu o quarto recorte funcional do Bloco 11: busca textual mínima camada 1 conservadora (item 11.4), com `buscar_verso` no runtime `--run`.
 - O editor/TUI permanece frente oficial já aberta na Fase 136, porém pausada por decisão estratégica e sem abandono.
-- Próxima rodada funcional esperada: avançar para 11.4 (busca textual mínima ou utilitários práticos de arquivo/caminho/ambiente).
+- Próxima rodada funcional esperada: avançar para 11.5 (utilitários práticos de arquivo/caminho/ambiente e ergonomia de script).

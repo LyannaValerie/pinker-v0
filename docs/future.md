@@ -36,7 +36,7 @@
 - I/O mais rica (arquivo/texto) com recorte incremental;
 - tooling de projeto além do `pink build` mínimo;
 - evolução prudente de `verso` sem abrir biblioteca textual gigante de uma vez.
-- No Bloco 11, o arranque funcional começou com `split` mínimo (Fase 137: `dividir_verso_em` e `dividir_verso_contar`); a Fase 138 abriu `replace` mínimo (`substituir_verso`); a Fase 139 abriu `join` mínimo (`juntar_verso_com`); continuação esperada com busca textual mínima e utilitários práticos, fechando a lacuna prática imediata de scripts.
+- No Bloco 11, o arranque funcional começou com `split` mínimo (Fase 137: `dividir_verso_em` e `dividir_verso_contar`); a Fase 138 abriu `replace` mínimo (`substituir_verso`); a Fase 139 abriu `join` mínimo (`juntar_verso_com`); a Fase 140 abriu busca textual mínima (`buscar_verso`); continuação esperada com utilitários práticos de arquivo/caminho/ambiente e ergonomia de script.
 
 Itens explicitamente para depois do foco inicial do Bloco 11:
 - REPL;
