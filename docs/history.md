@@ -918,13 +918,13 @@ Doc-16 - pacote paralelo de apoio (auditoria + corpus + mapeamento de codegen te
 - Cobertura de teste adicionada em `tests/interpreter_tests.rs` para o novo exemplo/corpus, sem abrir recurso novo.
 - `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` atualizados para registrar a rodada documental/paralela e preservar continuidade histórica.
 
-Doc-17 - alinhamento documental/operacional pós-Paralela-1 (binários + MCP)
+Doc-17 - alinhamento documental/operacional pós-Paralela-1 (~~binários + MCP~~)
 - Rodada curta documental/operacional, sem abertura de fase funcional e sem expansão de linguagem/runtime/backend.
 - `docs/doc_rules.md` atualizado para formalizar **rodadas paralelas de implementação** como categoria própria da crônica histórica em `docs/history.md` (seção `RODADAS PARALELAS`), distinta de Fase/HF/Doc.
 - `docs/future.md` sincronizado com a precedência vigente (`roadmap`/`agent_state`/`handoff`): Bloco 8 permanece trilha ativa; Bloco 7 não é mais bloco ativo.
-- Ambiguidade operacional de `cargo run` registrada e saneada: coexistência de binários (`pink`, `pinker_mcp`) exigiu explicitação de binário nos comandos de uso principal (`cargo run --bin pink -- ...`) e definição de `default-run = "pink"` para preservar ergonomia diária.
-- README alinhado para remover padrões antigos ambíguos de auditoria/uso (ex.: `cargo run -- --check ...`, `cargo run -- --selected ...`) e para explicitar a existência/uso mínimo do binário `pinker_mcp`.
-- Verificação prática do `pinker_mcp` executada no estado atual: transporte JSON-RPC 2.0 via stdio (JSON por linha), resposta positiva para `initialize`, `tools/list` e `tools/call` (`pinker_rodar`).
+- ~~Ambiguidade operacional de `cargo run` registrada e saneada: coexistência de binários (`pink`, `pinker_mcp`) exigiu explicitação de binário nos comandos de uso principal (`cargo run --bin pink -- ...`) e definição de `default-run = "pink"` para preservar ergonomia diária.~~
+- ~~README alinhado para remover padrões antigos ambíguos de auditoria/uso (ex.: `cargo run -- --check ...`, `cargo run -- --selected ...`) e para explicitar a existência/uso mínimo do binário `pinker_mcp`.~~
+- ~~Verificação prática do `pinker_mcp` executada no estado atual: transporte JSON-RPC 2.0 via stdio (JSON por linha), resposta positiva para `initialize`, `tools/list` e `tools/call` (`pinker_rodar`).~~
 
 
 Doc-18 - reorganização estrutural da documentação (arquitetura dual Engine + Pinker/Rosa)
@@ -992,7 +992,7 @@ Doc-25 - abertura canônica do Bloco 11
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo
+Paralela-1 — negação bitwise dual (`~` + `nope`) + ~~MCP mínimo~~
 - Rodada paralela de implementação; não é hotfix, não é fase funcional, não é rodada documental pura.
 - Não reordenou o roadmap nem conflitou com a trilha funcional ativa (Bloco 8).
 
@@ -1003,10 +1003,12 @@ Trilha A — negação bitwise unária dual:
 - Tipo aceito: qualquer inteiro já suportado (`bombom`, `u8`–`u64`, `i8`–`i64`); `logica` rejeitada na semântica.
 - Testes adicionados: 6 casos em `tests/interpreter_tests.rs` cobrindo `~`, `nope`, equivalência, inversão de bits, dupla negação e tipo inválido.
 
-Trilha B — MCP mínimo:
-- Binário separado `pinker_mcp` criado em `src/bin/pinker_mcp.rs` (zero dependências externas).
-- Transporte: JSON-RPC 2.0 via stdio (newline-delimited), sem LSP, sem Tree-sitter, sem servidor complexo.
-- Ferramentas expostas: `pinker_checar`, `pinker_tokens`, `pinker_ast`, `pinker_ir` (modos: ir/cfg/selected/machine), `pinker_rodar`.
-- Cada ferramenta despacha para a pipeline existente via biblioteca `pinker_v0`; sem reescrita de arquitetura.
-- Limitação intencional: código inline apenas (sem resolução de imports entre módulos).
-- Testes adicionados: 9 casos em `tests/mcp_tests.rs` cobrindo initialize, tools/list, checar, tokens, rodar, bitnot via MCP e erro de método desconhecido.
+~~Trilha B — MCP mínimo:~~
+- ~~Binário separado `pinker_mcp` criado em `src/bin/pinker_mcp.rs` (zero dependências externas).~~
+- ~~Transporte: JSON-RPC 2.0 via stdio (newline-delimited), sem LSP, sem Tree-sitter, sem servidor complexo.~~
+- ~~Ferramentas expostas: `pinker_checar`, `pinker_tokens`, `pinker_ast`, `pinker_ir` (modos: ir/cfg/selected/machine), `pinker_rodar`.~~
+- ~~Cada ferramenta despacha para a pipeline existente via biblioteca `pinker_v0`; sem reescrita de arquitetura.~~
+- ~~Limitação intencional: código inline apenas (sem resolução de imports entre módulos).~~
+- ~~Testes adicionados: 9 casos em `tests/mcp_tests.rs` cobrindo initialize, tools/list, checar, tokens, rodar, bitnot via MCP e erro de método desconhecido.~~
+
+> *Trilha B removida por questões de segurança. Sua adição futura pode ser reconsiderada caso haja real necessidade.*

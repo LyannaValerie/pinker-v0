@@ -119,9 +119,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --locked
 
 ## Binários do projeto
 - `pink`: binário principal da CLI da linguagem.
-- `pinker_mcp`: servidor MCP mínimo via JSON-RPC 2.0 em stdio (mensagens JSON por linha).
-
-Para evitar ambiguidade operacional após a coexistência de dois binários, use explicitamente `cargo run --bin pink -- ...` nos fluxos de auditoria/CLI principal. O `Cargo.toml` também define `default-run = "pink"` para preservar ergonomia de `cargo run` sem `--bin`.
+- ~~`pinker_mcp`: servidor MCP mínimo via JSON-RPC 2.0 em stdio (mensagens JSON por linha).~~ — *Removido por questões de segurança, mas sua adição futura pode ser reconsiderada caso haja real necessidade.*
 
 ## Uso
 ```bash

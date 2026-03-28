@@ -33,7 +33,7 @@
 - Frente pausada (oficial e não abandonada): **editor/TUI oficial da Pinker (aberto na Fase 136)**.
 - Bloco ativo de compilador/backend/ecossistema: **Bloco 11** (aberto canonicamente na Doc-25).
 - Rodada documental mais recente: **Doc-25 — abertura canônica do Bloco 11**.
-- Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo**.
+- Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + ~~MCP mínimo~~**.
 - Último hotfix aplicado: **HF-5 — ajuste de conformidade Clippy pós-Fase 136**.
 
 ## 6. Arquitetura documental dual ativa
@@ -56,7 +56,7 @@
 
 ## 9. Padrão operacional de binários
 - Binário principal: `pink`.
-- Binário MCP: `pinker_mcp`.
+- ~~Binário MCP: `pinker_mcp`.~~ — *Removido por questões de segurança, mas sua adição futura pode ser reconsiderada caso haja real necessidade.*
 - Padrão recomendado: `cargo run --bin pink -- ...`.
 - `default-run = "pink"` preserva ergonomia.
 
