@@ -2600,6 +2600,58 @@ impl SemanticChecker {
             }
             return Ok(Type::Bombom(expr_span));
         }
+        // Fase 138 — substituir_verso(texto, de, para) -> verso
+        if name == "substituir_verso" {
+            if args.len() != 3 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'substituir_verso' com aridade inválida: esperado 3, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let texto_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(texto_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'substituir_verso': esperado 'verso', encontrado '{}'",
+                        texto_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let de_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(de_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'substituir_verso': esperado 'verso', encontrado '{}'",
+                        de_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            let para_ty = self.check_value_expr(
+                &args[2],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(para_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 3 da chamada 'substituir_verso': esperado 'verso', encontrado '{}'",
+                        para_ty.name()
+                    ),
+                    span: args[2].span,
+                });
+            }
+            return Ok(Type::Verso(expr_span));
+        }
 
         let Some(function) = self.funcs.get(name).cloned() else {
             return Err(PinkerError::Semantic {

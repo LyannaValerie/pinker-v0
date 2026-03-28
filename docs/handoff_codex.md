@@ -5,25 +5,25 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 137 — manipulação textual útil: `split` (camada 1 conservadora)**.
-- Primeira fase funcional do Bloco 11; abre o item 11.1 (texto útil) com o menor degrau prático auditável.
+- **Fase 138 — manipulação textual útil: `replace` (camada 1 conservadora)**.
+- Segunda fase funcional do Bloco 11; abre o item 11.2 (substituição textual útil) com o menor degrau prático auditável.
 
 ## 2. Resultado operacional da rodada
-- Dois novos intrínsecos textuais adicionados ao runtime `--run`:
-  - `dividir_verso_em(texto, sep, indice) -> verso`: retorna o N-ésimo pedaço (base 0) da divisão de `texto` por `sep`.
-  - `dividir_verso_contar(texto, sep) -> bombom`: retorna o número de pedaços.
-- Separador simples em `verso`, sem regex, sem coleção geral, sem abertura de `replace`/`join`.
-- Resultado representado em tipos já existentes (`verso` e `bombom`): nenhum novo tipo estrutural introduzido.
-- 11 novos testes adicionados à suíte de intérprete; regressão zero (todas as fases anteriores continuam verdes).
-- Exemplo canônico criado: `examples/fase137_split_camada1_valido.pink`.
+- Um novo intrínseco textual adicionado ao runtime `--run`:
+  - `substituir_verso(texto, de, para) -> verso`: substitui globalmente todas as ocorrências literais de `de` por `para` em `texto`.
+- Padrão `de` vazio é rejeitado em runtime; `para` pode ser vazio (remove ocorrências).
+- Substituição literal pura, sem regex, sem flags, sem múltiplos modos, sem abertura de `join` nesta fase.
+- Resultado representado em tipo já existente (`verso`): nenhum novo tipo estrutural introduzido.
+- 7 novos testes adicionados à suíte de intérprete; regressão zero (todas as fases anteriores continuam verdes).
+- Exemplo canônico criado: `examples/fase138_replace_camada1_valido.pink`.
 
 ## 3. Continuidade preservada
-- Fase funcional atual: **137**.
-- Fase funcional anterior: **136**.
+- Fase funcional atual: **138**.
+- Fase funcional anterior: **137**.
 - Rodada documental mais recente: **Doc-25**.
 
 ## 4. Próximo passo correto
-- Continuar o item 11.1 com `replace` ou `join` (camada 1 conservadora), ou avançar para 11.2 (scripts e CLI) conforme prioridade real.
+- Continuar o eixo textual com `join` (camada 1 conservadora), ou avançar para 11.3 (utilitários práticos de arquivo/caminho/ambiente) conforme prioridade real.
 - Não continuar o editor/TUI agora; a frente está pausada por decisão estratégica e não abandonada.
 - Não reabrir o Bloco 10 por impulso; qualquer retorno a 10.1–10.6 segue excepcional, pequeno e bem justificado.
 

@@ -2,7 +2,7 @@
 
 Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 
-Status documental corrente: **Fase 137 abriu o primeiro recorte de `split` útil (camada 1 conservadora)** como primeira fase funcional do Bloco 11 (texto prático, scripts e ergonomia cotidiana). O editor/TUI permanece como frente oficial **aberta porém pausada** por decisão estratégica. O compilador/backend segue preservado no estado conservador já conquistado.
+Status documental corrente: **Fase 138 abriu o primeiro recorte de `replace` útil (camada 1 conservadora)** como segunda fase funcional do Bloco 11 (texto prático, scripts e ergonomia cotidiana). O editor/TUI permanece como frente oficial **aberta porém pausada** por decisão estratégica. O compilador/backend segue preservado no estado conservador já conquistado.
 
 ## O que o frontend faz hoje
 - léxico com spans
@@ -47,6 +47,7 @@ Status documental corrente: **Fase 137 abriu o primeiro recorte de `split` útil
 - observação textual posicional mínima em `--run` com `indice_verso_em(verso, verso) -> bombom` (primeira ocorrência; retorna `18446744073709551615` quando ausente) e ergonomia mínima de presença com `nao_vazio_verso(verso) -> logica` (Fase 107)
 - append textual mínimo em `--run` com `abrir_anexo(verso) -> bombom` e `anexar_verso(bombom, verso) -> nulo`, sem newline implícito e sem abrir modos ricos de arquivo (Fase 108)
 - divisão textual mínima em `--run` com `dividir_verso_em(verso, verso, bombom) -> verso` (N-ésimo pedaço, base 0) e `dividir_verso_contar(verso, verso) -> bombom` (número de pedaços); separador simples, sem regex, sem coleção geral, resultado em tipos já existentes (Fase 137)
+- substituição textual mínima em `--run` com `substituir_verso(verso, verso, verso) -> verso` (todas as ocorrências literais; padrão vazio rejeitado; `para` pode ser vazio para remoção); sem regex, sem flags, sem modos amplos (Fase 138)
 - leitura textual mínima direta por caminho em `--run` com `ler_arquivo_verso(verso) -> verso` e fallback ergonômico `arquivo_ou(verso, verso) -> verso`, sem streaming, sem escrita por caminho e sem API rica de handles (Fase 109)
 - comando de projeto `pink build <arquivo.pink>` para gerar artefato textual `.s` em disco (padrão: `build/<arquivo>.s`)
 - backend nativo real (subset externo montável) ampliado para múltiplos blocos, labels, salto incondicional (`jmp`), branch condicional mínimo (`br`) e loops reais mínimos (Fase 113), globais estáticas mínimas em `.rodata` (Fase 114), ABI mínima mais larga (Fase 115) com call direta de até 3 argumentos, compostos mínimos camada 1 (Fase 116) via parâmetro `seta<bombom>` + `deref_load` (`*ptr`), compostos mínimos camada 2 conservadora (Fase 117) com local `seta<bombom>` + offset explícito e compostos mínimos camada 3 conservadora (Fase 118) com `deref_store` homogêneo mínimo (`*ptr = valor`) e camada 4 conservadora (Fase 119) com consolidação auditável de par homogêneo mínimo (leituras/escritas coesas via `seta<bombom>` + offsets explícitos), além da abertura mínima da Fase 120 para `u32` em parâmetros/locais, da Fase 121 para `u64` em parâmetros/locais, da Fase 122 para `!=` mínima, da Fase 123 para `>` mínimo, da Fase 124 para `<=` mínimo e da Fase 125 para `>=` mínimo e da Fase 126 para `quebrar`/`continuar` em recorte mínimo de loop no caminho externo, da Fase 127 para aninhamento mínimo controlado em `sempre que` aninhado e da Fase 128 para composição mínima auditável até três níveis de `sempre que` com alvos distintos de `quebrar`/`continuar`, da Fase 129 para primeiro recorte heterogêneo mínimo de `ninho` no backend externo (leitura de campo `u32` via `seta<ninho>` + offset explícito, sem abrir composto amplo), da Fase 130 para camada 2 conservadora desse mesmo recorte (leitura de campo `u64` em `seta<ninho>` via offset explícito), da Fase 131 para escrita heterogênea mínima (`u32`/`u64`) e da Fase 132 para composição heterogênea mínima auditável no mesmo `ninho` (leitura+escrita `u32`/`u64` sem abrir sistema geral de campos/layout), da Fase 133 para abertura mínima de `virar` no backend externo (`u32 -> u64` explícito com origem em slot), da Fase 134 para camada 2 conservadora (`u64 -> u32` explícito no mesmo recorte por slot) e da Fase 135 para abertura mínima e condicional de `verso` no caminho externo (literal estático em `.rodata` + carga de endereço + tráfego opaco por slot/parâmetro, sem operações textuais gerais).
@@ -88,7 +89,7 @@ Status documental corrente: **Fase 137 abriu o primeiro recorte de `split` útil
 - leitura textual de arquivo além do recorte mínimo da Fase 100 (`ler_verso_arquivo` retorna conteúdo completo do handle, sem streaming/append/encoding avançado)
 - escrita textual além do recorte mínimo da Fase 101 (`escrever_verso` sobrescreve conteúdo inteiro do handle, sem append/streaming/escrita por linha)
 - truncamento além do recorte mínimo da Fase 102 (sem truncamento por caminho, sem streaming e sem modos ricos de arquivo)
-- operações textuais além do recorte mínimo da Fase 137 (sem `replace`, sem `join`, sem regex, sem busca de múltiplas ocorrências, sem coleções gerais, sem biblioteca textual ampla)
+- operações textuais além do recorte mínimo das Fases 137–138 (sem `join`, sem regex, sem busca de múltiplas ocorrências, sem coleções gerais, sem biblioteca textual ampla)
 - formatação avançada de saída
 - freestanding/no-std operacional real (`livre;` é marca semântica de intenção, não runtime bare-metal executável)
 - editor completo/IDE ampla (sem LSP/autocomplete, sem árvore de símbolos, sem watch sofisticado, sem terminal geral embutido)
@@ -204,6 +205,7 @@ cargo run --bin pink -- --asm-s examples/fase133_virar_camada1_valido.pink
 cargo run --bin pink -- --asm-s examples/fase134_virar_camada2_valido.pink
 cargo run --bin pink -- --asm-s examples/fase135_verso_camada1_valido.pink
 cargo run --bin pink -- editor examples/fase136_editor_tui_camada1_valido.pink
+cargo run --bin pink -- --run examples/fase138_replace_camada1_valido.pink
 cargo run --bin pink -- --asm-s examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink
 cargo run --bin pink -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run --bin pink -- --check examples/mut_falho.pink

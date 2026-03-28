@@ -276,6 +276,18 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
+    // Fase 138
+    sigs.insert(
+        "substituir_verso".to_string(),
+        (
+            TypeIR::Verso,
+            vec![
+                StackValueType::Verso,
+                StackValueType::Verso,
+                StackValueType::Verso,
+            ],
+        ),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;

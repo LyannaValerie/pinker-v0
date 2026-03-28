@@ -4848,3 +4848,113 @@ fn run_fase137_dividir_verso_em_combina_com_contar() {
     let out = run_code(source).unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(4)));
 }
+
+// ─── Fase 138 — replace camada 1 conservadora ──────────────────────────────────
+
+#[test]
+fn run_fase138_substituir_verso_basico() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova t: verso = substituir_verso("hello world", "world", "pinker");
+            nova ok: logica = igual_verso(t, "hello pinker");
+            talvez ok {
+                mimo 138;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(138)));
+}
+
+#[test]
+fn run_fase138_substituir_verso_multiplas_ocorrencias() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova t: verso = substituir_verso("a,b,a,c,a", ",", ";");
+            nova ok: logica = igual_verso(t, "a;b;a;c;a");
+            talvez ok {
+                mimo 138;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(138)));
+}
+
+#[test]
+fn run_fase138_substituir_verso_sem_ocorrencia_retorna_original() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova t: verso = substituir_verso("pinker", "x", "y");
+            nova ok: logica = igual_verso(t, "pinker");
+            talvez ok {
+                mimo 138;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(138)));
+}
+
+#[test]
+fn run_fase138_substituir_verso_por_vazio_remove() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova t: verso = substituir_verso("hello world", "world", "");
+            nova ok: logica = igual_verso(t, "hello ");
+            talvez ok {
+                mimo 138;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(138)));
+}
+
+#[test]
+fn run_fase138_substituir_verso_padrao_vazio_falha() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova t: verso = substituir_verso("pinker", "", "x");
+            mimo 0;
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("padrão vazio"),
+        "esperava erro de padrão vazio, obteve: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase138_substituir_verso_normaliza_separadores() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova linha: verso = "nome:idade:cidade";
+            nova normalizado: verso = substituir_verso(linha, ":", "-");
+            nova ok: logica = igual_verso(normalizado, "nome-idade-cidade");
+            talvez ok {
+                mimo 138;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(138)));
+}
+
+#[test]
+fn run_fase138_substituir_verso_combina_com_split() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova base: verso = "a.b.c";
+            nova trocado: verso = substituir_verso(base, ".", ",");
+            nova campo1: verso = dividir_verso_em(trocado, ",", 1);
+            nova ok: logica = igual_verso(campo1, "b");
+            talvez ok {
+                mimo 138;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(138)));
+}

@@ -1223,6 +1223,36 @@ fn try_call_intrinsic(
             let count = texto.split(sep.as_str()).count() as u64;
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(count))))
         }
+        // Fase 138 — substituir_verso(texto, de, para) -> verso
+        "substituir_verso" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca 'substituir_verso' exige 3 argumentos (verso, verso, verso)",
+                ));
+            }
+            let RuntimeValue::Str(texto) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'substituir_verso' exige primeiro argumento em verso",
+                ));
+            };
+            let RuntimeValue::Str(de) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'substituir_verso' exige segundo argumento em verso",
+                ));
+            };
+            let RuntimeValue::Str(para) = &args[2] else {
+                return Err(runtime_err(
+                    "intrínseca 'substituir_verso' exige terceiro argumento em verso",
+                ));
+            };
+            if de.is_empty() {
+                return Err(runtime_err(
+                    "intrínseca 'substituir_verso' não aceita padrão vazio",
+                ));
+            }
+            let resultado = texto.replace(de.as_str(), para.as_str());
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(resultado))))
+        }
         "argumento" => {
             if args.len() != 1 {
                 return Err(runtime_err(

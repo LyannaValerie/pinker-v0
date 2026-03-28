@@ -737,6 +737,16 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo canônico criado: `examples/fase137_split_camada1_valido.pink`.
 - O que continua fora: `replace`, `join`, regex, busca textual ampla, coleções gerais, JSON/CSV, REPL, subprocessos.
 
+138 - manipulação textual útil: `replace` (camada 1 conservadora)
+- Segunda fase funcional do Bloco 11; abre o item 11.2 com o menor degrau prático auditável de substituição textual.
+- Adiciona um intrínseco textual ao runtime `--run`: `substituir_verso(texto, de, para) -> verso`.
+- `substituir_verso`: substitui globalmente todas as ocorrências literais de `de` por `para` em `texto`; padrão `de` vazio é rejeitado em runtime; `para` pode ser vazio (remove ocorrências).
+- Substituição literal pura, sem regex, sem flags, sem múltiplos modos, sem abertura de `join` nesta fase.
+- Resultado representado em tipo já existente (`verso`): nenhum novo tipo estrutural introduzido.
+- 7 novos testes adicionados à suíte de intérprete; regressão zero sobre todas as validações anteriores.
+- Exemplo canônico criado: `examples/fase138_replace_camada1_valido.pink`.
+- O que continua fora: `join`, regex, substituição da primeira ocorrência isolada como modo separado, flags amplas, busca textual geral, coleções gerais, JSON/CSV, REPL, subprocessos.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
