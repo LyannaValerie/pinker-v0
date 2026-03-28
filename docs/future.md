@@ -35,7 +35,8 @@
 
 - I/O mais rica (arquivo/texto) com recorte incremental;
 - tooling de projeto além do `pink build` mínimo;
-- evolução prudente de `verso` sem abrir biblioteca textual gigante de uma vez.
+- evolução prudente de `verso` sem abrir biblioteca textual gigante de uma vez;
+- **exportação de tipos pelo sistema de módulos**: `ninho` e `apelido` ainda não são exportáveis via `trazer`; hoje apenas `carinho` e `eterno` são exportáveis; bibliotecas `.pink` reutilizáveis com tipos compartilhados dependem desse fechamento (registrado como pendência inaugural do Bloco 12).
 - No Bloco 11, o arranque funcional começou com `split` mínimo (Fase 137: `dividir_verso_em` e `dividir_verso_contar`); a Fase 138 abriu `replace` mínimo (`substituir_verso`); a Fase 139 abriu `join` mínimo (`juntar_verso_com`); a Fase 140 abriu busca textual mínima (`buscar_verso`); a Fase 141 abriu argumentos nomeados mínimos (`tem_argumento_nomeado` e `argumento_nomeado_ou`); continuação esperada com utilitários práticos e ergonomia de script ainda não cobertos.
 
 Itens explicitamente para depois do foco inicial do Bloco 11:
