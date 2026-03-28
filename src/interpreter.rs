@@ -32,6 +32,12 @@ enum IntrinsicCall {
     Done(Option<RuntimeValue>),
 }
 
+enum NamedArgLookup<'a> {
+    Missing,
+    PresentWithoutValue,
+    PresentValue(&'a str),
+}
+
 struct RuntimeIoState {
     open_files: HashMap<u64, RuntimeOpenFile>,
     next_file_handle: u64,
@@ -1338,6 +1344,54 @@ fn try_call_intrinsic(
                 .unwrap_or_else(|| default_value.clone());
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value))))
         }
+        "tem_argumento_nomeado" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'tem_argumento_nomeado' exige 1 argumento (chave verso)",
+                ));
+            }
+            let RuntimeValue::Str(key) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'tem_argumento_nomeado' exige chave em verso",
+                ));
+            };
+            ensure_named_arg_key_valid("tem_argumento_nomeado", key)?;
+            let found = matches!(
+                find_named_cli_argument(&io_state.cli_args, key),
+                NamedArgLookup::PresentValue(_)
+            );
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(found))))
+        }
+        "argumento_nomeado_ou" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'argumento_nomeado_ou' exige 2 argumentos (chave verso, padrão verso)",
+                ));
+            }
+            let RuntimeValue::Str(key) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'argumento_nomeado_ou' exige chave em verso",
+                ));
+            };
+            let RuntimeValue::Str(default_value) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'argumento_nomeado_ou' exige valor padrão em verso",
+                ));
+            };
+            ensure_named_arg_key_valid("argumento_nomeado_ou", key)?;
+            match find_named_cli_argument(&io_state.cli_args, key) {
+                NamedArgLookup::Missing => Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
+                    default_value.clone(),
+                )))),
+                NamedArgLookup::PresentValue(value) => Ok(IntrinsicCall::Done(Some(
+                    RuntimeValue::Str(value.to_string()),
+                ))),
+                NamedArgLookup::PresentWithoutValue => Err(runtime_err(&format!(
+                    "intrínseca 'argumento_nomeado_ou' encontrou chave '{}' sem valor na forma '--chave valor'",
+                    key
+                ))),
+            }
+        }
         "ambiente_ou" => {
             if args.len() != 2 {
                 return Err(runtime_err(
@@ -1590,6 +1644,32 @@ fn read_stdin_line_minima(intrinsic_name: &str) -> Result<Option<String>, Pinker
         return Ok(None);
     }
     Ok(Some(raw))
+}
+
+fn ensure_named_arg_key_valid(intrinsic_name: &str, key: &str) -> Result<(), PinkerError> {
+    if key.is_empty() {
+        return Err(runtime_err(&format!(
+            "intrínseca '{}' exige chave não vazia",
+            intrinsic_name
+        )));
+    }
+    Ok(())
+}
+
+fn find_named_cli_argument<'a>(args: &'a [String], key: &str) -> NamedArgLookup<'a> {
+    let key_eq = format!("{key}=");
+    for (index, arg) in args.iter().enumerate() {
+        if arg == key {
+            return match args.get(index + 1) {
+                Some(value) => NamedArgLookup::PresentValue(value),
+                None => NamedArgLookup::PresentWithoutValue,
+            };
+        }
+        if let Some(value) = arg.strip_prefix(&key_eq) {
+            return NamedArgLookup::PresentValue(value);
+        }
+    }
+    NamedArgLookup::Missing
 }
 
 fn trim_final_newline_minimo(mut line: String) -> String {

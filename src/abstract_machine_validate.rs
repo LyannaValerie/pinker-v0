@@ -69,6 +69,17 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         ),
     );
     sigs.insert(
+        "tem_argumento_nomeado".to_string(),
+        (TypeIR::Logica, vec![StackValueType::Verso]),
+    );
+    sigs.insert(
+        "argumento_nomeado_ou".to_string(),
+        (
+            TypeIR::Verso,
+            vec![StackValueType::Verso, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
         "ambiente_ou".to_string(),
         (
             TypeIR::Verso,

@@ -1,0 +1,11 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova tem_saida: logica = tem_argumento_nomeado("--saida");
+    nova saida: verso = argumento_nomeado_ou("--saida", "padrao.txt");
+    nova modo: verso = argumento_nomeado_ou("--modo", "simples");
+    falar(tem_saida);
+    falar(saida);
+    falar(modo);
+    mimo 0;
+}

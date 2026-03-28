@@ -254,6 +254,48 @@ fn argumento_ou_intrinseca_rejeita_padrao_nao_verso() {
 }
 
 #[test]
+fn tem_argumento_nomeado_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_argumento_nomeado("--saida") { mimo 1; } senao { mimo 0; }
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn tem_argumento_nomeado_intrinseca_rejeita_argumento_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_argumento_nomeado(1) { mimo 1; } senao { mimo 0; }
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'tem_argumento_nomeado'"));
+}
+
+#[test]
+fn argumento_nomeado_ou_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo tamanho_verso(argumento_nomeado_ou("--saida", "padrao"));
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn argumento_nomeado_ou_intrinseca_rejeita_padrao_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo tamanho_verso(argumento_nomeado_ou("--saida", 1));
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'argumento_nomeado_ou'"));
+}
+
+#[test]
 fn ambiente_ou_intrinseca_valida_sem_declaracao() {
     let source = r#"
         pacote main;
@@ -503,6 +545,24 @@ fn tem_argumento_intrinseca_rejeita_indice_nao_bombom() {
         carinho principal() -> bombom { talvez tem_argumento(falso) { mimo 1; } senao { mimo 0; } }";
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'tem_argumento'"));
+}
+
+#[test]
+fn tem_argumento_nomeado_intrinseca_rejeita_aridade_diferente_de_um() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom { talvez tem_argumento_nomeado("--saida", "--modo") { mimo 1; } senao { mimo 0; } }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("chamada de 'tem_argumento_nomeado' com aridade inválida"));
+}
+
+#[test]
+fn argumento_nomeado_ou_intrinseca_rejeita_aridade_invalida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo tamanho_verso(argumento_nomeado_ou("--saida")); }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("chamada de 'argumento_nomeado_ou' com aridade inválida"));
 }
 
 #[test]

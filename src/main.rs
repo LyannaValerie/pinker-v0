@@ -70,7 +70,7 @@ fn usage(binary: &str) -> String {
            --pseudo-asm imprime backend textual pseudo-assembly final\n\
            --asm-s     imprime backend textual `.s` (ABI textual mínima)\n\
            --run       interpreta a machine validada e executa principal\n\
-           --          separa argumentos posicionais repassados para `argumento(i)`/`argumento_ou(i, padrao)` em --run\n\
+           --          separa argumentos repassados ao runtime de --run (argv posicional e nomeado mínimo)\n\
            --check     executa apenas a validação semântica\n\
          \n\
          Comandos:\n\

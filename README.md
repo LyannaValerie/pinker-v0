@@ -2,7 +2,7 @@
 
 Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 
-Status documental corrente: **Fase 140 abriu busca textual mínima (camada 1 conservadora)** como quarta fase funcional do Bloco 11 (texto prático, scripts e ergonomia cotidiana). O editor/TUI permanece como frente oficial **aberta porém pausada** por decisão estratégica. O compilador/backend segue preservado no estado conservador já conquistado.
+Status documental corrente: **Fase 141 abriu argumentos nomeados mínimos (camada 1 conservadora)** como quinta fase funcional do Bloco 11 (texto prático, scripts e ergonomia cotidiana). O editor/TUI permanece como frente oficial **aberta porém pausada** por decisão estratégica. O compilador/backend segue preservado no estado conservador já conquistado.
 
 ## O que o frontend faz hoje
 - léxico com spans
@@ -32,6 +32,7 @@ Status documental corrente: **Fase 140 abriu busca textual mínima (camada 1 con
 - base mínima de tooling em `--run` com `argumento(i)` para argv posicional e `sair(codigo)` para status explícito de saída (Fase 92)
 - ergonomia mínima de argv em `--run` com `quantos_argumentos()` e `tem_argumento(i)` para contagem/presença posicional sem coleção ampla (Fase 93)
 - refinamento mínimo de fallback de argv em `--run` com `argumento_ou(i, padrao)` para script simples sem falha por ausência posicional (Fase 94)
+- ergonomia prática mínima de argv nomeado em `--run` com `tem_argumento_nomeado(chave)` e `argumento_nomeado_ou(chave, padrao)`, suportando apenas `--chave valor` e `--chave=valor` sem parser amplo (Fase 141)
 - ambiente mínimo de processo em `--run` com `ambiente_ou(chave, padrao)` para leitura de variável de ambiente com fallback de `verso` (Fase 95)
 - diretório atual mínimo em `--run` com `diretorio_atual()` retornando `verso` (Fase 95)
 - introspecção mínima de caminho em `--run` com `caminho_existe(verso) -> logica` e `e_arquivo(verso) -> logica` (Fase 96)
@@ -160,6 +161,8 @@ cargo run --bin pink -- --run examples/fase91_falar_multiplos_argumentos_valido.
 cargo run --bin pink -- --run examples/fase92_tooling_base_argumento_status_valido.pink -- Pinker
 cargo run --bin pink -- --run examples/fase93_argv_ergonomia_minima_valido.pink -- A beta
 cargo run --bin pink -- --run examples/fase94_argumento_ou_fallback_minimo_valido.pink -- Pinker
+cargo run --bin pink -- --run examples/fase141_argumentos_nomeados_minimos_valido.pink -- --saida out.txt
+cargo run --bin pink -- --run examples/fase141_argumentos_nomeados_minimos_valido.pink -- --saida=out.txt --modo=rapido
 cargo run --bin pink -- --run examples/fase95_ambiente_processo_minimo_valido.pink
 cargo run --bin pink -- --run examples/fase95_diretorio_atual_minimo_valido.pink
 cargo run --bin pink -- --run examples/fase95_argumento_ou_ambiente_ou_valido.pink -- Pinker
@@ -260,7 +263,7 @@ cargo run --bin pink -- build --out-dir saida examples/fase60_modulos_valido.pin
 - `--machine`: alvo textual abstrato de máquina de pilha (`vm` + `term`)
 - `--pseudo-asm`: backend textual normalizado final (`ins`/`term`)
 - `--asm-s`: backend textual `.s` com ABI textual mínima interna (derivado de `--selected`, sem ABI/registradores finais de plataforma)
-- `--run`: interpreta a Machine validada e executa `principal` (suporta `-- <args...>` para repasse posicional de argv em `argumento`, `tem_argumento`, `quantos_argumentos` e `argumento_ou`; inclui também leitura mínima de ambiente com `ambiente_ou`, diretório atual via `diretorio_atual`, introspecção/composição mínima de caminho com `caminho_existe`/`e_arquivo`/`e_diretorio`/`juntar_caminho`, metadados mínimos de arquivo com `tamanho_arquivo`/`e_vazio`, leitura textual mínima via `ler_verso_arquivo(handle)` e leitura textual direta por caminho via `ler_arquivo_verso(verso)`/`arquivo_ou(verso, verso)`, escrita textual mínima via `escrever_verso(handle, verso)`/`criar_arquivo(verso)`, truncamento mínimo via `truncar_arquivo(handle)`, observação textual mínima com `contem_verso`/`comeca_com`/`termina_com`/`igual_verso` e mutação mínima controlada com `criar_diretorio`/`remover_arquivo`/`remover_diretorio`)
+- `--run`: interpreta a Machine validada e executa `principal` (suporta `-- <args...>` para repasse de argv posicional em `argumento`, `tem_argumento`, `quantos_argumentos` e `argumento_ou`, além do recorte nomeado mínimo `tem_argumento_nomeado`/`argumento_nomeado_ou` com `--chave valor` e `--chave=valor`; inclui também leitura mínima de ambiente com `ambiente_ou`, diretório atual via `diretorio_atual`, introspecção/composição mínima de caminho com `caminho_existe`/`e_arquivo`/`e_diretorio`/`juntar_caminho`, metadados mínimos de arquivo com `tamanho_arquivo`/`e_vazio`, leitura textual mínima via `ler_verso_arquivo(handle)` e leitura textual direta por caminho via `ler_arquivo_verso(verso)`/`arquivo_ou(verso, verso)`, escrita textual mínima via `escrever_verso(handle, verso)`/`criar_arquivo(verso)`, truncamento mínimo via `truncar_arquivo(handle)`, observação textual mínima com `contem_verso`/`comeca_com`/`termina_com`/`igual_verso` e mutação mínima controlada com `criar_diretorio`/`remover_arquivo`/`remover_diretorio`)
 
 ## Pipeline de backend textual
 `--pseudo-asm` executa:
