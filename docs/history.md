@@ -702,7 +702,7 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Emissão textual auditável aberta nesta fase: `movl %eax, %eax` para zero-extend explícito do valor antes do armazenamento do temporário de cast no frame externo.
 - Exemplos versionados incluídos: `examples/fase133_virar_camada1_valido.pink` e `examples/fase133_virar_camada1_invalido.pink`.
 - Fora de escopo explícito preservado: direções adicionais de `virar` (incluindo narrowing e casts de ponteiro no backend externo), coerções implícitas gerais, `verso` (10.6), ABI ampla/plena e sistema geral de casts.
-
+<!-- LATEST -->
 134 - `virar` / cast operacional mínimo (camada 2 conservadora) no backend nativo externo
 - Décima quinta fase funcional do Bloco 10 (continuidade do item 10.5) concluída em recorte pequeno, explícito e auditável.
 - Backend externo montável (`emit_external_toolchain_subset`) ampliou em um degrau pequeno o recorte de `virar` da Fase 133: além de `u32 -> u64`, passou a aceitar também `u64 -> u32`, ambos explícitos e com origem em slot local/parâmetro tipado.
