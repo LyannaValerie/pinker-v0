@@ -3011,7 +3011,10 @@ fn cli_run_truncamento_minimo_fase102_funciona_com_exemplo_versionado() {
     std::fs::create_dir(&base_dir).expect("falha ao criar diretório-base da fase102");
     let out = run_cli_example_with_args(
         "examples/fase102_truncamento_minimo_arquivo_valido.pink",
-        &[base_dir.to_string_lossy().as_ref(), "pinker_fase102_saida.txt"],
+        &[
+            base_dir.to_string_lossy().as_ref(),
+            "pinker_fase102_saida.txt",
+        ],
     );
     let _ = std::fs::remove_file(base_dir.join("pinker_fase102_saida.txt"));
     let _ = std::fs::remove_dir(&base_dir);
@@ -3034,7 +3037,10 @@ fn cli_run_observacao_textual_minima_fase103_funciona_com_exemplo_versionado() {
     std::fs::create_dir(&base_dir).expect("falha ao criar diretório-base da fase103");
     let out = run_cli_example_with_args(
         "examples/fase103_observacao_textual_minima_valido.pink",
-        &[base_dir.to_string_lossy().as_ref(), "pinker_fase103_entrada.txt"],
+        &[
+            base_dir.to_string_lossy().as_ref(),
+            "pinker_fase103_entrada.txt",
+        ],
     );
     let _ = std::fs::remove_file(base_dir.join("pinker_fase103_entrada.txt"));
     let _ = std::fs::remove_dir(&base_dir);
@@ -3057,7 +3063,10 @@ fn cli_run_observacao_textual_complementar_minima_fase104_funciona_com_exemplo_v
     std::fs::create_dir(&base_dir).expect("falha ao criar diretório-base da fase104");
     let out = run_cli_example_with_args(
         "examples/fase104_observacao_textual_complementar_minima_valido.pink",
-        &[base_dir.to_string_lossy().as_ref(), "pinker_fase104_entrada.txt"],
+        &[
+            base_dir.to_string_lossy().as_ref(),
+            "pinker_fase104_entrada.txt",
+        ],
     );
     let _ = std::fs::remove_file(base_dir.join("pinker_fase104_entrada.txt"));
     let _ = std::fs::remove_dir(&base_dir);
@@ -3080,7 +3089,10 @@ fn cli_run_saneamento_textual_minimo_fase105_funciona_com_exemplo_versionado() {
     std::fs::create_dir(&base_dir).expect("falha ao criar diretório-base da fase105");
     let out = run_cli_example_with_args(
         "examples/fase105_saneamento_textual_minimo_valido.pink",
-        &[base_dir.to_string_lossy().as_ref(), "pinker_fase105_entrada.txt"],
+        &[
+            base_dir.to_string_lossy().as_ref(),
+            "pinker_fase105_entrada.txt",
+        ],
     );
     let _ = std::fs::remove_file(base_dir.join("pinker_fase105_entrada.txt"));
     let _ = std::fs::remove_dir(&base_dir);
@@ -3117,7 +3129,10 @@ fn cli_run_append_textual_minimo_fase108_funciona_com_exemplo_versionado() {
     std::fs::create_dir(&base_dir).expect("falha ao criar diretório-base da fase108");
     let out = run_cli_example_with_args(
         "examples/fase108_append_textual_minimo_valido.pink",
-        &[base_dir.to_string_lossy().as_ref(), "fase108_append_textual_minimo.txt"],
+        &[
+            base_dir.to_string_lossy().as_ref(),
+            "fase108_append_textual_minimo.txt",
+        ],
     );
     let _ = std::fs::remove_file(base_dir.join("fase108_append_textual_minimo.txt"));
     let _ = std::fs::remove_dir(&base_dir);
