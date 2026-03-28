@@ -341,6 +341,14 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
+    // Fase 140
+    funcs.insert(
+        "buscar_verso".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
     funcs.insert(
         "nao_vazio_verso".to_string(),
         FunctionSig {

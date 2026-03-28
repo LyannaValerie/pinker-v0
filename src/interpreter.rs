@@ -1146,6 +1146,31 @@ fn try_call_intrinsic(
             let pos = texto.find(trecho).map_or(u64::MAX, |v| v as u64);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(pos))))
         }
+        // Fase 140 — buscar_verso(texto, padrao) -> bombom
+        "buscar_verso" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'buscar_verso' exige 2 argumentos (verso, verso)",
+                ));
+            }
+            let RuntimeValue::Str(texto) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'buscar_verso' exige primeiro argumento em verso",
+                ));
+            };
+            let RuntimeValue::Str(padrao) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'buscar_verso' exige segundo argumento em verso",
+                ));
+            };
+            if padrao.is_empty() {
+                return Err(runtime_err(
+                    "intrínseca 'buscar_verso' não aceita padrão vazio",
+                ));
+            }
+            let pos = texto.find(padrao).map_or(u64::MAX, |v| v as u64);
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(pos))))
+        }
         "nao_vazio_verso" => {
             if args.len() != 1 {
                 return Err(runtime_err(

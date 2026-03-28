@@ -479,6 +479,46 @@ fn run_indice_verso_em_intrinseca_retorna_u64_max_quando_trecho_ausente() {
 }
 
 #[test]
+fn run_fase140_buscar_verso_retorna_primeira_ocorrencia() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova pos: bombom = buscar_verso("id=42;id=99", "id=");
+            talvez pos == 0 {
+                mimo 140;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(140)));
+}
+
+#[test]
+fn run_fase140_buscar_verso_retorna_u64_max_quando_ausente() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova pos: bombom = buscar_verso("nome:pinker", "zzz");
+            talvez pos == 18446744073709551615 {
+                mimo 140;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(140)));
+}
+
+#[test]
+fn run_fase140_buscar_verso_padrao_vazio_falha() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova pos: bombom = buscar_verso("abc", "");
+            falar(pos);
+            mimo 0;
+        }"#;
+    let err = run_code(source).unwrap_err().to_string();
+    assert!(err.contains("intrínseca 'buscar_verso' não aceita padrão vazio"));
+}
+
+#[test]
 fn run_nao_vazio_verso_intrinseca_true_em_conteudo_real() {
     let out = run_code(
         r#"
@@ -5084,4 +5124,14 @@ fn run_fase139_juntar_verso_com_tudo_vazio() {
         }"#;
     let out = run_code(source).unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(139)));
+}
+
+#[test]
+fn cli_run_fase140_busca_textual_minima_funciona_com_exemplo_versionado() {
+    let out = run_cli_example("examples/fase140_busca_textual_camada1_valido.pink");
+    assert!(out.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "0\n18446744073709551615\n0\n"
+    );
 }

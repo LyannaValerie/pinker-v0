@@ -2484,6 +2484,45 @@ impl SemanticChecker {
             }
             return Ok(Type::Bombom(expr_span));
         }
+        // Fase 140 — buscar_verso(texto, padrao) -> bombom
+        if name == "buscar_verso" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'buscar_verso' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let texto_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(texto_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'buscar_verso': esperado 'verso', encontrado '{}'",
+                        texto_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let padrao_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(padrao_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'buscar_verso': esperado 'verso', encontrado '{}'",
+                        padrao_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
         if name == "nao_vazio_verso" {
             if args.len() != 1 {
                 return Err(PinkerError::Semantic {
