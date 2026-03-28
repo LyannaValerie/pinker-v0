@@ -4958,3 +4958,130 @@ fn run_fase138_substituir_verso_combina_com_split() {
     let out = run_code(source).unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(138)));
 }
+
+// =====================================================================
+// Fase 139 — juntar_verso_com(a, sep, b) -> verso
+// =====================================================================
+
+#[test]
+fn run_fase139_juntar_verso_com_basico() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova r: verso = juntar_verso_com("nome", "-", "idade");
+            nova ok: logica = igual_verso(r, "nome-idade");
+            talvez ok {
+                mimo 139;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(139)));
+}
+
+#[test]
+fn run_fase139_juntar_verso_com_separador_vazio() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova r: verso = juntar_verso_com("abc", "", "def");
+            nova ok: logica = igual_verso(r, "abcdef");
+            talvez ok {
+                mimo 139;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(139)));
+}
+
+#[test]
+fn run_fase139_juntar_verso_com_separador_longo() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova r: verso = juntar_verso_com("X", " :: ", "Y");
+            nova ok: logica = igual_verso(r, "X :: Y");
+            talvez ok {
+                mimo 139;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(139)));
+}
+
+#[test]
+fn run_fase139_juntar_verso_com_pedaco_vazio_esquerda() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova r: verso = juntar_verso_com("", ",", "fim");
+            nova ok: logica = igual_verso(r, ",fim");
+            talvez ok {
+                mimo 139;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(139)));
+}
+
+#[test]
+fn run_fase139_juntar_verso_com_pedaco_vazio_direita() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova r: verso = juntar_verso_com("inicio", ",", "");
+            nova ok: logica = igual_verso(r, "inicio,");
+            talvez ok {
+                mimo 139;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(139)));
+}
+
+#[test]
+fn run_fase139_juntar_verso_com_encadeado() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova ab: verso = juntar_verso_com("a", ":", "b");
+            nova abc: verso = juntar_verso_com(ab, ":", "c");
+            nova ok: logica = igual_verso(abc, "a:b:c");
+            talvez ok {
+                mimo 139;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(139)));
+}
+
+#[test]
+fn run_fase139_juntar_verso_com_combina_com_split() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova campo0: verso = dividir_verso_em("nome:idade:cidade", ":", 0);
+            nova campo2: verso = dividir_verso_em("nome:idade:cidade", ":", 2);
+            nova r: verso = juntar_verso_com(campo0, "-", campo2);
+            nova ok: logica = igual_verso(r, "nome-cidade");
+            talvez ok {
+                mimo 139;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(139)));
+}
+
+#[test]
+fn run_fase139_juntar_verso_com_tudo_vazio() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova r: verso = juntar_verso_com("", "", "");
+            nova ok: logica = igual_verso(r, "");
+            talvez ok {
+                mimo 139;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(139)));
+}

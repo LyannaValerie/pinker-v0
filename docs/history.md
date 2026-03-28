@@ -747,6 +747,17 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo canônico criado: `examples/fase138_replace_camada1_valido.pink`.
 - O que continua fora: `join`, regex, substituição da primeira ocorrência isolada como modo separado, flags amplas, busca textual geral, coleções gerais, JSON/CSV, REPL, subprocessos.
 
+139 - manipulação textual útil: `join` (camada 1 conservadora)
+- Terceira fase funcional do Bloco 11; abre o item 11.3 com o menor degrau prático auditável de junção textual.
+- Adiciona um intrínseco textual ao runtime `--run`: `juntar_verso_com(a, sep, b) -> verso`.
+- `juntar_verso_com`: junta dois pedaços de texto com um separador explícito entre eles; todos os argumentos são `verso`; o separador pode ser vazio (equivale a concatenação pura); encadeável para juntar mais de dois pedaços.
+- Complementa o `juntar_verso(a, b)` já existente (concatenação sem separador) sem substituí-lo nem alterá-lo.
+- Junção literal pura, sem regex, sem flags, sem múltiplos modos, sem abertura de coleções gerais nesta fase.
+- Resultado representado em tipo já existente (`verso`): nenhum novo tipo estrutural introduzido.
+- 8 novos testes adicionados à suíte de intérprete; regressão zero sobre todas as validações anteriores.
+- Exemplo canônico criado: `examples/fase139_join_camada1_valido.pink`.
+- O que continua fora: regex, busca textual ampla, coleções gerais, `join` de coleção arbitrária, múltiplos modos de junção, JSON/CSV, REPL, subprocessos.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

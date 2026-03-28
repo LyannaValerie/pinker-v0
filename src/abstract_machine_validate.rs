@@ -288,6 +288,18 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
+    // Fase 139
+    sigs.insert(
+        "juntar_verso_com".to_string(),
+        (
+            TypeIR::Verso,
+            vec![
+                StackValueType::Verso,
+                StackValueType::Verso,
+                StackValueType::Verso,
+            ],
+        ),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;
