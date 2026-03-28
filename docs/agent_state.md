@@ -27,9 +27,9 @@
 - Saídas: `--pseudo-asm`, `--asm-s`, `--run`.
 
 ## 5. Estado corrente
-- Fase funcional atual: **137 — manipulação textual útil: `split` (camada 1 conservadora)**.
-- Fase funcional anterior: **136 — abertura funcional do editor/TUI oficial da Pinker (camada 1 conservadora)**.
-- Frente ativa: **Bloco 11 — texto prático, scripts e ergonomia cotidiana** (item 11.1 em progresso).
+- Fase funcional atual: **138 — manipulação textual útil: `replace` (camada 1 conservadora)**.
+- Fase funcional anterior: **137 — manipulação textual útil: `split` (camada 1 conservadora)**.
+- Frente ativa: **Bloco 11 — texto prático, scripts e ergonomia cotidiana** (item 11.2 aberto).
 - Frente pausada (oficial e não abandonada): **editor/TUI oficial da Pinker (aberto na Fase 136)**.
 - Bloco ativo de compilador/backend/ecossistema: **Bloco 11** (aberto canonicamente na Doc-25).
 - Rodada documental mais recente: **Doc-25 — abertura canônica do Bloco 11**.
@@ -52,7 +52,7 @@
 1. Ler: `README.md`, `docs/atlas.md`, `docs/roadmap.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/history.md`, `docs/doc_rules.md`.
 2. Executar validações exigidas da rodada antes de encerrar.
 3. Atualizar ao final: `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` quando houver mudança documental/operacional.
-4. Próxima rodada normal esperada: continuar o item 11.1 com `replace` ou `join` (camada 1 conservadora), ou avançar para 11.2 (scripts e CLI), mantendo o editor/TUI pausado e sem reabrir o Bloco 10.
+4. Próxima rodada normal esperada: continuar o eixo textual com `join` (camada 1 conservadora), ou avançar para 11.3 (utilitários práticos de arquivo/caminho/ambiente), mantendo o editor/TUI pausado e sem reabrir o Bloco 10.
 
 ## 9. Padrão operacional de binários
 - Binário principal: `pink`.
@@ -61,8 +61,8 @@
 - `default-run = "pink"` preserva ergonomia.
 
 
-## 10. Direção estratégica atualizada (Fase 137)
+## 10. Direção estratégica atualizada (Fase 138)
 - O editor/TUI oficial da Pinker continua parte oficial do ecossistema e permanece aberto desde a Fase 136, porém pausado por decisão estratégica.
 - O Bloco 10 do compilador/backend permanece encerrado por suficiência conservadora (Doc-24), sem reabertura.
-- O Bloco 11 está em progresso ativo: a Fase 137 abriu o primeiro recorte de manipulação textual útil (`split`) como camada 1 conservadora do item 11.1.
-- Próxima rodada funcional esperada: continuar o Bloco 11 com `replace` ou `join` (camada 1), ou avançar para 11.2 conforme prioridade real.
+- O Bloco 11 está em progresso ativo: a Fase 137 abriu `split` (item 11.1); a Fase 138 abriu `replace` (item 11.2) como camada 1 conservadora com `substituir_verso`.
+- Próxima rodada funcional esperada: continuar o eixo textual com `join` (camada 1), ou avançar para 11.3 (utilitários práticos de arquivo/caminho/ambiente), conforme prioridade real.

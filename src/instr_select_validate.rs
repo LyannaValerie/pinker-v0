@@ -62,6 +62,8 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     // Fase 137
     sigs.insert("dividir_verso_em".to_string(), TypeIR::Verso);
     sigs.insert("dividir_verso_contar".to_string(), TypeIR::Bombom);
+    // Fase 138
+    sigs.insert("substituir_verso".to_string(), TypeIR::Verso);
 
     for f in &program.functions {
         if f.blocks.is_empty() {

@@ -1,0 +1,37 @@
+pacote main;
+
+// Fase 138: manipulação textual útil — `replace` (camada 1 conservadora).
+//
+// substituir_verso(texto, de, para) -> verso
+//   Substitui todas as ocorrências literais de `de` por `para` em `texto`.
+//   O padrão `de` não pode ser vazio.
+//   `para` pode ser vazio (remove todas as ocorrências).
+//
+// Recorte desta fase:
+//   - substituição global de substring literal (sem regex, sem flags, sem modos amplos);
+//   - retorna verso com todas as ocorrências substituídas;
+//   - padrão vazio é rejeitado em runtime.
+//
+// O que continua fora desta fase:
+//   - regex;
+//   - substituição da primeira ocorrência apenas;
+//   - flags amplas;
+//   - join;
+//   - busca textual geral;
+//   - coleções gerais.
+
+carinho principal() -> bombom {
+    nova linha: verso = "nome:idade:cidade";
+    nova sep_antigo: verso = ":";
+    nova sep_novo: verso = "-";
+
+    // Troca todos os ':' por '-'
+    nova normalizado: verso = substituir_verso(linha, sep_antigo, sep_novo);
+    falar(normalizado);
+
+    // Remove todos os '-' (substituição por vazio)
+    nova limpo: verso = substituir_verso(normalizado, "-", "");
+    falar(limpo);
+
+    mimo 0;
+}
