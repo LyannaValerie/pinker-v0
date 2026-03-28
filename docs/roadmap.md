@@ -371,9 +371,9 @@ Por padrão, o fechamento do Bloco 10 **não** implica:
 ## Interpretação obrigatória da trilha
 
 - O Bloco 10 está formalmente encerrado por suficiência conservadora (Doc-24), sem backend pleno.
-- O Bloco 11 está em progresso ativo: a Fase 137 abriu o primeiro recorte funcional do item 11.1 (`split`); a Fase 138 abriu o segundo recorte do item 11.2 (`replace` camada 1 conservadora) com `substituir_verso`; a Fase 139 abriu o terceiro recorte do item 11.3 (`join` camada 1 conservadora) com `juntar_verso_com`; a Fase 140 abriu o quarto recorte do item 11.4 (busca textual mínima) com `buscar_verso`.
+- O Bloco 11 está em progresso ativo: a Fase 137 abriu o primeiro recorte funcional do item 11.1 (`split`); a Fase 138 abriu o segundo recorte do item 11.2 (`replace` camada 1 conservadora) com `substituir_verso`; a Fase 139 abriu o terceiro recorte do item 11.3 (`join` camada 1 conservadora) com `juntar_verso_com`; a Fase 140 abriu o quarto recorte do item 11.4 (busca textual mínima) com `buscar_verso`; a Fase 141 abriu um primeiro degrau conservador de argumentos nomeados em `--run` com `tem_argumento_nomeado` e `argumento_nomeado_ou`, em continuidade operacional do eixo 11.5.
 - O editor/TUI oficial da Pinker segue como frente oficial já aberta (Fase 136), porém pausada por decisão estratégica; não está abandonado.
-- A próxima rodada funcional esperada do Bloco 11 é avançar para 11.5 (utilitários práticos de arquivo/caminho/ambiente e ergonomia de script).
+- A próxima rodada funcional esperada do Bloco 11 é seguir aprofundando 11.5 com degraus pequenos e auditáveis após os argumentos nomeados mínimos.
 
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.

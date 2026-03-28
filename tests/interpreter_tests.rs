@@ -676,6 +676,170 @@ fn run_argumento_ou_intrinseca_prioriza_arg_existente() {
 }
 
 #[test]
+fn run_tem_argumento_nomeado_intrinseca_true_para_forma_separada() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_argumento_nomeado("--saida") {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+        &["--saida", "resultado.txt"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_tem_argumento_nomeado_intrinseca_true_para_forma_com_igual() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_argumento_nomeado("--saida") {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+        &["--saida=resultado.txt"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_tem_argumento_nomeado_intrinseca_false_quando_ausente() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_argumento_nomeado("--inexistente") {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+        &["--saida", "resultado.txt"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn run_argumento_nomeado_ou_retorna_valor_na_forma_separada() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: verso = argumento_nomeado_ou("--saida", "padrao");
+            falar(valor);
+            mimo tamanho_verso(valor);
+        }"#,
+        &["--saida", "resultado.txt"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(13)));
+}
+
+#[test]
+fn run_argumento_nomeado_ou_retorna_valor_na_forma_com_igual() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: verso = argumento_nomeado_ou("--saida", "padrao");
+            falar(valor);
+            mimo tamanho_verso(valor);
+        }"#,
+        &["--saida=resultado.txt"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(13)));
+}
+
+#[test]
+fn run_argumento_nomeado_ou_retorna_padrao_quando_ausente() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: verso = argumento_nomeado_ou("--inexistente", "padrao");
+            falar(valor);
+            mimo tamanho_verso(valor);
+        }"#,
+        &["--saida=resultado.txt"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(6)));
+}
+
+#[test]
+fn run_argumento_nomeado_ou_falha_quando_chave_aparece_sem_valor() {
+    let err = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: verso = argumento_nomeado_ou("--saida", "padrao");
+            falar(valor);
+            mimo 0;
+        }"#,
+        &["--saida"],
+    )
+    .unwrap_err();
+    assert!(
+        err.contains("intrínseca 'argumento_nomeado_ou' encontrou chave '--saida' sem valor"),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
+fn run_tem_argumento_nomeado_rejeita_chave_vazia() {
+    let err = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_argumento_nomeado("") {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+        &["--saida=resultado.txt"],
+    )
+    .unwrap_err();
+    assert!(
+        err.contains("intrínseca 'tem_argumento_nomeado' exige chave não vazia"),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
+fn run_argumento_nomeado_ou_rejeita_chave_vazia() {
+    let err = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: verso = argumento_nomeado_ou("", "padrao");
+            falar(valor);
+            mimo 0;
+        }"#,
+        &["--saida=resultado.txt"],
+    )
+    .unwrap_err();
+    assert!(
+        err.contains("intrínseca 'argumento_nomeado_ou' exige chave não vazia"),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
 fn run_falar_multiplos_argumentos_bombom_funciona() {
     let out = run_code(
         r#"
@@ -2991,6 +3155,47 @@ fn cli_run_argumento_ou_prioriza_arg_existente_com_exemplo_versionado() {
     );
     assert!(out.status.success(), "{:?}", out);
     assert_eq!(String::from_utf8_lossy(&out.stdout), "oi Pinker\n6\n");
+}
+
+#[test]
+fn cli_run_argumentos_nomeados_minimos_funcionam_na_forma_separada() {
+    let out = run_cli_example_with_args(
+        "examples/fase141_argumentos_nomeados_minimos_valido.pink",
+        &["--saida", "out.txt"],
+    );
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "verdade\nout.txt\nsimples\n0\n"
+    );
+}
+
+#[test]
+fn cli_run_argumentos_nomeados_minimos_funcionam_na_forma_com_igual() {
+    let out = run_cli_example_with_args(
+        "examples/fase141_argumentos_nomeados_minimos_valido.pink",
+        &["--saida=out.txt", "--modo=rapido"],
+    );
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "verdade\nout.txt\nrapido\n0\n"
+    );
+}
+
+#[test]
+fn cli_run_argumento_nomeado_sem_valor_falha_com_erro_claro() {
+    let out = run_cli_example_with_args(
+        "examples/fase141_argumentos_nomeados_minimos_valido.pink",
+        &["--saida"],
+    );
+    assert!(!out.status.success(), "{:?}", out);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("intrínseca 'argumento_nomeado_ou' encontrou chave '--saida' sem valor"),
+        "stderr: {}",
+        stderr
+    );
 }
 
 #[test]

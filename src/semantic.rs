@@ -1391,6 +1391,69 @@ impl SemanticChecker {
             }
             return Ok(Type::Verso(expr_span));
         }
+        if name == "tem_argumento_nomeado" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'tem_argumento_nomeado' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let key_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(key_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'tem_argumento_nomeado': esperado 'verso', encontrado '{}'",
+                        key_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Logica(expr_span));
+        }
+        if name == "argumento_nomeado_ou" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'argumento_nomeado_ou' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let key_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(key_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'argumento_nomeado_ou': esperado 'verso', encontrado '{}'",
+                        key_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let default_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(default_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'argumento_nomeado_ou': esperado 'verso', encontrado '{}'",
+                        default_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Verso(expr_span));
+        }
         if name == "ambiente_ou" {
             if args.len() != 2 {
                 return Err(PinkerError::Semantic {

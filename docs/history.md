@@ -770,6 +770,17 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo canônico criado: `examples/fase140_busca_textual_camada1_valido.pink`.
 - O que continua fora: regex, busca de todas as ocorrências, busca reversa, múltiplos modos de busca, coleções de resultados, parsing textual amplo, JSON/CSV, REPL e subprocessos.
 
+141 - ergonomia prática de script: argumentos nomeados mínimos (camada 1 conservadora)
+- Quinta fase funcional do Bloco 11.
+- Abre um recorte mínimo, útil e auditável de parsing de argumentos mais ergonômico no `--run`.
+- Adiciona `tem_argumento_nomeado(verso) -> logica` e `argumento_nomeado_ou(verso, verso) -> verso`.
+- Suporta apenas as formas `--chave valor` e `--chave=valor`, sem parser amplo, sem short flags, sem coleções e sem tipagem automática.
+- `tem_argumento_nomeado` detecta presença nas formas suportadas; `argumento_nomeado_ou` retorna valor, usa fallback quando ausente e falha com erro claro para `--chave` sem valor na forma separada.
+- Chave vazia é rejeitada em runtime com diagnóstico explícito para evitar ambiguidade operacional.
+- Cobertura adicionada com testes semânticos, testes de runtime (formas separada/`=`/fallback/negativos) e testes de CLI para as duas formas suportadas e para erro de valor ausente.
+- Exemplo canônico criado: `examples/fase141_argumentos_nomeados_minimos_valido.pink`.
+- O que continua fora: parser amplo de flags, short flags, aliases automáticos, múltiplos valores por chave, integração com env na mesma API, coleções de argumentos, JSON/CSV, REPL e subprocessos.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
