@@ -964,16 +964,18 @@ impl<'a> FunctionLowerer<'a> {
                         let element_type = match base_lowered.ty {
                             TypeIR::FixedArray { element, .. } => match element {
                                 ScalarTypeIR::Bombom => TypeIR::Bombom,
-                                _ => {
-                                    return Err(PinkerError::Ir {
-                                        msg: "escrita por índice nesta fase aceita apenas '[bombom; N]'".to_string(),
-                                        span: assign_stmt.span,
-                                    })
-                                }
+                                _ => return Err(PinkerError::Ir {
+                                    msg:
+                                        "escrita por índice nesta fase aceita apenas '[bombom; N]'"
+                                            .to_string(),
+                                    span: assign_stmt.span,
+                                }),
                             },
                             _ => {
                                 return Err(PinkerError::Ir {
-                                    msg: "escrita por índice exige base de array fixo no lowering IR".to_string(),
+                                    msg:
+                                        "escrita por índice exige base de array fixo no lowering IR"
+                                            .to_string(),
                                     span: assign_stmt.span,
                                 })
                             }
@@ -1707,10 +1709,7 @@ fn render_instruction(instruction: &InstructionIR, indent: usize, out: &mut Stri
             );
         }
         InstructionIR::StoreIndexed {
-            base,
-            index,
-            value,
-            ..
+            base, index, value, ..
         } => {
             line(
                 out,

@@ -947,8 +947,7 @@ impl FunctionLowerer {
                 (ptr_operand, next_current, *is_volatile)
             }
             _ => {
-                let (base_operand, next_current) =
-                    self.lower_value_operand(base, current, span)?;
+                let (base_operand, next_current) = self.lower_value_operand(base, current, span)?;
                 (base_operand, next_current, false)
             }
         };
