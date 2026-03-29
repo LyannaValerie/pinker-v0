@@ -1,0 +1,12 @@
+pacote main;
+trazer fase144_modulo_ninho_exportado_tipos;
+
+carinho validar_tipo_importado(p: PessoaCompartilhada) -> bombom {
+    mimo peso(PessoaCompartilhada) + alinhamento(PessoaCompartilhada);
+}
+
+carinho principal() -> bombom {
+    nova medida: bombom = peso(PessoaCompartilhada);
+    falar(medida);
+    mimo medida;
+}
