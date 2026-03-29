@@ -1399,9 +1399,7 @@ fn try_call_intrinsic(
                 ));
             }
             let RuntimeValue::Str(key) = &args[0] else {
-                return Err(runtime_err(
-                    "intrínseca 'tem_flag' exige chave em verso",
-                ));
+                return Err(runtime_err("intrínseca 'tem_flag' exige chave em verso"));
             };
             ensure_named_arg_key_valid("tem_flag", key)?;
             let found = io_state.cli_args.iter().any(|a| a == key);
