@@ -303,16 +303,20 @@ fn cfg_ir_indexacao_operacional_via_seta_array_bombom() {
 }
 
 #[test]
-fn cfg_ir_indexacao_operacional_array_por_valor_ainda_fora_do_subset() {
+fn cfg_ir_indexacao_operacional_array_por_valor_minima() {
     let code = r#"
         pacote main;
         carinho pega(a: [bombom; 3]) -> bombom {
             mimo a[1];
         }
-        carinho principal() -> bombom { mimo 0; }
+        carinho principal() -> bombom {
+            nova base: seta<[bombom; 3]> = 1;
+            mimo pega(*base);
+        }
     "#;
-    let err = render_cfg_ir(code).unwrap_err().to_string();
-    assert!(err.contains("(*ptr)[i]"), "{}", err);
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("call pega"), "{}", cfg);
+    assert!(cfg.contains("deref %t"), "{}", cfg);
 }
 
 #[test]

@@ -863,24 +863,27 @@ impl FunctionLowerer {
         current: usize,
         span: Span,
     ) -> Result<(OperandIR, usize), PinkerError> {
-        let ValueIR::Deref {
-            ptr,
-            result_type: base_result_type,
-            is_volatile,
-        } = base
-        else {
-            return Err(PinkerError::Ir {
-                msg: "indexação operacional nesta fase exige base no formato '(*ptr)[i]'"
-                    .to_string(),
-                span,
-            });
+        let (base_addr, current_after_base, is_volatile) = match base {
+            ValueIR::Deref {
+                ptr,
+                result_type,
+                is_volatile,
+            } => {
+                if !matches!(*result_type, TypeIR::FixedArray { .. }) {
+                    return Err(PinkerError::Ir {
+                        msg: "indexação operacional nesta fase exige base de array fixo"
+                            .to_string(),
+                        span,
+                    });
+                }
+                let (ptr_operand, next_current) = self.lower_value_operand(ptr, current, span)?;
+                (ptr_operand, next_current, *is_volatile)
+            }
+            _ => {
+                let (base_operand, next_current) = self.lower_value_operand(base, current, span)?;
+                (base_operand, next_current, false)
+            }
         };
-        if !matches!(*base_result_type, TypeIR::FixedArray { .. }) {
-            return Err(PinkerError::Ir {
-                msg: "indexação operacional nesta fase exige ponteiro para array fixo".to_string(),
-                span,
-            });
-        }
         if element_type != TypeIR::Bombom {
             return Err(PinkerError::Ir {
                 msg: "indexação operacional nesta fase aceita apenas '[bombom; N]'".to_string(),
@@ -888,7 +891,6 @@ impl FunctionLowerer {
             });
         }
 
-        let (base_ptr, current_after_base) = self.lower_value_operand(ptr, current, span)?;
         let (offset, current_after_index) =
             self.lower_value_operand(index, current_after_base, span)?;
         let elem_ptr_temp = self.next_temp();
@@ -897,7 +899,7 @@ impl FunctionLowerer {
             .push(InstructionCfgIR::Binary {
                 dest: elem_ptr_temp,
                 op: BinaryOpIR::Add,
-                lhs: base_ptr,
+                lhs: base_addr,
                 rhs: offset,
             });
 
@@ -908,7 +910,7 @@ impl FunctionLowerer {
                 dest,
                 ptr: OperandIR::Temp(elem_ptr_temp),
                 ty: element_type,
-                is_volatile: *is_volatile,
+                is_volatile,
             });
         Ok((OperandIR::Temp(dest), current_after_index))
     }

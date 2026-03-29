@@ -5,16 +5,16 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Doc-28 — fechamento canônico do Bloco 12 e preparação formal da transição para o Bloco 13**.
+- **Fase 147 — coleções e estruturas de dados básicas: array fixo operacional mínimo por valor (camada 1 conservadora)**.
 
 ## 2. Resultado operacional da rodada
-- Bloco 12 encerrado formalmente por suficiência conservadora após a consolidação das Fases 144–146.
-- Recorte consolidado do bloco: exportação mínima de `ninho` via `trazer` (Fase 144), exportação mínima de `apelido` via `trazer` (Fase 145) e uso qualificado mínimo `modulo.Tipo` em contexto tipado (Fase 146).
-- Continuidade conservadora preservada: sem `pub/priv`, sem reexportação transitiva, sem wildcard import, sem aliasing novo, sem namespaces amplos e sem redesign geral do sistema de módulos.
-- Fase funcional atual permanece 146 até a abertura da primeira fase funcional do Bloco 13.
+- Primeira fase funcional do Bloco 13 entregue com recorte mínimo auditável de array fixo homogêneo `[bombom; N]` por valor.
+- Indexação operacional mínima por valor aberta para `a[i]` quando `a: [bombom; N]`, preservando o recorte anterior de `(*ptr)[i]`.
+- Cobertura funcional adicionada com exemplos/testes versionados da Fase 147 (caso válido e negativo essencial).
+- Continuidade conservadora preservada: sem heap, sem coleções dinâmicas, sem iteradores e sem sintaxe nova rica.
 
 ## 3. Próximo passo correto
-- Abrir a primeira fase funcional do Bloco 13 (coleções e estruturas de dados básicas), mantendo o Bloco 12 fechado no recorte conservador já consolidado.
+- Evoluir o Bloco 13 em degraus mínimos auditáveis, sem inflar para coleções dinâmicas antes da hora.
 
 ## 4. Restrições explícitas
 - Sem reabrir Bloco 11 por inércia documental; qualquer retorno ao tema deve ser excepcional e bem justificado.

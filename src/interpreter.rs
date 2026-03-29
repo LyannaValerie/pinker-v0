@@ -342,11 +342,17 @@ fn exec_instr(
             };
             stack.push(out);
         }
-        MachineInstr::DerefLoad { is_volatile, .. } => {
+        MachineInstr::DerefLoad {
+            ty, is_volatile, ..
+        } => {
             let ptr = pop(stack, "deref_load exige ponteiro no topo")?;
             let RuntimeValue::Ptr(addr) = ptr else {
                 return Err(runtime_err("deref_load exige ponteiro no topo"));
             };
+            if matches!(ty, crate::ir::TypeIR::FixedArray { .. }) {
+                stack.push(RuntimeValue::Ptr(addr));
+                return Ok(());
+            }
             let loaded = if *is_volatile {
                 deref_load_fragil(memory, addr)
             } else {

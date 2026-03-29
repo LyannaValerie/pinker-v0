@@ -14,7 +14,7 @@ Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/ag
 - escrita indireta mínima com `*p = valor` para `seta<bombom>` no `--run`
 - aritmética mínima de ponteiro no runtime com `seta<bombom> + bombom` e `seta<bombom> - bombom` no `--run`
 - acesso operacional mínimo a campo de `ninho` no runtime via `(*ptr).campo`, respeitando offsets de layout estático no subset atual
-- indexação operacional mínima de arrays no runtime via `(*ptr)[i]`, reaproveitando aritmética de ponteiros + `deref_load` no subset `[bombom; N]` com índice `bombom`
+- indexação operacional mínima de arrays no runtime para o subset `[bombom; N]` com índice `bombom`, cobrindo `(*ptr)[i]` e também array por valor `a[i]` no recorte conservador da Fase 147
 - qualificador `fragil` (`volatile`) para ponteiros explícitos (`fragil seta<tipo>`), com efeito operacional mínimo em `deref_load`/`deref_store` via caminho distinto no pipeline/runtime para o subset `fragil seta<bombom>`
 - inline asm mínimo como statement textual com `sussurro("...")` (ou múltiplas strings), preservado até IR
 - marca de unidade freestanding/no-std com `livre;` no topo do programa
@@ -39,6 +39,7 @@ Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/ag
 - exportação mínima de `ninho` via `trazer` no sistema de módulos tipado (camada 1 conservadora): `ninho` de módulo importado passa a ser resolvível no arquivo consumidor para assinaturas e usos tipados mínimos já suportados, sem abrir `pub/priv`, exportação seletiva ou redesign amplo do sistema de módulos (Fase 144)
 - exportação mínima de `apelido` via `trazer` no sistema de módulos tipado (camada 1 conservadora): `apelido` de módulo importado passa a ser resolvível no arquivo consumidor para declarações locais, assinaturas e cast tipado já suportado, sem abrir `pub/priv`, exportação seletiva ou redesign amplo (Fase 145)
 - uso qualificado mínimo de tipo importado no sistema de módulos tipado (camada 1 conservadora): tipos exportados por módulo importado passam a aceitar referência qualificada em contexto tipado (`modulo.Tipo`) para declaração local, assinatura e cast tipado já suportado, mantendo recorte conservador sem `pub/priv`, sem reexportação e sem namespaces amplos (Fase 146)
+- array fixo operacional mínimo por valor no Bloco 13 (camada 1 conservadora): indexação `a[i]` para `a: [bombom; N]` em contexto real mínimo (`param/local`) sem heap, sem coleção dinâmica, sem métodos e sem sintaxe nova (Fase 147)
 - diretório atual mínimo em `--run` com `diretorio_atual()` retornando `verso` (Fase 95)
 - introspecção mínima de caminho em `--run` com `caminho_existe(verso) -> logica` e `e_arquivo(verso) -> logica` (Fase 96)
 - refinamento mínimo de caminho em `--run` com `e_diretorio(verso) -> logica` e `juntar_caminho(verso, verso) -> verso` (Fase 97)
@@ -80,7 +81,7 @@ Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/ag
 - FFI, enums, generics, traits
 - operações completas de ponteiro (aritmética além do subset mínimo atual, como `n + ptr`, `ptr - ptr`), acesso completo via ponteiro (`seta<T>`), escrita em campo/index, layout físico/ABI
 - acesso operacional de campo de `ninho` além do subset atual (ex.: base por valor `p.campo`, escrita de campo, campos não escalares)
-- indexação operacional de arrays além do subset atual (ex.: base por valor `arr[i]`, escrita por índice e elementos não `bombom`)
+- indexação operacional de arrays além do subset atual (ex.: escrita por índice e elementos não `bombom`)
 - leitura indireta além do subset mínimo atual (`*p` apenas para `seta<bombom>` com endereçamento abstrato de globals escalares no runtime)
 - escrita indireta além do subset mínimo atual (`*p = v` apenas para `seta<bombom>` com endereçamento abstrato de globals escalares já mapeadas no runtime)
 - semântica completa de `fragil` em runtime/backend (há apenas efeito operacional mínimo em acessos indiretos no subset `fragil seta<bombom>`, sem MMIO/fences/ordenação de memória)
@@ -250,7 +251,8 @@ cargo run --bin pink -- --check examples/fase66_deref_seta_u8_invalido.pink
 cargo run --bin pink -- --check examples/fase67_escrita_indireta_seta_u8_invalida.pink
 cargo run --bin pink -- --check examples/fase68_ptr_aritmetica_invalida.pink
 cargo run --bin pink -- --run examples/fase69_ninho_campo_operacional_invalido.pink
-cargo run --bin pink -- --run examples/fase70_indexacao_array_operacional_invalido.pink
+cargo run --bin pink -- --run examples/fase147_array_fixo_operacional_minimo_valido.pink
+cargo run --bin pink -- --run examples/fase147_array_fixo_operacional_minimo_invalido.pink
 cargo run --bin pink -- --cfg-ir examples/fase61_verso_cfg_ir_invalido.pink
 cargo run --bin pink -- --run examples/fase60_modulos_valido.pink
 cargo run --bin pink -- --check examples/fase60_modulo_ausente.pink
