@@ -981,13 +981,13 @@ impl<'a> FunctionLowerer<'a> {
                             }
                         };
                         let index_lowered = self.lower_value(index)?;
-                        return Ok(InstructionIR::StoreIndexed {
+                        Ok(InstructionIR::StoreIndexed {
                             base: base_lowered.value,
                             index: index_lowered.value,
                             value: value.value,
                             element_type,
                             span: assign_stmt.span,
-                        });
+                        })
                     }
                     AssignTarget::FieldDeref { base, field } => {
                         let base_lowered = self.lower_value(base)?;
