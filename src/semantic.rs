@@ -781,7 +781,9 @@ impl SemanticChecker {
                                 }
                                 _ => {
                                     return Err(PinkerError::Semantic {
-                                        msg: "escrita por índice exige base de array fixo nesta fase".to_string(),
+                                        msg:
+                                            "escrita por índice exige base de array fixo nesta fase"
+                                                .to_string(),
                                         span: assign_stmt.span,
                                     });
                                 }
@@ -792,7 +794,8 @@ impl SemanticChecker {
                             )?;
                             if !matches!(index_ty, Type::Bombom(_)) {
                                 return Err(PinkerError::Semantic {
-                                    msg: "índice de escrita nesta fase deve ser 'bombom'".to_string(),
+                                    msg: "índice de escrita nesta fase deve ser 'bombom'"
+                                        .to_string(),
                                     span: index.span,
                                 });
                             }

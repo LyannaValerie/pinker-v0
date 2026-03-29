@@ -5975,8 +5975,7 @@ fn run_escrita_por_indice_leitura_apos_escrita_comprova_efeito() {
 
 #[test]
 fn cli_run_fase148_array_fixo_escrita_indice_minima_funciona_com_exemplo_versionado() {
-    let output =
-        run_cli_example("examples/fase148_array_fixo_escrita_indice_minima_valido.pink");
+    let output = run_cli_example("examples/fase148_array_fixo_escrita_indice_minima_valido.pink");
     assert!(
         output.status.success(),
         "esperava sucesso, stderr={}",

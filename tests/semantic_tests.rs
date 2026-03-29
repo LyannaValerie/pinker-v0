@@ -2091,7 +2091,11 @@ fn escrita_por_indice_com_indice_nao_bombom_falha() {
         carinho principal() -> bombom { mimo 0; }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("índice de escrita nesta fase deve ser 'bombom'"), "{}", err);
+    assert!(
+        err.contains("índice de escrita nesta fase deve ser 'bombom'"),
+        "{}",
+        err
+    );
 }
 
 #[test]
@@ -2102,7 +2106,11 @@ fn escrita_por_indice_em_base_nao_array_falha() {
         carinho principal() -> bombom { mimo 0; }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("escrita por índice exige base de array fixo nesta fase"), "{}", err);
+    assert!(
+        err.contains("escrita por índice exige base de array fixo nesta fase"),
+        "{}",
+        err
+    );
 }
 
 #[test]
@@ -2113,5 +2121,9 @@ fn escrita_por_indice_com_valor_nao_bombom_falha() {
         carinho principal() -> bombom { mimo 0; }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("tipo incompatível na escrita por índice"), "{}", err);
+    assert!(
+        err.contains("tipo incompatível na escrita por índice"),
+        "{}",
+        err
+    );
 }
