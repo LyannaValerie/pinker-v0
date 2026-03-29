@@ -1057,6 +1057,16 @@ Doc-27 - fechamento canônico do Bloco 11 e preparação formal da transição p
 - Fase 143 permanece como último marco funcional do Bloco 11; nenhuma fase funcional nova foi aberta nesta rodada.
 - Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/future.md`.
 
+Doc-28 - fechamento canônico do Bloco 12 e preparação formal da transição para o Bloco 13
+- Rodada exclusivamente documental, sem implementação funcional nova.
+- Bloco 12 (sistema de módulos tipado) encerrado formalmente por suficiência conservadora após a consolidação das Fases 144–146.
+- Suficiência registrada sem exagero: exportação mínima de `ninho` via `trazer` (Fase 144), exportação mínima de `apelido` via `trazer` (Fase 145) e uso qualificado mínimo `modulo.Tipo` em contexto tipado (Fase 146).
+- Recorte conservador reafirmado explicitamente: sem `pub/priv`, sem reexportação transitiva, sem wildcard import, sem aliasing novo, sem namespaces amplos e sem redesign geral do sistema de módulos.
+- O encerramento do Bloco 12 é por suficiência de trilha (não por exaustão do tema); ampliações futuras de módulos continuam possíveis quando justificadas.
+- Bloco 13 (coleções e estruturas de dados básicas) formalizado como próximo bloco da trilha ativa.
+- Fase 146 permanece como último marco funcional do Bloco 12; nenhuma fase funcional nova foi aberta nesta rodada.
+- Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/future.md`.
+
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

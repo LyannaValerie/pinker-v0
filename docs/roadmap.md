@@ -373,7 +373,8 @@ Por padrão, o fechamento do Bloco 10 **não** implica:
 - O Bloco 10 está formalmente encerrado por suficiência conservadora (Doc-24), sem backend pleno.
 - O Bloco 11 foi encerrado por suficiência conservadora (Doc-27). As Fases 137–143 cobriram: texto mínimo útil (`dividir_verso_em`, `substituir_verso`, `juntar_verso_com`, `buscar_verso`) e ergonomia prática mínima de script (`tem_argumento_nomeado`, `argumento_nomeado_ou`, `tem_flag`, `argumento_nomeado_ou_ambiente_ou`), sem parser amplo, sem REPL, sem subprocessos, sem config files e sem biblioteca textual gigante.
 - O editor/TUI oficial da Pinker segue como frente oficial já aberta (Fase 136), porém pausada por decisão estratégica; não está abandonado.
-- O próximo bloco formal da trilha ativa é o **Bloco 12 — sistema de módulos tipado**. As fases 144–146 concluíram a camada 1 conservadora do sistema de módulos tipado (`ninho`/`apelido` exportáveis via `trazer` + uso qualificado mínimo `modulo.Tipo` em contexto tipado).
+- O Bloco 12 foi encerrado por suficiência conservadora após as Fases 144–146 (`ninho`/`apelido` exportáveis via `trazer` + uso qualificado mínimo `modulo.Tipo` em contexto tipado), sem `pub/priv`, sem reexportação transitiva, sem wildcard import, sem aliasing novo, sem namespaces amplos e sem redesign geral de módulos.
+- O próximo bloco formal da trilha ativa é o **Bloco 13 — coleções e estruturas de dados básicas**.
 
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.
