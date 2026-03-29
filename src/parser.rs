@@ -260,9 +260,24 @@ impl Parser {
         } else if self.match_token(TokenKind::KwVerso) {
             Ok(Type::Verso(span))
         } else if self.match_token(TokenKind::Ident) {
+            let mut name = self.previous().lexeme.clone();
+            let mut type_span = self.previous().span;
+            if self.match_token(TokenKind::Dot) {
+                let separator_span = self.previous().span;
+                let qualified = self
+                    .consume(
+                        TokenKind::Ident,
+                        "nome do tipo após '.' em tipo qualificado",
+                    )?
+                    .lexeme
+                    .clone();
+                name = format!("{}.{}", name, qualified);
+                type_span = merge_span(type_span, separator_span);
+                type_span = merge_span(type_span, self.previous().span);
+            }
             Ok(Type::Alias {
-                name: self.previous().lexeme.clone(),
-                span,
+                name,
+                span: type_span,
             })
         } else {
             Err(PinkerError::Expected {

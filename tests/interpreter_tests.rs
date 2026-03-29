@@ -4705,6 +4705,56 @@ fn cli_check_modulo_apelido_inexistente_falha_com_exemplo_versionado() {
 }
 
 #[test]
+fn cli_check_modulo_tipo_qualificado_valido_com_exemplo_versionado() {
+    let output = run_cli_check_example("examples/fase146_modulo_tipo_qualificado_valido.pink");
+    assert!(output.status.success(), "{:?}", output);
+}
+
+#[test]
+fn cli_run_modulo_tipo_qualificado_valido_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase146_modulo_tipo_qualificado_valido.pink");
+    assert!(output.status.success(), "{:?}", output);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "42
+16
+42
+"
+    );
+}
+
+#[test]
+fn cli_check_modulo_tipo_qualificado_inexistente_falha_com_exemplo_versionado() {
+    let output =
+        run_cli_check_example("examples/fase146_modulo_tipo_qualificado_inexistente_invalido.pink");
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Erro Semântico:"), "stderr: {}", stderr);
+    assert!(
+        stderr.contains("tipo 'fase146_modulo_tipo_qualificado_tipos.NaoExiste' não existe"),
+        "stderr: {}",
+        stderr
+    );
+}
+
+#[test]
+fn cli_check_modulo_tipo_qualificado_modulo_nao_importado_falha_com_exemplo_versionado() {
+    let output = run_cli_check_example(
+        "examples/fase146_modulo_tipo_qualificado_modulo_nao_importado_invalido.pink",
+    );
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Erro Semântico:"), "stderr: {}", stderr);
+    assert!(
+        stderr.contains("tipo 'fase146_modulo_tipo_qualificado_tipos.Idade' não existe"),
+        "stderr: {}",
+        stderr
+    );
+}
+
+#[test]
 fn cli_check_verso_valido_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/fase61_verso_valido.pink");
     assert!(output.status.success(), "{:?}", output);

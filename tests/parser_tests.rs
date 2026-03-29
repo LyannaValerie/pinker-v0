@@ -261,6 +261,30 @@ fn parser_rejeita_sussurro_sem_string_literal() {
 }
 
 #[test]
+fn parser_aceita_tipo_qualificado_em_assinatura_e_local() {
+    let source = r#"
+        pacote main;
+        carinho usar(p: util.Pessoa) -> util.Pessoa {
+            nova copia: util.Pessoa = p;
+            mimo copia;
+        }
+    "#;
+    let program = parse(source).expect("parser deve aceitar tipo qualificado");
+    let usar = match &program.items[0] {
+        Item::Function(function) => function,
+        _ => panic!("item esperado: function"),
+    };
+    match &usar.params[0].ty {
+        Type::Alias { name, .. } => assert_eq!(name, "util.Pessoa"),
+        _ => panic!("tipo esperado: alias qualificado"),
+    }
+    match usar.ret_type.as_ref().expect("retorno esperado") {
+        Type::Alias { name, .. } => assert_eq!(name, "util.Pessoa"),
+        _ => panic!("tipo esperado: alias qualificado"),
+    }
+}
+
+#[test]
 fn parser_aceita_tipo_verso_e_literal_string() {
     let source = r#"
         pacote main;

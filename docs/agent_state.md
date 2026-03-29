@@ -10,7 +10,7 @@
 - Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
 ## 2. Estado corrente
-- Fase funcional atual: **145 — sistema de módulos tipado: exportação mínima de `apelido` via `trazer` (camada 1 conservadora)**.
+- Fase funcional atual: **146 — sistema de módulos tipado: uso qualificado mínimo de tipo importado (camada 1 conservadora)**.
 - Bloco encerrado: **11 — texto prático, scripts e ergonomia cotidiana (encerrado por suficiência conservadora na Doc-27)**.
 - Bloco formal atual: **12 — sistema de módulos tipado**.
 - Frente pausada (oficial e não abandonada): **editor/TUI oficial da Pinker (aberto na Fase 136)**.

@@ -1,0 +1,8 @@
+pacote fase146_modulo_tipo_qualificado_tipos;
+
+ninho Pessoa {
+    idade: bombom;
+    ativa: logica;
+}
+
+apelido Idade = bombom;

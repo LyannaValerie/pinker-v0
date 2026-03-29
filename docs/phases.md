@@ -10,4 +10,4 @@
 > Para crônica histórica e fases/hotfixes/rodadas, use `docs/history.md`.
 > Para navegação mestre, use `docs/atlas.md`.
 >
-> Último alinhamento de compatibilidade: Fase 145 no Bloco 12.
+> Último alinhamento de compatibilidade: Fase 146 no Bloco 12.

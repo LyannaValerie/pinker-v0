@@ -821,6 +821,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com testes de CLI para caso válido, negativos de `apelido` não trazido e símbolo inexistente em import qualificado.
 - Exemplos canônicos adicionados: `examples/fase145_modulo_apelido_exportado_valido.pink`, `examples/fase145_modulo_apelido_exportado_tipos.pink`, `examples/fase145_modulo_apelido_nao_importado_invalido.pink` e `examples/fase145_modulo_apelido_inexistente_invalido.pink`.
 
+146 - sistema de módulos tipado: uso qualificado mínimo de tipo importado (camada 1 conservadora)
+- Terceira fase funcional do Bloco 12.
+- Reforça o uso real de tipos entre módulos ao permitir referência qualificada mínima (`modulo.Tipo`) em contexto tipado.
+- Mantém o recorte conservador: sem visibilidade rica, sem reexportação, sem namespaces amplos e sem redesign do sistema de módulos.
+- Implementação mínima: parser passou a aceitar tipo qualificado em posições de tipo e o carregamento de imports passou a registrar nomes qualificados de itens tipados (`ninho`/`apelido`) para resolução semântica.
+- Cobertura adicionada com teste de parser para tipo qualificado e testes de CLI para caso válido + negativos de tipo qualificado inexistente e módulo não importado.
+- Exemplos canônicos adicionados: `examples/fase146_modulo_tipo_qualificado_valido.pink`, `examples/fase146_modulo_tipo_qualificado_tipos.pink`, `examples/fase146_modulo_tipo_qualificado_inexistente_invalido.pink` e `examples/fase146_modulo_tipo_qualificado_modulo_nao_importado_invalido.pink`.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
