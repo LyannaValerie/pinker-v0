@@ -36,6 +36,7 @@ Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/ag
 - flags booleanas mínimas em `--run` com `tem_flag(chave)`, detectando presença literal de flags como `--quiet`/`--verbose` sem consumir valor seguinte e sem inferir presença a partir de `--chave=valor` (Fase 142)
 - ambiente mínimo de processo em `--run` com `ambiente_ou(chave, padrao)` para leitura de variável de ambiente com fallback de `verso` (Fase 95)
 - prioridade mínima entre argumento nomeado, ambiente e fallback textual em `--run` com `argumento_nomeado_ou_ambiente_ou(chave_arg, chave_env, padrao)`, preservando a ordem `CLI -> ambiente -> padrão` sem parser/configuração ampla (Fase 143)
+- exportação mínima de `ninho` via `trazer` no sistema de módulos tipado (camada 1 conservadora): `ninho` de módulo importado passa a ser resolvível no arquivo consumidor para assinaturas e usos tipados mínimos já suportados, sem abrir `pub/priv`, exportação seletiva ou suporte automático a `apelido` (Fase 144)
 - diretório atual mínimo em `--run` com `diretorio_atual()` retornando `verso` (Fase 95)
 - introspecção mínima de caminho em `--run` com `caminho_existe(verso) -> logica` e `e_arquivo(verso) -> logica` (Fase 96)
 - refinamento mínimo de caminho em `--run` com `e_diretorio(verso) -> logica` e `juntar_caminho(verso, verso) -> verso` (Fase 97)

@@ -1,0 +1,6 @@
+pacote main;
+trazer fase144_modulo_ninho_exportado_tipos.NaoExiste;
+
+carinho principal() -> bombom {
+    mimo 0;
+}
