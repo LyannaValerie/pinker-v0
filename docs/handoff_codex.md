@@ -5,18 +5,20 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 143 — ergonomia prática de script: prioridade mínima entre argumento nomeado e ambiente (camada 1 conservadora)**.
+- **Doc-27 — fechamento canônico do Bloco 11 e preparação formal da transição para o Bloco 12**.
 
 ## 2. Resultado operacional da rodada
-- Novo intrínseco de runtime `argumento_nomeado_ou_ambiente_ou(chave_arg, chave_env, padrao) -> verso` implementado no `--run`.
-- Prioridade mínima fechada e auditável para script real: argumento nomeado, depois ambiente, depois fallback textual explícito.
-- Rejeições explícitas preservadas: chave de argumento vazia, chave de ambiente vazia e `--chave` sem valor continuam falhando com erro claro.
-- Cobertura adicionada com testes semânticos, de runtime e de CLI, além de exemplo versionado da fase.
+- Bloco 11 encerrado formalmente por suficiência conservadora após a consolidação das Fases 137–143.
+- Suficiência registrada: texto mínimo útil (`dividir_verso_em`, `substituir_verso`, `juntar_verso_com`, `buscar_verso`) e ergonomia prática mínima de script (`tem_argumento_nomeado`, `argumento_nomeado_ou`, `tem_flag`, `argumento_nomeado_ou_ambiente_ou`).
+- Recorte conservador reafirmado: sem parser amplo, sem REPL, sem subprocessos, sem config files, sem biblioteca textual gigante.
+- Bloco 12 formalizado como próximo bloco da trilha ativa; pendência inaugural registrada: 12.1 (exportação de `ninho` e `apelido` via `trazer`).
+- Fase 143 permanece como último marco funcional; nenhuma fase funcional nova foi aberta.
 
 ## 3. Próximo passo correto
-- Seguir a trilha funcional já aberta no Bloco 11, mantendo fases pequenas e auditáveis após a Fase 143.
+- Abrir a primeira fase funcional do Bloco 12 (12.1 — exportação de `ninho` e `apelido` via `trazer`).
 
 ## 4. Restrições explícitas
-- Sem abrir fase funcional nova nesta rodada documental.
+- Sem abrir fase funcional nova nesta rodada documental (já encerrada).
+- Sem reabrir Bloco 11 por inércia documental; qualquer retorno ao tema deve ser excepcional e bem justificado.
 - Sem reabrir Bloco 10 por inércia documental.
 - Sem transformar `future.md` em roadmap ou `parallel.md` em backlog técnico.

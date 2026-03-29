@@ -1022,6 +1022,15 @@ Doc-26 - enxugamento estrutural e disciplina de papéis documentais
 - `future.md` e `parallel.md` mantidos em seus papéis (inventário técnico e acervo visionário), com menor contaminação de estado operacional.
 - Registro histórico do MCP limpo: fato preservado como histórico da Paralela-1, sem marcações visuais de remendo.
 
+Doc-27 - fechamento canônico do Bloco 11 e preparação formal da transição para o Bloco 12
+- Rodada exclusivamente documental, sem implementação funcional nova.
+- Bloco 11 (texto prático, scripts e ergonomia cotidiana) encerrado formalmente por suficiência conservadora após a consolidação das Fases 137–143.
+- Suficiência registrada sem exagero: texto mínimo útil (`dividir_verso_em`/`dividir_verso_contar`, `substituir_verso`, `juntar_verso_com`, `buscar_verso`) e ergonomia prática mínima de script (`tem_argumento_nomeado`, `argumento_nomeado_ou`, `tem_flag`, `argumento_nomeado_ou_ambiente_ou`), mantendo recorte conservador explícito sem parser amplo, sem REPL, sem subprocessos, sem config files e sem biblioteca textual gigante.
+- Recorte conservador reafirmado: o fechamento não esgota para sempre o tema; futuras ampliações são possíveis, porém subordinadas à maturidade global do projeto.
+- Bloco 12 (sistema de módulos tipado) formalizado como próximo bloco da trilha ativa; primeira fase funcional esperada: 12.1 (exportação de `ninho` e `apelido` via `trazer`).
+- Fase 143 permanece como último marco funcional do Bloco 11; nenhuma fase funcional nova foi aberta nesta rodada.
+- Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/future.md`.
+
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

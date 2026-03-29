@@ -371,9 +371,9 @@ Por padrão, o fechamento do Bloco 10 **não** implica:
 ## Interpretação obrigatória da trilha
 
 - O Bloco 10 está formalmente encerrado por suficiência conservadora (Doc-24), sem backend pleno.
-- O Bloco 11 está em progresso ativo: a Fase 137 abriu o primeiro recorte funcional do item 11.1 (`split`); a Fase 138 abriu o segundo recorte do item 11.2 (`replace` camada 1 conservadora) com `substituir_verso`; a Fase 139 abriu o terceiro recorte do item 11.3 (`join` camada 1 conservadora) com `juntar_verso_com`; a Fase 140 abriu o quarto recorte do item 11.4 (busca textual mínima) com `buscar_verso`; a Fase 141 abriu um primeiro degrau conservador de argumentos nomeados em `--run` com `tem_argumento_nomeado` e `argumento_nomeado_ou`; a Fase 142 completou o recorte 11.5 com o complemento mínimo de flags booleanas `tem_flag`; a Fase 143 fechou a lacuna imediata seguinte do mesmo eixo com `argumento_nomeado_ou_ambiente_ou`, consolidando a prioridade mínima `CLI -> ambiente -> padrão`.
+- O Bloco 11 foi encerrado por suficiência conservadora (Doc-27). As Fases 137–143 cobriram: texto mínimo útil (`dividir_verso_em`, `substituir_verso`, `juntar_verso_com`, `buscar_verso`) e ergonomia prática mínima de script (`tem_argumento_nomeado`, `argumento_nomeado_ou`, `tem_flag`, `argumento_nomeado_ou_ambiente_ou`), sem parser amplo, sem REPL, sem subprocessos, sem config files e sem biblioteca textual gigante.
 - O editor/TUI oficial da Pinker segue como frente oficial já aberta (Fase 136), porém pausada por decisão estratégica; não está abandonado.
-- A próxima rodada funcional esperada do Bloco 11 é seguir aprofundando outros eixos do bloco com degraus pequenos e auditáveis após a consolidação conservadora do eixo 11.5.
+- O próximo bloco formal da trilha ativa é o **Bloco 12 — sistema de módulos tipado**. A primeira fase funcional esperada é 12.1 (exportação de `ninho` e `apelido` via `trazer`).
 
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.
@@ -409,10 +409,9 @@ Um bloco só pode ser considerado suficientemente concluído para liberar o pró
 
 ---
 
-<!-- ACTIVE_BLOCK -->
 ### Bloco 11 — texto prático, scripts e ergonomia cotidiana
 
-**Status**: **aberto canonicamente na Doc-25 como nova trilha ativa imediata**.
+**Status**: **encerrado por suficiência conservadora (Doc-27)**. A consolidação das Fases 137–143 cobriu texto mínimo útil e ergonomia prática mínima de script sem parser amplo, sem REPL e sem biblioteca textual gigante.
 
 **Formulação canônica única do bloco**:
 - a Pinker passa a ampliar sua utilidade prática para scripts, automação leve e tarefas reais do cotidiano;
@@ -488,18 +487,27 @@ Observação: esses itens não estão negados; apenas não são o ponto de parti
 
 Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11.1 (texto), sem voltar primeiro a temas já suficientemente cobertos.
 
-**Posição oficial do editor/TUI após a abertura do Bloco 11**:
+**Posição oficial do editor/TUI após o fechamento do Bloco 11**:
 - continua parte oficial do ecossistema;
 - já foi aberto funcionalmente na Fase 136;
 - continuidade pausada por decisão estratégica;
 - frente aberta porém pausada, não abandonada;
-- foco ativo imediato volta para evolução da linguagem/ecossistema no Bloco 11.
+- foco ativo passa para o Bloco 12 — sistema de módulos tipado.
+
+#### Encerramento conservador do Bloco 11 (Doc-27)
+
+- O Bloco 11 cumpriu sua função de ampliar a utilidade prática da Pinker para scripts e tarefas cotidianas em recorte mínimo, auditável e historicamente consistente.
+- O eixo de texto útil (11.1–11.4) entregou: `dividir_verso_em`/`dividir_verso_contar` (`split`), `substituir_verso` (`replace`), `juntar_verso_com` (`join` com separador), `buscar_verso` (busca literal mínima).
+- O eixo de ergonomia prática de script (11.5) entregou: `tem_argumento_nomeado`, `argumento_nomeado_ou`, `tem_flag`, `argumento_nomeado_ou_ambiente_ou`.
+- O encerramento é por **suficiência conservadora de trilha**, não por exaustão total do tema.
+- Futuras ampliações de texto, script ou ergonomia cotidiana continuam possíveis, porém subordinadas à maturidade global do projeto e não como continuação aberta imediata do Bloco 11.
+- O que permanece fora: parser amplo de CLI, REPL, subprocessos, config files, biblioteca textual gigante, regex, streaming.
 
 ---
 
 ### Bloco 12 — sistema de módulos tipado
 
-**Status**: pendente; abre após suficiência do Bloco 11.
+**Status**: **próximo bloco formal da trilha ativa** (formalizado na Doc-27).
 
 **Tese do bloco**: fechar a lacuna estrutural do sistema de módulos que impede a criação de bibliotecas `.pink` com tipos compartilhados; hoje apenas `carinho` e `eterno` são exportáveis via `trazer`; sem tipos exportáveis, cada arquivo que precise de um `ninho` deve redeclará-lo localmente — o que inviabiliza bibliotecas reutilizáveis reais.
 
