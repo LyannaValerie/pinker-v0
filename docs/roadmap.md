@@ -373,7 +373,7 @@ Por padrão, o fechamento do Bloco 10 **não** implica:
 - O Bloco 10 está formalmente encerrado por suficiência conservadora (Doc-24), sem backend pleno.
 - O Bloco 11 foi encerrado por suficiência conservadora (Doc-27). As Fases 137–143 cobriram: texto mínimo útil (`dividir_verso_em`, `substituir_verso`, `juntar_verso_com`, `buscar_verso`) e ergonomia prática mínima de script (`tem_argumento_nomeado`, `argumento_nomeado_ou`, `tem_flag`, `argumento_nomeado_ou_ambiente_ou`), sem parser amplo, sem REPL, sem subprocessos, sem config files e sem biblioteca textual gigante.
 - O editor/TUI oficial da Pinker segue como frente oficial já aberta (Fase 136), porém pausada por decisão estratégica; não está abandonado.
-- O próximo bloco formal da trilha ativa é o **Bloco 12 — sistema de módulos tipado**. A primeira fase funcional já concluída é a Fase 144 (exportação mínima de `ninho` via `trazer`); o fechamento complementar segue para `apelido`.
+- O próximo bloco formal da trilha ativa é o **Bloco 12 — sistema de módulos tipado**. As fases 144 e 145 já concluíram a camada 1 conservadora de tipos exportáveis via `trazer` (`ninho` + `apelido`).
 
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.
@@ -515,7 +515,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 **Itens do bloco**:
 - **12.1 — exportação mínima de `ninho` via `trazer` (Fase 144, concluída)**: tipos `ninho` declarados em módulo exportador passam a ser resolvíveis em módulo importador com `trazer`, destravando compartilhamento de tipos estruturados no recorte mínimo; sem abertura de visibilidade `pub/priv`, herança, generics ou redesign amplo.
-- **12.2 — exportação mínima de `apelido` via `trazer` (pendente)**: fechamento complementar do bloco mantendo o mesmo recorte conservador e auditável.
+- **12.2 — exportação mínima de `apelido` via `trazer` (Fase 145, concluída)**: `apelido` declarado em módulo exportador passa a ser resolvível no módulo importador com `trazer`, fechando o complemento mínimo de tipos compartilhados no mesmo recorte conservador e auditável.
 
 **Escopo deliberadamente fora do Bloco 12**: visibilidade explícita (`pub`/`priv`), herança de tipos, generics, sistema amplo de namespaces, reexportação transitiva.
 
@@ -523,7 +523,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 13 — coleções e estruturas de dados básicas
 
-**Status**: pendente; depende do Bloco 12.
+**Status**: pendente; depende do Bloco 12 (agora concluído no recorte mínimo `ninho` + `apelido` exportáveis via `trazer`).
 
 **Tese do bloco**: a Pinker tem tipos escalares, arrays fixos e structs, mas não tem coleções dinâmicas; sem lista e mapa, processar conjuntos variáveis de dados requer contorções manuais com arrays fixos; este bloco abre o mínimo auditável de coleções dinâmicas para tornar a linguagem utilizável como ferramenta cotidiana com dados variáveis.
 

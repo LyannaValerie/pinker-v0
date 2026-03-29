@@ -8,12 +8,12 @@
 - **Doc-27 — fechamento canônico do Bloco 11 e preparação formal da transição para o Bloco 12**.
 
 ## 2. Resultado operacional da rodada
-- Fase 144 concluída como primeira fase funcional do Bloco 12.
-- Recorte entregue: exportação mínima de `ninho` via `trazer`, permitindo resolver tipo `ninho` declarado em módulo exportador no módulo importador.
-- Continuidade conservadora preservada: sem `pub/priv`, sem exportação seletiva, sem redesign do sistema de módulos e sem abertura obrigatória de `apelido` nesta fase.
+- Fase 145 concluída como segunda fase funcional do Bloco 12.
+- Recorte entregue: exportação mínima de `apelido` via `trazer`, permitindo resolver alias de tipo declarado em módulo exportador no módulo importador.
+- Continuidade conservadora preservada: sem `pub/priv`, sem exportação seletiva, sem redesign do sistema de módulos e sem abertura de namespaces/visibilidade rica.
 
 ## 3. Próximo passo correto
-- Avaliar Fase 145 para `apelido` exportável via `trazer`, mantendo o mesmo recorte conservador e auditável.
+- Avaliar abertura do Bloco 13 (coleções e estruturas de dados básicas), mantendo recorte conservador e auditável.
 
 ## 4. Restrições explícitas
 - Sem abrir fase funcional nova nesta rodada documental (já encerrada).
