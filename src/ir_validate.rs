@@ -104,6 +104,13 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "argumento_nomeado_ou_ambiente_ou".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
         "caminho_existe".to_string(),
         FunctionSig {
             ret_type: TypeIR::Logica,

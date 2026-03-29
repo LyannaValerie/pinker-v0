@@ -1422,6 +1422,43 @@ fn try_call_intrinsic(
             let value = env::var(key).unwrap_or_else(|_| default_value.clone());
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value))))
         }
+        "argumento_nomeado_ou_ambiente_ou" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca 'argumento_nomeado_ou_ambiente_ou' exige 3 argumentos (chave_arg verso, chave_env verso, padrão verso)",
+                ));
+            }
+            let RuntimeValue::Str(arg_key) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'argumento_nomeado_ou_ambiente_ou' exige chave_arg em verso",
+                ));
+            };
+            let RuntimeValue::Str(env_key) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'argumento_nomeado_ou_ambiente_ou' exige chave_env em verso",
+                ));
+            };
+            let RuntimeValue::Str(default_value) = &args[2] else {
+                return Err(runtime_err(
+                    "intrínseca 'argumento_nomeado_ou_ambiente_ou' exige valor padrão em verso",
+                ));
+            };
+            ensure_named_arg_key_valid("argumento_nomeado_ou_ambiente_ou", arg_key)?;
+            ensure_env_key_valid("argumento_nomeado_ou_ambiente_ou", env_key)?;
+            match find_named_cli_argument(&io_state.cli_args, arg_key) {
+                NamedArgLookup::PresentValue(value) => Ok(IntrinsicCall::Done(Some(
+                    RuntimeValue::Str(value.to_string()),
+                ))),
+                NamedArgLookup::PresentWithoutValue => Err(runtime_err(&format!(
+                    "intrínseca 'argumento_nomeado_ou_ambiente_ou' encontrou chave '{}' sem valor na forma '--chave valor'",
+                    arg_key
+                ))),
+                NamedArgLookup::Missing => {
+                    let value = env::var(env_key).unwrap_or_else(|_| default_value.clone());
+                    Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value))))
+                }
+            }
+        }
         "caminho_existe" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -1663,6 +1700,16 @@ fn ensure_named_arg_key_valid(intrinsic_name: &str, key: &str) -> Result<(), Pin
     if key.is_empty() {
         return Err(runtime_err(&format!(
             "intrínseca '{}' exige chave não vazia",
+            intrinsic_name
+        )));
+    }
+    Ok(())
+}
+
+fn ensure_env_key_valid(intrinsic_name: &str, key: &str) -> Result<(), PinkerError> {
+    if key.is_empty() {
+        return Err(runtime_err(&format!(
+            "intrínseca '{}' exige chave de ambiente não vazia",
             intrinsic_name
         )));
     }

@@ -793,6 +793,16 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo canônico criado: `examples/fase142_flags_booleanas_minimas_valido.pink`.
 - O que continua fora: short flags (`-q`), grupos de short flags (`-abc`), `--no-flag`, aliases automáticos, flags com valor interpretadas por este intrínseco, parser amplo de CLI, tipagem automática, subcomandos, integração com env vars, coleções de flags, JSON/CSV, REPL e subprocessos.
 
+143 - ergonomia prática de script: prioridade mínima entre argumento nomeado e ambiente (camada 1 conservadora)
+- Sétima fase funcional do Bloco 11.
+- Abre um recorte mínimo, útil e auditável de prioridade simples entre argumento nomeado, ambiente e fallback no `--run`.
+- Adiciona `argumento_nomeado_ou_ambiente_ou(verso, verso, verso) -> verso`.
+- A prioridade é explícita e fixa: usa argumento nomeado em `--chave valor` ou `--chave=valor`; se ausente, consulta a variável de ambiente; se a variável não existir, retorna o fallback textual.
+- Mantém o recorte conservador: sem config files, sem `.env`, sem parser amplo e sem sistema geral de opções.
+- Chave de argumento vazia e chave de ambiente vazia são rejeitadas com erro claro; `--chave` sem valor continua falhando com erro claro e não é mascarado por ambiente.
+- Cobertura adicionada com testes semânticos, testes de runtime/CLI para prioridade correta entre os três níveis, coexistência com `tem_flag` e argv posicional, e negativos de aridade/tipos/chaves vazias/valor ausente.
+- Exemplo canônico criado: `examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink`.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

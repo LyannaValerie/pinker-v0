@@ -960,6 +960,115 @@ fn run_tem_flag_rejeita_chave_vazia() {
 }
 
 #[test]
+fn run_argumento_nomeado_ou_ambiente_ou_prioriza_argumento_nomeado() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg("examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink")
+        .arg("--")
+        .arg("--saida")
+        .arg("out.txt")
+        .env("PINKER_FASE143_SAIDA", "env.txt")
+        .output()
+        .expect("falha ao executar CLI --run");
+    assert!(output.status.success(), "status={:?}", output.status);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "out.txt\nfalso\n2\n0\n"
+    );
+}
+
+#[test]
+fn run_argumento_nomeado_ou_ambiente_ou_usa_ambiente_quando_argumento_ausente() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg("examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink")
+        .env("PINKER_FASE143_SAIDA", "env.txt")
+        .output()
+        .expect("falha ao executar CLI --run");
+    assert!(output.status.success(), "status={:?}", output.status);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "env.txt\nfalso\n0\n0\n"
+    );
+}
+
+#[test]
+fn run_argumento_nomeado_ou_ambiente_ou_usa_fallback_quando_ambos_ausentes() {
+    let output = run_cli_example_with_env_and_cwd(
+        "examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink",
+        &[],
+        &["PINKER_FASE143_SAIDA"],
+        None,
+    );
+    assert!(output.status.success(), "status={:?}", output.status);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "padrao.txt\nverdade\n0\n0\n"
+    );
+}
+
+#[test]
+fn run_argumento_nomeado_ou_ambiente_ou_falha_sem_mascarar_valor_ausente_por_ambiente() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg("examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink")
+        .arg("--")
+        .arg("--saida")
+        .env("PINKER_FASE143_SAIDA", "env.txt")
+        .output()
+        .expect("falha ao executar CLI --run");
+    assert!(!output.status.success(), "{:?}", output);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(
+            "intrínseca 'argumento_nomeado_ou_ambiente_ou' encontrou chave '--saida' sem valor"
+        ),
+        "stderr: {}",
+        stderr
+    );
+}
+
+#[test]
+fn run_argumento_nomeado_ou_ambiente_ou_rejeita_chave_de_argumento_vazia() {
+    let err = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: verso = argumento_nomeado_ou_ambiente_ou("", "PINKER_FASE143", "padrao");
+            falar(valor);
+            mimo 0;
+        }"#,
+    )
+    .unwrap_err();
+    assert!(
+        err.contains("intrínseca 'argumento_nomeado_ou_ambiente_ou' exige chave não vazia"),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
+fn run_argumento_nomeado_ou_ambiente_ou_rejeita_chave_de_ambiente_vazia() {
+    let err = run_code(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: verso = argumento_nomeado_ou_ambiente_ou("--saida", "", "padrao");
+            falar(valor);
+            mimo 0;
+        }"#,
+    )
+    .unwrap_err();
+    assert!(
+        err.contains(
+            "intrínseca 'argumento_nomeado_ou_ambiente_ou' exige chave de ambiente não vazia"
+        ),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
 fn run_falar_multiplos_argumentos_bombom_funciona() {
     let out = run_code(
         r#"
@@ -3449,6 +3558,75 @@ fn cli_run_flags_booleanas_minimas_funcionam_com_mistura_de_flag_e_nomeado() {
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
         "verdade\nfalso\nout.txt\n0\n"
+    );
+}
+
+#[test]
+fn cli_run_argumento_nomeado_ou_ambiente_ou_prioriza_saida_do_cli() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg("examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink")
+        .arg("--")
+        .arg("--saida")
+        .arg("out.txt")
+        .env("PINKER_FASE143_SAIDA", "env.txt")
+        .output()
+        .expect("falha ao executar CLI --run");
+    assert!(output.status.success(), "status={:?}", output.status);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "out.txt\nfalso\n2\n0\n"
+    );
+}
+
+#[test]
+fn cli_run_argumento_nomeado_ou_ambiente_ou_usa_env_sem_saida_no_cli() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg("examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink")
+        .env("PINKER_FASE143_SAIDA", "env.txt")
+        .output()
+        .expect("falha ao executar CLI --run");
+    assert!(output.status.success(), "status={:?}", output.status);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "env.txt\nfalso\n0\n0\n"
+    );
+}
+
+#[test]
+fn cli_run_argumento_nomeado_ou_ambiente_ou_usa_fallback_quando_tudo_ausente() {
+    let output = run_cli_example_with_env_and_cwd(
+        "examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink",
+        &[],
+        &["PINKER_FASE143_SAIDA"],
+        None,
+    );
+    assert!(output.status.success(), "status={:?}", output.status);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "padrao.txt\nverdade\n0\n0\n"
+    );
+}
+
+#[test]
+fn cli_run_argumento_nomeado_ou_ambiente_ou_falha_sem_valor_mesmo_com_env() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg("examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink")
+        .arg("--")
+        .arg("--saida")
+        .env("PINKER_FASE143_SAIDA", "env.txt")
+        .output()
+        .expect("falha ao executar CLI --run");
+    assert!(!output.status.success(), "{:?}", output);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(
+            "intrínseca 'argumento_nomeado_ou_ambiente_ou' encontrou chave '--saida' sem valor"
+        ),
+        "stderr: {}",
+        stderr
     );
 }
 

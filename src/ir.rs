@@ -513,6 +513,13 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "argumento_nomeado_ou_ambiente_ou".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "caminho_existe".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Logica,
