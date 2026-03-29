@@ -1,0 +1,16 @@
+pacote main;
+trazer fase146_modulo_tipo_qualificado_tipos;
+
+carinho somar_idade(base: fase146_modulo_tipo_qualificado_tipos.Idade, extra: bombom) -> fase146_modulo_tipo_qualificado_tipos.Idade {
+    nova total: fase146_modulo_tipo_qualificado_tipos.Idade = base + extra;
+    mimo total;
+}
+
+carinho principal() -> bombom {
+    nova idade_base: fase146_modulo_tipo_qualificado_tipos.Idade = 40 virar fase146_modulo_tipo_qualificado_tipos.Idade;
+    nova total: fase146_modulo_tipo_qualificado_tipos.Idade = somar_idade(idade_base, 2);
+    nova medida_pessoa: bombom = peso(fase146_modulo_tipo_qualificado_tipos.Pessoa);
+    falar(total);
+    falar(medida_pessoa);
+    mimo total;
+}

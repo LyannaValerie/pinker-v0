@@ -1,0 +1,7 @@
+pacote main;
+trazer fase146_modulo_tipo_qualificado_tipos;
+
+carinho principal() -> bombom {
+    nova _x: fase146_modulo_tipo_qualificado_tipos.NaoExiste = 0;
+    mimo 0;
+}

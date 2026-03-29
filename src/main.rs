@@ -618,6 +618,22 @@ fn importable_item_clone(item: &ast::Item) -> Option<ast::Item> {
     }
 }
 
+fn qualified_type_item_clone(module: &str, item: &ast::Item) -> Option<ast::Item> {
+    match item {
+        ast::Item::Struct(struct_decl) => {
+            let mut cloned = struct_decl.clone();
+            cloned.name = format!("{}.{}", module, struct_decl.name);
+            Some(ast::Item::Struct(cloned))
+        }
+        ast::Item::TypeAlias(alias) => {
+            let mut cloned = alias.clone();
+            cloned.name = format!("{}.{}", module, alias.name);
+            Some(ast::Item::TypeAlias(cloned))
+        }
+        _ => None,
+    }
+}
+
 fn load_module_program(
     module: &str,
     base_dir: &Path,
@@ -700,6 +716,7 @@ fn load_program_with_imports(
     let mut seen_imports = HashSet::new();
     let mut imported_items = Vec::new();
     let mut imported_names = HashMap::<String, Span>::new();
+    let mut imported_qualified_type_names = HashSet::<String>::new();
     let local_names: HashSet<String> = root_program
         .items
         .iter()
@@ -774,6 +791,14 @@ fn load_program_with_imports(
             };
             imported_items.push(item.clone());
             imported_names.insert(symbol.clone(), import.span);
+            let qualified_name = format!("{}.{}", import.module, symbol);
+            if imported_qualified_type_names.insert(qualified_name) {
+                if let Some(qualified_item) =
+                    qualified_type_item_clone(import.module.as_str(), item)
+                {
+                    imported_items.push(qualified_item);
+                }
+            }
         } else {
             for item in &module_program.items {
                 let Some(importable_name) = importable_item_name(item) else {
@@ -800,6 +825,14 @@ fn load_program_with_imports(
                 imported_names.insert(importable_name.to_string(), import.span);
                 if let Some(cloned) = importable_item_clone(item) {
                     imported_items.push(cloned);
+                }
+                let qualified_name = format!("{}.{}", import.module, importable_name);
+                if imported_qualified_type_names.insert(qualified_name) {
+                    if let Some(qualified_item) =
+                        qualified_type_item_clone(import.module.as_str(), item)
+                    {
+                        imported_items.push(qualified_item);
+                    }
                 }
             }
         }

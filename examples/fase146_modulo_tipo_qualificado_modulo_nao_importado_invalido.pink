@@ -1,0 +1,6 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova _x: fase146_modulo_tipo_qualificado_tipos.Idade = 0;
+    mimo 0;
+}
