@@ -6,75 +6,51 @@
 
 Este é o arquivo mestre de navegação documental da Pinker v0.
 
-Estado de navegação da rodada: frente ativa em Engine = **Bloco 11 — texto prático, scripts e ergonomia cotidiana (aberto na Doc-25)**; editor/TUI permanece frente oficial aberta, porém pausada.
-
-## Tese estrutural desta arquitetura
-
-A documentação da Pinker está organizada em dois hemisférios complementares:
-
-- **Hemisfério Engine (factual/operacional):** o que já existe, como funciona hoje, como validar e como evoluir sem perder continuidade.
-- **Hemisfério Rosa (identitário/visionário):** a voz da linguagem, critérios lexicais, visão de ecossistema e direção conceitual de longo prazo.
-
-A documentação só está correta quando esses hemisférios conseguem conversar sem confundir fato com ambição.
-
----
-
 ## 1) Hemisfério Engine (factual / operacional)
 
-Documentos canônicos para estado real e continuidade técnica:
+Documentos canônicos:
 
-- `docs/roadmap.md` — trilha ativa oficial e estado de bloco corrente (incluindo encerramentos conservadores).
-- `docs/history.md` — linha do tempo factual (fases, hotfixes, docs e paralelas).
-- `docs/agent_state.md` — estado operacional corrente e diretrizes de execução.
-- `docs/handoff_codex.md` — handoff curto da rodada vigente.
-- `docs/doc_rules.md` — regras obrigatórias de atualização documental.
-- `MANUAL.md` — manual prático de uso da linguagem no estado implementado.
+- `docs/roadmap.md` — ordem ativa oficial.
+- `docs/history.md` — crônica histórica única (fases, hotfixes, docs e paralelas).
+- `docs/agent_state.md` — estado operacional corrente, de forma enxuta.
+- `docs/handoff_codex.md` — bilhete operacional curto da rodada.
+- `docs/doc_rules.md` — regras de atualização documental.
+- `MANUAL.md` — manual prático de uso no estado implementado.
 
-Documento de apoio do hemisfério Engine:
+Apoio Engine:
 
-- `docs/future.md` — inventário técnico amplo (não ordena a trilha ativa).
-
----
+- `docs/future.md` — inventário técnico (não é roadmap).
+- `docs/phases.md` — arquivo de compatibilidade para referências legadas.
 
 ## 2) Hemisfério Rosa (identitário / lexical / visão)
 
-Documentos canônicos para identidade, léxico e visão de linguagem viva:
+Documentos canônicos:
 
-- `docs/rosa.md` — manifesto conceitual estruturado da Pinker/Rosa.
-- `docs/vocabulario.md` — arquitetura lexical canônica (critérios, famílias, aceitas/rejeitadas/provisórias).
+- `docs/rosa.md` — identidade/visão da linguagem.
+- `docs/vocabulario.md` — arquitetura lexical canônica.
 
-Documento de apoio do hemisfério Rosa:
+Apoio Rosa:
 
-- `docs/parallel.md` — repositório de material visionário legado e notas de origem conceitual (não backlog).
-
----
+- `docs/parallel.md` — acervo visionário (não backlog técnico).
 
 ## 3) Ponte explícita Engine ↔ Rosa
 
-- `docs/ponte_engine_rosa.md` — documento-ponte com mapeamento entre estado real e direção identitária.
-
-Este arquivo existe para impedir dois desvios simétricos:
-
-1. engenharia sem identidade;
-2. identidade sem chão operacional.
-
----
+- `docs/ponte_engine_rosa.md` — regras de mediação entre estado factual e direção identitária.
 
 ## 4) Convenção de classe/papel/status
 
-Sempre que um documento ganhar papel estrutural, declarar no topo:
+Quando um documento tiver papel estrutural, declarar no topo:
 
 - **Classe:** `Engine`, `Rosa` ou `Ponte`
 - **Papel:** histórico / estado / visão / léxico / navegação / regra / referência / híbrido
 - **Status:** ativo / operacional / referência / aspiracional / híbrido
 
----
-
 ## 5) Regra de precedência resumida
 
 1. Código mergeado local
-2. `docs/roadmap.md` (ordem ativa)
-3. `docs/agent_state.md` + `docs/handoff_codex.md` (estado da rodada)
-4. `docs/history.md` (crônica factual)
-5. `docs/future.md` (inventário técnico)
-6. `docs/rosa.md` + `docs/vocabulario.md` + `docs/parallel.md` (identidade e visão)
+2. `docs/roadmap.md`
+3. `docs/agent_state.md` + `docs/handoff_codex.md`
+4. `docs/history.md`
+5. `docs/future.md`
+6. `docs/rosa.md` + `docs/vocabulario.md` + `docs/parallel.md`
+7. `docs/ponte_engine_rosa.md` e `docs/atlas.md`

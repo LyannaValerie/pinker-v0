@@ -9,60 +9,30 @@
 - Natureza: frontend/pipeline textual em Rust, com runtime interpretado em `--run`.
 - Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
-## 2. Diretrizes consolidadas de execução
-- Manter fases pequenas, auditáveis e coerentes com `docs/roadmap.md`.
-- Evitar refactor amplo fora do escopo da rodada.
-- Preservar continuidade histórica e não reabrir fase concluída.
-- Em conflito, código mergeado prevalece sobre documentação.
-
-## 3. Convenção de fases/rodadas
-- **Fase N**: entrega funcional real.
-- **HF-N**: hotfix extraordinário sem abrir nova fase funcional.
-- **Doc-N**: rodada exclusivamente documental.
-- **Paralela-N**: rodada paralela de implementação.
-- Histórico detalhado: `docs/history.md`.
-
-## 4. Pipeline congelada
-- Fluxo base: semântica -> IR -> validação IR -> CFG IR -> validação CFG -> selected -> validação selected -> Machine -> validação Machine.
-- Saídas: `--pseudo-asm`, `--asm-s`, `--run`.
-
-## 5. Estado corrente
+## 2. Estado corrente
 - Fase funcional atual: **141 — ergonomia prática de script: argumentos nomeados mínimos (camada 1 conservadora)**.
-- Fase funcional anterior: **140 — manipulação textual útil: busca textual mínima (camada 1 conservadora)**.
-- Frente ativa: **Bloco 11 — texto prático, scripts e ergonomia cotidiana** (11.5 operacionalmente aberto).
+- Bloco ativo: **11 — texto prático, scripts e ergonomia cotidiana**.
 - Frente pausada (oficial e não abandonada): **editor/TUI oficial da Pinker (aberto na Fase 136)**.
-- Bloco ativo de compilador/backend/ecossistema: **Bloco 11** (aberto canonicamente na Doc-25).
-- Rodada documental mais recente: **Doc-25 — abertura canônica do Bloco 11**.
-- Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) + ~~MCP mínimo~~**.
+- Rodada documental mais recente: **Doc-26 — enxugamento estrutural e disciplina de papéis documentais**.
+- Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) com trilha MCP mínima posteriormente removida por segurança**.
 - Último hotfix aplicado: **HF-5 — ajuste de conformidade Clippy pós-Fase 136**.
 
-## 6. Arquitetura documental dual ativa
-- Navegação mestre: `docs/atlas.md`.
-- Hemisfério Engine: `roadmap`, `history`, `agent_state`, `handoff`, `doc_rules`, `future`.
-- Hemisfério Rosa: `rosa`, `vocabulario`, `parallel`.
-- Documento-ponte: `docs/ponte_engine_rosa.md`.
+## 3. Arquitetura documental ativa
+- `roadmap.md` = ordem ativa.
+- `history.md` = crônica única.
+- `agent_state.md` = estado corrente enxuto.
+- `handoff_codex.md` = bilhete operacional curto.
+- `atlas.md` = navegação mestre.
+- `ponte_engine_rosa.md` = mediação estável Engine ↔ Rosa.
+- `phases.md` = compatibilidade legada.
 
-## 7. Restrições do projeto
+## 4. Restrições do projeto
 - Não abrir fase funcional fora da ordem ativa do roadmap.
 - Não transformar `future.md` em roadmap.
 - Não transformar `parallel.md` em backlog técnico.
 - Não declarar funcionalidade como pronta sem validação objetiva.
 
-## 8. Instrução para novo agente
-1. Ler: `README.md`, `docs/atlas.md`, `docs/roadmap.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/history.md`, `docs/doc_rules.md`.
-2. Executar validações exigidas da rodada antes de encerrar.
-3. Atualizar ao final: `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` quando houver mudança documental/operacional.
-4. Próxima rodada normal esperada: seguir fechando 11.5 com degraus pequenos e auditáveis após os argumentos nomeados mínimos, mantendo o editor/TUI pausado e sem reabrir o Bloco 10.
-
-## 9. Padrão operacional de binários
+## 5. Padrão operacional de binários
 - Binário principal: `pink`.
-- ~~Binário MCP: `pinker_mcp`.~~ — *Removido por questões de segurança, mas sua adição futura pode ser reconsiderada caso haja real necessidade.*
+- Binário MCP histórico (`pinker_mcp`) foi removido por segurança e não faz parte do estado operacional atual.
 - Padrão recomendado: `cargo run --bin pink -- ...`.
-- `default-run = "pink"` preserva ergonomia.
-
-
-## 10. Direção estratégica atualizada (Fase 141)
-- O editor/TUI oficial da Pinker continua parte oficial do ecossistema e permanece aberto desde a Fase 136, porém pausado por decisão estratégica.
-- O Bloco 10 do compilador/backend permanece encerrado por suficiência conservadora (Doc-24), sem reabertura.
-- O Bloco 11 está em progresso ativo: a Fase 137 abriu `split`; a Fase 138 abriu `replace`; a Fase 139 abriu `join`; a Fase 140 abriu busca textual mínima com `buscar_verso`; a Fase 141 abriu argumentos nomeados mínimos com `tem_argumento_nomeado` e `argumento_nomeado_ou`, em continuidade operacional do eixo 11.5.
-- Próxima rodada funcional esperada: seguir fechando lacunas pequenas de ergonomia prática de script após esse degrau inicial, conforme prioridade real.

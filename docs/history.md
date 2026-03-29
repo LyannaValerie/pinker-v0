@@ -918,13 +918,14 @@ Doc-16 - pacote paralelo de apoio (auditoria + corpus + mapeamento de codegen te
 - Cobertura de teste adicionada em `tests/interpreter_tests.rs` para o novo exemplo/corpus, sem abrir recurso novo.
 - `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/phases.md` atualizados para registrar a rodada documental/paralela e preservar continuidade histórica.
 
-Doc-17 - alinhamento documental/operacional pós-Paralela-1 (~~binários + MCP~~)
+Doc-17 - alinhamento documental/operacional pós-Paralela-1 (binários + trilha MCP histórica)
 - Rodada curta documental/operacional, sem abertura de fase funcional e sem expansão de linguagem/runtime/backend.
 - `docs/doc_rules.md` atualizado para formalizar **rodadas paralelas de implementação** como categoria própria da crônica histórica em `docs/history.md` (seção `RODADAS PARALELAS`), distinta de Fase/HF/Doc.
 - `docs/future.md` sincronizado com a precedência vigente (`roadmap`/`agent_state`/`handoff`): Bloco 8 permanece trilha ativa; Bloco 7 não é mais bloco ativo.
-- ~~Ambiguidade operacional de `cargo run` registrada e saneada: coexistência de binários (`pink`, `pinker_mcp`) exigiu explicitação de binário nos comandos de uso principal (`cargo run --bin pink -- ...`) e definição de `default-run = "pink"` para preservar ergonomia diária.~~
-- ~~README alinhado para remover padrões antigos ambíguos de auditoria/uso (ex.: `cargo run -- --check ...`, `cargo run -- --selected ...`) e para explicitar a existência/uso mínimo do binário `pinker_mcp`.~~
-- ~~Verificação prática do `pinker_mcp` executada no estado atual: transporte JSON-RPC 2.0 via stdio (JSON por linha), resposta positiva para `initialize`, `tools/list` e `tools/call` (`pinker_rodar`).~~
+- Ambiguidade operacional de `cargo run` foi saneada naquele momento: coexistência de binários (`pink`, `pinker_mcp`) exigiu explicitação de binário nos comandos de uso principal (`cargo run --bin pink -- ...`) e definição de `default-run = "pink"` para preservar ergonomia diária.
+- README foi alinhado para remover padrões antigos ambíguos de auditoria/uso e para explicitar a existência/uso mínimo do binário `pinker_mcp` no contexto da época.
+- Verificação prática do `pinker_mcp` foi executada na época: transporte JSON-RPC 2.0 via stdio (JSON por linha), com resposta positiva para `initialize`, `tools/list` e `tools/call` (`pinker_rodar`).
+- Posteriormente, o binário MCP foi removido por segurança e deixou de compor o estado operacional corrente.
 
 
 Doc-18 - reorganização estrutural da documentação (arquitetura dual Engine + Pinker/Rosa)
@@ -989,10 +990,20 @@ Doc-25 - abertura canônica do Bloco 11
 - Alinha a continuidade: próxima rodada funcional esperada passa a ser a primeira fase do Bloco 11 (11.1, trilha textual).
 
 
+Doc-26 - enxugamento estrutural e disciplina de papéis documentais
+- Rodada exclusivamente documental, sem implementação funcional.
+- `phases.md` reduzido a compatibilidade real, com ponte explícita para `history.md`, `agent_state.md` e `atlas.md`.
+- `ponte_engine_rosa.md` estabilizado como mediação (regras de conversa e gate), removendo estado volátil de fase/bloco.
+- `atlas.md` enxugado para índice mestre de navegação, sem narrativa de estado corrente.
+- `handoff_codex.md` reduzido para bilhete operacional curto (rodada, resultado, próximo passo e restrições).
+- `README.md` disciplinado como contrato presente, com redução de duplicação documental e limpeza de referência ao MCP removido.
+- `future.md` e `parallel.md` mantidos em seus papéis (inventário técnico e acervo visionário), com menor contaminação de estado operacional.
+- Registro histórico do MCP limpo: fato preservado como histórico da Paralela-1, sem marcações visuais de remendo.
+
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Paralela-1 — negação bitwise dual (`~` + `nope`) + ~~MCP mínimo~~
+Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)
 - Rodada paralela de implementação; não é hotfix, não é fase funcional, não é rodada documental pura.
 - Não reordenou o roadmap nem conflitou com a trilha funcional ativa (Bloco 8).
 
@@ -1003,12 +1014,11 @@ Trilha A — negação bitwise unária dual:
 - Tipo aceito: qualquer inteiro já suportado (`bombom`, `u8`–`u64`, `i8`–`i64`); `logica` rejeitada na semântica.
 - Testes adicionados: 6 casos em `tests/interpreter_tests.rs` cobrindo `~`, `nope`, equivalência, inversão de bits, dupla negação e tipo inválido.
 
-~~Trilha B — MCP mínimo:~~
-- ~~Binário separado `pinker_mcp` criado em `src/bin/pinker_mcp.rs` (zero dependências externas).~~
-- ~~Transporte: JSON-RPC 2.0 via stdio (newline-delimited), sem LSP, sem Tree-sitter, sem servidor complexo.~~
-- ~~Ferramentas expostas: `pinker_checar`, `pinker_tokens`, `pinker_ast`, `pinker_ir` (modos: ir/cfg/selected/machine), `pinker_rodar`.~~
-- ~~Cada ferramenta despacha para a pipeline existente via biblioteca `pinker_v0`; sem reescrita de arquitetura.~~
-- ~~Limitação intencional: código inline apenas (sem resolução de imports entre módulos).~~
-- ~~Testes adicionados: 9 casos em `tests/mcp_tests.rs` cobrindo initialize, tools/list, checar, tokens, rodar, bitnot via MCP e erro de método desconhecido.~~
-
-> *Trilha B removida por questões de segurança. Sua adição futura pode ser reconsiderada caso haja real necessidade.*
+Trilha B — MCP mínimo (histórico):
+- Binário separado `pinker_mcp` foi criado em `src/bin/pinker_mcp.rs` (zero dependências externas).
+- Transporte adotado na época: JSON-RPC 2.0 via stdio (newline-delimited), sem LSP, sem Tree-sitter, sem servidor complexo.
+- Ferramentas expostas na época: `pinker_checar`, `pinker_tokens`, `pinker_ast`, `pinker_ir` (modos: ir/cfg/selected/machine), `pinker_rodar`.
+- Cada ferramenta despachava para a pipeline existente via biblioteca `pinker_v0`; sem reescrita de arquitetura.
+- Limitação intencional na época: código inline apenas (sem resolução de imports entre módulos).
+- Testes registrados na época: 9 casos em `tests/mcp_tests.rs` cobrindo initialize, tools/list, checar, tokens, rodar, bitnot via MCP e erro de método desconhecido.
+- Estado posterior: trilha MCP removida por segurança e fora da operação corrente.

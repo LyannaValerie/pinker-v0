@@ -2,7 +2,7 @@
 
 Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
 
-Status documental corrente: **Fase 141 abriu argumentos nomeados mínimos (camada 1 conservadora)** como quinta fase funcional do Bloco 11 (texto prático, scripts e ergonomia cotidiana). O editor/TUI permanece como frente oficial **aberta porém pausada** por decisão estratégica. O compilador/backend segue preservado no estado conservador já conquistado.
+Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/agent_state.md`, `docs/roadmap.md` e `docs/history.md`.
 
 ## O que o frontend faz hoje
 - léxico com spans
@@ -119,7 +119,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --locked
 
 ## Binários do projeto
 - `pink`: binário principal da CLI da linguagem.
-- ~~`pinker_mcp`: servidor MCP mínimo via JSON-RPC 2.0 em stdio (mensagens JSON por linha).~~ — *Removido por questões de segurança, mas sua adição futura pode ser reconsiderada caso haja real necessidade.*
+- `pinker_mcp` (histórico): binário MCP mínimo descontinuado e removido por segurança; não faz parte da operação atual.
 
 ## Uso
 ```bash
