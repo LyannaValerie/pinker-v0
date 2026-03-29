@@ -605,14 +605,16 @@ fn importable_item_name(item: &ast::Item) -> Option<&str> {
         ast::Item::Function(function) => Some(function.name.as_str()),
         ast::Item::Const(constant) => Some(constant.name.as_str()),
         ast::Item::Struct(struct_decl) => Some(struct_decl.name.as_str()),
-        _ => None,
+        ast::Item::TypeAlias(alias) => Some(alias.name.as_str()),
     }
 }
 
 fn importable_item_clone(item: &ast::Item) -> Option<ast::Item> {
     match item {
-        ast::Item::Function(_) | ast::Item::Const(_) | ast::Item::Struct(_) => Some(item.clone()),
-        ast::Item::TypeAlias(_) => None,
+        ast::Item::Function(_)
+        | ast::Item::Const(_)
+        | ast::Item::Struct(_)
+        | ast::Item::TypeAlias(_) => Some(item.clone()),
     }
 }
 

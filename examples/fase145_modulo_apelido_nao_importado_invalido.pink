@@ -1,0 +1,6 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova idade: Idade = 10;
+    mimo idade;
+}

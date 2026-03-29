@@ -1,0 +1,14 @@
+pacote main;
+trazer fase145_modulo_apelido_exportado_tipos;
+
+carinho somar_idade(base: Idade, extra: bombom) -> Idade {
+    nova total: Idade = base + extra;
+    mimo total;
+}
+
+carinho principal() -> bombom {
+    nova idade_base: Idade = 40 virar Idade;
+    nova total: Idade = somar_idade(idade_base, 2);
+    falar(total);
+    mimo total;
+}

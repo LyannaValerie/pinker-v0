@@ -36,7 +36,7 @@
 - I/O mais rica (arquivo/texto) com recorte incremental;
 - tooling de projeto além do `pink build` mínimo;
 - evolução prudente de `verso` sem abrir biblioteca textual gigante de uma vez;
-- **exportação de tipos pelo sistema de módulos**: `ninho` já é exportável via `trazer` (Fase 144, camada 1 conservadora); `apelido` permanece pendente para fechamento complementar do Bloco 12.
+- **exportação de tipos pelo sistema de módulos**: `ninho` e `apelido` já são exportáveis via `trazer` (Fases 144 e 145, camada 1 conservadora), fechando o complemento mínimo do Bloco 12 para tipos compartilhados.
 - O Bloco 11 foi encerrado por suficiência conservadora (Doc-27) após as Fases 137–143; o foco ativo passa para o Bloco 12.
 
 Itens explicitamente para depois do foco inicial do Bloco 11:
