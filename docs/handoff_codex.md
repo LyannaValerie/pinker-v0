@@ -8,14 +8,12 @@
 - **Doc-27 — fechamento canônico do Bloco 11 e preparação formal da transição para o Bloco 12**.
 
 ## 2. Resultado operacional da rodada
-- Bloco 11 encerrado formalmente por suficiência conservadora após a consolidação das Fases 137–143.
-- Suficiência registrada: texto mínimo útil (`dividir_verso_em`, `substituir_verso`, `juntar_verso_com`, `buscar_verso`) e ergonomia prática mínima de script (`tem_argumento_nomeado`, `argumento_nomeado_ou`, `tem_flag`, `argumento_nomeado_ou_ambiente_ou`).
-- Recorte conservador reafirmado: sem parser amplo, sem REPL, sem subprocessos, sem config files, sem biblioteca textual gigante.
-- Bloco 12 formalizado como próximo bloco da trilha ativa; pendência inaugural registrada: 12.1 (exportação de `ninho` e `apelido` via `trazer`).
-- Fase 143 permanece como último marco funcional; nenhuma fase funcional nova foi aberta.
+- Fase 145 concluída como segunda fase funcional do Bloco 12.
+- Recorte entregue: exportação mínima de `apelido` via `trazer`, permitindo resolver alias de tipo declarado em módulo exportador no módulo importador.
+- Continuidade conservadora preservada: sem `pub/priv`, sem exportação seletiva e sem redesign do sistema de módulos.
 
 ## 3. Próximo passo correto
-- Abrir a primeira fase funcional do Bloco 12 (12.1 — exportação de `ninho` e `apelido` via `trazer`).
+- Avaliar próximos refinamentos do Bloco 12 apenas se mantiverem recorte mínimo e auditável, sem ampliar arquitetura de módulos.
 
 ## 4. Restrições explícitas
 - Sem abrir fase funcional nova nesta rodada documental (já encerrada).

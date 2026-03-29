@@ -1,0 +1,4 @@
+pacote fase145_modulo_apelido_exportado_tipos;
+
+apelido Palavra = u32;
+apelido PtrBombom = seta<bombom>;

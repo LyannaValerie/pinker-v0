@@ -1,0 +1,19 @@
+pacote main;
+trazer fase145_modulo_apelido_exportado_tipos;
+
+carinho eco_palavra(v: Palavra) -> Palavra {
+    mimo v;
+}
+
+carinho volta_bombom(v: bombom) -> bombom {
+    nova ptr: PtrBombom = v virar PtrBombom;
+    mimo ptr virar bombom;
+}
+
+carinho principal() -> bombom {
+    nova base: Palavra = eco_palavra(7);
+    nova valor: bombom = base virar bombom;
+    nova convertido: bombom = volta_bombom(valor);
+    falar(convertido);
+    mimo convertido;
+}

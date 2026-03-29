@@ -803,6 +803,24 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com testes semânticos, testes de runtime/CLI para prioridade correta entre os três níveis, coexistência com `tem_flag` e argv posicional, e negativos de aridade/tipos/chaves vazias/valor ausente.
 - Exemplo canônico criado: `examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink`.
 
+144 - sistema de módulos tipado: exportação mínima de `ninho` via `trazer` (camada 1 conservadora)
+- Primeira fase funcional do Bloco 12.
+- Fecha a lacuna inaugural do bloco no menor recorte útil: permite que `ninho` declarado em módulo exportador seja resolvido no módulo importador via `trazer`.
+- Mantém o recorte conservador: sem `pub`/`priv`, sem exportação seletiva, sem generics, sem redesign amplo do sistema de módulos.
+- `apelido` permanece fora, salvo se cair naturalmente sem inflação de escopo — preferência: deixar para a fase seguinte.
+- Implementação mínima: o carregamento de imports passou a exportar também itens `ninho` (além de `carinho`/`eterno`) no mesmo fluxo já consolidado.
+- Cobertura adicionada com testes de CLI para caso válido, negativos de `ninho` não trazido e símbolo inexistente em import qualificado.
+- Exemplos canônicos adicionados: `examples/fase144_modulo_ninho_exportado_valido.pink`, `examples/fase144_modulo_ninho_exportado_tipos.pink`, `examples/fase144_modulo_ninho_nao_importado_invalido.pink` e `examples/fase144_modulo_ninho_inexistente_invalido.pink`.
+
+145 - sistema de módulos tipado: exportação mínima de `apelido` via `trazer` (camada 1 conservadora)
+- Segunda fase funcional do Bloco 12.
+- Fecha o complemento mínimo do bloco para tipos compartilhados: permite que `apelido` declarado em módulo exportador seja resolvido no módulo importador via `trazer`.
+- Mantém o recorte conservador: sem `pub`/`priv`, sem exportação seletiva, sem generics, sem redesign amplo do sistema de módulos.
+- Consolida o fechamento mínimo de exportação tipada iniciado pela Fase 144 (`ninho`).
+- Implementação mínima: o carregamento de imports passou a exportar também itens `apelido` (além de `carinho`/`eterno`/`ninho`) no mesmo fluxo já consolidado.
+- Cobertura adicionada com testes de CLI para caso válido, negativos de `apelido` não trazido e símbolo inexistente em import qualificado.
+- Exemplos canônicos adicionados: `examples/fase145_modulo_apelido_exportado_valido.pink`, `examples/fase145_modulo_apelido_exportado_tipos.pink`, `examples/fase145_modulo_apelido_nao_importado_invalido.pink` e `examples/fase145_modulo_apelido_inexistente_invalido.pink`.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

@@ -10,9 +10,9 @@
 - Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
 ## 2. Estado corrente
-- Fase funcional atual: **143 — ergonomia prática de script: prioridade mínima entre argumento nomeado e ambiente (camada 1 conservadora)**.
+- Fase funcional atual: **145 — sistema de módulos tipado: exportação mínima de `apelido` via `trazer` (camada 1 conservadora)**.
 - Bloco encerrado: **11 — texto prático, scripts e ergonomia cotidiana (encerrado por suficiência conservadora na Doc-27)**.
-- Próximo bloco formal: **12 — sistema de módulos tipado**.
+- Bloco formal atual: **12 — sistema de módulos tipado**.
 - Frente pausada (oficial e não abandonada): **editor/TUI oficial da Pinker (aberto na Fase 136)**.
 - Rodada documental mais recente: **Doc-27 — fechamento canônico do Bloco 11 e preparação formal da transição para o Bloco 12**.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) com trilha MCP mínima posteriormente removida por segurança**.

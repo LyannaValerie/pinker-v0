@@ -20,7 +20,7 @@ Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/ag
 - marca de unidade freestanding/no-std com `livre;` no topo do programa
 - cast explícito controlado com `virar` (operacional em `--run` para inteiro->inteiro e `bombom <-> seta<bombom>`)
 - consultas estáticas de layout com `peso(tipo)` e `alinhamento(tipo)`
-- módulos/imports mínimos com `trazer modulo;` e `trazer modulo.simbolo;` (carregando `modulo.pink` no mesmo diretório do arquivo principal, com subset de import para `carinho` e `eterno`)
+- módulos/imports mínimos com `trazer modulo;` e `trazer modulo.simbolo;` (carregando `modulo.pink` no mesmo diretório do arquivo principal, com subset de import para `carinho`, `eterno`, `ninho` e `apelido`)
 - strings mínimas como valor de linguagem com tipo `verso` e literal `"texto"` (frontend + semântica + IR)
 - `verso` operacional mínimo em `--run`: variável local, passagem por chamada, retorno e uso em `falar(verso)`
 - operações mínimas de texto em `--run` com `verso`: `juntar_verso(a, b)` para concatenação (apenas `verso + verso` via intrínseca), `tamanho_verso(v)` retornando `bombom` e indexação mínima por intrínseca `indice_verso(v, i)` (`verso`, `bombom`) retornando `verso` unitário
@@ -36,6 +36,8 @@ Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/ag
 - flags booleanas mínimas em `--run` com `tem_flag(chave)`, detectando presença literal de flags como `--quiet`/`--verbose` sem consumir valor seguinte e sem inferir presença a partir de `--chave=valor` (Fase 142)
 - ambiente mínimo de processo em `--run` com `ambiente_ou(chave, padrao)` para leitura de variável de ambiente com fallback de `verso` (Fase 95)
 - prioridade mínima entre argumento nomeado, ambiente e fallback textual em `--run` com `argumento_nomeado_ou_ambiente_ou(chave_arg, chave_env, padrao)`, preservando a ordem `CLI -> ambiente -> padrão` sem parser/configuração ampla (Fase 143)
+- exportação mínima de `ninho` via `trazer` no sistema de módulos tipado (camada 1 conservadora): `ninho` de módulo importado passa a ser resolvível no arquivo consumidor para assinaturas e usos tipados mínimos já suportados, sem abrir `pub/priv`, exportação seletiva ou suporte automático a `apelido` (Fase 144)
+- exportação mínima de `apelido` via `trazer` no sistema de módulos tipado (camada 1 conservadora): `apelido` de módulo importado passa a ser resolvível no arquivo consumidor para assinatura/local/cast no subset já suportado, sem abrir `pub/priv`, exportação seletiva, namespaces novos ou redesign de resolução nominal (Fase 145)
 - diretório atual mínimo em `--run` com `diretorio_atual()` retornando `verso` (Fase 95)
 - introspecção mínima de caminho em `--run` com `caminho_existe(verso) -> logica` e `e_arquivo(verso) -> logica` (Fase 96)
 - refinamento mínimo de caminho em `--run` com `e_diretorio(verso) -> logica` e `juntar_caminho(verso, verso) -> verso` (Fase 97)

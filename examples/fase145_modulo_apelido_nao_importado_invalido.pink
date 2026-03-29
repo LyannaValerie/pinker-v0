@@ -1,0 +1,6 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova valor: Palavra = 7;
+    mimo valor virar bombom;
+}

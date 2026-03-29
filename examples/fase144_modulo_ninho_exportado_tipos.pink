@@ -1,0 +1,6 @@
+pacote fase144_modulo_ninho_exportado_tipos;
+
+ninho PessoaCompartilhada {
+    idade: bombom;
+    ativa: logica;
+}
