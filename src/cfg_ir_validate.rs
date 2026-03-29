@@ -95,6 +95,13 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "tem_flag".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
         "ambiente_ou".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,

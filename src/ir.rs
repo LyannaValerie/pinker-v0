@@ -499,6 +499,13 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "tem_flag".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Logica,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "ambiente_ou".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Verso,

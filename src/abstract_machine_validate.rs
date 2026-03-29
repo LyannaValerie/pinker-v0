@@ -80,6 +80,10 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         ),
     );
     sigs.insert(
+        "tem_flag".to_string(),
+        (TypeIR::Logica, vec![StackValueType::Verso]),
+    );
+    sigs.insert(
         "ambiente_ou".to_string(),
         (
             TypeIR::Verso,
