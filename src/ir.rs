@@ -105,6 +105,13 @@ pub enum InstructionIR {
         is_volatile: bool,
         span: Span,
     },
+    StoreIndexed {
+        base: ValueIR,
+        index: ValueIR,
+        value: ValueIR,
+        element_type: TypeIR,
+        span: Span,
+    },
     Expr {
         value: ValueIR,
         span: Span,
@@ -952,6 +959,34 @@ impl<'a> FunctionLowerer<'a> {
                             span: assign_stmt.span,
                         })
                     }
+                    AssignTarget::Index { base, index } => {
+                        let base_lowered = self.lower_value(base)?;
+                        let element_type = match base_lowered.ty {
+                            TypeIR::FixedArray { element, .. } => match element {
+                                ScalarTypeIR::Bombom => TypeIR::Bombom,
+                                _ => {
+                                    return Err(PinkerError::Ir {
+                                        msg: "escrita por índice nesta fase aceita apenas '[bombom; N]'".to_string(),
+                                        span: assign_stmt.span,
+                                    })
+                                }
+                            },
+                            _ => {
+                                return Err(PinkerError::Ir {
+                                    msg: "escrita por índice exige base de array fixo no lowering IR".to_string(),
+                                    span: assign_stmt.span,
+                                })
+                            }
+                        };
+                        let index_lowered = self.lower_value(index)?;
+                        return Ok(InstructionIR::StoreIndexed {
+                            base: base_lowered.value,
+                            index: index_lowered.value,
+                            value: value.value,
+                            element_type,
+                            span: assign_stmt.span,
+                        });
+                    }
                     AssignTarget::FieldDeref { base, field } => {
                         let base_lowered = self.lower_value(base)?;
                         let Some(base_struct_name) = base_lowered.struct_name.as_ref() else {
@@ -1667,6 +1702,23 @@ fn render_instruction(instruction: &InstructionIR, indent: usize, out: &mut Stri
                 &format!(
                     "store_indirect {} <- {}",
                     render_value(ptr),
+                    render_value(value)
+                ),
+            );
+        }
+        InstructionIR::StoreIndexed {
+            base,
+            index,
+            value,
+            ..
+        } => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "store_indexed {}[{}] <- {}",
+                    render_value(base),
+                    render_value(index),
                     render_value(value)
                 ),
             );

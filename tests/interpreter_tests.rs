@@ -5927,3 +5927,72 @@ fn cli_run_fase140_busca_textual_minima_funciona_com_exemplo_versionado() {
         "0\n18446744073709551615\n0\n"
     );
 }
+
+// ── Fase 148: escrita por índice em array fixo [bombom; N] ───────────────────
+
+#[test]
+fn run_escrita_por_indice_em_array_por_valor_minima_funciona() {
+    let out = run_code(
+        "pacote main;
+         eterno A: bombom = 10;
+         eterno B: bombom = 20;
+         eterno C: bombom = 30;
+         carinho escreve_e_le(a: [bombom; 3]) -> bombom {
+             a[1] = 99;
+             mimo a[1];
+         }
+         carinho principal() -> bombom {
+             nova base: seta<[bombom; 3]> = 1;
+             mimo escreve_e_le(*base);
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(99)));
+}
+
+#[test]
+fn run_escrita_por_indice_leitura_apos_escrita_comprova_efeito() {
+    let out = run_code(
+        "pacote main;
+         eterno A: bombom = 10;
+         eterno B: bombom = 20;
+         eterno C: bombom = 30;
+         carinho preenche(a: [bombom; 3], i: bombom, v: bombom) {
+             a[i] = v;
+         }
+         carinho le(a: [bombom; 3], i: bombom) -> bombom {
+             mimo a[i];
+         }
+         carinho principal() -> bombom {
+             nova base: seta<[bombom; 3]> = 1;
+             preenche(*base, 2, 77);
+             mimo le(*base, 2);
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(77)));
+}
+
+#[test]
+fn cli_run_fase148_array_fixo_escrita_indice_minima_funciona_com_exemplo_versionado() {
+    let output =
+        run_cli_example("examples/fase148_array_fixo_escrita_indice_minima_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("99"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_run_fase148_array_fixo_escrita_indice_elemento_nao_bombom_invalido_falha() {
+    let output = run_cli_check_example(
+        "examples/fase148_array_fixo_escrita_indice_elemento_nao_bombom_invalido.pink",
+    );
+    assert!(
+        !output.status.success(),
+        "esperava falha para escrita fora do recorte bombom"
+    );
+}

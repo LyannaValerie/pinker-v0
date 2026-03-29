@@ -836,6 +836,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Mantém o recorte conservador: sem heap, sem coleções dinâmicas, sem biblioteca ampla de coleções e sem sintaxe rica nova.
 - Cobertura adicionada com testes de CFG/runtime/CLI e exemplos versionados: `examples/fase147_array_fixo_operacional_minimo_valido.pink` e `examples/fase147_array_fixo_operacional_minimo_invalido.pink`.
 
+148 - coleções e estruturas de dados básicas: escrita mínima por índice em array fixo `[bombom; N]` (camada 1 conservadora)
+- Segunda fase funcional do Bloco 13.
+- Complementa o primeiro núcleo estrutural do bloco ao abrir mutação mínima por índice no mesmo recorte homogêneo de `[bombom; N]`.
+- Atribuição `a[i] = valor` passa a operar no `--run` para `a: [bombom; N]` com índice `bombom`, no mesmo contexto de parâmetro/local da Fase 147.
+- Implementação mínima: `AssignTarget::Index` no AST/parser, verificação semântica conservadora, `StoreIndexed` na IR, `lower_index_store` no lowering CFG e atualização do validador `DerefStore` para aceitar base `FixedArray { Bombom }`.
+- Mantém o recorte conservador: sem heap, sem coleções dinâmicas, sem biblioteca ampla de coleções e sem sintaxe rica nova.
+- Cobertura adicionada com testes semânticos, de runtime e CLI, e exemplos versionados: `examples/fase148_array_fixo_escrita_indice_minima_valido.pink` e `examples/fase148_array_fixo_escrita_indice_elemento_nao_bombom_invalido.pink`.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

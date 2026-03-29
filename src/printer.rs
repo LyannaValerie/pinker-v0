@@ -195,6 +195,7 @@ fn render_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
                     _ => "*<expr>".to_string(),
                 },
                 AssignTarget::FieldDeref { field, .. } => format!("(*<expr>).{}", field),
+                AssignTarget::Index { .. } => "<expr>[<índice>]".to_string(),
             };
             line(
                 out,

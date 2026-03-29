@@ -662,6 +662,68 @@ fn validate_block(
                     ));
                 }
             }
+            InstructionIR::StoreIndexed {
+                base,
+                index,
+                value,
+                element_type,
+                span,
+            } => {
+                let base_ty =
+                    infer_value_type(base, slots, consts, funcs, *span).map_err(|err| {
+                        enrich_ir_error(
+                            err,
+                            Some(function),
+                            Some(block),
+                            Some("instr='store_indexed'"),
+                        )
+                    })?;
+                if !matches!(
+                    base_ty,
+                    TypeIR::FixedArray {
+                        element: crate::ir::ScalarTypeIR::Bombom,
+                        ..
+                    }
+                ) {
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "store_indexed exige base de array fixo '[bombom; N]'",
+                        Some("instr='store_indexed'"),
+                        *span,
+                    ));
+                }
+                let _index_ty =
+                    infer_value_type(index, slots, consts, funcs, *span).map_err(|err| {
+                        enrich_ir_error(
+                            err,
+                            Some(function),
+                            Some(block),
+                            Some("instr='store_indexed'"),
+                        )
+                    })?;
+                let actual_ty =
+                    infer_value_type(value, slots, consts, funcs, *span).map_err(|err| {
+                        enrich_ir_error(
+                            err,
+                            Some(function),
+                            Some(block),
+                            Some("instr='store_indexed'"),
+                        )
+                    })?;
+                if !value_matches_expected(value, actual_ty, *element_type) {
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "store_indexed com tipo incompatível",
+                        Some(&format!(
+                            "instr='store_indexed', esperado={:?}, recebido={:?}",
+                            element_type, actual_ty
+                        )),
+                        *span,
+                    ));
+                }
+            }
             InstructionIR::Expr { value, span } => {
                 let ty = infer_value_type(value, slots, consts, funcs, *span).map_err(|err| {
                     enrich_ir_error(err, Some(function), Some(block), Some("instr='expr'"))

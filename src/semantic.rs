@@ -765,6 +765,53 @@ impl SemanticChecker {
                             }
                             Self::validate_int_literal_range(&field_ty, &assign_stmt.expr)?;
                         }
+                        AssignTarget::Index { base, index } => {
+                            let base_ty = self.check_value_expr(
+                                base,
+                                "resultado de função sem retorno não pode ser base de escrita por índice",
+                            )?;
+                            match &base_ty {
+                                Type::FixedArray { element, .. } => {
+                                    if !matches!(element.as_ref(), Type::Bombom(_)) {
+                                        return Err(PinkerError::Semantic {
+                                            msg: "escrita por índice nesta fase aceita apenas '[bombom; N]'".to_string(),
+                                            span: assign_stmt.span,
+                                        });
+                                    }
+                                }
+                                _ => {
+                                    return Err(PinkerError::Semantic {
+                                        msg: "escrita por índice exige base de array fixo nesta fase".to_string(),
+                                        span: assign_stmt.span,
+                                    });
+                                }
+                            }
+                            let index_ty = self.check_value_expr(
+                                index,
+                                "resultado de função sem retorno não pode ser índice de escrita",
+                            )?;
+                            if !matches!(index_ty, Type::Bombom(_)) {
+                                return Err(PinkerError::Semantic {
+                                    msg: "índice de escrita nesta fase deve ser 'bombom'".to_string(),
+                                    span: index.span,
+                                });
+                            }
+                            let expected_ty = Type::Bombom(assign_stmt.span);
+                            if !Self::check_expected_type_for_expr(
+                                &expected_ty,
+                                &value_ty,
+                                &assign_stmt.expr,
+                            ) {
+                                return Err(PinkerError::Semantic {
+                                    msg: format!(
+                                        "tipo incompatível na escrita por índice: esperado 'bombom', encontrado '{}'",
+                                        value_ty.name()
+                                    ),
+                                    span: assign_stmt.expr.span,
+                                });
+                            }
+                            Self::validate_int_literal_range(&expected_ty, &assign_stmt.expr)?;
+                        }
                     }
                 }
                 Stmt::If(if_stmt) => {

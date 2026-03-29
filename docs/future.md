@@ -20,7 +20,7 @@
 ### 2.1 Memória operacional além do subset atual
 
 - ampliar `seta<T>` além de `bombom`;
-- escrita de campo (`ninho`) e escrita por índice (arrays);
+- escrita de campo (`ninho`) e escrita por índice (arrays além do subset `[bombom; N]` da Fase 148);
 - ampliar `virar` para casos seguros ainda ausentes;
 - robustez adicional de `fragil` (sem prometer MMIO/fences de imediato).
 

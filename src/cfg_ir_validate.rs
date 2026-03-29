@@ -741,18 +741,31 @@ fn validate_block(
             } => {
                 let ptr_ty =
                     infer_operand_type(ptr, slot_types, &temp_types, global_consts, function.span)?;
-                let TypeIR::Pointer {
-                    is_volatile: ptr_is_volatile,
-                } = ptr_ty
-                else {
-                    return Err(cfg_error(
-                        "deref_store exige operando do tipo ponteiro",
-                        function.span,
-                    ));
+                let ptr_is_volatile_opt = match ptr_ty {
+                    TypeIR::Pointer {
+                        is_volatile: ptr_is_volatile,
+                    } => Some(ptr_is_volatile),
+                    TypeIR::FixedArray {
+                        element: crate::ir::ScalarTypeIR::Bombom,
+                        ..
+                    } => None,
+                    _ => {
+                        return Err(cfg_error(
+                            "deref_store exige operando do tipo ponteiro ou array fixo de bombom",
+                            function.span,
+                        ));
+                    }
                 };
-                if ptr_is_volatile != *is_volatile {
+                if let Some(ptr_is_volatile) = ptr_is_volatile_opt {
+                    if ptr_is_volatile != *is_volatile {
+                        return Err(cfg_error(
+                            "deref_store com metadata de volatilidade inconsistente",
+                            function.span,
+                        ));
+                    }
+                } else if *is_volatile {
                     return Err(cfg_error(
-                        "deref_store com metadata de volatilidade inconsistente",
+                        "deref_store com array por valor não aceita metadata fragil nesta fase",
                         function.span,
                     ));
                 }

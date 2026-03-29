@@ -389,6 +389,13 @@ impl FunctionLowerer {
                 current,
                 *span,
             ),
+            InstructionIR::StoreIndexed {
+                base,
+                index,
+                value,
+                element_type,
+                span,
+            } => self.lower_index_store(base, index, value, *element_type, current, *span),
             InstructionIR::Expr { value, span } => self.lower_expr_stmt(value, current, *span),
             InstructionIR::Return { value, span } => {
                 let (ret, next_current) = match value {
@@ -913,6 +920,66 @@ impl FunctionLowerer {
                 is_volatile,
             });
         Ok((OperandIR::Temp(dest), current_after_index))
+    }
+
+    fn lower_index_store(
+        &mut self,
+        base: &ValueIR,
+        index: &ValueIR,
+        value: &ValueIR,
+        element_type: TypeIR,
+        current: usize,
+        span: Span,
+    ) -> Result<usize, PinkerError> {
+        let (base_addr, current_after_base, is_volatile) = match base {
+            ValueIR::Deref {
+                ptr,
+                result_type,
+                is_volatile,
+            } => {
+                if !matches!(*result_type, TypeIR::FixedArray { .. }) {
+                    return Err(PinkerError::Ir {
+                        msg: "escrita por índice nesta fase exige base de array fixo".to_string(),
+                        span,
+                    });
+                }
+                let (ptr_operand, next_current) = self.lower_value_operand(ptr, current, span)?;
+                (ptr_operand, next_current, *is_volatile)
+            }
+            _ => {
+                let (base_operand, next_current) =
+                    self.lower_value_operand(base, current, span)?;
+                (base_operand, next_current, false)
+            }
+        };
+        if element_type != TypeIR::Bombom {
+            return Err(PinkerError::Ir {
+                msg: "escrita por índice nesta fase aceita apenas '[bombom; N]'".to_string(),
+                span,
+            });
+        }
+        let (offset, current_after_index) =
+            self.lower_value_operand(index, current_after_base, span)?;
+        let elem_ptr_temp = self.next_temp();
+        self.blocks[current_after_index]
+            .instructions
+            .push(InstructionCfgIR::Binary {
+                dest: elem_ptr_temp,
+                op: BinaryOpIR::Add,
+                lhs: base_addr,
+                rhs: offset,
+            });
+        let (val_operand, next_current) =
+            self.lower_value_operand(value, current_after_index, span)?;
+        self.blocks[next_current]
+            .instructions
+            .push(InstructionCfgIR::DerefStore {
+                ptr: OperandIR::Temp(elem_ptr_temp),
+                value: val_operand,
+                ty: element_type,
+                is_volatile,
+            });
+        Ok(next_current)
     }
 
     /// Like `lower_value_operand` but also handles `ValueIR::String` for `falar`.

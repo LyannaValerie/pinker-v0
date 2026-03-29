@@ -568,9 +568,13 @@ impl Parser {
                     base: base.clone(),
                     field: field.clone(),
                 },
+                ExprKind::Index { base, index } => AssignTarget::Index {
+                    base: base.clone(),
+                    index: index.clone(),
+                },
                 _ => {
                     return Err(PinkerError::Parse {
-                        msg: "atribuição inválida: o lado esquerdo deve ser um identificador, dereferência '*expr' ou acesso a campo '(*ptr).campo'".to_string(),
+                        msg: "atribuição inválida: o lado esquerdo deve ser um identificador, dereferência '*expr', acesso a campo '(*ptr).campo' ou indexação 'base[índice]'".to_string(),
                         span: expr.span,
                     });
                 }

@@ -1,0 +1,16 @@
+pacote main;
+
+eterno A: bombom = 10;
+eterno B: bombom = 20;
+eterno C: bombom = 30;
+
+carinho escreve_e_le(a: [bombom; 3]) -> bombom {
+    a[1] = 99;
+    mimo a[1];
+}
+
+carinho principal() -> bombom {
+    nova base: seta<[bombom; 3]> = 1;
+    falar(escreve_e_le(*base));
+    mimo 0;
+}
