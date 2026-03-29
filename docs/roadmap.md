@@ -371,9 +371,9 @@ Por padrão, o fechamento do Bloco 10 **não** implica:
 ## Interpretação obrigatória da trilha
 
 - O Bloco 10 está formalmente encerrado por suficiência conservadora (Doc-24), sem backend pleno.
-- O Bloco 11 está em progresso ativo: a Fase 137 abriu o primeiro recorte funcional do item 11.1 (`split`); a Fase 138 abriu o segundo recorte do item 11.2 (`replace` camada 1 conservadora) com `substituir_verso`; a Fase 139 abriu o terceiro recorte do item 11.3 (`join` camada 1 conservadora) com `juntar_verso_com`; a Fase 140 abriu o quarto recorte do item 11.4 (busca textual mínima) com `buscar_verso`; a Fase 141 abriu um primeiro degrau conservador de argumentos nomeados em `--run` com `tem_argumento_nomeado` e `argumento_nomeado_ou`; a Fase 142 completou o recorte 11.5 com o complemento mínimo de flags booleanas `tem_flag`, em continuidade operacional do eixo 11.5.
+- O Bloco 11 está em progresso ativo: a Fase 137 abriu o primeiro recorte funcional do item 11.1 (`split`); a Fase 138 abriu o segundo recorte do item 11.2 (`replace` camada 1 conservadora) com `substituir_verso`; a Fase 139 abriu o terceiro recorte do item 11.3 (`join` camada 1 conservadora) com `juntar_verso_com`; a Fase 140 abriu o quarto recorte do item 11.4 (busca textual mínima) com `buscar_verso`; a Fase 141 abriu um primeiro degrau conservador de argumentos nomeados em `--run` com `tem_argumento_nomeado` e `argumento_nomeado_ou`; a Fase 142 completou o recorte 11.5 com o complemento mínimo de flags booleanas `tem_flag`; a Fase 143 fechou a lacuna imediata seguinte do mesmo eixo com `argumento_nomeado_ou_ambiente_ou`, consolidando a prioridade mínima `CLI -> ambiente -> padrão`.
 - O editor/TUI oficial da Pinker segue como frente oficial já aberta (Fase 136), porém pausada por decisão estratégica; não está abandonado.
-- A próxima rodada funcional esperada do Bloco 11 é seguir aprofundando outros eixos do Bloco 11 com degraus pequenos e auditáveis após a consolidação do eixo 11.5.
+- A próxima rodada funcional esperada do Bloco 11 é seguir aprofundando outros eixos do bloco com degraus pequenos e auditáveis após a consolidação conservadora do eixo 11.5.
 
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.

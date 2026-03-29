@@ -24,6 +24,10 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("argumento_nomeado_ou".to_string(), TypeIR::Verso);
     sigs.insert("tem_flag".to_string(), TypeIR::Logica);
     sigs.insert("ambiente_ou".to_string(), TypeIR::Verso);
+    sigs.insert(
+        "argumento_nomeado_ou_ambiente_ou".to_string(),
+        TypeIR::Verso,
+    );
     sigs.insert("caminho_existe".to_string(), TypeIR::Logica);
     sigs.insert("e_arquivo".to_string(), TypeIR::Logica);
     sigs.insert("e_diretorio".to_string(), TypeIR::Logica);

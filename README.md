@@ -35,6 +35,7 @@ Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/ag
 - ergonomia prática mínima de argv nomeado em `--run` com `tem_argumento_nomeado(chave)` e `argumento_nomeado_ou(chave, padrao)`, suportando apenas `--chave valor` e `--chave=valor` sem parser amplo (Fase 141)
 - flags booleanas mínimas em `--run` com `tem_flag(chave)`, detectando presença literal de flags como `--quiet`/`--verbose` sem consumir valor seguinte e sem inferir presença a partir de `--chave=valor` (Fase 142)
 - ambiente mínimo de processo em `--run` com `ambiente_ou(chave, padrao)` para leitura de variável de ambiente com fallback de `verso` (Fase 95)
+- prioridade mínima entre argumento nomeado, ambiente e fallback textual em `--run` com `argumento_nomeado_ou_ambiente_ou(chave_arg, chave_env, padrao)`, preservando a ordem `CLI -> ambiente -> padrão` sem parser/configuração ampla (Fase 143)
 - diretório atual mínimo em `--run` com `diretorio_atual()` retornando `verso` (Fase 95)
 - introspecção mínima de caminho em `--run` com `caminho_existe(verso) -> logica` e `e_arquivo(verso) -> logica` (Fase 96)
 - refinamento mínimo de caminho em `--run` com `e_diretorio(verso) -> logica` e `juntar_caminho(verso, verso) -> verso` (Fase 97)
@@ -164,6 +165,9 @@ cargo run --bin pink -- --run examples/fase141_argumentos_nomeados_minimos_valid
 cargo run --bin pink -- --run examples/fase141_argumentos_nomeados_minimos_valido.pink -- --saida=out.txt --modo=rapido
 cargo run --bin pink -- --run examples/fase142_flags_booleanas_minimas_valido.pink -- --quiet
 cargo run --bin pink -- --run examples/fase142_flags_booleanas_minimas_valido.pink -- --quiet --saida out.txt
+cargo run --bin pink -- --run examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink -- --saida out.txt
+env PINKER_FASE143_SAIDA=env.txt cargo run --bin pink -- --run examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink
+env -u PINKER_FASE143_SAIDA cargo run --bin pink -- --run examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink
 cargo run --bin pink -- --run examples/fase95_ambiente_processo_minimo_valido.pink
 cargo run --bin pink -- --run examples/fase95_diretorio_atual_minimo_valido.pink
 cargo run --bin pink -- --run examples/fase95_argumento_ou_ambiente_ou_valido.pink -- Pinker
@@ -264,7 +268,7 @@ cargo run --bin pink -- build --out-dir saida examples/fase60_modulos_valido.pin
 - `--machine`: alvo textual abstrato de máquina de pilha (`vm` + `term`)
 - `--pseudo-asm`: backend textual normalizado final (`ins`/`term`)
 - `--asm-s`: backend textual `.s` com ABI textual mínima interna (derivado de `--selected`, sem ABI/registradores finais de plataforma)
-- `--run`: interpreta a Machine validada e executa `principal` (suporta `-- <args...>` para repasse de argv posicional em `argumento`, `tem_argumento`, `quantos_argumentos` e `argumento_ou`, além do recorte nomeado mínimo `tem_argumento_nomeado`/`argumento_nomeado_ou` com `--chave valor` e `--chave=valor` e do recorte de flags booleanas mínimas `tem_flag` com detecção de presença literal sem consumo de valor; inclui também leitura mínima de ambiente com `ambiente_ou`, diretório atual via `diretorio_atual`, introspecção/composição mínima de caminho com `caminho_existe`/`e_arquivo`/`e_diretorio`/`juntar_caminho`, metadados mínimos de arquivo com `tamanho_arquivo`/`e_vazio`, leitura textual mínima via `ler_verso_arquivo(handle)` e leitura textual direta por caminho via `ler_arquivo_verso(verso)`/`arquivo_ou(verso, verso)`, escrita textual mínima via `escrever_verso(handle, verso)`/`criar_arquivo(verso)`, truncamento mínimo via `truncar_arquivo(handle)`, observação textual mínima com `contem_verso`/`comeca_com`/`termina_com`/`igual_verso` e mutação mínima controlada com `criar_diretorio`/`remover_arquivo`/`remover_diretorio`)
+- `--run`: interpreta a Machine validada e executa `principal` (suporta `-- <args...>` para repasse de argv posicional em `argumento`, `tem_argumento`, `quantos_argumentos` e `argumento_ou`, além do recorte nomeado mínimo `tem_argumento_nomeado`/`argumento_nomeado_ou` com `--chave valor` e `--chave=valor`, do recorte de flags booleanas mínimas `tem_flag` com detecção de presença literal sem consumo de valor e da prioridade mínima `argumento_nomeado_ou_ambiente_ou(chave_arg, chave_env, padrao)` para `CLI -> ambiente -> padrão`; inclui também leitura mínima de ambiente com `ambiente_ou`, diretório atual via `diretorio_atual`, introspecção/composição mínima de caminho com `caminho_existe`/`e_arquivo`/`e_diretorio`/`juntar_caminho`, metadados mínimos de arquivo com `tamanho_arquivo`/`e_vazio`, leitura textual mínima via `ler_verso_arquivo(handle)` e leitura textual direta por caminho via `ler_arquivo_verso(verso)`/`arquivo_ou(verso, verso)`, escrita textual mínima via `escrever_verso(handle, verso)`/`criar_arquivo(verso)`, truncamento mínimo via `truncar_arquivo(handle)`, observação textual mínima com `contem_verso`/`comeca_com`/`termina_com`/`igual_verso` e mutação mínima controlada com `criar_diretorio`/`remover_arquivo`/`remover_diretorio`)
 
 ## Pipeline de backend textual
 `--pseudo-asm` executa:

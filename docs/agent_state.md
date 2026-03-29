@@ -10,7 +10,7 @@
 - Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
 ## 2. Estado corrente
-- Fase funcional atual: **142 — ergonomia prática de script: flags booleanas mínimas (camada 1 conservadora)**.
+- Fase funcional atual: **143 — ergonomia prática de script: prioridade mínima entre argumento nomeado e ambiente (camada 1 conservadora)**.
 - Bloco ativo: **11 — texto prático, scripts e ergonomia cotidiana**.
 - Frente pausada (oficial e não abandonada): **editor/TUI oficial da Pinker (aberto na Fase 136)**.
 - Rodada documental mais recente: **Doc-26 — enxugamento estrutural e disciplina de papéis documentais**.

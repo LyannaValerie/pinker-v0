@@ -91,6 +91,17 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         ),
     );
     sigs.insert(
+        "argumento_nomeado_ou_ambiente_ou".to_string(),
+        (
+            TypeIR::Verso,
+            vec![
+                StackValueType::Verso,
+                StackValueType::Verso,
+                StackValueType::Verso,
+            ],
+        ),
+    );
+    sigs.insert(
         "caminho_existe".to_string(),
         (TypeIR::Logica, vec![StackValueType::Verso]),
     );

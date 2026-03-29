@@ -1517,6 +1517,57 @@ impl SemanticChecker {
             }
             return Ok(Type::Verso(expr_span));
         }
+        if name == "argumento_nomeado_ou_ambiente_ou" {
+            if args.len() != 3 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'argumento_nomeado_ou_ambiente_ou' com aridade inválida: esperado 3, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let arg_key_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(arg_key_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'argumento_nomeado_ou_ambiente_ou': esperado 'verso', encontrado '{}'",
+                        arg_key_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let env_key_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(env_key_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'argumento_nomeado_ou_ambiente_ou': esperado 'verso', encontrado '{}'",
+                        env_key_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            let default_ty = self.check_value_expr(
+                &args[2],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(default_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 3 da chamada 'argumento_nomeado_ou_ambiente_ou': esperado 'verso', encontrado '{}'",
+                        default_ty.name()
+                    ),
+                    span: args[2].span,
+                });
+            }
+            return Ok(Type::Verso(expr_span));
+        }
         if name == "caminho_existe" {
             if args.len() != 1 {
                 return Err(PinkerError::Semantic {

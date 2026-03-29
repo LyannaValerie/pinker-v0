@@ -313,6 +313,42 @@ fn ambiente_ou_intrinseca_rejeita_chave_nao_verso() {
 }
 
 #[test]
+fn argumento_nomeado_ou_ambiente_ou_intrinseca_valida_sem_declaracao() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo tamanho_verso(argumento_nomeado_ou_ambiente_ou("--saida", "PINKER_OUT", "padrao"));
+        }"#;
+    assert!(parse_and_check(source).is_ok());
+}
+
+#[test]
+fn argumento_nomeado_ou_ambiente_ou_intrinseca_rejeita_segundo_argumento_nao_verso() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo tamanho_verso(argumento_nomeado_ou_ambiente_ou("--saida", 1, "padrao"));
+        }"#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(
+        err.contains("tipo inválido no argumento 2 da chamada 'argumento_nomeado_ou_ambiente_ou'")
+    );
+}
+
+#[test]
+fn argumento_nomeado_ou_ambiente_ou_intrinseca_rejeita_terceiro_argumento_nao_verso() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo tamanho_verso(argumento_nomeado_ou_ambiente_ou("--saida", "PINKER_OUT", 1));
+        }"#;
+    let err = parse_and_check(source).unwrap_err().to_string();
+    assert!(
+        err.contains("tipo inválido no argumento 3 da chamada 'argumento_nomeado_ou_ambiente_ou'")
+    );
+}
+
+#[test]
 fn caminho_existe_intrinseca_valida_sem_declaracao() {
     let source = r#"
         pacote main;
@@ -589,6 +625,17 @@ fn tem_flag_intrinseca_rejeita_aridade_diferente_de_um() {
         carinho principal() -> bombom { talvez tem_flag("--quiet", "--verbose") { mimo 1; } senao { mimo 0; } }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'tem_flag' com aridade inválida"));
+}
+
+#[test]
+fn argumento_nomeado_ou_ambiente_ou_intrinseca_rejeita_aridade_invalida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo tamanho_verso(argumento_nomeado_ou_ambiente_ou("--saida", "PINKER_OUT"));
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("chamada de 'argumento_nomeado_ou_ambiente_ou' com aridade inválida"));
 }
 
 #[test]
