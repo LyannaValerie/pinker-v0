@@ -1,0 +1,7 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova base: seta<[u8; 3]> = 1;
+    (*base)[1] = 5;
+    mimo 0;
+}

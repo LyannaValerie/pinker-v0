@@ -2070,3 +2070,60 @@ fn literal_bombom_sem_limite_aceito() {
     "#;
     assert!(parse_and_check(code).is_ok());
 }
+
+// ── Fase 148: escrita por índice em array fixo [bombom; N] ───────────────────
+
+#[test]
+fn escrita_por_indice_em_array_fixo_bombom_valida() {
+    let code = r#"
+        pacote main;
+        carinho escreve(a: [bombom; 3], i: bombom) { a[i] = 5; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn escrita_por_indice_com_indice_nao_bombom_falha() {
+    let code = r#"
+        pacote main;
+        carinho escreve(a: [bombom; 3], ok: logica) { a[ok] = 5; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("índice de escrita nesta fase deve ser 'bombom'"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn escrita_por_indice_em_base_nao_array_falha() {
+    let code = r#"
+        pacote main;
+        carinho escreve(v: bombom, i: bombom) { v[i] = 5; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("escrita por índice exige base de array fixo nesta fase"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn escrita_por_indice_com_valor_nao_bombom_falha() {
+    let code = r#"
+        pacote main;
+        carinho escreve(a: [bombom; 3], i: bombom, ok: logica) { a[i] = ok; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("tipo incompatível na escrita por índice"),
+        "{}",
+        err
+    );
+}

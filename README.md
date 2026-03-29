@@ -40,6 +40,7 @@ Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/ag
 - exportação mínima de `apelido` via `trazer` no sistema de módulos tipado (camada 1 conservadora): `apelido` de módulo importado passa a ser resolvível no arquivo consumidor para declarações locais, assinaturas e cast tipado já suportado, sem abrir `pub/priv`, exportação seletiva ou redesign amplo (Fase 145)
 - uso qualificado mínimo de tipo importado no sistema de módulos tipado (camada 1 conservadora): tipos exportados por módulo importado passam a aceitar referência qualificada em contexto tipado (`modulo.Tipo`) para declaração local, assinatura e cast tipado já suportado, mantendo recorte conservador sem `pub/priv`, sem reexportação e sem namespaces amplos (Fase 146)
 - array fixo operacional mínimo por valor no Bloco 13 (camada 1 conservadora): indexação `a[i]` para `a: [bombom; N]` em contexto real mínimo (`param/local`) sem heap, sem coleção dinâmica, sem métodos e sem sintaxe nova (Fase 147)
+- escrita mínima por índice em array fixo `[bombom; N]` no Bloco 13 (camada 1 conservadora): `a[i] = valor` para `a: [bombom; N]` e índice `bombom`, complementando a leitura da Fase 147 sem heap, sem coleções dinâmicas e sem sintaxe nova (Fase 148)
 - diretório atual mínimo em `--run` com `diretorio_atual()` retornando `verso` (Fase 95)
 - introspecção mínima de caminho em `--run` com `caminho_existe(verso) -> logica` e `e_arquivo(verso) -> logica` (Fase 96)
 - refinamento mínimo de caminho em `--run` com `e_diretorio(verso) -> logica` e `juntar_caminho(verso, verso) -> verso` (Fase 97)
@@ -253,6 +254,8 @@ cargo run --bin pink -- --check examples/fase68_ptr_aritmetica_invalida.pink
 cargo run --bin pink -- --run examples/fase69_ninho_campo_operacional_invalido.pink
 cargo run --bin pink -- --run examples/fase147_array_fixo_operacional_minimo_valido.pink
 cargo run --bin pink -- --run examples/fase147_array_fixo_operacional_minimo_invalido.pink
+cargo run --bin pink -- --run examples/fase148_array_fixo_escrita_indice_minima_valido.pink
+cargo run --bin pink -- --check examples/fase148_array_fixo_escrita_indice_elemento_nao_bombom_invalido.pink
 cargo run --bin pink -- --cfg-ir examples/fase61_verso_cfg_ir_invalido.pink
 cargo run --bin pink -- --run examples/fase60_modulos_valido.pink
 cargo run --bin pink -- --check examples/fase60_modulo_ausente.pink

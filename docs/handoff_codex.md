@@ -5,12 +5,12 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 147 — coleções e estruturas de dados básicas: array fixo operacional mínimo por valor (camada 1 conservadora)**.
+- **Fase 148 — coleções e estruturas de dados básicas: escrita mínima por índice em array fixo `[bombom; N]` (camada 1 conservadora)**.
 
 ## 2. Resultado operacional da rodada
-- Primeira fase funcional do Bloco 13 entregue com recorte mínimo auditável de array fixo homogêneo `[bombom; N]` por valor.
-- Indexação operacional mínima por valor aberta para `a[i]` quando `a: [bombom; N]`, preservando o recorte anterior de `(*ptr)[i]`.
-- Cobertura funcional adicionada com exemplos/testes versionados da Fase 147 (caso válido e negativo essencial).
+- Segunda fase funcional do Bloco 13 entregue com recorte mínimo auditável de escrita por índice em array fixo homogêneo `[bombom; N]`.
+- Atribuição `a[i] = valor` aberta para `a: [bombom; N]` com índice `bombom`, complementando a leitura da Fase 147.
+- Cobertura funcional adicionada com exemplos/testes versionados da Fase 148 (caso válido, leitura após escrita e negativos essenciais).
 - Continuidade conservadora preservada: sem heap, sem coleções dinâmicas, sem iteradores e sem sintaxe nova rica.
 
 ## 3. Próximo passo correto

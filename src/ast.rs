@@ -464,6 +464,7 @@ pub enum AssignTarget {
     Ident(String),
     Deref(Box<Expr>),
     FieldDeref { base: Box<Expr>, field: String },
+    Index { base: Box<Expr>, index: Box<Expr> },
 }
 
 impl AssignStmt {
@@ -489,6 +490,13 @@ impl AssignStmt {
                 writer.field_str("node", "AssignTargetFieldDeref");
                 writer.field_value("base", |writer| base.write_json(writer));
                 writer.field_str("field", field);
+                writer.end_object();
+            }
+            AssignTarget::Index { base, index } => {
+                writer.begin_object();
+                writer.field_str("node", "AssignTargetIndex");
+                writer.field_value("base", |writer| base.write_json(writer));
+                writer.field_value("index", |writer| index.write_json(writer));
                 writer.end_object();
             }
         });
