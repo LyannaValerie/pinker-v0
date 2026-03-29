@@ -705,18 +705,29 @@ fn validate_block(
             } => {
                 let ptr_ty =
                     infer_operand_type(ptr, slot_types, &temp_types, global_consts, function.span)?;
-                let TypeIR::Pointer {
-                    is_volatile: ptr_is_volatile,
-                } = ptr_ty
-                else {
-                    return Err(cfg_error(
-                        "deref_load exige operando do tipo ponteiro",
-                        function.span,
-                    ));
+                let ptr_is_volatile = match ptr_ty {
+                    TypeIR::Pointer { is_volatile } => Some(is_volatile),
+                    TypeIR::FixedArray {
+                        element: crate::ir::ScalarTypeIR::Bombom,
+                        ..
+                    } => None,
+                    _ => {
+                        return Err(cfg_error(
+                            "deref_load exige operando do tipo ponteiro",
+                            function.span,
+                        ));
+                    }
                 };
-                if ptr_is_volatile != *is_volatile {
+                if let Some(ptr_is_volatile) = ptr_is_volatile {
+                    if ptr_is_volatile != *is_volatile {
+                        return Err(cfg_error(
+                            "deref_load com metadata de volatilidade inconsistente",
+                            function.span,
+                        ));
+                    }
+                } else if *is_volatile {
                     return Err(cfg_error(
-                        "deref_load com metadata de volatilidade inconsistente",
+                        "deref_load com array por valor não aceita metadata fragil nesta fase",
                         function.span,
                     ));
                 }
@@ -814,7 +825,14 @@ fn validate_block(
                     | crate::ir::BinaryOpIR::Shr => {
                         let pointer_offset_ok =
                             matches!(op, crate::ir::BinaryOpIR::Add | crate::ir::BinaryOpIR::Sub)
-                                && matches!(lhs_ty, TypeIR::Pointer { .. })
+                                && (matches!(lhs_ty, TypeIR::Pointer { .. })
+                                    || matches!(
+                                        lhs_ty,
+                                        TypeIR::FixedArray {
+                                            element: crate::ir::ScalarTypeIR::Bombom,
+                                            ..
+                                        }
+                                    ))
                                 && matches!(rhs_ty, TypeIR::Bombom);
                         if pointer_offset_ok
                             || (lhs_ty.is_compatible_with(rhs_ty) && lhs_ty.is_integer())

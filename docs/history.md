@@ -829,6 +829,13 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com teste de parser para tipo qualificado e testes de CLI para caso válido + negativos de tipo qualificado inexistente e módulo não importado.
 - Exemplos canônicos adicionados: `examples/fase146_modulo_tipo_qualificado_valido.pink`, `examples/fase146_modulo_tipo_qualificado_tipos.pink`, `examples/fase146_modulo_tipo_qualificado_inexistente_invalido.pink` e `examples/fase146_modulo_tipo_qualificado_modulo_nao_importado_invalido.pink`.
 
+147 - coleções e estruturas de dados básicas: array fixo operacional mínimo por valor (camada 1 conservadora)
+- Primeira fase funcional do Bloco 13.
+- Abre o primeiro recorte estrutural útil do bloco com array fixo homogêneo no menor uso operacional auditável.
+- Indexação por valor `a[i]` para `a: [bombom; N]` passa a operar no `--run` em contexto real mínimo (incluindo fluxo por parâmetro/local), preservando também o recorte já existente via `(*ptr)[i]`.
+- Mantém o recorte conservador: sem heap, sem coleções dinâmicas, sem biblioteca ampla de coleções e sem sintaxe rica nova.
+- Cobertura adicionada com testes de CFG/runtime/CLI e exemplos versionados: `examples/fase147_array_fixo_operacional_minimo_valido.pink` e `examples/fase147_array_fixo_operacional_minimo_invalido.pink`.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

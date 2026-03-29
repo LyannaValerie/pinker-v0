@@ -1470,16 +1470,22 @@ fn run_indexacao_operacional_em_array_via_seta_funciona() {
 }
 
 #[test]
-fn run_indexacao_operacional_falha_para_base_array_por_valor() {
-    let err = run_code(
+fn run_indexacao_operacional_em_array_por_valor_minima_funciona() {
+    let out = run_code(
         "pacote main;
+         eterno A: bombom = 10;
+         eterno B: bombom = 20;
+         eterno C: bombom = 30;
          carinho pega(a: [bombom; 3]) -> bombom {
              mimo a[1];
          }
-         carinho principal() -> bombom { mimo 0; }",
+         carinho principal() -> bombom {
+             nova base: seta<[bombom; 3]> = 1;
+             mimo pega(*base);
+         }",
     )
-    .unwrap_err();
-    assert!(err.contains("(*ptr)[i]"), "mensagem: {}", err);
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(20)));
 }
 
 #[test]
@@ -5019,14 +5025,26 @@ fn cli_run_indexacao_operacional_em_array_funciona_com_exemplo_versionado() {
 }
 
 #[test]
-fn cli_run_indexacao_operacional_em_array_fora_subset_falha_com_exemplo_versionado() {
-    let output = run_cli_example("examples/fase70_indexacao_array_operacional_invalido.pink");
+fn cli_run_fase147_array_fixo_operacional_minimo_por_valor_funciona_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase147_array_fixo_operacional_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("20"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_run_fase147_array_fixo_operacional_minimo_invalido_falha_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase147_array_fixo_operacional_minimo_invalido.pink");
     assert!(
         !output.status.success(),
-        "esperava falha operacional para indexação com array por valor"
+        "esperava falha operacional para array fora do recorte bombom"
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("(*ptr)[i]"), "stderr={}", stderr);
+    assert!(stderr.contains("[bombom; N]"), "stderr={}", stderr);
 }
 
 #[test]

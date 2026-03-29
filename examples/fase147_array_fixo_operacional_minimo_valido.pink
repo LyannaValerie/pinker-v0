@@ -1,0 +1,15 @@
+pacote main;
+
+eterno A: bombom = 10;
+eterno B: bombom = 20;
+eterno C: bombom = 30;
+
+carinho pega(a: [bombom; 3]) -> bombom {
+    mimo a[1];
+}
+
+carinho principal() -> bombom {
+    nova base: seta<[bombom; 3]> = 1;
+    falar(pega(*base));
+    mimo 0;
+}

@@ -10,12 +10,12 @@
 - Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
 ## 2. Estado corrente
-- Fase funcional atual: **146 — sistema de módulos tipado: uso qualificado mínimo de tipo importado (camada 1 conservadora)**.
+- Fase funcional atual: **147 — coleções e estruturas de dados básicas: array fixo operacional mínimo por valor (camada 1 conservadora)**.
 - Bloco encerrado: **11 — texto prático, scripts e ergonomia cotidiana (encerrado por suficiência conservadora na Doc-27)**.
 - Bloco encerrado: **12 — sistema de módulos tipado (encerrado por suficiência conservadora na Doc-28)**.
-- Próximo bloco formal da trilha ativa: **13 — coleções e estruturas de dados básicas**.
+- Bloco formal da trilha ativa: **13 — coleções e estruturas de dados básicas**.
 - Frente pausada (oficial e não abandonada): **editor/TUI oficial da Pinker (aberto na Fase 136)**.
-- Rodada documental mais recente: **Doc-28 — fechamento canônico do Bloco 12 e preparação formal da transição para o Bloco 13**.
+- Rodada documental mais recente: **Doc-28 — fechamento canônico do Bloco 12 e preparação formal da transição para o Bloco 13** (última rodada documental, sem nova Doc nesta fase funcional).
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) com trilha MCP mínima posteriormente removida por segurança**.
 - Último hotfix aplicado: **HF-5 — ajuste de conformidade Clippy pós-Fase 136**.
 
