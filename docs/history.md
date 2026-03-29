@@ -781,6 +781,18 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo canônico criado: `examples/fase141_argumentos_nomeados_minimos_valido.pink`.
 - O que continua fora: parser amplo de flags, short flags, aliases automáticos, múltiplos valores por chave, integração com env na mesma API, coleções de argumentos, JSON/CSV, REPL e subprocessos.
 
+142 - ergonomia prática de script: flags booleanas mínimas (camada 1 conservadora)
+- Sexta fase funcional do Bloco 11.
+- Abre um recorte mínimo, útil e auditável de flags booleanas por presença no `--run`.
+- Adiciona `tem_flag(verso) -> logica`.
+- Suporta apenas flags literais completas como `--quiet`/`--verbose`/`--force`: retorna `verdade` se a flag aparecer literalmente no argv, `falso` caso contrário.
+- Não infere presença a partir de `--chave=valor` ou `--chave valor`; cada forma tem seu intrínseco correto.
+- Chave vazia é rejeitada em runtime com diagnóstico explícito para evitar ambiguidade operacional.
+- Coexistência confirmada com `argumento_nomeado_ou` e argv posicional sem regressão.
+- Cobertura adicionada com testes semânticos, testes de runtime (presença/ausência/coexistência/negativo/chave vazia) e testes de CLI para flag simples e mistura flag+nomeado.
+- Exemplo canônico criado: `examples/fase142_flags_booleanas_minimas_valido.pink`.
+- O que continua fora: short flags (`-q`), grupos de short flags (`-abc`), `--no-flag`, aliases automáticos, flags com valor interpretadas por este intrínseco, parser amplo de CLI, tipagem automática, subcomandos, integração com env vars, coleções de flags, JSON/CSV, REPL e subprocessos.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

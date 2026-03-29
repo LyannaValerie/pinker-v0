@@ -1454,6 +1454,31 @@ impl SemanticChecker {
             }
             return Ok(Type::Verso(expr_span));
         }
+        if name == "tem_flag" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'tem_flag' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let key_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(key_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'tem_flag': esperado 'verso', encontrado '{}'",
+                        key_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Logica(expr_span));
+        }
         if name == "ambiente_ou" {
             if args.len() != 2 {
                 return Err(PinkerError::Semantic {

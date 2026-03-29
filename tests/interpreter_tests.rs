@@ -840,6 +840,126 @@ fn run_argumento_nomeado_ou_rejeita_chave_vazia() {
 }
 
 #[test]
+fn run_tem_flag_verdade_quando_flag_presente() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_flag("--quiet") {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+        &["--quiet"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_tem_flag_verdade_para_verbose() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_flag("--verbose") {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+        &["--verbose"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_tem_flag_falso_quando_ausente() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_flag("--inexistente") {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+        &["--quiet"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn run_tem_flag_nao_infere_presenca_de_chave_com_valor_separado() {
+    // --saida resultado.txt não deve ser detectado como flag booleana --saida
+    // tem_flag verifica presença literal apenas: --saida é seguido de valor, mas
+    // neste argv o elemento literal "--saida" ainda aparece — então retorna verdade.
+    // O teste relevante é: --saida=valor (forma com =) não deve vazar como flag.
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_flag("--saida") {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+        &["--saida=resultado.txt"],
+    )
+    .unwrap();
+    // "--saida=resultado.txt" não é igual literal a "--saida", portanto falso
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn run_tem_flag_coexiste_com_argumento_nomeado() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova tem_quiet: logica = tem_flag("--quiet");
+            nova saida: verso = argumento_nomeado_ou("--saida", "padrao.txt");
+            talvez tem_quiet {
+                falar(saida);
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+        &["--quiet", "--saida", "out.txt"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_tem_flag_rejeita_chave_vazia() {
+    let err = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_flag("") {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+        &["--quiet"],
+    )
+    .unwrap_err();
+    assert!(
+        err.contains("intrínseca 'tem_flag' exige chave não vazia"),
+        "erro: {}",
+        err
+    );
+}
+
+#[test]
 fn run_falar_multiplos_argumentos_bombom_funciona() {
     let out = run_code(
         r#"
@@ -3303,6 +3423,32 @@ fn cli_run_argumento_nomeado_sem_valor_falha_com_erro_claro() {
         stderr.contains("intrínseca 'argumento_nomeado_ou' encontrou chave '--saida' sem valor"),
         "stderr: {}",
         stderr
+    );
+}
+
+#[test]
+fn cli_run_flags_booleanas_minimas_funcionam_com_quiet() {
+    let out = run_cli_example_with_args(
+        "examples/fase142_flags_booleanas_minimas_valido.pink",
+        &["--quiet"],
+    );
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "verdade\nfalso\npadrao.txt\n0\n"
+    );
+}
+
+#[test]
+fn cli_run_flags_booleanas_minimas_funcionam_com_mistura_de_flag_e_nomeado() {
+    let out = run_cli_example_with_args(
+        "examples/fase142_flags_booleanas_minimas_valido.pink",
+        &["--quiet", "--saida", "out.txt"],
+    );
+    assert!(out.status.success(), "{:?}", out);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "verdade\nfalso\nout.txt\n0\n"
     );
 }
 

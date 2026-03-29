@@ -16,7 +16,7 @@
 - Limpeza histórica da remoção de MCP concluída em `docs/history.md` e `docs/agent_state.md` sem marcações visuais de remendo.
 
 ## 3. Próximo passo correto
-- Seguir a trilha funcional já aberta no Bloco 11, mantendo fases pequenas e auditáveis após a Fase 141.
+- Seguir a trilha funcional já aberta no Bloco 11, mantendo fases pequenas e auditáveis após a Fase 142.
 
 ## 4. Restrições explícitas
 - Sem abrir fase funcional nova nesta rodada documental.

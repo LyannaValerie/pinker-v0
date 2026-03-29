@@ -37,7 +37,7 @@
 - tooling de projeto além do `pink build` mínimo;
 - evolução prudente de `verso` sem abrir biblioteca textual gigante de uma vez;
 - **exportação de tipos pelo sistema de módulos**: `ninho` e `apelido` ainda não são exportáveis via `trazer`; hoje apenas `carinho` e `eterno` são exportáveis; bibliotecas `.pink` reutilizáveis com tipos compartilhados dependem desse fechamento (registrado como pendência inaugural do Bloco 12).
-- No Bloco 11, já houve arranque funcional (Fases 137–141) com recortes mínimos de texto e ergonomia de script; permanecem lacunas pequenas de utilidade cotidiana sem cobertura ainda.
+- No Bloco 11, já houve arranque funcional (Fases 137–142) com recortes mínimos de texto e ergonomia de script; permanecem lacunas pequenas de utilidade cotidiana sem cobertura ainda.
 
 Itens explicitamente para depois do foco inicial do Bloco 11:
 - REPL;

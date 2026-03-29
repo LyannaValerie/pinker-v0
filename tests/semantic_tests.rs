@@ -566,6 +566,32 @@ fn argumento_nomeado_ou_intrinseca_rejeita_aridade_invalida() {
 }
 
 #[test]
+fn tem_flag_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom { talvez tem_flag("--quiet") { mimo 1; } senao { mimo 0; } }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn tem_flag_intrinseca_rejeita_argumento_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom { talvez tem_flag(1) { mimo 1; } senao { mimo 0; } }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'tem_flag'"));
+}
+
+#[test]
+fn tem_flag_intrinseca_rejeita_aridade_diferente_de_um() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom { talvez tem_flag("--quiet", "--verbose") { mimo 1; } senao { mimo 0; } }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("chamada de 'tem_flag' com aridade inválida"));
+}
+
+#[test]
 fn sair_intrinseca_valida_sem_declaracao() {
     let code = "
         pacote main;

@@ -1392,6 +1392,21 @@ fn try_call_intrinsic(
                 ))),
             }
         }
+        "tem_flag" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'tem_flag' exige 1 argumento (chave verso)",
+                ));
+            }
+            let RuntimeValue::Str(key) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'tem_flag' exige chave em verso",
+                ));
+            };
+            ensure_named_arg_key_valid("tem_flag", key)?;
+            let found = io_state.cli_args.iter().any(|a| a == key);
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(found))))
+        }
         "ambiente_ou" => {
             if args.len() != 2 {
                 return Err(runtime_err(
