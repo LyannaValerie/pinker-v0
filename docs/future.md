@@ -37,7 +37,7 @@
 - tooling de projeto além do `pink build` mínimo;
 - evolução prudente de `verso` sem abrir biblioteca textual gigante de uma vez;
 - **exportação de tipos pelo sistema de módulos**: `ninho` e `apelido` ainda não são exportáveis via `trazer`; hoje apenas `carinho` e `eterno` são exportáveis; bibliotecas `.pink` reutilizáveis com tipos compartilhados dependem desse fechamento (registrado como pendência inaugural do Bloco 12).
-- No Bloco 11, o arranque funcional começou com `split` mínimo (Fase 137: `dividir_verso_em` e `dividir_verso_contar`); a Fase 138 abriu `replace` mínimo (`substituir_verso`); a Fase 139 abriu `join` mínimo (`juntar_verso_com`); a Fase 140 abriu busca textual mínima (`buscar_verso`); a Fase 141 abriu argumentos nomeados mínimos (`tem_argumento_nomeado` e `argumento_nomeado_ou`); continuação esperada com utilitários práticos e ergonomia de script ainda não cobertos.
+- No Bloco 11, já houve arranque funcional (Fases 137–141) com recortes mínimos de texto e ergonomia de script; permanecem lacunas pequenas de utilidade cotidiana sem cobertura ainda.
 
 Itens explicitamente para depois do foco inicial do Bloco 11:
 - REPL;
@@ -50,9 +50,9 @@ Itens explicitamente para depois do foco inicial do Bloco 11:
 ### 2.4 Editor/TUI oficial da Pinker (frente funcional aberta em camada 1, atualmente pausada)
 
 - A Fase 136 abriu a base funcional inicial do editor/TUI oficial da Pinker.
-- O recorte atual permanece pequeno: abrir `.pink`, mostrar conteúdo em TUI mínima e executar ação Pinker real com saída no painel.
+- O recorte técnico permanece pequeno e conservador.
 - O editor/TUI continua sem substituir o compilador/backend como fundação técnica; o backend permanece consolidado e preservado.
-- Após a Doc-25, a continuidade funcional do editor/TUI foi pausada por decisão estratégica para priorizar a abertura do Bloco 11.
+- A continuidade funcional dessa frente segue pausada por decisão estratégica.
 
 Papel inicial do subprojeto:
 - superfície própria de uso da Pinker para edição, execução e visualização de diagnósticos;
