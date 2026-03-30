@@ -2209,3 +2209,33 @@ fn lista_bombom_definir_rejeita_valor_nao_bombom() {
         err
     );
 }
+
+#[test]
+fn lista_bombom_tirar_ultimo_valida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova l: lista<bombom> = lista_bombom_criar();
+            lista_bombom_anexar(l, 10);
+            lista_bombom_anexar(l, 20);
+            mimo lista_bombom_tirar_ultimo(l);
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn lista_bombom_tirar_ultimo_rejeita_argumento_fora_do_recorte() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo lista_bombom_tirar_ultimo("oi");
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("argumento 1 da chamada 'lista_bombom_tirar_ultimo'"),
+        "{}",
+        err
+    );
+}

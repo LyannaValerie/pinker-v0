@@ -6174,3 +6174,115 @@ fn cli_run_fase150_lista_bombom_definir_fluxo_composto_funciona_com_exemplo_vers
     assert!(stdout.contains('2'), "stdout={}", stdout);
     assert!(stdout.contains("10"), "stdout={}", stdout);
 }
+
+// ── Fase 151: remoção mínima do fim em lista<bombom> ───────────────────────
+
+#[test]
+fn run_lista_bombom_tirar_ultimo_minimo_funciona() {
+    let out = run_code(
+        "pacote main;
+         carinho principal() -> bombom {
+             nova l: lista<bombom> = lista_bombom_criar();
+             lista_bombom_anexar(l, 7);
+             lista_bombom_anexar(l, 11);
+             mimo lista_bombom_tirar_ultimo(l);
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(11)));
+}
+
+#[test]
+fn run_lista_bombom_tirar_ultimo_fluxo_composto_funciona() {
+    let out = run_code(
+        "pacote main;
+         carinho carregar() -> lista<bombom> {
+             nova itens: lista<bombom> = lista_bombom_criar();
+             lista_bombom_anexar(itens, 4);
+             lista_bombom_anexar(itens, 8);
+             lista_bombom_anexar(itens, 15);
+             mimo itens;
+         }
+         carinho fechar_lote(itens: lista<bombom>) -> bombom {
+             mimo lista_bombom_tirar_ultimo(itens);
+         }
+         carinho principal() -> bombom {
+             nova itens: lista<bombom> = carregar();
+             nova retirado: bombom = fechar_lote(itens);
+             falar(retirado);
+             falar(lista_bombom_tamanho(itens));
+             mimo lista_bombom_obter(itens, 1);
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(8)));
+}
+
+#[test]
+fn run_lista_bombom_tirar_ultimo_em_lista_vazia_falha_claro() {
+    let err = run_code(
+        "pacote main;
+         carinho principal() -> bombom {
+             nova l: lista<bombom> = lista_bombom_criar();
+             mimo lista_bombom_tirar_ultimo(l);
+         }",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("lista vazia em 'lista_bombom_tirar_ultimo'"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn cli_check_fase151_lista_bombom_tirar_ultimo_minimo_valido() {
+    let output =
+        run_cli_check_example("examples/fase151_lista_bombom_tirar_ultimo_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase151_lista_bombom_tirar_ultimo_minimo_funciona_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase151_lista_bombom_tirar_ultimo_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("11"), "stdout={}", stdout);
+    assert!(stdout.contains('1'), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_check_fase151_lista_bombom_tirar_ultimo_fluxo_composto_valido() {
+    let output = run_cli_check_example(
+        "examples/fase151_lista_bombom_tirar_ultimo_fluxo_composto_valido.pink",
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase151_lista_bombom_tirar_ultimo_fluxo_composto_funciona_com_exemplo_versionado() {
+    let output =
+        run_cli_example("examples/fase151_lista_bombom_tirar_ultimo_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("15"), "stdout={}", stdout);
+    assert!(stdout.contains('2'), "stdout={}", stdout);
+    assert!(stdout.contains('8'), "stdout={}", stdout);
+}
