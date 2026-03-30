@@ -14,16 +14,23 @@ pacote main;
 //   · recursão + iteração
 //
 // Algoritmos implementados:
-//   1. Ordenação por Bolha   — bubble sort em lista<bombom>
-//   2. Busca Binária         — sobre lista ordenada
-//   3. Estatísticas          — mínimo, máximo, soma, média, mediana
-//   4. Crivo de Eratóstenes  — primos até N via lista de flags
-//   5. Fibonacci com lista   — sequência completa até fib(N)
-//   6. MDC / MMC             — Euclides iterativo + identidade
-//   7. Potenciação rápida    — expt por exponenciação binária
-//   8. Contagem de bits      — popcount iterativo
-//   9. Frequência            — histograma via lista
-//  10. Verificação cruzada   — combina todos os resultados
+//   1. Ordenação por Bolha      — bubble sort em lista<bombom>
+//   2. Busca Binária            — sobre lista ordenada
+//   3. Estatísticas             — mínimo, máximo, soma, média, mediana
+//   4. Crivo de Eratóstenes     — primos até N via lista de flags
+//   5. Fibonacci com lista      — sequência completa até fib(N)
+//   6. MDC / MMC                — Euclides iterativo + identidade
+//   7. Potenciação rápida       — expt por exponenciação binária
+//   8. Contagem de bits         — popcount iterativo
+//   9. Frequência               — histograma via lista
+//  10. Verificação cruzada      — combina todos os resultados
+//  11. Texto (verso)            — palíndromo, case, busca, substituição, barra
+//  12. Parsing CSV              — split, join, formatação estruturada
+//  13. Hashing FNV-1a           — hash de inteiros e strings, checksums
+//  14. Collatz / raiz / fatorial — teoria dos números avançada
+//  15. Persistência em arquivo  — criar, escrever, ler, verificar, limpar
+//  16. Introspecção de tipos    — peso(), alinhamento(), virar (cast)
+//  17. Verificação cruzada final — invariantes sobre todos os módulos
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ── Constantes globais ─────────────────────────────────────────────────────
@@ -462,6 +469,267 @@ carinho xor_lista(lst: lista<bombom>) -> bombom {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// MÓDULO 4 — Processamento de texto (verso)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Verifica se um verso é palíndrome (caractere a caractere)
+carinho eh_palindromo_texto(texto: verso) -> logica {
+    nova tam: bombom = tamanho_verso(texto);
+    talvez tam < DOIS {
+        mimo verdade;
+    }
+    nova muda esq: bombom = ZERO;
+    nova muda dir: bombom = tam - UM;
+    sempre que esq < dir {
+        nova ch_e: verso = indice_verso(texto, esq);
+        nova ch_d: verso = indice_verso(texto, dir);
+        talvez !igual_verso(ch_e, ch_d) {
+            mimo falso;
+        }
+        esq = esq + UM;
+        dir = dir - UM;
+    }
+    mimo verdade;
+}
+
+// Repete um verso N vezes por concatenação
+carinho repetir_verso(texto: verso, vezes: bombom) -> verso {
+    nova muda resultado: verso = "";
+    nova muda i: bombom = ZERO;
+    sempre que i < vezes {
+        resultado = juntar_verso(resultado, texto);
+        i = i + UM;
+    }
+    mimo resultado;
+}
+
+// Conta quantas vezes um caractere (alvo) aparece num texto
+carinho contar_char(texto: verso, alvo: verso) -> Contador {
+    nova tam: bombom = tamanho_verso(texto);
+    nova muda cnt: Contador = ZERO;
+    nova muda i: bombom = ZERO;
+    sempre que i < tam {
+        nova ch: verso = indice_verso(texto, i);
+        talvez igual_verso(ch, alvo) {
+            cnt = cnt + UM;
+        }
+        i = i + UM;
+    }
+    mimo cnt;
+}
+
+// Barra de progresso visual: [####........] proporcional a atual/total
+carinho barra_progresso(atual: bombom, total: bombom) -> verso {
+    nova largura: bombom = 20;
+    nova preenchido: bombom = (atual * largura) / total;
+    nova muda barra: verso = "[";
+    nova muda i: bombom = ZERO;
+    sempre que i < largura {
+        talvez i < preenchido {
+            barra = juntar_verso(barra, "#");
+        } senao {
+            barra = juntar_verso(barra, ".");
+        }
+        i = i + UM;
+    }
+    barra = juntar_verso(barra, "]");
+    mimo barra;
+}
+
+// Extrai N campos de uma linha CSV (separador dado) e retorna o campo no índice
+carinho campo_csv(linha: verso, separador: verso, indice: bombom) -> verso {
+    mimo dividir_verso_em(linha, separador, indice);
+}
+
+// Conta quantos campos uma linha CSV possui
+carinho total_campos_csv(linha: verso, separador: verso) -> bombom {
+    mimo dividir_verso_contar(linha, separador);
+}
+
+// Formata um par chave=valor em texto
+carinho formatar_par(chave: verso, valor: verso) -> verso {
+    nova muda resultado: verso = chave;
+    resultado = juntar_verso(resultado, "=");
+    resultado = juntar_verso(resultado, valor);
+    mimo resultado;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MÓDULO 5 — Hashing FNV-1a
+// ═══════════════════════════════════════════════════════════════════════════
+
+// FNV-1a hash de um bombom (processa byte a byte)
+carinho fnv1a_bombom(valor: bombom) -> bombom {
+    nova muda hash: bombom = 14695981039346656037;
+    nova muda v: bombom = valor;
+    nova muda i: bombom = ZERO;
+    sempre que i < 8 {
+        nova byte: bombom = v & MASCARA8;
+        hash = hash ^ byte;
+        hash = hash * 1099511628211;
+        v = v >> 8;
+        i = i + UM;
+    }
+    mimo hash;
+}
+
+// FNV-1a hash de um verso (processa caractere a caractere via tamanho_verso proxy)
+carinho fnv1a_verso(texto: verso) -> bombom {
+    nova muda hash: bombom = 14695981039346656037;
+    nova tam: bombom = tamanho_verso(texto);
+    nova muda i: bombom = ZERO;
+    sempre que i < tam {
+        nova ch: verso = indice_verso(texto, i);
+        // Usa tamanho do char como proxy de byte (1 para ASCII)
+        nova byte: bombom = tamanho_verso(ch);
+        hash = hash ^ byte;
+        hash = hash * 1099511628211;
+        i = i + UM;
+    }
+    mimo hash;
+}
+
+// Mistura de bits estilo MurmurHash finalizer
+carinho misturar_bits(valor: bombom) -> bombom {
+    nova muda h: bombom = valor;
+    h = h ^ (h >> 33);
+    h = h * 18397679294719823053;
+    h = h ^ (h >> 29);
+    h = h * 14181476777654086739;
+    h = h ^ (h >> 32);
+    mimo h;
+}
+
+// XOR checksum: fold de 64 bits em 16 bits
+carinho checksum_xor(valor: bombom) -> bombom {
+    nova muda resultado: bombom = ZERO;
+    nova muda v: bombom = valor;
+    nova muda i: bombom = ZERO;
+    sempre que i < 4 {
+        resultado = resultado ^ (v & 65535);
+        v = v >> 16;
+        i = i + UM;
+    }
+    mimo resultado;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MÓDULO 6 — Teoria dos números avançada
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Raiz quadrada inteira — método babilônico (Newton)
+carinho raiz_inteira(n: bombom) -> bombom {
+    talvez n == ZERO {
+        mimo ZERO;
+    }
+    nova muda x: bombom = n;
+    nova muda y: bombom = (x + UM) / DOIS;
+    sempre que y < x {
+        x = y;
+        y = (x + n / x) / DOIS;
+    }
+    mimo x;
+}
+
+// Sequência de Collatz: conta passos até convergir a 1
+carinho collatz_passos(n: bombom) -> bombom {
+    nova muda x: bombom = n;
+    nova muda passos: bombom = ZERO;
+    sempre que x != UM {
+        talvez passos > 500 {
+            mimo passos;
+        }
+        talvez resto(x, DOIS) == ZERO {
+            x = x / DOIS;
+        } senao {
+            x = TRES * x + UM;
+        }
+        passos = passos + UM;
+    }
+    mimo passos;
+}
+
+// Fatorial com proteção de overflow (satura ao detectar wrap-around)
+carinho fatorial(n: bombom) -> bombom {
+    nova muda resultado: bombom = UM;
+    nova muda i: bombom = DOIS;
+    sempre que i <= n {
+        nova novo: bombom = resultado * i;
+        talvez novo / i != resultado {
+            mimo resultado;
+        }
+        resultado = novo;
+        i = i + UM;
+    }
+    mimo resultado;
+}
+
+// Exponenciação modular: (base^exp) mod modulo
+carinho exp_mod(base: bombom, exp: bombom, modulo: bombom) -> bombom {
+    nova muda resultado: bombom = UM;
+    nova muda b: bombom = resto(base, modulo);
+    nova muda e: bombom = exp;
+    sempre que e > ZERO {
+        talvez (e & UM) == UM {
+            resultado = resto(resultado * b, modulo);
+        }
+        e = e >> UM;
+        b = resto(b * b, modulo);
+    }
+    mimo resultado;
+}
+
+// Bit reversal dos 8 bits inferiores
+carinho reverter_bits8(n: bombom) -> bombom {
+    nova muda x: bombom = n & MASCARA8;
+    nova muda resultado: bombom = ZERO;
+    nova muda i: bombom = ZERO;
+    sempre que i < 8 {
+        resultado = (resultado << UM) | (x & UM);
+        x = x >> UM;
+        i = i + UM;
+    }
+    mimo resultado;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MÓDULO 7 — Persistência em arquivo e sistema de arquivos
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Escreve um relatório completo num arquivo temporário e retorna o caminho
+carinho escrever_relatorio(dir_base: verso, conteudo: verso) -> verso {
+    nova caminho: verso = juntar_caminho(dir_base, "pinker_relatorio_avancado.txt");
+    nova h: bombom = criar_arquivo(caminho);
+    escrever_verso(h, conteudo);
+    fechar(h);
+    mimo caminho;
+}
+
+// Lê o conteúdo de um arquivo dado o caminho e retorna o texto
+carinho ler_relatorio(caminho: verso) -> verso {
+    mimo ler_arquivo_verso(caminho);
+}
+
+// Verifica integridade: escreve, lê, compara
+carinho verificar_escrita(dir_base: verso, texto: verso) -> logica {
+    nova caminho: verso = juntar_caminho(dir_base, "pinker_verificacao.txt");
+    nova h: bombom = criar_arquivo(caminho);
+    escrever_verso(h, texto);
+    fechar(h);
+    nova relido: verso = ler_arquivo_verso(caminho);
+    // Limpa: remove o arquivo temporário
+    remover_arquivo(caminho);
+    mimo igual_verso(texto, relido);
+}
+
+// Append incremental: abre em modo append e acrescenta linhas
+carinho append_linhas(caminho: verso, linha: verso) {
+    nova h: bombom = abrir_anexo(caminho);
+    anexar_verso(h, linha);
+    fechar(h);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // PONTO DE ENTRADA
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -707,6 +975,297 @@ carinho principal() -> bombom {
         + 31 + 37 + 41 + 43 + 47;
     talvez soma_manual == soma_p50 {
         falar(UM);   // 1 — crivo correto
+    } senao {
+        falar(ZERO);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 11 — Processamento de texto (verso)
+    // ────────────────────────────────────────────────────────────────────────
+    falar(11011);
+
+    // Operações básicas de string
+    nova saudacao: verso = juntar_verso("Pinker", " v0");
+    nova tam_saudacao: bombom = tamanho_verso(saudacao);
+    falar(saudacao);       // "Pinker v0"
+    falar(tam_saudacao);   // 9
+
+    nova primeiro_char: verso = indice_verso(saudacao, ZERO);
+    falar(primeiro_char);  // "P"
+
+    // Case conversion
+    nova minusc: verso = minusculo_verso(saudacao);
+    nova maiusc: verso = maiusculo_verso(saudacao);
+    falar(minusc);  // "pinker v0"
+    falar(maiusc);  // "PINKER V0"
+
+    // Busca e contenção
+    nova contem_v0: logica = contem_verso(saudacao, "v0");
+    nova comeca_P: logica = comeca_com(saudacao, "Pin");
+    nova termina_0: logica = termina_com(saudacao, "v0");
+    talvez contem_v0 { falar(UM); } senao { falar(ZERO); }   // 1
+    talvez comeca_P  { falar(UM); } senao { falar(ZERO); }   // 1
+    talvez termina_0 { falar(UM); } senao { falar(ZERO); }   // 1
+
+    // Substituição
+    nova substituido: verso = substituir_verso(saudacao, "v0", "v1");
+    falar(substituido);  // "Pinker v1"
+
+    // Trimming
+    nova com_espacos: verso = "   rosa   ";
+    nova aparado: verso = aparar_verso(com_espacos);
+    falar(aparado);  // "rosa"
+    nova vazio_apos_aparar: logica = vazio_verso(aparado);
+    talvez vazio_apos_aparar { falar(UM); } senao { falar(ZERO); }  // 0
+
+    // Contagem de caracteres
+    nova texto_teste: verso = "abracadabra";
+    nova contagem_a: Contador = contar_char(texto_teste, "a");
+    falar(contagem_a);  // 5
+
+    // Palíndromo textual
+    nova pal_arara: logica = eh_palindromo_texto("arara");
+    nova pal_pinker: logica = eh_palindromo_texto("pinker");
+    nova pal_aba: logica = eh_palindromo_texto("aba");
+    talvez pal_arara  { falar(UM); } senao { falar(ZERO); }  // 1
+    talvez pal_pinker { falar(UM); } senao { falar(ZERO); }  // 0
+    talvez pal_aba    { falar(UM); } senao { falar(ZERO); }  // 1
+
+    // Repetição de verso
+    nova estrelas: verso = repetir_verso("*", DEZ);
+    falar(estrelas);  // "**********"
+
+    // Barra de progresso
+    nova barra0: verso = barra_progresso(ZERO, DEZ);
+    nova barra5: verso = barra_progresso(5, DEZ);
+    nova barra10: verso = barra_progresso(DEZ, DEZ);
+    falar(barra0);   // "[....................]"
+    falar(barra5);   // "[##########..........]"
+    falar(barra10);  // "[####################]"
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 12 — Parsing CSV e manipulação estruturada de texto
+    // ────────────────────────────────────────────────────────────────────────
+    falar(12012);
+
+    nova csv_linha: verso = "nome:idade:cidade:pais";
+    nova total_csv: bombom = total_campos_csv(csv_linha, ":");
+    falar(total_csv);  // 4
+
+    nova campo0: verso = campo_csv(csv_linha, ":", ZERO);
+    nova campo1: verso = campo_csv(csv_linha, ":", UM);
+    nova campo2: verso = campo_csv(csv_linha, ":", DOIS);
+    nova campo3: verso = campo_csv(csv_linha, ":", TRES);
+    falar(campo0);  // "nome"
+    falar(campo1);  // "idade"
+    falar(campo2);  // "cidade"
+    falar(campo3);  // "pais"
+
+    // Reconstruir com separador diferente
+    nova reconstruido: verso = juntar_verso_com(campo0, ", ", campo1);
+    nova reconstruido2: verso = juntar_verso_com(reconstruido, ", ", campo2);
+    nova reconstruido3: verso = juntar_verso_com(reconstruido2, ", ", campo3);
+    falar(reconstruido3);  // "nome, idade, cidade, pais"
+
+    // Formatar pares chave=valor
+    nova par1: verso = formatar_par("min", "3");
+    nova par2: verso = formatar_par("max", "90");
+    nova par3: verso = formatar_par("soma", "304");
+    falar(par1);  // "min=3"
+    falar(par2);  // "max=90"
+    falar(par3);  // "soma=304"
+
+    // Busca posicional em texto
+    nova pos_idade: bombom = indice_verso_em(csv_linha, "idade");
+    nova pos_cidade: bombom = indice_verso_em(csv_linha, "cidade");
+    falar(pos_idade);   // 5
+    falar(pos_cidade);  // 11
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 13 — Hashing FNV-1a e checksums
+    // ────────────────────────────────────────────────────────────────────────
+    falar(13013);
+
+    nova hash_42: bombom = fnv1a_bombom(42);
+    nova hash_43: bombom = fnv1a_bombom(43);
+    // Avalanche: hashes de valores próximos devem ser muito diferentes
+    nova avalanche_ok: logica = hash_42 != hash_43;
+    talvez avalanche_ok { falar(UM); } senao { falar(ZERO); }  // 1
+
+    nova hash_pinker: bombom = fnv1a_verso("pinker");
+    nova hash_Pinker: bombom = fnv1a_verso("Pinker");
+    // Case-sensitive: hashes diferentes para case diferente
+    // (nota: fnv1a_verso usa tamanho como proxy, chars de 1 byte terão mesmo hash)
+    falar(hash_pinker);
+    falar(hash_Pinker);
+
+    // Mistura de bits + checksum
+    nova misturado: bombom = misturar_bits(hash_42);
+    nova chk: bombom = checksum_xor(misturado);
+    falar(chk);
+
+    // Hash acumulado XOR de valores 0..9
+    nova muda hash_acc: bombom = ZERO;
+    nova muda hi: bombom = ZERO;
+    sempre que hi < DEZ {
+        hash_acc = hash_acc ^ fnv1a_bombom(hi);
+        hi = hi + UM;
+    }
+    falar(hash_acc);
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 14 — Collatz, raiz inteira, fatorial, exp_mod
+    // ────────────────────────────────────────────────────────────────────────
+    falar(14014);
+
+    // Collatz: número com mais passos em [1, 100]
+    nova muda max_collatz: bombom = ZERO;
+    nova muda n_max_collatz: bombom = UM;
+    nova muda ci: bombom = UM;
+    sempre que ci <= CEM {
+        nova passos: bombom = collatz_passos(ci);
+        talvez passos > max_collatz {
+            max_collatz = passos;
+            n_max_collatz = ci;
+        }
+        ci = ci + UM;
+    }
+    falar(n_max_collatz);   // 97
+    falar(max_collatz);     // 118
+
+    // Raiz inteira
+    nova raiz_144: bombom = raiz_inteira(144);
+    nova raiz_1000000: bombom = raiz_inteira(1000000);
+    falar(raiz_144);      // 12
+    falar(raiz_1000000);  // 1000
+
+    // Fatorial
+    nova fat_10: bombom = fatorial(DEZ);
+    nova fat_20: bombom = fatorial(20);
+    falar(fat_10);  // 3628800
+    falar(fat_20);  // 2432902008176640000
+
+    // Exponenciação modular
+    nova exp_mod_val: bombom = exp_mod(DOIS, DEZ, 1000);
+    falar(exp_mod_val);  // 1024 mod 1000 = 24
+
+    // Bit reversal
+    nova rev_177: bombom = reverter_bits8(177);
+    // 177 = 10110001 → reversed = 10001101 = 141
+    falar(rev_177);  // 141
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 15 — Persistência em arquivo
+    // ────────────────────────────────────────────────────────────────────────
+    falar(15015);
+
+    nova dir: verso = diretorio_atual();
+    falar(nao_vazio_verso(dir));  // verdade — temos CWD
+
+    // Verificação de escrita/leitura: round-trip de texto
+    nova texto_round: verso = "Pinker v0 — resultado final: 183";
+    nova round_ok: logica = verificar_escrita(dir, texto_round);
+    talvez round_ok { falar(UM); } senao { falar(ZERO); }  // 1
+
+    // Gerar relatório completo e verificar que o arquivo existe
+    nova linhas_relatorio: verso = juntar_verso("=== RELATORIO PINKER AVANCADO ===", " ");
+    nova linhas2: verso = juntar_verso(linhas_relatorio, juntar_verso("Primos ate 50: ", "15"));
+    nova linhas3: verso = juntar_verso(linhas2, " ");
+    nova linhas4: verso = juntar_verso(linhas3, juntar_verso("Soma dos primos: ", "328"));
+    nova linhas5: verso = juntar_verso(linhas4, " ");
+    nova linhas6: verso = juntar_verso(linhas5, juntar_verso("Mediana dados: ", "36"));
+
+    nova caminho_rel: verso = escrever_relatorio(dir, linhas6);
+    nova existe_rel: logica = caminho_existe(caminho_rel);
+    talvez existe_rel { falar(UM); } senao { falar(ZERO); }  // 1
+
+    nova eh_arq: logica = e_arquivo(caminho_rel);
+    talvez eh_arq { falar(UM); } senao { falar(ZERO); }  // 1
+
+    nova tam_rel: bombom = tamanho_arquivo(caminho_rel);
+    nova tam_ok: logica = tam_rel > ZERO;
+    talvez tam_ok { falar(UM); } senao { falar(ZERO); }  // 1
+
+    // Ler de volta e verificar conteúdo
+    nova relido: verso = ler_relatorio(caminho_rel);
+    nova contem_relatorio: logica = contem_verso(relido, "RELATORIO");
+    talvez contem_relatorio { falar(UM); } senao { falar(ZERO); }  // 1
+
+    // Limpar arquivo temporário
+    remover_arquivo(caminho_rel);
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 16 — Introspecção de tipos (peso e alinhamento)
+    // ────────────────────────────────────────────────────────────────────────
+    falar(16016);
+
+    nova tam_bombom: bombom = peso(bombom);       // 8
+    nova tam_u8: bombom = peso(u8);               // 1
+    nova tam_u16: bombom = peso(u16);             // 2
+    nova tam_u32: bombom = peso(u32);             // 4
+    nova tam_u64: bombom = peso(u64);             // 8
+    nova tam_i8: bombom = peso(i8);               // 1
+    nova tam_i16: bombom = peso(i16);             // 2
+    nova tam_i32: bombom = peso(i32);             // 4
+    nova tam_i64: bombom = peso(i64);             // 8
+    nova tam_logica: bombom = peso(logica);       // 1
+
+    falar(tam_bombom);   // 8
+    falar(tam_u8);       // 1
+    falar(tam_u16);      // 2
+    falar(tam_u32);      // 4
+    falar(tam_u64);      // 8
+    falar(tam_logica);   // 1
+
+    nova align_bombom: bombom = alinhamento(bombom);   // 8
+    nova align_u16: bombom = alinhamento(u16);         // 2
+    nova align_u32: bombom = alinhamento(u32);         // 4
+    falar(align_bombom);  // 8
+    falar(align_u16);     // 2
+    falar(align_u32);     // 4
+
+    // Soma total de todos os tamanhos escalares
+    nova soma_pesos: bombom = tam_bombom + tam_u8 + tam_u16 + tam_u32 + tam_u64
+                              + tam_i8 + tam_i16 + tam_i32 + tam_i64 + tam_logica;
+    falar(soma_pesos);  // 8+1+2+4+8+1+2+4+8+1 = 39
+
+    // Casting com virar
+    nova grande: bombom = 300;
+    nova como_u8: u8 = grande virar u8;
+    nova volta_bombom: bombom = como_u8 virar bombom;
+    falar(volta_bombom);  // 300 (cast round-trip via interpretador)
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 17 — Verificação cruzada final (integra todos os módulos)
+    // ────────────────────────────────────────────────────────────────────────
+    falar(17017);
+
+    // Combina resultados de TODOS os módulos numa expressão final
+    nova hash_combinado: bombom = fnv1a_bombom(combinado);
+    nova hash_soma_p: bombom = fnv1a_bombom(soma_p50);
+    nova hash_xor: bombom = hash_combinado ^ hash_soma_p;
+    nova hash_final: bombom = misturar_bits(hash_xor);
+    nova checksum_final: bombom = checksum_xor(hash_final);
+    falar(checksum_final);
+
+    // Invariante: raiz(144) * raiz(144) == 144
+    nova r12: bombom = raiz_inteira(144);
+    talvez r12 * r12 == 144 {
+        falar(UM);   // 1
+    } senao {
+        falar(ZERO);
+    }
+
+    // Invariante: fat(10) == 3628800
+    talvez fat_10 == 3628800 {
+        falar(UM);   // 1
+    } senao {
+        falar(ZERO);
+    }
+
+    // Invariante: exp_mod(2, 10, 1000) == 24
+    talvez exp_mod_val == 24 {
+        falar(UM);   // 1
     } senao {
         falar(ZERO);
     }
