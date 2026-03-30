@@ -46,7 +46,7 @@ Evitar keywords que:
 
 ### Runtime textual/I/O (Bloco 8, encerrado como trilha ativa)
 
-`falar`, `ouvir`, `ouvir_verso`, `ouvir_verso_ou`, `abrir`, `fechar`, `escrever`, `ler_arquivo`, `juntar_verso`, `tamanho_verso`, `indice_verso`, `argumento`, `argumento_ou`, `quantos_argumentos`, `tem_argumento`, `tem_argumento_nomeado`, `argumento_nomeado_ou`, `ambiente_ou`, `diretorio_atual`, `caminho_existe`, `e_arquivo`, `e_diretorio`, `juntar_caminho`, `tamanho_arquivo`, `e_vazio`, `criar_diretorio`, `remover_arquivo`, `remover_diretorio`, `ler_verso_arquivo`, `ler_arquivo_verso`, `arquivo_ou`, `criar_arquivo`, `escrever_verso`, `truncar_arquivo`, `abrir_anexo`, `anexar_verso`, `contem_verso`, `comeca_com`, `termina_com`, `igual_verso`, `vazio_verso`, `aparar_verso`, `minusculo_verso`, `maiusculo_verso`, `indice_verso_em`, `buscar_verso`, `nao_vazio_verso`, `sair`.
+`falar`, `ouvir`, `ouvir_verso`, `ouvir_verso_ou`, `abrir`, `fechar`, `escrever`, `ler_arquivo`, `juntar_verso`, `tamanho_verso`, `indice_verso`, `argumento`, `argumento_ou`, `quantos_argumentos`, `tem_argumento`, `tem_chave`, `pedir_argumento`, `ambiente_ou`, `buscar_contexto`, `diretorio_atual`, `caminho_existe`, `e_arquivo`, `e_diretorio`, `juntar_caminho`, `tamanho_arquivo`, `e_vazio`, `criar_diretorio`, `remover_arquivo`, `remover_diretorio`, `ler_verso_arquivo`, `ler_arquivo_verso`, `arquivo_ou`, `criar_arquivo`, `escrever_verso`, `truncar_arquivo`, `abrir_anexo`, `anexar_verso`, `contem_verso`, `comeca_com`, `termina_com`, `igual_verso`, `vazio_verso`, `aparar_verso`, `minusculo_verso`, `maiusculo_verso`, `indice_verso_em`, `buscar_verso`, `nao_vazio_verso`, `sair`.
 
 ### Forma textual dual adicional
 
@@ -65,6 +65,12 @@ Evitar keywords que:
 - Erros/fluxo: `amparo`, `tropeco`.
 - Abstração: `molde`, `vestir`, `qualquer`.
 - Sistemas: `reserva`, `soltar`, `raiz`.
+
+## 6.1 Legado provisório documentado
+
+- `tem_argumento_nomeado` permanece aceito como legado provisório compatível; nome canônico atual: `tem_chave`.
+- `argumento_nomeado_ou` permanece aceito como legado provisório compatível; nome canônico atual: `pedir_argumento`.
+- `argumento_nomeado_ou_ambiente_ou` permanece aceito como legado provisório compatível; nome canônico atual: `buscar_contexto`.
 
 ## 7. Keywords tecnicamente aceitáveis, mas fracas identitariamente
 

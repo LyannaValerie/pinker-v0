@@ -11,11 +11,13 @@
 
 ## 2. Estado corrente
 - Fase funcional atual: **150 — coleções e estruturas de dados básicas: escrita mínima por índice em `lista<bombom>` (camada 1 conservadora)**.
+- Rodada extraordinária corrente: **FE-1 — refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)**.
 - Bloco encerrado: **11 — texto prático, scripts e ergonomia cotidiana (encerrado por suficiência conservadora na Doc-27)**.
 - Bloco encerrado: **12 — sistema de módulos tipado (encerrado por suficiência conservadora na Doc-28)**.
 - Bloco formal da trilha ativa: **13 — coleções e estruturas de dados básicas**.
 - Frente pausada (oficial e não abandonada): **editor/TUI oficial da Pinker (aberto na Fase 136)**.
 - Rodada documental mais recente: **Doc-28 — fechamento canônico do Bloco 12 e preparação formal da transição para o Bloco 13** (última rodada documental, sem nova Doc nesta fase funcional).
+- Ajuste extraordinário corrente: promoção canônica de `tem_chave`, `pedir_argumento` e `buscar_contexto`, com legado temporário para `tem_argumento_nomeado`, `argumento_nomeado_ou` e `argumento_nomeado_ou_ambiente_ou`.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) com trilha MCP mínima posteriormente removida por segurança**.
 - Último hotfix aplicado: **HF-5 — ajuste de conformidade Clippy pós-Fase 136**.
 

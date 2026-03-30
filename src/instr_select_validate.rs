@@ -25,10 +25,13 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("lista_bombom_definir".to_string(), TypeIR::Nulo);
     sigs.insert("argumento".to_string(), TypeIR::Verso);
     sigs.insert("argumento_ou".to_string(), TypeIR::Verso);
+    sigs.insert("tem_chave".to_string(), TypeIR::Logica);
     sigs.insert("tem_argumento_nomeado".to_string(), TypeIR::Logica);
+    sigs.insert("pedir_argumento".to_string(), TypeIR::Verso);
     sigs.insert("argumento_nomeado_ou".to_string(), TypeIR::Verso);
     sigs.insert("tem_flag".to_string(), TypeIR::Logica);
     sigs.insert("ambiente_ou".to_string(), TypeIR::Verso);
+    sigs.insert("buscar_contexto".to_string(), TypeIR::Verso);
     sigs.insert(
         "argumento_nomeado_ou_ambiente_ou".to_string(),
         TypeIR::Verso,

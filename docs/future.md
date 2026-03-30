@@ -38,6 +38,7 @@
 - evolução prudente de `verso` sem abrir biblioteca textual gigante de uma vez;
 - **exportação de tipos pelo sistema de módulos**: `ninho` e `apelido` já são exportáveis via `trazer` (Fases 144 e 145), e a Fase 146 abriu uso qualificado mínimo (`modulo.Tipo`) em contexto tipado; o Bloco 12 fica fechado no recorte conservador sem visibilidade rica/namespaces amplos.
 - O Bloco 11 foi encerrado por suficiência conservadora (Doc-27) após as Fases 137–143.
+- A FE-1 aqueceu canonicamente a periferia argv/env para `tem_chave`, `pedir_argumento` e `buscar_contexto` sem reabrir o Bloco 11 nem alterar seu encerramento.
 - O Bloco 12 foi encerrado por suficiência conservadora (Doc-28) após as Fases 144–146; o próximo bloco formal da trilha ativa passa a ser o Bloco 13 (aberto funcionalmente na Fase 147 com array fixo por valor no recorte mínimo).
 
 Itens explicitamente para depois do foco inicial do Bloco 11:

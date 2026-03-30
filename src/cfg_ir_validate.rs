@@ -116,10 +116,24 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "tem_chave".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
         "tem_argumento_nomeado".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
+        "pedir_argumento".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
     function_sigs.insert(
@@ -141,6 +155,13 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
+        "buscar_contexto".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
         },
     );
     function_sigs.insert(

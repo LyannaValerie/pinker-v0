@@ -1478,41 +1478,46 @@ fn try_call_intrinsic(
                 .unwrap_or_else(|| default_value.clone());
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value))))
         }
-        "tem_argumento_nomeado" => {
+        intrinsic_name @ ("tem_chave" | "tem_argumento_nomeado") => {
             if args.len() != 1 {
-                return Err(runtime_err(
-                    "intrínseca 'tem_argumento_nomeado' exige 1 argumento (chave verso)",
-                ));
+                return Err(runtime_err(&format!(
+                    "intrínseca '{}' exige 1 argumento (chave verso)",
+                    intrinsic_name
+                )));
             }
             let RuntimeValue::Str(key) = &args[0] else {
-                return Err(runtime_err(
-                    "intrínseca 'tem_argumento_nomeado' exige chave em verso",
-                ));
+                return Err(runtime_err(&format!(
+                    "intrínseca '{}' exige chave em verso",
+                    intrinsic_name
+                )));
             };
-            ensure_named_arg_key_valid("tem_argumento_nomeado", key)?;
+            ensure_named_arg_key_valid(intrinsic_name, key)?;
             let found = matches!(
                 find_named_cli_argument(&io_state.cli_args, key),
                 NamedArgLookup::PresentValue(_)
             );
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(found))))
         }
-        "argumento_nomeado_ou" => {
+        intrinsic_name @ ("pedir_argumento" | "argumento_nomeado_ou") => {
             if args.len() != 2 {
-                return Err(runtime_err(
-                    "intrínseca 'argumento_nomeado_ou' exige 2 argumentos (chave verso, padrão verso)",
-                ));
+                return Err(runtime_err(&format!(
+                    "intrínseca '{}' exige 2 argumentos (chave verso, padrão verso)",
+                    intrinsic_name
+                )));
             }
             let RuntimeValue::Str(key) = &args[0] else {
-                return Err(runtime_err(
-                    "intrínseca 'argumento_nomeado_ou' exige chave em verso",
-                ));
+                return Err(runtime_err(&format!(
+                    "intrínseca '{}' exige chave em verso",
+                    intrinsic_name
+                )));
             };
             let RuntimeValue::Str(default_value) = &args[1] else {
-                return Err(runtime_err(
-                    "intrínseca 'argumento_nomeado_ou' exige valor padrão em verso",
-                ));
+                return Err(runtime_err(&format!(
+                    "intrínseca '{}' exige valor padrão em verso",
+                    intrinsic_name
+                )));
             };
-            ensure_named_arg_key_valid("argumento_nomeado_ou", key)?;
+            ensure_named_arg_key_valid(intrinsic_name, key)?;
             match find_named_cli_argument(&io_state.cli_args, key) {
                 NamedArgLookup::Missing => Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
                     default_value.clone(),
@@ -1521,8 +1526,8 @@ fn try_call_intrinsic(
                     RuntimeValue::Str(value.to_string()),
                 ))),
                 NamedArgLookup::PresentWithoutValue => Err(runtime_err(&format!(
-                    "intrínseca 'argumento_nomeado_ou' encontrou chave '{}' sem valor na forma '--chave valor'",
-                    key
+                    "intrínseca '{}' encontrou chave '{}' sem valor na forma '--chave valor'",
+                    intrinsic_name, key
                 ))),
             }
         }
@@ -1556,36 +1561,40 @@ fn try_call_intrinsic(
             let value = env::var(key).unwrap_or_else(|_| default_value.clone());
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value))))
         }
-        "argumento_nomeado_ou_ambiente_ou" => {
+        intrinsic_name @ ("buscar_contexto" | "argumento_nomeado_ou_ambiente_ou") => {
             if args.len() != 3 {
-                return Err(runtime_err(
-                    "intrínseca 'argumento_nomeado_ou_ambiente_ou' exige 3 argumentos (chave_arg verso, chave_env verso, padrão verso)",
-                ));
+                return Err(runtime_err(&format!(
+                    "intrínseca '{}' exige 3 argumentos (chave_arg verso, chave_env verso, padrão verso)",
+                    intrinsic_name
+                )));
             }
             let RuntimeValue::Str(arg_key) = &args[0] else {
-                return Err(runtime_err(
-                    "intrínseca 'argumento_nomeado_ou_ambiente_ou' exige chave_arg em verso",
-                ));
+                return Err(runtime_err(&format!(
+                    "intrínseca '{}' exige chave_arg em verso",
+                    intrinsic_name
+                )));
             };
             let RuntimeValue::Str(env_key) = &args[1] else {
-                return Err(runtime_err(
-                    "intrínseca 'argumento_nomeado_ou_ambiente_ou' exige chave_env em verso",
-                ));
+                return Err(runtime_err(&format!(
+                    "intrínseca '{}' exige chave_env em verso",
+                    intrinsic_name
+                )));
             };
             let RuntimeValue::Str(default_value) = &args[2] else {
-                return Err(runtime_err(
-                    "intrínseca 'argumento_nomeado_ou_ambiente_ou' exige valor padrão em verso",
-                ));
+                return Err(runtime_err(&format!(
+                    "intrínseca '{}' exige valor padrão em verso",
+                    intrinsic_name
+                )));
             };
-            ensure_named_arg_key_valid("argumento_nomeado_ou_ambiente_ou", arg_key)?;
-            ensure_env_key_valid("argumento_nomeado_ou_ambiente_ou", env_key)?;
+            ensure_named_arg_key_valid(intrinsic_name, arg_key)?;
+            ensure_env_key_valid(intrinsic_name, env_key)?;
             match find_named_cli_argument(&io_state.cli_args, arg_key) {
                 NamedArgLookup::PresentValue(value) => Ok(IntrinsicCall::Done(Some(
                     RuntimeValue::Str(value.to_string()),
                 ))),
                 NamedArgLookup::PresentWithoutValue => Err(runtime_err(&format!(
-                    "intrínseca 'argumento_nomeado_ou_ambiente_ou' encontrou chave '{}' sem valor na forma '--chave valor'",
-                    arg_key
+                    "intrínseca '{}' encontrou chave '{}' sem valor na forma '--chave valor'",
+                    intrinsic_name, arg_key
                 ))),
                 NamedArgLookup::Missing => {
                     let value = env::var(env_key).unwrap_or_else(|_| default_value.clone());

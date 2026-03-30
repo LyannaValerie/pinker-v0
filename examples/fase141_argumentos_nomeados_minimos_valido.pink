@@ -1,9 +1,9 @@
 pacote main;
 
 carinho principal() -> bombom {
-    nova tem_saida: logica = tem_argumento_nomeado("--saida");
-    nova saida: verso = argumento_nomeado_ou("--saida", "padrao.txt");
-    nova modo: verso = argumento_nomeado_ou("--modo", "simples");
+    nova tem_saida: logica = tem_chave("--saida");
+    nova saida: verso = pedir_argumento("--saida", "padrao.txt");
+    nova modo: verso = pedir_argumento("--modo", "simples");
     falar(tem_saida);
     falar(saida);
     falar(modo);

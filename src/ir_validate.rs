@@ -111,10 +111,24 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "tem_chave".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    funcs.insert(
         "tem_argumento_nomeado".to_string(),
         FunctionSig {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "pedir_argumento".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
     funcs.insert(
@@ -136,6 +150,13 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         FunctionSig {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "buscar_contexto".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
         },
     );
     funcs.insert(

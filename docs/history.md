@@ -737,6 +737,14 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Exemplo canônico criado: `examples/fase137_split_camada1_valido.pink`.
 - O que continua fora: `replace`, `join`, regex, busca textual ampla, coleções gerais, JSON/CSV, REPL, subprocessos.
 
+FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)
+- Rodada extraordinária de refino lexical, paralela à trilha funcional do Bloco 13.
+- Promove o trio canônico `buscar_contexto`, `pedir_argumento` e `tem_chave` para a família argv/env do runtime `--run`.
+- Rebaixa `argumento_nomeado_ou_ambiente_ou`, `argumento_nomeado_ou` e `tem_argumento_nomeado` a legado provisório compatível, sem alterar semântica funcional nem prioridade operacional existente.
+- Pipeline completo alinhado no recorte mínimo: semântica, IR, validadores, runtime, exemplos, testes e docs passam a priorizar os nomes novos.
+- Cobertura explícita adicionada para os nomes canônicos e para pelo menos um caminho legado, preservando regressão zero no recorte tocado.
+- A rodada não abre fase funcional nova do Bloco 13 e não reabre o Bloco 11; altera apenas temperatura lexical e canonicidade da superfície.
+
 138 - manipulação textual útil: `replace` (camada 1 conservadora)
 - Segunda fase funcional do Bloco 11; abre o item 11.2 com o menor degrau prático auditável de substituição textual.
 - Adiciona um intrínseco textual ao runtime `--run`: `substituir_verso(texto, de, para) -> verso`.
@@ -776,6 +784,7 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Adiciona `tem_argumento_nomeado(verso) -> logica` e `argumento_nomeado_ou(verso, verso) -> verso`.
 - Suporta apenas as formas `--chave valor` e `--chave=valor`, sem parser amplo, sem short flags, sem coleções e sem tipagem automática.
 - `tem_argumento_nomeado` detecta presença nas formas suportadas; `argumento_nomeado_ou` retorna valor, usa fallback quando ausente e falha com erro claro para `--chave` sem valor na forma separada.
+- FE-1 posteriormente aqueceu a superfície canônica deste recorte para `tem_chave` e `pedir_argumento`, mantendo estes nomes como legado compatível provisório.
 - Chave vazia é rejeitada em runtime com diagnóstico explícito para evitar ambiguidade operacional.
 - Cobertura adicionada com testes semânticos, testes de runtime (formas separada/`=`/fallback/negativos) e testes de CLI para as duas formas suportadas e para erro de valor ausente.
 - Exemplo canônico criado: `examples/fase141_argumentos_nomeados_minimos_valido.pink`.
@@ -802,6 +811,7 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Chave de argumento vazia e chave de ambiente vazia são rejeitadas com erro claro; `--chave` sem valor continua falhando com erro claro e não é mascarado por ambiente.
 - Cobertura adicionada com testes semânticos, testes de runtime/CLI para prioridade correta entre os três níveis, coexistência com `tem_flag` e argv posicional, e negativos de aridade/tipos/chaves vazias/valor ausente.
 - Exemplo canônico criado: `examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink`.
+- FE-1 posteriormente aqueceu a superfície canônica deste recorte para `buscar_contexto`, mantendo `argumento_nomeado_ou_ambiente_ou` como legado compatível provisório.
 
 144 - sistema de módulos tipado: exportação mínima de `ninho` via `trazer` (camada 1 conservadora)
 - Primeira fase funcional do Bloco 12.
@@ -1084,7 +1094,7 @@ Doc-26 - enxugamento estrutural e disciplina de papéis documentais
 Doc-27 - fechamento canônico do Bloco 11 e preparação formal da transição para o Bloco 12
 - Rodada exclusivamente documental, sem implementação funcional nova.
 - Bloco 11 (texto prático, scripts e ergonomia cotidiana) encerrado formalmente por suficiência conservadora após a consolidação das Fases 137–143.
-- Suficiência registrada sem exagero: texto mínimo útil (`dividir_verso_em`/`dividir_verso_contar`, `substituir_verso`, `juntar_verso_com`, `buscar_verso`) e ergonomia prática mínima de script (`tem_argumento_nomeado`, `argumento_nomeado_ou`, `tem_flag`, `argumento_nomeado_ou_ambiente_ou`), mantendo recorte conservador explícito sem parser amplo, sem REPL, sem subprocessos, sem config files e sem biblioteca textual gigante.
+- Suficiência registrada sem exagero: texto mínimo útil (`dividir_verso_em`/`dividir_verso_contar`, `substituir_verso`, `juntar_verso_com`, `buscar_verso`) e ergonomia prática mínima de script (hoje canonicamente `tem_chave`, `pedir_argumento`, `tem_flag`, `buscar_contexto`, com legado compatível provisório para o trio anterior), mantendo recorte conservador explícito sem parser amplo, sem REPL, sem subprocessos, sem config files e sem biblioteca textual gigante.
 - Recorte conservador reafirmado: o fechamento não esgota para sempre o tema; futuras ampliações são possíveis, porém subordinadas à maturidade global do projeto.
 - Bloco 12 (sistema de módulos tipado) formalizado como próximo bloco da trilha ativa; primeira fase funcional esperada: 12.1 (exportação de `ninho` e `apelido` via `trazer`).
 - Fase 143 permanece como último marco funcional do Bloco 11; nenhuma fase funcional nova foi aberta nesta rodada.

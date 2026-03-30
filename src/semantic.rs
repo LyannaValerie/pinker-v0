@@ -1606,12 +1606,13 @@ impl SemanticChecker {
             }
             return Ok(Type::Verso(expr_span));
         }
-        if name == "tem_argumento_nomeado" {
+        if matches!(name.as_str(), "tem_chave" | "tem_argumento_nomeado") {
             if args.len() != 1 {
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "chamada de 'tem_argumento_nomeado' com aridade inválida: esperado 1, recebido {}",
-                        args.len()
+                        "chamada de '{}' com aridade inválida: esperado 1, recebido {}",
+                        name,
+                        args.len(),
                     ),
                     span: expr_span,
                 });
@@ -1623,20 +1624,22 @@ impl SemanticChecker {
             if !matches!(key_ty, Type::Verso(_)) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "tipo inválido no argumento 1 da chamada 'tem_argumento_nomeado': esperado 'verso', encontrado '{}'",
-                        key_ty.name()
+                        "tipo inválido no argumento 1 da chamada '{}': esperado 'verso', encontrado '{}'",
+                        name,
+                        key_ty.name(),
                     ),
                     span: args[0].span,
                 });
             }
             return Ok(Type::Logica(expr_span));
         }
-        if name == "argumento_nomeado_ou" {
+        if matches!(name.as_str(), "pedir_argumento" | "argumento_nomeado_ou") {
             if args.len() != 2 {
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "chamada de 'argumento_nomeado_ou' com aridade inválida: esperado 2, recebido {}",
-                        args.len()
+                        "chamada de '{}' com aridade inválida: esperado 2, recebido {}",
+                        name,
+                        args.len(),
                     ),
                     span: expr_span,
                 });
@@ -1648,8 +1651,9 @@ impl SemanticChecker {
             if !matches!(key_ty, Type::Verso(_)) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "tipo inválido no argumento 1 da chamada 'argumento_nomeado_ou': esperado 'verso', encontrado '{}'",
-                        key_ty.name()
+                        "tipo inválido no argumento 1 da chamada '{}': esperado 'verso', encontrado '{}'",
+                        name,
+                        key_ty.name(),
                     ),
                     span: args[0].span,
                 });
@@ -1661,8 +1665,9 @@ impl SemanticChecker {
             if !matches!(default_ty, Type::Verso(_)) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "tipo inválido no argumento 2 da chamada 'argumento_nomeado_ou': esperado 'verso', encontrado '{}'",
-                        default_ty.name()
+                        "tipo inválido no argumento 2 da chamada '{}': esperado 'verso', encontrado '{}'",
+                        name,
+                        default_ty.name(),
                     ),
                     span: args[1].span,
                 });
@@ -1732,12 +1737,16 @@ impl SemanticChecker {
             }
             return Ok(Type::Verso(expr_span));
         }
-        if name == "argumento_nomeado_ou_ambiente_ou" {
+        if matches!(
+            name.as_str(),
+            "buscar_contexto" | "argumento_nomeado_ou_ambiente_ou"
+        ) {
             if args.len() != 3 {
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "chamada de 'argumento_nomeado_ou_ambiente_ou' com aridade inválida: esperado 3, recebido {}",
-                        args.len()
+                        "chamada de '{}' com aridade inválida: esperado 3, recebido {}",
+                        name,
+                        args.len(),
                     ),
                     span: expr_span,
                 });
@@ -1749,8 +1758,9 @@ impl SemanticChecker {
             if !matches!(arg_key_ty, Type::Verso(_)) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "tipo inválido no argumento 1 da chamada 'argumento_nomeado_ou_ambiente_ou': esperado 'verso', encontrado '{}'",
-                        arg_key_ty.name()
+                        "tipo inválido no argumento 1 da chamada '{}': esperado 'verso', encontrado '{}'",
+                        name,
+                        arg_key_ty.name(),
                     ),
                     span: args[0].span,
                 });
@@ -1762,8 +1772,9 @@ impl SemanticChecker {
             if !matches!(env_key_ty, Type::Verso(_)) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "tipo inválido no argumento 2 da chamada 'argumento_nomeado_ou_ambiente_ou': esperado 'verso', encontrado '{}'",
-                        env_key_ty.name()
+                        "tipo inválido no argumento 2 da chamada '{}': esperado 'verso', encontrado '{}'",
+                        name,
+                        env_key_ty.name(),
                     ),
                     span: args[1].span,
                 });
@@ -1775,8 +1786,9 @@ impl SemanticChecker {
             if !matches!(default_ty, Type::Verso(_)) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "tipo inválido no argumento 3 da chamada 'argumento_nomeado_ou_ambiente_ou': esperado 'verso', encontrado '{}'",
-                        default_ty.name()
+                        "tipo inválido no argumento 3 da chamada '{}': esperado 'verso', encontrado '{}'",
+                        name,
+                        default_ty.name(),
                     ),
                     span: args[2].span,
                 });

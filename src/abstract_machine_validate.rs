@@ -102,8 +102,19 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         ),
     );
     sigs.insert(
+        "tem_chave".to_string(),
+        (TypeIR::Logica, vec![StackValueType::Verso]),
+    );
+    sigs.insert(
         "tem_argumento_nomeado".to_string(),
         (TypeIR::Logica, vec![StackValueType::Verso]),
+    );
+    sigs.insert(
+        "pedir_argumento".to_string(),
+        (
+            TypeIR::Verso,
+            vec![StackValueType::Verso, StackValueType::Verso],
+        ),
     );
     sigs.insert(
         "argumento_nomeado_ou".to_string(),
@@ -121,6 +132,17 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         (
             TypeIR::Verso,
             vec![StackValueType::Verso, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
+        "buscar_contexto".to_string(),
+        (
+            TypeIR::Verso,
+            vec![
+                StackValueType::Verso,
+                StackValueType::Verso,
+                StackValueType::Verso,
+            ],
         ),
     );
     sigs.insert(
