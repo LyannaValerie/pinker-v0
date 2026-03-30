@@ -80,6 +80,17 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
     sigs.insert(
+        "lista_bombom_definir".to_string(),
+        (
+            TypeIR::Nulo,
+            vec![
+                StackValueType::Unknown,
+                StackValueType::Bombom,
+                StackValueType::Bombom,
+            ],
+        ),
+    );
+    sigs.insert(
         "argumento".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );

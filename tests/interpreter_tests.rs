@@ -6074,3 +6074,91 @@ fn cli_check_fase149_lista_homogenea_invalida_falha() {
         "esperava falha para lista fora do recorte homogêneo de bombom"
     );
 }
+
+// ── Fase 150: escrita mínima por índice em lista<bombom> ───────────────────
+
+#[test]
+fn run_lista_bombom_definir_minimo_funciona() {
+    let out = run_code(
+        "pacote main;
+         carinho principal() -> bombom {
+             nova l: lista<bombom> = lista_bombom_criar();
+             lista_bombom_anexar(l, 7);
+             lista_bombom_definir(l, 0, 33);
+             mimo lista_bombom_obter(l, 0);
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(33)));
+}
+
+#[test]
+fn run_lista_bombom_definir_fluxo_composto_funciona() {
+    let out = run_code(
+        "pacote main;
+         carinho carregar() -> lista<bombom> {
+             nova itens: lista<bombom> = lista_bombom_criar();
+             lista_bombom_anexar(itens, 40);
+             lista_bombom_anexar(itens, 2);
+             mimo itens;
+         }
+         carinho ajustar(itens: lista<bombom>) {
+             nova atual: bombom = lista_bombom_obter(itens, 1);
+             lista_bombom_definir(itens, 1, atual + 8);
+         }
+         carinho principal() -> bombom {
+             nova itens: lista<bombom> = carregar();
+             ajustar(itens);
+             falar(lista_bombom_tamanho(itens));
+             mimo lista_bombom_obter(itens, 1);
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(10)));
+}
+
+#[test]
+fn run_lista_bombom_definir_fora_da_faixa_falha_claro() {
+    let err = run_code(
+        "pacote main;
+         carinho principal() -> bombom {
+             nova l: lista<bombom> = lista_bombom_criar();
+             lista_bombom_anexar(l, 1);
+             lista_bombom_definir(l, 2, 9);
+             mimo 0;
+         }",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("índice fora do intervalo em 'lista_bombom_definir'"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn cli_run_fase150_lista_bombom_definir_minimo_funciona_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase150_lista_bombom_definir_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("33"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_run_fase150_lista_bombom_definir_fluxo_composto_funciona_com_exemplo_versionado() {
+    let output =
+        run_cli_example("examples/fase150_lista_bombom_definir_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains('2'), "stdout={}", stdout);
+    assert!(stdout.contains("10"), "stdout={}", stdout);
+}

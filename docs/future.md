@@ -45,7 +45,7 @@ Itens explicitamente para depois do foco inicial do Bloco 11:
 - linguagem-cola;
 - execução de processos externos + captura de saída de comandos;
 - integração rica com stdin/stdout/stderr;
-- coleções básicas além do recorte já aberto de `lista<bombom>` (lista ampla/mapa/dicionário/iteração mais confortável);
+- coleções básicas além do recorte já aberto de `lista<bombom>` (núcleo atual: criar/anexar/obter/tamanho/definir; segue fora lista ampla/mapa/dicionário/iteração mais confortável);
 - JSON, CSV, datas/tempo, aleatoriedade básica e formatação simples.
 
 ### 2.4 Editor/TUI oficial da Pinker (frente funcional aberta em camada 1, atualmente pausada)

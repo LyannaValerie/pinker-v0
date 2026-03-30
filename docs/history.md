@@ -853,6 +853,15 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Cobertura adicionada com testes de parser/semântica/runtime/CLI e exemplos versionados: `examples/fase149_lista_minima_bombom_valido.pink`, `examples/fase149_lista_minima_bombom_fluxo_composto_valido.pink` e `examples/fase149_lista_minima_bombom_homogenea_invalido.pink`.
 - Esta fase também introduz exemplos mais compostos/realistas no bloco, preservando diff pequeno e auditável.
 
+150 - coleções e estruturas de dados básicas: escrita mínima por índice em `lista<bombom>` (camada 1 conservadora)
+- Quarta fase funcional do Bloco 13.
+- Complementa o núcleo mínimo da primeira coleção dinâmica real do projeto ao abrir mutação por índice em `lista<bombom>`.
+- Semântica mínima aberta com intrínseca explícita `lista_bombom_definir(lista, bombom, bombom) -> nulo`, mantendo o recorte homogêneo.
+- Runtime passa a validar faixa de índice nessa escrita e falha com erro claro quando fora do intervalo.
+- Mantém o recorte conservador: sem `lista<T>` ampla, sem mapa, sem iteração confortável e sem API rica.
+- Cobertura adicionada com testes semânticos/runtime/CLI e exemplos versionados: `examples/fase150_lista_bombom_definir_minimo_valido.pink` e `examples/fase150_lista_bombom_definir_fluxo_composto_valido.pink`.
+- Continua a política do bloco de incluir exemplo canônico e exemplo composto/realista com diff pequeno e auditável.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

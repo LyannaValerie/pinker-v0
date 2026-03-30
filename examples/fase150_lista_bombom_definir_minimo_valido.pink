@@ -1,0 +1,9 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova lista: lista<bombom> = lista_bombom_criar();
+    lista_bombom_anexar(lista, 7);
+    lista_bombom_definir(lista, 0, 33);
+    falar(lista_bombom_obter(lista, 0));
+    mimo 0;
+}

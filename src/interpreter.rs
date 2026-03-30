@@ -659,6 +659,38 @@ fn try_call_intrinsic(
                 lista.len() as u64
             ))))
         }
+        "lista_bombom_definir" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_definir' exige 3 argumentos (lista<bombom>, bombom, bombom)",
+                ));
+            }
+            let RuntimeValue::ListBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_definir' exige lista<bombom> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Int(index) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_definir' exige bombom no segundo argumento",
+                ));
+            };
+            let RuntimeValue::Int(value) = args[2] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_definir' exige bombom no terceiro argumento",
+                ));
+            };
+            let Some(lista) = list_state.lists_bombom.get_mut(&handle) else {
+                return Err(runtime_err("handle de lista<bombom> inválido em runtime"));
+            };
+            let Some(slot) = lista.get_mut(index as usize) else {
+                return Err(runtime_err(
+                    "índice fora do intervalo em 'lista_bombom_definir'",
+                ));
+            };
+            *slot = value;
+            Ok(IntrinsicCall::Done(None))
+        }
         "ouvir" => {
             if !args.is_empty() {
                 return Err(runtime_err("intrínseca 'ouvir' exige 0 argumentos"));

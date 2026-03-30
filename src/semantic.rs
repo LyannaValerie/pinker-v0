@@ -1492,6 +1492,57 @@ impl SemanticChecker {
             }
             return Ok(Type::Bombom(expr_span));
         }
+        if name == "lista_bombom_definir" {
+            if args.len() != 3 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'lista_bombom_definir' com aridade inválida: esperado 3, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let lista_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(lista_ty, Type::ListBombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'lista_bombom_definir': esperado 'lista<bombom>', encontrado '{}'",
+                        lista_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let index_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(index_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'lista_bombom_definir': esperado 'bombom', encontrado '{}'",
+                        index_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            let value_ty = self.check_value_expr(
+                &args[2],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(value_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 3 da chamada 'lista_bombom_definir': esperado 'bombom', encontrado '{}'",
+                        value_ty.name()
+                    ),
+                    span: args[2].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
+        }
         if name == "argumento" {
             if args.len() != 1 {
                 return Err(PinkerError::Semantic {
