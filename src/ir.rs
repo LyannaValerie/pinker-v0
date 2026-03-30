@@ -514,6 +514,13 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "lista_bombom_tirar_ultimo".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "argumento".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Verso,

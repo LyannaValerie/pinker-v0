@@ -691,6 +691,25 @@ fn try_call_intrinsic(
             *slot = value;
             Ok(IntrinsicCall::Done(None))
         }
+        "lista_bombom_tirar_ultimo" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_tirar_ultimo' exige 1 argumento (lista<bombom>)",
+                ));
+            }
+            let RuntimeValue::ListBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_tirar_ultimo' exige lista<bombom> no argumento",
+                ));
+            };
+            let Some(lista) = list_state.lists_bombom.get_mut(&handle) else {
+                return Err(runtime_err("handle de lista<bombom> inválido em runtime"));
+            };
+            let Some(value) = lista.pop() else {
+                return Err(runtime_err("lista vazia em 'lista_bombom_tirar_ultimo'"));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(value))))
+        }
         "ouvir" => {
             if !args.is_empty() {
                 return Err(runtime_err("intrínseca 'ouvir' exige 0 argumentos"));

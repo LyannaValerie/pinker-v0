@@ -1,0 +1,22 @@
+pacote main;
+
+carinho carregar_fila() -> lista<bombom> {
+    nova fila: lista<bombom> = lista_bombom_criar();
+    lista_bombom_anexar(fila, 4);
+    lista_bombom_anexar(fila, 8);
+    lista_bombom_anexar(fila, 15);
+    mimo fila;
+}
+
+carinho fechar_ultimo_lote(fila: lista<bombom>) -> bombom {
+    mimo lista_bombom_tirar_ultimo(fila);
+}
+
+carinho principal() -> bombom {
+    nova fila: lista<bombom> = carregar_fila();
+    nova retirado: bombom = fechar_ultimo_lote(fila);
+    falar(retirado);
+    falar(lista_bombom_tamanho(fila));
+    falar(lista_bombom_obter(fila, 1));
+    mimo lista_bombom_obter(fila, 0);
+}

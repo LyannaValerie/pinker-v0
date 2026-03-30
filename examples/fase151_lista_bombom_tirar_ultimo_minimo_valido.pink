@@ -1,0 +1,11 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova lista: lista<bombom> = lista_bombom_criar();
+    lista_bombom_anexar(lista, 7);
+    lista_bombom_anexar(lista, 11);
+    nova removido: bombom = lista_bombom_tirar_ultimo(lista);
+    falar(removido);
+    falar(lista_bombom_tamanho(lista));
+    mimo lista_bombom_obter(lista, 0);
+}

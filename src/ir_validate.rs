@@ -97,6 +97,13 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "lista_bombom_tirar_ultimo".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::ListBombom],
+        },
+    );
+    funcs.insert(
         "argumento".to_string(),
         FunctionSig {
             ret_type: TypeIR::Verso,

@@ -91,6 +91,10 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         ),
     );
     sigs.insert(
+        "lista_bombom_tirar_ultimo".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Unknown]),
+    );
+    sigs.insert(
         "argumento".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );

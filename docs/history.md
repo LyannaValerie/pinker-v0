@@ -872,6 +872,15 @@ FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtim
 - Cobertura adicionada com testes semânticos/runtime/CLI e exemplos versionados: `examples/fase150_lista_bombom_definir_minimo_valido.pink` e `examples/fase150_lista_bombom_definir_fluxo_composto_valido.pink`.
 - Continua a política do bloco de incluir exemplo canônico e exemplo composto/realista com diff pequeno e auditável.
 
+151 - coleções e estruturas de dados básicas: remoção mínima do fim em `lista<bombom>` (camada 1 conservadora)
+- Quinta fase funcional do Bloco 13.
+- Complementa o núcleo mínimo da primeira coleção dinâmica real do projeto ao abrir remoção do fim com retorno do elemento removido.
+- Semântica mínima aberta com intrínseca explícita `lista_bombom_tirar_ultimo(lista) -> bombom`, mantendo o recorte homogêneo e conservador.
+- Runtime passa a remover e retornar o último elemento da lista, com erro claro quando chamada sobre lista vazia.
+- Mantém o recorte conservador: sem `lista<T>` ampla, sem mapa, sem iteração confortável, sem remoção arbitrária e sem API rica.
+- Cobertura adicionada com testes semânticos/runtime/CLI e exemplos versionados: `examples/fase151_lista_bombom_tirar_ultimo_minimo_valido.pink` e `examples/fase151_lista_bombom_tirar_ultimo_fluxo_composto_valido.pink`.
+- Continua a política do bloco de incluir exemplo canônico e exemplo composto/realista com diff pequeno e auditável.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

@@ -1543,6 +1543,31 @@ impl SemanticChecker {
             }
             return Ok(Type::Nulo(expr_span));
         }
+        if name == "lista_bombom_tirar_ultimo" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'lista_bombom_tirar_ultimo' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let lista_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(lista_ty, Type::ListBombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'lista_bombom_tirar_ultimo': esperado 'lista<bombom>', encontrado '{}'",
+                        lista_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
         if name == "argumento" {
             if args.len() != 1 {
                 return Err(PinkerError::Semantic {
