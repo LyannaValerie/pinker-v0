@@ -174,6 +174,7 @@ fn build_memory(
 // Executa uma função pelo nome com os argumentos fornecidos.
 // O call_stack acumula os nomes ativos para montar o stack trace em erros.
 // Retorna `None` para funções void, `Some(valor)` caso contrário.
+#[allow(clippy::too_many_arguments)]
 fn call_function(
     fn_name: &str,
     args: Vec<RuntimeValue>,

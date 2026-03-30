@@ -6048,8 +6048,8 @@ fn cli_run_fase149_lista_minima_bombom_funciona_com_exemplo_versionado() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("5"), "stdout={}", stdout);
-    assert!(stdout.contains("8"), "stdout={}", stdout);
+    assert!(stdout.contains('5'), "stdout={}", stdout);
+    assert!(stdout.contains('8'), "stdout={}", stdout);
 }
 
 #[test]
@@ -6061,7 +6061,7 @@ fn cli_run_fase149_lista_fluxo_composto_funciona_com_exemplo_versionado() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("3"), "stdout={}", stdout);
+    assert!(stdout.contains('3'), "stdout={}", stdout);
     assert!(stdout.contains("42"), "stdout={}", stdout);
 }
 
