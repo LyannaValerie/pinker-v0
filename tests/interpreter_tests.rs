@@ -5995,3 +5995,82 @@ fn cli_run_fase148_array_fixo_escrita_indice_elemento_nao_bombom_invalido_falha(
         "esperava falha para escrita fora do recorte bombom"
     );
 }
+
+// ── Fase 149: lista mínima homogênea de bombom ──────────────────────────────
+
+#[test]
+fn run_lista_bombom_minima_criar_anexar_obter_funciona() {
+    let out = run_code(
+        "pacote main;
+         carinho principal() -> bombom {
+             nova l: lista<bombom> = lista_bombom_criar();
+             lista_bombom_anexar(l, 7);
+             lista_bombom_anexar(l, 11);
+             mimo lista_bombom_obter(l, 1);
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(11)));
+}
+
+#[test]
+fn run_lista_bombom_fluxo_composto_funciona() {
+    let out = run_code(
+        "pacote main;
+         carinho carregar_base() -> lista<bombom> {
+             nova l: lista<bombom> = lista_bombom_criar();
+             lista_bombom_anexar(l, 40);
+             lista_bombom_anexar(l, 2);
+             mimo l;
+         }
+         carinho soma_primeiros(l: lista<bombom>) -> bombom {
+             nova a: bombom = lista_bombom_obter(l, 0);
+             nova b: bombom = lista_bombom_obter(l, 1);
+             mimo a + b;
+         }
+         carinho principal() -> bombom {
+             nova itens: lista<bombom> = carregar_base();
+             lista_bombom_anexar(itens, 99);
+             falar(lista_bombom_tamanho(itens));
+             mimo soma_primeiros(itens);
+         }",
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(42)));
+}
+
+#[test]
+fn cli_run_fase149_lista_minima_bombom_funciona_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase149_lista_minima_bombom_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains('5'), "stdout={}", stdout);
+    assert!(stdout.contains('8'), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_run_fase149_lista_fluxo_composto_funciona_com_exemplo_versionado() {
+    let output = run_cli_example("examples/fase149_lista_minima_bombom_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains('3'), "stdout={}", stdout);
+    assert!(stdout.contains("42"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_check_fase149_lista_homogenea_invalida_falha() {
+    let output =
+        run_cli_check_example("examples/fase149_lista_minima_bombom_homogenea_invalido.pink");
+    assert!(
+        !output.status.success(),
+        "esperava falha para lista fora do recorte homogêneo de bombom"
+    );
+}

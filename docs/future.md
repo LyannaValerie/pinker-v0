@@ -20,7 +20,7 @@
 ### 2.1 Memória operacional além do subset atual
 
 - ampliar `seta<T>` além de `bombom`;
-- escrita de campo (`ninho`) e escrita por índice (arrays além do subset `[bombom; N]` da Fase 148);
+- escrita de campo (`ninho`) e escrita por índice (arrays além do subset `[bombom; N]` das Fases 147–148);
 - ampliar `virar` para casos seguros ainda ausentes;
 - robustez adicional de `fragil` (sem prometer MMIO/fences de imediato).
 
@@ -45,7 +45,7 @@ Itens explicitamente para depois do foco inicial do Bloco 11:
 - linguagem-cola;
 - execução de processos externos + captura de saída de comandos;
 - integração rica com stdin/stdout/stderr;
-- coleções básicas (lista, mapa/dicionário, iteração mais confortável);
+- coleções básicas além do recorte já aberto de `lista<bombom>` (lista ampla/mapa/dicionário/iteração mais confortável);
 - JSON, CSV, datas/tempo, aleatoriedade básica e formatação simples.
 
 ### 2.4 Editor/TUI oficial da Pinker (frente funcional aberta em camada 1, atualmente pausada)

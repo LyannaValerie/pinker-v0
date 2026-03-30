@@ -260,6 +260,18 @@ impl Parser {
         } else if self.match_token(TokenKind::KwVerso) {
             Ok(Type::Verso(span))
         } else if self.match_token(TokenKind::Ident) {
+            if self.previous().lexeme == "lista" && self.match_token(TokenKind::Less) {
+                let inner = self.parse_type()?;
+                self.consume(TokenKind::Greater, ">")?;
+                if !matches!(inner, Type::Bombom(_)) {
+                    return Err(PinkerError::Expected {
+                        expected: "tipo 'lista<bombom>' nesta fase".to_string(),
+                        found: format!("lista<{}>", inner.name()),
+                        span: inner.span(),
+                    });
+                }
+                return Ok(Type::ListBombom(merge_span(span, self.previous().span)));
+            }
             let mut name = self.previous().lexeme.clone();
             let mut type_span = self.previous().span;
             if self.match_token(TokenKind::Dot) {

@@ -18,6 +18,10 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("ouvir".to_string(), TypeIR::Bombom);
     sigs.insert("ouvir_verso".to_string(), TypeIR::Verso);
     sigs.insert("ouvir_verso_ou".to_string(), TypeIR::Verso);
+    sigs.insert("lista_bombom_criar".to_string(), TypeIR::ListBombom);
+    sigs.insert("lista_bombom_anexar".to_string(), TypeIR::Nulo);
+    sigs.insert("lista_bombom_obter".to_string(), TypeIR::Bombom);
+    sigs.insert("lista_bombom_tamanho".to_string(), TypeIR::Bombom);
     sigs.insert("argumento".to_string(), TypeIR::Verso);
     sigs.insert("argumento_ou".to_string(), TypeIR::Verso);
     sigs.insert("tem_argumento_nomeado".to_string(), TypeIR::Logica);

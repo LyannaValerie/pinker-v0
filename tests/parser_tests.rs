@@ -673,3 +673,22 @@ fn parser_aceita_tipo_seta_fragil_em_alias_e_assinaturas() {
         _ => panic!("item esperado: alias"),
     }
 }
+
+#[test]
+fn parser_aceita_tipo_lista_bombom_em_assinatura_e_local() {
+    let source = r#"
+        pacote main;
+        carinho coleta() -> lista<bombom> {
+            nova l: lista<bombom> = lista_bombom_criar();
+            mimo l;
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let program = parse(source).expect("parser deve aceitar tipo lista<bombom>");
+    match &program.items[0] {
+        Item::Function(function) => {
+            assert!(matches!(function.ret_type, Some(Type::ListBombom(_))));
+        }
+        _ => panic!("item esperado: função"),
+    }
+}

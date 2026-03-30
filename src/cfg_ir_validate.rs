@@ -67,6 +67,34 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "lista_bombom_criar".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::ListBombom,
+            params: vec![],
+        },
+    );
+    function_sigs.insert(
+        "lista_bombom_anexar".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::ListBombom, TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "lista_bombom_obter".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::ListBombom, TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "lista_bombom_tamanho".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::ListBombom],
+        },
+    );
+    function_sigs.insert(
         "argumento".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,

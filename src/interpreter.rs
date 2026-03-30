@@ -46,6 +46,11 @@ struct RuntimeIoState {
     exit_status: Option<i32>,
 }
 
+struct RuntimeListState {
+    lists_bombom: HashMap<u64, Vec<u64>>,
+    next_list_handle: u64,
+}
+
 struct RuntimeOpenFile {
     path: String,
     content: String,
@@ -67,6 +72,7 @@ pub enum RuntimeValue {
     Ptr(usize),
     Bool(bool),
     Str(String),
+    ListBombom(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,6 +98,10 @@ pub fn run_program_with_args(
         cli_args: cli_args.to_vec(),
         exit_status: None,
     };
+    let mut list_state = RuntimeListState {
+        lists_bombom: HashMap::new(),
+        next_list_handle: 1,
+    };
     let mut call_stack = Vec::new();
     let return_value = call_function(
         "principal",
@@ -100,6 +110,7 @@ pub fn run_program_with_args(
         &globals,
         &mut memory,
         &mut io_state,
+        &mut list_state,
         &mut call_stack,
     )?;
     Ok(RunOutcome {
@@ -163,6 +174,7 @@ fn build_memory(
 // Executa uma função pelo nome com os argumentos fornecidos.
 // O call_stack acumula os nomes ativos para montar o stack trace em erros.
 // Retorna `None` para funções void, `Some(valor)` caso contrário.
+#[allow(clippy::too_many_arguments)]
 fn call_function(
     fn_name: &str,
     args: Vec<RuntimeValue>,
@@ -170,6 +182,7 @@ fn call_function(
     globals: &HashMap<String, RuntimeValue>,
     memory: &mut HashMap<usize, RuntimeValue>,
     io_state: &mut RuntimeIoState,
+    list_state: &mut RuntimeListState,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<Option<RuntimeValue>, PinkerError> {
     if call_stack.len() >= MAX_CALL_DEPTH {
@@ -229,7 +242,8 @@ fn call_function(
             for instr in &block.code {
                 set_current_instr(call_stack, Some(machine_instr_name(instr)));
                 exec_instr(
-                    instr, &mut slots, &mut stack, program, globals, memory, io_state, call_stack,
+                    instr, &mut slots, &mut stack, program, globals, memory, io_state, list_state,
+                    call_stack,
                 )?;
                 set_current_instr(call_stack, None);
                 if io_state.exit_status.is_some() {
@@ -288,6 +302,7 @@ fn exec_instr(
     globals: &HashMap<String, RuntimeValue>,
     memory: &mut HashMap<usize, RuntimeValue>,
     io_state: &mut RuntimeIoState,
+    list_state: &mut RuntimeListState,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<(), PinkerError> {
     match instr {
@@ -324,6 +339,7 @@ fn exec_instr(
                 RuntimeValue::Ptr(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Str(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::ListBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(out);
         }
@@ -339,6 +355,7 @@ fn exec_instr(
                 RuntimeValue::Ptr(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Str(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::ListBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(out);
         }
@@ -503,11 +520,11 @@ fn exec_instr(
         }
         MachineInstr::Call { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = match try_call_intrinsic(callee, &args, io_state)? {
+            let result = match try_call_intrinsic(callee, &args, io_state, list_state)? {
                 IntrinsicCall::Done(value) => value,
-                IntrinsicCall::NotIntrinsic => {
-                    call_function(callee, args, program, globals, memory, io_state, call_stack)?
-                }
+                IntrinsicCall::NotIntrinsic => call_function(
+                    callee, args, program, globals, memory, io_state, list_state, call_stack,
+                )?,
             };
             let Some(value) = result else {
                 return Err(runtime_err("call exige função com retorno"));
@@ -516,11 +533,11 @@ fn exec_instr(
         }
         MachineInstr::CallVoid { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = match try_call_intrinsic(callee, &args, io_state)? {
+            let result = match try_call_intrinsic(callee, &args, io_state, list_state)? {
                 IntrinsicCall::Done(value) => value,
-                IntrinsicCall::NotIntrinsic => {
-                    call_function(callee, args, program, globals, memory, io_state, call_stack)?
-                }
+                IntrinsicCall::NotIntrinsic => call_function(
+                    callee, args, program, globals, memory, io_state, list_state, call_stack,
+                )?,
             };
             if result.is_some() {
                 return Err(runtime_err("call_void exige função sem retorno"));
@@ -533,6 +550,7 @@ fn exec_instr(
                 RuntimeValue::Ptr(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Str(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::ListBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
             }
         }
         MachineInstr::PrintBoolInline => {
@@ -561,8 +579,86 @@ fn try_call_intrinsic(
     callee: &str,
     args: &[RuntimeValue],
     io_state: &mut RuntimeIoState,
+    list_state: &mut RuntimeListState,
 ) -> Result<IntrinsicCall, PinkerError> {
     match callee {
+        "lista_bombom_criar" => {
+            if !args.is_empty() {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_criar' exige 0 argumentos",
+                ));
+            }
+            let handle = list_state.next_list_handle;
+            list_state.next_list_handle = list_state.next_list_handle.saturating_add(1);
+            list_state.lists_bombom.insert(handle, Vec::new());
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::ListBombom(handle))))
+        }
+        "lista_bombom_anexar" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_anexar' exige 2 argumentos (lista<bombom>, bombom)",
+                ));
+            }
+            let RuntimeValue::ListBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_anexar' exige lista<bombom> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Int(value) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_anexar' exige bombom no segundo argumento",
+                ));
+            };
+            let Some(lista) = list_state.lists_bombom.get_mut(&handle) else {
+                return Err(runtime_err("handle de lista<bombom> inválido em runtime"));
+            };
+            lista.push(value);
+            Ok(IntrinsicCall::Done(None))
+        }
+        "lista_bombom_obter" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_obter' exige 2 argumentos (lista<bombom>, bombom)",
+                ));
+            }
+            let RuntimeValue::ListBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_obter' exige lista<bombom> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Int(index) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_obter' exige bombom no segundo argumento",
+                ));
+            };
+            let Some(lista) = list_state.lists_bombom.get(&handle) else {
+                return Err(runtime_err("handle de lista<bombom> inválido em runtime"));
+            };
+            let Some(value) = lista.get(index as usize) else {
+                return Err(runtime_err(
+                    "índice fora do intervalo em 'lista_bombom_obter'",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(*value))))
+        }
+        "lista_bombom_tamanho" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_tamanho' exige 1 argumento (lista<bombom>)",
+                ));
+            }
+            let RuntimeValue::ListBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_tamanho' exige lista<bombom> no argumento",
+                ));
+            };
+            let Some(lista) = list_state.lists_bombom.get(&handle) else {
+                return Err(runtime_err("handle de lista<bombom> inválido em runtime"));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(
+                lista.len() as u64
+            ))))
+        }
         "ouvir" => {
             if !args.is_empty() {
                 return Err(runtime_err("intrínseca 'ouvir' exige 0 argumentos"));
@@ -1781,6 +1877,7 @@ fn pop_numeric(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<RuntimeValue,
         RuntimeValue::Ptr(_) => Err(runtime_err(msg)),
         RuntimeValue::Bool(_) => Err(runtime_err(msg)),
         RuntimeValue::Str(_) => Err(runtime_err(msg)),
+        RuntimeValue::ListBombom(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -1791,6 +1888,7 @@ fn pop_bool(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<bool, PinkerErro
         RuntimeValue::IntSigned(_) => Err(runtime_err(msg)),
         RuntimeValue::Ptr(_) => Err(runtime_err(msg)),
         RuntimeValue::Str(_) => Err(runtime_err(msg)),
+        RuntimeValue::ListBombom(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -1822,6 +1920,9 @@ fn coerce_runtime_value_to_type(
             (RuntimeValue::Ptr(v), true) => Ok(RuntimeValue::IntSigned(v as i64)),
             (RuntimeValue::Ptr(v), false) => Ok(RuntimeValue::Int(v as u64)),
             (RuntimeValue::Str(_), _) => Err(runtime_err("cast inteiro não aceita verso")),
+            (RuntimeValue::ListBombom(_), _) => {
+                Err(runtime_err("cast inteiro não aceita lista<bombom>"))
+            }
             (v, _) => Ok(v),
         };
     }
@@ -1840,6 +1941,16 @@ fn coerce_runtime_value_to_type(
             RuntimeValue::Str(_) => Err(runtime_err(
                 "ponteiro em runtime requer valor inteiro de endereço",
             )),
+            RuntimeValue::ListBombom(_) => Err(runtime_err(
+                "ponteiro em runtime requer valor inteiro de endereço",
+            )),
+        };
+    }
+
+    if matches!(ty, crate::ir::TypeIR::ListBombom) {
+        return match value {
+            RuntimeValue::ListBombom(handle) => Ok(RuntimeValue::ListBombom(handle)),
+            _ => Err(runtime_err("valor incompatível: esperado lista<bombom>")),
         };
     }
 

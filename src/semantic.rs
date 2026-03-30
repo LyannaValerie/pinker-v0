@@ -93,7 +93,8 @@ impl SemanticChecker {
             | (Type::I32(_), Type::I32(_))
             | (Type::I64(_), Type::I64(_))
             | (Type::Logica(_), Type::Logica(_))
-            | (Type::Verso(_), Type::Verso(_)) => true,
+            | (Type::Verso(_), Type::Verso(_))
+            | (Type::ListBombom(_), Type::ListBombom(_)) => true,
             (Type::Struct { name: lhs_name, .. }, Type::Struct { name: rhs_name, .. }) => {
                 lhs_name == rhs_name
             }
@@ -1377,6 +1378,119 @@ impl SemanticChecker {
                 });
             }
             return Ok(Type::Verso(expr_span));
+        }
+        if name == "lista_bombom_criar" {
+            if !args.is_empty() {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'lista_bombom_criar' com aridade inválida: esperado 0, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            return Ok(Type::ListBombom(expr_span));
+        }
+        if name == "lista_bombom_anexar" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'lista_bombom_anexar' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let lista_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(lista_ty, Type::ListBombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'lista_bombom_anexar': esperado 'lista<bombom>', encontrado '{}'",
+                        lista_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let value_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(value_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'lista_bombom_anexar': esperado 'bombom', encontrado '{}'",
+                        value_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
+        }
+        if name == "lista_bombom_obter" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'lista_bombom_obter' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let lista_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(lista_ty, Type::ListBombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'lista_bombom_obter': esperado 'lista<bombom>', encontrado '{}'",
+                        lista_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let index_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(index_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'lista_bombom_obter': esperado 'bombom', encontrado '{}'",
+                        index_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
+        if name == "lista_bombom_tamanho" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'lista_bombom_tamanho' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let lista_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(lista_ty, Type::ListBombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'lista_bombom_tamanho': esperado 'lista<bombom>', encontrado '{}'",
+                        lista_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
         }
         if name == "argumento" {
             if args.len() != 1 {
