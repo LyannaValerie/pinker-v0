@@ -22,6 +22,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("lista_bombom_anexar".to_string(), TypeIR::Nulo);
     sigs.insert("lista_bombom_obter".to_string(), TypeIR::Bombom);
     sigs.insert("lista_bombom_tamanho".to_string(), TypeIR::Bombom);
+    sigs.insert("lista_bombom_definir".to_string(), TypeIR::Nulo);
     sigs.insert("argumento".to_string(), TypeIR::Verso);
     sigs.insert("argumento_ou".to_string(), TypeIR::Verso);
     sigs.insert("tem_argumento_nomeado".to_string(), TypeIR::Logica);

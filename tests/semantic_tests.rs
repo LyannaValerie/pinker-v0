@@ -2170,3 +2170,36 @@ fn lista_bombom_anexar_rejeita_valor_nao_bombom() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("esperado 'bombom'"), "{}", err);
 }
+
+#[test]
+fn lista_bombom_definir_valida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova l: lista<bombom> = lista_bombom_criar();
+            lista_bombom_anexar(l, 10);
+            lista_bombom_definir(l, 0, 22);
+            mimo lista_bombom_obter(l, 0);
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn lista_bombom_definir_rejeita_valor_nao_bombom() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova l: lista<bombom> = lista_bombom_criar();
+            lista_bombom_anexar(l, 10);
+            lista_bombom_definir(l, 0, "oi");
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("argumento 3 da chamada 'lista_bombom_definir'"),
+        "{}",
+        err
+    );
+}

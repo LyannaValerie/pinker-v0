@@ -41,7 +41,7 @@ Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/ag
 - uso qualificado mínimo de tipo importado no sistema de módulos tipado (camada 1 conservadora): tipos exportados por módulo importado passam a aceitar referência qualificada em contexto tipado (`modulo.Tipo`) para declaração local, assinatura e cast tipado já suportado, mantendo recorte conservador sem `pub/priv`, sem reexportação e sem namespaces amplos (Fase 146)
 - array fixo operacional mínimo por valor no Bloco 13 (camada 1 conservadora): indexação `a[i]` para `a: [bombom; N]` em contexto real mínimo (`param/local`) sem heap, sem coleção dinâmica, sem métodos e sem sintaxe nova (Fase 147)
 - escrita mínima por índice em array fixo `[bombom; N]` no Bloco 13 (camada 1 conservadora): `a[i] = valor` para `a: [bombom; N]` e índice `bombom`, complementando a leitura da Fase 147 sem heap, sem coleções dinâmicas e sem sintaxe nova (Fase 148)
-- primeira coleção dinâmica real do Bloco 13 no recorte mínimo conservador: `lista<bombom>` com criação explícita (`lista_bombom_criar()`), append mínimo (`lista_bombom_anexar(lista, v)`), leitura por índice (`lista_bombom_obter(lista, i)`) e tamanho mínimo (`lista_bombom_tamanho(lista)`), sem abrir `lista<T>` ampla, mapa, iteração confortável ou API rica de coleção (Fase 149)
+- primeira coleção dinâmica real do Bloco 13 no recorte mínimo conservador: `lista<bombom>` com criação explícita (`lista_bombom_criar()`), append mínimo (`lista_bombom_anexar(lista, v)`), leitura por índice (`lista_bombom_obter(lista, i)`), tamanho mínimo (`lista_bombom_tamanho(lista)`) e escrita mínima por índice (`lista_bombom_definir(lista, i, v)`), sem abrir `lista<T>` ampla, mapa, iteração confortável ou API rica de coleção (Fases 149 e 150)
 - diretório atual mínimo em `--run` com `diretorio_atual()` retornando `verso` (Fase 95)
 - introspecção mínima de caminho em `--run` com `caminho_existe(verso) -> logica` e `e_arquivo(verso) -> logica` (Fase 96)
 - refinamento mínimo de caminho em `--run` com `e_diretorio(verso) -> logica` e `juntar_caminho(verso, verso) -> verso` (Fase 97)
@@ -260,6 +260,10 @@ cargo run --bin pink -- --run examples/fase148_array_fixo_escrita_indice_minima_
 cargo run --bin pink -- --run examples/fase149_lista_minima_bombom_valido.pink
 cargo run --bin pink -- --run examples/fase149_lista_minima_bombom_fluxo_composto_valido.pink
 cargo run --bin pink -- --check examples/fase149_lista_minima_bombom_homogenea_invalido.pink
+cargo run --bin pink -- --check examples/fase150_lista_bombom_definir_minimo_valido.pink
+cargo run --bin pink -- --run examples/fase150_lista_bombom_definir_minimo_valido.pink
+cargo run --bin pink -- --check examples/fase150_lista_bombom_definir_fluxo_composto_valido.pink
+cargo run --bin pink -- --run examples/fase150_lista_bombom_definir_fluxo_composto_valido.pink
 cargo run --bin pink -- --check examples/fase148_array_fixo_escrita_indice_elemento_nao_bombom_invalido.pink
 cargo run --bin pink -- --cfg-ir examples/fase61_verso_cfg_ir_invalido.pink
 cargo run --bin pink -- --run examples/fase60_modulos_valido.pink

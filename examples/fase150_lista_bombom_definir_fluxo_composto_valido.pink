@@ -1,0 +1,21 @@
+pacote main;
+
+carinho carregar_pedidos() -> lista<bombom> {
+    nova pedidos: lista<bombom> = lista_bombom_criar();
+    lista_bombom_anexar(pedidos, 40);
+    lista_bombom_anexar(pedidos, 2);
+    mimo pedidos;
+}
+
+carinho aplicar_desconto(pedidos: lista<bombom>) {
+    nova valor_atual: bombom = lista_bombom_obter(pedidos, 1);
+    lista_bombom_definir(pedidos, 1, valor_atual + 8);
+}
+
+carinho principal() -> bombom {
+    nova pedidos: lista<bombom> = carregar_pedidos();
+    aplicar_desconto(pedidos);
+    falar(lista_bombom_tamanho(pedidos));
+    falar(lista_bombom_obter(pedidos, 1));
+    mimo 0;
+}
