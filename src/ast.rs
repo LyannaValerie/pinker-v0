@@ -261,6 +261,7 @@ pub enum Type {
     I64(Span),
     Logica(Span),
     Verso(Span),
+    ListBombom(Span),
     FixedArray {
         element: Box<Type>,
         size: u64,
@@ -299,6 +300,7 @@ impl PartialEq for Type {
             | (Type::I64(_), Type::I64(_))
             | (Type::Logica(_), Type::Logica(_))
             | (Type::Verso(_), Type::Verso(_))
+            | (Type::ListBombom(_), Type::ListBombom(_))
             | (Type::Nulo(_), Type::Nulo(_)) => true,
             (
                 Type::FixedArray {
@@ -347,6 +349,7 @@ impl Type {
             | Type::I64(span)
             | Type::Logica(span)
             | Type::Verso(span)
+            | Type::ListBombom(span)
             | Type::Nulo(span) => *span,
             Type::Alias { span, .. }
             | Type::Struct { span, .. }
@@ -368,6 +371,7 @@ impl Type {
             Type::I64(_) => "i64",
             Type::Logica(_) => "logica",
             Type::Verso(_) => "verso",
+            Type::ListBombom(_) => "lista<bombom>",
             Type::FixedArray { .. } => "array",
             Type::Pointer { .. } => "seta",
             Type::Alias { .. } => "alias",
@@ -389,6 +393,7 @@ impl Type {
             Type::I64(_) => Type::I64(span),
             Type::Logica(_) => Type::Logica(span),
             Type::Verso(_) => Type::Verso(span),
+            Type::ListBombom(_) => Type::ListBombom(span),
             Type::FixedArray { element, size, .. } => Type::FixedArray {
                 element: element.clone(),
                 size: *size,

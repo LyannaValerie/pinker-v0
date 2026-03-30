@@ -215,6 +215,7 @@ pub enum TypeIR {
     I64,
     Logica,
     Verso,
+    ListBombom,
     FixedArray { element: ScalarTypeIR, size: u64 },
     Struct,
     Pointer { is_volatile: bool },
@@ -474,6 +475,34 @@ impl LoweringContext {
             "ouvir_verso_ou".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "lista_bombom_criar".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::ListBombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "lista_bombom_anexar".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "lista_bombom_obter".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "lista_bombom_tamanho".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
                 ret_struct_name: None,
             },
         );
@@ -1897,6 +1926,7 @@ impl TypeIR {
             Type::I64(_) => Ok(TypeIR::I64),
             Type::Logica(_) => Ok(TypeIR::Logica),
             Type::Verso(_) => Ok(TypeIR::Verso),
+            Type::ListBombom(_) => Ok(TypeIR::ListBombom),
             Type::FixedArray {
                 element,
                 size,
@@ -1994,6 +2024,7 @@ impl TypeIR {
             TypeIR::I64 => "i64",
             TypeIR::Logica => "logica",
             TypeIR::Verso => "verso",
+            TypeIR::ListBombom => "lista<bombom>",
             TypeIR::FixedArray { .. } => "array",
             TypeIR::Struct => "struct",
             TypeIR::Pointer { .. } => "seta",
@@ -2014,6 +2045,7 @@ impl TypeIR {
                 }
             }
             TypeIR::Struct => "struct".to_string(),
+            TypeIR::ListBombom => "lista<bombom>".to_string(),
             _ => self.name().to_string(),
         }
     }
@@ -2033,6 +2065,7 @@ impl ScalarTypeIR {
             TypeIR::I64 => Some(ScalarTypeIR::I64),
             TypeIR::Logica => Some(ScalarTypeIR::Logica),
             TypeIR::Verso
+            | TypeIR::ListBombom
             | TypeIR::FixedArray { .. }
             | TypeIR::Struct
             | TypeIR::Pointer { .. }

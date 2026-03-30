@@ -844,6 +844,15 @@ Este arquivo é a crônica histórica única do projeto, separada por categoria.
 - Mantém o recorte conservador: sem heap, sem coleções dinâmicas, sem biblioteca ampla de coleções e sem sintaxe rica nova.
 - Cobertura adicionada com testes semânticos, de runtime e CLI, e exemplos versionados: `examples/fase148_array_fixo_escrita_indice_minima_valido.pink` e `examples/fase148_array_fixo_escrita_indice_elemento_nao_bombom_invalido.pink`.
 
+149 - coleções e estruturas de dados básicas: `lista` mínima homogênea de `bombom` (camada 1 conservadora)
+- Terceira fase funcional do Bloco 13.
+- Abre a primeira coleção dinâmica real do bloco no menor recorte auditável: `lista` homogênea de `bombom`.
+- Semântica mínima aberta com superfície explícita e pequena: `lista_bombom_criar()`, `lista_bombom_anexar(lista, bombom)`, `lista_bombom_obter(lista, bombom)` e `lista_bombom_tamanho(lista)`.
+- Implementação mínima: novo tipo de linguagem `lista<bombom>` (sem generic amplo), assinatura de intrínsecas no lowering/IR e runtime com estado interno de listas por handle para suportar append/leitura sem expor heap genérico.
+- Mantém o recorte conservador: sem `lista<T>` ampla, sem mapa, sem remoção/insert/sort, sem iteração confortável e sem API rica de coleção.
+- Cobertura adicionada com testes de parser/semântica/runtime/CLI e exemplos versionados: `examples/fase149_lista_minima_bombom_valido.pink`, `examples/fase149_lista_minima_bombom_fluxo_composto_valido.pink` e `examples/fase149_lista_minima_bombom_homogenea_invalido.pink`.
+- Esta fase também introduz exemplos mais compostos/realistas no bloco, preservando diff pequeno e auditável.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

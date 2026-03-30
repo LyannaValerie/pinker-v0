@@ -1,0 +1,10 @@
+pacote fase149_lista_minima_bombom_valido;
+
+carinho principal() -> bombom {
+    nova lista: lista<bombom> = lista_bombom_criar();
+    lista_bombom_anexar(lista, 5);
+    lista_bombom_anexar(lista, 8);
+    falar(lista_bombom_obter(lista, 0));
+    falar(lista_bombom_obter(lista, 1));
+    mimo 0;
+}

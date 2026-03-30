@@ -525,7 +525,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 13 — coleções e estruturas de dados básicas
 
-**Status**: em andamento; duas fases funcionais entregues (Fase 147 e Fase 148) com array fixo operacional mínimo por valor no recorte conservador.
+**Status**: em andamento; três fases funcionais entregues (Fases 147, 148 e 149), incluindo a primeira coleção dinâmica real no recorte mínimo conservador (`lista<bombom>`).
 
 **Tese do bloco**: a Pinker tem tipos escalares, arrays fixos e structs, mas não tem coleções dinâmicas; sem lista e mapa, processar conjuntos variáveis de dados requer contorções manuais com arrays fixos; este bloco abre o mínimo auditável de coleções dinâmicas para tornar a linguagem utilizável como ferramenta cotidiana com dados variáveis.
 
@@ -534,7 +534,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 **Itens do bloco (ordem interna por dependência)**:
 1. **13.1 — array fixo operacional mínimo por valor (Fase 147, concluída)**: abertura do primeiro recorte estrutural do bloco com indexação `a[i]` para `a: [bombom; N]` em contexto real mínimo (local/parâmetro), preservando `(*ptr)[i]` já existente e sem abrir coleções dinâmicas.
 2. **13.2 — escrita mínima por índice em array fixo (Fase 148, concluída)**: complemento direto da 13.1; abre `a[i] = valor` para `a: [bombom; N]` com índice `bombom`, fechando o núcleo leitura+escrita do recorte mínimo sem heap nem coleções dinâmicas.
-3. **13.3 — `lista` básica**: coleção dinâmica homogênea; push/pop/acesso por índice mínimo; base para todos os itens seguintes do bloco.
+3. **13.3 — `lista` mínima homogênea de `bombom` (Fase 149, concluída)**: abertura da primeira coleção dinâmica real do bloco com recorte estritamente auditável (`lista<bombom>`) via criação explícita, append mínimo e leitura por índice mínima; tamanho mínimo entrou no mesmo recorte por cair com diff pequeno; sem `lista<T>` ampla, sem mapa e sem iteração confortável.
 4. **13.4 — `mapa` básico**: estrutura chave-valor homogênea mínima (`verso → T`); precisa de `lista` como fundação interna; base para iteração e dados estruturados.
 5. **13.5 — iteração confortável sobre coleções**: construto mínimo (`para cada` ou equivalente) que percorra `lista` e `mapa` sem aritmética de ponteiro explícita; precisa de lista e mapa operacionais; base para processamento de dados nos blocos seguintes.
 6. **13.6 — aleatoriedade básica**: geração mínima de inteiro aleatório com semente explícita; precisa de tipos inteiros estáveis; fecha o bloco com utilidade independente mas frequentemente necessária em conjunto com coleções.

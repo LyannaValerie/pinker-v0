@@ -62,6 +62,34 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "lista_bombom_criar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::ListBombom,
+            params: vec![],
+        },
+    );
+    funcs.insert(
+        "lista_bombom_anexar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::ListBombom, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "lista_bombom_obter".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::ListBombom, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "lista_bombom_tamanho".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::ListBombom],
+        },
+    );
+    funcs.insert(
         "argumento".to_string(),
         FunctionSig {
             ret_type: TypeIR::Verso,

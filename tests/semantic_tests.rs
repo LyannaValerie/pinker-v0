@@ -2127,3 +2127,46 @@ fn escrita_por_indice_com_valor_nao_bombom_falha() {
         err
     );
 }
+
+// ── Fase 149: lista mínima homogênea de bombom ──────────────────────────────
+
+#[test]
+fn lista_bombom_criar_anexar_obter_valida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova l: lista<bombom> = lista_bombom_criar();
+            lista_bombom_anexar(l, 10);
+            lista_bombom_anexar(l, 20);
+            mimo lista_bombom_obter(l, 1);
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn lista_bombom_rejeita_tipo_fora_do_recorte() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova l: lista<verso> = lista_bombom_criar();
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("lista<bombom>"), "{}", err);
+}
+
+#[test]
+fn lista_bombom_anexar_rejeita_valor_nao_bombom() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova l: lista<bombom> = lista_bombom_criar();
+            lista_bombom_anexar(l, "oi");
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("esperado 'bombom'"), "{}", err);
+}

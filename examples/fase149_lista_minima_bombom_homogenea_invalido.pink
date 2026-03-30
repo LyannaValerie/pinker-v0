@@ -1,0 +1,6 @@
+pacote fase149_lista_minima_bombom_homogenea_invalido;
+
+carinho principal() -> bombom {
+    nova lista_texto: lista<verso> = lista_bombom_criar();
+    mimo 0;
+}

@@ -10,7 +10,7 @@
 - Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
 ## 2. Estado corrente
-- Fase funcional atual: **148 — coleções e estruturas de dados básicas: escrita mínima por índice em array fixo `[bombom; N]` (camada 1 conservadora)**.
+- Fase funcional atual: **149 — coleções e estruturas de dados básicas: `lista` mínima homogênea de `bombom` (camada 1 conservadora)**.
 - Bloco encerrado: **11 — texto prático, scripts e ergonomia cotidiana (encerrado por suficiência conservadora na Doc-27)**.
 - Bloco encerrado: **12 — sistema de módulos tipado (encerrado por suficiência conservadora na Doc-28)**.
 - Bloco formal da trilha ativa: **13 — coleções e estruturas de dados básicas**.

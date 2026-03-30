@@ -47,6 +47,9 @@ fn layout_of_type_inner(
         Type::Verso(_) => {
             Err("tipo 'verso' ainda não possui layout estático nesta fase".to_string())
         }
+        Type::ListBombom(_) => {
+            Err("tipo 'lista<bombom>' ainda não possui layout estático nesta fase".to_string())
+        }
         Type::Pointer { .. } => Ok(TypeLayout {
             size: POINTER_SIZE,
             align: POINTER_ALIGN,
