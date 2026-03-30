@@ -1,0 +1,717 @@
+pacote main;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// algoritmo_avancado.pink — Suite completa de algoritmos em Pinker v0
+//
+// Exercita simultaneamente:
+//   · listas dinâmicas (lista<bombom>)
+//   · structs (ninho)
+//   · constantes globais (eterno)
+//   · aliases de tipo (apelido)
+//   · funções com e sem retorno (carinho)
+//   · controle de fluxo (talvez / senao / sempre que / quebrar / continuar)
+//   · operadores aritméticos, bit a bit e lógicos
+//   · recursão + iteração
+//
+// Algoritmos implementados:
+//   1. Ordenação por Bolha   — bubble sort em lista<bombom>
+//   2. Busca Binária         — sobre lista ordenada
+//   3. Estatísticas          — mínimo, máximo, soma, média, mediana
+//   4. Crivo de Eratóstenes  — primos até N via lista de flags
+//   5. Fibonacci com lista   — sequência completa até fib(N)
+//   6. MDC / MMC             — Euclides iterativo + identidade
+//   7. Potenciação rápida    — expt por exponenciação binária
+//   8. Contagem de bits      — popcount iterativo
+//   9. Frequência            — histograma via lista
+//  10. Verificação cruzada   — combina todos os resultados
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Constantes globais ─────────────────────────────────────────────────────
+eterno ZERO:        bombom = 0;
+eterno UM:          bombom = 1;
+eterno DOIS:        bombom = 2;
+eterno TRES:        bombom = 3;
+eterno DEZ:         bombom = 10;
+eterno CINQUENTA:   bombom = 50;
+eterno CEM:         bombom = 100;
+eterno LIMITE_FIB:  bombom = 15;
+eterno LIMITE_SIEVE:bombom = 50;
+eterno MASCARA8:    bombom = 255;
+
+// ── Aliases de tipo ────────────────────────────────────────────────────────
+apelido Indice = bombom;
+apelido Contador = bombom;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MÓDULO 1 — Aritmética básica
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Resto da divisão inteira (bombom é u64, não há % nativo)
+carinho resto(n: bombom, d: bombom) -> bombom {
+    mimo n - (n / d) * d;
+}
+
+// Máximo de dois valores
+carinho max2(a: bombom, b: bombom) -> bombom {
+    talvez a >= b {
+        mimo a;
+    } senao {
+        mimo b;
+    }
+}
+
+// Mínimo de dois valores
+carinho min2(a: bombom, b: bombom) -> bombom {
+    talvez a <= b {
+        mimo a;
+    } senao {
+        mimo b;
+    }
+}
+
+// Paridade
+carinho eh_par(n: bombom) -> logica {
+    mimo resto(n, DOIS) == ZERO;
+}
+
+// Primalidade — trial division com corte em √n
+carinho eh_primo(n: bombom) -> logica {
+    talvez n < DOIS {
+        mimo falso;
+    } senao talvez n == DOIS {
+        mimo verdade;
+    } senao talvez eh_par(n) {
+        mimo falso;
+    } senao {
+        nova muda i: bombom = TRES;
+        nova muda ok: logica = verdade;
+        sempre que i * i <= n {
+            talvez resto(n, i) == ZERO {
+                ok = falso;
+                quebrar;
+            }
+            i = i + DOIS;
+        }
+        mimo ok;
+    }
+}
+
+// MDC — algoritmo de Euclides iterativo
+carinho mdc(a: bombom, b: bombom) -> bombom {
+    nova muda x: bombom = a;
+    nova muda y: bombom = b;
+    nova muda t: bombom = ZERO;
+    sempre que y != ZERO {
+        t = resto(x, y);
+        x = y;
+        y = t;
+    }
+    mimo x;
+}
+
+// MMC — via identidade mmc(a,b) = a / mdc(a,b) * b
+carinho mmc(a: bombom, b: bombom) -> bombom {
+    mimo (a / mdc(a, b)) * b;
+}
+
+// Potenciação rápida — O(log exp), exponenciação binária
+carinho potencia_rapida(base: bombom, exp: bombom) -> bombom {
+    nova muda resultado: bombom = UM;
+    nova muda b: bombom = base;
+    nova muda e: bombom = exp;
+    sempre que e > ZERO {
+        talvez resto(e, DOIS) == UM {
+            resultado = resultado * b;
+        }
+        b = b * b;
+        e = e / DOIS;
+    }
+    mimo resultado;
+}
+
+// Popcount — conta bits 1 em n (iterativo)
+carinho contar_bits(n: bombom) -> bombom {
+    nova muda x: bombom = n;
+    nova muda bits: Contador = ZERO;
+    sempre que x != ZERO {
+        bits = bits + (x & UM);
+        x = x >> UM;
+    }
+    mimo bits;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MÓDULO 2 — Operações em lista<bombom>
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Ordena a lista in-place por bolha — O(n²)
+carinho ordenar_bolha(lst: lista<bombom>) {
+    nova n: bombom = lista_bombom_tamanho(lst);
+    talvez n <= UM {
+        mimo;
+    }
+    nova muda i: bombom = ZERO;
+    sempre que i < n {
+        nova muda j: bombom = ZERO;
+        // inner loop vai até n - i - 1; usamos j + UM + i < n para evitar
+        // underflow em u64 (nunca calculamos n - i - 1 diretamente)
+        sempre que j + UM + i < n {
+            nova a: bombom = lista_bombom_obter(lst, j);
+            nova b: bombom = lista_bombom_obter(lst, j + UM);
+            talvez a > b {
+                lista_bombom_definir(lst, j, b);
+                lista_bombom_definir(lst, j + UM, a);
+            }
+            j = j + UM;
+        }
+        i = i + UM;
+    }
+}
+
+// Verifica se a lista está em ordem não-decrescente
+carinho esta_ordenada(lst: lista<bombom>) -> logica {
+    nova n: bombom = lista_bombom_tamanho(lst);
+    talvez n <= UM {
+        mimo verdade;
+    }
+    nova muda i: bombom = ZERO;
+    nova muda ok: logica = verdade;
+    sempre que i + UM < n {
+        nova a: bombom = lista_bombom_obter(lst, i);
+        nova b: bombom = lista_bombom_obter(lst, i + UM);
+        talvez a > b {
+            ok = falso;
+            quebrar;
+        }
+        i = i + UM;
+    }
+    mimo ok;
+}
+
+// Busca binária em lista ordenada.
+// Retorna o índice do alvo, ou lista_bombom_tamanho(lst) se não encontrado.
+carinho busca_binaria(lst: lista<bombom>, alvo: bombom) -> Indice {
+    nova n: bombom = lista_bombom_tamanho(lst);
+    nova muda esq: bombom = ZERO;
+    nova muda dir: bombom = n - UM;
+    nova muda idx: Indice = n;   // sentinela "não encontrado"
+    sempre que esq <= dir {
+        nova meio: bombom = esq + (dir - esq) / DOIS;
+        nova val: bombom = lista_bombom_obter(lst, meio);
+        talvez val == alvo {
+            idx = meio;
+            quebrar;
+        } senao talvez val < alvo {
+            esq = meio + UM;
+        } senao {
+            // val > alvo: mover dir para esquerda com cuidado (u64)
+            talvez meio == ZERO {
+                quebrar;
+            }
+            dir = meio - UM;
+        }
+    }
+    mimo idx;
+}
+
+// Soma de todos os elementos
+carinho soma_lista(lst: lista<bombom>) -> bombom {
+    nova n: bombom = lista_bombom_tamanho(lst);
+    nova muda soma: bombom = ZERO;
+    nova muda i: bombom = ZERO;
+    sempre que i < n {
+        soma = soma + lista_bombom_obter(lst, i);
+        i = i + UM;
+    }
+    mimo soma;
+}
+
+// Mínimo da lista (lista deve ter ao menos 1 elemento)
+carinho minimo_lista(lst: lista<bombom>) -> bombom {
+    nova n: bombom = lista_bombom_tamanho(lst);
+    nova muda m: bombom = lista_bombom_obter(lst, ZERO);
+    nova muda i: bombom = UM;
+    sempre que i < n {
+        nova v: bombom = lista_bombom_obter(lst, i);
+        talvez v < m {
+            m = v;
+        }
+        i = i + UM;
+    }
+    mimo m;
+}
+
+// Máximo da lista (lista deve ter ao menos 1 elemento)
+carinho maximo_lista(lst: lista<bombom>) -> bombom {
+    nova n: bombom = lista_bombom_tamanho(lst);
+    nova muda m: bombom = lista_bombom_obter(lst, ZERO);
+    nova muda i: bombom = UM;
+    sempre que i < n {
+        nova v: bombom = lista_bombom_obter(lst, i);
+        talvez v > m {
+            m = v;
+        }
+        i = i + UM;
+    }
+    mimo m;
+}
+
+// Mediana de lista já ordenada (trunca a média para listas de tamanho par)
+carinho mediana_ordenada(lst: lista<bombom>) -> bombom {
+    nova n: bombom = lista_bombom_tamanho(lst);
+    nova meio: bombom = n / DOIS;
+    talvez resto(n, DOIS) == UM {
+        // ímpar: elemento central
+        mimo lista_bombom_obter(lst, meio);
+    } senao {
+        // par: média dos dois centrais (divisão inteira)
+        nova a: bombom = lista_bombom_obter(lst, meio - UM);
+        nova b: bombom = lista_bombom_obter(lst, meio);
+        mimo (a + b) / DOIS;
+    }
+}
+
+// Histograma: conta quantas vezes cada valor em [0, max_val] aparece na lista.
+// Retorna uma lista de tamanho max_val + 1 com as frequências.
+carinho frequencia(lst: lista<bombom>, max_val: bombom) -> lista<bombom> {
+    nova freq: lista<bombom> = lista_bombom_criar();
+    nova muda k: bombom = ZERO;
+    sempre que k <= max_val {
+        lista_bombom_anexar(freq, ZERO);
+        k = k + UM;
+    }
+    nova n: bombom = lista_bombom_tamanho(lst);
+    nova muda j: bombom = ZERO;
+    sempre que j < n {
+        nova v: bombom = lista_bombom_obter(lst, j);
+        talvez v <= max_val {
+            nova atual: bombom = lista_bombom_obter(freq, v);
+            lista_bombom_definir(freq, v, atual + UM);
+        }
+        j = j + UM;
+    }
+    mimo freq;
+}
+
+// Imprime cada elemento da lista em linha separada via falar()
+carinho imprimir_lista(lst: lista<bombom>) {
+    nova n: bombom = lista_bombom_tamanho(lst);
+    nova muda i: bombom = ZERO;
+    sempre que i < n {
+        falar(lista_bombom_obter(lst, i));
+        i = i + UM;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MÓDULO 3 — Algoritmos clássicos com lista
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Crivo de Eratóstenes: devolve lista com todos os primos em [2, limite].
+// Usa uma lista de flags (0 = composto, 1 = primo) como sieve interno.
+carinho crivo_primos(limite: bombom) -> lista<bombom> {
+    // Passo 1: alocar flags[0..limite] inicializados a 1
+    nova flags: lista<bombom> = lista_bombom_criar();
+    nova muda ini: bombom = ZERO;
+    sempre que ini <= limite {
+        lista_bombom_anexar(flags, UM);
+        ini = ini + UM;
+    }
+    // Marcar 0 e 1 como não-primos
+    lista_bombom_definir(flags, ZERO, ZERO);
+    talvez limite >= UM {
+        lista_bombom_definir(flags, UM, ZERO);
+    }
+    // Passo 2: peneirar — para cada p primo, marcar múltiplos
+    nova muda p: bombom = DOIS;
+    nova muda mult: bombom = ZERO;
+    sempre que p * p <= limite {
+        talvez lista_bombom_obter(flags, p) == UM {
+            mult = p * p;
+            sempre que mult <= limite {
+                lista_bombom_definir(flags, mult, ZERO);
+                mult = mult + p;
+            }
+        }
+        p = p + UM;
+    }
+    // Passo 3: coletar indices com flag == 1
+    nova primos: lista<bombom> = lista_bombom_criar();
+    nova muda q: bombom = DOIS;
+    sempre que q <= limite {
+        talvez lista_bombom_obter(flags, q) == UM {
+            lista_bombom_anexar(primos, q);
+        }
+        q = q + UM;
+    }
+    mimo primos;
+}
+
+// Sequência de Fibonacci como lista: fib[0..n] (n+1 elementos).
+// Usa a lista como tabela de memoização implícita (iterativo, O(n)).
+carinho fibonacci_lista(n: bombom) -> lista<bombom> {
+    nova memo: lista<bombom> = lista_bombom_criar();
+    lista_bombom_anexar(memo, ZERO);
+    talvez n == ZERO {
+        mimo memo;
+    }
+    lista_bombom_anexar(memo, UM);
+    nova muda i: bombom = DOIS;
+    sempre que i <= n {
+        nova a: bombom = lista_bombom_obter(memo, i - DOIS);
+        nova b: bombom = lista_bombom_obter(memo, i - UM);
+        lista_bombom_anexar(memo, a + b);
+        i = i + UM;
+    }
+    mimo memo;
+}
+
+// Soma acumulada da lista: devolve nova lista onde resultado[i] = sum(lst[0..i])
+carinho soma_acumulada(lst: lista<bombom>) -> lista<bombom> {
+    nova n: bombom = lista_bombom_tamanho(lst);
+    nova acc: lista<bombom> = lista_bombom_criar();
+    nova muda soma: bombom = ZERO;
+    nova muda i: bombom = ZERO;
+    sempre que i < n {
+        soma = soma + lista_bombom_obter(lst, i);
+        lista_bombom_anexar(acc, soma);
+        i = i + UM;
+    }
+    mimo acc;
+}
+
+// Reverte a lista in-place usando troca de extremidades
+carinho reverter_lista(lst: lista<bombom>) {
+    nova n: bombom = lista_bombom_tamanho(lst);
+    talvez n <= UM {
+        mimo;
+    }
+    nova muda esq: bombom = ZERO;
+    nova muda dir: bombom = n - UM;
+    sempre que esq < dir {
+        nova a: bombom = lista_bombom_obter(lst, esq);
+        nova b: bombom = lista_bombom_obter(lst, dir);
+        lista_bombom_definir(lst, esq, b);
+        lista_bombom_definir(lst, dir, a);
+        esq = esq + UM;
+        dir = dir - UM;
+    }
+}
+
+// Verifica se a lista é palíndrome (lê igual de frente para trás)
+carinho eh_palindrome(lst: lista<bombom>) -> logica {
+    nova n: bombom = lista_bombom_tamanho(lst);
+    talvez n <= UM {
+        mimo verdade;
+    }
+    nova muda esq: bombom = ZERO;
+    nova muda dir: bombom = n - UM;
+    nova muda ok: logica = verdade;
+    sempre que esq < dir {
+        nova a: bombom = lista_bombom_obter(lst, esq);
+        nova b: bombom = lista_bombom_obter(lst, dir);
+        talvez a != b {
+            ok = falso;
+            quebrar;
+        }
+        esq = esq + UM;
+        dir = dir - UM;
+    }
+    mimo ok;
+}
+
+// Contagem de elementos primos dentro de uma lista
+carinho contar_primos_lista(lst: lista<bombom>) -> Contador {
+    nova n: bombom = lista_bombom_tamanho(lst);
+    nova muda cnt: Contador = ZERO;
+    nova muda i: bombom = ZERO;
+    sempre que i < n {
+        talvez eh_primo(lista_bombom_obter(lst, i)) {
+            cnt = cnt + UM;
+        }
+        i = i + UM;
+    }
+    mimo cnt;
+}
+
+// Soma dos elementos primos dentro de uma lista
+carinho soma_primos_lista(lst: lista<bombom>) -> bombom {
+    nova n: bombom = lista_bombom_tamanho(lst);
+    nova muda s: bombom = ZERO;
+    nova muda i: bombom = ZERO;
+    sempre que i < n {
+        nova v: bombom = lista_bombom_obter(lst, i);
+        talvez eh_primo(v) {
+            s = s + v;
+        }
+        i = i + UM;
+    }
+    mimo s;
+}
+
+// XOR de todos os elementos (útil para detecção de elemento duplicado / ausente)
+carinho xor_lista(lst: lista<bombom>) -> bombom {
+    nova n: bombom = lista_bombom_tamanho(lst);
+    nova muda acc: bombom = ZERO;
+    nova muda i: bombom = ZERO;
+    sempre que i < n {
+        acc = acc ^ lista_bombom_obter(lst, i);
+        i = i + UM;
+    }
+    mimo acc;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PONTO DE ENTRADA
+// ═══════════════════════════════════════════════════════════════════════════
+
+carinho principal() -> bombom {
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 1 — Aritmética avançada
+    // ────────────────────────────────────────────────────────────────────────
+    falar(1001);  // marcador de seção
+
+    nova mdc_val: bombom = mdc(252, 105);         // 21
+    nova mmc_val: bombom = mmc(12, 18);            // 36
+    nova pot2_10: bombom = potencia_rapida(DOIS, DEZ);  // 1024
+    nova pot3_5:  bombom = potencia_rapida(TRES, 5);    // 243
+    nova bits_1024: bombom = contar_bits(pot2_10);      // 1
+    nova bits_255:  bombom = contar_bits(MASCARA8);     // 8
+    nova primo_97: logica = eh_primo(97);               // verdade
+    nova primo_91: logica = eh_primo(91);               // falso (7×13)
+
+    falar(mdc_val);    // 21
+    falar(mmc_val);    // 36
+    falar(pot2_10);    // 1024
+    falar(pot3_5);     // 243
+    falar(bits_1024);  // 1
+    falar(bits_255);   // 8
+    talvez primo_97 { falar(UM); } senao { falar(ZERO); }   // 1
+    talvez primo_91 { falar(UM); } senao { falar(ZERO); }   // 0
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 2 — Ordenação por Bolha e verificação
+    // ────────────────────────────────────────────────────────────────────────
+    falar(2002);
+
+    nova dados: lista<bombom> = lista_bombom_criar();
+    lista_bombom_anexar(dados, 64);
+    lista_bombom_anexar(dados, 25);
+    lista_bombom_anexar(dados, 12);
+    lista_bombom_anexar(dados, 90);
+    lista_bombom_anexar(dados, 3);
+    lista_bombom_anexar(dados, 47);
+    lista_bombom_anexar(dados, 8);
+    lista_bombom_anexar(dados, 55);
+    // dados = [64, 25, 12, 90, 3, 47, 8, 55]
+
+    // Antes de ordenar: XOR do conjunto (ordem não importa)
+    nova xor_antes: bombom = xor_lista(dados);
+
+    ordenar_bolha(dados);
+    // dados = [3, 8, 12, 25, 47, 55, 64, 90]
+
+    nova ordenado: logica = esta_ordenada(dados);
+    talvez ordenado { falar(UM); } senao { falar(ZERO); }  // 1 — ordenado
+
+    // XOR após ordenar deve ser idêntico (mesmos elementos)
+    nova xor_depois: bombom = xor_lista(dados);
+    talvez xor_antes == xor_depois {
+        falar(UM);   // 1 — integridade preservada
+    } senao {
+        falar(ZERO);
+    }
+
+    imprimir_lista(dados);  // 3 8 12 25 47 55 64 90
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 3 — Estatísticas sobre dados ordenados
+    // ────────────────────────────────────────────────────────────────────────
+    falar(3003);
+
+    nova min_val:  bombom = minimo_lista(dados);   // 3
+    nova max_val:  bombom = maximo_lista(dados);   // 90
+    nova soma_val: bombom = soma_lista(dados);     // 304
+    nova n_dados:  bombom = lista_bombom_tamanho(dados);
+    nova media:    bombom = soma_val / n_dados;    // 38
+    nova mediana:  bombom = mediana_ordenada(dados); // (25+47)/2 = 36
+
+    falar(min_val);   // 3
+    falar(max_val);   // 90
+    falar(soma_val);  // 304
+    falar(media);     // 38
+    falar(mediana);   // 36
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 4 — Busca Binária
+    // ────────────────────────────────────────────────────────────────────────
+    falar(4004);
+
+    nova idx_47: Indice = busca_binaria(dados, 47);   // 4
+    nova idx_3:  Indice = busca_binaria(dados, 3);    // 0
+    nova idx_90: Indice = busca_binaria(dados, 90);   // 7
+    nova idx_99: Indice = busca_binaria(dados, 99);   // 8 (não encontrado)
+
+    falar(idx_47);  // 4
+    falar(idx_3);   // 0
+    falar(idx_90);  // 7
+    falar(idx_99);  // 8 — sentinela "não encontrado"
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 5 — Crivo de Eratóstenes
+    // ────────────────────────────────────────────────────────────────────────
+    falar(5005);
+
+    nova primos50: lista<bombom> = crivo_primos(LIMITE_SIEVE);
+    nova qtd_primos: bombom = lista_bombom_tamanho(primos50);
+    // primos até 50: 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 → 15 primos
+
+    falar(qtd_primos);  // 15
+    imprimir_lista(primos50);  // 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47
+
+    // Último primo encontrado deve ser 47
+    nova ultimo_primo: bombom = lista_bombom_obter(primos50, qtd_primos - UM);
+    falar(ultimo_primo);  // 47
+
+    // Soma de todos os primos até 50
+    nova soma_p50: bombom = soma_lista(primos50);
+    falar(soma_p50);  // 328
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 6 — Fibonacci com lista (memoização iterativa)
+    // ────────────────────────────────────────────────────────────────────────
+    falar(6006);
+
+    nova fib: lista<bombom> = fibonacci_lista(LIMITE_FIB);
+    // fib[0..15]: 0 1 1 2 3 5 8 13 21 34 55 89 144 233 377 610
+
+    nova tamanho_fib: bombom = lista_bombom_tamanho(fib);
+    falar(tamanho_fib);  // 16 (índices 0..15)
+
+    falar(lista_bombom_obter(fib, 0));   // 0
+    falar(lista_bombom_obter(fib, 1));   // 1
+    falar(lista_bombom_obter(fib, 7));   // 13
+    falar(lista_bombom_obter(fib, 10));  // 55
+    falar(lista_bombom_obter(fib, 12));  // 144
+    falar(lista_bombom_obter(fib, 15));  // 610
+
+    // Soma acumulada dos primeiros 8 termos de Fibonacci
+    nova acc_fib8: lista<bombom> = lista_bombom_criar();
+    nova muda fi: bombom = ZERO;
+    sempre que fi < 8 {
+        lista_bombom_anexar(acc_fib8, lista_bombom_obter(fib, fi));
+        fi = fi + UM;
+    }
+    nova soma_acc: lista<bombom> = soma_acumulada(acc_fib8);
+    // acumulada de [0,1,1,2,3,5,8,13] = [0,1,2,4,7,12,20,33]
+    falar(lista_bombom_obter(soma_acc, 7));  // 33
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 7 — Histograma de frequências
+    // ────────────────────────────────────────────────────────────────────────
+    falar(7007);
+
+    nova amostra: lista<bombom> = lista_bombom_criar();
+    lista_bombom_anexar(amostra, 3);
+    lista_bombom_anexar(amostra, 7);
+    lista_bombom_anexar(amostra, 3);
+    lista_bombom_anexar(amostra, 2);
+    lista_bombom_anexar(amostra, 7);
+    lista_bombom_anexar(amostra, 7);
+    lista_bombom_anexar(amostra, 1);
+    lista_bombom_anexar(amostra, 5);
+    lista_bombom_anexar(amostra, 3);
+    // amostra: [3,7,3,2,7,7,1,5,3]
+
+    nova freq: lista<bombom> = frequencia(amostra, DEZ);
+    falar(lista_bombom_obter(freq, 1));  // 1  → freq de 1
+    falar(lista_bombom_obter(freq, 2));  // 1  → freq de 2
+    falar(lista_bombom_obter(freq, 3));  // 3  → freq de 3
+    falar(lista_bombom_obter(freq, 5));  // 1  → freq de 5
+    falar(lista_bombom_obter(freq, 7));  // 3  → freq de 7
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 8 — Palíndromes e reversão
+    // ────────────────────────────────────────────────────────────────────────
+    falar(8008);
+
+    nova palind: lista<bombom> = lista_bombom_criar();
+    lista_bombom_anexar(palind, 1);
+    lista_bombom_anexar(palind, 2);
+    lista_bombom_anexar(palind, 3);
+    lista_bombom_anexar(palind, 2);
+    lista_bombom_anexar(palind, 1);
+    // [1,2,3,2,1] — palíndromo
+
+    nova eh_pal: logica = eh_palindrome(palind);
+    talvez eh_pal { falar(UM); } senao { falar(ZERO); }  // 1
+
+    // Reverter [3,8,12,25,47,55,64,90] → [90,64,55,47,25,12,8,3]
+    reverter_lista(dados);
+    nova revertido_ok: logica = esta_ordenada(dados);
+    // após reversão, NÃO está em ordem crescente → falso
+    talvez revertido_ok { falar(UM); } senao { falar(ZERO); }  // 0
+
+    // Reverter de volta → [3,8,12,25,47,55,64,90]
+    reverter_lista(dados);
+    nova volta_ok: logica = esta_ordenada(dados);
+    talvez volta_ok { falar(UM); } senao { falar(ZERO); }  // 1
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 9 — Primos dentro de dados e relação com crivo
+    // ────────────────────────────────────────────────────────────────────────
+    falar(9009);
+
+    nova cnt_primos: Contador = contar_primos_lista(dados);
+    // dados = [3,8,12,25,47,55,64,90] → primos: 3, 47 → count = 2
+    nova soma_primos_d: bombom = soma_primos_lista(dados);
+    // soma: 3 + 47 = 50
+
+    falar(cnt_primos);     // 2
+    falar(soma_primos_d);  // 50
+
+    // Verificar: cada elemento de primos50 deve ser reconhecido como primo
+    nova total_primos50: bombom = lista_bombom_tamanho(primos50);
+    nova validados: Contador = contar_primos_lista(primos50);
+    talvez validados == total_primos50 {
+        falar(UM);   // 1 — todos confirmados primos
+    } senao {
+        falar(ZERO);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // SEÇÃO 10 — Verificação cruzada e resultado final
+    // ────────────────────────────────────────────────────────────────────────
+    falar(10010);
+
+    // Combina resultados de múltiplos módulos numa expressão composta
+    nova combinado: bombom = (mdc_val + mmc_val + pot2_10 + soma_p50 + mediana)
+                              & MASCARA8;
+    // (21 + 36 + 1024 + 328 + 36) & 255 = 1445 & 255 = 165
+
+    nova bits_comb: bombom = contar_bits(combinado);        // depende de combinado
+    nova mdc_final: bombom = mdc(soma_p50, soma_primos_d);  // mdc(328, 50) = 2
+    nova mmc_final: bombom = mmc(mdc_final, DOIS);          // mmc(2,2) = 2
+    nova pot_final: bombom = potencia_rapida(DOIS, bits_comb); // 2^bits_comb
+
+    falar(combinado);    // 165
+    falar(bits_comb);    // contar_bits(165) = contar_bits(10100101b) = 4
+    falar(mdc_final);    // 2
+    falar(mmc_final);    // 2
+    falar(pot_final);    // 2^4 = 16
+
+    // Verificação final: soma de primos50 deve bater com o que o crivo gerou
+    nova soma_manual: bombom =
+        DOIS + TRES + 5 + 7 + 11 + 13 + 17 + 19 + 23 + 29
+        + 31 + 37 + 41 + 43 + 47;
+    talvez soma_manual == soma_p50 {
+        falar(UM);   // 1 — crivo correto
+    } senao {
+        falar(ZERO);
+    }
+
+    // Retorno: resultado final determinístico (combina tudo via XOR + OR)
+    mimo (combinado ^ pot_final) | mdc_final;
+    // (165 ^ 16) | 2 = 181 | 2 = 183 → saída do programa
+}
