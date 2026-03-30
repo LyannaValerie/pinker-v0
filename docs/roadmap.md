@@ -371,7 +371,7 @@ Por padrão, o fechamento do Bloco 10 **não** implica:
 ## Interpretação obrigatória da trilha
 
 - O Bloco 10 está formalmente encerrado por suficiência conservadora (Doc-24), sem backend pleno.
-- O Bloco 11 foi encerrado por suficiência conservadora (Doc-27). As Fases 137–143 cobriram: texto mínimo útil (`dividir_verso_em`, `substituir_verso`, `juntar_verso_com`, `buscar_verso`) e ergonomia prática mínima de script (`tem_argumento_nomeado`, `argumento_nomeado_ou`, `tem_flag`, `argumento_nomeado_ou_ambiente_ou`), sem parser amplo, sem REPL, sem subprocessos, sem config files e sem biblioteca textual gigante.
+- O Bloco 11 foi encerrado por suficiência conservadora (Doc-27). As Fases 137–143 cobriram: texto mínimo útil (`dividir_verso_em`, `substituir_verso`, `juntar_verso_com`, `buscar_verso`) e ergonomia prática mínima de script (hoje canonicamente `tem_chave`, `pedir_argumento`, `tem_flag`, `buscar_contexto`, com compatibilidade temporária para `tem_argumento_nomeado`, `argumento_nomeado_ou` e `argumento_nomeado_ou_ambiente_ou` após a FE-1), sem parser amplo, sem REPL, sem subprocessos, sem config files e sem biblioteca textual gigante.
 - O editor/TUI oficial da Pinker segue como frente oficial já aberta (Fase 136), porém pausada por decisão estratégica; não está abandonado.
 - O Bloco 12 foi encerrado por suficiência conservadora após as Fases 144–146 (`ninho`/`apelido` exportáveis via `trazer` + uso qualificado mínimo `modulo.Tipo` em contexto tipado), sem `pub/priv`, sem reexportação transitiva, sem wildcard import, sem aliasing novo, sem namespaces amplos e sem redesign geral de módulos.
 - O próximo bloco formal da trilha ativa é o **Bloco 13 — coleções e estruturas de dados básicas**.
@@ -499,7 +499,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 - O Bloco 11 cumpriu sua função de ampliar a utilidade prática da Pinker para scripts e tarefas cotidianas em recorte mínimo, auditável e historicamente consistente.
 - O eixo de texto útil (11.1–11.4) entregou: `dividir_verso_em`/`dividir_verso_contar` (`split`), `substituir_verso` (`replace`), `juntar_verso_com` (`join` com separador), `buscar_verso` (busca literal mínima).
-- O eixo de ergonomia prática de script (11.5) entregou: `tem_argumento_nomeado`, `argumento_nomeado_ou`, `tem_flag`, `argumento_nomeado_ou_ambiente_ou`.
+- O eixo de ergonomia prática de script (11.5) entregou canonicamente `tem_chave`, `pedir_argumento`, `tem_flag` e `buscar_contexto`, preservando compatibilidade temporária com o trio anterior após a FE-1.
 - O encerramento é por **suficiência conservadora de trilha**, não por exaustão total do tema.
 - Futuras ampliações de texto, script ou ergonomia cotidiana continuam possíveis, porém subordinadas à maturidade global do projeto e não como continuação aberta imediata do Bloco 11.
 - O que permanece fora: parser amplo de CLI, REPL, subprocessos, config files, biblioteca textual gigante, regex, streaming.

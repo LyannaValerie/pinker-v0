@@ -6,13 +6,13 @@
 
 ## 1. Rodada atual
 - **Fase 150 — coleções e estruturas de dados básicas: escrita mínima por índice em `lista<bombom>` (camada 1 conservadora)**.
+- **FE-1 — refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)**.
 
 ## 2. Resultado operacional da rodada
-- Quarta fase funcional do Bloco 13 entregue como complemento direto da Fase 149 no mesmo recorte mínimo auditável de `lista<bombom>`.
-- Intrínseca mínima de mutação por índice aberta com `lista_bombom_definir(lista, i, valor) -> nulo`, preservando homogeneidade em `bombom`.
-- Runtime passou a falhar com erro claro para índice fora da faixa em `lista_bombom_definir`, sem inflar semântica de coleção.
-- Cobertura funcional adicionada com testes semânticos/runtime/CLI e exemplos versionados da Fase 150 (canônico e fluxo composto).
-- Continuidade conservadora preservada: sem `lista<T>` ampla, sem mapa, sem iteração confortável e sem API rica de coleção.
+- A Fase funcional ativa permanece 150 no Bloco 13; a FE-1 não substitui esse marco.
+- O trio lexical canônico da periferia argv/env passa a ser `tem_chave`, `pedir_argumento` e `buscar_contexto`.
+- Os nomes `tem_argumento_nomeado`, `argumento_nomeado_ou` e `argumento_nomeado_ou_ambiente_ou` permanecem operacionais como legado provisório compatível.
+- Pipeline, exemplos, testes e documentação passam a priorizar os nomes novos sem alterar comportamento funcional do runtime.
 
 ## 3. Próximo passo correto
 - Evoluir o Bloco 13 em degraus mínimos auditáveis após o núcleo criar/anexar/obter/tamanho/definir de `lista<bombom>`, sem inflar para mapa/iteração confortável/API ampla antes da hora.

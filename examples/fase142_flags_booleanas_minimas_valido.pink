@@ -3,7 +3,7 @@ pacote main;
 carinho principal() -> bombom {
     nova quiet: logica = tem_flag("--quiet");
     nova verbose: logica = tem_flag("--verbose");
-    nova saida: verso = argumento_nomeado_ou("--saida", "padrao.txt");
+    nova saida: verso = pedir_argumento("--saida", "padrao.txt");
     falar(quiet);
     falar(verbose);
     falar(saida);

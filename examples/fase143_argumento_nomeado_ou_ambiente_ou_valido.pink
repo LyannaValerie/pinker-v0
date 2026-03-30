@@ -1,7 +1,7 @@
 pacote main;
 
 carinho principal() -> bombom {
-    nova saida: verso = argumento_nomeado_ou_ambiente_ou("--saida", "PINKER_FASE143_SAIDA", "padrao.txt");
+    nova saida: verso = buscar_contexto("--saida", "PINKER_FASE143_SAIDA", "padrao.txt");
     nova usou_padrao: logica = igual_verso(saida, "padrao.txt");
     nova quiet: logica = tem_flag("--quiet");
     nova total: bombom = quantos_argumentos();

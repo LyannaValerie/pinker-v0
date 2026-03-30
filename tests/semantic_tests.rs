@@ -254,45 +254,45 @@ fn argumento_ou_intrinseca_rejeita_padrao_nao_verso() {
 }
 
 #[test]
-fn tem_argumento_nomeado_intrinseca_valida_sem_declaracao() {
+fn tem_chave_intrinseca_valida_sem_declaracao() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
-            talvez tem_argumento_nomeado("--saida") { mimo 1; } senao { mimo 0; }
+            talvez tem_chave("--saida") { mimo 1; } senao { mimo 0; }
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
 
 #[test]
-fn tem_argumento_nomeado_intrinseca_rejeita_argumento_nao_verso() {
+fn tem_chave_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
-            talvez tem_argumento_nomeado(1) { mimo 1; } senao { mimo 0; }
+            talvez tem_chave(1) { mimo 1; } senao { mimo 0; }
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("tipo inválido no argumento 1 da chamada 'tem_argumento_nomeado'"));
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'tem_chave'"));
 }
 
 #[test]
-fn argumento_nomeado_ou_intrinseca_valida_sem_declaracao() {
+fn pedir_argumento_intrinseca_valida_sem_declaracao() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
-            mimo tamanho_verso(argumento_nomeado_ou("--saida", "padrao"));
+            mimo tamanho_verso(pedir_argumento("--saida", "padrao"));
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
 
 #[test]
-fn argumento_nomeado_ou_intrinseca_rejeita_padrao_nao_verso() {
+fn pedir_argumento_intrinseca_rejeita_padrao_nao_verso() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
-            mimo tamanho_verso(argumento_nomeado_ou("--saida", 1));
+            mimo tamanho_verso(pedir_argumento("--saida", 1));
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("tipo inválido no argumento 2 da chamada 'argumento_nomeado_ou'"));
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'pedir_argumento'"));
 }
 
 #[test]
@@ -313,39 +313,35 @@ fn ambiente_ou_intrinseca_rejeita_chave_nao_verso() {
 }
 
 #[test]
-fn argumento_nomeado_ou_ambiente_ou_intrinseca_valida_sem_declaracao() {
+fn buscar_contexto_intrinseca_valida_sem_declaracao() {
     let source = r#"
         pacote main;
         carinho principal() -> bombom {
-            mimo tamanho_verso(argumento_nomeado_ou_ambiente_ou("--saida", "PINKER_OUT", "padrao"));
+            mimo tamanho_verso(buscar_contexto("--saida", "PINKER_OUT", "padrao"));
         }"#;
     assert!(parse_and_check(source).is_ok());
 }
 
 #[test]
-fn argumento_nomeado_ou_ambiente_ou_intrinseca_rejeita_segundo_argumento_nao_verso() {
+fn buscar_contexto_intrinseca_rejeita_segundo_argumento_nao_verso() {
     let source = r#"
         pacote main;
         carinho principal() -> bombom {
-            mimo tamanho_verso(argumento_nomeado_ou_ambiente_ou("--saida", 1, "padrao"));
+            mimo tamanho_verso(buscar_contexto("--saida", 1, "padrao"));
         }"#;
     let err = parse_and_check(source).unwrap_err().to_string();
-    assert!(
-        err.contains("tipo inválido no argumento 2 da chamada 'argumento_nomeado_ou_ambiente_ou'")
-    );
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'buscar_contexto'"));
 }
 
 #[test]
-fn argumento_nomeado_ou_ambiente_ou_intrinseca_rejeita_terceiro_argumento_nao_verso() {
+fn buscar_contexto_intrinseca_rejeita_terceiro_argumento_nao_verso() {
     let source = r#"
         pacote main;
         carinho principal() -> bombom {
-            mimo tamanho_verso(argumento_nomeado_ou_ambiente_ou("--saida", "PINKER_OUT", 1));
+            mimo tamanho_verso(buscar_contexto("--saida", "PINKER_OUT", 1));
         }"#;
     let err = parse_and_check(source).unwrap_err().to_string();
-    assert!(
-        err.contains("tipo inválido no argumento 3 da chamada 'argumento_nomeado_ou_ambiente_ou'")
-    );
+    assert!(err.contains("tipo inválido no argumento 3 da chamada 'buscar_contexto'"));
 }
 
 #[test]
@@ -584,21 +580,21 @@ fn tem_argumento_intrinseca_rejeita_indice_nao_bombom() {
 }
 
 #[test]
-fn tem_argumento_nomeado_intrinseca_rejeita_aridade_diferente_de_um() {
+fn tem_chave_intrinseca_rejeita_aridade_diferente_de_um() {
     let code = r#"
         pacote main;
-        carinho principal() -> bombom { talvez tem_argumento_nomeado("--saida", "--modo") { mimo 1; } senao { mimo 0; } }"#;
+        carinho principal() -> bombom { talvez tem_chave("--saida", "--modo") { mimo 1; } senao { mimo 0; } }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("chamada de 'tem_argumento_nomeado' com aridade inválida"));
+    assert!(err.contains("chamada de 'tem_chave' com aridade inválida"));
 }
 
 #[test]
-fn argumento_nomeado_ou_intrinseca_rejeita_aridade_invalida() {
+fn pedir_argumento_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
         pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(argumento_nomeado_ou("--saida")); }"#;
+        carinho principal() -> bombom { mimo tamanho_verso(pedir_argumento("--saida")); }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("chamada de 'argumento_nomeado_ou' com aridade inválida"));
+    assert!(err.contains("chamada de 'pedir_argumento' com aridade inválida"));
 }
 
 #[test]
@@ -628,14 +624,24 @@ fn tem_flag_intrinseca_rejeita_aridade_diferente_de_um() {
 }
 
 #[test]
-fn argumento_nomeado_ou_ambiente_ou_intrinseca_rejeita_aridade_invalida() {
+fn buscar_contexto_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
-            mimo tamanho_verso(argumento_nomeado_ou_ambiente_ou("--saida", "PINKER_OUT"));
+            mimo tamanho_verso(buscar_contexto("--saida", "PINKER_OUT"));
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("chamada de 'argumento_nomeado_ou_ambiente_ou' com aridade inválida"));
+    assert!(err.contains("chamada de 'buscar_contexto' com aridade inválida"));
+}
+
+#[test]
+fn legado_tem_argumento_nomeado_intrinseca_permanece_valido() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_argumento_nomeado("--saida") { mimo 1; } senao { mimo 0; }
+        }"#;
+    assert!(parse_and_check(code).is_ok());
 }
 
 #[test]

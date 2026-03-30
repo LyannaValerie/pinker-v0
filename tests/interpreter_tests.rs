@@ -676,12 +676,12 @@ fn run_argumento_ou_intrinseca_prioriza_arg_existente() {
 }
 
 #[test]
-fn run_tem_argumento_nomeado_intrinseca_true_para_forma_separada() {
+fn run_tem_chave_intrinseca_true_para_forma_separada() {
     let out = run_code_with_args(
         r#"
         pacote main;
         carinho principal() -> bombom {
-            talvez tem_argumento_nomeado("--saida") {
+            talvez tem_chave("--saida") {
                 mimo 1;
             } senao {
                 mimo 0;
@@ -694,12 +694,12 @@ fn run_tem_argumento_nomeado_intrinseca_true_para_forma_separada() {
 }
 
 #[test]
-fn run_tem_argumento_nomeado_intrinseca_true_para_forma_com_igual() {
+fn run_tem_chave_intrinseca_true_para_forma_com_igual() {
     let out = run_code_with_args(
         r#"
         pacote main;
         carinho principal() -> bombom {
-            talvez tem_argumento_nomeado("--saida") {
+            talvez tem_chave("--saida") {
                 mimo 1;
             } senao {
                 mimo 0;
@@ -712,12 +712,12 @@ fn run_tem_argumento_nomeado_intrinseca_true_para_forma_com_igual() {
 }
 
 #[test]
-fn run_tem_argumento_nomeado_intrinseca_false_quando_ausente() {
+fn run_tem_chave_intrinseca_false_quando_ausente() {
     let out = run_code_with_args(
         r#"
         pacote main;
         carinho principal() -> bombom {
-            talvez tem_argumento_nomeado("--inexistente") {
+            talvez tem_chave("--inexistente") {
                 mimo 1;
             } senao {
                 mimo 0;
@@ -730,12 +730,12 @@ fn run_tem_argumento_nomeado_intrinseca_false_quando_ausente() {
 }
 
 #[test]
-fn run_argumento_nomeado_ou_retorna_valor_na_forma_separada() {
+fn run_pedir_argumento_retorna_valor_na_forma_separada() {
     let out = run_code_with_args(
         r#"
         pacote main;
         carinho principal() -> bombom {
-            nova valor: verso = argumento_nomeado_ou("--saida", "padrao");
+            nova valor: verso = pedir_argumento("--saida", "padrao");
             falar(valor);
             mimo tamanho_verso(valor);
         }"#,
@@ -746,12 +746,12 @@ fn run_argumento_nomeado_ou_retorna_valor_na_forma_separada() {
 }
 
 #[test]
-fn run_argumento_nomeado_ou_retorna_valor_na_forma_com_igual() {
+fn run_pedir_argumento_retorna_valor_na_forma_com_igual() {
     let out = run_code_with_args(
         r#"
         pacote main;
         carinho principal() -> bombom {
-            nova valor: verso = argumento_nomeado_ou("--saida", "padrao");
+            nova valor: verso = pedir_argumento("--saida", "padrao");
             falar(valor);
             mimo tamanho_verso(valor);
         }"#,
@@ -762,12 +762,12 @@ fn run_argumento_nomeado_ou_retorna_valor_na_forma_com_igual() {
 }
 
 #[test]
-fn run_argumento_nomeado_ou_retorna_padrao_quando_ausente() {
+fn run_pedir_argumento_retorna_padrao_quando_ausente() {
     let out = run_code_with_args(
         r#"
         pacote main;
         carinho principal() -> bombom {
-            nova valor: verso = argumento_nomeado_ou("--inexistente", "padrao");
+            nova valor: verso = pedir_argumento("--inexistente", "padrao");
             falar(valor);
             mimo tamanho_verso(valor);
         }"#,
@@ -778,12 +778,12 @@ fn run_argumento_nomeado_ou_retorna_padrao_quando_ausente() {
 }
 
 #[test]
-fn run_argumento_nomeado_ou_falha_quando_chave_aparece_sem_valor() {
+fn run_pedir_argumento_falha_quando_chave_aparece_sem_valor() {
     let err = run_code_with_args(
         r#"
         pacote main;
         carinho principal() -> bombom {
-            nova valor: verso = argumento_nomeado_ou("--saida", "padrao");
+            nova valor: verso = pedir_argumento("--saida", "padrao");
             falar(valor);
             mimo 0;
         }"#,
@@ -791,19 +791,19 @@ fn run_argumento_nomeado_ou_falha_quando_chave_aparece_sem_valor() {
     )
     .unwrap_err();
     assert!(
-        err.contains("intrínseca 'argumento_nomeado_ou' encontrou chave '--saida' sem valor"),
+        err.contains("intrínseca 'pedir_argumento' encontrou chave '--saida' sem valor"),
         "erro: {}",
         err
     );
 }
 
 #[test]
-fn run_tem_argumento_nomeado_rejeita_chave_vazia() {
+fn run_tem_chave_rejeita_chave_vazia() {
     let err = run_code_with_args(
         r#"
         pacote main;
         carinho principal() -> bombom {
-            talvez tem_argumento_nomeado("") {
+            talvez tem_chave("") {
                 mimo 1;
             } senao {
                 mimo 0;
@@ -813,19 +813,19 @@ fn run_tem_argumento_nomeado_rejeita_chave_vazia() {
     )
     .unwrap_err();
     assert!(
-        err.contains("intrínseca 'tem_argumento_nomeado' exige chave não vazia"),
+        err.contains("intrínseca 'tem_chave' exige chave não vazia"),
         "erro: {}",
         err
     );
 }
 
 #[test]
-fn run_argumento_nomeado_ou_rejeita_chave_vazia() {
+fn run_pedir_argumento_rejeita_chave_vazia() {
     let err = run_code_with_args(
         r#"
         pacote main;
         carinho principal() -> bombom {
-            nova valor: verso = argumento_nomeado_ou("", "padrao");
+            nova valor: verso = pedir_argumento("", "padrao");
             falar(valor);
             mimo 0;
         }"#,
@@ -833,7 +833,7 @@ fn run_argumento_nomeado_ou_rejeita_chave_vazia() {
     )
     .unwrap_err();
     assert!(
-        err.contains("intrínseca 'argumento_nomeado_ou' exige chave não vazia"),
+        err.contains("intrínseca 'pedir_argumento' exige chave não vazia"),
         "erro: {}",
         err
     );
@@ -923,7 +923,7 @@ fn run_tem_flag_coexiste_com_argumento_nomeado() {
         pacote main;
         carinho principal() -> bombom {
             nova tem_quiet: logica = tem_flag("--quiet");
-            nova saida: verso = argumento_nomeado_ou("--saida", "padrao.txt");
+            nova saida: verso = pedir_argumento("--saida", "padrao.txt");
             talvez tem_quiet {
                 falar(saida);
                 mimo 1;
@@ -960,7 +960,7 @@ fn run_tem_flag_rejeita_chave_vazia() {
 }
 
 #[test]
-fn run_argumento_nomeado_ou_ambiente_ou_prioriza_argumento_nomeado() {
+fn run_buscar_contexto_prioriza_argumento_nomeado() {
     let output = Command::new(env!("CARGO_BIN_EXE_pink"))
         .arg("--run")
         .arg("examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink")
@@ -978,7 +978,7 @@ fn run_argumento_nomeado_ou_ambiente_ou_prioriza_argumento_nomeado() {
 }
 
 #[test]
-fn run_argumento_nomeado_ou_ambiente_ou_usa_ambiente_quando_argumento_ausente() {
+fn run_buscar_contexto_usa_ambiente_quando_argumento_ausente() {
     let output = Command::new(env!("CARGO_BIN_EXE_pink"))
         .arg("--run")
         .arg("examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink")
@@ -993,7 +993,7 @@ fn run_argumento_nomeado_ou_ambiente_ou_usa_ambiente_quando_argumento_ausente() 
 }
 
 #[test]
-fn run_argumento_nomeado_ou_ambiente_ou_usa_fallback_quando_ambos_ausentes() {
+fn run_buscar_contexto_usa_fallback_quando_ambos_ausentes() {
     let output = run_cli_example_with_env_and_cwd(
         "examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink",
         &[],
@@ -1008,7 +1008,7 @@ fn run_argumento_nomeado_ou_ambiente_ou_usa_fallback_quando_ambos_ausentes() {
 }
 
 #[test]
-fn run_argumento_nomeado_ou_ambiente_ou_falha_sem_mascarar_valor_ausente_por_ambiente() {
+fn run_buscar_contexto_falha_sem_mascarar_valor_ausente_por_ambiente() {
     let output = Command::new(env!("CARGO_BIN_EXE_pink"))
         .arg("--run")
         .arg("examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink")
@@ -1020,49 +1020,45 @@ fn run_argumento_nomeado_ou_ambiente_ou_falha_sem_mascarar_valor_ausente_por_amb
     assert!(!output.status.success(), "{:?}", output);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains(
-            "intrínseca 'argumento_nomeado_ou_ambiente_ou' encontrou chave '--saida' sem valor"
-        ),
+        stderr.contains("intrínseca 'buscar_contexto' encontrou chave '--saida' sem valor"),
         "stderr: {}",
         stderr
     );
 }
 
 #[test]
-fn run_argumento_nomeado_ou_ambiente_ou_rejeita_chave_de_argumento_vazia() {
+fn run_buscar_contexto_rejeita_chave_de_argumento_vazia() {
     let err = run_code(
         r#"
         pacote main;
         carinho principal() -> bombom {
-            nova valor: verso = argumento_nomeado_ou_ambiente_ou("", "PINKER_FASE143", "padrao");
+            nova valor: verso = buscar_contexto("", "PINKER_FASE143", "padrao");
             falar(valor);
             mimo 0;
         }"#,
     )
     .unwrap_err();
     assert!(
-        err.contains("intrínseca 'argumento_nomeado_ou_ambiente_ou' exige chave não vazia"),
+        err.contains("intrínseca 'buscar_contexto' exige chave não vazia"),
         "erro: {}",
         err
     );
 }
 
 #[test]
-fn run_argumento_nomeado_ou_ambiente_ou_rejeita_chave_de_ambiente_vazia() {
+fn run_buscar_contexto_rejeita_chave_de_ambiente_vazia() {
     let err = run_code(
         r#"
         pacote main;
         carinho principal() -> bombom {
-            nova valor: verso = argumento_nomeado_ou_ambiente_ou("--saida", "", "padrao");
+            nova valor: verso = buscar_contexto("--saida", "", "padrao");
             falar(valor);
             mimo 0;
         }"#,
     )
     .unwrap_err();
     assert!(
-        err.contains(
-            "intrínseca 'argumento_nomeado_ou_ambiente_ou' exige chave de ambiente não vazia"
-        ),
+        err.contains("intrínseca 'buscar_contexto' exige chave de ambiente não vazia"),
         "erro: {}",
         err
     );
@@ -3535,7 +3531,7 @@ fn cli_run_argumento_nomeado_sem_valor_falha_com_erro_claro() {
     assert!(!out.status.success(), "{:?}", out);
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
-        stderr.contains("intrínseca 'argumento_nomeado_ou' encontrou chave '--saida' sem valor"),
+        stderr.contains("intrínseca 'pedir_argumento' encontrou chave '--saida' sem valor"),
         "stderr: {}",
         stderr
     );
@@ -3568,7 +3564,7 @@ fn cli_run_flags_booleanas_minimas_funcionam_com_mistura_de_flag_e_nomeado() {
 }
 
 #[test]
-fn cli_run_argumento_nomeado_ou_ambiente_ou_prioriza_saida_do_cli() {
+fn cli_run_buscar_contexto_prioriza_saida_do_cli() {
     let output = Command::new(env!("CARGO_BIN_EXE_pink"))
         .arg("--run")
         .arg("examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink")
@@ -3586,7 +3582,7 @@ fn cli_run_argumento_nomeado_ou_ambiente_ou_prioriza_saida_do_cli() {
 }
 
 #[test]
-fn cli_run_argumento_nomeado_ou_ambiente_ou_usa_env_sem_saida_no_cli() {
+fn cli_run_buscar_contexto_usa_env_sem_saida_no_cli() {
     let output = Command::new(env!("CARGO_BIN_EXE_pink"))
         .arg("--run")
         .arg("examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink")
@@ -3601,7 +3597,7 @@ fn cli_run_argumento_nomeado_ou_ambiente_ou_usa_env_sem_saida_no_cli() {
 }
 
 #[test]
-fn cli_run_argumento_nomeado_ou_ambiente_ou_usa_fallback_quando_tudo_ausente() {
+fn cli_run_buscar_contexto_usa_fallback_quando_tudo_ausente() {
     let output = run_cli_example_with_env_and_cwd(
         "examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink",
         &[],
@@ -3616,7 +3612,7 @@ fn cli_run_argumento_nomeado_ou_ambiente_ou_usa_fallback_quando_tudo_ausente() {
 }
 
 #[test]
-fn cli_run_argumento_nomeado_ou_ambiente_ou_falha_sem_valor_mesmo_com_env() {
+fn cli_run_buscar_contexto_falha_sem_valor_mesmo_com_env() {
     let output = Command::new(env!("CARGO_BIN_EXE_pink"))
         .arg("--run")
         .arg("examples/fase143_argumento_nomeado_ou_ambiente_ou_valido.pink")
@@ -3628,12 +3624,28 @@ fn cli_run_argumento_nomeado_ou_ambiente_ou_falha_sem_valor_mesmo_com_env() {
     assert!(!output.status.success(), "{:?}", output);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains(
-            "intrínseca 'argumento_nomeado_ou_ambiente_ou' encontrou chave '--saida' sem valor"
-        ),
+        stderr.contains("intrínseca 'buscar_contexto' encontrou chave '--saida' sem valor"),
         "stderr: {}",
         stderr
     );
+}
+
+#[test]
+fn run_legado_tem_argumento_nomeado_permanece_operacional() {
+    let out = run_code_with_args(
+        r#"
+        pacote main;
+        carinho principal() -> bombom {
+            talvez tem_argumento_nomeado("--saida") {
+                mimo 1;
+            } senao {
+                mimo 0;
+            }
+        }"#,
+        &["--saida", "resultado.txt"],
+    )
+    .unwrap();
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(1)));
 }
 
 #[test]

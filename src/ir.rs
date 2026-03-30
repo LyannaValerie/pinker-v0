@@ -528,9 +528,23 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "tem_chave".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Logica,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "tem_argumento_nomeado".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Logica,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "pedir_argumento".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
                 ret_struct_name: None,
             },
         );
@@ -550,6 +564,13 @@ impl LoweringContext {
         );
         function_sigs.insert(
             "ambiente_ou".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "buscar_contexto".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Verso,
                 ret_struct_name: None,
