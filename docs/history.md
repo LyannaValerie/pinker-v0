@@ -890,6 +890,14 @@ FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtim
 - Cobertura adicionada com testes de parser/semântica/runtime/CLI e exemplos versionados: `examples/fase152_mapa_verso_bombom_minimo_valido.pink` e `examples/fase152_mapa_verso_bombom_fluxo_composto_valido.pink`.
 - Registra continuidade explícita da política de exemplos canônicos + compostos/realistas no bloco com diff pequeno e auditável.
 
+153 - coleções e estruturas de dados básicas: iteração confortável mínima sobre `lista<bombom>` (camada 1 conservadora)
+- Sétima fase funcional do Bloco 13.
+- Abre o primeiro construto de iteração confortável do projeto no menor recorte auditável, focado em `lista<bombom>`.
+- Implementação conservadora com `para cada item em lista { ... }`, mantendo variável de item no corpo e lowering simples por desdobramento para estruturas já existentes do pipeline.
+- Mantém o recorte conservador: sem iteração genérica, sem iteração rica sobre mapa, sem pares chave/valor e sem API ampla de iteradores.
+- Cobertura adicionada com testes de lexer/parser/runtime/CLI (positivos e negativo de tipo fora do recorte).
+- Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

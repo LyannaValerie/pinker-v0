@@ -1,0 +1,36 @@
+pacote main;
+
+carinho carregar_pontos() -> lista<bombom> {
+    nova dados: lista<bombom> = lista_bombom_criar();
+    lista_bombom_anexar(dados, 10);
+    lista_bombom_anexar(dados, 20);
+    lista_bombom_anexar(dados, 30);
+    mimo dados;
+}
+
+carinho somar_lista(itens: lista<bombom>) -> bombom {
+    nova muda soma: bombom = 0;
+    para cada item em itens {
+        soma = soma + item;
+    }
+    mimo soma;
+}
+
+carinho contar_pares(itens: lista<bombom>) -> bombom {
+    nova muda total: bombom = 0;
+    para cada item em itens {
+        talvez item % 2 == 0 {
+            total = total + 1;
+        }
+    }
+    mimo total;
+}
+
+carinho principal() -> bombom {
+    nova pontos: lista<bombom> = carregar_pontos();
+    nova soma: bombom = somar_lista(pontos);
+    nova pares: bombom = contar_pares(pontos);
+
+    falar(soma, pares);
+    mimo soma;
+}
