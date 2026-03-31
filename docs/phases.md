@@ -10,4 +10,4 @@
 > Para crônica histórica e fases/hotfixes/rodadas, use `docs/history.md`.
 > Para navegação mestre, use `docs/atlas.md`.
 >
-> Último alinhamento de compatibilidade: Fase 160 no quarto degrau funcional do Bloco 14 + FE-1 lexical extraordinária.
+> Último alinhamento de compatibilidade: Doc-29 — fechamento canônico do Bloco 14 por suficiência conservadora (Fases 157–160 concluídas). Próximo bloco formal: Bloco 15.

@@ -5,20 +5,21 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 160 — formatação e dados estruturados: datas e tempo básicos com timestamp Unix mínimo (camada 1 conservadora)**.
-- **FE-1 — refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)**.
+- **Doc-29 — fechamento canônico do Bloco 14 e preparação formal da transição para o próximo bloco**.
+- Fase funcional ativa corrente: **160** (último marco funcional do Bloco 14).
+- Rodada extraordinária corrente: **FE-1 — refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)**.
 
 ## 2. Resultado operacional da rodada
-- A Fase funcional ativa passa a ser 160 e mantém o Bloco 14 em recorte pequeno e auditável.
-- A Pinker passa a oferecer `tempo_unix() -> bombom` e `formatar_tempo_unix(ts) -> verso` como primeiro núcleo mínimo de tempo/datas do projeto.
-- O runtime expõe timestamp Unix atual e formatação UTC fixa `YYYY-MM-DDTHH:MM:SSZ`, suficiente para logs, relatórios simples e integração pragmática.
-- `formatar_verso`, CSV mínimo, JSON plano, `falar(...)`, `verso`, coleções e o restante do pipeline continuam funcionais; regressão zero confirmada no recorte da fase.
-- O recorte permanece conservador: sem timezone configurável, sem locale, sem calendário amplo, sem parsing múltiplo, sem agenda e sem biblioteca rica de datas.
+- O Bloco 14 (formatação e dados estruturados) foi encerrado por suficiência conservadora após os quatro degraus planejados: formatação simples de saída (Fase 157), CSV mínimo (Fase 158), JSON básico plano (Fase 159) e tempo básico com timestamp Unix (Fase 160).
+- O recorte entregue é pequeno e auditável: `formatar_verso`, CSV mínimo de linha única, JSON plano para `mapa<verso,bombom>` e `tempo_unix`/`formatar_tempo_unix` com UTC fixa.
+- O fechamento não implica formatação rica, CSV completo, JSON geral, timezones, locale ou biblioteca adulta de datas; o bloco permanece no recorte mínimo como entregue.
+- O Bloco 15 (processos e integração sistêmica) passa a ser o próximo bloco formal da trilha ativa.
 
 ## 3. Próximo passo correto
-- Tratar o Bloco 14 como suficientemente aberto em seus quatro degraus planejados, sem inflar o núcleo temporal recém-aberto para timezone, locale, parser amplo ou biblioteca de calendário.
+- Abrir a primeira fase do Bloco 15 (15.1 — execução de processos externos mínima), sem reabrir o Bloco 14 por inércia.
 
 ## 4. Restrições explícitas
+- Sem reabrir Bloco 14 por inércia; CSV/JSON/tempo/formatação amplos pertencem ao futuro quando justificados, não à continuação automática.
 - Sem reabrir Bloco 11 por inércia documental; qualquer retorno ao tema deve ser excepcional e bem justificado.
 - Sem reabrir Bloco 12 por inércia; futuras ampliações de módulos devem ser pequenas, explicitamente justificadas e fora de continuação automática.
 - Sem reabrir Bloco 10 por inércia documental.
