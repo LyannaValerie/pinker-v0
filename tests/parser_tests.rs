@@ -177,6 +177,30 @@ fn parser_aceita_continuar_dentro_de_sempre_que() {
 }
 
 #[test]
+fn parser_aceita_para_cada_em_lista_bombom() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova itens: lista<bombom> = lista_bombom_criar();
+            para cada item em itens {
+                falar(item);
+            }
+            mimo 0;
+        }
+    "#;
+
+    let program = parse(source).expect("parser deve aceitar para cada");
+    let func = match &program.items[0] {
+        Item::Function(f) => f,
+        _ => panic!("item esperado: function"),
+    };
+    assert!(
+        matches!(func.body.stmts[3], Stmt::While(_)),
+        "para cada deve baixar para while no parser"
+    );
+}
+
+#[test]
 fn parser_aceita_sussurro_com_multiplas_strings() {
     let source = r#"
         pacote main;
