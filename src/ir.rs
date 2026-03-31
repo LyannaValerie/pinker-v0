@@ -550,6 +550,20 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "mapa_verso_bombom_tamanho".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "mapa_verso_bombom_chave_indice".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "argumento".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Verso,

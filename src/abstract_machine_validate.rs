@@ -124,6 +124,17 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         ),
     );
     sigs.insert(
+        "mapa_verso_bombom_tamanho".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Unknown]),
+    );
+    sigs.insert(
+        "mapa_verso_bombom_chave_indice".to_string(),
+        (
+            TypeIR::Verso,
+            vec![StackValueType::Unknown, StackValueType::Bombom],
+        ),
+    );
+    sigs.insert(
         "argumento".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );

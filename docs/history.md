@@ -898,6 +898,17 @@ FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtim
 - Cobertura adicionada com testes de lexer/parser/runtime/CLI (positivos e negativo de tipo fora do recorte).
 - Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
 
+154 - coleções e estruturas de dados básicas: iteração confortável mínima sobre `mapa<verso,bombom>` (camada 1 conservadora)
+- Oitava fase funcional do Bloco 13.
+- Abre o primeiro construto de iteração confortável associativa do projeto no menor recorte auditável, focado em `mapa<verso,bombom>`.
+- Implementação conservadora com `para cada chave em mapa { ... }`, mantendo variável de chave `verso` no corpo; valor associado continua acessado via `mapa_verso_bombom_obter`.
+- Lowering auditável por desdobramento no parser: `mapa_verso_bombom_tamanho` captura o tamanho antes do loop; `mapa_verso_bombom_chave_indice` acessa a chave por índice; estrutura equivalente ao padrão da Fase 153 para `lista<bombom>`.
+- Rastreamento mínimo de tipos de coleção adicionado ao parser para despachar corretamente entre desugaring de lista e de mapa sem redesign de AST ou de análise semântica.
+- Novas intrínsecas adicionadas ao pipeline completo: `mapa_verso_bombom_tamanho` e `mapa_verso_bombom_chave_indice` (semantic, ir, ir_validate, cfg_ir_validate, instr_select_validate, abstract_machine_validate, interpreter).
+- Mantém o recorte conservador: sem pares ricos chave/valor, sem iteração genérica, sem API ampla de iteradores e sem mapa amplo.
+- Testes adicionados: iteração mínima válida, chave como `verso` no corpo, valor via `obter`, mapa vazio, parâmetro de função com mapa, regressão de `lista<bombom>`, tipo primitivo ainda fora do recorte, exemplos canônico e composto via CLI.
+- Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

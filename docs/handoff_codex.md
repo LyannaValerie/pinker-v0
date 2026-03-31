@@ -5,17 +5,18 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 153 — coleções e estruturas de dados básicas: iteração confortável mínima sobre `lista<bombom>` (camada 1 conservadora)**.
+- **Fase 154 — coleções e estruturas de dados básicas: iteração confortável mínima sobre `mapa<verso,bombom>` (camada 1 conservadora)**.
 - **FE-1 — refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)**.
 
 ## 2. Resultado operacional da rodada
-- A Fase funcional ativa passa a ser 153 no Bloco 13; a FE-1 não substitui esse marco.
-- O trio lexical canônico da periferia argv/env passa a ser `tem_chave`, `pedir_argumento` e `buscar_contexto`.
-- Os nomes `tem_argumento_nomeado`, `argumento_nomeado_ou` e `argumento_nomeado_ou_ambiente_ou` permanecem operacionais como legado provisório compatível.
-- Pipeline, exemplos, testes e documentação preservam esses nomes novos enquanto o foco do Bloco 13 avança para o primeiro recorte de iteração confortável em `lista<bombom>`.
+- A Fase funcional ativa passa a ser 154 no Bloco 13.
+- O construto `para cada chave em mapa { ... }` está operacional para `mapa<verso,bombom>` com variável de chave `verso` no corpo e valor via `mapa_verso_bombom_obter`.
+- Novas intrínsecas `mapa_verso_bombom_tamanho` e `mapa_verso_bombom_chave_indice` adicionadas ao pipeline completo.
+- Rastreamento mínimo de tipo de coleção no parser permite dispatch correto entre lista e mapa sem redesign de AST.
+- `lista<bombom>` continua funcional; regressão zero confirmada.
 
 ## 3. Próximo passo correto
-- Evoluir o Bloco 13 em degraus mínimos auditáveis após a abertura da iteração confortável mínima em `lista<bombom>`, sem inflar para coleção ampla, iteração genérica ou API rica antes da hora.
+- Evoluir o Bloco 13 para o próximo degrau mínimo auditável (13.9 — aleatoriedade básica), sem inflar coleções, iteração genérica ou API rica.
 
 ## 4. Restrições explícitas
 - Sem reabrir Bloco 11 por inércia documental; qualquer retorno ao tema deve ser excepcional e bem justificado.
