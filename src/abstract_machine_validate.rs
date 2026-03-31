@@ -470,6 +470,12 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         "emitir_json_plano_bombom".to_string(),
         (TypeIR::Verso, vec![StackValueType::Unknown]),
     );
+    // Fase 160
+    sigs.insert("tempo_unix".to_string(), (TypeIR::Bombom, vec![]));
+    sigs.insert(
+        "formatar_tempo_unix".to_string(),
+        (TypeIR::Verso, vec![StackValueType::Bombom]),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;

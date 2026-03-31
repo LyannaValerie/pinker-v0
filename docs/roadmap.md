@@ -375,7 +375,7 @@ Por padrão, o fechamento do Bloco 10 **não** implica:
 - O editor/TUI oficial da Pinker segue como frente oficial já aberta (Fase 136), porém pausada por decisão estratégica; não está abandonado.
 - O Bloco 12 foi encerrado por suficiência conservadora após as Fases 144–146 (`ninho`/`apelido` exportáveis via `trazer` + uso qualificado mínimo `modulo.Tipo` em contexto tipado), sem `pub/priv`, sem reexportação transitiva, sem wildcard import, sem aliasing novo, sem namespaces amplos e sem redesign geral de módulos.
 - O Bloco 13 foi encerrado por suficiência conservadora na Fase 156 (`lista<bombom>`, `mapa<verso,bombom>`, iteração confortável mínima e aleatoriedade básica com semente explícita), sem abrir generics, coleções amplas ou random rico.
-- As Fases 157, 158 e 159 abriram funcionalmente o **Bloco 14 — formatação e dados estruturados** no menor recorte útil, com `formatar_verso(modelo, a[, b])`, com CSV mínimo de linha única para `lista<bombom>` e com JSON plano mínimo para `mapa<verso,bombom>`.
+- As Fases 157, 158, 159 e 160 abriram funcionalmente o **Bloco 14 — formatação e dados estruturados** no menor recorte útil, com `formatar_verso(modelo, a[, b])`, com CSV mínimo de linha única para `lista<bombom>`, com JSON plano mínimo para `mapa<verso,bombom>` e com tempo básico mínimo via timestamp Unix em `bombom` + formatação UTC fixa.
 
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.
@@ -549,7 +549,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 14 — formatação e dados estruturados
 
-**Status**: bloco formal ativo; as Fases 157, 158 e 159 abriram 14.1, 14.2 e 14.3 em camada 1 conservadora com formatação simples, CSV mínimo de linha única e JSON plano mínimo.
+**Status**: bloco formal ativo; as Fases 157, 158, 159 e 160 abriram 14.1, 14.2, 14.3 e 14.4 em camada 1 conservadora com formatação simples, CSV mínimo de linha única, JSON plano mínimo e tempo básico mínimo.
 
 **Tese do bloco**: com coleções e iteração disponíveis, a Pinker pode processar e emitir dados estruturados de forma prática; este bloco fecha a cadeia `coleta → processamento → saída formatada` que torna a linguagem útil para tarefas reais de automação, relatórios e integração com outros sistemas.
 
@@ -559,7 +559,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 1. **14.1 — formatação simples de saída (Fase 157, concluída no recorte mínimo)**: intrínseca dedicada `formatar_verso(modelo, a[, b]) -> verso` com placeholders sequenciais `{}` e substituição controlada de `bombom`/`verso`; erro claro para modelo inválido e quantidade errada de placeholders/argumentos; sem padding, precisão, placeholders nomeados ou escape rico.
 2. **14.2 — CSV mínimo (Fase 158, concluída no recorte mínimo)**: `ler_linha_csv_bombom(linha, sep) -> lista<bombom>` e `emitir_linha_csv_bombom(itens, sep) -> verso` abrem leitura/emissão de uma única linha CSV simples com separador explícito de 1 caractere; erro claro para quoting, multiline, separador fora do recorte e campos que não sejam `bombom` simples; sem headers, sem autodetecção, sem streaming e sem RFC amplo.
 3. **14.3 — JSON básico (Fase 159, concluída no recorte mínimo)**: `ler_json_plano_bombom(json) -> mapa<verso,bombom>` e `emitir_json_plano_bombom(mapa) -> verso` abrem apenas objeto JSON plano e auditável para `mapa<verso,bombom>`; chaves textuais sem escape rico, valores `bombom`, emissão determinística por ordenação de chave e erro claro para arrays, nesting, escapes ricos, `true`/`false`/`null` e qualquer ampliação fora do recorte; base mínima de integração sem virar parser/serializador JSON geral.
-4. **14.4 — datas e tempo básicos**: representação e operações mínimas de data/tempo (timestamp Unix, formatação ISO simples); precisa de formatação (14.1) e inteiros; fecha o bloco com utilidade cotidiana autônoma e recorrente.
+4. **14.4 — datas e tempo básicos (Fase 160, concluída no recorte mínimo)**: `tempo_unix() -> bombom` retorna o timestamp Unix atual e `formatar_tempo_unix(ts) -> verso` formata apenas UTC fixa como `YYYY-MM-DDTHH:MM:SSZ`; recorte explícito, auditável e útil para logs/relatórios simples, sem timezone configurável, sem locale, sem parser amplo, sem calendários ricos e sem biblioteca adulta de datas.
 
 **Escopo deliberadamente fora do Bloco 14**: parsing de JSON complexo (arrays profundamente aninhados, unicode completo), timezones, locale-aware formatting, CSV multiline, XML, TOML.
 

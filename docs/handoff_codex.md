@@ -5,18 +5,18 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 159 — formatação e dados estruturados: JSON básico plano e auditável (camada 1 conservadora)**.
+- **Fase 160 — formatação e dados estruturados: datas e tempo básicos com timestamp Unix mínimo (camada 1 conservadora)**.
 - **FE-1 — refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)**.
 
 ## 2. Resultado operacional da rodada
-- A Fase funcional ativa passa a ser 159 e mantém o Bloco 14 em recorte pequeno e auditável.
-- A Pinker passa a oferecer `ler_json_plano_bombom(json) -> mapa<verso,bombom>` e `emitir_json_plano_bombom(mapa) -> verso` como primeiro núcleo mínimo de objeto JSON do projeto.
-- O runtime aceita apenas objeto JSON plano para `mapa<verso,bombom>`, com chaves sem escape rico, valores `bombom` e emissão determinística por ordenação de chave.
-- `formatar_verso`, `falar(...)`, `verso`, coleções e o restante do pipeline continuam funcionais; regressão zero confirmada.
-- O recorte permanece conservador: sem arrays, sem nesting, sem pretty print, sem escapes ricos, sem `true`/`false`/`null`, sem JSON geral, sem datas/tempo e sem serialização ampla.
+- A Fase funcional ativa passa a ser 160 e mantém o Bloco 14 em recorte pequeno e auditável.
+- A Pinker passa a oferecer `tempo_unix() -> bombom` e `formatar_tempo_unix(ts) -> verso` como primeiro núcleo mínimo de tempo/datas do projeto.
+- O runtime expõe timestamp Unix atual e formatação UTC fixa `YYYY-MM-DDTHH:MM:SSZ`, suficiente para logs, relatórios simples e integração pragmática.
+- `formatar_verso`, CSV mínimo, JSON plano, `falar(...)`, `verso`, coleções e o restante do pipeline continuam funcionais; regressão zero confirmada no recorte da fase.
+- O recorte permanece conservador: sem timezone configurável, sem locale, sem calendário amplo, sem parsing múltiplo, sem agenda e sem biblioteca rica de datas.
 
 ## 3. Próximo passo correto
-- Prosseguir no Bloco 14 apenas com recortes tão pequenos quanto este; o próximo passo natural passa a ser 14.4 (datas e tempo básicos), sem inflar o JSON recém-aberto nem reabrir o Bloco 13 por inércia.
+- Tratar o Bloco 14 como suficientemente aberto em seus quatro degraus planejados, sem inflar o núcleo temporal recém-aberto para timezone, locale, parser amplo ou biblioteca de calendário.
 
 ## 4. Restrições explícitas
 - Sem reabrir Bloco 11 por inércia documental; qualquer retorno ao tema deve ser excepcional e bem justificado.

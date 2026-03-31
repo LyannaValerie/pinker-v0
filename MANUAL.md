@@ -140,6 +140,8 @@ Operações mínimas disponíveis hoje:
 - `emitir_linha_csv_bombom(itens, sep)` → emite uma única linha CSV mínima a partir de `lista<bombom>`.
 - `ler_json_plano_bombom(json)` → lê um objeto JSON plano mínimo em `mapa<verso,bombom>`.
 - `emitir_json_plano_bombom(mapa)` → emite um objeto JSON plano mínimo a partir de `mapa<verso,bombom>`.
+- `tempo_unix()` → retorna o timestamp Unix atual em `bombom`.
+- `formatar_tempo_unix(ts)` → formata um timestamp Unix em UTC fixa como `YYYY-MM-DDTHH:MM:SSZ`.
 
 ```pink
 nova a: verso = "oi ";
@@ -165,7 +167,13 @@ falar(json);
 falar(mapa_verso_bombom_obter(copia, "idade"));
 ```
 
-Limites atuais de texto/dados estruturados: sem slicing de `verso`, sem indexação negativa, sem placeholders nomeados, sem escape rico de chaves, sem quoting complexo de CSV, sem campos multiline, sem CSV geral de múltiplas linhas, sem arrays JSON, sem objetos JSON aninhados, sem escapes ricos em JSON, sem `true`/`false`/`null` e sem JSON geral amplo.
+```pink
+nova ts: bombom = tempo_unix();
+falar(formatar_tempo_unix(ts));
+falar(formatar_tempo_unix(0));
+```
+
+Limites atuais de texto/dados estruturados: sem slicing de `verso`, sem indexação negativa, sem placeholders nomeados, sem escape rico de chaves, sem quoting complexo de CSV, sem campos multiline, sem CSV geral de múltiplas linhas, sem arrays JSON, sem objetos JSON aninhados, sem escapes ricos em JSON, sem `true`/`false`/`null`, sem timezone configurável, sem locale e sem parser amplo de datas.
 
 ## 9) Exemplos pequenos completos
 

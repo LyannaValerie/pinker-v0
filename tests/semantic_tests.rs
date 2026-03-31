@@ -1319,6 +1319,52 @@ fn emitir_json_plano_bombom_intrinseca_rejeita_aridade_invalida() {
 }
 
 #[test]
+fn tempo_unix_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ts: bombom = tempo_unix();
+            mimo ts;
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn tempo_unix_intrinseca_rejeita_aridade_invalida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova ts: bombom = tempo_unix(1);
+            mimo ts;
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("chamada de 'tempo_unix' com aridade inválida"));
+}
+
+#[test]
+fn formatar_tempo_unix_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = formatar_tempo_unix(0);
+            mimo tamanho_verso(texto);
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn formatar_tempo_unix_intrinseca_rejeita_argumento_nao_bombom() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = formatar_tempo_unix("agora");
+            mimo tamanho_verso(texto);
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'formatar_tempo_unix'"));
+}
+
+#[test]
 fn nao_vazio_verso_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
         pacote main;

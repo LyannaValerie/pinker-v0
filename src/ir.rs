@@ -981,6 +981,21 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
+        // Fase 160
+        function_sigs.insert(
+            "tempo_unix".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "formatar_tempo_unix".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
 
         Ok(Self {
             module_name,

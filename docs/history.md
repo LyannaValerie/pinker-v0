@@ -958,6 +958,16 @@ FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtim
 - Exemplos versionados adicionados: `examples/fase159_json_basico_valido.pink` e `examples/fase159_json_basico_fluxo_composto_valido.pink`.
 - Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
 
+160 - formatação e dados estruturados: datas e tempo básicos com timestamp Unix mínimo (camada 1 conservadora)
+- Quarta fase funcional do Bloco 14.
+- Abre o primeiro recorte temporal mínimo do projeto.
+- Superfície mínima escolhida: `tempo_unix() -> bombom` e `formatar_tempo_unix(ts) -> verso`.
+- O runtime expõe timestamp Unix atual em `bombom` e formatação UTC fixa `YYYY-MM-DDTHH:MM:SSZ`, suficiente para logs, relatórios simples e integração pragmática.
+- Mantém o recorte conservador: sem timezone, sem locale, sem calendário amplo, sem parsing múltiplo, sem agenda e sem biblioteca rica de datas.
+- Cobertura adicionada com testes semânticos/runtime/CLI para timestamp atual, formatação determinística da época Unix, fluxo composto simples e negativos essenciais fora do recorte.
+- Exemplos versionados adicionados: `examples/fase160_tempo_basico_timestamp_valido.pink` e `examples/fase160_tempo_basico_fluxo_composto_valido.pink`.
+- Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

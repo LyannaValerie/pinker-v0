@@ -582,6 +582,21 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::MapVersoBombom],
         },
     );
+    // Fase 160
+    function_sigs.insert(
+        "tempo_unix".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![],
+        },
+    );
+    function_sigs.insert(
+        "formatar_tempo_unix".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Bombom],
+        },
+    );
 
     for function in &program.functions {
         validate_function(function, &global_consts, &function_sigs)?;

@@ -577,6 +577,21 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::MapVersoBombom],
         },
     );
+    // Fase 160
+    funcs.insert(
+        "tempo_unix".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![],
+        },
+    );
+    funcs.insert(
+        "formatar_tempo_unix".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Bombom],
+        },
+    );
 
     for konst in &program.consts {
         let ty = infer_value_type(&konst.value, &HashMap::new(), &consts, &funcs, konst.span)
