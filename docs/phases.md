@@ -10,4 +10,4 @@
 > Para crônica histórica e fases/hotfixes/rodadas, use `docs/history.md`.
 > Para navegação mestre, use `docs/atlas.md`.
 >
-> Último alinhamento de compatibilidade: Fase 152 no Bloco 13 + FE-1 lexical extraordinária.
+> Último alinhamento de compatibilidade: Fase 153 no Bloco 13 + FE-1 lexical extraordinária.
