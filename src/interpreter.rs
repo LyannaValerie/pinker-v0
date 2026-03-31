@@ -1750,6 +1750,20 @@ fn try_call_intrinsic(
             let resultado = format!("{}{}{}", a, sep, b);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(resultado))))
         }
+        "formatar_verso" => {
+            if !(args.len() == 2 || args.len() == 3) {
+                return Err(runtime_err(
+                    "intrínseca 'formatar_verso' exige 2 ou 3 argumentos (modelo verso, bombom/verso[, bombom/verso])",
+                ));
+            }
+            let RuntimeValue::Str(modelo) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'formatar_verso' exige modelo em verso",
+                ));
+            };
+            let resultado = formatar_verso_runtime(modelo, &args[1..])?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(resultado))))
+        }
         "argumento" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -2172,6 +2186,63 @@ fn ensure_env_key_valid(intrinsic_name: &str, key: &str) -> Result<(), PinkerErr
         )));
     }
     Ok(())
+}
+
+fn formatar_verso_runtime(modelo: &str, args: &[RuntimeValue]) -> Result<String, PinkerError> {
+    let mut saida = String::new();
+    let mut ultimo_idx = 0usize;
+    let mut arg_idx = 0usize;
+    let mut chars = modelo.char_indices().peekable();
+
+    while let Some((idx, ch)) = chars.next() {
+        match ch {
+            '{' => {
+                saida.push_str(&modelo[ultimo_idx..idx]);
+                let Some((close_idx, next_ch)) = chars.next() else {
+                    return Err(runtime_err(
+                        "modelo inválido em 'formatar_verso': placeholders devem ser apenas '{}'",
+                    ));
+                };
+                if next_ch != '}' {
+                    return Err(runtime_err(
+                        "modelo inválido em 'formatar_verso': placeholders devem ser apenas '{}'",
+                    ));
+                }
+                let Some(arg) = args.get(arg_idx) else {
+                    return Err(runtime_err(
+                        "quantidade de placeholders '{}' em 'formatar_verso' difere da quantidade de argumentos",
+                    ));
+                };
+                saida.push_str(&formatar_verso_argumento(arg)?);
+                arg_idx += 1;
+                ultimo_idx = close_idx + next_ch.len_utf8();
+            }
+            '}' => {
+                return Err(runtime_err(
+                    "modelo inválido em 'formatar_verso': placeholders devem ser apenas '{}'",
+                ));
+            }
+            _ => {}
+        }
+    }
+
+    saida.push_str(&modelo[ultimo_idx..]);
+    if arg_idx != args.len() {
+        return Err(runtime_err(
+            "quantidade de placeholders '{}' em 'formatar_verso' difere da quantidade de argumentos",
+        ));
+    }
+    Ok(saida)
+}
+
+fn formatar_verso_argumento(arg: &RuntimeValue) -> Result<String, PinkerError> {
+    match arg {
+        RuntimeValue::Int(value) => Ok(value.to_string()),
+        RuntimeValue::Str(value) => Ok(value.clone()),
+        _ => Err(runtime_err(
+            "intrínseca 'formatar_verso' exige argumentos de substituição em bombom ou verso",
+        )),
+    }
 }
 
 fn find_named_cli_argument<'a>(args: &'a [String], key: &str) -> NamedArgLookup<'a> {

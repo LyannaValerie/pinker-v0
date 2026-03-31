@@ -5940,6 +5940,138 @@ fn cli_run_fase140_busca_textual_minima_funciona_com_exemplo_versionado() {
     );
 }
 
+// ── Fase 157: formatação simples de saída com placeholders mínimos ───────────
+
+#[test]
+fn run_fase157_formatar_verso_com_bombom() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova linha: verso = formatar_verso("saldo={}", 42);
+            nova ok: logica = igual_verso(linha, "saldo=42");
+            talvez ok {
+                mimo 157;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(157)));
+}
+
+#[test]
+fn run_fase157_formatar_verso_com_verso_e_bombom() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova linha: verso = formatar_verso("{}={}", "idade", 7);
+            nova ok: logica = igual_verso(linha, "idade=7");
+            talvez ok {
+                mimo 157;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(157)));
+}
+
+#[test]
+fn run_fase157_formatar_verso_fluxo_composto_funciona() {
+    let source = r#"pacote main;
+        carinho montar_item(chave: verso, valor: bombom) -> verso {
+            mimo formatar_verso("{}={}", chave, valor);
+        }
+        carinho principal() -> bombom {
+            nova itens: lista<bombom> = lista_bombom_criar();
+            lista_bombom_anexar(itens, 7);
+            lista_bombom_anexar(itens, 9);
+            nova cabecalho: verso = formatar_verso("relatorio {}", "rodada");
+            nova linha1: verso = montar_item("total", lista_bombom_tamanho(itens));
+            nova linha2: verso = montar_item("primeiro", lista_bombom_obter(itens, 0));
+            talvez igual_verso(cabecalho, "relatorio rodada") && igual_verso(linha1, "total=2") && igual_verso(linha2, "primeiro=7") {
+                mimo 157;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(157)));
+}
+
+#[test]
+fn run_fase157_formatar_verso_falha_com_placeholders_a_menos() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova linha: verso = formatar_verso("{} {}", 1);
+            falar(linha);
+            mimo 0;
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("quantidade de placeholders"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase157_formatar_verso_falha_com_modelo_invalido() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova linha: verso = formatar_verso("{nome}", "ana");
+            falar(linha);
+            mimo 0;
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("modelo inválido em 'formatar_verso'"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn cli_check_fase157_formatacao_simples_saida_valido() {
+    let output = run_cli_check_example("examples/fase157_formatacao_simples_saida_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase157_formatacao_simples_saida_valido() {
+    let output = run_cli_example("examples/fase157_formatacao_simples_saida_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "saldo=42\n8\n0\n");
+}
+
+#[test]
+fn cli_check_fase157_formatacao_simples_fluxo_composto_valido() {
+    let output =
+        run_cli_check_example("examples/fase157_formatacao_simples_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase157_formatacao_simples_fluxo_composto_valido() {
+    let output = run_cli_example("examples/fase157_formatacao_simples_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "relatorio rodada\ntotal=2\nprimeiro=7\n0\n"
+    );
+}
+
 // ── Fase 148: escrita por índice em array fixo [bombom; N] ───────────────────
 
 #[test]

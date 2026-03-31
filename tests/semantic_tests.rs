@@ -1173,6 +1173,53 @@ fn buscar_verso_intrinseca_rejeita_segundo_argumento_nao_verso() {
 }
 
 #[test]
+fn formatar_verso_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova linha: verso = formatar_verso("{}={}", "idade", 7);
+            mimo tamanho_verso(linha);
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn formatar_verso_intrinseca_rejeita_modelo_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova linha: verso = formatar_verso(7, "idade");
+            mimo tamanho_verso(linha);
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'formatar_verso'"));
+}
+
+#[test]
+fn formatar_verso_intrinseca_rejeita_argumento_nao_bombom_ou_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova linha: verso = formatar_verso("{}", falso);
+            mimo tamanho_verso(linha);
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'formatar_verso'"));
+}
+
+#[test]
+fn formatar_verso_intrinseca_rejeita_aridade_invalida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova linha: verso = formatar_verso("{} {} {}", 1, 2, 3);
+            mimo tamanho_verso(linha);
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("chamada de 'formatar_verso' com aridade inválida"));
+}
+
+#[test]
 fn nao_vazio_verso_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
         pacote main;

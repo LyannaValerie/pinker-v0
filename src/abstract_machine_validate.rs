@@ -442,6 +442,10 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
+    sigs.insert(
+        "formatar_verso".to_string(),
+        (TypeIR::Verso, vec![StackValueType::Verso]),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;
@@ -527,6 +531,16 @@ fn validate_function(
                                 "call com retorno para função nulo",
                             ));
                         }
+                        if callee == "formatar_verso" {
+                            if !(*argc == 2 || *argc == 3) {
+                                return Err(err_ctx(
+                                    f,
+                                    Some(&b.label),
+                                    "call com aridade inválida",
+                                ));
+                            }
+                            continue;
+                        }
                         if *argc != param_types.len() {
                             return Err(err_ctx(f, Some(&b.label), "call com aridade inválida"));
                         }
@@ -542,6 +556,16 @@ fn validate_function(
                                 Some(&b.label),
                                 "call_void para função com retorno",
                             ));
+                        }
+                        if callee == "formatar_verso" {
+                            if !(*argc == 2 || *argc == 3) {
+                                return Err(err_ctx(
+                                    f,
+                                    Some(&b.label),
+                                    "call_void com aridade inválida",
+                                ));
+                            }
+                            continue;
                         }
                         if *argc != param_types.len() {
                             return Err(err_ctx(
@@ -873,6 +897,11 @@ fn apply_instr_effect(
                     callee, argc, callee
                 )),
             )?;
+            if callee == "formatar_verso" {
+                ensure_formatar_verso_stack_args(f, label, &args, *argc, false)?;
+                stack.push(StackValueType::Verso);
+                return Ok(());
+            }
             if let Some((_ret, param_types)) = sigs.get(callee) {
                 for (arg, expected) in args.iter().zip(param_types.iter().rev()) {
                     ensure_compatible(
@@ -906,6 +935,10 @@ fn apply_instr_effect(
                     callee, argc, callee
                 )),
             )?;
+            if callee == "formatar_verso" {
+                ensure_formatar_verso_stack_args(f, label, &args, *argc, true)?;
+                return Ok(());
+            }
             if let Some((_ret, param_types)) = sigs.get(callee) {
                 for (arg, expected) in args.iter().zip(param_types.iter().rev()) {
                     ensure_compatible(
@@ -1158,6 +1191,68 @@ fn merge_stack_types(a: &[StackValueType], b: &[StackValueType]) -> Vec<StackVal
             _ => StackValueType::Unknown,
         })
         .collect()
+}
+
+fn ensure_formatar_verso_stack_args(
+    f: &MachineFunction,
+    label: &str,
+    args: &[StackValueType],
+    argc: usize,
+    is_void: bool,
+) -> Result<(), PinkerError> {
+    if !(argc == 2 || argc == 3) {
+        return Err(err_ctx(
+            f,
+            Some(label),
+            if is_void {
+                "call_void com aridade inválida"
+            } else {
+                "call com aridade inválida"
+            },
+        ));
+    }
+    let Some(modelo) = args.last().copied() else {
+        return Err(err_ctx(
+            f,
+            Some(label),
+            if is_void {
+                "call_void com tipo de argumento incompatível"
+            } else {
+                "call com tipo de argumento incompatível"
+            },
+        ));
+    };
+    ensure_compatible(
+        f,
+        label,
+        modelo,
+        StackValueType::Verso,
+        if is_void {
+            "call_void com tipo de argumento incompatível"
+        } else {
+            "call com tipo de argumento incompatível"
+        },
+        Some("callee='formatar_verso'"),
+    )?;
+    for arg in args[..args.len() - 1].iter().copied() {
+        let compativel = matches!(
+            arg,
+            StackValueType::Bombom | StackValueType::Verso | StackValueType::Unknown
+        );
+        if !compativel {
+            return Err(err_ctx_with_detail(
+                f,
+                Some(label),
+                if is_void {
+                    "call_void com tipo de argumento incompatível"
+                } else {
+                    "call com tipo de argumento incompatível"
+                },
+                Some("callee='formatar_verso', esperado=Bombom ou Verso"),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn merge_types(a: StackValueType, b: StackValueType) -> StackValueType {
