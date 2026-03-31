@@ -5,14 +5,15 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 154 — coleções e estruturas de dados básicas: iteração confortável mínima sobre `mapa<verso,bombom>` (camada 1 conservadora)**.
+- **Fase 155 — correção conservadora da iteração mínima sobre `mapa<verso,bombom>` sem expor chave por índice como intrínseca geral**.
 - **FE-1 — refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)**.
 
 ## 2. Resultado operacional da rodada
-- A Fase funcional ativa passa a ser 154 no Bloco 13.
+- A Fase funcional ativa passa a ser 155 no Bloco 13.
 - O construto `para cada chave em mapa { ... }` está operacional para `mapa<verso,bombom>` com variável de chave `verso` no corpo e valor via `mapa_verso_bombom_obter`.
-- Novas intrínsecas `mapa_verso_bombom_tamanho` e `mapa_verso_bombom_chave_indice` adicionadas ao pipeline completo.
-- Rastreamento mínimo de tipo de coleção no parser permite dispatch correto entre lista e mapa sem redesign de AST.
+- `mapa_verso_bombom_tamanho` permanece público, mas a dependência de `mapa_verso_bombom_chave_indice` foi removida da superfície semântica pública.
+- O lowering de mapa passa a usar cursor interno com snapshot de chaves no runtime, preservando a superfície `para cada chave em mapa { ... }` com custo conceitual menor.
+- Rastreamento mínimo de tipo de coleção no parser continua permitindo dispatch correto entre lista e mapa sem redesign amplo de AST.
 - `lista<bombom>` continua funcional; regressão zero confirmada.
 
 ## 3. Próximo passo correto

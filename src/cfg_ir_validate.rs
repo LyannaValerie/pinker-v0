@@ -144,10 +144,17 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
-        "mapa_verso_bombom_chave_indice".to_string(),
+        "__pinker_internal_mapa_verso_bombom_iterador_criar".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapVersoBombom],
+        },
+    );
+    function_sigs.insert(
+        "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
-            params: vec![TypeIR::MapVersoBombom, TypeIR::Bombom],
+            params: vec![TypeIR::Bombom],
         },
     );
     function_sigs.insert(

@@ -909,6 +909,15 @@ FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtim
 - Testes adicionados: iteração mínima válida, chave como `verso` no corpo, valor via `obter`, mapa vazio, parâmetro de função com mapa, regressão de `lista<bombom>`, tipo primitivo ainda fora do recorte, exemplos canônico e composto via CLI.
 - Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
 
+155 - correção conservadora da iteração mínima sobre `mapa<verso,bombom>` sem expor chave por índice como intrínseca geral
+- Nona fase funcional do Bloco 13.
+- Corrige o mecanismo da Fase 154 para preservar `para cada chave em mapa { ... }` com menor custo conceitual.
+- Rebaixa ou remove a dependência de “chave por índice” como superfície pública geral, preservando a ergonomia mínima recém-aberta.
+- Mantém o recorte conservador: sem pares ricos chave/valor, sem iteração genérica, sem API ampla de iteradores e sem mapa amplo.
+- Lowering do parser continua por desdobramento pequeno e auditável, mas a iteração de mapa passa a usar cursor interno com snapshot de chaves no runtime em vez de intrínseca pública de chave por índice.
+- `mapa_verso_bombom_tamanho` permanece público no recorte mínimo; `mapa_verso_bombom_chave_indice` deixa de ser aceita como superfície semântica pública.
+- Cobertura adicionada com teste semântico explícito para recusa da intrínseca removida, teste de parser para o novo lowering interno e regressão zero confirmada sobre lista, mapa e exemplos canônico + composto da Fase 154.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

@@ -139,10 +139,17 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
-        "mapa_verso_bombom_chave_indice".to_string(),
+        "__pinker_internal_mapa_verso_bombom_iterador_criar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapVersoBombom],
+        },
+    );
+    funcs.insert(
+        "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave".to_string(),
         FunctionSig {
             ret_type: TypeIR::Verso,
-            params: vec![TypeIR::MapVersoBombom, TypeIR::Bombom],
+            params: vec![TypeIR::Bombom],
         },
     );
     funcs.insert(

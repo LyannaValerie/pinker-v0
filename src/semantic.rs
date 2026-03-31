@@ -1055,6 +1055,30 @@ impl SemanticChecker {
                         span: expr.span,
                     })
             }
+            ExprKind::InternalMapIterCreate(map) => {
+                let map_ty =
+                    self.check_value_expr(map, "cursor interno de mapa requer mapa como valor")?;
+                if !matches!(map_ty, Type::MapVersoBombom(_)) {
+                    return Err(PinkerError::Semantic {
+                        msg: "cursor interno de mapa exige 'mapa<verso,bombom>'".to_string(),
+                        span: map.span,
+                    });
+                }
+                Ok(Type::Bombom(expr.span))
+            }
+            ExprKind::InternalMapIterNextKey(iterator) => {
+                let iterator_ty = self.check_value_expr(
+                    iterator,
+                    "avanço interno de iteração de mapa requer cursor como valor",
+                )?;
+                if !matches!(iterator_ty, Type::Bombom(_)) {
+                    return Err(PinkerError::Semantic {
+                        msg: "cursor interno de mapa exige handle 'bombom'".to_string(),
+                        span: iterator.span,
+                    });
+                }
+                Ok(Type::Verso(expr.span))
+            }
             ExprKind::Call(callee, args) => self.check_call_expr(expr.span, callee, args),
             ExprKind::FieldAccess { base, field } => {
                 let base_ty = self.check_value_expr(
@@ -1732,44 +1756,6 @@ impl SemanticChecker {
                 });
             }
             return Ok(Type::Bombom(expr_span));
-        }
-        if name == "mapa_verso_bombom_chave_indice" {
-            if args.len() != 2 {
-                return Err(PinkerError::Semantic {
-                    msg: format!(
-                        "chamada de 'mapa_verso_bombom_chave_indice' com aridade inválida: esperado 2, recebido {}",
-                        args.len()
-                    ),
-                    span: expr_span,
-                });
-            }
-            let map_ty = self.check_value_expr(
-                &args[0],
-                "resultado de função sem retorno não pode ser usado como argumento",
-            )?;
-            if !matches!(map_ty, Type::MapVersoBombom(_)) {
-                return Err(PinkerError::Semantic {
-                    msg: format!(
-                        "tipo inválido no argumento 1 da chamada 'mapa_verso_bombom_chave_indice': esperado 'mapa<verso,bombom>', encontrado '{}'",
-                        map_ty.name()
-                    ),
-                    span: args[0].span,
-                });
-            }
-            let idx_ty = self.check_value_expr(
-                &args[1],
-                "resultado de função sem retorno não pode ser usado como argumento",
-            )?;
-            if !matches!(idx_ty, Type::Bombom(_)) {
-                return Err(PinkerError::Semantic {
-                    msg: format!(
-                        "tipo inválido no argumento 2 da chamada 'mapa_verso_bombom_chave_indice': esperado 'bombom', encontrado '{}'",
-                        idx_ty.name()
-                    ),
-                    span: args[1].span,
-                });
-            }
-            return Ok(Type::Verso(expr_span));
         }
         if name == "argumento" {
             if args.len() != 1 {

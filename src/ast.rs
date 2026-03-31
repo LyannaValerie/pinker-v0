@@ -786,6 +786,20 @@ impl Expr {
                 writer.field_array("args", args, |writer, arg| arg.write_json(writer));
                 writer.end_object();
             }
+            ExprKind::InternalMapIterCreate(map) => {
+                writer.begin_object();
+                writer.field_str("node", "InternalMapIterCreateExpr");
+                writer.field_span("span", self.span);
+                writer.field_value("map", |writer| map.write_json(writer));
+                writer.end_object();
+            }
+            ExprKind::InternalMapIterNextKey(iterator) => {
+                writer.begin_object();
+                writer.field_str("node", "InternalMapIterNextKeyExpr");
+                writer.field_span("span", self.span);
+                writer.field_value("iterator", |writer| iterator.write_json(writer));
+                writer.end_object();
+            }
             ExprKind::FieldAccess { base, field } => {
                 writer.begin_object();
                 writer.field_str("node", "FieldAccessExpr");
@@ -861,6 +875,8 @@ pub enum ExprKind {
     Binary(Box<Expr>, BinaryOp, Box<Expr>),
     Unary(UnaryOp, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
+    InternalMapIterCreate(Box<Expr>),
+    InternalMapIterNextKey(Box<Expr>),
     FieldAccess { base: Box<Expr>, field: String },
     Index { base: Box<Expr>, index: Box<Expr> },
     Cast { expr: Box<Expr>, target: Type },

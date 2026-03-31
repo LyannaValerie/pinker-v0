@@ -300,6 +300,26 @@ fn render_expr(expr: &Expr, indent: usize, out: &mut String, label: &str) {
                 render_expr(arg, indent + 1, out, "arg");
             }
         }
+        ExprKind::InternalMapIterCreate(map) => {
+            line(
+                out,
+                indent,
+                &format!("{} InternalMapIterCreate {}", label, format_span(expr.span)),
+            );
+            render_expr(map, indent + 1, out, "map");
+        }
+        ExprKind::InternalMapIterNextKey(iterator) => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "{} InternalMapIterNextKey {}",
+                    label,
+                    format_span(expr.span)
+                ),
+            );
+            render_expr(iterator, indent + 1, out, "iterator");
+        }
         ExprKind::FieldAccess { base, field } => {
             line(
                 out,

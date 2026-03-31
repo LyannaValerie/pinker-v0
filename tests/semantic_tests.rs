@@ -2286,3 +2286,23 @@ fn mapa_verso_bombom_definir_rejeita_valor_nao_bombom() {
         err
     );
 }
+
+#[test]
+fn mapa_verso_bombom_chave_indice_nao_e_superficie_publica_na_fase155() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+            mapa_verso_bombom_definir(m, "idade", 7);
+            nova chave: verso = mapa_verso_bombom_chave_indice(m, 0);
+            falar(chave);
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("função 'mapa_verso_bombom_chave_indice' não declarada"),
+        "{}",
+        err
+    );
+}
