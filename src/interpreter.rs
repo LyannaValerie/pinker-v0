@@ -58,6 +58,15 @@ struct RuntimeMapState {
     next_map_iter_handle: u64,
 }
 
+struct RuntimeRandomState {
+    generators: HashMap<u64, RuntimeRandomGenerator>,
+    next_generator_handle: u64,
+}
+
+struct RuntimeRandomGenerator {
+    state: u64,
+}
+
 struct RuntimeMapVersoBombomIter {
     keys_snapshot: Vec<String>,
     next_index: usize,
@@ -121,6 +130,10 @@ pub fn run_program_with_args(
         map_iters_verso_bombom: HashMap::new(),
         next_map_iter_handle: 1,
     };
+    let mut random_state = RuntimeRandomState {
+        generators: HashMap::new(),
+        next_generator_handle: 1,
+    };
     let mut call_stack = Vec::new();
     let return_value = call_function(
         "principal",
@@ -131,6 +144,7 @@ pub fn run_program_with_args(
         &mut io_state,
         &mut list_state,
         &mut map_state,
+        &mut random_state,
         &mut call_stack,
     )?;
     Ok(RunOutcome {
@@ -204,6 +218,7 @@ fn call_function(
     io_state: &mut RuntimeIoState,
     list_state: &mut RuntimeListState,
     map_state: &mut RuntimeMapState,
+    random_state: &mut RuntimeRandomState,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<Option<RuntimeValue>, PinkerError> {
     if call_stack.len() >= MAX_CALL_DEPTH {
@@ -263,8 +278,17 @@ fn call_function(
             for instr in &block.code {
                 set_current_instr(call_stack, Some(machine_instr_name(instr)));
                 exec_instr(
-                    instr, &mut slots, &mut stack, program, globals, memory, io_state, list_state,
-                    map_state, call_stack,
+                    instr,
+                    &mut slots,
+                    &mut stack,
+                    program,
+                    globals,
+                    memory,
+                    io_state,
+                    list_state,
+                    map_state,
+                    random_state,
+                    call_stack,
                 )?;
                 set_current_instr(call_stack, None);
                 if io_state.exit_status.is_some() {
@@ -325,6 +349,7 @@ fn exec_instr(
     io_state: &mut RuntimeIoState,
     list_state: &mut RuntimeListState,
     map_state: &mut RuntimeMapState,
+    random_state: &mut RuntimeRandomState,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<(), PinkerError> {
     match instr {
@@ -544,10 +569,25 @@ fn exec_instr(
         }
         MachineInstr::Call { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = match try_call_intrinsic(callee, &args, io_state, list_state, map_state)? {
+            let result = match try_call_intrinsic(
+                callee,
+                &args,
+                io_state,
+                list_state,
+                map_state,
+                random_state,
+            )? {
                 IntrinsicCall::Done(value) => value,
                 IntrinsicCall::NotIntrinsic => call_function(
-                    callee, args, program, globals, memory, io_state, list_state, map_state,
+                    callee,
+                    args,
+                    program,
+                    globals,
+                    memory,
+                    io_state,
+                    list_state,
+                    map_state,
+                    random_state,
                     call_stack,
                 )?,
             };
@@ -558,10 +598,25 @@ fn exec_instr(
         }
         MachineInstr::CallVoid { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = match try_call_intrinsic(callee, &args, io_state, list_state, map_state)? {
+            let result = match try_call_intrinsic(
+                callee,
+                &args,
+                io_state,
+                list_state,
+                map_state,
+                random_state,
+            )? {
                 IntrinsicCall::Done(value) => value,
                 IntrinsicCall::NotIntrinsic => call_function(
-                    callee, args, program, globals, memory, io_state, list_state, map_state,
+                    callee,
+                    args,
+                    program,
+                    globals,
+                    memory,
+                    io_state,
+                    list_state,
+                    map_state,
+                    random_state,
                     call_stack,
                 )?,
             };
@@ -608,8 +663,47 @@ fn try_call_intrinsic(
     io_state: &mut RuntimeIoState,
     list_state: &mut RuntimeListState,
     map_state: &mut RuntimeMapState,
+    random_state: &mut RuntimeRandomState,
 ) -> Result<IntrinsicCall, PinkerError> {
     match callee {
+        "aleatorio_criar" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'aleatorio_criar' exige 1 argumento (semente bombom)",
+                ));
+            }
+            let RuntimeValue::Int(seed) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'aleatorio_criar' exige semente bombom",
+                ));
+            };
+            let handle = random_state.next_generator_handle;
+            random_state.next_generator_handle =
+                random_state.next_generator_handle.saturating_add(1);
+            random_state
+                .generators
+                .insert(handle, RuntimeRandomGenerator { state: seed });
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(handle))))
+        }
+        "aleatorio_proximo" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'aleatorio_proximo' exige 1 argumento (gerador bombom)",
+                ));
+            }
+            let RuntimeValue::Int(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'aleatorio_proximo' exige gerador bombom",
+                ));
+            };
+            let Some(generator) = random_state.generators.get_mut(&handle) else {
+                return Err(runtime_err(
+                    "handle de aleatoriedade inválido em 'aleatorio_proximo'",
+                ));
+            };
+            let next = advance_random_generator(&mut generator.state);
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(next))))
+        }
         "lista_bombom_criar" => {
             if !args.is_empty() {
                 return Err(runtime_err(
@@ -2050,6 +2144,14 @@ fn read_stdin_line_minima(intrinsic_name: &str) -> Result<Option<String>, Pinker
         return Ok(None);
     }
     Ok(Some(raw))
+}
+
+fn advance_random_generator(state: &mut u64) -> u64 {
+    // LCG mínimo e determinístico em u64, suficiente para o recorte auditável da fase.
+    *state = state
+        .wrapping_mul(6_364_136_223_846_793_005)
+        .wrapping_add(1_442_695_040_888_963_407);
+    *state
 }
 
 fn ensure_named_arg_key_valid(intrinsic_name: &str, key: &str) -> Result<(), PinkerError> {

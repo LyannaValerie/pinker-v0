@@ -5,19 +5,18 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 155 — correção conservadora da iteração mínima sobre `mapa<verso,bombom>` sem expor chave por índice como intrínseca geral**.
+- **Fase 156 — coleções e estruturas de dados básicas: aleatoriedade básica com semente explícita (camada 1 conservadora)**.
 - **FE-1 — refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)**.
 
 ## 2. Resultado operacional da rodada
-- A Fase funcional ativa passa a ser 155 no Bloco 13.
-- O construto `para cada chave em mapa { ... }` está operacional para `mapa<verso,bombom>` com variável de chave `verso` no corpo e valor via `mapa_verso_bombom_obter`.
-- `mapa_verso_bombom_tamanho` permanece público, mas a dependência de `mapa_verso_bombom_chave_indice` foi removida da superfície semântica pública.
-- O lowering de mapa passa a usar cursor interno com snapshot de chaves no runtime, preservando a superfície `para cada chave em mapa { ... }` com custo conceitual menor.
-- Rastreamento mínimo de tipo de coleção no parser continua permitindo dispatch correto entre lista e mapa sem redesign amplo de AST.
-- `lista<bombom>` continua funcional; regressão zero confirmada.
+- A Fase funcional ativa passa a ser 156 e encerra o Bloco 13 por suficiência conservadora.
+- A Pinker passa a oferecer um núcleo mínimo de pseudoaleatoriedade reproduzível com semente explícita via `aleatorio_criar(semente)` e `aleatorio_proximo(gerador)`.
+- O runtime mantém estado pequeno de geradores por handle, sem depender de tempo do sistema e com mesma semente -> mesma sequência.
+- `lista<bombom>`, `mapa<verso,bombom>` e a iteração mínima do bloco continuam funcionais; regressão zero confirmada.
+- O recorte permanece conservador: sem floats, sem distribuições ricas, sem shuffle, sem escolha aleatória sobre coleção e sem API criptográfica.
 
 ## 3. Próximo passo correto
-- Evoluir o Bloco 13 para o próximo degrau mínimo auditável (13.9 — aleatoriedade básica), sem inflar coleções, iteração genérica ou API rica.
+- Iniciar o Bloco 14 no menor recorte útil e auditável (14.1 — formatação simples de saída), sem reabrir o Bloco 13 por inércia nem inflar a linguagem para biblioteca de dados ampla.
 
 ## 4. Restrições explícitas
 - Sem reabrir Bloco 11 por inércia documental; qualquer retorno ao tema deve ser excepcional e bem justificado.

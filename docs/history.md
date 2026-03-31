@@ -918,6 +918,16 @@ FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtim
 - `mapa_verso_bombom_tamanho` permanece público no recorte mínimo; `mapa_verso_bombom_chave_indice` deixa de ser aceita como superfície semântica pública.
 - Cobertura adicionada com teste semântico explícito para recusa da intrínseca removida, teste de parser para o novo lowering interno e regressão zero confirmada sobre lista, mapa e exemplos canônico + composto da Fase 154.
 
+156 - coleções e estruturas de dados básicas: aleatoriedade básica com semente explícita (camada 1 conservadora)
+- Décima fase funcional do Bloco 13.
+- Abre o primeiro núcleo mínimo de pseudoaleatoriedade reproduzível do projeto.
+- Semântica mínima aberta com superfície explícita e pequena: `aleatorio_criar(semente)` cria um gerador mínimo por handle e `aleatorio_proximo(gerador)` produz o próximo `bombom` da sequência.
+- Runtime passa a manter estado interno pequeno de geradores pseudoaleatórios por handle, com algoritmo determinístico auditável em `u64`; mesma semente produz a mesma sequência e handle inválido falha com erro claro.
+- Mantém o recorte conservador: sem API ampla de random, sem floats, sem criptografia, sem shuffle, sem escolha aleatória sobre coleção e sem distribuições ricas.
+- Cobertura adicionada com testes semânticos/runtime/CLI para semente explícita, determinismo, sementes distintas, fluxo composto e recusa explícita de API ampla fora do recorte.
+- Exemplos versionados adicionados: `examples/fase156_aleatoriedade_basica_semente_valido.pink` e `examples/fase156_aleatoriedade_basica_fluxo_composto_valido.pink`.
+- Registra também a continuidade da política de exemplos mais compostos/realistas no bloco e fecha o Bloco 13 por suficiência conservadora.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

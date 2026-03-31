@@ -374,7 +374,8 @@ Por padrão, o fechamento do Bloco 10 **não** implica:
 - O Bloco 11 foi encerrado por suficiência conservadora (Doc-27). As Fases 137–143 cobriram: texto mínimo útil (`dividir_verso_em`, `substituir_verso`, `juntar_verso_com`, `buscar_verso`) e ergonomia prática mínima de script (hoje canonicamente `tem_chave`, `pedir_argumento`, `tem_flag`, `buscar_contexto`, com compatibilidade temporária para `tem_argumento_nomeado`, `argumento_nomeado_ou` e `argumento_nomeado_ou_ambiente_ou` após a FE-1), sem parser amplo, sem REPL, sem subprocessos, sem config files e sem biblioteca textual gigante.
 - O editor/TUI oficial da Pinker segue como frente oficial já aberta (Fase 136), porém pausada por decisão estratégica; não está abandonado.
 - O Bloco 12 foi encerrado por suficiência conservadora após as Fases 144–146 (`ninho`/`apelido` exportáveis via `trazer` + uso qualificado mínimo `modulo.Tipo` em contexto tipado), sem `pub/priv`, sem reexportação transitiva, sem wildcard import, sem aliasing novo, sem namespaces amplos e sem redesign geral de módulos.
-- O próximo bloco formal da trilha ativa é o **Bloco 13 — coleções e estruturas de dados básicas**.
+- O Bloco 13 foi encerrado por suficiência conservadora na Fase 156 (`lista<bombom>`, `mapa<verso,bombom>`, iteração confortável mínima e aleatoriedade básica com semente explícita), sem abrir generics, coleções amplas ou random rico.
+- O próximo bloco formal da trilha ativa é o **Bloco 14 — formatação e dados estruturados**.
 
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.
@@ -525,7 +526,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 13 — coleções e estruturas de dados básicas
 
-**Status**: em andamento; nove fases funcionais entregues (Fases 147, 148, 149, 150, 151, 152, 153, 154 e 155), incluindo o núcleo mínimo de mutação estrutural da primeira coleção dinâmica real (`lista<bombom>`), a abertura associativa mínima da segunda coleção dinâmica real (`mapa<verso,bombom>`), a primeira iteração confortável mínima sobre `lista<bombom>`, a primeira iteração confortável associativa mínima sobre `mapa<verso,bombom>` e a correção conservadora imediata do mecanismo interno dessa iteração de mapa.
+**Status**: concluído por suficiência conservadora; dez fases funcionais entregues (Fases 147, 148, 149, 150, 151, 152, 153, 154, 155 e 156), incluindo o núcleo mínimo de mutação estrutural da primeira coleção dinâmica real (`lista<bombom>`), a abertura associativa mínima da segunda coleção dinâmica real (`mapa<verso,bombom>`), a primeira iteração confortável mínima sobre `lista<bombom>`, a primeira iteração confortável associativa mínima sobre `mapa<verso,bombom>`, a correção conservadora imediata do mecanismo interno dessa iteração de mapa e o primeiro núcleo mínimo de pseudoaleatoriedade reproduzível com semente explícita.
 
 **Tese do bloco**: a Pinker tem tipos escalares, arrays fixos e structs, mas não tem coleções dinâmicas; sem lista e mapa, processar conjuntos variáveis de dados requer contorções manuais com arrays fixos; este bloco abre o mínimo auditável de coleções dinâmicas para tornar a linguagem utilizável como ferramenta cotidiana com dados variáveis.
 
@@ -540,15 +541,15 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 6. **13.6 — `mapa` mínimo homogêneo `verso -> bombom` (Fase 152, concluída)**: abertura da segunda coleção dinâmica real do bloco com `mapa_verso_bombom_criar()`, `mapa_verso_bombom_definir(mapa, chave, valor)`, `mapa_verso_bombom_obter(mapa, chave)` e `mapa_verso_bombom_tem(mapa, chave)`, mantendo erro explícito para chave ausente e recorte conservador sem `mapa<K,V>` amplo, sem remoção por chave e sem iteração confortável.
 7. **13.7 — iteração confortável mínima sobre `lista<bombom>` (Fase 153, concluída)**: abertura de um único construto explícito de percurso (`para cada`) sobre valores de `lista<bombom>`, com variável de item no corpo e lowering conservador para estruturas já existentes; sem iteração genérica, sem mapa como alvo principal e sem API ampla de iteradores.
 8. **13.8 — iteração confortável mínima sobre `mapa<verso,bombom>` (Fases 154 e 155, concluída)**: abertura do primeiro percurso associativo mínimo com `para cada chave em mapa { ... }`, com variável de chave `verso` no corpo e valor acessado via `mapa_verso_bombom_obter`; a Fase 154 abriu o recorte com lowering conservador por desdobramento no parser e a Fase 155 corrigiu o mecanismo para cursor interno com snapshot de chaves, removendo a dependência pública de chave por índice; sem pares chave/valor amplos, sem iteração genérica e sem API ampla.
-9. **13.9 — aleatoriedade básica**: geração mínima de inteiro aleatório com semente explícita; precisa de tipos inteiros estáveis; fecha o bloco com utilidade independente mas frequentemente necessária em conjunto com coleções.
+9. **13.9 — aleatoriedade básica (Fase 156, concluída)**: geração mínima de `bombom` pseudoaleatório com semente explícita via `aleatorio_criar(semente)` e `aleatorio_proximo(gerador)`, preservando mesma semente -> mesma sequência; sem tempo do sistema, sem floats, sem distribuições ricas, sem shuffle e sem API criptográfica; fecha o bloco com utilidade independente mas frequentemente necessária em conjunto com coleções.
 
-**Escopo deliberadamente fora do Bloco 13**: iteradores lazy, generics, coleções heterogêneas, ordenação avançada, pilha/fila como tipos próprios, coleções concorrentes.
+**Escopo deliberadamente fora do Bloco 13**: iteradores lazy, generics, coleções heterogêneas, ordenação avançada, pilha/fila como tipos próprios, coleções concorrentes, distribuições ricas, shuffle, escolha aleatória sobre coleção e aleatoriedade criptográfica.
 
 ---
 
 ### Bloco 14 — formatação e dados estruturados
 
-**Status**: pendente; depende do Bloco 13.
+**Status**: próximo bloco formal da trilha ativa; pendente de primeira fase funcional após o fechamento conservador do Bloco 13.
 
 **Tese do bloco**: com coleções e iteração disponíveis, a Pinker pode processar e emitir dados estruturados de forma prática; este bloco fecha a cadeia `coleta → processamento → saída formatada` que torna a linguagem útil para tarefas reais de automação, relatórios e integração com outros sistemas.
 

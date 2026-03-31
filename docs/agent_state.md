@@ -10,11 +10,12 @@
 - Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
 ## 2. Estado corrente
-- Fase funcional atual: **155 — correção conservadora da iteração mínima sobre `mapa<verso,bombom>` sem expor chave por índice como intrínseca geral**.
+- Fase funcional atual: **156 — coleções e estruturas de dados básicas: aleatoriedade básica com semente explícita (camada 1 conservadora)**.
 - Rodada extraordinária corrente: **FE-1 — refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)**.
 - Bloco encerrado: **11 — texto prático, scripts e ergonomia cotidiana (encerrado por suficiência conservadora na Doc-27)**.
 - Bloco encerrado: **12 — sistema de módulos tipado (encerrado por suficiência conservadora na Doc-28)**.
-- Bloco formal da trilha ativa: **13 — coleções e estruturas de dados básicas**.
+- Bloco encerrado: **13 — coleções e estruturas de dados básicas (encerrado por suficiência conservadora na Fase 156)**.
+- Bloco formal da trilha ativa: **14 — formatação e dados estruturados**.
 - Frente pausada (oficial e não abandonada): **editor/TUI oficial da Pinker (aberto na Fase 136)**.
 - Rodada documental mais recente: **Doc-28 — fechamento canônico do Bloco 12 e preparação formal da transição para o Bloco 13** (última rodada documental, sem nova Doc nesta fase funcional).
 - Ajuste extraordinário corrente: promoção canônica de `tem_chave`, `pedir_argumento` e `buscar_contexto`, com legado temporário para `tem_argumento_nomeado`, `argumento_nomeado_ou` e `argumento_nomeado_ou_ambiente_ou`.

@@ -6706,3 +6706,140 @@ fn cli_run_fase154_iteracao_mapa_verso_bombom_fluxo_composto_valido() {
     assert!(stdout.contains("60"), "stdout={}", stdout);
     assert!(stdout.contains('2'), "stdout={}", stdout);
 }
+
+// ── Fase 156: aleatoriedade básica com semente explícita ───────────────────
+
+#[test]
+fn run_fase156_mesma_semente_produz_mesma_sequencia() {
+    let out = run_code(
+        r#"pacote main;
+         carinho principal() -> bombom {
+             nova a: bombom = aleatorio_criar(42);
+             nova b: bombom = aleatorio_criar(42);
+             nova a1: bombom = aleatorio_proximo(a);
+             nova b1: bombom = aleatorio_proximo(b);
+             nova a2: bombom = aleatorio_proximo(a);
+             nova b2: bombom = aleatorio_proximo(b);
+             talvez a1 == b1 {
+                 talvez a2 == b2 {
+                     mimo 1;
+                 }
+             }
+             mimo 0;
+         }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_fase156_sementes_diferentes_sao_distinguiveis() {
+    let out = run_code(
+        r#"pacote main;
+         carinho principal() -> bombom {
+             nova a: bombom = aleatorio_criar(1);
+             nova b: bombom = aleatorio_criar(2);
+             nova va: bombom = aleatorio_proximo(a);
+             nova vb: bombom = aleatorio_proximo(b);
+             talvez va == vb {
+                 mimo 0;
+             }
+             mimo 1;
+         }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_fase156_fluxo_composto_com_lista_funciona() {
+    let out = run_code(
+        r#"pacote main;
+         carinho rolar_face(gerador: bombom) -> bombom {
+             mimo (aleatorio_proximo(gerador) % 6) + 1;
+         }
+         carinho jogar_rodada(gerador: bombom, historico: lista<bombom>) -> bombom {
+             nova dado_a: bombom = rolar_face(gerador);
+             nova dado_b: bombom = rolar_face(gerador);
+             lista_bombom_anexar(historico, dado_a);
+             lista_bombom_anexar(historico, dado_b);
+             mimo dado_a + dado_b;
+         }
+         carinho principal() -> bombom {
+             nova gerador: bombom = aleatorio_criar(2024);
+             nova historico: lista<bombom> = lista_bombom_criar();
+             nova primeira: bombom = jogar_rodada(gerador, historico);
+             nova segunda: bombom = jogar_rodada(gerador, historico);
+             falar(lista_bombom_tamanho(historico));
+             falar(primeira, segunda);
+             mimo lista_bombom_obter(historico, 0) + lista_bombom_obter(historico, 3);
+         }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(9)));
+}
+
+#[test]
+fn run_fase156_handle_invalido_falha_claro() {
+    let err = run_code(
+        r#"pacote main;
+         carinho principal() -> bombom {
+             mimo aleatorio_proximo(999);
+         }"#,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("handle de aleatoriedade inválido em 'aleatorio_proximo'"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn cli_check_fase156_aleatoriedade_basica_semente_valido() {
+    let output = run_cli_check_example("examples/fase156_aleatoriedade_basica_semente_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase156_aleatoriedade_basica_semente_valido() {
+    let output = run_cli_example("examples/fase156_aleatoriedade_basica_semente_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.matches("verdade").count(), 2, "stdout={}", stdout);
+}
+
+#[test]
+fn cli_check_fase156_aleatoriedade_basica_fluxo_composto_valido() {
+    let output =
+        run_cli_check_example("examples/fase156_aleatoriedade_basica_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase156_aleatoriedade_basica_fluxo_composto_valido() {
+    let output =
+        run_cli_example("examples/fase156_aleatoriedade_basica_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains('4'), "stdout={}", stdout);
+    assert!(stdout.contains("7 7"), "stdout={}", stdout);
+    assert!(stdout.contains('9'), "stdout={}", stdout);
+}
