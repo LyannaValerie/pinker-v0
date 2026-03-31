@@ -44,6 +44,7 @@ Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/ag
 - coleções dinâmicas mínimas no Bloco 13 em recorte conservador: `lista<bombom>` com criação explícita (`lista_bombom_criar()`), append mínimo (`lista_bombom_anexar(lista, v)`), leitura por índice (`lista_bombom_obter(lista, i)`), tamanho mínimo (`lista_bombom_tamanho(lista)`), escrita mínima por índice (`lista_bombom_definir(lista, i, v)`), remoção mínima do fim com retorno (`lista_bombom_tirar_ultimo(lista)`) e `mapa<verso,bombom>` mínimo com criação explícita (`mapa_verso_bombom_criar()`), definição por chave (`mapa_verso_bombom_definir(mapa, chave, valor)`), leitura por chave (`mapa_verso_bombom_obter(mapa, chave)`) e verificação de presença (`mapa_verso_bombom_tem(mapa, chave)`), sem abrir `lista<T>`/`mapa<K,V>` amplos, sem iteração confortável ampla ou API rica de coleção (Fases 149, 150, 151 e 152)
 - iteração confortável mínima sobre `lista<bombom>` e `mapa<verso,bombom>` no Bloco 13 (camada 1 conservadora): `para cada item em lista { ... }` e `para cada chave em mapa { ... }` com variável de loop no corpo e lowering conservador por desdobramento; valor de mapa acessado via `mapa_verso_bombom_obter`; a Fase 155 corrige a iteração de mapa para usar cursor interno com snapshot de chaves, sem expor chave por índice como intrínseca pública; sem iteração genérica, sem pares chave/valor amplos e sem API ampla de iteradores (Fases 153, 154 e 155)
 - aleatoriedade básica com semente explícita no Bloco 13 (camada 1 conservadora): `aleatorio_criar(semente)` cria um gerador mínimo reproduzível e `aleatorio_proximo(gerador)` produz o próximo `bombom` da sequência; mesma semente produz a mesma sequência, sem tempo do sistema, sem floats, sem distribuições ricas, sem shuffle e sem API criptográfica (Fase 156)
+- formatação simples de saída no Bloco 14 (camada 1 conservadora): `formatar_verso(modelo, a[, b]) -> verso` monta texto com placeholders sequenciais `{}` e substituição controlada para `bombom` e `verso`; recorte pequeno, auditável e focado em saída/relatórios simples, com erro claro para modelo inválido e quantidade errada de placeholders/argumentos (Fase 157)
 - diretório atual mínimo em `--run` com `diretorio_atual()` retornando `verso` (Fase 95)
 - introspecção mínima de caminho em `--run` com `caminho_existe(verso) -> logica` e `e_arquivo(verso) -> logica` (Fase 96)
 - refinamento mínimo de caminho em `--run` com `e_diretorio(verso) -> logica` e `juntar_caminho(verso, verso) -> verso` (Fase 97)
@@ -93,7 +94,7 @@ Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/ag
 - semântica completa de `fragil` em runtime/backend (há apenas efeito operacional mínimo em acessos indiretos no subset `fragil seta<bombom>`, sem MMIO/fences/ordenação de memória)
 - lowering operacional de `virar` fora do subset atual (`--run` executa inteiro->inteiro e `bombom <-> seta<bombom>`; no backend externo `--asm-s` há recorte mínimo explícito `u32 -> u64` e `u64 -> u32` com origem em slot local/parâmetro; demais casts continuam rejeitados)
 - lowering operacional de inline asm em CFG/Machine/runtime (`--check`/`--ir` aceitam o subset atual; `--cfg-ir`/`--run` ainda não executam `sussurro`)
-- operações de texto em `verso` além do recorte mínimo atual (ex.: slicing, indexação negativa e formatação) ainda fora do subset operacional
+- operações de texto em `verso` além do recorte mínimo atual (ex.: slicing, indexação negativa e formatação rica) ainda fora do subset operacional
 - API rica de arquivo (múltiplos modos gerais, streaming/diretórios e variações além de `abrir_anexo` + `anexar_verso`)
 - metadados de arquivo além do recorte mínimo atual (`tamanho_arquivo` e `e_vazio`)
 - mutação de filesystem além do recorte mínimo atual (`criar_diretorio` simples, `remover_arquivo` simples e `remover_diretorio` simples sem recursão)
@@ -287,6 +288,10 @@ cargo run --bin pink -- --check examples/fase156_aleatoriedade_basica_semente_va
 cargo run --bin pink -- --run examples/fase156_aleatoriedade_basica_semente_valido.pink
 cargo run --bin pink -- --check examples/fase156_aleatoriedade_basica_fluxo_composto_valido.pink
 cargo run --bin pink -- --run examples/fase156_aleatoriedade_basica_fluxo_composto_valido.pink
+cargo run --bin pink -- --check examples/fase157_formatacao_simples_saida_valido.pink
+cargo run --bin pink -- --run examples/fase157_formatacao_simples_saida_valido.pink
+cargo run --bin pink -- --check examples/fase157_formatacao_simples_fluxo_composto_valido.pink
+cargo run --bin pink -- --run examples/fase157_formatacao_simples_fluxo_composto_valido.pink
 cargo run --bin pink -- --check examples/fase148_array_fixo_escrita_indice_elemento_nao_bombom_invalido.pink
 cargo run --bin pink -- --cfg-ir examples/fase61_verso_cfg_ir_invalido.pink
 cargo run --bin pink -- --run examples/fase60_modulos_valido.pink

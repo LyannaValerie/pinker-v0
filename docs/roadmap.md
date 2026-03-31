@@ -375,7 +375,7 @@ Por padrão, o fechamento do Bloco 10 **não** implica:
 - O editor/TUI oficial da Pinker segue como frente oficial já aberta (Fase 136), porém pausada por decisão estratégica; não está abandonado.
 - O Bloco 12 foi encerrado por suficiência conservadora após as Fases 144–146 (`ninho`/`apelido` exportáveis via `trazer` + uso qualificado mínimo `modulo.Tipo` em contexto tipado), sem `pub/priv`, sem reexportação transitiva, sem wildcard import, sem aliasing novo, sem namespaces amplos e sem redesign geral de módulos.
 - O Bloco 13 foi encerrado por suficiência conservadora na Fase 156 (`lista<bombom>`, `mapa<verso,bombom>`, iteração confortável mínima e aleatoriedade básica com semente explícita), sem abrir generics, coleções amplas ou random rico.
-- O próximo bloco formal da trilha ativa é o **Bloco 14 — formatação e dados estruturados**.
+- A Fase 157 abriu funcionalmente o **Bloco 14 — formatação e dados estruturados** no menor recorte útil, com `formatar_verso(modelo, a[, b])` e placeholders `{}` mínimos voltados a saída.
 
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.
@@ -549,14 +549,14 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 14 — formatação e dados estruturados
 
-**Status**: próximo bloco formal da trilha ativa; pendente de primeira fase funcional após o fechamento conservador do Bloco 13.
+**Status**: bloco formal ativo; a Fase 157 abriu 14.1 em camada 1 conservadora com `formatar_verso(modelo, a[, b])` e placeholders `{}` mínimos.
 
 **Tese do bloco**: com coleções e iteração disponíveis, a Pinker pode processar e emitir dados estruturados de forma prática; este bloco fecha a cadeia `coleta → processamento → saída formatada` que torna a linguagem útil para tarefas reais de automação, relatórios e integração com outros sistemas.
 
 **Dependência obrigatória**: Bloco 13 concluído — `lista` + `mapa` + iteração são pré-requisitos diretos para CSV e JSON.
 
 **Itens do bloco (ordem interna por dependência)**:
-1. **14.1 — formatação simples de saída**: controle mínimo de formato em `falar` ou intrínseca dedicada (padding, casas decimais, separadores); precisa de tipos escalares estáveis e `verso` operacional; base para saída legível em CSV, JSON e logs.
+1. **14.1 — formatação simples de saída (Fase 157, concluída no recorte mínimo)**: intrínseca dedicada `formatar_verso(modelo, a[, b]) -> verso` com placeholders sequenciais `{}` e substituição controlada de `bombom`/`verso`; erro claro para modelo inválido e quantidade errada de placeholders/argumentos; sem padding, precisão, placeholders nomeados ou escape rico.
 2. **14.2 — CSV mínimo**: leitura e escrita de CSV simples (separador único, sem quoting complexo); precisa de `dividir_verso_em` (Bloco 11) + `lista` (Bloco 13) + formatação (14.1); base para dados tabulares e JSON.
 3. **14.3 — JSON básico**: parsing e serialização mínimos de JSON plano/aninhado simples; precisa de `mapa` (Bloco 13) + iteração (Bloco 13) + CSV como fundação de dados estruturados; base para integração com APIs e sistemas externos.
 4. **14.4 — datas e tempo básicos**: representação e operações mínimas de data/tempo (timestamp Unix, formatação ISO simples); precisa de formatação (14.1) e inteiros; fecha o bloco com utilidade cotidiana autônoma e recorrente.

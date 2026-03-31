@@ -546,6 +546,13 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
         },
     );
+    function_sigs.insert(
+        "formatar_verso".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso],
+        },
+    );
 
     for function in &program.functions {
         validate_function(function, &global_consts, &function_sigs)?;
@@ -1033,6 +1040,68 @@ fn validate_block(
                         function.span,
                     )
                 })?;
+                if callee == "formatar_verso" {
+                    if !(args.len() == 2 || args.len() == 3) {
+                        return Err(cfg_error(
+                            "aridade inválida em call da CFG IR",
+                            function.span,
+                        ));
+                    }
+                    let modelo_ty = infer_operand_type(
+                        &args[0],
+                        slot_types,
+                        &temp_types,
+                        global_consts,
+                        function.span,
+                    )?;
+                    if !operand_matches_expected(&args[0], modelo_ty, TypeIR::Verso) {
+                        return Err(cfg_error_ctx(
+                            function,
+                            Some(block.label.as_str()),
+                            "tipo de argumento inválido em call",
+                            Some("instr='call formatar_verso', esperado=Verso"),
+                            function.span,
+                        ));
+                    }
+                    for arg in &args[1..] {
+                        let actual = infer_operand_type(
+                            arg,
+                            slot_types,
+                            &temp_types,
+                            global_consts,
+                            function.span,
+                        )?;
+                        if !(operand_matches_expected(arg, actual, TypeIR::Bombom)
+                            || operand_matches_expected(arg, actual, TypeIR::Verso))
+                        {
+                            return Err(cfg_error_ctx(
+                                function,
+                                Some(block.label.as_str()),
+                                "tipo de argumento inválido em call",
+                                Some("instr='call formatar_verso', esperado=Bombom ou Verso"),
+                                function.span,
+                            ));
+                        }
+                    }
+                    if !ret_type.is_compatible_with(TypeIR::Verso) {
+                        return Err(cfg_error(
+                            "ret_type anotado em call diverge da assinatura",
+                            function.span,
+                        ));
+                    }
+                    match dest {
+                        Some(dest) => {
+                            temp_types.insert(*dest, TypeIR::Verso);
+                        }
+                        None => {
+                            return Err(cfg_error(
+                                "call com retorno de valor exige destino temporário",
+                                function.span,
+                            ))
+                        }
+                    }
+                    continue;
+                }
                 if sig.params.len() != args.len() {
                     return Err(cfg_error(
                         "aridade inválida em call da CFG IR",

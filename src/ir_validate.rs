@@ -541,6 +541,13 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
         },
     );
+    funcs.insert(
+        "formatar_verso".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso],
+        },
+    );
 
     for konst in &program.consts {
         let ty = infer_value_type(&konst.value, &HashMap::new(), &consts, &funcs, konst.span)
@@ -1119,6 +1126,30 @@ fn infer_value_type(
             args,
             ret_type,
         } => {
+            if callee == "formatar_verso" {
+                if !(args.len() == 2 || args.len() == 3) {
+                    return Err(ir_validation_error("aridade de chamada inválida", span));
+                }
+                let modelo_ty = infer_value_type(&args[0], slots, consts, funcs, span)?;
+                if !value_matches_expected(&args[0], modelo_ty, TypeIR::Verso) {
+                    return Err(ir_validation_error("tipo de argumento inválido", span));
+                }
+                for arg in &args[1..] {
+                    let actual = infer_value_type(arg, slots, consts, funcs, span)?;
+                    if !(value_matches_expected(arg, actual, TypeIR::Bombom)
+                        || value_matches_expected(arg, actual, TypeIR::Verso))
+                    {
+                        return Err(ir_validation_error("tipo de argumento inválido", span));
+                    }
+                }
+                if !ret_type.is_compatible_with(TypeIR::Verso) {
+                    return Err(ir_validation_error(
+                        "tipo de retorno anotado na call não confere",
+                        span,
+                    ));
+                }
+                return Ok(TypeIR::Verso);
+            }
             let sig = funcs
                 .get(callee)
                 .ok_or_else(|| ir_validation_error("chamada para função inexistente", span))?;

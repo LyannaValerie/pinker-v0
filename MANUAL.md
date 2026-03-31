@@ -134,7 +134,8 @@ falar(lido);
 
 Operações mínimas disponíveis hoje:
 - `juntar_verso(a, b)` → concatena dois `verso`;
-- `tamanho_verso(v)` → retorna comprimento como `bombom`.
+- `tamanho_verso(v)` → retorna comprimento como `bombom`;
+- `formatar_verso(modelo, a[, b])` → monta um `verso` com placeholders sequenciais `{}` e aceita apenas substituições em `bombom` ou `verso`.
 
 ```pink
 nova a: verso = "oi ";
@@ -142,9 +143,10 @@ nova b: verso = "Pinker";
 nova c: verso = juntar_verso(a, b);
 falar(c);
 falar(tamanho_verso(c));
+falar(formatar_verso("msg={}", c));
 ```
 
-Limites atuais de texto: sem slicing de `verso`, sem indexação negativa e sem formatação/interpolação avançada.
+Limites atuais de texto: sem slicing de `verso`, sem indexação negativa, sem placeholders nomeados, sem escape rico de chaves e sem formatação/interpolação avançada.
 
 ## 9) Exemplos pequenos completos
 

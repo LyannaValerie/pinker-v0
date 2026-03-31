@@ -1,0 +1,8 @@
+pacote fase157_formatacao_simples_saida_valido;
+
+carinho principal() -> bombom {
+    nova linha: verso = formatar_verso("saldo={}", 42);
+    falar(linha);
+    falar(tamanho_verso(linha));
+    mimo 0;
+}

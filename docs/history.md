@@ -928,6 +928,16 @@ FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtim
 - Exemplos versionados adicionados: `examples/fase156_aleatoriedade_basica_semente_valido.pink` e `examples/fase156_aleatoriedade_basica_fluxo_composto_valido.pink`.
 - Registra também a continuidade da política de exemplos mais compostos/realistas no bloco e fecha o Bloco 13 por suficiência conservadora.
 
+157 - formatação e dados estruturados: formatação simples de saída com placeholders mínimos (camada 1 conservadora)
+- Primeira fase funcional do Bloco 14.
+- Abre o primeiro núcleo mínimo de formatação textual útil para saída.
+- Superfície mínima escolhida: `formatar_verso(modelo, a[, b]) -> verso`, com placeholders sequenciais `{}` e substituição controlada de `bombom` e `verso`.
+- Modelo inválido falha com erro claro: qualquer brace fora do padrão `{}` é rejeitado; quantidade errada de placeholders/argumentos também falha com erro claro.
+- Mantém o recorte conservador: sem JSON, sem CSV, sem datas/tempo, sem placeholders ricos, sem engine de templates e sem serialização ampla.
+- Cobertura adicionada com testes semânticos/runtime/CLI para caso válido, fluxo composto, aridade inválida, tipo inválido, modelo inválido e contagem errada de placeholders.
+- Exemplos versionados adicionados: `examples/fase157_formatacao_simples_saida_valido.pink` e `examples/fase157_formatacao_simples_fluxo_composto_valido.pink`.
+- Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

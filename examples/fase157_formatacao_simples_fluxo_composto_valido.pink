@@ -1,0 +1,16 @@
+pacote fase157_formatacao_simples_fluxo_composto_valido;
+
+carinho montar_item(chave: verso, valor: bombom) -> verso {
+    mimo formatar_verso("{}={}", chave, valor);
+}
+
+carinho principal() -> bombom {
+    nova itens: lista<bombom> = lista_bombom_criar();
+    lista_bombom_anexar(itens, 7);
+    lista_bombom_anexar(itens, 9);
+
+    falar(formatar_verso("relatorio {}", "rodada"));
+    falar(montar_item("total", lista_bombom_tamanho(itens)));
+    falar(montar_item("primeiro", lista_bombom_obter(itens, 0)));
+    mimo 0;
+}

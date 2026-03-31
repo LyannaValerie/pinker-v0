@@ -3375,6 +3375,49 @@ impl SemanticChecker {
             return Ok(Type::Verso(expr_span));
         }
 
+        // Fase 157 — formatar_verso(modelo, a[, b]) -> verso
+        if name == "formatar_verso" {
+            if !(args.len() == 2 || args.len() == 3) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'formatar_verso' com aridade inválida: esperado 2 ou 3, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let modelo_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(modelo_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'formatar_verso': esperado 'verso', encontrado '{}'",
+                        modelo_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            for (idx, arg) in args.iter().enumerate().skip(1) {
+                let arg_ty = self.check_value_expr(
+                    arg,
+                    "resultado de função sem retorno não pode ser usado como argumento",
+                )?;
+                if !matches!(arg_ty, Type::Bombom(_) | Type::Verso(_)) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "tipo inválido no argumento {} da chamada 'formatar_verso': esperado 'bombom' ou 'verso', encontrado '{}'",
+                            idx + 1,
+                            arg_ty.name()
+                        ),
+                        span: arg.span,
+                    });
+                }
+            }
+            return Ok(Type::Verso(expr_span));
+        }
+
         let Some(function) = self.funcs.get(name).cloned() else {
             return Err(PinkerError::Semantic {
                 msg: format!("função '{}' não declarada", name),
