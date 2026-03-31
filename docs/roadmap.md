@@ -375,7 +375,7 @@ Por padrão, o fechamento do Bloco 10 **não** implica:
 - O editor/TUI oficial da Pinker segue como frente oficial já aberta (Fase 136), porém pausada por decisão estratégica; não está abandonado.
 - O Bloco 12 foi encerrado por suficiência conservadora após as Fases 144–146 (`ninho`/`apelido` exportáveis via `trazer` + uso qualificado mínimo `modulo.Tipo` em contexto tipado), sem `pub/priv`, sem reexportação transitiva, sem wildcard import, sem aliasing novo, sem namespaces amplos e sem redesign geral de módulos.
 - O Bloco 13 foi encerrado por suficiência conservadora na Fase 156 (`lista<bombom>`, `mapa<verso,bombom>`, iteração confortável mínima e aleatoriedade básica com semente explícita), sem abrir generics, coleções amplas ou random rico.
-- A Fase 157 abriu funcionalmente o **Bloco 14 — formatação e dados estruturados** no menor recorte útil, com `formatar_verso(modelo, a[, b])` e placeholders `{}` mínimos voltados a saída.
+- As Fases 157 e 158 abriram funcionalmente o **Bloco 14 — formatação e dados estruturados** no menor recorte útil, com `formatar_verso(modelo, a[, b])` e com CSV mínimo de linha única para `lista<bombom>`.
 
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.
@@ -549,7 +549,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 14 — formatação e dados estruturados
 
-**Status**: bloco formal ativo; a Fase 157 abriu 14.1 em camada 1 conservadora com `formatar_verso(modelo, a[, b])` e placeholders `{}` mínimos.
+**Status**: bloco formal ativo; as Fases 157 e 158 abriram 14.1 e 14.2 em camada 1 conservadora com formatação simples e CSV mínimo de linha única.
 
 **Tese do bloco**: com coleções e iteração disponíveis, a Pinker pode processar e emitir dados estruturados de forma prática; este bloco fecha a cadeia `coleta → processamento → saída formatada` que torna a linguagem útil para tarefas reais de automação, relatórios e integração com outros sistemas.
 
@@ -557,7 +557,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 **Itens do bloco (ordem interna por dependência)**:
 1. **14.1 — formatação simples de saída (Fase 157, concluída no recorte mínimo)**: intrínseca dedicada `formatar_verso(modelo, a[, b]) -> verso` com placeholders sequenciais `{}` e substituição controlada de `bombom`/`verso`; erro claro para modelo inválido e quantidade errada de placeholders/argumentos; sem padding, precisão, placeholders nomeados ou escape rico.
-2. **14.2 — CSV mínimo**: leitura e escrita de CSV simples (separador único, sem quoting complexo); precisa de `dividir_verso_em` (Bloco 11) + `lista` (Bloco 13) + formatação (14.1); base para dados tabulares e JSON.
+2. **14.2 — CSV mínimo (Fase 158, concluída no recorte mínimo)**: `ler_linha_csv_bombom(linha, sep) -> lista<bombom>` e `emitir_linha_csv_bombom(itens, sep) -> verso` abrem leitura/emissão de uma única linha CSV simples com separador explícito de 1 caractere; erro claro para quoting, multiline, separador fora do recorte e campos que não sejam `bombom` simples; sem headers, sem autodetecção, sem streaming e sem RFC amplo.
 3. **14.3 — JSON básico**: parsing e serialização mínimos de JSON plano/aninhado simples; precisa de `mapa` (Bloco 13) + iteração (Bloco 13) + CSV como fundação de dados estruturados; base para integração com APIs e sistemas externos.
 4. **14.4 — datas e tempo básicos**: representação e operações mínimas de data/tempo (timestamp Unix, formatação ISO simples); precisa de formatação (14.1) e inteiros; fecha o bloco com utilidade cotidiana autônoma e recorrente.
 

@@ -3418,6 +3418,86 @@ impl SemanticChecker {
             return Ok(Type::Verso(expr_span));
         }
 
+        // Fase 158 — ler_linha_csv_bombom(linha, sep) -> lista<bombom>
+        if name == "ler_linha_csv_bombom" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'ler_linha_csv_bombom' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let linha_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(linha_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'ler_linha_csv_bombom': esperado 'verso', encontrado '{}'",
+                        linha_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let sep_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(sep_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'ler_linha_csv_bombom': esperado 'verso', encontrado '{}'",
+                        sep_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::ListBombom(expr_span));
+        }
+
+        // Fase 158 — emitir_linha_csv_bombom(itens, sep) -> verso
+        if name == "emitir_linha_csv_bombom" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'emitir_linha_csv_bombom' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let itens_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(itens_ty, Type::ListBombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'emitir_linha_csv_bombom': esperado 'lista<bombom>', encontrado '{}'",
+                        itens_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let sep_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(sep_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'emitir_linha_csv_bombom': esperado 'verso', encontrado '{}'",
+                        sep_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Verso(expr_span));
+        }
+
         let Some(function) = self.funcs.get(name).cloned() else {
             return Err(PinkerError::Semantic {
                 msg: format!("função '{}' não declarada", name),

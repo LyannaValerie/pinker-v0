@@ -938,6 +938,16 @@ FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtim
 - Exemplos versionados adicionados: `examples/fase157_formatacao_simples_saida_valido.pink` e `examples/fase157_formatacao_simples_fluxo_composto_valido.pink`.
 - Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
 
+158 - formatação e dados estruturados: CSV mínimo (camada 1 conservadora)
+- Segunda fase funcional do Bloco 14.
+- Abre o primeiro recorte tabular mínimo do projeto.
+- Superfície mínima escolhida: `ler_linha_csv_bombom(linha, sep) -> lista<bombom>` e `emitir_linha_csv_bombom(itens, sep) -> verso`.
+- O runtime exige separador explícito de 1 caractere e falha com erro claro para quoting, multiline, separador fora do recorte e campos que não sejam `bombom` simples.
+- Mantém o recorte conservador: sem quoting complexo, sem multiline, sem RFC amplo, sem serialização rica e sem integração automática com mapa.
+- Cobertura adicionada com testes semânticos/runtime/CLI para leitura simples, emissão simples, separador explícito, fluxo composto e negativos essenciais fora do recorte.
+- Exemplos versionados adicionados: `examples/fase158_csv_minimo_valido.pink` e `examples/fase158_csv_minimo_fluxo_composto_valido.pink`.
+- Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

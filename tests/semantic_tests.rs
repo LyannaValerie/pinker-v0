@@ -1220,6 +1220,54 @@ fn formatar_verso_intrinseca_rejeita_aridade_invalida() {
 }
 
 #[test]
+fn ler_linha_csv_bombom_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova itens: lista<bombom> = ler_linha_csv_bombom("7,11,13", ",");
+            mimo lista_bombom_obter(itens, 1);
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn ler_linha_csv_bombom_intrinseca_rejeita_linha_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova itens: lista<bombom> = ler_linha_csv_bombom(7, ",");
+            mimo lista_bombom_tamanho(itens);
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'ler_linha_csv_bombom'"));
+}
+
+#[test]
+fn emitir_linha_csv_bombom_intrinseca_rejeita_lista_fora_do_recorte() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova linha: verso = emitir_linha_csv_bombom("7,11,13", ",");
+            mimo tamanho_verso(linha);
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'emitir_linha_csv_bombom'"));
+}
+
+#[test]
+fn emitir_linha_csv_bombom_intrinseca_rejeita_aridade_invalida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova itens: lista<bombom> = lista_bombom_criar();
+            nova linha: verso = emitir_linha_csv_bombom(itens, ",", ";");
+            mimo tamanho_verso(linha);
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("chamada de 'emitir_linha_csv_bombom' com aridade inválida"));
+}
+
+#[test]
 fn nao_vazio_verso_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
         pacote main;
