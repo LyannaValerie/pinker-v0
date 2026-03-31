@@ -17,6 +17,7 @@ use std::env;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const MAX_CALL_DEPTH: usize = 64;
 
@@ -1873,6 +1874,32 @@ fn try_call_intrinsic(
             let json = emit_json_plano_bombom(mapa)?;
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(json))))
         }
+        "tempo_unix" => {
+            if !args.is_empty() {
+                return Err(runtime_err("intrínseca 'tempo_unix' exige 0 argumentos"));
+            }
+            let agora = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|_| {
+                    runtime_err("intrínseca 'tempo_unix' não suporta tempo anterior à época Unix")
+                })?
+                .as_secs();
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(agora))))
+        }
+        "formatar_tempo_unix" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'formatar_tempo_unix' exige 1 argumento (timestamp bombom)",
+                ));
+            }
+            let RuntimeValue::Int(timestamp) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'formatar_tempo_unix' exige timestamp em bombom",
+                ));
+            };
+            let texto = formatar_tempo_unix_iso_utc(timestamp)?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(texto))))
+        }
         "argumento" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -2549,6 +2576,47 @@ fn formatar_verso_argumento(arg: &RuntimeValue) -> Result<String, PinkerError> {
             "intrínseca 'formatar_verso' exige argumentos de substituição em bombom ou verso",
         )),
     }
+}
+
+fn formatar_tempo_unix_iso_utc(timestamp: u64) -> Result<String, PinkerError> {
+    let dias = timestamp / 86_400;
+    let segundos_do_dia = timestamp % 86_400;
+    let dias = i64::try_from(dias).map_err(|_| {
+        runtime_err("timestamp inválido em 'formatar_tempo_unix': fora da faixa suportada")
+    })?;
+    let (ano, mes, dia) = civil_from_days(dias)?;
+    let hora = segundos_do_dia / 3_600;
+    let minuto = (segundos_do_dia % 3_600) / 60;
+    let segundo = segundos_do_dia % 60;
+    Ok(format!(
+        "{ano:04}-{mes:02}-{dia:02}T{hora:02}:{minuto:02}:{segundo:02}Z"
+    ))
+}
+
+fn civil_from_days(days_since_unix_epoch: i64) -> Result<(i64, u64, u64), PinkerError> {
+    let z = days_since_unix_epoch.checked_add(719_468).ok_or_else(|| {
+        runtime_err("timestamp inválido em 'formatar_tempo_unix': fora da faixa suportada")
+    })?;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let mut year = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = mp + if mp < 10 { 3 } else { -9 };
+    if month <= 2 {
+        year += 1;
+    }
+    Ok((
+        year,
+        u64::try_from(month).map_err(|_| {
+            runtime_err("timestamp inválido em 'formatar_tempo_unix': mês fora da faixa")
+        })?,
+        u64::try_from(day).map_err(|_| {
+            runtime_err("timestamp inválido em 'formatar_tempo_unix': dia fora da faixa")
+        })?,
+    ))
 }
 
 fn find_named_cli_argument<'a>(args: &'a [String], key: &str) -> NamedArgLookup<'a> {

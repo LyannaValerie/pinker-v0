@@ -108,6 +108,8 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("emitir_linha_csv_bombom".to_string(), TypeIR::Verso);
     sigs.insert("ler_json_plano_bombom".to_string(), TypeIR::MapVersoBombom);
     sigs.insert("emitir_json_plano_bombom".to_string(), TypeIR::Verso);
+    sigs.insert("tempo_unix".to_string(), TypeIR::Bombom);
+    sigs.insert("formatar_tempo_unix".to_string(), TypeIR::Verso);
 
     for f in &program.functions {
         if f.blocks.is_empty() {

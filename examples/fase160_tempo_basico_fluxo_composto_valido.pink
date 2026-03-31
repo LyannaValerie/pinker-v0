@@ -1,0 +1,27 @@
+pacote main;
+
+carinho carimbar_evento(nome: verso, instante: bombom) -> verso {
+    nova prefixo: verso = formatar_verso("evento={};ts={}", nome, instante);
+    nova iso: verso = formatar_tempo_unix(instante);
+    mimo formatar_verso("{};iso={}", prefixo, iso);
+}
+
+carinho principal() -> bombom {
+    nova ts_inicio: bombom = tempo_unix();
+    nova iso_inicio: verso = formatar_tempo_unix(ts_inicio);
+
+    nova relatorio: mapa<verso,bombom> = mapa_verso_bombom_criar();
+    mapa_verso_bombom_definir(relatorio, "inicio_unix", ts_inicio);
+    mapa_verso_bombom_definir(relatorio, "camada", 1);
+
+    falar(formatar_verso("inicio={}", iso_inicio));
+    falar(carimbar_evento("coleta", ts_inicio));
+    falar(emitir_json_plano_bombom(relatorio));
+
+    talvez tamanho_verso(iso_inicio) == 20
+        && mapa_verso_bombom_obter(relatorio, "inicio_unix") == ts_inicio
+        && mapa_verso_bombom_obter(relatorio, "camada") == 1 {
+        mimo 160;
+    }
+    mimo 0;
+}

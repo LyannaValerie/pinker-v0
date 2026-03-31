@@ -10,4 +10,4 @@
 > Para crônica histórica e fases/hotfixes/rodadas, use `docs/history.md`.
 > Para navegação mestre, use `docs/atlas.md`.
 >
-> Último alinhamento de compatibilidade: Fase 159 no terceiro degrau funcional do Bloco 14 + FE-1 lexical extraordinária.
+> Último alinhamento de compatibilidade: Fase 160 no quarto degrau funcional do Bloco 14 + FE-1 lexical extraordinária.

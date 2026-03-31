@@ -6295,6 +6295,143 @@ fn cli_check_fase159_json_basico_valido() {
 }
 
 #[test]
+fn run_fase160_formatar_tempo_unix_epoca_funciona() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = formatar_tempo_unix(0);
+            talvez igual_verso(texto, "1970-01-01T00:00:00Z") {
+                mimo 160;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(160)));
+}
+
+#[test]
+fn run_fase160_tempo_unix_retorna_timestamp_minimo_positivo() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova ts: bombom = tempo_unix();
+            nova iso: verso = formatar_tempo_unix(ts);
+            talvez ts > 0 && tamanho_verso(iso) == 20 {
+                mimo 160;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(160)));
+}
+
+#[test]
+fn run_fase160_tempo_basico_fluxo_composto_funciona() {
+    let source = r#"pacote main;
+        carinho carimbar_evento(nome: verso, instante: bombom) -> verso {
+            nova prefixo: verso = formatar_verso("evento={};ts={}", nome, instante);
+            nova iso: verso = formatar_tempo_unix(instante);
+            mimo formatar_verso("{};iso={}", prefixo, iso);
+        }
+
+        carinho principal() -> bombom {
+            nova ts_inicio: bombom = tempo_unix();
+            nova iso_inicio: verso = formatar_tempo_unix(ts_inicio);
+            nova evento: verso = carimbar_evento("coleta", ts_inicio);
+
+            nova relatorio: mapa<verso,bombom> = mapa_verso_bombom_criar();
+            mapa_verso_bombom_definir(relatorio, "inicio_unix", ts_inicio);
+            mapa_verso_bombom_definir(relatorio, "camada", 1);
+
+            talvez tamanho_verso(iso_inicio) == 20
+                && contem_verso(evento, "evento=coleta")
+                && contem_verso(evento, ";iso=")
+                && mapa_verso_bombom_obter(relatorio, "inicio_unix") == ts_inicio {
+                mimo 160;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(160)));
+}
+
+#[test]
+fn cli_check_fase160_tempo_basico_timestamp_valido() {
+    let output = run_cli_check_example("examples/fase160_tempo_basico_timestamp_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase160_tempo_basico_timestamp_valido() {
+    let output = run_cli_example("examples/fase160_tempo_basico_timestamp_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let linhas = stdout.lines().collect::<Vec<_>>();
+    assert_eq!(linhas.len(), 3, "stdout inesperado: {}", stdout);
+    assert_eq!(linhas[0], "1970-01-01T00:00:00Z");
+    let ts = linhas[1]
+        .parse::<u64>()
+        .expect("timestamp inválido em stdout");
+    assert!(ts > 0, "timestamp inesperado: {}", ts);
+    assert_eq!(linhas[2], "160", "stdout inesperado: {}", stdout);
+}
+
+#[test]
+fn cli_check_fase160_tempo_basico_fluxo_composto_valido() {
+    let output = run_cli_check_example("examples/fase160_tempo_basico_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase160_tempo_basico_fluxo_composto_valido() {
+    let output = run_cli_example("examples/fase160_tempo_basico_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let linhas = stdout.lines().collect::<Vec<_>>();
+    assert_eq!(linhas.len(), 4, "stdout inesperado: {}", stdout);
+    assert!(
+        linhas[0].starts_with("inicio=20"),
+        "stdout inesperado: {}",
+        stdout
+    );
+    assert!(
+        linhas[1].contains("evento=coleta;ts="),
+        "stdout inesperado: {}",
+        stdout
+    );
+    assert!(
+        linhas[1].contains(";iso=20"),
+        "stdout inesperado: {}",
+        stdout
+    );
+    assert!(
+        linhas[2].contains("\"camada\":1"),
+        "stdout inesperado: {}",
+        stdout
+    );
+    assert!(
+        linhas[2].contains("\"inicio_unix\":"),
+        "stdout inesperado: {}",
+        stdout
+    );
+    assert_eq!(linhas[3], "160", "stdout inesperado: {}", stdout);
+}
+
+#[test]
 fn cli_run_fase159_json_basico_valido() {
     let output = run_cli_example("examples/fase159_json_basico_valido.pink");
     assert!(
