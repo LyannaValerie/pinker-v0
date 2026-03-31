@@ -39,15 +39,17 @@
 - **exportação de tipos pelo sistema de módulos**: `ninho` e `apelido` já são exportáveis via `trazer` (Fases 144 e 145), e a Fase 146 abriu uso qualificado mínimo (`modulo.Tipo`) em contexto tipado; o Bloco 12 fica fechado no recorte conservador sem visibilidade rica/namespaces amplos.
 - O Bloco 11 foi encerrado por suficiência conservadora (Doc-27) após as Fases 137–143.
 - A FE-1 aqueceu canonicamente a periferia argv/env para `tem_chave`, `pedir_argumento` e `buscar_contexto` sem reabrir o Bloco 11 nem alterar seu encerramento.
-- O Bloco 12 foi encerrado por suficiência conservadora (Doc-28) após as Fases 144–146; o próximo bloco formal da trilha ativa passa a ser o Bloco 13 (aberto funcionalmente na Fase 147 com array fixo por valor no recorte mínimo).
+- O Bloco 12 foi encerrado por suficiência conservadora (Doc-28) após as Fases 144–146.
+- O Bloco 13 foi encerrado por suficiência conservadora na Fase 156 após abrir `lista<bombom>`, `mapa<verso,bombom>`, iteração confortável mínima e aleatoriedade básica com semente explícita.
+- O próximo bloco formal da trilha ativa passa a ser o Bloco 14.
 
 Itens explicitamente para depois do foco inicial do Bloco 11:
 - REPL;
 - linguagem-cola;
 - execução de processos externos + captura de saída de comandos;
 - integração rica com stdin/stdout/stderr;
-- coleções básicas além do recorte já aberto (`lista<bombom>` + `mapa<verso,bombom>` mínimos, iteração confortável mínima em `lista<bombom>` e iteração confortável mínima em `mapa<verso,bombom>` já corrigida conservadoramente na Fase 155 para não depender de chave pública por índice; seguem fora `lista<T>`/`mapa<K,V>` amplos, dicionário rico e iteração confortável ampla/generics);
-- JSON, CSV, datas/tempo, aleatoriedade básica e formatação simples.
+- coleções básicas além do recorte já aberto (`lista<bombom>` + `mapa<verso,bombom>` mínimos, iteração confortável mínima em `lista<bombom>` e `mapa<verso,bombom>`, além de aleatoriedade básica com semente explícita na Fase 156; seguem fora `lista<T>`/`mapa<K,V>` amplos, dicionário rico e iteração confortável ampla/generics);
+- JSON, CSV, datas/tempo e formatação simples.
 
 ### 2.4 Editor/TUI oficial da Pinker (frente funcional aberta em camada 1, atualmente pausada)
 
@@ -77,7 +79,7 @@ Limites iniciais explícitos:
 
 Os itens abaixo que antes estavam listados aqui como backlog amplo foram reorganizados na trilha canônica dos Blocos 12–16 em `docs/roadmap.md`:
 - módulos tipados (`ninho`/`apelido` exportáveis) → Bloco 12;
-- coleções, iteração, aleatoriedade → Bloco 13;
+- coleções, iteração, aleatoriedade básica → Bloco 13 (concluído);
 - formatação, CSV, JSON, datas → Bloco 14;
 - processos externos, captura, stdin/stdout/stderr → Bloco 15;
 - REPL, linguagem-cola → Bloco 16.

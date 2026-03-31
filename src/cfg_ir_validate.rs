@@ -67,6 +67,20 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "aleatorio_criar".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "aleatorio_proximo".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
         "lista_bombom_criar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::ListBombom,

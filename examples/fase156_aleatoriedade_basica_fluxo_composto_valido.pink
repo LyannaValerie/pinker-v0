@@ -1,0 +1,25 @@
+pacote main;
+
+carinho rolar_face(gerador: bombom) -> bombom {
+    mimo (aleatorio_proximo(gerador) % 6) + 1;
+}
+
+carinho jogar_rodada(gerador: bombom, historico: lista<bombom>) -> bombom {
+    nova dado_a: bombom = rolar_face(gerador);
+    nova dado_b: bombom = rolar_face(gerador);
+    lista_bombom_anexar(historico, dado_a);
+    lista_bombom_anexar(historico, dado_b);
+    mimo dado_a + dado_b;
+}
+
+carinho principal() -> bombom {
+    nova gerador: bombom = aleatorio_criar(2024);
+    nova historico: lista<bombom> = lista_bombom_criar();
+
+    nova primeira: bombom = jogar_rodada(gerador, historico);
+    nova segunda: bombom = jogar_rodada(gerador, historico);
+
+    falar(lista_bombom_tamanho(historico));
+    falar(primeira, segunda);
+    mimo lista_bombom_obter(historico, 0) + lista_bombom_obter(historico, 3);
+}

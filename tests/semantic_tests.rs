@@ -2306,3 +2306,66 @@ fn mapa_verso_bombom_chave_indice_nao_e_superficie_publica_na_fase155() {
         err
     );
 }
+
+#[test]
+fn aleatorio_basico_com_semente_explicita_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova gerador: bombom = aleatorio_criar(42);
+            nova valor: bombom = aleatorio_proximo(gerador);
+            mimo valor;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn aleatorio_criar_rejeita_semente_nao_bombom() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova gerador: bombom = aleatorio_criar("oi");
+            mimo gerador;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("argumento 1 da chamada 'aleatorio_criar'"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn aleatorio_proximo_rejeita_aridade_invalida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova gerador: bombom = aleatorio_criar(7);
+            mimo aleatorio_proximo(gerador, 1);
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("chamada de 'aleatorio_proximo' com aridade inválida"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn api_ampla_de_aleatoriedade_permanece_fora_do_recorte() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo aleatorio_intervalo(1, 10);
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("função 'aleatorio_intervalo' não declarada"),
+        "{}",
+        err
+    );
+}

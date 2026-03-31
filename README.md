@@ -43,6 +43,7 @@ Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/ag
 - escrita mínima por índice em array fixo `[bombom; N]` no Bloco 13 (camada 1 conservadora): `a[i] = valor` para `a: [bombom; N]` e índice `bombom`, complementando a leitura da Fase 147 sem heap, sem coleções dinâmicas e sem sintaxe nova (Fase 148)
 - coleções dinâmicas mínimas no Bloco 13 em recorte conservador: `lista<bombom>` com criação explícita (`lista_bombom_criar()`), append mínimo (`lista_bombom_anexar(lista, v)`), leitura por índice (`lista_bombom_obter(lista, i)`), tamanho mínimo (`lista_bombom_tamanho(lista)`), escrita mínima por índice (`lista_bombom_definir(lista, i, v)`), remoção mínima do fim com retorno (`lista_bombom_tirar_ultimo(lista)`) e `mapa<verso,bombom>` mínimo com criação explícita (`mapa_verso_bombom_criar()`), definição por chave (`mapa_verso_bombom_definir(mapa, chave, valor)`), leitura por chave (`mapa_verso_bombom_obter(mapa, chave)`) e verificação de presença (`mapa_verso_bombom_tem(mapa, chave)`), sem abrir `lista<T>`/`mapa<K,V>` amplos, sem iteração confortável ampla ou API rica de coleção (Fases 149, 150, 151 e 152)
 - iteração confortável mínima sobre `lista<bombom>` e `mapa<verso,bombom>` no Bloco 13 (camada 1 conservadora): `para cada item em lista { ... }` e `para cada chave em mapa { ... }` com variável de loop no corpo e lowering conservador por desdobramento; valor de mapa acessado via `mapa_verso_bombom_obter`; a Fase 155 corrige a iteração de mapa para usar cursor interno com snapshot de chaves, sem expor chave por índice como intrínseca pública; sem iteração genérica, sem pares chave/valor amplos e sem API ampla de iteradores (Fases 153, 154 e 155)
+- aleatoriedade básica com semente explícita no Bloco 13 (camada 1 conservadora): `aleatorio_criar(semente)` cria um gerador mínimo reproduzível e `aleatorio_proximo(gerador)` produz o próximo `bombom` da sequência; mesma semente produz a mesma sequência, sem tempo do sistema, sem floats, sem distribuições ricas, sem shuffle e sem API criptográfica (Fase 156)
 - diretório atual mínimo em `--run` com `diretorio_atual()` retornando `verso` (Fase 95)
 - introspecção mínima de caminho em `--run` com `caminho_existe(verso) -> logica` e `e_arquivo(verso) -> logica` (Fase 96)
 - refinamento mínimo de caminho em `--run` com `e_diretorio(verso) -> logica` e `juntar_caminho(verso, verso) -> verso` (Fase 97)
@@ -86,6 +87,7 @@ Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/ag
 - acesso operacional de campo de `ninho` além do subset atual (ex.: base por valor `p.campo`, escrita de campo, campos não escalares)
 - indexação operacional de arrays além do subset atual (ex.: elementos não `bombom` e operações de array fora do recorte conservador)
 - coleções dinâmicas além do recorte mínimo atual (`lista<bombom>` + `mapa<verso,bombom>`): seguem fora `lista<T>`/`mapa<K,V>` amplos, remoção arbitrária por chave, ordenação, insert/erase gerais e iteração confortável ampla (há recorte mínimo de `para cada` sobre `lista<bombom>` e `mapa<verso,bombom>` nas Fases 153, 154 e 155)
+- aleatoriedade além do recorte mínimo atual: seguem fora distribuição rica, geração de `float`, intervalo dedicado, shuffle, escolha aleatória sobre coleção, tokens/UUIDs, hash aleatório e qualquer API criptográfica (há apenas `aleatorio_criar(semente)` + `aleatorio_proximo(gerador)` na Fase 156)
 - leitura indireta além do subset mínimo atual (`*p` apenas para `seta<bombom>` com endereçamento abstrato de globals escalares no runtime)
 - escrita indireta além do subset mínimo atual (`*p = v` apenas para `seta<bombom>` com endereçamento abstrato de globals escalares já mapeadas no runtime)
 - semântica completa de `fragil` em runtime/backend (há apenas efeito operacional mínimo em acessos indiretos no subset `fragil seta<bombom>`, sem MMIO/fences/ordenação de memória)
@@ -269,6 +271,22 @@ cargo run --bin pink -- --check examples/fase151_lista_bombom_tirar_ultimo_minim
 cargo run --bin pink -- --run examples/fase151_lista_bombom_tirar_ultimo_minimo_valido.pink
 cargo run --bin pink -- --check examples/fase151_lista_bombom_tirar_ultimo_fluxo_composto_valido.pink
 cargo run --bin pink -- --run examples/fase151_lista_bombom_tirar_ultimo_fluxo_composto_valido.pink
+cargo run --bin pink -- --check examples/fase152_mapa_verso_bombom_minimo_valido.pink
+cargo run --bin pink -- --run examples/fase152_mapa_verso_bombom_minimo_valido.pink
+cargo run --bin pink -- --check examples/fase152_mapa_verso_bombom_fluxo_composto_valido.pink
+cargo run --bin pink -- --run examples/fase152_mapa_verso_bombom_fluxo_composto_valido.pink
+cargo run --bin pink -- --check examples/fase153_iteracao_lista_bombom_minima_valido.pink
+cargo run --bin pink -- --run examples/fase153_iteracao_lista_bombom_minima_valido.pink
+cargo run --bin pink -- --check examples/fase153_iteracao_lista_bombom_fluxo_composto_valido.pink
+cargo run --bin pink -- --run examples/fase153_iteracao_lista_bombom_fluxo_composto_valido.pink
+cargo run --bin pink -- --check examples/fase154_iteracao_mapa_verso_bombom_minima_valido.pink
+cargo run --bin pink -- --run examples/fase154_iteracao_mapa_verso_bombom_minima_valido.pink
+cargo run --bin pink -- --check examples/fase154_iteracao_mapa_verso_bombom_fluxo_composto_valido.pink
+cargo run --bin pink -- --run examples/fase154_iteracao_mapa_verso_bombom_fluxo_composto_valido.pink
+cargo run --bin pink -- --check examples/fase156_aleatoriedade_basica_semente_valido.pink
+cargo run --bin pink -- --run examples/fase156_aleatoriedade_basica_semente_valido.pink
+cargo run --bin pink -- --check examples/fase156_aleatoriedade_basica_fluxo_composto_valido.pink
+cargo run --bin pink -- --run examples/fase156_aleatoriedade_basica_fluxo_composto_valido.pink
 cargo run --bin pink -- --check examples/fase148_array_fixo_escrita_indice_elemento_nao_bombom_invalido.pink
 cargo run --bin pink -- --cfg-ir examples/fase61_verso_cfg_ir_invalido.pink
 cargo run --bin pink -- --run examples/fase60_modulos_valido.pink

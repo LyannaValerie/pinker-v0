@@ -58,6 +58,14 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );
     sigs.insert(
+        "aleatorio_criar".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Bombom]),
+    );
+    sigs.insert(
+        "aleatorio_proximo".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Bombom]),
+    );
+    sigs.insert(
         "lista_bombom_criar".to_string(),
         (TypeIR::ListBombom, vec![]),
     );
