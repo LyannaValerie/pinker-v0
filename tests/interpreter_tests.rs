@@ -6151,6 +6151,192 @@ fn run_fase158_emitir_linha_csv_bombom_rejeita_separador_longo() {
 }
 
 #[test]
+fn run_fase159_ler_json_plano_bombom_minimo_funciona() {
+    let path = std::env::temp_dir().join("pinker_fase159_json_minimo.json");
+    fs::write(&path, "{\"idade\":7,\"pontos\":9}").unwrap();
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova json: verso = ler_arquivo_verso("{}");
+            nova dados: mapa<verso,bombom> = ler_json_plano_bombom(json);
+            talvez mapa_verso_bombom_tamanho(dados) == 2 && mapa_verso_bombom_obter(dados, "idade") == 7 {{
+                mimo 159;
+            }}
+            mimo 0;
+        }}"#,
+        path.display()
+    );
+    let out = run_code(&source).unwrap();
+    let _ = fs::remove_file(path);
+    assert_eq!(out, Some(RuntimeValue::Int(159)));
+}
+
+#[test]
+fn run_fase159_emitir_json_plano_bombom_minimo_funciona() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova dados: mapa<verso,bombom> = mapa_verso_bombom_criar();
+            mapa_verso_bombom_definir(dados, "b", 2);
+            mapa_verso_bombom_definir(dados, "a", 1);
+            nova json: verso = emitir_json_plano_bombom(dados);
+            nova lido: mapa<verso,bombom> = ler_json_plano_bombom(json);
+            talvez mapa_verso_bombom_tamanho(lido) == 2
+                && mapa_verso_bombom_obter(lido, "a") == 1
+                && mapa_verso_bombom_obter(lido, "b") == 2 {
+                mimo 159;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(159)));
+}
+
+#[test]
+fn run_fase159_json_plano_fluxo_composto_funciona() {
+    let source = r#"pacote main;
+        carinho carregar_relatorio() -> verso {
+            nova dados: mapa<verso,bombom> = mapa_verso_bombom_criar();
+            mapa_verso_bombom_definir(dados, "falhas", 2);
+            mapa_verso_bombom_definir(dados, "ok", 5);
+            mimo emitir_json_plano_bombom(dados);
+        }
+
+        carinho principal() -> bombom {
+            nova dados: mapa<verso,bombom> = ler_json_plano_bombom(carregar_relatorio());
+            nova muda total: bombom = 0;
+            para cada chave em dados {
+                total = total + mapa_verso_bombom_obter(dados, chave);
+            }
+            mapa_verso_bombom_definir(dados, "total", total);
+            nova json: verso = emitir_json_plano_bombom(dados);
+            falar(json);
+            nova validado: mapa<verso,bombom> = ler_json_plano_bombom(json);
+            talvez mapa_verso_bombom_obter(validado, "falhas") == 2
+                && mapa_verso_bombom_obter(validado, "ok") == 5
+                && mapa_verso_bombom_obter(validado, "total") == 7 {
+                mimo 159;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(159)));
+}
+
+#[test]
+fn run_fase159_ler_json_plano_bombom_rejeita_array() {
+    let path = std::env::temp_dir().join("pinker_fase159_json_array.json");
+    fs::write(&path, "[1,2,3]").unwrap();
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova json: verso = ler_arquivo_verso("{}");
+            nova dados: mapa<verso,bombom> = ler_json_plano_bombom(json);
+            mimo mapa_verso_bombom_tamanho(dados);
+        }}"#,
+        path.display()
+    );
+    let err = run_code(&source).unwrap_err();
+    let _ = fs::remove_file(path);
+    assert!(err.contains("esperado '{'"), "erro inesperado: {}", err);
+}
+
+#[test]
+fn run_fase159_ler_json_plano_bombom_rejeita_escape_rico() {
+    let path = std::env::temp_dir().join("pinker_fase159_json_escape.json");
+    fs::write(&path, "{\"li\\nha\":1}").unwrap();
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova json: verso = ler_arquivo_verso("{}");
+            nova dados: mapa<verso,bombom> = ler_json_plano_bombom(json);
+            mimo mapa_verso_bombom_tamanho(dados);
+        }}"#,
+        path.display()
+    );
+    let err = run_code(&source).unwrap_err();
+    let _ = fs::remove_file(path);
+    assert!(
+        err.contains("escapes em chave fora do recorte"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase159_ler_json_plano_bombom_rejeita_nesting() {
+    let path = std::env::temp_dir().join("pinker_fase159_json_nesting.json");
+    fs::write(&path, "{\"meta\":{\"x\":1}}").unwrap();
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova json: verso = ler_arquivo_verso("{}");
+            nova dados: mapa<verso,bombom> = ler_json_plano_bombom(json);
+            mimo mapa_verso_bombom_tamanho(dados);
+        }}"#,
+        path.display()
+    );
+    let err = run_code(&source).unwrap_err();
+    let _ = fs::remove_file(path);
+    assert!(
+        err.contains("valor deve ser bombom sem sinal"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn cli_check_fase159_json_basico_valido() {
+    let output = run_cli_check_example("examples/fase159_json_basico_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase159_json_basico_valido() {
+    let output = run_cli_example("examples/fase159_json_basico_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("{\"idade\":7,\"pontos\":9}"),
+        "stdout={}",
+        stdout
+    );
+}
+
+#[test]
+fn cli_check_fase159_json_basico_fluxo_composto_valido() {
+    let output = run_cli_check_example("examples/fase159_json_basico_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase159_json_basico_fluxo_composto_valido() {
+    let output = run_cli_example("examples/fase159_json_basico_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("{\"falhas\":2,\"ok\":5,\"total\":7}"),
+        "stdout={}",
+        stdout
+    );
+}
+
+#[test]
 fn cli_check_fase158_csv_minimo_valido() {
     let output = run_cli_check_example("examples/fase158_csv_minimo_valido.pink");
     assert!(

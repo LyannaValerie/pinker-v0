@@ -3498,6 +3498,60 @@ impl SemanticChecker {
             return Ok(Type::Verso(expr_span));
         }
 
+        // Fase 159 — ler_json_plano_bombom(json) -> mapa<verso,bombom>
+        if name == "ler_json_plano_bombom" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'ler_json_plano_bombom' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let json_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(json_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'ler_json_plano_bombom': esperado 'verso', encontrado '{}'",
+                        json_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::MapVersoBombom(expr_span));
+        }
+
+        // Fase 159 — emitir_json_plano_bombom(mapa) -> verso
+        if name == "emitir_json_plano_bombom" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'emitir_json_plano_bombom' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let mapa_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(mapa_ty, Type::MapVersoBombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'emitir_json_plano_bombom': esperado 'mapa<verso,bombom>', encontrado '{}'",
+                        mapa_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Verso(expr_span));
+        }
+
         let Some(function) = self.funcs.get(name).cloned() else {
             return Err(PinkerError::Semantic {
                 msg: format!("função '{}' não declarada", name),

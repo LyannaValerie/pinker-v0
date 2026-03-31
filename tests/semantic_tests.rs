@@ -1268,6 +1268,57 @@ fn emitir_linha_csv_bombom_intrinseca_rejeita_aridade_invalida() {
 }
 
 #[test]
+fn ler_json_plano_bombom_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova base: mapa<verso,bombom> = mapa_verso_bombom_criar();
+            mapa_verso_bombom_definir(base, "idade", 7);
+            nova json: verso = emitir_json_plano_bombom(base);
+            nova dados: mapa<verso,bombom> = ler_json_plano_bombom(json);
+            mimo mapa_verso_bombom_obter(dados, "idade");
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn ler_json_plano_bombom_intrinseca_rejeita_argumento_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova dados: mapa<verso,bombom> = ler_json_plano_bombom(7);
+            mimo mapa_verso_bombom_tamanho(dados);
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'ler_json_plano_bombom'"));
+}
+
+#[test]
+fn emitir_json_plano_bombom_intrinseca_rejeita_argumento_fora_do_recorte() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova linha: verso = emitir_json_plano_bombom("nao_e_mapa");
+            mimo tamanho_verso(linha);
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'emitir_json_plano_bombom'"));
+}
+
+#[test]
+fn emitir_json_plano_bombom_intrinseca_rejeita_aridade_invalida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+            nova linha: verso = emitir_json_plano_bombom(m, "extra");
+            mimo tamanho_verso(linha);
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("chamada de 'emitir_json_plano_bombom' com aridade inválida"));
+}
+
+#[test]
 fn nao_vazio_verso_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
         pacote main;

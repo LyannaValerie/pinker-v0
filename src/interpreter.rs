@@ -1835,6 +1835,44 @@ fn try_call_intrinsic(
                 .join(separador);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(linha))))
         }
+        "ler_json_plano_bombom" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'ler_json_plano_bombom' exige 1 argumento (json verso)",
+                ));
+            }
+            let RuntimeValue::Str(json) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'ler_json_plano_bombom' exige json em verso",
+                ));
+            };
+            let handle = map_state.next_map_handle;
+            map_state.next_map_handle += 1;
+            let mapa = parse_json_plano_bombom(json)?;
+            map_state.maps_verso_bombom.insert(handle, mapa);
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::MapVersoBombom(
+                handle,
+            ))))
+        }
+        "emitir_json_plano_bombom" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'emitir_json_plano_bombom' exige 1 argumento (mapa<verso,bombom>)",
+                ));
+            }
+            let RuntimeValue::MapVersoBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'emitir_json_plano_bombom' exige mapa<verso,bombom> no argumento",
+                ));
+            };
+            let Some(mapa) = map_state.maps_verso_bombom.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<verso,bombom> inválido em 'emitir_json_plano_bombom'",
+                ));
+            };
+            let json = emit_json_plano_bombom(mapa)?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(json))))
+        }
         "argumento" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -2329,6 +2367,178 @@ fn validar_separador_csv<'a>(
         )));
     }
     Ok(separador)
+}
+
+fn parse_json_plano_bombom(json: &str) -> Result<HashMap<String, u64>, PinkerError> {
+    let mut cursor = JsonPlanoCursor::new(json);
+    cursor.skip_ws();
+    cursor.expect_char('{')?;
+    cursor.skip_ws();
+
+    let mut mapa = HashMap::new();
+    if cursor.consume_char('}') {
+        cursor.skip_ws();
+        cursor.ensure_eof()?;
+        return Ok(mapa);
+    }
+
+    loop {
+        cursor.skip_ws();
+        let chave = cursor.parse_key()?;
+        if mapa.contains_key(&chave) {
+            return Err(runtime_err(
+                "json inválido em 'ler_json_plano_bombom': chave duplicada fora do recorte auditável",
+            ));
+        }
+        cursor.skip_ws();
+        cursor.expect_char(':')?;
+        cursor.skip_ws();
+        let valor = cursor.parse_u64()?;
+        mapa.insert(chave, valor);
+        cursor.skip_ws();
+        if cursor.consume_char('}') {
+            cursor.skip_ws();
+            cursor.ensure_eof()?;
+            return Ok(mapa);
+        }
+        cursor.expect_char(',')?;
+        cursor.skip_ws();
+    }
+}
+
+fn emit_json_plano_bombom(mapa: &HashMap<String, u64>) -> Result<String, PinkerError> {
+    let mut chaves = mapa.keys().cloned().collect::<Vec<_>>();
+    chaves.sort();
+    let mut partes = Vec::with_capacity(chaves.len());
+    for chave in chaves {
+        validar_chave_json_plana(&chave, "emitir_json_plano_bombom")?;
+        let valor = mapa
+            .get(&chave)
+            .ok_or_else(|| runtime_err("mapa inconsistente em 'emitir_json_plano_bombom'"))?;
+        partes.push(format!("\"{}\":{}", chave, valor));
+    }
+    Ok(format!("{{{}}}", partes.join(",")))
+}
+
+fn validar_chave_json_plana(chave: &str, nome: &str) -> Result<(), PinkerError> {
+    if chave.contains('"') || chave.contains('\\') {
+        return Err(runtime_err(&format!(
+            "json inválido em '{}': chave exige escape fora do recorte",
+            nome
+        )));
+    }
+    if chave.chars().any(|ch| ch.is_control()) {
+        return Err(runtime_err(&format!(
+            "json inválido em '{}': chave contém controle fora do recorte",
+            nome
+        )));
+    }
+    Ok(())
+}
+
+struct JsonPlanoCursor<'a> {
+    src: &'a str,
+    idx: usize,
+}
+
+impl<'a> JsonPlanoCursor<'a> {
+    fn new(src: &'a str) -> Self {
+        Self { src, idx: 0 }
+    }
+
+    fn skip_ws(&mut self) {
+        while let Some(ch) = self.peek_char() {
+            if ch.is_ascii_whitespace() {
+                self.idx += ch.len_utf8();
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn peek_char(&self) -> Option<char> {
+        self.src[self.idx..].chars().next()
+    }
+
+    fn consume_char(&mut self, expected: char) -> bool {
+        if self.peek_char() == Some(expected) {
+            self.idx += expected.len_utf8();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn expect_char(&mut self, expected: char) -> Result<(), PinkerError> {
+        if self.consume_char(expected) {
+            Ok(())
+        } else {
+            Err(runtime_err(&format!(
+                "json inválido em 'ler_json_plano_bombom': esperado '{}'",
+                expected
+            )))
+        }
+    }
+
+    fn parse_key(&mut self) -> Result<String, PinkerError> {
+        self.expect_char('"')?;
+        let inicio = self.idx;
+        while let Some(ch) = self.peek_char() {
+            match ch {
+                '"' => {
+                    let chave = self.src[inicio..self.idx].to_string();
+                    self.idx += 1;
+                    validar_chave_json_plana(&chave, "ler_json_plano_bombom")?;
+                    return Ok(chave);
+                }
+                '\\' => {
+                    return Err(runtime_err(
+                        "json inválido em 'ler_json_plano_bombom': escapes em chave fora do recorte",
+                    ));
+                }
+                _ if ch.is_control() => {
+                    return Err(runtime_err(
+                        "json inválido em 'ler_json_plano_bombom': controle em chave fora do recorte",
+                    ));
+                }
+                _ => {
+                    self.idx += ch.len_utf8();
+                }
+            }
+        }
+        Err(runtime_err(
+            "json inválido em 'ler_json_plano_bombom': string de chave não terminada",
+        ))
+    }
+
+    fn parse_u64(&mut self) -> Result<u64, PinkerError> {
+        let inicio = self.idx;
+        while let Some(ch) = self.peek_char() {
+            if ch.is_ascii_digit() {
+                self.idx += ch.len_utf8();
+            } else {
+                break;
+            }
+        }
+        if inicio == self.idx {
+            return Err(runtime_err(
+                "json inválido em 'ler_json_plano_bombom': valor deve ser bombom sem sinal",
+            ));
+        }
+        self.src[inicio..self.idx].parse::<u64>().map_err(|_| {
+            runtime_err("json inválido em 'ler_json_plano_bombom': bombom fora da faixa")
+        })
+    }
+
+    fn ensure_eof(&self) -> Result<(), PinkerError> {
+        if self.idx == self.src.len() {
+            Ok(())
+        } else {
+            Err(runtime_err(
+                "json inválido em 'ler_json_plano_bombom': conteúdo extra após objeto",
+            ))
+        }
+    }
 }
 
 fn formatar_verso_argumento(arg: &RuntimeValue) -> Result<String, PinkerError> {

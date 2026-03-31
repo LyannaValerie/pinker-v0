@@ -106,6 +106,8 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     // Fase 158
     sigs.insert("ler_linha_csv_bombom".to_string(), TypeIR::ListBombom);
     sigs.insert("emitir_linha_csv_bombom".to_string(), TypeIR::Verso);
+    sigs.insert("ler_json_plano_bombom".to_string(), TypeIR::MapVersoBombom);
+    sigs.insert("emitir_json_plano_bombom".to_string(), TypeIR::Verso);
 
     for f in &program.functions {
         if f.blocks.is_empty() {

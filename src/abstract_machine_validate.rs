@@ -462,6 +462,14 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             vec![StackValueType::ListBombom, StackValueType::Verso],
         ),
     );
+    sigs.insert(
+        "ler_json_plano_bombom".to_string(),
+        (TypeIR::MapVersoBombom, vec![StackValueType::Verso]),
+    );
+    sigs.insert(
+        "emitir_json_plano_bombom".to_string(),
+        (TypeIR::Verso, vec![StackValueType::Unknown]),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;

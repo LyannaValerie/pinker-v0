@@ -1,0 +1,14 @@
+pacote fase159_json_basico_valido;
+
+carinho principal() -> bombom {
+    nova base: mapa<verso,bombom> = mapa_verso_bombom_criar();
+    mapa_verso_bombom_definir(base, "idade", 7);
+    mapa_verso_bombom_definir(base, "pontos", 9);
+    nova json: verso = emitir_json_plano_bombom(base);
+    nova dados: mapa<verso,bombom> = ler_json_plano_bombom(json);
+
+    falar(mapa_verso_bombom_tamanho(dados));
+    falar(mapa_verso_bombom_obter(dados, "idade"));
+    falar(json);
+    mimo 0;
+}

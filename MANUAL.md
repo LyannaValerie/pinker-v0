@@ -138,6 +138,8 @@ Operações mínimas disponíveis hoje:
 - `formatar_verso(modelo, a[, b])` → monta um `verso` com placeholders sequenciais `{}` e aceita apenas substituições em `bombom` ou `verso`.
 - `ler_linha_csv_bombom(linha, sep)` → lê uma única linha CSV mínima em `lista<bombom>` com separador explícito de 1 caractere;
 - `emitir_linha_csv_bombom(itens, sep)` → emite uma única linha CSV mínima a partir de `lista<bombom>`.
+- `ler_json_plano_bombom(json)` → lê um objeto JSON plano mínimo em `mapa<verso,bombom>`.
+- `emitir_json_plano_bombom(mapa)` → emite um objeto JSON plano mínimo a partir de `mapa<verso,bombom>`.
 
 ```pink
 nova a: verso = "oi ";
@@ -154,7 +156,16 @@ falar(lista_bombom_obter(itens, 1));
 falar(emitir_linha_csv_bombom(itens, ","));
 ```
 
-Limites atuais de texto/dados estruturados: sem slicing de `verso`, sem indexação negativa, sem placeholders nomeados, sem escape rico de chaves, sem quoting complexo de CSV, sem campos multiline e sem CSV geral de múltiplas linhas.
+```pink
+nova dados: mapa<verso,bombom> = mapa_verso_bombom_criar();
+mapa_verso_bombom_definir(dados, "idade", 7);
+nova json: verso = emitir_json_plano_bombom(dados);
+nova copia: mapa<verso,bombom> = ler_json_plano_bombom(json);
+falar(json);
+falar(mapa_verso_bombom_obter(copia, "idade"));
+```
+
+Limites atuais de texto/dados estruturados: sem slicing de `verso`, sem indexação negativa, sem placeholders nomeados, sem escape rico de chaves, sem quoting complexo de CSV, sem campos multiline, sem CSV geral de múltiplas linhas, sem arrays JSON, sem objetos JSON aninhados, sem escapes ricos em JSON, sem `true`/`false`/`null` e sem JSON geral amplo.
 
 ## 9) Exemplos pequenos completos
 

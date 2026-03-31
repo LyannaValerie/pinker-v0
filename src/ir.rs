@@ -967,6 +967,20 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
+        function_sigs.insert(
+            "ler_json_plano_bombom".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::MapVersoBombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "emitir_json_plano_bombom".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
 
         Ok(Self {
             module_name,

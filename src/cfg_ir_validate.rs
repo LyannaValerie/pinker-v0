@@ -568,6 +568,20 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::ListBombom, TypeIR::Verso],
         },
     );
+    function_sigs.insert(
+        "ler_json_plano_bombom".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::MapVersoBombom,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
+        "emitir_json_plano_bombom".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::MapVersoBombom],
+        },
+    );
 
     for function in &program.functions {
         validate_function(function, &global_consts, &function_sigs)?;
