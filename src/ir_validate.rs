@@ -132,6 +132,20 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "mapa_verso_bombom_tamanho".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapVersoBombom],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_bombom_chave_indice".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::MapVersoBombom, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
         "argumento".to_string(),
         FunctionSig {
             ret_type: TypeIR::Verso,

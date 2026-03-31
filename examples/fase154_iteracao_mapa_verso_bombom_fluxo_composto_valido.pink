@@ -1,0 +1,37 @@
+pacote main;
+
+carinho carregar_placar() -> mapa<verso,bombom> {
+    nova placar: mapa<verso,bombom> = mapa_verso_bombom_criar();
+    mapa_verso_bombom_definir(placar, "ana", 10);
+    mapa_verso_bombom_definir(placar, "bia", 20);
+    mapa_verso_bombom_definir(placar, "carlos", 30);
+    mimo placar;
+}
+
+carinho somar_placar(placar: mapa<verso,bombom>) -> bombom {
+    nova muda soma: bombom = 0;
+    para cada jogador em placar {
+        nova pts: bombom = mapa_verso_bombom_obter(placar, jogador);
+        soma = soma + pts;
+    }
+    mimo soma;
+}
+
+carinho contar_acima(placar: mapa<verso,bombom>, limite: bombom) -> bombom {
+    nova muda total: bombom = 0;
+    para cada jogador em placar {
+        nova pts: bombom = mapa_verso_bombom_obter(placar, jogador);
+        talvez pts > limite {
+            total = total + 1;
+        }
+    }
+    mimo total;
+}
+
+carinho principal() -> bombom {
+    nova placar: mapa<verso,bombom> = carregar_placar();
+    nova soma: bombom = somar_placar(placar);
+    nova acima_de_15: bombom = contar_acima(placar, 15);
+    falar(soma, acima_de_15);
+    mimo soma;
+}

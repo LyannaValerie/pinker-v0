@@ -6445,11 +6445,13 @@ fn run_fase153_iteracao_lista_bombom_fluxo_composto_funciona() {
 
 #[test]
 fn run_fase153_iteracao_em_tipo_fora_do_recorte_falha_claro() {
+    // Após Fase 154, `mapa<verso,bombom>` está no recorte.
+    // O teste cobre tipo fora do recorte: bombom não é coleção iterável.
     let err = run_code(
         r#"pacote main;
          carinho principal() -> bombom {
-             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
-             para cada item em m {
+             nova x: bombom = 5;
+             para cada item em x {
                  falar(item);
              }
              mimo 0;
@@ -6509,4 +6511,198 @@ fn cli_run_fase153_iteracao_lista_bombom_fluxo_composto_valido() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("60"), "stdout={}", stdout);
     assert!(stdout.contains('3'), "stdout={}", stdout);
+}
+
+// ── Fase 154: iteração confortável mínima sobre mapa<verso,bombom> ──────────
+
+#[test]
+fn run_fase154_iteracao_mapa_verso_bombom_minima_funciona() {
+    let out = run_code(
+        r#"pacote main;
+         carinho principal() -> bombom {
+             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+             mapa_verso_bombom_definir(m, "pontos", 42);
+             nova muda total: bombom = 0;
+             para cada chave em m {
+                 nova v: bombom = mapa_verso_bombom_obter(m, chave);
+                 total = total + v;
+             }
+             mimo total;
+         }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(42)));
+}
+
+#[test]
+fn run_fase154_iteracao_mapa_verso_bombom_chave_verso_no_corpo() {
+    let out = run_code(
+        r#"pacote main;
+         carinho principal() -> bombom {
+             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+             mapa_verso_bombom_definir(m, "chave_unica", 7);
+             nova muda encontrou: bombom = 0;
+             para cada k em m {
+                 talvez mapa_verso_bombom_tem(m, k) {
+                     encontrou = encontrou + 1;
+                 }
+             }
+             mimo encontrou;
+         }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn run_fase154_iteracao_mapa_verso_bombom_valor_obter_no_corpo() {
+    let out = run_code(
+        r#"pacote main;
+         carinho principal() -> bombom {
+             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+             mapa_verso_bombom_definir(m, "a", 10);
+             mapa_verso_bombom_definir(m, "b", 20);
+             mapa_verso_bombom_definir(m, "c", 30);
+             nova muda soma: bombom = 0;
+             para cada k em m {
+                 nova v: bombom = mapa_verso_bombom_obter(m, k);
+                 soma = soma + v;
+             }
+             mimo soma;
+         }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(60)));
+}
+
+#[test]
+fn run_fase154_iteracao_mapa_verso_bombom_vazio_nao_executa_corpo() {
+    let out = run_code(
+        r#"pacote main;
+         carinho principal() -> bombom {
+             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+             nova muda execucoes: bombom = 0;
+             para cada k em m {
+                 execucoes = execucoes + 1;
+             }
+             mimo execucoes;
+         }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn run_fase154_iteracao_lista_bombom_continua_funcional() {
+    // Regressão: Phase 153 ainda funciona após Phase 154.
+    let out = run_code(
+        r#"pacote main;
+         carinho principal() -> bombom {
+             nova itens: lista<bombom> = lista_bombom_criar();
+             lista_bombom_anexar(itens, 1);
+             lista_bombom_anexar(itens, 2);
+             lista_bombom_anexar(itens, 3);
+             nova muda soma: bombom = 0;
+             para cada item em itens {
+                 soma = soma + item;
+             }
+             mimo soma;
+         }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(6)));
+}
+
+#[test]
+fn run_fase154_iteracao_mapa_em_parametro_funciona() {
+    let out = run_code(
+        r#"pacote main;
+         carinho somar(m: mapa<verso,bombom>) -> bombom {
+             nova muda s: bombom = 0;
+             para cada k em m {
+                 nova v: bombom = mapa_verso_bombom_obter(m, k);
+                 s = s + v;
+             }
+             mimo s;
+         }
+         carinho principal() -> bombom {
+             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+             mapa_verso_bombom_definir(m, "x", 5);
+             mapa_verso_bombom_definir(m, "y", 15);
+             mimo somar(m);
+         }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(20)));
+}
+
+#[test]
+fn run_fase154_iteracao_mapa_tipo_fora_do_recorte_bombom_falha_claro() {
+    // Iteração sobre tipo primitivo (bombom) continua falhando com erro claro.
+    let err = run_code(
+        r#"pacote main;
+         carinho principal() -> bombom {
+             nova x: bombom = 5;
+             para cada item em x {
+                 falar(item);
+             }
+             mimo 0;
+         }"#,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("tipo inválido no argumento 1 da chamada 'lista_bombom_tamanho'"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn cli_check_fase154_iteracao_mapa_verso_bombom_minima_valido() {
+    let output =
+        run_cli_check_example("examples/fase154_iteracao_mapa_verso_bombom_minima_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase154_iteracao_mapa_verso_bombom_minima_valido() {
+    let output = run_cli_example("examples/fase154_iteracao_mapa_verso_bombom_minima_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("42"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_check_fase154_iteracao_mapa_verso_bombom_fluxo_composto_valido() {
+    let output = run_cli_check_example(
+        "examples/fase154_iteracao_mapa_verso_bombom_fluxo_composto_valido.pink",
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase154_iteracao_mapa_verso_bombom_fluxo_composto_valido() {
+    let output =
+        run_cli_example("examples/fase154_iteracao_mapa_verso_bombom_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("60"), "stdout={}", stdout);
+    assert!(stdout.contains('2'), "stdout={}", stdout);
 }

@@ -822,6 +822,55 @@ fn try_call_intrinsic(
                 mapa.contains_key(key),
             ))))
         }
+        "mapa_verso_bombom_tamanho" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_tamanho' exige 1 argumento (mapa<verso,bombom>)",
+                ));
+            }
+            let RuntimeValue::MapVersoBombom(handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_tamanho' exige mapa<verso,bombom> no argumento",
+                ));
+            };
+            let handle = *handle;
+            let Some(mapa) = map_state.maps_verso_bombom.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<verso,bombom> inválido em 'mapa_verso_bombom_tamanho'",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(
+                mapa.len() as u64
+            ))))
+        }
+        "mapa_verso_bombom_chave_indice" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_chave_indice' exige 2 argumentos (mapa<verso,bombom>, bombom)",
+                ));
+            }
+            let RuntimeValue::MapVersoBombom(handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_chave_indice' exige mapa<verso,bombom> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Int(idx) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_chave_indice' exige bombom no segundo argumento",
+                ));
+            };
+            let handle = *handle;
+            let idx = *idx as usize;
+            let Some(mapa) = map_state.maps_verso_bombom.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<verso,bombom> inválido em 'mapa_verso_bombom_chave_indice'",
+                ));
+            };
+            let key = mapa.keys().nth(idx).ok_or_else(|| {
+                runtime_err("índice fora do intervalo em 'mapa_verso_bombom_chave_indice'")
+            })?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(key.clone()))))
+        }
         "ouvir" => {
             if !args.is_empty() {
                 return Err(runtime_err("intrínseca 'ouvir' exige 0 argumentos"));

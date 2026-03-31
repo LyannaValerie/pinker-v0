@@ -1,11 +1,23 @@
 use crate::ast::*;
 use crate::error::PinkerError;
 use crate::token::{Span, Token, TokenKind};
+use std::collections::HashMap;
+
+/// Tipo de coleção detectado durante o parse de declarações de variáveis e parâmetros.
+/// Usado para despachar o construto `para cada` para a desugaring correta.
+#[derive(Clone, Copy)]
+enum CollectionKind {
+    ListBombom,
+    MapVersoBombom,
+}
 
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
     synthetic_counter: usize,
+    /// Mapeamento plano de nomes de variáveis/parâmetros para o tipo de coleção detectado.
+    /// Reiniciado no início de cada função para evitar contaminação entre escopos de função.
+    collection_types: HashMap<String, CollectionKind>,
 }
 
 fn merge_span(a: Span, b: Span) -> Span {
@@ -18,6 +30,7 @@ impl Parser {
             tokens,
             current: 0,
             synthetic_counter: 0,
+            collection_types: HashMap::new(),
         }
     }
 
@@ -407,6 +420,22 @@ impl Parser {
             None
         };
 
+        // Reinicia rastreamento de coleções para este escopo de função e registra parâmetros.
+        self.collection_types.clear();
+        for param in &params {
+            match &param.ty {
+                Type::ListBombom(_) => {
+                    self.collection_types
+                        .insert(param.name.clone(), CollectionKind::ListBombom);
+                }
+                Type::MapVersoBombom(_) => {
+                    self.collection_types
+                        .insert(param.name.clone(), CollectionKind::MapVersoBombom);
+                }
+                _ => {}
+            }
+        }
+
         let body = self.parse_block()?;
         Ok(FunctionDecl {
             name,
@@ -469,6 +498,20 @@ impl Parser {
             } else {
                 None
             };
+            // Registra tipo de coleção para dispatch em `para cada`.
+            if let Some(declared_ty) = &ty {
+                match declared_ty {
+                    Type::ListBombom(_) => {
+                        self.collection_types
+                            .insert(name.clone(), CollectionKind::ListBombom);
+                    }
+                    Type::MapVersoBombom(_) => {
+                        self.collection_types
+                            .insert(name.clone(), CollectionKind::MapVersoBombom);
+                    }
+                    _ => {}
+                }
+            }
             self.consume(TokenKind::Eq, "=")?;
             let init = self.parse_expr()?;
             self.consume(TokenKind::Semi, ";")?;
@@ -638,10 +681,34 @@ impl Parser {
             .lexeme
             .clone();
         self.consume(TokenKind::KwEm, "em")?;
-        let list_expr = self.parse_expr()?;
+        let collection_expr = self.parse_expr()?;
         let body = self.parse_block()?;
         let loop_span = merge_span(start_span, body.span);
 
+        // Detecta tipo de coleção para despachar desugaring correto.
+        let is_map = match &collection_expr.kind {
+            ExprKind::Ident(name) => matches!(
+                self.collection_types.get(name.as_str()),
+                Some(CollectionKind::MapVersoBombom)
+            ),
+            _ => false,
+        };
+
+        if is_map {
+            self.desugar_for_each_map(item_name, collection_expr, body, loop_span)
+        } else {
+            self.desugar_for_each_list(item_name, collection_expr, body, loop_span)
+        }
+    }
+
+    /// Desugaring de `para cada item em lista<bombom>` — reutilizado da Fase 153.
+    fn desugar_for_each_list(
+        &mut self,
+        item_name: String,
+        list_expr: Expr,
+        body: Block,
+        loop_span: Span,
+    ) -> Result<Vec<Stmt>, PinkerError> {
         self.synthetic_counter += 1;
         let suffix = self.synthetic_counter;
         let list_slot_name = format!("__iter_lista_{suffix}");
@@ -750,6 +817,160 @@ impl Parser {
         });
 
         Ok(vec![list_binding_stmt, index_binding_stmt, while_stmt])
+    }
+
+    /// Desugaring de `para cada chave em mapa<verso,bombom>` — Fase 154.
+    ///
+    /// Lowering auditável:
+    /// ```text
+    /// nova __iter_mapa_N    = mapa_expr;
+    /// nova __iter_tamanho_N = mapa_verso_bombom_tamanho(__iter_mapa_N);
+    /// nova muda __iter_indice_N: bombom = 0;
+    /// enquanto __iter_indice_N < __iter_tamanho_N {
+    ///     nova chave: verso = mapa_verso_bombom_chave_indice(__iter_mapa_N, __iter_indice_N);
+    ///     __iter_indice_N = __iter_indice_N + 1;
+    ///     <corpo>
+    /// }
+    /// ```
+    fn desugar_for_each_map(
+        &mut self,
+        key_name: String,
+        map_expr: Expr,
+        body: Block,
+        loop_span: Span,
+    ) -> Result<Vec<Stmt>, PinkerError> {
+        self.synthetic_counter += 1;
+        let suffix = self.synthetic_counter;
+        let map_slot_name = format!("__iter_mapa_{suffix}");
+        let size_slot_name = format!("__iter_tamanho_{suffix}");
+        let index_slot_name = format!("__iter_indice_{suffix}");
+        let helper_span = loop_span;
+
+        // nova __iter_mapa_N = map_expr;
+        let map_binding_stmt = Stmt::Let(LetStmt {
+            name: map_slot_name.clone(),
+            is_mut: false,
+            ty: None,
+            init: map_expr,
+            span: helper_span,
+        });
+
+        // nova __iter_tamanho_N: bombom = mapa_verso_bombom_tamanho(__iter_mapa_N);
+        let size_binding_stmt = Stmt::Let(LetStmt {
+            name: size_slot_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident("mapa_verso_bombom_tamanho".to_string()),
+                        span: helper_span,
+                    }),
+                    vec![Expr {
+                        kind: ExprKind::Ident(map_slot_name.clone()),
+                        span: helper_span,
+                    }],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        // nova muda __iter_indice_N: bombom = 0;
+        let index_binding_stmt = Stmt::Let(LetStmt {
+            name: index_slot_name.clone(),
+            is_mut: true,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::IntLit(0),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        // condição: __iter_indice_N < __iter_tamanho_N
+        let condition = Expr {
+            kind: ExprKind::Binary(
+                Box::new(Expr {
+                    kind: ExprKind::Ident(index_slot_name.clone()),
+                    span: helper_span,
+                }),
+                BinaryOp::Lt,
+                Box::new(Expr {
+                    kind: ExprKind::Ident(size_slot_name),
+                    span: helper_span,
+                }),
+            ),
+            span: helper_span,
+        };
+
+        // nova key_name: verso = mapa_verso_bombom_chave_indice(__iter_mapa_N, __iter_indice_N);
+        let key_binding = Stmt::Let(LetStmt {
+            name: key_name,
+            is_mut: false,
+            ty: Some(Type::Verso(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident("mapa_verso_bombom_chave_indice".to_string()),
+                        span: helper_span,
+                    }),
+                    vec![
+                        Expr {
+                            kind: ExprKind::Ident(map_slot_name),
+                            span: helper_span,
+                        },
+                        Expr {
+                            kind: ExprKind::Ident(index_slot_name.clone()),
+                            span: helper_span,
+                        },
+                    ],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        // __iter_indice_N = __iter_indice_N + 1;
+        let index_increment = Stmt::Assign(AssignStmt {
+            target: AssignTarget::Ident(index_slot_name.clone()),
+            expr: Expr {
+                kind: ExprKind::Binary(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(index_slot_name),
+                        span: helper_span,
+                    }),
+                    BinaryOp::Add,
+                    Box::new(Expr {
+                        kind: ExprKind::IntLit(1),
+                        span: helper_span,
+                    }),
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let mut while_body_stmts = Vec::with_capacity(2 + body.stmts.len());
+        while_body_stmts.push(key_binding);
+        while_body_stmts.push(index_increment);
+        while_body_stmts.extend(body.stmts);
+
+        let while_stmt = Stmt::While(WhileStmt {
+            condition,
+            body: Block {
+                stmts: while_body_stmts,
+                span: helper_span,
+            },
+            span: loop_span,
+        });
+
+        Ok(vec![
+            map_binding_stmt,
+            size_binding_stmt,
+            index_binding_stmt,
+            while_stmt,
+        ])
     }
 
     fn parse_expr(&mut self) -> Result<Expr, PinkerError> {
