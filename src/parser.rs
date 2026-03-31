@@ -5,6 +5,7 @@ use crate::token::{Span, Token, TokenKind};
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
+    synthetic_counter: usize,
 }
 
 fn merge_span(a: Span, b: Span) -> Span {
@@ -13,7 +14,11 @@ fn merge_span(a: Span, b: Span) -> Span {
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, current: 0 }
+        Self {
+            tokens,
+            current: 0,
+            synthetic_counter: 0,
+        }
     }
 
     fn peek(&self) -> Option<&Token> {
@@ -437,7 +442,11 @@ impl Parser {
         let mut stmts = Vec::new();
 
         while !self.check(TokenKind::RBrace) && self.peek().is_some() {
-            stmts.push(self.parse_stmt()?);
+            if self.check(TokenKind::KwPara) {
+                stmts.extend(self.parse_for_each_stmt_desugared()?);
+            } else {
+                stmts.push(self.parse_stmt()?);
+            }
         }
 
         self.consume(TokenKind::RBrace, "}")?;
@@ -619,6 +628,128 @@ impl Parser {
             kind: expr.kind,
             span: merge_span(expr.span, self.previous().span),
         }))
+    }
+
+    fn parse_for_each_stmt_desugared(&mut self) -> Result<Vec<Stmt>, PinkerError> {
+        let start_span = self.consume(TokenKind::KwPara, "para")?.span;
+        self.consume(TokenKind::KwCada, "cada")?;
+        let item_name = self
+            .consume(TokenKind::Ident, "variável do item em 'para cada'")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::KwEm, "em")?;
+        let list_expr = self.parse_expr()?;
+        let body = self.parse_block()?;
+        let loop_span = merge_span(start_span, body.span);
+
+        self.synthetic_counter += 1;
+        let suffix = self.synthetic_counter;
+        let list_slot_name = format!("__iter_lista_{suffix}");
+        let index_slot_name = format!("__iter_indice_{suffix}");
+        let helper_span = loop_span;
+
+        let list_binding_stmt = Stmt::Let(LetStmt {
+            name: list_slot_name.clone(),
+            is_mut: false,
+            ty: None,
+            init: list_expr,
+            span: helper_span,
+        });
+        let index_binding_stmt = Stmt::Let(LetStmt {
+            name: index_slot_name.clone(),
+            is_mut: true,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::IntLit(0),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let condition = Expr {
+            kind: ExprKind::Binary(
+                Box::new(Expr {
+                    kind: ExprKind::Ident(index_slot_name.clone()),
+                    span: helper_span,
+                }),
+                BinaryOp::Lt,
+                Box::new(Expr {
+                    kind: ExprKind::Call(
+                        Box::new(Expr {
+                            kind: ExprKind::Ident("lista_bombom_tamanho".to_string()),
+                            span: helper_span,
+                        }),
+                        vec![Expr {
+                            kind: ExprKind::Ident(list_slot_name.clone()),
+                            span: helper_span,
+                        }],
+                    ),
+                    span: helper_span,
+                }),
+            ),
+            span: helper_span,
+        };
+
+        let item_binding = Stmt::Let(LetStmt {
+            name: item_name,
+            is_mut: false,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident("lista_bombom_obter".to_string()),
+                        span: helper_span,
+                    }),
+                    vec![
+                        Expr {
+                            kind: ExprKind::Ident(list_slot_name),
+                            span: helper_span,
+                        },
+                        Expr {
+                            kind: ExprKind::Ident(index_slot_name.clone()),
+                            span: helper_span,
+                        },
+                    ],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let index_increment = Stmt::Assign(AssignStmt {
+            target: AssignTarget::Ident(index_slot_name.clone()),
+            expr: Expr {
+                kind: ExprKind::Binary(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(index_slot_name),
+                        span: helper_span,
+                    }),
+                    BinaryOp::Add,
+                    Box::new(Expr {
+                        kind: ExprKind::IntLit(1),
+                        span: helper_span,
+                    }),
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let mut while_body_stmts = Vec::with_capacity(2 + body.stmts.len());
+        while_body_stmts.push(item_binding);
+        while_body_stmts.push(index_increment);
+        while_body_stmts.extend(body.stmts);
+
+        let while_stmt = Stmt::While(WhileStmt {
+            condition,
+            body: Block {
+                stmts: while_body_stmts,
+                span: helper_span,
+            },
+            span: loop_span,
+        });
+
+        Ok(vec![list_binding_stmt, index_binding_stmt, while_stmt])
     }
 
     fn parse_expr(&mut self) -> Result<Expr, PinkerError> {

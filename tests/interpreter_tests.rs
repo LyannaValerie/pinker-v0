@@ -6392,3 +6392,121 @@ fn cli_run_fase152_mapa_verso_bombom_fluxo_composto_valido() {
     assert!(stdout.contains("15"), "stdout={}", stdout);
     assert!(stdout.contains("20"), "stdout={}", stdout);
 }
+
+// ── Fase 153: iteração confortável mínima sobre lista<bombom> ──────────────
+
+#[test]
+fn run_fase153_iteracao_lista_bombom_minima_funciona() {
+    let out = run_code(
+        r#"pacote main;
+         carinho principal() -> bombom {
+             nova itens: lista<bombom> = lista_bombom_criar();
+             lista_bombom_anexar(itens, 5);
+             lista_bombom_anexar(itens, 7);
+             nova muda soma: bombom = 0;
+             para cada item em itens {
+                 soma = soma + item;
+             }
+             mimo soma;
+         }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(12)));
+}
+
+#[test]
+fn run_fase153_iteracao_lista_bombom_fluxo_composto_funciona() {
+    let out = run_code(
+        r#"pacote main;
+         carinho carregar() -> lista<bombom> {
+             nova itens: lista<bombom> = lista_bombom_criar();
+             lista_bombom_anexar(itens, 10);
+             lista_bombom_anexar(itens, 20);
+             lista_bombom_anexar(itens, 30);
+             mimo itens;
+         }
+         carinho principal() -> bombom {
+             nova dados: lista<bombom> = carregar();
+             nova muda soma: bombom = 0;
+             nova muda pares: bombom = 0;
+             para cada valor em dados {
+                 soma = soma + valor;
+                 talvez valor % 2 == 0 {
+                     pares = pares + 1;
+                 }
+             }
+             falar(soma, pares);
+             mimo soma;
+         }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(60)));
+}
+
+#[test]
+fn run_fase153_iteracao_em_tipo_fora_do_recorte_falha_claro() {
+    let err = run_code(
+        r#"pacote main;
+         carinho principal() -> bombom {
+             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+             para cada item em m {
+                 falar(item);
+             }
+             mimo 0;
+         }"#,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("tipo inválido no argumento 1 da chamada 'lista_bombom_tamanho'"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn cli_check_fase153_iteracao_lista_bombom_minima_valido() {
+    let output = run_cli_check_example("examples/fase153_iteracao_lista_bombom_minima_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase153_iteracao_lista_bombom_minima_valido() {
+    let output = run_cli_example("examples/fase153_iteracao_lista_bombom_minima_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("12"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_check_fase153_iteracao_lista_bombom_fluxo_composto_valido() {
+    let output =
+        run_cli_check_example("examples/fase153_iteracao_lista_bombom_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase153_iteracao_lista_bombom_fluxo_composto_valido() {
+    let output =
+        run_cli_example("examples/fase153_iteracao_lista_bombom_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("60"), "stdout={}", stdout);
+    assert!(stdout.contains('3'), "stdout={}", stdout);
+}

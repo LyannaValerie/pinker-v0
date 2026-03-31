@@ -1,0 +1,15 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova itens: lista<bombom> = lista_bombom_criar();
+    lista_bombom_anexar(itens, 5);
+    lista_bombom_anexar(itens, 7);
+
+    nova muda soma: bombom = 0;
+    para cada item em itens {
+        soma = soma + item;
+    }
+
+    falar(soma);
+    mimo soma;
+}
