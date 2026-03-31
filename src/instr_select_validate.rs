@@ -103,6 +103,9 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     // Fase 139
     sigs.insert("juntar_verso_com".to_string(), TypeIR::Verso);
     sigs.insert("formatar_verso".to_string(), TypeIR::Verso);
+    // Fase 158
+    sigs.insert("ler_linha_csv_bombom".to_string(), TypeIR::ListBombom);
+    sigs.insert("emitir_linha_csv_bombom".to_string(), TypeIR::Verso);
 
     for f in &program.functions {
         if f.blocks.is_empty() {

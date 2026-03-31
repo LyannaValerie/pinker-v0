@@ -1764,6 +1764,77 @@ fn try_call_intrinsic(
             let resultado = formatar_verso_runtime(modelo, &args[1..])?;
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(resultado))))
         }
+        "ler_linha_csv_bombom" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'ler_linha_csv_bombom' exige 2 argumentos (linha verso, separador verso)",
+                ));
+            }
+            let RuntimeValue::Str(linha) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'ler_linha_csv_bombom' exige linha em verso",
+                ));
+            };
+            let RuntimeValue::Str(separador) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'ler_linha_csv_bombom' exige separador em verso",
+                ));
+            };
+            let separador = validar_separador_csv("ler_linha_csv_bombom", separador)?;
+            if linha.contains('\n') || linha.contains('\r') {
+                return Err(runtime_err(
+                    "linha inválida em 'ler_linha_csv_bombom': multiline fora do recorte",
+                ));
+            }
+            if linha.contains('"') {
+                return Err(runtime_err(
+                    "linha inválida em 'ler_linha_csv_bombom': quoting fora do recorte",
+                ));
+            }
+
+            let handle = list_state.next_list_handle;
+            list_state.next_list_handle += 1;
+            let mut itens = Vec::new();
+            for campo in linha.split(separador) {
+                let Ok(valor) = campo.parse::<u64>() else {
+                    return Err(runtime_err(
+                        "campo inválido em 'ler_linha_csv_bombom': esperado bombom simples sem quoting",
+                    ));
+                };
+                itens.push(valor);
+            }
+            list_state.lists_bombom.insert(handle, itens);
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::ListBombom(handle))))
+        }
+        "emitir_linha_csv_bombom" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'emitir_linha_csv_bombom' exige 2 argumentos (lista<bombom>, separador verso)",
+                ));
+            }
+            let RuntimeValue::ListBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'emitir_linha_csv_bombom' exige lista<bombom> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Str(separador) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'emitir_linha_csv_bombom' exige separador em verso no segundo argumento",
+                ));
+            };
+            let separador = validar_separador_csv("emitir_linha_csv_bombom", separador)?;
+            let Some(itens) = list_state.lists_bombom.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de lista inválido em 'emitir_linha_csv_bombom'",
+                ));
+            };
+            let linha = itens
+                .iter()
+                .map(u64::to_string)
+                .collect::<Vec<_>>()
+                .join(separador);
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(linha))))
+        }
         "argumento" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -2233,6 +2304,31 @@ fn formatar_verso_runtime(modelo: &str, args: &[RuntimeValue]) -> Result<String,
         ));
     }
     Ok(saida)
+}
+
+fn validar_separador_csv<'a>(
+    intrinsic_name: &str,
+    separador: &'a str,
+) -> Result<&'a str, PinkerError> {
+    if separador.is_empty() {
+        return Err(runtime_err(&format!(
+            "intrínseca '{}' não aceita separador vazio",
+            intrinsic_name
+        )));
+    }
+    if separador.chars().count() != 1 {
+        return Err(runtime_err(&format!(
+            "intrínseca '{}' exige separador de 1 caractere",
+            intrinsic_name
+        )));
+    }
+    if matches!(separador, "\"" | "\n" | "\r") {
+        return Err(runtime_err(&format!(
+            "intrínseca '{}' rejeita separador fora do recorte mínimo de CSV",
+            intrinsic_name
+        )));
+    }
+    Ok(separador)
 }
 
 fn formatar_verso_argumento(arg: &RuntimeValue) -> Result<String, PinkerError> {

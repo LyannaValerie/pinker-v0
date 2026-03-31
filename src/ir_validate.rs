@@ -548,6 +548,21 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Verso],
         },
     );
+    // Fase 158
+    funcs.insert(
+        "ler_linha_csv_bombom".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::ListBombom,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "emitir_linha_csv_bombom".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::ListBombom, TypeIR::Verso],
+        },
+    );
 
     for konst in &program.consts {
         let ty = infer_value_type(&konst.value, &HashMap::new(), &consts, &funcs, konst.span)

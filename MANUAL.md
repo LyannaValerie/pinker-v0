@@ -136,6 +136,8 @@ Operações mínimas disponíveis hoje:
 - `juntar_verso(a, b)` → concatena dois `verso`;
 - `tamanho_verso(v)` → retorna comprimento como `bombom`;
 - `formatar_verso(modelo, a[, b])` → monta um `verso` com placeholders sequenciais `{}` e aceita apenas substituições em `bombom` ou `verso`.
+- `ler_linha_csv_bombom(linha, sep)` → lê uma única linha CSV mínima em `lista<bombom>` com separador explícito de 1 caractere;
+- `emitir_linha_csv_bombom(itens, sep)` → emite uma única linha CSV mínima a partir de `lista<bombom>`.
 
 ```pink
 nova a: verso = "oi ";
@@ -146,7 +148,13 @@ falar(tamanho_verso(c));
 falar(formatar_verso("msg={}", c));
 ```
 
-Limites atuais de texto: sem slicing de `verso`, sem indexação negativa, sem placeholders nomeados, sem escape rico de chaves e sem formatação/interpolação avançada.
+```pink
+nova itens: lista<bombom> = ler_linha_csv_bombom("7,11,13", ",");
+falar(lista_bombom_obter(itens, 1));
+falar(emitir_linha_csv_bombom(itens, ","));
+```
+
+Limites atuais de texto/dados estruturados: sem slicing de `verso`, sem indexação negativa, sem placeholders nomeados, sem escape rico de chaves, sem quoting complexo de CSV, sem campos multiline e sem CSV geral de múltiplas linhas.
 
 ## 9) Exemplos pequenos completos
 

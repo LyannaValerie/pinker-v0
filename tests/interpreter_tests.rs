@@ -6026,6 +6026,178 @@ fn run_fase157_formatar_verso_falha_com_modelo_invalido() {
     );
 }
 
+// ── Fase 158: CSV mínimo (camada 1 conservadora) ────────────────────────────
+
+#[test]
+fn run_fase158_ler_linha_csv_bombom_minima_funciona() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova itens: lista<bombom> = ler_linha_csv_bombom("7,11,13", ",");
+            talvez lista_bombom_tamanho(itens) == 3 && lista_bombom_obter(itens, 1) == 11 {
+                mimo 158;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(158)));
+}
+
+#[test]
+fn run_fase158_emitir_linha_csv_bombom_minima_funciona() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova itens: lista<bombom> = lista_bombom_criar();
+            lista_bombom_anexar(itens, 3);
+            lista_bombom_anexar(itens, 5);
+            lista_bombom_anexar(itens, 8);
+            nova linha: verso = emitir_linha_csv_bombom(itens, ";");
+            talvez igual_verso(linha, "3;5;8") {
+                mimo 158;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(158)));
+}
+
+#[test]
+fn run_fase158_csv_minimo_fluxo_composto_funciona() {
+    let source = r#"pacote main;
+        carinho somar_linha_csv(linha: verso, sep: verso) -> bombom {
+            nova itens: lista<bombom> = ler_linha_csv_bombom(linha, sep);
+            nova muda total: bombom = 0;
+            para cada item em itens {
+                total = total + item;
+            }
+            mimo total;
+        }
+
+        carinho principal() -> bombom {
+            nova itens: lista<bombom> = ler_linha_csv_bombom("10;20;30", ";");
+            nova total: bombom = somar_linha_csv("10;20;30", ";");
+            lista_bombom_anexar(itens, total);
+            nova resumo: verso = emitir_linha_csv_bombom(itens, ";");
+            talvez igual_verso(resumo, "10;20;30;60") {
+                mimo 158;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(158)));
+}
+
+#[test]
+fn run_fase158_ler_linha_csv_bombom_rejeita_quoting() {
+    let dir = std::env::temp_dir();
+    let path = dir.join("pinker_fase158_csv_quoting.txt");
+    fs::write(&path, "\"7\",11").unwrap();
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova linha: verso = ler_arquivo_verso("{}");
+            nova itens: lista<bombom> = ler_linha_csv_bombom(linha, ",");
+            mimo lista_bombom_tamanho(itens);
+        }}"#,
+        path.display()
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("quoting fora do recorte"),
+        "erro inesperado: {}",
+        err
+    );
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn run_fase158_ler_linha_csv_bombom_rejeita_multiline() {
+    let dir = std::env::temp_dir();
+    let path = dir.join("pinker_fase158_csv_multiline.txt");
+    fs::write(&path, "7,11\n13").unwrap();
+    let source = format!(
+        r#"pacote main;
+        carinho principal() -> bombom {{
+            nova linha: verso = ler_arquivo_verso("{}");
+            nova itens: lista<bombom> = ler_linha_csv_bombom(linha, ",");
+            mimo lista_bombom_tamanho(itens);
+        }}"#,
+        path.display()
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("multiline fora do recorte"),
+        "erro inesperado: {}",
+        err
+    );
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn run_fase158_emitir_linha_csv_bombom_rejeita_separador_longo() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova itens: lista<bombom> = lista_bombom_criar();
+            lista_bombom_anexar(itens, 1);
+            nova linha: verso = emitir_linha_csv_bombom(itens, "::");
+            falar(linha);
+            mimo 0;
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("exige separador de 1 caractere"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn cli_check_fase158_csv_minimo_valido() {
+    let output = run_cli_check_example("examples/fase158_csv_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase158_csv_minimo_valido() {
+    let output = run_cli_example("examples/fase158_csv_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "3\n11\n7,11,13\n0\n"
+    );
+}
+
+#[test]
+fn cli_check_fase158_csv_minimo_fluxo_composto_valido() {
+    let output = run_cli_check_example("examples/fase158_csv_minimo_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase158_csv_minimo_fluxo_composto_valido() {
+    let output = run_cli_example("examples/fase158_csv_minimo_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "10;20;30\n10;20;30;60\n0\n"
+    );
+}
+
 #[test]
 fn cli_check_fase157_formatacao_simples_saida_valido() {
     let output = run_cli_check_example("examples/fase157_formatacao_simples_saida_valido.pink");

@@ -553,6 +553,21 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Verso],
         },
     );
+    // Fase 158
+    function_sigs.insert(
+        "ler_linha_csv_bombom".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::ListBombom,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
+        "emitir_linha_csv_bombom".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::ListBombom, TypeIR::Verso],
+        },
+    );
 
     for function in &program.functions {
         validate_function(function, &global_consts, &function_sigs)?;

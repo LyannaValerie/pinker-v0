@@ -952,6 +952,21 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
+        // Fase 158
+        function_sigs.insert(
+            "ler_linha_csv_bombom".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::ListBombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "emitir_linha_csv_bombom".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
 
         Ok(Self {
             module_name,

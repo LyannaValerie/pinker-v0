@@ -24,6 +24,7 @@ enum StackValueType {
     Bombom,
     Logica,
     Verso,
+    ListBombom,
     Unknown,
 }
 
@@ -445,6 +446,21 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
     sigs.insert(
         "formatar_verso".to_string(),
         (TypeIR::Verso, vec![StackValueType::Verso]),
+    );
+    // Fase 158
+    sigs.insert(
+        "ler_linha_csv_bombom".to_string(),
+        (
+            TypeIR::ListBombom,
+            vec![StackValueType::Verso, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
+        "emitir_linha_csv_bombom".to_string(),
+        (
+            TypeIR::Verso,
+            vec![StackValueType::ListBombom, StackValueType::Verso],
+        ),
     );
 
     for f in &program.functions {
@@ -1148,6 +1164,7 @@ fn render_stack_type(ty: StackValueType) -> &'static str {
         StackValueType::Bombom => "bombom",
         StackValueType::Logica => "lógica",
         StackValueType::Verso => "verso",
+        StackValueType::ListBombom => "lista<bombom>",
         StackValueType::Unknown => "unknown",
     }
 }
@@ -1165,7 +1182,7 @@ fn type_to_stack(ty: TypeIR) -> StackValueType {
         | TypeIR::I64 => StackValueType::Bombom,
         TypeIR::Logica => StackValueType::Logica,
         TypeIR::Verso => StackValueType::Verso,
-        TypeIR::ListBombom => StackValueType::Unknown,
+        TypeIR::ListBombom => StackValueType::ListBombom,
         TypeIR::MapVersoBombom => StackValueType::Unknown,
         TypeIR::FixedArray { .. } => StackValueType::Unknown,
         TypeIR::Struct => StackValueType::Unknown,
