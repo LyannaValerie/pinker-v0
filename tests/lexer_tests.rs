@@ -41,6 +41,14 @@ fn lexer_reconhece_sempre_que() {
 }
 
 #[test]
+fn lexer_reconhece_para_cada_em() {
+    let tokens = tokenize("para cada item em itens { falar(item); }").unwrap();
+    assert_eq!(tokens[0].kind, TokenKind::KwPara);
+    assert_eq!(tokens[1].kind, TokenKind::KwCada);
+    assert_eq!(tokens[3].kind, TokenKind::KwEm);
+}
+
+#[test]
 fn lexer_reconhece_quebrar() {
     let tokens = tokenize("quebrar;").unwrap();
     assert_eq!(tokens[0].kind, TokenKind::KwQuebrar);

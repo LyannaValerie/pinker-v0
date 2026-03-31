@@ -525,7 +525,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 13 — coleções e estruturas de dados básicas
 
-**Status**: em andamento; seis fases funcionais entregues (Fases 147, 148, 149, 150, 151 e 152), incluindo o núcleo mínimo de mutação estrutural da primeira coleção dinâmica real (`lista<bombom>`) e a abertura associativa mínima da segunda coleção dinâmica real (`mapa<verso,bombom>`).
+**Status**: em andamento; sete fases funcionais entregues (Fases 147, 148, 149, 150, 151, 152 e 153), incluindo o núcleo mínimo de mutação estrutural da primeira coleção dinâmica real (`lista<bombom>`), a abertura associativa mínima da segunda coleção dinâmica real (`mapa<verso,bombom>`) e a primeira iteração confortável mínima sobre `lista<bombom>`.
 
 **Tese do bloco**: a Pinker tem tipos escalares, arrays fixos e structs, mas não tem coleções dinâmicas; sem lista e mapa, processar conjuntos variáveis de dados requer contorções manuais com arrays fixos; este bloco abre o mínimo auditável de coleções dinâmicas para tornar a linguagem utilizável como ferramenta cotidiana com dados variáveis.
 
@@ -538,8 +538,9 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 4. **13.4 — escrita mínima por índice em `lista<bombom>` (Fase 150, concluída)**: complemento direto da 13.3 com `lista_bombom_definir(lista, i, valor)` no recorte homogêneo mínimo, com erro claro de runtime para índice fora da faixa; sem abrir remoção/insert/pop/sort, sem `lista<T>` ampla e sem API rica.
 5. **13.5 — remoção mínima do fim em `lista<bombom>` (Fase 151, concluída)**: complemento estrutural direto da 13.4 com `lista_bombom_tirar_ultimo(lista) -> bombom`, removendo e retornando o último elemento com erro claro para lista vazia; sem abrir remoção arbitrária, insert, `lista<T>` ampla ou API rica.
 6. **13.6 — `mapa` mínimo homogêneo `verso -> bombom` (Fase 152, concluída)**: abertura da segunda coleção dinâmica real do bloco com `mapa_verso_bombom_criar()`, `mapa_verso_bombom_definir(mapa, chave, valor)`, `mapa_verso_bombom_obter(mapa, chave)` e `mapa_verso_bombom_tem(mapa, chave)`, mantendo erro explícito para chave ausente e recorte conservador sem `mapa<K,V>` amplo, sem remoção por chave e sem iteração confortável.
-7. **13.7 — iteração confortável sobre coleções**: construto mínimo (`para cada` ou equivalente) que percorra `lista` e `mapa` sem aritmética de ponteiro explícita; precisa de lista e mapa operacionais; base para processamento de dados nos blocos seguintes.
-8. **13.8 — aleatoriedade básica**: geração mínima de inteiro aleatório com semente explícita; precisa de tipos inteiros estáveis; fecha o bloco com utilidade independente mas frequentemente necessária em conjunto com coleções.
+7. **13.7 — iteração confortável mínima sobre `lista<bombom>` (Fase 153, concluída)**: abertura de um único construto explícito de percurso (`para cada`) sobre valores de `lista<bombom>`, com variável de item no corpo e lowering conservador para estruturas já existentes; sem iteração genérica, sem mapa como alvo principal e sem API ampla de iteradores.
+8. **13.8 — iteração confortável mínima sobre `mapa<verso,bombom>`**: possível etapa futura e separada para percurso associativo mínimo, sem abrir pares chave/valor amplos nem sistema geral de iteração.
+9. **13.9 — aleatoriedade básica**: geração mínima de inteiro aleatório com semente explícita; precisa de tipos inteiros estáveis; fecha o bloco com utilidade independente mas frequentemente necessária em conjunto com coleções.
 
 **Escopo deliberadamente fora do Bloco 13**: iteradores lazy, generics, coleções heterogêneas, ordenação avançada, pilha/fila como tipos próprios, coleções concorrentes.
 
