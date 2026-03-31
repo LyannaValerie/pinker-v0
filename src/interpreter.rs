@@ -51,6 +51,11 @@ struct RuntimeListState {
     next_list_handle: u64,
 }
 
+struct RuntimeMapState {
+    maps_verso_bombom: HashMap<u64, HashMap<String, u64>>,
+    next_map_handle: u64,
+}
+
 struct RuntimeOpenFile {
     path: String,
     content: String,
@@ -73,6 +78,7 @@ pub enum RuntimeValue {
     Bool(bool),
     Str(String),
     ListBombom(u64),
+    MapVersoBombom(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -102,6 +108,10 @@ pub fn run_program_with_args(
         lists_bombom: HashMap::new(),
         next_list_handle: 1,
     };
+    let mut map_state = RuntimeMapState {
+        maps_verso_bombom: HashMap::new(),
+        next_map_handle: 1,
+    };
     let mut call_stack = Vec::new();
     let return_value = call_function(
         "principal",
@@ -111,6 +121,7 @@ pub fn run_program_with_args(
         &mut memory,
         &mut io_state,
         &mut list_state,
+        &mut map_state,
         &mut call_stack,
     )?;
     Ok(RunOutcome {
@@ -183,6 +194,7 @@ fn call_function(
     memory: &mut HashMap<usize, RuntimeValue>,
     io_state: &mut RuntimeIoState,
     list_state: &mut RuntimeListState,
+    map_state: &mut RuntimeMapState,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<Option<RuntimeValue>, PinkerError> {
     if call_stack.len() >= MAX_CALL_DEPTH {
@@ -243,7 +255,7 @@ fn call_function(
                 set_current_instr(call_stack, Some(machine_instr_name(instr)));
                 exec_instr(
                     instr, &mut slots, &mut stack, program, globals, memory, io_state, list_state,
-                    call_stack,
+                    map_state, call_stack,
                 )?;
                 set_current_instr(call_stack, None);
                 if io_state.exit_status.is_some() {
@@ -303,6 +315,7 @@ fn exec_instr(
     memory: &mut HashMap<usize, RuntimeValue>,
     io_state: &mut RuntimeIoState,
     list_state: &mut RuntimeListState,
+    map_state: &mut RuntimeMapState,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<(), PinkerError> {
     match instr {
@@ -340,6 +353,7 @@ fn exec_instr(
                 RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Str(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::ListBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::MapVersoBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(out);
         }
@@ -356,6 +370,7 @@ fn exec_instr(
                 RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Str(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::ListBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::MapVersoBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(out);
         }
@@ -520,10 +535,11 @@ fn exec_instr(
         }
         MachineInstr::Call { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = match try_call_intrinsic(callee, &args, io_state, list_state)? {
+            let result = match try_call_intrinsic(callee, &args, io_state, list_state, map_state)? {
                 IntrinsicCall::Done(value) => value,
                 IntrinsicCall::NotIntrinsic => call_function(
-                    callee, args, program, globals, memory, io_state, list_state, call_stack,
+                    callee, args, program, globals, memory, io_state, list_state, map_state,
+                    call_stack,
                 )?,
             };
             let Some(value) = result else {
@@ -533,10 +549,11 @@ fn exec_instr(
         }
         MachineInstr::CallVoid { callee, argc } => {
             let args = pop_args(stack, *argc)?;
-            let result = match try_call_intrinsic(callee, &args, io_state, list_state)? {
+            let result = match try_call_intrinsic(callee, &args, io_state, list_state, map_state)? {
                 IntrinsicCall::Done(value) => value,
                 IntrinsicCall::NotIntrinsic => call_function(
-                    callee, args, program, globals, memory, io_state, list_state, call_stack,
+                    callee, args, program, globals, memory, io_state, list_state, map_state,
+                    call_stack,
                 )?,
             };
             if result.is_some() {
@@ -551,6 +568,7 @@ fn exec_instr(
                 RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Str(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::ListBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::MapVersoBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
             }
         }
         MachineInstr::PrintBoolInline => {
@@ -580,6 +598,7 @@ fn try_call_intrinsic(
     args: &[RuntimeValue],
     io_state: &mut RuntimeIoState,
     list_state: &mut RuntimeListState,
+    map_state: &mut RuntimeMapState,
 ) -> Result<IntrinsicCall, PinkerError> {
     match callee {
         "lista_bombom_criar" => {
@@ -709,6 +728,99 @@ fn try_call_intrinsic(
                 return Err(runtime_err("lista vazia em 'lista_bombom_tirar_ultimo'"));
             };
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(value))))
+        }
+        "mapa_verso_bombom_criar" => {
+            if !args.is_empty() {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_criar' exige 0 argumentos",
+                ));
+            }
+            let handle = map_state.next_map_handle;
+            map_state.next_map_handle = map_state.next_map_handle.saturating_add(1);
+            map_state.maps_verso_bombom.insert(handle, HashMap::new());
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::MapVersoBombom(
+                handle,
+            ))))
+        }
+        "mapa_verso_bombom_definir" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_definir' exige 3 argumentos (mapa<verso,bombom>, verso, bombom)",
+                ));
+            }
+            let RuntimeValue::MapVersoBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_definir' exige mapa<verso,bombom> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Str(ref key) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_definir' exige verso no segundo argumento",
+                ));
+            };
+            let RuntimeValue::Int(value) = args[2] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_definir' exige bombom no terceiro argumento",
+                ));
+            };
+            let Some(mapa) = map_state.maps_verso_bombom.get_mut(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<verso,bombom> inválido em 'mapa_verso_bombom_definir'",
+                ));
+            };
+            mapa.insert(key.clone(), value);
+            Ok(IntrinsicCall::Done(None))
+        }
+        "mapa_verso_bombom_obter" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_obter' exige 2 argumentos (mapa<verso,bombom>, verso)",
+                ));
+            }
+            let RuntimeValue::MapVersoBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_obter' exige mapa<verso,bombom> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Str(ref key) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_obter' exige verso no segundo argumento",
+                ));
+            };
+            let Some(mapa) = map_state.maps_verso_bombom.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<verso,bombom> inválido em 'mapa_verso_bombom_obter'",
+                ));
+            };
+            let Some(value) = mapa.get(key) else {
+                return Err(runtime_err("chave ausente em 'mapa_verso_bombom_obter'"));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(*value))))
+        }
+        "mapa_verso_bombom_tem" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_tem' exige 2 argumentos (mapa<verso,bombom>, verso)",
+                ));
+            }
+            let RuntimeValue::MapVersoBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_tem' exige mapa<verso,bombom> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Str(ref key) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_tem' exige verso no segundo argumento",
+                ));
+            };
+            let Some(mapa) = map_state.maps_verso_bombom.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<verso,bombom> inválido em 'mapa_verso_bombom_tem'",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                mapa.contains_key(key),
+            ))))
         }
         "ouvir" => {
             if !args.is_empty() {
@@ -1938,6 +2050,7 @@ fn pop_numeric(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<RuntimeValue,
         RuntimeValue::Bool(_) => Err(runtime_err(msg)),
         RuntimeValue::Str(_) => Err(runtime_err(msg)),
         RuntimeValue::ListBombom(_) => Err(runtime_err(msg)),
+        RuntimeValue::MapVersoBombom(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -1949,6 +2062,7 @@ fn pop_bool(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<bool, PinkerErro
         RuntimeValue::Ptr(_) => Err(runtime_err(msg)),
         RuntimeValue::Str(_) => Err(runtime_err(msg)),
         RuntimeValue::ListBombom(_) => Err(runtime_err(msg)),
+        RuntimeValue::MapVersoBombom(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -1983,6 +2097,9 @@ fn coerce_runtime_value_to_type(
             (RuntimeValue::ListBombom(_), _) => {
                 Err(runtime_err("cast inteiro não aceita lista<bombom>"))
             }
+            (RuntimeValue::MapVersoBombom(_), _) => {
+                Err(runtime_err("cast inteiro não aceita mapa<verso,bombom>"))
+            }
             (v, _) => Ok(v),
         };
     }
@@ -2004,6 +2121,9 @@ fn coerce_runtime_value_to_type(
             RuntimeValue::ListBombom(_) => Err(runtime_err(
                 "ponteiro em runtime requer valor inteiro de endereço",
             )),
+            RuntimeValue::MapVersoBombom(_) => Err(runtime_err(
+                "ponteiro em runtime requer valor inteiro de endereço",
+            )),
         };
     }
 
@@ -2011,6 +2131,14 @@ fn coerce_runtime_value_to_type(
         return match value {
             RuntimeValue::ListBombom(handle) => Ok(RuntimeValue::ListBombom(handle)),
             _ => Err(runtime_err("valor incompatível: esperado lista<bombom>")),
+        };
+    }
+    if matches!(ty, crate::ir::TypeIR::MapVersoBombom) {
+        return match value {
+            RuntimeValue::MapVersoBombom(handle) => Ok(RuntimeValue::MapVersoBombom(handle)),
+            _ => Err(runtime_err(
+                "valor incompatível: esperado mapa<verso,bombom>",
+            )),
         };
     }
 

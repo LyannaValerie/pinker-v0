@@ -1,0 +1,23 @@
+pacote main;
+
+carinho carregar_placar() -> mapa<verso,bombom> {
+    nova placar: mapa<verso,bombom> = mapa_verso_bombom_criar();
+    mapa_verso_bombom_definir(placar, "ana", 10);
+    mapa_verso_bombom_definir(placar, "bia", 20);
+    mimo placar;
+}
+
+carinho atualizar_ana(placar: mapa<verso,bombom>) {
+    talvez mapa_verso_bombom_tem(placar, "ana") {
+        nova atual: bombom = mapa_verso_bombom_obter(placar, "ana");
+        mapa_verso_bombom_definir(placar, "ana", atual + 5);
+    }
+}
+
+carinho principal() -> bombom {
+    nova placar: mapa<verso,bombom> = carregar_placar();
+    atualizar_ana(placar);
+    falar(mapa_verso_bombom_obter(placar, "ana"));
+    falar(mapa_verso_bombom_obter(placar, "bia"));
+    mimo mapa_verso_bombom_obter(placar, "ana");
+}

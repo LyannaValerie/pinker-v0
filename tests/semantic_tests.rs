@@ -2239,3 +2239,50 @@ fn lista_bombom_tirar_ultimo_rejeita_argumento_fora_do_recorte() {
         err
     );
 }
+
+#[test]
+fn mapa_verso_bombom_criar_definir_obter_tem_valida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+            mapa_verso_bombom_definir(m, "idade", 7);
+            talvez mapa_verso_bombom_tem(m, "idade") {
+                mimo mapa_verso_bombom_obter(m, "idade");
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn mapa_verso_bombom_rejeita_tipo_fora_do_recorte() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova m: mapa<bombom,bombom> = mapa_verso_bombom_criar();
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("mapa<verso,bombom>"), "{}", err);
+}
+
+#[test]
+fn mapa_verso_bombom_definir_rejeita_valor_nao_bombom() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+            mapa_verso_bombom_definir(m, "idade", "sete");
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("argumento 3 da chamada 'mapa_verso_bombom_definir'"),
+        "{}",
+        err
+    );
+}

@@ -104,6 +104,34 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "mapa_verso_bombom_criar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::MapVersoBombom,
+            params: vec![],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_bombom_definir".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::MapVersoBombom, TypeIR::Verso, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_bombom_obter".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapVersoBombom, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_bombom_tem".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::MapVersoBombom, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
         "argumento".to_string(),
         FunctionSig {
             ret_type: TypeIR::Verso,

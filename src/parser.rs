@@ -272,6 +272,20 @@ impl Parser {
                 }
                 return Ok(Type::ListBombom(merge_span(span, self.previous().span)));
             }
+            if self.previous().lexeme == "mapa" && self.match_token(TokenKind::Less) {
+                let key_ty = self.parse_type()?;
+                self.consume(TokenKind::Comma, ",")?;
+                let value_ty = self.parse_type()?;
+                self.consume(TokenKind::Greater, ">")?;
+                if !matches!(key_ty, Type::Verso(_)) || !matches!(value_ty, Type::Bombom(_)) {
+                    return Err(PinkerError::Expected {
+                        expected: "tipo 'mapa<verso,bombom>' nesta fase".to_string(),
+                        found: format!("mapa<{},{}>", key_ty.name(), value_ty.name()),
+                        span: merge_span(key_ty.span(), value_ty.span()),
+                    });
+                }
+                return Ok(Type::MapVersoBombom(merge_span(span, self.previous().span)));
+            }
             let mut name = self.previous().lexeme.clone();
             let mut type_span = self.previous().span;
             if self.match_token(TokenKind::Dot) {

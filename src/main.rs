@@ -496,6 +496,7 @@ fn run_analyze(config: Config) {
                 interpreter::RuntimeValue::Bool(_) => {}
                 interpreter::RuntimeValue::Str(v) => println!("{}", v),
                 interpreter::RuntimeValue::ListBombom(_) => {}
+                interpreter::RuntimeValue::MapVersoBombom(_) => {}
             }
         }
         if let Some(code) = result.exit_status {
