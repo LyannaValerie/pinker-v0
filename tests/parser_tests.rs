@@ -692,3 +692,22 @@ fn parser_aceita_tipo_lista_bombom_em_assinatura_e_local() {
         _ => panic!("item esperado: função"),
     }
 }
+
+#[test]
+fn parser_aceita_tipo_mapa_verso_bombom_em_assinatura_e_local() {
+    let source = r#"
+        pacote main;
+        carinho indice() -> mapa<verso,bombom> {
+            nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+            mimo m;
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let program = parse(source).expect("parser deve aceitar tipo mapa<verso,bombom>");
+    match &program.items[0] {
+        Item::Function(function) => {
+            assert!(matches!(function.ret_type, Some(Type::MapVersoBombom(_))));
+        }
+        _ => panic!("item esperado: função"),
+    }
+}

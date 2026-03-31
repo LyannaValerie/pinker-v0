@@ -10,7 +10,7 @@
 - Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
 ## 2. Estado corrente
-- Fase funcional atual: **151 — coleções e estruturas de dados básicas: remoção mínima do fim em `lista<bombom>` (camada 1 conservadora)**.
+- Fase funcional atual: **152 — coleções e estruturas de dados básicas: `mapa` mínimo homogêneo `verso -> bombom` (camada 1 conservadora)**.
 - Rodada extraordinária corrente: **FE-1 — refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)**.
 - Bloco encerrado: **11 — texto prático, scripts e ergonomia cotidiana (encerrado por suficiência conservadora na Doc-27)**.
 - Bloco encerrado: **12 — sistema de módulos tipado (encerrado por suficiência conservadora na Doc-28)**.

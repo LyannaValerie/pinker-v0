@@ -881,6 +881,15 @@ FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtim
 - Cobertura adicionada com testes semânticos/runtime/CLI e exemplos versionados: `examples/fase151_lista_bombom_tirar_ultimo_minimo_valido.pink` e `examples/fase151_lista_bombom_tirar_ultimo_fluxo_composto_valido.pink`.
 - Continua a política do bloco de incluir exemplo canônico e exemplo composto/realista com diff pequeno e auditável.
 
+152 - coleções e estruturas de dados básicas: `mapa` mínimo homogêneo `verso -> bombom` (camada 1 conservadora)
+- Sexta fase funcional do Bloco 13.
+- Abre a segunda coleção dinâmica real do bloco no menor recorte auditável: mapa homogêneo com chave `verso` e valor `bombom`.
+- Semântica mínima aberta com superfície explícita e pequena: `mapa_verso_bombom_criar()`, `mapa_verso_bombom_definir(mapa, verso, bombom)`, `mapa_verso_bombom_obter(mapa, verso)` e `mapa_verso_bombom_tem(mapa, verso)`.
+- Runtime passa a manter estado interno de mapas por handle e adota erro explícito para chave ausente em `mapa_verso_bombom_obter`.
+- Mantém o recorte conservador: sem mapa genérico amplo, sem remoção por chave, sem iteração confortável e sem API rica.
+- Cobertura adicionada com testes de parser/semântica/runtime/CLI e exemplos versionados: `examples/fase152_mapa_verso_bombom_minimo_valido.pink` e `examples/fase152_mapa_verso_bombom_fluxo_composto_valido.pink`.
+- Registra continuidade explícita da política de exemplos canônicos + compostos/realistas no bloco com diff pequeno e auditável.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

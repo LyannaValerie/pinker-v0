@@ -95,6 +95,35 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
     sigs.insert(
+        "mapa_verso_bombom_criar".to_string(),
+        (TypeIR::MapVersoBombom, vec![]),
+    );
+    sigs.insert(
+        "mapa_verso_bombom_definir".to_string(),
+        (
+            TypeIR::Nulo,
+            vec![
+                StackValueType::Unknown,
+                StackValueType::Verso,
+                StackValueType::Bombom,
+            ],
+        ),
+    );
+    sigs.insert(
+        "mapa_verso_bombom_obter".to_string(),
+        (
+            TypeIR::Bombom,
+            vec![StackValueType::Unknown, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
+        "mapa_verso_bombom_tem".to_string(),
+        (
+            TypeIR::Logica,
+            vec![StackValueType::Unknown, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
         "argumento".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );
@@ -1084,6 +1113,7 @@ fn type_to_stack(ty: TypeIR) -> StackValueType {
         TypeIR::Logica => StackValueType::Logica,
         TypeIR::Verso => StackValueType::Verso,
         TypeIR::ListBombom => StackValueType::Unknown,
+        TypeIR::MapVersoBombom => StackValueType::Unknown,
         TypeIR::FixedArray { .. } => StackValueType::Unknown,
         TypeIR::Struct => StackValueType::Unknown,
         TypeIR::Pointer { .. } => StackValueType::Unknown,

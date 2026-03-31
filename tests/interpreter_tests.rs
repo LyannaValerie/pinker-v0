@@ -6286,3 +6286,109 @@ fn cli_run_fase151_lista_bombom_tirar_ultimo_fluxo_composto_funciona_com_exemplo
     assert!(stdout.contains('2'), "stdout={}", stdout);
     assert!(stdout.contains('8'), "stdout={}", stdout);
 }
+
+// ── Fase 152: mapa mínimo homogêneo verso -> bombom ────────────────────────
+
+#[test]
+fn run_mapa_verso_bombom_minimo_criar_definir_obter_tem_funciona() {
+    let out = run_code(
+        r#"pacote main;
+         carinho principal() -> bombom {
+             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+             mapa_verso_bombom_definir(m, "idade", 7);
+             talvez mapa_verso_bombom_tem(m, "idade") {
+                 mimo mapa_verso_bombom_obter(m, "idade");
+             }
+             mimo 0;
+         }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(7)));
+}
+
+#[test]
+fn run_mapa_verso_bombom_fluxo_composto_funciona() {
+    let out = run_code(
+        r#"pacote main;
+         carinho carregar() -> mapa<verso,bombom> {
+             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+             mapa_verso_bombom_definir(m, "ana", 10);
+             mapa_verso_bombom_definir(m, "bia", 20);
+             mimo m;
+         }
+         carinho principal() -> bombom {
+             nova placar: mapa<verso,bombom> = carregar();
+             talvez mapa_verso_bombom_tem(placar, "ana") {
+                 nova atual: bombom = mapa_verso_bombom_obter(placar, "ana");
+                 mapa_verso_bombom_definir(placar, "ana", atual + 5);
+             }
+             mimo mapa_verso_bombom_obter(placar, "ana");
+         }"#,
+    )
+    .unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(15)));
+}
+
+#[test]
+fn run_mapa_verso_bombom_obter_chave_ausente_falha_claro() {
+    let err = run_code(
+        r#"pacote main;
+         carinho principal() -> bombom {
+             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+             mimo mapa_verso_bombom_obter(m, "faltando");
+         }"#,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("chave ausente em 'mapa_verso_bombom_obter'"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn cli_check_fase152_mapa_verso_bombom_minimo_valido() {
+    let output = run_cli_check_example("examples/fase152_mapa_verso_bombom_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase152_mapa_verso_bombom_minimo_valido() {
+    let output = run_cli_example("examples/fase152_mapa_verso_bombom_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("42"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_check_fase152_mapa_verso_bombom_fluxo_composto_valido() {
+    let output =
+        run_cli_check_example("examples/fase152_mapa_verso_bombom_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase152_mapa_verso_bombom_fluxo_composto_valido() {
+    let output = run_cli_example("examples/fase152_mapa_verso_bombom_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("15"), "stdout={}", stdout);
+    assert!(stdout.contains("20"), "stdout={}", stdout);
+}
