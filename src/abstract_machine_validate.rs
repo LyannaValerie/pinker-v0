@@ -128,11 +128,12 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
     sigs.insert(
-        "mapa_verso_bombom_chave_indice".to_string(),
-        (
-            TypeIR::Verso,
-            vec![StackValueType::Unknown, StackValueType::Bombom],
-        ),
+        "__pinker_internal_mapa_verso_bombom_iterador_criar".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Unknown]),
+    );
+    sigs.insert(
+        "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave".to_string(),
+        (TypeIR::Verso, vec![StackValueType::Bombom]),
     );
     sigs.insert(
         "argumento".to_string(),

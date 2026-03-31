@@ -201,6 +201,33 @@ fn parser_aceita_para_cada_em_lista_bombom() {
 }
 
 #[test]
+fn parser_aceita_para_cada_em_mapa_verso_bombom_sem_chave_por_indice_publica() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+            para cada chave em m {
+                falar(chave);
+            }
+            mimo 0;
+        }
+    "#;
+
+    let program = parse(source).expect("parser deve aceitar para cada em mapa");
+    let func = match &program.items[0] {
+        Item::Function(f) => f,
+        _ => panic!("item esperado: function"),
+    };
+    assert!(
+        func.body
+            .stmts
+            .iter()
+            .any(|stmt| matches!(stmt, Stmt::While(_))),
+        "para cada em mapa deve baixar para while no parser"
+    );
+}
+
+#[test]
 fn parser_aceita_sussurro_com_multiplas_strings() {
     let source = r#"
         pacote main;

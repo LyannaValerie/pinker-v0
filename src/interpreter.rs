@@ -54,6 +54,13 @@ struct RuntimeListState {
 struct RuntimeMapState {
     maps_verso_bombom: HashMap<u64, HashMap<String, u64>>,
     next_map_handle: u64,
+    map_iters_verso_bombom: HashMap<u64, RuntimeMapVersoBombomIter>,
+    next_map_iter_handle: u64,
+}
+
+struct RuntimeMapVersoBombomIter {
+    keys_snapshot: Vec<String>,
+    next_index: usize,
 }
 
 struct RuntimeOpenFile {
@@ -111,6 +118,8 @@ pub fn run_program_with_args(
     let mut map_state = RuntimeMapState {
         maps_verso_bombom: HashMap::new(),
         next_map_handle: 1,
+        map_iters_verso_bombom: HashMap::new(),
+        next_map_iter_handle: 1,
     };
     let mut call_stack = Vec::new();
     let return_value = call_function(
@@ -843,32 +852,56 @@ fn try_call_intrinsic(
                 mapa.len() as u64
             ))))
         }
-        "mapa_verso_bombom_chave_indice" => {
-            if args.len() != 2 {
+        "__pinker_internal_mapa_verso_bombom_iterador_criar" => {
+            if args.len() != 1 {
                 return Err(runtime_err(
-                    "intrínseca 'mapa_verso_bombom_chave_indice' exige 2 argumentos (mapa<verso,bombom>, bombom)",
+                    "intrínseca interna '__pinker_internal_mapa_verso_bombom_iterador_criar' exige 1 argumento (mapa<verso,bombom>)",
                 ));
             }
             let RuntimeValue::MapVersoBombom(handle) = &args[0] else {
                 return Err(runtime_err(
-                    "intrínseca 'mapa_verso_bombom_chave_indice' exige mapa<verso,bombom> no primeiro argumento",
-                ));
-            };
-            let RuntimeValue::Int(idx) = &args[1] else {
-                return Err(runtime_err(
-                    "intrínseca 'mapa_verso_bombom_chave_indice' exige bombom no segundo argumento",
+                    "intrínseca interna '__pinker_internal_mapa_verso_bombom_iterador_criar' exige mapa<verso,bombom> no argumento",
                 ));
             };
             let handle = *handle;
-            let idx = *idx as usize;
             let Some(mapa) = map_state.maps_verso_bombom.get(&handle) else {
                 return Err(runtime_err(
-                    "handle de mapa<verso,bombom> inválido em 'mapa_verso_bombom_chave_indice'",
+                    "handle de mapa<verso,bombom> inválido em '__pinker_internal_mapa_verso_bombom_iterador_criar'",
                 ));
             };
-            let key = mapa.keys().nth(idx).ok_or_else(|| {
-                runtime_err("índice fora do intervalo em 'mapa_verso_bombom_chave_indice'")
+            let iter_handle = map_state.next_map_iter_handle;
+            map_state.next_map_iter_handle = map_state.next_map_iter_handle.saturating_add(1);
+            map_state.map_iters_verso_bombom.insert(
+                iter_handle,
+                RuntimeMapVersoBombomIter {
+                    keys_snapshot: mapa.keys().cloned().collect(),
+                    next_index: 0,
+                },
+            );
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(iter_handle))))
+        }
+        "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_mapa_verso_bombom_iterador_proxima_chave' exige 1 argumento (cursor)",
+                ));
+            };
+            let RuntimeValue::Int(iter_handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_mapa_verso_bombom_iterador_proxima_chave' exige cursor 'bombom'",
+                ));
+            };
+            let Some(iter) = map_state.map_iters_verso_bombom.get_mut(iter_handle) else {
+                return Err(runtime_err(
+                    "cursor interno de mapa inválido em '__pinker_internal_mapa_verso_bombom_iterador_proxima_chave'",
+                ));
+            };
+            let key = iter.keys_snapshot.get(iter.next_index).ok_or_else(|| {
+                runtime_err(
+                    "cursor interno de mapa esgotado em '__pinker_internal_mapa_verso_bombom_iterador_proxima_chave'",
+                )
             })?;
+            iter.next_index = iter.next_index.saturating_add(1);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(key.clone()))))
         }
         "ouvir" => {

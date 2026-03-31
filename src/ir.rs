@@ -557,13 +557,6 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
-            "mapa_verso_bombom_chave_indice".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
-        );
-        function_sigs.insert(
             "argumento".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Verso,
@@ -1336,6 +1329,33 @@ impl<'a> FunctionLowerer<'a> {
                 struct_name: None,
                 ptr_array_bombom_size: None,
             }),
+            ExprKind::InternalMapIterCreate(map) => {
+                let map = self.lower_value(map)?;
+                Ok(TypedValueIR {
+                    value: ValueIR::Call {
+                        callee: "__pinker_internal_mapa_verso_bombom_iterador_criar".to_string(),
+                        args: vec![map.value],
+                        ret_type: TypeIR::Bombom,
+                    },
+                    ty: TypeIR::Bombom,
+                    struct_name: None,
+                    ptr_array_bombom_size: None,
+                })
+            }
+            ExprKind::InternalMapIterNextKey(iterator) => {
+                let iterator = self.lower_value(iterator)?;
+                Ok(TypedValueIR {
+                    value: ValueIR::Call {
+                        callee: "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave"
+                            .to_string(),
+                        args: vec![iterator.value],
+                        ret_type: TypeIR::Verso,
+                    },
+                    ty: TypeIR::Verso,
+                    struct_name: None,
+                    ptr_array_bombom_size: None,
+                })
+            }
             ExprKind::Ident(name) => {
                 if let Some(binding) = self.resolve_existing_binding(name) {
                     return Ok(TypedValueIR {

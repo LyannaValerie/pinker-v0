@@ -819,15 +819,16 @@ impl Parser {
         Ok(vec![list_binding_stmt, index_binding_stmt, while_stmt])
     }
 
-    /// Desugaring de `para cada chave em mapa<verso,bombom>` — Fase 154.
+    /// Desugaring de `para cada chave em mapa<verso,bombom>` — Fase 155.
     ///
     /// Lowering auditável:
     /// ```text
     /// nova __iter_mapa_N    = mapa_expr;
     /// nova __iter_tamanho_N = mapa_verso_bombom_tamanho(__iter_mapa_N);
+    /// nova __iter_cursor_N  = <cursor interno sobre snapshot de chaves>;
     /// nova muda __iter_indice_N: bombom = 0;
     /// enquanto __iter_indice_N < __iter_tamanho_N {
-    ///     nova chave: verso = mapa_verso_bombom_chave_indice(__iter_mapa_N, __iter_indice_N);
+    ///     nova chave: verso = <próxima chave do cursor interno>;
     ///     __iter_indice_N = __iter_indice_N + 1;
     ///     <corpo>
     /// }
@@ -843,6 +844,7 @@ impl Parser {
         let suffix = self.synthetic_counter;
         let map_slot_name = format!("__iter_mapa_{suffix}");
         let size_slot_name = format!("__iter_tamanho_{suffix}");
+        let cursor_slot_name = format!("__iter_cursor_{suffix}");
         let index_slot_name = format!("__iter_indice_{suffix}");
         let helper_span = loop_span;
 
@@ -876,6 +878,21 @@ impl Parser {
             span: helper_span,
         });
 
+        // nova __iter_cursor_N: bombom = <cursor interno sobre snapshot de chaves>;
+        let cursor_binding_stmt = Stmt::Let(LetStmt {
+            name: cursor_slot_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::InternalMapIterCreate(Box::new(Expr {
+                    kind: ExprKind::Ident(map_slot_name.clone()),
+                    span: helper_span,
+                })),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
         // nova muda __iter_indice_N: bombom = 0;
         let index_binding_stmt = Stmt::Let(LetStmt {
             name: index_slot_name.clone(),
@@ -904,28 +921,16 @@ impl Parser {
             span: helper_span,
         };
 
-        // nova key_name: verso = mapa_verso_bombom_chave_indice(__iter_mapa_N, __iter_indice_N);
+        // nova key_name: verso = <próxima chave do cursor interno>;
         let key_binding = Stmt::Let(LetStmt {
             name: key_name,
             is_mut: false,
             ty: Some(Type::Verso(helper_span)),
             init: Expr {
-                kind: ExprKind::Call(
-                    Box::new(Expr {
-                        kind: ExprKind::Ident("mapa_verso_bombom_chave_indice".to_string()),
-                        span: helper_span,
-                    }),
-                    vec![
-                        Expr {
-                            kind: ExprKind::Ident(map_slot_name),
-                            span: helper_span,
-                        },
-                        Expr {
-                            kind: ExprKind::Ident(index_slot_name.clone()),
-                            span: helper_span,
-                        },
-                    ],
-                ),
+                kind: ExprKind::InternalMapIterNextKey(Box::new(Expr {
+                    kind: ExprKind::Ident(cursor_slot_name),
+                    span: helper_span,
+                })),
                 span: helper_span,
             },
             span: helper_span,
@@ -968,6 +973,7 @@ impl Parser {
         Ok(vec![
             map_binding_stmt,
             size_binding_stmt,
+            cursor_binding_stmt,
             index_binding_stmt,
             while_stmt,
         ])
