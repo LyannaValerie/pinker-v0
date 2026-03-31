@@ -563,6 +563,20 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::ListBombom, TypeIR::Verso],
         },
     );
+    funcs.insert(
+        "ler_json_plano_bombom".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::MapVersoBombom,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "emitir_json_plano_bombom".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::MapVersoBombom],
+        },
+    );
 
     for konst in &program.consts {
         let ty = infer_value_type(&konst.value, &HashMap::new(), &consts, &funcs, konst.span)

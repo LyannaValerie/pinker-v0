@@ -41,7 +41,7 @@
 - A FE-1 aqueceu canonicamente a periferia argv/env para `tem_chave`, `pedir_argumento` e `buscar_contexto` sem reabrir o Bloco 11 nem alterar seu encerramento.
 - O Bloco 12 foi encerrado por suficiência conservadora (Doc-28) após as Fases 144–146.
 - O Bloco 13 foi encerrado por suficiência conservadora na Fase 156 após abrir `lista<bombom>`, `mapa<verso,bombom>`, iteração confortável mínima e aleatoriedade básica com semente explícita.
-- As Fases 157 e 158 abriram o Bloco 14 com `formatar_verso(modelo, a[, b])` e com CSV mínimo de linha única para `lista<bombom>`.
+- As Fases 157, 158 e 159 abriram o Bloco 14 com `formatar_verso(modelo, a[, b])`, com CSV mínimo de linha única para `lista<bombom>` e com JSON plano mínimo para `mapa<verso,bombom>`.
 
 Itens explicitamente para depois do foco inicial do Bloco 11:
 - REPL;
@@ -49,7 +49,7 @@ Itens explicitamente para depois do foco inicial do Bloco 11:
 - execução de processos externos + captura de saída de comandos;
 - integração rica com stdin/stdout/stderr;
 - coleções básicas além do recorte já aberto (`lista<bombom>` + `mapa<verso,bombom>` mínimos, iteração confortável mínima em `lista<bombom>` e `mapa<verso,bombom>`, além de aleatoriedade básica com semente explícita na Fase 156; seguem fora `lista<T>`/`mapa<K,V>` amplos, dicionário rico e iteração confortável ampla/generics);
-- JSON, datas/tempo e formatação além do recorte mínimo já entregue nas Fases 157 e 158.
+- JSON amplo, datas/tempo e formatação além do recorte mínimo já entregue nas Fases 157, 158 e 159.
 
 ### 2.4 Editor/TUI oficial da Pinker (frente funcional aberta em camada 1, atualmente pausada)
 

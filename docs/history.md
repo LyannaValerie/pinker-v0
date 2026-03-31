@@ -948,6 +948,16 @@ FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtim
 - Exemplos versionados adicionados: `examples/fase158_csv_minimo_valido.pink` e `examples/fase158_csv_minimo_fluxo_composto_valido.pink`.
 - Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
 
+159 - formatação e dados estruturados: JSON básico plano e auditável (camada 1 conservadora)
+- Terceira fase funcional do Bloco 14.
+- Abre o primeiro recorte de objeto JSON do projeto.
+- Superfície mínima escolhida: `ler_json_plano_bombom(json) -> mapa<verso,bombom>` e `emitir_json_plano_bombom(mapa) -> verso`.
+- O runtime aceita apenas objeto JSON plano para `mapa<verso,bombom>`, com chaves textuais sem escape rico, valores `bombom` sem sinal e emissão determinística por ordenação de chave.
+- Mantém o recorte conservador: sem arrays, sem nesting, sem pretty print, sem escapes ricos, sem `true`/`false`/`null`, sem serialização ampla e sem JSON geral.
+- Cobertura adicionada com testes semânticos/runtime/CLI para leitura mínima, emissão mínima, round-trip associativo, fluxo composto simples e negativos essenciais fora do recorte.
+- Exemplos versionados adicionados: `examples/fase159_json_basico_valido.pink` e `examples/fase159_json_basico_fluxo_composto_valido.pink`.
+- Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção
