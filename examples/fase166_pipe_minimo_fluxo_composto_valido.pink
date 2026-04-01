@@ -1,0 +1,27 @@
+pacote main;
+
+carinho executar_etapa(produtor: verso, consumidor: verso) -> bombom {
+    nova codigo: bombom = pipeline_minimo(produtor, consumidor);
+    falar(formatar_verso("etapa={}", codigo));
+    mimo codigo;
+}
+
+carinho resumir(codigo: bombom) -> verso {
+    talvez codigo == 0 {
+        mimo "pipeline=ok";
+    }
+    mimo "pipeline=falha";
+}
+
+carinho principal() -> bombom {
+    nova produtor: verso = argumento(0);
+    nova consumidor: verso = argumento(1);
+    nova codigo: bombom = executar_etapa(produtor, consumidor);
+    nova resumo: verso = formatar_verso("pipeline_status={}", codigo);
+    falar(resumo);
+    falar(resumir(codigo));
+    talvez codigo == 0 {
+        mimo 0;
+    }
+    mimo 1;
+}

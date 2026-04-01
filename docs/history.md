@@ -1017,6 +1017,16 @@ FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtim
 - Exemplos versionados adicionados: `examples/fase165_stdin_textual_minimo_valido.pink` e `examples/fase165_stdin_textual_fluxo_composto_valido.pink`.
 - Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
 
+166 - processos e integração sistêmica: pipe mínimo entre dois processos (camada 1 conservadora)
+- Sexta fase funcional do Bloco 15.
+- Abre o primeiro recorte de composição direta entre dois processos externos do projeto.
+- Superfície mínima escolhida: `pipeline_minimo(produtor, consumidor) -> bombom`.
+- O runtime executa apenas dois comandos/caminhos explícitos, sem shell implícito, conectando apenas o stdout do produtor ao stdin do consumidor e retornando apenas o código de saída do consumidor em `bombom`.
+- Mantém o recorte conservador: sem shell amplo, sem cadeia longa, sem sessão interativa, sem ambiente/cwd customizados, sem timeout, sem controle avançado de processo, sem captura automática de saída e sem API ampla de subprocesso.
+- Cobertura adicionada com testes semânticos/runtime/CLI para pipe mínimo válido, fluxo composto simples e negativos essenciais como aridade/tipos errados, spawn inválido do produtor/consumidor, comando vazio e ausência de shell implícito.
+- Exemplos versionados adicionados: `examples/fase166_pipe_minimo_valido.pink` e `examples/fase166_pipe_minimo_fluxo_composto_valido.pink`.
+- Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

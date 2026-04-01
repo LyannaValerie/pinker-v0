@@ -613,6 +613,14 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
+    // Fase 166
+    function_sigs.insert(
+        "pipeline_minimo".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
     // Fase 163
     function_sigs.insert(
         "capturar_stdout".to_string(),

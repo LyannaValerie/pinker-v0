@@ -1012,6 +1012,14 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
+        // Fase 166
+        function_sigs.insert(
+            "pipeline_minimo".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
         // Fase 163
         function_sigs.insert(
             "capturar_stdout".to_string(),

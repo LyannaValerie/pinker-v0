@@ -10,4 +10,4 @@
 > Para crônica histórica e fases/hotfixes/rodadas, use `docs/history.md`.
 > Para navegação mestre, use `docs/atlas.md`.
 >
-> Último alinhamento de compatibilidade: Fase 165 — entrada mínima por stdin textual para processo externo, preservando o Bloco 15 ativo com 15.1, 15.2, 15.3 e 15.4 concluídos no recorte mínimo. Próximo subdegrau esperado: 15.5 — pipe mínimo entre dois processos.
+> Último alinhamento de compatibilidade: Fase 166 — pipe mínimo entre dois processos, preservando o Bloco 15 com 15.1, 15.2, 15.3, 15.4 e 15.5 concluídos no recorte mínimo. Próximo passo deve ser tratado fora desta compatibilidade legada, sem inflar subprocessos por inércia.

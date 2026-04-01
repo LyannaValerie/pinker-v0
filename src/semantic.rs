@@ -3660,6 +3660,46 @@ impl SemanticChecker {
             return Ok(Type::Bombom(expr_span));
         }
 
+        // Fase 166 — pipeline_minimo(produtor, consumidor) -> bombom
+        if name == "pipeline_minimo" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'pipeline_minimo' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let producer_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(producer_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'pipeline_minimo': esperado 'verso', encontrado '{}'",
+                        producer_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let consumer_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(consumer_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'pipeline_minimo': esperado 'verso', encontrado '{}'",
+                        consumer_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
+
         // Fase 163 — capturar_stdout(comando) -> verso
         if name == "capturar_stdout" {
             if args.len() != 1 {
