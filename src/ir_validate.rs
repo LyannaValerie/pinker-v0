@@ -1240,11 +1240,15 @@ fn infer_value_type(
             if callee == "capturar_stdout" && !(args.len() == 1 || args.len() == 2) {
                 return Err(ir_validation_error("aridade de chamada inválida", span));
             }
+            if callee == "capturar_stderr" && !(args.len() == 1 || args.len() == 2) {
+                return Err(ir_validation_error("aridade de chamada inválida", span));
+            }
             let sig = funcs
                 .get(callee)
                 .ok_or_else(|| ir_validation_error("chamada para função inexistente", span))?;
             if callee != "executar_processo"
                 && callee != "capturar_stdout"
+                && callee != "capturar_stderr"
                 && args.len() != sig.params.len()
             {
                 return Err(ir_validation_error("aridade de chamada inválida", span));

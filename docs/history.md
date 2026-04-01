@@ -1321,6 +1321,14 @@ Doc-31 - fechamento canônico do Bloco 15 por suficiência conservadora
 - Cobertura adicionada em semântica, runtime e CLI com exemplo mínimo, fluxo composto, erro claro fora do recorte, preservação de `capturar_stdout(comando)` e ausência de shell implícito.
 - Documentos atualizados: `README.md`, `MANUAL.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/examples_index.md`, `docs/code_map.md`.
 
+170 - linguagem-cola: argv explícito mínimo para captura de stderr (camada 3 conservadora)
+- Continuação direta e pequena de 16.2 no runtime `--run`, reduzindo mais um passo da assimetria aberta pelas Fases 168 e 169 sem redesenhar a família inteira de subprocessos.
+- `capturar_stderr` passou a aceitar exatamente um `argv1` textual explícito além do comando, preservando UTF-8 estrito, sem shell implícito e sem parser amplo de linha de comando.
+- A família de subprocessos continua deliberadamente assimétrica: `executar_com_entrada` e `pipeline_minimo` permanecem no recorte anterior.
+- Ficam explicitamente fora do recorte: múltiplos argumentos gerais, listas/coleções de argv, quoting/escaping rico, shell mode, PTY, sessão interativa e expansão automática da mesma capacidade para outras intrínsecas de subprocesso.
+- Cobertura adicionada em semântica, runtime e CLI com exemplo mínimo, fluxo composto, erro claro fora do recorte, preservação de `capturar_stderr(comando)` e ausência de shell implícito.
+- Documentos atualizados: `README.md`, `MANUAL.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/examples_index.md`, `docs/code_map.md`.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)

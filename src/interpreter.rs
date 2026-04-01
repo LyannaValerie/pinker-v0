@@ -1986,9 +1986,9 @@ fn try_call_intrinsic(
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(stdout))))
         }
         "capturar_stderr" => {
-            if args.len() != 1 {
+            if !(1..=2).contains(&args.len()) {
                 return Err(runtime_err(
-                    "intrínseca 'capturar_stderr' exige 1 argumento (comando verso)",
+                    "intrínseca 'capturar_stderr' exige 1 ou 2 argumentos (comando verso[, argv1 verso])",
                 ));
             }
             let RuntimeValue::Str(command_name) = &args[0] else {
@@ -1996,7 +1996,16 @@ fn try_call_intrinsic(
                     "intrínseca 'capturar_stderr' exige comando em verso",
                 ));
             };
-            let stderr = capturar_stderr_minimo(command_name)?;
+            let explicit_argv = match args.get(1) {
+                Some(RuntimeValue::Str(arg)) => Some(arg.as_str()),
+                Some(_) => {
+                    return Err(runtime_err(
+                        "intrínseca 'capturar_stderr' exige argv1 em verso",
+                    ));
+                }
+                None => None,
+            };
+            let stderr = capturar_stderr_minimo(command_name, explicit_argv)?;
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(stderr))))
         }
         "argumento" => {
@@ -2815,10 +2824,18 @@ fn capturar_stdout_minimo(
     })
 }
 
-fn capturar_stderr_minimo(command_name: &str) -> Result<String, PinkerError> {
+fn capturar_stderr_minimo(
+    command_name: &str,
+    explicit_argv: Option<&str>,
+) -> Result<String, PinkerError> {
     validar_comando_nao_vazio("capturar_stderr", command_name)?;
 
-    let output = Command::new(command_name).output().map_err(|err| {
+    let mut command = Command::new(command_name);
+    if let Some(arg) = explicit_argv {
+        command.arg(arg);
+    }
+
+    let output = command.output().map_err(|err| {
         runtime_err(&format!(
             "falha ao executar processo em 'capturar_stderr': {}",
             err
