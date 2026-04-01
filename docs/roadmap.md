@@ -587,7 +587,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 16 — ferramenta cotidiana madura e linguagem-cola
 
-**Status**: bloco formal ativo; a Fase 167 concluiu 16.1 no recorte mínimo conservador e 16.2 permanece como próximo degrau do bloco.
+**Status**: bloco formal ativo; a Fase 167 concluiu 16.1 no recorte mínimo conservador e as Fases 168 e 169 abriram 16.2 por camadas conservadoras pequenas.
 
 **Tese do bloco**: com módulos tipados, coleções, formatação, dados estruturados e execução de processos, a Pinker tem todos os ingredientes para ser ferramenta cotidiana madura; este bloco sela essa identidade com REPL e linguagem-cola — os dois itens que transformam a linguagem em ambiente interativo e substituto real para shell scripts complexos.
 
@@ -596,5 +596,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 **Itens do bloco (ordem interna por dependência)**:
 1. **16.1 — REPL mínimo (Fase 167, concluída no recorte mínimo)**: loop de leitura-avaliação-impressão conservador sobre o pipeline real da Pinker; na camada 1, cada linha vira um corpo temporário de `principal`, sem estado persistente entre linhas, sem multiline amplo e com saída por `:quit`/`:sair`; base mínima e honesta para prototipagem e demonstração da maturidade cotidiana da linguagem.
 2. **16.2 — linguagem-cola**: capacidade de usar Pinker como substituto de shell scripts complexos — chamar binários, capturar saídas, compor pipelines e reagir a resultados com toda a tipagem e estrutura da linguagem; precisa de REPL (16.1) + Bloco 15 completo; fecha a visão de ferramenta cotidiana madura com disciplina estrutural.
+   - **Fase 168 concluída (camada 1 conservadora)**: `executar_processo` passa a aceitar exatamente um `argv1` textual explícito além do comando, sem shell implícito, sem parser amplo de linha, sem quoting/escaping rico, sem listas gerais de argumentos e sem inflar `capturar_*`, `executar_com_entrada` ou `pipeline_minimo` por inércia.
+   - **Fase 169 concluída (camada 2 conservadora)**: `capturar_stdout` passa a aceitar exatamente um `argv1` textual explícito além do comando, espelhando a filosofia da Fase 168 sem abrir shell implícito, parser amplo de linha, quoting/escaping rico, listas gerais de argumentos ou expansão automática para `capturar_stderr`, `executar_com_entrada` ou `pipeline_minimo`.
 
 **Escopo deliberadamente fora do Bloco 16**: IDE integrada, debugger interativo, package manager soberano, autohospedagem, macros de compilação, REPL adulto com multiline amplo/histórico sofisticado/autocomplete e shell rica.

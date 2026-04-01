@@ -1376,11 +1376,22 @@ fn executar_processo_intrinseca_valida_sem_declaracao() {
 }
 
 #[test]
+fn executar_processo_intrinseca_valida_com_argv_explicito_minimo() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = executar_processo("pinker_fase168_argv_um", "--modo=ok");
+            mimo codigo;
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
 fn executar_processo_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_processo("pinker_fase162_exit0", "pinker_fase162_exit1");
+            nova codigo: bombom = executar_processo("a", "b", "c");
             mimo codigo;
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -1397,6 +1408,18 @@ fn executar_processo_intrinseca_rejeita_argumento_nao_verso() {
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'executar_processo'"));
+}
+
+#[test]
+fn executar_processo_intrinseca_rejeita_segundo_argumento_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = executar_processo("pinker_fase168_argv_um", 7);
+            mimo codigo;
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'executar_processo'"));
 }
 
 #[test]
@@ -1505,11 +1528,22 @@ fn capturar_stdout_intrinseca_valida_sem_declaracao() {
 }
 
 #[test]
+fn capturar_stdout_intrinseca_valida_com_argv_explicito_minimo() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stdout("pinker_fase163_stdout_ok", "--alvo=rosa");
+            mimo tamanho_verso(texto);
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
 fn capturar_stdout_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
-            nova texto: verso = capturar_stdout("a", "b");
+            nova texto: verso = capturar_stdout("a", "b", "c");
             mimo tamanho_verso(texto);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -1526,6 +1560,18 @@ fn capturar_stdout_intrinseca_rejeita_argumento_nao_verso() {
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'capturar_stdout'"));
+}
+
+#[test]
+fn capturar_stdout_intrinseca_rejeita_segundo_argumento_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stdout("pinker_fase163_stdout_ok", 7);
+            mimo tamanho_verso(texto);
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'capturar_stdout'"));
 }
 
 #[test]

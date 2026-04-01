@@ -597,7 +597,7 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         "executar_processo".to_string(),
         FunctionSig {
             ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Verso],
+            params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
     // Fase 165
@@ -1234,10 +1234,19 @@ fn infer_value_type(
                 }
                 return Ok(TypeIR::Verso);
             }
+            if callee == "executar_processo" && !(args.len() == 1 || args.len() == 2) {
+                return Err(ir_validation_error("aridade de chamada inválida", span));
+            }
+            if callee == "capturar_stdout" && !(args.len() == 1 || args.len() == 2) {
+                return Err(ir_validation_error("aridade de chamada inválida", span));
+            }
             let sig = funcs
                 .get(callee)
                 .ok_or_else(|| ir_validation_error("chamada para função inexistente", span))?;
-            if args.len() != sig.params.len() {
+            if callee != "executar_processo"
+                && callee != "capturar_stdout"
+                && args.len() != sig.params.len()
+            {
                 return Err(ir_validation_error("aridade de chamada inválida", span));
             }
             for (arg, expected) in args.iter().zip(sig.params.iter()) {

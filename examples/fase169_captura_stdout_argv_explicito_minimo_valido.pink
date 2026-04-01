@@ -1,0 +1,13 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova comando: verso = argumento(0);
+    nova texto: verso = capturar_stdout(comando, "--alvo=rosa");
+    nova tem_status: logica = contem_verso(texto, "status=ok");
+    nova tem_alvo: logica = contem_verso(texto, "alvo=rosa");
+    falar(texto);
+    talvez tem_status && tem_alvo && tamanho_verso(texto) == 20 {
+        mimo 0;
+    }
+    mimo 1;
+}
