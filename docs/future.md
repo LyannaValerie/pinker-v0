@@ -47,9 +47,15 @@ Itens explicitamente para depois do foco inicial do Bloco 11:
 - REPL;
 - linguagem-cola;
 - captura de saída de comandos e integração de processos além do recorte mínimo aberto nas Fases 161–163;
-- integração rica com stdin/stdout/stderr;
+- integração rica com stdin/stdout/stderr além da escada pequena atualmente ativa no Bloco 15;
 - coleções básicas além do recorte já aberto (`lista<bombom>` + `mapa<verso,bombom>` mínimos, iteração confortável mínima em `lista<bombom>` e `mapa<verso,bombom>`, além de aleatoriedade básica com semente explícita na Fase 156; seguem fora `lista<T>`/`mapa<K,V>` amplos, dicionário rico e iteração confortável ampla/generics);
 - JSON amplo, datas/tempo com timezone/locale e formatação rica além do recorte mínimo já entregue e encerrado no Bloco 14 (Fases 157–160).
+
+Alinhamento factual do Bloco 15:
+- o bloco segue ativo na trilha oficial;
+- 15.1 e 15.2 já foram entregues no recorte mínimo (`executar_processo` e `capturar_stdout`);
+- a Doc-30 refinou a continuação imediata do bloco em subdegraus menores (`stderr`, `stdin` e `pipe` mínimos), sem declarar integração completa de processos como já entregue;
+- expansões além desses subdegraus pequenos continuam pertencendo ao inventário futuro, não a uma continuação automática ilimitada do bloco.
 
 ### 2.4 Editor/TUI oficial da Pinker (frente funcional aberta em camada 1, atualmente pausada)
 

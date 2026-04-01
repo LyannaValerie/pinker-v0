@@ -1245,6 +1245,16 @@ Doc-29 - fechamento canônico do Bloco 14 e preparação formal da transição p
 - Fase 160 permanece como último marco funcional do Bloco 14; nenhuma fase funcional nova foi aberta nesta rodada.
 - Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/future.md`, `docs/phases.md`.
 
+Doc-30 - refino da escada interna do Bloco 15 para subdegraus pequenos e auditáveis
+- Rodada exclusivamente documental, sem implementação funcional nova.
+- Bloco 15 permanece formalmente ativo; a Fase 163 segue como marco funcional atual do bloco.
+- As entregas já realizadas foram preservadas sem exagero: 15.1 continua concluído no recorte mínimo conservador por `executar_processo(comando) -> bombom` (Fases 161 e 162) e 15.2 continua concluído no recorte mínimo conservador por `capturar_stdout(comando) -> verso` (Fase 163).
+- O antigo 15.3 foi explicitamente refinado porque concentrava stderr, stdin e pipe mínimo em um único degrau grande demais para o padrão histórico recente de fases pequenas e auditáveis.
+- A continuação do bloco foi reescrita em subdegraus menores e dependentes entre si: 15.3 = captura mínima de stderr como `verso`; 15.4 = entrada mínima por stdin textual para processo externo; 15.5 = pipe mínimo entre dois processos.
+- Honestidade factual reafirmada: 15.1 e 15.2 não equivalem a integração completa de processos; stderr separado, stdin para subprocesso e pipes continuam fora do que já foi funcionalmente entregue.
+- FE-1 permanece extraordinária e separada; a rodada não reabre blocos anteriores, não fecha o Bloco 15 e não abre fase funcional nova.
+- Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/future.md`, `docs/phases.md`.
+
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
