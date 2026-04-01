@@ -1,0 +1,19 @@
+pacote main;
+
+carinho verificar(nome: verso, comando: verso, arg: verso) -> bombom {
+    nova codigo: bombom = executar_processo(comando, arg);
+    falar(formatar_verso("{}={}", nome, codigo));
+    mimo codigo;
+}
+
+carinho principal() -> bombom {
+    nova comando: verso = argumento(0);
+    nova codigo_ok: bombom = verificar("ok", comando, "--modo=ok");
+    nova codigo_falha: bombom = verificar("falha", comando, "--modo=falha");
+    nova resumo: verso = formatar_verso("ok_zero={};falha_zero={}", codigo_ok, codigo_falha);
+    falar(resumo);
+    talvez codigo_ok == 0 && codigo_falha == 1 {
+        mimo 0;
+    }
+    mimo 1;
+}

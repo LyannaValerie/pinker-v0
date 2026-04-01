@@ -602,7 +602,7 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         "executar_processo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Verso],
+            params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
     // Fase 165
@@ -1187,6 +1187,16 @@ fn validate_block(
                     continue;
                 }
                 if sig.params.len() != args.len() {
+                    if callee == "executar_processo" && (args.len() == 1 || args.len() == 2) {
+                        // aceita a camada 1 conservadora de argv explícito sem abrir argv geral
+                    } else {
+                        return Err(cfg_error(
+                            "aridade inválida em call da CFG IR",
+                            function.span,
+                        ));
+                    }
+                }
+                if callee == "executar_processo" && !(args.len() == 1 || args.len() == 2) {
                     return Err(cfg_error(
                         "aridade inválida em call da CFG IR",
                         function.span,

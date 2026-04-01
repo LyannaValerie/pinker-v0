@@ -143,6 +143,7 @@ Operações mínimas disponíveis hoje:
 - `tempo_unix()` → retorna o timestamp Unix atual em `bombom`.
 - `formatar_tempo_unix(ts)` → formata um timestamp Unix em UTC fixa como `YYYY-MM-DDTHH:MM:SSZ`.
 - `executar_processo(comando)` → executa um processo externo mínimo sem shell implícito e retorna o código de saída em `bombom` (na Fase 162, exemplos/testes passaram a usar binários auxiliares do próprio repositório).
+- `executar_processo(comando, argv1)` → o mesmo recorte mínimo acima, mas com exatamente um argumento textual explícito adicional, sem shell implícito, sem quoting/escaping rico e sem coleção geral de argv (Fase 168).
 - `executar_com_entrada(comando, entrada)` → executa um processo externo mínimo sem shell implícito, envia um único `verso` ao stdin do processo e retorna o código de saída em `bombom`.
 - `pipeline_minimo(produtor, consumidor)` → conecta o stdout textual do primeiro processo ao stdin do segundo, sem shell implícito, sem cadeia longa e retornando apenas o código de saída do consumidor em `bombom`.
 - `capturar_stdout(comando)` → executa um processo externo mínimo sem shell implícito e retorna o stdout textual como `verso`, com UTF-8 estrito.
@@ -184,6 +185,11 @@ falar(codigo);
 ```
 
 ```pink
+nova codigo: bombom = executar_processo(argumento(0), "--modo=ok");
+falar(codigo);
+```
+
+```pink
 nova codigo: bombom = executar_com_entrada(argumento(0), "rosa\n");
 falar(codigo);
 ```
@@ -207,7 +213,7 @@ Nos exemplos versionados das Fases 162 e 163, o caminho do executável é passad
 
 Nos exemplos versionados das Fases 162, 163, 164, 165 e 166, o caminho do executável é passado por argv para permitir validação com binários auxiliares do próprio repositório, sem depender de utilitários frágeis do host.
 
-Limites atuais de texto/dados estruturados/processos: sem slicing de `verso`, sem indexação negativa, sem placeholders nomeados, sem escape rico de chaves, sem quoting complexo de CSV, sem campos multiline, sem CSV geral de múltiplas linhas, sem arrays JSON, sem objetos JSON aninhados, sem escapes ricos em JSON, sem `true`/`false`/`null`, sem timezone configurável, sem locale, sem parser amplo de datas, sem shell implícito, sem argumentos ricos de subprocesso, sem stdout/stderr combinados, sem redirecionamento rico, sem cadeia longa de pipes e sem stdin interativo/sessão ampla de subprocesso.
+Limites atuais de texto/dados estruturados/processos: sem slicing de `verso`, sem indexação negativa, sem placeholders nomeados, sem escape rico de chaves, sem quoting complexo de CSV, sem campos multiline, sem CSV geral de múltiplas linhas, sem arrays JSON, sem objetos JSON aninhados, sem escapes ricos em JSON, sem `true`/`false`/`null`, sem timezone configurável, sem locale, sem parser amplo de datas, sem shell implícito, sem argv amplo de subprocesso (a Fase 168 aceita apenas um `argv1` textual explícito em `executar_processo`), sem stdout/stderr combinados, sem redirecionamento rico, sem cadeia longa de pipes e sem stdin interativo/sessão ampla de subprocesso.
 
 ## 9) REPL mínimo
 

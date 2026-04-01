@@ -1305,6 +1305,14 @@ Doc-31 - fechamento canônico do Bloco 15 por suficiência conservadora
 - Continuidade preservada: modos CLI já existentes seguem sem regressão e o próximo degrau do bloco permanece sendo 16.2 (linguagem-cola).
 - Documentos atualizados: `README.md`, `MANUAL.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/phases.md`, `docs/future.md`, `docs/examples_index.md`, `docs/code_map.md`.
 
+168 - ferramenta cotidiana madura e linguagem-cola: argv explícito mínimo para processo externo (camada 1 conservadora)
+- Primeira camada funcional real de 16.2 no runtime `--run`.
+- `executar_processo` passou a aceitar exatamente um `argv1` textual explícito além do comando, sem shell implícito e sem parser amplo de linha de comando.
+- O ganho real desta fase é permitir scripts Pinker chamarem binário externo com um argumento textual concreto e reagirem ao código de saída usando a estrutura tipada já existente.
+- Ficam explicitamente fora do recorte: múltiplos argumentos gerais, listas/coleções de argv, quoting/escaping rico, shell mode, PTY, sessão interativa e expansão automática da mesma capacidade para `capturar_*`, `executar_com_entrada` ou `pipeline_minimo`.
+- Cobertura adicionada em semântica, runtime e CLI com exemplo mínimo, fluxo composto e erro claro fora do recorte, preservando a ausência de shell implícito e os casos já existentes de subprocesso.
+- Documentos atualizados: `README.md`, `MANUAL.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/examples_index.md`, `docs/code_map.md`.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)

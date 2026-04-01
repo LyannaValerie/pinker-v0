@@ -3593,12 +3593,12 @@ impl SemanticChecker {
             return Ok(Type::Verso(expr_span));
         }
 
-        // Fase 161 — executar_processo(comando) -> bombom
+        // Fase 168 — executar_processo(comando[, argv1]) -> bombom
         if name == "executar_processo" {
-            if args.len() != 1 {
+            if !(1..=2).contains(&args.len()) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "chamada de 'executar_processo' com aridade inválida: esperado 1, recebido {}",
+                        "chamada de 'executar_processo' com aridade inválida: esperado 1 ou 2, recebido {}",
                         args.len()
                     ),
                     span: expr_span,
@@ -3616,6 +3616,21 @@ impl SemanticChecker {
                     ),
                     span: args[0].span,
                 });
+            }
+            if args.len() == 2 {
+                let argv1_ty = self.check_value_expr(
+                    &args[1],
+                    "resultado de função sem retorno não pode ser usado como argumento",
+                )?;
+                if !matches!(argv1_ty, Type::Verso(_)) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "tipo inválido no argumento 2 da chamada 'executar_processo': esperado 'verso', encontrado '{}'",
+                            argv1_ty.name()
+                        ),
+                        span: args[1].span,
+                    });
+                }
             }
             return Ok(Type::Bombom(expr_span));
         }
