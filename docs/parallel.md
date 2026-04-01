@@ -32,6 +32,7 @@ Ele preserva e expande narrativas de longo alcance sobre:
 - semântica de pergunta e linguagem como parceria com quem programa;
 - ecossistema próprio (terminal, tooling, package manager, self-hosting).
 - editor/TUI oficial da Pinker como superfície própria de uso no horizonte de ecossistema.
+- **superfície Pinker** como ponte identitária: a linguagem começa a alinhar motor técnico e aparência estética, começando pela forma documental e de estilo (Bloco 17).
 
 ## 4. Relação com documentos canônicos
 
