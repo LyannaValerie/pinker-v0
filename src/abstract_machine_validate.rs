@@ -476,6 +476,10 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         "formatar_tempo_unix".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );
+    sigs.insert(
+        "executar_processo".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Verso]),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;

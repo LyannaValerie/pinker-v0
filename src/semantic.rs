@@ -3593,6 +3593,33 @@ impl SemanticChecker {
             return Ok(Type::Verso(expr_span));
         }
 
+        // Fase 161 — executar_processo(comando) -> bombom
+        if name == "executar_processo" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'executar_processo' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let command_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(command_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'executar_processo': esperado 'verso', encontrado '{}'",
+                        command_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
+
         let Some(function) = self.funcs.get(name).cloned() else {
             return Err(PinkerError::Semantic {
                 msg: format!("função '{}' não declarada", name),

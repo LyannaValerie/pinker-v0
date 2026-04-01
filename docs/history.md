@@ -968,6 +968,17 @@ FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtim
 - Exemplos versionados adicionados: `examples/fase160_tempo_basico_timestamp_valido.pink` e `examples/fase160_tempo_basico_fluxo_composto_valido.pink`.
 - Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
 
+161 - processos e integração sistêmica: execução mínima de processo externo com código de saída (camada 1 conservadora)
+- Primeira fase funcional do Bloco 15.
+- Abre o primeiro recorte de integração com processos externos do projeto.
+- Superfície mínima escolhida: `executar_processo(comando) -> bombom`.
+- O runtime executa apenas um comando/caminho único, sem shell implícito, sem argv rico e com espera síncrona simples; o resultado observável é apenas o código de saída em `bombom`.
+- Falha de spawn e casos fora do recorte falham com erro claro, incluindo comando vazio e término sem código de saída suportado.
+- Mantém o recorte conservador: sem shell amplo, sem captura de stdout/stderr, sem redirecionamento, sem pipes, sem ambiente/cwd customizados, sem timeout e sem controle avançado de processo.
+- Cobertura adicionada com testes semânticos/runtime/CLI para execução mínima válida, retorno correto do código de saída, fluxo composto simples e negativos essenciais.
+- Exemplos versionados adicionados: `examples/fase161_processo_externo_minimo_valido.pink` e `examples/fase161_processo_externo_fluxo_composto_valido.pink`.
+- Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

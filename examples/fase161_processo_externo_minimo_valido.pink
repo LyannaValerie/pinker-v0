@@ -1,0 +1,10 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova codigo: bombom = executar_processo("/bin/true");
+    falar(codigo);
+    talvez codigo == 0 {
+        mimo 0;
+    }
+    mimo 1;
+}

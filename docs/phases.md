@@ -10,4 +10,4 @@
 > Para crônica histórica e fases/hotfixes/rodadas, use `docs/history.md`.
 > Para navegação mestre, use `docs/atlas.md`.
 >
-> Último alinhamento de compatibilidade: Doc-29 — fechamento canônico do Bloco 14 por suficiência conservadora (Fases 157–160 concluídas). Próximo bloco formal: Bloco 15.
+> Último alinhamento de compatibilidade: Fase 161 — abertura funcional do Bloco 15 com execução mínima de processo externo por código de saída. Próximo degrau esperado: 15.2.

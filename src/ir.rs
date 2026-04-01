@@ -996,6 +996,14 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
+        // Fase 161
+        function_sigs.insert(
+            "executar_processo".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
 
         Ok(Self {
             module_name,

@@ -5,18 +5,17 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Doc-29 — fechamento canônico do Bloco 14 e preparação formal da transição para o próximo bloco**.
-- Fase funcional ativa corrente: **160** (último marco funcional do Bloco 14).
+- **Fase 161 — processos e integração sistêmica: execução mínima de processo externo com código de saída (camada 1 conservadora)**.
+- Fase funcional ativa corrente: **161** (primeiro marco funcional do Bloco 15).
 - Rodada extraordinária corrente: **FE-1 — refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)**.
 
 ## 2. Resultado operacional da rodada
-- O Bloco 14 (formatação e dados estruturados) foi encerrado por suficiência conservadora após os quatro degraus planejados: formatação simples de saída (Fase 157), CSV mínimo (Fase 158), JSON básico plano (Fase 159) e tempo básico com timestamp Unix (Fase 160).
-- O recorte entregue é pequeno e auditável: `formatar_verso`, CSV mínimo de linha única, JSON plano para `mapa<verso,bombom>` e `tempo_unix`/`formatar_tempo_unix` com UTC fixa.
-- O fechamento não implica formatação rica, CSV completo, JSON geral, timezones, locale ou biblioteca adulta de datas; o bloco permanece no recorte mínimo como entregue.
-- O Bloco 15 (processos e integração sistêmica) passa a ser o próximo bloco formal da trilha ativa.
+- A Fase 161 abriu o Bloco 15 com o menor recorte útil de integração sistêmica: `executar_processo(comando) -> bombom`.
+- O recorte entregue é pequeno e auditável: um único comando/caminho em `verso`, execução síncrona mínima, sem shell implícito e retorno apenas do código de saída.
+- O resultado cobre automação básica por status sem inflar a superfície para shell adulto, captura de saída, redirecionamento, pipes, ambiente/cwd customizados ou controle avançado de processo.
 
 ## 3. Próximo passo correto
-- Abrir a primeira fase do Bloco 15 (15.1 — execução de processos externos mínima), sem reabrir o Bloco 14 por inércia.
+- Abrir 15.2 — captura mínima de stdout, sem reabrir o Bloco 14 nem inflar 15.1 retroativamente.
 
 ## 4. Restrições explícitas
 - Sem reabrir Bloco 14 por inércia; CSV/JSON/tempo/formatação amplos pertencem ao futuro quando justificados, não à continuação automática.
