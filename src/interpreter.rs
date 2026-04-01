@@ -17,6 +17,7 @@ use std::env;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io;
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const MAX_CALL_DEPTH: usize = 64;
@@ -1900,6 +1901,20 @@ fn try_call_intrinsic(
             let texto = formatar_tempo_unix_iso_utc(timestamp)?;
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(texto))))
         }
+        "executar_processo" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'executar_processo' exige 1 argumento (comando verso)",
+                ));
+            }
+            let RuntimeValue::Str(command_name) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'executar_processo' exige comando em verso",
+                ));
+            };
+            let exit_code = executar_processo_minimo(command_name)?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(exit_code))))
+        }
         "argumento" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -2591,6 +2606,28 @@ fn formatar_tempo_unix_iso_utc(timestamp: u64) -> Result<String, PinkerError> {
     Ok(format!(
         "{ano:04}-{mes:02}-{dia:02}T{hora:02}:{minuto:02}:{segundo:02}Z"
     ))
+}
+
+fn executar_processo_minimo(command_name: &str) -> Result<u64, PinkerError> {
+    if command_name.trim().is_empty() {
+        return Err(runtime_err(
+            "intrínseca 'executar_processo' exige comando não vazio",
+        ));
+    }
+
+    let status = Command::new(command_name).status().map_err(|err| {
+        runtime_err(&format!(
+            "falha ao executar processo em 'executar_processo': {}",
+            err
+        ))
+    })?;
+
+    let exit_code = status.code().ok_or_else(|| {
+        runtime_err("processo finalizado sem código de saída suportado em 'executar_processo'")
+    })?;
+
+    u64::try_from(exit_code)
+        .map_err(|_| runtime_err("código de saída inválido em 'executar_processo': valor negativo"))
 }
 
 fn civil_from_days(days_since_unix_epoch: i64) -> Result<(i64, u64, u64), PinkerError> {

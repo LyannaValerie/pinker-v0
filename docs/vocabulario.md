@@ -32,7 +32,7 @@ Evitar keywords que:
 - **Fluxo e controle:** `talvez`, `senao`, `sempre que`, `quebrar`, `continuar`.
 - **Estado e tipo:** `nova`, `muda`, `apelido`, `ninho`, `seta`, `fragil`, `virar`.
 - **Texto e expressão:** `verso`, `falar`, `juntar_verso`, `tamanho_verso`, `formatar_verso`, `ler_linha_csv_bombom`, `emitir_linha_csv_bombom`, `ler_json_plano_bombom`, `emitir_json_plano_bombom`, `tempo_unix`, `formatar_tempo_unix`.
-- **I/O e tooling mínimo:** `ouvir`, `abrir`, `fechar`, `escrever`, `argumento`, `sair`.
+- **I/O, tooling e integração sistêmica mínima:** `ouvir`, `abrir`, `fechar`, `escrever`, `argumento`, `executar_processo`, `sair`.
 
 ## 4. Keywords aceitas e implementadas
 
@@ -46,7 +46,7 @@ Evitar keywords que:
 
 ### Runtime textual/I/O (Bloco 8, encerrado como trilha ativa)
 
-`falar`, `ouvir`, `ouvir_verso`, `ouvir_verso_ou`, `abrir`, `fechar`, `escrever`, `ler_arquivo`, `juntar_verso`, `tamanho_verso`, `formatar_verso`, `ler_linha_csv_bombom`, `emitir_linha_csv_bombom`, `ler_json_plano_bombom`, `emitir_json_plano_bombom`, `tempo_unix`, `formatar_tempo_unix`, `indice_verso`, `argumento`, `argumento_ou`, `quantos_argumentos`, `tem_argumento`, `tem_chave`, `pedir_argumento`, `ambiente_ou`, `buscar_contexto`, `diretorio_atual`, `caminho_existe`, `e_arquivo`, `e_diretorio`, `juntar_caminho`, `tamanho_arquivo`, `e_vazio`, `criar_diretorio`, `remover_arquivo`, `remover_diretorio`, `ler_verso_arquivo`, `ler_arquivo_verso`, `arquivo_ou`, `criar_arquivo`, `escrever_verso`, `truncar_arquivo`, `abrir_anexo`, `anexar_verso`, `contem_verso`, `comeca_com`, `termina_com`, `igual_verso`, `vazio_verso`, `aparar_verso`, `minusculo_verso`, `maiusculo_verso`, `indice_verso_em`, `buscar_verso`, `nao_vazio_verso`, `aleatorio_criar`, `aleatorio_proximo`, `sair`.
+`falar`, `ouvir`, `ouvir_verso`, `ouvir_verso_ou`, `abrir`, `fechar`, `escrever`, `ler_arquivo`, `juntar_verso`, `tamanho_verso`, `formatar_verso`, `ler_linha_csv_bombom`, `emitir_linha_csv_bombom`, `ler_json_plano_bombom`, `emitir_json_plano_bombom`, `tempo_unix`, `formatar_tempo_unix`, `indice_verso`, `argumento`, `argumento_ou`, `quantos_argumentos`, `tem_argumento`, `tem_chave`, `pedir_argumento`, `ambiente_ou`, `buscar_contexto`, `diretorio_atual`, `caminho_existe`, `e_arquivo`, `e_diretorio`, `juntar_caminho`, `tamanho_arquivo`, `e_vazio`, `criar_diretorio`, `remover_arquivo`, `remover_diretorio`, `ler_verso_arquivo`, `ler_arquivo_verso`, `arquivo_ou`, `criar_arquivo`, `escrever_verso`, `truncar_arquivo`, `abrir_anexo`, `anexar_verso`, `contem_verso`, `comeca_com`, `termina_com`, `igual_verso`, `vazio_verso`, `aparar_verso`, `minusculo_verso`, `maiusculo_verso`, `indice_verso_em`, `buscar_verso`, `nao_vazio_verso`, `aleatorio_criar`, `aleatorio_proximo`, `executar_processo`, `sair`.
 
 ### Forma textual dual adicional
 

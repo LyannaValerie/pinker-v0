@@ -6432,6 +6432,119 @@ fn cli_run_fase160_tempo_basico_fluxo_composto_valido() {
 }
 
 #[test]
+fn run_fase161_executar_processo_minimo_retorna_codigo_zero() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = executar_processo("/bin/true");
+            talvez codigo == 0 {
+                mimo 161;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(161)));
+}
+
+#[test]
+fn run_fase161_executar_processo_fluxo_composto_funciona() {
+    let source = r#"pacote main;
+        carinho verificar(nome: verso, comando: verso) -> bombom {
+            nova codigo: bombom = executar_processo(comando);
+            falar(formatar_verso("{}={}", nome, codigo));
+            mimo codigo;
+        }
+
+        carinho principal() -> bombom {
+            nova codigo_ok: bombom = verificar("ok", "/bin/true");
+            nova codigo_falha: bombom = verificar("falha", "/bin/false");
+            nova resumo: verso = formatar_verso("ok_zero={};falha_zero={}", codigo_ok, codigo_falha);
+            falar(resumo);
+            talvez codigo_ok == 0 && codigo_falha == 1 {
+                mimo 161;
+            }
+            mimo 0;
+        }"#;
+    let out = run_code(source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(161)));
+}
+
+#[test]
+fn run_fase161_executar_processo_falha_com_spawn_invalido() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = executar_processo("/__pinker_fase161_comando_inexistente__");
+            mimo codigo;
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("falha ao executar processo em 'executar_processo'"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase161_executar_processo_rejeita_comando_vazio() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = executar_processo("");
+            mimo codigo;
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("intrínseca 'executar_processo' exige comando não vazio"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn cli_check_fase161_processo_externo_minimo_valido() {
+    let output = run_cli_check_example("examples/fase161_processo_externo_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase161_processo_externo_minimo_valido() {
+    let output = run_cli_example("examples/fase161_processo_externo_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n0\n");
+}
+
+#[test]
+fn cli_check_fase161_processo_externo_fluxo_composto_valido() {
+    let output =
+        run_cli_check_example("examples/fase161_processo_externo_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase161_processo_externo_fluxo_composto_valido() {
+    let output = run_cli_example("examples/fase161_processo_externo_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "ok=0\nfalha=1\nok_zero=0;falha_zero=1\n0\n"
+    );
+}
+
+#[test]
 fn cli_run_fase159_json_basico_valido() {
     let output = run_cli_example("examples/fase159_json_basico_valido.pink");
     assert!(
