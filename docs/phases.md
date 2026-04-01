@@ -10,4 +10,4 @@
 > Para crônica histórica e fases/hotfixes/rodadas, use `docs/history.md`.
 > Para navegação mestre, use `docs/atlas.md`.
 >
-> Último alinhamento de compatibilidade: Doc-30 — refino da escada interna do Bloco 15, preservando Fase 163 como marco funcional atual, 15.1 e 15.2 concluídos no recorte mínimo e o bloco ainda ativo. Próximo subdegrau esperado: 15.3 — captura mínima de stderr como `verso`.
+> Último alinhamento de compatibilidade: Fase 164 — captura mínima de stderr como `verso`, preservando o Bloco 15 ativo com 15.1, 15.2 e 15.3 concluídos no recorte mínimo. Próximo subdegrau esperado: 15.4 — entrada mínima por stdin textual para processo externo.

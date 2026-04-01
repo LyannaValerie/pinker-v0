@@ -65,6 +65,14 @@ fn fase163_helper_bin(name: &str) -> &'static str {
     }
 }
 
+fn fase164_helper_bin(name: &str) -> &'static str {
+    match name {
+        "stderr_ok" => env!("CARGO_BIN_EXE_pinker_fase164_stderr_ok"),
+        "stderr_invalido_utf8" => env!("CARGO_BIN_EXE_pinker_fase164_stderr_invalido_utf8"),
+        _ => panic!("helper de captura stderr desconhecido: {name}"),
+    }
+}
+
 fn pink_string_literal(text: &str) -> String {
     text.replace('\\', "\\\\").replace('"', "\\\"")
 }
@@ -6764,6 +6772,178 @@ fn cli_run_fase163_captura_stdout_fluxo_composto_valido() {
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
         "captura=18 bytes\n0\n"
+    );
+}
+
+#[test]
+fn run_fase164_capturar_stderr_minimo_retorna_verso() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stderr("__CMD__");
+            nova tem_erro: logica = contem_verso(texto, "erro=sim");
+            nova tem_codigo: logica = contem_verso(texto, "codigo=9");
+            talvez tem_erro && tem_codigo && tamanho_verso(texto) == 18 {
+                mimo 164;
+            }
+            mimo 0;
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase164_helper_bin("stderr_ok")),
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(164)));
+}
+
+#[test]
+fn run_fase164_capturar_stderr_fluxo_composto_funciona() {
+    let source = r#"pacote main;
+        carinho resumir(stderr_texto: verso) -> verso {
+            nova tem_erro: logica = contem_verso(stderr_texto, "erro=sim");
+            nova tem_codigo: logica = contem_verso(stderr_texto, "codigo=9");
+            talvez tem_erro && tem_codigo {
+                mimo formatar_verso("stderr={} bytes", tamanho_verso(stderr_texto));
+            }
+            mimo "stderr=invalido";
+        }
+
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stderr("__CMD__");
+            nova resumo: verso = resumir(texto);
+            falar(resumo);
+            talvez contem_verso(resumo, "stderr=") {
+                mimo 164;
+            }
+            mimo 0;
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase164_helper_bin("stderr_ok")),
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(164)));
+}
+
+#[test]
+fn run_fase164_capturar_stderr_falha_com_spawn_invalido() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stderr("/__pinker_fase164_comando_inexistente__");
+            mimo tamanho_verso(texto);
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("falha ao executar processo em 'capturar_stderr'"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase164_capturar_stderr_rejeita_comando_vazio() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stderr("");
+            mimo tamanho_verso(texto);
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("intrínseca 'capturar_stderr' exige comando não vazio"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase164_capturar_stderr_nao_abre_shell_implicito() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stderr("__CMD__ --flag");
+            mimo tamanho_verso(texto);
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase164_helper_bin("stderr_ok")),
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("falha ao executar processo em 'capturar_stderr'"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase164_capturar_stderr_rejeita_stderr_nao_utf8() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stderr("__CMD__");
+            mimo tamanho_verso(texto);
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase164_helper_bin("stderr_invalido_utf8")),
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("stderr inválido em 'capturar_stderr'"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn cli_check_fase164_captura_stderr_minima_valido() {
+    let output = run_cli_check_example("examples/fase164_captura_stderr_minima_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase164_captura_stderr_minima_valido() {
+    let output = run_cli_example_with_args(
+        "examples/fase164_captura_stderr_minima_valido.pink",
+        &[fase164_helper_bin("stderr_ok")],
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "erro=sim\ncodigo=9\n\n0\n"
+    );
+}
+
+#[test]
+fn cli_check_fase164_captura_stderr_fluxo_composto_valido() {
+    let output =
+        run_cli_check_example("examples/fase164_captura_stderr_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase164_captura_stderr_fluxo_composto_valido() {
+    let output = run_cli_example_with_args(
+        "examples/fase164_captura_stderr_fluxo_composto_valido.pink",
+        &[fase164_helper_bin("stderr_ok")],
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "stderr=18 bytes\n0\n"
     );
 }
 

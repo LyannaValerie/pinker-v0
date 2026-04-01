@@ -997,6 +997,16 @@ FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtim
 - Exemplos versionados adicionados: `examples/fase163_captura_stdout_minima_valido.pink` e `examples/fase163_captura_stdout_fluxo_composto_valido.pink`.
 - Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
 
+164 - processos e integração sistêmica: captura mínima de stderr como `verso` (camada 1 conservadora)
+- Quarta fase funcional do Bloco 15.
+- Abre o primeiro recorte de captura de erro textual de processo externo do projeto.
+- Superfície mínima escolhida: `capturar_stderr(comando) -> verso`.
+- O runtime executa apenas um comando/caminho único, sem shell implícito, com captura apenas de stderr e UTF-8 estrito; o resultado observável é apenas o stderr textual em `verso`.
+- Mantém o recorte conservador: sem stdout combinado, sem shell amplo, sem redirecionamento, sem pipes, sem ambiente/cwd customizados, sem timeout e sem controle avançado de processo.
+- Cobertura adicionada com testes semânticos/runtime/CLI para captura válida, integração com `verso`, fluxo composto simples e negativos essenciais como spawn inválido, comando vazio, ausência de shell implícito e stderr fora do recorte UTF-8.
+- Exemplos versionados adicionados: `examples/fase164_captura_stderr_minima_valido.pink` e `examples/fase164_captura_stderr_fluxo_composto_valido.pink`.
+- Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

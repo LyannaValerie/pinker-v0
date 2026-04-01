@@ -1435,6 +1435,41 @@ fn capturar_stdout_intrinseca_rejeita_argumento_nao_verso() {
 }
 
 #[test]
+fn capturar_stderr_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stderr("pinker_fase164_stderr_ok");
+            mimo tamanho_verso(texto);
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn capturar_stderr_intrinseca_rejeita_aridade_invalida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stderr("a", "b");
+            mimo tamanho_verso(texto);
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("chamada de 'capturar_stderr' com aridade inválida"));
+}
+
+#[test]
+fn capturar_stderr_intrinseca_rejeita_argumento_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stderr(7);
+            mimo tamanho_verso(texto);
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'capturar_stderr'"));
+}
+
+#[test]
 fn nao_vazio_verso_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
         pacote main;

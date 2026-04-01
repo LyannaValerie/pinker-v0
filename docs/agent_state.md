@@ -10,7 +10,7 @@
 - Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
 ## 2. Estado corrente
-- Fase funcional atual: **163 — processos e integração sistêmica: captura mínima de stdout como `verso` (camada 1 conservadora)**.
+- Fase funcional atual: **164 — processos e integração sistêmica: captura mínima de stderr como `verso` (camada 1 conservadora)**.
 - Rodada extraordinária corrente: **FE-1 — refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)**.
 - Bloco encerrado: **11 — texto prático, scripts e ergonomia cotidiana (encerrado por suficiência conservadora na Doc-27)**.
 - Bloco encerrado: **12 — sistema de módulos tipado (encerrado por suficiência conservadora na Doc-28)**.
@@ -22,7 +22,7 @@
 - Ajuste extraordinário corrente: promoção canônica de `tem_chave`, `pedir_argumento` e `buscar_contexto`, com legado temporário para `tem_argumento_nomeado`, `argumento_nomeado_ou` e `argumento_nomeado_ou_ambiente_ou`.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) com trilha MCP mínima posteriormente removida por segurança**.
 - Último hotfix aplicado: **HF-5 — ajuste de conformidade Clippy pós-Fase 136**.
-- Escada interna corrente do Bloco 15: **15.1 concluído no recorte mínimo; 15.2 concluído no recorte mínimo; próximo subdegrau formal = 15.3 — captura mínima de stderr como `verso`**.
+- Escada interna corrente do Bloco 15: **15.1 concluído no recorte mínimo; 15.2 concluído no recorte mínimo; 15.3 concluído no recorte mínimo; próximo subdegrau formal = 15.4 — entrada mínima por stdin textual para processo externo**.
 
 ## 3. Arquitetura documental ativa
 - `roadmap.md` = ordem ativa.

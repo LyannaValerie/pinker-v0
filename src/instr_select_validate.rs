@@ -112,6 +112,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("formatar_tempo_unix".to_string(), TypeIR::Verso);
     sigs.insert("executar_processo".to_string(), TypeIR::Bombom);
     sigs.insert("capturar_stdout".to_string(), TypeIR::Verso);
+    sigs.insert("capturar_stderr".to_string(), TypeIR::Verso);
 
     for f in &program.functions {
         if f.blocks.is_empty() {
