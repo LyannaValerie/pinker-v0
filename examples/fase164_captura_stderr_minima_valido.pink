@@ -1,0 +1,13 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova comando: verso = argumento(0);
+    nova texto: verso = capturar_stderr(comando);
+    nova tem_erro: logica = contem_verso(texto, "erro=sim");
+    nova tem_codigo: logica = contem_verso(texto, "codigo=9");
+    falar(texto);
+    talvez tem_erro && tem_codigo && tamanho_verso(texto) == 18 {
+        mimo 0;
+    }
+    mimo 1;
+}

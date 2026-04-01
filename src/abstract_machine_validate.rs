@@ -484,6 +484,10 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         "capturar_stdout".to_string(),
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );
+    sigs.insert(
+        "capturar_stderr".to_string(),
+        (TypeIR::Verso, vec![StackValueType::Verso]),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;
