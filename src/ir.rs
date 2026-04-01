@@ -1004,6 +1004,14 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
+        // Fase 163
+        function_sigs.insert(
+            "capturar_stdout".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
 
         Ok(Self {
             module_name,

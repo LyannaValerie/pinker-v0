@@ -1915,6 +1915,20 @@ fn try_call_intrinsic(
             let exit_code = executar_processo_minimo(command_name)?;
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(exit_code))))
         }
+        "capturar_stdout" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'capturar_stdout' exige 1 argumento (comando verso)",
+                ));
+            }
+            let RuntimeValue::Str(command_name) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'capturar_stdout' exige comando em verso",
+                ));
+            };
+            let stdout = capturar_stdout_minimo(command_name)?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(stdout))))
+        }
         "argumento" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -2628,6 +2642,25 @@ fn executar_processo_minimo(command_name: &str) -> Result<u64, PinkerError> {
 
     u64::try_from(exit_code)
         .map_err(|_| runtime_err("código de saída inválido em 'executar_processo': valor negativo"))
+}
+
+fn capturar_stdout_minimo(command_name: &str) -> Result<String, PinkerError> {
+    if command_name.trim().is_empty() {
+        return Err(runtime_err(
+            "intrínseca 'capturar_stdout' exige comando não vazio",
+        ));
+    }
+
+    let output = Command::new(command_name).output().map_err(|err| {
+        runtime_err(&format!(
+            "falha ao executar processo em 'capturar_stdout': {}",
+            err
+        ))
+    })?;
+
+    String::from_utf8(output.stdout).map_err(|_| {
+        runtime_err("stdout inválido em 'capturar_stdout': UTF-8 estrito é obrigatório")
+    })
 }
 
 fn civil_from_days(days_since_unix_epoch: i64) -> Result<(i64, u64, u64), PinkerError> {
