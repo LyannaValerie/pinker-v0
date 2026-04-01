@@ -88,6 +88,10 @@ fn fase166_helper_bin(name: &str) -> &'static str {
     }
 }
 
+fn fase168_helper_bin() -> &'static str {
+    env!("CARGO_BIN_EXE_pinker_fase168_argv_um")
+}
+
 fn pink_string_literal(text: &str) -> String {
     text.replace('\\', "\\\\").replace('"', "\\\"")
 }
@@ -6693,6 +6697,113 @@ fn cli_run_fase161_processo_externo_fluxo_composto_valido() {
     let output = run_cli_example_with_args(
         "examples/fase161_processo_externo_fluxo_composto_valido.pink",
         &[fase162_helper_bin("exit0"), fase162_helper_bin("exit1")],
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "ok=0\nfalha=1\nok_zero=0;falha_zero=1\n0\n"
+    );
+}
+
+#[test]
+fn run_fase168_executar_processo_aceita_argv_explicito_minimo() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = executar_processo("__CMD__", "--modo=ok");
+            talvez codigo == 0 {
+                mimo 168;
+            }
+            mimo 0;
+        }"#
+    .replace("__CMD__", &pink_string_literal(fase168_helper_bin()));
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(168)));
+}
+
+#[test]
+fn run_fase168_executar_processo_fluxo_composto_com_argv_explicito() {
+    let source = r#"pacote main;
+        carinho verificar(nome: verso, comando: verso, arg: verso) -> bombom {
+            nova codigo: bombom = executar_processo(comando, arg);
+            falar(formatar_verso("{}={}", nome, codigo));
+            mimo codigo;
+        }
+
+        carinho principal() -> bombom {
+            nova codigo_ok: bombom = verificar("ok", "__CMD__", "--modo=ok");
+            nova codigo_falha: bombom = verificar("falha", "__CMD__", "--modo=falha");
+            talvez codigo_ok == 0 && codigo_falha == 1 {
+                mimo 168;
+            }
+            mimo 0;
+        }"#
+    .replace("__CMD__", &pink_string_literal(fase168_helper_bin()));
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(168)));
+}
+
+#[test]
+fn run_fase168_executar_processo_rejeita_argv_fora_do_recorte_minimo() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = executar_processo("__CMD__", "--modo=ok", "--extra");
+            mimo codigo;
+        }"#
+    .replace("__CMD__", &pink_string_literal(fase168_helper_bin()));
+    let err = semantic::check_program(&common::parse(&source).unwrap())
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("chamada de 'executar_processo' com aridade inválida"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn cli_check_fase168_argv_explicito_minimo_valido() {
+    let output = run_cli_check_example("examples/fase168_argv_explicito_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase168_argv_explicito_minimo_valido() {
+    let output = run_cli_example_with_args(
+        "examples/fase168_argv_explicito_minimo_valido.pink",
+        &[fase168_helper_bin()],
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n0\n");
+}
+
+#[test]
+fn cli_check_fase168_argv_explicito_fluxo_composto_valido() {
+    let output =
+        run_cli_check_example("examples/fase168_argv_explicito_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase168_argv_explicito_fluxo_composto_valido() {
+    let output = run_cli_example_with_args(
+        "examples/fase168_argv_explicito_fluxo_composto_valido.pink",
+        &[fase168_helper_bin()],
     );
     assert!(
         output.status.success(),

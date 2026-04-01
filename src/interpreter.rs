@@ -1902,9 +1902,9 @@ fn try_call_intrinsic(
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(texto))))
         }
         "executar_processo" => {
-            if args.len() != 1 {
+            if !(1..=2).contains(&args.len()) {
                 return Err(runtime_err(
-                    "intrínseca 'executar_processo' exige 1 argumento (comando verso)",
+                    "intrínseca 'executar_processo' exige 1 ou 2 argumentos (comando verso[, argv1 verso])",
                 ));
             }
             let RuntimeValue::Str(command_name) = &args[0] else {
@@ -1912,7 +1912,16 @@ fn try_call_intrinsic(
                     "intrínseca 'executar_processo' exige comando em verso",
                 ));
             };
-            let exit_code = executar_processo_minimo(command_name)?;
+            let explicit_argv = match args.get(1) {
+                Some(RuntimeValue::Str(arg)) => Some(arg.as_str()),
+                Some(_) => {
+                    return Err(runtime_err(
+                        "intrínseca 'executar_processo' exige argv1 em verso",
+                    ));
+                }
+                None => None,
+            };
+            let exit_code = executar_processo_minimo(command_name, explicit_argv)?;
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(exit_code))))
         }
         "executar_com_entrada" => {
@@ -2674,10 +2683,18 @@ fn formatar_tempo_unix_iso_utc(timestamp: u64) -> Result<String, PinkerError> {
     ))
 }
 
-fn executar_processo_minimo(command_name: &str) -> Result<u64, PinkerError> {
+fn executar_processo_minimo(
+    command_name: &str,
+    explicit_argv: Option<&str>,
+) -> Result<u64, PinkerError> {
     validar_comando_nao_vazio("executar_processo", command_name)?;
 
-    let status = Command::new(command_name).status().map_err(|err| {
+    let mut command = Command::new(command_name);
+    if let Some(arg) = explicit_argv {
+        command.arg(arg);
+    }
+
+    let status = command.status().map_err(|err| {
         runtime_err(&format!(
             "falha ao executar processo em 'executar_processo': {}",
             err
