@@ -6837,6 +6837,76 @@ fn run_fase163_capturar_stdout_minimo_retorna_verso() {
 }
 
 #[test]
+fn run_fase169_capturar_stdout_aceita_argv_explicito_minimo() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stdout("__CMD__", "--alvo=rosa");
+            nova tem_status: logica = contem_verso(texto, "status=ok");
+            nova tem_alvo: logica = contem_verso(texto, "alvo=rosa");
+            talvez tem_status && tem_alvo && tamanho_verso(texto) == 20 {
+                mimo 169;
+            }
+            mimo 0;
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase163_helper_bin("stdout_ok")),
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(169)));
+}
+
+#[test]
+fn run_fase169_capturar_stdout_fluxo_composto_com_argv_explicito() {
+    let source = r#"pacote main;
+        carinho resumir(texto: verso) -> verso {
+            nova tem_status: logica = contem_verso(texto, "status=ok");
+            nova tem_alvo: logica = contem_verso(texto, "alvo=rosa");
+            talvez tem_status && tem_alvo {
+                mimo formatar_verso("captura={} bytes", tamanho_verso(texto));
+            }
+            mimo "captura=invalida";
+        }
+
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stdout("__CMD__", "--alvo=rosa");
+            nova resumo: verso = resumir(texto);
+            falar(resumo);
+            talvez igual_verso(resumo, "captura=20 bytes") {
+                mimo 169;
+            }
+            mimo 0;
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase163_helper_bin("stdout_ok")),
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(169)));
+}
+
+#[test]
+fn run_fase169_capturar_stdout_rejeita_argv_fora_do_recorte_minimo() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stdout("__CMD__", "--alvo=rosa", "--extra");
+            mimo tamanho_verso(texto);
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase163_helper_bin("stdout_ok")),
+    );
+    let err = semantic::check_program(&common::parse(&source).unwrap())
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("chamada de 'capturar_stdout' com aridade inválida"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
 fn run_fase163_capturar_stdout_fluxo_composto_funciona() {
     let source = r#"pacote main;
         carinho resumir(texto: verso) -> verso {
@@ -6900,6 +6970,25 @@ fn run_fase163_capturar_stdout_nao_abre_shell_implicito() {
     let source = r#"pacote main;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout("__CMD__ --flag");
+            mimo tamanho_verso(texto);
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase163_helper_bin("stdout_ok")),
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("falha ao executar processo em 'capturar_stdout'"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase169_capturar_stdout_com_argv_explicito_ainda_nao_abre_shell_implicito() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stdout("__CMD__ --flag", "--alvo=rosa");
             mimo tamanho_verso(texto);
         }"#
     .replace(
@@ -6985,6 +7074,63 @@ fn cli_run_fase163_captura_stdout_fluxo_composto_valido() {
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
         "captura=18 bytes\n0\n"
+    );
+}
+
+#[test]
+fn cli_check_fase169_captura_stdout_argv_explicito_minimo_valido() {
+    let output =
+        run_cli_check_example("examples/fase169_captura_stdout_argv_explicito_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase169_captura_stdout_argv_explicito_minimo_valido() {
+    let output = run_cli_example_with_args(
+        "examples/fase169_captura_stdout_argv_explicito_minimo_valido.pink",
+        &[fase163_helper_bin("stdout_ok")],
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "status=ok\nalvo=rosa\n\n0\n"
+    );
+}
+
+#[test]
+fn cli_check_fase169_captura_stdout_argv_explicito_fluxo_composto_valido() {
+    let output = run_cli_check_example(
+        "examples/fase169_captura_stdout_argv_explicito_fluxo_composto_valido.pink",
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase169_captura_stdout_argv_explicito_fluxo_composto_valido() {
+    let output = run_cli_example_with_args(
+        "examples/fase169_captura_stdout_argv_explicito_fluxo_composto_valido.pink",
+        &[fase163_helper_bin("stdout_ok")],
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "captura=20 bytes\n0\n"
     );
 }
 

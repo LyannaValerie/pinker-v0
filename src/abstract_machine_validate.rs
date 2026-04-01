@@ -610,6 +610,16 @@ fn validate_function(
                             }
                             continue;
                         }
+                        if callee == "capturar_stdout" {
+                            if !(*argc == 1 || *argc == 2) {
+                                return Err(err_ctx(
+                                    f,
+                                    Some(&b.label),
+                                    "call com aridade inválida",
+                                ));
+                            }
+                            continue;
+                        }
                         if *argc != param_types.len() {
                             return Err(err_ctx(f, Some(&b.label), "call com aridade inválida"));
                         }
