@@ -568,7 +568,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 15 — processos e integração sistêmica
 
-**Status**: bloco ativo; a Fase 161 concluiu 15.1 no recorte mínimo conservador, a Fase 162 aplicou a correção conservadora de portabilidade em testes/exemplos, a Fase 163 concluiu 15.2 com captura mínima de stdout como `verso`, a Fase 164 concluiu 15.3 com captura mínima de stderr como `verso`, a Fase 165 concluiu 15.4 com entrada mínima por stdin textual para processo externo e a Fase 166 concluiu 15.5 com pipe mínimo entre dois processos. A Doc-30 refinou a escada interna restante do bloco para subdegraus menores e mais auditáveis antes desta continuidade funcional. Dependência satisfeita: Bloco 14 foi encerrado por suficiência conservadora na Doc-29.
+**Status**: **encerrado como trilha ativa por suficiência conservadora**. A Fase 161 concluiu 15.1 no recorte mínimo conservador, a Fase 162 aplicou a correção conservadora de portabilidade em testes/exemplos, a Fase 163 concluiu 15.2 com captura mínima de stdout como `verso`, a Fase 164 concluiu 15.3 com captura mínima de stderr como `verso`, a Fase 165 concluiu 15.4 com entrada mínima por stdin textual para processo externo e a Fase 166 concluiu 15.5 com pipe mínimo entre dois processos. A Doc-30 refinou a escada interna do bloco em subdegraus menores e a Doc-31 formaliza o seu fechamento canônico sem inflar subprocessos para além do recorte realmente entregue. Dependência satisfeita: Bloco 14 foi encerrado por suficiência conservadora na Doc-29.
 
 **Tese do bloco**: a Pinker já tem I/O de arquivo, texto e dados estruturados; o passo seguinte para ser ferramenta cotidiana real é executar processos externos e integrar-se ao ambiente de sistema; sem isso, a linguagem não pode substituir shell scripts nem ser linguagem-cola.
 
@@ -583,11 +583,17 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 **Escopo deliberadamente fora do Bloco 15**: execução assíncrona, job control, sinais, pseudo-terminais (PTY), pipes em cadeia longa, subshell.
 
+**Encerramento canônico do Bloco 15**:
+- o bloco cumpriu a sua tese mínima de linguagem-cola sistêmica no recorte pequeno e auditável entregue nas Fases 161–166;
+- o encerramento é por suficiência de trilha, não por exaustão do domínio;
+- shell amplo, quoting rico, pipeline longo, sessão interativa, PTY, job control e integração adulta de subprocessos continuam fora do que foi entregue;
+- ampliações futuras nessa frente permanecem possíveis, mas pertencem ao inventário futuro e exigem nova abertura explícita de trilha, não continuação automática silenciosa do bloco.
+
 ---
 
 ### Bloco 16 — ferramenta cotidiana madura e linguagem-cola
 
-**Status**: pendente; depende do Bloco 15.
+**Status**: próximo bloco formal da trilha ativa; dependência satisfeita pelo fechamento canônico do Bloco 15.
 
 **Tese do bloco**: com módulos tipados, coleções, formatação, dados estruturados e execução de processos, a Pinker tem todos os ingredientes para ser ferramenta cotidiana madura; este bloco sela essa identidade com REPL e linguagem-cola — os dois itens que transformam a linguagem em ambiente interativo e substituto real para shell scripts complexos.
 

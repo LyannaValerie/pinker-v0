@@ -16,13 +16,14 @@
 - Bloco encerrado: **12 — sistema de módulos tipado (encerrado por suficiência conservadora na Doc-28)**.
 - Bloco encerrado: **13 — coleções e estruturas de dados básicas (encerrado por suficiência conservadora na Fase 156)**.
 - Bloco encerrado: **14 — formatação e dados estruturados (encerrado por suficiência conservadora na Doc-29, após as Fases 157, 158, 159 e 160)**.
-- Bloco formal da trilha ativa: **15 — processos e integração sistêmica**.
+- Bloco encerrado: **15 — processos e integração sistêmica (encerrado por suficiência conservadora na Doc-31, após as Fases 161, 162, 163, 164, 165 e 166)**.
+- Bloco formal da trilha ativa: **16 — ferramenta cotidiana madura e linguagem-cola**.
 - Frente pausada (oficial e não abandonada): **editor/TUI oficial da Pinker (aberto na Fase 136)**.
-- Rodada documental mais recente: **Doc-30 — refino da escada interna do Bloco 15 para subdegraus pequenos e auditáveis**.
+- Rodada documental mais recente: **Doc-31 — fechamento canônico do Bloco 15 por suficiência conservadora**.
 - Ajuste extraordinário corrente: promoção canônica de `tem_chave`, `pedir_argumento` e `buscar_contexto`, com legado temporário para `tem_argumento_nomeado`, `argumento_nomeado_ou` e `argumento_nomeado_ou_ambiente_ou`.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) com trilha MCP mínima posteriormente removida por segurança**.
 - Último hotfix aplicado: **HF-5 — ajuste de conformidade Clippy pós-Fase 136**.
-- Escada interna corrente do Bloco 15: **15.1 concluído no recorte mínimo; 15.2 concluído no recorte mínimo; 15.3 concluído no recorte mínimo; 15.4 concluído no recorte mínimo; 15.5 concluído no recorte mínimo (`pipeline_minimo`)**.
+- Escada interna consolidada do Bloco 15: **15.1 concluído no recorte mínimo; 15.2 concluído no recorte mínimo; 15.3 concluído no recorte mínimo; 15.4 concluído no recorte mínimo; 15.5 concluído no recorte mínimo (`pipeline_minimo`)**.
 
 ## 3. Arquitetura documental ativa
 - `roadmap.md` = ordem ativa.
