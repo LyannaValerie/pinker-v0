@@ -44,7 +44,6 @@
 - O Bloco 14 foi encerrado por suficiência conservadora (Doc-29) após as Fases 157–160, que abriram e entregaram: `formatar_verso` (14.1), CSV mínimo de linha única (14.2), JSON plano mínimo para `mapa<verso,bombom>` (14.3) e tempo básico mínimo via timestamp Unix em `bombom` com formatação UTC fixa (14.4). O recorte permanece pequeno e auditável; formatação rica, CSV completo, JSON geral, timezones, locale e biblioteca adulta de datas continuam fora do escopo atual.
 
 Itens explicitamente para depois do foco inicial do Bloco 11:
-- REPL;
 - linguagem-cola;
 - captura de saída de comandos e integração de processos além do recorte mínimo aberto nas Fases 161–163;
 - integração rica com stdin/stdout/stderr além da escada pequena atualmente ativa no Bloco 15;
@@ -97,6 +96,11 @@ Itens de longo prazo ainda sem bloco definido:
 - self-hosting (horizonte distante);
 - kernel/ambiente bare-metal mais robusto;
 - package manager soberano.
+
+Alinhamento do Bloco 16 após a Fase 167:
+- 16.1 foi entregue no recorte mínimo por `pink repl`;
+- seguem no inventário futuro, e não foram abertos nesta fase: REPL adulto com estado persistente rico, multiline amplo, histórico sofisticado, autocomplete, inspeção rica e shell ampla;
+- 16.2 (linguagem-cola) continua como próximo degrau funcional do bloco na trilha oficial.
 
 ## 4. Relação com a camada Rosa
 

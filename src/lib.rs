@@ -19,5 +19,6 @@ pub mod lexer;
 pub mod palette;
 pub mod parser;
 pub mod printer;
+pub mod repl;
 pub mod semantic;
 pub mod token;

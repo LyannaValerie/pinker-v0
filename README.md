@@ -39,6 +39,7 @@ Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/ag
 - execução mínima de processo externo em `--run` com `executar_processo(comando) -> bombom`, sem shell implícito, sem argumentos ricos e retornando apenas o código de saída do processo; a Fase 162 corrige testes e exemplos para usar binários auxiliares do próprio repositório em vez de depender de `/bin/true` e `/bin/false`
 - entrada mínima por stdin textual de processo externo em `--run` com `executar_com_entrada(comando, entrada) -> bombom`, sem shell implícito, sem sessão interativa, com uma única escrita textual de `verso` em stdin e retorno apenas do código de saída (Fase 165)
 - pipe mínimo entre dois processos em `--run` com `pipeline_minimo(produtor, consumidor) -> bombom`, conectando apenas `stdout` do produtor ao `stdin` do consumidor, sem shell implícito, sem cadeia longa e retornando apenas o código de saída do consumidor (Fase 166)
+- REPL mínimo auditável (`pink repl`) com reaproveitamento do pipeline real: cada linha vira o corpo temporário de `principal`, sem estado persistente entre linhas, sem multiline amplo e com `:quit`/`:sair` para saída explícita (Fase 167)
 - captura mínima de stdout de processo externo em `--run` com `capturar_stdout(comando) -> verso`, sem shell implícito, sem argv rico, com UTF-8 estrito e retorno apenas do stdout textual (Fase 163)
 - captura mínima de stderr de processo externo em `--run` com `capturar_stderr(comando) -> verso`, sem shell implícito, sem argv rico, com UTF-8 estrito e retorno apenas do stderr textual (Fase 164)
 - exportação mínima de `ninho` via `trazer` no sistema de módulos tipado (camada 1 conservadora): `ninho` de módulo importado passa a ser resolvível no arquivo consumidor para assinaturas e usos tipados mínimos já suportados, sem abrir `pub/priv`, exportação seletiva ou redesign amplo do sistema de módulos (Fase 144)
@@ -142,6 +143,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --locked
 ## Uso
 ```bash
 cargo run --bin pink -- examples/principal_valida.pink
+cargo run --bin pink -- repl
 cargo run --bin pink -- --ir examples/ir_if_else.pink
 cargo run --bin pink -- --cfg-ir examples/cfg_if_else.pink
 cargo run --bin pink -- --selected examples/selected_if_else.pink
@@ -421,6 +423,24 @@ Limites atuais (adiado): a tipagem na Machine continua leve/local (sem inferênc
 - não são assembly real de CPU
 - não são backend executável
 - não fazem otimizações ou alocação de registradores
+
+## REPL mínimo
+
+```text
+$ cargo run --bin pink -- repl
+=== Pinker REPL ===
+Fase 167: cada linha vira o corpo temporário de `principal`; sem estado entre linhas.
+Use `falar(...)` para inspecionar saída, `mimo ...;` para retorno explícito e `:quit` para sair.
+pinker> nova a: bombom = 40; falar(a + 2);
+42
+ok
+pinker> mimo 7;
+=> 7
+pinker> :quit
+Encerrando REPL Pinker.
+```
+
+Limites atuais do REPL: sem estado persistente entre linhas, sem multiline amplo, sem autocomplete, sem histórico sofisticado e sem integração de shell rica.
 
 ## Documentação do projeto
 
