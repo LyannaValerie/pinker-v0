@@ -10,4 +10,4 @@
 > Para crônica histórica e fases/hotfixes/rodadas, use `docs/history.md`.
 > Para navegação mestre, use `docs/atlas.md`.
 >
-> Último alinhamento de compatibilidade: Fase 161 — abertura funcional do Bloco 15 com execução mínima de processo externo por código de saída. Próximo degrau esperado: 15.2.
+> Último alinhamento de compatibilidade: Fase 162 — correção conservadora da execução mínima de processo externo para testes/exemplos independentes do host, preservando a abertura funcional do Bloco 15 feita na Fase 161. Próximo degrau esperado: 15.2.

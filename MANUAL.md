@@ -142,7 +142,7 @@ Operações mínimas disponíveis hoje:
 - `emitir_json_plano_bombom(mapa)` → emite um objeto JSON plano mínimo a partir de `mapa<verso,bombom>`.
 - `tempo_unix()` → retorna o timestamp Unix atual em `bombom`.
 - `formatar_tempo_unix(ts)` → formata um timestamp Unix em UTC fixa como `YYYY-MM-DDTHH:MM:SSZ`.
-- `executar_processo(comando)` → executa um processo externo mínimo sem shell implícito e retorna o código de saída em `bombom`.
+- `executar_processo(comando)` → executa um processo externo mínimo sem shell implícito e retorna o código de saída em `bombom` (na Fase 162, exemplos/testes passaram a usar binários auxiliares do próprio repositório).
 
 ```pink
 nova a: verso = "oi ";
@@ -175,9 +175,11 @@ falar(formatar_tempo_unix(0));
 ```
 
 ```pink
-nova codigo: bombom = executar_processo("/bin/true");
+nova codigo: bombom = executar_processo(argumento(0));
 falar(codigo);
 ```
+
+Nos exemplos versionados da Fase 162, o caminho do executável é passado por argv para permitir validação com binários auxiliares do próprio repositório, sem depender de `/bin/true` ou `/bin/false`.
 
 Limites atuais de texto/dados estruturados/processos: sem slicing de `verso`, sem indexação negativa, sem placeholders nomeados, sem escape rico de chaves, sem quoting complexo de CSV, sem campos multiline, sem CSV geral de múltiplas linhas, sem arrays JSON, sem objetos JSON aninhados, sem escapes ricos em JSON, sem `true`/`false`/`null`, sem timezone configurável, sem locale, sem parser amplo de datas, sem shell implícito, sem argumentos ricos de subprocesso, sem captura de stdout/stderr e sem redirecionamento/pipes.
 

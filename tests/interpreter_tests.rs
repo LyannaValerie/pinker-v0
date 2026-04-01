@@ -49,6 +49,18 @@ fn run_code_with_args(code: &str, args: &[&str]) -> Result<interpreter::RunOutco
     interpreter::run_program_with_args(&machine, &runtime_args).map_err(|e| e.to_string())
 }
 
+fn fase162_helper_bin(name: &str) -> &'static str {
+    match name {
+        "exit0" => env!("CARGO_BIN_EXE_pinker_fase162_exit0"),
+        "exit1" => env!("CARGO_BIN_EXE_pinker_fase162_exit1"),
+        _ => panic!("helper de processo externo desconhecido: {name}"),
+    }
+}
+
+fn pink_string_literal(text: &str) -> String {
+    text.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
 #[test]
 fn run_retorno_constante() {
     let out = run_code("pacote main; carinho principal() -> bombom { mimo 42; }").unwrap();
@@ -6435,13 +6447,14 @@ fn cli_run_fase160_tempo_basico_fluxo_composto_valido() {
 fn run_fase161_executar_processo_minimo_retorna_codigo_zero() {
     let source = r#"pacote main;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_processo("/bin/true");
+            nova codigo: bombom = executar_processo("__CMD__");
             talvez codigo == 0 {
                 mimo 161;
             }
             mimo 0;
-        }"#;
-    let out = run_code(source).unwrap();
+        }"#
+    .replace("__CMD__", &pink_string_literal(fase162_helper_bin("exit0")));
+    let out = run_code(&source).unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(161)));
 }
 
@@ -6455,17 +6468,41 @@ fn run_fase161_executar_processo_fluxo_composto_funciona() {
         }
 
         carinho principal() -> bombom {
-            nova codigo_ok: bombom = verificar("ok", "/bin/true");
-            nova codigo_falha: bombom = verificar("falha", "/bin/false");
+            nova codigo_ok: bombom = verificar("ok", "__CMD_OK__");
+            nova codigo_falha: bombom = verificar("falha", "__CMD_FAIL__");
             nova resumo: verso = formatar_verso("ok_zero={};falha_zero={}", codigo_ok, codigo_falha);
             falar(resumo);
             talvez codigo_ok == 0 && codigo_falha == 1 {
                 mimo 161;
             }
             mimo 0;
-        }"#;
-    let out = run_code(source).unwrap();
+        }"#
+    .replace(
+        "__CMD_OK__",
+        &pink_string_literal(fase162_helper_bin("exit0")),
+    )
+    .replace(
+        "__CMD_FAIL__",
+        &pink_string_literal(fase162_helper_bin("exit1")),
+    );
+    let out = run_code(&source).unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(161)));
+}
+
+#[test]
+fn run_fase161_executar_processo_nao_abre_shell_implicito() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = executar_processo("__CMD__ --flag");
+            mimo codigo;
+        }"#
+    .replace("__CMD__", &pink_string_literal(fase162_helper_bin("exit0")));
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("falha ao executar processo em 'executar_processo'"),
+        "erro inesperado: {}",
+        err
+    );
 }
 
 #[test]
@@ -6510,7 +6547,10 @@ fn cli_check_fase161_processo_externo_minimo_valido() {
 
 #[test]
 fn cli_run_fase161_processo_externo_minimo_valido() {
-    let output = run_cli_example("examples/fase161_processo_externo_minimo_valido.pink");
+    let output = run_cli_example_with_args(
+        "examples/fase161_processo_externo_minimo_valido.pink",
+        &[fase162_helper_bin("exit0")],
+    );
     assert!(
         output.status.success(),
         "esperava sucesso no --run, stderr={}",
@@ -6532,7 +6572,10 @@ fn cli_check_fase161_processo_externo_fluxo_composto_valido() {
 
 #[test]
 fn cli_run_fase161_processo_externo_fluxo_composto_valido() {
-    let output = run_cli_example("examples/fase161_processo_externo_fluxo_composto_valido.pink");
+    let output = run_cli_example_with_args(
+        "examples/fase161_processo_externo_fluxo_composto_valido.pink",
+        &[fase162_helper_bin("exit0"), fase162_helper_bin("exit1")],
+    );
     assert!(
         output.status.success(),
         "esperava sucesso no --run, stderr={}",

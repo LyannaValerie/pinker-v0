@@ -979,6 +979,14 @@ FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtim
 - Exemplos versionados adicionados: `examples/fase161_processo_externo_minimo_valido.pink` e `examples/fase161_processo_externo_fluxo_composto_valido.pink`.
 - Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
 
+162 - correção conservadora da execução mínima de processo externo: testes e exemplos independentes do host (camada 1 conservadora)
+- Segunda fase funcional do Bloco 15.
+- Corrige a Fase 161 para preservar `executar_processo(comando: verso) -> bombom` com menor dependência de binários específicos do sistema hospedeiro.
+- Substitui dependências frágeis do host por executáveis auxiliares do próprio repositório, preservando teste real de processo externo.
+- Mantém o recorte conservador: sem shell amplo, sem captura de stdout/stderr, sem redirecionamento, sem pipes, sem ambiente/cwd customizados, sem timeout e sem controle avançado de processo.
+- Ajusta exemplos e testes da Fase 161 para receber/usar caminhos dos auxiliares do pacote, mantendo fluxo mínimo e fluxo composto reais no `--run`.
+- Reforça a cobertura negativa para garantir que não houve abertura acidental de shell implícito nem inflação da API de subprocesso.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

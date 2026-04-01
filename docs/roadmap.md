@@ -568,14 +568,14 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 15 — processos e integração sistêmica
 
-**Status**: bloco ativo; a Fase 161 concluiu 15.1 no recorte mínimo conservador. Dependência satisfeita: Bloco 14 foi encerrado por suficiência conservadora na Doc-29.
+**Status**: bloco ativo; a Fase 161 concluiu 15.1 no recorte mínimo conservador e a Fase 162 aplicou a correção conservadora de portabilidade em testes/exemplos, sem ampliar a API. Dependência satisfeita: Bloco 14 foi encerrado por suficiência conservadora na Doc-29.
 
 **Tese do bloco**: a Pinker já tem I/O de arquivo, texto e dados estruturados; o passo seguinte para ser ferramenta cotidiana real é executar processos externos e integrar-se ao ambiente de sistema; sem isso, a linguagem não pode substituir shell scripts nem ser linguagem-cola.
 
 **Dependência obrigatória**: Bloco 14 concluído — formatação + JSON/CSV são necessários para processar e emitir a saída de processos externos de forma utilizável.
 
 **Itens do bloco (ordem interna por dependência)**:
-1. **15.1 — execução de processos externos mínima (Fase 161, concluída no recorte mínimo)**: lançar processo externo por comando/caminho único, sem shell implícito, com espera de término e retorno apenas do código de saída via `executar_processo(comando) -> bombom`; precisa de `verso`/arquivo/argv (Bloco 8) como fundação; base obrigatória para captura.
+1. **15.1 — execução de processos externos mínima (Fases 161 e 162, concluída no recorte mínimo)**: lançar processo externo por comando/caminho único, sem shell implícito, com espera de término e retorno apenas do código de saída via `executar_processo(comando) -> bombom`; a Fase 162 preserva a superfície da 161 e corrige a portabilidade prática de testes/exemplos com binários auxiliares do próprio repositório; precisa de `verso`/arquivo/argv (Bloco 8) como fundação; base obrigatória para captura.
 2. **15.2 — captura de saída de comandos**: capturar stdout de processo externo como `verso`; precisa de processo externo (15.1); base para integração completa com stdin/stdout/stderr.
 3. **15.3 — integração completa stdin/stdout/stderr**: redirecionar stdin para processo, capturar stderr separado de stdout, pipe mínimo entre dois processos; precisa de captura (15.2); fecha o bloco tornando a Pinker utilizável como linguagem-cola real.
 

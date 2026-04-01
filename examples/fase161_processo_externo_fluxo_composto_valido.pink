@@ -7,8 +7,10 @@ carinho verificar(nome: verso, comando: verso) -> bombom {
 }
 
 carinho principal() -> bombom {
-    nova codigo_ok: bombom = verificar("ok", "/bin/true");
-    nova codigo_falha: bombom = verificar("falha", "/bin/false");
+    nova comando_ok: verso = argumento(0);
+    nova comando_falha: verso = argumento(1);
+    nova codigo_ok: bombom = verificar("ok", comando_ok);
+    nova codigo_falha: bombom = verificar("falha", comando_falha);
     nova resumo: verso = formatar_verso("ok_zero={};falha_zero={}", codigo_ok, codigo_falha);
     falar(resumo);
     talvez codigo_ok == 0 && codigo_falha == 1 {
