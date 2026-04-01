@@ -1007,6 +1007,16 @@ FE-1 - refino lexical extraordinário: aquecer a periferia utilitária do runtim
 - Exemplos versionados adicionados: `examples/fase164_captura_stderr_minima_valido.pink` e `examples/fase164_captura_stderr_fluxo_composto_valido.pink`.
 - Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
 
+165 - processos e integração sistêmica: entrada mínima por stdin textual para processo externo (camada 1 conservadora)
+- Quinta fase funcional do Bloco 15.
+- Abre o primeiro recorte de alimentação textual de processo externo do projeto.
+- Superfície mínima escolhida: `executar_com_entrada(comando, entrada) -> bombom`.
+- O runtime executa apenas um comando/caminho único, sem shell implícito, com uma única escrita textual de `verso` em stdin e retorno apenas do código de saída em `bombom`.
+- Mantém o recorte conservador: sem shell amplo, sem sessão interativa, sem pipes, sem ambiente/cwd customizados, sem timeout, sem controle avançado de processo e sem API ampla de subprocesso.
+- Cobertura adicionada com testes semânticos/runtime/CLI para stdin textual mínimo válido, fluxo composto simples e negativos essenciais como spawn inválido, comando vazio, aridade/tipos errados e ausência de shell implícito.
+- Exemplos versionados adicionados: `examples/fase165_stdin_textual_minimo_valido.pink` e `examples/fase165_stdin_textual_fluxo_composto_valido.pink`.
+- Registra também a continuidade da política de exemplos mais compostos/realistas no bloco.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% HOTFIXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 HF-1 - Fase 48-H1: hotfixes de corretude e manutenção

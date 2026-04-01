@@ -481,6 +481,13 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         (TypeIR::Bombom, vec![StackValueType::Verso]),
     );
     sigs.insert(
+        "executar_com_entrada".to_string(),
+        (
+            TypeIR::Bombom,
+            vec![StackValueType::Verso, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
         "capturar_stdout".to_string(),
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );

@@ -16,8 +16,8 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::fs::OpenOptions;
-use std::io;
-use std::process::Command;
+use std::io::{self, Write};
+use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const MAX_CALL_DEPTH: usize = 64;
@@ -1915,6 +1915,25 @@ fn try_call_intrinsic(
             let exit_code = executar_processo_minimo(command_name)?;
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(exit_code))))
         }
+        "executar_com_entrada" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'executar_com_entrada' exige 2 argumentos (comando verso, entrada verso)",
+                ));
+            }
+            let RuntimeValue::Str(command_name) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'executar_com_entrada' exige comando em verso",
+                ));
+            };
+            let RuntimeValue::Str(input_text) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'executar_com_entrada' exige entrada em verso",
+                ));
+            };
+            let exit_code = executar_com_entrada_minimo(command_name, input_text)?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(exit_code))))
+        }
         "capturar_stdout" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -2656,6 +2675,50 @@ fn executar_processo_minimo(command_name: &str) -> Result<u64, PinkerError> {
 
     u64::try_from(exit_code)
         .map_err(|_| runtime_err("código de saída inválido em 'executar_processo': valor negativo"))
+}
+
+fn executar_com_entrada_minimo(command_name: &str, input_text: &str) -> Result<u64, PinkerError> {
+    if command_name.trim().is_empty() {
+        return Err(runtime_err(
+            "intrínseca 'executar_com_entrada' exige comando não vazio",
+        ));
+    }
+
+    let mut child = Command::new(command_name)
+        .stdin(Stdio::piped())
+        .spawn()
+        .map_err(|err| {
+            runtime_err(&format!(
+                "falha ao executar processo em 'executar_com_entrada': {}",
+                err
+            ))
+        })?;
+
+    let mut stdin = child.stdin.take().ok_or_else(|| {
+        runtime_err("stdin indisponível em 'executar_com_entrada': processo sem pipe configurado")
+    })?;
+    stdin.write_all(input_text.as_bytes()).map_err(|err| {
+        runtime_err(&format!(
+            "falha ao escrever stdin em 'executar_com_entrada': {}",
+            err
+        ))
+    })?;
+    drop(stdin);
+
+    let status = child.wait().map_err(|err| {
+        runtime_err(&format!(
+            "falha ao aguardar processo em 'executar_com_entrada': {}",
+            err
+        ))
+    })?;
+
+    let exit_code = status.code().ok_or_else(|| {
+        runtime_err("processo finalizado sem código de saída suportado em 'executar_com_entrada'")
+    })?;
+
+    u64::try_from(exit_code).map_err(|_| {
+        runtime_err("código de saída inválido em 'executar_com_entrada': valor negativo")
+    })
 }
 
 fn capturar_stdout_minimo(command_name: &str) -> Result<String, PinkerError> {

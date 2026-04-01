@@ -6,7 +6,7 @@
 
 ## 1. Rodada atual
 - **Doc-30 — refino da escada interna do Bloco 15 para subdegraus pequenos e auditáveis**.
-- Fase funcional ativa corrente: **164** (15.1, 15.2 e 15.3 já concluídos no recorte mínimo).
+- Fase funcional ativa corrente: **165** (15.1, 15.2, 15.3 e 15.4 já concluídos no recorte mínimo).
 - Rodada extraordinária corrente: **FE-1 — refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)**.
 
 ## 2. Resultado operacional da rodada
@@ -14,10 +14,11 @@
 - A Fase 162 preservou esse recorte e corrigiu a portabilidade prática de testes/exemplos.
 - A Fase 163 abriu `capturar_stdout(comando) -> verso` no mesmo desenho conservador: um único comando/caminho em `verso`, sem shell implícito, com UTF-8 estrito e retorno apenas do stdout textual.
 - A Fase 164 abriu `capturar_stderr(comando) -> verso` como espelho conservador de 15.2: um único comando/caminho em `verso`, sem shell implícito, com UTF-8 estrito e retorno apenas do stderr textual.
+- A Fase 165 abriu `executar_com_entrada(comando, entrada) -> bombom` como recorte mínimo de stdin textual: um único comando/caminho em `verso`, uma única escrita textual em stdin, sem shell implícito, sem sessão interativa e com retorno apenas do código de saída.
 - A Doc-30 segue como rodada documental que refinou o antigo 15.3 em subdegraus menores (`stderr`, `stdin` e `pipe` mínimos), preservando honestidade factual sobre o que o bloco ainda não entregou.
 
 ## 3. Próximo passo correto
-- Abrir **15.4 — entrada mínima por stdin textual para processo externo**, sem inflar 15.3 retroativamente e sem tratar integração completa de subprocessos como se já estivesse entregue.
+- Abrir **15.5 — pipe mínimo entre dois processos**, sem inflar 15.4 retroativamente e sem tratar integração completa de subprocessos como se já estivesse entregue.
 
 ## 4. Restrições explícitas
 - Sem reabrir Bloco 14 por inércia; CSV/JSON/tempo/formatação amplos pertencem ao futuro quando justificados, não à continuação automática.

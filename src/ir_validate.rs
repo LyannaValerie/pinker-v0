@@ -600,6 +600,14 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Verso],
         },
     );
+    // Fase 165
+    funcs.insert(
+        "executar_com_entrada".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
     // Fase 163
     funcs.insert(
         "capturar_stdout".to_string(),

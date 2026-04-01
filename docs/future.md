@@ -53,7 +53,7 @@ Itens explicitamente para depois do foco inicial do Bloco 11:
 
 Alinhamento factual do Bloco 15:
 - o bloco segue ativo na trilha oficial;
-- 15.1, 15.2 e 15.3 já foram entregues no recorte mínimo (`executar_processo`, `capturar_stdout` e `capturar_stderr`);
+- 15.1, 15.2, 15.3 e 15.4 já foram entregues no recorte mínimo (`executar_processo`, `capturar_stdout`, `capturar_stderr` e `executar_com_entrada`);
 - a Doc-30 refinou a continuação imediata do bloco em subdegraus menores (`stderr`, `stdin` e `pipe` mínimos), sem declarar integração completa de processos como já entregue;
 - expansões além desses subdegraus pequenos continuam pertencendo ao inventário futuro, não a uma continuação automática ilimitada do bloco.
 
