@@ -18,10 +18,11 @@
 - Bloco encerrado: **14 — formatação e dados estruturados (encerrado por suficiência conservadora na Doc-29, após as Fases 157, 158, 159 e 160)**.
 - Bloco formal da trilha ativa: **15 — processos e integração sistêmica**.
 - Frente pausada (oficial e não abandonada): **editor/TUI oficial da Pinker (aberto na Fase 136)**.
-- Rodada documental mais recente: **Doc-29 — fechamento canônico do Bloco 14 e preparação formal da transição para o próximo bloco**.
+- Rodada documental mais recente: **Doc-30 — refino da escada interna do Bloco 15 para subdegraus pequenos e auditáveis**.
 - Ajuste extraordinário corrente: promoção canônica de `tem_chave`, `pedir_argumento` e `buscar_contexto`, com legado temporário para `tem_argumento_nomeado`, `argumento_nomeado_ou` e `argumento_nomeado_ou_ambiente_ou`.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) com trilha MCP mínima posteriormente removida por segurança**.
 - Último hotfix aplicado: **HF-5 — ajuste de conformidade Clippy pós-Fase 136**.
+- Escada interna corrente do Bloco 15: **15.1 concluído no recorte mínimo; 15.2 concluído no recorte mínimo; próximo subdegrau formal = 15.3 — captura mínima de stderr como `verso`**.
 
 ## 3. Arquitetura documental ativa
 - `roadmap.md` = ordem ativa.
