@@ -3620,6 +3620,46 @@ impl SemanticChecker {
             return Ok(Type::Bombom(expr_span));
         }
 
+        // Fase 165 — executar_com_entrada(comando, entrada) -> bombom
+        if name == "executar_com_entrada" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'executar_com_entrada' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let command_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(command_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'executar_com_entrada': esperado 'verso', encontrado '{}'",
+                        command_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let input_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(input_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'executar_com_entrada': esperado 'verso', encontrado '{}'",
+                        input_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
+
         // Fase 163 — capturar_stdout(comando) -> verso
         if name == "capturar_stdout" {
             if args.len() != 1 {

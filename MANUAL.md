@@ -143,6 +143,7 @@ Operações mínimas disponíveis hoje:
 - `tempo_unix()` → retorna o timestamp Unix atual em `bombom`.
 - `formatar_tempo_unix(ts)` → formata um timestamp Unix em UTC fixa como `YYYY-MM-DDTHH:MM:SSZ`.
 - `executar_processo(comando)` → executa um processo externo mínimo sem shell implícito e retorna o código de saída em `bombom` (na Fase 162, exemplos/testes passaram a usar binários auxiliares do próprio repositório).
+- `executar_com_entrada(comando, entrada)` → executa um processo externo mínimo sem shell implícito, envia um único `verso` ao stdin do processo e retorna o código de saída em `bombom`.
 - `capturar_stdout(comando)` → executa um processo externo mínimo sem shell implícito e retorna o stdout textual como `verso`, com UTF-8 estrito.
 - `capturar_stderr(comando)` → executa um processo externo mínimo sem shell implícito e retorna o stderr textual como `verso`, com UTF-8 estrito.
 
@@ -182,6 +183,11 @@ falar(codigo);
 ```
 
 ```pink
+nova codigo: bombom = executar_com_entrada(argumento(0), "rosa\n");
+falar(codigo);
+```
+
+```pink
 nova texto: verso = capturar_stdout(argumento(0));
 falar(texto);
 ```
@@ -193,9 +199,9 @@ falar(texto);
 
 Nos exemplos versionados das Fases 162 e 163, o caminho do executável é passado por argv para permitir validação com binários auxiliares do próprio repositório, sem depender de utilitários frágeis do host.
 
-Nos exemplos versionados das Fases 162, 163 e 164, o caminho do executável é passado por argv para permitir validação com binários auxiliares do próprio repositório, sem depender de utilitários frágeis do host.
+Nos exemplos versionados das Fases 162, 163, 164 e 165, o caminho do executável é passado por argv para permitir validação com binários auxiliares do próprio repositório, sem depender de utilitários frágeis do host.
 
-Limites atuais de texto/dados estruturados/processos: sem slicing de `verso`, sem indexação negativa, sem placeholders nomeados, sem escape rico de chaves, sem quoting complexo de CSV, sem campos multiline, sem CSV geral de múltiplas linhas, sem arrays JSON, sem objetos JSON aninhados, sem escapes ricos em JSON, sem `true`/`false`/`null`, sem timezone configurável, sem locale, sem parser amplo de datas, sem shell implícito, sem argumentos ricos de subprocesso, sem stdout/stderr combinados e sem redirecionamento/pipes.
+Limites atuais de texto/dados estruturados/processos: sem slicing de `verso`, sem indexação negativa, sem placeholders nomeados, sem escape rico de chaves, sem quoting complexo de CSV, sem campos multiline, sem CSV geral de múltiplas linhas, sem arrays JSON, sem objetos JSON aninhados, sem escapes ricos em JSON, sem `true`/`false`/`null`, sem timezone configurável, sem locale, sem parser amplo de datas, sem shell implícito, sem argumentos ricos de subprocesso, sem stdout/stderr combinados, sem redirecionamento/pipes e sem stdin interativo/sessão ampla de subprocesso.
 
 ## 9) Exemplos pequenos completos
 

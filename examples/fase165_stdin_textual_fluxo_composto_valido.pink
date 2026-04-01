@@ -1,0 +1,23 @@
+pacote main;
+
+carinho montar_entrada() -> verso {
+    nova prefixo: verso = "linha=ok\n";
+    nova sufixo: verso = formatar_verso("valor={}\n", 7);
+    mimo juntar_verso(prefixo, sufixo);
+}
+
+carinho verificar(comando: verso, entrada: verso) -> bombom {
+    nova codigo: bombom = executar_com_entrada(comando, entrada);
+    falar(formatar_verso("stdin_status={}", codigo));
+    mimo codigo;
+}
+
+carinho principal() -> bombom {
+    nova comando: verso = argumento(0);
+    nova entrada: verso = montar_entrada();
+    nova codigo: bombom = verificar(comando, entrada);
+    talvez codigo == 0 {
+        mimo 0;
+    }
+    mimo 1;
+}

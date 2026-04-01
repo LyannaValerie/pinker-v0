@@ -1004,6 +1004,14 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
+        // Fase 165
+        function_sigs.insert(
+            "executar_com_entrada".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
         // Fase 163
         function_sigs.insert(
             "capturar_stdout".to_string(),
