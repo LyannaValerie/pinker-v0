@@ -57,6 +57,14 @@ fn fase162_helper_bin(name: &str) -> &'static str {
     }
 }
 
+fn fase163_helper_bin(name: &str) -> &'static str {
+    match name {
+        "stdout_ok" => env!("CARGO_BIN_EXE_pinker_fase163_stdout_ok"),
+        "stdout_invalido_utf8" => env!("CARGO_BIN_EXE_pinker_fase163_stdout_invalido_utf8"),
+        _ => panic!("helper de captura stdout desconhecido: {name}"),
+    }
+}
+
 fn pink_string_literal(text: &str) -> String {
     text.replace('\\', "\\\\").replace('"', "\\\"")
 }
@@ -6584,6 +6592,178 @@ fn cli_run_fase161_processo_externo_fluxo_composto_valido() {
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
         "ok=0\nfalha=1\nok_zero=0;falha_zero=1\n0\n"
+    );
+}
+
+#[test]
+fn run_fase163_capturar_stdout_minimo_retorna_verso() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stdout("__CMD__");
+            nova tem_status: logica = contem_verso(texto, "status=ok");
+            nova tem_valor: logica = contem_verso(texto, "valor=7");
+            talvez tem_status && tem_valor && tamanho_verso(texto) == 18 {
+                mimo 163;
+            }
+            mimo 0;
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase163_helper_bin("stdout_ok")),
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(163)));
+}
+
+#[test]
+fn run_fase163_capturar_stdout_fluxo_composto_funciona() {
+    let source = r#"pacote main;
+        carinho resumir(texto: verso) -> verso {
+            nova tem_status: logica = contem_verso(texto, "status=ok");
+            nova tem_valor: logica = contem_verso(texto, "valor=7");
+            talvez tem_status && tem_valor {
+                mimo formatar_verso("captura={} bytes", tamanho_verso(texto));
+            }
+            mimo "captura=invalida";
+        }
+
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stdout("__CMD__");
+            nova resumo: verso = resumir(texto);
+            falar(resumo);
+            talvez contem_verso(resumo, "captura=") {
+                mimo 163;
+            }
+            mimo 0;
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase163_helper_bin("stdout_ok")),
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(163)));
+}
+
+#[test]
+fn run_fase163_capturar_stdout_falha_com_spawn_invalido() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stdout("/__pinker_fase163_comando_inexistente__");
+            mimo tamanho_verso(texto);
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("falha ao executar processo em 'capturar_stdout'"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase163_capturar_stdout_rejeita_comando_vazio() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stdout("");
+            mimo tamanho_verso(texto);
+        }"#;
+    let err = run_code(source).unwrap_err();
+    assert!(
+        err.contains("intrínseca 'capturar_stdout' exige comando não vazio"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase163_capturar_stdout_nao_abre_shell_implicito() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stdout("__CMD__ --flag");
+            mimo tamanho_verso(texto);
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase163_helper_bin("stdout_ok")),
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("falha ao executar processo em 'capturar_stdout'"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase163_capturar_stdout_rejeita_stdout_nao_utf8() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stdout("__CMD__");
+            mimo tamanho_verso(texto);
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase163_helper_bin("stdout_invalido_utf8")),
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("stdout inválido em 'capturar_stdout'"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn cli_check_fase163_captura_stdout_minima_valido() {
+    let output = run_cli_check_example("examples/fase163_captura_stdout_minima_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase163_captura_stdout_minima_valido() {
+    let output = run_cli_example_with_args(
+        "examples/fase163_captura_stdout_minima_valido.pink",
+        &[fase163_helper_bin("stdout_ok")],
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "status=ok\nvalor=7\n\n0\n"
+    );
+}
+
+#[test]
+fn cli_check_fase163_captura_stdout_fluxo_composto_valido() {
+    let output =
+        run_cli_check_example("examples/fase163_captura_stdout_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase163_captura_stdout_fluxo_composto_valido() {
+    let output = run_cli_example_with_args(
+        "examples/fase163_captura_stdout_fluxo_composto_valido.pink",
+        &[fase163_helper_bin("stdout_ok")],
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "captura=18 bytes\n0\n"
     );
 }
 

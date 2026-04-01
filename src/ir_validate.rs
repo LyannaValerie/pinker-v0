@@ -600,6 +600,14 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Verso],
         },
     );
+    // Fase 163
+    funcs.insert(
+        "capturar_stdout".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso],
+        },
+    );
 
     for konst in &program.consts {
         let ty = infer_value_type(&konst.value, &HashMap::new(), &consts, &funcs, konst.span)

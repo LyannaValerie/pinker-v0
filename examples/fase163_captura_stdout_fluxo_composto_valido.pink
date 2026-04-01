@@ -1,0 +1,21 @@
+pacote main;
+
+carinho resumir(texto: verso) -> verso {
+    nova tem_status: logica = contem_verso(texto, "status=ok");
+    nova tem_valor: logica = contem_verso(texto, "valor=7");
+    talvez tem_status && tem_valor {
+        mimo formatar_verso("captura={} bytes", tamanho_verso(texto));
+    }
+    mimo "captura=invalida";
+}
+
+carinho principal() -> bombom {
+    nova comando: verso = argumento(0);
+    nova texto: verso = capturar_stdout(comando);
+    nova resumo: verso = resumir(texto);
+    falar(resumo);
+    talvez igual_verso(resumo, "captura=18 bytes") {
+        mimo 0;
+    }
+    mimo 1;
+}

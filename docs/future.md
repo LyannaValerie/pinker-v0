@@ -46,7 +46,7 @@
 Itens explicitamente para depois do foco inicial do Bloco 11:
 - REPL;
 - linguagem-cola;
-- captura de saída de comandos e integração de processos além do recorte mínimo aberto na Fase 161 e tornado mais portátil na Fase 162;
+- captura de saída de comandos e integração de processos além do recorte mínimo aberto nas Fases 161–163;
 - integração rica com stdin/stdout/stderr;
 - coleções básicas além do recorte já aberto (`lista<bombom>` + `mapa<verso,bombom>` mínimos, iteração confortável mínima em `lista<bombom>` e `mapa<verso,bombom>`, além de aleatoriedade básica com semente explícita na Fase 156; seguem fora `lista<T>`/`mapa<K,V>` amplos, dicionário rico e iteração confortável ampla/generics);
 - JSON amplo, datas/tempo com timezone/locale e formatação rica além do recorte mínimo já entregue e encerrado no Bloco 14 (Fases 157–160).
