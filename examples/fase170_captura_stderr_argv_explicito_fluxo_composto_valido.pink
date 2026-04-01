@@ -1,0 +1,21 @@
+pacote main;
+
+carinho resumir(stderr_texto: verso) -> verso {
+    nova tem_erro: logica = contem_verso(stderr_texto, "erro=sim");
+    nova tem_alvo: logica = contem_verso(stderr_texto, "alvo=rosa");
+    talvez tem_erro && tem_alvo {
+        mimo formatar_verso("stderr={} bytes", tamanho_verso(stderr_texto));
+    }
+    mimo "stderr=invalido";
+}
+
+carinho principal() -> bombom {
+    nova comando: verso = argumento(0);
+    nova stderr_texto: verso = capturar_stderr(comando, "--alvo=rosa");
+    nova resumo: verso = resumir(stderr_texto);
+    falar(resumo);
+    talvez igual_verso(resumo, "stderr=19 bytes") {
+        mimo 0;
+    }
+    mimo 1;
+}

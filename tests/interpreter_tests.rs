@@ -7155,6 +7155,55 @@ fn run_fase164_capturar_stderr_minimo_retorna_verso() {
 }
 
 #[test]
+fn run_fase170_capturar_stderr_aceita_argv_explicito_minimo() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stderr("__CMD__", "--alvo=rosa");
+            nova tem_erro: logica = contem_verso(texto, "erro=sim");
+            nova tem_alvo: logica = contem_verso(texto, "alvo=rosa");
+            talvez tem_erro && tem_alvo && tamanho_verso(texto) == 19 {
+                mimo 170;
+            }
+            mimo 0;
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase164_helper_bin("stderr_ok")),
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(170)));
+}
+
+#[test]
+fn run_fase170_capturar_stderr_fluxo_composto_com_argv_explicito() {
+    let source = r#"pacote main;
+        carinho resumir(stderr_texto: verso) -> verso {
+            nova tem_erro: logica = contem_verso(stderr_texto, "erro=sim");
+            nova tem_alvo: logica = contem_verso(stderr_texto, "alvo=rosa");
+            talvez tem_erro && tem_alvo {
+                mimo formatar_verso("stderr={} bytes", tamanho_verso(stderr_texto));
+            }
+            mimo "stderr=invalido";
+        }
+
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stderr("__CMD__", "--alvo=rosa");
+            nova resumo: verso = resumir(texto);
+            falar(resumo);
+            talvez igual_verso(resumo, "stderr=19 bytes") {
+                mimo 170;
+            }
+            mimo 0;
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase164_helper_bin("stderr_ok")),
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(170)));
+}
+
+#[test]
 fn run_fase164_capturar_stderr_fluxo_composto_funciona() {
     let source = r#"pacote main;
         carinho resumir(stderr_texto: verso) -> verso {
@@ -7181,6 +7230,27 @@ fn run_fase164_capturar_stderr_fluxo_composto_funciona() {
     );
     let out = run_code(&source).unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(164)));
+}
+
+#[test]
+fn run_fase170_capturar_stderr_rejeita_argv_fora_do_recorte_minimo() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stderr("__CMD__", "--alvo=rosa", "--extra");
+            mimo tamanho_verso(texto);
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase164_helper_bin("stderr_ok")),
+    );
+    let err = semantic::check_program(&common::parse(&source).unwrap())
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("chamada de 'capturar_stderr' com aridade inválida"),
+        "erro inesperado: {}",
+        err
+    );
 }
 
 #[test]
@@ -7233,10 +7303,48 @@ fn run_fase164_capturar_stderr_nao_abre_shell_implicito() {
 }
 
 #[test]
+fn run_fase170_capturar_stderr_com_argv_explicito_ainda_nao_abre_shell_implicito() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stderr("__CMD__ --flag", "--alvo=rosa");
+            mimo tamanho_verso(texto);
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase164_helper_bin("stderr_ok")),
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("falha ao executar processo em 'capturar_stderr'"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
 fn run_fase164_capturar_stderr_rejeita_stderr_nao_utf8() {
     let source = r#"pacote main;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("__CMD__");
+            mimo tamanho_verso(texto);
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase164_helper_bin("stderr_invalido_utf8")),
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("stderr inválido em 'capturar_stderr'"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase170_capturar_stderr_com_argv_explicito_preserva_utf8_estrito() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova texto: verso = capturar_stderr("__CMD__", "--alvo=rosa");
             mimo tamanho_verso(texto);
         }"#
     .replace(
@@ -7258,6 +7366,63 @@ fn cli_check_fase164_captura_stderr_minima_valido() {
         output.status.success(),
         "esperava sucesso no --check, stderr={}",
         String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_check_fase170_captura_stderr_argv_explicito_minimo_valido() {
+    let output =
+        run_cli_check_example("examples/fase170_captura_stderr_argv_explicito_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase170_captura_stderr_argv_explicito_minimo_valido() {
+    let output = run_cli_example_with_args(
+        "examples/fase170_captura_stderr_argv_explicito_minimo_valido.pink",
+        &[fase164_helper_bin("stderr_ok")],
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "erro=sim\nalvo=rosa\n\n0\n"
+    );
+}
+
+#[test]
+fn cli_check_fase170_captura_stderr_argv_explicito_fluxo_composto_valido() {
+    let output = run_cli_check_example(
+        "examples/fase170_captura_stderr_argv_explicito_fluxo_composto_valido.pink",
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase170_captura_stderr_argv_explicito_fluxo_composto_valido() {
+    let output = run_cli_example_with_args(
+        "examples/fase170_captura_stderr_argv_explicito_fluxo_composto_valido.pink",
+        &[fase164_helper_bin("stderr_ok")],
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "stderr=19 bytes\n0\n"
     );
 }
 

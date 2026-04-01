@@ -29,7 +29,7 @@ Referência rápida para localizar a camada certa antes de editar.
 ## Execução e saída
 
 - interpretador `--run`: `src/interpreter.rs`
-- subprocessos mínimos e argv explícito conservador em 16.2: `src/interpreter.rs`
+- subprocessos mínimos e argv explícito conservador em 16.2 (`executar_processo`, `capturar_stdout`, `capturar_stderr`): `src/interpreter.rs`
 - REPL mínimo `pink repl`: `src/repl.rs`
 - backend textual final: `src/backend_text.rs`, `src/backend_text_validate.rs`
 - backend `.s`: `src/backend_s.rs`

@@ -149,6 +149,7 @@ Operações mínimas disponíveis hoje:
 - `capturar_stdout(comando)` → executa um processo externo mínimo sem shell implícito e retorna o stdout textual como `verso`, com UTF-8 estrito.
 - `capturar_stdout(comando, argv1)` → o mesmo recorte mínimo acima, mas com exatamente um argumento textual explícito adicional, sem shell implícito, sem quoting/escaping rico e sem coleção geral de argv (Fase 169).
 - `capturar_stderr(comando)` → executa um processo externo mínimo sem shell implícito e retorna o stderr textual como `verso`, com UTF-8 estrito.
+- `capturar_stderr(comando, argv1)` → o mesmo recorte mínimo acima, mas com exatamente um argumento textual explícito adicional, sem shell implícito, sem quoting/escaping rico e sem coleção geral de argv (Fase 170).
 
 ```pink
 nova a: verso = "oi ";
@@ -215,11 +216,16 @@ nova texto: verso = capturar_stderr(argumento(0));
 falar(texto);
 ```
 
+```pink
+nova texto: verso = capturar_stderr(argumento(0), "--alvo=rosa");
+falar(texto);
+```
+
 Nos exemplos versionados das Fases 162 e 163, o caminho do executável é passado por argv para permitir validação com binários auxiliares do próprio repositório, sem depender de utilitários frágeis do host.
 
 Nos exemplos versionados das Fases 162, 163, 164, 165 e 166, o caminho do executável é passado por argv para permitir validação com binários auxiliares do próprio repositório, sem depender de utilitários frágeis do host.
 
-Limites atuais de texto/dados estruturados/processos: sem slicing de `verso`, sem indexação negativa, sem placeholders nomeados, sem escape rico de chaves, sem quoting complexo de CSV, sem campos multiline, sem CSV geral de múltiplas linhas, sem arrays JSON, sem objetos JSON aninhados, sem escapes ricos em JSON, sem `true`/`false`/`null`, sem timezone configurável, sem locale, sem parser amplo de datas, sem shell implícito, sem argv amplo de subprocesso (as Fases 168 e 169 aceitam apenas um `argv1` textual explícito em `executar_processo` e `capturar_stdout`), sem stdout/stderr combinados, sem redirecionamento rico, sem cadeia longa de pipes e sem stdin interativo/sessão ampla de subprocesso.
+Limites atuais de texto/dados estruturados/processos: sem slicing de `verso`, sem indexação negativa, sem placeholders nomeados, sem escape rico de chaves, sem quoting complexo de CSV, sem campos multiline, sem CSV geral de múltiplas linhas, sem arrays JSON, sem objetos JSON aninhados, sem escapes ricos em JSON, sem `true`/`false`/`null`, sem timezone configurável, sem locale, sem parser amplo de datas, sem shell implícito, sem argv amplo de subprocesso (as Fases 168, 169 e 170 aceitam apenas um `argv1` textual explícito em `executar_processo`, `capturar_stdout` e `capturar_stderr`), sem stdout/stderr combinados, sem redirecionamento rico, sem cadeia longa de pipes e sem stdin interativo/sessão ampla de subprocesso.
 
 ## 9) REPL mínimo
 

@@ -1187,7 +1187,9 @@ fn validate_block(
                     continue;
                 }
                 if sig.params.len() != args.len() {
-                    if (callee == "executar_processo" || callee == "capturar_stdout")
+                    if (callee == "executar_processo"
+                        || callee == "capturar_stdout"
+                        || callee == "capturar_stderr")
                         && (args.len() == 1 || args.len() == 2)
                     {
                         // aceita a camada 1 conservadora de argv explícito sem abrir argv geral
@@ -1205,6 +1207,12 @@ fn validate_block(
                     ));
                 }
                 if callee == "capturar_stdout" && !(args.len() == 1 || args.len() == 2) {
+                    return Err(cfg_error(
+                        "aridade inválida em call da CFG IR",
+                        function.span,
+                    ));
+                }
+                if callee == "capturar_stderr" && !(args.len() == 1 || args.len() == 2) {
                     return Err(cfg_error(
                         "aridade inválida em call da CFG IR",
                         function.span,

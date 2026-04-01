@@ -10,7 +10,7 @@
 - Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
 ## 2. Estado corrente
-- Fase funcional atual: **169 — linguagem-cola: argv explícito mínimo para captura de stdout (camada 2 conservadora)**.
+- Fase funcional atual: **170 — linguagem-cola: argv explícito mínimo para captura de stderr (camada 3 conservadora)**.
 - Rodada extraordinária corrente: **FE-1 — refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)**.
 - Bloco encerrado: **11 — texto prático, scripts e ergonomia cotidiana (encerrado por suficiência conservadora na Doc-27)**.
 - Bloco encerrado: **12 — sistema de módulos tipado (encerrado por suficiência conservadora na Doc-28)**.
@@ -23,7 +23,7 @@
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) com trilha MCP mínima posteriormente removida por segurança**.
 - Último hotfix aplicado: **HF-5 — ajuste de conformidade Clippy pós-Fase 136**.
 - Escada interna consolidada do Bloco 15: **15.1 concluído no recorte mínimo; 15.2 concluído no recorte mínimo; 15.3 concluído no recorte mínimo; 15.4 concluído no recorte mínimo; 15.5 concluído no recorte mínimo (`pipeline_minimo`)**.
-- Escada interna do Bloco 16: **16.1 concluído no recorte mínimo (`pink repl`); 16.2 segue ativo em camadas conservadoras pequenas com argv explícito camada 1 em `executar_processo` e camada 2 em `capturar_stdout`**.
+- Escada interna do Bloco 16: **16.1 concluído no recorte mínimo (`pink repl`); 16.2 segue ativo em camadas conservadoras pequenas com argv explícito camada 1 em `executar_processo`, camada 2 em `capturar_stdout` e camada 3 em `capturar_stderr`**.
 
 ## 3. Arquitetura documental ativa
 - `roadmap.md` = ordem ativa.
