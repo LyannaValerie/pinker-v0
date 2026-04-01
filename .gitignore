@@ -7,6 +7,17 @@ target/
 *.dump
 arvore.txt
 
+# Agent and local build/output noise
+.codex
+build/
+saida/
+fase99_saida_local/
+5
+calc.pink
+codigo.pink
+executar.sh
+rodar.sh
+
 # Editor files
 .DS_Store
 .idea/
