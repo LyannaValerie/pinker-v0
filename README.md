@@ -36,7 +36,7 @@ Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/ag
 - flags booleanas mínimas em `--run` com `tem_flag(chave)`, detectando presença literal de flags como `--quiet`/`--verbose` sem consumir valor seguinte e sem inferir presença a partir de `--chave=valor` (Fase 142)
 - ambiente mínimo de processo em `--run` com `ambiente_ou(chave, padrao)` para leitura de variável de ambiente com fallback de `verso` (Fase 95)
 - prioridade mínima entre argumento nomeado, ambiente e fallback textual em `--run` com `buscar_contexto(chave_arg, chave_env, padrao)`, mantendo compatibilidade temporária com `argumento_nomeado_ou_ambiente_ou`, e preservando a ordem `CLI -> ambiente -> padrão` sem parser/configuração ampla (Fase 143 + FE-1)
-- execução mínima de processo externo em `--run` com `executar_processo(comando) -> bombom`, sem shell implícito, sem argumentos ricos e retornando apenas o código de saída do processo (Fase 161)
+- execução mínima de processo externo em `--run` com `executar_processo(comando) -> bombom`, sem shell implícito, sem argumentos ricos e retornando apenas o código de saída do processo; a Fase 162 corrige testes e exemplos para usar binários auxiliares do próprio repositório em vez de depender de `/bin/true` e `/bin/false`
 - exportação mínima de `ninho` via `trazer` no sistema de módulos tipado (camada 1 conservadora): `ninho` de módulo importado passa a ser resolvível no arquivo consumidor para assinaturas e usos tipados mínimos já suportados, sem abrir `pub/priv`, exportação seletiva ou redesign amplo do sistema de módulos (Fase 144)
 - exportação mínima de `apelido` via `trazer` no sistema de módulos tipado (camada 1 conservadora): `apelido` de módulo importado passa a ser resolvível no arquivo consumidor para declarações locais, assinaturas e cast tipado já suportado, sem abrir `pub/priv`, exportação seletiva ou redesign amplo (Fase 145)
 - uso qualificado mínimo de tipo importado no sistema de módulos tipado (camada 1 conservadora): tipos exportados por módulo importado passam a aceitar referência qualificada em contexto tipado (`modulo.Tipo`) para declaração local, assinatura e cast tipado já suportado, mantendo recorte conservador sem `pub/priv`, sem reexportação e sem namespaces amplos (Fase 146)
@@ -230,8 +230,8 @@ cargo run --bin pink -- --run examples/fase138_replace_camada1_valido.pink
 cargo run --bin pink -- --run examples/fase140_busca_textual_camada1_valido.pink
 cargo run --bin pink -- --run examples/fase160_tempo_basico_timestamp_valido.pink
 cargo run --bin pink -- --run examples/fase160_tempo_basico_fluxo_composto_valido.pink
-cargo run --bin pink -- --run examples/fase161_processo_externo_minimo_valido.pink
-cargo run --bin pink -- --run examples/fase161_processo_externo_fluxo_composto_valido.pink
+cargo run --bin pink -- --run examples/fase161_processo_externo_minimo_valido.pink -- target/debug/pinker_fase162_exit0
+cargo run --bin pink -- --run examples/fase161_processo_externo_fluxo_composto_valido.pink -- target/debug/pinker_fase162_exit0 target/debug/pinker_fase162_exit1
 cargo run --bin pink -- --asm-s examples/fase84_backend_externo_recusa_explicita_sempre_que_invalido.pink
 cargo run --bin pink -- --check examples/fase76_backend_externo_tres_args_invalido.pink
 cargo run --bin pink -- --check examples/mut_falho.pink

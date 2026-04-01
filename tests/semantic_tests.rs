@@ -1369,7 +1369,7 @@ fn executar_processo_intrinseca_valida_sem_declaracao() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_processo("/bin/true");
+            nova codigo: bombom = executar_processo("pinker_fase162_exit0");
             mimo codigo;
         }"#;
     assert!(parse_and_check(code).is_ok());
@@ -1380,7 +1380,7 @@ fn executar_processo_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_processo("/bin/true", "/bin/false");
+            nova codigo: bombom = executar_processo("pinker_fase162_exit0", "pinker_fase162_exit1");
             mimo codigo;
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
