@@ -1285,6 +1285,25 @@ Doc-30 - refino da escada interna do Bloco 15 para subdegraus pequenos e auditá
 - FE-1 permanece extraordinária e separada; a rodada não reabre blocos anteriores, não fecha o Bloco 15 e não abre fase funcional nova.
 - Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/future.md`, `docs/phases.md`.
 
+Doc-31 - fechamento canônico do Bloco 15 por suficiência conservadora
+- Rodada exclusivamente documental, sem implementação funcional nova.
+- Bloco 15 (processos e integração sistêmica) encerrado formalmente por suficiência conservadora após a consolidação das Fases 161, 162, 163, 164, 165 e 166.
+- Suficiência registrada sem exagero: o bloco abriu e entregou, em degraus pequenos e auditáveis, execução mínima de processo externo, captura mínima de stdout, captura mínima de stderr, entrada mínima por stdin textual e pipe mínimo entre dois processos.
+- O fechamento registra o primeiro recorte útil de linguagem-cola sistêmica da Pinker, mas não reinterpreta o bloco como integração completa de subprocessos.
+- Recorte conservador reafirmado explicitamente: shell amplo, quoting rico, cadeia longa de pipes, sessão interativa, PTY, job control, ambiente/cwd customizados, timeout e API adulta de subprocessos continuam fora do que foi entregue.
+- O encerramento do Bloco 15 é por suficiência de trilha (não por exaustão do domínio); ampliações futuras dessa frente permanecem possíveis, mas subordinadas a nova abertura explícita de trilha e ao inventário técnico em `docs/future.md`.
+- Bloco 16 (ferramenta cotidiana madura e linguagem-cola) formalizado como próximo bloco da trilha ativa.
+- Fase 166 permanece como último marco funcional do Bloco 15; FE-1 permanece extraordinária e separada; nenhuma fase funcional nova foi aberta nesta rodada.
+- Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/future.md`, `docs/phases.md`.
+
+167 - ferramenta cotidiana madura e linguagem-cola: REPL mínimo auditável (camada 1 conservadora)
+- Primeira fase funcional do Bloco 16.
+- Abre a primeira experiência interativa mínima da Pinker por meio do comando `pink repl`.
+- O REPL reaproveita o pipeline real da linguagem até o runtime existente; não cria parser/runtime paralelos e não conflita com o editor/TUI pausado.
+- Recorte conservador e honesto: cada linha vira o corpo temporário de `principal`, sem estado persistente entre linhas, sem multiline amplo, sem histórico sofisticado, sem autocomplete, sem shell rica e com saída explícita por `:quit`/`:sair`.
+- Fluxo coberto com evidência real: retorno explícito por `mimo ...;`, inspeção textual por `falar(...)`, linha composta com múltiplos statements simples e recuperação de sessão após entrada inválida sem derrubar o processo.
+- Continuidade preservada: modos CLI já existentes seguem sem regressão e o próximo degrau do bloco permanece sendo 16.2 (linguagem-cola).
+- Documentos atualizados: `README.md`, `MANUAL.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/phases.md`, `docs/future.md`, `docs/examples_index.md`, `docs/code_map.md`.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

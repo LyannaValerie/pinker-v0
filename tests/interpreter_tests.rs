@@ -2249,6 +2249,26 @@ fn run_cli_build_args(args: &[&str]) -> std::process::Output {
         .unwrap()
 }
 
+fn run_cli_repl_session(stdin_data: &str, args: &[&str]) -> std::process::Output {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("repl")
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("falha ao executar CLI repl");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin do processo filho indisponível")
+        .write_all(stdin_data.as_bytes())
+        .expect("falha ao escrever stdin do teste");
+    child
+        .wait_with_output()
+        .expect("falha ao aguardar saída do processo filho")
+}
+
 #[test]
 fn cli_run_mantem_exemplos_base() {
     let casos = [
@@ -2410,6 +2430,73 @@ fn cli_build_falha_semantica_retorna_erro() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Erro Semântico:"));
     let _ = fs::remove_dir_all(&temp);
+}
+
+#[test]
+fn cli_repl_sem_argumentos_abre_e_sai_com_quit() {
+    let output = run_cli_repl_session(":quit\n", &[]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("=== Pinker REPL ==="), "stdout={stdout}");
+    assert!(stdout.contains("pinker> "), "stdout={stdout}");
+    assert!(
+        stdout.contains("Encerrando REPL Pinker."),
+        "stdout={stdout}"
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).is_empty(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_repl_fluxo_minimo_com_mimo_exibe_resultado() {
+    let output = run_cli_repl_session("mimo 42;\n:quit\n", &[]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("=> 42"), "stdout={stdout}");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).is_empty(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_repl_fluxo_composto_em_linha_unica_funciona() {
+    let output = run_cli_repl_session("nova a: bombom = 40; falar(a + 2);\n:quit\n", &[]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("pinker> 42\nok\n"), "stdout={stdout}");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).is_empty(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_repl_erro_de_entrada_invalida_preserva_sessao() {
+    let output = run_cli_repl_session("nova = ;\nmimo 7;\n:quit\n", &[]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Erro Sintático:"), "stderr={stderr}");
+    assert!(stdout.contains("=> 7"), "stdout={stdout}");
+}
+
+#[test]
+fn cli_repl_sem_arquivo_rejeita_argumento_posicional() {
+    let output = run_cli_repl_session("", &["extra"]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("repl"), "stderr={stderr}");
+    assert!(
+        stderr.contains("não aceita argumentos posicionais"),
+        "stderr={stderr}"
+    );
 }
 
 #[test]

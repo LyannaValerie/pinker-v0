@@ -14,6 +14,7 @@ use pinker_v0::ir_validate;
 use pinker_v0::lexer::Lexer;
 use pinker_v0::parser::Parser;
 use pinker_v0::printer;
+use pinker_v0::repl;
 use pinker_v0::semantic;
 use pinker_v0::token::Span;
 use pinker_v0::{ast, error::PinkerError};
@@ -47,10 +48,13 @@ struct EditorConfig {
     input: String,
 }
 
+struct ReplConfig;
+
 enum CliCommand {
     Analyze(Config),
     Build(BuildConfig),
     Editor(EditorConfig),
+    Repl(ReplConfig),
 }
 
 fn usage(binary: &str) -> String {
@@ -58,6 +62,7 @@ fn usage(binary: &str) -> String {
         "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--cfg-ir] [--selected] [--machine] [--pseudo-asm] [--asm-s] [--run] [--check] <arquivo.pink> [-- <args...>]\n\
          Uso: {binary} build [--out-dir <diretorio>] <arquivo.pink>\n\
          Uso: {binary} editor <arquivo.pink>\n\
+         Uso: {binary} repl\n\
          \n\
          Modos:\n\
            --tokens    imprime a lista de tokens com spans\n\
@@ -74,8 +79,9 @@ fn usage(binary: &str) -> String {
            --check     executa apenas a validação semântica\n\
          \n\
          Comandos:\n\
-           build       gera artefato textual `.s` em disco\n\
-           editor      abre a TUI oficial mínima da Pinker (Fase 136)\n"
+          build       gera artefato textual `.s` em disco\n\
+          editor      abre a TUI oficial mínima da Pinker (Fase 136)\n\
+          repl        abre o REPL mínimo auditável (Fase 167)\n"
     )
 }
 
@@ -105,6 +111,20 @@ fn editor_usage(binary: &str) -> String {
            :set       altera linha existente\n\
            :save      salva arquivo atual\n\
            :quit      sai do editor (requer :save se houver alterações)\n"
+    )
+}
+
+fn repl_usage(binary: &str) -> String {
+    format!(
+        "Uso: {binary} repl\n\
+         \n\
+         Comando:\n\
+           repl       abre o REPL mínimo auditável da Pinker (Fase 167)\n\
+         \n\
+         Limites do REPL:\n\
+           cada linha vira um corpo temporário de `principal`\n\
+           não há estado persistente entre linhas\n\
+           sem multiline amplo; use `:quit` ou `:sair` para encerrar\n"
     )
 }
 
@@ -183,6 +203,26 @@ fn parse_editor_args(binary: &str, args: &[String]) -> Result<EditorConfig, Stri
     Ok(EditorConfig { input })
 }
 
+fn parse_repl_args(binary: &str, args: &[String]) -> Result<ReplConfig, String> {
+    if args.is_empty() {
+        return Ok(ReplConfig);
+    }
+
+    let arg = &args[0];
+    match arg.as_str() {
+        "--help" | "-h" => Err(repl_usage(binary)),
+        _ if arg.starts_with("--") => Err(format!(
+            "Flag desconhecida no comando repl: '{}'\n\n{}",
+            arg,
+            repl_usage(binary)
+        )),
+        _ => Err(format!(
+            "O comando repl não aceita argumentos posicionais.\n\n{}",
+            repl_usage(binary)
+        )),
+    }
+}
+
 fn parse_args() -> Result<CliCommand, String> {
     let mut input: Option<String> = None;
     let mut print_tokens = false;
@@ -223,6 +263,9 @@ fn parse_args() -> Result<CliCommand, String> {
         }
         if cmd == "editor" {
             return parse_editor_args(&binary, &flag_args[1..]).map(CliCommand::Editor);
+        }
+        if cmd == "repl" {
+            return parse_repl_args(&binary, &flag_args[1..]).map(CliCommand::Repl);
         }
     }
 
@@ -312,6 +355,7 @@ fn main() {
         CliCommand::Analyze(config) => run_analyze(config),
         CliCommand::Build(config) => run_build(config),
         CliCommand::Editor(config) => run_editor(config),
+        CliCommand::Repl(config) => run_repl(config),
     }
 }
 
@@ -324,6 +368,13 @@ fn run_editor(config: EditorConfig) {
         }
     };
     if let Err(err) = editor.run() {
+        eprintln!("{err}");
+        std::process::exit(1);
+    }
+}
+
+fn run_repl(_config: ReplConfig) {
+    if let Err(err) = repl::run_repl() {
         eprintln!("{err}");
         std::process::exit(1);
     }

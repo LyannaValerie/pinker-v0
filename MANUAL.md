@@ -209,7 +209,31 @@ Nos exemplos versionados das Fases 162, 163, 164, 165 e 166, o caminho do execut
 
 Limites atuais de texto/dados estruturados/processos: sem slicing de `verso`, sem indexação negativa, sem placeholders nomeados, sem escape rico de chaves, sem quoting complexo de CSV, sem campos multiline, sem CSV geral de múltiplas linhas, sem arrays JSON, sem objetos JSON aninhados, sem escapes ricos em JSON, sem `true`/`false`/`null`, sem timezone configurável, sem locale, sem parser amplo de datas, sem shell implícito, sem argumentos ricos de subprocesso, sem stdout/stderr combinados, sem redirecionamento rico, sem cadeia longa de pipes e sem stdin interativo/sessão ampla de subprocesso.
 
-## 9) Exemplos pequenos completos
+## 9) REPL mínimo
+
+O comando `pink repl` abre o primeiro REPL auditável da Pinker.
+
+Recorte real da Fase 167:
+- cada linha vira o corpo temporário de `principal`;
+- use `falar(...)` para saída textual e `mimo ...;` para retorno explícito;
+- `:quit` e `:sair` encerram a sessão;
+- não há estado persistente entre linhas;
+- não há multiline amplo, histórico sofisticado ou autocomplete.
+
+Exemplo:
+
+```text
+$ cargo run --bin pink -- repl
+pinker> nova a: bombom = 40; falar(a + 2);
+42
+ok
+pinker> mimo 7;
+=> 7
+pinker> :quit
+Encerrando REPL Pinker.
+```
+
+## 10) Exemplos pequenos completos
 
 ### A) Somar números
 
@@ -265,7 +289,7 @@ carinho principal() -> bombom {
 }
 ```
 
-## 10) Limites atuais da linguagem
+## 11) Limites atuais da linguagem
 
 No estado atual, ainda há limites importantes para uso geral:
 - backend nativo completo ainda não existe;
@@ -274,7 +298,7 @@ No estado atual, ainda há limites importantes para uso geral:
 - API de arquivo ainda é mínima (sem modos avançados, append ou streaming);
 - recursos avançados (generics/traits/enums completos etc.) seguem fora do escopo atual.
 
-## 11) Onde olhar depois
+## 12) Onde olhar depois
 
 - `README.md` — visão geral do projeto, modos de execução e comandos.
 - `docs/vocabulario.md` — catálogo de keywords da linguagem.

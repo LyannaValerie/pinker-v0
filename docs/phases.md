@@ -10,4 +10,4 @@
 > Para crônica histórica e fases/hotfixes/rodadas, use `docs/history.md`.
 > Para navegação mestre, use `docs/atlas.md`.
 >
-> Último alinhamento de compatibilidade: Fase 166 — pipe mínimo entre dois processos, preservando o Bloco 15 com 15.1, 15.2, 15.3, 15.4 e 15.5 concluídos no recorte mínimo. Próximo passo deve ser tratado fora desta compatibilidade legada, sem inflar subprocessos por inércia.
+> Último alinhamento de compatibilidade: Fase 167 — REPL mínimo auditável, primeiro marco funcional do Bloco 16. A Doc-31 preserva o encerramento canônico do Bloco 15 por suficiência conservadora, e a Fase 167 passa a registrar 16.1 como concluído no recorte mínimo.
