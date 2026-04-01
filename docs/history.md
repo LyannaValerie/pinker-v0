@@ -1206,6 +1206,16 @@ Doc-28 - fechamento canônico do Bloco 12 e preparação formal da transição p
 - Fase 146 permanece como último marco funcional do Bloco 12; nenhuma fase funcional nova foi aberta nesta rodada.
 - Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/future.md`.
 
+Doc-29 - fechamento canônico do Bloco 14 e preparação formal da transição para o próximo bloco
+- Rodada exclusivamente documental, sem implementação funcional nova.
+- Bloco 14 (formatação e dados estruturados) encerrado formalmente por suficiência conservadora após a consolidação das Fases 157, 158, 159 e 160.
+- Suficiência registrada sem exagero: os quatro degraus previstos foram abertos e entregues no recorte mínimo conservador — formatação simples de saída com `formatar_verso` (Fase 157), CSV mínimo de linha única com `ler_linha_csv_bombom`/`emitir_linha_csv_bombom` (Fase 158), JSON plano mínimo para `mapa<verso,bombom>` com `ler_json_plano_bombom`/`emitir_json_plano_bombom` (Fase 159) e tempo básico mínimo com timestamp Unix via `tempo_unix`/`formatar_tempo_unix` (Fase 160).
+- Recorte conservador reafirmado: o encerramento não implica formatação rica, CSV completo, JSON geral, timezones, locale, parser amplo nem biblioteca adulta de datas/tempo; o bloco permanece pequeno e auditável como entregue.
+- O encerramento do Bloco 14 é por suficiência de trilha (não por exaustão do domínio); ampliações futuras de formatação/CSV/JSON/datas continuam possíveis quando justificadas e subordinadas à maturidade global do projeto.
+- Bloco 15 (processos e integração sistêmica) formalizado como próximo bloco da trilha ativa.
+- Fase 160 permanece como último marco funcional do Bloco 14; nenhuma fase funcional nova foi aberta nesta rodada.
+- Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/future.md`, `docs/phases.md`.
+
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -375,7 +375,8 @@ Por padrão, o fechamento do Bloco 10 **não** implica:
 - O editor/TUI oficial da Pinker segue como frente oficial já aberta (Fase 136), porém pausada por decisão estratégica; não está abandonado.
 - O Bloco 12 foi encerrado por suficiência conservadora após as Fases 144–146 (`ninho`/`apelido` exportáveis via `trazer` + uso qualificado mínimo `modulo.Tipo` em contexto tipado), sem `pub/priv`, sem reexportação transitiva, sem wildcard import, sem aliasing novo, sem namespaces amplos e sem redesign geral de módulos.
 - O Bloco 13 foi encerrado por suficiência conservadora na Fase 156 (`lista<bombom>`, `mapa<verso,bombom>`, iteração confortável mínima e aleatoriedade básica com semente explícita), sem abrir generics, coleções amplas ou random rico.
-- As Fases 157, 158, 159 e 160 abriram funcionalmente o **Bloco 14 — formatação e dados estruturados** no menor recorte útil, com `formatar_verso(modelo, a[, b])`, com CSV mínimo de linha única para `lista<bombom>`, com JSON plano mínimo para `mapa<verso,bombom>` e com tempo básico mínimo via timestamp Unix em `bombom` + formatação UTC fixa.
+- O Bloco 14 foi encerrado por suficiência conservadora (Doc-29) após as Fases 157, 158, 159 e 160, que entregaram: `formatar_verso(modelo, a[, b])` (14.1), CSV mínimo de linha única para `lista<bombom>` (14.2), JSON plano mínimo para `mapa<verso,bombom>` (14.3) e tempo básico mínimo via timestamp Unix em `bombom` + formatação UTC fixa (14.4). O recorte é pequeno e auditável; não implica formatação rica, CSV completo, JSON geral, timezones, locale ou biblioteca adulta de datas.
+- O Bloco 15 (processos e integração sistêmica) é o próximo bloco formal da trilha ativa.
 
 - `%` nativo é a menor fase útil imediata.
 - inteiros com largura fixa são o primeiro grande passo estrutural.
@@ -549,7 +550,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 14 — formatação e dados estruturados
 
-**Status**: bloco formal ativo; as Fases 157, 158, 159 e 160 abriram 14.1, 14.2, 14.3 e 14.4 em camada 1 conservadora com formatação simples, CSV mínimo de linha única, JSON plano mínimo e tempo básico mínimo.
+**Status**: **encerrado por suficiência conservadora (Doc-29)**. As Fases 157, 158, 159 e 160 entregaram os quatro degraus previstos — 14.1, 14.2, 14.3 e 14.4 — em camada 1 conservadora com formatação simples, CSV mínimo de linha única, JSON plano mínimo e tempo básico mínimo. O recorte permanece pequeno e auditável; o fechamento não implica formatação rica, CSV completo, JSON geral, timezones, locale ou biblioteca adulta de datas.
 
 **Tese do bloco**: com coleções e iteração disponíveis, a Pinker pode processar e emitir dados estruturados de forma prática; este bloco fecha a cadeia `coleta → processamento → saída formatada` que torna a linguagem útil para tarefas reais de automação, relatórios e integração com outros sistemas.
 
@@ -567,7 +568,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 15 — processos e integração sistêmica
 
-**Status**: pendente; depende do Bloco 14.
+**Status**: próximo bloco formal da trilha ativa; depende do Bloco 14, que foi encerrado por suficiência conservadora na Doc-29.
 
 **Tese do bloco**: a Pinker já tem I/O de arquivo, texto e dados estruturados; o passo seguinte para ser ferramenta cotidiana real é executar processos externos e integrar-se ao ambiente de sistema; sem isso, a linguagem não pode substituir shell scripts nem ser linguagem-cola.
 

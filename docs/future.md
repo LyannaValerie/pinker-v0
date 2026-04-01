@@ -41,7 +41,7 @@
 - A FE-1 aqueceu canonicamente a periferia argv/env para `tem_chave`, `pedir_argumento` e `buscar_contexto` sem reabrir o Bloco 11 nem alterar seu encerramento.
 - O Bloco 12 foi encerrado por suficiência conservadora (Doc-28) após as Fases 144–146.
 - O Bloco 13 foi encerrado por suficiência conservadora na Fase 156 após abrir `lista<bombom>`, `mapa<verso,bombom>`, iteração confortável mínima e aleatoriedade básica com semente explícita.
-- As Fases 157, 158, 159 e 160 abriram o Bloco 14 com `formatar_verso(modelo, a[, b])`, com CSV mínimo de linha única para `lista<bombom>`, com JSON plano mínimo para `mapa<verso,bombom>` e com tempo básico mínimo via timestamp Unix em `bombom`.
+- O Bloco 14 foi encerrado por suficiência conservadora (Doc-29) após as Fases 157–160, que abriram e entregaram: `formatar_verso` (14.1), CSV mínimo de linha única (14.2), JSON plano mínimo para `mapa<verso,bombom>` (14.3) e tempo básico mínimo via timestamp Unix em `bombom` com formatação UTC fixa (14.4). O recorte permanece pequeno e auditável; formatação rica, CSV completo, JSON geral, timezones, locale e biblioteca adulta de datas continuam fora do escopo atual.
 
 Itens explicitamente para depois do foco inicial do Bloco 11:
 - REPL;
@@ -49,7 +49,7 @@ Itens explicitamente para depois do foco inicial do Bloco 11:
 - execução de processos externos + captura de saída de comandos;
 - integração rica com stdin/stdout/stderr;
 - coleções básicas além do recorte já aberto (`lista<bombom>` + `mapa<verso,bombom>` mínimos, iteração confortável mínima em `lista<bombom>` e `mapa<verso,bombom>`, além de aleatoriedade básica com semente explícita na Fase 156; seguem fora `lista<T>`/`mapa<K,V>` amplos, dicionário rico e iteração confortável ampla/generics);
-- JSON amplo, datas/tempo e formatação além do recorte mínimo já entregue nas Fases 157, 158, 159 e 160.
+- JSON amplo, datas/tempo com timezone/locale e formatação rica além do recorte mínimo já entregue e encerrado no Bloco 14 (Fases 157–160).
 
 ### 2.4 Editor/TUI oficial da Pinker (frente funcional aberta em camada 1, atualmente pausada)
 
