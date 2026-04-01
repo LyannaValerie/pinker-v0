@@ -488,6 +488,13 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         ),
     );
     sigs.insert(
+        "pipeline_minimo".to_string(),
+        (
+            TypeIR::Bombom,
+            vec![StackValueType::Verso, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
         "capturar_stdout".to_string(),
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );

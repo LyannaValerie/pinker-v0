@@ -1934,6 +1934,25 @@ fn try_call_intrinsic(
             let exit_code = executar_com_entrada_minimo(command_name, input_text)?;
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(exit_code))))
         }
+        "pipeline_minimo" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'pipeline_minimo' exige 2 argumentos (produtor verso, consumidor verso)",
+                ));
+            }
+            let RuntimeValue::Str(producer_name) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'pipeline_minimo' exige produtor em verso",
+                ));
+            };
+            let RuntimeValue::Str(consumer_name) = &args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'pipeline_minimo' exige consumidor em verso",
+                ));
+            };
+            let exit_code = pipeline_minimo(producer_name, consumer_name)?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(exit_code))))
+        }
         "capturar_stdout" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -2656,11 +2675,7 @@ fn formatar_tempo_unix_iso_utc(timestamp: u64) -> Result<String, PinkerError> {
 }
 
 fn executar_processo_minimo(command_name: &str) -> Result<u64, PinkerError> {
-    if command_name.trim().is_empty() {
-        return Err(runtime_err(
-            "intrínseca 'executar_processo' exige comando não vazio",
-        ));
-    }
+    validar_comando_nao_vazio("executar_processo", command_name)?;
 
     let status = Command::new(command_name).status().map_err(|err| {
         runtime_err(&format!(
@@ -2669,20 +2684,11 @@ fn executar_processo_minimo(command_name: &str) -> Result<u64, PinkerError> {
         ))
     })?;
 
-    let exit_code = status.code().ok_or_else(|| {
-        runtime_err("processo finalizado sem código de saída suportado em 'executar_processo'")
-    })?;
-
-    u64::try_from(exit_code)
-        .map_err(|_| runtime_err("código de saída inválido em 'executar_processo': valor negativo"))
+    exit_code_u64("executar_processo", status.code())
 }
 
 fn executar_com_entrada_minimo(command_name: &str, input_text: &str) -> Result<u64, PinkerError> {
-    if command_name.trim().is_empty() {
-        return Err(runtime_err(
-            "intrínseca 'executar_com_entrada' exige comando não vazio",
-        ));
-    }
+    validar_comando_nao_vazio("executar_com_entrada", command_name)?;
 
     let mut child = Command::new(command_name)
         .stdin(Stdio::piped())
@@ -2712,21 +2718,56 @@ fn executar_com_entrada_minimo(command_name: &str, input_text: &str) -> Result<u
         ))
     })?;
 
-    let exit_code = status.code().ok_or_else(|| {
-        runtime_err("processo finalizado sem código de saída suportado em 'executar_com_entrada'")
+    exit_code_u64("executar_com_entrada", status.code())
+}
+
+fn pipeline_minimo(producer_name: &str, consumer_name: &str) -> Result<u64, PinkerError> {
+    validar_comando_nao_vazio("pipeline_minimo", producer_name)?;
+    validar_comando_nao_vazio("pipeline_minimo", consumer_name)?;
+
+    let mut producer = Command::new(producer_name)
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|err| {
+            runtime_err(&format!(
+                "falha ao executar processo produtor em 'pipeline_minimo': {}",
+                err
+            ))
+        })?;
+
+    let producer_stdout = producer.stdout.take().ok_or_else(|| {
+        runtime_err("stdout indisponível em 'pipeline_minimo': produtor sem pipe configurado")
     })?;
 
-    u64::try_from(exit_code).map_err(|_| {
-        runtime_err("código de saída inválido em 'executar_com_entrada': valor negativo")
-    })
+    let mut consumer = Command::new(consumer_name)
+        .stdin(Stdio::from(producer_stdout))
+        .spawn()
+        .map_err(|err| {
+            runtime_err(&format!(
+                "falha ao executar processo consumidor em 'pipeline_minimo': {}",
+                err
+            ))
+        })?;
+
+    let consumer_status = consumer.wait().map_err(|err| {
+        runtime_err(&format!(
+            "falha ao aguardar processo consumidor em 'pipeline_minimo': {}",
+            err
+        ))
+    })?;
+
+    producer.wait().map_err(|err| {
+        runtime_err(&format!(
+            "falha ao aguardar processo produtor em 'pipeline_minimo': {}",
+            err
+        ))
+    })?;
+
+    exit_code_u64("pipeline_minimo", consumer_status.code())
 }
 
 fn capturar_stdout_minimo(command_name: &str) -> Result<String, PinkerError> {
-    if command_name.trim().is_empty() {
-        return Err(runtime_err(
-            "intrínseca 'capturar_stdout' exige comando não vazio",
-        ));
-    }
+    validar_comando_nao_vazio("capturar_stdout", command_name)?;
 
     let output = Command::new(command_name).output().map_err(|err| {
         runtime_err(&format!(
@@ -2741,11 +2782,7 @@ fn capturar_stdout_minimo(command_name: &str) -> Result<String, PinkerError> {
 }
 
 fn capturar_stderr_minimo(command_name: &str) -> Result<String, PinkerError> {
-    if command_name.trim().is_empty() {
-        return Err(runtime_err(
-            "intrínseca 'capturar_stderr' exige comando não vazio",
-        ));
-    }
+    validar_comando_nao_vazio("capturar_stderr", command_name)?;
 
     let output = Command::new(command_name).output().map_err(|err| {
         runtime_err(&format!(
@@ -2756,6 +2793,32 @@ fn capturar_stderr_minimo(command_name: &str) -> Result<String, PinkerError> {
 
     String::from_utf8(output.stderr).map_err(|_| {
         runtime_err("stderr inválido em 'capturar_stderr': UTF-8 estrito é obrigatório")
+    })
+}
+
+fn validar_comando_nao_vazio(intrinsic_name: &str, command_name: &str) -> Result<(), PinkerError> {
+    if command_name.trim().is_empty() {
+        return Err(runtime_err(&format!(
+            "intrínseca '{}' exige comando não vazio",
+            intrinsic_name
+        )));
+    }
+    Ok(())
+}
+
+fn exit_code_u64(intrinsic_name: &str, exit_code: Option<i32>) -> Result<u64, PinkerError> {
+    let exit_code = exit_code.ok_or_else(|| {
+        runtime_err(&format!(
+            "processo finalizado sem código de saída suportado em '{}'",
+            intrinsic_name
+        ))
+    })?;
+
+    u64::try_from(exit_code).map_err(|_| {
+        runtime_err(&format!(
+            "código de saída inválido em '{}': valor negativo",
+            intrinsic_name
+        ))
     })
 }
 

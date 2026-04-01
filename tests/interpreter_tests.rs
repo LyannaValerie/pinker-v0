@@ -80,6 +80,14 @@ fn fase165_helper_bin(name: &str) -> &'static str {
     }
 }
 
+fn fase166_helper_bin(name: &str) -> &'static str {
+    match name {
+        "produtor_pipe_ok" => env!("CARGO_BIN_EXE_pinker_fase166_pipe_produtor"),
+        "consumidor_stdin_ok" => fase165_helper_bin("stdin_ok"),
+        _ => panic!("helper de pipe mínimo desconhecido: {name}"),
+    }
+}
+
 fn pink_string_literal(text: &str) -> String {
     text.replace('\\', "\\\\").replace('"', "\\\"")
 }
@@ -7094,6 +7102,195 @@ fn cli_run_fase165_stdin_textual_fluxo_composto_valido() {
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
         "stdin_status=0\n0\n"
+    );
+}
+
+#[test]
+fn run_fase166_pipeline_minimo_retorna_codigo_do_consumidor() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = pipeline_minimo("__PRODUTOR__", "__CONSUMIDOR__");
+            talvez codigo == 0 {
+                mimo 166;
+            }
+            mimo 0;
+        }"#
+    .replace(
+        "__PRODUTOR__",
+        &pink_string_literal(fase166_helper_bin("produtor_pipe_ok")),
+    )
+    .replace(
+        "__CONSUMIDOR__",
+        &pink_string_literal(fase166_helper_bin("consumidor_stdin_ok")),
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(166)));
+}
+
+#[test]
+fn run_fase166_pipeline_minimo_fluxo_composto_funciona() {
+    let source = r#"pacote main;
+        carinho verificar(nome: verso, produtor: verso, consumidor: verso) -> bombom {
+            nova codigo: bombom = pipeline_minimo(produtor, consumidor);
+            falar(formatar_verso("{}={}", nome, codigo));
+            mimo codigo;
+        }
+
+        carinho principal() -> bombom {
+            nova codigo: bombom = verificar("pipe", "__PRODUTOR__", "__CONSUMIDOR__");
+            nova resumo: verso = formatar_verso("pipe_zero={}", codigo);
+            falar(resumo);
+            talvez codigo == 0 && igual_verso(resumo, "pipe_zero=0") {
+                mimo 166;
+            }
+            mimo 0;
+        }"#
+    .replace(
+        "__PRODUTOR__",
+        &pink_string_literal(fase166_helper_bin("produtor_pipe_ok")),
+    )
+    .replace(
+        "__CONSUMIDOR__",
+        &pink_string_literal(fase166_helper_bin("consumidor_stdin_ok")),
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(166)));
+}
+
+#[test]
+fn run_fase166_pipeline_minimo_falha_com_spawn_produtor_invalido() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = pipeline_minimo("/__pinker_fase166_produtor_inexistente__", "__CONSUMIDOR__");
+            mimo codigo;
+        }"#
+    .replace(
+        "__CONSUMIDOR__",
+        &pink_string_literal(fase166_helper_bin("consumidor_stdin_ok")),
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("falha ao executar processo produtor em 'pipeline_minimo'"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase166_pipeline_minimo_falha_com_spawn_consumidor_invalido() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = pipeline_minimo("__PRODUTOR__", "/__pinker_fase166_consumidor_inexistente__");
+            mimo codigo;
+        }"#
+    .replace(
+        "__PRODUTOR__",
+        &pink_string_literal(fase166_helper_bin("produtor_pipe_ok")),
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("falha ao executar processo consumidor em 'pipeline_minimo'"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase166_pipeline_minimo_rejeita_comando_vazio() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = pipeline_minimo("", "__CONSUMIDOR__");
+            mimo codigo;
+        }"#
+    .replace(
+        "__CONSUMIDOR__",
+        &pink_string_literal(fase166_helper_bin("consumidor_stdin_ok")),
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("intrínseca 'pipeline_minimo' exige comando não vazio"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn run_fase166_pipeline_minimo_nao_abre_shell_implicito() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = pipeline_minimo("__PRODUTOR__ --flag", "__CONSUMIDOR__");
+            mimo codigo;
+        }"#
+    .replace(
+        "__PRODUTOR__",
+        &pink_string_literal(fase166_helper_bin("produtor_pipe_ok")),
+    )
+    .replace(
+        "__CONSUMIDOR__",
+        &pink_string_literal(fase166_helper_bin("consumidor_stdin_ok")),
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("falha ao executar processo produtor em 'pipeline_minimo'"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
+fn cli_check_fase166_pipe_minimo_valido() {
+    let output = run_cli_check_example("examples/fase166_pipe_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase166_pipe_minimo_valido() {
+    let output = run_cli_example_with_args(
+        "examples/fase166_pipe_minimo_valido.pink",
+        &[
+            fase166_helper_bin("produtor_pipe_ok"),
+            fase166_helper_bin("consumidor_stdin_ok"),
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n0\n");
+}
+
+#[test]
+fn cli_check_fase166_pipe_minimo_fluxo_composto_valido() {
+    let output = run_cli_check_example("examples/fase166_pipe_minimo_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase166_pipe_minimo_fluxo_composto_valido() {
+    let output = run_cli_example_with_args(
+        "examples/fase166_pipe_minimo_fluxo_composto_valido.pink",
+        &[
+            fase166_helper_bin("produtor_pipe_ok"),
+            fase166_helper_bin("consumidor_stdin_ok"),
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "etapa=0\npipeline_status=0\npipeline=ok\n0\n"
     );
 }
 

@@ -1,0 +1,12 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova produtor: verso = argumento(0);
+    nova consumidor: verso = argumento(1);
+    nova codigo: bombom = pipeline_minimo(produtor, consumidor);
+    falar(codigo);
+    talvez codigo == 0 {
+        mimo 0;
+    }
+    mimo 1;
+}

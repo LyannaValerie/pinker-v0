@@ -1447,6 +1447,53 @@ fn executar_com_entrada_intrinseca_rejeita_entrada_nao_verso() {
 }
 
 #[test]
+fn pipeline_minimo_intrinseca_valida_sem_declaracao() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = pipeline_minimo("pinker_fase163_stdout_ok", "pinker_fase165_stdin_ok");
+            mimo codigo;
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn pipeline_minimo_intrinseca_rejeita_aridade_invalida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = pipeline_minimo("a");
+            mimo codigo;
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("chamada de 'pipeline_minimo' com aridade inválida"));
+}
+
+#[test]
+fn pipeline_minimo_intrinseca_rejeita_produtor_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = pipeline_minimo(7, "pinker_fase165_stdin_ok");
+            mimo codigo;
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 1 da chamada 'pipeline_minimo'"));
+}
+
+#[test]
+fn pipeline_minimo_intrinseca_rejeita_consumidor_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = pipeline_minimo("pinker_fase163_stdout_ok", 7);
+            mimo codigo;
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 2 da chamada 'pipeline_minimo'"));
+}
+
+#[test]
 fn capturar_stdout_intrinseca_valida_sem_declaracao() {
     let code = r#"
         pacote main;
