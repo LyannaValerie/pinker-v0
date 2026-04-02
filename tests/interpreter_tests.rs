@@ -7515,6 +7515,55 @@ fn run_fase165_executar_com_entrada_fluxo_composto_funciona() {
 }
 
 #[test]
+fn run_fase177_executar_com_entrada_aceita_argv_explicito_minimo() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = executar_com_entrada("__CMD__", "argv=ok\n", "--modo=ok");
+            talvez codigo == 0 {
+                mimo 177;
+            }
+            mimo 0;
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase165_helper_bin("stdin_ok")),
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(177)));
+}
+
+#[test]
+fn run_fase177_executar_com_entrada_fluxo_composto_com_argv_explicito() {
+    let source = r#"pacote main;
+        carinho montar_entrada() -> verso {
+            nova prefixo: verso = "linha=argv\n";
+            nova sufixo: verso = formatar_verso("valor={}\n", 177);
+            mimo juntar_verso(prefixo, sufixo);
+        }
+
+        carinho verificar(comando: verso, entrada: verso, arg: verso) -> bombom {
+            nova codigo: bombom = executar_com_entrada(comando, entrada, arg);
+            falar(formatar_verso("stdin_argv_status={}", codigo));
+            mimo codigo;
+        }
+
+        carinho principal() -> bombom {
+            nova entrada: verso = montar_entrada();
+            nova codigo: bombom = verificar("__CMD__", entrada, "--modo=ok");
+            talvez codigo == 0 && igual_verso(entrada, "linha=argv\nvalor=177\n") {
+                mimo 177;
+            }
+            mimo 0;
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase165_helper_bin("stdin_ok")),
+    );
+    let out = run_code(&source).unwrap();
+    assert_eq!(out, Some(RuntimeValue::Int(177)));
+}
+
+#[test]
 fn run_fase165_executar_com_entrada_falha_com_spawn_invalido() {
     let source = r#"pacote main;
         carinho principal() -> bombom {
@@ -7564,8 +7613,38 @@ fn run_fase165_executar_com_entrada_nao_abre_shell_implicito() {
 }
 
 #[test]
+fn run_fase177_executar_com_entrada_com_argv_explicito_ainda_nao_abre_shell_implicito() {
+    let source = r#"pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = executar_com_entrada("__CMD__ --flag", "argv=ok\n", "--modo=ok");
+            mimo codigo;
+        }"#
+    .replace(
+        "__CMD__",
+        &pink_string_literal(fase165_helper_bin("stdin_ok")),
+    );
+    let err = run_code(&source).unwrap_err();
+    assert!(
+        err.contains("falha ao executar processo em 'executar_com_entrada'"),
+        "erro inesperado: {}",
+        err
+    );
+}
+
+#[test]
 fn cli_check_fase165_stdin_textual_minimo_valido() {
     let output = run_cli_check_example("examples/fase165_stdin_textual_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_check_fase177_stdin_textual_argv_explicito_minimo_valido() {
+    let output =
+        run_cli_check_example("examples/fase177_stdin_textual_argv_explicito_minimo_valido.pink");
     assert!(
         output.status.success(),
         "esperava sucesso no --check, stderr={}",
@@ -7588,8 +7667,34 @@ fn cli_run_fase165_stdin_textual_minimo_valido() {
 }
 
 #[test]
+fn cli_run_fase177_stdin_textual_argv_explicito_minimo_valido() {
+    let output = run_cli_example_with_args(
+        "examples/fase177_stdin_textual_argv_explicito_minimo_valido.pink",
+        &[fase165_helper_bin("stdin_ok")],
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n0\n");
+}
+
+#[test]
 fn cli_check_fase165_stdin_textual_fluxo_composto_valido() {
     let output = run_cli_check_example("examples/fase165_stdin_textual_fluxo_composto_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_check_fase177_stdin_textual_argv_explicito_fluxo_composto_valido() {
+    let output = run_cli_check_example(
+        "examples/fase177_stdin_textual_argv_explicito_fluxo_composto_valido.pink",
+    );
     assert!(
         output.status.success(),
         "esperava sucesso no --check, stderr={}",
@@ -7611,6 +7716,23 @@ fn cli_run_fase165_stdin_textual_fluxo_composto_valido() {
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
         "stdin_status=0\n0\n"
+    );
+}
+
+#[test]
+fn cli_run_fase177_stdin_textual_argv_explicito_fluxo_composto_valido() {
+    let output = run_cli_example_with_args(
+        "examples/fase177_stdin_textual_argv_explicito_fluxo_composto_valido.pink",
+        &[fase165_helper_bin("stdin_ok")],
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "stdin_argv_status=0\n0\n"
     );
 }
 

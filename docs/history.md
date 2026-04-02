@@ -1383,6 +1383,14 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 - Blocos 18 e 19 permanecem apenas como trilhas candidatas futuras; esta fase não os abre.
 - Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
 
+177 - linguagem-cola: argv explícito mínimo para executar_com_entrada (camada 4 conservadora)
+- Continuação direta e pequena de 16.2 no runtime `--run`, reduzindo a assimetria restante da família de subprocessos sem redesenhar a API de processos.
+- `executar_com_entrada` passou a aceitar exatamente um `argv1` textual explícito além de `comando` e `entrada`, preservando stdin textual mínimo, sem shell implícito e sem parser amplo de linha de comando.
+- `pipeline_minimo` continua fora dessa expansão.
+- Ficam explicitamente fora do recorte: múltiplos argumentos gerais, listas/coleções de argv, shell mode, quoting/escaping rico, stdin adulto, PTY, sessão interativa e expansão automática para outras intrínsecas de subprocesso.
+- Cobertura adicionada em semântica, runtime e CLI com exemplo mínimo, fluxo composto, erro claro fora do recorte, preservação de `executar_com_entrada(comando, entrada)` e ausência de shell implícito.
+- Documentos atualizados: `README.md`, `MANUAL.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/examples_index.md`, `docs/code_map.md`.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)

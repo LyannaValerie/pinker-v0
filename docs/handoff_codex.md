@@ -5,14 +5,13 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 176 — forma visual e superfície documental: fechamento documental por suficiência conservadora**.
-- Leitura operacional canônica: **Fase 176** concluída; **Bloco 17** fica encerrado por suficiência conservadora; **Bloco 16** permanece como frente funcional oficialmente ativa.
+- **Fase 177 — linguagem-cola: argv explícito mínimo para executar_com_entrada (camada 4 conservadora)**.
+- Leitura operacional canônica: **Fase 177** concluída; **Bloco 17** permanece encerrado por suficiência conservadora; **Bloco 16** segue como frente funcional oficialmente ativa.
 
 ## 2. Resultado operacional da rodada
-- Fechamento documental do Bloco 17 consolidado em `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md` e `docs/handoff_codex.md`.
-- O encerramento registra os cinco degraus reais do bloco: norma visual mínima, primeiro lote pequeno de exemplos uniformizados, refinamento mínimo de tom documental, convenção mínima para `trazer`/uso qualificado e política mínima para aliases e nomes curtos.
-- **Nenhuma mudança funcional foi implementada:** parser, keywords, semântica e runtime permanecem inalterados.
-- O Bloco 17 fica explicitamente limitado ao recorte documental entregue e não abre sintaxe nova, reforma de keywords, inferência local, `;` opcional, unidade implícita nem redesign de módulos.
+- `executar_com_entrada` passou a aceitar exatamente um `argv1` textual explícito opcional além de `comando` e `entrada`, preservando stdin textual mínimo e retorno por código de saída.
+- A ampliação foi aplicada só no ponto assimétrico restante da família de subprocessos, com cobertura em semântica, runtime, CLI e exemplos versionados da fase.
+- `pipeline_minimo` permanece fora desta expansão; múltiplos argumentos, shell implícito, quoting rico, stdin adulto e redesign geral de processos continuam fora do recorte.
 
 ## 3. Próximo passo correto
 - Próximo passo funcional provável: retomar **16.2 — linguagem-cola**.
@@ -22,4 +21,4 @@
 - Sem tratar o Bloco 17 encerrado como frente funcional; 18 e 19 seguem apenas como candidatos futuros.
 - Sem implementar reformas sintáticas (novas keywords, inferência local, `;` opcional, etc.) sem abertura funcional explícita de fase.
 - Sem inflar `future.md` como se fosse roadmap ou `parallel.md` como se fosse backlog técnico executável.
-- Sem reabrir subprocessos por inércia documental.
+- Sem reabrir subprocessos além do recorte explícito desta fase nem expandir `pipeline_minimo` por inércia.

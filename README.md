@@ -41,7 +41,7 @@ A lista abaixo resume apenas o que já está implementado no workspace atual, se
 - prioridade mínima entre argumento nomeado, ambiente e fallback textual em `--run` com `buscar_contexto(chave_arg, chave_env, padrao)`, mantendo compatibilidade temporária com `argumento_nomeado_ou_ambiente_ou`, e preservando a ordem `CLI -> ambiente -> padrão` sem parser/configuração ampla (Fase 143 + FE-1)
 - execução mínima de processo externo em `--run` com `executar_processo(comando) -> bombom`, sem shell implícito, sem argumentos ricos e retornando apenas o código de saída do processo; a Fase 162 corrige testes e exemplos para usar binários auxiliares do próprio repositório em vez de depender de `/bin/true` e `/bin/false`
 - argv explícito mínimo em processo externo no `--run` com `executar_processo(comando, argv1) -> bombom`, aceitando exatamente um argumento textual adicional sem shell implícito, sem quoting amplo e sem listas gerais de argumentos (Fase 168)
-- entrada mínima por stdin textual de processo externo em `--run` com `executar_com_entrada(comando, entrada) -> bombom`, sem shell implícito, sem sessão interativa, com uma única escrita textual de `verso` em stdin e retorno apenas do código de saída (Fase 165)
+- entrada mínima por stdin textual de processo externo em `--run` com `executar_com_entrada(comando, entrada) -> bombom` e `executar_com_entrada(comando, entrada, argv1) -> bombom`, sem shell implícito, sem sessão interativa, com uma única escrita textual de `verso` em stdin, exatamente um `argv1` explícito opcional no recorte conservador da Fase 177 e retorno apenas do código de saída (Fases 165 e 177)
 - pipe mínimo entre dois processos em `--run` com `pipeline_minimo(produtor, consumidor) -> bombom`, conectando apenas `stdout` do produtor ao `stdin` do consumidor, sem shell implícito, sem cadeia longa e retornando apenas o código de saída do consumidor (Fase 166)
 - REPL mínimo auditável (`pink repl`) com reaproveitamento do pipeline real: cada linha vira o corpo temporário de `principal`, sem estado persistente entre linhas, sem multiline amplo e com `:quit`/`:sair` para saída explícita (Fase 167)
 - captura mínima de stdout de processo externo em `--run` com `capturar_stdout(comando) -> verso`, sem shell implícito, sem argv rico, com UTF-8 estrito e retorno apenas do stdout textual (Fase 163)
@@ -258,6 +258,8 @@ cargo run --bin pink -- --run examples/fase170_captura_stderr_argv_explicito_min
 cargo run --bin pink -- --run examples/fase170_captura_stderr_argv_explicito_fluxo_composto_valido.pink -- target/debug/pinker_fase164_stderr_ok
 cargo run --bin pink -- --run examples/fase165_stdin_textual_minimo_valido.pink -- target/debug/pinker_fase165_stdin_ok
 cargo run --bin pink -- --run examples/fase165_stdin_textual_fluxo_composto_valido.pink -- target/debug/pinker_fase165_stdin_ok
+cargo run --bin pink -- --run examples/fase177_stdin_textual_argv_explicito_minimo_valido.pink -- target/debug/pinker_fase165_stdin_ok
+cargo run --bin pink -- --run examples/fase177_stdin_textual_argv_explicito_fluxo_composto_valido.pink -- target/debug/pinker_fase165_stdin_ok
 cargo run --bin pink -- --run examples/fase166_pipe_minimo_valido.pink -- target/debug/pinker_fase166_pipe_produtor target/debug/pinker_fase165_stdin_ok
 cargo run --bin pink -- --run examples/fase166_pipe_minimo_fluxo_composto_valido.pink -- target/debug/pinker_fase166_pipe_produtor target/debug/pinker_fase165_stdin_ok
 cargo run --bin pink -- --run examples/fase168_argv_explicito_minimo_valido.pink -- target/debug/pinker_fase168_argv_um

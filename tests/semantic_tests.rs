@@ -1434,11 +1434,22 @@ fn executar_com_entrada_intrinseca_valida_sem_declaracao() {
 }
 
 #[test]
+fn executar_com_entrada_intrinseca_valida_com_argv_explicito_minimo() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = executar_com_entrada("pinker_fase165_stdin_ok", "argv=ok\n", "--modo=ok");
+            mimo codigo;
+        }"#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
 fn executar_com_entrada_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_com_entrada("a");
+            nova codigo: bombom = executar_com_entrada("a", "b", "c", "d");
             mimo codigo;
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -1467,6 +1478,18 @@ fn executar_com_entrada_intrinseca_rejeita_entrada_nao_verso() {
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 2 da chamada 'executar_com_entrada'"));
+}
+
+#[test]
+fn executar_com_entrada_intrinseca_rejeita_terceiro_argumento_nao_verso() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova codigo: bombom = executar_com_entrada("pinker_fase165_stdin_ok", "argv=ok\n", 7);
+            mimo codigo;
+        }"#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipo inválido no argumento 3 da chamada 'executar_com_entrada'"));
 }
 
 #[test]
