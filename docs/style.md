@@ -6,13 +6,37 @@ Esta é a primeira norma visual oficial da Pinker. Ela define a estética prefer
 
 ---
 
-## 1. Organização do Topo
+## 1. Organização do Topo e Imports
 
 - **Pacote:** A declaração `pacote ...;` deve ser a primeira linha do arquivo.
 - **Imports:** Declarações `trazer` devem vir logo após o pacote, uma por linha.
 - **Espaçamento:**
   - 1 linha em branco entre `pacote` e o primeiro `trazer`.
   - 1 linha em branco entre o último `trazer` e a primeira declaração global (função, ninho, etc.).
+- **Agrupamento mínimo:** quando houver mistura de `trazer modulo;` e `trazer modulo.simbolo;`, apresentar primeiro os imports de módulo inteiro e depois os imports pontuais de símbolo.
+- **Separação interna:** em listas curtas, não abrir linhas em branco entre `trazer`; em listas maiores, usar no máximo uma linha em branco para separar esses dois grupos.
+
+Exemplo preferido:
+```pink
+pacote main;
+
+trazer pessoa;
+trazer pessoa_tipos;
+
+trazer pessoa.nome_publico;
+trazer pessoa.IDADE_PADRAO;
+
+carinho principal() -> bombom {
+    ...
+}
+```
+
+## 1.1 Uso qualificado em documentação canônica
+
+- **Natureza da regra:** esta é uma convenção de apresentação para docs e exemplos canônicos; não é sintaxe nova nem obrigação semântica adicional.
+- **Quando preferir:** use forma qualificada já suportada quando ela reduzir ambiguidade de origem, sobretudo para tipos importados em contexto tipado, como `modulo.Tipo`.
+- **Quando evitar excesso:** se o símbolo já foi importado pontualmente com `trazer modulo.simbolo;`, prefira a forma curta local nos exemplos para evitar ruído visual repetitivo.
+- **Escopo atual implementado:** nesta fase, a convenção cobre apenas as formas já aceitas hoje pelo projeto, como `trazer modulo;`, `trazer modulo.simbolo;` e `modulo.Tipo` em contexto tipado.
 
 Exemplo:
 ```pink

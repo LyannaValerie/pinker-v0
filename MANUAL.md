@@ -99,6 +99,28 @@ carinho principal() -> bombom {
 }
 ```
 
+## 6.1) Módulos e imports no estilo canônico atual
+
+No estado atual, a Pinker aceita `trazer modulo;` e `trazer modulo.simbolo;`.
+Na apresentação canônica, `trazer` fica logo após `pacote`, um por linha; quando houver mistura, prefira listar primeiro imports de módulo inteiro e depois imports pontuais.
+
+Quando um tipo importado precisa manter origem visível no texto, prefira a forma qualificada já suportada `modulo.Tipo`.
+Quando um símbolo já foi trazido pontualmente com `trazer modulo.simbolo;`, prefira a forma curta local para evitar ruído.
+
+```pink
+pacote main;
+
+trazer pessoa_tipos;
+trazer pessoa_util.nome_publico;
+
+carinho mostrar_idade(idade: pessoa_tipos.Idade) -> bombom {
+    falar(nome_publico(), idade);
+    mimo idade;
+}
+```
+
+Esta convenção é documental e estilística: ela não cria sintaxe nova nem amplia o sistema de módulos.
+
 ## 7) I/O atual
 
 ### Saída com `falar`
