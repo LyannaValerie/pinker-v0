@@ -607,3 +607,19 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
    - **Fase 170 concluída (camada 3 conservadora)**: `capturar_stderr` passa a aceitar exatamente um `argv1` textual explícito além do comando, reduzindo mais um passo da assimetria da família de subprocessos sem abrir shell implícito, parser amplo de linha, quoting/escaping rico, listas gerais de argumentos ou expansão automática para `executar_com_entrada` ou `pipeline_minimo`.
 
 **Escopo deliberadamente fora do Bloco 16**: IDE integrada, debugger interativo, package manager soberano, autohospedagem, macros de compilação, REPL adulto com multiline amplo/histórico sofisticado/autocomplete e shell rica.
+
+---
+
+## Trilhas candidatas futuras (não ativas)
+
+As trilhas abaixo representam direções de longo prazo registradas documentalmente em Doc-32, mas que **não compõem a trilha ativa** imediata. Sua ativação funcional depende de decisão estratégica futura.
+
+### Superfície Pinker (Blocos 17, 18 e 19)
+
+Visão de alinhamento entre motor técnico e aparência estética da linguagem:
+
+- **Bloco 17 — forma visual e superfície documental**: estilo, convenções de código e uniformização de tom nos documentos.
+- **Bloco 18 — core nobre e bibliotecas temáticas**: separação entre núcleo e famílias de bibliotecas com identidade própria.
+- **Bloco 19 — reformas sintáticas e semânticas de superfície**: ajustes de elegância sintática (novas keywords, inferência, `;` opcional, etc.).
+
+**Observação:** a trilha oficial ativa (Blocos 1–16) tem precedência absoluta sobre as trilhas candidatas.

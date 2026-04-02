@@ -1296,6 +1296,14 @@ Doc-31 - fechamento canônico do Bloco 15 por suficiência conservadora
 - Fase 166 permanece como último marco funcional do Bloco 15; FE-1 permanece extraordinária e separada; nenhuma fase funcional nova foi aberta nesta rodada.
 - Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/future.md`, `docs/phases.md`.
 
+Doc-32 - abertura documental da trilha de superfície Pinker
+- Rodada exclusivamente documental, sem implementação funcional nova.
+- Registra oficialmente a existência da trilha candidata de “superfície Pinker”, organizada em três blocos crescentes de visão e identidade.
+- Bloco 17 (forma visual e superfície documental), Bloco 18 (core nobre e bibliotecas temáticas) e Bloco 19 (reformas sintáticas e semânticas de superfície) foram posicionados como direções futuras candidatas, não como trilha ativa imediata.
+- A decisão estratégica reafirma que a Pinker já possui motor técnico real e que o alinhamento de sua superfície deve evoluir com disciplina, começando pela camada documental e estilística.
+- Mudanças funcionais (novas keywords, inferência local, `;` opcional, unidade implícita e reavaliação de `->`) permanecem explicitamente fora do estado real e da trilha ativa corrente.
+- Documentos atualizados: `docs/history.md`, `docs/future.md`, `docs/parallel.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/roadmap.md`.
+
 167 - ferramenta cotidiana madura e linguagem-cola: REPL mínimo auditável (camada 1 conservadora)
 - Primeira fase funcional do Bloco 16.
 - Abre a primeira experiência interativa mínima da Pinker por meio do comando `pink repl`.
