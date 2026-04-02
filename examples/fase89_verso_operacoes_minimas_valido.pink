@@ -5,9 +5,7 @@ carinho principal() -> bombom {
     nova nome: verso = "Pinker";
     nova frase: verso = juntar_verso(saudacao, nome);
     falar(frase);
-
     nova tamanho: bombom = tamanho_verso(frase);
     falar(tamanho);
-
     mimo 0;
 }

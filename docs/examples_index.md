@@ -6,6 +6,8 @@
 
 Guia curto para localizar cobertura útil sem varrer `examples/` e `tests/` inteiros.
 
+Nota factual de estilo: a Fase 172 uniformizou visualmente um primeiro lote pequeno de exemplos canônicos segundo `docs/style.md`, começando por `examples/run_soma.pink`, `examples/run_chamada.pink`, `examples/run_global.pink` e `examples/fase89_verso_operacoes_minimas_valido.pink`.
+
 | Área | Exemplo(s) | Teste(s) | Cobertura |
 |---|---|---|---|
 | parser / AST | `examples/principal_valida.pink`, `examples/principal_invalida.pink` | `tests/parser_tests.rs` | parse básico, erros de sintaxe |
