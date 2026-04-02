@@ -610,16 +610,28 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ---
 
+### Bloco 17 — forma visual e superfície documental
+
+**Status**: **bloco iniciado**. Fase 171 entregue como marco documental.
+
+**Tese estratégica**: após consolidar o motor técnico e a primeira camada de linguagem-cola (Blocos 1–16), a Pinker atinge maturidade suficiente para definir sua identidade visual e documental oficial. O Bloco 17 não altera a gramática ou o runtime, mas estabelece a "Norma Visual Oficial Mínima" que deve reger a comunicação canônica da linguagem.
+
+**Itens do bloco (ordem interna sugerida)**:
+1. **norma visual oficial mínima** — formalização de estilo (imports, espaçamento, assinaturas) em `docs/style.md` (Fase 171).
+2. **uniformização de exemplos** — revisão da suíte de exemplos para conformidade com a norma visual (vincular a fases futuras se necessário).
+3. **refinamento de tom documental** — alinhamento de manuais e arquivos `README` com a estética canônica.
+
+---
+
 ## Trilhas candidatas futuras (não ativas)
 
 As trilhas abaixo representam direções de longo prazo registradas documentalmente em Doc-32, mas que **não compõem a trilha ativa** imediata. Sua ativação funcional depende de decisão estratégica futura.
 
-### Superfície Pinker (Blocos 17, 18 e 19)
+### Superfície Pinker (Blocos 18 e 19)
 
 Visão de alinhamento entre motor técnico e aparência estética da linguagem:
 
-- **Bloco 17 — forma visual e superfície documental**: estilo, convenções de código e uniformização de tom nos documentos.
 - **Bloco 18 — core nobre e bibliotecas temáticas**: separação entre núcleo e famílias de bibliotecas com identidade própria.
 - **Bloco 19 — reformas sintáticas e semânticas de superfície**: ajustes de elegância sintática (novas keywords, inferência, `;` opcional, etc.).
 
-**Observação:** a trilha oficial ativa (Blocos 1–16) tem precedência absoluta sobre as trilhas candidatas.
+**Observação:** a trilha oficial ativa (Blocos 1–17) tem precedência absoluta sobre as trilhas candidatas.
