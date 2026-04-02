@@ -612,7 +612,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 17 — forma visual e superfície documental
 
-**Status**: **bloco iniciado**. Fases 171, 172, 173, 174 e 175 entregues como marcos documentais.
+**Status**: **encerrado por suficiência conservadora**. As Fases 171, 172, 173, 174 e 175 cumpriram o recorte inicial do bloco sem deslocar a frente funcional oficial do Bloco 16.
 
 **Tese estratégica**: após consolidar o motor técnico e a primeira camada de linguagem-cola (Blocos 1–16), a Pinker atinge maturidade suficiente para definir sua identidade visual e documental oficial. O Bloco 17 não altera a gramática ou o runtime, mas estabelece a "Norma Visual Oficial Mínima" que deve reger a comunicação canônica da linguagem.
 
@@ -622,6 +622,14 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 3. **refinamento de tom documental** — alinhamento de manuais e arquivos `README` com a estética canônica; a Fase 173 entregou um primeiro ajuste mínimo nos pontos de entrada mais visíveis.
 4. **convenção mínima de imports e uso qualificado** — estabilização documental da apresentação de `trazer` e da preferência por `modulo.Tipo` quando isso melhora clareza, sem redesign do sistema de módulos (Fase 174).
 5. **política mínima de aliases e nomes curtos** — estabilização documental de quando encurtar nomes na narração e quando manter a origem literal, sem abrir `trazer ... como ...` nem aliasing novo de símbolos (Fase 175).
+
+#### Encerramento formal do Bloco 17
+
+- O bloco cumpriu sua função inicial: dar forma visual e disciplina documental mínima à Pinker sem virar frente funcional paralela.
+- O encerramento é por **suficiência conservadora**, não por exaustão do tema; o objetivo era estabilizar uma superfície canônica mínima, não reformar a linguagem.
+- Este fechamento consolida apenas o que entrou de fato nas Fases 171–175: norma visual mínima, primeiro lote pequeno de exemplos uniformizados, refinamento mínimo de tom documental, convenção mínima para `trazer`/uso qualificado e política mínima para aliases e nomes curtos.
+- O bloco permanece estritamente documental: não houve abertura de sintaxe nova, reforma de keywords, inferência local, `;` opcional, unidade implícita, redesign de módulos ou qualquer mudança funcional em parser, semântica, runtime ou compatibilidade.
+- Com o bloco encerrado, a frente funcional oficialmente ativa continua sendo o **Bloco 16**; os Blocos **18** e **19** permanecem apenas como trilhas candidatas futuras.
 
 ---
 

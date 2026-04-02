@@ -1374,6 +1374,15 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 - **Importante:** não houve mudança funcional na linguagem, no compilador, no parser, na semântica, no runtime, em `src/`, em `tests/`, em `examples/` nem na compatibilidade do sistema de módulos.
 - Documentos atualizados: `README.md`, `MANUAL.md`, `docs/style.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
 
+176 - forma visual e superfície documental: fechamento documental por suficiência conservadora
+- Sexta fase do Bloco 17, ainda em camada estritamente documental.
+- Encerramento formal do Bloco 17 por suficiência conservadora, consolidando com honestidade factual o recorte realmente entregue nas Fases 171–175.
+- O fechamento registra como degraus reais do bloco: norma visual oficial mínima, uniformização inicial de exemplos canônicos, refinamento mínimo de tom documental, convenção mínima para `trazer` e uso qualificado e política mínima para aliases e nomes curtos.
+- Fica explicitado que o bloco cumpriu sua função inicial de dar forma visual e disciplina documental mínima à Pinker sem abrir reforma sintática nem deslocar a frente funcional oficial do Bloco 16.
+- Ficam explicitamente fora do bloco: sintaxe nova, reforma de keywords, inferência local, `;` opcional, unidade implícita, redesign de módulos e qualquer mudança funcional em gramática, parser, semântica, runtime ou compatibilidade da linguagem.
+- Blocos 18 e 19 permanecem apenas como trilhas candidatas futuras; esta fase não os abre.
+- Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)
