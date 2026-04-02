@@ -1367,6 +1367,13 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 - **Importante:** não houve mudança funcional na linguagem, no compilador, no parser, na semântica, no runtime, em `src/`, em `tests/` nem na compatibilidade do sistema de módulos.
 - Documentos atualizados: `README.md`, `MANUAL.md`, `docs/style.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
 
+175 - forma visual e superfície documental: política mínima de aliases e nomes curtos em imports/documentação
+- Quinta fase do Bloco 17, ainda em camada estritamente documental.
+- Fixação explícita, em `docs/style.md`, de uma política mínima para nomes curtos e aliases na apresentação canônica: evitar alias inventado, introduzir primeiro o nome completo quando a origem importar e só encurtar de forma local quando isso reduzir ruído sem perder rastreabilidade.
+- Reflexo curto da política em `README.md` e `MANUAL.md`, deixando explícito que simplificação textual de leitura não equivale a sintaxe nova de import ou renomeação de símbolo.
+- **Importante:** não houve mudança funcional na linguagem, no compilador, no parser, na semântica, no runtime, em `src/`, em `tests/`, em `examples/` nem na compatibilidade do sistema de módulos.
+- Documentos atualizados: `README.md`, `MANUAL.md`, `docs/style.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)
