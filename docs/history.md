@@ -1391,6 +1391,15 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 - Cobertura adicionada em semântica, runtime e CLI com exemplo mínimo, fluxo composto, erro claro fora do recorte, preservação de `executar_com_entrada(comando, entrada)` e ausência de shell implícito.
 - Documentos atualizados: `README.md`, `MANUAL.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/examples_index.md`, `docs/code_map.md`.
 
+178 - linguagem-cola: fechamento de 16.2 por suficiência conservadora
+- Rodada documental de fechamento funcional, sem implementação nova na linguagem, no compilador, no parser, na semântica, no runtime, em `src/` ou em `tests/`.
+- Consolida 16.2 como subtrilha suficiente no recorte realmente entregue pelas Fases 168, 169, 170 e 177: `executar_processo(comando, argv1)`, `capturar_stdout(comando, argv1)`, `capturar_stderr(comando, argv1)` e `executar_com_entrada(comando, entrada, argv1)`.
+- Registra que a família principal de subprocessos mínimos ficou alinhada no mesmo padrão conservador de exatamente um `argv1` textual explícito, preservando a ausência de shell implícito e de parser amplo de linha.
+- Registra também que `pipeline_minimo` permaneceu deliberadamente fora dessa expansão de argv explícito e que isso deve ser lido como limite intencional do recorte, não como pendência automática.
+- Ficam explicitamente fora do fechamento: múltiplos argumentos gerais, coleções amplas de argv, shell implícito, quoting/escaping rico, stdin adulto, PTY, job control, shell rica e redesign amplo do subsistema de processos.
+- O encerramento é por suficiência conservadora: o arco mínimo plausível de 16.2 foi cumprido sem abrir nova microcamada lateral, enquanto o Bloco 16 permanece como frente funcional oficialmente ativa.
+- Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)
