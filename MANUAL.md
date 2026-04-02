@@ -318,6 +318,7 @@ No estado atual, ainda há limites importantes para uso geral:
 
 ## 12) Onde olhar depois
 
+- `docs/style.md` — Norma Visual Oficial Mínima (convenções de estilo e estética).
 - `README.md` — visão geral do projeto, modos de execução e comandos.
 - `docs/vocabulario.md` — catálogo de keywords da linguagem.
 - `docs/roadmap.md` — trilha ativa oficial de implementação.

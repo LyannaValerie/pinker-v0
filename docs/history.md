@@ -1337,6 +1337,14 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 - Cobertura adicionada em semântica, runtime e CLI com exemplo mínimo, fluxo composto, erro claro fora do recorte, preservação de `capturar_stderr(comando)` e ausência de shell implícito.
 - Documentos atualizados: `README.md`, `MANUAL.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/examples_index.md`, `docs/code_map.md`.
 
+171 - forma visual e superfície documental: norma visual oficial mínima
+- Abertura do Bloco 17 (forma visual e superfície documental) por camada estritamente documental.
+- Formalização da primeira "Norma Visual Oficial Mínima" da Pinker, registrada em `docs/style.md`.
+- A norma define convenções de estilo para organização de imports (`trazer`), espaçamento de blocos, assinaturas de funções e tom de documentação.
+- O objetivo é reduzir a cacofonia visual e estabelecer uma estética canônica para a linguagem antes de futuras reformas sintáticas.
+- **Importante:** Esta fase não altera a gramática, o parser, a semântica ou o runtime. A conformidade com a norma é estilística/documental e não imposta pelo compilador.
+- Documentos atualizados: `README.md`, `MANUAL.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/style.md`.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)

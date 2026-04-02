@@ -5,17 +5,17 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Doc-32 — abertura documental da trilha de superfície Pinker: direções candidatas (Blocos 17, 18 e 19)**.
-- Status funcional: **Fase 170** concluída; Bloco 16 segue ativo por degraus conservadores pequenos em 16.2.
+- **Fase 171 — forma visual e superfície documental: norma visual oficial mínima**.
+- Status funcional: **Fase 171** concluída; Bloco 17 aberto por camada documental; Bloco 16 segue ativo em paralelo para funcionalidade.
 
 ## 2. Resultado operacional da rodada
-- A trilha de **superfície Pinker** foi formalmente registrada nos documentos canônicos (`history`, `future`, `parallel`, `agent_state`) como candidata futura.
-- A trilha está organizada em três blocos (17, 18 e 19) que cobrem estilo/docs, core/libs e reformas sintáticas, nesta ordem recomendada de abertura futura.
+- Formalização da **Norma Visual Oficial Mínima** em `docs/style.md`.
+- A norma estabelece convenções de estilo (imports, espaçamento, assinaturas) para a Pinker.
 - **Nenhuma mudança funcional foi implementada:** parser, keywords, semântica e runtime permanecem inalterados.
-- A decisão estratégica reforça a separação entre motor técnico real e visão de superfície estética.
+- O Bloco 17 está oficialmente iniciado como a primeira etapa da trilha de superfície.
 
 ## 3. Próximo passo correto
-- Retomar a trilha funcional ativa em **16.2 — linguagem-cola** ou, se promovido futuramente, abrir a rodada documental de estilo (Bloco 17).
+- Seguir com a uniformização de exemplos ou retomar a trilha funcional ativa em **16.2 — linguagem-cola**.
 
 ## 4. Restrições explícitas
 - Sem fingir que o Bloco 17, 18 ou 19 está ativo funcionalmente; são apenas candidatos documentais.

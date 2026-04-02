@@ -10,8 +10,9 @@
 - Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
 ## 2. Estado corrente
-- Fase funcional atual: **170 — linguagem-cola: argv explícito mínimo para captura de stderr (camada 3 conservadora)**.
-- Rodada extraordinária corrente: **FE-1 — refino lexical extraordinário: aquecer a periferia utilitária do runtime (camada 1 conservadora)**.
+- Fase funcional atual: **171 — forma visual e superfície documental: norma visual oficial mínima**.
+- Bloco ativo corrente: **17 — forma visual e superfície documental**.
+- Bloco formal da trilha ativa (funcional): **16 — ferramenta cotidiana madura e linguagem-cola**.
 - Bloco encerrado: **11 — texto prático, scripts e ergonomia cotidiana (encerrado por suficiência conservadora na Doc-27)**.
 - Bloco encerrado: **12 — sistema de módulos tipado (encerrado por suficiência conservadora na Doc-28)**.
 - Bloco encerrado: **13 — coleções e estruturas de dados básicas (encerrado por suficiência conservadora na Fase 156)**.
