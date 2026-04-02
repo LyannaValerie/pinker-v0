@@ -10,7 +10,7 @@
 - Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
 ## 2. Estado corrente
-- Fase mais recente: **177 — linguagem-cola: argv explícito mínimo para executar_com_entrada (camada 4 conservadora)**.
+- Fase mais recente: **178 — linguagem-cola: fechamento de 16.2 por suficiência conservadora**.
 - Bloco documental mais recentemente encerrado: **17 — forma visual e superfície documental (encerrado por suficiência conservadora na Fase 176)**.
 - Frente funcional oficialmente ativa: **16 — ferramenta cotidiana madura e linguagem-cola**.
 - Bloco encerrado: **11 — texto prático, scripts e ergonomia cotidiana (encerrado por suficiência conservadora na Doc-27)**.
@@ -21,13 +21,15 @@
 - Frente pausada (oficial e não abandonada): **editor/TUI oficial da Pinker (aberto na Fase 136)**.
 - Rodada documental mais recente: **Doc-32 — abertura documental da trilha de superfície Pinker: direções candidatas (Blocos 17, 18 e 19)**.
 - Ajuste extraordinário corrente: promoção canônica de `tem_chave`, `pedir_argumento` e `buscar_contexto`, com legado temporário para `tem_argumento_nomeado`, `argumento_nomeado_ou` e `argumento_nomeado_ou_ambiente_ou`.
-- Leitura canônica do estado: a Fase 176 encerrou o **Bloco 17** por suficiência conservadora, e a Fase 177 retomou a frente funcional oficial no **Bloco 16** com a quarta camada conservadora de 16.2.
+- Leitura canônica do estado: a Fase 176 encerrou o **Bloco 17** por suficiência conservadora; as Fases 168, 169, 170 e 177 cumpriram o recorte mínimo plausível de **16.2**; e a Fase 178 encerrou essa subtrilha por suficiência conservadora, preservando o **Bloco 16** como frente funcional oficialmente ativa.
 - Síntese consolidada do Bloco 17: norma visual mínima, uniformização inicial de exemplos canônicos, refinamento mínimo de tom documental, convenção mínima para `trazer`/uso qualificado e política mínima para aliases e nomes curtos.
 - Limite canônico do fechamento: o Bloco 17 não abriu sintaxe nova, reforma de keywords, inferência local, `;` opcional, unidade implícita, redesign de módulos nem qualquer mudança funcional em parser, semântica, runtime, `src/`, `tests/` ou compatibilidade da linguagem.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) com trilha MCP mínima posteriormente removida por segurança**.
 - Último hotfix aplicado: **HF-5 — ajuste de conformidade Clippy pós-Fase 136**.
 - Escada interna consolidada do Bloco 15: **15.1 concluído no recorte mínimo; 15.2 concluído no recorte mínimo; 15.3 concluído no recorte mínimo; 15.4 concluído no recorte mínimo; 15.5 concluído no recorte mínimo (`pipeline_minimo`)**.
-- Próximo passo funcional provável: **16.2 segue como continuação da frente funcional ativa**, em camadas conservadoras pequenas; `executar_com_entrada` agora também aceita um `argv1` textual explícito mínimo, enquanto `pipeline_minimo` permanece fora dessa expansão.
+- Escada interna consolidada do Bloco 16: **16.1 concluído no recorte mínimo (`pink repl`); 16.2 concluído por suficiência conservadora com as Fases 168, 169, 170 e 177, consolidado documentalmente na Fase 178**.
+- Limite canônico de 16.2: `pipeline_minimo` permaneceu fora da expansão de `argv1` explícito; continuam fora múltiplos argv gerais, shell implícito, quoting/escaping rico, stdin adulto, PTY, job control e shell rica.
+- Próximo passo funcional provável: **o Bloco 16 continua como frente ativa após o fechamento de 16.2**, sem abertura automática dos Blocos 18 ou 19 e sem obrigação documental de encerrar o bloco inteiro nesta rodada.
 
 ## 3. Arquitetura documental ativa
 - `roadmap.md` = ordem ativa.

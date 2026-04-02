@@ -593,7 +593,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 16 — ferramenta cotidiana madura e linguagem-cola
 
-**Status**: bloco formal ativo; a Fase 167 concluiu 16.1 no recorte mínimo conservador e as Fases 168, 169, 170 e 177 abriram 16.2 por camadas conservadoras pequenas.
+**Status**: bloco formal ativo; a Fase 167 concluiu 16.1 no recorte mínimo conservador, as Fases 168, 169, 170 e 177 cumpriram 16.2 em quatro camadas conservadoras pequenas e a Fase 178 encerrou 16.2 por suficiência conservadora, sem encerrar o bloco inteiro nesta rodada.
 
 **Tese do bloco**: com módulos tipados, coleções, formatação, dados estruturados e execução de processos, a Pinker tem todos os ingredientes para ser ferramenta cotidiana madura; este bloco sela essa identidade com REPL e linguagem-cola — os dois itens que transformam a linguagem em ambiente interativo e substituto real para shell scripts complexos.
 
@@ -601,11 +601,14 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 **Itens do bloco (ordem interna por dependência)**:
 1. **16.1 — REPL mínimo (Fase 167, concluída no recorte mínimo)**: loop de leitura-avaliação-impressão conservador sobre o pipeline real da Pinker; na camada 1, cada linha vira um corpo temporário de `principal`, sem estado persistente entre linhas, sem multiline amplo e com saída por `:quit`/`:sair`; base mínima e honesta para prototipagem e demonstração da maturidade cotidiana da linguagem.
-2. **16.2 — linguagem-cola**: capacidade de usar Pinker como substituto de shell scripts complexos — chamar binários, capturar saídas, compor pipelines e reagir a resultados com toda a tipagem e estrutura da linguagem; precisa de REPL (16.1) + Bloco 15 completo; fecha a visão de ferramenta cotidiana madura com disciplina estrutural.
+2. **16.2 — linguagem-cola (encerrada por suficiência conservadora na Fase 178)**: capacidade de usar Pinker como substituto de shell scripts complexos — chamar binários, capturar saídas, compor pipelines e reagir a resultados com toda a tipagem e estrutura da linguagem; precisa de REPL (16.1) + Bloco 15 completo; fecha a visão de ferramenta cotidiana madura com disciplina estrutural no recorte mínimo realmente entregue.
    - **Fase 168 concluída (camada 1 conservadora)**: `executar_processo` passa a aceitar exatamente um `argv1` textual explícito além do comando, sem shell implícito, sem parser amplo de linha, sem quoting/escaping rico, sem listas gerais de argumentos e sem inflar `capturar_*`, `executar_com_entrada` ou `pipeline_minimo` por inércia.
    - **Fase 169 concluída (camada 2 conservadora)**: `capturar_stdout` passa a aceitar exatamente um `argv1` textual explícito além do comando, espelhando a filosofia da Fase 168 sem abrir shell implícito, parser amplo de linha, quoting/escaping rico, listas gerais de argumentos ou expansão automática para `capturar_stderr`, `executar_com_entrada` ou `pipeline_minimo`.
    - **Fase 170 concluída (camada 3 conservadora)**: `capturar_stderr` passa a aceitar exatamente um `argv1` textual explícito além do comando, reduzindo mais um passo da assimetria da família de subprocessos sem abrir shell implícito, parser amplo de linha, quoting/escaping rico, listas gerais de argumentos ou expansão automática para `executar_com_entrada` ou `pipeline_minimo`.
    - **Fase 177 concluída (camada 4 conservadora)**: `executar_com_entrada` passa a aceitar exatamente um `argv1` textual explícito além de `comando` e `entrada`, reduzindo a assimetria restante da família de subprocessos sem abrir shell implícito, parser amplo de linha, quoting/escaping rico, múltiplos argumentos, stdin adulto ou expansão automática para `pipeline_minimo`.
+   - **Fase 178 concluída (fechamento documental por suficiência conservadora)**: consolida 16.2 como subtrilha funcionalmente suficiente no padrão mínimo de `argv1` explícito para `executar_processo`, `capturar_stdout`, `capturar_stderr` e `executar_com_entrada`; registra que `pipeline_minimo` permanece deliberadamente fora dessa expansão e que o recorte não pretendeu virar shell adulta, argv amplo, quoting/escaping rico, PTY, job control ou subsistema geral de processos.
+
+**Leitura operacional do fechamento de 16.2**: a família principal de subprocessos mínimos ficou alinhada de forma suficientemente coerente no padrão conservador de um `argv1` textual explícito. O fechamento desta subtrilha é por suficiência conservadora, não por exaustão do espaço possível de integração com processos.
 
 **Escopo deliberadamente fora do Bloco 16**: IDE integrada, debugger interativo, package manager soberano, autohospedagem, macros de compilação, REPL adulto com multiline amplo/histórico sofisticado/autocomplete e shell rica.
 
