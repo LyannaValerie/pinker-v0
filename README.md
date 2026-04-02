@@ -1,10 +1,13 @@
 # Pinker v0
 
-Pinker v0 é um frontend pequeno e congelado em Rust para a linguagem Pinker.
+Pinker v0 é a base factual atual da linguagem Pinker: um frontend pequeno e congelado em Rust, com foco em um recorte implementado e auditável.
 
-Estado documental e trilha ativa ficam nos canônicos: `docs/atlas.md`, `docs/agent_state.md`, `docs/roadmap.md` e `docs/history.md`.
+O projeto separa explicitamente estado real, trilha ativa e direção identitária. Para o enquadramento canônico do repositório, consulte `docs/atlas.md`, `docs/agent_state.md`, `docs/roadmap.md` e `docs/history.md`.
 
 ## O que o frontend faz hoje
+
+A lista abaixo resume apenas o que já está implementado no workspace atual, sem misturar visão futura com recurso pronto.
+
 - léxico com spans
 - parser para `pacote`, `trazer`, `carinho`, `mimo`, `talvez/senão`, `sempre que`, `eterno`, `nova`, `muda`
 - tipos `bombom`, `u8`, `u16`, `u32`, `u64`, `i8`, `i16`, `i32`, `i64` e `logica`

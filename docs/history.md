@@ -1352,6 +1352,13 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 - **Importante:** não houve mudança funcional na linguagem, no compilador, no parser, na semântica, no runtime, em `src/` ou em `tests/`.
 - Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/examples_index.md`.
 
+173 - forma visual e superfície documental: refinamento mínimo de tom documental canônico
+- Terceira fase do Bloco 17, ainda em camada estritamente documental.
+- Refinamento localizado de tom e apresentação em pontos canônicos muito visíveis, concentrado nas aberturas de `README.md` e `MANUAL.md`.
+- A entrega reduz secura e ruído na apresentação inicial da Pinker, preservando clareza factual e separação entre estado implementado, trilha ativa e direção identitária.
+- **Importante:** não houve mudança funcional na linguagem, no compilador, no parser, na semântica, no runtime, em `src/`, em `tests/` ou no comportamento dos exemplos.
+- Documentos atualizados: `README.md`, `MANUAL.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)
