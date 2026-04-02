@@ -1,16 +1,16 @@
 # Manual da linguagem Pinker (estado atual)
 
-Este manual ensina a **usar a Pinker hoje**, no recorte que já está implementado no projeto.
+Este manual apresenta a **Pinker como ela existe hoje**, no recorte já implementado no projeto.
 
 ## 1) O que é a Pinker
 
-A Pinker é uma linguagem com sintaxe em português e vocabulário próprio (como `carinho`, `mimo`, `talvez`, `verso`).
-Neste documento, o foco é prático: escrever programas que funcionam no estado atual do runtime e do frontend.
+A Pinker é uma linguagem com sintaxe em português e vocabulário próprio, com termos como `carinho`, `mimo`, `talvez` e `verso`.
+Aqui o foco é prático: mostrar como escrever programas que funcionam no estado atual do frontend e do runtime, sem antecipar recursos ainda não entregues.
 
 ## 2) Como ler a Pinker
 
-A Pinker usa palavras-chave próprias, então o código pode parecer diferente de outras linguagens à primeira vista.
-Use este manual como referência de **uso atual**: aqui só entram construções e recortes que já funcionam hoje.
+A Pinker usa palavras-chave próprias, então o código pode soar diferente à primeira vista.
+Use este manual como referência de **uso atual e canônico**: cada seção descreve apenas construções e recortes que já funcionam hoje.
 
 ## 3) Estrutura básica de um programa
 
