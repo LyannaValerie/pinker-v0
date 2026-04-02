@@ -1925,9 +1925,9 @@ fn try_call_intrinsic(
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(exit_code))))
         }
         "executar_com_entrada" => {
-            if args.len() != 2 {
+            if !(2..=3).contains(&args.len()) {
                 return Err(runtime_err(
-                    "intrínseca 'executar_com_entrada' exige 2 argumentos (comando verso, entrada verso)",
+                    "intrínseca 'executar_com_entrada' exige 2 ou 3 argumentos (comando verso, entrada verso[, argv1 verso])",
                 ));
             }
             let RuntimeValue::Str(command_name) = &args[0] else {
@@ -1940,7 +1940,16 @@ fn try_call_intrinsic(
                     "intrínseca 'executar_com_entrada' exige entrada em verso",
                 ));
             };
-            let exit_code = executar_com_entrada_minimo(command_name, input_text)?;
+            let explicit_argv = match args.get(2) {
+                Some(RuntimeValue::Str(arg)) => Some(arg.as_str()),
+                Some(_) => {
+                    return Err(runtime_err(
+                        "intrínseca 'executar_com_entrada' exige argv1 em verso",
+                    ));
+                }
+                None => None,
+            };
+            let exit_code = executar_com_entrada_minimo(command_name, input_text, explicit_argv)?;
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(exit_code))))
         }
         "pipeline_minimo" => {
@@ -2722,18 +2731,24 @@ fn executar_processo_minimo(
     exit_code_u64("executar_processo", status.code())
 }
 
-fn executar_com_entrada_minimo(command_name: &str, input_text: &str) -> Result<u64, PinkerError> {
+fn executar_com_entrada_minimo(
+    command_name: &str,
+    input_text: &str,
+    explicit_argv: Option<&str>,
+) -> Result<u64, PinkerError> {
     validar_comando_nao_vazio("executar_com_entrada", command_name)?;
 
-    let mut child = Command::new(command_name)
-        .stdin(Stdio::piped())
-        .spawn()
-        .map_err(|err| {
-            runtime_err(&format!(
-                "falha ao executar processo em 'executar_com_entrada': {}",
-                err
-            ))
-        })?;
+    let mut command = Command::new(command_name);
+    if let Some(arg) = explicit_argv {
+        command.arg(arg);
+    }
+
+    let mut child = command.stdin(Stdio::piped()).spawn().map_err(|err| {
+        runtime_err(&format!(
+            "falha ao executar processo em 'executar_com_entrada': {}",
+            err
+        ))
+    })?;
 
     let mut stdin = child.stdin.take().ok_or_else(|| {
         runtime_err("stdin indisponível em 'executar_com_entrada': processo sem pipe configurado")

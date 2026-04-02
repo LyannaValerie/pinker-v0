@@ -610,7 +610,7 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         "executar_com_entrada".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
+            params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
         },
     );
     // Fase 166
@@ -1188,9 +1188,13 @@ fn validate_block(
                 }
                 if sig.params.len() != args.len() {
                     if (callee == "executar_processo"
+                        || callee == "executar_com_entrada"
                         || callee == "capturar_stdout"
                         || callee == "capturar_stderr")
-                        && (args.len() == 1 || args.len() == 2)
+                        && ((callee == "executar_com_entrada"
+                            && (args.len() == 2 || args.len() == 3))
+                            || (callee != "executar_com_entrada"
+                                && (args.len() == 1 || args.len() == 2)))
                     {
                         // aceita a camada 1 conservadora de argv explícito sem abrir argv geral
                     } else {
@@ -1201,6 +1205,12 @@ fn validate_block(
                     }
                 }
                 if callee == "executar_processo" && !(args.len() == 1 || args.len() == 2) {
+                    return Err(cfg_error(
+                        "aridade inválida em call da CFG IR",
+                        function.span,
+                    ));
+                }
+                if callee == "executar_com_entrada" && !(args.len() == 2 || args.len() == 3) {
                     return Err(cfg_error(
                         "aridade inválida em call da CFG IR",
                         function.span,

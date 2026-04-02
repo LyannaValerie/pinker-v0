@@ -1,0 +1,11 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova comando: verso = argumento(0);
+    nova codigo: bombom = executar_com_entrada(comando, "argv=ok\n", "--modo=ok");
+    falar(codigo);
+    talvez codigo == 0 {
+        mimo 0;
+    }
+    mimo 1;
+}

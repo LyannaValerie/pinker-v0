@@ -487,7 +487,11 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         "executar_com_entrada".to_string(),
         (
             TypeIR::Bombom,
-            vec![StackValueType::Verso, StackValueType::Verso],
+            vec![
+                StackValueType::Verso,
+                StackValueType::Verso,
+                StackValueType::Verso,
+            ],
         ),
     );
     sigs.insert(
@@ -602,6 +606,16 @@ fn validate_function(
                         }
                         if callee == "executar_processo" {
                             if !(*argc == 1 || *argc == 2) {
+                                return Err(err_ctx(
+                                    f,
+                                    Some(&b.label),
+                                    "call com aridade inválida",
+                                ));
+                            }
+                            continue;
+                        }
+                        if callee == "executar_com_entrada" {
+                            if !(*argc == 2 || *argc == 3) {
                                 return Err(err_ctx(
                                     f,
                                     Some(&b.label),
