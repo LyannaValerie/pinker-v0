@@ -3,5 +3,5 @@ pacote main;
 eterno LIMITE: bombom = 100;
 
 carinho principal() -> bombom {
-  mimo LIMITE;
+    mimo LIMITE;
 }

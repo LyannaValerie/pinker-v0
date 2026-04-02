@@ -1345,6 +1345,13 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 - **Importante:** Esta fase não altera a gramática, o parser, a semântica ou o runtime. A conformidade com a norma é estilística/documental e não imposta pelo compilador.
 - Documentos atualizados: `README.md`, `MANUAL.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/style.md`.
 
+172 - forma visual e superfície documental: uniformização mínima de exemplos canônicos
+- Segunda fase do Bloco 17, ainda em camada estritamente documental.
+- Aplicação inicial da norma de `docs/style.md` a um lote pequeno e visível de exemplos canônicos: `examples/run_soma.pink`, `examples/run_chamada.pink`, `examples/run_global.pink` e `examples/fase89_verso_operacoes_minimas_valido.pink`.
+- A entrega uniformiza topo, indentação e espaçamento visual sem reformatar o corpus inteiro.
+- **Importante:** não houve mudança funcional na linguagem, no compilador, no parser, na semântica, no runtime, em `src/` ou em `tests/`.
+- Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/examples_index.md`.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)
