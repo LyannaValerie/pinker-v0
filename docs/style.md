@@ -38,6 +38,14 @@ carinho principal() -> bombom {
 - **Quando evitar excesso:** se o símbolo já foi importado pontualmente com `trazer modulo.simbolo;`, prefira a forma curta local nos exemplos para evitar ruído visual repetitivo.
 - **Escopo atual implementado:** nesta fase, a convenção cobre apenas as formas já aceitas hoje pelo projeto, como `trazer modulo;`, `trazer modulo.simbolo;` e `modulo.Tipo` em contexto tipado.
 
+## 1.2 Nomes curtos e aliases na apresentação canônica
+
+- **Sem alias inventado:** não apresentar a documentação como se a linguagem já suportasse renomeação de import (`trazer ... como ...`) ou aliasing novo de símbolos.
+- **Nome completo primeiro:** quando a rastreabilidade da origem importar, introduza primeiro o nome completo do módulo ou símbolo exatamente como ele existe no projeto.
+- **Forma curta só quando local e óbvia:** depois de estabelecer a origem, a explicação textual pode usar nome curto descritivo ou forma curta local, desde que isso não pareça um nome oficial novo da linguagem.
+- **Evitar encurtamento por moda:** se a abreviação esconder a origem, competir com outro símbolo próximo ou criar ambiguidade com `apelido`, manter o nome completo é preferível.
+- **Código de exemplo continua literal:** em blocos de código, usar apenas nomes que já existam de fato no recorte implementado; a simplificação por clareza acontece na narração documental, não por sintaxe nova.
+
 Exemplo:
 ```pink
 pacote main;

@@ -106,6 +106,7 @@ Na apresentação canônica, `trazer` fica logo após `pacote`, um por linha; qu
 
 Quando um tipo importado precisa manter origem visível no texto, prefira a forma qualificada já suportada `modulo.Tipo`.
 Quando um símbolo já foi trazido pontualmente com `trazer modulo.simbolo;`, prefira a forma curta local para evitar ruído.
+Na explicação ao redor do código, não invente alias documental que pareça sintaxe da linguagem: apresente primeiro o nome completo real e só depois use nome curto local quando a origem já estiver clara.
 
 ```pink
 pacote main;
@@ -120,6 +121,7 @@ carinho mostrar_idade(idade: pessoa_tipos.Idade) -> bombom {
 ```
 
 Esta convenção é documental e estilística: ela não cria sintaxe nova nem amplia o sistema de módulos.
+Ela também não supõe rename de import, alias novo de símbolo ou qualquer forma de `trazer ... como ...`.
 
 ## 7) I/O atual
 

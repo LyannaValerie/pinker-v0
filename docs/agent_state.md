@@ -10,7 +10,7 @@
 - Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
 ## 2. Estado corrente
-- Fase mais recente: **174 — forma visual e superfície documental: convenção mínima de imports e uso qualificado nos docs canônicos**.
+- Fase mais recente: **175 — forma visual e superfície documental: política mínima de aliases e nomes curtos em imports/documentação**.
 - Bloco documental mais recentemente aberto: **17 — forma visual e superfície documental**.
 - Frente funcional oficialmente ativa: **16 — ferramenta cotidiana madura e linguagem-cola**.
 - Bloco encerrado: **11 — texto prático, scripts e ergonomia cotidiana (encerrado por suficiência conservadora na Doc-27)**.
@@ -21,8 +21,8 @@
 - Frente pausada (oficial e não abandonada): **editor/TUI oficial da Pinker (aberto na Fase 136)**.
 - Rodada documental mais recente: **Doc-32 — abertura documental da trilha de superfície Pinker: direções candidatas (Blocos 17, 18 e 19)**.
 - Ajuste extraordinário corrente: promoção canônica de `tem_chave`, `pedir_argumento` e `buscar_contexto`, com legado temporário para `tem_argumento_nomeado`, `argumento_nomeado_ou` e `argumento_nomeado_ou_ambiente_ou`.
-- Leitura canônica do estado: as Fases 171, 172, 173 e 174 mantêm o **Bloco 17** em camada documental, sem deslocar a frente funcional oficial do **Bloco 16**.
-- Entrega documental mais recente do Bloco 17: foi fixada uma convenção mínima e explícita para `trazer` e para o uso qualificado em docs canônicos, refletida em `docs/style.md`, `README.md` e `MANUAL.md` sem mudança funcional no sistema de módulos.
+- Leitura canônica do estado: as Fases 171, 172, 173, 174 e 175 mantêm o **Bloco 17** em camada documental, sem deslocar a frente funcional oficial do **Bloco 16**.
+- Entrega documental mais recente do Bloco 17: foi fixada uma política mínima para aliases e nomes curtos na apresentação canônica de imports/módulos, preservando nome completo quando a origem precisa ficar explícita e sem abrir aliasing novo no sistema de módulos.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) com trilha MCP mínima posteriormente removida por segurança**.
 - Último hotfix aplicado: **HF-5 — ajuste de conformidade Clippy pós-Fase 136**.
 - Escada interna consolidada do Bloco 15: **15.1 concluído no recorte mínimo; 15.2 concluído no recorte mínimo; 15.3 concluído no recorte mínimo; 15.4 concluído no recorte mínimo; 15.5 concluído no recorte mínimo (`pipeline_minimo`)**.
