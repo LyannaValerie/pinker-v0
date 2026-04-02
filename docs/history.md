@@ -1359,6 +1359,14 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 - **Importante:** não houve mudança funcional na linguagem, no compilador, no parser, na semântica, no runtime, em `src/`, em `tests/` ou no comportamento dos exemplos.
 - Documentos atualizados: `README.md`, `MANUAL.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
 
+174 - forma visual e superfície documental: convenção mínima de imports e uso qualificado nos docs canônicos
+- Quarta fase do Bloco 17, ainda em camada estritamente documental.
+- Fixação explícita, em `docs/style.md`, de uma convenção mínima para apresentação de `trazer`: posição no topo, agrupamento curto entre módulo inteiro e símbolo pontual, e espaçamento correspondente.
+- Reflexo controlado da convenção em pontos canônicos visíveis de `README.md` e `MANUAL.md`, incluindo preferência documental por `modulo.Tipo` quando a origem do tipo precisar ficar clara no texto.
+- A convenção fica marcada como estilística/documental e limitada às formas já implementadas no projeto; ela não abre sistema novo de módulos, `pub/priv`, reexportação, aliasing novo nem namespaces amplos.
+- **Importante:** não houve mudança funcional na linguagem, no compilador, no parser, na semântica, no runtime, em `src/`, em `tests/` nem na compatibilidade do sistema de módulos.
+- Documentos atualizados: `README.md`, `MANUAL.md`, `docs/style.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)
