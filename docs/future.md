@@ -96,10 +96,10 @@ Itens de longo prazo ainda sem bloco definido:
 - kernel/ambiente bare-metal mais robusto;
 - package manager soberano.
 
-Alinhamento do Bloco 16 após a Fase 167:
-- 16.1 foi entregue no recorte mínimo por `pink repl`;
-- seguem no inventário futuro, e não foram abertos nesta fase: REPL adulto com estado persistente rico, multiline amplo, histórico sofisticado, autocomplete, inspeção rica e shell ampla;
-- 16.2 (linguagem-cola) continua como próximo degrau funcional do bloco na trilha oficial.
+Alinhamento do Bloco 16 após as Fases 179–181:
+- o **Bloco 16** está encerrado por suficiência conservadora;
+- 16.1 foi entregue no recorte mínimo por `pink repl` e 16.2 foi cumprido no recorte conservador de linguagem-cola mínima;
+- permanecem no inventário futuro apenas ampliações não abertas: REPL adulto com estado persistente rico, multiline amplo, histórico sofisticado, autocomplete, inspeção rica e shell ampla.
 
 ## 4. Relação com a camada Rosa
 
@@ -107,12 +107,12 @@ Alinhamento do Bloco 16 após a Fase 167:
 - `docs/rosa.md` diz **por que e com que identidade** evoluir.
 - `docs/ponte_engine_rosa.md` conecta ambas as perspectivas sem confusão.
 
-## 5. Trilhas candidatas de superfície Pinker
+## 5. Superfície Pinker e horizonte remanescente
 
-A Pinker já possui motor técnico real. A direção de “superfície Pinker” existe para alinhar a aparência da linguagem à sua identidade, de forma organizada em três blocos crescentes que permanecem como **candidatos futuros**, não como trilha ativa imediata:
+A Pinker já possui motor técnico real. A direção de “superfície Pinker” existe para alinhar a aparência da linguagem à sua identidade, mas a leitura canônica atual distingue o que já foi aberto do que ainda permanece apenas como horizonte:
 
-- **Bloco 17 — forma visual e superfície documental**: focado em estilo, convenções, tom de documentação e uniformização estética dos docs; é a primeira abertura plausível.
-- **Bloco 18 — core nobre e bibliotecas temáticas**: organização do núcleo da linguagem vs. famílias de bibliotecas com nomes e propósitos coerentes com o imaginário Pinker.
-- **Bloco 19 — reformas sintáticas e semânticas de superfície**: possíveis ajustes de sintaxe (keywords, inferência, pontuação) para maior clareza e elegância, subordinados à estabilidade do motor.
+- **Bloco 17** já está encerrado por suficiência conservadora.
+- **Bloco 18** já está aberto/ativo na trilha canônica em camada documental/arquitetural; seu detalhamento corrente pertence a `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/familias_tematicas.md`.
+- **Bloco 19** permanece como candidato futuro, subordinado à estabilidade do motor e à maturação do Bloco 18.
 
 **Importante:** mudanças como novas keywords, inferência local, `;` opcional e reavaliação de `->` permanecem fora do estado operacional atual.

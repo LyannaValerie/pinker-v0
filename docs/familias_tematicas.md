@@ -20,12 +20,13 @@ Ela **não**:
 
 ## 2. Base factual usada nesta decisão
 
-A decisão foi ancorada na superfície pública real das intrínsecas já expostas no workspace atual, conferida em:
+A decisão foi ancorada na continuidade aberta pela **Fase 180**, que registrou o inventário canônico de intrínsecas do **Bloco 18**, e na superfície pública real rastreável no workspace atual, conferida em:
 
+- o inventário canônico aberto na Fase 180 como base factual anterior da trilha;
 - `docs/vocabulario.md` como registro lexical canônico da superfície pública;
 - `src/semantic.rs` e `src/interpreter.rs` como evidência operacional da lista pública realmente reconhecida hoje.
 
-No estado atual do workspace, **não havia um `docs/inventario_intrinsecas.md` canônico presente**. Esta fase não inventa uma implementação ausente; ela consolida a decisão nominal com base na superfície pública realmente rastreável.
+Esta fase não inventa uma implementação ausente; ela continua a organização nominal/arquitetural a partir da base factual já consolidada na abertura do bloco.
 
 ## 3. Critérios de aceitação lexical
 

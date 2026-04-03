@@ -1397,15 +1397,31 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 - Registra que a família principal de subprocessos mínimos ficou alinhada no mesmo padrão conservador de exatamente um `argv1` textual explícito, preservando a ausência de shell implícito e de parser amplo de linha.
 - Registra também que `pipeline_minimo` permaneceu deliberadamente fora dessa expansão de argv explícito e que isso deve ser lido como limite intencional do recorte, não como pendência automática.
 - Ficam explicitamente fora do fechamento: múltiplos argumentos gerais, coleções amplas de argv, shell implícito, quoting/escaping rico, stdin adulto, PTY, job control, shell rica e redesign amplo do subsistema de processos.
-- O encerramento é por suficiência conservadora: o arco mínimo plausível de 16.2 foi cumprido sem abrir nova microcamada lateral, enquanto o Bloco 16 permanece como frente funcional oficialmente ativa.
+- O encerramento é por suficiência conservadora: o arco mínimo plausível de 16.2 foi cumprido sem abrir nova microcamada lateral, preparando o fechamento formal do Bloco 16 na fase seguinte.
 - Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
+
+179 - ferramenta cotidiana madura e linguagem-cola: fechamento do Bloco 16 por suficiência conservadora
+- Rodada documental de fechamento de bloco, sem implementação funcional nova na linguagem, no compilador, no parser, na semântica, no runtime, em `src/` ou em `tests/`.
+- Consolida o **Bloco 16** como suficientemente cumprido no recorte real entregue: `pink repl` em 16.1 e a família principal de subprocessos mínimos alinhada em 16.2 no padrão conservador de `argv1` textual explícito.
+- O fechamento não reinterpreta o bloco como shell adulta, REPL rico ou ambiente interativo amplo; ele apenas registra com honestidade factual que o primeiro arco de “ferramenta cotidiana madura” foi cumprido no recorte mínimo plausível.
+- Ficam explicitamente fora do bloco encerrado: REPL adulto com multiline amplo/histórico sofisticado/autocomplete, shell rica, PTY, job control, quoting/escaping rico, múltiplos argv gerais e redesign amplo do subsistema de processos.
+- O encerramento é por suficiência conservadora: o **Bloco 16** passa a constar como encerrado, e o próximo movimento de trilha fica liberado para a abertura explícita do **Bloco 18**.
+- Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/future.md`.
+
+180 - core nobre e bibliotecas temáticas: abertura do Bloco 18 com inventário canônico de intrínsecas
+- Primeira fase documental/fundacional do **Bloco 18**.
+- A fase abre oficialmente o bloco na trilha canônica ao registrar um inventário factual das intrínsecas já expostas publicamente, preparando o terreno para a organização temática posterior sem afirmar implementação nova em código.
+- O objetivo da rodada é distinguir com nitidez a base factual do engine das futuras decisões nominais/arquiteturais do bloco, evitando tratar agrupamentos como meras hipóteses soltas.
+- Não houve abertura de `familia.intrinseca`, `trazer familia;`, `trazer familia.intrinseca;`, reorganização de engine nem qualquer mudança funcional em parser, semântica, runtime, `src/` ou `tests/`.
+- A fase deixa o **Bloco 18** inequivocamente aberto/ativo no plano canônico, em camada ainda documental/arquitetural.
+- Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/vocabulario.md`.
 
 181 - core nobre e bibliotecas temáticas: definição das famílias temáticas oficiais
 - Segunda fase do Bloco 18, em rodada estritamente documental e fundacional.
 - Ficam definidas como famílias públicas iniciais do bloco: `texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente` e `acaso`.
 - `colecao` e `formato` permanecem explícitos como domínios provisórios em revisão lexical; o agrupamento técnico existe, mas o nome público ainda não foi canonizado.
 - `tempo` fica registrado como família exemplar recomendada para conduzir a continuação do bloco.
-- A entrega distingue explicitamente decisão nominal/arquitetural de implementação futura: não houve abertura de `familia.intrinseca`, `trazer familia;`, reorganização de engine nem qualquer mudança funcional na linguagem.
+- A entrega continua a abertura documental do **Bloco 18** feita na Fase 180 e distingue explicitamente decisão nominal/arquitetural de implementação futura: não houve abertura de `familia.intrinseca`, `trazer familia;`, reorganização de engine nem qualquer mudança funcional na linguagem.
 - Documentos atualizados: `docs/atlas.md`, `docs/familias_tematicas.md`, `docs/vocabulario.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
