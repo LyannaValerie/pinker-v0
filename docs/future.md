@@ -108,12 +108,12 @@ Alinhamento do Bloco 16 após a Fase 167:
 - `docs/rosa.md` diz **por que e com que identidade** evoluir.
 - `docs/ponte_engine_rosa.md` conecta ambas as perspectivas sem confusão.
 
-## 5. Trilhas candidatas de superfície Pinker
+## 5. Trilhas de superfície Pinker
 
-A Pinker já possui motor técnico real. A direção de “superfície Pinker” existe para alinhar a aparência da linguagem à sua identidade, de forma organizada em três blocos crescentes que permanecem como **candidatos futuros**, não como trilha ativa imediata:
+A Pinker já possui motor técnico real. A direção de “superfície Pinker” existe para alinhar a aparência da linguagem à sua identidade:
 
-- **Bloco 17 — forma visual e superfície documental**: focado em estilo, convenções, tom de documentação e uniformização estética dos docs; é a primeira abertura plausível.
-- **Bloco 18 — core nobre e bibliotecas temáticas**: organização do núcleo da linguagem vs. famílias de bibliotecas com nomes e propósitos coerentes com o imaginário Pinker.
-- **Bloco 19 — reformas sintáticas e semânticas de superfície**: possíveis ajustes de sintaxe (keywords, inferência, pontuação) para maior clareza e elegância, subordinados à estabilidade do motor.
+- **Bloco 17 — forma visual e superfície documental**: encerrado por suficiência conservadora na Fase 176.
+- **Bloco 18 — core nobre e bibliotecas temáticas**: **aberto como trilha ativa na Fase 180**. Inventário canônico de intrínsecas concluído; famílias candidatas identificadas; escada interna de 11 subitens definida no `roadmap.md`.
+- **Bloco 19 — reformas sintáticas e semânticas de superfície**: permanece como candidato futuro, não ativo. Possíveis ajustes de sintaxe (keywords, inferência, pontuação) para maior clareza e elegância, subordinados à estabilidade do motor.
 
 **Importante:** mudanças como novas keywords, inferência local, `;` opcional e reavaliação de `->` permanecem fora do estado operacional atual.

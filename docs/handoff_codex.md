@@ -5,20 +5,21 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 179 — ferramenta cotidiana madura e linguagem-cola: fechamento do Bloco 16 por suficiência conservadora**.
-- Leitura operacional canônica: a **Fase 179** fecha o Bloco 16 com base nas entregas reais já consolidadas (16.1 e 16.2), preservando o Bloco 17 encerrado e sem promover automaticamente os Blocos 18 ou 19.
+- **Fase 180 — core nobre e bibliotecas temáticas: inventário canônico de intrínsecas (abertura do Bloco 18)**.
+- Leitura operacional canônica: a Fase 180 abriu o Bloco 18 com inventário canônico de 78 intrínsecas públicas, critérios explícitos de classificação e taxonomia inicial sem mudança funcional.
 
 ## 2. Resultado operacional da rodada
-- A rodada não abriu funcionalidade nova: apenas consolidou o encerramento canônico do Bloco 16 com honestidade factual no recorte já entregue.
-- O fechamento consolidado de 16.1 + 16.2 registra o pacote mínimo de maturidade cotidiana: `pink repl` auditável, execução mínima de subprocessos, captura mínima de stdout/stderr, stdin textual mínimo e coerência de `argv1` explícito na família principal.
-- `pipeline_minimo` permanece fora da expansão de `argv1`; múltiplos argumentos, shell implícito, quoting rico, stdin adulto, PTY, job control, multiline amplo no REPL, histórico sofisticado e autocomplete continuam fora do recorte.
+- Rodada documental fundacional: inventário completo das intrínsecas da Pinker v0 registrado em `docs/inventario_intrinsecas.md`.
+- Classificação inicial: 4 intrínsecas no núcleo nobre + 3 construtos de linguagem; 7 famílias candidatas fortes; 2 domínios provisórios.
+- Critérios de separação fixados: indispensabilidade, universalidade, acoplamento ao motor e irredutibilidade para o núcleo; domínio reconhecível, ganho de clareza e inflação lexical para famílias.
+- Nenhuma família pública foi operacionalizada; nenhuma resolução qualificada; nenhuma mudança em `src/`, `tests/` ou `examples/`.
 
 ## 3. Próximo passo correto
-- Próximo passo funcional provável: abrir nova trilha apenas quando houver base factual e decisão explícita, sem reabrir 16.2 por inércia.
-- Blocos **18** e **19** permanecem apenas como candidatos futuros; não foram abertos nem promovidos nesta rodada.
+- Próximo passo funcional: **18.2 — definição das famílias temáticas oficiais** (declarar famílias públicas, validação lexical dos nomes, tratamento provisório de `colecao` e `formato`).
+- As famílias candidatas já estão inventariadas; a próxima fase decide nomes canônicos com a camada Rosa.
 
 ## 4. Restrições explícitas
-- Sem tratar o Bloco 17 encerrado como frente funcional; 18 e 19 seguem apenas como candidatos futuros.
-- Sem implementar reformas sintáticas (novas keywords, inferência local, `;` opcional, etc.) sem abertura funcional explícita de fase.
-- Sem inflar `future.md` como se fosse roadmap ou `parallel.md` como se fosse backlog técnico executável.
-- Sem reabrir subprocessos além do recorte já consolidado em 16.2 nem expandir `pipeline_minimo` por inércia.
+- Não operacionalizar famílias (resolução qualificada, `trazer` de família, modo estrito) antes de 18.2 estar concluída.
+- Não canonizar `colecao` ou `formato` sem revisão lexical séria.
+- Não fazer mudança funcional em código enquanto a base documental do bloco não estiver consolidada.
+- Não tratar o inventário como definitivo; é base factual para decisão, não decreto final.

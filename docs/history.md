@@ -1410,6 +1410,17 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 - Não houve promoção automática dos Blocos 18 ou 19 nesta rodada; ambos permanecem apenas como candidatos futuros.
 - Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
 
+180 - core nobre e bibliotecas temáticas: inventário canônico de intrínsecas (abertura do Bloco 18)
+- Rodada documental fundacional, sem implementação funcional nova na linguagem, no compilador, no parser, na semântica, no runtime, em `src/` ou em `tests/`.
+- Abertura formal do Bloco 18 (core nobre e bibliotecas temáticas) como trilha ativa do roadmap.
+- Primeira fase do bloco: inventário canônico completo das intrínsecas da Pinker v0, com classificação inicial por natureza funcional e critérios explícitos de separação.
+- Inventário registrado em novo documento canônico `docs/inventario_intrinsecas.md`, catalogando 78 intrínsecas públicas distintas.
+- Critérios explícitos fixados para núcleo nobre (indispensabilidade, universalidade, acoplamento ao motor, irredutibilidade), família temática candidata (domínio reconhecível, ganho de clareza com contexto, não precisa estar "no ar", inflação lexical) e domínio provisório (agrupamento reconhecível com nome ainda não canonizado).
+- Classificação inicial: 4 intrínsecas no núcleo nobre (`ouvir`, `ouvir_verso`, `ouvir_verso_ou`, `sair`) + 3 construtos de linguagem não intrínsecas (`falar`, `peso`, `alinhamento`); 7 famílias candidatas fortes (`texto` com 18, `arquivo` com 12, `caminho` com 10, `processo` com 5, `tempo` com 2, `ambiente` com 9, `acaso` com 2); 2 domínios provisórios (`colecao` com 11, `formato` com 5); 3 aliases legados provisórios; 2 intrínsecas internas de lowering.
+- Registro explícito de que construtos sintáticos do núcleo (`para cada`, `sempre que`, etc.) permanecem núcleo mesmo quando operam sobre tipos ligados a futuras famílias.
+- Nenhuma família pública foi operacionalizada; nenhuma resolução qualificada foi implementada; nenhuma mudança funcional foi feita.
+- Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/future.md`, `docs/atlas.md`, `docs/inventario_intrinsecas.md` (novo).
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)
