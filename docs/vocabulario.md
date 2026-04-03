@@ -34,6 +34,32 @@ Evitar keywords que:
 - **Texto e expressão:** `verso`, `falar`, `juntar_verso`, `tamanho_verso`, `formatar_verso`, `ler_linha_csv_bombom`, `emitir_linha_csv_bombom`, `ler_json_plano_bombom`, `emitir_json_plano_bombom`, `tempo_unix`, `formatar_tempo_unix`.
 - **I/O, tooling e integração sistêmica mínima:** `ouvir`, `abrir`, `fechar`, `escrever`, `argumento`, `executar_processo`, `executar_com_entrada`, `pipeline_minimo`, `capturar_stdout`, `capturar_stderr`, `sair`.
 
+## 3.1 Famílias temáticas oficiais iniciais do Bloco 18
+
+No plano **nominal e arquitetural** do Bloco 18, a Pinker passa a reconhecer como famílias públicas iniciais:
+
+- `texto`
+- `arquivo`
+- `caminho`
+- `processo`
+- `tempo`
+- `ambiente`
+- `acaso`
+
+Os domínios `colecao` e `formato` permanecem **provisórios** nesta fase: o agrupamento técnico já existe, mas o nome público ainda não está lexicalmente maduro o suficiente para canonização.
+
+Critérios mínimos para aceitar uma família pública:
+
+1. força técnica do agrupamento já existente;
+2. clareza de domínio;
+3. sustentabilidade de crescimento;
+4. legibilidade;
+5. coerência com a identidade Pinker;
+6. capacidade de sustentar documentação pública futura;
+7. baixo risco de colisão ou confusão com construtos já existentes.
+
+Referência cruzada canônica desta decisão: `docs/familias_tematicas.md`.
+
 ## 4. Keywords aceitas e implementadas
 
 ### Núcleo de linguagem
@@ -103,3 +129,4 @@ Antes de aceitar keyword nova:
 - A abertura canônica do Bloco 10 (Doc-21) também não abre keyword nova por si: define foco de cobertura semântica no backend nativo com ordem disciplinada (incluindo `ninho` antes de `virar` e `verso` como item final condicional).
 - As Fases 111, 112, 113, 114, 115, 116, 117, 118 e 119 mantiveram a diretriz de ampliar backend nativo sem inflar superfície lexical pública.
 - As Fases 120–135 no backend nativo externo também não introduziram keyword nova: abriram cobertura semântica mínima de tipos já existentes (`u32`/`u64`), comparações ampliadas mínimas (`!=`, `>`, `<=` e `>=`), três degraus conservadores do recorte externo auditável de `quebrar`/`continuar` no caminho de `sempre que`, quatro camadas conservadoras do recorte heterogêneo mínimo de `ninho` em 10.4 (`u32` e `u64` em leitura/escrita e composição mínima auditável no mesmo `ninho`), as camadas 1 e 2 conservadoras de `virar` em 10.5 (casts explícitos mínimos `u32 -> u64` e `u64 -> u32` no backend externo, sem coerções implícitas e sem sistema geral de casts) e a camada 1 conservadora/condicional de `verso` em 10.6 (literal estático em `.rodata` + tráfego opaco por slot/parâmetro, sem abrir textualidade ampla).
+- A Fase 181 do Bloco 18 não abriu keyword nova nem superfície qualificada em código; ela apenas canonizou nomes de famílias públicas iniciais e manteve `colecao`/`formato` em revisão lexical explícita.

@@ -5,20 +5,21 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 178 — linguagem-cola: fechamento de 16.2 por suficiência conservadora**.
-- Leitura operacional canônica: **Fase 178** consolidou documentalmente 16.2 após as Fases 168, 169, 170 e 177; **Bloco 17** permanece encerrado por suficiência conservadora; **Bloco 16** segue como frente funcional oficialmente ativa.
+- **Fase 181 — core nobre e bibliotecas temáticas: definição das famílias temáticas oficiais**.
+- Leitura operacional canônica: **Fase 181** abriu a camada nominal/arquitetural mínima do **Bloco 18** sem deslocar a frente funcional do **Bloco 16** e sem declarar famílias já operacionais em código.
 
 ## 2. Resultado operacional da rodada
-- A rodada não abriu funcionalidade nova: consolidou o fechamento de 16.2 com honestidade factual no recorte já entregue.
-- As quatro camadas reais da subtrilha ficaram explicitadas como família coerente de subprocessos mínimos com `argv1` textual explícito: `executar_processo`, `capturar_stdout`, `capturar_stderr` e `executar_com_entrada`.
-- `pipeline_minimo` permanece fora desta expansão; múltiplos argumentos, shell implícito, quoting rico, stdin adulto, PTY, job control e redesign geral de processos continuam fora do recorte.
+- A rodada não abriu funcionalidade nova: ela canonizou apenas a lista inicial de famílias públicas do Bloco 18.
+- Famílias aceitas agora: `texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente` e `acaso`.
+- Domínios mantidos provisórios: `colecao` e `formato`.
+- `tempo` ficou registrado como família exemplar recomendada do bloco.
 
 ## 3. Próximo passo correto
-- Próximo passo funcional provável: seguir no **Bloco 16** sem reabrir automaticamente 16.2 nem forçar encerramento total do bloco nesta rodada.
-- Blocos **18** e **19** permanecem apenas como candidatos futuros; não foram abertos nesta rodada.
+- Próximo passo documental provável: detalhar a família `tempo` como trilha exemplar do Bloco 18 antes de discutir resolução qualificada ou política de import por família.
+- O **Bloco 16** continua como frente funcional ativa; o **Bloco 18** segue em camada documental/arquitetural.
 
 ## 4. Restrições explícitas
-- Sem tratar o Bloco 17 encerrado como frente funcional; 18 e 19 seguem apenas como candidatos futuros.
+- Sem tratar as famílias aceitas como se `familia.intrinseca` já existisse.
 - Sem implementar reformas sintáticas (novas keywords, inferência local, `;` opcional, etc.) sem abertura funcional explícita de fase.
 - Sem inflar `future.md` como se fosse roadmap ou `parallel.md` como se fosse backlog técnico executável.
-- Sem reabrir subprocessos além do recorte já consolidado em 16.2 nem expandir `pipeline_minimo` por inércia.
+- Sem reorganizar `src/`, `tests/`, `semantic.rs` ou `interpreter.rs` por inércia documental.

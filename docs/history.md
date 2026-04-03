@@ -1400,6 +1400,14 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 - O encerramento é por suficiência conservadora: o arco mínimo plausível de 16.2 foi cumprido sem abrir nova microcamada lateral, enquanto o Bloco 16 permanece como frente funcional oficialmente ativa.
 - Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
 
+181 - core nobre e bibliotecas temáticas: definição das famílias temáticas oficiais
+- Segunda fase do Bloco 18, em rodada estritamente documental e fundacional.
+- Ficam definidas como famílias públicas iniciais do bloco: `texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente` e `acaso`.
+- `colecao` e `formato` permanecem explícitos como domínios provisórios em revisão lexical; o agrupamento técnico existe, mas o nome público ainda não foi canonizado.
+- `tempo` fica registrado como família exemplar recomendada para conduzir a continuação do bloco.
+- A entrega distingue explicitamente decisão nominal/arquitetural de implementação futura: não houve abertura de `familia.intrinseca`, `trazer familia;`, reorganização de engine nem qualquer mudança funcional na linguagem.
+- Documentos atualizados: `docs/atlas.md`, `docs/familias_tematicas.md`, `docs/vocabulario.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)

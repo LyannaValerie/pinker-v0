@@ -642,4 +642,9 @@ Visão de alinhamento entre motor técnico e aparência estética da linguagem:
 - **Bloco 18 — core nobre e bibliotecas temáticas**: separação entre núcleo e famílias de bibliotecas com identidade própria.
 - **Bloco 19 — reformas sintáticas e semânticas de superfície**: ajustes de elegância sintática (novas keywords, inferência, `;` opcional, etc.).
 
+Estado documental mais recente desta trilha candidata:
+
+- **Fase 181 — definição das famílias temáticas oficiais**: as famílias públicas iniciais do Bloco 18 ficaram canonizadas documentalmente como `texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente` e `acaso`; `colecao` e `formato` permanecem como domínios provisórios em revisão lexical; `tempo` ficou recomendado como família exemplar do bloco.
+- A fase é **estritamente documental**: não abre `familia.intrinseca`, não abre `trazer familia;`, não reorganiza `src/` e não altera o comportamento da linguagem.
+
 **Observação:** a trilha oficial ativa (Blocos 1–17) tem precedência absoluta sobre as trilhas candidatas.
