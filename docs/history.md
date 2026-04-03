@@ -1400,6 +1400,16 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 - O encerramento é por suficiência conservadora: o arco mínimo plausível de 16.2 foi cumprido sem abrir nova microcamada lateral, enquanto o Bloco 16 permanece como frente funcional oficialmente ativa.
 - Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
 
+179 - ferramenta cotidiana madura e linguagem-cola: fechamento do Bloco 16 por suficiência conservadora
+- Rodada documental de fechamento de bloco, sem implementação funcional nova na linguagem, no compilador, no parser, na semântica, no runtime, em `src/` ou em `tests/`.
+- Consolida o Bloco 16 como milestone funcional suficiente no recorte v0, com base em dois eixos reais já entregues: 16.1 (`pink repl` mínimo auditável) e 16.2 (linguagem-cola mínima consolidada na Fase 178).
+- Registra explicitamente as entregas consolidadas do bloco: execução mínima de subprocessos, captura mínima de stdout/stderr, stdin textual mínimo e coerência conservadora de `argv1` explícito para `executar_processo`, `capturar_stdout`, `capturar_stderr` e `executar_com_entrada`.
+- Registra explicitamente os limites preservados: ausência deliberada de shell rica/implícita, múltiplos argv gerais, quoting/escaping rico, PTY, job control, REPL adulto (multiline amplo/histórico sofisticado/autocomplete) e integração sistêmica ampla.
+- Registra que `pipeline_minimo` permaneceu deliberadamente fora da expansão de `argv1` no Bloco 16, como limite de escopo e não como pendência automática.
+- O encerramento do Bloco 16 é por suficiência conservadora, não por exaustão do domínio; expansões nessa direção exigem abertura explícita de nova trilha.
+- Não houve promoção automática dos Blocos 18 ou 19 nesta rodada; ambos permanecem apenas como candidatos futuros.
+- Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)
