@@ -97,10 +97,10 @@ Itens de longo prazo ainda sem bloco definido:
 - kernel/ambiente bare-metal mais robusto;
 - package manager soberano.
 
-Alinhamento do Bloco 16 após a Fase 167:
-- 16.1 foi entregue no recorte mínimo por `pink repl`;
-- seguem no inventário futuro, e não foram abertos nesta fase: REPL adulto com estado persistente rico, multiline amplo, histórico sofisticado, autocomplete, inspeção rica e shell ampla;
-- 16.2 (linguagem-cola) continua como próximo degrau funcional do bloco na trilha oficial.
+Alinhamento do Bloco 16 após as Fases 179–181:
+- o **Bloco 16** está encerrado por suficiência conservadora;
+- 16.1 foi entregue no recorte mínimo por `pink repl` e 16.2 foi cumprido no recorte conservador de linguagem-cola mínima;
+- permanecem no inventário futuro apenas ampliações não abertas: REPL adulto com estado persistente rico, multiline amplo, histórico sofisticado, autocomplete, inspeção rica e shell ampla.
 
 ## 4. Relação com a camada Rosa
 

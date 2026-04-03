@@ -642,7 +642,28 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 - O encerramento é por **suficiência conservadora**, não por exaustão do tema; o objetivo era estabilizar uma superfície canônica mínima, não reformar a linguagem.
 - Este fechamento consolida apenas o que entrou de fato nas Fases 171–175: norma visual mínima, primeiro lote pequeno de exemplos uniformizados, refinamento mínimo de tom documental, convenção mínima para `trazer`/uso qualificado e política mínima para aliases e nomes curtos.
 - O bloco permanece estritamente documental: não houve abertura de sintaxe nova, reforma de keywords, inferência local, `;` opcional, unidade implícita, redesign de módulos ou qualquer mudança funcional em parser, semântica, runtime ou compatibilidade.
-- Com o bloco encerrado, a frente funcional oficialmente ativa continua sendo o **Bloco 16**; os Blocos **18** e **19** permanecem apenas como trilhas candidatas futuras.
+- Com o bloco encerrado, o fechamento do **Bloco 16** fica preservado como passo imediatamente anterior e a continuidade canônica da trilha avança para a abertura explícita do **Bloco 18**.
+
+---
+
+### Bloco 18 — core nobre e bibliotecas temáticas
+
+**Status**: **bloco oficialmente aberto e ativo na trilha canônica**, em camada documental/arquitetural. A Fase 180 abriu o bloco com inventário canônico de intrínsecas e a Fase 181 canonizou as famílias temáticas públicas iniciais sem abrir operacionalização nova em código.
+
+**Tese do bloco**: separar com nitidez o núcleo da linguagem e suas famílias públicas de biblioteca, preservando base factual do engine e amadurecendo a nomeação temática sem fingir mecanismos ainda inexistentes.
+
+**Estado canônico atual do bloco**:
+- famílias públicas iniciais aceitas: `texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente` e `acaso`;
+- domínios provisórios explícitos: `colecao` e `formato`;
+- família exemplar recomendada: `tempo`.
+
+**Limites explícitos do bloco no estado atual**:
+- não há `familia.intrinseca`;
+- não há `trazer familia;` nem `trazer familia.intrinseca;`;
+- não houve reorganização funcional de `src/`, `semantic.rs`, `interpreter.rs` ou `tests/`;
+- não houve mudança funcional na linguagem.
+
+**Próximo passo documental provável**: detalhar a família `tempo` como trilha exemplar do bloco antes de qualquer discussão de resolução qualificada ou política de import por família.
 
 ---
 
@@ -681,9 +702,4 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 - **Bloco 19 — reformas sintáticas e semânticas de superfície**: ajustes de elegância sintática (novas keywords, inferência, `;` opcional, etc.).
 
-Estado documental mais recente desta trilha candidata:
-
-- **Fase 181 — definição das famílias temáticas oficiais**: as famílias públicas iniciais do Bloco 18 ficaram canonizadas documentalmente como `texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente` e `acaso`; `colecao` e `formato` permanecem como domínios provisórios em revisão lexical; `tempo` ficou recomendado como família exemplar do bloco.
-- A fase é **estritamente documental**: não abre `familia.intrinseca`, não abre `trazer familia;`, não reorganiza `src/` e não altera o comportamento da linguagem.
-
-**Observação:** a trilha oficial ativa (Blocos 1–17) tem precedência absoluta sobre as trilhas candidatas.
+**Observação:** com a abertura do **Bloco 18**, o que permanece como trilha candidata futura é o **Bloco 19**; mudanças como novas keywords, inferência local e `;` opcional continuam fora do estado operacional atual.
