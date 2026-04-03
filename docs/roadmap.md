@@ -646,15 +646,39 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ---
 
+### Bloco 18 — core nobre e bibliotecas temáticas
+
+**Status**: **aberto como trilha ativa**. A Fase 180 abriu o bloco com inventário canônico de intrínsecas e taxonomia inicial.
+
+**Tese estratégica**: a Pinker já possui motor técnico suficiente para deixar de tratar todas as intrínsecas como se tivessem o mesmo estatuto público. O problema atual não é falta de engine, mas dívida organizacional da superfície pública. Este bloco separa o núcleo nobre da linguagem das famílias temáticas, dá identidade pública coerente às bibliotecas e prepara o crescimento futuro sem engordar o monólito de intrínsecas.
+
+**Objetivo geral**: transformar a Pinker de um runtime com intrínsecas indiferenciadas "no ar" em uma linguagem com core pequeno e digno, famílias temáticas reconhecíveis, resolução qualificada por domínio, documentação canônica das famílias e retrocompatibilidade preservada no modo padrão.
+
+**Escada interna (ordem do mais simples ao mais complexo)**:
+
+1. **18.1 — inventário e taxonomia canônica (Fase 180, concluída)**: inventário completo de intrínsecas com classificação inicial por natureza funcional; critérios explícitos para núcleo nobre, família temática e domínio provisório; registro canônico em `docs/inventario_intrinsecas.md`.
+2. **18.2 — definição das famílias temáticas oficiais**: declarar famílias públicas iniciais; validação lexical dos nomes; tratamento provisório explícito para `colecao` e `formato`.
+3. **18.3 — superfície pública das famílias**: convenção de uso qualificado (`familia.intrinseca`); retrocompatibilidade preservada; sem alias novo.
+4. **18.4 — mecanismo técnico de domínio interno**: registro de domínio por intrínseca no engine; listagem agrupada por domínio.
+5. **18.5 — resolução qualificada por família**: resolução semântica e runtime de `familia.intrinseca`; exemplos mínimos.
+6. **18.6 — importação de família e de símbolo**: `trazer familia;` e `trazer familia.intrinseca;` na sintaxe existente.
+7. **18.7 — documentação identitária das famílias**: registro em `vocabulario.md`, `MANUAL.md`, `README.md`, `rosa.md` e `ponte_engine_rosa.md`.
+8. **18.8 — família exemplar e soberania inicial**: `tempo` como família-piloto; superfície legada preservada; horizonte de revisão lexical e de biblioteca em Pinker.
+9. **18.9 — modo estrito opcional de bibliotecas** (condicional): flag experimental para exigir importação explícita de famílias; diagnósticos amigáveis.
+10. **18.10 — reorganização interna do engine**: agrupamento por família em `interpreter.rs` e `semantic.rs`; extração modular condicional.
+11. **18.11 — exemplos, testes e fechamento**: exemplos por família; testes por forma de acesso; atualização dos canônicos.
+
+**Status de execução no bloco**:
+- **Fase 180 concluída (18.1 — inventário e taxonomia canônica)**: inventário de 78 intrínsecas públicas distintas com classificação inicial; 4 intrínsecas no núcleo nobre + 3 construtos de linguagem; 7 famílias candidatas fortes (texto, arquivo, caminho, processo, tempo, ambiente, acaso); 2 domínios provisórios (colecao, formato); 3 aliases legados; 2 intrínsecas internas; critérios explícitos de classificação registrados. Rodada estritamente documental, sem mudança funcional.
+
+**Escopo deliberadamente fora do Bloco 18**: reforma de keywords centrais, `;` opcional, inferência local, unidade raiz, redesign de parser/gramática, package manager, stdlib inteira em Pinker, generics/traits, backend nativo pleno, editor/TUI como frente funcional deste bloco.
+
+---
+
 ## Trilhas candidatas futuras (não ativas)
 
-As trilhas abaixo representam direções de longo prazo registradas documentalmente em Doc-32, mas que **não compõem a trilha ativa** imediata. Sua ativação funcional depende de decisão estratégica futura.
+### Superfície Pinker (Bloco 19)
 
-### Superfície Pinker (Blocos 18 e 19)
-
-Visão de alinhamento entre motor técnico e aparência estética da linguagem:
-
-- **Bloco 18 — core nobre e bibliotecas temáticas**: separação entre núcleo e famílias de bibliotecas com identidade própria.
 - **Bloco 19 — reformas sintáticas e semânticas de superfície**: ajustes de elegância sintática (novas keywords, inferência, `;` opcional, etc.).
 
-**Observação:** a trilha oficial ativa (Blocos 1–17) tem precedência absoluta sobre as trilhas candidatas.
+**Observação:** a trilha oficial ativa (Blocos 1–18) tem precedência absoluta sobre as trilhas candidatas.

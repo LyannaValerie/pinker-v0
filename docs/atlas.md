@@ -20,6 +20,7 @@ Documentos canônicos:
 Apoio Engine:
 
 - `docs/future.md` — inventário técnico (não é roadmap).
+- `docs/inventario_intrinsecas.md` — inventário canônico de intrínsecas (Bloco 18, Fase 180).
 - `docs/phases.md` — arquivo de compatibilidade para referências legadas.
 
 ## 2) Hemisfério Rosa (identitário / lexical / visão)
