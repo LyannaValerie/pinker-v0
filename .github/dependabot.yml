@@ -20,10 +20,6 @@ updates:
     # Prefixo nos commits e PRs para fácil identificação
     commit-message:
       prefix: "ci"
-    # Labels para organizar as PRs
-    labels:
-      - "dependencies"
-      - "github-actions"
     # Agrupar atualizações menores/patch numa só PR
     groups:
       github-actions:
