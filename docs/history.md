@@ -1400,26 +1400,13 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 - O encerramento é por suficiência conservadora: o arco mínimo plausível de 16.2 foi cumprido sem abrir nova microcamada lateral, enquanto o Bloco 16 permanece como frente funcional oficialmente ativa.
 - Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
 
-179 - ferramenta cotidiana madura e linguagem-cola: fechamento do Bloco 16 por suficiência conservadora
-- Rodada documental de fechamento de bloco, sem implementação funcional nova na linguagem, no compilador, no parser, na semântica, no runtime, em `src/` ou em `tests/`.
-- Consolida o Bloco 16 como milestone funcional suficiente no recorte v0, com base em dois eixos reais já entregues: 16.1 (`pink repl` mínimo auditável) e 16.2 (linguagem-cola mínima consolidada na Fase 178).
-- Registra explicitamente as entregas consolidadas do bloco: execução mínima de subprocessos, captura mínima de stdout/stderr, stdin textual mínimo e coerência conservadora de `argv1` explícito para `executar_processo`, `capturar_stdout`, `capturar_stderr` e `executar_com_entrada`.
-- Registra explicitamente os limites preservados: ausência deliberada de shell rica/implícita, múltiplos argv gerais, quoting/escaping rico, PTY, job control, REPL adulto (multiline amplo/histórico sofisticado/autocomplete) e integração sistêmica ampla.
-- Registra que `pipeline_minimo` permaneceu deliberadamente fora da expansão de `argv1` no Bloco 16, como limite de escopo e não como pendência automática.
-- O encerramento do Bloco 16 é por suficiência conservadora, não por exaustão do domínio; expansões nessa direção exigem abertura explícita de nova trilha.
-- Não houve promoção automática dos Blocos 18 ou 19 nesta rodada; ambos permanecem apenas como candidatos futuros.
-- Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
-
-180 - core nobre e bibliotecas temáticas: inventário canônico de intrínsecas (abertura do Bloco 18)
-- Rodada documental fundacional, sem implementação funcional nova na linguagem, no compilador, no parser, na semântica, no runtime, em `src/` ou em `tests/`.
-- Abertura formal do Bloco 18 (core nobre e bibliotecas temáticas) como trilha ativa do roadmap.
-- Primeira fase do bloco: inventário canônico completo das intrínsecas da Pinker v0, com classificação inicial por natureza funcional e critérios explícitos de separação.
-- Inventário registrado em novo documento canônico `docs/inventario_intrinsecas.md`, catalogando 78 intrínsecas públicas distintas.
-- Critérios explícitos fixados para núcleo nobre (indispensabilidade, universalidade, acoplamento ao motor, irredutibilidade), família temática candidata (domínio reconhecível, ganho de clareza com contexto, não precisa estar "no ar", inflação lexical) e domínio provisório (agrupamento reconhecível com nome ainda não canonizado).
-- Classificação inicial: 4 intrínsecas no núcleo nobre (`ouvir`, `ouvir_verso`, `ouvir_verso_ou`, `sair`) + 3 construtos de linguagem não intrínsecas (`falar`, `peso`, `alinhamento`); 7 famílias candidatas fortes (`texto` com 18, `arquivo` com 12, `caminho` com 10, `processo` com 5, `tempo` com 2, `ambiente` com 9, `acaso` com 2); 2 domínios provisórios (`colecao` com 11, `formato` com 5); 3 aliases legados provisórios; 2 intrínsecas internas de lowering.
-- Registro explícito de que construtos sintáticos do núcleo (`para cada`, `sempre que`, etc.) permanecem núcleo mesmo quando operam sobre tipos ligados a futuras famílias.
-- Nenhuma família pública foi operacionalizada; nenhuma resolução qualificada foi implementada; nenhuma mudança funcional foi feita.
-- Documentos atualizados: `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/future.md`, `docs/atlas.md`, `docs/inventario_intrinsecas.md` (novo).
+181 - core nobre e bibliotecas temáticas: definição das famílias temáticas oficiais
+- Segunda fase do Bloco 18, em rodada estritamente documental e fundacional.
+- Ficam definidas como famílias públicas iniciais do bloco: `texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente` e `acaso`.
+- `colecao` e `formato` permanecem explícitos como domínios provisórios em revisão lexical; o agrupamento técnico existe, mas o nome público ainda não foi canonizado.
+- `tempo` fica registrado como família exemplar recomendada para conduzir a continuação do bloco.
+- A entrega distingue explicitamente decisão nominal/arquitetural de implementação futura: não houve abertura de `familia.intrinseca`, `trazer familia;`, reorganização de engine nem qualquer mudança funcional na linguagem.
+- Documentos atualizados: `docs/atlas.md`, `docs/familias_tematicas.md`, `docs/vocabulario.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

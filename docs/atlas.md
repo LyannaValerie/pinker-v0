@@ -37,6 +37,7 @@ Apoio Rosa:
 ## 3) Ponte explícita Engine ↔ Rosa
 
 - `docs/ponte_engine_rosa.md` — regras de mediação entre estado factual e direção identitária.
+- `docs/familias_tematicas.md` — decisão canônica inicial das famílias públicas do Bloco 18, distinguindo nomeação arquitetural de implementação futura.
 
 ## 4) Convenção de classe/papel/status
 
