@@ -593,7 +593,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 16 — ferramenta cotidiana madura e linguagem-cola
 
-**Status**: bloco formal ativo; a Fase 167 concluiu 16.1 no recorte mínimo conservador, as Fases 168, 169, 170 e 177 cumpriram 16.2 em quatro camadas conservadoras pequenas e a Fase 178 encerrou 16.2 por suficiência conservadora, sem encerrar o bloco inteiro nesta rodada.
+**Status**: **encerrado por suficiência conservadora (Fase 179)**. A Fase 167 concluiu 16.1 no recorte mínimo conservador; as Fases 168, 169, 170 e 177 cumpriram 16.2 em quatro camadas conservadoras pequenas; a Fase 178 encerrou 16.2 por suficiência conservadora; e a Fase 179 consolidou o fechamento canônico do Bloco 16 sem abrir nova capability funcional.
 
 **Tese do bloco**: com módulos tipados, coleções, formatação, dados estruturados e execução de processos, a Pinker tem todos os ingredientes para ser ferramenta cotidiana madura; este bloco sela essa identidade com REPL e linguagem-cola — os dois itens que transformam a linguagem em ambiente interativo e substituto real para shell scripts complexos.
 
@@ -611,6 +611,15 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 **Leitura operacional do fechamento de 16.2**: a família principal de subprocessos mínimos ficou alinhada de forma suficientemente coerente no padrão conservador de um `argv1` textual explícito. O fechamento desta subtrilha é por suficiência conservadora, não por exaustão do espaço possível de integração com processos.
 
 **Escopo deliberadamente fora do Bloco 16**: IDE integrada, debugger interativo, package manager soberano, autohospedagem, macros de compilação, REPL adulto com multiline amplo/histórico sofisticado/autocomplete e shell rica.
+
+#### Encerramento formal do Bloco 16
+
+- O bloco cumpriu seu arco mínimo plausível de ferramenta cotidiana madura no recorte v0: REPL mínimo auditável (16.1) + linguagem-cola mínima coerente (16.2).
+- As entregas consolidadas do recorte são: execução mínima de subprocessos, captura mínima de stdout/stderr, stdin textual mínimo e alinhamento conservador de `argv1` explícito na família principal (`executar_processo`, `capturar_stdout`, `capturar_stderr`, `executar_com_entrada`).
+- `pipeline_minimo` permaneceu deliberadamente fora da expansão de `argv1`; isso é limite de escopo, não pendência automática.
+- O fechamento é por **suficiência conservadora**, não por exaustão do domínio: o bloco não pretendeu virar shell adulta nem REPL adulto.
+- Permanecem explicitamente fora do bloco: shell implícito/rica, múltiplos argv gerais, quoting/escaping rico, PTY, job control, multiline amplo de REPL, histórico sofisticado, autocomplete e integração sistêmica ampla.
+- Com o bloco encerrado, **não há promoção automática dos Blocos 18 ou 19**; essas trilhas continuam apenas candidatas futuras até abertura explícita.
 
 ---
 
