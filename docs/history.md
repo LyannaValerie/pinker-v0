@@ -1423,7 +1423,7 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 - `tempo` fica registrado como família exemplar recomendada para conduzir a continuação do bloco.
 - A entrega continua a abertura documental do **Bloco 18** feita na Fase 180 e distingue explicitamente decisão nominal/arquitetural de implementação futura: não houve abertura de `familia.intrinseca`, `trazer familia;`, reorganização de engine nem qualquer mudança funcional na linguagem.
 - Documentos atualizados: `docs/atlas.md`, `docs/familias_tematicas.md`, `docs/vocabulario.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
-
+< - inicio_paralela_rodada - >
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)
@@ -1445,3 +1445,4 @@ Trilha B — MCP mínimo (histórico):
 - Limitação intencional na época: código inline apenas (sem resolução de imports entre módulos).
 - Testes registrados na época: 9 casos em `tests/mcp_tests.rs` cobrindo initialize, tools/list, checar, tokens, rodar, bitnot via MCP e erro de método desconhecido.
 - Estado posterior: trilha MCP removida por segurança e fora da operação corrente.
+< - fim_paralela_rodada - >
