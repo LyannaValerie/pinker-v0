@@ -47,6 +47,7 @@
 - `handoff_codex.md` = bilhete operacional curto.
 - `atlas.md` = navegação mestre.
 - `ponte_engine_rosa.md` = mediação estável Engine ↔ Rosa.
+- `inventario_intrinsecas.md` = inventário canônico de intrínsecas (Bloco 18).
 - `phases.md` = compatibilidade legada.
 
 ## 4. Restrições do projeto
@@ -54,6 +55,7 @@
 - Não transformar `future.md` em roadmap.
 - Não transformar `parallel.md` em backlog técnico.
 - Não declarar funcionalidade como pronta sem validação objetiva.
+- Não operacionalizar famílias públicas antes da decisão lexical de 18.2.
 
 ## 5. Padrão operacional de binários
 - Binário principal: `pink`.
