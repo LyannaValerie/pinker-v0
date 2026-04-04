@@ -21,6 +21,26 @@
 - O bloco funcional imediatamente anterior já encerrado é o **Bloco 16 — ferramenta cotidiana madura e linguagem-cola**, consolidado no fechamento formal da **Fase 179**.
 - A frente pausada oficial permanece o **editor/TUI da Pinker**, aberta na **Fase 136** e não abandonada.
 
+## Bloco ativo atual
+
+**Bloco 18 — core nobre e bibliotecas temáticas**
+
+**Tese estratégica**
+Separar com nitidez o núcleo nobre da linguagem e suas famílias públicas de biblioteca, disciplinando a superfície da Pinker sem fingir mecanismo funcional ainda inexistente.
+
+**Estado atual**
+Bloco aberto em camada documental/arquitetural. A Fase 180 abriu o inventário canônico de intrínsecas e a Fase 181 canonizou as famílias públicas iniciais, mantendo `colecao` e `formato` como domínios provisórios.
+
+**Escada macro**
+- inventário e taxonomia das intrínsecas existentes;
+- definição das famílias públicas iniciais;
+- detalhamento de famílias exemplares;
+- preparação da superfície futura por família sem reorganização funcional prematura;
+- fechamento posterior por suficiência conservadora, quando o recorte documental estiver maduro.
+
+**Detalhe estrutural**
+- `docs/roadmap/blocos/bloco_18.md`
+
 ## Relação com os demais documentos
 
 - `docs/roadmap.md` define a ordem ativa.
