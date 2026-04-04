@@ -11,6 +11,8 @@ Este é o arquivo mestre de navegação documental da Pinker v0.
 Documentos canônicos:
 
 - `docs/roadmap.md` — ordem ativa oficial.
+- `docs/roadmap/indice.md` — hub de navegação do roadmap por blocos.
+- `docs/roadmap/blocos/*.md` — shards estruturais por bloco; não substituem o histórico.
 - `docs/history.md` — ponteiro canônico curto para o sistema histórico.
 - `docs/history/indice.md` — hub principal de navegação histórica.
 - `docs/agent_state.md` — estado operacional corrente, de forma enxuta.
