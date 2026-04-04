@@ -416,6 +416,33 @@ impl SemanticChecker {
     // Registra funções e constantes antes de verificar qualquer corpo.
     // Erros aqui interrompem antes da passagem 2.
     pub fn check_program(&mut self, program: &Program) -> Result<(), PinkerError> {
+        // Fase 186 — validação mínima de importações por família.
+        // Recorte desta fase: apenas `trazer tempo;` é reconhecido.
+        // Importação seletiva (`trazer familia.simbolo;`) e outras famílias são rejeitadas.
+        for import in &program.imports {
+            if import.symbol.is_some() {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "importação seletiva 'trazer {}.{}' não é suportada; use 'trazer {};' para importar a família inteira",
+                        import.module,
+                        import.symbol.as_deref().unwrap_or(""),
+                        import.module
+                    ),
+                    span: import.span,
+                });
+            }
+            if import.module != "tempo" {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "família '{}' não é reconhecida como família importável; família disponível nesta fase: 'tempo'",
+                        import.module
+                    ),
+                    span: import.span,
+                });
+            }
+            // `trazer tempo;` é válido — as intrínsecas da família já estão disponíveis globalmente.
+        }
+
         for item in &program.items {
             match item {
                 Item::Function(function) => {

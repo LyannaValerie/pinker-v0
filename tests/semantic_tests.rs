@@ -2852,3 +2852,54 @@ fn api_ampla_de_aleatoriedade_permanece_fora_do_recorte() {
         err
     );
 }
+
+// ── Fase 186 — importação por família: recorte mínimo `trazer tempo;` ──────
+
+#[test]
+fn trazer_tempo_familia_aceita() {
+    let code = r#"
+        pacote main;
+        trazer tempo;
+        carinho principal() -> bombom {
+            nova agora: bombom = tempo_unix();
+            mimo agora;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn legado_global_sem_trazer_continua_valido() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova agora: bombom = tempo_unix();
+            nova texto: verso = formatar_tempo_unix(agora);
+            falar(texto);
+            mimo agora;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn trazer_familia_desconhecida_falha() {
+    let code = r#"
+        pacote main;
+        trazer texto;
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("família 'texto' não é reconhecida"), "{}", err);
+}
+
+#[test]
+fn trazer_seletivo_nao_suportado_falha() {
+    let code = r#"
+        pacote main;
+        trazer tempo.tempo_unix;
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("importação seletiva"), "{}", err);
+}

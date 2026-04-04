@@ -114,21 +114,21 @@ A futura transição de `tempo` deve obedecer, no mínimo:
 6. depender de mecanismo real de superfície por família, e não de reinterpretação documental isolada;
 7. distinguir com nitidez formas apenas ilustrativas de qualquer forma qualificada futuramente aceita.
 
-## 8. Limites explícitos desta formalização
+## 8. Limites explícitos
 
-Esta fase não afirma:
+A Fase 186 abriu `trazer tempo;` no recorte mínimo. Os limites atuais são:
 
-- `familia.intrinseca` operacional;
-- `trazer tempo;`;
-- `trazer tempo.algo;`;
-- biblioteca adulta de datas, calendário, timezone, locale ou duração;
-- reclassificação de `tempo` como subsistema soberano já implementado.
+- `familia.intrinseca` ainda não operacional;
+- `trazer tempo.algo;` (importação seletiva) ainda não suportado;
+- biblioteca adulta de datas, calendário, timezone, locale ou duração fora do escopo;
+- `trazer tempo;` não cria obrigação de import; os nomes globais legados continuam válidos sem o import;
+- nenhuma outra família além de `tempo` pode ser importada nesta fase.
 
-## 9. Continuidade preparada
+## 9. Estado atual e continuidade
 
-Com esta formalização, o Bloco 18 passa a ter um caso exemplar pequeno e estável para conduzir próximas rodadas sobre:
+A Fase 186 abriu `trazer tempo;` como primeiro recorte funcional real de 18.6. Com isso:
 
-- documentação pública por família;
-- leitura correta entre legado global e superfície temática futura;
-- critérios de adoção lexical sem reorganização prematura da engine;
-- política explícita de transição entre superfície global legada e superfície futura por família.
+- `trazer tempo;` é aceito pelo checker e pelo runtime;
+- as intrínsecas `tempo_unix` e `formatar_tempo_unix` continuam disponíveis globalmente;
+- a presença de `trazer tempo;` não é obrigatória nem altera o comportamento;
+- próximas rodadas podem ampliar 18.6 para outras famílias ou avançar para 18.7.

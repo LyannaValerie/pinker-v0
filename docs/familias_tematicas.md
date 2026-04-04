@@ -102,7 +102,7 @@ Hoje pertencem à família `tempo` exatamente:
 - `tempo_unix() -> bombom`
 - `formatar_tempo_unix(ts) -> verso`
 
-Não há, nesta fase, namespace funcional `tempo`, importação por família ou resolução qualificada operacional.
+A Fase 186 abriu `trazer tempo;` como primeiro recorte funcional mínimo de importação por família. As intrínsecas continuam disponíveis globalmente; o import não é obrigatório. Importação seletiva e resolução qualificada operacional permanecem fora do recorte.
 
 ### 7.2 Superfície mínima atual
 

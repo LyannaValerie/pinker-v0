@@ -8964,3 +8964,27 @@ fn cli_run_fase156_aleatoriedade_basica_fluxo_composto_valido() {
     assert!(stdout.contains("7 7"), "stdout={}", stdout);
     assert!(stdout.contains('9'), "stdout={}", stdout);
 }
+
+// ── Fase 186 — importação por família: recorte mínimo `trazer tempo;` ──────
+
+#[test]
+fn cli_check_fase186_trazer_tempo_minimo_valido() {
+    let output = run_cli_check_example("examples/fase186_trazer_tempo_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase186_trazer_tempo_minimo_valido() {
+    let output = run_cli_example("examples/fase186_trazer_tempo_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("1970-01-01T00:00:00Z"), "stdout={}", stdout);
+}

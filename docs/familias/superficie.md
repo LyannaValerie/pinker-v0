@@ -21,14 +21,15 @@ Hoje, a Pinker:
 - aceita famílias públicas como decisão nominal/arquitetural;
 - continua expondo as intrínsecas existentes por nomes globais legados;
 - ainda não possui `familia.intrinseca`;
-- ainda não possui `trazer familia;`;
-- ainda não possui `trazer familia.algo;`.
+- possui `trazer familia;` apenas para a família `tempo` (Fase 186, recorte mínimo);
+- ainda não possui `trazer familia.algo;` (importação seletiva).
 
 Leitura correta:
 
 - a família existe como organização canônica da superfície;
-- o mecanismo de acesso por família ainda não existe no engine;
-- a documentação não deve reescrever o presente como se esse mecanismo já estivesse pronto.
+- `trazer tempo;` é o primeiro mecanismo real de importação por família, com efeito operacional mínimo (as intrínsecas já estão disponíveis globalmente; o import é válido mas não obrigatório);
+- outras famílias ainda não são importáveis;
+- a documentação não deve reescrever o presente como se importação geral por família já existisse.
 
 ## 2. Caso exemplar `tempo`
 

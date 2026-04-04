@@ -25,7 +25,7 @@ Escada longa originalmente prevista — leitura atual honesta:
 - **18.3 superfície pública** — base documental aberta; Fases 182–183.
 - **18.4 domínio interno** — coberto; Fase 184.
 - **18.5 resolução qualificada** — preparado documentalmente; Fase 185; ainda não operacional.
-- **18.6 importação por família** — ainda não aberta canonicamente; deve caminhar para implementação funcional real.
+- **18.6 importação por família** — aberta na Fase 186; recorte mínimo: `trazer tempo;` reconhecido e validado; outras famílias e importação seletiva fora do recorte desta fase.
 - **18.7 documentação identitária** — pendente como consolidação identitária mais ampla.
 - **18.8 família exemplar** — parcialmente coberta via `tempo` (Fase 182); tratamento completo ainda futuro.
 - **18.9 modo estrito opcional** — condicional; não aberto.
@@ -33,17 +33,19 @@ Escada longa originalmente prevista — leitura atual honesta:
 - **18.11 fechamento** — futuro.
 
 Degraus 18.1–18.5: base documental consolidada nas Fases 180–185.
-Degraus 18.6 e 18.10: devem caminhar para implementação funcional real quando a base estiver madura.
+Degrau 18.6: recorte mínimo funcional aberto na Fase 186 (`trazer tempo;`).
+Degrau 18.10: deve caminhar para implementação funcional real quando a base estiver madura.
 
 ## Estado factual atual
-Bloco oficialmente aberto e ativo em camada documental/arquitetural. A Fase 180 abriu o bloco com inventário canônico de intrínsecas. A Fase 181 canonizou as famílias públicas iniciais (`texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente`, `acaso`) e deixou `colecao` e `formato` como domínios provisórios. A Fase 182 formalizou `tempo` como família exemplar do bloco sobre sua superfície mínima atual (`tempo_unix`, `formatar_tempo_unix`), preservando compatibilidade lexical e distinguindo estado legado de direção futura. A Fase 183 fixou a política documental da superfície futura por família a partir desse caso exemplar, distinguindo formas ilustrativas, critérios de transição e limites explícitos do estado implementado. A Fase 184 formalizou a leitura por domínio interno de intrínseca, distinguindo essa camada factual das famílias públicas e da futura superfície por família. A Fase 185 prepara documentalmente a futura resolução qualificada por família, distinguindo essa camada da superfície atual e fixando critérios mínimos para futura abertura operacional. A Doc-35 reduziu o custo de contexto do sistema histórico sem alterar essa trilha.
+Bloco ativo com base documental consolidada e primeiro recorte funcional real aberto. A Fase 180 abriu o bloco com inventário canônico de intrínsecas. A Fase 181 canonizou as famílias públicas iniciais (`texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente`, `acaso`) e deixou `colecao` e `formato` como domínios provisórios. A Fase 182 formalizou `tempo` como família exemplar. A Fase 183 fixou a política documental da superfície futura por família. A Fase 184 formalizou a leitura por domínio interno de intrínseca. A Fase 185 preparou documentalmente a futura resolução qualificada por família. A Fase 186 abriu o primeiro recorte funcional real de 18.6: `trazer tempo;` passa a ser reconhecido e validado pelo checker e pelo runtime; os nomes globais legados continuam preservados; importação seletiva e outras famílias ficam fora deste recorte.
 
 ## Limites explícitos
 - não há `familia.intrinseca`;
-- não há `trazer familia;` nem `trazer familia.intrinseca;`;
+- `trazer familia;` existe apenas para `tempo` (Fase 186); nenhuma outra família está suportada;
+- não há `trazer familia.intrinseca;` (importação seletiva);
 - não há resolução qualificada por família já operacional;
-- não houve reorganização funcional de `src/`, `semantic.rs`, `interpreter.rs` ou `tests/`;
-- não houve mudança funcional na linguagem.
+- não houve reorganização funcional de `interpreter.rs` ou do pipeline de IR;
+- compatibilidade global legada (`tempo_unix`, `formatar_tempo_unix`) preservada integralmente.
 
 ## Família exemplar atual
 
@@ -61,5 +63,5 @@ Bloco oficialmente aberto e ativo em camada documental/arquitetural. A Fase 180 
 - Leitura canônica: domínio interno organiza o inventário factual; família pública organiza a camada arquitetural; superfície futura por família continua condicionada a mecanismo real; resolução qualificada futura também permanece apenas como camada posterior preparada.
 
 ## Relação com o histórico
-- Execução factual preservada em `docs/history/phases/151a200.md` (Fases 180, 181, 182, 183, 184 e 185).
+- Execução factual preservada em `docs/history/phases/151a200.md` (Fases 180, 181, 182, 183, 184, 185 e 186).
 - A refatoração histórica que reduz duplicação contextual está em `docs/history/documentation/001a050.md` (Doc-35).
