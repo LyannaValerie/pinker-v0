@@ -10,7 +10,8 @@
 - Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
 ## 2. Estado corrente
-- Fase mais recente: **181 — core nobre e bibliotecas temáticas: definição das famílias temáticas oficiais**.
+- Fase funcional mais recente: **181 — core nobre e bibliotecas temáticas: definição das famílias temáticas oficiais**.
+- Rodada documental mais recente: **Doc-35 — refatoração AX-friendly da arquitetura histórica documental**.
 - Bloco oficialmente ativo na trilha canônica: **18 — core nobre e bibliotecas temáticas**.
 - Bloco documental mais recentemente encerrado: **17 — forma visual e superfície documental (encerrado por suficiência conservadora na Fase 176)**.
 - Bloco anteriormente ativo já encerrado por suficiência conservadora: **16 — ferramenta cotidiana madura e linguagem-cola (encerrado na Fase 179)**.
@@ -21,9 +22,8 @@
 - Bloco encerrado: **14 — formatação e dados estruturados (encerrado por suficiência conservadora na Doc-29, após as Fases 157, 158, 159 e 160)**.
 - Bloco funcional imediatamente anterior já consolidado: **15 — processos e integração sistêmica**.
 - Frente pausada (oficial e não abandonada): **editor/TUI oficial da Pinker (aberto na Fase 136)**.
-- Rodada documental mais recente: **Fase 181 — definição das famílias temáticas oficiais do Bloco 18**.
-- Ajuste extraordinário corrente: promoção canônica de `tem_chave`, `pedir_argumento` e `buscar_contexto`, com legado temporário para `tem_argumento_nomeado`, `argumento_nomeado_ou` e `argumento_nomeado_ou_ambiente_ou`.
-- Leitura canônica do estado: a Fase 176 encerrou o **Bloco 17** por suficiência conservadora; as Fases 168, 169, 170 e 177 cumpriram o recorte mínimo plausível de **16.2**; a Fase 179 encerrou o **Bloco 16** por suficiência conservadora; a Fase 180 abriu o **Bloco 18** com inventário canônico de intrínsecas; e a Fase 181 continuou o **Bloco 18** ao canonizar suas famílias públicas iniciais sem abrir operacionalização em código.
+- Ajuste extraordinário corrente: **arquitetura histórica shardada e AX-friendly em `docs/history/`**, sem mudança funcional de linguagem.
+- Leitura canônica do estado: a Fase 176 encerrou o **Bloco 17** por suficiência conservadora; as Fases 168, 169, 170 e 177 cumpriram o recorte mínimo plausível de **16.2**; a Fase 179 encerrou o **Bloco 16** por suficiência conservadora; a Fase 180 abriu o **Bloco 18** com inventário canônico de intrínsecas; a Fase 181 continuou o **Bloco 18** ao canonizar suas famílias públicas iniciais; e a Doc-35 reduziu o custo de contexto do histórico sem alterar código.
 - Síntese consolidada do Bloco 17: norma visual mínima, uniformização inicial de exemplos canônicos, refinamento mínimo de tom documental, convenção mínima para `trazer`/uso qualificado e política mínima para aliases e nomes curtos.
 - Limite canônico do fechamento: o Bloco 17 não abriu sintaxe nova, reforma de keywords, inferência local, `;` opcional, unidade implícita, redesign de módulos nem qualquer mudança funcional em parser, semântica, runtime, `src/`, `tests/` ou compatibilidade da linguagem.
 - Síntese atual do Bloco 18: famílias públicas iniciais aceitas (`texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente`, `acaso`), domínios provisórios explícitos (`colecao`, `formato`) e recomendação de `tempo` como família exemplar do bloco.
@@ -37,7 +37,10 @@
 
 ## 3. Arquitetura documental ativa
 - `roadmap.md` = ordem ativa.
-- `history.md` = crônica única.
+- `history.md` = ponteiro canônico curto do histórico.
+- `history/indice.md` = hub histórico principal.
+- `history/*/indice.md` = roteadores locais por categoria.
+- `history/*/*.md` = shards factuais do histórico.
 - `agent_state.md` = estado corrente enxuto.
 - `handoff_codex.md` = bilhete operacional curto.
 - `atlas.md` = navegação mestre.

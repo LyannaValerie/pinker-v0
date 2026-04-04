@@ -5,21 +5,22 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 181 — core nobre e bibliotecas temáticas: definição das famílias temáticas oficiais**.
-- Leitura operacional canônica: **Fase 181** é a segunda fase documental/fundacional do **Bloco 18**, já aberto na Fase 180, após o encerramento conservador do **Bloco 16** na Fase 179.
+- **Doc-35 — refatoração AX-friendly da arquitetura histórica documental**.
+- Leitura operacional canônica: a rodada é estritamente documental e reorganiza o histórico canônico em shards navegáveis, sem abrir nova funcionalidade de linguagem.
 
 ## 2. Resultado operacional da rodada
-- A rodada não abriu funcionalidade nova: ela canonizou apenas a lista inicial de famílias públicas do Bloco 18.
-- Famílias aceitas agora: `texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente` e `acaso`.
-- Domínios mantidos provisórios: `colecao` e `formato`.
-- `tempo` ficou registrado como família exemplar recomendada do bloco.
+- `docs/history.md` virou ponteiro formal curto do histórico.
+- `docs/history/indice.md` passou a ser o hub principal de navegação histórica.
+- O conteúdo factual do antigo monólito foi redistribuído em `docs/history/phases/`, `docs/history/hotfixes/`, `docs/history/documentation/` e `docs/history/parallel_phases/`.
+- Cada categoria ganhou `indice.md` próprio e shards uniformes por faixa de 50, mantendo índices curtos e conteúdo factual nos shards.
+- Não houve mudança funcional em parser, semântica, runtime, `src/`, `tests/` ou exemplos.
 
 ## 3. Próximo passo correto
-- Próximo passo documental provável: detalhar a família `tempo` como trilha exemplar do Bloco 18 antes de discutir resolução qualificada ou política de import por família.
-- O **Bloco 16** permanece encerrado; o **Bloco 18** segue como bloco oficialmente ativo em camada documental/arquitetural.
+- Próximo passo documental provável: continuar o Bloco 18 pela família exemplar `tempo`, usando a nova arquitetura histórica shardada para consulta sob demanda.
+- O **Bloco 18** segue como bloco oficialmente ativo em camada documental/arquitetural.
 
 ## 4. Restrições explícitas
-- Sem tratar as famílias aceitas como se `familia.intrinseca` já existisse.
-- Sem implementar reformas sintáticas (novas keywords, inferência local, `;` opcional, etc.) sem abertura funcional explícita de fase.
+- Sem tratar a nova arquitetura histórica como reabertura de fase funcional.
+- Sem voltar a inflar `docs/history.md` ou os `indice.md` como se fossem crônicas completas.
+- Sem implementar reformas sintáticas ou reorganização de engine por inércia documental.
 - Sem inflar `future.md` como se fosse roadmap ou `parallel.md` como se fosse backlog técnico executável.
-- Sem reorganizar `src/`, `tests/`, `semantic.rs` ou `interpreter.rs` por inércia documental.

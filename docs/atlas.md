@@ -11,7 +11,8 @@ Este é o arquivo mestre de navegação documental da Pinker v0.
 Documentos canônicos:
 
 - `docs/roadmap.md` — ordem ativa oficial.
-- `docs/history.md` — crônica histórica única (fases, hotfixes, docs e paralelas).
+- `docs/history.md` — ponteiro canônico curto para o sistema histórico.
+- `docs/history/indice.md` — hub principal de navegação histórica.
 - `docs/agent_state.md` — estado operacional corrente, de forma enxuta.
 - `docs/handoff_codex.md` — bilhete operacional curto da rodada.
 - `docs/doc_rules.md` — regras de atualização documental.
@@ -19,6 +20,10 @@ Documentos canônicos:
 
 Apoio Engine:
 
+- `docs/history/phases/indice.md` — índice local das fases históricas.
+- `docs/history/hotfixes/indice.md` — índice local dos hotfixes.
+- `docs/history/documentation/indice.md` — índice local das rodadas documentais.
+- `docs/history/parallel_phases/indice.md` — índice local das rodadas paralelas.
 - `docs/future.md` — inventário técnico (não é roadmap).
 - `docs/phases.md` — arquivo de compatibilidade para referências legadas.
 
@@ -51,7 +56,7 @@ Quando um documento tiver papel estrutural, declarar no topo:
 1. Código mergeado local
 2. `docs/roadmap.md`
 3. `docs/agent_state.md` + `docs/handoff_codex.md`
-4. `docs/history.md`
+4. sistema histórico canônico (`docs/history.md` -> `docs/history/indice.md` -> shards em `docs/history/`)
 5. `docs/future.md`
 6. `docs/rosa.md` + `docs/vocabulario.md` + `docs/parallel.md`
 7. `docs/ponte_engine_rosa.md` e `docs/atlas.md`
