@@ -29,7 +29,7 @@
 Separar com nitidez o núcleo nobre da linguagem e suas famílias públicas de biblioteca, disciplinando a superfície da Pinker sem fingir mecanismo funcional ainda inexistente.
 
 **Estado atual**
-Bloco aberto em camada documental/arquitetural. A Fase 180 abriu o inventário canônico de intrínsecas e a Fase 181 canonizou as famílias públicas iniciais, mantendo `colecao` e `formato` como domínios provisórios.
+Bloco aberto em camada documental/arquitetural. A Fase 180 abriu o inventário canônico de intrínsecas, a Fase 181 canonizou as famílias públicas iniciais e a Fase 182 formalizou `tempo` como família exemplar, mantendo `colecao` e `formato` como domínios provisórios.
 
 **Escada macro**
 - inventário e taxonomia das intrínsecas existentes;

@@ -10,7 +10,7 @@
 - Fonte de verdade: código local mergeado + documentação canônica do repositório.
 
 ## 2. Estado corrente
-- Fase funcional mais recente: **181 — core nobre e bibliotecas temáticas: definição das famílias temáticas oficiais**.
+- Fase funcional mais recente: **182 — core nobre e bibliotecas temáticas: família exemplar `tempo`**.
 - Rodada documental mais recente: **Doc-36 — refatoração estrutural AX-friendly do roadmap**.
 - Bloco oficialmente ativo na trilha canônica: **18 — core nobre e bibliotecas temáticas**.
 - Bloco documental mais recentemente encerrado: **17 — forma visual e superfície documental (encerrado por suficiência conservadora na Fase 176)**.
@@ -23,17 +23,17 @@
 - Bloco funcional imediatamente anterior já consolidado: **15 — processos e integração sistêmica**.
 - Frente pausada (oficial e não abandonada): **editor/TUI oficial da Pinker (aberto na Fase 136)**.
 - Ajuste extraordinário corrente: **arquitetura do roadmap shardada e AX-friendly em `docs/roadmap/`**, sem mudança funcional de linguagem.
-- Leitura canônica do estado: a Fase 176 encerrou o **Bloco 17** por suficiência conservadora; as Fases 168, 169, 170 e 177 cumpriram o recorte mínimo plausível de **16.2**; a Fase 179 encerrou o **Bloco 16** por suficiência conservadora; a Fase 180 abriu o **Bloco 18** com inventário canônico de intrínsecas; a Fase 181 continuou o **Bloco 18** ao canonizar suas famílias públicas iniciais; a Doc-35 reduziu o custo de contexto do histórico sem alterar código; e a Doc-36 reduziu o gigantismo do roadmap ao separá-lo em topo executivo, índice e shards por bloco.
+- Leitura canônica do estado: a Fase 176 encerrou o **Bloco 17** por suficiência conservadora; as Fases 168, 169, 170 e 177 cumpriram o recorte mínimo plausível de **16.2**; a Fase 179 encerrou o **Bloco 16** por suficiência conservadora; a Fase 180 abriu o **Bloco 18** com inventário canônico de intrínsecas; a Fase 181 continuou o **Bloco 18** ao canonizar suas famílias públicas iniciais; a Fase 182 formalizou `tempo` como família exemplar do bloco sobre a superfície mínima já existente; a Doc-35 reduziu o custo de contexto do histórico sem alterar código; e a Doc-36 reduziu o gigantismo do roadmap ao separá-lo em topo executivo, índice e shards por bloco.
 - Síntese consolidada do Bloco 17: norma visual mínima, uniformização inicial de exemplos canônicos, refinamento mínimo de tom documental, convenção mínima para `trazer`/uso qualificado e política mínima para aliases e nomes curtos.
 - Limite canônico do fechamento: o Bloco 17 não abriu sintaxe nova, reforma de keywords, inferência local, `;` opcional, unidade implícita, redesign de módulos nem qualquer mudança funcional em parser, semântica, runtime, `src/`, `tests/` ou compatibilidade da linguagem.
-- Síntese atual do Bloco 18: famílias públicas iniciais aceitas (`texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente`, `acaso`), domínios provisórios explícitos (`colecao`, `formato`) e recomendação de `tempo` como família exemplar do bloco.
+- Síntese atual do Bloco 18: famílias públicas iniciais aceitas (`texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente`, `acaso`), domínios provisórios explícitos (`colecao`, `formato`) e formalização de `tempo` como família exemplar do bloco sobre `tempo_unix` e `formatar_tempo_unix`.
 - Limite canônico de 18.2: a Pinker ainda não possui `familia.intrinseca`, `trazer familia;`, `trazer familia.intrinseca;` nem qualquer reorganização funcional da engine ligada a famílias.
 - Última rodada paralela concluída: **Paralela-1 — negação bitwise dual (`~` + `nope`) com trilha MCP mínima posteriormente removida por segurança**.
 - Último hotfix aplicado: **HF-5 — ajuste de conformidade Clippy pós-Fase 136**.
 - Escada interna consolidada do Bloco 15: **15.1 concluído no recorte mínimo; 15.2 concluído no recorte mínimo; 15.3 concluído no recorte mínimo; 15.4 concluído no recorte mínimo; 15.5 concluído no recorte mínimo (`pipeline_minimo`)**.
 - Escada interna consolidada do Bloco 16: **16.1 concluído no recorte mínimo (`pink repl`); 16.2 concluído por suficiência conservadora com as Fases 168, 169, 170 e 177, consolidado no fechamento do bloco pela Fase 179**.
 - Limite canônico de 16.2: `pipeline_minimo` permaneceu fora da expansão de `argv1` explícito; continuam fora múltiplos argv gerais, shell implícito, quoting/escaping rico, stdin adulto, PTY, job control e shell rica.
-- Próximo passo documental provável no Bloco 18: detalhar a família exemplar (`tempo`) e preparar a superfície futura por família sem reabsorver o papel estrutural recém-isolado em `docs/roadmap/`.
+- Próximo passo documental provável no Bloco 18: continuar a preparação da superfície futura por família a partir do caso exemplar `tempo`, sem reabsorver o papel estrutural recém-isolado em `docs/roadmap/` nem fingir resolução qualificada já pronta.
 
 ## 3. Arquitetura documental ativa
 - `roadmap.md` = ordem ativa.

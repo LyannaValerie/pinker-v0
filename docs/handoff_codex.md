@@ -5,22 +5,22 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Doc-36 — refatoração estrutural AX-friendly do roadmap**.
-- Leitura operacional canônica: a rodada é estritamente documental e reorganiza o roadmap canônico em topo executivo, índice e shards por bloco, sem abrir nova funcionalidade de linguagem.
+- **Fase 182 — core nobre e bibliotecas temáticas: família exemplar `tempo`**.
+- Leitura operacional canônica: a rodada é estritamente documental/fundacional e formaliza `tempo` como família exemplar do Bloco 18 sobre a superfície já existente, sem abrir nova funcionalidade de linguagem.
 
 ## 2. Resultado operacional da rodada
-- `docs/roadmap.md` virou topo executivo curto da ordem ativa.
-- `docs/roadmap/indice.md` passou a ser o hub de navegação por blocos.
-- `docs/roadmap/blocos/` passou a concentrar o detalhe estrutural de cada bloco em shards uniformes.
-- A duplicação entre roadmap e histórico foi reduzida: o roadmap deixou de carregar encerramentos narrativos longos e tese/executivo de todos os blocos no mesmo arquivo.
+- `tempo` ficou formalizada como família exemplar canônica do Bloco 18.
+- A superfície mínima atual da família foi registrada explicitamente como `tempo_unix()` e `formatar_tempo_unix(...)`.
+- A compatibilidade lexical com os nomes legados atuais ficou explicitada sem criar alias novo nem depreciação artificial.
+- A direção futura de simplificação lexical ficou registrada apenas como horizonte documental, sem vender namespace, importação por família ou mecanismo operacional inexistente.
 - Não houve mudança funcional em parser, semântica, runtime, `src/`, `tests/` ou exemplos.
 
 ## 3. Próximo passo correto
-- Próximo passo documental provável: continuar o Bloco 18 pela família exemplar `tempo`, usando a nova arquitetura do roadmap sem voltar a inflar `docs/roadmap.md`.
+- Próximo passo documental provável: continuar o Bloco 18 a partir do caso exemplar `tempo`, detalhando a ponte entre legado atual e superfícies futuras por família sem voltar a inflar `docs/roadmap.md`.
 - O **Bloco 18** segue como bloco oficialmente ativo em camada documental/arquitetural.
 
 ## 4. Restrições explícitas
-- Sem tratar a nova arquitetura do roadmap como reabertura de fase funcional.
+- Sem tratar `tempo` como biblioteca já soberana ou namespace operacional.
 - Sem voltar a inflar `docs/roadmap.md` ou `docs/roadmap/indice.md` como se fossem crônicas completas.
-- Sem implementar reformas sintáticas ou reorganização de engine por inércia documental.
+- Sem implementar `familia.intrinseca`, `trazer tempo;`, `trazer tempo.algo;` ou reorganização de engine por inércia documental.
 - Sem inflar `future.md` como se fosse roadmap ou `parallel.md` como se fosse backlog técnico executável.

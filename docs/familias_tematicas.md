@@ -81,16 +81,61 @@ O estado de revisão lexical significa:
 - o nome ainda não foi canonizado como família pública;
 - a futura implementação por família não deve se antecipar a essa decisão.
 
-## 7. Família exemplar recomendada
+## 7. Família exemplar do bloco
 
-A família exemplar recomendada para conduzir o Bloco 18 é **`tempo`**.
+A família exemplar adotada para conduzir o Bloco 18 é **`tempo`**.
 
-Razões:
+Razões canônicas:
 
 - domínio pequeno e tecnicamente nítido;
 - baixo risco lexical;
-- já possui dupla pública coesa (`tempo_unix`, `formatar_tempo_unix`);
-- é a família mais adequada para inaugurar discussão futura de documentação e eventual resolução qualificada sem arrastar um subsistema grande junto.
+- dupla pública mínima já existente e coesa (`tempo_unix`, `formatar_tempo_unix`);
+- boa relação entre utilidade prática e baixo custo conceitual;
+- permite discutir família pública, legado, compatibilidade e futuro lexical sem arrastar um subsistema grande junto.
+
+### 7.1 O que pertence hoje à família exemplar
+
+Hoje pertencem à família `tempo` exatamente:
+
+- `tempo_unix() -> bombom`
+- `formatar_tempo_unix(ts) -> verso`
+
+Não há, nesta fase, namespace funcional `tempo`, importação por família ou resolução qualificada operacional.
+
+### 7.2 Superfície mínima atual
+
+A superfície pública mínima atual da família exemplar é a própria dupla legada já reconhecida pelo engine:
+
+- `tempo_unix`
+- `formatar_tempo_unix`
+
+Leitura correta:
+
+- hoje a família nasce sobre nomes globais legados preservados;
+- a forma temática `tempo` já é reconhecida documentalmente;
+- a migração para nomes mais curtos ou qualificados continua apenas como direção futura.
+
+### 7.3 Compatibilidade e direção futura
+
+Compatibilidade lexical explícita:
+
+- `tempo_unix` permanece nome aceito e preservado;
+- `formatar_tempo_unix` permanece nome aceito e preservado.
+
+Direção lexical futura plausível, sem congelamento nesta fase:
+
+- reduzir a redundância dos prefixos globais quando existir superfície por família;
+- deslocar o sentido principal para `tempo` como domínio, não para o prefixo inteiro do identificador;
+- estudar nomes futuros mais curtos sob família, sem transformar isso em obrigação imediata.
+
+Exemplos apenas ilustrativos de direção futura:
+
+- `tempo.agora_unix(...)`
+- `tempo.formatar_unix(...)`
+- `tempo.agora(...)`
+- `tempo.formatar(...)`
+
+Referência curta da formalização exemplar: `docs/familias/tempo.md`.
 
 ## 8. Preparação para 18.3
 
@@ -99,4 +144,5 @@ Esta decisão prepara 18.3 e seguintes do bloco ao deixar explícito:
 - quais famílias já podem ser tratadas como oficiais no plano documental;
 - quais agrupamentos ainda não devem ser congelados como nome público;
 - qual família exemplar deve liderar a trilha;
-- que a próxima etapa precisa discutir superfície e adoção por família sem fingir que o mecanismo já existe.
+- que a próxima etapa precisa discutir superfície e adoção por família sem fingir que o mecanismo já existe;
+- que a ponte entre legado atual e direção lexical futura já está formalizada em um caso pequeno e auditável.
