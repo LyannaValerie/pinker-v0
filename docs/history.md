@@ -1426,7 +1426,7 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 
 
 <!-- inicio_paralela_rodada -->
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------------------------- RODADAS PARALELAS -----------------------------------------------------------
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)
 - Rodada paralela de implementação; não é hotfix, não é fase funcional, não é rodada documental pura.
