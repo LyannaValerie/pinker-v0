@@ -69,6 +69,7 @@ No caso exemplar `tempo`, isso significa:
 - não tratar exemplos ilustrativos como se já fossem nomes aceitos.
 
 Política canônica da transição: `docs/familias/superficie.md`.
+Política canônica da futura resolução qualificada: `docs/familias/resolucao.md`.
 
 ## 6. Direção lexical futura, sem compromisso operacional
 
@@ -95,6 +96,12 @@ Essas formas:
 - não substituem a superfície global legada atual;
 - servem apenas para mostrar o tipo de simplificação que o bloco pretende tornar possível no futuro.
 
+Se a Pinker vier a abrir resolução qualificada por família, `tempo` continua sendo o caso exemplar mínimo para essa abertura:
+
+- por ter só duas intrínsecas públicas;
+- por preservar contraste funcional simples entre “obter/agora” e “formatar”;
+- por permitir testar a relação entre nome global legado e acesso qualificado futuro sem inflar o escopo do bloco.
+
 ## 7. Critérios de transição aplicados ao caso exemplar
 
 A futura transição de `tempo` deve obedecer, no mínimo:
@@ -104,7 +111,8 @@ A futura transição de `tempo` deve obedecer, no mínimo:
 3. deslocar o peso semântico para a família `tempo`;
 4. manter clara a distinção entre “obter/agora” e “formatar”;
 5. não congelar cedo demais formas hoje apenas ilustrativas;
-6. depender de mecanismo real de superfície por família, e não de reinterpretação documental isolada.
+6. depender de mecanismo real de superfície por família, e não de reinterpretação documental isolada;
+7. distinguir com nitidez formas apenas ilustrativas de qualquer forma qualificada futuramente aceita.
 
 ## 8. Limites explícitos desta formalização
 

@@ -11,6 +11,7 @@ Ele existe para evitar uma confusão recorrente:
 - a Pinker já reconhece famílias públicas no plano documental;
 - a Pinker ainda expõe sua superfície pública real principalmente por nomes globais legados;
 - a existência documental de uma família não implica namespace funcional já implementado.
+- a futura resolução qualificada por família precisa de política própria antes de qualquer abertura operacional.
 
 ## 1. Estado implementado atual
 
@@ -65,6 +66,8 @@ Importante:
 - esta fase não cria aliases novos;
 - esta fase não define migração operacional.
 
+Referência específica da camada seguinte: `docs/familias/resolucao.md`.
+
 ## 4. Formas ilustrativas x formas canônicas
 
 Formas futuras mostradas em docs do Bloco 18 devem ser lidas como **ilustrativas** quando servirem apenas para mostrar direção arquitetural.
@@ -108,4 +111,5 @@ Ela apenas fixa como o Bloco 18 deve descrever a ponte entre:
 - domínios internos por intrínseca;
 - superfície global legada;
 - superfície temática futura;
+- futura resolução qualificada por família;
 - critérios que governarão essa transição.

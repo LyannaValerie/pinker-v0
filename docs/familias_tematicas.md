@@ -18,6 +18,8 @@ Ela **não**:
 - declara famílias como já operacionais em código;
 - introduz sintaxe nova, aliases novos ou modo estrito.
 
+Ela também não declara resolução qualificada futura como mecanismo já disponível; essa camada precisa de formulação própria e continua preparatória no Bloco 18.
+
 ## 2. Base factual usada nesta decisão
 
 A decisão foi ancorada na continuidade aberta pela **Fase 180**, que registrou o inventário canônico de intrínsecas do **Bloco 18**, e na superfície pública real rastreável no workspace atual, conferida em:
@@ -172,6 +174,7 @@ Critérios canônicos dessa futura transição:
 Referências canônicas desta política:
 
 - `docs/familias/dominios.md`
+- `docs/familias/resolucao.md`
 - `docs/familias/superficie.md`
 - `docs/familias/tempo.md`
 
@@ -199,3 +202,20 @@ Domínios internos que continuam provisórios nesta fase:
 - `formato`
 
 O `core` permanece domínio interno do núcleo nobre, não família pública de biblioteca.
+
+## 11. Resolução qualificada futura por família
+
+No estado atual do bloco:
+
+- famílias públicas aceitas já existem como decisão arquitetural;
+- a superfície real continua global e legada;
+- a futura resolução qualificada por família permanece apenas como direção preparada.
+
+Leitura correta:
+
+- `familia.intrinseca` ainda não funciona;
+- exemplos qualificados em docs só são aceitáveis quando marcados explicitamente como ilustrativos;
+- a futura abertura dessa camada precisa preservar compatibilidade com a superfície global atual;
+- essa futura abertura não autoriza, por si só, importação por família.
+
+Referência canônica desta preparação: `docs/familias/resolucao.md`.

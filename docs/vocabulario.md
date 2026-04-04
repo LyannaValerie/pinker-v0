@@ -106,6 +106,27 @@ Critérios lexicais mínimos da futura transição:
 
 Referências cruzadas: `docs/familias/superficie.md`, `docs/familias/tempo.md` e `docs/familias_tematicas.md`.
 
+## 3.4 Resolução qualificada futura por família
+
+No eixo lexical do Bloco 18, a futura resolução qualificada por família deve ser lida como camada posterior à superfície temática futura.
+
+Leitura lexical correta:
+
+- nomes globais legados continuam sendo a forma aceita do presente;
+- formas qualificadas como `tempo.alguma_coisa(...)` só podem aparecer como ilustração arquitetural nesta fase;
+- a forma qualificada futura não apaga automaticamente a forma legada;
+- importação por família continua fora do escopo desta preparação.
+
+Critérios lexicais mínimos antes de abertura operacional:
+
+1. compatibilidade explícita com a superfície atual;
+2. ganho nominal claro;
+3. distinção estável entre exemplo ilustrativo e forma aceita;
+4. relação limpa entre família pública e nomes internos;
+5. mecanismo real antes de qualquer canonização pública de uso.
+
+Referências cruzadas: `docs/familias/resolucao.md`, `docs/familias/superficie.md` e `docs/familias/tempo.md`.
+
 ## 4. Keywords aceitas e implementadas
 
 ### Núcleo de linguagem
