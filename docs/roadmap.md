@@ -568,7 +568,7 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ### Bloco 15 — processos e integração sistêmica
 
-**Status**: bloco ativo; a Fase 161 concluiu 15.1 no recorte mínimo conservador, a Fase 162 aplicou a correção conservadora de portabilidade em testes/exemplos, a Fase 163 concluiu 15.2 com captura mínima de stdout como `verso`, a Fase 164 concluiu 15.3 com captura mínima de stderr como `verso`, a Fase 165 concluiu 15.4 com entrada mínima por stdin textual para processo externo e a Fase 166 concluiu 15.5 com pipe mínimo entre dois processos. A Doc-30 refinou a escada interna restante do bloco para subdegraus menores e mais auditáveis antes desta continuidade funcional. Dependência satisfeita: Bloco 14 foi encerrado por suficiência conservadora na Doc-29.
+**Status**: **encerrado como trilha ativa por suficiência conservadora**. A Fase 161 concluiu 15.1 no recorte mínimo conservador, a Fase 162 aplicou a correção conservadora de portabilidade em testes/exemplos, a Fase 163 concluiu 15.2 com captura mínima de stdout como `verso`, a Fase 164 concluiu 15.3 com captura mínima de stderr como `verso`, a Fase 165 concluiu 15.4 com entrada mínima por stdin textual para processo externo e a Fase 166 concluiu 15.5 com pipe mínimo entre dois processos. A Doc-30 refinou a escada interna do bloco em subdegraus menores e a Doc-31 formaliza o seu fechamento canônico sem inflar subprocessos para além do recorte realmente entregue. Dependência satisfeita: Bloco 14 foi encerrado por suficiência conservadora na Doc-29.
 
 **Tese do bloco**: a Pinker já tem I/O de arquivo, texto e dados estruturados; o passo seguinte para ser ferramenta cotidiana real é executar processos externos e integrar-se ao ambiente de sistema; sem isso, a linguagem não pode substituir shell scripts nem ser linguagem-cola.
 
@@ -583,11 +583,17 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 **Escopo deliberadamente fora do Bloco 15**: execução assíncrona, job control, sinais, pseudo-terminais (PTY), pipes em cadeia longa, subshell.
 
+**Encerramento canônico do Bloco 15**:
+- o bloco cumpriu a sua tese mínima de linguagem-cola sistêmica no recorte pequeno e auditável entregue nas Fases 161–166;
+- o encerramento é por suficiência de trilha, não por exaustão do domínio;
+- shell amplo, quoting rico, pipeline longo, sessão interativa, PTY, job control e integração adulta de subprocessos continuam fora do que foi entregue;
+- ampliações futuras nessa frente permanecem possíveis, mas pertencem ao inventário futuro e exigem nova abertura explícita de trilha, não continuação automática silenciosa do bloco.
+
 ---
 
 ### Bloco 16 — ferramenta cotidiana madura e linguagem-cola
 
-**Status**: **encerrado por suficiência conservadora**. A Fase 167 concluiu 16.1 no recorte mínimo conservador, as Fases 168, 169, 170 e 177 cumpriram 16.2 em quatro camadas conservadoras pequenas, a Fase 178 encerrou 16.2 por suficiência conservadora e a Fase 179 registrou o fechamento formal do bloco.
+**Status**: **encerrado por suficiência conservadora (Fase 179)**. A Fase 167 concluiu 16.1 no recorte mínimo conservador; as Fases 168, 169, 170 e 177 cumpriram 16.2 em quatro camadas conservadoras pequenas; a Fase 178 encerrou 16.2 por suficiência conservadora; e a Fase 179 consolidou o fechamento canônico do Bloco 16 sem abrir nova capability funcional.
 
 **Tese do bloco**: com módulos tipados, coleções, formatação, dados estruturados e execução de processos, a Pinker tem todos os ingredientes para ser ferramenta cotidiana madura; este bloco sela essa identidade com REPL e linguagem-cola — os dois itens que transformam a linguagem em ambiente interativo e substituto real para shell scripts complexos.
 
@@ -605,6 +611,15 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 **Leitura operacional do fechamento de 16.2**: a família principal de subprocessos mínimos ficou alinhada de forma suficientemente coerente no padrão conservador de um `argv1` textual explícito. O fechamento desta subtrilha é por suficiência conservadora, não por exaustão do espaço possível de integração com processos.
 
 **Escopo deliberadamente fora do Bloco 16**: IDE integrada, debugger interativo, package manager soberano, autohospedagem, macros de compilação, REPL adulto com multiline amplo/histórico sofisticado/autocomplete e shell rica.
+
+#### Encerramento formal do Bloco 16
+
+- O bloco cumpriu seu arco mínimo plausível de ferramenta cotidiana madura no recorte v0: REPL mínimo auditável (16.1) + linguagem-cola mínima coerente (16.2).
+- As entregas consolidadas do recorte são: execução mínima de subprocessos, captura mínima de stdout/stderr, stdin textual mínimo e alinhamento conservador de `argv1` explícito na família principal (`executar_processo`, `capturar_stdout`, `capturar_stderr`, `executar_com_entrada`).
+- `pipeline_minimo` permaneceu deliberadamente fora da expansão de `argv1`; isso é limite de escopo, não pendência automática.
+- O fechamento é por **suficiência conservadora**, não por exaustão do domínio: o bloco não pretendeu virar shell adulta nem REPL adulto.
+- Permanecem explicitamente fora do bloco: shell implícito/rica, múltiplos argv gerais, quoting/escaping rico, PTY, job control, multiline amplo de REPL, histórico sofisticado, autocomplete e integração sistêmica ampla.
+- Com o bloco encerrado, **não há promoção automática dos Blocos 18 ou 19**; essas trilhas continuam apenas candidatas futuras até abertura explícita.
 
 ---
 
@@ -652,13 +667,38 @@ Diretriz de arranque: a primeira fase funcional esperada do Bloco 11 nasce em 11
 
 ---
 
+### Bloco 18 — core nobre e bibliotecas temáticas
+
+**Status**: **aberto como trilha ativa**. A Fase 180 abriu o bloco com inventário canônico de intrínsecas e taxonomia inicial.
+
+**Tese estratégica**: a Pinker já possui motor técnico suficiente para deixar de tratar todas as intrínsecas como se tivessem o mesmo estatuto público. O problema atual não é falta de engine, mas dívida organizacional da superfície pública. Este bloco separa o núcleo nobre da linguagem das famílias temáticas, dá identidade pública coerente às bibliotecas e prepara o crescimento futuro sem engordar o monólito de intrínsecas.
+
+**Objetivo geral**: transformar a Pinker de um runtime com intrínsecas indiferenciadas "no ar" em uma linguagem com core pequeno e digno, famílias temáticas reconhecíveis, resolução qualificada por domínio, documentação canônica das famílias e retrocompatibilidade preservada no modo padrão.
+
+**Escada interna (ordem do mais simples ao mais complexo)**:
+
+1. **18.1 — inventário e taxonomia canônica (Fase 180, concluída)**: inventário completo de intrínsecas com classificação inicial por natureza funcional; critérios explícitos para núcleo nobre, família temática e domínio provisório; registro canônico em `docs/inventario_intrinsecas.md`.
+2. **18.2 — definição das famílias temáticas oficiais**: declarar famílias públicas iniciais; validação lexical dos nomes; tratamento provisório explícito para `colecao` e `formato`.
+3. **18.3 — superfície pública das famílias**: convenção de uso qualificado (`familia.intrinseca`); retrocompatibilidade preservada; sem alias novo.
+4. **18.4 — mecanismo técnico de domínio interno**: registro de domínio por intrínseca no engine; listagem agrupada por domínio.
+5. **18.5 — resolução qualificada por família**: resolução semântica e runtime de `familia.intrinseca`; exemplos mínimos.
+6. **18.6 — importação de família e de símbolo**: `trazer familia;` e `trazer familia.intrinseca;` na sintaxe existente.
+7. **18.7 — documentação identitária das famílias**: registro em `vocabulario.md`, `MANUAL.md`, `README.md`, `rosa.md` e `ponte_engine_rosa.md`.
+8. **18.8 — família exemplar e soberania inicial**: `tempo` como família-piloto; superfície legada preservada; horizonte de revisão lexical e de biblioteca em Pinker.
+9. **18.9 — modo estrito opcional de bibliotecas** (condicional): flag experimental para exigir importação explícita de famílias; diagnósticos amigáveis.
+10. **18.10 — reorganização interna do engine**: agrupamento por família em `interpreter.rs` e `semantic.rs`; extração modular condicional.
+11. **18.11 — exemplos, testes e fechamento**: exemplos por família; testes por forma de acesso; atualização dos canônicos.
+
+**Status de execução no bloco**:
+- **Fase 180 concluída (18.1 — inventário e taxonomia canônica)**: inventário de 78 intrínsecas públicas distintas com classificação inicial; 4 intrínsecas no núcleo nobre + 3 construtos de linguagem; 7 famílias candidatas fortes (texto, arquivo, caminho, processo, tempo, ambiente, acaso); 2 domínios provisórios (colecao, formato); 3 aliases legados; 2 intrínsecas internas; critérios explícitos de classificação registrados. Rodada estritamente documental, sem mudança funcional.
+
+**Escopo deliberadamente fora do Bloco 18**: reforma de keywords centrais, `;` opcional, inferência local, unidade raiz, redesign de parser/gramática, package manager, stdlib inteira em Pinker, generics/traits, backend nativo pleno, editor/TUI como frente funcional deste bloco.
+
+---
+
 ## Trilhas candidatas futuras (não ativas)
 
-As trilhas abaixo representam direções de longo prazo registradas documentalmente, mas que **não compõem a trilha ativa** imediata.
-
 ### Superfície Pinker (Bloco 19)
-
-Visão de alinhamento entre motor técnico e aparência estética da linguagem:
 
 - **Bloco 19 — reformas sintáticas e semânticas de superfície**: ajustes de elegância sintática (novas keywords, inferência, `;` opcional, etc.).
 

@@ -51,10 +51,11 @@ Itens explicitamente para depois do foco inicial do Bloco 11:
 - JSON amplo, datas/tempo com timezone/locale e formatação rica além do recorte mínimo já entregue e encerrado no Bloco 14 (Fases 157–160).
 
 Alinhamento factual do Bloco 15:
-- o bloco segue ativo na trilha oficial;
+- o bloco foi encerrado por suficiência conservadora na Doc-31;
 - 15.1, 15.2, 15.3, 15.4 e 15.5 já foram entregues no recorte mínimo (`executar_processo`, `capturar_stdout`, `capturar_stderr`, `executar_com_entrada` e `pipeline_minimo`);
 - a Doc-30 refinou a continuação imediata do bloco em subdegraus menores (`stderr`, `stdin` e `pipe` mínimos), e a Fase 166 concluiu essa escada sem declarar integração completa de processos como já entregue;
-- expansões além desses subdegraus pequenos continuam pertencendo ao inventário futuro, não a uma continuação automática ilimitada do bloco.
+- shell amplo, quoting rico, cadeia longa de pipes, sessão interativa, PTY, job control e integração adulta de subprocessos continuam fora do que foi entregue;
+- expansões além desses subdegraus pequenos continuam pertencendo ao inventário futuro, não a uma continuação automática da trilha oficial do bloco.
 
 ### 2.4 Editor/TUI oficial da Pinker (frente funcional aberta em camada 1, atualmente pausada)
 
@@ -107,12 +108,12 @@ Alinhamento do Bloco 16 após as Fases 179–181:
 - `docs/rosa.md` diz **por que e com que identidade** evoluir.
 - `docs/ponte_engine_rosa.md` conecta ambas as perspectivas sem confusão.
 
-## 5. Superfície Pinker e horizonte remanescente
+## 5. Trilhas de superfície Pinker
 
-A Pinker já possui motor técnico real. A direção de “superfície Pinker” existe para alinhar a aparência da linguagem à sua identidade, mas a leitura canônica atual distingue o que já foi aberto do que ainda permanece apenas como horizonte:
+A Pinker já possui motor técnico real. A direção de “superfície Pinker” existe para alinhar a aparência da linguagem à sua identidade:
 
-- **Bloco 17** já está encerrado por suficiência conservadora.
-- **Bloco 18** já está aberto/ativo na trilha canônica em camada documental/arquitetural; seu detalhamento corrente pertence a `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md` e `docs/familias_tematicas.md`.
-- **Bloco 19** permanece como candidato futuro, subordinado à estabilidade do motor e à maturação do Bloco 18.
+- **Bloco 17 — forma visual e superfície documental**: encerrado por suficiência conservadora na Fase 176.
+- **Bloco 18 — core nobre e bibliotecas temáticas**: **aberto como trilha ativa na Fase 180**. Inventário canônico de intrínsecas concluído; famílias candidatas identificadas; escada interna de 11 subitens definida no `roadmap.md`.
+- **Bloco 19 — reformas sintáticas e semânticas de superfície**: permanece como candidato futuro, não ativo. Possíveis ajustes de sintaxe (keywords, inferência, pontuação) para maior clareza e elegância, subordinados à estabilidade do motor.
 
 **Importante:** mudanças como novas keywords, inferência local, `;` opcional e reavaliação de `->` permanecem fora do estado operacional atual.

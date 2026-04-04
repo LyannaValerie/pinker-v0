@@ -1,0 +1,30 @@
+# Dependabot — atualização automática de dependências
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+#
+# Apenas github-actions está ativo. O Pinker v0 é zero-dependency por design,
+# portanto não há crates externas para monitorar.
+
+version: 2
+
+updates:
+  # Manter as GitHub Actions do CI atualizadas
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    # Limite de PRs abertas simultaneamente
+    open-pull-requests-limit: 5
+    # Prefixo nos commits e PRs para fácil identificação
+    commit-message:
+      prefix: "ci"
+    # Agrupar atualizações menores/patch numa só PR
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
