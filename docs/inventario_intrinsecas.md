@@ -6,6 +6,8 @@
 
 > **Contexto:** este documento é o entregável fundacional da Fase 180 (abertura do Bloco 18 — core nobre e bibliotecas temáticas). Ele cataloga todas as intrínsecas operacionais da Pinker v0 com classificação inicial por natureza funcional e status proposto, servindo de base factual para as decisões das próximas fases do bloco.
 
+> **Continuidade canônica do bloco:** a Fase 184 formaliza os domínios internos por intrínseca como leitura documental estável deste inventário. Referência estrutural: `docs/familias/dominios.md`.
+
 ## 1. Escopo e convenções
 
 ### 1.1 O que este inventário cobre
@@ -58,6 +60,38 @@ Uma intrínseca recebe domínio provisório quando:
 ### 2.4 Construtos do núcleo que operam sobre tipos de família
 
 Construtos sintáticos como `para cada` permanecem núcleo da linguagem mesmo quando operam sobre tipos ligados a futuras famílias (ex.: `lista<bombom>`, `mapa<verso,bombom>`). A separação do Bloco 18 é sobre intrínsecas, não sobre rebaixar construtos de linguagem.
+
+## 2.5 Leitura canônica por domínio interno
+
+No estado atual do Bloco 18, este inventário deve ser lido também como mapa de **domínios internos por intrínseca**.
+
+Domínio interno, aqui, significa:
+
+- organização factual/documental do inventário;
+- agrupamento funcional coeso das intrínsecas já existentes;
+- base para a relação futura entre inventário, famílias públicas e superfícies por família.
+
+Domínio interno **não** significa:
+
+- namespace funcional implementado;
+- resolução qualificada já operacional;
+- importação por família;
+- reorganização funcional já realizada em parser, semântica ou runtime.
+
+Domínios internos reconhecidos nesta fase:
+
+- `core`
+- `texto`
+- `arquivo`
+- `caminho`
+- `processo`
+- `tempo`
+- `ambiente`
+- `acaso`
+- `colecao` — provisório
+- `formato` — provisório
+
+Referência estrutural desta leitura: `docs/familias/dominios.md`.
 
 ## 3. Inventário completo
 
@@ -275,3 +309,14 @@ Estas intrínsecas não fazem parte da superfície pública e não participam da
 4. **O núcleo nobre é deliberadamente pequeno** (4 intrínsecas + 3 construtos). Isso é intencional: um core digno é um core enxuto.
 5. **Nenhuma família foi operacionalizada nesta fase.** O inventário é base factual para decisões, não implementação de resolução qualificada.
 6. **Aliases legados não devem ser propagados** para novas superfícies de família. Quando famílias forem operacionalizadas, apenas o nome canônico deve participar.
+
+## 6. Relação com as camadas posteriores do bloco
+
+Após as Fases 181, 182, 183 e 184, a leitura correta passa a ser:
+
+- este inventário organiza as intrínsecas por **domínio interno**;
+- `docs/familias_tematicas.md` organiza a leitura por **família pública aceita**;
+- `docs/familias/superficie.md` organiza a leitura da **superfície futura por família**;
+- `docs/familias/tempo.md` continua sendo o caso exemplar pequeno e auditável do bloco.
+
+Essa relação não implica mecanismo operacional já implementado; ela apenas reduz ambiguidade documental e prepara as próximas fases do Bloco 18.

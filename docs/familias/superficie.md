@@ -16,6 +16,7 @@ Ele existe para evitar uma confusão recorrente:
 
 Hoje, a Pinker:
 
+- já pode ser lida documentalmente por domínios internos de intrínseca;
 - aceita famílias públicas como decisão nominal/arquitetural;
 - continua expondo as intrínsecas existentes por nomes globais legados;
 - ainda não possui `familia.intrinseca`;
@@ -104,6 +105,7 @@ Esta política não define:
 
 Ela apenas fixa como o Bloco 18 deve descrever a ponte entre:
 
+- domínios internos por intrínseca;
 - superfície global legada;
 - superfície temática futura;
 - critérios que governarão essa transição.

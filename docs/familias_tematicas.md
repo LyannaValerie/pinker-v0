@@ -171,5 +171,31 @@ Critérios canônicos dessa futura transição:
 
 Referências canônicas desta política:
 
+- `docs/familias/dominios.md`
 - `docs/familias/superficie.md`
 - `docs/familias/tempo.md`
+
+## 10. Relação com domínios internos
+
+No estado atual do bloco:
+
+- domínios internos organizam o inventário factual das intrínsecas;
+- famílias públicas organizam a leitura arquitetural da superfície;
+- a futura superfície por família continua sendo camada posterior e ainda não operacional.
+
+Domínios internos reconhecidos com família pública aceita correspondente:
+
+- `texto`
+- `arquivo`
+- `caminho`
+- `processo`
+- `tempo`
+- `ambiente`
+- `acaso`
+
+Domínios internos que continuam provisórios nesta fase:
+
+- `colecao`
+- `formato`
+
+O `core` permanece domínio interno do núcleo nobre, não família pública de biblioteca.
