@@ -86,6 +86,26 @@ Exemplos apenas ilustrativos, não aceitos nesta fase:
 
 Referências cruzadas: `docs/familias_tematicas.md` e `docs/familias/tempo.md`.
 
+## 3.3 Superfície futura por família
+
+No Bloco 18, a futura superfície por família deve ser lida como direção arquitetural condicionada por mecanismo real.
+
+Leitura lexical correta:
+
+- nomes globais legados continuam sendo a superfície canônica do presente implementado;
+- formas temáticas futuras existem hoje apenas como horizonte plausível;
+- variantes ilustrativas não equivalem a spelling final aceito.
+
+Critérios lexicais mínimos da futura transição:
+
+1. preservar compatibilidade explícita;
+2. reduzir redundância só quando houver ganho claro;
+3. mover o peso nominal para a família temática;
+4. manter distinções funcionais importantes entre nomes irmãos;
+5. não congelar exemplos ilustrativos como decisão lexical final.
+
+Referências cruzadas: `docs/familias/superficie.md`, `docs/familias/tempo.md` e `docs/familias_tematicas.md`.
+
 ## 4. Keywords aceitas e implementadas
 
 ### Núcleo de linguagem

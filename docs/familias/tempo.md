@@ -54,7 +54,23 @@ Eles permanecem:
 
 Esta fase não introduz alias novo, renomeação obrigatória, depreciação operacional nem mudança funcional em parser, semântica, runtime ou docs de uso como se a migração já existisse.
 
-## 5. Direção lexical futura, sem compromisso operacional
+## 5. Ponte para a superfície futura
+
+A ponte canônica entre presente e futuro é esta:
+
+- hoje `tempo` existe como família documental, mas sua superfície pública continua global;
+- amanhã uma superfície por família só fará sentido quando houver mecanismo real para sustentá-la;
+- a transição futura deve mover peso semântico do prefixo global para a família, sem apagar o contrato legado já aceito.
+
+No caso exemplar `tempo`, isso significa:
+
+- partir de `tempo_unix` e `formatar_tempo_unix` como base implementada real;
+- admitir futura simplificação temática sob `tempo`;
+- não tratar exemplos ilustrativos como se já fossem nomes aceitos.
+
+Política canônica da transição: `docs/familias/superficie.md`.
+
+## 6. Direção lexical futura, sem compromisso operacional
 
 O horizonte lexical visível da família é reduzir a redundância herdada dos nomes globais quando a Pinker tiver mecanismo próprio para superfície por família.
 
@@ -76,9 +92,21 @@ Essas formas:
 - não são sintaxe implementada;
 - não são aliases aceitos agora;
 - não congelam a decisão lexical final;
+- não substituem a superfície global legada atual;
 - servem apenas para mostrar o tipo de simplificação que o bloco pretende tornar possível no futuro.
 
-## 6. Limites explícitos desta formalização
+## 7. Critérios de transição aplicados ao caso exemplar
+
+A futura transição de `tempo` deve obedecer, no mínimo:
+
+1. preservar compatibilidade explícita com a superfície atual;
+2. só reduzir nomes quando houver ganho nominal real;
+3. deslocar o peso semântico para a família `tempo`;
+4. manter clara a distinção entre “obter/agora” e “formatar”;
+5. não congelar cedo demais formas hoje apenas ilustrativas;
+6. depender de mecanismo real de superfície por família, e não de reinterpretação documental isolada.
+
+## 8. Limites explícitos desta formalização
 
 Esta fase não afirma:
 
@@ -88,10 +116,11 @@ Esta fase não afirma:
 - biblioteca adulta de datas, calendário, timezone, locale ou duração;
 - reclassificação de `tempo` como subsistema soberano já implementado.
 
-## 7. Continuidade preparada
+## 9. Continuidade preparada
 
 Com esta formalização, o Bloco 18 passa a ter um caso exemplar pequeno e estável para conduzir próximas rodadas sobre:
 
 - documentação pública por família;
 - leitura correta entre legado global e superfície temática futura;
-- critérios de adoção lexical sem reorganização prematura da engine.
+- critérios de adoção lexical sem reorganização prematura da engine;
+- política explícita de transição entre superfície global legada e superfície futura por família.
