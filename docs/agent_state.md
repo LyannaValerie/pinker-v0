@@ -11,7 +11,7 @@
 
 ## 2. Estado corrente
 - Fase funcional mais recente: **185 — core nobre e bibliotecas temáticas: resolução qualificada por família (preparação documental)**.
-- Rodada documental mais recente: **Doc-36 — refatoração estrutural AX-friendly do roadmap**.
+- Rodada documental mais recente: **Doc-38 — restauração do mapa macro do Bloco 18**.
 - Bloco oficialmente ativo na trilha canônica: **18 — core nobre e bibliotecas temáticas**.
 - Bloco documental mais recentemente encerrado: **17 — forma visual e superfície documental (encerrado por suficiência conservadora na Fase 176)**.
 - Bloco anteriormente ativo já encerrado por suficiência conservadora: **16 — ferramenta cotidiana madura e linguagem-cola (encerrado na Fase 179)**.
@@ -33,7 +33,7 @@
 - Escada interna consolidada do Bloco 15: **15.1 concluído no recorte mínimo; 15.2 concluído no recorte mínimo; 15.3 concluído no recorte mínimo; 15.4 concluído no recorte mínimo; 15.5 concluído no recorte mínimo (`pipeline_minimo`)**.
 - Escada interna consolidada do Bloco 16: **16.1 concluído no recorte mínimo (`pink repl`); 16.2 concluído por suficiência conservadora com as Fases 168, 169, 170 e 177, consolidado no fechamento do bloco pela Fase 179**.
 - Limite canônico de 16.2: `pipeline_minimo` permaneceu fora da expansão de `argv1` explícito; continuam fora múltiplos argv gerais, shell implícito, quoting/escaping rico, stdin adulto, PTY, job control e shell rica.
-- Próximo passo documental provável no Bloco 18: continuar a preparação do bloco a partir da relação agora explícita entre domínio interno, famílias públicas, superfície futura e resolução qualificada futura, sem antecipar importação por família ou engine.
+- Próximo passo documental provável no Bloco 18: avançar sobre 18.6 (importação por família) ou 18.7 (documentação identitária), com tendência a implementação funcional real quando a base documental estiver madura.
 
 ## 3. Arquitetura documental ativa
 - `roadmap.md` = ordem ativa.

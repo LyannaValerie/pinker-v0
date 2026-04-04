@@ -5,18 +5,16 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Fase 185 — core nobre e bibliotecas temáticas: resolução qualificada por família (preparação documental)**.
-- Leitura operacional canônica: a rodada é estritamente documental/fundacional e formaliza a leitura preparatória da futura resolução qualificada por família como camada posterior à superfície futura, sem abrir nova funcionalidade de linguagem.
+- **Doc-38 — restauração do mapa macro do Bloco 18**.
+- Leitura operacional canônica: rodada estritamente documental corretiva; restaura a visibilidade da escada longa originalmente prevista do Bloco 18 no shard canônico, distinguindo degraus cobertos, preparatórios e com tendência a implementação funcional real.
 
 ## 2. Resultado operacional da rodada
-- A futura resolução qualificada por família ficou formalizada em nível preparatório.
-- O Bloco 18 agora distingue explicitamente domínio interno, família pública, superfície futura por família e resolução qualificada futura.
-- `tempo` permanece o caso exemplar mínimo para essa ponte documental.
-- A compatibilidade com a superfície global legada ficou preservada sem vender mecanismo operacional inexistente.
+- `docs/roadmap/blocos/bloco_18.md` recebeu a seção `## Mapa macro do bloco` com os degraus 18.1–18.11 numerados e com leitura honesta do estado atual.
+- A trilha factual das Fases 180–185 foi preservada integralmente.
 - Não houve mudança funcional em parser, semântica, runtime, `src/`, `tests/` ou exemplos.
 
 ## 3. Próximo passo correto
-- Próximo passo documental provável: continuar o Bloco 18 a partir da relação agora estabilizada entre domínio interno, famílias públicas, superfície futura e resolução qualificada futura, sem voltar a inflar `docs/roadmap.md`.
+- Próximo passo documental provável: avançar sobre 18.6 (importação por família) ou 18.7 (documentação identitária), com tendência a implementação funcional real quando a base documental estiver madura.
 - O **Bloco 18** segue como bloco oficialmente ativo em camada documental/arquitetural.
 
 ## 4. Restrições explícitas
