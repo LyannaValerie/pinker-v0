@@ -41,5 +41,5 @@ Este hub organiza o histórico factual da Pinker em descoberta progressiva.
 
 - Fase 181 — definição das famílias temáticas oficiais.
 - HF-5 — conformidade Clippy pós-Fase 136.
-- Doc-35 — refatoração AX-friendly da arquitetura histórica documental.
+- Doc-36 — refatoração estrutural AX-friendly do roadmap.
 - Paralela-1 — negação bitwise dual + MCP mínimo histórico.

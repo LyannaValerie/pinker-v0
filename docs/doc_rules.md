@@ -14,6 +14,7 @@ A documentação da Pinker segue arquitetura dual:
 
 Arquivo mestre de navegação: `docs/atlas.md`.
 Sistema histórico canônico: `docs/history.md` -> `docs/history/indice.md` -> índices locais por categoria -> shards em `docs/history/`.
+Arquitetura do roadmap: `docs/roadmap.md` -> `docs/roadmap/indice.md` -> `docs/roadmap/blocos/bloco_XX.md`.
 
 ## 2. Quando atualizar cada documento
 
@@ -23,14 +24,16 @@ Sistema histórico canônico: `docs/history.md` -> `docs/history/indice.md` -> �
 | hotfix extraordinário | `docs/history/hotfixes/*.md`, `docs/agent_state.md`, `docs/handoff_codex.md` | entrada HF dedicada e impacto operacional |
 | rodada documental | `docs/history/documentation/*.md`, `docs/agent_state.md`, `docs/handoff_codex.md` | entrada Doc dedicada e limites da rodada |
 | rodada paralela de implementação | `docs/history/parallel_phases/*.md`, `docs/agent_state.md`, `docs/handoff_codex.md` | entrada Paralela dedicada |
-| abertura/fechamento de bloco | `docs/roadmap.md`, `docs/agent_state.md`, `docs/history/phases/*.md` ou `docs/history/documentation/*.md` | transição de bloco e justificativa |
+| abertura/fechamento de bloco | `docs/roadmap.md`, `docs/roadmap/indice.md`, `docs/roadmap/blocos/bloco_XX.md`, `docs/agent_state.md`, `docs/history/phases/*.md` ou `docs/history/documentation/*.md` | transição de bloco, shard estrutural e justificativa |
 | decisão lexical relevante | `docs/vocabulario.md`, `docs/history/phases/*.md` ou `docs/history/documentation/*.md` | aceitação/rejeição/provisório + referência histórica |
 | criação/mudança estrutural de docs | `docs/atlas.md`, `README.md`, `docs/history/documentation/*.md`, `docs/handoff_codex.md` | navegação atualizada e migração registrada |
 
 ## 3. Formato por documento
 
 - `docs/atlas.md`: navegação mestre e classes documentais.
-- `roadmap.md`: trilha ativa oficial e ordem de execução real.
+- `roadmap.md`: topo executivo da trilha ativa oficial e da ordem de execução real.
+- `docs/roadmap/indice.md`: hub curto de navegação dos blocos do roadmap.
+- `docs/roadmap/blocos/*.md`: detalhe estrutural por bloco; resumem estado factual sem virar crônica histórica.
 - `future.md`: inventário técnico amplo; não impõe sequência ativa.
 - `rosa.md`: visão identitária canônica da linguagem.
 - `parallel.md`: acervo visionário de apoio (não backlog).
@@ -54,6 +57,9 @@ Documentos novos (ou antigos com papel estrutural novo) devem declarar no topo, 
 ## 5. O que NÃO colocar em cada documento
 
 - `agent_state.md` não vira histórico extenso.
+- `docs/roadmap.md` não vira segundo `history.md`.
+- `docs/roadmap/indice.md` não vira réplica dos shards.
+- `docs/roadmap/blocos/*.md` não viram crônica fase por fase.
 - `docs/history.md` não volta a carregar a crônica inteira.
 - `docs/history/indice.md` e os índices locais não viram réplica dos shards.
 - `handoff_codex.md` não duplica crônica completa.
