@@ -47,6 +47,7 @@ Apoio Rosa:
 - `docs/familias_tematicas.md` — decisão canônica inicial das famílias públicas do Bloco 18, distinguindo nomeação arquitetural de implementação futura.
 - `docs/familias/dominios.md` — classificação canônica dos domínios internos por intrínseca no Bloco 18.
 - `docs/familias/superficie.md` — política canônica da superfície futura por família no Bloco 18.
+- `docs/familias/resolucao.md` — preparação canônica da futura resolução qualificada por família no Bloco 18.
 - `docs/familias/tempo.md` — formalização curta da família exemplar `tempo` no Bloco 18.
 
 ## 4) Convenção de classe/papel/status

@@ -44,6 +44,7 @@ Leitura canônica:
 - **domínio interno** organiza a leitura factual do inventário;
 - **família pública** organiza a leitura arquitetural da superfície;
 - **superfície futura por família** continua condicionada a mecanismo real.
+- **resolução qualificada futura** é camada posterior e também continua dependente de mecanismo real.
 
 Na maior parte dos casos aceitos hoje, domínio interno e família pública apontam para o mesmo recorte semântico.
 
@@ -51,7 +52,8 @@ Mesmo assim, as camadas não são idênticas:
 
 - um domínio pode ser provisório sem virar família pública;
 - uma família pública ainda pode continuar exposta por nomes globais legados;
-- a existência de um domínio não autoriza docs a fingirem acesso qualificado já implementado.
+- a existência de um domínio não autoriza docs a fingirem acesso qualificado já implementado;
+- a existência de uma família pública não autoriza, por si só, resolução qualificada futura como se já estivesse pronta.
 
 ## 4. Domínio exemplar `tempo`
 
