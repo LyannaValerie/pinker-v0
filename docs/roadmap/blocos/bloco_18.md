@@ -16,7 +16,7 @@ Bloco 17 encerrado; continuidade factual do motor técnico preservada.
 - preparação da superfície futura por família sem reorganização funcional prematura.
 
 ## Estado factual atual
-Bloco oficialmente aberto e ativo em camada documental/arquitetural. A Fase 180 abriu o bloco com inventário canônico de intrínsecas. A Fase 181 canonizou as famílias públicas iniciais (`texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente`, `acaso`) e deixou `colecao` e `formato` como domínios provisórios. A Doc-35 reduziu o custo de contexto do sistema histórico sem alterar esse estado.
+Bloco oficialmente aberto e ativo em camada documental/arquitetural. A Fase 180 abriu o bloco com inventário canônico de intrínsecas. A Fase 181 canonizou as famílias públicas iniciais (`texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente`, `acaso`) e deixou `colecao` e `formato` como domínios provisórios. A Fase 182 formalizou `tempo` como família exemplar do bloco sobre sua superfície mínima atual (`tempo_unix`, `formatar_tempo_unix`), preservando compatibilidade lexical e distinguindo estado legado de direção futura. A Doc-35 reduziu o custo de contexto do sistema histórico sem alterar essa trilha.
 
 ## Limites explícitos
 - não há `familia.intrinseca`;
@@ -24,6 +24,13 @@ Bloco oficialmente aberto e ativo em camada documental/arquitetural. A Fase 180 
 - não houve reorganização funcional de `src/`, `semantic.rs`, `interpreter.rs` ou `tests/`;
 - não houve mudança funcional na linguagem.
 
+## Família exemplar atual
+
+- Família exemplar do bloco: `tempo`.
+- Superfície mínima atual: `tempo_unix()` e `formatar_tempo_unix(...)`.
+- Leitura canônica: a família já existe como decisão documental/arquitetural, mas continua apoiada em nomes globais legados preservados.
+- Revisão lexical futura permanece aberta, sem compromisso operacional nesta fase.
+
 ## Relação com o histórico
-- Execução factual preservada em `docs/history/phases/151a200.md` (Fases 180 e 181).
+- Execução factual preservada em `docs/history/phases/151a200.md` (Fases 180, 181 e 182).
 - A refatoração histórica que reduz duplicação contextual está em `docs/history/documentation/001a050.md` (Doc-35).

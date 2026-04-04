@@ -60,6 +60,32 @@ Critérios mínimos para aceitar uma família pública:
 
 Referência cruzada canônica desta decisão: `docs/familias_tematicas.md`.
 
+## 3.2 Família exemplar `tempo`
+
+`tempo` fica formalizada como a família exemplar do Bloco 18.
+
+Leitura lexical canônica desta fase:
+
+- os nomes aceitos e preservados hoje são `tempo_unix` e `formatar_tempo_unix`;
+- esses nomes continuam sendo a superfície pública real do estado implementado;
+- a existência de `tempo` como família não rebaixa nem invalida a compatibilidade desses nomes;
+- a revisão lexical futura continua aberta para o momento em que a linguagem tiver mecanismo próprio de superfície por família.
+
+Direção futura plausível, mas não canonizada agora:
+
+- reduzir redundâncias herdadas dos nomes globais;
+- mover o peso nominal para a família `tempo`;
+- avaliar formas temáticas mais curtas apenas quando houver base operacional para isso.
+
+Exemplos apenas ilustrativos, não aceitos nesta fase:
+
+- `tempo.agora_unix(...)`
+- `tempo.formatar_unix(...)`
+- `tempo.agora(...)`
+- `tempo.formatar(...)`
+
+Referências cruzadas: `docs/familias_tematicas.md` e `docs/familias/tempo.md`.
+
 ## 4. Keywords aceitas e implementadas
 
 ### Núcleo de linguagem
