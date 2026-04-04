@@ -7,7 +7,7 @@
 > Documento mantido apenas por compatibilidade com instruções legadas.
 >
 > Para estado corrente, use `docs/agent_state.md`.
-> Para crônica histórica e fases/hotfixes/rodadas, use `docs/history.md`.
+> Para navegação histórica, use `docs/history.md` e `docs/history/indice.md`.
 > Para navegação mestre, use `docs/atlas.md`.
 >
-> Último alinhamento de compatibilidade: Fase 167 — REPL mínimo auditável, primeiro marco funcional do Bloco 16. A Doc-31 preserva o encerramento canônico do Bloco 15 por suficiência conservadora, e a Fase 167 passa a registrar 16.1 como concluído no recorte mínimo.
+> Último alinhamento de compatibilidade: Doc-35 — arquitetura histórica shardada, com `docs/history.md` reduzido a ponteiro canônico curto e shards sob `docs/history/`.

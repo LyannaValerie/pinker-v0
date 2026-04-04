@@ -1,17 +1,20 @@
-# Linha do tempo da Pinker v0
+# Sistema histórico da Pinker v0
 
-Este arquivo é a crônica histórica única do projeto, separada por categoria.
+- **Classe:** Engine
+- **Papel:** histórico
+- **Status:** ativo
 
-============================== FASES ==============================
+`docs/history.md` é o ponteiro canônico curto do histórico.
 
-9 - disciplina de pilha da Machine
-- Validação estrutural inicial da pilha na camada `--machine`.
+A crônica factual continua canônica, mas agora vive no sistema shardado sob `docs/history/`.
+O fluxo correto é:
 
-10 - checagem leve de tipo no topo da pilha
-- Regras mínimas de compatibilidade de tipos em operações de pilha.
+1. ler este arquivo para entender precedência e arquitetura;
+2. abrir `docs/history/indice.md` para localizar a categoria correta;
+3. abrir o `indice.md` da categoria certa;
+4. só então abrir o shard necessário.
 
-11 - refinamento de tipos de params/slots na Machine
-- Melhoria de inferência local para reduzir ambiguidades de tipo na validação.
+## Precedência factual
 
 12 - contexto e mensagens de erro da Machine
 - Diagnósticos mais claros e contextualizados na camada de máquina abstrata.
