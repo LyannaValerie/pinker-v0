@@ -146,3 +146,30 @@ Esta decisão prepara 18.3 e seguintes do bloco ao deixar explícito:
 - qual família exemplar deve liderar a trilha;
 - que a próxima etapa precisa discutir superfície e adoção por família sem fingir que o mecanismo já existe;
 - que a ponte entre legado atual e direção lexical futura já está formalizada em um caso pequeno e auditável.
+
+## 9. Superfície futura por família
+
+A leitura canônica do Bloco 18 passa a ser:
+
+- famílias públicas já existem como organização documental da superfície;
+- a superfície implementada atual continua exposta por nomes globais legados;
+- uma futura superfície por família depende de mecanismo real, não só de desejo lexical.
+
+No caso exemplar `tempo`, isso significa:
+
+- presente implementado: `tempo_unix` e `formatar_tempo_unix`;
+- horizonte plausível: forma temática sob `tempo` com nomes internos potencialmente mais curtos;
+- limite atual: ausência de namespace funcional, importação por família e resolução qualificada.
+
+Critérios canônicos dessa futura transição:
+
+1. preservar compatibilidade explícita;
+2. só simplificar quando houver ganho nominal real;
+3. deslocar o peso semântico do prefixo global para a família;
+4. não canonizar cedo demais variantes ainda ilustrativas;
+5. depender de mecanismo operacional real antes de vender a nova superfície como pronta.
+
+Referências canônicas desta política:
+
+- `docs/familias/superficie.md`
+- `docs/familias/tempo.md`

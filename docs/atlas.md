@@ -45,6 +45,7 @@ Apoio Rosa:
 
 - `docs/ponte_engine_rosa.md` — regras de mediação entre estado factual e direção identitária.
 - `docs/familias_tematicas.md` — decisão canônica inicial das famílias públicas do Bloco 18, distinguindo nomeação arquitetural de implementação futura.
+- `docs/familias/superficie.md` — política canônica da superfície futura por família no Bloco 18.
 - `docs/familias/tempo.md` — formalização curta da família exemplar `tempo` no Bloco 18.
 
 ## 4) Convenção de classe/papel/status
