@@ -1425,7 +1425,7 @@ Doc-32 - abertura documental da trilha de superfície Pinker
 - Documentos atualizados: `docs/atlas.md`, `docs/familias_tematicas.md`, `docs/vocabulario.md`, `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`.
 
 
-< - inicio_paralela_rodada - >
+<!-- inicio_paralela_rodada -->
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ RODADAS PARALELAS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Paralela-1 — negação bitwise dual (`~` + `nope`) + MCP mínimo (histórico)
@@ -1447,4 +1447,5 @@ Trilha B — MCP mínimo (histórico):
 - Limitação intencional na época: código inline apenas (sem resolução de imports entre módulos).
 - Testes registrados na época: 9 casos em `tests/mcp_tests.rs` cobrindo initialize, tools/list, checar, tokens, rodar, bitnot via MCP e erro de método desconhecido.
 - Estado posterior: trilha MCP removida por segurança e fora da operação corrente.
-< - fim_paralela_rodada - >
+
+<!-- fim_paralela_rodada -->
