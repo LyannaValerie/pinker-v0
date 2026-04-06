@@ -19,22 +19,25 @@ jobs:
           toolchain: "1.78.0"
           components: rustfmt, clippy
 
+      - name: Preflight
+        run: ./ci_env.sh --preflight
+
       - name: cargo build
-        run: cargo build --locked
+        run: ./ci_env.sh cargo build --locked
 
       - name: cargo check
-        run: cargo check --locked
+        run: ./ci_env.sh cargo check --locked
 
       - name: cargo fmt --check
-        run: cargo fmt --check
+        run: ./ci_env.sh cargo fmt --check
 
       - name: cargo clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: ./ci_env.sh cargo clippy --all-targets --all-features -- -D warnings
 
       - name: cargo test
-        run: cargo test --locked
+        run: ./ci_env.sh cargo test --locked
 
       - name: cargo doc
-        run: cargo doc --no-deps --locked
+        run: ./ci_env.sh cargo doc --no-deps --locked
         env:
           RUSTDOCFLAGS: "-D warnings"

@@ -5,6 +5,7 @@ Guia operacional curto para agentes neste repositório. Não substitui `README.m
 ## Comandos padrão
 
 ```bash
+make preflight
 make build
 make test
 make fmt-check
@@ -19,13 +20,20 @@ make smoke
 Sem `make`:
 
 ```bash
-cargo build --locked
-cargo test --locked
-cargo fmt --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo run --bin pink -- examples/principal_valida.pink
-cargo run --bin pink -- --check examples/principal_valida.pink
+./ci_env.sh --preflight
+./ci_env.sh cargo build --locked
+./ci_env.sh cargo test --locked
+./ci_env.sh cargo fmt --check
+./ci_env.sh cargo clippy --all-targets --all-features -- -D warnings
+./ci_env.sh cargo run --bin pink -- examples/principal_valida.pink
+./ci_env.sh cargo run --bin pink -- --check examples/principal_valida.pink
 ```
+
+## Contrato operacional da suíte
+
+- A suíte oficial é **stable-only** no toolchain fixado pelo repositório.
+- Não depender de nightly nem de `-Z unstable-options`.
+- O caminho oficial precisa passar por `./ci_env.sh`, que saneia `RUSTFLAGS` e `CARGO_ENCODED_RUSTFLAGS` e expõe preflight mínimo de diagnóstico.
 
 ## Mapa rápido do código
 

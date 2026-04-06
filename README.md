@@ -135,15 +135,19 @@ cargo test
 ## CI + MSRV
 - CI em `.github/workflows/ci.yml` rodando: `cargo build --locked`, `cargo check --locked`, `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test --locked` e `cargo doc --no-deps -D warnings`.
 - MSRV adotada: **Rust 1.78.0** (fixada em `rust-toolchain.toml`).
+- A suíte oficial do repositório é **stable-only**: o contrato suportado é Rust stable no toolchain fixado pelo projeto, sem dependência de nightly e sem `-Z unstable-options`.
+- O caminho oficial de execução saneia `RUSTFLAGS` e `CARGO_ENCODED_RUSTFLAGS` via `./ci_env.sh` antes de chamar `cargo`, para reduzir interferência de ambiente externo contaminado.
+- Falha causada por flags externas injetadas no ambiente não deve ser tratada como requisito do repositório; o diagnóstico mínimo oficial é `./ci_env.sh --preflight`.
 
 ### Comandos locais equivalentes ao CI
 ```bash
-cargo build --locked
-cargo check --locked
-cargo fmt --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --locked
-RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --locked
+./ci_env.sh --preflight
+./ci_env.sh cargo build --locked
+./ci_env.sh cargo check --locked
+./ci_env.sh cargo fmt --check
+./ci_env.sh cargo clippy --all-targets --all-features -- -D warnings
+./ci_env.sh cargo test --locked
+RUSTDOCFLAGS="-D warnings" ./ci_env.sh cargo doc --no-deps --locked
 ```
 
 ## Binários do projeto
