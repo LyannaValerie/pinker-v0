@@ -5,20 +5,24 @@
 - **Status:** operacional
 
 ## 1. Rodada atual
-- **Doc-38 — restauração do mapa macro do Bloco 18**.
-- Leitura operacional canônica: rodada estritamente documental corretiva; restaura a visibilidade da escada longa originalmente prevista do Bloco 18 no shard canônico, distinguindo degraus cobertos, preparatórios e com tendência a implementação funcional real.
+- **Fase 186 — core nobre e bibliotecas temáticas: importação mínima da família exemplar `tempo`**.
+- Leitura operacional canônica: primeira fase funcional real do eixo 18.6; abre `trazer tempo;` no menor recorte auditável, preservando compatibilidade global legada integralmente.
 
 ## 2. Resultado operacional da rodada
-- `docs/roadmap/blocos/bloco_18.md` recebeu a seção `## Mapa macro do bloco` com os degraus 18.1–18.11 numerados e com leitura honesta do estado atual.
-- A trilha factual das Fases 180–185 foi preservada integralmente.
-- Não houve mudança funcional em parser, semântica, runtime, `src/`, `tests/` ou exemplos.
+- `src/semantic.rs`: validação de importações adicionada em `check_program`; aceita `trazer tempo;`, rejeita famílias desconhecidas e importação seletiva.
+- `src/main.rs`: `load_program_with_imports` pula carga de arquivo para a família built-in `tempo` quando `symbol` é `None`.
+- `examples/fase186_trazer_tempo_minimo_valido.pink`: exemplo canônico adicionado.
+- `tests/semantic_tests.rs`: 4 novos testes (positivo, regressão legada, família desconhecida, seletivo rejeitado).
+- `tests/interpreter_tests.rs`: 2 novos testes CLI (`--check` e `--run`).
+- `make ci` passa integralmente.
 
 ## 3. Próximo passo correto
-- Próximo passo documental provável: avançar sobre 18.6 (importação por família) ou 18.7 (documentação identitária), com tendência a implementação funcional real quando a base documental estiver madura.
-- O **Bloco 18** segue como bloco oficialmente ativo em camada documental/arquitetural.
+- Próximo passo provável: avançar 18.6 com mais famílias importáveis ou abrir 18.7 (documentação identitária).
+- O **Bloco 18** segue como bloco oficialmente ativo com primeiro recorte funcional real aberto.
 
 ## 4. Restrições explícitas
-- Sem tratar `tempo` como biblioteca já soberana ou namespace operacional.
-- Sem voltar a inflar `docs/roadmap.md` ou `docs/roadmap/indice.md` como se fossem crônicas completas.
-- Sem implementar `familia.intrinseca`, `trazer tempo;`, `trazer tempo.algo;`, resolução qualificada operacional ou reorganização de engine por inércia documental.
-- Sem inflar `future.md` como se fosse roadmap ou `parallel.md` como se fosse backlog técnico executável.
+- Sem abrir `trazer familia.simbolo;` (importação seletiva não suportada nesta fase).
+- Sem abrir outras famílias além de `tempo` por inércia.
+- Sem abrir resolução qualificada `familia.intrinseca` nesta fase.
+- Sem modo estrito ou obrigação de import.
+- Sem reorganizar engine amplamente além do mínimo desta fase.

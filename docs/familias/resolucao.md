@@ -19,9 +19,9 @@ Nesta fase, isso significa apenas:
 Não significa:
 
 - `familia.intrinseca` já implementada;
-- `trazer familia;`;
-- `trazer familia.algo;`;
-- parser, semântica ou runtime já reorganizados.
+- `trazer familia;` generalizado (apenas `tempo` na Fase 186);
+- `trazer familia.algo;` (importação seletiva, ainda fora do recorte);
+- parser, semântica ou runtime reorganizados amplamente.
 
 ## 2. Relação com a superfície atual
 

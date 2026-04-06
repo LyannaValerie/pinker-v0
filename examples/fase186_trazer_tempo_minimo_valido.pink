@@ -1,0 +1,14 @@
+pacote main;
+trazer tempo;
+
+carinho principal() -> bombom {
+    nova base: bombom = 0;
+    nova texto: verso = formatar_tempo_unix(base);
+    nova agora: bombom = tempo_unix();
+    falar(texto);
+    falar(agora);
+    talvez igual_verso(texto, "1970-01-01T00:00:00Z") && agora > 0 {
+        mimo 186;
+    }
+    mimo 0;
+}
