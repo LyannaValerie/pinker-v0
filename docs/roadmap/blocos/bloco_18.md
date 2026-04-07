@@ -25,7 +25,7 @@ Escada longa originalmente prevista — leitura atual honesta:
 - **18.3 superfície pública** — base documental aberta; Fases 182–183.
 - **18.4 domínio interno** — coberto; Fase 184.
 - **18.5 resolução qualificada** — preparado documentalmente; Fase 185; ainda não operacional.
-- **18.6 importação por família** — aberta na Fase 186; recorte mínimo: `trazer tempo;` reconhecido e validado; outras famílias e importação seletiva fora do recorte desta fase.
+- **18.6 importação por família** — aberta na Fase 186 e ampliada minimamente na Fase 187; recorte atual: `trazer tempo;` e `trazer ambiente;` reconhecidos e validados; outras famílias e importação seletiva fora do recorte desta fase.
 - **18.7 documentação identitária** — pendente como consolidação identitária mais ampla.
 - **18.8 família exemplar** — parcialmente coberta via `tempo` (Fase 182); tratamento completo ainda futuro.
 - **18.9 modo estrito opcional** — condicional; não aberto.
@@ -33,15 +33,15 @@ Escada longa originalmente prevista — leitura atual honesta:
 - **18.11 fechamento** — futuro.
 
 Degraus 18.1–18.5: base documental consolidada nas Fases 180–185.
-Degrau 18.6: recorte mínimo funcional aberto na Fase 186 (`trazer tempo;`).
+Degrau 18.6: recorte mínimo funcional aberto na Fase 186 (`trazer tempo;`) e ampliado na Fase 187 (`trazer ambiente;`).
 Degrau 18.10: deve caminhar para implementação funcional real quando a base estiver madura.
 
 ## Estado factual atual
-Bloco ativo com base documental consolidada e primeiro recorte funcional real aberto. A Fase 180 abriu o bloco com inventário canônico de intrínsecas. A Fase 181 canonizou as famílias públicas iniciais (`texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente`, `acaso`) e deixou `colecao` e `formato` como domínios provisórios. A Fase 182 formalizou `tempo` como família exemplar. A Fase 183 fixou a política documental da superfície futura por família. A Fase 184 formalizou a leitura por domínio interno de intrínseca. A Fase 185 preparou documentalmente a futura resolução qualificada por família. A Fase 186 abriu o primeiro recorte funcional real de 18.6: `trazer tempo;` passa a ser reconhecido e validado pelo checker e pelo runtime; os nomes globais legados continuam preservados; importação seletiva e outras famílias ficam fora deste recorte.
+Bloco ativo com base documental consolidada e recorte funcional real já aberto em 18.6. A Fase 180 abriu o bloco com inventário canônico de intrínsecas. A Fase 181 canonizou as famílias públicas iniciais (`texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente`, `acaso`) e deixou `colecao` e `formato` como domínios provisórios. A Fase 182 formalizou `tempo` como família exemplar. A Fase 183 fixou a política documental da superfície futura por família. A Fase 184 formalizou a leitura por domínio interno de intrínseca. A Fase 185 preparou documentalmente a futura resolução qualificada por família. A Fase 186 abriu o primeiro recorte funcional real de 18.6 com `trazer tempo;`. A Fase 187 confirmou que o mecanismo não ficou preso ao caso exemplar e também reconhece `trazer ambiente;`; os nomes globais legados continuam preservados; importação seletiva e outras famílias ficam fora do recorte.
 
 ## Limites explícitos
 - não há `familia.intrinseca`;
-- `trazer familia;` existe apenas para `tempo` (Fase 186); nenhuma outra família está suportada;
+- `trazer familia;` existe apenas para `tempo` e `ambiente` (Fases 186–187); nenhuma outra família está suportada;
 - não há `trazer familia.intrinseca;` (importação seletiva);
 - não há resolução qualificada por família já operacional;
 - não houve reorganização funcional de `interpreter.rs` ou do pipeline de IR;

@@ -2853,7 +2853,7 @@ fn api_ampla_de_aleatoriedade_permanece_fora_do_recorte() {
     );
 }
 
-// ── Fase 186 — importação por família: recorte mínimo `trazer tempo;` ──────
+// ── Fases 186–187 — importação por família: `tempo` e `ambiente` ───────────
 
 #[test]
 fn trazer_tempo_familia_aceita() {
@@ -2869,7 +2869,24 @@ fn trazer_tempo_familia_aceita() {
 }
 
 #[test]
-fn legado_global_sem_trazer_continua_valido() {
+fn trazer_ambiente_familia_aceita() {
+    let code = r#"
+        pacote main;
+        trazer ambiente;
+        carinho principal() -> bombom {
+            nova saida: verso = buscar_contexto("--saida", "PINKER_SAIDA", "padrao.txt");
+            nova origem: verso = ambiente_ou("HOME", "/tmp");
+            talvez tem_flag("--quiet") {
+                falar(saida, origem);
+            }
+            mimo quantos_argumentos();
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn legado_global_tempo_sem_trazer_continua_valido() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
@@ -2877,6 +2894,20 @@ fn legado_global_sem_trazer_continua_valido() {
             nova texto: verso = formatar_tempo_unix(agora);
             falar(texto);
             mimo agora;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn legado_global_ambiente_sem_trazer_continua_valido() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova saida: verso = buscar_contexto("--saida", "PINKER_SAIDA", "padrao.txt");
+            nova cwd: verso = diretorio_atual();
+            falar(saida, cwd);
+            mimo quantos_argumentos();
         }
     "#;
     assert!(parse_and_check(code).is_ok());
