@@ -778,9 +778,11 @@ fn load_program_with_imports(
         .collect();
 
     for import in &root_program.imports {
-        // Fase 186 — família built-in `tempo` não corresponde a arquivo .pink.
-        // As intrínsecas já estão disponíveis globalmente; apenas pular a carga.
-        if import.module == "tempo" && import.symbol.is_none() {
+        // Fases 186–187 — famílias built-in importáveis não correspondem a
+        // arquivo .pink. As intrínsecas já estão disponíveis globalmente; basta
+        // pular a carga de módulo.
+        if semantic::is_importable_builtin_family(import.module.as_str(), import.symbol.as_deref())
+        {
             continue;
         }
 

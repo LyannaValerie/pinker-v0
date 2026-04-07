@@ -18,6 +18,16 @@ use crate::layout;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet};
 
+const IMPORTABLE_BUILTIN_FAMILIES: &[&str] = &["tempo", "ambiente"];
+
+pub fn importable_builtin_families() -> &'static [&'static str] {
+    IMPORTABLE_BUILTIN_FAMILIES
+}
+
+pub fn is_importable_builtin_family(module: &str, symbol: Option<&str>) -> bool {
+    symbol.is_none() && IMPORTABLE_BUILTIN_FAMILIES.contains(&module)
+}
+
 #[derive(Clone)]
 struct VarMeta {
     ty: Type,
@@ -416,9 +426,9 @@ impl SemanticChecker {
     // Registra funções e constantes antes de verificar qualquer corpo.
     // Erros aqui interrompem antes da passagem 2.
     pub fn check_program(&mut self, program: &Program) -> Result<(), PinkerError> {
-        // Fase 186 — validação mínima de importações por família.
-        // Recorte desta fase: apenas `trazer tempo;` é reconhecido.
-        // Importação seletiva (`trazer familia.simbolo;`) e outras famílias são rejeitadas.
+        // Fases 186–187 — validação mínima de importações por família.
+        // Recorte atual: apenas `trazer tempo;` e `trazer ambiente;` são reconhecidos.
+        // Importação seletiva (`trazer familia.simbolo;`) e demais famílias continuam rejeitadas.
         for import in &program.imports {
             if import.symbol.is_some() {
                 return Err(PinkerError::Semantic {
@@ -431,16 +441,22 @@ impl SemanticChecker {
                     span: import.span,
                 });
             }
-            if import.module != "tempo" {
+            if !is_importable_builtin_family(import.module.as_str(), None) {
+                let families = importable_builtin_families()
+                    .iter()
+                    .map(|family| format!("'{}'", family))
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "família '{}' não é reconhecida como família importável; família disponível nesta fase: 'tempo'",
-                        import.module
+                        "família '{}' não é reconhecida como família importável; famílias disponíveis nesta fase: {}",
+                        import.module, families
                     ),
                     span: import.span,
                 });
             }
-            // `trazer tempo;` é válido — as intrínsecas da família já estão disponíveis globalmente.
+            // `trazer tempo;` e `trazer ambiente;` são válidos — as intrínsecas
+            // dessas famílias já estão disponíveis globalmente.
         }
 
         for item in &program.items {

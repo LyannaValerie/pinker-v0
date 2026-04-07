@@ -1,0 +1,17 @@
+pacote main;
+trazer ambiente;
+
+carinho principal() -> bombom {
+    nova saida: verso = buscar_contexto("--saida", "PINKER_FASE187_AMBIENTE", "padrao.txt");
+    nova origem: verso = ambiente_ou("PINKER_FASE187_AMBIENTE", "sem-env");
+    nova quiet: logica = tem_flag("--quiet");
+    nova total: bombom = quantos_argumentos();
+    falar(saida);
+    falar(origem);
+    talvez quiet {
+        falar("quiet");
+    } senao {
+        falar("normal");
+    }
+    mimo total;
+}
