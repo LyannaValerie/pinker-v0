@@ -1,0 +1,17 @@
+pacote main;
+trazer acaso;
+
+carinho principal() -> bombom {
+    nova gerador_a: bombom = aleatorio_criar(42);
+    nova gerador_b: bombom = aleatorio_criar(42);
+    nova a1: bombom = aleatorio_proximo(gerador_a);
+    nova b1: bombom = aleatorio_proximo(gerador_b);
+    nova a2: bombom = aleatorio_proximo(gerador_a);
+    nova b2: bombom = aleatorio_proximo(gerador_b);
+    falar(a1, b1);
+    falar(a2, b2);
+    talvez a1 == b1 && a2 == b2 {
+        mimo 188;
+    }
+    mimo 0;
+}

@@ -2853,7 +2853,7 @@ fn api_ampla_de_aleatoriedade_permanece_fora_do_recorte() {
     );
 }
 
-// ── Fases 186–187 — importação por família: `tempo` e `ambiente` ───────────
+// ── Fases 186–188 — importação por família: `tempo`, `ambiente` e `acaso` ──
 
 #[test]
 fn trazer_tempo_familia_aceita() {
@@ -2886,6 +2886,20 @@ fn trazer_ambiente_familia_aceita() {
 }
 
 #[test]
+fn trazer_acaso_familia_aceita() {
+    let code = r#"
+        pacote main;
+        trazer acaso;
+        carinho principal() -> bombom {
+            nova gerador: bombom = aleatorio_criar(42);
+            nova valor: bombom = aleatorio_proximo(gerador);
+            mimo valor;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
 fn legado_global_tempo_sem_trazer_continua_valido() {
     let code = r#"
         pacote main;
@@ -2908,6 +2922,19 @@ fn legado_global_ambiente_sem_trazer_continua_valido() {
             nova cwd: verso = diretorio_atual();
             falar(saida, cwd);
             mimo quantos_argumentos();
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn legado_global_acaso_sem_trazer_continua_valido() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova gerador: bombom = aleatorio_criar(7);
+            nova valor: bombom = aleatorio_proximo(gerador);
+            mimo valor;
         }
     "#;
     assert!(parse_and_check(code).is_ok());

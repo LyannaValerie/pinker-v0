@@ -18,7 +18,7 @@ use crate::layout;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet};
 
-const IMPORTABLE_BUILTIN_FAMILIES: &[&str] = &["tempo", "ambiente"];
+const IMPORTABLE_BUILTIN_FAMILIES: &[&str] = &["tempo", "ambiente", "acaso"];
 
 pub fn importable_builtin_families() -> &'static [&'static str] {
     IMPORTABLE_BUILTIN_FAMILIES
@@ -426,8 +426,9 @@ impl SemanticChecker {
     // Registra funções e constantes antes de verificar qualquer corpo.
     // Erros aqui interrompem antes da passagem 2.
     pub fn check_program(&mut self, program: &Program) -> Result<(), PinkerError> {
-        // Fases 186–187 — validação mínima de importações por família.
-        // Recorte atual: apenas `trazer tempo;` e `trazer ambiente;` são reconhecidos.
+        // Fases 186–188 — validação mínima de importações por família.
+        // Recorte atual: apenas `trazer tempo;`, `trazer ambiente;`
+        // e `trazer acaso;` são reconhecidos.
         // Importação seletiva (`trazer familia.simbolo;`) e demais famílias continuam rejeitadas.
         for import in &program.imports {
             if import.symbol.is_some() {
@@ -455,8 +456,8 @@ impl SemanticChecker {
                     span: import.span,
                 });
             }
-            // `trazer tempo;` e `trazer ambiente;` são válidos — as intrínsecas
-            // dessas famílias já estão disponíveis globalmente.
+            // `trazer tempo;`, `trazer ambiente;` e `trazer acaso;` são válidos
+            // — as intrínsecas dessas famílias já estão disponíveis globalmente.
         }
 
         for item in &program.items {
