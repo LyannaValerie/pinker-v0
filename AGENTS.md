@@ -35,6 +35,16 @@ Sem `make`:
 - Não depender de nightly nem de `-Z unstable-options`.
 - O caminho oficial precisa passar por `./ci_env.sh`, que saneia `RUSTFLAGS` e `CARGO_ENCODED_RUSTFLAGS` e expõe preflight mínimo de diagnóstico.
 
+## Disciplina de inspeção (MCP)
+
+- Você não conhece o conteúdo real do repositório até inspecioná-lo.
+- Para qualquer afirmação sobre arquivos, símbolos, fases, docs ou histórico, use MCP ou ferramentas locais primeiro.
+- Sempre opere como: localizar -> inspecionar -> extrair -> responder.
+- Não leia arquivos grandes por inteiro sem necessidade estrita.
+- Prefira buscas direcionadas a varreduras amplas.
+- Não invente continuidade, histórico ou estado do repositório.
+- Trate docs e código como fonte de verdade somente após inspeção.
+
 ## Mapa rápido do código
 
 - parser/léxico/AST: `src/token.rs`, `src/lexer.rs`, `src/ast.rs`, `src/parser.rs`

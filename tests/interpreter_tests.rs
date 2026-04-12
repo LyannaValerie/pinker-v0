@@ -8965,7 +8965,7 @@ fn cli_run_fase156_aleatoriedade_basica_fluxo_composto_valido() {
     assert!(stdout.contains('9'), "stdout={}", stdout);
 }
 
-// ── Fases 186–187 — importação por família: `tempo` e `ambiente` ───────────
+// ── Fases 186–188 — importação por família: `tempo`, `ambiente` e `acaso` ──
 
 #[test]
 fn cli_check_fase186_trazer_tempo_minimo_valido() {
@@ -9020,4 +9020,27 @@ fn cli_run_fase187_trazer_ambiente_minimo_valido() {
     assert!(stdout.contains("cli.txt"), "stdout={}", stdout);
     assert!(stdout.contains("env.txt"), "stdout={}", stdout);
     assert!(stdout.contains("quiet"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_check_fase188_trazer_acaso_minimo_valido() {
+    let output = run_cli_check_example("examples/fase188_trazer_acaso_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase188_trazer_acaso_minimo_valido() {
+    let output = run_cli_example("examples/fase188_trazer_acaso_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("10481999410520546993"), "stdout={}", stdout);
+    assert!(stdout.contains("4159066171780167020"), "stdout={}", stdout);
 }

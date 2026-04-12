@@ -19,7 +19,7 @@ Nesta fase, isso significa apenas:
 Não significa:
 
 - `familia.intrinseca` já implementada;
-- `trazer familia;` generalizado (apenas `tempo` e `ambiente` nas Fases 186–187);
+- `trazer familia;` generalizado (apenas `tempo`, `ambiente` e `acaso` nas Fases 186–188);
 - `trazer familia.algo;` (importação seletiva, ainda fora do recorte);
 - parser, semântica ou runtime reorganizados amplamente.
 
