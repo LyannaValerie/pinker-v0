@@ -28,6 +28,43 @@ pub fn is_importable_builtin_family(module: &str, symbol: Option<&str>) -> bool 
     symbol.is_none() && IMPORTABLE_BUILTIN_FAMILIES.contains(&module)
 }
 
+pub fn is_importable_builtin_family_import(import: &ImportDecl) -> bool {
+    is_importable_builtin_family(import.module.as_str(), import.symbol.as_deref())
+}
+
+fn importable_builtin_families_list() -> String {
+    importable_builtin_families()
+        .iter()
+        .map(|family| format!("'{}'", family))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+pub fn validate_builtin_family_import(import: &ImportDecl) -> Result<(), PinkerError> {
+    if import.symbol.is_some() {
+        return Err(PinkerError::Semantic {
+            msg: format!(
+                "importação seletiva 'trazer {}.{}' não é suportada; use 'trazer {};' para importar a família inteira",
+                import.module,
+                import.symbol.as_deref().unwrap_or(""),
+                import.module
+            ),
+            span: import.span,
+        });
+    }
+    if !is_importable_builtin_family_import(import) {
+        return Err(PinkerError::Semantic {
+            msg: format!(
+                "família '{}' não é reconhecida como família importável; famílias disponíveis nesta fase: {}",
+                import.module,
+                importable_builtin_families_list()
+            ),
+            span: import.span,
+        });
+    }
+    Ok(())
+}
+
 #[derive(Clone)]
 struct VarMeta {
     ty: Type,
@@ -431,31 +468,7 @@ impl SemanticChecker {
         // e `trazer acaso;` são reconhecidos.
         // Importação seletiva (`trazer familia.simbolo;`) e demais famílias continuam rejeitadas.
         for import in &program.imports {
-            if import.symbol.is_some() {
-                return Err(PinkerError::Semantic {
-                    msg: format!(
-                        "importação seletiva 'trazer {}.{}' não é suportada; use 'trazer {};' para importar a família inteira",
-                        import.module,
-                        import.symbol.as_deref().unwrap_or(""),
-                        import.module
-                    ),
-                    span: import.span,
-                });
-            }
-            if !is_importable_builtin_family(import.module.as_str(), None) {
-                let families = importable_builtin_families()
-                    .iter()
-                    .map(|family| format!("'{}'", family))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                return Err(PinkerError::Semantic {
-                    msg: format!(
-                        "família '{}' não é reconhecida como família importável; famílias disponíveis nesta fase: {}",
-                        import.module, families
-                    ),
-                    span: import.span,
-                });
-            }
+            validate_builtin_family_import(import)?;
             // `trazer tempo;`, `trazer ambiente;` e `trazer acaso;` são válidos
             // — as intrínsecas dessas famílias já estão disponíveis globalmente.
         }
