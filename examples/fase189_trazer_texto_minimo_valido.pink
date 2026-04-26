@@ -1,0 +1,11 @@
+pacote main;
+
+trazer texto;
+
+carinho principal() -> bombom {
+    nova saudacao: verso = juntar_verso("rosa", " pinker");
+    nova limpa: verso = aparar_verso("  texto  ");
+    falar(saudacao);
+    falar(limpa);
+    mimo 0;
+}

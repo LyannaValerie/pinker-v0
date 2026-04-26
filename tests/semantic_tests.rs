@@ -2853,7 +2853,7 @@ fn api_ampla_de_aleatoriedade_permanece_fora_do_recorte() {
     );
 }
 
-// ── Fases 186–188 — importação por família: `tempo`, `ambiente` e `acaso` ──
+// ── Fases 186–189 — importação por família: `tempo`, `ambiente`, `acaso` e `texto` ──
 
 #[test]
 fn trazer_tempo_familia_aceita() {
@@ -2944,11 +2944,56 @@ fn legado_global_acaso_sem_trazer_continua_valido() {
 fn trazer_familia_desconhecida_falha() {
     let code = r#"
         pacote main;
-        trazer texto;
+        trazer colecao;
         carinho principal() -> bombom { mimo 0; }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("família 'texto' não é reconhecida"), "{}", err);
+    assert!(
+        err.contains("família 'colecao' não é reconhecida"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn trazer_texto_familia_aceita() {
+    let code = r#"
+        pacote main;
+        trazer texto;
+        carinho principal() -> bombom {
+            nova saudacao: verso = juntar_verso("rosa", " pinker");
+            nova limpa: verso = aparar_verso("  texto  ");
+            falar(saudacao);
+            falar(limpa);
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn legado_global_texto_sem_trazer_continua_valido() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova saudacao: verso = juntar_verso("rosa", " pinker");
+            nova n: bombom = tamanho_verso(saudacao);
+            falar(saudacao);
+            mimo n;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn trazer_seletivo_texto_nao_suportado_falha() {
+    let code = r#"
+        pacote main;
+        trazer texto.juntar_verso;
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("importação seletiva"), "{}", err);
 }
 
 #[test]
