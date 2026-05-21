@@ -102,7 +102,7 @@ Hoje pertencem à família `tempo` exatamente:
 - `tempo_unix() -> bombom`
 - `formatar_tempo_unix(ts) -> verso`
 
-A Fase 186 abriu `trazer tempo;` como primeiro recorte funcional mínimo de importação por família. A Fase 187 ampliou esse mesmo mecanismo para `trazer ambiente;` e a Fase 188 o estendeu para `trazer acaso;`, sempre no menor recorte auditável e sem alterar a disponibilidade global das intrínsecas. Importação seletiva e resolução qualificada operacional permanecem fora do recorte.
+A Fase 186 abriu `trazer tempo;` como primeiro recorte funcional mínimo de importação por família. A Fase 187 ampliou esse mesmo mecanismo para `trazer ambiente;`, a Fase 188 o estendeu para `trazer acaso;` e a Fase 189 o estendeu para `trazer texto;`, sempre no menor recorte auditável e sem alterar a disponibilidade global das intrínsecas. Importação seletiva e resolução qualificada operacional permanecem fora do recorte.
 
 ### 7.2 Superfície mínima atual
 
@@ -196,7 +196,7 @@ Domínios internos reconhecidos com família pública aceita correspondente:
 - `ambiente`
 - `acaso`
 
-No estado funcional atual de 18.6, apenas `tempo`, `ambiente` e `acaso` estão importáveis via `trazer familia;`. As demais famílias públicas aceitas continuam apenas como organização documental/arquitetural.
+No estado funcional atual de 18.6, apenas `tempo`, `ambiente`, `acaso` e `texto` estão importáveis via `trazer familia;`. As demais famílias públicas aceitas continuam apenas como organização documental/arquitetural.
 
 Domínios internos que continuam provisórios nesta fase:
 

@@ -9044,3 +9044,26 @@ fn cli_run_fase188_trazer_acaso_minimo_valido() {
     assert!(stdout.contains("10481999410520546993"), "stdout={}", stdout);
     assert!(stdout.contains("4159066171780167020"), "stdout={}", stdout);
 }
+
+#[test]
+fn cli_check_fase189_trazer_texto_minimo_valido() {
+    let output = run_cli_check_example("examples/fase189_trazer_texto_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase189_trazer_texto_minimo_valido() {
+    let output = run_cli_example("examples/fase189_trazer_texto_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("rosa pinker"), "stdout={}", stdout);
+    assert!(stdout.contains("texto"), "stdout={}", stdout);
+}
