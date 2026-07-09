@@ -1,0 +1,13 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova texto: verso = "linha1\nlinha2\nlinha3";
+    nova tab: verso = "coluna1\tcoluna2";
+    nova aspas: verso = "ela disse \"oi\"";
+    nova barra: verso = "caminho\\arquivo";
+    falar(texto);
+    falar(tab);
+    falar(aspas);
+    falar(barra);
+    mimo 0;
+}

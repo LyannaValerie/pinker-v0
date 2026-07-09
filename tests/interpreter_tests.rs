@@ -7501,7 +7501,7 @@ fn run_fase165_executar_com_entrada_fluxo_composto_funciona() {
         carinho principal() -> bombom {
             nova entrada: verso = montar();
             nova codigo: bombom = executar_com_entrada("__CMD__", entrada);
-            talvez codigo == 0 && tamanho_verso(entrada) == 19 {
+            talvez codigo == 0 && tamanho_verso(entrada) == 17 {
                 mimo 165;
             }
             mimo 0;

@@ -1,0 +1,12 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova muda x: bombom = 10;
+    x += 5;
+    x -= 3;
+    x *= 2;
+    x /= 4;
+    x %= 3;
+    falar(x);
+    mimo x;
+}

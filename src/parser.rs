@@ -636,7 +636,22 @@ impl Parser {
         }
 
         let expr = self.parse_expr()?;
-        if self.match_token(TokenKind::Eq) {
+
+        let compound_op = if self.match_token(TokenKind::PlusEq) {
+            Some(BinaryOp::Add)
+        } else if self.match_token(TokenKind::MinusEq) {
+            Some(BinaryOp::Sub)
+        } else if self.match_token(TokenKind::StarEq) {
+            Some(BinaryOp::Mul)
+        } else if self.match_token(TokenKind::SlashEq) {
+            Some(BinaryOp::Div)
+        } else if self.match_token(TokenKind::PercentEq) {
+            Some(BinaryOp::Mod)
+        } else {
+            None
+        };
+
+        if compound_op.is_some() || self.match_token(TokenKind::Eq) {
             let target = match &expr.kind {
                 ExprKind::Ident(name) => AssignTarget::Ident(name.clone()),
                 ExprKind::Unary(UnaryOp::Deref, ptr_expr) => {
@@ -658,10 +673,18 @@ impl Parser {
                 }
             };
             let rhs = self.parse_expr()?;
+            let final_rhs = if let Some(op) = compound_op {
+                Expr {
+                    kind: ExprKind::Binary(Box::new(expr.clone()), op, Box::new(rhs)),
+                    span: expr.span,
+                }
+            } else {
+                rhs
+            };
             self.consume(TokenKind::Semi, ";")?;
             return Ok(Stmt::Assign(AssignStmt {
                 target,
-                expr: rhs,
+                expr: final_rhs,
                 span: merge_span(expr.span, self.previous().span),
             }));
         }

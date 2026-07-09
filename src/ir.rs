@@ -1036,6 +1036,69 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
+        function_sigs.insert(
+            "afirmar".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "dormir".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "copiar_arquivo".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "renomear_arquivo".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "verso_para_bombom".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "bombom_para_verso".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "aleatorio_entre".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "mapa_verso_bombom_remover".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "lista_bombom_inserir".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
 
         Ok(Self {
             module_name,
