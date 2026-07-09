@@ -509,6 +509,65 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         "capturar_stderr".to_string(),
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );
+    sigs.insert(
+        "afirmar".to_string(),
+        (TypeIR::Nulo, vec![StackValueType::Logica]),
+    );
+    sigs.insert(
+        "dormir".to_string(),
+        (TypeIR::Nulo, vec![StackValueType::Bombom]),
+    );
+    sigs.insert(
+        "copiar_arquivo".to_string(),
+        (
+            TypeIR::Nulo,
+            vec![StackValueType::Verso, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
+        "renomear_arquivo".to_string(),
+        (
+            TypeIR::Nulo,
+            vec![StackValueType::Verso, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
+        "verso_para_bombom".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Verso]),
+    );
+    sigs.insert(
+        "bombom_para_verso".to_string(),
+        (TypeIR::Verso, vec![StackValueType::Bombom]),
+    );
+    sigs.insert(
+        "aleatorio_entre".to_string(),
+        (
+            TypeIR::Bombom,
+            vec![
+                StackValueType::Bombom,
+                StackValueType::Bombom,
+                StackValueType::Bombom,
+            ],
+        ),
+    );
+    sigs.insert(
+        "mapa_verso_bombom_remover".to_string(),
+        (
+            TypeIR::Nulo,
+            vec![StackValueType::Unknown, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
+        "lista_bombom_inserir".to_string(),
+        (
+            TypeIR::Nulo,
+            vec![
+                StackValueType::ListBombom,
+                StackValueType::Bombom,
+                StackValueType::Bombom,
+            ],
+        ),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;
@@ -644,6 +703,16 @@ fn validate_function(
                             }
                             continue;
                         }
+                        if callee == "afirmar" {
+                            if !(*argc == 1 || *argc == 2) {
+                                return Err(err_ctx(
+                                    f,
+                                    Some(&b.label),
+                                    "call com aridade inválida",
+                                ));
+                            }
+                            continue;
+                        }
                         if *argc != param_types.len() {
                             return Err(err_ctx(f, Some(&b.label), "call com aridade inválida"));
                         }
@@ -662,6 +731,16 @@ fn validate_function(
                         }
                         if callee == "formatar_verso" {
                             if !(*argc == 2 || *argc == 3) {
+                                return Err(err_ctx(
+                                    f,
+                                    Some(&b.label),
+                                    "call_void com aridade inválida",
+                                ));
+                            }
+                            continue;
+                        }
+                        if callee == "afirmar" {
+                            if !(*argc == 1 || *argc == 2) {
                                 return Err(err_ctx(
                                     f,
                                     Some(&b.label),
@@ -1005,6 +1084,14 @@ fn apply_instr_effect(
                 stack.push(StackValueType::Verso);
                 return Ok(());
             }
+            if callee == "afirmar" && *argc == 2 {
+                let ret = sigs
+                    .get(callee)
+                    .map(|(ret, _)| *ret)
+                    .unwrap_or(TypeIR::Bombom);
+                stack.push(type_to_stack(ret));
+                return Ok(());
+            }
             if let Some((_ret, param_types)) = sigs.get(callee) {
                 for (arg, expected) in args.iter().zip(param_types.iter().rev()) {
                     ensure_compatible(
@@ -1040,6 +1127,9 @@ fn apply_instr_effect(
             )?;
             if callee == "formatar_verso" {
                 ensure_formatar_verso_stack_args(f, label, &args, *argc, true)?;
+                return Ok(());
+            }
+            if callee == "afirmar" && *argc == 2 {
                 return Ok(());
             }
             if let Some((_ret, param_types)) = sigs.get(callee) {

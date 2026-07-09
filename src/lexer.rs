@@ -60,6 +60,28 @@ impl<'a> Lexer<'a> {
                             }
                             self.advance();
                         }
+                    } else if let Some(&(_, '*')) = clone.peek() {
+                        self.advance();
+                        self.advance();
+                        let mut depth = 1u32;
+                        while depth > 0 {
+                            match self.advance() {
+                                Some((_, '/')) => {
+                                    if self.peek_char() == Some('*') {
+                                        self.advance();
+                                        depth += 1;
+                                    }
+                                }
+                                Some((_, '*')) => {
+                                    if self.peek_char() == Some('/') {
+                                        self.advance();
+                                        depth -= 1;
+                                    }
+                                }
+                                Some(_) => {}
+                                None => break,
+                            }
+                        }
                     } else {
                         break;
                     }
@@ -84,7 +106,14 @@ impl<'a> Lexer<'a> {
                 Some((_, c)) => {
                     let mut lexeme = c.to_string();
                     let kind = match c {
-                        '+' => TokenKind::Plus,
+                        '+' => {
+                            if self.match_char('=') {
+                                lexeme.push('=');
+                                TokenKind::PlusEq
+                            } else {
+                                TokenKind::Plus
+                            }
+                        }
                         '&' => {
                             if self.match_char('&') {
                                 lexeme.push('&');
@@ -106,13 +135,37 @@ impl<'a> Lexer<'a> {
                             if self.match_char('>') {
                                 lexeme.push('>');
                                 TokenKind::Arrow
+                            } else if self.match_char('=') {
+                                lexeme.push('=');
+                                TokenKind::MinusEq
                             } else {
                                 TokenKind::Minus
                             }
                         }
-                        '*' => TokenKind::Star,
-                        '/' => TokenKind::Slash,
-                        '%' => TokenKind::Percent,
+                        '*' => {
+                            if self.match_char('=') {
+                                lexeme.push('=');
+                                TokenKind::StarEq
+                            } else {
+                                TokenKind::Star
+                            }
+                        }
+                        '/' => {
+                            if self.match_char('=') {
+                                lexeme.push('=');
+                                TokenKind::SlashEq
+                            } else {
+                                TokenKind::Slash
+                            }
+                        }
+                        '%' => {
+                            if self.match_char('=') {
+                                lexeme.push('=');
+                                TokenKind::PercentEq
+                            } else {
+                                TokenKind::Percent
+                            }
+                        }
                         '(' => TokenKind::LParen,
                         ')' => TokenKind::RParen,
                         '[' => TokenKind::LBracket,
@@ -188,6 +241,36 @@ impl<'a> Lexer<'a> {
                                             .to_string(),
                                         span: Span::new(start_pos, self.current_pos()),
                                     });
+                                }
+                                if next_c == '\\' {
+                                    self.advance();
+                                    let escaped = match self.peek_char() {
+                                        Some('n') => '\n',
+                                        Some('t') => '\t',
+                                        Some('r') => '\r',
+                                        Some('0') => '\0',
+                                        Some('\\') => '\\',
+                                        Some('"') => '"',
+                                        Some(other) => {
+                                            return Err(PinkerError::Lexer {
+                                                msg: format!(
+                                                    "sequência de escape inválida '\\{}'",
+                                                    other
+                                                ),
+                                                span: Span::new(start_pos, self.current_pos()),
+                                            });
+                                        }
+                                        None => {
+                                            return Err(PinkerError::Lexer {
+                                                msg: "string literal não terminada após '\\'"
+                                                    .to_string(),
+                                                span: Span::new(start_pos, self.current_pos()),
+                                            });
+                                        }
+                                    };
+                                    self.advance();
+                                    lexeme.push(escaped);
+                                    continue;
                                 }
                                 lexeme.push(next_c);
                                 self.advance();

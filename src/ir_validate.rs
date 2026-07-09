@@ -632,6 +632,69 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Verso],
         },
     );
+    funcs.insert(
+        "afirmar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Logica],
+        },
+    );
+    funcs.insert(
+        "dormir".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "copiar_arquivo".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "renomear_arquivo".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "verso_para_bombom".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "bombom_para_verso".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "aleatorio_entre".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_bombom_remover".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::MapVersoBombom, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "lista_bombom_inserir".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::ListBombom, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
 
     for konst in &program.consts {
         let ty = infer_value_type(&konst.value, &HashMap::new(), &consts, &funcs, konst.span)
@@ -1246,6 +1309,9 @@ fn infer_value_type(
             if callee == "capturar_stderr" && !(args.len() == 1 || args.len() == 2) {
                 return Err(ir_validation_error("aridade de chamada inválida", span));
             }
+            if callee == "afirmar" && !(args.len() == 1 || args.len() == 2) {
+                return Err(ir_validation_error("aridade de chamada inválida", span));
+            }
             let sig = funcs
                 .get(callee)
                 .ok_or_else(|| ir_validation_error("chamada para função inexistente", span))?;
@@ -1253,6 +1319,7 @@ fn infer_value_type(
                 && callee != "executar_com_entrada"
                 && callee != "capturar_stdout"
                 && callee != "capturar_stderr"
+                && callee != "afirmar"
                 && args.len() != sig.params.len()
             {
                 return Err(ir_validation_error("aridade de chamada inválida", span));

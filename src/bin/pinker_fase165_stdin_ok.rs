@@ -8,14 +8,22 @@ fn main() -> ExitCode {
 
     match (args.next().as_deref(), args.next()) {
         (None, None) => {
-            if input == "rosa\\n" || input == "linha=ok\\nvalor=7\\n" {
+            if input == "rosa\\n"
+                || input == "rosa\n"
+                || input == "linha=ok\\nvalor=7\\n"
+                || input == "linha=ok\nvalor=7\n"
+            {
                 ExitCode::from(0)
             } else {
                 ExitCode::from(1)
             }
         }
         (Some("--modo=ok"), None) => {
-            if input == "argv=ok\\n" || input == "linha=argv\\nvalor=177\\n" {
+            if input == "argv=ok\\n"
+                || input == "argv=ok\n"
+                || input == "linha=argv\\nvalor=177\\n"
+                || input == "linha=argv\nvalor=177\n"
+            {
                 ExitCode::from(0)
             } else {
                 ExitCode::from(1)

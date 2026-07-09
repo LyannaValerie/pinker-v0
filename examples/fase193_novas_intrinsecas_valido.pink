@@ -1,0 +1,36 @@
+pacote main;
+
+carinho principal() -> bombom {
+    // verso_para_bombom e bombom_para_verso
+    nova texto: verso = "42";
+    nova numero: bombom = verso_para_bombom(texto);
+    nova de_volta: verso = bombom_para_verso(numero);
+    afirmar(numero == 42, "conversão verso->bombom falhou");
+    afirmar(igual_verso(de_volta, "42"), "conversão bombom->verso falhou");
+
+    // aleatorio_entre
+    nova gen: bombom = aleatorio_criar(12345);
+    nova valor: bombom = aleatorio_entre(gen, 1, 100);
+    afirmar(valor >= 1, "aleatorio_entre abaixo do min");
+    afirmar(valor <= 100, "aleatorio_entre acima do max");
+
+    // lista_bombom_inserir
+    nova lista: lista<bombom> = lista_bombom_criar();
+    lista_bombom_anexar(lista, 10);
+    lista_bombom_anexar(lista, 30);
+    lista_bombom_inserir(lista, 1, 20);
+    afirmar(lista_bombom_obter(lista, 0) == 10, "lista[0] deveria ser 10");
+    afirmar(lista_bombom_obter(lista, 1) == 20, "lista[1] deveria ser 20");
+    afirmar(lista_bombom_obter(lista, 2) == 30, "lista[2] deveria ser 30");
+
+    // mapa_verso_bombom_remover
+    nova mapa: mapa<verso,bombom> = mapa_verso_bombom_criar();
+    mapa_verso_bombom_definir(mapa, "a", 1);
+    mapa_verso_bombom_definir(mapa, "b", 2);
+    mapa_verso_bombom_remover(mapa, "a");
+    afirmar(!mapa_verso_bombom_tem(mapa, "a"), "chave 'a' deveria ter sido removida");
+    afirmar(mapa_verso_bombom_tem(mapa, "b"), "chave 'b' deveria existir");
+
+    falar("todas as afirmações passaram");
+    mimo 0;
+}

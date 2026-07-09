@@ -2395,6 +2395,213 @@ fn try_call_intrinsic(
             io_state.exit_status = Some(code.min(i32::MAX as u64) as i32);
             Ok(IntrinsicCall::Done(None))
         }
+        "afirmar" => {
+            if args.is_empty() || args.len() > 2 {
+                return Err(runtime_err(
+                    "intrínseca 'afirmar' exige 1 ou 2 argumentos (condição logica [, mensagem verso])",
+                ));
+            }
+            let RuntimeValue::Bool(cond) = args[0] else {
+                return Err(runtime_err("intrínseca 'afirmar' exige condição logica"));
+            };
+            if !cond {
+                let msg = if args.len() == 2 {
+                    if let RuntimeValue::Str(ref s) = args[1] {
+                        format!("afirmação falhou: {}", s)
+                    } else {
+                        "afirmação falhou".to_string()
+                    }
+                } else {
+                    "afirmação falhou".to_string()
+                };
+                return Err(runtime_err(&msg));
+            }
+            Ok(IntrinsicCall::Done(None))
+        }
+        "dormir" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'dormir' exige 1 argumento (milissegundos bombom)",
+                ));
+            }
+            let RuntimeValue::Int(ms) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'dormir' exige milissegundos bombom",
+                ));
+            };
+            std::thread::sleep(std::time::Duration::from_millis(ms));
+            Ok(IntrinsicCall::Done(None))
+        }
+        "copiar_arquivo" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'copiar_arquivo' exige 2 argumentos (origem verso, destino verso)",
+                ));
+            }
+            let RuntimeValue::Str(ref origem) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'copiar_arquivo' exige origem verso",
+                ));
+            };
+            let RuntimeValue::Str(ref destino) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'copiar_arquivo' exige destino verso",
+                ));
+            };
+            fs::copy(origem, destino).map_err(|err| {
+                runtime_err(&format!(
+                    "falha ao copiar '{}' para '{}': {}",
+                    origem, destino, err
+                ))
+            })?;
+            Ok(IntrinsicCall::Done(None))
+        }
+        "renomear_arquivo" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'renomear_arquivo' exige 2 argumentos (de verso, para verso)",
+                ));
+            }
+            let RuntimeValue::Str(ref de) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'renomear_arquivo' exige 'de' verso",
+                ));
+            };
+            let RuntimeValue::Str(ref para) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'renomear_arquivo' exige 'para' verso",
+                ));
+            };
+            fs::rename(de, para).map_err(|err| {
+                runtime_err(&format!(
+                    "falha ao renomear '{}' para '{}': {}",
+                    de, para, err
+                ))
+            })?;
+            Ok(IntrinsicCall::Done(None))
+        }
+        "verso_para_bombom" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'verso_para_bombom' exige 1 argumento (texto verso)",
+                ));
+            }
+            let RuntimeValue::Str(ref texto) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'verso_para_bombom' exige texto verso",
+                ));
+            };
+            let parsed: u64 = texto
+                .trim()
+                .parse()
+                .map_err(|_| runtime_err(&format!("falha ao converter '{}' para bombom", texto)))?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(parsed))))
+        }
+        "bombom_para_verso" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'bombom_para_verso' exige 1 argumento (valor bombom)",
+                ));
+            }
+            let RuntimeValue::Int(valor) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'bombom_para_verso' exige valor bombom",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
+                valor.to_string(),
+            ))))
+        }
+        "aleatorio_entre" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca 'aleatorio_entre' exige 3 argumentos (gerador bombom, min bombom, max bombom)",
+                ));
+            }
+            let RuntimeValue::Int(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'aleatorio_entre' exige gerador bombom",
+                ));
+            };
+            let RuntimeValue::Int(min) = args[1] else {
+                return Err(runtime_err("intrínseca 'aleatorio_entre' exige min bombom"));
+            };
+            let RuntimeValue::Int(max) = args[2] else {
+                return Err(runtime_err("intrínseca 'aleatorio_entre' exige max bombom"));
+            };
+            if min > max {
+                return Err(runtime_err(
+                    "intrínseca 'aleatorio_entre': min não pode ser maior que max",
+                ));
+            }
+            let generator = random_state
+                .generators
+                .get_mut(&handle)
+                .ok_or_else(|| runtime_err("intrínseca 'aleatorio_entre': gerador inválido"))?;
+            let raw = advance_random_generator(&mut generator.state);
+            let range = max - min + 1;
+            let result = if range == 0 { raw } else { min + (raw % range) };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(result))))
+        }
+        "mapa_verso_bombom_remover" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_remover' exige 2 argumentos (mapa, chave verso)",
+                ));
+            }
+            let RuntimeValue::MapVersoBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_remover' exige mapa<verso,bombom>",
+                ));
+            };
+            let RuntimeValue::Str(ref chave) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_bombom_remover' exige chave verso",
+                ));
+            };
+            let mapa = map_state
+                .maps_verso_bombom
+                .get_mut(&handle)
+                .ok_or_else(|| {
+                    runtime_err("intrínseca 'mapa_verso_bombom_remover': mapa inválido")
+                })?;
+            mapa.remove(chave);
+            Ok(IntrinsicCall::Done(None))
+        }
+        "lista_bombom_inserir" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_inserir' exige 3 argumentos (lista, índice bombom, valor bombom)",
+                ));
+            }
+            let RuntimeValue::ListBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_inserir' exige lista<bombom>",
+                ));
+            };
+            let RuntimeValue::Int(index) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_inserir' exige índice bombom",
+                ));
+            };
+            let RuntimeValue::Int(valor) = args[2] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_inserir' exige valor bombom",
+                ));
+            };
+            let lista = list_state
+                .lists_bombom
+                .get_mut(&handle)
+                .ok_or_else(|| runtime_err("intrínseca 'lista_bombom_inserir': lista inválida"))?;
+            let idx = index as usize;
+            if idx > lista.len() {
+                return Err(runtime_err(
+                    "intrínseca 'lista_bombom_inserir': índice fora dos limites",
+                ));
+            }
+            lista.insert(idx, valor);
+            Ok(IntrinsicCall::Done(None))
+        }
         _ => Ok(IntrinsicCall::NotIntrinsic),
     }
 }

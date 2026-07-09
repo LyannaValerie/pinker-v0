@@ -637,6 +637,69 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Verso],
         },
     );
+    function_sigs.insert(
+        "afirmar".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Logica],
+        },
+    );
+    function_sigs.insert(
+        "dormir".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "copiar_arquivo".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
+        "renomear_arquivo".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Verso, TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
+        "verso_para_bombom".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
+        "bombom_para_verso".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "aleatorio_entre".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "mapa_verso_bombom_remover".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::MapVersoBombom, TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
+        "lista_bombom_inserir".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::ListBombom, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
 
     for function in &program.functions {
         validate_function(function, &global_consts, &function_sigs)?;
@@ -1197,6 +1260,8 @@ fn validate_block(
                                 && (args.len() == 1 || args.len() == 2)))
                     {
                         // aceita a camada 1 conservadora de argv explícito sem abrir argv geral
+                    } else if callee == "afirmar" && (args.len() == 1 || args.len() == 2) {
+                        // aceita afirmar com 1 ou 2 argumentos
                     } else {
                         return Err(cfg_error(
                             "aridade inválida em call da CFG IR",
@@ -1223,6 +1288,12 @@ fn validate_block(
                     ));
                 }
                 if callee == "capturar_stderr" && !(args.len() == 1 || args.len() == 2) {
+                    return Err(cfg_error(
+                        "aridade inválida em call da CFG IR",
+                        function.span,
+                    ));
+                }
+                if callee == "afirmar" && !(args.len() == 1 || args.len() == 2) {
                     return Err(cfg_error(
                         "aridade inválida em call da CFG IR",
                         function.span,

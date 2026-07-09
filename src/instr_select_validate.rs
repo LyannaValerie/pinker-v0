@@ -115,6 +115,15 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("pipeline_minimo".to_string(), TypeIR::Bombom);
     sigs.insert("capturar_stdout".to_string(), TypeIR::Verso);
     sigs.insert("capturar_stderr".to_string(), TypeIR::Verso);
+    sigs.insert("afirmar".to_string(), TypeIR::Nulo);
+    sigs.insert("dormir".to_string(), TypeIR::Nulo);
+    sigs.insert("copiar_arquivo".to_string(), TypeIR::Nulo);
+    sigs.insert("renomear_arquivo".to_string(), TypeIR::Nulo);
+    sigs.insert("verso_para_bombom".to_string(), TypeIR::Bombom);
+    sigs.insert("bombom_para_verso".to_string(), TypeIR::Verso);
+    sigs.insert("aleatorio_entre".to_string(), TypeIR::Bombom);
+    sigs.insert("mapa_verso_bombom_remover".to_string(), TypeIR::Nulo);
+    sigs.insert("lista_bombom_inserir".to_string(), TypeIR::Nulo);
 
     for f in &program.functions {
         if f.blocks.is_empty() {

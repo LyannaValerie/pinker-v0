@@ -1,0 +1,11 @@
+pacote main;
+
+/* Este é um comentário de bloco */
+
+carinho principal() -> bombom {
+    nova x: bombom = 42; // comentário de linha
+    /* comentário
+       de múltiplas
+       linhas */
+    mimo x;
+}
