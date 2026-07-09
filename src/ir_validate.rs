@@ -1393,9 +1393,18 @@ fn ir_validation_error(msg: &str, span: Span) -> PinkerError {
     }
 }
 
+fn is_int_literal_value(value: &ValueIR) -> bool {
+    matches!(value, ValueIR::Int(_))
+        || matches!(
+            value,
+            ValueIR::Unary { op: UnaryOpIR::Neg, operand }
+                if matches!(operand.as_ref(), ValueIR::Int(_))
+        )
+}
+
 fn value_matches_expected(value: &ValueIR, actual: TypeIR, expected: TypeIR) -> bool {
     actual.is_compatible_with(expected)
-        || (matches!(value, ValueIR::Int(_)) && expected.is_integer())
+        || (is_int_literal_value(value) && expected.is_integer())
         || (matches!(value, ValueIR::Int(_)) && matches!(expected, TypeIR::Pointer { .. }))
 }
 

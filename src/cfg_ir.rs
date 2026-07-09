@@ -1129,10 +1129,7 @@ fn lower_constant_value(value: &ValueIR, span: Span) -> Result<ValueCfgIR, Pinke
         ValueIR::Bool(v) => Ok(OperandIR::Bool(*v)),
         ValueIR::GlobalConst(name) => Ok(OperandIR::GlobalConst(name.clone())),
         ValueIR::Local(slot) => Ok(OperandIR::Local(slot.clone())),
-        ValueIR::String(_) => Err(PinkerError::Ir {
-            msg: "constante global 'verso' ainda não é lowerada na CFG IR nesta fase".to_string(),
-            span,
-        }),
+        ValueIR::String(s) => Ok(OperandIR::Str(s.clone())),
         _ => Err(PinkerError::Ir {
             msg: "constante global com valor não-literal fora do escopo da CFG IR".to_string(),
             span,

@@ -1,0 +1,23 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova muda contador: bombom = 0;
+
+    repetir {
+        contador += 1;
+    } ate contador == 5;
+
+    afirmar(contador == 5, "repetir ate deveria parar em 5");
+
+    nova muda soma: bombom = 0;
+    nova muda i: bombom = 1;
+    repetir {
+        soma += i;
+        i += 1;
+    } ate i > 10;
+
+    afirmar(soma == 55, "soma de 1 a 10 deveria ser 55");
+
+    falar("repetir ate ok");
+    mimo 0;
+}

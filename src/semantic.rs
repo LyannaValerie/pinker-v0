@@ -322,6 +322,10 @@ impl SemanticChecker {
 
     fn expr_is_int_literal(expr: &Expr) -> bool {
         matches!(expr.kind, ExprKind::IntLit(_))
+            || matches!(
+                &expr.kind,
+                ExprKind::Unary(UnaryOp::Neg, inner) if matches!(inner.kind, ExprKind::IntLit(_))
+            )
     }
 
     fn is_cast_allowed(source: &Type, target: &Type) -> bool {
@@ -353,6 +357,28 @@ impl SemanticChecker {
     /// Retorna `Ok(())` se o literal couber ou se o tipo não impõe restrição de faixa.
     /// Retorna erro semântico se o literal exceder o intervalo válido do tipo.
     fn validate_int_literal_range(expected: &Type, expr: &Expr) -> Result<(), PinkerError> {
+        if let ExprKind::Unary(UnaryOp::Neg, inner) = &expr.kind {
+            if let ExprKind::IntLit(value) = &inner.kind {
+                let value = *value;
+                let (type_name, fits) = match expected {
+                    Type::U8(_) | Type::U16(_) | Type::U32(_) | Type::U64(_)
+                    | Type::Bombom(_) => return Ok(()),
+                    Type::I8(_) => ("i8", value <= 128),
+                    Type::I16(_) => ("i16", value <= 32768),
+                    Type::I32(_) => ("i32", value <= 2147483648),
+                    Type::I64(_) => ("i64", value <= 9223372036854775808),
+                    _ => return Ok(()),
+                };
+                return if fits {
+                    Ok(())
+                } else {
+                    Err(PinkerError::Semantic {
+                        msg: format!("literal -{} excede a faixa do tipo '{}'", value, type_name),
+                        span: expr.span,
+                    })
+                };
+            }
+        }
         let ExprKind::IntLit(value) = &expr.kind else {
             return Ok(());
         };

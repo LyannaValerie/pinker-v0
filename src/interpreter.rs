@@ -172,6 +172,7 @@ fn eval_global_value(g: &MachineGlobal) -> Result<RuntimeValue, PinkerError> {
         (OperandIR::Int(v), ty) if ty.is_signed() => Ok(RuntimeValue::IntSigned(*v as i64)),
         (OperandIR::Int(v), _) => Ok(RuntimeValue::Int(*v)),
         (OperandIR::Bool(v), _) => Ok(RuntimeValue::Bool(*v)),
+        (OperandIR::Str(s), _) => Ok(RuntimeValue::Str(s.clone())),
         _ => Err(runtime_err("valor global não suportado em runtime")),
     }
 }

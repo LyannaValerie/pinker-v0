@@ -1,0 +1,14 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova x: i32 = -42;
+    nova y: i8 = -128;
+    nova z: i16 = -32768;
+    nova w: i64 = -1;
+
+    afirmar(x == -42 virar i32, "i32 negativo falhou");
+    afirmar(y == -128 virar i8, "i8 -128 falhou");
+
+    falar("literais negativos ok");
+    mimo 0;
+}

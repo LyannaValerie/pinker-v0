@@ -472,7 +472,7 @@ impl Parser {
 
         while !self.check(TokenKind::RBrace) && self.peek().is_some() {
             if self.check(TokenKind::KwPara) {
-                stmts.extend(self.parse_for_each_stmt_desugared()?);
+                stmts.extend(self.parse_for_stmt_desugared()?);
             } else {
                 stmts.push(self.parse_stmt()?);
             }
@@ -604,6 +604,37 @@ impl Parser {
             }));
         }
 
+        if self.match_token(TokenKind::KwRepetir) {
+            let start_span = self.previous().span;
+            let body = self.parse_block()?;
+            self.consume(TokenKind::KwAte, "ate")?;
+            let condition = self.parse_expr()?;
+            self.consume(TokenKind::Semi, ";")?;
+            let loop_span = merge_span(start_span, self.previous().span);
+            let break_stmt = Stmt::If(IfStmt {
+                condition,
+                then_branch: Block {
+                    stmts: vec![Stmt::Break(BreakStmt { span: loop_span })],
+                    span: loop_span,
+                },
+                else_branch: None,
+                span: loop_span,
+            });
+            let mut while_body = body.stmts;
+            while_body.push(break_stmt);
+            return Ok(Stmt::While(WhileStmt {
+                condition: Expr {
+                    kind: ExprKind::BoolLit(true),
+                    span: loop_span,
+                },
+                body: Block {
+                    stmts: while_body,
+                    span: loop_span,
+                },
+                span: loop_span,
+            }));
+        }
+
         if self.match_token(TokenKind::KwTalvez) {
             let start_span = self.previous().span;
             let condition = self.parse_expr()?;
@@ -696,9 +727,85 @@ impl Parser {
         }))
     }
 
-    fn parse_for_each_stmt_desugared(&mut self) -> Result<Vec<Stmt>, PinkerError> {
+    fn parse_for_stmt_desugared(&mut self) -> Result<Vec<Stmt>, PinkerError> {
         let start_span = self.consume(TokenKind::KwPara, "para")?.span;
-        self.consume(TokenKind::KwCada, "cada")?;
+        if self.match_token(TokenKind::KwCada) {
+            return self.parse_for_each_after_cada(start_span);
+        }
+        let var_name = self
+            .consume(TokenKind::Ident, "variável do iterador em 'para'")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::KwEm, "em")?;
+        let start_expr = self.parse_expr()?;
+        self.consume(TokenKind::DotDot, "..")?;
+        let end_expr = self.parse_expr()?;
+        let body = self.parse_block()?;
+        let loop_span = merge_span(start_span, body.span);
+        self.synthetic_counter += 1;
+        let suffix = self.synthetic_counter;
+        let limit_name = format!("__range_limite_{suffix}");
+
+        let var_binding = Stmt::Let(LetStmt {
+            name: var_name.clone(),
+            is_mut: true,
+            ty: Some(Type::Bombom(loop_span)),
+            init: start_expr,
+            span: loop_span,
+        });
+        let limit_binding = Stmt::Let(LetStmt {
+            name: limit_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Bombom(loop_span)),
+            init: end_expr,
+            span: loop_span,
+        });
+        let condition = Expr {
+            kind: ExprKind::Binary(
+                Box::new(Expr {
+                    kind: ExprKind::Ident(var_name.clone()),
+                    span: loop_span,
+                }),
+                BinaryOp::Lt,
+                Box::new(Expr {
+                    kind: ExprKind::Ident(limit_name),
+                    span: loop_span,
+                }),
+            ),
+            span: loop_span,
+        };
+        let increment = Stmt::Assign(AssignStmt {
+            target: AssignTarget::Ident(var_name.clone()),
+            expr: Expr {
+                kind: ExprKind::Binary(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(var_name),
+                        span: loop_span,
+                    }),
+                    BinaryOp::Add,
+                    Box::new(Expr {
+                        kind: ExprKind::IntLit(1),
+                        span: loop_span,
+                    }),
+                ),
+                span: loop_span,
+            },
+            span: loop_span,
+        });
+        let mut while_body = body.stmts;
+        while_body.push(increment);
+        let while_stmt = Stmt::While(WhileStmt {
+            condition,
+            body: Block {
+                stmts: while_body,
+                span: loop_span,
+            },
+            span: loop_span,
+        });
+        Ok(vec![var_binding, limit_binding, while_stmt])
+    }
+
+    fn parse_for_each_after_cada(&mut self, start_span: Span) -> Result<Vec<Stmt>, PinkerError> {
         let item_name = self
             .consume(TokenKind::Ident, "variável do item em 'para cada'")?
             .lexeme
@@ -708,7 +815,6 @@ impl Parser {
         let body = self.parse_block()?;
         let loop_span = merge_span(start_span, body.span);
 
-        // Detecta tipo de coleção para despachar desugaring correto.
         let is_map = match &collection_expr.kind {
             ExprKind::Ident(name) => matches!(
                 self.collection_types.get(name.as_str()),

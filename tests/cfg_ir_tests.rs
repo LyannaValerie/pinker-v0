@@ -363,7 +363,7 @@ fn cfg_ir_inline_asm_ainda_fora_do_escopo_operacional() {
 }
 
 #[test]
-fn cfg_ir_verso_ainda_fora_do_escopo_operacional() {
+fn cfg_ir_verso_constante_global_operacional() {
     let code = r#"
         pacote main;
         eterno MSG: verso = "oi";
@@ -371,8 +371,8 @@ fn cfg_ir_verso_ainda_fora_do_escopo_operacional() {
             mimo 0;
         }
     "#;
-    let err = render_cfg_ir(code).unwrap_err().to_string();
-    assert!(err.contains("constante global 'verso' ainda não é lowerada"));
+    let result = render_cfg_ir(code).unwrap();
+    assert!(result.contains("const @MSG: verso"));
 }
 
 #[test]

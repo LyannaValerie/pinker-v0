@@ -1,0 +1,24 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova muda soma: bombom = 0;
+    para i em 0..10 {
+        soma += i;
+    }
+    afirmar(soma == 45, "soma de 0 a 9 deveria ser 45");
+
+    nova muda produto: bombom = 1;
+    para j em 1..6 {
+        produto = produto * j;
+    }
+    afirmar(produto == 120, "5! deveria ser 120");
+
+    nova muda conta: bombom = 0;
+    para k em 0..0 {
+        conta += 1;
+    }
+    afirmar(conta == 0, "range vazio nao deveria executar");
+
+    falar("para range ok");
+    mimo 0;
+}

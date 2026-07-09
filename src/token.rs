@@ -40,6 +40,8 @@ pub enum TokenKind {
     KwVerdade,
     KwFalso,
     KwNope,
+    KwRepetir,
+    KwAte,
     Ident,
     IntLit,
     StringLit,
@@ -79,6 +81,7 @@ pub enum TokenKind {
     Dot,
     Colon,
     Semi,
+    DotDot,
     Arrow,
     Eof,
 }
@@ -196,6 +199,8 @@ impl TokenKind {
             TokenKind::KwVerdade => "KwVerdade",
             TokenKind::KwFalso => "KwFalso",
             TokenKind::KwNope => "KwNope",
+            TokenKind::KwRepetir => "KwRepetir",
+            TokenKind::KwAte => "KwAte",
             TokenKind::Ident => "Ident",
             TokenKind::IntLit => "IntLit",
             TokenKind::StringLit => "StringLit",
@@ -235,6 +240,7 @@ impl TokenKind {
             TokenKind::Dot => "Dot",
             TokenKind::Colon => "Colon",
             TokenKind::Semi => "Semi",
+            TokenKind::DotDot => "DotDot",
             TokenKind::Arrow => "Arrow",
             TokenKind::Eof => "Eof",
         }

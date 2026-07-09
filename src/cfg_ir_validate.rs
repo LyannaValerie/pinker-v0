@@ -1493,6 +1493,7 @@ fn operand_matches_expected(operand: &OperandIR, actual: TypeIR, expected: TypeI
     actual.is_compatible_with(expected)
         || (matches!(operand, OperandIR::Int(_)) && expected.is_integer())
         || (matches!(operand, OperandIR::Int(_)) && matches!(expected, TypeIR::Pointer { .. }))
+        || (actual.is_integer() && expected.is_integer())
 }
 
 fn default_span() -> Span {
