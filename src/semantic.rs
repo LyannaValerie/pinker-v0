@@ -142,6 +142,7 @@ impl SemanticChecker {
             | (Type::Logica(_), Type::Logica(_))
             | (Type::Verso(_), Type::Verso(_))
             | (Type::ListBombom(_), Type::ListBombom(_))
+            | (Type::ListVerso(_), Type::ListVerso(_))
             | (Type::MapVersoBombom(_), Type::MapVersoBombom(_)) => true,
             (Type::Struct { name: lhs_name, .. }, Type::Struct { name: rhs_name, .. }) => {
                 lhs_name == rhs_name
@@ -361,8 +362,9 @@ impl SemanticChecker {
             if let ExprKind::IntLit(value) = &inner.kind {
                 let value = *value;
                 let (type_name, fits) = match expected {
-                    Type::U8(_) | Type::U16(_) | Type::U32(_) | Type::U64(_)
-                    | Type::Bombom(_) => return Ok(()),
+                    Type::U8(_) | Type::U16(_) | Type::U32(_) | Type::U64(_) | Type::Bombom(_) => {
+                        return Ok(())
+                    }
                     Type::I8(_) => ("i8", value <= 128),
                     Type::I16(_) => ("i16", value <= 32768),
                     Type::I32(_) => ("i32", value <= 2147483648),
@@ -1725,6 +1727,246 @@ impl SemanticChecker {
                 });
             }
             return Ok(Type::Bombom(expr_span));
+        }
+        if name == "lista_verso_criar" {
+            if !args.is_empty() {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'lista_verso_criar' com aridade inválida: esperado 0, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            return Ok(Type::ListVerso(expr_span));
+        }
+        if name == "lista_verso_anexar" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'lista_verso_anexar' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let lista_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(lista_ty, Type::ListVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'lista_verso_anexar': esperado 'lista<verso>', encontrado '{}'",
+                        lista_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let val_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(val_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'lista_verso_anexar': esperado 'verso', encontrado '{}'",
+                        val_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
+        }
+        if name == "lista_verso_obter" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'lista_verso_obter' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let lista_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(lista_ty, Type::ListVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'lista_verso_obter': esperado 'lista<verso>', encontrado '{}'",
+                        lista_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let idx_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(idx_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'lista_verso_obter': esperado 'bombom', encontrado '{}'",
+                        idx_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Verso(expr_span));
+        }
+        if name == "lista_verso_tamanho" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'lista_verso_tamanho' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let lista_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(lista_ty, Type::ListVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'lista_verso_tamanho': esperado 'lista<verso>', encontrado '{}'",
+                        lista_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
+        if name == "lista_verso_definir" {
+            if args.len() != 3 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'lista_verso_definir' com aridade inválida: esperado 3, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let lista_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(lista_ty, Type::ListVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'lista_verso_definir': esperado 'lista<verso>', encontrado '{}'",
+                        lista_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let idx_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(idx_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'lista_verso_definir': esperado 'bombom', encontrado '{}'",
+                        idx_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            let val_ty = self.check_value_expr(
+                &args[2],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(val_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 3 da chamada 'lista_verso_definir': esperado 'verso', encontrado '{}'",
+                        val_ty.name()
+                    ),
+                    span: args[2].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
+        }
+        if name == "lista_verso_tirar_ultimo" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'lista_verso_tirar_ultimo' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let lista_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(lista_ty, Type::ListVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'lista_verso_tirar_ultimo': esperado 'lista<verso>', encontrado '{}'",
+                        lista_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Verso(expr_span));
+        }
+        if name == "lista_verso_inserir" {
+            if args.len() != 3 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'lista_verso_inserir' com aridade inválida: esperado 3, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let lista_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(lista_ty, Type::ListVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'lista_verso_inserir': esperado 'lista<verso>', encontrado '{}'",
+                        lista_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let idx_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(idx_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'lista_verso_inserir': esperado 'bombom', encontrado '{}'",
+                        idx_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            let val_ty = self.check_value_expr(
+                &args[2],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(val_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 3 da chamada 'lista_verso_inserir': esperado 'verso', encontrado '{}'",
+                        val_ty.name()
+                    ),
+                    span: args[2].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
         }
         if name == "mapa_verso_bombom_criar" {
             if !args.is_empty() {
@@ -3746,12 +3988,12 @@ impl SemanticChecker {
             return Ok(Type::Verso(expr_span));
         }
 
-        // Fase 157 — formatar_verso(modelo, a[, b]) -> verso
+        // Fase 157 — formatar_verso(modelo, a[, b, ...]) -> verso
         if name == "formatar_verso" {
-            if !(args.len() == 2 || args.len() == 3) {
+            if args.len() < 2 {
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "chamada de 'formatar_verso' com aridade inválida: esperado 2 ou 3, recebido {}",
+                        "chamada de 'formatar_verso' com aridade inválida: esperado pelo menos 2, recebido {}",
                         args.len()
                     ),
                     span: expr_span,
@@ -3787,6 +4029,50 @@ impl SemanticChecker {
                 }
             }
             return Ok(Type::Verso(expr_span));
+        }
+
+        if name == "__ternario" {
+            if args.len() != 3 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "expressão ternária requer exatamente 3 argumentos (condição, valor_verdade, valor_falso), recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let cond_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como condição ternária",
+            )?;
+            if !matches!(cond_ty, Type::Logica(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "condição da expressão ternária deve ser 'logica', encontrado '{}'",
+                        cond_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let then_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado em expressão ternária",
+            )?;
+            let else_ty = self.check_value_expr(
+                &args[2],
+                "resultado de função sem retorno não pode ser usado em expressão ternária",
+            )?;
+            if then_ty != else_ty {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "ramos da expressão ternária devem ter o mesmo tipo: '{}' vs '{}'",
+                        then_ty.name(),
+                        else_ty.name()
+                    ),
+                    span: expr_span,
+                });
+            }
+            return Ok(then_ty.with_span(expr_span));
         }
 
         // Fase 158 — ler_linha_csv_bombom(linha, sep) -> lista<bombom>

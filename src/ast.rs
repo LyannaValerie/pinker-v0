@@ -262,6 +262,7 @@ pub enum Type {
     Logica(Span),
     Verso(Span),
     ListBombom(Span),
+    ListVerso(Span),
     MapVersoBombom(Span),
     FixedArray {
         element: Box<Type>,
@@ -302,6 +303,7 @@ impl PartialEq for Type {
             | (Type::Logica(_), Type::Logica(_))
             | (Type::Verso(_), Type::Verso(_))
             | (Type::ListBombom(_), Type::ListBombom(_))
+            | (Type::ListVerso(_), Type::ListVerso(_))
             | (Type::MapVersoBombom(_), Type::MapVersoBombom(_))
             | (Type::Nulo(_), Type::Nulo(_)) => true,
             (
@@ -352,6 +354,7 @@ impl Type {
             | Type::Logica(span)
             | Type::Verso(span)
             | Type::ListBombom(span)
+            | Type::ListVerso(span)
             | Type::MapVersoBombom(span)
             | Type::Nulo(span) => *span,
             Type::Alias { span, .. }
@@ -375,6 +378,7 @@ impl Type {
             Type::Logica(_) => "logica",
             Type::Verso(_) => "verso",
             Type::ListBombom(_) => "lista<bombom>",
+            Type::ListVerso(_) => "lista<verso>",
             Type::MapVersoBombom(_) => "mapa<verso,bombom>",
             Type::FixedArray { .. } => "array",
             Type::Pointer { .. } => "seta",
@@ -398,6 +402,7 @@ impl Type {
             Type::Logica(_) => Type::Logica(span),
             Type::Verso(_) => Type::Verso(span),
             Type::ListBombom(_) => Type::ListBombom(span),
+            Type::ListVerso(_) => Type::ListVerso(span),
             Type::MapVersoBombom(_) => Type::MapVersoBombom(span),
             Type::FixedArray { element, size, .. } => Type::FixedArray {
                 element: element.clone(),

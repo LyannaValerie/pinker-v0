@@ -4921,11 +4921,7 @@ fn cli_cfg_ir_verso_constante_global_com_exemplo_versionado() {
         .expect("falha ao executar CLI --cfg-ir");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("const @MSG: verso"),
-        "stdout: {}",
-        stdout
-    );
+    assert!(stdout.contains("const @MSG: verso"), "stdout: {}", stdout);
 }
 
 #[test]

@@ -1,0 +1,12 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova dia = 3;
+    escolha dia {
+        caso 1 { falar(1); }
+        caso 2 { falar(2); }
+        caso 3 { falar(3); }
+        senao { falar(0); }
+    }
+    mimo 0;
+}

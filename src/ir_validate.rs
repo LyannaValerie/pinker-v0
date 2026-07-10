@@ -118,6 +118,48 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "lista_verso_criar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::ListVerso,
+            params: vec![],
+        },
+    );
+    funcs.insert(
+        "lista_verso_anexar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::ListVerso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "lista_verso_obter".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::ListVerso, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "lista_verso_tamanho".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::ListVerso],
+        },
+    );
+    funcs.insert(
+        "lista_verso_definir".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::ListVerso, TypeIR::Bombom, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "lista_verso_tirar_ultimo".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::ListVerso],
+        },
+    );
+    funcs.insert(
         "mapa_verso_bombom_criar".to_string(),
         FunctionSig {
             ret_type: TypeIR::MapVersoBombom,
@@ -693,6 +735,13 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         FunctionSig {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::ListBombom, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "lista_verso_inserir".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::ListVerso, TypeIR::Bombom, TypeIR::Verso],
         },
     );
 
@@ -1273,8 +1322,22 @@ fn infer_value_type(
             args,
             ret_type,
         } => {
+            if callee == "__ternario" {
+                if args.len() != 3 {
+                    return Err(ir_validation_error("aridade de __ternario inválida", span));
+                }
+                let cond_ty = infer_value_type(&args[0], slots, consts, funcs, span)?;
+                if !value_matches_expected(&args[0], cond_ty, TypeIR::Logica) {
+                    return Err(ir_validation_error(
+                        "condição de __ternario deve ser logica",
+                        span,
+                    ));
+                }
+                let then_ty = infer_value_type(&args[1], slots, consts, funcs, span)?;
+                return Ok(then_ty);
+            }
             if callee == "formatar_verso" {
-                if !(args.len() == 2 || args.len() == 3) {
+                if args.len() < 2 {
                     return Err(ir_validation_error("aridade de chamada inválida", span));
                 }
                 let modelo_ty = infer_value_type(&args[0], slots, consts, funcs, span)?;

@@ -216,6 +216,7 @@ pub enum TypeIR {
     Logica,
     Verso,
     ListBombom,
+    ListVerso,
     MapVersoBombom,
     FixedArray { element: ScalarTypeIR, size: u64 },
     Struct,
@@ -532,6 +533,48 @@ impl LoweringContext {
             "lista_bombom_tirar_ultimo".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "lista_verso_criar".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::ListVerso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "lista_verso_anexar".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "lista_verso_obter".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "lista_verso_tamanho".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "lista_verso_definir".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "lista_verso_tirar_ultimo".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
                 ret_struct_name: None,
             },
         );
@@ -1099,6 +1142,13 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
+        function_sigs.insert(
+            "lista_verso_inserir".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
 
         Ok(Self {
             module_name,
@@ -1644,6 +1694,25 @@ impl<'a> FunctionLowerer<'a> {
                         span: expr.span,
                     });
                 };
+
+                if name == "__ternario" {
+                    let typed_args: Vec<TypedValueIR> = args
+                        .iter()
+                        .map(|arg| self.lower_value(arg))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let ret_type = typed_args[1].ty;
+                    let ir_args: Vec<ValueIR> = typed_args.into_iter().map(|t| t.value).collect();
+                    return Ok(TypedValueIR {
+                        value: ValueIR::Call {
+                            callee: name.clone(),
+                            args: ir_args,
+                            ret_type,
+                        },
+                        ty: ret_type,
+                        struct_name: None,
+                        ptr_array_bombom_size: None,
+                    });
+                }
 
                 let args = args
                     .iter()
@@ -2193,6 +2262,7 @@ impl TypeIR {
             Type::Logica(_) => Ok(TypeIR::Logica),
             Type::Verso(_) => Ok(TypeIR::Verso),
             Type::ListBombom(_) => Ok(TypeIR::ListBombom),
+            Type::ListVerso(_) => Ok(TypeIR::ListVerso),
             Type::MapVersoBombom(_) => Ok(TypeIR::MapVersoBombom),
             Type::FixedArray {
                 element,
@@ -2292,6 +2362,7 @@ impl TypeIR {
             TypeIR::Logica => "logica",
             TypeIR::Verso => "verso",
             TypeIR::ListBombom => "lista<bombom>",
+            TypeIR::ListVerso => "lista<verso>",
             TypeIR::MapVersoBombom => "mapa<verso,bombom>",
             TypeIR::FixedArray { .. } => "array",
             TypeIR::Struct => "struct",
@@ -2314,6 +2385,7 @@ impl TypeIR {
             }
             TypeIR::Struct => "struct".to_string(),
             TypeIR::ListBombom => "lista<bombom>".to_string(),
+            TypeIR::ListVerso => "lista<verso>".to_string(),
             TypeIR::MapVersoBombom => "mapa<verso,bombom>".to_string(),
             _ => self.name().to_string(),
         }
@@ -2335,6 +2407,7 @@ impl ScalarTypeIR {
             TypeIR::Logica => Some(ScalarTypeIR::Logica),
             TypeIR::Verso
             | TypeIR::ListBombom
+            | TypeIR::ListVerso
             | TypeIR::MapVersoBombom
             | TypeIR::FixedArray { .. }
             | TypeIR::Struct

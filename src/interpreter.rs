@@ -50,6 +50,7 @@ struct RuntimeIoState {
 
 struct RuntimeListState {
     lists_bombom: HashMap<u64, Vec<u64>>,
+    lists_verso: HashMap<u64, Vec<String>>,
     next_list_handle: u64,
 }
 
@@ -96,6 +97,7 @@ pub enum RuntimeValue {
     Bool(bool),
     Str(String),
     ListBombom(u64),
+    ListVerso(u64),
     MapVersoBombom(u64),
 }
 
@@ -124,6 +126,7 @@ pub fn run_program_with_args(
     };
     let mut list_state = RuntimeListState {
         lists_bombom: HashMap::new(),
+        lists_verso: HashMap::new(),
         next_list_handle: 1,
     };
     let mut map_state = RuntimeMapState {
@@ -390,6 +393,7 @@ fn exec_instr(
                 RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Str(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::ListBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::ListVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapVersoBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(out);
@@ -407,6 +411,7 @@ fn exec_instr(
                 RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Str(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::ListBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::ListVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapVersoBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(out);
@@ -635,6 +640,7 @@ fn exec_instr(
                 RuntimeValue::Bool(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Str(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::ListBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::ListVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapVersoBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
             }
         }
@@ -834,6 +840,168 @@ fn try_call_intrinsic(
                 return Err(runtime_err("lista vazia em 'lista_bombom_tirar_ultimo'"));
             };
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(value))))
+        }
+        "lista_verso_criar" => {
+            if !args.is_empty() {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_criar' exige 0 argumentos",
+                ));
+            }
+            let handle = list_state.next_list_handle;
+            list_state.next_list_handle = list_state.next_list_handle.saturating_add(1);
+            list_state.lists_verso.insert(handle, Vec::new());
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::ListVerso(handle))))
+        }
+        "lista_verso_anexar" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_anexar' exige 2 argumentos (lista<verso>, verso)",
+                ));
+            }
+            let RuntimeValue::ListVerso(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_anexar' exige lista<verso> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Str(value) = args[1].clone() else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_anexar' exige verso no segundo argumento",
+                ));
+            };
+            let Some(lista) = list_state.lists_verso.get_mut(&handle) else {
+                return Err(runtime_err("handle de lista<verso> inválido em runtime"));
+            };
+            lista.push(value);
+            Ok(IntrinsicCall::Done(None))
+        }
+        "lista_verso_obter" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_obter' exige 2 argumentos (lista<verso>, bombom)",
+                ));
+            }
+            let RuntimeValue::ListVerso(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_obter' exige lista<verso> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Int(index) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_obter' exige bombom no segundo argumento",
+                ));
+            };
+            let Some(lista) = list_state.lists_verso.get(&handle) else {
+                return Err(runtime_err("handle de lista<verso> inválido em runtime"));
+            };
+            let Some(value) = lista.get(index as usize) else {
+                return Err(runtime_err(
+                    "índice fora do intervalo em 'lista_verso_obter'",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value.clone()))))
+        }
+        "lista_verso_tamanho" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_tamanho' exige 1 argumento (lista<verso>)",
+                ));
+            }
+            let RuntimeValue::ListVerso(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_tamanho' exige lista<verso> no argumento",
+                ));
+            };
+            let Some(lista) = list_state.lists_verso.get(&handle) else {
+                return Err(runtime_err("handle de lista<verso> inválido em runtime"));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(
+                lista.len() as u64
+            ))))
+        }
+        "lista_verso_definir" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_definir' exige 3 argumentos (lista<verso>, bombom, verso)",
+                ));
+            }
+            let RuntimeValue::ListVerso(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_definir' exige lista<verso> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Int(index) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_definir' exige bombom no segundo argumento",
+                ));
+            };
+            let RuntimeValue::Str(value) = args[2].clone() else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_definir' exige verso no terceiro argumento",
+                ));
+            };
+            let Some(lista) = list_state.lists_verso.get_mut(&handle) else {
+                return Err(runtime_err("handle de lista<verso> inválido em runtime"));
+            };
+            let Some(slot) = lista.get_mut(index as usize) else {
+                return Err(runtime_err(
+                    "índice fora do intervalo em 'lista_verso_definir'",
+                ));
+            };
+            *slot = value;
+            Ok(IntrinsicCall::Done(None))
+        }
+        "lista_verso_tirar_ultimo" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_tirar_ultimo' exige 1 argumento (lista<verso>)",
+                ));
+            }
+            let RuntimeValue::ListVerso(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_tirar_ultimo' exige lista<verso> no argumento",
+                ));
+            };
+            let Some(lista) = list_state.lists_verso.get_mut(&handle) else {
+                return Err(runtime_err("handle de lista<verso> inválido em runtime"));
+            };
+            let Some(value) = lista.pop() else {
+                return Err(runtime_err("lista vazia em 'lista_verso_tirar_ultimo'"));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value))))
+        }
+        "lista_verso_inserir" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_inserir' exige 3 argumentos (lista, índice bombom, valor verso)",
+                ));
+            }
+            let RuntimeValue::ListVerso(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_inserir' exige lista<verso>",
+                ));
+            };
+            let RuntimeValue::Int(index) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_inserir' exige índice bombom",
+                ));
+            };
+            let RuntimeValue::Str(valor) = args[2].clone() else {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_inserir' exige valor verso",
+                ));
+            };
+            let lista = list_state
+                .lists_verso
+                .get_mut(&handle)
+                .ok_or_else(|| runtime_err("intrínseca 'lista_verso_inserir': lista inválida"))?;
+            let idx = index as usize;
+            if idx > lista.len() {
+                return Err(runtime_err(
+                    "intrínseca 'lista_verso_inserir': índice fora dos limites",
+                ));
+            }
+            lista.insert(idx, valor);
+            Ok(IntrinsicCall::Done(None))
         }
         "mapa_verso_bombom_criar" => {
             if !args.is_empty() {
@@ -1754,9 +1922,9 @@ fn try_call_intrinsic(
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(resultado))))
         }
         "formatar_verso" => {
-            if !(args.len() == 2 || args.len() == 3) {
+            if args.len() < 2 {
                 return Err(runtime_err(
-                    "intrínseca 'formatar_verso' exige 2 ou 3 argumentos (modelo verso, bombom/verso[, bombom/verso])",
+                    "intrínseca 'formatar_verso' exige pelo menos 2 argumentos (modelo verso, args...)",
                 ));
             }
             let RuntimeValue::Str(modelo) = &args[0] else {
@@ -1766,6 +1934,25 @@ fn try_call_intrinsic(
             };
             let resultado = formatar_verso_runtime(modelo, &args[1..])?;
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(resultado))))
+        }
+        "__ternario" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca '__ternario' exige 3 argumentos (condição, valor_verdade, valor_falso)",
+                ));
+            }
+            let cond = match &args[0] {
+                RuntimeValue::Bool(b) => *b,
+                _ => {
+                    return Err(runtime_err("intrínseca '__ternario' exige condição logica"));
+                }
+            };
+            let result = if cond {
+                args[1].clone()
+            } else {
+                args[2].clone()
+            };
+            Ok(IntrinsicCall::Done(Some(result)))
         }
         "ler_linha_csv_bombom" => {
             if args.len() != 2 {
@@ -3182,6 +3369,7 @@ fn pop_numeric(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<RuntimeValue,
         RuntimeValue::Bool(_) => Err(runtime_err(msg)),
         RuntimeValue::Str(_) => Err(runtime_err(msg)),
         RuntimeValue::ListBombom(_) => Err(runtime_err(msg)),
+        RuntimeValue::ListVerso(_) => Err(runtime_err(msg)),
         RuntimeValue::MapVersoBombom(_) => Err(runtime_err(msg)),
     }
 }
@@ -3194,6 +3382,7 @@ fn pop_bool(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<bool, PinkerErro
         RuntimeValue::Ptr(_) => Err(runtime_err(msg)),
         RuntimeValue::Str(_) => Err(runtime_err(msg)),
         RuntimeValue::ListBombom(_) => Err(runtime_err(msg)),
+        RuntimeValue::ListVerso(_) => Err(runtime_err(msg)),
         RuntimeValue::MapVersoBombom(_) => Err(runtime_err(msg)),
     }
 }
@@ -3229,6 +3418,9 @@ fn coerce_runtime_value_to_type(
             (RuntimeValue::ListBombom(_), _) => {
                 Err(runtime_err("cast inteiro não aceita lista<bombom>"))
             }
+            (RuntimeValue::ListVerso(_), _) => {
+                Err(runtime_err("cast inteiro não aceita lista<verso>"))
+            }
             (RuntimeValue::MapVersoBombom(_), _) => {
                 Err(runtime_err("cast inteiro não aceita mapa<verso,bombom>"))
             }
@@ -3253,6 +3445,9 @@ fn coerce_runtime_value_to_type(
             RuntimeValue::ListBombom(_) => Err(runtime_err(
                 "ponteiro em runtime requer valor inteiro de endereço",
             )),
+            RuntimeValue::ListVerso(_) => Err(runtime_err(
+                "ponteiro em runtime requer valor inteiro de endereço",
+            )),
             RuntimeValue::MapVersoBombom(_) => Err(runtime_err(
                 "ponteiro em runtime requer valor inteiro de endereço",
             )),
@@ -3263,6 +3458,12 @@ fn coerce_runtime_value_to_type(
         return match value {
             RuntimeValue::ListBombom(handle) => Ok(RuntimeValue::ListBombom(handle)),
             _ => Err(runtime_err("valor incompatível: esperado lista<bombom>")),
+        };
+    }
+    if matches!(ty, crate::ir::TypeIR::ListVerso) {
+        return match value {
+            RuntimeValue::ListVerso(handle) => Ok(RuntimeValue::ListVerso(handle)),
+            _ => Err(runtime_err("valor incompatível: esperado lista<verso>")),
         };
     }
     if matches!(ty, crate::ir::TypeIR::MapVersoBombom) {

@@ -123,6 +123,48 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "lista_verso_criar".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::ListVerso,
+            params: vec![],
+        },
+    );
+    function_sigs.insert(
+        "lista_verso_anexar".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::ListVerso, TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
+        "lista_verso_obter".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::ListVerso, TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "lista_verso_tamanho".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::ListVerso],
+        },
+    );
+    function_sigs.insert(
+        "lista_verso_definir".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::ListVerso, TypeIR::Bombom, TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
+        "lista_verso_tirar_ultimo".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::ListVerso],
+        },
+    );
+    function_sigs.insert(
         "mapa_verso_bombom_criar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::MapVersoBombom,
@@ -700,6 +742,13 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::ListBombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
+    function_sigs.insert(
+        "lista_verso_inserir".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::ListVerso, TypeIR::Bombom, TypeIR::Verso],
+        },
+    );
 
     for function in &program.functions {
         validate_function(function, &global_consts, &function_sigs)?;
@@ -1181,6 +1230,28 @@ fn validate_block(
                 args,
                 ret_type,
             } => {
+                if callee == "__ternario" {
+                    if args.len() != 3 {
+                        return Err(cfg_error(
+                            "aridade inválida em call __ternario",
+                            function.span,
+                        ));
+                    }
+                    let then_ty = infer_operand_type(
+                        &args[1],
+                        slot_types,
+                        &temp_types,
+                        global_consts,
+                        function.span,
+                    )?;
+                    match dest {
+                        Some(dest) => {
+                            temp_types.insert(*dest, then_ty);
+                        }
+                        None => {}
+                    }
+                    continue;
+                }
                 let sig = function_sigs.get(callee).ok_or_else(|| {
                     cfg_error(
                         &format!("call para função inexistente '{}'", callee),
@@ -1188,7 +1259,7 @@ fn validate_block(
                     )
                 })?;
                 if callee == "formatar_verso" {
-                    if !(args.len() == 2 || args.len() == 3) {
+                    if args.len() < 2 {
                         return Err(cfg_error(
                             "aridade inválida em call da CFG IR",
                             function.span,

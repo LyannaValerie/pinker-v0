@@ -1,0 +1,9 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova nome: verso = "Pinker";
+    nova versao = 2;
+    nova msg: verso = $"Olá, {nome}! Versão {versao}.";
+    falar(msg);
+    mimo 0;
+}
