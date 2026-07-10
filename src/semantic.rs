@@ -82,6 +82,7 @@ pub struct SemanticChecker {
     consts: HashMap<String, ConstDecl>,
     type_aliases: HashMap<String, Type>,
     structs: HashMap<String, StructDecl>,
+    enums: HashMap<String, EnumDecl>,
     scopes: Vec<Scope>,
     current_func_name: Option<String>,
     current_func_ret: Option<Type>,
@@ -101,6 +102,7 @@ impl SemanticChecker {
             consts: HashMap::new(),
             type_aliases: HashMap::new(),
             structs: HashMap::new(),
+            enums: HashMap::new(),
             scopes: Vec::new(),
             current_func_name: None,
             current_func_ret: None,
@@ -152,6 +154,9 @@ impl SemanticChecker {
             (Type::Struct { name: lhs_name, .. }, Type::Struct { name: rhs_name, .. }) => {
                 lhs_name == rhs_name
             }
+            (Type::Enum { name: lhs_name, .. }, Type::Enum { name: rhs_name, .. }) => {
+                lhs_name == rhs_name
+            }
             (
                 Type::FixedArray {
                     element: lhs_element,
@@ -195,6 +200,12 @@ impl SemanticChecker {
             Type::Alias { name, span } => {
                 if self.structs.contains_key(name) {
                     return Ok(Type::Struct {
+                        name: name.clone(),
+                        span: *span,
+                    });
+                }
+                if self.enums.contains_key(name) {
+                    return Ok(Type::Enum {
                         name: name.clone(),
                         span: *span,
                     });
@@ -351,6 +362,8 @@ impl SemanticChecker {
 
         (matches!(source, Type::Bombom(_)) && is_bombom_ptr(target))
             || (is_bombom_ptr(source) && matches!(target, Type::Bombom(_)))
+            // Leitura do discriminante de um leque; o caminho inverso continua fechado.
+            || (matches!(source, Type::Enum { .. }) && matches!(target, Type::Bombom(_)))
     }
 
     fn check_expected_type_for_expr(expected: &Type, actual: &Type, expr: &Expr) -> bool {
@@ -548,11 +561,13 @@ impl SemanticChecker {
                             span: alias.span,
                         });
                     }
-                    if self.funcs.contains_key(&alias.name) || self.consts.contains_key(&alias.name)
+                    if self.funcs.contains_key(&alias.name)
+                        || self.consts.contains_key(&alias.name)
+                        || self.enums.contains_key(&alias.name)
                     {
                         return Err(PinkerError::Semantic {
                             msg: format!(
-                                "nome '{}' já utilizado por função/constante global",
+                                "nome '{}' já utilizado por função/constante/leque",
                                 alias.name
                             ),
                             span: alias.span,
@@ -571,10 +586,11 @@ impl SemanticChecker {
                     if self.funcs.contains_key(&struct_decl.name)
                         || self.consts.contains_key(&struct_decl.name)
                         || self.type_aliases.contains_key(&struct_decl.name)
+                        || self.enums.contains_key(&struct_decl.name)
                     {
                         return Err(PinkerError::Semantic {
                             msg: format!(
-                                "nome '{}' já utilizado por função/constante/alias de tipo",
+                                "nome '{}' já utilizado por função/constante/alias de tipo/leque",
                                 struct_decl.name
                             ),
                             span: struct_decl.span,
@@ -582,6 +598,49 @@ impl SemanticChecker {
                     }
                     self.structs
                         .insert(struct_decl.name.clone(), struct_decl.clone());
+                }
+                Item::Enum(enum_decl) => {
+                    if self.enums.contains_key(&enum_decl.name) {
+                        return Err(PinkerError::Semantic {
+                            msg: format!("leque '{}' já declarado", enum_decl.name),
+                            span: enum_decl.span,
+                        });
+                    }
+                    if self.funcs.contains_key(&enum_decl.name)
+                        || self.consts.contains_key(&enum_decl.name)
+                        || self.type_aliases.contains_key(&enum_decl.name)
+                        || self.structs.contains_key(&enum_decl.name)
+                    {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "nome '{}' já utilizado por função/constante/alias/struct",
+                                enum_decl.name
+                            ),
+                            span: enum_decl.span,
+                        });
+                    }
+                    if enum_decl.variants.is_empty() {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "leque '{}' deve ter ao menos uma variante",
+                                enum_decl.name
+                            ),
+                            span: enum_decl.span,
+                        });
+                    }
+                    let mut seen_variants = HashSet::new();
+                    for variant in &enum_decl.variants {
+                        if !seen_variants.insert(variant.name.as_str()) {
+                            return Err(PinkerError::Semantic {
+                                msg: format!(
+                                    "variante '{}' duplicada no leque '{}'",
+                                    variant.name, enum_decl.name
+                                ),
+                                span: variant.span,
+                            });
+                        }
+                    }
+                    self.enums.insert(enum_decl.name.clone(), enum_decl.clone());
                 }
             }
         }
@@ -600,7 +659,7 @@ impl SemanticChecker {
             match item {
                 Item::Function(function) => self.check_function(function)?,
                 Item::Const(constant) => self.check_const_body(constant)?,
-                Item::TypeAlias(_) | Item::Struct(_) => {}
+                Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => {}
             }
         }
 
@@ -1171,6 +1230,25 @@ impl SemanticChecker {
             }
             ExprKind::Call(callee, args) => self.check_call_expr(expr.span, callee, args),
             ExprKind::FieldAccess { base, field } => {
+                // `Leque.Variante` — o nome do leque em posição de base tem
+                // precedência sobre variáveis homônimas nesta fase.
+                if let ExprKind::Ident(base_name) = &base.kind {
+                    if let Some(enum_decl) = self.enums.get(base_name) {
+                        if !enum_decl.variants.iter().any(|v| v.name == *field) {
+                            return Err(PinkerError::Semantic {
+                                msg: format!(
+                                    "variante '{}' não existe no leque '{}'",
+                                    field, base_name
+                                ),
+                                span: expr.span,
+                            });
+                        }
+                        return Ok(Type::Enum {
+                            name: base_name.clone(),
+                            span: expr.span,
+                        });
+                    }
+                }
                 let base_ty = self.check_value_expr(
                     base,
                     "resultado de função sem retorno não pode ser base de acesso a campo",
@@ -1311,12 +1389,17 @@ impl SemanticChecker {
                             })
                         }
                     }
-                    BinaryOp::Eq
-                    | BinaryOp::Neq
-                    | BinaryOp::Lt
-                    | BinaryOp::Lte
-                    | BinaryOp::Gt
-                    | BinaryOp::Gte => Ok(Type::Logica(expr.span)),
+                    BinaryOp::Eq | BinaryOp::Neq => Ok(Type::Logica(expr.span)),
+                    BinaryOp::Lt | BinaryOp::Lte | BinaryOp::Gt | BinaryOp::Gte => {
+                        if matches!(lhs_ty, Type::Enum { .. }) {
+                            return Err(PinkerError::Semantic {
+                                msg: "comparação de ordem não é suportada entre valores de leque; use '==' ou '!='"
+                                    .to_string(),
+                                span: expr.span,
+                            });
+                        }
+                        Ok(Type::Logica(expr.span))
+                    }
                 }
             }
             ExprKind::Unary(op, operand) => {

@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **207** — importação mínima de `arquivo`, `caminho` e `processo` (conclusão de 18.6) |
+| Fase funcional mais recente | **208** — `leque` mínimo (enum nominal estilo C), item 1 da Faixa 1 do Bloco 20 |
 | Rodada documental mais recente | **Doc-39** — fechamento do Bloco 18 e abertura do Bloco 20 |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -43,13 +43,15 @@
 | 190–202 | Ergonomia: comentários de bloco, escape sequences, operadores compostos, intrínsecas utilitárias, literais negativos, multiline strings, `repetir...até`, `para...de...até`, `eterno` verso, ternário, `escolha/caso`, retorno implícito, interpolação |
 | 203–206 | Coleções: `lista<verso>`, `mapa<verso,verso>`, `mapa<bombom,bombom>`, `mapa<bombom,verso>` |
 | 207 | 18.6 concluído: `trazer arquivo;`, `trazer caminho;`, `trazer processo;`; fechamento do Bloco 18; abertura do Bloco 20 |
+| 208 | Bloco 20, Faixa 1, item 1 (recorte mínimo): `leque` — enum nominal estilo C |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Fase 207 — conclusão de 18.6, fechamento do Bloco 18 e abertura do Bloco 20**.
-- Funcional: `IMPORTABLE_BUILTIN_FAMILIES` em `src/semantic.rs` ampliado para as 7 famílias públicas; loader inalterado; exemplo `examples/fase207_trazer_arquivo_caminho_processo_valido.pink`; 7 testes semânticos e 2 testes CLI novos.
-- Documental: Bloco 18 encerrado por suficiência conservadora (18.7/18.8 no recorte mínimo; 18.9/18.10 declinados; 18.11 executado); shard histórico `201a250.md` criado com as Fases 201–207; **Bloco 20 aberto como trilha ativa** com 11 faixas priorizadas em `docs/roadmap/blocos/bloco_20.md`.
+- **Fase 208 — `leque` mínimo (enum nominal estilo C)**, primeira fase funcional do Bloco 20.
+- Nova declaração de topo `leque Nome { V1, V2, ... }`: keyword no lexer/token, `Item::Enum` + `Type::Enum` no AST, parse dedicado, tipagem nominal completa na semântica (nominalidade, variantes, `==`/`!=`, rejeição de ordem, `virar bombom`, colisões), lowering na IR para discriminante `bombom` via injeção no mapa de aliases, layout e printer cobertos, exportação por módulo no caminho de `ninho`.
+- Recorte explícito: sem payload por variante, sem pattern matching dedicado, sem discriminante customizado, sem `bombom -> leque`.
+- Cobertura: exemplo `examples/fase208_leque_minimo_valido.pink` validado ponta a ponta; 12 testes semânticos; 2 testes CLI.
 - `make ci` passa integralmente.
 
 ## 4. Limites canônicos ativos
@@ -59,11 +61,12 @@ Histórico completo por fase: `docs/history/phases/`.
 | 18.6 (Fases 186–189, 207) | `trazer familia;` funciona para as 7 famílias públicas; `trazer familia.simbolo;` não suportado; domínios provisórios (`colecao`, `formato`) não importáveis; sem modo estrito |
 | Fechamento do Bloco 18 | Sem resolução qualificada (`familia.intrinseca`), sem importação seletiva, sem modo estrito, sem reorganização do engine |
 | Fases 190–206 | Sem generics (`lista<T>`, `mapa<K,V>` amplos); cada combinação monomorphizada; sem coleções heterogêneas |
+| Fase 208 (`leque`) | Sem payload por variante; sem pattern matching dedicado; sem discriminante customizado; sem conversão `bombom -> leque`; nome de leque tem precedência sobre variável homônima em posição de base `X.Y` |
 | Bloco 20 | Nenhum item das faixas está entregue por constar na trilha; entrega exige fase numerada com validação objetiva |
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- Iniciar a **Faixa 1** do Bloco 20, começando pelo item 1: **enums / tipos algébricos** (pré-requisito de pattern matching e da direção self-hosting).
+- Continuar a **Faixa 1** do Bloco 20: ou aprofundar o item 1 (payload por variante — tipos algébricos completos) ou abrir o item 2 (**pattern matching**, keyword candidata `encaixe` no vocabulário provisório), que se apoia no `leque` recém-aberto.
 - Trilha completa: `docs/roadmap/blocos/bloco_20.md`.
 
 ## 6. Arquitetura documental ativa

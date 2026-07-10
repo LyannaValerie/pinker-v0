@@ -3102,3 +3102,179 @@ fn trazer_seletivo_arquivo_nao_suportado_falha() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("importação seletiva"), "{}", err);
 }
+
+#[test]
+fn leque_declaracao_e_uso_nominal_aceitos() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde, Azul }
+        carinho principal() -> bombom {
+            nova escolhida: Cor = Cor.Verde;
+            talvez escolhida == Cor.Verde {
+                mimo 1;
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_como_parametro_e_retorno_aceito() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho troca(cor: Cor) -> Cor {
+            talvez cor == Cor.Vermelho {
+                mimo Cor.Verde;
+            }
+            mimo Cor.Vermelho;
+        }
+        carinho principal() -> bombom {
+            nova c: Cor = troca(Cor.Verde);
+            talvez c == Cor.Vermelho {
+                mimo 0;
+            }
+            mimo 1;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_escolha_despacha_por_variante() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde, Azul }
+        carinho principal() -> bombom {
+            nova c: Cor = Cor.Azul;
+            escolha c {
+                caso Cor.Vermelho { mimo 1; }
+                caso Cor.Verde { mimo 2; }
+                senao { mimo 3; }
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_virar_bombom_aceito() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho principal() -> bombom {
+            nova disc: bombom = Cor.Verde virar bombom;
+            mimo disc;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_tipos_nominais_diferentes_rejeitados() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        leque Fruta { Banana, Maca }
+        carinho principal() -> bombom {
+            nova c: Cor = Fruta.Banana;
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_err());
+}
+
+#[test]
+fn leque_comparacao_entre_leques_diferentes_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        leque Fruta { Banana, Maca }
+        carinho principal() -> bombom {
+            talvez Cor.Vermelho == Fruta.Banana {
+                mimo 1;
+            }
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipos incompatíveis"), "{}", err);
+}
+
+#[test]
+fn leque_variante_inexistente_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho principal() -> bombom {
+            nova c: Cor = Cor.Rosa;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("variante 'Rosa' não existe"), "{}", err);
+}
+
+#[test]
+fn leque_inteiro_nao_vira_leque_implicitamente() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho principal() -> bombom {
+            nova c: Cor = 1;
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_err());
+}
+
+#[test]
+fn leque_comparacao_de_ordem_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho principal() -> bombom {
+            talvez Cor.Vermelho < Cor.Verde {
+                mimo 1;
+            }
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("comparação de ordem"), "{}", err);
+}
+
+#[test]
+fn leque_variante_duplicada_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Vermelho }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("duplicada"), "{}", err);
+}
+
+#[test]
+fn leque_vazio_rejeitado() {
+    let code = r#"
+        pacote main;
+        leque Cor { }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    assert!(parse_and_check(code).is_err());
+}
+
+#[test]
+fn leque_nome_colide_com_ninho_rejeitado() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho }
+        ninho Cor { valor: bombom; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("já utilizado"), "{}", err);
+}

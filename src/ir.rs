@@ -297,6 +297,7 @@ struct LoweringContext {
     struct_names: HashSet<String>,
     struct_fields: HashMap<String, HashMap<String, TypeIR>>,
     struct_field_offsets: HashMap<String, HashMap<String, u64>>,
+    enum_variants: HashMap<String, HashMap<String, u64>>,
 }
 
 // `FunctionLowerer` mantém estado mutable por função durante o lowering:
@@ -336,6 +337,7 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
             }
             Item::TypeAlias(_) => {}
             Item::Struct(_) => {}
+            Item::Enum(_) => {}
         }
     }
 
@@ -400,12 +402,24 @@ impl LoweringContext {
         let mut type_aliases = HashMap::new();
         let mut struct_decls = HashMap::new();
         let mut struct_names = HashSet::new();
+        let mut enum_variants: HashMap<String, HashMap<String, u64>> = HashMap::new();
         for item in &program.items {
             if let Item::TypeAlias(alias) = item {
                 type_aliases.insert(alias.name.clone(), alias.target.clone());
             } else if let Item::Struct(struct_decl) = item {
                 struct_names.insert(struct_decl.name.clone());
                 struct_decls.insert(struct_decl.name.clone(), struct_decl.clone());
+            } else if let Item::Enum(enum_decl) = item {
+                // O tipo leque abaixa para bombom na IR; registrar como alias
+                // faz toda anotação de tipo com o nome do leque resolver sozinha.
+                type_aliases.insert(enum_decl.name.clone(), Type::Bombom(enum_decl.span));
+                let discriminants = enum_decl
+                    .variants
+                    .iter()
+                    .enumerate()
+                    .map(|(index, variant)| (variant.name.clone(), index as u64))
+                    .collect();
+                enum_variants.insert(enum_decl.name.clone(), discriminants);
             }
         }
         let mut struct_fields = HashMap::new();
@@ -459,7 +473,7 @@ impl LoweringContext {
                         )?,
                     );
                 }
-                Item::TypeAlias(_) | Item::Struct(_) => {}
+                Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => {}
             }
         }
         function_sigs.insert(
@@ -1330,6 +1344,7 @@ impl LoweringContext {
             struct_names,
             struct_fields,
             struct_field_offsets,
+            enum_variants,
         })
     }
 
@@ -1916,6 +1931,26 @@ impl<'a> FunctionLowerer<'a> {
                 })
             }
             ExprKind::FieldAccess { base, field } => {
+                // `Leque.Variante` abaixa direto para o discriminante inteiro.
+                if let ExprKind::Ident(base_name) = &base.kind {
+                    if let Some(variants) = self.context.enum_variants.get(base_name) {
+                        let Some(discriminant) = variants.get(field) else {
+                            return Err(PinkerError::Ir {
+                                msg: format!(
+                                    "variante '{}' não existe no leque '{}'",
+                                    field, base_name
+                                ),
+                                span: expr.span,
+                            });
+                        };
+                        return Ok(TypedValueIR {
+                            value: ValueIR::Int(*discriminant),
+                            ty: TypeIR::Bombom,
+                            struct_name: None,
+                            ptr_array_bombom_size: None,
+                        });
+                    }
+                }
                 let base = self.lower_value(base)?;
                 let Some(base_struct_name) = base.struct_name.as_ref() else {
                     return Err(PinkerError::Ir {
@@ -2438,6 +2473,9 @@ impl TypeIR {
             Type::MapVersoVerso(_) => Ok(TypeIR::MapVersoVerso),
             Type::MapBombomBombom(_) => Ok(TypeIR::MapBombomBombom),
             Type::MapBombomVerso(_) => Ok(TypeIR::MapBombomVerso),
+            // Tipos leque são nominais apenas na semântica; na IR o valor é o
+            // discriminante inteiro.
+            Type::Enum { .. } => Ok(TypeIR::Bombom),
             Type::FixedArray {
                 element,
                 size,

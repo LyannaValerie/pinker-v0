@@ -135,7 +135,9 @@ Referências cruzadas: `docs/familias/resolucao.md`, `docs/familias/superficie.m
 
 ### Sistema de tipos e memória
 
-`apelido`, `ninho`, `seta`, `virar`, `peso`, `alinhamento`, `fragil`, `sussurro`, `livre`, `trazer`, `verso`.
+`apelido`, `ninho`, `leque`, `seta`, `virar`, `peso`, `alinhamento`, `fragil`, `sussurro`, `livre`, `trazer`, `verso`.
+
+Nota factual: `leque` foi promovida de provisória a aceita/implementada na Fase 208 como enumeração nominal mínima (variantes sem dados; acesso `Leque.Variante`; despacho via `escolha`).
 
 ### Runtime textual/I/O (Bloco 8, encerrado como trilha ativa)
 
@@ -153,7 +155,7 @@ Referências cruzadas: `docs/familias/resolucao.md`, `docs/familias/superficie.m
 
 ## 6. Keywords provisórias (aceitáveis, ainda não fechadas)
 
-- Tipos/estrutura: `leque`, `par`, `canto`, `letra`, `grao`.
+- Tipos/estrutura: `par`, `canto`, `letra`, `grao` (`leque` foi promovida a aceita na Fase 208).
 - Controle: `passeio`, `encaixe`, `roda`.
 - Erros/fluxo: `amparo`, `tropeco`.
 - Abstração: `molde`, `vestir`, `qualquer`.

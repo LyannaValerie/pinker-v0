@@ -23,7 +23,7 @@ Os itens da Faixa 1 mais os três primeiros da Faixa 3 formam o conjunto que des
 
 | # | Item | Inspiração | Motivação SO/self-hosting |
 |---|---|---|---|
-| 1 | Enums / tipos algébricos | Rust, TS, C# | nós de AST, estados de kernel, códigos de erro |
+| 1 | Enums / tipos algébricos | Rust, TS, C# | nós de AST, estados de kernel, códigos de erro — **em curso: recorte mínimo nominal (`leque`, sem payload) entregue na Fase 208; dados por variante ainda futuros** |
 | 2 | Pattern matching | Rust, C#, TS | despacho sobre enums/AST, parsing de tokens |
 | 3 | Generics mínimos (`lista<T>`, `mapa<K,V>`) | C++, TS, C# | eliminar monomorphização manual |
 | 4 | Traits / interfaces mínimas | Rust, TS, C# | polimorfismo sem herança, contratos de driver |

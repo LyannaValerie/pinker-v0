@@ -60,6 +60,24 @@ nova nome: verso = "Pinker";
 
 Também existem tipos inteiros fixos (`u8..u64`, `i8..i64`) no estado atual.
 
+### `leque`
+Enumeração nominal com variantes nomeadas (recorte mínimo, sem dados por variante):
+
+```pink
+leque Cor { Vermelho, Verde, Azul }
+
+carinho principal() -> bombom {
+    nova escolhida: Cor = Cor.Verde;
+    escolha escolhida {
+        caso Cor.Vermelho { falar("quente"); }
+        senao { falar("fria"); }
+    }
+    mimo 0;
+}
+```
+
+Dois leques diferentes são tipos distintos mesmo com variantes de mesmo nome; a comparação usa `==`/`!=` e o discriminante inteiro pode ser lido com `virar bombom`.
+
 ## 5) Fluxo de controle
 
 ### `talvez` / `senao`

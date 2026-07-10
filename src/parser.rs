@@ -172,6 +172,8 @@ impl Parser {
             Ok(Item::TypeAlias(self.parse_type_alias()?))
         } else if self.match_token(TokenKind::KwNinho) {
             Ok(Item::Struct(self.parse_struct_decl()?))
+        } else if self.match_token(TokenKind::KwLeque) {
+            Ok(Item::Enum(self.parse_enum_decl()?))
         } else if self.match_token(TokenKind::KwLivre) {
             Err(PinkerError::Expected {
                 expected: "marcador `livre;` apenas uma vez no topo do programa (após `pacote`, antes dos itens)".to_string(),
@@ -186,7 +188,7 @@ impl Parser {
             })
         } else {
             Err(PinkerError::Expected {
-                expected: "carinho, eterno, apelido ou ninho".to_string(),
+                expected: "carinho, eterno, apelido, ninho ou leque".to_string(),
                 found: self
                     .peek()
                     .map(|token| token.lexeme.clone())
@@ -400,6 +402,35 @@ impl Parser {
         Ok(StructDecl {
             name,
             fields,
+            span: merge_span(start_span, self.previous().span),
+        })
+    }
+
+    fn parse_enum_decl(&mut self) -> Result<EnumDecl, PinkerError> {
+        let start_span = self.previous().span;
+        let name = self
+            .consume(TokenKind::Ident, "nome do leque")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::LBrace, "{")?;
+        let mut variants = Vec::new();
+        loop {
+            let variant_token = self.consume(TokenKind::Ident, "nome da variante do leque")?;
+            variants.push(EnumVariant {
+                name: variant_token.lexeme.clone(),
+                span: variant_token.span,
+            });
+            if !self.match_token(TokenKind::Comma) {
+                break;
+            }
+            if self.check(TokenKind::RBrace) {
+                break;
+            }
+        }
+        self.consume(TokenKind::RBrace, "}")?;
+        Ok(EnumDecl {
+            name,
+            variants,
             span: merge_span(start_span, self.previous().span),
         })
     }

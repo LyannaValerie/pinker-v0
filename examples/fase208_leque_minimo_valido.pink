@@ -1,0 +1,21 @@
+pacote main;
+
+leque Cor { Vermelho, Verde, Azul }
+
+carinho pinta(cor: Cor) -> verso {
+    escolha cor {
+        caso Cor.Vermelho { mimo "vermelho"; }
+        caso Cor.Verde { mimo "verde"; }
+        senao { mimo "azul"; }
+    }
+    mimo "nunca";
+}
+
+carinho principal() -> bombom {
+    nova escolhida: Cor = Cor.Verde;
+    falar(pinta(escolhida));
+    falar(pinta(Cor.Azul));
+    nova disc: bombom = Cor.Vermelho virar bombom;
+    falar(disc);
+    mimo 0;
+}

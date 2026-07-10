@@ -105,6 +105,7 @@ pub enum Item {
     Const(ConstDecl),
     TypeAlias(TypeAliasDecl),
     Struct(StructDecl),
+    Enum(EnumDecl),
 }
 
 impl Item {
@@ -114,6 +115,7 @@ impl Item {
             Item::Const(constant) => constant.span,
             Item::TypeAlias(alias) => alias.span,
             Item::Struct(struct_decl) => struct_decl.span,
+            Item::Enum(enum_decl) => enum_decl.span,
         }
     }
 
@@ -123,8 +125,39 @@ impl Item {
             Item::Const(constant) => constant.write_json(writer),
             Item::TypeAlias(alias) => alias.write_json(writer),
             Item::Struct(struct_decl) => struct_decl.write_json(writer),
+            Item::Enum(enum_decl) => enum_decl.write_json(writer),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct EnumDecl {
+    pub name: String,
+    pub variants: Vec<EnumVariant>,
+    pub span: Span,
+}
+
+impl EnumDecl {
+    fn write_json(&self, writer: &mut JsonWriter<'_>) {
+        writer.begin_object();
+        writer.field_str("node", "EnumDecl");
+        writer.field_str("name", &self.name);
+        writer.field_span("span", self.span);
+        writer.field_array("variants", &self.variants, |writer, variant| {
+            writer.begin_object();
+            writer.field_str("node", "EnumVariant");
+            writer.field_str("name", &variant.name);
+            writer.field_span("span", variant.span);
+            writer.end_object();
+        });
+        writer.end_object();
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EnumVariant {
+    pub name: String,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]
@@ -285,6 +318,10 @@ pub enum Type {
         name: String,
         span: Span,
     },
+    Enum {
+        name: String,
+        span: Span,
+    },
     Nulo(Span),
 }
 
@@ -338,6 +375,7 @@ impl PartialEq for Type {
             ) => b1 == b2 && v1 == v2,
             (Type::Alias { name: n1, .. }, Type::Alias { name: n2, .. }) => n1 == n2,
             (Type::Struct { name: n1, .. }, Type::Struct { name: n2, .. }) => n1 == n2,
+            (Type::Enum { name: n1, .. }, Type::Enum { name: n2, .. }) => n1 == n2,
             _ => false,
         }
     }
@@ -368,6 +406,7 @@ impl Type {
             | Type::Nulo(span) => *span,
             Type::Alias { span, .. }
             | Type::Struct { span, .. }
+            | Type::Enum { span, .. }
             | Type::FixedArray { span, .. }
             | Type::Pointer { span, .. } => *span,
         }
@@ -396,6 +435,7 @@ impl Type {
             Type::Pointer { .. } => "seta",
             Type::Alias { .. } => "alias",
             Type::Struct { .. } => "struct",
+            Type::Enum { .. } => "leque",
             Type::Nulo(_) => "nulo",
         }
     }
@@ -436,6 +476,10 @@ impl Type {
                 span,
             },
             Type::Struct { name, .. } => Type::Struct {
+                name: name.clone(),
+                span,
+            },
+            Type::Enum { name, .. } => Type::Enum {
                 name: name.clone(),
                 span,
             },
