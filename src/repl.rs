@@ -96,7 +96,9 @@ fn render_value(value: &RuntimeValue) -> String {
         RuntimeValue::Bool(v) => v.to_string(),
         RuntimeValue::Str(v) => v.clone(),
         RuntimeValue::ListBombom(handle) => format!("<lista:bombom:{handle}>"),
+        RuntimeValue::ListVerso(handle) => format!("<lista:verso:{handle}>"),
         RuntimeValue::MapVersoBombom(handle) => format!("<mapa:verso,bombom:{handle}>"),
+        RuntimeValue::MapVersoVerso(handle) => format!("<mapa:verso,verso:{handle}>"),
     }
 }
 

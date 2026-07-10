@@ -1,0 +1,13 @@
+pacote main;
+
+eterno SAUDACAO: verso = "olá mundo";
+eterno VAZIO: verso = "";
+
+carinho principal() -> bombom {
+    afirmar(igual_verso(SAUDACAO, "olá mundo"), "constante verso falhou");
+    afirmar(vazio_verso(VAZIO), "constante vazia falhou");
+    afirmar(contem_verso(SAUDACAO, "mundo"), "contem falhou");
+
+    falar(SAUDACAO);
+    mimo 0;
+}

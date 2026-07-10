@@ -1,5 +1,6 @@
 use crate::ast::*;
 use crate::error::PinkerError;
+use crate::lexer::Lexer;
 use crate::token::{Span, Token, TokenKind};
 use std::collections::HashMap;
 
@@ -8,7 +9,9 @@ use std::collections::HashMap;
 #[derive(Clone, Copy)]
 enum CollectionKind {
     ListBombom,
+    ListVerso,
     MapVersoBombom,
+    MapVersoVerso,
 }
 
 pub struct Parser {
@@ -281,28 +284,37 @@ impl Parser {
             if self.previous().lexeme == "lista" && self.match_token(TokenKind::Less) {
                 let inner = self.parse_type()?;
                 self.consume(TokenKind::Greater, ">")?;
-                if !matches!(inner, Type::Bombom(_)) {
-                    return Err(PinkerError::Expected {
-                        expected: "tipo 'lista<bombom>' nesta fase".to_string(),
-                        found: format!("lista<{}>", inner.name()),
-                        span: inner.span(),
-                    });
+                let outer_span = merge_span(span, self.previous().span);
+                if matches!(inner, Type::Bombom(_)) {
+                    return Ok(Type::ListBombom(outer_span));
                 }
-                return Ok(Type::ListBombom(merge_span(span, self.previous().span)));
+                if matches!(inner, Type::Verso(_)) {
+                    return Ok(Type::ListVerso(outer_span));
+                }
+                return Err(PinkerError::Expected {
+                    expected: "tipo 'lista<bombom>' ou 'lista<verso>' nesta fase".to_string(),
+                    found: format!("lista<{}>", inner.name()),
+                    span: inner.span(),
+                });
             }
             if self.previous().lexeme == "mapa" && self.match_token(TokenKind::Less) {
                 let key_ty = self.parse_type()?;
                 self.consume(TokenKind::Comma, ",")?;
                 let value_ty = self.parse_type()?;
                 self.consume(TokenKind::Greater, ">")?;
-                if !matches!(key_ty, Type::Verso(_)) || !matches!(value_ty, Type::Bombom(_)) {
-                    return Err(PinkerError::Expected {
-                        expected: "tipo 'mapa<verso,bombom>' nesta fase".to_string(),
-                        found: format!("mapa<{},{}>", key_ty.name(), value_ty.name()),
-                        span: merge_span(key_ty.span(), value_ty.span()),
-                    });
+                let outer_span = merge_span(span, self.previous().span);
+                if matches!(key_ty, Type::Verso(_)) && matches!(value_ty, Type::Bombom(_)) {
+                    return Ok(Type::MapVersoBombom(outer_span));
                 }
-                return Ok(Type::MapVersoBombom(merge_span(span, self.previous().span)));
+                if matches!(key_ty, Type::Verso(_)) && matches!(value_ty, Type::Verso(_)) {
+                    return Ok(Type::MapVersoVerso(outer_span));
+                }
+                return Err(PinkerError::Expected {
+                    expected: "tipo 'mapa<verso,bombom>' ou 'mapa<verso,verso>' nesta fase"
+                        .to_string(),
+                    found: format!("mapa<{},{}>", key_ty.name(), value_ty.name()),
+                    span: merge_span(key_ty.span(), value_ty.span()),
+                });
             }
             let mut name = self.previous().lexeme.clone();
             let mut type_span = self.previous().span;
@@ -428,15 +440,36 @@ impl Parser {
                     self.collection_types
                         .insert(param.name.clone(), CollectionKind::ListBombom);
                 }
+                Type::ListVerso(_) => {
+                    self.collection_types
+                        .insert(param.name.clone(), CollectionKind::ListVerso);
+                }
                 Type::MapVersoBombom(_) => {
                     self.collection_types
                         .insert(param.name.clone(), CollectionKind::MapVersoBombom);
+                }
+                Type::MapVersoVerso(_) => {
+                    self.collection_types
+                        .insert(param.name.clone(), CollectionKind::MapVersoVerso);
                 }
                 _ => {}
             }
         }
 
-        let body = self.parse_block()?;
+        let mut body = self.parse_block()?;
+
+        if ret_type.is_some() {
+            if let Some(Stmt::Expr(expr)) = body.stmts.last() {
+                let span = expr.span;
+                let expr_clone = expr.clone();
+                let len = body.stmts.len();
+                body.stmts[len - 1] = Stmt::Return(ReturnStmt {
+                    expr: Some(expr_clone),
+                    span,
+                });
+            }
+        }
+
         Ok(FunctionDecl {
             name,
             params,
@@ -472,7 +505,7 @@ impl Parser {
 
         while !self.check(TokenKind::RBrace) && self.peek().is_some() {
             if self.check(TokenKind::KwPara) {
-                stmts.extend(self.parse_for_each_stmt_desugared()?);
+                stmts.extend(self.parse_for_stmt_desugared()?);
             } else {
                 stmts.push(self.parse_stmt()?);
             }
@@ -505,9 +538,17 @@ impl Parser {
                         self.collection_types
                             .insert(name.clone(), CollectionKind::ListBombom);
                     }
+                    Type::ListVerso(_) => {
+                        self.collection_types
+                            .insert(name.clone(), CollectionKind::ListVerso);
+                    }
                     Type::MapVersoBombom(_) => {
                         self.collection_types
                             .insert(name.clone(), CollectionKind::MapVersoBombom);
+                    }
+                    Type::MapVersoVerso(_) => {
+                        self.collection_types
+                            .insert(name.clone(), CollectionKind::MapVersoVerso);
                     }
                     _ => {}
                 }
@@ -604,6 +645,104 @@ impl Parser {
             }));
         }
 
+        if self.match_token(TokenKind::KwRepetir) {
+            let start_span = self.previous().span;
+            let body = self.parse_block()?;
+            self.consume(TokenKind::KwAte, "ate")?;
+            let condition = self.parse_expr()?;
+            self.consume(TokenKind::Semi, ";")?;
+            let loop_span = merge_span(start_span, self.previous().span);
+            let break_stmt = Stmt::If(IfStmt {
+                condition,
+                then_branch: Block {
+                    stmts: vec![Stmt::Break(BreakStmt { span: loop_span })],
+                    span: loop_span,
+                },
+                else_branch: None,
+                span: loop_span,
+            });
+            let mut while_body = body.stmts;
+            while_body.push(break_stmt);
+            return Ok(Stmt::While(WhileStmt {
+                condition: Expr {
+                    kind: ExprKind::BoolLit(true),
+                    span: loop_span,
+                },
+                body: Block {
+                    stmts: while_body,
+                    span: loop_span,
+                },
+                span: loop_span,
+            }));
+        }
+
+        if self.match_token(TokenKind::KwEscolha) {
+            let start_span = self.previous().span;
+            let scrutinee = self.parse_expr()?;
+            self.consume(TokenKind::LBrace, "{")?;
+
+            let mut cases: Vec<(Expr, Block)> = Vec::new();
+            let mut default_block: Option<Block> = None;
+
+            while !self.check(TokenKind::RBrace) && self.peek().is_some() {
+                if self.match_token(TokenKind::KwCaso) {
+                    let pattern = self.parse_expr()?;
+                    let body = self.parse_block()?;
+                    cases.push((pattern, body));
+                } else if self.match_token(TokenKind::KwSenao) {
+                    default_block = Some(self.parse_block()?);
+                    break;
+                } else {
+                    return Err(PinkerError::Parse {
+                        msg: "esperado 'caso' ou 'senao' dentro de 'escolha'".to_string(),
+                        span: self.peek_span(),
+                    });
+                }
+            }
+            self.consume(TokenKind::RBrace, "}")?;
+            let end_span = self.previous().span;
+
+            let mut result: Option<Stmt> = default_block.map(|blk| {
+                Stmt::If(IfStmt {
+                    condition: Expr {
+                        kind: ExprKind::BoolLit(true),
+                        span: blk.span,
+                    },
+                    then_branch: blk.clone(),
+                    else_branch: None,
+                    span: blk.span,
+                })
+            });
+
+            for (pattern, body) in cases.into_iter().rev() {
+                let cond = Expr {
+                    kind: ExprKind::Binary(
+                        Box::new(scrutinee.clone()),
+                        BinaryOp::Eq,
+                        Box::new(pattern),
+                    ),
+                    span: body.span,
+                };
+                let else_branch = result.map(|stmt| match stmt {
+                    Stmt::If(if_stmt) => ElseBlock::If(Box::new(if_stmt)),
+                    _ => unreachable!(),
+                });
+                result = Some(Stmt::If(IfStmt {
+                    condition: cond,
+                    then_branch: body,
+                    else_branch,
+                    span: merge_span(start_span, end_span),
+                }));
+            }
+
+            return Ok(result.unwrap_or_else(|| {
+                Stmt::Expr(Expr {
+                    kind: ExprKind::IntLit(0),
+                    span: merge_span(start_span, end_span),
+                })
+            }));
+        }
+
         if self.match_token(TokenKind::KwTalvez) {
             let start_span = self.previous().span;
             let condition = self.parse_expr()?;
@@ -696,9 +835,85 @@ impl Parser {
         }))
     }
 
-    fn parse_for_each_stmt_desugared(&mut self) -> Result<Vec<Stmt>, PinkerError> {
+    fn parse_for_stmt_desugared(&mut self) -> Result<Vec<Stmt>, PinkerError> {
         let start_span = self.consume(TokenKind::KwPara, "para")?.span;
-        self.consume(TokenKind::KwCada, "cada")?;
+        if self.match_token(TokenKind::KwCada) {
+            return self.parse_for_each_after_cada(start_span);
+        }
+        let var_name = self
+            .consume(TokenKind::Ident, "variável do iterador em 'para'")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::KwEm, "em")?;
+        let start_expr = self.parse_expr()?;
+        self.consume(TokenKind::DotDot, "..")?;
+        let end_expr = self.parse_expr()?;
+        let body = self.parse_block()?;
+        let loop_span = merge_span(start_span, body.span);
+        self.synthetic_counter += 1;
+        let suffix = self.synthetic_counter;
+        let limit_name = format!("__range_limite_{suffix}");
+
+        let var_binding = Stmt::Let(LetStmt {
+            name: var_name.clone(),
+            is_mut: true,
+            ty: Some(Type::Bombom(loop_span)),
+            init: start_expr,
+            span: loop_span,
+        });
+        let limit_binding = Stmt::Let(LetStmt {
+            name: limit_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Bombom(loop_span)),
+            init: end_expr,
+            span: loop_span,
+        });
+        let condition = Expr {
+            kind: ExprKind::Binary(
+                Box::new(Expr {
+                    kind: ExprKind::Ident(var_name.clone()),
+                    span: loop_span,
+                }),
+                BinaryOp::Lt,
+                Box::new(Expr {
+                    kind: ExprKind::Ident(limit_name),
+                    span: loop_span,
+                }),
+            ),
+            span: loop_span,
+        };
+        let increment = Stmt::Assign(AssignStmt {
+            target: AssignTarget::Ident(var_name.clone()),
+            expr: Expr {
+                kind: ExprKind::Binary(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(var_name),
+                        span: loop_span,
+                    }),
+                    BinaryOp::Add,
+                    Box::new(Expr {
+                        kind: ExprKind::IntLit(1),
+                        span: loop_span,
+                    }),
+                ),
+                span: loop_span,
+            },
+            span: loop_span,
+        });
+        let mut while_body = body.stmts;
+        while_body.push(increment);
+        let while_stmt = Stmt::While(WhileStmt {
+            condition,
+            body: Block {
+                stmts: while_body,
+                span: loop_span,
+            },
+            span: loop_span,
+        });
+        Ok(vec![var_binding, limit_binding, while_stmt])
+    }
+
+    fn parse_for_each_after_cada(&mut self, start_span: Span) -> Result<Vec<Stmt>, PinkerError> {
         let item_name = self
             .consume(TokenKind::Ident, "variável do item em 'para cada'")?
             .lexeme
@@ -708,19 +923,22 @@ impl Parser {
         let body = self.parse_block()?;
         let loop_span = merge_span(start_span, body.span);
 
-        // Detecta tipo de coleção para despachar desugaring correto.
-        let is_map = match &collection_expr.kind {
-            ExprKind::Ident(name) => matches!(
-                self.collection_types.get(name.as_str()),
-                Some(CollectionKind::MapVersoBombom)
-            ),
-            _ => false,
+        let collection_kind = match &collection_expr.kind {
+            ExprKind::Ident(name) => self.collection_types.get(name.as_str()).copied(),
+            _ => None,
         };
 
-        if is_map {
-            self.desugar_for_each_map(item_name, collection_expr, body, loop_span)
-        } else {
-            self.desugar_for_each_list(item_name, collection_expr, body, loop_span)
+        match collection_kind {
+            Some(CollectionKind::MapVersoBombom) => {
+                self.desugar_for_each_map(item_name, collection_expr, body, loop_span)
+            }
+            Some(CollectionKind::MapVersoVerso) => {
+                self.desugar_for_each_map_verso_verso(item_name, collection_expr, body, loop_span)
+            }
+            Some(CollectionKind::ListVerso) => {
+                self.desugar_for_each_list_verso(item_name, collection_expr, body, loop_span)
+            }
+            _ => self.desugar_for_each_list(item_name, collection_expr, body, loop_span),
         }
     }
 
@@ -788,6 +1006,123 @@ impl Parser {
                 kind: ExprKind::Call(
                     Box::new(Expr {
                         kind: ExprKind::Ident("lista_bombom_obter".to_string()),
+                        span: helper_span,
+                    }),
+                    vec![
+                        Expr {
+                            kind: ExprKind::Ident(list_slot_name),
+                            span: helper_span,
+                        },
+                        Expr {
+                            kind: ExprKind::Ident(index_slot_name.clone()),
+                            span: helper_span,
+                        },
+                    ],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let index_increment = Stmt::Assign(AssignStmt {
+            target: AssignTarget::Ident(index_slot_name.clone()),
+            expr: Expr {
+                kind: ExprKind::Binary(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(index_slot_name),
+                        span: helper_span,
+                    }),
+                    BinaryOp::Add,
+                    Box::new(Expr {
+                        kind: ExprKind::IntLit(1),
+                        span: helper_span,
+                    }),
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let mut while_body_stmts = Vec::with_capacity(2 + body.stmts.len());
+        while_body_stmts.push(item_binding);
+        while_body_stmts.push(index_increment);
+        while_body_stmts.extend(body.stmts);
+
+        let while_stmt = Stmt::While(WhileStmt {
+            condition,
+            body: Block {
+                stmts: while_body_stmts,
+                span: helper_span,
+            },
+            span: loop_span,
+        });
+
+        Ok(vec![list_binding_stmt, index_binding_stmt, while_stmt])
+    }
+
+    fn desugar_for_each_list_verso(
+        &mut self,
+        item_name: String,
+        list_expr: Expr,
+        body: Block,
+        loop_span: Span,
+    ) -> Result<Vec<Stmt>, PinkerError> {
+        self.synthetic_counter += 1;
+        let suffix = self.synthetic_counter;
+        let list_slot_name = format!("__iter_lista_{suffix}");
+        let index_slot_name = format!("__iter_indice_{suffix}");
+        let helper_span = loop_span;
+
+        let list_binding_stmt = Stmt::Let(LetStmt {
+            name: list_slot_name.clone(),
+            is_mut: false,
+            ty: None,
+            init: list_expr,
+            span: helper_span,
+        });
+        let index_binding_stmt = Stmt::Let(LetStmt {
+            name: index_slot_name.clone(),
+            is_mut: true,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::IntLit(0),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let condition = Expr {
+            kind: ExprKind::Binary(
+                Box::new(Expr {
+                    kind: ExprKind::Ident(index_slot_name.clone()),
+                    span: helper_span,
+                }),
+                BinaryOp::Lt,
+                Box::new(Expr {
+                    kind: ExprKind::Call(
+                        Box::new(Expr {
+                            kind: ExprKind::Ident("lista_verso_tamanho".to_string()),
+                            span: helper_span,
+                        }),
+                        vec![Expr {
+                            kind: ExprKind::Ident(list_slot_name.clone()),
+                            span: helper_span,
+                        }],
+                    ),
+                    span: helper_span,
+                }),
+            ),
+            span: helper_span,
+        };
+
+        let item_binding = Stmt::Let(LetStmt {
+            name: item_name,
+            is_mut: false,
+            ty: Some(Type::Verso(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident("lista_verso_obter".to_string()),
                         span: helper_span,
                     }),
                     vec![
@@ -1002,8 +1337,180 @@ impl Parser {
         ])
     }
 
+    fn desugar_for_each_map_verso_verso(
+        &mut self,
+        key_name: String,
+        map_expr: Expr,
+        body: Block,
+        loop_span: Span,
+    ) -> Result<Vec<Stmt>, PinkerError> {
+        self.synthetic_counter += 1;
+        let suffix = self.synthetic_counter;
+        let map_slot_name = format!("__iter_mapa_{suffix}");
+        let size_slot_name = format!("__iter_tamanho_{suffix}");
+        let cursor_slot_name = format!("__iter_cursor_{suffix}");
+        let index_slot_name = format!("__iter_indice_{suffix}");
+        let helper_span = loop_span;
+
+        let map_binding_stmt = Stmt::Let(LetStmt {
+            name: map_slot_name.clone(),
+            is_mut: false,
+            ty: None,
+            init: map_expr,
+            span: helper_span,
+        });
+
+        let size_binding_stmt = Stmt::Let(LetStmt {
+            name: size_slot_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident("mapa_verso_verso_tamanho".to_string()),
+                        span: helper_span,
+                    }),
+                    vec![Expr {
+                        kind: ExprKind::Ident(map_slot_name.clone()),
+                        span: helper_span,
+                    }],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let cursor_binding_stmt = Stmt::Let(LetStmt {
+            name: cursor_slot_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(
+                            "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
+                        ),
+                        span: helper_span,
+                    }),
+                    vec![Expr {
+                        kind: ExprKind::Ident(map_slot_name.clone()),
+                        span: helper_span,
+                    }],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let index_binding_stmt = Stmt::Let(LetStmt {
+            name: index_slot_name.clone(),
+            is_mut: true,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::IntLit(0),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let condition = Expr {
+            kind: ExprKind::Binary(
+                Box::new(Expr {
+                    kind: ExprKind::Ident(index_slot_name.clone()),
+                    span: helper_span,
+                }),
+                BinaryOp::Lt,
+                Box::new(Expr {
+                    kind: ExprKind::Ident(size_slot_name),
+                    span: helper_span,
+                }),
+            ),
+            span: helper_span,
+        };
+
+        let key_binding = Stmt::Let(LetStmt {
+            name: key_name,
+            is_mut: false,
+            ty: Some(Type::Verso(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(
+                            "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
+                        ),
+                        span: helper_span,
+                    }),
+                    vec![Expr {
+                        kind: ExprKind::Ident(cursor_slot_name),
+                        span: helper_span,
+                    }],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let index_increment = Stmt::Assign(AssignStmt {
+            target: AssignTarget::Ident(index_slot_name.clone()),
+            expr: Expr {
+                kind: ExprKind::Binary(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(index_slot_name),
+                        span: helper_span,
+                    }),
+                    BinaryOp::Add,
+                    Box::new(Expr {
+                        kind: ExprKind::IntLit(1),
+                        span: helper_span,
+                    }),
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let mut while_body_stmts = Vec::with_capacity(2 + body.stmts.len());
+        while_body_stmts.push(key_binding);
+        while_body_stmts.push(index_increment);
+        while_body_stmts.extend(body.stmts);
+
+        let while_stmt = Stmt::While(WhileStmt {
+            condition,
+            body: Block {
+                stmts: while_body_stmts,
+                span: helper_span,
+            },
+            span: loop_span,
+        });
+
+        Ok(vec![
+            map_binding_stmt,
+            size_binding_stmt,
+            cursor_binding_stmt,
+            index_binding_stmt,
+            while_stmt,
+        ])
+    }
+
     fn parse_expr(&mut self) -> Result<Expr, PinkerError> {
-        self.parse_expr_binary(0)
+        let expr = self.parse_expr_binary(0)?;
+        if self.match_token(TokenKind::Question) {
+            let then_expr = self.parse_expr()?;
+            self.consume(TokenKind::Colon, ":")?;
+            let else_expr = self.parse_expr()?;
+            let span = merge_span(expr.span, else_expr.span);
+            return Ok(Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident("__ternario".to_string()),
+                        span,
+                    }),
+                    vec![expr, then_expr, else_expr],
+                ),
+                span,
+            });
+        }
+        Ok(expr)
     }
 
     fn parse_expr_binary(&mut self, min_prec: u8) -> Result<Expr, PinkerError> {
@@ -1110,6 +1617,11 @@ impl Parser {
                 kind: ExprKind::StringLit(token.lexeme.clone()),
                 span: token.span,
             }),
+            TokenKind::FStringLit => {
+                let raw = token.lexeme.clone();
+                let span = token.span;
+                return self.desugar_fstring(&raw, span);
+            }
             TokenKind::Ident => Ok(Expr {
                 kind: ExprKind::Ident(token.lexeme.clone()),
                 span: token.span,
@@ -1214,5 +1726,76 @@ impl Parser {
             };
         }
         Ok(expr)
+    }
+
+    fn desugar_fstring(&mut self, raw: &str, span: Span) -> Result<Expr, PinkerError> {
+        let mut template = String::new();
+        let mut expr_sources: Vec<String> = Vec::new();
+        let mut chars = raw.chars().peekable();
+
+        while let Some(c) = chars.next() {
+            if c == '{' {
+                let mut depth = 1u32;
+                let mut expr_str = String::new();
+                for inner in chars.by_ref() {
+                    if inner == '{' {
+                        depth += 1;
+                    } else if inner == '}' {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    expr_str.push(inner);
+                }
+                if depth != 0 {
+                    return Err(PinkerError::Parse {
+                        msg: "'}' não encontrado em string interpolada".to_string(),
+                        span,
+                    });
+                }
+                template.push_str("{}");
+                expr_sources.push(expr_str);
+            } else {
+                template.push(c);
+            }
+        }
+
+        if expr_sources.is_empty() {
+            return Ok(Expr {
+                kind: ExprKind::StringLit(template),
+                span,
+            });
+        }
+
+        let mut call_args = vec![Expr {
+            kind: ExprKind::StringLit(template),
+            span,
+        }];
+
+        for src in &expr_sources {
+            let mut lexer = Lexer::new(src);
+            let tokens = lexer.tokenize().map_err(|e| PinkerError::Parse {
+                msg: format!("erro ao lexar expressão em string interpolada: {}", e),
+                span,
+            })?;
+            let mut sub_parser = Parser::new(tokens);
+            let expr = sub_parser.parse_expr().map_err(|e| PinkerError::Parse {
+                msg: format!("erro ao parsear expressão em string interpolada: {}", e),
+                span,
+            })?;
+            call_args.push(expr);
+        }
+
+        Ok(Expr {
+            kind: ExprKind::Call(
+                Box::new(Expr {
+                    kind: ExprKind::Ident("formatar_verso".to_string()),
+                    span,
+                }),
+                call_args,
+            ),
+            span,
+        })
     }
 }

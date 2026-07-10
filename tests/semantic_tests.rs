@@ -1208,15 +1208,14 @@ fn formatar_verso_intrinseca_rejeita_argumento_nao_bombom_ou_verso() {
 }
 
 #[test]
-fn formatar_verso_intrinseca_rejeita_aridade_invalida() {
+fn formatar_verso_intrinseca_aceita_aridade_variavel() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
             nova linha: verso = formatar_verso("{} {} {}", 1, 2, 3);
             mimo tamanho_verso(linha);
         }"#;
-    let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("chamada de 'formatar_verso' com aridade inválida"));
+    parse_and_check(code).expect("formatar_verso deve aceitar aridade variável");
 }
 
 #[test]

@@ -1,0 +1,11 @@
+pacote main;
+
+carinho dobro(x: bombom) -> bombom {
+    x + x;
+}
+
+carinho principal() -> bombom {
+    nova r = dobro(21);
+    falar(r);
+    mimo 0;
+}

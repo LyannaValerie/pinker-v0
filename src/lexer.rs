@@ -173,7 +173,14 @@ impl<'a> Lexer<'a> {
                         '{' => TokenKind::LBrace,
                         '}' => TokenKind::RBrace,
                         ',' => TokenKind::Comma,
-                        '.' => TokenKind::Dot,
+                        '.' => {
+                            if self.match_char('.') {
+                                lexeme.push('.');
+                                TokenKind::DotDot
+                            } else {
+                                TokenKind::Dot
+                            }
+                        }
                         ':' => TokenKind::Colon,
                         ';' => TokenKind::Semi,
                         '=' => {
@@ -228,58 +235,101 @@ impl<'a> Lexer<'a> {
                         }
                         '"' => {
                             lexeme.clear();
-                            let mut closed = false;
-                            while let Some(next_c) = self.peek_char() {
-                                if next_c == '"' {
-                                    self.advance();
-                                    closed = true;
-                                    break;
+                            let mut triple = false;
+                            {
+                                let mut probe = self.chars.clone();
+                                if let Some(&(_, '"')) = probe.peek() {
+                                    probe.next();
+                                    if let Some(&(_, '"')) = probe.peek() {
+                                        triple = true;
+                                    }
                                 }
-                                if next_c == '\n' {
+                            }
+                            if triple {
+                                self.advance();
+                                self.advance();
+                                let mut closed = false;
+                                while let Some(next_c) = self.peek_char() {
+                                    if next_c == '"' {
+                                        let mut probe = self.chars.clone();
+                                        probe.next();
+                                        let second = probe.peek().map(|&(_, c)| c);
+                                        if second == Some('"') {
+                                            probe.next();
+                                            let third = probe.peek().map(|&(_, c)| c);
+                                            if third == Some('"') {
+                                                self.advance();
+                                                self.advance();
+                                                self.advance();
+                                                closed = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    lexeme.push(next_c);
+                                    self.advance();
+                                }
+                                if !closed {
                                     return Err(PinkerError::Lexer {
-                                        msg: "string literal não pode quebrar linha nesta fase"
+                                        msg: "string multi-linha não terminada (esperado \"\"\")"
                                             .to_string(),
                                         span: Span::new(start_pos, self.current_pos()),
                                     });
                                 }
-                                if next_c == '\\' {
+                            } else {
+                                let mut closed = false;
+                                while let Some(next_c) = self.peek_char() {
+                                    if next_c == '"' {
+                                        self.advance();
+                                        closed = true;
+                                        break;
+                                    }
+                                    if next_c == '\n' {
+                                        return Err(PinkerError::Lexer {
+                                            msg: "string literal não pode quebrar linha nesta fase"
+                                                .to_string(),
+                                            span: Span::new(start_pos, self.current_pos()),
+                                        });
+                                    }
+                                    if next_c == '\\' {
+                                        self.advance();
+                                        let escaped = match self.peek_char() {
+                                            Some('n') => '\n',
+                                            Some('t') => '\t',
+                                            Some('r') => '\r',
+                                            Some('0') => '\0',
+                                            Some('\\') => '\\',
+                                            Some('"') => '"',
+                                            Some(other) => {
+                                                return Err(PinkerError::Lexer {
+                                                    msg: format!(
+                                                        "sequência de escape inválida '\\{}'",
+                                                        other
+                                                    ),
+                                                    span: Span::new(start_pos, self.current_pos()),
+                                                });
+                                            }
+                                            None => {
+                                                return Err(PinkerError::Lexer {
+                                                    msg: "string literal não terminada após '\\'"
+                                                        .to_string(),
+                                                    span: Span::new(start_pos, self.current_pos()),
+                                                });
+                                            }
+                                        };
+                                        self.advance();
+                                        lexeme.push(escaped);
+                                        continue;
+                                    }
+                                    lexeme.push(next_c);
                                     self.advance();
-                                    let escaped = match self.peek_char() {
-                                        Some('n') => '\n',
-                                        Some('t') => '\t',
-                                        Some('r') => '\r',
-                                        Some('0') => '\0',
-                                        Some('\\') => '\\',
-                                        Some('"') => '"',
-                                        Some(other) => {
-                                            return Err(PinkerError::Lexer {
-                                                msg: format!(
-                                                    "sequência de escape inválida '\\{}'",
-                                                    other
-                                                ),
-                                                span: Span::new(start_pos, self.current_pos()),
-                                            });
-                                        }
-                                        None => {
-                                            return Err(PinkerError::Lexer {
-                                                msg: "string literal não terminada após '\\'"
-                                                    .to_string(),
-                                                span: Span::new(start_pos, self.current_pos()),
-                                            });
-                                        }
-                                    };
-                                    self.advance();
-                                    lexeme.push(escaped);
-                                    continue;
                                 }
-                                lexeme.push(next_c);
-                                self.advance();
-                            }
-                            if !closed {
-                                return Err(PinkerError::Lexer {
-                                    msg: "string literal não terminada".to_string(),
-                                    span: Span::new(start_pos, self.current_pos()),
-                                });
+                                if !closed {
+                                    return Err(PinkerError::Lexer {
+                                        msg: "string literal não terminada".to_string(),
+                                        span: Span::new(start_pos, self.current_pos()),
+                                    });
+                                }
                             }
                             TokenKind::StringLit
                         }
@@ -333,8 +383,73 @@ impl<'a> Lexer<'a> {
                                 "verdade" => TokenKind::KwVerdade,
                                 "falso" => TokenKind::KwFalso,
                                 "nope" => TokenKind::KwNope,
+                                "repetir" => TokenKind::KwRepetir,
+                                "ate" => TokenKind::KwAte,
+                                "escolha" => TokenKind::KwEscolha,
+                                "caso" => TokenKind::KwCaso,
                                 _ => TokenKind::Ident,
                             }
+                        }
+                        '?' => TokenKind::Question,
+                        '$' if self.peek_char() == Some('"') => {
+                            self.advance();
+                            lexeme.clear();
+                            let mut closed = false;
+                            while let Some(next_c) = self.peek_char() {
+                                if next_c == '"' {
+                                    self.advance();
+                                    closed = true;
+                                    break;
+                                }
+                                if next_c == '\n' {
+                                    return Err(PinkerError::Lexer {
+                                        msg: "string interpolada não pode quebrar linha"
+                                            .to_string(),
+                                        span: Span::new(start_pos, self.current_pos()),
+                                    });
+                                }
+                                if next_c == '\\' {
+                                    self.advance();
+                                    let escaped = match self.peek_char() {
+                                        Some('n') => '\n',
+                                        Some('t') => '\t',
+                                        Some('r') => '\r',
+                                        Some('0') => '\0',
+                                        Some('\\') => '\\',
+                                        Some('"') => '"',
+                                        Some('{') => '{',
+                                        Some('}') => '}',
+                                        Some(other) => {
+                                            return Err(PinkerError::Lexer {
+                                                msg: format!(
+                                                    "sequência de escape inválida '\\{}'",
+                                                    other
+                                                ),
+                                                span: Span::new(start_pos, self.current_pos()),
+                                            });
+                                        }
+                                        None => {
+                                            return Err(PinkerError::Lexer {
+                                                msg: "string interpolada não terminada após '\\'"
+                                                    .to_string(),
+                                                span: Span::new(start_pos, self.current_pos()),
+                                            });
+                                        }
+                                    };
+                                    self.advance();
+                                    lexeme.push(escaped);
+                                    continue;
+                                }
+                                lexeme.push(next_c);
+                                self.advance();
+                            }
+                            if !closed {
+                                return Err(PinkerError::Lexer {
+                                    msg: "string interpolada não terminada".to_string(),
+                                    span: Span::new(start_pos, self.current_pos()),
+                                });
+                            }
+                            TokenKind::FStringLit
                         }
                         _ => {
                             return Err(PinkerError::Lexer {

@@ -118,6 +118,48 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "lista_verso_criar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::ListVerso,
+            params: vec![],
+        },
+    );
+    funcs.insert(
+        "lista_verso_anexar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::ListVerso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "lista_verso_obter".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::ListVerso, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "lista_verso_tamanho".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::ListVerso],
+        },
+    );
+    funcs.insert(
+        "lista_verso_definir".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::ListVerso, TypeIR::Bombom, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "lista_verso_tirar_ultimo".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::ListVerso],
+        },
+    );
+    funcs.insert(
         "mapa_verso_bombom_criar".to_string(),
         FunctionSig {
             ret_type: TypeIR::MapVersoBombom,
@@ -161,6 +203,62 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
     );
     funcs.insert(
         "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_verso_criar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::MapVersoVerso,
+            params: vec![],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_verso_definir".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::MapVersoVerso, TypeIR::Verso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_verso_obter".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::MapVersoVerso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_verso_tem".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::MapVersoVerso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_verso_tamanho".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapVersoVerso],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_verso_remover".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::MapVersoVerso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapVersoVerso],
+        },
+    );
+    funcs.insert(
+        "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
         FunctionSig {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Bombom],
@@ -693,6 +791,13 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         FunctionSig {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::ListBombom, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "lista_verso_inserir".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::ListVerso, TypeIR::Bombom, TypeIR::Verso],
         },
     );
 
@@ -1273,8 +1378,22 @@ fn infer_value_type(
             args,
             ret_type,
         } => {
+            if callee == "__ternario" {
+                if args.len() != 3 {
+                    return Err(ir_validation_error("aridade de __ternario inválida", span));
+                }
+                let cond_ty = infer_value_type(&args[0], slots, consts, funcs, span)?;
+                if !value_matches_expected(&args[0], cond_ty, TypeIR::Logica) {
+                    return Err(ir_validation_error(
+                        "condição de __ternario deve ser logica",
+                        span,
+                    ));
+                }
+                let then_ty = infer_value_type(&args[1], slots, consts, funcs, span)?;
+                return Ok(then_ty);
+            }
             if callee == "formatar_verso" {
-                if !(args.len() == 2 || args.len() == 3) {
+                if args.len() < 2 {
                     return Err(ir_validation_error("aridade de chamada inválida", span));
                 }
                 let modelo_ty = infer_value_type(&args[0], slots, consts, funcs, span)?;
@@ -1393,9 +1512,18 @@ fn ir_validation_error(msg: &str, span: Span) -> PinkerError {
     }
 }
 
+fn is_int_literal_value(value: &ValueIR) -> bool {
+    matches!(value, ValueIR::Int(_))
+        || matches!(
+            value,
+            ValueIR::Unary { op: UnaryOpIR::Neg, operand }
+                if matches!(operand.as_ref(), ValueIR::Int(_))
+        )
+}
+
 fn value_matches_expected(value: &ValueIR, actual: TypeIR, expected: TypeIR) -> bool {
     actual.is_compatible_with(expected)
-        || (matches!(value, ValueIR::Int(_)) && expected.is_integer())
+        || (is_int_literal_value(value) && expected.is_integer())
         || (matches!(value, ValueIR::Int(_)) && matches!(expected, TypeIR::Pointer { .. }))
 }
 

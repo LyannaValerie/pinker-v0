@@ -25,6 +25,7 @@ enum StackValueType {
     Logica,
     Verso,
     ListBombom,
+    ListVerso,
     Unknown,
 }
 
@@ -103,6 +104,40 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         "lista_bombom_tirar_ultimo".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
+    sigs.insert("lista_verso_criar".to_string(), (TypeIR::ListVerso, vec![]));
+    sigs.insert(
+        "lista_verso_anexar".to_string(),
+        (
+            TypeIR::Nulo,
+            vec![StackValueType::Unknown, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
+        "lista_verso_obter".to_string(),
+        (
+            TypeIR::Verso,
+            vec![StackValueType::Unknown, StackValueType::Bombom],
+        ),
+    );
+    sigs.insert(
+        "lista_verso_tamanho".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Unknown]),
+    );
+    sigs.insert(
+        "lista_verso_definir".to_string(),
+        (
+            TypeIR::Nulo,
+            vec![
+                StackValueType::Unknown,
+                StackValueType::Bombom,
+                StackValueType::Verso,
+            ],
+        ),
+    );
+    sigs.insert(
+        "lista_verso_tirar_ultimo".to_string(),
+        (TypeIR::Verso, vec![StackValueType::Unknown]),
+    );
     sigs.insert(
         "mapa_verso_bombom_criar".to_string(),
         (TypeIR::MapVersoBombom, vec![]),
@@ -142,6 +177,54 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
     );
     sigs.insert(
         "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave".to_string(),
+        (TypeIR::Verso, vec![StackValueType::Bombom]),
+    );
+    sigs.insert(
+        "mapa_verso_verso_criar".to_string(),
+        (TypeIR::MapVersoVerso, vec![]),
+    );
+    sigs.insert(
+        "mapa_verso_verso_definir".to_string(),
+        (
+            TypeIR::Nulo,
+            vec![
+                StackValueType::Unknown,
+                StackValueType::Verso,
+                StackValueType::Verso,
+            ],
+        ),
+    );
+    sigs.insert(
+        "mapa_verso_verso_obter".to_string(),
+        (
+            TypeIR::Verso,
+            vec![StackValueType::Unknown, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
+        "mapa_verso_verso_tem".to_string(),
+        (
+            TypeIR::Logica,
+            vec![StackValueType::Unknown, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
+        "mapa_verso_verso_tamanho".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Unknown]),
+    );
+    sigs.insert(
+        "mapa_verso_verso_remover".to_string(),
+        (
+            TypeIR::Nulo,
+            vec![StackValueType::Unknown, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
+        "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Unknown]),
+    );
+    sigs.insert(
+        "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );
     sigs.insert(
@@ -568,6 +651,17 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
+    sigs.insert(
+        "lista_verso_inserir".to_string(),
+        (
+            TypeIR::Nulo,
+            vec![
+                StackValueType::ListVerso,
+                StackValueType::Bombom,
+                StackValueType::Verso,
+            ],
+        ),
+    );
 
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;
@@ -645,6 +739,16 @@ fn validate_function(
                     }
                 }
                 MachineInstr::Call { callee, argc } => {
+                    if callee == "__ternario" {
+                        if *argc != 3 {
+                            return Err(err_ctx(
+                                f,
+                                Some(&b.label),
+                                "call __ternario com aridade inválida",
+                            ));
+                        }
+                        continue;
+                    }
                     if let Some((ret, param_types)) = sigs.get(callee) {
                         if *ret == TypeIR::Nulo {
                             return Err(err_ctx(
@@ -654,7 +758,7 @@ fn validate_function(
                             ));
                         }
                         if callee == "formatar_verso" {
-                            if !(*argc == 2 || *argc == 3) {
+                            if *argc < 2 {
                                 return Err(err_ctx(
                                     f,
                                     Some(&b.label),
@@ -730,7 +834,7 @@ fn validate_function(
                             ));
                         }
                         if callee == "formatar_verso" {
-                            if !(*argc == 2 || *argc == 3) {
+                            if *argc < 2 {
                                 return Err(err_ctx(
                                     f,
                                     Some(&b.label),
@@ -1079,6 +1183,10 @@ fn apply_instr_effect(
                     callee, argc, callee
                 )),
             )?;
+            if callee == "__ternario" {
+                stack.push(args[1]);
+                return Ok(());
+            }
             if callee == "formatar_verso" {
                 ensure_formatar_verso_stack_args(f, label, &args, *argc, false)?;
                 stack.push(StackValueType::Verso);
@@ -1342,6 +1450,7 @@ fn render_stack_type(ty: StackValueType) -> &'static str {
         StackValueType::Logica => "lógica",
         StackValueType::Verso => "verso",
         StackValueType::ListBombom => "lista<bombom>",
+        StackValueType::ListVerso => "lista<verso>",
         StackValueType::Unknown => "unknown",
     }
 }
@@ -1360,7 +1469,9 @@ fn type_to_stack(ty: TypeIR) -> StackValueType {
         TypeIR::Logica => StackValueType::Logica,
         TypeIR::Verso => StackValueType::Verso,
         TypeIR::ListBombom => StackValueType::ListBombom,
+        TypeIR::ListVerso => StackValueType::ListVerso,
         TypeIR::MapVersoBombom => StackValueType::Unknown,
+        TypeIR::MapVersoVerso => StackValueType::Unknown,
         TypeIR::FixedArray { .. } => StackValueType::Unknown,
         TypeIR::Struct => StackValueType::Unknown,
         TypeIR::Pointer { .. } => StackValueType::Unknown,
@@ -1394,7 +1505,7 @@ fn ensure_formatar_verso_stack_args(
     argc: usize,
     is_void: bool,
 ) -> Result<(), PinkerError> {
-    if !(argc == 2 || argc == 3) {
+    if argc < 2 {
         return Err(err_ctx(
             f,
             Some(label),

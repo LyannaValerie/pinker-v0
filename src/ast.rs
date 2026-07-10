@@ -262,7 +262,9 @@ pub enum Type {
     Logica(Span),
     Verso(Span),
     ListBombom(Span),
+    ListVerso(Span),
     MapVersoBombom(Span),
+    MapVersoVerso(Span),
     FixedArray {
         element: Box<Type>,
         size: u64,
@@ -302,7 +304,9 @@ impl PartialEq for Type {
             | (Type::Logica(_), Type::Logica(_))
             | (Type::Verso(_), Type::Verso(_))
             | (Type::ListBombom(_), Type::ListBombom(_))
+            | (Type::ListVerso(_), Type::ListVerso(_))
             | (Type::MapVersoBombom(_), Type::MapVersoBombom(_))
+            | (Type::MapVersoVerso(_), Type::MapVersoVerso(_))
             | (Type::Nulo(_), Type::Nulo(_)) => true,
             (
                 Type::FixedArray {
@@ -352,7 +356,9 @@ impl Type {
             | Type::Logica(span)
             | Type::Verso(span)
             | Type::ListBombom(span)
+            | Type::ListVerso(span)
             | Type::MapVersoBombom(span)
+            | Type::MapVersoVerso(span)
             | Type::Nulo(span) => *span,
             Type::Alias { span, .. }
             | Type::Struct { span, .. }
@@ -375,7 +381,9 @@ impl Type {
             Type::Logica(_) => "logica",
             Type::Verso(_) => "verso",
             Type::ListBombom(_) => "lista<bombom>",
+            Type::ListVerso(_) => "lista<verso>",
             Type::MapVersoBombom(_) => "mapa<verso,bombom>",
+            Type::MapVersoVerso(_) => "mapa<verso,verso>",
             Type::FixedArray { .. } => "array",
             Type::Pointer { .. } => "seta",
             Type::Alias { .. } => "alias",
@@ -398,7 +406,9 @@ impl Type {
             Type::Logica(_) => Type::Logica(span),
             Type::Verso(_) => Type::Verso(span),
             Type::ListBombom(_) => Type::ListBombom(span),
+            Type::ListVerso(_) => Type::ListVerso(span),
             Type::MapVersoBombom(_) => Type::MapVersoBombom(span),
+            Type::MapVersoVerso(_) => Type::MapVersoVerso(span),
             Type::FixedArray { element, size, .. } => Type::FixedArray {
                 element: element.clone(),
                 size: *size,

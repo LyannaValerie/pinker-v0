@@ -1,0 +1,17 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova texto: verso = """primeira linha
+segunda linha
+terceira linha""";
+
+    afirmar(contem_verso(texto, "primeira"), "deveria conter 'primeira'");
+    afirmar(contem_verso(texto, "segunda"), "deveria conter 'segunda'");
+    afirmar(contem_verso(texto, "terceira"), "deveria conter 'terceira'");
+
+    nova vazio: verso = """""";
+    afirmar(vazio_verso(vazio), "triple-quoted vazia deveria ser vazia");
+
+    falar("multi-line strings ok");
+    mimo 0;
+}

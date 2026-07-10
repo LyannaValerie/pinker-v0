@@ -1,0 +1,8 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova x = 10;
+    nova resultado = x > 5 ? 1 : 0;
+    falar(resultado);
+    mimo resultado;
+}

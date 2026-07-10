@@ -1,0 +1,23 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova cores: mapa<verso,verso> = mapa_verso_verso_criar();
+    mapa_verso_verso_definir(cores, "sol", "amarelo");
+    mapa_verso_verso_definir(cores, "ceu", "azul");
+    mapa_verso_verso_definir(cores, "grama", "verde");
+
+    falar(mapa_verso_verso_obter(cores, "sol"));
+    falar(mapa_verso_verso_obter(cores, "ceu"));
+    falar(mapa_verso_verso_obter(cores, "grama"));
+
+    falar(mapa_verso_verso_tamanho(cores));
+
+    mapa_verso_verso_remover(cores, "grama");
+    falar(mapa_verso_verso_tamanho(cores));
+
+    para cada chave em cores {
+        falar(chave);
+    }
+
+    mimo 0;
+}

@@ -1,0 +1,27 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova nomes: lista<verso> = lista_verso_criar();
+    lista_verso_anexar(nomes, "Ana");
+    lista_verso_anexar(nomes, "Bruno");
+    lista_verso_anexar(nomes, "Carla");
+
+    falar(lista_verso_tamanho(nomes));
+
+    falar(lista_verso_obter(nomes, 0));
+    falar(lista_verso_obter(nomes, 1));
+    falar(lista_verso_obter(nomes, 2));
+
+    lista_verso_definir(nomes, 1, "Beatriz");
+    falar(lista_verso_obter(nomes, 1));
+
+    nova ultimo: verso = lista_verso_tirar_ultimo(nomes);
+    falar(ultimo);
+    falar(lista_verso_tamanho(nomes));
+
+    lista_verso_inserir(nomes, 0, "Zara");
+    falar(lista_verso_obter(nomes, 0));
+    falar(lista_verso_tamanho(nomes));
+
+    mimo 0;
+}

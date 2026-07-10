@@ -26,6 +26,12 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("lista_bombom_tamanho".to_string(), TypeIR::Bombom);
     sigs.insert("lista_bombom_definir".to_string(), TypeIR::Nulo);
     sigs.insert("lista_bombom_tirar_ultimo".to_string(), TypeIR::Bombom);
+    sigs.insert("lista_verso_criar".to_string(), TypeIR::ListVerso);
+    sigs.insert("lista_verso_anexar".to_string(), TypeIR::Nulo);
+    sigs.insert("lista_verso_obter".to_string(), TypeIR::Verso);
+    sigs.insert("lista_verso_tamanho".to_string(), TypeIR::Bombom);
+    sigs.insert("lista_verso_definir".to_string(), TypeIR::Nulo);
+    sigs.insert("lista_verso_tirar_ultimo".to_string(), TypeIR::Verso);
     sigs.insert(
         "mapa_verso_bombom_criar".to_string(),
         TypeIR::MapVersoBombom,
@@ -40,6 +46,20 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     );
     sigs.insert(
         "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave".to_string(),
+        TypeIR::Verso,
+    );
+    sigs.insert("mapa_verso_verso_criar".to_string(), TypeIR::MapVersoVerso);
+    sigs.insert("mapa_verso_verso_definir".to_string(), TypeIR::Nulo);
+    sigs.insert("mapa_verso_verso_obter".to_string(), TypeIR::Verso);
+    sigs.insert("mapa_verso_verso_tem".to_string(), TypeIR::Logica);
+    sigs.insert("mapa_verso_verso_tamanho".to_string(), TypeIR::Bombom);
+    sigs.insert("mapa_verso_verso_remover".to_string(), TypeIR::Nulo);
+    sigs.insert(
+        "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
+        TypeIR::Bombom,
+    );
+    sigs.insert(
+        "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
         TypeIR::Verso,
     );
     sigs.insert("argumento".to_string(), TypeIR::Verso);
@@ -124,6 +144,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("aleatorio_entre".to_string(), TypeIR::Bombom);
     sigs.insert("mapa_verso_bombom_remover".to_string(), TypeIR::Nulo);
     sigs.insert("lista_bombom_inserir".to_string(), TypeIR::Nulo);
+    sigs.insert("lista_verso_inserir".to_string(), TypeIR::Nulo);
 
     for f in &program.functions {
         if f.blocks.is_empty() {
@@ -221,11 +242,13 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         for a in args {
                             check_operand(a, &slots, &temps, &globals)?;
                         }
-                        let Some(sig) = sigs.get(callee) else {
-                            return Err(err("selected call para função inexistente"));
-                        };
-                        if !sig.is_compatible_with(*ret_type) {
-                            return Err(err("selected call com ret_type inválido"));
+                        if callee != "__ternario" {
+                            let Some(sig) = sigs.get(callee) else {
+                                return Err(err("selected call para função inexistente"));
+                            };
+                            if !sig.is_compatible_with(*ret_type) {
+                                return Err(err("selected call com ret_type inválido"));
+                            }
                         }
                         if *ret_type == TypeIR::Nulo {
                             return Err(err("selected call nulo não pode ter destino"));
