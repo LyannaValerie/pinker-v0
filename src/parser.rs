@@ -12,6 +12,8 @@ enum CollectionKind {
     ListVerso,
     MapVersoBombom,
     MapVersoVerso,
+    MapBombomBombom,
+    MapBombomVerso,
 }
 
 pub struct Parser {
@@ -309,8 +311,14 @@ impl Parser {
                 if matches!(key_ty, Type::Verso(_)) && matches!(value_ty, Type::Verso(_)) {
                     return Ok(Type::MapVersoVerso(outer_span));
                 }
+                if matches!(key_ty, Type::Bombom(_)) && matches!(value_ty, Type::Bombom(_)) {
+                    return Ok(Type::MapBombomBombom(outer_span));
+                }
+                if matches!(key_ty, Type::Bombom(_)) && matches!(value_ty, Type::Verso(_)) {
+                    return Ok(Type::MapBombomVerso(outer_span));
+                }
                 return Err(PinkerError::Expected {
-                    expected: "tipo 'mapa<verso,bombom>' ou 'mapa<verso,verso>' nesta fase"
+                    expected: "tipo 'mapa<verso,bombom>', 'mapa<verso,verso>', 'mapa<bombom,bombom>' ou 'mapa<bombom,verso>' nesta fase"
                         .to_string(),
                     found: format!("mapa<{},{}>", key_ty.name(), value_ty.name()),
                     span: merge_span(key_ty.span(), value_ty.span()),
@@ -452,6 +460,14 @@ impl Parser {
                     self.collection_types
                         .insert(param.name.clone(), CollectionKind::MapVersoVerso);
                 }
+                Type::MapBombomBombom(_) => {
+                    self.collection_types
+                        .insert(param.name.clone(), CollectionKind::MapBombomBombom);
+                }
+                Type::MapBombomVerso(_) => {
+                    self.collection_types
+                        .insert(param.name.clone(), CollectionKind::MapBombomVerso);
+                }
                 _ => {}
             }
         }
@@ -549,6 +565,14 @@ impl Parser {
                     Type::MapVersoVerso(_) => {
                         self.collection_types
                             .insert(name.clone(), CollectionKind::MapVersoVerso);
+                    }
+                    Type::MapBombomBombom(_) => {
+                        self.collection_types
+                            .insert(name.clone(), CollectionKind::MapBombomBombom);
+                    }
+                    Type::MapBombomVerso(_) => {
+                        self.collection_types
+                            .insert(name.clone(), CollectionKind::MapBombomVerso);
                     }
                     _ => {}
                 }
@@ -934,6 +958,12 @@ impl Parser {
             }
             Some(CollectionKind::MapVersoVerso) => {
                 self.desugar_for_each_map_verso_verso(item_name, collection_expr, body, loop_span)
+            }
+            Some(CollectionKind::MapBombomBombom) => {
+                self.desugar_for_each_map_bombom_bombom(item_name, collection_expr, body, loop_span)
+            }
+            Some(CollectionKind::MapBombomVerso) => {
+                self.desugar_for_each_map_bombom_verso(item_name, collection_expr, body, loop_span)
             }
             Some(CollectionKind::ListVerso) => {
                 self.desugar_for_each_list_verso(item_name, collection_expr, body, loop_span)
@@ -1437,6 +1467,318 @@ impl Parser {
                     Box::new(Expr {
                         kind: ExprKind::Ident(
                             "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
+                        ),
+                        span: helper_span,
+                    }),
+                    vec![Expr {
+                        kind: ExprKind::Ident(cursor_slot_name),
+                        span: helper_span,
+                    }],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let index_increment = Stmt::Assign(AssignStmt {
+            target: AssignTarget::Ident(index_slot_name.clone()),
+            expr: Expr {
+                kind: ExprKind::Binary(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(index_slot_name),
+                        span: helper_span,
+                    }),
+                    BinaryOp::Add,
+                    Box::new(Expr {
+                        kind: ExprKind::IntLit(1),
+                        span: helper_span,
+                    }),
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let mut while_body_stmts = Vec::with_capacity(2 + body.stmts.len());
+        while_body_stmts.push(key_binding);
+        while_body_stmts.push(index_increment);
+        while_body_stmts.extend(body.stmts);
+
+        let while_stmt = Stmt::While(WhileStmt {
+            condition,
+            body: Block {
+                stmts: while_body_stmts,
+                span: helper_span,
+            },
+            span: loop_span,
+        });
+
+        Ok(vec![
+            map_binding_stmt,
+            size_binding_stmt,
+            cursor_binding_stmt,
+            index_binding_stmt,
+            while_stmt,
+        ])
+    }
+
+    fn desugar_for_each_map_bombom_bombom(
+        &mut self,
+        key_name: String,
+        map_expr: Expr,
+        body: Block,
+        loop_span: Span,
+    ) -> Result<Vec<Stmt>, PinkerError> {
+        self.synthetic_counter += 1;
+        let suffix = self.synthetic_counter;
+        let map_slot_name = format!("__iter_mapa_{suffix}");
+        let size_slot_name = format!("__iter_tamanho_{suffix}");
+        let cursor_slot_name = format!("__iter_cursor_{suffix}");
+        let index_slot_name = format!("__iter_indice_{suffix}");
+        let helper_span = loop_span;
+
+        let map_binding_stmt = Stmt::Let(LetStmt {
+            name: map_slot_name.clone(),
+            is_mut: false,
+            ty: None,
+            init: map_expr,
+            span: helper_span,
+        });
+
+        let size_binding_stmt = Stmt::Let(LetStmt {
+            name: size_slot_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident("mapa_bombom_bombom_tamanho".to_string()),
+                        span: helper_span,
+                    }),
+                    vec![Expr {
+                        kind: ExprKind::Ident(map_slot_name.clone()),
+                        span: helper_span,
+                    }],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let cursor_binding_stmt = Stmt::Let(LetStmt {
+            name: cursor_slot_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(
+                            "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
+                        ),
+                        span: helper_span,
+                    }),
+                    vec![Expr {
+                        kind: ExprKind::Ident(map_slot_name.clone()),
+                        span: helper_span,
+                    }],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let index_binding_stmt = Stmt::Let(LetStmt {
+            name: index_slot_name.clone(),
+            is_mut: true,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::IntLit(0),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let condition = Expr {
+            kind: ExprKind::Binary(
+                Box::new(Expr {
+                    kind: ExprKind::Ident(index_slot_name.clone()),
+                    span: helper_span,
+                }),
+                BinaryOp::Lt,
+                Box::new(Expr {
+                    kind: ExprKind::Ident(size_slot_name),
+                    span: helper_span,
+                }),
+            ),
+            span: helper_span,
+        };
+
+        let key_binding = Stmt::Let(LetStmt {
+            name: key_name,
+            is_mut: false,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(
+                            "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave"
+                                .to_string(),
+                        ),
+                        span: helper_span,
+                    }),
+                    vec![Expr {
+                        kind: ExprKind::Ident(cursor_slot_name),
+                        span: helper_span,
+                    }],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let index_increment = Stmt::Assign(AssignStmt {
+            target: AssignTarget::Ident(index_slot_name.clone()),
+            expr: Expr {
+                kind: ExprKind::Binary(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(index_slot_name),
+                        span: helper_span,
+                    }),
+                    BinaryOp::Add,
+                    Box::new(Expr {
+                        kind: ExprKind::IntLit(1),
+                        span: helper_span,
+                    }),
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let mut while_body_stmts = Vec::with_capacity(2 + body.stmts.len());
+        while_body_stmts.push(key_binding);
+        while_body_stmts.push(index_increment);
+        while_body_stmts.extend(body.stmts);
+
+        let while_stmt = Stmt::While(WhileStmt {
+            condition,
+            body: Block {
+                stmts: while_body_stmts,
+                span: helper_span,
+            },
+            span: loop_span,
+        });
+
+        Ok(vec![
+            map_binding_stmt,
+            size_binding_stmt,
+            cursor_binding_stmt,
+            index_binding_stmt,
+            while_stmt,
+        ])
+    }
+
+    fn desugar_for_each_map_bombom_verso(
+        &mut self,
+        key_name: String,
+        map_expr: Expr,
+        body: Block,
+        loop_span: Span,
+    ) -> Result<Vec<Stmt>, PinkerError> {
+        self.synthetic_counter += 1;
+        let suffix = self.synthetic_counter;
+        let map_slot_name = format!("__iter_mapa_{suffix}");
+        let size_slot_name = format!("__iter_tamanho_{suffix}");
+        let cursor_slot_name = format!("__iter_cursor_{suffix}");
+        let index_slot_name = format!("__iter_indice_{suffix}");
+        let helper_span = loop_span;
+
+        let map_binding_stmt = Stmt::Let(LetStmt {
+            name: map_slot_name.clone(),
+            is_mut: false,
+            ty: None,
+            init: map_expr,
+            span: helper_span,
+        });
+
+        let size_binding_stmt = Stmt::Let(LetStmt {
+            name: size_slot_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident("mapa_bombom_verso_tamanho".to_string()),
+                        span: helper_span,
+                    }),
+                    vec![Expr {
+                        kind: ExprKind::Ident(map_slot_name.clone()),
+                        span: helper_span,
+                    }],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let cursor_binding_stmt = Stmt::Let(LetStmt {
+            name: cursor_slot_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(
+                            "__pinker_internal_mapa_bombom_verso_iterador_criar".to_string(),
+                        ),
+                        span: helper_span,
+                    }),
+                    vec![Expr {
+                        kind: ExprKind::Ident(map_slot_name.clone()),
+                        span: helper_span,
+                    }],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let index_binding_stmt = Stmt::Let(LetStmt {
+            name: index_slot_name.clone(),
+            is_mut: true,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::IntLit(0),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let condition = Expr {
+            kind: ExprKind::Binary(
+                Box::new(Expr {
+                    kind: ExprKind::Ident(index_slot_name.clone()),
+                    span: helper_span,
+                }),
+                BinaryOp::Lt,
+                Box::new(Expr {
+                    kind: ExprKind::Ident(size_slot_name),
+                    span: helper_span,
+                }),
+            ),
+            span: helper_span,
+        };
+
+        let key_binding = Stmt::Let(LetStmt {
+            name: key_name,
+            is_mut: false,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(
+                            "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave"
+                                .to_string(),
                         ),
                         span: helper_span,
                     }),

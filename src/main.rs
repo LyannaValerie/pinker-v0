@@ -550,6 +550,8 @@ fn run_analyze(config: Config) {
                 interpreter::RuntimeValue::ListVerso(_) => {}
                 interpreter::RuntimeValue::MapVersoBombom(_) => {}
                 interpreter::RuntimeValue::MapVersoVerso(_) => {}
+                interpreter::RuntimeValue::MapBombomBombom(_) => {}
+                interpreter::RuntimeValue::MapBombomVerso(_) => {}
             }
         }
         if let Some(code) = result.exit_status {

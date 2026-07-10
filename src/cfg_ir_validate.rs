@@ -270,6 +270,118 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "mapa_bombom_bombom_criar".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::MapBombomBombom,
+            params: vec![],
+        },
+    );
+    function_sigs.insert(
+        "mapa_bombom_bombom_definir".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "mapa_bombom_bombom_obter".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "mapa_bombom_bombom_tem".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "mapa_bombom_bombom_tamanho".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapBombomBombom],
+        },
+    );
+    function_sigs.insert(
+        "mapa_bombom_bombom_remover".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapBombomBombom],
+        },
+    );
+    function_sigs.insert(
+        "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "mapa_bombom_verso_criar".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::MapBombomVerso,
+            params: vec![],
+        },
+    );
+    function_sigs.insert(
+        "mapa_bombom_verso_definir".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom, TypeIR::Verso],
+        },
+    );
+    function_sigs.insert(
+        "mapa_bombom_verso_obter".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "mapa_bombom_verso_tem".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "mapa_bombom_verso_tamanho".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapBombomVerso],
+        },
+    );
+    function_sigs.insert(
+        "mapa_bombom_verso_remover".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "__pinker_internal_mapa_bombom_verso_iterador_criar".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapBombomVerso],
+        },
+    );
+    function_sigs.insert(
+        "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
         "argumento".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,

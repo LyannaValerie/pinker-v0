@@ -15,8 +15,7 @@ Documentos canônicos:
 - `docs/roadmap/blocos/*.md` — shards estruturais por bloco; não substituem o histórico.
 - `docs/history.md` — ponteiro canônico curto para o sistema histórico.
 - `docs/history/indice.md` — hub principal de navegação histórica.
-- `docs/agent_state.md` — estado operacional corrente, de forma enxuta.
-- `docs/handoff_codex.md` — bilhete operacional curto da rodada.
+- `docs/handoff_codex.md` — estado operacional unificado (estado corrente, handoff da rodada, limites, restrições).
 - `docs/doc_rules.md` — regras de atualização documental.
 - `MANUAL.md` — manual prático de uso no estado implementado.
 
@@ -62,7 +61,7 @@ Quando um documento tiver papel estrutural, declarar no topo:
 
 1. Código mergeado local
 2. `docs/roadmap.md`
-3. `docs/agent_state.md` + `docs/handoff_codex.md`
+3. `docs/handoff_codex.md`
 4. sistema histórico canônico (`docs/history.md` -> `docs/history/indice.md` -> shards em `docs/history/`)
 5. `docs/future.md`
 6. `docs/rosa.md` + `docs/vocabulario.md` + `docs/parallel.md`

@@ -1,0 +1,23 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova contagem: mapa<bombom,bombom> = mapa_bombom_bombom_criar();
+    mapa_bombom_bombom_definir(contagem, 1, 100);
+    mapa_bombom_bombom_definir(contagem, 2, 200);
+    mapa_bombom_bombom_definir(contagem, 3, 300);
+
+    falar(mapa_bombom_bombom_obter(contagem, 1));
+    falar(mapa_bombom_bombom_obter(contagem, 2));
+    falar(mapa_bombom_bombom_obter(contagem, 3));
+
+    falar(mapa_bombom_bombom_tamanho(contagem));
+
+    mapa_bombom_bombom_remover(contagem, 3);
+    falar(mapa_bombom_bombom_tamanho(contagem));
+
+    para cada chave em contagem {
+        falar(chave);
+    }
+
+    mimo 0;
+}

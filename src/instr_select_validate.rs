@@ -62,6 +62,40 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
         "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
         TypeIR::Verso,
     );
+    sigs.insert(
+        "mapa_bombom_bombom_criar".to_string(),
+        TypeIR::MapBombomBombom,
+    );
+    sigs.insert("mapa_bombom_bombom_definir".to_string(), TypeIR::Nulo);
+    sigs.insert("mapa_bombom_bombom_obter".to_string(), TypeIR::Bombom);
+    sigs.insert("mapa_bombom_bombom_tem".to_string(), TypeIR::Logica);
+    sigs.insert("mapa_bombom_bombom_tamanho".to_string(), TypeIR::Bombom);
+    sigs.insert("mapa_bombom_bombom_remover".to_string(), TypeIR::Nulo);
+    sigs.insert(
+        "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
+        TypeIR::Bombom,
+    );
+    sigs.insert(
+        "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave".to_string(),
+        TypeIR::Bombom,
+    );
+    sigs.insert(
+        "mapa_bombom_verso_criar".to_string(),
+        TypeIR::MapBombomVerso,
+    );
+    sigs.insert("mapa_bombom_verso_definir".to_string(), TypeIR::Nulo);
+    sigs.insert("mapa_bombom_verso_obter".to_string(), TypeIR::Verso);
+    sigs.insert("mapa_bombom_verso_tem".to_string(), TypeIR::Logica);
+    sigs.insert("mapa_bombom_verso_tamanho".to_string(), TypeIR::Bombom);
+    sigs.insert("mapa_bombom_verso_remover".to_string(), TypeIR::Nulo);
+    sigs.insert(
+        "__pinker_internal_mapa_bombom_verso_iterador_criar".to_string(),
+        TypeIR::Bombom,
+    );
+    sigs.insert(
+        "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave".to_string(),
+        TypeIR::Bombom,
+    );
     sigs.insert("argumento".to_string(), TypeIR::Verso);
     sigs.insert("argumento_ou".to_string(), TypeIR::Verso);
     sigs.insert("tem_chave".to_string(), TypeIR::Logica);

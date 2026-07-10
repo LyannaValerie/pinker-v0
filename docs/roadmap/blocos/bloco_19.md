@@ -24,4 +24,4 @@ O bloco não está ativo. Permanece apenas como trilha candidata futura para tem
 
 ## Relação com o histórico
 - Enquadramento documental inicial em `docs/history/documentation/001a050.md` (Doc-32).
-- Estado corrente continua explícito em `docs/agent_state.md` e `docs/roadmap.md`.
+- Estado corrente continua explícito em `docs/handoff_codex.md` e `docs/roadmap.md`.

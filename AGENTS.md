@@ -61,7 +61,7 @@ Mapa curto por feature: `docs/code_map.md`.
 
 - Preservar continuidade factual do workspace e trilha ativa.
 - Tarefa operacional não abre fase, Doc, FE ou HF.
-- Não tocar docs canônicos por inércia: `docs/history.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/roadmap.md`, `docs/future.md`, `docs/phases.md`.
+- Não tocar docs canônicos por inércia: `docs/history.md`, `docs/handoff_codex.md`, `docs/roadmap.md`, `docs/future.md`, `docs/phases.md`.
 - Mudança funcional real exige evidência em código, testes e docs canônicos apropriados.
 - Não reverter mudanças do usuário sem pedido explícito.
 - Validar com `build`, `test`, `fmt-check` e `clippy` antes de encerrar.
@@ -73,7 +73,6 @@ Mapa curto por feature: `docs/code_map.md`.
 - `docs/doc_rules.md`
 - `docs/atlas.md`
 - `docs/roadmap.md`
-- `docs/agent_state.md`
 - `docs/handoff_codex.md`
 - `docs/history.md`
 - exemplos e testes afetados
@@ -81,7 +80,6 @@ Mapa curto por feature: `docs/code_map.md`.
 ## O que normalmente não tocar em tarefa operacional
 
 - `docs/history.md`
-- `docs/agent_state.md`
 - `docs/handoff_codex.md`
 - `docs/roadmap.md`
 - `docs/future.md`
@@ -89,7 +87,7 @@ Mapa curto por feature: `docs/code_map.md`.
 
 ## Fluxo curto recomendado
 
-1. Ler `README.md`, `docs/atlas.md`, `docs/agent_state.md`, `docs/handoff_codex.md`, `docs/doc_rules.md`.
+1. Ler `README.md`, `docs/atlas.md`, `docs/handoff_codex.md`, `docs/doc_rules.md`.
 2. Rodar `make ci`.
 3. Localizar a camada afetada em `docs/code_map.md`.
 4. Escolher um exemplo/teste próximo em `docs/examples_index.md`.
