@@ -103,6 +103,8 @@ Referência estrutural desta leitura: `docs/familias/dominios.md`.
 | 2 | `ouvir_verso` | `() → verso` | Bloco 8, Fase 110 | Entrada fundamental textual pela stdin |
 | 3 | `ouvir_verso_ou` | `(verso) → verso` | Bloco 8, Fase 110 | Entrada textual com fallback para EOF |
 | 4 | `sair` | `(bombom) → nulo` | Bloco 8, Fase 92 | Controle fundamental de processo |
+| 108 | `dormir` | `(bombom) → nulo` | Fase 193 | Pausa de execução em milissegundos |
+| 109 | `afirmar` | `(logica, verso) → nulo` | Fase 193 | Asserção com mensagem de erro |
 
 **Justificativa resumida:** estas intrínsecas são universais, indispensáveis para I/O básico e controle de processo, acopladas ao runtime e irredutíveis. Junto com `falar` (statement), `peso` e `alinhamento` (expressões compiletime), formam o núcleo mínimo da linguagem.
 
@@ -131,7 +133,10 @@ Domínio: manipulação de `verso` (strings).
 | 21 | `substituir_verso` | `(verso, verso, verso) → verso` | Bloco 11, Fase 138 |
 | 22 | `juntar_verso_com` | `(verso, verso, verso) → verso` | Bloco 11, Fase 139 |
 
-**Total: 18 intrínsecas.** Domínio coeso e com inflação lexical visível (prefixos/sufixos `_verso` repetidos). Candidata forte a família.
+| 106 | `verso_para_bombom` | `(verso) → bombom` | Fase 193 |
+| 107 | `bombom_para_verso` | `(bombom) → verso` | Fase 193 |
+
+**Total: 20 intrínsecas.** Domínio coeso e com inflação lexical visível (prefixos/sufixos `_verso` repetidos). Candidata forte a família.
 
 ### 3.3 Família candidata: arquivo
 
@@ -152,7 +157,10 @@ Domínio: operações de arquivo por handle e por caminho.
 | 33 | `abrir_anexo` | `(verso) → bombom` | Bloco 8, Fase 108 |
 | 34 | `anexar_verso` | `(bombom, verso) → nulo` | Bloco 8, Fase 108 |
 
-**Total: 12 intrínsecas.** Domínio coeso em torno de I/O de arquivo. Candidata forte.
+| 110 | `copiar_arquivo` | `(verso, verso) → nulo` | Fase 193 |
+| 111 | `renomear_arquivo` | `(verso, verso) → nulo` | Fase 193 |
+
+**Total: 14 intrínsecas.** Domínio coeso em torno de I/O de arquivo. Candidata forte.
 
 ### 3.4 Família candidata: caminho
 
@@ -225,7 +233,9 @@ Domínio: pseudoaleatoriedade.
 | 61 | `aleatorio_criar` | `(bombom) → bombom` | Bloco 13, Fase 156 |
 | 62 | `aleatorio_proximo` | `(bombom) → bombom` | Bloco 13, Fase 156 |
 
-**Total: 2 intrínsecas.** Domínio coeso, família pequena. Candidata.
+| 112 | `aleatorio_entre` | `(bombom, bombom, bombom) → bombom` | Fase 193 |
+
+**Total: 3 intrínsecas.** Domínio coeso, família pequena. Candidata.
 
 ### 3.9 Domínio provisório: colecao
 
@@ -244,8 +254,35 @@ Nome de família **em avaliação lexical** — não canonizado nesta fase.
 | 71 | `mapa_verso_bombom_obter` | `(mapa<verso,bombom>, verso) → bombom` | Bloco 13, Fase 152 |
 | 72 | `mapa_verso_bombom_tem` | `(mapa<verso,bombom>, verso) → logica` | Bloco 13, Fase 152 |
 | 73 | `mapa_verso_bombom_tamanho` | `(mapa<verso,bombom>) → bombom` | Bloco 13, Fase 152 |
+| 79 | `mapa_verso_bombom_remover` | `(mapa<verso,bombom>, verso) → nulo` | Fase 193 |
+| 80 | `lista_bombom_inserir` | `(lista<bombom>, bombom, bombom) → nulo` | Fase 203 |
+| 81 | `lista_verso_criar` | `() → lista<verso>` | Fase 203 |
+| 82 | `lista_verso_anexar` | `(lista<verso>, verso) → nulo` | Fase 203 |
+| 83 | `lista_verso_obter` | `(lista<verso>, bombom) → verso` | Fase 203 |
+| 84 | `lista_verso_tamanho` | `(lista<verso>) → bombom` | Fase 203 |
+| 85 | `lista_verso_definir` | `(lista<verso>, bombom, verso) → nulo` | Fase 203 |
+| 86 | `lista_verso_tirar_ultimo` | `(lista<verso>) → verso` | Fase 203 |
+| 87 | `lista_verso_inserir` | `(lista<verso>, bombom, verso) → nulo` | Fase 203 |
+| 88 | `mapa_verso_verso_criar` | `() → mapa<verso,verso>` | Fase 204 |
+| 89 | `mapa_verso_verso_definir` | `(mapa<verso,verso>, verso, verso) → nulo` | Fase 204 |
+| 90 | `mapa_verso_verso_obter` | `(mapa<verso,verso>, verso) → verso` | Fase 204 |
+| 91 | `mapa_verso_verso_tem` | `(mapa<verso,verso>, verso) → logica` | Fase 204 |
+| 92 | `mapa_verso_verso_tamanho` | `(mapa<verso,verso>) → bombom` | Fase 204 |
+| 93 | `mapa_verso_verso_remover` | `(mapa<verso,verso>, verso) → nulo` | Fase 204 |
+| 94 | `mapa_bombom_bombom_criar` | `() → mapa<bombom,bombom>` | Fase 205 |
+| 95 | `mapa_bombom_bombom_definir` | `(mapa<bombom,bombom>, bombom, bombom) → nulo` | Fase 205 |
+| 96 | `mapa_bombom_bombom_obter` | `(mapa<bombom,bombom>, bombom) → bombom` | Fase 205 |
+| 97 | `mapa_bombom_bombom_tem` | `(mapa<bombom,bombom>, bombom) → logica` | Fase 205 |
+| 98 | `mapa_bombom_bombom_tamanho` | `(mapa<bombom,bombom>) → bombom` | Fase 205 |
+| 99 | `mapa_bombom_bombom_remover` | `(mapa<bombom,bombom>, bombom) → nulo` | Fase 205 |
+| 100 | `mapa_bombom_verso_criar` | `() → mapa<bombom,verso>` | Fase 206 |
+| 101 | `mapa_bombom_verso_definir` | `(mapa<bombom,verso>, bombom, verso) → nulo` | Fase 206 |
+| 102 | `mapa_bombom_verso_obter` | `(mapa<bombom,verso>, bombom) → verso` | Fase 206 |
+| 103 | `mapa_bombom_verso_tem` | `(mapa<bombom,verso>, bombom) → logica` | Fase 206 |
+| 104 | `mapa_bombom_verso_tamanho` | `(mapa<bombom,verso>) → bombom` | Fase 206 |
+| 105 | `mapa_bombom_verso_remover` | `(mapa<bombom,verso>, bombom) → nulo` | Fase 206 |
 
-**Total: 11 intrínsecas.** Domínio funcional claro, mas nome `colecao` em avaliação lexical. Domínio provisório atribuído internamente; canonização pública adiada.
+**Total: 38 intrínsecas.** Domínio funcional claro, mas nome `colecao` em avaliação lexical. Domínio provisório atribuído internamente; canonização pública adiada. As Fases 193–206 expandiram o domínio com novos tipos de coleção e operações adicionais.
 
 ### 3.10 Domínio provisório: formato
 
@@ -277,29 +314,35 @@ Estes aliases existem por compatibilidade temporária e devem ser tratados como 
 
 | Nome | Assinatura | Propósito |
 |---|---|---|
-| `__pinker_internal_mapa_verso_bombom_iterador_criar` | `(mapa<verso,bombom>) → bombom` | Suporte interno ao lowering de `para cada chave em mapa` |
-| `__pinker_internal_mapa_verso_bombom_iterador_proxima_chave` | `(bombom) → verso` | Suporte interno ao lowering de `para cada chave em mapa` |
+| `__pinker_internal_mapa_verso_bombom_iterador_criar` | `(mapa<verso,bombom>) → bombom` | Suporte interno ao lowering de `para cada chave em mapa<verso,bombom>` |
+| `__pinker_internal_mapa_verso_bombom_iterador_proxima_chave` | `(bombom) → verso` | Suporte interno ao lowering de `para cada chave em mapa<verso,bombom>` |
+| `__pinker_internal_mapa_verso_verso_iterador_criar` | `(mapa<verso,verso>) → bombom` | Suporte interno ao lowering de `para cada chave em mapa<verso,verso>` |
+| `__pinker_internal_mapa_verso_verso_iterador_proxima_chave` | `(bombom) → verso` | Suporte interno ao lowering de `para cada chave em mapa<verso,verso>` |
+| `__pinker_internal_mapa_bombom_bombom_iterador_criar` | `(mapa<bombom,bombom>) → bombom` | Suporte interno ao lowering de `para cada chave em mapa<bombom,bombom>` |
+| `__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave` | `(bombom) → bombom` | Suporte interno ao lowering de `para cada chave em mapa<bombom,bombom>` |
+| `__pinker_internal_mapa_bombom_verso_iterador_criar` | `(mapa<bombom,verso>) → bombom` | Suporte interno ao lowering de `para cada chave em mapa<bombom,verso>` |
+| `__pinker_internal_mapa_bombom_verso_iterador_proxima_chave` | `(bombom) → bombom` | Suporte interno ao lowering de `para cada chave em mapa<bombom,verso>` |
 
-Estas intrínsecas não fazem parte da superfície pública e não participam da classificação do Bloco 18. São mecanismo interno do compilador para desdobrar `para cada` sobre `mapa<verso,bombom>`.
+Estas intrínsecas não fazem parte da superfície pública e não participam da classificação do Bloco 18. São mecanismo interno do compilador para desdobrar `para cada` sobre os tipos de mapa.
 
 ## 4. Resumo quantitativo
 
 | Classificação | Quantidade |
 |---|---|
 | Núcleo nobre — construtos de linguagem (não intrínsecas) | 3 (`falar`, `peso`, `alinhamento`) |
-| Núcleo nobre — intrínsecas | 4 |
-| Família candidata: texto | 18 |
-| Família candidata: arquivo | 12 |
+| Núcleo nobre — intrínsecas | 6 |
+| Família candidata: texto | 20 |
+| Família candidata: arquivo | 14 |
 | Família candidata: caminho | 10 |
 | Família candidata: processo | 5 |
 | Família candidata: tempo | 2 |
 | Família candidata: ambiente | 9 |
-| Família candidata: acaso | 2 |
-| Domínio provisório: colecao | 11 |
+| Família candidata: acaso | 3 |
+| Domínio provisório: colecao | 38 |
 | Domínio provisório: formato | 5 |
 | Aliases legados | 3 |
-| Intrínsecas internas | 2 |
-| **Total de intrínsecas públicas distintas** | **78** |
+| Intrínsecas internas | 8 |
+| **Total de intrínsecas públicas distintas** | **112** |
 
 ## 5. Observações para as próximas fases
 
