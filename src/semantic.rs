@@ -144,7 +144,9 @@ impl SemanticChecker {
             | (Type::ListBombom(_), Type::ListBombom(_))
             | (Type::ListVerso(_), Type::ListVerso(_))
             | (Type::MapVersoBombom(_), Type::MapVersoBombom(_))
-            | (Type::MapVersoVerso(_), Type::MapVersoVerso(_)) => true,
+            | (Type::MapVersoVerso(_), Type::MapVersoVerso(_))
+            | (Type::MapBombomBombom(_), Type::MapBombomBombom(_))
+            | (Type::MapBombomVerso(_), Type::MapBombomVerso(_)) => true,
             (Type::Struct { name: lhs_name, .. }, Type::Struct { name: rhs_name, .. }) => {
                 lhs_name == rhs_name
             }
@@ -3111,6 +3113,410 @@ impl SemanticChecker {
             }
             return Ok(Type::Nulo(expr_span));
         }
+        if name == "mapa_bombom_bombom_criar" {
+            if !args.is_empty() {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_bombom_bombom_criar' com aridade inválida: esperado 0, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            return Ok(Type::MapBombomBombom(expr_span));
+        }
+        if name == "mapa_bombom_bombom_definir" {
+            if args.len() != 3 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_bombom_bombom_definir' com aridade inválida: esperado 3, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let mapa_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(mapa_ty, Type::MapBombomBombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'mapa_bombom_bombom_definir': esperado 'mapa<bombom,bombom>', encontrado '{}'",
+                        mapa_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let key_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(key_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'mapa_bombom_bombom_definir': esperado 'bombom', encontrado '{}'",
+                        key_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            let value_ty = self.check_value_expr(
+                &args[2],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(value_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 3 da chamada 'mapa_bombom_bombom_definir': esperado 'bombom', encontrado '{}'",
+                        value_ty.name()
+                    ),
+                    span: args[2].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
+        }
+        if name == "mapa_bombom_bombom_obter" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_bombom_bombom_obter' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let mapa_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(mapa_ty, Type::MapBombomBombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'mapa_bombom_bombom_obter': esperado 'mapa<bombom,bombom>', encontrado '{}'",
+                        mapa_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let key_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(key_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'mapa_bombom_bombom_obter': esperado 'bombom', encontrado '{}'",
+                        key_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
+        if name == "mapa_bombom_bombom_tem" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_bombom_bombom_tem' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let mapa_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(mapa_ty, Type::MapBombomBombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'mapa_bombom_bombom_tem': esperado 'mapa<bombom,bombom>', encontrado '{}'",
+                        mapa_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let key_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(key_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'mapa_bombom_bombom_tem': esperado 'bombom', encontrado '{}'",
+                        key_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Logica(expr_span));
+        }
+        if name == "mapa_bombom_bombom_tamanho" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_bombom_bombom_tamanho' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let map_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(map_ty, Type::MapBombomBombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'mapa_bombom_bombom_tamanho': esperado 'mapa<bombom,bombom>', encontrado '{}'",
+                        map_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
+        if name == "mapa_bombom_bombom_remover" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_bombom_bombom_remover' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let map_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(map_ty, Type::MapBombomBombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'mapa_bombom_bombom_remover': esperado 'mapa<bombom,bombom>', encontrado '{}'",
+                        map_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let key_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(key_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'mapa_bombom_bombom_remover': esperado 'bombom', encontrado '{}'",
+                        key_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
+        }
+        if name == "mapa_bombom_verso_criar" {
+            if !args.is_empty() {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_bombom_verso_criar' com aridade inválida: esperado 0, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            return Ok(Type::MapBombomVerso(expr_span));
+        }
+        if name == "mapa_bombom_verso_definir" {
+            if args.len() != 3 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_bombom_verso_definir' com aridade inválida: esperado 3, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let mapa_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(mapa_ty, Type::MapBombomVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'mapa_bombom_verso_definir': esperado 'mapa<bombom,verso>', encontrado '{}'",
+                        mapa_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let key_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(key_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'mapa_bombom_verso_definir': esperado 'bombom', encontrado '{}'",
+                        key_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            let value_ty = self.check_value_expr(
+                &args[2],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(value_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 3 da chamada 'mapa_bombom_verso_definir': esperado 'verso', encontrado '{}'",
+                        value_ty.name()
+                    ),
+                    span: args[2].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
+        }
+        if name == "mapa_bombom_verso_obter" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_bombom_verso_obter' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let mapa_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(mapa_ty, Type::MapBombomVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'mapa_bombom_verso_obter': esperado 'mapa<bombom,verso>', encontrado '{}'",
+                        mapa_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let key_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(key_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'mapa_bombom_verso_obter': esperado 'bombom', encontrado '{}'",
+                        key_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Verso(expr_span));
+        }
+        if name == "mapa_bombom_verso_tem" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_bombom_verso_tem' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let mapa_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(mapa_ty, Type::MapBombomVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'mapa_bombom_verso_tem': esperado 'mapa<bombom,verso>', encontrado '{}'",
+                        mapa_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let key_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(key_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'mapa_bombom_verso_tem': esperado 'bombom', encontrado '{}'",
+                        key_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Logica(expr_span));
+        }
+        if name == "mapa_bombom_verso_tamanho" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_bombom_verso_tamanho' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let map_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(map_ty, Type::MapBombomVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'mapa_bombom_verso_tamanho': esperado 'mapa<bombom,verso>', encontrado '{}'",
+                        map_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
+        if name == "mapa_bombom_verso_remover" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_bombom_verso_remover' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let map_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(map_ty, Type::MapBombomVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'mapa_bombom_verso_remover': esperado 'mapa<bombom,verso>', encontrado '{}'",
+                        map_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let key_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(key_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'mapa_bombom_verso_remover': esperado 'bombom', encontrado '{}'",
+                        key_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
+        }
         if name == "lista_bombom_inserir" {
             if args.len() != 3 {
                 return Err(PinkerError::Semantic {
@@ -4706,6 +5112,74 @@ impl SemanticChecker {
                 "resultado de função sem retorno não pode ser usado como argumento",
             )?;
             return Ok(Type::Verso(expr_span));
+        }
+
+        if name == "__pinker_internal_mapa_bombom_bombom_iterador_criar" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: "iterador interno de mapa<bombom,bombom> exige 1 argumento".to_string(),
+                    span: expr_span,
+                });
+            }
+            let map_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(map_ty, Type::MapBombomBombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: "iterador interno de mapa<bombom,bombom> exige mapa<bombom,bombom>"
+                        .to_string(),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
+        if name == "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: "iterador interno de mapa<bombom,bombom> exige 1 argumento".to_string(),
+                    span: expr_span,
+                });
+            }
+            self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            return Ok(Type::Bombom(expr_span));
+        }
+
+        if name == "__pinker_internal_mapa_bombom_verso_iterador_criar" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: "iterador interno de mapa<bombom,verso> exige 1 argumento".to_string(),
+                    span: expr_span,
+                });
+            }
+            let map_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(map_ty, Type::MapBombomVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: "iterador interno de mapa<bombom,verso> exige mapa<bombom,verso>"
+                        .to_string(),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
+        if name == "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: "iterador interno de mapa<bombom,verso> exige 1 argumento".to_string(),
+                    span: expr_span,
+                });
+            }
+            self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            return Ok(Type::Bombom(expr_span));
         }
 
         let Some(function) = self.funcs.get(name).cloned() else {

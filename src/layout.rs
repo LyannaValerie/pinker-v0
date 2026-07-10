@@ -59,6 +59,12 @@ fn layout_of_type_inner(
         Type::MapVersoVerso(_) => {
             Err("tipo 'mapa<verso,verso>' ainda não possui layout estático nesta fase".to_string())
         }
+        Type::MapBombomBombom(_) => Err(
+            "tipo 'mapa<bombom,bombom>' ainda não possui layout estático nesta fase".to_string(),
+        ),
+        Type::MapBombomVerso(_) => {
+            Err("tipo 'mapa<bombom,verso>' ainda não possui layout estático nesta fase".to_string())
+        }
         Type::Pointer { .. } => Ok(TypeLayout {
             size: POINTER_SIZE,
             align: POINTER_ALIGN,

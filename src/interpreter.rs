@@ -57,9 +57,13 @@ struct RuntimeListState {
 struct RuntimeMapState {
     maps_verso_bombom: HashMap<u64, HashMap<String, u64>>,
     maps_verso_verso: HashMap<u64, HashMap<String, String>>,
+    maps_bombom_bombom: HashMap<u64, HashMap<u64, u64>>,
+    maps_bombom_verso: HashMap<u64, HashMap<u64, String>>,
     next_map_handle: u64,
     map_iters_verso_bombom: HashMap<u64, RuntimeMapVersoBombomIter>,
     map_iters_verso_verso: HashMap<u64, RuntimeMapVersoVersoIter>,
+    map_iters_bombom_bombom: HashMap<u64, RuntimeMapBombomBombomIter>,
+    map_iters_bombom_verso: HashMap<u64, RuntimeMapBombomVersoIter>,
     next_map_iter_handle: u64,
 }
 
@@ -79,6 +83,16 @@ struct RuntimeMapVersoBombomIter {
 
 struct RuntimeMapVersoVersoIter {
     keys_snapshot: Vec<String>,
+    next_index: usize,
+}
+
+struct RuntimeMapBombomBombomIter {
+    keys_snapshot: Vec<u64>,
+    next_index: usize,
+}
+
+struct RuntimeMapBombomVersoIter {
+    keys_snapshot: Vec<u64>,
     next_index: usize,
 }
 
@@ -107,6 +121,8 @@ pub enum RuntimeValue {
     ListVerso(u64),
     MapVersoBombom(u64),
     MapVersoVerso(u64),
+    MapBombomBombom(u64),
+    MapBombomVerso(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -140,9 +156,13 @@ pub fn run_program_with_args(
     let mut map_state = RuntimeMapState {
         maps_verso_bombom: HashMap::new(),
         maps_verso_verso: HashMap::new(),
+        maps_bombom_bombom: HashMap::new(),
+        maps_bombom_verso: HashMap::new(),
         next_map_handle: 1,
         map_iters_verso_bombom: HashMap::new(),
         map_iters_verso_verso: HashMap::new(),
+        map_iters_bombom_bombom: HashMap::new(),
+        map_iters_bombom_verso: HashMap::new(),
         next_map_iter_handle: 1,
     };
     let mut random_state = RuntimeRandomState {
@@ -406,6 +426,8 @@ fn exec_instr(
                 RuntimeValue::ListVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapVersoBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapVersoVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::MapBombomBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::MapBombomVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(out);
         }
@@ -425,6 +447,8 @@ fn exec_instr(
                 RuntimeValue::ListVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapVersoBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapVersoVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::MapBombomBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::MapBombomVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(out);
         }
@@ -655,6 +679,8 @@ fn exec_instr(
                 RuntimeValue::ListVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapVersoBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapVersoVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::MapBombomBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::MapBombomVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
             }
         }
         MachineInstr::PrintBoolInline => {
@@ -2957,6 +2983,390 @@ fn try_call_intrinsic(
             iter.next_index = iter.next_index.saturating_add(1);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(key.clone()))))
         }
+        "mapa_bombom_bombom_criar" => {
+            if !args.is_empty() {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_criar' exige 0 argumentos",
+                ));
+            }
+            let handle = map_state.next_map_handle;
+            map_state.next_map_handle = map_state.next_map_handle.saturating_add(1);
+            map_state.maps_bombom_bombom.insert(handle, HashMap::new());
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::MapBombomBombom(
+                handle,
+            ))))
+        }
+        "mapa_bombom_bombom_definir" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_definir' exige 3 argumentos (mapa<bombom,bombom>, bombom, bombom)",
+                ));
+            }
+            let RuntimeValue::MapBombomBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_definir' exige mapa<bombom,bombom> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Int(key) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_definir' exige bombom no segundo argumento",
+                ));
+            };
+            let RuntimeValue::Int(value) = args[2] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_definir' exige bombom no terceiro argumento",
+                ));
+            };
+            let Some(mapa) = map_state.maps_bombom_bombom.get_mut(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<bombom,bombom> inválido em 'mapa_bombom_bombom_definir'",
+                ));
+            };
+            mapa.insert(key, value);
+            Ok(IntrinsicCall::Done(None))
+        }
+        "mapa_bombom_bombom_obter" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_obter' exige 2 argumentos (mapa<bombom,bombom>, bombom)",
+                ));
+            }
+            let RuntimeValue::MapBombomBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_obter' exige mapa<bombom,bombom> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Int(key) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_obter' exige bombom no segundo argumento",
+                ));
+            };
+            let Some(mapa) = map_state.maps_bombom_bombom.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<bombom,bombom> inválido em 'mapa_bombom_bombom_obter'",
+                ));
+            };
+            let Some(value) = mapa.get(&key) else {
+                return Err(runtime_err("chave ausente em 'mapa_bombom_bombom_obter'"));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(*value))))
+        }
+        "mapa_bombom_bombom_tem" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_tem' exige 2 argumentos (mapa<bombom,bombom>, bombom)",
+                ));
+            }
+            let RuntimeValue::MapBombomBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_tem' exige mapa<bombom,bombom> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Int(key) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_tem' exige bombom no segundo argumento",
+                ));
+            };
+            let Some(mapa) = map_state.maps_bombom_bombom.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<bombom,bombom> inválido em 'mapa_bombom_bombom_tem'",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                mapa.contains_key(&key),
+            ))))
+        }
+        "mapa_bombom_bombom_tamanho" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_tamanho' exige 1 argumento (mapa<bombom,bombom>)",
+                ));
+            }
+            let RuntimeValue::MapBombomBombom(handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_tamanho' exige mapa<bombom,bombom> no argumento",
+                ));
+            };
+            let handle = *handle;
+            let Some(mapa) = map_state.maps_bombom_bombom.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<bombom,bombom> inválido em 'mapa_bombom_bombom_tamanho'",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(
+                mapa.len() as u64
+            ))))
+        }
+        "mapa_bombom_bombom_remover" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_remover' exige 2 argumentos (mapa, chave bombom)",
+                ));
+            }
+            let RuntimeValue::MapBombomBombom(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_remover' exige mapa<bombom,bombom>",
+                ));
+            };
+            let RuntimeValue::Int(chave) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_bombom_remover' exige chave bombom",
+                ));
+            };
+            let mapa = map_state
+                .maps_bombom_bombom
+                .get_mut(&handle)
+                .ok_or_else(|| {
+                    runtime_err("intrínseca 'mapa_bombom_bombom_remover': mapa inválido")
+                })?;
+            mapa.remove(&chave);
+            Ok(IntrinsicCall::Done(None))
+        }
+        "__pinker_internal_mapa_bombom_bombom_iterador_criar" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_mapa_bombom_bombom_iterador_criar' exige 1 argumento (mapa<bombom,bombom>)",
+                ));
+            }
+            let RuntimeValue::MapBombomBombom(handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_mapa_bombom_bombom_iterador_criar' exige mapa<bombom,bombom> no argumento",
+                ));
+            };
+            let handle = *handle;
+            let Some(mapa) = map_state.maps_bombom_bombom.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<bombom,bombom> inválido em '__pinker_internal_mapa_bombom_bombom_iterador_criar'",
+                ));
+            };
+            let iter_handle = map_state.next_map_iter_handle;
+            map_state.next_map_iter_handle = map_state.next_map_iter_handle.saturating_add(1);
+            map_state.map_iters_bombom_bombom.insert(
+                iter_handle,
+                RuntimeMapBombomBombomIter {
+                    keys_snapshot: mapa.keys().copied().collect(),
+                    next_index: 0,
+                },
+            );
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(iter_handle))))
+        }
+        "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave' exige 1 argumento (cursor)",
+                ));
+            };
+            let RuntimeValue::Int(iter_handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave' exige cursor 'bombom'",
+                ));
+            };
+            let Some(iter) = map_state.map_iters_bombom_bombom.get_mut(iter_handle) else {
+                return Err(runtime_err(
+                    "cursor interno de mapa inválido em '__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave'",
+                ));
+            };
+            let key = iter.keys_snapshot.get(iter.next_index).ok_or_else(|| {
+                runtime_err(
+                    "cursor interno de mapa esgotado em '__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave'",
+                )
+            })?;
+            let key_val = *key;
+            iter.next_index = iter.next_index.saturating_add(1);
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(key_val))))
+        }
+        "mapa_bombom_verso_criar" => {
+            if !args.is_empty() {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_criar' exige 0 argumentos",
+                ));
+            }
+            let handle = map_state.next_map_handle;
+            map_state.next_map_handle = map_state.next_map_handle.saturating_add(1);
+            map_state.maps_bombom_verso.insert(handle, HashMap::new());
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::MapBombomVerso(
+                handle,
+            ))))
+        }
+        "mapa_bombom_verso_definir" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_definir' exige 3 argumentos (mapa<bombom,verso>, bombom, verso)",
+                ));
+            }
+            let RuntimeValue::MapBombomVerso(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_definir' exige mapa<bombom,verso> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Int(key) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_definir' exige bombom no segundo argumento",
+                ));
+            };
+            let RuntimeValue::Str(ref value) = args[2] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_definir' exige verso no terceiro argumento",
+                ));
+            };
+            let Some(mapa) = map_state.maps_bombom_verso.get_mut(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<bombom,verso> inválido em 'mapa_bombom_verso_definir'",
+                ));
+            };
+            mapa.insert(key, value.clone());
+            Ok(IntrinsicCall::Done(None))
+        }
+        "mapa_bombom_verso_obter" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_obter' exige 2 argumentos (mapa<bombom,verso>, bombom)",
+                ));
+            }
+            let RuntimeValue::MapBombomVerso(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_obter' exige mapa<bombom,verso> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Int(key) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_obter' exige bombom no segundo argumento",
+                ));
+            };
+            let Some(mapa) = map_state.maps_bombom_verso.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<bombom,verso> inválido em 'mapa_bombom_verso_obter'",
+                ));
+            };
+            let Some(value) = mapa.get(&key) else {
+                return Err(runtime_err("chave ausente em 'mapa_bombom_verso_obter'"));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value.clone()))))
+        }
+        "mapa_bombom_verso_tem" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_tem' exige 2 argumentos (mapa<bombom,verso>, bombom)",
+                ));
+            }
+            let RuntimeValue::MapBombomVerso(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_tem' exige mapa<bombom,verso> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Int(key) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_tem' exige bombom no segundo argumento",
+                ));
+            };
+            let Some(mapa) = map_state.maps_bombom_verso.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<bombom,verso> inválido em 'mapa_bombom_verso_tem'",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                mapa.contains_key(&key),
+            ))))
+        }
+        "mapa_bombom_verso_tamanho" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_tamanho' exige 1 argumento (mapa<bombom,verso>)",
+                ));
+            }
+            let RuntimeValue::MapBombomVerso(handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_tamanho' exige mapa<bombom,verso> no argumento",
+                ));
+            };
+            let handle = *handle;
+            let Some(mapa) = map_state.maps_bombom_verso.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<bombom,verso> inválido em 'mapa_bombom_verso_tamanho'",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(
+                mapa.len() as u64
+            ))))
+        }
+        "mapa_bombom_verso_remover" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_remover' exige 2 argumentos (mapa, chave bombom)",
+                ));
+            }
+            let RuntimeValue::MapBombomVerso(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_remover' exige mapa<bombom,verso>",
+                ));
+            };
+            let RuntimeValue::Int(chave) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_bombom_verso_remover' exige chave bombom",
+                ));
+            };
+            let mapa = map_state
+                .maps_bombom_verso
+                .get_mut(&handle)
+                .ok_or_else(|| {
+                    runtime_err("intrínseca 'mapa_bombom_verso_remover': mapa inválido")
+                })?;
+            mapa.remove(&chave);
+            Ok(IntrinsicCall::Done(None))
+        }
+        "__pinker_internal_mapa_bombom_verso_iterador_criar" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_mapa_bombom_verso_iterador_criar' exige 1 argumento (mapa<bombom,verso>)",
+                ));
+            }
+            let RuntimeValue::MapBombomVerso(handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_mapa_bombom_verso_iterador_criar' exige mapa<bombom,verso> no argumento",
+                ));
+            };
+            let handle = *handle;
+            let Some(mapa) = map_state.maps_bombom_verso.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<bombom,verso> inválido em '__pinker_internal_mapa_bombom_verso_iterador_criar'",
+                ));
+            };
+            let iter_handle = map_state.next_map_iter_handle;
+            map_state.next_map_iter_handle = map_state.next_map_iter_handle.saturating_add(1);
+            map_state.map_iters_bombom_verso.insert(
+                iter_handle,
+                RuntimeMapBombomVersoIter {
+                    keys_snapshot: mapa.keys().copied().collect(),
+                    next_index: 0,
+                },
+            );
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(iter_handle))))
+        }
+        "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_mapa_bombom_verso_iterador_proxima_chave' exige 1 argumento (cursor)",
+                ));
+            };
+            let RuntimeValue::Int(iter_handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_mapa_bombom_verso_iterador_proxima_chave' exige cursor 'bombom'",
+                ));
+            };
+            let Some(iter) = map_state.map_iters_bombom_verso.get_mut(iter_handle) else {
+                return Err(runtime_err(
+                    "cursor interno de mapa inválido em '__pinker_internal_mapa_bombom_verso_iterador_proxima_chave'",
+                ));
+            };
+            let key = iter.keys_snapshot.get(iter.next_index).ok_or_else(|| {
+                runtime_err(
+                    "cursor interno de mapa esgotado em '__pinker_internal_mapa_bombom_verso_iterador_proxima_chave'",
+                )
+            })?;
+            let key_val = *key;
+            iter.next_index = iter.next_index.saturating_add(1);
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(key_val))))
+        }
         "lista_bombom_inserir" => {
             if args.len() != 3 {
                 return Err(runtime_err(
@@ -3573,6 +3983,8 @@ fn pop_numeric(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<RuntimeValue,
         RuntimeValue::ListVerso(_) => Err(runtime_err(msg)),
         RuntimeValue::MapVersoBombom(_) => Err(runtime_err(msg)),
         RuntimeValue::MapVersoVerso(_) => Err(runtime_err(msg)),
+        RuntimeValue::MapBombomBombom(_) => Err(runtime_err(msg)),
+        RuntimeValue::MapBombomVerso(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -3587,6 +3999,8 @@ fn pop_bool(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<bool, PinkerErro
         RuntimeValue::ListVerso(_) => Err(runtime_err(msg)),
         RuntimeValue::MapVersoBombom(_) => Err(runtime_err(msg)),
         RuntimeValue::MapVersoVerso(_) => Err(runtime_err(msg)),
+        RuntimeValue::MapBombomBombom(_) => Err(runtime_err(msg)),
+        RuntimeValue::MapBombomVerso(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -3630,6 +4044,12 @@ fn coerce_runtime_value_to_type(
             (RuntimeValue::MapVersoVerso(_), _) => {
                 Err(runtime_err("cast inteiro não aceita mapa<verso,verso>"))
             }
+            (RuntimeValue::MapBombomBombom(_), _) => {
+                Err(runtime_err("cast inteiro não aceita mapa<bombom,bombom>"))
+            }
+            (RuntimeValue::MapBombomVerso(_), _) => {
+                Err(runtime_err("cast inteiro não aceita mapa<bombom,verso>"))
+            }
             (v, _) => Ok(v),
         };
     }
@@ -3660,6 +4080,12 @@ fn coerce_runtime_value_to_type(
             RuntimeValue::MapVersoVerso(_) => Err(runtime_err(
                 "ponteiro em runtime requer valor inteiro de endereço",
             )),
+            RuntimeValue::MapBombomBombom(_) => Err(runtime_err(
+                "ponteiro em runtime requer valor inteiro de endereço",
+            )),
+            RuntimeValue::MapBombomVerso(_) => Err(runtime_err(
+                "ponteiro em runtime requer valor inteiro de endereço",
+            )),
         };
     }
 
@@ -3688,6 +4114,22 @@ fn coerce_runtime_value_to_type(
             RuntimeValue::MapVersoVerso(handle) => Ok(RuntimeValue::MapVersoVerso(handle)),
             _ => Err(runtime_err(
                 "valor incompatível: esperado mapa<verso,verso>",
+            )),
+        };
+    }
+    if matches!(ty, crate::ir::TypeIR::MapBombomBombom) {
+        return match value {
+            RuntimeValue::MapBombomBombom(handle) => Ok(RuntimeValue::MapBombomBombom(handle)),
+            _ => Err(runtime_err(
+                "valor incompatível: esperado mapa<bombom,bombom>",
+            )),
+        };
+    }
+    if matches!(ty, crate::ir::TypeIR::MapBombomVerso) {
+        return match value {
+            RuntimeValue::MapBombomVerso(handle) => Ok(RuntimeValue::MapBombomVerso(handle)),
+            _ => Err(runtime_err(
+                "valor incompatível: esperado mapa<bombom,verso>",
             )),
         };
     }

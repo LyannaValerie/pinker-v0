@@ -265,6 +265,118 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "mapa_bombom_bombom_criar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::MapBombomBombom,
+            params: vec![],
+        },
+    );
+    funcs.insert(
+        "mapa_bombom_bombom_definir".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "mapa_bombom_bombom_obter".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "mapa_bombom_bombom_tem".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "mapa_bombom_bombom_tamanho".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapBombomBombom],
+        },
+    );
+    funcs.insert(
+        "mapa_bombom_bombom_remover".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapBombomBombom],
+        },
+    );
+    funcs.insert(
+        "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "mapa_bombom_verso_criar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::MapBombomVerso,
+            params: vec![],
+        },
+    );
+    funcs.insert(
+        "mapa_bombom_verso_definir".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "mapa_bombom_verso_obter".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "mapa_bombom_verso_tem".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "mapa_bombom_verso_tamanho".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapBombomVerso],
+        },
+    );
+    funcs.insert(
+        "mapa_bombom_verso_remover".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "__pinker_internal_mapa_bombom_verso_iterador_criar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapBombomVerso],
+        },
+    );
+    funcs.insert(
+        "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
         "argumento".to_string(),
         FunctionSig {
             ret_type: TypeIR::Verso,

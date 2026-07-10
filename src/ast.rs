@@ -265,6 +265,8 @@ pub enum Type {
     ListVerso(Span),
     MapVersoBombom(Span),
     MapVersoVerso(Span),
+    MapBombomBombom(Span),
+    MapBombomVerso(Span),
     FixedArray {
         element: Box<Type>,
         size: u64,
@@ -307,6 +309,8 @@ impl PartialEq for Type {
             | (Type::ListVerso(_), Type::ListVerso(_))
             | (Type::MapVersoBombom(_), Type::MapVersoBombom(_))
             | (Type::MapVersoVerso(_), Type::MapVersoVerso(_))
+            | (Type::MapBombomBombom(_), Type::MapBombomBombom(_))
+            | (Type::MapBombomVerso(_), Type::MapBombomVerso(_))
             | (Type::Nulo(_), Type::Nulo(_)) => true,
             (
                 Type::FixedArray {
@@ -359,6 +363,8 @@ impl Type {
             | Type::ListVerso(span)
             | Type::MapVersoBombom(span)
             | Type::MapVersoVerso(span)
+            | Type::MapBombomBombom(span)
+            | Type::MapBombomVerso(span)
             | Type::Nulo(span) => *span,
             Type::Alias { span, .. }
             | Type::Struct { span, .. }
@@ -384,6 +390,8 @@ impl Type {
             Type::ListVerso(_) => "lista<verso>",
             Type::MapVersoBombom(_) => "mapa<verso,bombom>",
             Type::MapVersoVerso(_) => "mapa<verso,verso>",
+            Type::MapBombomBombom(_) => "mapa<bombom,bombom>",
+            Type::MapBombomVerso(_) => "mapa<bombom,verso>",
             Type::FixedArray { .. } => "array",
             Type::Pointer { .. } => "seta",
             Type::Alias { .. } => "alias",
@@ -409,6 +417,8 @@ impl Type {
             Type::ListVerso(_) => Type::ListVerso(span),
             Type::MapVersoBombom(_) => Type::MapVersoBombom(span),
             Type::MapVersoVerso(_) => Type::MapVersoVerso(span),
+            Type::MapBombomBombom(_) => Type::MapBombomBombom(span),
+            Type::MapBombomVerso(_) => Type::MapBombomVerso(span),
             Type::FixedArray { element, size, .. } => Type::FixedArray {
                 element: element.clone(),
                 size: *size,
