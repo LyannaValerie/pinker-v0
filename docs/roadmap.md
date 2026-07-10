@@ -16,30 +16,30 @@
 ## Ordem ativa oficial
 
 - A Pinker segue uma trilha única de execução.
-- O bloco oficialmente ativo é o **Bloco 18 — core nobre e bibliotecas temáticas**.
-- O bloco mais recentemente encerrado é o **Bloco 17 — forma visual e superfície documental**, encerrado por suficiência conservadora na **Fase 176**.
-- O bloco funcional imediatamente anterior já encerrado é o **Bloco 16 — ferramenta cotidiana madura e linguagem-cola**, consolidado no fechamento formal da **Fase 179**.
+- O bloco oficialmente ativo é o **Bloco 20 — expansão funcional rumo a SO e self-hosting (trilha por faixas)**, aberto na **Fase 207**.
+- O bloco mais recentemente encerrado é o **Bloco 18 — core nobre e bibliotecas temáticas**, encerrado por suficiência conservadora na **Fase 207**.
+- O **Bloco 19 — superfície Pinker** permanece candidato futuro, não ativo; a ativação do Bloco 20 antes dele é decisão estratégica explícita, subordinada aos dois propósitos de longo prazo do projeto.
 - A frente pausada oficial permanece o **editor/TUI da Pinker**, aberta na **Fase 136** e não abandonada.
 
 ## Bloco ativo atual
 
-**Bloco 18 — core nobre e bibliotecas temáticas**
+**Bloco 20 — expansão funcional rumo a SO e self-hosting (trilha por faixas)**
 
 **Tese estratégica**
-Separar com nitidez o núcleo nobre da linguagem e suas famílias públicas de biblioteca, disciplinando a superfície da Pinker sem fingir mecanismo funcional ainda inexistente.
+Expandir a linguagem na direção dos dois propósitos de longo prazo: gerar um sistema operacional usando apenas Pinker e tornar a Pinker capaz de escrever o próprio código (self-hosting).
 
 **Estado atual**
-Bloco aberto em camada documental/arquitetural e já com recorte funcional mínimo em 18.6. A Fase 180 abriu o inventário canônico de intrínsecas, a Fase 181 canonizou as famílias públicas iniciais, a Fase 182 formalizou `tempo` como família exemplar, a Fase 183 fixou a ponte documental entre superfície global legada e superfície futura por família, a Fase 184 formalizou o domínio interno por intrínseca, a Fase 185 preparou documentalmente a futura resolução qualificada por família e as Fases 186–189 abriram importação mínima por família para `tempo`, `ambiente`, `acaso` e `texto`, mantendo `colecao` e `formato` como domínios provisórios.
+Trilha aberta com 11 faixas ordenadas por prioridade (52 itens inventariados frente a C, C#, C++, Python, TypeScript e Shell). A Faixa 2 (consolidação do Bloco 18) já nasce concluída pelo fechamento do bloco na Fase 207. A execução começa pela Faixa 1: enums, pattern matching, generics, traits, error handling estruturado e closures.
 
 **Escada macro**
-- inventário e taxonomia das intrínsecas existentes;
-- definição das famílias públicas iniciais;
-- detalhamento de famílias exemplares;
-- preparação da superfície futura por família sem reorganização funcional prematura;
-- fechamento posterior por suficiência conservadora, quando o recorte documental estiver maduro.
+- Faixa 1 — funcionalidades de alta dificuldade (enums, pattern matching, generics, traits, error handling, closures);
+- Faixa 3 — ponteiros de função, alocador de memória, inline assembly real;
+- Faixas 4–6 — sistema de tipos, funções e controle de fluxo;
+- Faixas 7–9 — baixo nível, metaprogramação, módulos e build;
+- Faixas 10–11 — concorrência, SO, I/O e rede.
 
 **Detalhe estrutural**
-- `docs/roadmap/blocos/bloco_18.md`
+- `docs/roadmap/blocos/bloco_20.md`
 
 ## Relação com os demais documentos
 
@@ -52,5 +52,6 @@ Bloco aberto em camada documental/arquitetural e já com recorte funcional míni
 ## Navegação
 
 - Hub do roadmap: `docs/roadmap/indice.md`
-- Bloco ativo atual: `docs/roadmap/blocos/bloco_18.md`
-- Próximo candidato explícito, ainda não ativo: `docs/roadmap/blocos/bloco_19.md`
+- Bloco ativo atual: `docs/roadmap/blocos/bloco_20.md`
+- Bloco recém-encerrado: `docs/roadmap/blocos/bloco_18.md`
+- Candidato futuro não ativo: `docs/roadmap/blocos/bloco_19.md`

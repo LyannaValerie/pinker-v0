@@ -1,0 +1,23 @@
+pacote main;
+
+trazer arquivo;
+trazer caminho;
+trazer processo;
+
+carinho principal() -> bombom {
+    nova destino: verso = juntar_caminho("target", "fase207_exemplo.txt");
+    nova cabo: bombom = criar_arquivo(destino);
+    escrever_verso(cabo, "rosa pinker");
+    fechar(cabo);
+
+    talvez caminho_existe(destino) {
+        nova conteudo: verso = ler_arquivo_verso(destino);
+        falar(conteudo);
+    }
+    remover_arquivo(destino);
+
+    nova comando: verso = argumento(0);
+    nova codigo: bombom = executar_processo(comando);
+    falar(codigo);
+    mimo codigo;
+}

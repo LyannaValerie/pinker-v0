@@ -1,7 +1,7 @@
 # Bloco 18 — core nobre e bibliotecas temáticas
 
 ## Status
-Ativo.
+Encerrado por suficiência conservadora na Fase 207.
 
 ## Tese
 Separar com nitidez o núcleo da linguagem e suas famílias públicas de biblioteca, amadurecendo a nomeação temática sem fingir mecanismo funcional já implementado.
@@ -9,59 +9,39 @@ Separar com nitidez o núcleo da linguagem e suas famílias públicas de bibliot
 ## Dependências
 Bloco 17 encerrado; continuidade factual do motor técnico preservada.
 
-## Escada interna
-- inventário canônico das intrínsecas existentes;
-- definição das famílias públicas iniciais;
-- detalhamento de famílias exemplares;
-- preparação da superfície futura por família sem reorganização funcional prematura.
-- preparação documental da futura resolução qualificada por família antes de qualquer abertura operacional.
+## Mapa macro do bloco — leitura final honesta
 
-## Mapa macro do bloco
+- **18.1 inventário e taxonomia** — concluído; Fase 180.
+- **18.2 famílias oficiais** — concluído; Fase 181.
+- **18.3 superfície pública** — concluído no recorte documental; Fases 182–183.
+- **18.4 domínio interno** — concluído; Fase 184.
+- **18.5 resolução qualificada** — preparado documentalmente (Fase 185); a abertura operacional não aconteceu neste bloco e permanece no inventário futuro.
+- **18.6 importação por família** — **concluído para as 7 famílias públicas**; aberto na Fase 186 (`tempo`), ampliado nas Fases 187–189 (`ambiente`, `acaso`, `texto`) e concluído na Fase 207 (`arquivo`, `caminho`, `processo`). Importação seletiva `trazer familia.simbolo;` permanece fora do recorte entregue.
+- **18.7 documentação identitária** — cumprido no recorte mínimo pelos documentos canônicos de família (`docs/familias_tematicas.md`, `docs/familias/*.md`, `docs/vocabulario.md`); consolidação identitária mais ampla fica no inventário futuro.
+- **18.8 família exemplar** — cumprido no recorte mínimo via `tempo` (Fases 182–183, 186); tratamento adulto da família fica no inventário futuro.
+- **18.9 modo estrito opcional** — **não aberto por decisão conservadora**; sem obrigação de import, a superfície global legada permanece o contrato canônico.
+- **18.10 reorganização interna** — **não aberta por decisão conservadora**; a organização atual do engine é suficiente para o recorte entregue e reorganizar agora seria risco sem ganho proporcional.
+- **18.11 fechamento** — executado na Fase 207 junto com a rodada documental de encerramento.
 
-Escada longa originalmente prevista — leitura atual honesta:
+## Estado factual final
+Bloco encerrado com base documental consolidada (Fases 180–185) e mecanismo funcional real de importação por família cobrindo **todas as 7 famílias públicas** canonizadas na Fase 181: `trazer tempo;`, `trazer ambiente;`, `trazer acaso;`, `trazer texto;`, `trazer arquivo;`, `trazer caminho;` e `trazer processo;` (Fases 186–189 e 207). Os domínios provisórios `colecao` e `formato` permanecem não importáveis, coerente com a decisão lexical pendente de 18.2.
 
-- **18.1 inventário e taxonomia** — coberto; Fase 180.
-- **18.2 famílias oficiais** — coberto; Fase 181.
-- **18.3 superfície pública** — base documental aberta; Fases 182–183.
-- **18.4 domínio interno** — coberto; Fase 184.
-- **18.5 resolução qualificada** — preparado documentalmente; Fase 185; ainda não operacional.
-- **18.6 importação por família** — aberta na Fase 186 e ampliada minimamente nas Fases 187–189; recorte atual: `trazer tempo;`, `trazer ambiente;`, `trazer acaso;` e `trazer texto;` reconhecidos e validados; outras famílias e importação seletiva fora do recorte desta fase.
-- **18.7 documentação identitária** — pendente como consolidação identitária mais ampla.
-- **18.8 família exemplar** — parcialmente coberta via `tempo` (Fase 182); tratamento completo ainda futuro.
-- **18.9 modo estrito opcional** — condicional; não aberto.
-- **18.10 reorganização interna** — ainda não aberto funcionalmente.
-- **18.11 fechamento** — futuro.
+Durante a vigência do bloco, as Fases 190–206 expandiram ergonomia de linguagem e o domínio provisório `colecao` fora do escopo formal do bloco; essa expansão está registrada no histórico e não altera a leitura do fechamento.
 
-Degraus 18.1–18.5: base documental consolidada nas Fases 180–185.
-Degrau 18.6: recorte mínimo funcional aberto na Fase 186 (`trazer tempo;`) e ampliado nas Fases 187–189 (`trazer ambiente;`, `trazer acaso;`, `trazer texto;`).
-Degrau 18.10: deve caminhar para implementação funcional real quando a base estiver madura.
-
-## Estado factual atual
-Bloco ativo com base documental consolidada e recorte funcional real já aberto em 18.6. A Fase 180 abriu o bloco com inventário canônico de intrínsecas. A Fase 181 canonizou as famílias públicas iniciais (`texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente`, `acaso`) e deixou `colecao` e `formato` como domínios provisórios. A Fase 182 formalizou `tempo` como família exemplar. A Fase 183 fixou a política documental da superfície futura por família. A Fase 184 formalizou a leitura por domínio interno de intrínseca. A Fase 185 preparou documentalmente a futura resolução qualificada por família. A Fase 186 abriu o primeiro recorte funcional real de 18.6 com `trazer tempo;`. A Fase 187 confirmou que o mecanismo não ficou preso ao caso exemplar e também reconhece `trazer ambiente;`. A Fase 188 estende esse mesmo mecanismo no menor ponto útil para `trazer acaso;`. A Fase 189 estende o mecanismo para `trazer texto;`; os nomes textuais globais legados continuam preservados; importação seletiva e outras famílias ficam fora do recorte.
-
-## Limites explícitos
-- não há `familia.intrinseca`;
-- `trazer familia;` existe apenas para `tempo`, `ambiente`, `acaso` e `texto` (Fases 186–189); nenhuma outra família está suportada;
+## Limites explícitos do fechamento
+- não há `familia.intrinseca` (resolução qualificada segue apenas preparada documentalmente);
 - não há `trazer familia.intrinseca;` (importação seletiva);
-- não há resolução qualificada por família já operacional;
+- não há modo estrito; o import por família é válido mas nunca obrigatório;
 - não houve reorganização funcional de `interpreter.rs` ou do pipeline de IR;
-- compatibilidade global legada (`tempo_unix`, `formatar_tempo_unix`) preservada integralmente.
+- compatibilidade global legada preservada integralmente para todas as famílias.
 
-## Família exemplar atual
+## Família exemplar
+- Família exemplar do bloco: `tempo` (superfície mínima `tempo_unix()` e `formatar_tempo_unix(...)`).
+- A eventual simplificação temática e a resolução qualificada futura continuam condicionadas a mecanismo real e contrato explícito de compatibilidade.
 
-- Família exemplar do bloco: `tempo`.
-- Superfície mínima atual: `tempo_unix()` e `formatar_tempo_unix(...)`.
-- Leitura canônica: a família já existe como decisão documental/arquitetural, mas continua apoiada em nomes globais legados preservados.
-- Ponte canônica para o futuro: a eventual simplificação temática depende de mecanismo real de superfície por família e de critérios explícitos de transição.
-- Ponte canônica para a resolução qualificada futura: a eventual forma `familia.intrinseca` continua apenas preparatória e condicionada a mecanismo real mais contrato explícito de compatibilidade.
-- Domínio interno correspondente: `tempo`.
-- Revisão lexical futura permanece aberta, sem compromisso operacional nesta fase.
-
-## Domínios internos atuais
-
-- Domínios internos reconhecidos: `core`, `texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente`, `acaso`, `colecao` (provisório) e `formato` (provisório).
-- Leitura canônica: domínio interno organiza o inventário factual; família pública organiza a camada arquitetural; superfície futura por família continua condicionada a mecanismo real; resolução qualificada futura também permanece apenas como camada posterior preparada.
+## Domínios internos consolidados
+- `core`, `texto`, `arquivo`, `caminho`, `processo`, `tempo`, `ambiente`, `acaso`, `colecao` (provisório) e `formato` (provisório).
 
 ## Relação com o histórico
-- Execução factual preservada em `docs/history/phases/151a200.md` (Fases 180, 181, 182, 183, 184, 185 e 186).
+- Execução factual preservada em `docs/history/phases/151a200.md` (Fases 180–200) e `docs/history/phases/201a250.md` (Fases 201–207).
 - A refatoração histórica que reduz duplicação contextual está em `docs/history/documentation/001a050.md` (Doc-35).

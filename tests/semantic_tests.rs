@@ -3005,3 +3005,100 @@ fn trazer_seletivo_nao_suportado_falha() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("importação seletiva"), "{}", err);
 }
+
+#[test]
+fn trazer_arquivo_familia_aceita() {
+    let code = r#"
+        pacote main;
+        trazer arquivo;
+        carinho principal() -> bombom {
+            nova cabo: bombom = criar_arquivo("target/teste_trazer_arquivo.txt");
+            escrever_verso(cabo, "rosa");
+            fechar(cabo);
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn trazer_caminho_familia_aceita() {
+    let code = r#"
+        pacote main;
+        trazer caminho;
+        carinho principal() -> bombom {
+            nova destino: verso = juntar_caminho("docs", "atlas.md");
+            talvez caminho_existe(destino) {
+                falar(destino);
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn trazer_processo_familia_aceita() {
+    let code = r#"
+        pacote main;
+        trazer processo;
+        carinho principal() -> bombom {
+            nova comando: verso = argumento(0);
+            nova codigo: bombom = executar_processo(comando);
+            mimo codigo;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn legado_global_arquivo_sem_trazer_continua_valido() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova conteudo: verso = ler_arquivo_verso("Cargo.toml");
+            nova n: bombom = tamanho_verso(conteudo);
+            mimo n;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn legado_global_caminho_sem_trazer_continua_valido() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova destino: verso = juntar_caminho("docs", "atlas.md");
+            talvez caminho_existe(destino) {
+                falar(destino);
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn legado_global_processo_sem_trazer_continua_valido() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova comando: verso = argumento(0);
+            nova codigo: bombom = executar_processo(comando);
+            mimo codigo;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn trazer_seletivo_arquivo_nao_suportado_falha() {
+    let code = r#"
+        pacote main;
+        trazer arquivo.criar_arquivo;
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("importação seletiva"), "{}", err);
+}

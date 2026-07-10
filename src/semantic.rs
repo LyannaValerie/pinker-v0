@@ -18,7 +18,9 @@ use crate::layout;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet};
 
-const IMPORTABLE_BUILTIN_FAMILIES: &[&str] = &["tempo", "ambiente", "acaso", "texto"];
+const IMPORTABLE_BUILTIN_FAMILIES: &[&str] = &[
+    "tempo", "ambiente", "acaso", "texto", "arquivo", "caminho", "processo",
+];
 
 pub fn importable_builtin_families() -> &'static [&'static str] {
     IMPORTABLE_BUILTIN_FAMILIES

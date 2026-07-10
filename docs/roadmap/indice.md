@@ -32,5 +32,6 @@ Este índice roteia os blocos do roadmap sem substituir o topo executivo nem com
 - Bloco 15 — processos e integração sistêmica — encerrado — `docs/roadmap/blocos/bloco_15.md`
 - Bloco 16 — ferramenta cotidiana madura e linguagem-cola — encerrado — `docs/roadmap/blocos/bloco_16.md`
 - Bloco 17 — forma visual e superfície documental — encerrado — `docs/roadmap/blocos/bloco_17.md`
-- Bloco 18 — core nobre e bibliotecas temáticas — ativo — `docs/roadmap/blocos/bloco_18.md`
+- Bloco 18 — core nobre e bibliotecas temáticas — encerrado — `docs/roadmap/blocos/bloco_18.md`
 - Bloco 19 — superfície Pinker — candidato futuro — `docs/roadmap/blocos/bloco_19.md`
+- Bloco 20 — expansão funcional rumo a SO e self-hosting (trilha por faixas) — ativo — `docs/roadmap/blocos/bloco_20.md`
