@@ -2,7 +2,7 @@
 
 Pinker v0 é a base factual atual da linguagem Pinker: um frontend pequeno e congelado em Rust, com foco em um recorte implementado e auditável.
 
-O projeto separa explicitamente estado real, trilha ativa e direção identitária. Para o enquadramento canônico do repositório, consulte `docs/atlas.md`, `docs/agent_state.md`, `docs/roadmap.md` e `docs/history.md`.
+O projeto separa explicitamente estado real, trilha ativa e direção identitária. Para o enquadramento canônico do repositório, consulte `docs/atlas.md`, `docs/handoff_codex.md`, `docs/roadmap.md` e `docs/history.md`.
 
 ## O que o frontend faz hoje
 

@@ -30,5 +30,5 @@ Checklist mínimo:
 
 - O texto diferencia claramente presente vs futuro?
 - Há links cruzados entre Engine e Rosa?
-- `history.md`, `agent_state.md` e `handoff_codex.md` foram atualizados quando cabível?
+- `history.md` e `handoff_codex.md` foram atualizados quando cabível?
 - `atlas.md` continua apontando para os canônicos corretos?

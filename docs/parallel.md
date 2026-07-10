@@ -38,6 +38,6 @@ Ele preserva e expande narrativas de longo alcance sobre:
 
 - **Canônico de identidade:** `docs/rosa.md`
 - **Canônico lexical:** `docs/vocabulario.md`
-- **Canônico factual:** `docs/roadmap.md`, `docs/history.md`, `docs/agent_state.md`
+- **Canônico factual:** `docs/roadmap.md`, `docs/history.md`, `docs/handoff_codex.md`
 - **Canônico de mediação:** `docs/ponte_engine_rosa.md`
 

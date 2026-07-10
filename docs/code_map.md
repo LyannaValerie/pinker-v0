@@ -52,6 +52,6 @@ Referência rápida para localizar a camada certa antes de editar.
 
 ## Docs que costumam acompanhar mudança funcional
 
-- estado e regras: `docs/doc_rules.md`, `docs/agent_state.md`, `docs/handoff_codex.md`
+- estado e regras: `docs/doc_rules.md`, `docs/handoff_codex.md`
 - ordem e continuidade: `docs/roadmap.md`, `docs/history.md`
 - uso e navegação: `README.md`, `MANUAL.md`, `docs/atlas.md`
