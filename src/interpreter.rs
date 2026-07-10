@@ -56,8 +56,10 @@ struct RuntimeListState {
 
 struct RuntimeMapState {
     maps_verso_bombom: HashMap<u64, HashMap<String, u64>>,
+    maps_verso_verso: HashMap<u64, HashMap<String, String>>,
     next_map_handle: u64,
     map_iters_verso_bombom: HashMap<u64, RuntimeMapVersoBombomIter>,
+    map_iters_verso_verso: HashMap<u64, RuntimeMapVersoVersoIter>,
     next_map_iter_handle: u64,
 }
 
@@ -71,6 +73,11 @@ struct RuntimeRandomGenerator {
 }
 
 struct RuntimeMapVersoBombomIter {
+    keys_snapshot: Vec<String>,
+    next_index: usize,
+}
+
+struct RuntimeMapVersoVersoIter {
     keys_snapshot: Vec<String>,
     next_index: usize,
 }
@@ -99,6 +106,7 @@ pub enum RuntimeValue {
     ListBombom(u64),
     ListVerso(u64),
     MapVersoBombom(u64),
+    MapVersoVerso(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -131,8 +139,10 @@ pub fn run_program_with_args(
     };
     let mut map_state = RuntimeMapState {
         maps_verso_bombom: HashMap::new(),
+        maps_verso_verso: HashMap::new(),
         next_map_handle: 1,
         map_iters_verso_bombom: HashMap::new(),
+        map_iters_verso_verso: HashMap::new(),
         next_map_iter_handle: 1,
     };
     let mut random_state = RuntimeRandomState {
@@ -395,6 +405,7 @@ fn exec_instr(
                 RuntimeValue::ListBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::ListVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapVersoBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::MapVersoVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(out);
         }
@@ -413,6 +424,7 @@ fn exec_instr(
                 RuntimeValue::ListBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::ListVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapVersoBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::MapVersoVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(out);
         }
@@ -642,6 +654,7 @@ fn exec_instr(
                 RuntimeValue::ListBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::ListVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapVersoBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::MapVersoVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
             }
         }
         MachineInstr::PrintBoolInline => {
@@ -2756,6 +2769,194 @@ fn try_call_intrinsic(
             mapa.remove(chave);
             Ok(IntrinsicCall::Done(None))
         }
+        "mapa_verso_verso_criar" => {
+            if !args.is_empty() {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_criar' exige 0 argumentos",
+                ));
+            }
+            let handle = map_state.next_map_handle;
+            map_state.next_map_handle = map_state.next_map_handle.saturating_add(1);
+            map_state.maps_verso_verso.insert(handle, HashMap::new());
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::MapVersoVerso(
+                handle,
+            ))))
+        }
+        "mapa_verso_verso_definir" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_definir' exige 3 argumentos (mapa<verso,verso>, verso, verso)",
+                ));
+            }
+            let RuntimeValue::MapVersoVerso(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_definir' exige mapa<verso,verso> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Str(ref key) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_definir' exige verso no segundo argumento",
+                ));
+            };
+            let RuntimeValue::Str(ref value) = args[2] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_definir' exige verso no terceiro argumento",
+                ));
+            };
+            let Some(mapa) = map_state.maps_verso_verso.get_mut(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<verso,verso> inválido em 'mapa_verso_verso_definir'",
+                ));
+            };
+            mapa.insert(key.clone(), value.clone());
+            Ok(IntrinsicCall::Done(None))
+        }
+        "mapa_verso_verso_obter" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_obter' exige 2 argumentos (mapa<verso,verso>, verso)",
+                ));
+            }
+            let RuntimeValue::MapVersoVerso(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_obter' exige mapa<verso,verso> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Str(ref key) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_obter' exige verso no segundo argumento",
+                ));
+            };
+            let Some(mapa) = map_state.maps_verso_verso.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<verso,verso> inválido em 'mapa_verso_verso_obter'",
+                ));
+            };
+            let Some(value) = mapa.get(key) else {
+                return Err(runtime_err("chave ausente em 'mapa_verso_verso_obter'"));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value.clone()))))
+        }
+        "mapa_verso_verso_tem" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_tem' exige 2 argumentos (mapa<verso,verso>, verso)",
+                ));
+            }
+            let RuntimeValue::MapVersoVerso(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_tem' exige mapa<verso,verso> no primeiro argumento",
+                ));
+            };
+            let RuntimeValue::Str(ref key) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_tem' exige verso no segundo argumento",
+                ));
+            };
+            let Some(mapa) = map_state.maps_verso_verso.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<verso,verso> inválido em 'mapa_verso_verso_tem'",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                mapa.contains_key(key),
+            ))))
+        }
+        "mapa_verso_verso_tamanho" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_tamanho' exige 1 argumento (mapa<verso,verso>)",
+                ));
+            }
+            let RuntimeValue::MapVersoVerso(handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_tamanho' exige mapa<verso,verso> no argumento",
+                ));
+            };
+            let handle = *handle;
+            let Some(mapa) = map_state.maps_verso_verso.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<verso,verso> inválido em 'mapa_verso_verso_tamanho'",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(
+                mapa.len() as u64
+            ))))
+        }
+        "mapa_verso_verso_remover" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_remover' exige 2 argumentos (mapa, chave verso)",
+                ));
+            }
+            let RuntimeValue::MapVersoVerso(handle) = args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_remover' exige mapa<verso,verso>",
+                ));
+            };
+            let RuntimeValue::Str(ref chave) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'mapa_verso_verso_remover' exige chave verso",
+                ));
+            };
+            let mapa = map_state.maps_verso_verso.get_mut(&handle).ok_or_else(|| {
+                runtime_err("intrínseca 'mapa_verso_verso_remover': mapa inválido")
+            })?;
+            mapa.remove(chave);
+            Ok(IntrinsicCall::Done(None))
+        }
+        "__pinker_internal_mapa_verso_verso_iterador_criar" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_mapa_verso_verso_iterador_criar' exige 1 argumento (mapa<verso,verso>)",
+                ));
+            }
+            let RuntimeValue::MapVersoVerso(handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_mapa_verso_verso_iterador_criar' exige mapa<verso,verso> no argumento",
+                ));
+            };
+            let handle = *handle;
+            let Some(mapa) = map_state.maps_verso_verso.get(&handle) else {
+                return Err(runtime_err(
+                    "handle de mapa<verso,verso> inválido em '__pinker_internal_mapa_verso_verso_iterador_criar'",
+                ));
+            };
+            let iter_handle = map_state.next_map_iter_handle;
+            map_state.next_map_iter_handle = map_state.next_map_iter_handle.saturating_add(1);
+            map_state.map_iters_verso_verso.insert(
+                iter_handle,
+                RuntimeMapVersoVersoIter {
+                    keys_snapshot: mapa.keys().cloned().collect(),
+                    next_index: 0,
+                },
+            );
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(iter_handle))))
+        }
+        "__pinker_internal_mapa_verso_verso_iterador_proxima_chave" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_mapa_verso_verso_iterador_proxima_chave' exige 1 argumento (cursor)",
+                ));
+            };
+            let RuntimeValue::Int(iter_handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_mapa_verso_verso_iterador_proxima_chave' exige cursor 'bombom'",
+                ));
+            };
+            let Some(iter) = map_state.map_iters_verso_verso.get_mut(iter_handle) else {
+                return Err(runtime_err(
+                    "cursor interno de mapa inválido em '__pinker_internal_mapa_verso_verso_iterador_proxima_chave'",
+                ));
+            };
+            let key = iter.keys_snapshot.get(iter.next_index).ok_or_else(|| {
+                runtime_err(
+                    "cursor interno de mapa esgotado em '__pinker_internal_mapa_verso_verso_iterador_proxima_chave'",
+                )
+            })?;
+            iter.next_index = iter.next_index.saturating_add(1);
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(key.clone()))))
+        }
         "lista_bombom_inserir" => {
             if args.len() != 3 {
                 return Err(runtime_err(
@@ -3371,6 +3572,7 @@ fn pop_numeric(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<RuntimeValue,
         RuntimeValue::ListBombom(_) => Err(runtime_err(msg)),
         RuntimeValue::ListVerso(_) => Err(runtime_err(msg)),
         RuntimeValue::MapVersoBombom(_) => Err(runtime_err(msg)),
+        RuntimeValue::MapVersoVerso(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -3384,6 +3586,7 @@ fn pop_bool(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<bool, PinkerErro
         RuntimeValue::ListBombom(_) => Err(runtime_err(msg)),
         RuntimeValue::ListVerso(_) => Err(runtime_err(msg)),
         RuntimeValue::MapVersoBombom(_) => Err(runtime_err(msg)),
+        RuntimeValue::MapVersoVerso(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -3424,6 +3627,9 @@ fn coerce_runtime_value_to_type(
             (RuntimeValue::MapVersoBombom(_), _) => {
                 Err(runtime_err("cast inteiro não aceita mapa<verso,bombom>"))
             }
+            (RuntimeValue::MapVersoVerso(_), _) => {
+                Err(runtime_err("cast inteiro não aceita mapa<verso,verso>"))
+            }
             (v, _) => Ok(v),
         };
     }
@@ -3451,6 +3657,9 @@ fn coerce_runtime_value_to_type(
             RuntimeValue::MapVersoBombom(_) => Err(runtime_err(
                 "ponteiro em runtime requer valor inteiro de endereço",
             )),
+            RuntimeValue::MapVersoVerso(_) => Err(runtime_err(
+                "ponteiro em runtime requer valor inteiro de endereço",
+            )),
         };
     }
 
@@ -3471,6 +3680,14 @@ fn coerce_runtime_value_to_type(
             RuntimeValue::MapVersoBombom(handle) => Ok(RuntimeValue::MapVersoBombom(handle)),
             _ => Err(runtime_err(
                 "valor incompatível: esperado mapa<verso,bombom>",
+            )),
+        };
+    }
+    if matches!(ty, crate::ir::TypeIR::MapVersoVerso) {
+        return match value {
+            RuntimeValue::MapVersoVerso(handle) => Ok(RuntimeValue::MapVersoVerso(handle)),
+            _ => Err(runtime_err(
+                "valor incompatível: esperado mapa<verso,verso>",
             )),
         };
     }

@@ -180,6 +180,54 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );
     sigs.insert(
+        "mapa_verso_verso_criar".to_string(),
+        (TypeIR::MapVersoVerso, vec![]),
+    );
+    sigs.insert(
+        "mapa_verso_verso_definir".to_string(),
+        (
+            TypeIR::Nulo,
+            vec![
+                StackValueType::Unknown,
+                StackValueType::Verso,
+                StackValueType::Verso,
+            ],
+        ),
+    );
+    sigs.insert(
+        "mapa_verso_verso_obter".to_string(),
+        (
+            TypeIR::Verso,
+            vec![StackValueType::Unknown, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
+        "mapa_verso_verso_tem".to_string(),
+        (
+            TypeIR::Logica,
+            vec![StackValueType::Unknown, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
+        "mapa_verso_verso_tamanho".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Unknown]),
+    );
+    sigs.insert(
+        "mapa_verso_verso_remover".to_string(),
+        (
+            TypeIR::Nulo,
+            vec![StackValueType::Unknown, StackValueType::Verso],
+        ),
+    );
+    sigs.insert(
+        "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Unknown]),
+    );
+    sigs.insert(
+        "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
+        (TypeIR::Verso, vec![StackValueType::Bombom]),
+    );
+    sigs.insert(
         "argumento".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );
@@ -1423,6 +1471,7 @@ fn type_to_stack(ty: TypeIR) -> StackValueType {
         TypeIR::ListBombom => StackValueType::ListBombom,
         TypeIR::ListVerso => StackValueType::ListVerso,
         TypeIR::MapVersoBombom => StackValueType::Unknown,
+        TypeIR::MapVersoVerso => StackValueType::Unknown,
         TypeIR::FixedArray { .. } => StackValueType::Unknown,
         TypeIR::Struct => StackValueType::Unknown,
         TypeIR::Pointer { .. } => StackValueType::Unknown,

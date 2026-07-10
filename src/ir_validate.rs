@@ -209,6 +209,62 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "mapa_verso_verso_criar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::MapVersoVerso,
+            params: vec![],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_verso_definir".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::MapVersoVerso, TypeIR::Verso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_verso_obter".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::MapVersoVerso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_verso_tem".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Logica,
+            params: vec![TypeIR::MapVersoVerso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_verso_tamanho".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapVersoVerso],
+        },
+    );
+    funcs.insert(
+        "mapa_verso_verso_remover".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::MapVersoVerso, TypeIR::Verso],
+        },
+    );
+    funcs.insert(
+        "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::MapVersoVerso],
+        },
+    );
+    funcs.insert(
+        "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
         "argumento".to_string(),
         FunctionSig {
             ret_type: TypeIR::Verso,

@@ -143,7 +143,8 @@ impl SemanticChecker {
             | (Type::Verso(_), Type::Verso(_))
             | (Type::ListBombom(_), Type::ListBombom(_))
             | (Type::ListVerso(_), Type::ListVerso(_))
-            | (Type::MapVersoBombom(_), Type::MapVersoBombom(_)) => true,
+            | (Type::MapVersoBombom(_), Type::MapVersoBombom(_))
+            | (Type::MapVersoVerso(_), Type::MapVersoVerso(_)) => true,
             (Type::Struct { name: lhs_name, .. }, Type::Struct { name: rhs_name, .. }) => {
                 lhs_name == rhs_name
             }
@@ -2908,6 +2909,208 @@ impl SemanticChecker {
             }
             return Ok(Type::Nulo(expr_span));
         }
+        if name == "mapa_verso_verso_criar" {
+            if !args.is_empty() {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_verso_verso_criar' com aridade inválida: esperado 0, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            return Ok(Type::MapVersoVerso(expr_span));
+        }
+        if name == "mapa_verso_verso_definir" {
+            if args.len() != 3 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_verso_verso_definir' com aridade inválida: esperado 3, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let mapa_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(mapa_ty, Type::MapVersoVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'mapa_verso_verso_definir': esperado 'mapa<verso,verso>', encontrado '{}'",
+                        mapa_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let key_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(key_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'mapa_verso_verso_definir': esperado 'verso', encontrado '{}'",
+                        key_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            let value_ty = self.check_value_expr(
+                &args[2],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(value_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 3 da chamada 'mapa_verso_verso_definir': esperado 'verso', encontrado '{}'",
+                        value_ty.name()
+                    ),
+                    span: args[2].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
+        }
+        if name == "mapa_verso_verso_obter" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_verso_verso_obter' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let mapa_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(mapa_ty, Type::MapVersoVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'mapa_verso_verso_obter': esperado 'mapa<verso,verso>', encontrado '{}'",
+                        mapa_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let key_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(key_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'mapa_verso_verso_obter': esperado 'verso', encontrado '{}'",
+                        key_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Verso(expr_span));
+        }
+        if name == "mapa_verso_verso_tem" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_verso_verso_tem' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let mapa_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(mapa_ty, Type::MapVersoVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'mapa_verso_verso_tem': esperado 'mapa<verso,verso>', encontrado '{}'",
+                        mapa_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let key_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(key_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'mapa_verso_verso_tem': esperado 'verso', encontrado '{}'",
+                        key_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Logica(expr_span));
+        }
+        if name == "mapa_verso_verso_tamanho" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_verso_verso_tamanho' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let map_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(map_ty, Type::MapVersoVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'mapa_verso_verso_tamanho': esperado 'mapa<verso,verso>', encontrado '{}'",
+                        map_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
+        if name == "mapa_verso_verso_remover" {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'mapa_verso_verso_remover' com aridade inválida: esperado 2, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let map_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(map_ty, Type::MapVersoVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'mapa_verso_verso_remover': esperado 'mapa<verso,verso>', encontrado '{}'",
+                        map_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            let key_ty = self.check_value_expr(
+                &args[1],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(key_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 2 da chamada 'mapa_verso_verso_remover': esperado 'verso', encontrado '{}'",
+                        key_ty.name()
+                    ),
+                    span: args[1].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
+        }
         if name == "lista_bombom_inserir" {
             if args.len() != 3 {
                 return Err(PinkerError::Semantic {
@@ -4468,6 +4671,40 @@ impl SemanticChecker {
                     });
                 }
             }
+            return Ok(Type::Verso(expr_span));
+        }
+
+        if name == "__pinker_internal_mapa_verso_verso_iterador_criar" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: "iterador interno de mapa<verso,verso> exige 1 argumento".to_string(),
+                    span: expr_span,
+                });
+            }
+            let map_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(map_ty, Type::MapVersoVerso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: "iterador interno de mapa<verso,verso> exige mapa<verso,verso>"
+                        .to_string(),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
+        if name == "__pinker_internal_mapa_verso_verso_iterador_proxima_chave" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: "iterador interno de mapa<verso,verso> exige 1 argumento".to_string(),
+                    span: expr_span,
+                });
+            }
+            self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
             return Ok(Type::Verso(expr_span));
         }
 

@@ -218,6 +218,7 @@ pub enum TypeIR {
     ListBombom,
     ListVerso,
     MapVersoBombom,
+    MapVersoVerso,
     FixedArray { element: ScalarTypeIR, size: u64 },
     Struct,
     Pointer { is_volatile: bool },
@@ -610,6 +611,62 @@ impl LoweringContext {
             "mapa_verso_bombom_tamanho".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "mapa_verso_verso_criar".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::MapVersoVerso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "mapa_verso_verso_definir".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "mapa_verso_verso_obter".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "mapa_verso_verso_tem".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Logica,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "mapa_verso_verso_tamanho".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "mapa_verso_verso_remover".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
                 ret_struct_name: None,
             },
         );
@@ -2264,6 +2321,7 @@ impl TypeIR {
             Type::ListBombom(_) => Ok(TypeIR::ListBombom),
             Type::ListVerso(_) => Ok(TypeIR::ListVerso),
             Type::MapVersoBombom(_) => Ok(TypeIR::MapVersoBombom),
+            Type::MapVersoVerso(_) => Ok(TypeIR::MapVersoVerso),
             Type::FixedArray {
                 element,
                 size,
@@ -2364,6 +2422,7 @@ impl TypeIR {
             TypeIR::ListBombom => "lista<bombom>",
             TypeIR::ListVerso => "lista<verso>",
             TypeIR::MapVersoBombom => "mapa<verso,bombom>",
+            TypeIR::MapVersoVerso => "mapa<verso,verso>",
             TypeIR::FixedArray { .. } => "array",
             TypeIR::Struct => "struct",
             TypeIR::Pointer { .. } => "seta",
@@ -2387,6 +2446,7 @@ impl TypeIR {
             TypeIR::ListBombom => "lista<bombom>".to_string(),
             TypeIR::ListVerso => "lista<verso>".to_string(),
             TypeIR::MapVersoBombom => "mapa<verso,bombom>".to_string(),
+            TypeIR::MapVersoVerso => "mapa<verso,verso>".to_string(),
             _ => self.name().to_string(),
         }
     }
@@ -2409,6 +2469,7 @@ impl ScalarTypeIR {
             | TypeIR::ListBombom
             | TypeIR::ListVerso
             | TypeIR::MapVersoBombom
+            | TypeIR::MapVersoVerso
             | TypeIR::FixedArray { .. }
             | TypeIR::Struct
             | TypeIR::Pointer { .. }

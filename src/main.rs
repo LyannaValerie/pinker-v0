@@ -549,6 +549,7 @@ fn run_analyze(config: Config) {
                 interpreter::RuntimeValue::ListBombom(_) => {}
                 interpreter::RuntimeValue::ListVerso(_) => {}
                 interpreter::RuntimeValue::MapVersoBombom(_) => {}
+                interpreter::RuntimeValue::MapVersoVerso(_) => {}
             }
         }
         if let Some(code) = result.exit_status {

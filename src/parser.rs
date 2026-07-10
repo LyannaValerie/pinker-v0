@@ -11,6 +11,7 @@ enum CollectionKind {
     ListBombom,
     ListVerso,
     MapVersoBombom,
+    MapVersoVerso,
 }
 
 pub struct Parser {
@@ -301,14 +302,19 @@ impl Parser {
                 self.consume(TokenKind::Comma, ",")?;
                 let value_ty = self.parse_type()?;
                 self.consume(TokenKind::Greater, ">")?;
-                if !matches!(key_ty, Type::Verso(_)) || !matches!(value_ty, Type::Bombom(_)) {
-                    return Err(PinkerError::Expected {
-                        expected: "tipo 'mapa<verso,bombom>' nesta fase".to_string(),
-                        found: format!("mapa<{},{}>", key_ty.name(), value_ty.name()),
-                        span: merge_span(key_ty.span(), value_ty.span()),
-                    });
+                let outer_span = merge_span(span, self.previous().span);
+                if matches!(key_ty, Type::Verso(_)) && matches!(value_ty, Type::Bombom(_)) {
+                    return Ok(Type::MapVersoBombom(outer_span));
                 }
-                return Ok(Type::MapVersoBombom(merge_span(span, self.previous().span)));
+                if matches!(key_ty, Type::Verso(_)) && matches!(value_ty, Type::Verso(_)) {
+                    return Ok(Type::MapVersoVerso(outer_span));
+                }
+                return Err(PinkerError::Expected {
+                    expected: "tipo 'mapa<verso,bombom>' ou 'mapa<verso,verso>' nesta fase"
+                        .to_string(),
+                    found: format!("mapa<{},{}>", key_ty.name(), value_ty.name()),
+                    span: merge_span(key_ty.span(), value_ty.span()),
+                });
             }
             let mut name = self.previous().lexeme.clone();
             let mut type_span = self.previous().span;
@@ -442,6 +448,10 @@ impl Parser {
                     self.collection_types
                         .insert(param.name.clone(), CollectionKind::MapVersoBombom);
                 }
+                Type::MapVersoVerso(_) => {
+                    self.collection_types
+                        .insert(param.name.clone(), CollectionKind::MapVersoVerso);
+                }
                 _ => {}
             }
         }
@@ -535,6 +545,10 @@ impl Parser {
                     Type::MapVersoBombom(_) => {
                         self.collection_types
                             .insert(name.clone(), CollectionKind::MapVersoBombom);
+                    }
+                    Type::MapVersoVerso(_) => {
+                        self.collection_types
+                            .insert(name.clone(), CollectionKind::MapVersoVerso);
                     }
                     _ => {}
                 }
@@ -918,6 +932,9 @@ impl Parser {
             Some(CollectionKind::MapVersoBombom) => {
                 self.desugar_for_each_map(item_name, collection_expr, body, loop_span)
             }
+            Some(CollectionKind::MapVersoVerso) => {
+                self.desugar_for_each_map_verso_verso(item_name, collection_expr, body, loop_span)
+            }
             Some(CollectionKind::ListVerso) => {
                 self.desugar_for_each_list_verso(item_name, collection_expr, body, loop_span)
             }
@@ -1278,6 +1295,161 @@ impl Parser {
         });
 
         // __iter_indice_N = __iter_indice_N + 1;
+        let index_increment = Stmt::Assign(AssignStmt {
+            target: AssignTarget::Ident(index_slot_name.clone()),
+            expr: Expr {
+                kind: ExprKind::Binary(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(index_slot_name),
+                        span: helper_span,
+                    }),
+                    BinaryOp::Add,
+                    Box::new(Expr {
+                        kind: ExprKind::IntLit(1),
+                        span: helper_span,
+                    }),
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let mut while_body_stmts = Vec::with_capacity(2 + body.stmts.len());
+        while_body_stmts.push(key_binding);
+        while_body_stmts.push(index_increment);
+        while_body_stmts.extend(body.stmts);
+
+        let while_stmt = Stmt::While(WhileStmt {
+            condition,
+            body: Block {
+                stmts: while_body_stmts,
+                span: helper_span,
+            },
+            span: loop_span,
+        });
+
+        Ok(vec![
+            map_binding_stmt,
+            size_binding_stmt,
+            cursor_binding_stmt,
+            index_binding_stmt,
+            while_stmt,
+        ])
+    }
+
+    fn desugar_for_each_map_verso_verso(
+        &mut self,
+        key_name: String,
+        map_expr: Expr,
+        body: Block,
+        loop_span: Span,
+    ) -> Result<Vec<Stmt>, PinkerError> {
+        self.synthetic_counter += 1;
+        let suffix = self.synthetic_counter;
+        let map_slot_name = format!("__iter_mapa_{suffix}");
+        let size_slot_name = format!("__iter_tamanho_{suffix}");
+        let cursor_slot_name = format!("__iter_cursor_{suffix}");
+        let index_slot_name = format!("__iter_indice_{suffix}");
+        let helper_span = loop_span;
+
+        let map_binding_stmt = Stmt::Let(LetStmt {
+            name: map_slot_name.clone(),
+            is_mut: false,
+            ty: None,
+            init: map_expr,
+            span: helper_span,
+        });
+
+        let size_binding_stmt = Stmt::Let(LetStmt {
+            name: size_slot_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident("mapa_verso_verso_tamanho".to_string()),
+                        span: helper_span,
+                    }),
+                    vec![Expr {
+                        kind: ExprKind::Ident(map_slot_name.clone()),
+                        span: helper_span,
+                    }],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let cursor_binding_stmt = Stmt::Let(LetStmt {
+            name: cursor_slot_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(
+                            "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
+                        ),
+                        span: helper_span,
+                    }),
+                    vec![Expr {
+                        kind: ExprKind::Ident(map_slot_name.clone()),
+                        span: helper_span,
+                    }],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let index_binding_stmt = Stmt::Let(LetStmt {
+            name: index_slot_name.clone(),
+            is_mut: true,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::IntLit(0),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let condition = Expr {
+            kind: ExprKind::Binary(
+                Box::new(Expr {
+                    kind: ExprKind::Ident(index_slot_name.clone()),
+                    span: helper_span,
+                }),
+                BinaryOp::Lt,
+                Box::new(Expr {
+                    kind: ExprKind::Ident(size_slot_name),
+                    span: helper_span,
+                }),
+            ),
+            span: helper_span,
+        };
+
+        let key_binding = Stmt::Let(LetStmt {
+            name: key_name,
+            is_mut: false,
+            ty: Some(Type::Verso(helper_span)),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(
+                            "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
+                        ),
+                        span: helper_span,
+                    }),
+                    vec![Expr {
+                        kind: ExprKind::Ident(cursor_slot_name),
+                        span: helper_span,
+                    }],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
         let index_increment = Stmt::Assign(AssignStmt {
             target: AssignTarget::Ident(index_slot_name.clone()),
             expr: Expr {
