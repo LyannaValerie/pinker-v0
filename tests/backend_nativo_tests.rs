@@ -96,6 +96,35 @@ fn abi_completa_aceita_recursao_direta() {
     assert!(asm.contains("call fatorial"), "{}", asm);
 }
 
+#[test]
+fn controle_fluxo_geral_ternario_vira_cmov_sem_call() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova a: bombom = 5;
+            nova r: bombom = a > 3 ? 42 : 7;
+            mimo r;
+        }
+    "#;
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    assert!(asm.contains("cmoveq %r10, %rax"), "{}", asm);
+    assert!(!asm.contains("call __ternario"), "{}", asm);
+}
+
+#[test]
+fn controle_fluxo_geral_emite_todos_os_construtos() {
+    let code = include_str!("../examples/fase214_controle_fluxo_geral_valido.pink");
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    // repetir/para/sempre que/escolha/encaixe/talvez viram blocos e saltos
+    // reais; ternário vira cmov; nenhuma pseudo-função sobra no texto.
+    assert!(asm.contains("cmoveq"), "{}", asm);
+    assert!(asm.contains("call classifica"), "{}", asm);
+    assert!(asm.contains("call pontua"), "{}", asm);
+    assert!(!asm.contains("__ternario"), "{}", asm);
+}
+
 fn detect_cc_driver() -> Option<String> {
     ["cc", "gcc", "clang"].iter().find_map(|candidate| {
         let probe = Command::new(candidate).arg("--version").output().ok()?;
@@ -208,6 +237,58 @@ fn abi_completa_executa_nativo_com_oito_args_aninhamento_e_recursao() {
         run.status.code(),
         Some(42),
         "esperava soma8(1..7, zero()+8) + fatorial(3) = 42 no executável nativo"
+    );
+
+    let _ = fs::remove_dir_all(&out_dir);
+}
+
+#[test]
+fn controle_fluxo_geral_executa_nativo_com_todos_os_construtos() {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return;
+    }
+    if detect_cc_driver().is_none() {
+        return;
+    }
+    let pink = env!("CARGO_BIN_EXE_pink");
+    let runtime_lib = std::path::Path::new(pink)
+        .parent()
+        .expect("diretório do pink")
+        .join("libpinker_rt.a");
+    if !runtime_lib.is_file() {
+        eprintln!("libpinker_rt.a ausente; pulando teste executável de controle de fluxo");
+        return;
+    }
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("tempo do sistema")
+        .as_nanos();
+    let out_dir = std::env::temp_dir().join(format!("pinker_fase214_{}", nanos));
+
+    let build = Command::new(pink)
+        .arg("build")
+        .arg("--nativo")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .arg("examples/fase214_controle_fluxo_geral_valido.pink")
+        .env("PINKER_RT_LIB", &runtime_lib)
+        .output()
+        .expect("falha ao invocar pink build");
+    assert!(
+        build.status.success(),
+        "build nativo falhou: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let bin_path = out_dir.join("fase214_controle_fluxo_geral_valido");
+    let run = Command::new(bin_path)
+        .output()
+        .expect("falha ao executar binário nativo");
+    assert_eq!(
+        run.status.code(),
+        Some(42),
+        "repetir/para/sempre que/escolha/encaixe/ternário/talvez aninhado deviam compor 42"
     );
 
     let _ = fs::remove_dir_all(&out_dir);

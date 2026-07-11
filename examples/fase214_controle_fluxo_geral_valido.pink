@@ -1,0 +1,61 @@
+pacote main;
+
+leque Cor { Vermelho, Verde, Azul }
+
+carinho pontua(c: Cor) -> bombom {
+    nova muda r: bombom = 0;
+    encaixe c {
+        caso Cor.Vermelho { r = 1; }
+        caso Cor.Verde { r = 2; }
+        caso Cor.Azul { r = 3; }
+    }
+    mimo r;
+}
+
+carinho classifica(n: bombom) -> bombom {
+    escolha n {
+        caso 1 { mimo 5; }
+        caso 2 { mimo 10; }
+        senao { mimo 1; }
+    }
+    mimo 0;
+}
+
+carinho principal() -> bombom {
+    nova muda acumulado: bombom = 0;
+
+    repetir {
+        acumulado = acumulado + 2;
+    } ate acumulado > 5;
+
+    para i em 0..4 {
+        acumulado = acumulado + i;
+    }
+
+    nova muda giro: bombom = 0;
+    sempre que giro < 10 {
+        giro = giro + 1;
+        talvez giro == 3 {
+            continuar;
+        }
+        talvez giro > 6 {
+            quebrar;
+        }
+    }
+    acumulado = acumulado + giro;
+
+    acumulado = acumulado + classifica(2);
+    acumulado = acumulado + pontua(Cor.Azul);
+
+    nova bonus: bombom = acumulado > 30 ? 8 : 1;
+    talvez acumulado + bonus == 40 {
+        talvez bonus > 5 {
+            acumulado = acumulado + bonus + 2;
+        } senao {
+            acumulado = 0;
+        }
+    } senao {
+        acumulado = 1;
+    }
+    mimo acumulado;
+}

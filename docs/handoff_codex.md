@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **213** — Eixo B: ABI SysV completa de funções (B2) |
+| Fase funcional mais recente | **214** — Eixo B: controle de fluxo geral nativo (B3) |
 | Rodada documental mais recente | **Doc-41** — formalização dos dois eixos do Bloco 20 (A — linguagem; B — backend nativo) |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -49,15 +49,16 @@
 | 211 | Bloco 20, Faixa 1: `lista<T>` genérica sobre leques + 7 intrínsecas genéricas; **Marco self-hosting 2 verificado em miniatura** (compilador de brinquedo lexer→parser→avaliador em Pinker) |
 | 212 | Bloco 20, Eixo B (B1): workspace com runtime nativo `pinker_rt` (staticlib ABI C, alocador testado) + `pink build --nativo` produzindo ELF real linkado ao runtime |
 | 213 | Bloco 20, Eixo B (B2): ABI SysV completa — 6 registradores + args de pilha com padding, N parâmetros, recursão e chamadas aninhadas nativas |
+| 214 | Bloco 20, Eixo B (B3): controle de fluxo geral nativo — todos os construtos de fluxo executam nativos; ternário abaixa para `cmov` |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Fase 213 — Eixo B, fase B2: ABI SysV completa de funções**.
-- `ARG_REGS` 3→6 (`%rdi`..`%r9`); argumentos 7+ pela pilha (push reverso, padding de alinhamento, limpeza pós-call); parâmetros 7+ lidos de `16(%rbp)`+ no callee; retorno em `%rax`.
-- Recusas históricas removidas: limite de 3 parâmetros/argumentos (Fase 115) e proibição de recursão direta (Fase 84); recursão mútua também compila.
-- Critério de pronto cumprido: `soma8(1..7, zero()+8) + fatorial(3) = 42` executando **nativo** com exit 42 (8 args, aninhamento, recursão), mesmo resultado no interpretador.
-- Cobertura: exemplo fase213 versionado; 4 testes novos (registradores+pilha, padding, recursão, execução real); 2 testes históricos de fronteira invertidos para aceitação.
+- **Fase 214 — Eixo B, fase B3: controle de fluxo geral**.
+- Sondagem empírica revelou que o CFG geral já executava nativo (talvez aninhado, sempre que + quebrar/continuar, escolha, encaixe sem carga, repetir...até, para range); o gap real era o ternário (`__ternario` quebrava no link).
+- Correção: `__ternario(cond, a, b)` abaixa para seleção por `cmov` no subset externo (`cmpq $0` + `cmoveq`), sem call real, mesma semântica eager do interpretador.
+- Critério de pronto cumprido: exemplo único compondo todos os construtos de fluxo → 42 idêntico no interpretador e no executável nativo.
+- Cobertura: exemplo fase214 versionado; 3 testes novos (cmov sem call, emissão composta, execução real com exit 42).
 - `make ci` passa integralmente.
 
 ## 4. Limites canônicos ativos
@@ -74,8 +75,8 @@ Histórico completo por fase: `docs/history/phases/`.
 
 ## 5. Próximo passo
 - Estrutura do Bloco 20 formalizada em dois eixos (Doc-41): **Eixo A — linguagem** (faixas) e **Eixo B — backend nativo**. Ordem vigente: A (itens 1–3 ✓) → B (integral, em curso) → A (itens 5 → 6 → 4).
-- Próxima fase: **Eixo B, B3 (prevista Fase 214) — controle de fluxo geral** — todo CFG que o pipeline produz executa nativo: `talvez`/`senao` aninhados em qualquer profundidade, `sempre que` com `quebrar`/`continuar`, cadeias completas de `escolha`/`encaixe` desugaradas, `repetir...até`, `para...de...até`; nenhum "bloco não suportado" restante.
-- Escada completa do eixo (B1 ✓, B2 ✓, B3–B11) em `docs/roadmap/blocos/bloco_20.md`; regra do eixo: sem recorte mínimo, e B11 fecha com suíte de paridade interpretador × nativo no CI.
+- Próxima fase: **Eixo B, B4 (prevista Fase 215) — `verso` dinâmico nativo** — strings de heap no runtime (ponteiro+tamanho); literais, `juntar_verso`, `tamanho_verso`, comparações (`igual_verso` etc.) e `falar` de verso dinâmico executando nativo (incluindo `falar` de `bombom`/`logica`, pré-requisito prático dos exemplos).
+- Escada completa do eixo (B1 ✓, B2 ✓, B3 ✓, B4–B11) em `docs/roadmap/blocos/bloco_20.md`; regra do eixo: sem recorte mínimo, e B11 fecha com suíte de paridade interpretador × nativo no CI.
 - Após o eixo: itens 5 (**error handling**), 6 (**closures**) e 4 (**traits**) do Eixo A, com a regra nova de que toda fase de linguagem entrega o lowering nativo junto.
 
 ## 6. Arquitetura documental ativa
