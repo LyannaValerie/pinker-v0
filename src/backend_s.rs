@@ -1298,6 +1298,16 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         | "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave" => {
             Some("pinker_mapa_iterador_proxima")
         }
+        // Leques com carga (Fase 218/B7): anexar e carga não distinguem
+        // bombom/verso no runtime — toda carga é uma palavra de 8 bytes.
+        "__pinker_internal_leque_criar_0" => Some("pinker_leque_criar_0"),
+        "__pinker_internal_leque_anexar_b" | "__pinker_internal_leque_anexar_v" => {
+            Some("pinker_leque_anexar")
+        }
+        "__pinker_internal_leque_tag" => Some("pinker_leque_tag"),
+        "__pinker_internal_leque_carga_b" | "__pinker_internal_leque_carga_v" => {
+            Some("pinker_leque_carga")
+        }
         _ => None,
     }
 }

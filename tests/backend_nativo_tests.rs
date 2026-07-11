@@ -193,6 +193,22 @@ fn mapas_nativos_emitem_calls_unificados_de_runtime() {
     assert!(!asm.contains("__pinker_internal_mapa"), "{}", asm);
 }
 
+#[test]
+fn leques_com_carga_emitem_calls_unificados_de_runtime() {
+    let code = include_str!("../examples/fase218_leques_carga_nativos_valido.pink");
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    for symbol in [
+        "call pinker_leque_criar_0",
+        "call pinker_leque_anexar",
+        "call pinker_leque_tag",
+        "call pinker_leque_carga",
+    ] {
+        assert!(asm.contains(symbol), "faltou {} em:\n{}", symbol, asm);
+    }
+    assert!(!asm.contains("__pinker_internal_leque"), "{}", asm);
+}
+
 fn detect_cc_driver() -> Option<String> {
     ["cc", "gcc", "clang"].iter().find_map(|candidate| {
         let probe = Command::new(candidate).arg("--version").output().ok()?;
@@ -508,6 +524,89 @@ fn mapas_nativos_tem_paridade_de_stdout_com_interpretador() {
     );
 
     let _ = fs::remove_dir_all(&out_dir);
+}
+
+fn paridade_stdout(exemplo: &str, bin_nome: &str, marcador: u128) {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return;
+    }
+    if detect_cc_driver().is_none() {
+        return;
+    }
+    let pink = env!("CARGO_BIN_EXE_pink");
+    let runtime_lib = std::path::Path::new(pink)
+        .parent()
+        .expect("diretório do pink")
+        .join("libpinker_rt.a");
+    if !runtime_lib.is_file() {
+        eprintln!("libpinker_rt.a ausente; pulando teste de paridade");
+        return;
+    }
+
+    let interp = Command::new(pink)
+        .arg("--run")
+        .arg(exemplo)
+        .output()
+        .expect("falha ao rodar interpretador");
+    assert!(interp.status.success());
+    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
+    let programa_interp = interp_stdout
+        .strip_suffix("0\n")
+        .expect("esperava retorno 0 na última linha do interpretador");
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("tempo do sistema")
+        .as_nanos()
+        + marcador;
+    let out_dir = std::env::temp_dir().join(format!("pinker_paridade_{}", nanos));
+    let build = Command::new(pink)
+        .arg("build")
+        .arg("--nativo")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .arg(exemplo)
+        .env("PINKER_RT_LIB", &runtime_lib)
+        .output()
+        .expect("falha ao invocar pink build");
+    assert!(
+        build.status.success(),
+        "build nativo falhou: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let bin_path = out_dir.join(bin_nome);
+    let run = Command::new(bin_path)
+        .output()
+        .expect("falha ao executar binário nativo");
+    assert_eq!(run.status.code(), Some(0), "exit do nativo");
+    let nativo_stdout = String::from_utf8_lossy(&run.stdout);
+
+    assert_eq!(
+        programa_interp, nativo_stdout,
+        "stdout deve ser idêntico entre interpretador e nativo para {}",
+        exemplo
+    );
+
+    let _ = fs::remove_dir_all(&out_dir);
+}
+
+#[test]
+fn leques_com_carga_tem_paridade_de_stdout_com_interpretador() {
+    paridade_stdout(
+        "examples/fase218_leques_carga_nativos_valido.pink",
+        "fase218_leques_carga_nativos_valido",
+        1,
+    );
+}
+
+#[test]
+fn avaliador_recursivo_da_fase210_executa_nativo_com_paridade() {
+    paridade_stdout(
+        "examples/fase210_leque_recursivo_avaliador_valido.pink",
+        "fase210_leque_recursivo_avaliador_valido",
+        2,
+    );
 }
 
 #[test]

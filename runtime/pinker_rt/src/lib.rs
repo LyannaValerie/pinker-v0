@@ -573,6 +573,97 @@ pub unsafe extern "C" fn pinker_mapa_iterador_proxima(cursor: *mut u8) -> u64 {
     chave
 }
 
+// ---------------------------------------------------------------------------
+// Leques com carga nativos (Fase 218/B7)
+//
+// Um valor de leque com carga é um ponteiro para o header `[tag: u64]
+// [n: u64][cap: u64][cargas: *mut u64]`. As cargas são palavras de 8 bytes
+// (valor de `bombom`, ponteiro de `verso` ou ponteiro de outro leque —
+// habilitando AST recursiva). A construção espelha a cadeia da IR:
+// `criar_0(tag)` seguido de um `anexar` por carga (que devolve o handle).
+// Leques SEM carga continuam discriminantes imediatos e nunca chegam aqui.
+// ---------------------------------------------------------------------------
+
+const LEQUE_CAP_INICIAL: u64 = 4;
+
+unsafe fn leque_n(l: *mut u8) -> u64 {
+    (l as *const u64).add(1).read()
+}
+
+unsafe fn leque_cargas(l: *mut u8) -> *mut u64 {
+    (l as *const usize).add(3).read() as *mut u64
+}
+
+/// Cria um valor de leque com a tag dada e zero cargas.
+#[no_mangle]
+pub extern "C" fn pinker_leque_criar_0(tag: u64) -> *mut u8 {
+    let header = pinker_alocar(32);
+    if header.is_null() {
+        erro_fatal("sem memória ao criar leque");
+    }
+    let cargas = pinker_alocar(LEQUE_CAP_INICIAL * 8);
+    if cargas.is_null() {
+        erro_fatal("sem memória ao criar cargas de leque");
+    }
+    unsafe {
+        (header as *mut u64).write(tag);
+        (header as *mut u64).add(1).write(0);
+        (header as *mut u64).add(2).write(LEQUE_CAP_INICIAL);
+        (header as *mut usize).add(3).write(cargas as usize);
+    }
+    header
+}
+
+/// Anexa uma carga (palavra de 8 bytes) e devolve o mesmo handle,
+/// espelhando a cadeia composável da IR.
+///
+/// # Safety
+/// `l` deve ser um leque criado por `pinker_leque_criar_0`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_leque_anexar(l: *mut u8, valor: u64) -> *mut u8 {
+    let n = leque_n(l);
+    let cap = (l as *const u64).add(2).read();
+    if n == cap {
+        let nova_cap = cap * 2;
+        let novas = pinker_alocar(nova_cap * 8);
+        if novas.is_null() {
+            erro_fatal("sem memória ao crescer cargas de leque");
+        }
+        std::ptr::copy_nonoverlapping(leque_cargas(l) as *const u8, novas, (n * 8) as usize);
+        pinker_liberar(leque_cargas(l) as *mut u8);
+        (l as *mut u64).add(2).write(nova_cap);
+        (l as *mut usize).add(3).write(novas as usize);
+    }
+    leque_cargas(l).add(n as usize).write(valor);
+    (l as *mut u64).add(1).write(n + 1);
+    l
+}
+
+/// Tag (discriminante) de um valor de leque com carga.
+///
+/// # Safety
+/// `l` deve ser um leque criado por `pinker_leque_criar_0`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_leque_tag(l: *mut u8) -> u64 {
+    (l as *const u64).read()
+}
+
+/// Carga na posição `indice`, verificando a consistência da variante —
+/// espelha a verificação de tag do interpretador (Fase 210).
+///
+/// # Safety
+/// `l` deve ser um leque criado por `pinker_leque_criar_0`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_leque_carga(l: *mut u8, tag: u64, indice: u64) -> u64 {
+    if pinker_leque_tag(l) != tag {
+        erro_fatal("extração de carga com variante inconsistente em leque");
+    }
+    if indice >= leque_n(l) {
+        erro_fatal("carga ausente em leque");
+    }
+    leque_cargas(l).add(indice as usize).read()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -808,6 +899,45 @@ mod tests {
             assert_eq!(pinker_mapa_tamanho(m), 50);
             for i in 0..50 {
                 assert_eq!(pinker_mapa_obter(m, i), i * 2);
+            }
+        }
+    }
+
+    #[test]
+    fn leque_criar_anexar_tag_e_carga() {
+        unsafe {
+            let l = pinker_leque_criar_0(2);
+            let l = pinker_leque_anexar(l, 42);
+            let l = pinker_leque_anexar(l, 7);
+            assert_eq!(pinker_leque_tag(l), 2);
+            assert_eq!(pinker_leque_carga(l, 2, 0), 42);
+            assert_eq!(pinker_leque_carga(l, 2, 1), 7);
+        }
+    }
+
+    #[test]
+    fn leque_aninhado_habilita_recursao() {
+        unsafe {
+            // Expr.Lit(21) dentro de Expr.Dobro(Expr) — carga é outro leque.
+            let lit = pinker_leque_criar_0(0);
+            let lit = pinker_leque_anexar(lit, 21);
+            let dobro = pinker_leque_criar_0(1);
+            let dobro = pinker_leque_anexar(dobro, lit as u64);
+            let interno = pinker_leque_carga(dobro, 1, 0) as *mut u8;
+            assert_eq!(pinker_leque_tag(interno), 0);
+            assert_eq!(pinker_leque_carga(interno, 0, 0), 21);
+        }
+    }
+
+    #[test]
+    fn leque_cresce_alem_da_capacidade_inicial() {
+        unsafe {
+            let mut l = pinker_leque_criar_0(9);
+            for i in 0..10 {
+                l = pinker_leque_anexar(l, i * 5);
+            }
+            for i in 0..10 {
+                assert_eq!(pinker_leque_carga(l, 9, i), i * 5);
             }
         }
     }
