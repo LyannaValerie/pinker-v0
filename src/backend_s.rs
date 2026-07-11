@@ -493,9 +493,9 @@ fn extract_external_callconv_program(
                         args,
                         ret_type,
                     } => {
-                        if !is_external_ret_type(ret_type) {
+                        if !is_external_call_ret_type(ret_type) {
                             return Err(err(
-                                "subset externo montável (Fase 215) só aceita call com retorno `bombom`, `verso` ou `logica`",
+                                "subset externo montável (Fase 216) só aceita call com retorno `bombom`, `verso`, `logica`, lista ou `nulo`",
                             ));
                         }
                         // Ternário (Fase 214/B3): `__ternario(cond, a, b)` é
@@ -590,6 +590,50 @@ fn extract_external_callconv_program(
                             REG_RET,
                             slot_offsets[&temp_key(*dest)]
                         ));
+                    }
+                    // Call sem destino (intrínsecas de efeito, Fase 216/B5):
+                    // mesma ABI do call comum, sem o movq de retorno.
+                    SelectedInstr::CallVoid { callee, args } => {
+                        let call_target = if let Some(runtime_symbol) =
+                            runtime_intrinsic_symbol(callee)
+                        {
+                            runtime_symbol.to_string()
+                        } else {
+                            if !selected.functions.iter().any(|f| &f.name == callee) {
+                                return Err(err(
+                                    "subset externo montável (Fase 84) encontrou call para função inexistente",
+                                ));
+                            }
+                            callee.clone()
+                        };
+                        for arg in args.iter() {
+                            register_rodata_strings_for_operand(
+                                arg,
+                                &mut rodata_string_labels,
+                                &mut rodata_strings,
+                            );
+                        }
+                        let stack_args = args.len().saturating_sub(ARG_REGS.len());
+                        let pad = stack_args % 2;
+                        if pad == 1 {
+                            body.push("subq $8, %rsp".to_string());
+                        }
+                        for arg in args.iter().skip(ARG_REGS.len()).rev() {
+                            body.extend(load_operand("%r10", arg, &slot_offsets, &rodata_strings)?);
+                            body.push("pushq %r10".to_string());
+                        }
+                        for (idx, arg) in args.iter().take(ARG_REGS.len()).enumerate() {
+                            body.extend(load_operand(
+                                ARG_REGS[idx],
+                                arg,
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                        }
+                        body.push(format!("call {}", call_target));
+                        if stack_args > 0 {
+                            body.push(format!("addq ${}, %rsp", 8 * (stack_args + pad)));
+                        }
                     }
                     // `falar` nativo (Fase 215/B4): cada pedaço vira uma
                     // chamada ao runtime conforme o tipo, com separador entre
@@ -1158,6 +1202,8 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
         || *ty == TypeIR::U32
         || *ty == TypeIR::U64
         || *ty == TypeIR::Verso
+        || *ty == TypeIR::ListBombom
+        || *ty == TypeIR::ListVerso
         || *ty == TypeIR::Pointer { is_volatile: false }
 }
 
@@ -1166,16 +1212,40 @@ fn is_external_local_type(ty: &TypeIR) -> bool {
 }
 
 fn is_external_ret_type(ty: &TypeIR) -> bool {
-    matches!(ty, TypeIR::Bombom | TypeIR::Verso | TypeIR::Logica)
+    matches!(
+        ty,
+        TypeIR::Bombom | TypeIR::Verso | TypeIR::Logica | TypeIR::ListBombom | TypeIR::ListVerso
+    )
 }
 
-/// Intrínsecas de `verso` com implementação no runtime nativo (Fase 215/B4).
+/// Retornos aceitos em `call`: os de função mais `nulo` (intrínsecas de
+/// efeito, como `lista_anexar`; o slot de destino recebe lixo inofensivo
+/// que a semântica já impede de ser lido).
+fn is_external_call_ret_type(ty: &TypeIR) -> bool {
+    is_external_ret_type(ty) || matches!(ty, TypeIR::Nulo)
+}
+
+/// Intrínsecas com implementação no runtime nativo (Fases 215/B4 e 216/B5).
 /// O símbolo devolvido é resolvido no link com `libpinker_rt.a`.
+///
+/// As listas compartilham uma única implementação: todo elemento é uma palavra
+/// de 8 bytes (`bombom`, ponteiro de `verso` ou valor de leque), então as
+/// formas monomorphizadas de `lista<bombom>` e `lista<verso>` — e as genéricas
+/// já reescritas na IR — abaixam para as mesmas funções `pinker_lista_*`.
 fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
     match callee {
         "juntar_verso" => Some("pinker_verso_juntar"),
         "tamanho_verso" => Some("pinker_verso_tamanho"),
         "igual_verso" => Some("pinker_verso_igual"),
+        "lista_bombom_criar" | "lista_verso_criar" => Some("pinker_lista_criar"),
+        "lista_bombom_anexar" | "lista_verso_anexar" => Some("pinker_lista_anexar"),
+        "lista_bombom_obter" | "lista_verso_obter" => Some("pinker_lista_obter"),
+        "lista_bombom_tamanho" | "lista_verso_tamanho" => Some("pinker_lista_tamanho"),
+        "lista_bombom_definir" | "lista_verso_definir" => Some("pinker_lista_definir"),
+        "lista_bombom_tirar_ultimo" | "lista_verso_tirar_ultimo" => {
+            Some("pinker_lista_tirar_ultimo")
+        }
+        "lista_bombom_inserir" | "lista_verso_inserir" => Some("pinker_lista_inserir"),
         _ => None,
     }
 }

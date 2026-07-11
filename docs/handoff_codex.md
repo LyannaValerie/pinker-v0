@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **215** — Eixo B: `verso` dinâmico nativo com paridade de stdout (B4) |
+| Fase funcional mais recente | **216** — Eixo B: listas nativas completas com runtime unificado (B5) |
 | Rodada documental mais recente | **Doc-41** — formalização dos dois eixos do Bloco 20 (A — linguagem; B — backend nativo) |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -51,17 +51,16 @@
 | 213 | Bloco 20, Eixo B (B2): ABI SysV completa — 6 registradores + args de pilha com padding, N parâmetros, recursão e chamadas aninhadas nativas |
 | 214 | Bloco 20, Eixo B (B3): controle de fluxo geral nativo — todos os construtos de fluxo executam nativos; ternário abaixa para `cmov` |
 | 215 | Bloco 20, Eixo B (B4): `verso` dinâmico nativo — layout length-prefixed único, `juntar`/`tamanho`/`igual` + `falar` completo via runtime, **paridade de stdout verificada** |
+| 216 | Bloco 20, Eixo B (B5): listas nativas completas — runtime unificado (elementos = palavras de 8 bytes) servindo `lista<bombom>`/`lista<verso>`/`lista<Leque>`, `para cada` nativo, paridade de stdout |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Fase 215 — Eixo B, fase B4: `verso` dinâmico nativo**.
-- Representação única: ponteiro para `[u64 tamanho][bytes utf-8]`; literais `.rodata` migraram para o mesmo layout (`.quad` + `.ascii`).
-- Runtime +8 funções ABI C: `pinker_verso_tamanho` (code points Unicode), `pinker_verso_juntar` (heap via alocador), `pinker_verso_igual`, família `pinker_falar_*` espelhando as instruções Print da máquina abstrata.
-- Backend: braço `Falar` (call por pedaço tipado + separador + fim), mapa de intrínsecas → símbolos do runtime, retornos `verso`/`logica` liberados; bug corrigido (literal verso em `mimo "texto";` não materializava rodata).
-- Critério de pronto cumprido: **paridade de stdout byte a byte** interpretador × nativo, incluindo Unicode, verificada por teste automatizado.
-- Limite documentado: `==` de verso nativo compara ponteiro; forma canônica é `igual_verso`. Demais operações textuais são B8.
-- Cobertura: exemplo fase215; 2 testes de backend + 3 unitários de runtime; 2 testes históricos atualizados.
+- **Fase 216 — Eixo B, fase B5: listas nativas completas**.
+- Uma implementação única no runtime: header fixo `[len][cap][dados]` (endereço estável; crescimento realoca só `dados`), 7 funções `pinker_lista_*` com verificação de limites; as 14 intrínsecas monomorphizadas e as genéricas abaixam para os mesmos símbolos.
+- Backend: tipos de lista aceitos em params/locals/retornos; braço novo `CallVoid` (gap real — intrínsecas de efeito); retorno `nulo` aceito em calls.
+- Critério de pronto cumprido: paridade de stdout interpretador × nativo para programa com as 3 formas de lista, genéricas, `para cada`, definir/inserir/tirar_ultimo e lista como parâmetro.
+- Cobertura: exemplo fase216; 2 testes de backend + 5 unitários de runtime; fronteira de recusa movida para mapas (B6).
 - `make ci` passa integralmente.
 
 ## 4. Limites canônicos ativos
@@ -78,8 +77,8 @@ Histórico completo por fase: `docs/history/phases/`.
 
 ## 5. Próximo passo
 - Estrutura do Bloco 20 formalizada em dois eixos (Doc-41): **Eixo A — linguagem** (faixas) e **Eixo B — backend nativo**. Ordem vigente: A (itens 1–3 ✓) → B (integral, em curso) → A (itens 5 → 6 → 4).
-- Próxima fase: **Eixo B, B5 (prevista Fase 216) — listas nativas completas** — `lista<bombom>`, `lista<verso>` e `lista<Leque>` com todas as intrínsecas (monomorphizadas e genéricas) implementadas no runtime; `para cada` sobre listas nativo.
-- Escada completa do eixo (B1 ✓, B2 ✓, B3 ✓, B4 ✓, B5–B11) em `docs/roadmap/blocos/bloco_20.md`; regra do eixo: sem recorte mínimo, e B11 fecha com suíte de paridade interpretador × nativo no CI.
+- Próxima fase: **Eixo B, B6 (prevista Fase 217) — mapas nativos completos** — os 4 tipos de mapa com todas as intrínsecas + iteradores internos de `para cada` no runtime (hash map próprio ou associativo simples com a mesma semântica de ordem de inserção do interpretador — atenção: os iteradores do interpretador usam snapshot de chaves).
+- Escada completa do eixo (B1 ✓, B2 ✓, B3 ✓, B4 ✓, B5 ✓, B6–B11) em `docs/roadmap/blocos/bloco_20.md`; regra do eixo: sem recorte mínimo, e B11 fecha com suíte de paridade interpretador × nativo no CI.
 - Após o eixo: itens 5 (**error handling**), 6 (**closures**) e 4 (**traits**) do Eixo A, com a regra nova de que toda fase de linguagem entrega o lowering nativo junto.
 
 ## 6. Arquitetura documental ativa
