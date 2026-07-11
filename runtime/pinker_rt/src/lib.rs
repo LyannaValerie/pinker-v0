@@ -207,6 +207,149 @@ pub extern "C" fn pinker_falar_fim() {
     println!();
 }
 
+// ---------------------------------------------------------------------------
+// Listas nativas (Fase 216/B5)
+//
+// Uma lista é um ponteiro para um header fixo `[len: u64][cap: u64][dados:
+// *mut u64]`; os elementos são palavras de 8 bytes (o valor de `bombom`, o
+// ponteiro de um `verso` ou o valor/handle de um leque), então a mesma
+// implementação serve `lista<bombom>`, `lista<verso>` e `lista<Leque>`.
+// O header nunca muda de endereço; o crescimento realoca apenas `dados`.
+// ---------------------------------------------------------------------------
+
+const LISTA_CAP_INICIAL: u64 = 8;
+
+fn erro_fatal(msg: &str) -> ! {
+    eprintln!("Erro de Execução (pinker_rt): {}", msg);
+    std::process::exit(1)
+}
+
+unsafe fn lista_len(l: *mut u8) -> u64 {
+    (l as *const u64).read()
+}
+
+unsafe fn lista_cap(l: *mut u8) -> u64 {
+    (l as *const u64).add(1).read()
+}
+
+unsafe fn lista_dados(l: *mut u8) -> *mut u64 {
+    (l as *const usize).add(2).read() as *mut u64
+}
+
+/// Cria uma lista vazia. Devolve nulo apenas se o sistema recusar memória.
+#[no_mangle]
+pub extern "C" fn pinker_lista_criar() -> *mut u8 {
+    let header = pinker_alocar(24);
+    if header.is_null() {
+        return header;
+    }
+    let dados = pinker_alocar(LISTA_CAP_INICIAL * 8);
+    if dados.is_null() {
+        return std::ptr::null_mut();
+    }
+    unsafe {
+        (header as *mut u64).write(0);
+        (header as *mut u64).add(1).write(LISTA_CAP_INICIAL);
+        (header as *mut usize).add(2).write(dados as usize);
+    }
+    header
+}
+
+/// Anexa um elemento ao fim da lista, dobrando a capacidade quando cheia.
+///
+/// # Safety
+/// `l` deve ser uma lista criada por `pinker_lista_criar`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_lista_anexar(l: *mut u8, valor: u64) {
+    let len = lista_len(l);
+    let cap = lista_cap(l);
+    if len == cap {
+        let nova_cap = cap * 2;
+        let novos = pinker_alocar(nova_cap * 8);
+        if novos.is_null() {
+            erro_fatal("sem memória ao crescer lista");
+        }
+        let antigos = lista_dados(l);
+        std::ptr::copy_nonoverlapping(antigos as *const u8, novos, (len * 8) as usize);
+        pinker_liberar(antigos as *mut u8);
+        (l as *mut u64).add(1).write(nova_cap);
+        (l as *mut usize).add(2).write(novos as usize);
+    }
+    lista_dados(l).add(len as usize).write(valor);
+    (l as *mut u64).write(len + 1);
+}
+
+/// Quantidade de elementos da lista.
+///
+/// # Safety
+/// `l` deve ser uma lista criada por `pinker_lista_criar`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_lista_tamanho(l: *mut u8) -> u64 {
+    lista_len(l)
+}
+
+/// Elemento na posição `indice`; aborta com erro claro fora dos limites,
+/// espelhando o erro de runtime do interpretador.
+///
+/// # Safety
+/// `l` deve ser uma lista criada por `pinker_lista_criar`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_lista_obter(l: *mut u8, indice: u64) -> u64 {
+    if indice >= lista_len(l) {
+        erro_fatal("índice fora dos limites em leitura de lista");
+    }
+    lista_dados(l).add(indice as usize).read()
+}
+
+/// Substitui o elemento na posição `indice`.
+///
+/// # Safety
+/// `l` deve ser uma lista criada por `pinker_lista_criar`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_lista_definir(l: *mut u8, indice: u64, valor: u64) {
+    if indice >= lista_len(l) {
+        erro_fatal("índice fora dos limites em escrita de lista");
+    }
+    lista_dados(l).add(indice as usize).write(valor);
+}
+
+/// Remove e devolve o último elemento; aborta em lista vazia.
+///
+/// # Safety
+/// `l` deve ser uma lista criada por `pinker_lista_criar`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_lista_tirar_ultimo(l: *mut u8) -> u64 {
+    let len = lista_len(l);
+    if len == 0 {
+        erro_fatal("remoção do fim em lista vazia");
+    }
+    let valor = lista_dados(l).add((len - 1) as usize).read();
+    (l as *mut u64).write(len - 1);
+    valor
+}
+
+/// Insere um elemento na posição `indice`, deslocando o sufixo.
+///
+/// # Safety
+/// `l` deve ser uma lista criada por `pinker_lista_criar`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_lista_inserir(l: *mut u8, indice: u64, valor: u64) {
+    let len = lista_len(l);
+    if indice > len {
+        erro_fatal("índice fora dos limites em inserção de lista");
+    }
+    pinker_lista_anexar(l, 0);
+    let dados = lista_dados(l);
+    let mut i = lista_len(l) - 1;
+    while i > indice {
+        dados
+            .add(i as usize)
+            .write(dados.add((i - 1) as usize).read());
+        i -= 1;
+    }
+    dados.add(indice as usize).write(valor);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -307,6 +450,77 @@ mod tests {
         unsafe {
             assert_eq!(pinker_verso_igual(a.as_ptr(), b.as_ptr()), 1);
             assert_eq!(pinker_verso_igual(a.as_ptr(), c.as_ptr()), 0);
+        }
+    }
+
+    #[test]
+    fn lista_anexar_obter_e_tamanho() {
+        let l = pinker_lista_criar();
+        assert!(!l.is_null());
+        unsafe {
+            assert_eq!(pinker_lista_tamanho(l), 0);
+            pinker_lista_anexar(l, 7);
+            pinker_lista_anexar(l, 21);
+            assert_eq!(pinker_lista_tamanho(l), 2);
+            assert_eq!(pinker_lista_obter(l, 0), 7);
+            assert_eq!(pinker_lista_obter(l, 1), 21);
+        }
+    }
+
+    #[test]
+    fn lista_cresce_alem_da_capacidade_inicial() {
+        let l = pinker_lista_criar();
+        unsafe {
+            for i in 0..100 {
+                pinker_lista_anexar(l, i * 3);
+            }
+            assert_eq!(pinker_lista_tamanho(l), 100);
+            for i in 0..100 {
+                assert_eq!(pinker_lista_obter(l, i), i * 3);
+            }
+        }
+    }
+
+    #[test]
+    fn lista_definir_substitui_elemento() {
+        let l = pinker_lista_criar();
+        unsafe {
+            pinker_lista_anexar(l, 1);
+            pinker_lista_anexar(l, 2);
+            pinker_lista_definir(l, 1, 42);
+            assert_eq!(pinker_lista_obter(l, 1), 42);
+            assert_eq!(pinker_lista_tamanho(l), 2);
+        }
+    }
+
+    #[test]
+    fn lista_inserir_desloca_sufixo() {
+        let l = pinker_lista_criar();
+        unsafe {
+            pinker_lista_anexar(l, 1);
+            pinker_lista_anexar(l, 3);
+            pinker_lista_inserir(l, 1, 2);
+            assert_eq!(pinker_lista_tamanho(l), 3);
+            assert_eq!(pinker_lista_obter(l, 0), 1);
+            assert_eq!(pinker_lista_obter(l, 1), 2);
+            assert_eq!(pinker_lista_obter(l, 2), 3);
+            pinker_lista_inserir(l, 0, 0);
+            assert_eq!(pinker_lista_obter(l, 0), 0);
+            pinker_lista_inserir(l, 4, 4);
+            assert_eq!(pinker_lista_obter(l, 4), 4);
+        }
+    }
+
+    #[test]
+    fn lista_tirar_ultimo_remove_e_devolve() {
+        let l = pinker_lista_criar();
+        unsafe {
+            pinker_lista_anexar(l, 10);
+            pinker_lista_anexar(l, 20);
+            assert_eq!(pinker_lista_tirar_ultimo(l), 20);
+            assert_eq!(pinker_lista_tamanho(l), 1);
+            assert_eq!(pinker_lista_tirar_ultimo(l), 10);
+            assert_eq!(pinker_lista_tamanho(l), 0);
         }
     }
 }

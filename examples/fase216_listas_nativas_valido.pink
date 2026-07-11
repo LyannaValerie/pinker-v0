@@ -1,0 +1,43 @@
+pacote main;
+
+leque Cor { Vermelho, Verde, Azul }
+
+carinho soma_lista(numeros: lista<bombom>) -> bombom {
+    nova muda total: bombom = 0;
+    para cada n em numeros {
+        total = total + n;
+    }
+    mimo total;
+}
+
+carinho principal() -> bombom {
+    nova numeros: lista<bombom> = lista_criar();
+    lista_anexar(numeros, 5);
+    lista_anexar(numeros, 10);
+    lista_anexar(numeros, 30);
+    lista_definir(numeros, 0, 2);
+    lista_inserir(numeros, 1, 100);
+    nova tirado: bombom = lista_tirar_ultimo(numeros);
+    falar("tirado:", tirado);
+    falar("tamanho:", lista_tamanho(numeros));
+    falar("soma:", soma_lista(numeros));
+
+    nova palavras: lista<verso> = lista_criar();
+    lista_anexar(palavras, "rosa");
+    lista_anexar(palavras, "pinker");
+    para cada p em palavras {
+        falar(p);
+    }
+
+    nova cores: lista<Cor> = lista_criar();
+    lista_anexar(cores, Cor.Verde);
+    lista_anexar(cores, Cor.Azul);
+    para cada c em cores {
+        escolha c {
+            caso Cor.Verde { falar("fria verde"); }
+            caso Cor.Azul { falar("fria azul"); }
+            senao { falar("quente"); }
+        }
+    }
+    mimo soma_lista(numeros) - 112;
+}
