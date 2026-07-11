@@ -15,11 +15,24 @@ Expandir a Pinker na direção dos dois propósitos de longo prazo do projeto:
 
 A trilha é organizada em **11 faixas ordenadas por prioridade**, mescladas a partir do inventário de lacunas frente a C, C#, C++, Python, TypeScript e Shell. A ordem entre faixas é canônica; a ordem dentro de cada faixa é recomendada, não obrigatória.
 
+## Estrutura em dois eixos
+
+O Bloco 20 executa em **dois eixos** que se alternam por decisão explícita:
+
+- **Eixo A — linguagem**: as 11 faixas abaixo (superfície, tipos, funções, controle, baixo nível, metaprogramação, módulos, concorrência, I/O). Executou os itens 1–3 da Faixa 1 (Fases 208–211) e retoma nos itens 5 → 6 → 4 após o Eixo B.
+- **Eixo B — backend nativo**: paridade real do backend `.s` + runtime próprio com a superfície atual da linguagem (fases B1–B11, previstas como Fases 212–222). Aberto pela Doc-40, em execução desde a Fase 212.
+
+Ordem vigente: Eixo A (itens 1–3) → **Eixo B (integral)** → Eixo A (itens 5 → 6 → 4, agora com lowering nativo obrigatório em cada fase) → demais faixas.
+
+Nota de nomenclatura (Doc-41): o "B" nasceu de **B**ackend; a formalização A/B remove a ambiguidade de sequência — o Eixo A é o trilho de linguagem e veio primeiro de fato.
+
 ## Convergência estratégica
 
 Os itens da Faixa 1 mais os três primeiros da Faixa 3 formam o conjunto que desbloqueia simultaneamente os dois propósitos: enums, pattern matching, generics, traits, error handling, closures, ponteiros de função, alocador de memória e inline assembly real. Nenhum dos dois objetivos avança de forma sustentável sem esse conjunto.
 
-## Faixa 1 — funcionalidades de alta dificuldade (ex-Direção B)
+## Eixo A — faixas de linguagem
+
+### Faixa 1 — funcionalidades de alta dificuldade (ex-Direção B)
 
 | # | Item | Inspiração | Motivação SO/self-hosting |
 |---|---|---|---|
@@ -30,11 +43,11 @@ Os itens da Faixa 1 mais os três primeiros da Faixa 3 formam o conjunto que des
 | 5 | Error handling estruturado (`tentar/pegar` ou Result) | C#, Python, Rust | recuperação sem abort, relatório de erros do compilador |
 | 6 | Closures / funções anônimas | Rust, TS, Python | callbacks, iteradores, handlers |
 
-## Faixa 2 — consolidação do Bloco 18 (ex-Direção A) — **concluída**
+### Faixa 2 — consolidação do Bloco 18 (ex-Direção A) — **concluída**
 
 Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famílias, 18.7 e 18.8 cumpridos no recorte mínimo, 18.9 e 18.10 declinados por decisão conservadora, 18.11 executado. Ver `docs/roadmap/blocos/bloco_18.md`.
 
-## Faixa 3 — priorização natural (itens exclusivos)
+### Faixa 3 — priorização natural (itens exclusivos)
 
 | # | Item | Inspiração | Motivação SO/self-hosting |
 |---|---|---|---|
@@ -42,7 +55,7 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 | 13 | Alocador de memória (`alocar`/`liberar`) | C | inegociável para SO: heap próprio |
 | 14 | Inline assembly real (lowering completo de `sussurro`) | C | `mov cr3`, `lgdt`, `iret` etc. |
 
-## Faixa 4 — sistema de tipos
+### Faixa 4 — sistema de tipos
 
 | # | Item | Inspiração |
 |---|---|---|
@@ -50,7 +63,7 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 | 16 | Tuplas | Python, Rust, TS |
 | 17 | Inferência de tipo local | TS, Rust, C# |
 
-## Faixa 5 — funções
+### Faixa 5 — funções
 
 | # | Item | Inspiração |
 |---|---|---|
@@ -59,14 +72,14 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 | 20 | Parâmetros com valor padrão | Python, TS, C++ |
 | 21 | Sobrecarga de funções | C++, C#, TS |
 
-## Faixa 6 — controle de fluxo
+### Faixa 6 — controle de fluxo
 
 | # | Item | Inspiração |
 |---|---|---|
 | 22 | `defer` / RAII / destructors | Go, Rust, C++ |
 | 23 | Iteradores lazy / generators | Python, TS, C#, Rust |
 
-## Faixa 7 — memória e baixo nível
+### Faixa 7 — memória e baixo nível
 
 | # | Item | Inspiração |
 |---|---|---|
@@ -79,7 +92,7 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 | 30 | Operações atômicas | C11, C++11, Rust |
 | 31 | Barrier / fence de memória | C11, C++11, Rust |
 
-## Faixa 8 — strings e metaprogramação
+### Faixa 8 — strings e metaprogramação
 
 | # | Item | Inspiração |
 |---|---|---|
@@ -88,7 +101,7 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 | 34 | Reflection / introspecção | C#, Python, TS |
 | 35 | Codegen / `eval` controlado | Python, Shell |
 
-## Faixa 9 — módulos e build
+### Faixa 9 — módulos e build
 
 | # | Item | Inspiração |
 |---|---|---|
@@ -99,7 +112,7 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 | 40 | Build system completo (dependências, targets) | Cargo, npm |
 | 41 | Testes integrados na linguagem | Rust, Python |
 
-## Faixa 10 — concorrência e SO
+### Faixa 10 — concorrência e SO
 
 | # | Item | Inspiração |
 |---|---|---|
@@ -110,7 +123,7 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 | 46 | Syscall table dispatch | C |
 | 47 | Interrupt handlers tipados | C, Rust |
 
-## Faixa 11 — I/O e rede para SO
+### Faixa 11 — I/O e rede para SO
 
 | # | Item | Inspiração |
 |---|---|---|
