@@ -60,6 +60,40 @@ nova nome: verso = "Pinker";
 
 Também existem tipos inteiros fixos (`u8..u64`, `i8..i64`) no estado atual.
 
+Coleções: `lista<bombom>`, `lista<verso>` e, desde a Fase 211, `lista<T>` com `T` sendo qualquer `leque` declarado — todas operadas pelas intrínsecas genéricas `lista_criar` (exige anotação em `nova`), `lista_anexar`, `lista_obter`, `lista_tamanho`, `lista_definir`, `lista_tirar_ultimo` e `lista_inserir`:
+
+```pink
+nova tokens: lista<Token> = lista_criar();
+lista_anexar(tokens, Token.Fim);
+nova primeiro: Token = lista_obter(tokens, 0);
+```
+
+### `leque`
+Enumeração nominal com variantes nomeadas, opcionalmente com cargas (`bombom`, `verso` ou outro leque — inclusive o próprio, permitindo tipos recursivos):
+
+```pink
+leque Cor { Vermelho, Verde, Azul }
+
+leque Token { Numero(bombom), Palavra(verso), Fim }
+
+leque Expr { Lit(bombom), Soma(Expr, Expr) }
+
+carinho avalia(e: Expr) -> bombom {
+    encaixe e {
+        caso Expr.Lit(n) { mimo n; }
+        caso Expr.Soma(a, b) { mimo avalia(a) + avalia(b); }
+    }
+    mimo 0;
+}
+
+carinho principal() -> bombom {
+    falar(avalia(Expr.Soma(Expr.Lit(2), Expr.Lit(40))));
+    mimo 0;
+}
+```
+
+Dois leques diferentes são tipos distintos mesmo com variantes de mesmo nome. Em leques **sem carga**, a comparação usa `==`/`!=` (inclusive em `escolha`) e o discriminante pode ser lido com `virar bombom`. Em leques **com carga**, a desconstrução acontece exclusivamente via `encaixe`: o compilador exige que todas as variantes sejam cobertas ou que exista um `senao`, e cada `caso Leque.Variante(a, b, ...)` liga as cargas a variáveis novas no corpo do caso, na ordem da declaração.
+
 ## 5) Fluxo de controle
 
 ### `talvez` / `senao`

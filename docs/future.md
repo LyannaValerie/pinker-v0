@@ -113,7 +113,8 @@ Alinhamento do Bloco 16 após as Fases 179–181:
 A Pinker já possui motor técnico real. A direção de “superfície Pinker” existe para alinhar a aparência da linguagem à sua identidade:
 
 - **Bloco 17 — forma visual e superfície documental**: encerrado por suficiência conservadora na Fase 176.
-- **Bloco 18 — core nobre e bibliotecas temáticas**: **aberto como trilha ativa na Fase 180**. Inventário canônico de intrínsecas concluído; famílias candidatas identificadas; escada interna de 11 subitens definida no `roadmap.md`.
+- **Bloco 18 — core nobre e bibliotecas temáticas**: encerrado por suficiência conservadora na Fase 207, com importação por família (`trazer familia;`) entregue para as 7 famílias públicas; resolução qualificada, importação seletiva e modo estrito permanecem no inventário futuro.
 - **Bloco 19 — reformas sintáticas e semânticas de superfície**: permanece como candidato futuro, não ativo. Possíveis ajustes de sintaxe (keywords, inferência, pontuação) para maior clareza e elegância, subordinados à estabilidade do motor.
+- **Bloco 20 — expansão funcional rumo a SO e self-hosting**: **aberto como trilha ativa na Fase 207**, organizado em 11 faixas priorizadas (`docs/roadmap/blocos/bloco_20.md`), subordinado aos dois propósitos de longo prazo: SO em Pinker e self-hosting.
 
 **Importante:** mudanças como novas keywords, inferência local, `;` opcional e reavaliação de `->` permanecem fora do estado operacional atual.

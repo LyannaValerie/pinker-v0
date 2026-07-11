@@ -1,0 +1,27 @@
+pacote main;
+
+leque Token { Numero(bombom), Palavra(verso), Fim }
+
+leque Cor { Vermelho, Verde }
+
+carinho descreve(t: Token) -> verso {
+    encaixe t {
+        caso Token.Numero(n) { mimo formatar_verso("numero {}", n); }
+        caso Token.Palavra(p) { mimo formatar_verso("palavra {}", p); }
+        caso Token.Fim { mimo "fim"; }
+    }
+    mimo "nunca";
+}
+
+carinho principal() -> bombom {
+    falar(descreve(Token.Numero(42)));
+    falar(descreve(Token.Palavra("rosa")));
+    falar(descreve(Token.Fim));
+
+    nova favorita: Cor = Cor.Verde;
+    encaixe favorita {
+        caso Cor.Vermelho { falar("quente"); }
+        senao { falar("fria"); }
+    }
+    mimo 0;
+}

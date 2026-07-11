@@ -18,7 +18,9 @@ use crate::layout;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet};
 
-const IMPORTABLE_BUILTIN_FAMILIES: &[&str] = &["tempo", "ambiente", "acaso", "texto"];
+const IMPORTABLE_BUILTIN_FAMILIES: &[&str] = &[
+    "tempo", "ambiente", "acaso", "texto", "arquivo", "caminho", "processo",
+];
 
 pub fn importable_builtin_families() -> &'static [&'static str] {
     IMPORTABLE_BUILTIN_FAMILIES
@@ -80,6 +82,7 @@ pub struct SemanticChecker {
     consts: HashMap<String, ConstDecl>,
     type_aliases: HashMap<String, Type>,
     structs: HashMap<String, StructDecl>,
+    enums: HashMap<String, EnumDecl>,
     scopes: Vec<Scope>,
     current_func_name: Option<String>,
     current_func_ret: Option<Type>,
@@ -99,6 +102,7 @@ impl SemanticChecker {
             consts: HashMap::new(),
             type_aliases: HashMap::new(),
             structs: HashMap::new(),
+            enums: HashMap::new(),
             scopes: Vec::new(),
             current_func_name: None,
             current_func_ret: None,
@@ -150,6 +154,19 @@ impl SemanticChecker {
             (Type::Struct { name: lhs_name, .. }, Type::Struct { name: rhs_name, .. }) => {
                 lhs_name == rhs_name
             }
+            (Type::Enum { name: lhs_name, .. }, Type::Enum { name: rhs_name, .. }) => {
+                lhs_name == rhs_name
+            }
+            (
+                Type::ListEnum {
+                    element: lhs_element,
+                    ..
+                },
+                Type::ListEnum {
+                    element: rhs_element,
+                    ..
+                },
+            ) => lhs_element == rhs_element,
             (
                 Type::FixedArray {
                     element: lhs_element,
@@ -193,6 +210,12 @@ impl SemanticChecker {
             Type::Alias { name, span } => {
                 if self.structs.contains_key(name) {
                     return Ok(Type::Struct {
+                        name: name.clone(),
+                        span: *span,
+                    });
+                }
+                if self.enums.contains_key(name) {
+                    return Ok(Type::Enum {
                         name: name.clone(),
                         span: *span,
                     });
@@ -271,7 +294,41 @@ impl SemanticChecker {
                 })
             }
             Type::Struct { .. } => Ok(ty.clone()),
+            Type::ListEnum { element, span } => {
+                if !self.enums.contains_key(element) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "lista genérica exige leque declarado como elemento; '{}' não é um leque",
+                            element
+                        ),
+                        span: *span,
+                    });
+                }
+                Ok(ty.clone())
+            }
             _ => Ok(ty.clone()),
+        }
+    }
+
+    fn expr_is_generic_list_create(expr: &Expr) -> bool {
+        if let ExprKind::Call(callee, args) = &expr.kind {
+            if let ExprKind::Ident(name) = &callee.kind {
+                return name == "lista_criar" && args.is_empty();
+            }
+        }
+        false
+    }
+
+    /// Tipo do elemento de um tipo de lista (legado ou genérico).
+    fn list_element_type(list_ty: &Type, span: Span) -> Option<Type> {
+        match list_ty {
+            Type::ListBombom(_) => Some(Type::Bombom(span)),
+            Type::ListVerso(_) => Some(Type::Verso(span)),
+            Type::ListEnum { element, .. } => Some(Type::Enum {
+                name: element.clone(),
+                span,
+            }),
+            _ => None,
         }
     }
 
@@ -332,6 +389,17 @@ impl SemanticChecker {
             )
     }
 
+    fn enum_has_payload(&self, enum_name: &str) -> bool {
+        self.enums
+            .get(enum_name)
+            .map(|decl| {
+                decl.variants
+                    .iter()
+                    .any(|variant| !variant.payloads.is_empty())
+            })
+            .unwrap_or(false)
+    }
+
     fn is_cast_allowed(source: &Type, target: &Type) -> bool {
         if Self::is_integer_type(source) && Self::is_integer_type(target) {
             return true;
@@ -349,6 +417,8 @@ impl SemanticChecker {
 
         (matches!(source, Type::Bombom(_)) && is_bombom_ptr(target))
             || (is_bombom_ptr(source) && matches!(target, Type::Bombom(_)))
+            // Leitura do discriminante de um leque; o caminho inverso continua fechado.
+            || (matches!(source, Type::Enum { .. }) && matches!(target, Type::Bombom(_)))
     }
 
     fn check_expected_type_for_expr(expected: &Type, actual: &Type, expr: &Expr) -> bool {
@@ -546,11 +616,13 @@ impl SemanticChecker {
                             span: alias.span,
                         });
                     }
-                    if self.funcs.contains_key(&alias.name) || self.consts.contains_key(&alias.name)
+                    if self.funcs.contains_key(&alias.name)
+                        || self.consts.contains_key(&alias.name)
+                        || self.enums.contains_key(&alias.name)
                     {
                         return Err(PinkerError::Semantic {
                             msg: format!(
-                                "nome '{}' já utilizado por função/constante global",
+                                "nome '{}' já utilizado por função/constante/leque",
                                 alias.name
                             ),
                             span: alias.span,
@@ -569,10 +641,11 @@ impl SemanticChecker {
                     if self.funcs.contains_key(&struct_decl.name)
                         || self.consts.contains_key(&struct_decl.name)
                         || self.type_aliases.contains_key(&struct_decl.name)
+                        || self.enums.contains_key(&struct_decl.name)
                     {
                         return Err(PinkerError::Semantic {
                             msg: format!(
-                                "nome '{}' já utilizado por função/constante/alias de tipo",
+                                "nome '{}' já utilizado por função/constante/alias de tipo/leque",
                                 struct_decl.name
                             ),
                             span: struct_decl.span,
@@ -580,6 +653,49 @@ impl SemanticChecker {
                     }
                     self.structs
                         .insert(struct_decl.name.clone(), struct_decl.clone());
+                }
+                Item::Enum(enum_decl) => {
+                    if self.enums.contains_key(&enum_decl.name) {
+                        return Err(PinkerError::Semantic {
+                            msg: format!("leque '{}' já declarado", enum_decl.name),
+                            span: enum_decl.span,
+                        });
+                    }
+                    if self.funcs.contains_key(&enum_decl.name)
+                        || self.consts.contains_key(&enum_decl.name)
+                        || self.type_aliases.contains_key(&enum_decl.name)
+                        || self.structs.contains_key(&enum_decl.name)
+                    {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "nome '{}' já utilizado por função/constante/alias/struct",
+                                enum_decl.name
+                            ),
+                            span: enum_decl.span,
+                        });
+                    }
+                    if enum_decl.variants.is_empty() {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "leque '{}' deve ter ao menos uma variante",
+                                enum_decl.name
+                            ),
+                            span: enum_decl.span,
+                        });
+                    }
+                    let mut seen_variants = HashSet::new();
+                    for variant in &enum_decl.variants {
+                        if !seen_variants.insert(variant.name.as_str()) {
+                            return Err(PinkerError::Semantic {
+                                msg: format!(
+                                    "variante '{}' duplicada no leque '{}'",
+                                    variant.name, enum_decl.name
+                                ),
+                                span: variant.span,
+                            });
+                        }
+                    }
+                    self.enums.insert(enum_decl.name.clone(), enum_decl.clone());
                 }
             }
         }
@@ -590,6 +706,28 @@ impl SemanticChecker {
         for struct_decl in self.structs.values() {
             self.validate_struct_decl(struct_decl)?;
         }
+        // Cargas de variantes são validadas após a coleta completa para
+        // permitir referência a leque declarado depois (inclusive recursiva).
+        for enum_decl in self.enums.values() {
+            for variant in &enum_decl.variants {
+                for payload in &variant.payloads {
+                    let payload_ok = match payload {
+                        Type::Bombom(_) | Type::Verso(_) => true,
+                        Type::Alias { name, .. } => self.enums.contains_key(name),
+                        _ => false,
+                    };
+                    if !payload_ok {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "carga da variante '{}' deve ser 'bombom', 'verso' ou um leque declarado nesta fase",
+                                variant.name
+                            ),
+                            span: payload.span(),
+                        });
+                    }
+                }
+            }
+        }
 
         // --- Passagem 2: verificação de corpos ---
         self.check_principal(program)?;
@@ -598,7 +736,7 @@ impl SemanticChecker {
             match item {
                 Item::Function(function) => self.check_function(function)?,
                 Item::Const(constant) => self.check_const_body(constant)?,
-                Item::TypeAlias(_) | Item::Struct(_) => {}
+                Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => {}
             }
         }
 
@@ -710,6 +848,31 @@ impl SemanticChecker {
         for stmt in &block.stmts {
             match stmt {
                 Stmt::Let(let_stmt) => {
+                    // `nova l: lista<...> = lista_criar();` — a criação genérica
+                    // recebe o tipo da anotação (única forma de inferência desta fase).
+                    if let Some(declared_ty) = &let_stmt.ty {
+                        if Self::expr_is_generic_list_create(&let_stmt.init) {
+                            let resolved_declared_ty = self.resolve_type_or_error(declared_ty)?;
+                            if Self::list_element_type(&resolved_declared_ty, let_stmt.span)
+                                .is_none()
+                            {
+                                return Err(PinkerError::Semantic {
+                                    msg: format!(
+                                        "'lista_criar()' exige anotação de tipo de lista em 'nova'; encontrado '{}'",
+                                        resolved_declared_ty.name()
+                                    ),
+                                    span: let_stmt.init.span,
+                                });
+                            }
+                            self.declare_var(
+                                &let_stmt.name,
+                                resolved_declared_ty,
+                                let_stmt.is_mut,
+                                let_stmt.span,
+                            )?;
+                            continue;
+                        }
+                    }
                     let init_ty = self.check_value_expr(
                         &let_stmt.init,
                         "resultado de função sem retorno não pode ser usado em inicialização de variável",
@@ -1169,6 +1332,38 @@ impl SemanticChecker {
             }
             ExprKind::Call(callee, args) => self.check_call_expr(expr.span, callee, args),
             ExprKind::FieldAccess { base, field } => {
+                // `Leque.Variante` — o nome do leque em posição de base tem
+                // precedência sobre variáveis homônimas nesta fase.
+                if let ExprKind::Ident(base_name) = &base.kind {
+                    if let Some(enum_decl) = self.enums.get(base_name) {
+                        let Some(variant) = enum_decl
+                            .variants
+                            .iter()
+                            .find(|variant| variant.name == *field)
+                        else {
+                            return Err(PinkerError::Semantic {
+                                msg: format!(
+                                    "variante '{}' não existe no leque '{}'",
+                                    field, base_name
+                                ),
+                                span: expr.span,
+                            });
+                        };
+                        if !variant.payloads.is_empty() {
+                            return Err(PinkerError::Semantic {
+                                msg: format!(
+                                    "variante '{}' carrega valor; construa com '{}.{}(valor)'",
+                                    field, base_name, field
+                                ),
+                                span: expr.span,
+                            });
+                        }
+                        return Ok(Type::Enum {
+                            name: base_name.clone(),
+                            span: expr.span,
+                        });
+                    }
+                }
                 let base_ty = self.check_value_expr(
                     base,
                     "resultado de função sem retorno não pode ser base de acesso a campo",
@@ -1207,6 +1402,17 @@ impl SemanticChecker {
                     "resultado de função sem retorno não pode ser convertido com 'virar'",
                 )?;
                 let target_ty = self.resolve_type_or_error(target)?.with_span(expr.span);
+                if let Type::Enum { name, .. } = &source_ty {
+                    if self.enum_has_payload(name) {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "'virar' não é suportado para leque com carga ('{}'); use 'encaixe'",
+                                name
+                            ),
+                            span: expr.span,
+                        });
+                    }
+                }
                 if !Self::is_cast_allowed(&source_ty, &target_ty) {
                     return Err(PinkerError::Semantic {
                         msg: format!(
@@ -1309,12 +1515,30 @@ impl SemanticChecker {
                             })
                         }
                     }
-                    BinaryOp::Eq
-                    | BinaryOp::Neq
-                    | BinaryOp::Lt
-                    | BinaryOp::Lte
-                    | BinaryOp::Gt
-                    | BinaryOp::Gte => Ok(Type::Logica(expr.span)),
+                    BinaryOp::Eq | BinaryOp::Neq => {
+                        if let Type::Enum { name, .. } = &lhs_ty {
+                            if self.enum_has_payload(name) {
+                                return Err(PinkerError::Semantic {
+                                    msg: format!(
+                                        "igualdade direta não é suportada para leque com carga ('{}'); use 'encaixe'",
+                                        name
+                                    ),
+                                    span: expr.span,
+                                });
+                            }
+                        }
+                        Ok(Type::Logica(expr.span))
+                    }
+                    BinaryOp::Lt | BinaryOp::Lte | BinaryOp::Gt | BinaryOp::Gte => {
+                        if matches!(lhs_ty, Type::Enum { .. }) {
+                            return Err(PinkerError::Semantic {
+                                msg: "comparação de ordem não é suportada entre valores de leque; use '==' ou '!='"
+                                    .to_string(),
+                                span: expr.span,
+                            });
+                        }
+                        Ok(Type::Logica(expr.span))
+                    }
                 }
             }
             ExprKind::Unary(op, operand) => {
@@ -1436,12 +1660,280 @@ impl SemanticChecker {
         callee: &Expr,
         args: &[Expr],
     ) -> Result<Type, PinkerError> {
+        // Construção de variante de leque: `Leque.Variante(carga)`.
+        if let ExprKind::FieldAccess { base, field } = &callee.kind {
+            if let ExprKind::Ident(base_name) = &base.kind {
+                if let Some(enum_decl) = self.enums.get(base_name) {
+                    let Some(variant) = enum_decl
+                        .variants
+                        .iter()
+                        .find(|variant| variant.name == *field)
+                        .cloned()
+                    else {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "variante '{}' não existe no leque '{}'",
+                                field, base_name
+                            ),
+                            span: expr_span,
+                        });
+                    };
+                    let enum_name = base_name.clone();
+                    if variant.payloads.is_empty() {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "variante '{}' não carrega valor; use '{}.{}' sem parênteses",
+                                field, enum_name, field
+                            ),
+                            span: expr_span,
+                        });
+                    }
+                    if args.len() != variant.payloads.len() {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "construção de '{}.{}' exige {} argumento(s) de carga, recebido {}",
+                                enum_name,
+                                field,
+                                variant.payloads.len(),
+                                args.len()
+                            ),
+                            span: expr_span,
+                        });
+                    }
+                    for (index, payload_ty) in variant.payloads.iter().enumerate() {
+                        let expected = self.resolve_type_or_error(payload_ty)?;
+                        let arg_ty = self.check_value_expr(
+                            &args[index],
+                            "resultado de função sem retorno não pode ser carga de variante",
+                        )?;
+                        if !Self::check_expected_type_for_expr(&expected, &arg_ty, &args[index]) {
+                            return Err(PinkerError::Semantic {
+                                msg: format!(
+                                    "carga {} inválida para '{}.{}': esperado '{}', encontrado '{}'",
+                                    index + 1,
+                                    enum_name,
+                                    field,
+                                    expected.name(),
+                                    arg_ty.name()
+                                ),
+                                span: args[index].span,
+                            });
+                        }
+                    }
+                    return Ok(Type::Enum {
+                        name: enum_name,
+                        span: expr_span,
+                    });
+                }
+            }
+        }
+
         let ExprKind::Ident(name) = &callee.kind else {
             return Err(PinkerError::Semantic {
                 msg: "apenas chamadas diretas por nome são suportadas na v0".to_string(),
                 span: callee.span,
             });
         };
+
+        // Intrínsecas internas do desugaring de `encaixe` (Fases 209–210).
+        if name == "__pinker_internal_leque_tag" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "intrínseca interna '{}' exige 1 argumento (valor de leque)",
+                        name
+                    ),
+                    span: expr_span,
+                });
+            }
+            let arg_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser inspecionado por encaixe",
+            )?;
+            let Type::Enum {
+                name: enum_name, ..
+            } = &arg_ty
+            else {
+                return Err(PinkerError::Semantic {
+                    msg: format!("intrínseca interna '{}' exige valor de leque", name),
+                    span: args[0].span,
+                });
+            };
+            if !self.enum_has_payload(enum_name) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "intrínseca interna '{}' exige leque com carga; '{}' não tem variantes com carga",
+                        name, enum_name
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
+        if name == "__pinker_internal_leque_carga_b" || name == "__pinker_internal_leque_carga_v" {
+            if args.len() != 3 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "intrínseca interna '{}' exige 3 argumentos (leque, tag, índice)",
+                        name
+                    ),
+                    span: expr_span,
+                });
+            }
+            let arg_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser inspecionado por encaixe",
+            )?;
+            let Type::Enum {
+                name: enum_name, ..
+            } = &arg_ty
+            else {
+                return Err(PinkerError::Semantic {
+                    msg: format!("intrínseca interna '{}' exige valor de leque", name),
+                    span: args[0].span,
+                });
+            };
+            let (ExprKind::IntLit(tag), ExprKind::IntLit(index)) = (&args[1].kind, &args[2].kind)
+            else {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "intrínseca interna '{}' exige tag e índice literais (uso interno do encaixe)",
+                        name
+                    ),
+                    span: expr_span,
+                });
+            };
+            let enum_name = enum_name.clone();
+            let payload_ty = self
+                .enums
+                .get(&enum_name)
+                .and_then(|decl| decl.variants.get(*tag as usize))
+                .and_then(|variant| variant.payloads.get(*index as usize))
+                .cloned();
+            let Some(payload_ty) = payload_ty else {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "intrínseca interna '{}' referencia carga inexistente no leque '{}'",
+                        name, enum_name
+                    ),
+                    span: expr_span,
+                });
+            };
+            let resolved = self.resolve_type_or_error(&payload_ty)?;
+            if name == "__pinker_internal_leque_carga_v" {
+                if !matches!(resolved, Type::Verso(_)) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "intrínseca interna '{}' usada com carga não-verso no leque '{}'",
+                            name, enum_name
+                        ),
+                        span: expr_span,
+                    });
+                }
+                return Ok(Type::Verso(expr_span));
+            }
+            return Ok(resolved.with_span(expr_span));
+        }
+
+        // Intrínsecas genéricas de lista (Fase 211): tipam sobre qualquer
+        // lista (`lista<bombom>`, `lista<verso>`, `lista<Leque>`), com o tipo
+        // do elemento derivado do primeiro argumento.
+        if name == "lista_criar" {
+            return Err(PinkerError::Semantic {
+                msg: "'lista_criar()' só pode aparecer como inicialização de 'nova' com anotação de tipo de lista nesta fase"
+                    .to_string(),
+                span: expr_span,
+            });
+        }
+        if matches!(
+            name.as_str(),
+            "lista_tamanho"
+                | "lista_obter"
+                | "lista_anexar"
+                | "lista_definir"
+                | "lista_tirar_ultimo"
+                | "lista_inserir"
+        ) {
+            let expected_arity: usize = match name.as_str() {
+                "lista_tamanho" | "lista_tirar_ultimo" => 1,
+                "lista_obter" | "lista_anexar" => 2,
+                _ => 3,
+            };
+            if args.len() != expected_arity {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de '{}' com aridade inválida: esperado {}, recebido {}",
+                        name,
+                        expected_arity,
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let list_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como lista",
+            )?;
+            let Some(element_ty) = Self::list_element_type(&list_ty, expr_span) else {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "'{}' exige lista no argumento 1, encontrado '{}'",
+                        name,
+                        list_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            };
+            let check_index = |checker: &mut Self, index_arg: &Expr| -> Result<(), PinkerError> {
+                let index_ty = checker.check_value_expr(
+                    index_arg,
+                    "resultado de função sem retorno não pode ser índice",
+                )?;
+                if !matches!(index_ty, Type::Bombom(_)) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!("'{}' exige índice 'bombom'", name),
+                        span: index_arg.span,
+                    });
+                }
+                Ok(())
+            };
+            let check_element = |checker: &mut Self, value_arg: &Expr| -> Result<(), PinkerError> {
+                let value_ty = checker.check_value_expr(
+                    value_arg,
+                    "resultado de função sem retorno não pode ser elemento de lista",
+                )?;
+                if !Self::check_expected_type_for_expr(&element_ty, &value_ty, value_arg) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "'{}' exige elemento '{}', encontrado '{}'",
+                            name,
+                            element_ty.name(),
+                            value_ty.name()
+                        ),
+                        span: value_arg.span,
+                    });
+                }
+                Ok(())
+            };
+            return match name.as_str() {
+                "lista_tamanho" => Ok(Type::Bombom(expr_span)),
+                "lista_tirar_ultimo" => Ok(element_ty),
+                "lista_obter" => {
+                    check_index(self, &args[1])?;
+                    Ok(element_ty)
+                }
+                "lista_anexar" => {
+                    check_element(self, &args[1])?;
+                    Ok(Type::Nulo(expr_span))
+                }
+                "lista_definir" | "lista_inserir" => {
+                    check_index(self, &args[1])?;
+                    check_element(self, &args[2])?;
+                    Ok(Type::Nulo(expr_span))
+                }
+                _ => unreachable!(),
+            };
+        }
 
         if name == "ouvir" {
             if !args.is_empty() {

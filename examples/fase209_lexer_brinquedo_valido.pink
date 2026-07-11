@@ -1,0 +1,43 @@
+pacote main;
+
+leque Token { Numero(bombom), Palavra(verso), Fim }
+
+carinho eh_numero(pedaco: verso) -> logica {
+    nova muda d: bombom = 0;
+    sempre que d < 10 {
+        talvez comeca_com(pedaco, bombom_para_verso(d)) {
+            mimo verdade;
+        }
+        d = d + 1;
+    }
+    mimo falso;
+}
+
+carinho proximo_token(pedaco: verso) -> Token {
+    talvez eh_numero(pedaco) {
+        mimo Token.Numero(verso_para_bombom(pedaco));
+    }
+    mimo Token.Palavra(pedaco);
+}
+
+carinho mostra(t: Token) -> bombom {
+    encaixe t {
+        caso Token.Numero(n) { falar("NUMERO", n); }
+        caso Token.Palavra(p) { falar("PALAVRA", p); }
+        caso Token.Fim { falar("FIM"); }
+    }
+    mimo 0;
+}
+
+carinho principal() -> bombom {
+    nova fonte: verso = "soma 12 com 30 e guarda em total";
+    nova quantos: bombom = dividir_verso_contar(fonte, " ");
+    nova muda i: bombom = 0;
+    sempre que i < quantos {
+        nova pedaco: verso = dividir_verso_em(fonte, " ", i);
+        mostra(proximo_token(pedaco));
+        i = i + 1;
+    }
+    mostra(Token.Fim);
+    mimo 0;
+}

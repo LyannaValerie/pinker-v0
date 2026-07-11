@@ -6,10 +6,11 @@ use std::collections::HashMap;
 
 /// Tipo de coleção detectado durante o parse de declarações de variáveis e parâmetros.
 /// Usado para despachar o construto `para cada` para a desugaring correta.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum CollectionKind {
     ListBombom,
     ListVerso,
+    ListEnum(String),
     MapVersoBombom,
     MapVersoVerso,
     MapBombomBombom,
@@ -23,6 +24,9 @@ pub struct Parser {
     /// Mapeamento plano de nomes de variáveis/parâmetros para o tipo de coleção detectado.
     /// Reiniciado no início de cada função para evitar contaminação entre escopos de função.
     collection_types: HashMap<String, CollectionKind>,
+    /// Leques declarados até o ponto atual do parse (nome -> variantes com cargas).
+    /// Usado pelo desugaring de `encaixe`; exige o leque declarado antes do uso.
+    enum_decls: HashMap<String, Vec<(String, Vec<Type>)>>,
 }
 
 fn merge_span(a: Span, b: Span) -> Span {
@@ -36,6 +40,7 @@ impl Parser {
             current: 0,
             synthetic_counter: 0,
             collection_types: HashMap::new(),
+            enum_decls: HashMap::new(),
         }
     }
 
@@ -172,6 +177,8 @@ impl Parser {
             Ok(Item::TypeAlias(self.parse_type_alias()?))
         } else if self.match_token(TokenKind::KwNinho) {
             Ok(Item::Struct(self.parse_struct_decl()?))
+        } else if self.match_token(TokenKind::KwLeque) {
+            Ok(Item::Enum(self.parse_enum_decl()?))
         } else if self.match_token(TokenKind::KwLivre) {
             Err(PinkerError::Expected {
                 expected: "marcador `livre;` apenas uma vez no topo do programa (após `pacote`, antes dos itens)".to_string(),
@@ -186,7 +193,7 @@ impl Parser {
             })
         } else {
             Err(PinkerError::Expected {
-                expected: "carinho, eterno, apelido ou ninho".to_string(),
+                expected: "carinho, eterno, apelido, ninho ou leque".to_string(),
                 found: self
                     .peek()
                     .map(|token| token.lexeme.clone())
@@ -293,8 +300,16 @@ impl Parser {
                 if matches!(inner, Type::Verso(_)) {
                     return Ok(Type::ListVerso(outer_span));
                 }
+                // `lista<NomeDeLeque>` — a existência do leque é validada na semântica.
+                if let Type::Alias { name, .. } = &inner {
+                    return Ok(Type::ListEnum {
+                        element: name.clone(),
+                        span: outer_span,
+                    });
+                }
                 return Err(PinkerError::Expected {
-                    expected: "tipo 'lista<bombom>' ou 'lista<verso>' nesta fase".to_string(),
+                    expected: "tipo 'lista<bombom>', 'lista<verso>' ou 'lista<Leque>' nesta fase"
+                        .to_string(),
                     found: format!("lista<{}>", inner.name()),
                     span: inner.span(),
                 });
@@ -404,6 +419,369 @@ impl Parser {
         })
     }
 
+    fn parse_enum_decl(&mut self) -> Result<EnumDecl, PinkerError> {
+        let start_span = self.previous().span;
+        let name = self
+            .consume(TokenKind::Ident, "nome do leque")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::LBrace, "{")?;
+        let mut variants = Vec::new();
+        loop {
+            let variant_token = self.consume(TokenKind::Ident, "nome da variante do leque")?;
+            let variant_name = variant_token.lexeme.clone();
+            let variant_start = variant_token.span;
+            let mut payloads = Vec::new();
+            if self.match_token(TokenKind::LParen) {
+                loop {
+                    payloads.push(self.parse_type()?);
+                    if !self.match_token(TokenKind::Comma) {
+                        break;
+                    }
+                }
+                self.consume(TokenKind::RParen, ")")?;
+            }
+            variants.push(EnumVariant {
+                name: variant_name,
+                payloads,
+                span: merge_span(variant_start, self.previous().span),
+            });
+            if !self.match_token(TokenKind::Comma) {
+                break;
+            }
+            if self.check(TokenKind::RBrace) {
+                break;
+            }
+        }
+        self.consume(TokenKind::RBrace, "}")?;
+        self.enum_decls.insert(
+            name.clone(),
+            variants
+                .iter()
+                .map(|variant| (variant.name.clone(), variant.payloads.clone()))
+                .collect(),
+        );
+        Ok(EnumDecl {
+            name,
+            variants,
+            span: merge_span(start_span, self.previous().span),
+        })
+    }
+
+    /// Desugaring de `encaixe` (pattern matching mínimo sobre leques).
+    ///
+    /// ```text
+    /// encaixe expr {
+    ///     caso Leque.ComCarga(nome) { ... }
+    ///     caso Leque.SemCarga { ... }
+    ///     senao { ... }
+    /// }
+    /// ```
+    ///
+    /// vira uma âncora `nova __encaixe_alvo_N: Leque = expr;` seguida de cadeia
+    /// `talvez`/`senao` comparando tags. Exaustividade é exigida no parse: ou
+    /// todas as variantes aparecem, ou há `senao`.
+    fn parse_encaixe_desugared(&mut self) -> Result<Vec<Stmt>, PinkerError> {
+        self.consume(TokenKind::KwEncaixe, "encaixe")?;
+        let start_span = self.previous().span;
+        let scrutinee = self.parse_expr()?;
+        self.consume(TokenKind::LBrace, "{")?;
+
+        struct EncaixeArm {
+            variant: String,
+            bindings: Option<Vec<String>>,
+            body: Block,
+            span: Span,
+        }
+
+        let mut enum_name: Option<String> = None;
+        let mut arms: Vec<EncaixeArm> = Vec::new();
+        let mut default_block: Option<Block> = None;
+
+        while !self.check(TokenKind::RBrace) && self.peek().is_some() {
+            if self.match_token(TokenKind::KwCaso) {
+                let caso_span = self.previous().span;
+                let base = self
+                    .consume(TokenKind::Ident, "nome do leque no padrão do caso")?
+                    .lexeme
+                    .clone();
+                self.consume(TokenKind::Dot, ".")?;
+                let variant = self
+                    .consume(TokenKind::Ident, "nome da variante no padrão do caso")?
+                    .lexeme
+                    .clone();
+                let bindings = if self.match_token(TokenKind::LParen) {
+                    let mut names = Vec::new();
+                    loop {
+                        names.push(
+                            self.consume(TokenKind::Ident, "nome da variável de carga do caso")?
+                                .lexeme
+                                .clone(),
+                        );
+                        if !self.match_token(TokenKind::Comma) {
+                            break;
+                        }
+                    }
+                    self.consume(TokenKind::RParen, ")")?;
+                    Some(names)
+                } else {
+                    None
+                };
+                match &enum_name {
+                    None => enum_name = Some(base),
+                    Some(existing) if *existing == base => {}
+                    Some(existing) => {
+                        return Err(PinkerError::Parse {
+                            msg: format!(
+                                "encaixe mistura leques diferentes: '{}' e '{}'",
+                                existing, base
+                            ),
+                            span: caso_span,
+                        });
+                    }
+                }
+                let body = self.parse_block()?;
+                arms.push(EncaixeArm {
+                    variant,
+                    bindings,
+                    body,
+                    span: caso_span,
+                });
+            } else if self.match_token(TokenKind::KwSenao) {
+                default_block = Some(self.parse_block()?);
+                break;
+            } else {
+                return Err(PinkerError::Parse {
+                    msg: "esperado 'caso' ou 'senao' dentro de 'encaixe'".to_string(),
+                    span: self.peek_span(),
+                });
+            }
+        }
+        self.consume(TokenKind::RBrace, "}")?;
+        let end_span = self.previous().span;
+        let helper_span = merge_span(start_span, end_span);
+
+        let Some(enum_name) = enum_name else {
+            return Err(PinkerError::Parse {
+                msg: "encaixe exige ao menos um 'caso Leque.Variante'".to_string(),
+                span: helper_span,
+            });
+        };
+        let Some(declared_variants) = self.enum_decls.get(&enum_name).cloned() else {
+            return Err(PinkerError::Parse {
+                msg: format!(
+                    "encaixe usa leque '{}' não declarado antes deste ponto",
+                    enum_name
+                ),
+                span: helper_span,
+            });
+        };
+        let has_payload = declared_variants
+            .iter()
+            .any(|(_, payloads)| !payloads.is_empty());
+
+        // Validação dos braços contra a declaração do leque.
+        let mut seen: Vec<&str> = Vec::new();
+        for arm in &arms {
+            let Some((_, payloads)) = declared_variants
+                .iter()
+                .find(|(name, _)| *name == arm.variant)
+            else {
+                return Err(PinkerError::Parse {
+                    msg: format!(
+                        "variante '{}' não existe no leque '{}'",
+                        arm.variant, enum_name
+                    ),
+                    span: arm.span,
+                });
+            };
+            if seen.contains(&arm.variant.as_str()) {
+                return Err(PinkerError::Parse {
+                    msg: format!("variante '{}' repetida no encaixe", arm.variant),
+                    span: arm.span,
+                });
+            }
+            seen.push(arm.variant.as_str());
+            match (payloads.len(), &arm.bindings) {
+                (0, Some(_)) => {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "variante '{}' não carrega valor; use 'caso {}.{}' sem parênteses",
+                            arm.variant, enum_name, arm.variant
+                        ),
+                        span: arm.span,
+                    });
+                }
+                (n, None) if n > 0 => {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "variante '{}' carrega {} valor(es); use 'caso {}.{}(...)' com {} nome(s)",
+                            arm.variant, n, enum_name, arm.variant, n
+                        ),
+                        span: arm.span,
+                    });
+                }
+                (n, Some(names)) if n != names.len() => {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "variante '{}' carrega {} valor(es), mas o caso liga {} nome(s)",
+                            arm.variant,
+                            n,
+                            names.len()
+                        ),
+                        span: arm.span,
+                    });
+                }
+                _ => {}
+            }
+        }
+        if default_block.is_none() {
+            for (variant_name, _) in &declared_variants {
+                if !seen.contains(&variant_name.as_str()) {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "encaixe não cobre a variante '{}' do leque '{}'; adicione o caso ou um 'senao'",
+                            variant_name, enum_name
+                        ),
+                        span: helper_span,
+                    });
+                }
+            }
+        }
+
+        // Âncora única do valor sob análise.
+        self.synthetic_counter += 1;
+        let target_name = format!("__encaixe_alvo_{}", self.synthetic_counter);
+        let target_stmt = Stmt::Let(LetStmt {
+            name: target_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Alias {
+                name: enum_name.clone(),
+                span: helper_span,
+            }),
+            init: scrutinee,
+            span: helper_span,
+        });
+        let target_ident = |span: Span| Expr {
+            kind: ExprKind::Ident(target_name.clone()),
+            span,
+        };
+
+        // Condição de cada braço: leque com carga compara tag via intrínseca;
+        // leque sem carga compara o próprio valor imediato.
+        let mut else_branch: Option<ElseBlock> = default_block.map(ElseBlock::Block);
+        for arm in arms.into_iter().rev() {
+            let tag = declared_variants
+                .iter()
+                .position(|(name, _)| *name == arm.variant)
+                .expect("variante validada acima") as u64;
+            let condition = if has_payload {
+                Expr {
+                    kind: ExprKind::Binary(
+                        Box::new(Expr {
+                            kind: ExprKind::Call(
+                                Box::new(Expr {
+                                    kind: ExprKind::Ident(
+                                        "__pinker_internal_leque_tag".to_string(),
+                                    ),
+                                    span: arm.span,
+                                }),
+                                vec![target_ident(arm.span)],
+                            ),
+                            span: arm.span,
+                        }),
+                        BinaryOp::Eq,
+                        Box::new(Expr {
+                            kind: ExprKind::IntLit(tag),
+                            span: arm.span,
+                        }),
+                    ),
+                    span: arm.span,
+                }
+            } else {
+                Expr {
+                    kind: ExprKind::Binary(
+                        Box::new(target_ident(arm.span)),
+                        BinaryOp::Eq,
+                        Box::new(Expr {
+                            kind: ExprKind::FieldAccess {
+                                base: Box::new(Expr {
+                                    kind: ExprKind::Ident(enum_name.clone()),
+                                    span: arm.span,
+                                }),
+                                field: arm.variant.clone(),
+                            },
+                            span: arm.span,
+                        }),
+                    ),
+                    span: arm.span,
+                }
+            };
+
+            let mut body_stmts = Vec::new();
+            if let Some(bind_names) = arm.bindings {
+                let payload_types = declared_variants
+                    .iter()
+                    .find(|(name, _)| *name == arm.variant)
+                    .map(|(_, payloads)| payloads.clone())
+                    .expect("variante validada acima");
+                for (index, (bind_name, payload_ty)) in
+                    bind_names.into_iter().zip(payload_types).enumerate()
+                {
+                    let carga_fn = match payload_ty {
+                        Type::Verso(_) => "__pinker_internal_leque_carga_v",
+                        _ => "__pinker_internal_leque_carga_b",
+                    };
+                    body_stmts.push(Stmt::Let(LetStmt {
+                        name: bind_name,
+                        is_mut: false,
+                        ty: Some(payload_ty.with_span(arm.span)),
+                        init: Expr {
+                            kind: ExprKind::Call(
+                                Box::new(Expr {
+                                    kind: ExprKind::Ident(carga_fn.to_string()),
+                                    span: arm.span,
+                                }),
+                                vec![
+                                    target_ident(arm.span),
+                                    Expr {
+                                        kind: ExprKind::IntLit(tag),
+                                        span: arm.span,
+                                    },
+                                    Expr {
+                                        kind: ExprKind::IntLit(index as u64),
+                                        span: arm.span,
+                                    },
+                                ],
+                            ),
+                            span: arm.span,
+                        },
+                        span: arm.span,
+                    }));
+                }
+            }
+            body_stmts.extend(arm.body.stmts);
+            let then_branch = Block {
+                stmts: body_stmts,
+                span: arm.body.span,
+            };
+
+            let if_stmt = IfStmt {
+                condition,
+                then_branch,
+                else_branch,
+                span: helper_span,
+            };
+            else_branch = Some(ElseBlock::If(Box::new(if_stmt)));
+        }
+
+        let Some(ElseBlock::If(root_if)) = else_branch else {
+            unreachable!("encaixe tem ao menos um caso validado acima");
+        };
+
+        Ok(vec![target_stmt, Stmt::If(*root_if)])
+    }
+
     fn parse_function(&mut self) -> Result<FunctionDecl, PinkerError> {
         let start_span = self.previous().span;
         let name = self
@@ -451,6 +829,12 @@ impl Parser {
                 Type::ListVerso(_) => {
                     self.collection_types
                         .insert(param.name.clone(), CollectionKind::ListVerso);
+                }
+                Type::ListEnum { element, .. } => {
+                    self.collection_types.insert(
+                        param.name.clone(),
+                        CollectionKind::ListEnum(element.clone()),
+                    );
                 }
                 Type::MapVersoBombom(_) => {
                     self.collection_types
@@ -522,6 +906,8 @@ impl Parser {
         while !self.check(TokenKind::RBrace) && self.peek().is_some() {
             if self.check(TokenKind::KwPara) {
                 stmts.extend(self.parse_for_stmt_desugared()?);
+            } else if self.check(TokenKind::KwEncaixe) {
+                stmts.extend(self.parse_encaixe_desugared()?);
             } else {
                 stmts.push(self.parse_stmt()?);
             }
@@ -557,6 +943,10 @@ impl Parser {
                     Type::ListVerso(_) => {
                         self.collection_types
                             .insert(name.clone(), CollectionKind::ListVerso);
+                    }
+                    Type::ListEnum { element, .. } => {
+                        self.collection_types
+                            .insert(name.clone(), CollectionKind::ListEnum(element.clone()));
                     }
                     Type::MapVersoBombom(_) => {
                         self.collection_types
@@ -948,7 +1338,7 @@ impl Parser {
         let loop_span = merge_span(start_span, body.span);
 
         let collection_kind = match &collection_expr.kind {
-            ExprKind::Ident(name) => self.collection_types.get(name.as_str()).copied(),
+            ExprKind::Ident(name) => self.collection_types.get(name.as_str()).cloned(),
             _ => None,
         };
 
@@ -968,8 +1358,138 @@ impl Parser {
             Some(CollectionKind::ListVerso) => {
                 self.desugar_for_each_list_verso(item_name, collection_expr, body, loop_span)
             }
+            Some(CollectionKind::ListEnum(element)) => self.desugar_for_each_list_enum(
+                item_name,
+                element,
+                collection_expr,
+                body,
+                loop_span,
+            ),
             _ => self.desugar_for_each_list(item_name, collection_expr, body, loop_span),
         }
+    }
+
+    /// Desugaring de `para cada item em lista<Leque>` — usa as intrínsecas
+    /// genéricas de lista (Fase 211) e liga o item com o tipo do leque.
+    fn desugar_for_each_list_enum(
+        &mut self,
+        item_name: String,
+        element: String,
+        list_expr: Expr,
+        body: Block,
+        loop_span: Span,
+    ) -> Result<Vec<Stmt>, PinkerError> {
+        self.synthetic_counter += 1;
+        let suffix = self.synthetic_counter;
+        let list_slot_name = format!("__iter_lista_{suffix}");
+        let index_slot_name = format!("__iter_indice_{suffix}");
+        let helper_span = loop_span;
+
+        let list_binding_stmt = Stmt::Let(LetStmt {
+            name: list_slot_name.clone(),
+            is_mut: false,
+            ty: None,
+            init: list_expr,
+            span: helper_span,
+        });
+        let index_binding_stmt = Stmt::Let(LetStmt {
+            name: index_slot_name.clone(),
+            is_mut: true,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::IntLit(0),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let condition = Expr {
+            kind: ExprKind::Binary(
+                Box::new(Expr {
+                    kind: ExprKind::Ident(index_slot_name.clone()),
+                    span: helper_span,
+                }),
+                BinaryOp::Lt,
+                Box::new(Expr {
+                    kind: ExprKind::Call(
+                        Box::new(Expr {
+                            kind: ExprKind::Ident("lista_tamanho".to_string()),
+                            span: helper_span,
+                        }),
+                        vec![Expr {
+                            kind: ExprKind::Ident(list_slot_name.clone()),
+                            span: helper_span,
+                        }],
+                    ),
+                    span: helper_span,
+                }),
+            ),
+            span: helper_span,
+        };
+
+        let item_binding = Stmt::Let(LetStmt {
+            name: item_name,
+            is_mut: false,
+            ty: Some(Type::Alias {
+                name: element,
+                span: helper_span,
+            }),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident("lista_obter".to_string()),
+                        span: helper_span,
+                    }),
+                    vec![
+                        Expr {
+                            kind: ExprKind::Ident(list_slot_name),
+                            span: helper_span,
+                        },
+                        Expr {
+                            kind: ExprKind::Ident(index_slot_name.clone()),
+                            span: helper_span,
+                        },
+                    ],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let index_increment = Stmt::Assign(AssignStmt {
+            target: AssignTarget::Ident(index_slot_name.clone()),
+            expr: Expr {
+                kind: ExprKind::Binary(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(index_slot_name),
+                        span: helper_span,
+                    }),
+                    BinaryOp::Add,
+                    Box::new(Expr {
+                        kind: ExprKind::IntLit(1),
+                        span: helper_span,
+                    }),
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let mut while_body_stmts = Vec::with_capacity(2 + body.stmts.len());
+        while_body_stmts.push(item_binding);
+        while_body_stmts.push(index_increment);
+        while_body_stmts.extend(body.stmts);
+
+        let while_stmt = Stmt::While(WhileStmt {
+            condition,
+            body: Block {
+                stmts: while_body_stmts,
+                span: helper_span,
+            },
+            span: loop_span,
+        });
+
+        Ok(vec![list_binding_stmt, index_binding_stmt, while_stmt])
     }
 
     /// Desugaring de `para cada item em lista<bombom>` — reutilizado da Fase 153.

@@ -9063,3 +9063,156 @@ fn cli_run_fase189_trazer_texto_minimo_valido() {
     assert!(stdout.contains("rosa pinker"), "stdout={}", stdout);
     assert!(stdout.contains("texto"), "stdout={}", stdout);
 }
+
+#[test]
+fn cli_check_fase207_trazer_arquivo_caminho_processo_valido() {
+    let output =
+        run_cli_check_example("examples/fase207_trazer_arquivo_caminho_processo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_check_fase208_leque_minimo_valido() {
+    let output = run_cli_check_example("examples/fase208_leque_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase208_leque_minimo_valido() {
+    let output = run_cli_example("examples/fase208_leque_minimo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("verde"), "stdout={}", stdout);
+    assert!(stdout.contains("azul"), "stdout={}", stdout);
+    assert!(stdout.contains('0'), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_check_fase209_leque_carga_encaixe_valido() {
+    let output = run_cli_check_example("examples/fase209_leque_carga_encaixe_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase209_leque_carga_encaixe_valido() {
+    let output = run_cli_example("examples/fase209_leque_carga_encaixe_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("numero 42"), "stdout={}", stdout);
+    assert!(stdout.contains("palavra rosa"), "stdout={}", stdout);
+    assert!(stdout.contains("fim"), "stdout={}", stdout);
+    assert!(stdout.contains("fria"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_run_fase209_lexer_brinquedo_valido() {
+    let output = run_cli_example("examples/fase209_lexer_brinquedo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("PALAVRA soma"), "stdout={}", stdout);
+    assert!(stdout.contains("NUMERO 12"), "stdout={}", stdout);
+    assert!(stdout.contains("NUMERO 30"), "stdout={}", stdout);
+    assert!(stdout.contains("PALAVRA total"), "stdout={}", stdout);
+    assert!(stdout.contains("FIM"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_check_fase210_leque_recursivo_avaliador_valido() {
+    let output = run_cli_check_example("examples/fase210_leque_recursivo_avaliador_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase210_leque_recursivo_avaliador_valido() {
+    let output = run_cli_example("examples/fase210_leque_recursivo_avaliador_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("avaliando resposta"), "stdout={}", stdout);
+    assert!(stdout.contains("42"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_run_fase211_lista_generica_valido() {
+    let output = run_cli_example("examples/fase211_lista_generica_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains('3'), "stdout={}", stdout);
+    assert!(stdout.contains("quente"), "stdout={}", stdout);
+    assert!(stdout.contains("fria"), "stdout={}", stdout);
+    assert!(stdout.contains("verde saiu"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_check_fase211_compilador_brinquedo_valido() {
+    let output = run_cli_check_example("examples/fase211_compilador_brinquedo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --check, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn cli_run_fase211_compilador_brinquedo_valido() {
+    let output = run_cli_example("examples/fase211_compilador_brinquedo_valido.pink");
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("tokens: 6"), "stdout={}", stdout);
+    assert!(stdout.contains("42"), "stdout={}", stdout);
+}
+
+#[test]
+fn cli_run_fase207_trazer_arquivo_caminho_processo_valido() {
+    let output = run_cli_example_with_args(
+        "examples/fase207_trazer_arquivo_caminho_processo_valido.pink",
+        &[fase162_helper_bin("exit0")],
+    );
+    assert!(
+        output.status.success(),
+        "esperava sucesso no --run, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("rosa pinker"), "stdout={}", stdout);
+    assert!(stdout.contains('0'), "stdout={}", stdout);
+}

@@ -1,0 +1,24 @@
+pacote main;
+
+leque Cor { Vermelho, Verde, Azul }
+
+carinho principal() -> bombom {
+    nova cores: lista<Cor> = lista_criar();
+    lista_anexar(cores, Cor.Vermelho);
+    lista_anexar(cores, Cor.Azul);
+    lista_anexar(cores, Cor.Verde);
+    falar(lista_tamanho(cores));
+
+    para cada cor em cores {
+        escolha cor {
+            caso Cor.Vermelho { falar("quente"); }
+            senao { falar("fria"); }
+        }
+    }
+
+    nova ultima: Cor = lista_tirar_ultimo(cores);
+    talvez ultima == Cor.Verde {
+        falar("verde saiu");
+    }
+    mimo 0;
+}

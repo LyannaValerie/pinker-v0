@@ -81,6 +81,20 @@ fn render_item(item: &Item, indent: usize, out: &mut String) {
                 ),
             );
         }
+        Item::Enum(enum_decl) => {
+            line(
+                out,
+                indent,
+                &format!("Enum {} {}", enum_decl.name, format_span(enum_decl.span)),
+            );
+            for variant in &enum_decl.variants {
+                line(
+                    out,
+                    indent + 1,
+                    &format!("Variant {} {}", variant.name, format_span(variant.span)),
+                );
+            }
+        }
         Item::Struct(struct_decl) => {
             line(
                 out,

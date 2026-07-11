@@ -40,7 +40,10 @@ fn layout_of_type_inner(
     resolving_structs: &mut Vec<String>,
 ) -> Result<TypeLayout, String> {
     match ty {
-        Type::Bombom(_) | Type::U64(_) | Type::I64(_) => Ok(TypeLayout { size: 8, align: 8 }),
+        // Leque abaixa para discriminante bombom; mesmo layout.
+        Type::Bombom(_) | Type::U64(_) | Type::I64(_) | Type::Enum { .. } => {
+            Ok(TypeLayout { size: 8, align: 8 })
+        }
         Type::U32(_) | Type::I32(_) => Ok(TypeLayout { size: 4, align: 4 }),
         Type::U16(_) | Type::I16(_) => Ok(TypeLayout { size: 2, align: 2 }),
         Type::U8(_) | Type::I8(_) | Type::Logica(_) => Ok(TypeLayout { size: 1, align: 1 }),
@@ -52,6 +55,9 @@ fn layout_of_type_inner(
         }
         Type::ListVerso(_) => {
             Err("tipo 'lista<verso>' ainda não possui layout estático nesta fase".to_string())
+        }
+        Type::ListEnum { .. } => {
+            Err("tipo 'lista<Leque>' ainda não possui layout estático nesta fase".to_string())
         }
         Type::MapVersoBombom(_) => {
             Err("tipo 'mapa<verso,bombom>' ainda não possui layout estático nesta fase".to_string())

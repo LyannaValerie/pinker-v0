@@ -3005,3 +3005,849 @@ fn trazer_seletivo_nao_suportado_falha() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("importação seletiva"), "{}", err);
 }
+
+#[test]
+fn trazer_arquivo_familia_aceita() {
+    let code = r#"
+        pacote main;
+        trazer arquivo;
+        carinho principal() -> bombom {
+            nova cabo: bombom = criar_arquivo("target/teste_trazer_arquivo.txt");
+            escrever_verso(cabo, "rosa");
+            fechar(cabo);
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn trazer_caminho_familia_aceita() {
+    let code = r#"
+        pacote main;
+        trazer caminho;
+        carinho principal() -> bombom {
+            nova destino: verso = juntar_caminho("docs", "atlas.md");
+            talvez caminho_existe(destino) {
+                falar(destino);
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn trazer_processo_familia_aceita() {
+    let code = r#"
+        pacote main;
+        trazer processo;
+        carinho principal() -> bombom {
+            nova comando: verso = argumento(0);
+            nova codigo: bombom = executar_processo(comando);
+            mimo codigo;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn legado_global_arquivo_sem_trazer_continua_valido() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova conteudo: verso = ler_arquivo_verso("Cargo.toml");
+            nova n: bombom = tamanho_verso(conteudo);
+            mimo n;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn legado_global_caminho_sem_trazer_continua_valido() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova destino: verso = juntar_caminho("docs", "atlas.md");
+            talvez caminho_existe(destino) {
+                falar(destino);
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn legado_global_processo_sem_trazer_continua_valido() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova comando: verso = argumento(0);
+            nova codigo: bombom = executar_processo(comando);
+            mimo codigo;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn trazer_seletivo_arquivo_nao_suportado_falha() {
+    let code = r#"
+        pacote main;
+        trazer arquivo.criar_arquivo;
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("importação seletiva"), "{}", err);
+}
+
+#[test]
+fn leque_declaracao_e_uso_nominal_aceitos() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde, Azul }
+        carinho principal() -> bombom {
+            nova escolhida: Cor = Cor.Verde;
+            talvez escolhida == Cor.Verde {
+                mimo 1;
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_como_parametro_e_retorno_aceito() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho troca(cor: Cor) -> Cor {
+            talvez cor == Cor.Vermelho {
+                mimo Cor.Verde;
+            }
+            mimo Cor.Vermelho;
+        }
+        carinho principal() -> bombom {
+            nova c: Cor = troca(Cor.Verde);
+            talvez c == Cor.Vermelho {
+                mimo 0;
+            }
+            mimo 1;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_escolha_despacha_por_variante() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde, Azul }
+        carinho principal() -> bombom {
+            nova c: Cor = Cor.Azul;
+            escolha c {
+                caso Cor.Vermelho { mimo 1; }
+                caso Cor.Verde { mimo 2; }
+                senao { mimo 3; }
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_virar_bombom_aceito() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho principal() -> bombom {
+            nova disc: bombom = Cor.Verde virar bombom;
+            mimo disc;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_tipos_nominais_diferentes_rejeitados() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        leque Fruta { Banana, Maca }
+        carinho principal() -> bombom {
+            nova c: Cor = Fruta.Banana;
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_err());
+}
+
+#[test]
+fn leque_comparacao_entre_leques_diferentes_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        leque Fruta { Banana, Maca }
+        carinho principal() -> bombom {
+            talvez Cor.Vermelho == Fruta.Banana {
+                mimo 1;
+            }
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("tipos incompatíveis"), "{}", err);
+}
+
+#[test]
+fn leque_variante_inexistente_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho principal() -> bombom {
+            nova c: Cor = Cor.Rosa;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("variante 'Rosa' não existe"), "{}", err);
+}
+
+#[test]
+fn leque_inteiro_nao_vira_leque_implicitamente() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho principal() -> bombom {
+            nova c: Cor = 1;
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_err());
+}
+
+#[test]
+fn leque_comparacao_de_ordem_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho principal() -> bombom {
+            talvez Cor.Vermelho < Cor.Verde {
+                mimo 1;
+            }
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("comparação de ordem"), "{}", err);
+}
+
+#[test]
+fn leque_variante_duplicada_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Vermelho }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("duplicada"), "{}", err);
+}
+
+#[test]
+fn leque_vazio_rejeitado() {
+    let code = r#"
+        pacote main;
+        leque Cor { }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    assert!(parse_and_check(code).is_err());
+}
+
+#[test]
+fn leque_nome_colide_com_ninho_rejeitado() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho }
+        ninho Cor { valor: bombom; }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("já utilizado"), "{}", err);
+}
+
+#[test]
+fn leque_carga_construcao_e_encaixe_aceitos() {
+    let code = r#"
+        pacote main;
+        leque Token { Numero(bombom), Palavra(verso), Fim }
+        carinho principal() -> bombom {
+            nova t: Token = Token.Numero(42);
+            encaixe t {
+                caso Token.Numero(n) { falar(n); }
+                caso Token.Palavra(p) { falar(p); }
+                caso Token.Fim { falar("fim"); }
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_carga_como_parametro_e_retorno_aceito() {
+    let code = r#"
+        pacote main;
+        leque Token { Numero(bombom), Fim }
+        carinho fabrica(valor: bombom) -> Token {
+            mimo Token.Numero(valor);
+        }
+        carinho principal() -> bombom {
+            nova t: Token = fabrica(7);
+            encaixe t {
+                caso Token.Numero(n) { mimo n; }
+                caso Token.Fim { mimo 0; }
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_carga_tipo_errado_rejeitado() {
+    let code = r#"
+        pacote main;
+        leque Token { Numero(bombom), Fim }
+        carinho principal() -> bombom {
+            nova t: Token = Token.Numero("texto");
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("carga 1 inválida"), "{}", err);
+}
+
+#[test]
+fn leque_carga_aridade_errada_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Token { Numero(bombom), Fim }
+        carinho principal() -> bombom {
+            nova t: Token = Token.Numero(1, 2);
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("exige 1 argumento(s)"), "{}", err);
+}
+
+#[test]
+fn leque_variante_com_carga_sem_construcao_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Token { Numero(bombom), Fim }
+        carinho principal() -> bombom {
+            nova t: Token = Token.Numero;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("carrega valor"), "{}", err);
+}
+
+#[test]
+fn leque_variante_sem_carga_com_chamada_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Token { Numero(bombom), Fim }
+        carinho principal() -> bombom {
+            nova t: Token = Token.Fim(1);
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("não carrega valor"), "{}", err);
+}
+
+#[test]
+fn leque_com_carga_igualdade_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Token { Numero(bombom), Fim }
+        carinho principal() -> bombom {
+            nova a: Token = Token.Fim;
+            nova b: Token = Token.Fim;
+            talvez a == b {
+                mimo 1;
+            }
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("use 'encaixe'"), "{}", err);
+}
+
+#[test]
+fn leque_com_carga_virar_rejeitado() {
+    let code = r#"
+        pacote main;
+        leque Token { Numero(bombom), Fim }
+        carinho principal() -> bombom {
+            nova t: Token = Token.Fim;
+            nova d: bombom = t virar bombom;
+            mimo d;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("'virar' não é suportado"), "{}", err);
+}
+
+#[test]
+fn leque_carga_tipo_nao_suportado_rejeitado() {
+    let code = r#"
+        pacote main;
+        leque Token { Ativo(logica) }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("deve ser 'bombom', 'verso' ou um leque declarado"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn encaixe_nao_exaustivo_sem_senao_rejeitado() {
+    let code = r#"
+        pacote main;
+        leque Token { Numero(bombom), Palavra(verso), Fim }
+        carinho principal() -> bombom {
+            nova t: Token = Token.Fim;
+            encaixe t {
+                caso Token.Numero(n) { falar(n); }
+                caso Token.Fim { falar("fim"); }
+            }
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("não cobre a variante 'Palavra'"), "{}", err);
+}
+
+#[test]
+fn encaixe_nao_exaustivo_com_senao_aceito() {
+    let code = r#"
+        pacote main;
+        leque Token { Numero(bombom), Palavra(verso), Fim }
+        carinho principal() -> bombom {
+            nova t: Token = Token.Fim;
+            encaixe t {
+                caso Token.Numero(n) { falar(n); }
+                senao { falar("outro"); }
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn encaixe_binding_em_variante_sem_carga_rejeitado() {
+    let code = r#"
+        pacote main;
+        leque Token { Numero(bombom), Fim }
+        carinho principal() -> bombom {
+            nova t: Token = Token.Fim;
+            encaixe t {
+                caso Token.Numero(n) { falar(n); }
+                caso Token.Fim(x) { falar(x); }
+            }
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("não carrega valor"), "{}", err);
+}
+
+#[test]
+fn encaixe_sem_binding_em_variante_com_carga_rejeitado() {
+    let code = r#"
+        pacote main;
+        leque Token { Numero(bombom), Fim }
+        carinho principal() -> bombom {
+            nova t: Token = Token.Fim;
+            encaixe t {
+                caso Token.Numero { falar("n"); }
+                caso Token.Fim { falar("fim"); }
+            }
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("carrega 1 valor(es)"), "{}", err);
+}
+
+#[test]
+fn encaixe_leque_nao_declarado_rejeitado() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova t: bombom = 1;
+            encaixe t {
+                caso Fantasma.Algo { falar("x"); }
+            }
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("não declarado"), "{}", err);
+}
+
+#[test]
+fn encaixe_mistura_de_leques_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        leque Fruta { Banana, Maca }
+        carinho principal() -> bombom {
+            nova c: Cor = Cor.Verde;
+            encaixe c {
+                caso Cor.Vermelho { falar("v"); }
+                caso Fruta.Banana { falar("b"); }
+            }
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("mistura leques"), "{}", err);
+}
+
+#[test]
+fn encaixe_escrutinio_de_tipo_errado_rejeitado() {
+    let code = r#"
+        pacote main;
+        leque Token { Numero(bombom), Fim }
+        carinho principal() -> bombom {
+            nova x: bombom = 5;
+            encaixe x {
+                caso Token.Numero(n) { falar(n); }
+                caso Token.Fim { falar("fim"); }
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_err());
+}
+
+#[test]
+fn encaixe_variante_repetida_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Token { Numero(bombom), Fim }
+        carinho principal() -> bombom {
+            nova t: Token = Token.Fim;
+            encaixe t {
+                caso Token.Fim { falar("a"); }
+                caso Token.Fim { falar("b"); }
+                caso Token.Numero(n) { falar(n); }
+            }
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("repetida"), "{}", err);
+}
+
+#[test]
+fn leque_recursivo_aceito() {
+    let code = r#"
+        pacote main;
+        leque Expr { Lit(bombom), Dobro(Expr) }
+        carinho avalia(e: Expr) -> bombom {
+            encaixe e {
+                caso Expr.Lit(n) { mimo n; }
+                caso Expr.Dobro(interno) { mimo 2 * avalia(interno); }
+            }
+            mimo 0;
+        }
+        carinho principal() -> bombom {
+            mimo avalia(Expr.Dobro(Expr.Lit(21)));
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_mutuamente_recursivo_aceito() {
+    let code = r#"
+        pacote main;
+        leque Par { Fim, Passo(Impar) }
+        leque Impar { Passo(Par) }
+        carinho principal() -> bombom {
+            nova p: Par = Par.Passo(Impar.Passo(Par.Fim));
+            encaixe p {
+                caso Par.Fim { mimo 0; }
+                caso Par.Passo(i) { mimo 1; }
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_multiplas_cargas_aceito() {
+    let code = r#"
+        pacote main;
+        leque Expr { Lit(bombom), Soma(Expr, Expr), Rotulo(verso, Expr) }
+        carinho principal() -> bombom {
+            nova e: Expr = Expr.Rotulo("r", Expr.Soma(Expr.Lit(1), Expr.Lit(2)));
+            encaixe e {
+                caso Expr.Lit(n) { mimo n; }
+                caso Expr.Soma(a, b) { mimo 1; }
+                caso Expr.Rotulo(nome, corpo) { falar(nome); mimo 2; }
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_carga_de_leque_errado_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Expr { Lit(bombom), Dobro(Expr) }
+        leque Outro { Coisa(bombom) }
+        carinho principal() -> bombom {
+            nova e: Expr = Expr.Dobro(Outro.Coisa(1));
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("carga 1 inválida"), "{}", err);
+}
+
+#[test]
+fn leque_multiplas_cargas_aridade_errada_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Expr { Soma(Expr, Expr), Lit(bombom) }
+        carinho principal() -> bombom {
+            nova e: Expr = Expr.Soma(Expr.Lit(1));
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("exige 2 argumento(s)"), "{}", err);
+}
+
+#[test]
+fn encaixe_bindings_em_numero_errado_rejeitado() {
+    let code = r#"
+        pacote main;
+        leque Expr { Soma(Expr, Expr), Lit(bombom) }
+        carinho principal() -> bombom {
+            nova e: Expr = Expr.Lit(1);
+            encaixe e {
+                caso Expr.Soma(a) { mimo 1; }
+                caso Expr.Lit(n) { mimo n; }
+            }
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("liga 1 nome(s)"), "{}", err);
+}
+
+#[test]
+fn leque_carga_de_tipo_desconhecido_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Expr { Guarda(Fantasma) }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("deve ser 'bombom', 'verso' ou um leque declarado"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn lista_generica_de_leque_aceita() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho principal() -> bombom {
+            nova cores: lista<Cor> = lista_criar();
+            lista_anexar(cores, Cor.Vermelho);
+            nova primeira: Cor = lista_obter(cores, 0);
+            talvez primeira == Cor.Vermelho {
+                mimo lista_tamanho(cores);
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn lista_generica_como_parametro_e_retorno_aceita() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho fabrica() -> lista<Cor> {
+            nova cores: lista<Cor> = lista_criar();
+            lista_anexar(cores, Cor.Verde);
+            mimo cores;
+        }
+        carinho conta(cores: lista<Cor>) -> bombom {
+            mimo lista_tamanho(cores);
+        }
+        carinho principal() -> bombom {
+            mimo conta(fabrica());
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn lista_generica_para_cada_aceito() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho principal() -> bombom {
+            nova cores: lista<Cor> = lista_criar();
+            lista_anexar(cores, Cor.Verde);
+            para cada cor em cores {
+                talvez cor == Cor.Verde {
+                    falar("verde");
+                }
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn lista_generica_elemento_de_outro_leque_rejeitado() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        leque Fruta { Banana, Maca }
+        carinho principal() -> bombom {
+            nova cores: lista<Cor> = lista_criar();
+            lista_anexar(cores, Fruta.Banana);
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("exige elemento"), "{}", err);
+}
+
+#[test]
+fn lista_generica_de_nao_leque_rejeitada() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova coisas: lista<Fantasma> = lista_criar();
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("não é um leque"), "{}", err);
+}
+
+#[test]
+fn lista_criar_sem_anotacao_rejeitado() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova coisas = lista_criar();
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("anotação de tipo"), "{}", err);
+}
+
+#[test]
+fn lista_criar_fora_de_nova_rejeitado() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo lista_tamanho(lista_criar());
+        }
+    "#;
+    assert!(parse_and_check(code).is_err());
+}
+
+#[test]
+fn intrinsecas_genericas_sobre_listas_legadas_aceitas() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova numeros: lista<bombom> = lista_criar();
+            lista_anexar(numeros, 7);
+            nova palavras: lista<verso> = lista_criar();
+            lista_anexar(palavras, "rosa");
+            nova p: verso = lista_obter(palavras, 0);
+            falar(p);
+            mimo lista_obter(numeros, 0) + lista_tamanho(palavras);
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn lista_legada_monomorphizada_continua_valida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova numeros: lista<bombom> = lista_bombom_criar();
+            lista_bombom_anexar(numeros, 7);
+            mimo lista_bombom_obter(numeros, 0);
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn lista_generica_nao_aceita_intrinseca_monomorphizada_de_bombom() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho principal() -> bombom {
+            nova cores: lista<Cor> = lista_criar();
+            lista_bombom_anexar(cores, 1);
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_err());
+}
+
+#[test]
+fn encaixe_em_leque_sem_carga_aceito() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde, Azul }
+        carinho principal() -> bombom {
+            nova c: Cor = Cor.Azul;
+            encaixe c {
+                caso Cor.Vermelho { falar("quente"); }
+                caso Cor.Verde { falar("fria"); }
+                caso Cor.Azul { falar("fria"); }
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}

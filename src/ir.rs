@@ -297,6 +297,23 @@ struct LoweringContext {
     struct_names: HashSet<String>,
     struct_fields: HashMap<String, HashMap<String, TypeIR>>,
     struct_field_offsets: HashMap<String, HashMap<String, u64>>,
+    enum_variants: HashMap<String, EnumInfoIR>,
+}
+
+// Leques na IR: sem carga, o valor é o próprio discriminante imediato; com
+// carga, o valor é um handle opaco (bombom) para o estado do runtime.
+struct EnumInfoIR {
+    has_payload: bool,
+    variants: HashMap<String, (u64, Vec<TypeIR>)>,
+}
+
+fn is_generic_list_create_expr(expr: &Expr) -> bool {
+    if let ExprKind::Call(callee, args) = &expr.kind {
+        if let ExprKind::Ident(name) = &callee.kind {
+            return name == "lista_criar" && args.is_empty();
+        }
+    }
+    false
 }
 
 // `FunctionLowerer` mantém estado mutable por função durante o lowering:
@@ -336,6 +353,7 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
             }
             Item::TypeAlias(_) => {}
             Item::Struct(_) => {}
+            Item::Enum(_) => {}
         }
     }
 
@@ -400,12 +418,44 @@ impl LoweringContext {
         let mut type_aliases = HashMap::new();
         let mut struct_decls = HashMap::new();
         let mut struct_names = HashSet::new();
+        let mut enum_variants: HashMap<String, EnumInfoIR> = HashMap::new();
         for item in &program.items {
             if let Item::TypeAlias(alias) = item {
                 type_aliases.insert(alias.name.clone(), alias.target.clone());
             } else if let Item::Struct(struct_decl) = item {
                 struct_names.insert(struct_decl.name.clone());
                 struct_decls.insert(struct_decl.name.clone(), struct_decl.clone());
+            } else if let Item::Enum(enum_decl) = item {
+                // O tipo leque abaixa para bombom na IR (discriminante imediato
+                // ou handle); registrar como alias faz toda anotação de tipo
+                // com o nome do leque resolver sozinha.
+                type_aliases.insert(enum_decl.name.clone(), Type::Bombom(enum_decl.span));
+                let variants = enum_decl
+                    .variants
+                    .iter()
+                    .enumerate()
+                    .map(|(index, variant)| {
+                        let payloads = variant
+                            .payloads
+                            .iter()
+                            .map(|ty| match ty {
+                                Type::Verso(_) => TypeIR::Verso,
+                                _ => TypeIR::Bombom,
+                            })
+                            .collect::<Vec<_>>();
+                        (variant.name.clone(), (index as u64, payloads))
+                    })
+                    .collect();
+                enum_variants.insert(
+                    enum_decl.name.clone(),
+                    EnumInfoIR {
+                        has_payload: enum_decl
+                            .variants
+                            .iter()
+                            .any(|variant| !variant.payloads.is_empty()),
+                        variants,
+                    },
+                );
             }
         }
         let mut struct_fields = HashMap::new();
@@ -459,7 +509,7 @@ impl LoweringContext {
                         )?,
                     );
                 }
-                Item::TypeAlias(_) | Item::Struct(_) => {}
+                Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => {}
             }
         }
         function_sigs.insert(
@@ -781,6 +831,48 @@ impl LoweringContext {
             "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "__pinker_internal_leque_criar_0".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "__pinker_internal_leque_anexar_b".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "__pinker_internal_leque_anexar_v".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "__pinker_internal_leque_tag".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "__pinker_internal_leque_carga_b".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "__pinker_internal_leque_carga_v".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
                 ret_struct_name: None,
             },
         );
@@ -1330,6 +1422,7 @@ impl LoweringContext {
             struct_names,
             struct_fields,
             struct_field_offsets,
+            enum_variants,
         })
     }
 
@@ -1569,6 +1662,33 @@ impl<'a> FunctionLowerer<'a> {
     }
 
     fn lower_let(&mut self, let_stmt: &LetStmt) -> Result<InstructionIR, PinkerError> {
+        // `nova l: lista<...> = lista_criar();` — a criação genérica abaixa
+        // para o criar monomorphizado do tipo anotado (semântica já validou).
+        if let Some(annotated_ty) = let_stmt.ty.as_ref() {
+            if is_generic_list_create_expr(&let_stmt.init) {
+                let slot_ty = self.context.resolve_type(annotated_ty)?;
+                let callee = match slot_ty {
+                    TypeIR::ListVerso => "lista_verso_criar",
+                    _ => "lista_bombom_criar",
+                };
+                let binding = self.allocate_binding(
+                    &let_stmt.name,
+                    slot_ty,
+                    None,
+                    None,
+                    Some(let_stmt.is_mut),
+                );
+                return Ok(InstructionIR::Let {
+                    slot: binding.slot,
+                    value: ValueIR::Call {
+                        callee: callee.to_string(),
+                        args: Vec::new(),
+                        ret_type: slot_ty,
+                    },
+                    span: let_stmt.span,
+                });
+            }
+        }
         let value = self.lower_value(&let_stmt.init)?;
         let ty = if let Some(annotated_ty) = let_stmt.ty.as_ref() {
             self.context.resolve_type(annotated_ty)?
@@ -1859,12 +1979,112 @@ impl<'a> FunctionLowerer<'a> {
                 })
             }
             ExprKind::Call(callee, args) => {
+                // Construção `Leque.Variante(cargas...)` abaixa para uma
+                // cadeia composável: criar_0(tag) seguido de um anexar por
+                // carga, cada anexar devolvendo o mesmo handle.
+                if let ExprKind::FieldAccess { base, field } = &callee.kind {
+                    if let ExprKind::Ident(base_name) = &base.kind {
+                        if let Some(info) = self.context.enum_variants.get(base_name) {
+                            let Some((discriminant, payload_types)) =
+                                info.variants.get(field).cloned()
+                            else {
+                                return Err(PinkerError::Ir {
+                                    msg: format!(
+                                        "construção inválida de '{}.{}' na IR",
+                                        base_name, field
+                                    ),
+                                    span: expr.span,
+                                });
+                            };
+                            if payload_types.is_empty() || args.len() != payload_types.len() {
+                                return Err(PinkerError::Ir {
+                                    msg: format!(
+                                        "construção de '{}.{}' com aridade inconsistente na IR",
+                                        base_name, field
+                                    ),
+                                    span: expr.span,
+                                });
+                            }
+                            let mut chain = ValueIR::Call {
+                                callee: "__pinker_internal_leque_criar_0".to_string(),
+                                args: vec![ValueIR::Int(discriminant)],
+                                ret_type: TypeIR::Bombom,
+                            };
+                            for (arg, payload_ty) in args.iter().zip(payload_types) {
+                                let payload = self.lower_value(arg)?;
+                                let anexar = match payload_ty {
+                                    TypeIR::Verso => "__pinker_internal_leque_anexar_v",
+                                    _ => "__pinker_internal_leque_anexar_b",
+                                };
+                                chain = ValueIR::Call {
+                                    callee: anexar.to_string(),
+                                    args: vec![chain, payload.value],
+                                    ret_type: TypeIR::Bombom,
+                                };
+                            }
+                            return Ok(TypedValueIR {
+                                value: chain,
+                                ty: TypeIR::Bombom,
+                                struct_name: None,
+                                ptr_array_bombom_size: None,
+                            });
+                        }
+                    }
+                }
+
                 let ExprKind::Ident(name) = &callee.kind else {
                     return Err(PinkerError::Ir {
                         msg: "IR da v0 suporta apenas chamadas diretas por nome".to_string(),
                         span: expr.span,
                     });
                 };
+
+                // Intrínsecas genéricas de lista (Fase 211): abaixam para a
+                // forma monomorphizada conforme o tipo da lista no argumento 1.
+                if matches!(
+                    name.as_str(),
+                    "lista_tamanho"
+                        | "lista_obter"
+                        | "lista_anexar"
+                        | "lista_definir"
+                        | "lista_tirar_ultimo"
+                        | "lista_inserir"
+                ) {
+                    let typed_args: Vec<TypedValueIR> = args
+                        .iter()
+                        .map(|arg| self.lower_value(arg))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let prefix = match typed_args.first().map(|arg| arg.ty) {
+                        Some(TypeIR::ListVerso) => "lista_verso",
+                        _ => "lista_bombom",
+                    };
+                    let suffix = name.strip_prefix("lista").unwrap_or_default();
+                    let mono_name = format!("{}{}", prefix, suffix);
+                    let ret_type = self
+                        .context
+                        .function_sigs
+                        .get(&mono_name)
+                        .map(|sig| sig.ret_type)
+                        .ok_or_else(|| PinkerError::Ir {
+                            msg: format!(
+                                "lowering falhou ao resolver intrínseca genérica '{}' ('{}')",
+                                name, mono_name
+                            ),
+                            span: expr.span,
+                        })?;
+                    let ir_args: Vec<ValueIR> =
+                        typed_args.into_iter().map(|typed| typed.value).collect();
+                    return Ok(TypedValueIR {
+                        value: ValueIR::Call {
+                            callee: mono_name,
+                            args: ir_args,
+                            ret_type,
+                        },
+                        ty: ret_type,
+                        struct_name: None,
+                        ptr_array_bombom_size: None,
+                    });
+                }
 
                 if name == "__ternario" {
                     let typed_args: Vec<TypedValueIR> = args
@@ -1916,6 +2136,39 @@ impl<'a> FunctionLowerer<'a> {
                 })
             }
             ExprKind::FieldAccess { base, field } => {
+                // `Leque.Variante`: em leque sem carga vira o discriminante
+                // imediato; em leque com carga vira um handle recém-criado.
+                if let ExprKind::Ident(base_name) = &base.kind {
+                    if let Some(info) = self.context.enum_variants.get(base_name) {
+                        let Some((discriminant, _)) = info.variants.get(field) else {
+                            return Err(PinkerError::Ir {
+                                msg: format!(
+                                    "variante '{}' não existe no leque '{}'",
+                                    field, base_name
+                                ),
+                                span: expr.span,
+                            });
+                        };
+                        if info.has_payload {
+                            return Ok(TypedValueIR {
+                                value: ValueIR::Call {
+                                    callee: "__pinker_internal_leque_criar_0".to_string(),
+                                    args: vec![ValueIR::Int(*discriminant)],
+                                    ret_type: TypeIR::Bombom,
+                                },
+                                ty: TypeIR::Bombom,
+                                struct_name: None,
+                                ptr_array_bombom_size: None,
+                            });
+                        }
+                        return Ok(TypedValueIR {
+                            value: ValueIR::Int(*discriminant),
+                            ty: TypeIR::Bombom,
+                            struct_name: None,
+                            ptr_array_bombom_size: None,
+                        });
+                    }
+                }
                 let base = self.lower_value(base)?;
                 let Some(base_struct_name) = base.struct_name.as_ref() else {
                     return Err(PinkerError::Ir {
@@ -2434,10 +2687,16 @@ impl TypeIR {
             Type::Verso(_) => Ok(TypeIR::Verso),
             Type::ListBombom(_) => Ok(TypeIR::ListBombom),
             Type::ListVerso(_) => Ok(TypeIR::ListVerso),
+            // Elementos de leque são bombom na IR (discriminante ou handle);
+            // a lista genérica reaproveita o runtime de lista<bombom>.
+            Type::ListEnum { .. } => Ok(TypeIR::ListBombom),
             Type::MapVersoBombom(_) => Ok(TypeIR::MapVersoBombom),
             Type::MapVersoVerso(_) => Ok(TypeIR::MapVersoVerso),
             Type::MapBombomBombom(_) => Ok(TypeIR::MapBombomBombom),
             Type::MapBombomVerso(_) => Ok(TypeIR::MapBombomVerso),
+            // Tipos leque são nominais apenas na semântica; na IR o valor é o
+            // discriminante inteiro.
+            Type::Enum { .. } => Ok(TypeIR::Bombom),
             Type::FixedArray {
                 element,
                 size,
