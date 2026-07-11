@@ -14,7 +14,7 @@
 | Campo | Valor |
 |---|---|
 | Fase funcional mais recente | **211** — `lista<T>` genérica sobre leques (generics mínimos) |
-| Rodada documental mais recente | **Doc-39** — fechamento do Bloco 18 e abertura do Bloco 20 |
+| Rodada documental mais recente | **Doc-40** — abertura do Eixo B do Bloco 20 (paridade real do backend nativo) |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
@@ -71,8 +71,9 @@ Histórico completo por fase: `docs/history/phases/`.
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- Continuar a **Faixa 1** do Bloco 20 na ordem decidida (3 → 5 → 6 → 4). Itens 1, 2 e 3 entregues no nível utilizável; próximo: item 5 (**error handling estruturado** — `tentar/pegar` ou Result via leque; keywords candidatas `amparo`/`tropeco` no vocabulário provisório), depois item 6 (**closures**) e por fim item 4 (**traits**).
-- Trilha completa: `docs/roadmap/blocos/bloco_20.md`.
+- **Eixo B do Bloco 20 — paridade real do backend nativo** (Doc-40), começando pela fase B1 (prevista Fase 212): runtime nativo `pinker_rt` (staticlib do workspace, ABI C, alocador) + pipeline `pink build --nativo` produzindo executável ELF real linkado ao runtime.
+- Escada completa do eixo (B1–B11, Fases 212–222) em `docs/roadmap/blocos/bloco_20.md`; regra do eixo: sem recorte mínimo — cada fase fecha o subproblema inteiro, e B11 fecha o eixo com suíte de paridade interpretador × nativo no CI.
+- Após o eixo: itens 5 (**error handling**), 6 (**closures**) e 4 (**traits**) da Faixa 1, com a regra nova de que toda fase de linguagem entrega o lowering nativo junto.
 
 ## 6. Arquitetura documental ativa
 - `roadmap.md` = ordem ativa.
