@@ -136,7 +136,7 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 
 | Fase | Prevista | Entrega | Critério de pronto |
 |---|---|---|---|
-| B1 | 212 | Runtime nativo `pinker_rt` + pipeline de build integrado | `pink build --nativo prog.pink` produz executável ELF real, montado e linkado ao runtime; alocador do runtime (`pinker_alocar`/`pinker_liberar`) funcionando sob teste; executável de fumaça roda e retorna código correto |
+| B1 | 212 | Runtime nativo `pinker_rt` + pipeline de build integrado — **entregue na Fase 212** | `pink build --nativo prog.pink` produz executável ELF real, montado e linkado ao runtime; alocador do runtime (`pinker_alocar`/`pinker_liberar`) funcionando sob teste; executável de fumaça roda e retorna código correto ✓ |
 | B2 | 213 | ABI completa de funções | funções com N argumentos de qualquer tipo já suportado nativamente, retorno em `rax`, alinhamento de pilha e disciplina caller/callee-saved corretos; testes executáveis com 0 a 8+ argumentos e chamadas aninhadas/recursivas |
 | B3 | 214 | Controle de fluxo geral | todo CFG que o pipeline produz executa nativo: `talvez`/`senao` aninhados em qualquer profundidade, `sempre que` com `quebrar`/`continuar`, cadeias completas de `escolha`/`encaixe` desugaradas, `repetir...até`, `para...de...até`; nenhum "bloco não suportado" restante |
 | B4 | 215 | `verso` dinâmico nativo | strings de heap no runtime (ponteiro+tamanho); literais, `juntar_verso`, `tamanho_verso`, comparações (`igual_verso` etc.) e `falar` de verso dinâmico executando nativo |

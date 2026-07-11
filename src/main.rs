@@ -42,6 +42,7 @@ struct Config {
 struct BuildConfig {
     input: String,
     out_dir: String,
+    nativo: bool,
 }
 
 struct EditorConfig {
@@ -87,13 +88,16 @@ fn usage(binary: &str) -> String {
 
 fn build_usage(binary: &str) -> String {
     format!(
-        "Uso: {binary} build [--out-dir <diretorio>] <arquivo.pink>\n\
+        "Uso: {binary} build [--out-dir <diretorio>] [--nativo] <arquivo.pink>\n\
          \n\
          Comando:\n\
            build      executa o pipeline de build e grava artefato `.s` no disco\n\
          \n\
          Opções:\n\
-           --out-dir  diretório de saída (padrão: build)\n"
+           --out-dir  diretório de saída (padrão: build)\n\
+           --nativo   além do `.s`, monta e linka um executável nativo real\n\
+                      (driver C do sistema + runtime `libpinker_rt.a`;\n\
+                       localização do runtime via env PINKER_RT_LIB ou ao lado do `pink`)\n"
     )
 }
 
@@ -131,6 +135,7 @@ fn repl_usage(binary: &str) -> String {
 fn parse_build_args(binary: &str, args: &[String]) -> Result<BuildConfig, String> {
     let mut input: Option<String> = None;
     let mut out_dir = "build".to_string();
+    let mut nativo = false;
     let mut i = 0usize;
 
     while i < args.len() {
@@ -146,6 +151,9 @@ fn parse_build_args(binary: &str, args: &[String]) -> Result<BuildConfig, String
                     ));
                 }
                 out_dir.clone_from(&args[i]);
+            }
+            "--nativo" => {
+                nativo = true;
             }
             _ if arg.starts_with("--") => {
                 return Err(format!(
@@ -170,7 +178,11 @@ fn parse_build_args(binary: &str, args: &[String]) -> Result<BuildConfig, String
     let Some(input) = input else {
         return Err(build_usage(binary));
     };
-    Ok(BuildConfig { input, out_dir })
+    Ok(BuildConfig {
+        input,
+        out_dir,
+        nativo,
+    })
 }
 
 fn parse_editor_args(binary: &str, args: &[String]) -> Result<EditorConfig, String> {
@@ -621,7 +633,14 @@ fn run_build(config: BuildConfig) {
         instr_select_validate::validate_program(&selected_program),
         &source
     );
-    let output = try_or_exit!(backend_s::emit_from_selected(&selected_program), &source);
+    let output = if config.nativo {
+        try_or_exit!(
+            backend_s::emit_external_toolchain_subset_nativo(&selected_program),
+            &source
+        )
+    } else {
+        try_or_exit!(backend_s::emit_from_selected(&selected_program), &source)
+    };
 
     let out_dir = PathBuf::from(&config.out_dir);
     if let Err(err) = fs::create_dir_all(&out_dir) {
@@ -648,6 +667,86 @@ fn run_build(config: BuildConfig) {
     }
 
     println!("Build concluído: {}", output_path.display());
+
+    if config.nativo {
+        let bin_path = out_dir.join(stem);
+        match link_nativo(&output_path, &bin_path) {
+            Ok(()) => println!("Executável nativo: {}", bin_path.display()),
+            Err(msg) => {
+                eprintln!("Falha no link nativo: {}", msg);
+                std::process::exit(1);
+            }
+        }
+    }
+}
+
+/// Localiza a staticlib do runtime nativo: env `PINKER_RT_LIB` tem precedência;
+/// caso contrário, procura `libpinker_rt.a` ao lado do executável `pink`
+/// (layout padrão do `target/` do cargo).
+fn locate_pinker_rt_lib() -> Result<PathBuf, String> {
+    if let Ok(custom) = std::env::var("PINKER_RT_LIB") {
+        let path = PathBuf::from(custom);
+        if path.is_file() {
+            return Ok(path);
+        }
+        return Err(format!(
+            "PINKER_RT_LIB aponta para '{}', que não existe",
+            path.display()
+        ));
+    }
+    let exe = std::env::current_exe()
+        .map_err(|err| format!("não foi possível localizar o executável atual: {}", err))?;
+    let candidate = exe
+        .parent()
+        .map(|dir| dir.join("libpinker_rt.a"))
+        .ok_or_else(|| "executável atual sem diretório pai".to_string())?;
+    if candidate.is_file() {
+        return Ok(candidate);
+    }
+    Err(format!(
+        "runtime nativo 'libpinker_rt.a' não encontrado em '{}'; construa o workspace (cargo build) ou defina PINKER_RT_LIB",
+        candidate.display()
+    ))
+}
+
+fn detect_cc_driver() -> Result<String, String> {
+    for candidate in ["cc", "gcc", "clang"] {
+        let probe = std::process::Command::new(candidate)
+            .arg("--version")
+            .output();
+        if let Ok(output) = probe {
+            if output.status.success() {
+                return Ok(candidate.to_string());
+            }
+        }
+    }
+    Err("nenhum driver C encontrado no sistema (procurado: cc, gcc, clang)".to_string())
+}
+
+/// Monta e linka o `.s` nativo com o runtime `pinker_rt`, produzindo um
+/// executável ELF real. As libs de sistema extras cobrem as dependências da
+/// std do Rust embutida na staticlib do runtime.
+fn link_nativo(asm_path: &Path, bin_path: &Path) -> Result<(), String> {
+    let driver = detect_cc_driver()?;
+    let runtime_lib = locate_pinker_rt_lib()?;
+    let output = std::process::Command::new(&driver)
+        .arg(asm_path)
+        .arg(&runtime_lib)
+        .arg("-lpthread")
+        .arg("-ldl")
+        .arg("-lm")
+        .arg("-o")
+        .arg(bin_path)
+        .output()
+        .map_err(|err| format!("falha ao invocar '{}': {}", driver, err))?;
+    if !output.status.success() {
+        return Err(format!(
+            "'{}' retornou erro:\n{}",
+            driver,
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    Ok(())
 }
 
 fn parse_program_from_source(source: &str) -> Result<ast::Program, PinkerError> {

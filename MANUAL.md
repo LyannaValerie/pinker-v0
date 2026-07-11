@@ -371,14 +371,29 @@ carinho principal() -> bombom {
 }
 ```
 
-## 11) Limites atuais da linguagem
+## 11) Build nativo (`pink build --nativo`)
+
+Desde a Fase 212 (Eixo B do Bloco 20), além do artefato `.s`, o build pode
+produzir um executável nativo real:
+
+```bash
+pink build --nativo --out-dir build programa.pink
+./build/programa
+```
+
+O pipeline emite o `.s`, monta com o driver C do sistema (`cc`/`gcc`/`clang`)
+e linka com o runtime nativo `libpinker_rt.a` (construído pelo workspace;
+localizável via env `PINKER_RT_LIB`). O corpo do programa ainda está limitado
+ao subset do backend `.s`; a paridade completa com o interpretador é o objeto
+das fases B2–B11 do Eixo B.
+
+## 11.1) Limites atuais da linguagem
 
 No estado atual, ainda há limites importantes para uso geral:
-- backend nativo completo ainda não existe;
-- backend externo montável ainda é subset mínimo (branch condicional apenas no recorte `==` + `cmp`/`jcc`; sem `sempre que`);
-- texto em `verso` ainda está em recorte mínimo (`juntar_verso` e `tamanho_verso`);
-- API de arquivo ainda é mínima (sem modos avançados, append ou streaming);
-- recursos avançados (generics/traits/enums completos etc.) seguem fora do escopo atual.
+- o backend nativo cobre um subset da linguagem (a paridade completa é a trilha ativa do Eixo B); coleções, `verso` dinâmico e leques com carga executam hoje apenas em `--run`;
+- error handling estruturado, closures e traits ainda não existem (itens 5, 6 e 4 da Faixa 1 do Bloco 20);
+- generics cobrem `lista<T>` com `T` = leque; `mapa<K,V>` genérico e funções genéricas de usuário seguem fora;
+- API de arquivo segue sem modos avançados de streaming.
 
 ## 12) Onde olhar depois
 

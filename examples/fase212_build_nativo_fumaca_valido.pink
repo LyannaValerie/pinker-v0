@@ -1,0 +1,10 @@
+pacote main;
+
+carinho dobra(n: bombom) -> bombom {
+    mimo n * 2;
+}
+
+carinho principal() -> bombom {
+    nova base: bombom = 21;
+    mimo dobra(base);
+}

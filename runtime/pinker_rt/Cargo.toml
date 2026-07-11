@@ -1,0 +1,15 @@
+[package]
+name = "pinker_rt"
+version = "0.1.0"
+edition = "2021"
+description = "Runtime nativo da Pinker (Eixo B do Bloco 20) — alocador e serviços de execução para binários gerados pelo backend .s"
+license = "MIT"
+
+[lib]
+name = "pinker_rt"
+# staticlib: linkada aos executáveis nativos gerados por `pink build --nativo`.
+# rlib: permite testes unitários do próprio runtime via `cargo test`.
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+# Nenhuma dependência externa — mesma disciplina zero-dependency do compilador.
