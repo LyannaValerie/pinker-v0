@@ -101,11 +101,11 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
         TypeIR::Bombom,
     );
     sigs.insert(
-        "__pinker_internal_leque_criar_b".to_string(),
+        "__pinker_internal_leque_anexar_b".to_string(),
         TypeIR::Bombom,
     );
     sigs.insert(
-        "__pinker_internal_leque_criar_v".to_string(),
+        "__pinker_internal_leque_anexar_v".to_string(),
         TypeIR::Bombom,
     );
     sigs.insert("__pinker_internal_leque_tag".to_string(), TypeIR::Bombom);

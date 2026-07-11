@@ -328,14 +328,14 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         (TypeIR::Bombom, vec![StackValueType::Bombom]),
     );
     sigs.insert(
-        "__pinker_internal_leque_criar_b".to_string(),
+        "__pinker_internal_leque_anexar_b".to_string(),
         (
             TypeIR::Bombom,
             vec![StackValueType::Bombom, StackValueType::Bombom],
         ),
     );
     sigs.insert(
-        "__pinker_internal_leque_criar_v".to_string(),
+        "__pinker_internal_leque_anexar_v".to_string(),
         (
             TypeIR::Bombom,
             vec![StackValueType::Bombom, StackValueType::Verso],
@@ -347,11 +347,25 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
     );
     sigs.insert(
         "__pinker_internal_leque_carga_b".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Bombom]),
+        (
+            TypeIR::Bombom,
+            vec![
+                StackValueType::Bombom,
+                StackValueType::Bombom,
+                StackValueType::Bombom,
+            ],
+        ),
     );
     sigs.insert(
         "__pinker_internal_leque_carga_v".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Bombom]),
+        (
+            TypeIR::Verso,
+            vec![
+                StackValueType::Bombom,
+                StackValueType::Bombom,
+                StackValueType::Bombom,
+            ],
+        ),
     );
     sigs.insert(
         "argumento".to_string(),

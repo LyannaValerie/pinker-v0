@@ -3328,7 +3328,7 @@ fn leque_carga_tipo_errado_rejeitado() {
         }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("carga inválida"), "{}", err);
+    assert!(err.contains("carga 1 inválida"), "{}", err);
 }
 
 #[test]
@@ -3342,7 +3342,7 @@ fn leque_carga_aridade_errada_rejeitada() {
         }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("exatamente 1 argumento"), "{}", err);
+    assert!(err.contains("exige 1 argumento(s)"), "{}", err);
 }
 
 #[test]
@@ -3414,7 +3414,11 @@ fn leque_carga_tipo_nao_suportado_rejeitado() {
         carinho principal() -> bombom { mimo 0; }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("deve ser 'bombom' ou 'verso'"), "{}", err);
+    assert!(
+        err.contains("deve ser 'bombom', 'verso' ou um leque declarado"),
+        "{}",
+        err
+    );
 }
 
 #[test]
@@ -3485,7 +3489,7 @@ fn encaixe_sem_binding_em_variante_com_carga_rejeitado() {
         }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("carrega valor"), "{}", err);
+    assert!(err.contains("carrega 1 valor(es)"), "{}", err);
 }
 
 #[test]
@@ -3557,6 +3561,123 @@ fn encaixe_variante_repetida_rejeitada() {
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("repetida"), "{}", err);
+}
+
+#[test]
+fn leque_recursivo_aceito() {
+    let code = r#"
+        pacote main;
+        leque Expr { Lit(bombom), Dobro(Expr) }
+        carinho avalia(e: Expr) -> bombom {
+            encaixe e {
+                caso Expr.Lit(n) { mimo n; }
+                caso Expr.Dobro(interno) { mimo 2 * avalia(interno); }
+            }
+            mimo 0;
+        }
+        carinho principal() -> bombom {
+            mimo avalia(Expr.Dobro(Expr.Lit(21)));
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_mutuamente_recursivo_aceito() {
+    let code = r#"
+        pacote main;
+        leque Par { Fim, Passo(Impar) }
+        leque Impar { Passo(Par) }
+        carinho principal() -> bombom {
+            nova p: Par = Par.Passo(Impar.Passo(Par.Fim));
+            encaixe p {
+                caso Par.Fim { mimo 0; }
+                caso Par.Passo(i) { mimo 1; }
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_multiplas_cargas_aceito() {
+    let code = r#"
+        pacote main;
+        leque Expr { Lit(bombom), Soma(Expr, Expr), Rotulo(verso, Expr) }
+        carinho principal() -> bombom {
+            nova e: Expr = Expr.Rotulo("r", Expr.Soma(Expr.Lit(1), Expr.Lit(2)));
+            encaixe e {
+                caso Expr.Lit(n) { mimo n; }
+                caso Expr.Soma(a, b) { mimo 1; }
+                caso Expr.Rotulo(nome, corpo) { falar(nome); mimo 2; }
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn leque_carga_de_leque_errado_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Expr { Lit(bombom), Dobro(Expr) }
+        leque Outro { Coisa(bombom) }
+        carinho principal() -> bombom {
+            nova e: Expr = Expr.Dobro(Outro.Coisa(1));
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("carga 1 inválida"), "{}", err);
+}
+
+#[test]
+fn leque_multiplas_cargas_aridade_errada_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Expr { Soma(Expr, Expr), Lit(bombom) }
+        carinho principal() -> bombom {
+            nova e: Expr = Expr.Soma(Expr.Lit(1));
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("exige 2 argumento(s)"), "{}", err);
+}
+
+#[test]
+fn encaixe_bindings_em_numero_errado_rejeitado() {
+    let code = r#"
+        pacote main;
+        leque Expr { Soma(Expr, Expr), Lit(bombom) }
+        carinho principal() -> bombom {
+            nova e: Expr = Expr.Lit(1);
+            encaixe e {
+                caso Expr.Soma(a) { mimo 1; }
+                caso Expr.Lit(n) { mimo n; }
+            }
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("liga 1 nome(s)"), "{}", err);
+}
+
+#[test]
+fn leque_carga_de_tipo_desconhecido_rejeitada() {
+    let code = r#"
+        pacote main;
+        leque Expr { Guarda(Fantasma) }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("deve ser 'bombom', 'verso' ou um leque declarado"),
+        "{}",
+        err
+    );
 }
 
 #[test]

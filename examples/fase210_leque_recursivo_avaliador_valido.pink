@@ -1,0 +1,29 @@
+pacote main;
+
+leque Expr {
+    Lit(bombom),
+    Soma(Expr, Expr),
+    Mult(Expr, Expr),
+    Rotulo(verso, Expr)
+}
+
+carinho avalia(e: Expr) -> bombom {
+    encaixe e {
+        caso Expr.Lit(n) { mimo n; }
+        caso Expr.Soma(a, b) { mimo avalia(a) + avalia(b); }
+        caso Expr.Mult(a, b) { mimo avalia(a) * avalia(b); }
+        caso Expr.Rotulo(nome, corpo) {
+            falar("avaliando", nome);
+            mimo avalia(corpo);
+        }
+    }
+    mimo 0;
+}
+
+carinho principal() -> bombom {
+    nova dezena: Expr = Expr.Mult(Expr.Lit(4), Expr.Lit(10));
+    nova arvore: Expr = Expr.Rotulo("resposta", Expr.Soma(Expr.Lit(2), dezena));
+    nova resultado: bombom = avalia(arvore);
+    falar(resultado);
+    mimo 0;
+}

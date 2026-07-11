@@ -384,14 +384,14 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
-        "__pinker_internal_leque_criar_b".to_string(),
+        "__pinker_internal_leque_anexar_b".to_string(),
         FunctionSig {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom, TypeIR::Bombom],
         },
     );
     funcs.insert(
-        "__pinker_internal_leque_criar_v".to_string(),
+        "__pinker_internal_leque_anexar_v".to_string(),
         FunctionSig {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom, TypeIR::Verso],
@@ -408,14 +408,14 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         "__pinker_internal_leque_carga_b".to_string(),
         FunctionSig {
             ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom],
+            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
     funcs.insert(
         "__pinker_internal_leque_carga_v".to_string(),
         FunctionSig {
             ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Bombom],
+            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
     funcs.insert(

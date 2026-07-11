@@ -147,8 +147,10 @@ impl EnumDecl {
             writer.begin_object();
             writer.field_str("node", "EnumVariant");
             writer.field_str("name", &variant.name);
-            if let Some(payload) = &variant.payload {
-                writer.field_value("payload", |writer| payload.write_json(writer));
+            if !variant.payloads.is_empty() {
+                writer.field_array("payloads", &variant.payloads, |writer, payload| {
+                    payload.write_json(writer)
+                });
             }
             writer.field_span("span", variant.span);
             writer.end_object();
@@ -160,7 +162,7 @@ impl EnumDecl {
 #[derive(Debug, Clone)]
 pub struct EnumVariant {
     pub name: String,
-    pub payload: Option<Type>,
+    pub payloads: Vec<Type>,
     pub span: Span,
 }
 

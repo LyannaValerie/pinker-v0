@@ -351,7 +351,7 @@ impl SemanticChecker {
             .map(|decl| {
                 decl.variants
                     .iter()
-                    .any(|variant| variant.payload.is_some())
+                    .any(|variant| !variant.payloads.is_empty())
             })
             .unwrap_or(false)
     }
@@ -650,17 +650,6 @@ impl SemanticChecker {
                                 span: variant.span,
                             });
                         }
-                        if let Some(payload) = &variant.payload {
-                            if !matches!(payload, Type::Bombom(_) | Type::Verso(_)) {
-                                return Err(PinkerError::Semantic {
-                                    msg: format!(
-                                        "carga da variante '{}' deve ser 'bombom' ou 'verso' nesta fase",
-                                        variant.name
-                                    ),
-                                    span: payload.span(),
-                                });
-                            }
-                        }
                     }
                     self.enums.insert(enum_decl.name.clone(), enum_decl.clone());
                 }
@@ -672,6 +661,28 @@ impl SemanticChecker {
         }
         for struct_decl in self.structs.values() {
             self.validate_struct_decl(struct_decl)?;
+        }
+        // Cargas de variantes são validadas após a coleta completa para
+        // permitir referência a leque declarado depois (inclusive recursiva).
+        for enum_decl in self.enums.values() {
+            for variant in &enum_decl.variants {
+                for payload in &variant.payloads {
+                    let payload_ok = match payload {
+                        Type::Bombom(_) | Type::Verso(_) => true,
+                        Type::Alias { name, .. } => self.enums.contains_key(name),
+                        _ => false,
+                    };
+                    if !payload_ok {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "carga da variante '{}' deve ser 'bombom', 'verso' ou um leque declarado nesta fase",
+                                variant.name
+                            ),
+                            span: payload.span(),
+                        });
+                    }
+                }
+            }
         }
 
         // --- Passagem 2: verificação de corpos ---
@@ -1269,7 +1280,7 @@ impl SemanticChecker {
                                 span: expr.span,
                             });
                         };
-                        if variant.payload.is_some() {
+                        if !variant.payloads.is_empty() {
                             return Err(PinkerError::Semantic {
                                 msg: format!(
                                     "variante '{}' carrega valor; construa com '{}.{}(valor)'",
@@ -1599,7 +1610,7 @@ impl SemanticChecker {
                         });
                     };
                     let enum_name = base_name.clone();
-                    let Some(payload_ty) = variant.payload else {
+                    if variant.payloads.is_empty() {
                         return Err(PinkerError::Semantic {
                             msg: format!(
                                 "variante '{}' não carrega valor; use '{}.{}' sem parênteses",
@@ -1607,33 +1618,38 @@ impl SemanticChecker {
                             ),
                             span: expr_span,
                         });
-                    };
-                    if args.len() != 1 {
+                    }
+                    if args.len() != variant.payloads.len() {
                         return Err(PinkerError::Semantic {
                             msg: format!(
-                                "construção de '{}.{}' exige exatamente 1 argumento de carga, recebido {}",
+                                "construção de '{}.{}' exige {} argumento(s) de carga, recebido {}",
                                 enum_name,
                                 field,
+                                variant.payloads.len(),
                                 args.len()
                             ),
                             span: expr_span,
                         });
                     }
-                    let arg_ty = self.check_value_expr(
-                        &args[0],
-                        "resultado de função sem retorno não pode ser carga de variante",
-                    )?;
-                    if !Self::check_expected_type_for_expr(&payload_ty, &arg_ty, &args[0]) {
-                        return Err(PinkerError::Semantic {
-                            msg: format!(
-                                "carga inválida para '{}.{}': esperado '{}', encontrado '{}'",
-                                enum_name,
-                                field,
-                                payload_ty.name(),
-                                arg_ty.name()
-                            ),
-                            span: args[0].span,
-                        });
+                    for (index, payload_ty) in variant.payloads.iter().enumerate() {
+                        let expected = self.resolve_type_or_error(payload_ty)?;
+                        let arg_ty = self.check_value_expr(
+                            &args[index],
+                            "resultado de função sem retorno não pode ser carga de variante",
+                        )?;
+                        if !Self::check_expected_type_for_expr(&expected, &arg_ty, &args[index]) {
+                            return Err(PinkerError::Semantic {
+                                msg: format!(
+                                    "carga {} inválida para '{}.{}': esperado '{}', encontrado '{}'",
+                                    index + 1,
+                                    enum_name,
+                                    field,
+                                    expected.name(),
+                                    arg_ty.name()
+                                ),
+                                span: args[index].span,
+                            });
+                        }
                     }
                     return Ok(Type::Enum {
                         name: enum_name,
@@ -1650,11 +1666,8 @@ impl SemanticChecker {
             });
         };
 
-        // Intrínsecas internas do desugaring de `encaixe` (Fase 209).
-        if name == "__pinker_internal_leque_tag"
-            || name == "__pinker_internal_leque_carga_b"
-            || name == "__pinker_internal_leque_carga_v"
-        {
+        // Intrínsecas internas do desugaring de `encaixe` (Fases 209–210).
+        if name == "__pinker_internal_leque_tag" {
             if args.len() != 1 {
                 return Err(PinkerError::Semantic {
                     msg: format!(
@@ -1686,10 +1699,71 @@ impl SemanticChecker {
                     span: args[0].span,
                 });
             }
-            return Ok(match name.as_str() {
-                "__pinker_internal_leque_carga_v" => Type::Verso(expr_span),
-                _ => Type::Bombom(expr_span),
-            });
+            return Ok(Type::Bombom(expr_span));
+        }
+        if name == "__pinker_internal_leque_carga_b" || name == "__pinker_internal_leque_carga_v" {
+            if args.len() != 3 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "intrínseca interna '{}' exige 3 argumentos (leque, tag, índice)",
+                        name
+                    ),
+                    span: expr_span,
+                });
+            }
+            let arg_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser inspecionado por encaixe",
+            )?;
+            let Type::Enum {
+                name: enum_name, ..
+            } = &arg_ty
+            else {
+                return Err(PinkerError::Semantic {
+                    msg: format!("intrínseca interna '{}' exige valor de leque", name),
+                    span: args[0].span,
+                });
+            };
+            let (ExprKind::IntLit(tag), ExprKind::IntLit(index)) = (&args[1].kind, &args[2].kind)
+            else {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "intrínseca interna '{}' exige tag e índice literais (uso interno do encaixe)",
+                        name
+                    ),
+                    span: expr_span,
+                });
+            };
+            let enum_name = enum_name.clone();
+            let payload_ty = self
+                .enums
+                .get(&enum_name)
+                .and_then(|decl| decl.variants.get(*tag as usize))
+                .and_then(|variant| variant.payloads.get(*index as usize))
+                .cloned();
+            let Some(payload_ty) = payload_ty else {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "intrínseca interna '{}' referencia carga inexistente no leque '{}'",
+                        name, enum_name
+                    ),
+                    span: expr_span,
+                });
+            };
+            let resolved = self.resolve_type_or_error(&payload_ty)?;
+            if name == "__pinker_internal_leque_carga_v" {
+                if !matches!(resolved, Type::Verso(_)) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "intrínseca interna '{}' usada com carga não-verso no leque '{}'",
+                            name, enum_name
+                        ),
+                        span: expr_span,
+                    });
+                }
+                return Ok(Type::Verso(expr_span));
+            }
+            return Ok(resolved.with_span(expr_span));
         }
 
         if name == "ouvir" {

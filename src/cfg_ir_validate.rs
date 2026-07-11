@@ -389,14 +389,14 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
-        "__pinker_internal_leque_criar_b".to_string(),
+        "__pinker_internal_leque_anexar_b".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom, TypeIR::Bombom],
         },
     );
     function_sigs.insert(
-        "__pinker_internal_leque_criar_v".to_string(),
+        "__pinker_internal_leque_anexar_v".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom, TypeIR::Verso],
@@ -413,14 +413,14 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         "__pinker_internal_leque_carga_b".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom],
+            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
     function_sigs.insert(
         "__pinker_internal_leque_carga_v".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Bombom],
+            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
     function_sigs.insert(

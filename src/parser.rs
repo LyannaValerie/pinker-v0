@@ -23,9 +23,9 @@ pub struct Parser {
     /// Mapeamento plano de nomes de variáveis/parâmetros para o tipo de coleção detectado.
     /// Reiniciado no início de cada função para evitar contaminação entre escopos de função.
     collection_types: HashMap<String, CollectionKind>,
-    /// Leques declarados até o ponto atual do parse (nome -> variantes com carga opcional).
+    /// Leques declarados até o ponto atual do parse (nome -> variantes com cargas).
     /// Usado pelo desugaring de `encaixe`; exige o leque declarado antes do uso.
-    enum_decls: HashMap<String, Vec<(String, Option<Type>)>>,
+    enum_decls: HashMap<String, Vec<(String, Vec<Type>)>>,
 }
 
 fn merge_span(a: Span, b: Span) -> Span {
@@ -422,16 +422,19 @@ impl Parser {
             let variant_token = self.consume(TokenKind::Ident, "nome da variante do leque")?;
             let variant_name = variant_token.lexeme.clone();
             let variant_start = variant_token.span;
-            let payload = if self.match_token(TokenKind::LParen) {
-                let ty = self.parse_type()?;
+            let mut payloads = Vec::new();
+            if self.match_token(TokenKind::LParen) {
+                loop {
+                    payloads.push(self.parse_type()?);
+                    if !self.match_token(TokenKind::Comma) {
+                        break;
+                    }
+                }
                 self.consume(TokenKind::RParen, ")")?;
-                Some(ty)
-            } else {
-                None
-            };
+            }
             variants.push(EnumVariant {
                 name: variant_name,
-                payload,
+                payloads,
                 span: merge_span(variant_start, self.previous().span),
             });
             if !self.match_token(TokenKind::Comma) {
@@ -446,7 +449,7 @@ impl Parser {
             name.clone(),
             variants
                 .iter()
-                .map(|variant| (variant.name.clone(), variant.payload.clone()))
+                .map(|variant| (variant.name.clone(), variant.payloads.clone()))
                 .collect(),
         );
         Ok(EnumDecl {
@@ -477,7 +480,7 @@ impl Parser {
 
         struct EncaixeArm {
             variant: String,
-            binding: Option<String>,
+            bindings: Option<Vec<String>>,
             body: Block,
             span: Span,
         }
@@ -498,13 +501,20 @@ impl Parser {
                     .consume(TokenKind::Ident, "nome da variante no padrão do caso")?
                     .lexeme
                     .clone();
-                let binding = if self.match_token(TokenKind::LParen) {
-                    let bind_name = self
-                        .consume(TokenKind::Ident, "nome da variável de carga do caso")?
-                        .lexeme
-                        .clone();
+                let bindings = if self.match_token(TokenKind::LParen) {
+                    let mut names = Vec::new();
+                    loop {
+                        names.push(
+                            self.consume(TokenKind::Ident, "nome da variável de carga do caso")?
+                                .lexeme
+                                .clone(),
+                        );
+                        if !self.match_token(TokenKind::Comma) {
+                            break;
+                        }
+                    }
                     self.consume(TokenKind::RParen, ")")?;
-                    Some(bind_name)
+                    Some(names)
                 } else {
                     None
                 };
@@ -524,7 +534,7 @@ impl Parser {
                 let body = self.parse_block()?;
                 arms.push(EncaixeArm {
                     variant,
-                    binding,
+                    bindings,
                     body,
                     span: caso_span,
                 });
@@ -559,12 +569,12 @@ impl Parser {
         };
         let has_payload = declared_variants
             .iter()
-            .any(|(_, payload)| payload.is_some());
+            .any(|(_, payloads)| !payloads.is_empty());
 
         // Validação dos braços contra a declaração do leque.
         let mut seen: Vec<&str> = Vec::new();
         for arm in &arms {
-            let Some((_, payload)) = declared_variants
+            let Some((_, payloads)) = declared_variants
                 .iter()
                 .find(|(name, _)| *name == arm.variant)
             else {
@@ -583,21 +593,32 @@ impl Parser {
                 });
             }
             seen.push(arm.variant.as_str());
-            match (payload, &arm.binding) {
-                (Some(_), None) => {
+            match (payloads.len(), &arm.bindings) {
+                (0, Some(_)) => {
                     return Err(PinkerError::Parse {
                         msg: format!(
-                            "variante '{}' carrega valor; use 'caso {}.{}(nome)'",
+                            "variante '{}' não carrega valor; use 'caso {}.{}' sem parênteses",
                             arm.variant, enum_name, arm.variant
                         ),
                         span: arm.span,
                     });
                 }
-                (None, Some(_)) => {
+                (n, None) if n > 0 => {
                     return Err(PinkerError::Parse {
                         msg: format!(
-                            "variante '{}' não carrega valor; use 'caso {}.{}' sem parênteses",
-                            arm.variant, enum_name, arm.variant
+                            "variante '{}' carrega {} valor(es); use 'caso {}.{}(...)' com {} nome(s)",
+                            arm.variant, n, enum_name, arm.variant, n
+                        ),
+                        span: arm.span,
+                    });
+                }
+                (n, Some(names)) if n != names.len() => {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "variante '{}' carrega {} valor(es), mas o caso liga {} nome(s)",
+                            arm.variant,
+                            n,
+                            names.len()
                         ),
                         span: arm.span,
                     });
@@ -689,32 +710,46 @@ impl Parser {
             };
 
             let mut body_stmts = Vec::new();
-            if let Some(bind_name) = arm.binding {
-                let payload_ty = declared_variants
+            if let Some(bind_names) = arm.bindings {
+                let payload_types = declared_variants
                     .iter()
                     .find(|(name, _)| *name == arm.variant)
-                    .and_then(|(_, payload)| payload.clone())
-                    .expect("carga validada acima");
-                let carga_fn = match payload_ty {
-                    Type::Verso(_) => "__pinker_internal_leque_carga_v",
-                    _ => "__pinker_internal_leque_carga_b",
-                };
-                body_stmts.push(Stmt::Let(LetStmt {
-                    name: bind_name,
-                    is_mut: false,
-                    ty: Some(payload_ty.with_span(arm.span)),
-                    init: Expr {
-                        kind: ExprKind::Call(
-                            Box::new(Expr {
-                                kind: ExprKind::Ident(carga_fn.to_string()),
-                                span: arm.span,
-                            }),
-                            vec![target_ident(arm.span)],
-                        ),
+                    .map(|(_, payloads)| payloads.clone())
+                    .expect("variante validada acima");
+                for (index, (bind_name, payload_ty)) in
+                    bind_names.into_iter().zip(payload_types).enumerate()
+                {
+                    let carga_fn = match payload_ty {
+                        Type::Verso(_) => "__pinker_internal_leque_carga_v",
+                        _ => "__pinker_internal_leque_carga_b",
+                    };
+                    body_stmts.push(Stmt::Let(LetStmt {
+                        name: bind_name,
+                        is_mut: false,
+                        ty: Some(payload_ty.with_span(arm.span)),
+                        init: Expr {
+                            kind: ExprKind::Call(
+                                Box::new(Expr {
+                                    kind: ExprKind::Ident(carga_fn.to_string()),
+                                    span: arm.span,
+                                }),
+                                vec![
+                                    target_ident(arm.span),
+                                    Expr {
+                                        kind: ExprKind::IntLit(tag),
+                                        span: arm.span,
+                                    },
+                                    Expr {
+                                        kind: ExprKind::IntLit(index as u64),
+                                        span: arm.span,
+                                    },
+                                ],
+                            ),
+                            span: arm.span,
+                        },
                         span: arm.span,
-                    },
-                    span: arm.span,
-                }));
+                    }));
+                }
             }
             body_stmts.extend(arm.body.stmts);
             let then_branch = Block {

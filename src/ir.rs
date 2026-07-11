@@ -304,7 +304,7 @@ struct LoweringContext {
 // carga, o valor é um handle opaco (bombom) para o estado do runtime.
 struct EnumInfoIR {
     has_payload: bool,
-    variants: HashMap<String, (u64, Option<TypeIR>)>,
+    variants: HashMap<String, (u64, Vec<TypeIR>)>,
 }
 
 // `FunctionLowerer` mantém estado mutable por função durante o lowering:
@@ -426,11 +426,15 @@ impl LoweringContext {
                     .iter()
                     .enumerate()
                     .map(|(index, variant)| {
-                        let payload = variant.payload.as_ref().map(|ty| match ty {
-                            Type::Verso(_) => TypeIR::Verso,
-                            _ => TypeIR::Bombom,
-                        });
-                        (variant.name.clone(), (index as u64, payload))
+                        let payloads = variant
+                            .payloads
+                            .iter()
+                            .map(|ty| match ty {
+                                Type::Verso(_) => TypeIR::Verso,
+                                _ => TypeIR::Bombom,
+                            })
+                            .collect::<Vec<_>>();
+                        (variant.name.clone(), (index as u64, payloads))
                     })
                     .collect();
                 enum_variants.insert(
@@ -439,7 +443,7 @@ impl LoweringContext {
                         has_payload: enum_decl
                             .variants
                             .iter()
-                            .any(|variant| variant.payload.is_some()),
+                            .any(|variant| !variant.payloads.is_empty()),
                         variants,
                     },
                 );
@@ -829,14 +833,14 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
-            "__pinker_internal_leque_criar_b".to_string(),
+            "__pinker_internal_leque_anexar_b".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Bombom,
                 ret_struct_name: None,
             },
         );
         function_sigs.insert(
-            "__pinker_internal_leque_criar_v".to_string(),
+            "__pinker_internal_leque_anexar_v".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Bombom,
                 ret_struct_name: None,
@@ -1939,13 +1943,14 @@ impl<'a> FunctionLowerer<'a> {
                 })
             }
             ExprKind::Call(callee, args) => {
-                // Construção `Leque.Variante(carga)` abaixa para a intrínseca
-                // interna de criação com o discriminante embutido.
+                // Construção `Leque.Variante(cargas...)` abaixa para uma
+                // cadeia composável: criar_0(tag) seguido de um anexar por
+                // carga, cada anexar devolvendo o mesmo handle.
                 if let ExprKind::FieldAccess { base, field } = &callee.kind {
                     if let ExprKind::Ident(base_name) = &base.kind {
                         if let Some(info) = self.context.enum_variants.get(base_name) {
-                            let Some((discriminant, Some(payload_ty))) =
-                                info.variants.get(field).copied()
+                            let Some((discriminant, payload_types)) =
+                                info.variants.get(field).cloned()
                             else {
                                 return Err(PinkerError::Ir {
                                     msg: format!(
@@ -1955,17 +1960,34 @@ impl<'a> FunctionLowerer<'a> {
                                     span: expr.span,
                                 });
                             };
-                            let payload = self.lower_value(&args[0])?;
-                            let callee_name = match payload_ty {
-                                TypeIR::Verso => "__pinker_internal_leque_criar_v",
-                                _ => "__pinker_internal_leque_criar_b",
+                            if payload_types.is_empty() || args.len() != payload_types.len() {
+                                return Err(PinkerError::Ir {
+                                    msg: format!(
+                                        "construção de '{}.{}' com aridade inconsistente na IR",
+                                        base_name, field
+                                    ),
+                                    span: expr.span,
+                                });
+                            }
+                            let mut chain = ValueIR::Call {
+                                callee: "__pinker_internal_leque_criar_0".to_string(),
+                                args: vec![ValueIR::Int(discriminant)],
+                                ret_type: TypeIR::Bombom,
                             };
-                            return Ok(TypedValueIR {
-                                value: ValueIR::Call {
-                                    callee: callee_name.to_string(),
-                                    args: vec![ValueIR::Int(discriminant), payload.value],
+                            for (arg, payload_ty) in args.iter().zip(payload_types) {
+                                let payload = self.lower_value(arg)?;
+                                let anexar = match payload_ty {
+                                    TypeIR::Verso => "__pinker_internal_leque_anexar_v",
+                                    _ => "__pinker_internal_leque_anexar_b",
+                                };
+                                chain = ValueIR::Call {
+                                    callee: anexar.to_string(),
+                                    args: vec![chain, payload.value],
                                     ret_type: TypeIR::Bombom,
-                                },
+                                };
+                            }
+                            return Ok(TypedValueIR {
+                                value: chain,
                                 ty: TypeIR::Bombom,
                                 struct_name: None,
                                 ptr_array_bombom_size: None,
