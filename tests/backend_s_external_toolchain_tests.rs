@@ -1730,9 +1730,9 @@ fn asm_s_external_subset_fluxo_real_fase115_abi_minima_mais_larga_camada1() {
 
 #[test]
 fn asm_s_external_subset_falha_clara_fora_do_subset() {
-    // Fase 219 (B8) absorveu a família texto; a fronteira de recusa clara
-    // passa a ser exercida pelas intrínsecas de arquivo, que aguardam B9.
-    let code = "pacote main;\n\ncarinho principal() -> bombom {\n    nova conteudo: verso = ler_arquivo_verso(\"Cargo.toml\");\n    mimo tamanho_verso(conteudo);\n}\n";
+    // Fase 220 (B9) absorveu arquivo/caminho/tempo/acaso; a fronteira de
+    // recusa clara passa a ser exercida pelas intrínsecas de processo (B10).
+    let code = "pacote main;\n\ncarinho principal() -> bombom {\n    nova codigo: bombom = executar_processo(\"true\");\n    mimo codigo;\n}\n";
 
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains("subset externo montável"));

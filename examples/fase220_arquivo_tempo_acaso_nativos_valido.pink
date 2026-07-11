@@ -1,0 +1,36 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova destino: verso = juntar_caminho("target", "fase220_teste.txt");
+    nova cabo: bombom = criar_arquivo(destino);
+    escrever_verso(cabo, "rosa pinker");
+    fechar(cabo);
+    falar(ler_arquivo_verso(destino));
+    falar("tamanho:", tamanho_arquivo(destino));
+    talvez caminho_existe(destino) {
+        falar("existe");
+    }
+    talvez e_arquivo(destino) {
+        falar("e arquivo");
+    }
+    nova anexo: bombom = abrir_anexo(destino);
+    anexar_verso(anexo, " canta");
+    fechar(anexo);
+    falar(ler_arquivo_verso(destino));
+    falar(arquivo_ou("nao_existe_950.txt", "fallback ok"));
+    nova copia: verso = juntar_caminho("target", "fase220_copia.txt");
+    copiar_arquivo(destino, copia);
+    falar("copia:", ler_arquivo_verso(copia));
+    remover_arquivo(destino);
+    remover_arquivo(copia);
+    falar("removido:", caminho_existe(destino));
+
+    falar(formatar_tempo_unix(0));
+    falar(formatar_tempo_unix(1752249600));
+
+    nova gerador: bombom = aleatorio_criar(42);
+    falar(aleatorio_proximo(gerador));
+    falar(aleatorio_entre(gerador, 1, 6));
+    falar(aleatorio_entre(gerador, 10, 10));
+    mimo 0;
+}
