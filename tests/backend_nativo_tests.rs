@@ -41,6 +41,61 @@ fn emissao_padrao_nao_inclui_init_do_runtime() {
     assert!(!padrao.contains("pinker_rt_iniciar"), "{}", padrao);
 }
 
+#[test]
+fn abi_completa_oito_args_usa_seis_registradores_e_pilha() {
+    let code = include_str!("../examples/fase213_abi_completa_valido.pink");
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    // 6 registradores de argumento em uso no spill do callee.
+    for reg in ["%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"] {
+        assert!(asm.contains(reg), "faltou {} em:\n{}", reg, asm);
+    }
+    // 7º e 8º argumentos: dois pushes no caller, dois loads de 16/24(%rbp)
+    // no callee e limpeza de 16 bytes após o call.
+    assert!(asm.matches("pushq %r10").count() >= 2, "{}", asm);
+    assert!(asm.contains("movq 16(%rbp), %r10"), "{}", asm);
+    assert!(asm.contains("movq 24(%rbp), %r10"), "{}", asm);
+    assert!(asm.contains("addq $16, %rsp"), "{}", asm);
+}
+
+#[test]
+fn abi_completa_sete_args_aplica_padding_de_alinhamento() {
+    let code = r#"
+        pacote main;
+        carinho soma7(a: bombom, b: bombom, c: bombom, d: bombom, e: bombom, f: bombom, g: bombom) -> bombom {
+            mimo a + b + c + d + e + f + g;
+        }
+        carinho principal() -> bombom {
+            mimo soma7(1, 2, 3, 4, 5, 6, 7);
+        }
+    "#;
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    // 1 argumento de pilha (ímpar) exige padding de 8 bytes antes do push e
+    // limpeza total de 16 bytes após o call.
+    assert!(asm.contains("subq $8, %rsp"), "{}", asm);
+    assert!(asm.contains("addq $16, %rsp"), "{}", asm);
+}
+
+#[test]
+fn abi_completa_aceita_recursao_direta() {
+    let code = r#"
+        pacote main;
+        carinho fatorial(n: bombom) -> bombom {
+            talvez n < 2 {
+                mimo 1;
+            }
+            mimo n * fatorial(n - 1);
+        }
+        carinho principal() -> bombom {
+            mimo fatorial(5);
+        }
+    "#;
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    assert!(asm.contains("call fatorial"), "{}", asm);
+}
+
 fn detect_cc_driver() -> Option<String> {
     ["cc", "gcc", "clang"].iter().find_map(|candidate| {
         let probe = Command::new(candidate).arg("--version").output().ok()?;
@@ -101,6 +156,58 @@ fn build_nativo_produz_executavel_real_com_runtime() {
         run.status.code(),
         Some(42),
         "esperava código 42 do executável nativo"
+    );
+
+    let _ = fs::remove_dir_all(&out_dir);
+}
+
+#[test]
+fn abi_completa_executa_nativo_com_oito_args_aninhamento_e_recursao() {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return;
+    }
+    if detect_cc_driver().is_none() {
+        return;
+    }
+    let pink = env!("CARGO_BIN_EXE_pink");
+    let runtime_lib = std::path::Path::new(pink)
+        .parent()
+        .expect("diretório do pink")
+        .join("libpinker_rt.a");
+    if !runtime_lib.is_file() {
+        eprintln!("libpinker_rt.a ausente; pulando teste executável da ABI");
+        return;
+    }
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("tempo do sistema")
+        .as_nanos();
+    let out_dir = std::env::temp_dir().join(format!("pinker_fase213_{}", nanos));
+
+    let build = Command::new(pink)
+        .arg("build")
+        .arg("--nativo")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .arg("examples/fase213_abi_completa_valido.pink")
+        .env("PINKER_RT_LIB", &runtime_lib)
+        .output()
+        .expect("falha ao invocar pink build");
+    assert!(
+        build.status.success(),
+        "build nativo falhou: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let bin_path = out_dir.join("fase213_abi_completa_valido");
+    let run = Command::new(bin_path)
+        .output()
+        .expect("falha ao executar binário nativo");
+    assert_eq!(
+        run.status.code(),
+        Some(42),
+        "esperava soma8(1..7, zero()+8) + fatorial(3) = 42 no executável nativo"
     );
 
     let _ = fs::remove_dir_all(&out_dir);

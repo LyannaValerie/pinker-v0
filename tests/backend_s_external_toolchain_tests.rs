@@ -1722,13 +1722,13 @@ fn asm_s_external_subset_fluxo_real_fase115_abi_minima_mais_larga_camada1() {
 
 #[test]
 fn asm_s_external_subset_falha_clara_fora_do_subset() {
-    let code =
-        include_str!("../examples/fase115_abi_minima_mais_larga_camada1_quatro_args_invalido.pink");
+    // Fase 213 (B2) absorveu o caso de 4+ argumentos na ABI completa; a
+    // fronteira de recusa clara passa a ser exercida por retorno não-bombom,
+    // que segue fora do recorte externo atual.
+    let code = "pacote main;\n\ncarinho texto() -> verso {\n    mimo \"fora\";\n}\n\ncarinho principal() -> bombom {\n    nova t: verso = texto();\n    mimo 0;\n}\n";
 
     let err = render_backend_s_external_subset(code).unwrap_err();
-    assert!(err
-        .to_string()
-        .contains("subset externo montável (Fase 115)"));
+    assert!(err.to_string().contains("subset externo montável"));
 }
 
 #[test]
@@ -1743,14 +1743,14 @@ fn asm_s_external_subset_falha_parametro_nao_bombom() {
 }
 
 #[test]
-fn asm_s_external_subset_fase115_preserva_recusa_explicita_quatro_parametros_por_funcao() {
+fn asm_s_external_subset_fase213_aceita_quatro_parametros_com_abi_completa() {
+    // Antes da Fase 213 (B2), 4+ parâmetros eram recusados; a ABI SysV
+    // completa passa a aceitar N parâmetros (6 registradores + pilha).
     let code =
         include_str!("../examples/fase115_abi_minima_mais_larga_camada1_quatro_args_invalido.pink");
 
-    let err = render_backend_s_external_subset(code).unwrap_err();
-    assert!(err.to_string().contains(
-        "subset externo montável (Fase 115) recusa explicitamente 4+ parâmetros por função",
-    ));
+    let asm = render_backend_s_external_subset(code).unwrap();
+    assert!(asm.contains("%rcx"), "{}", asm);
 }
 
 #[test]
@@ -1794,13 +1794,13 @@ fn asm_s_external_subset_fase84_matriz_fronteira_auditavel() {
         assert!(asm.contains("# pinker v0 external toolchain subset (fase 135"));
     }
 
-    let caso_rejeitado_tres_params = include_str!(
+    // Fase 213 (B2): o caso de 4 parâmetros passou de fronteira rejeitada a
+    // garantido pela ABI SysV completa (4º argumento em %rcx).
+    let caso_quatro_params = include_str!(
         "../examples/fase115_abi_minima_mais_larga_camada1_quatro_args_invalido.pink",
     );
-    let err_tres_params = render_backend_s_external_subset(caso_rejeitado_tres_params).unwrap_err();
-    assert!(err_tres_params.to_string().contains(
-        "subset externo montável (Fase 115) recusa explicitamente 4+ parâmetros por função"
-    ));
+    let asm_quatro_params = render_backend_s_external_subset(caso_quatro_params).unwrap();
+    assert!(asm_quatro_params.contains("%rcx"));
 
     let caso_branch_valido =
         include_str!("../examples/fase112_branch_condicional_minimo_valido.pink");

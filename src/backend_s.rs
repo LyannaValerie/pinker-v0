@@ -129,7 +129,10 @@ enum ExternalCallConvTerminator {
 }
 
 const REG_RET: &str = "%rax";
-const ARG_REGS: [&str; 3] = ["%rdi", "%rsi", "%rdx"];
+// ABI SysV x86-64 completa (Fase 213/B2): 6 registradores de argumento;
+// argumentos adicionais viajam pela pilha (7º em diante), com padding para
+// manter o alinhamento de 16 bytes exigido no `call`.
+const ARG_REGS: [&str; 6] = ["%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"];
 const REG_TMP: &str = "%r10";
 
 fn extract_external_callconv_program(
@@ -182,11 +185,6 @@ fn extract_external_callconv_program(
         if function.name == "principal" && !function.params.is_empty() {
             return Err(err(
                 "subset externo montável (Fase 84) exige `principal()` sem parâmetros",
-            ));
-        }
-        if function.params.len() > ARG_REGS.len() {
-            return Err(err(
-                "subset externo montável (Fase 115) recusa explicitamente 4+ parâmetros por função; limite garantido: até 3 parâmetros `bombom`",
             ));
         }
         for param in &function.params {
@@ -498,22 +496,26 @@ fn extract_external_callconv_program(
                                 "subset externo montável (Fase 84) encontrou call para função inexistente",
                             ));
                         }
-                        if callee == &function.name {
-                            return Err(err(
-                                "subset externo montável (Fase 84) não suporta recursão externa",
-                            ));
-                        }
-                        if args.len() > ARG_REGS.len() {
-                            return Err(err(
-                                "subset externo montável (Fase 115) recusa explicitamente call com 4+ argumentos; limite garantido: até 3 argumentos `bombom`",
-                            ));
-                        }
-                        for (idx, arg) in args.iter().enumerate() {
+                        for arg in args.iter() {
                             register_rodata_strings_for_operand(
                                 arg,
                                 &mut rodata_string_labels,
                                 &mut rodata_strings,
                             );
+                        }
+                        // ABI SysV completa (Fase 213/B2): 7º argumento em
+                        // diante viaja pela pilha, empilhado do último para o
+                        // primeiro; padding mantém o alinhamento de 16 no call.
+                        let stack_args = args.len().saturating_sub(ARG_REGS.len());
+                        let pad = stack_args % 2;
+                        if pad == 1 {
+                            body.push("subq $8, %rsp".to_string());
+                        }
+                        for arg in args.iter().skip(ARG_REGS.len()).rev() {
+                            body.extend(load_operand("%r10", arg, &slot_offsets, &rodata_strings)?);
+                            body.push("pushq %r10".to_string());
+                        }
+                        for (idx, arg) in args.iter().take(ARG_REGS.len()).enumerate() {
                             body.extend(load_operand(
                                 ARG_REGS[idx],
                                 arg,
@@ -522,6 +524,9 @@ fn extract_external_callconv_program(
                             )?);
                         }
                         body.push(format!("call {}", callee));
+                        if stack_args > 0 {
+                            body.push(format!("addq ${}, %rsp", 8 * (stack_args + pad)));
+                        }
                         body.push(format!(
                             "movq {}, -{}(%rbp)",
                             REG_RET,
@@ -530,7 +535,7 @@ fn extract_external_callconv_program(
                     }
                     _ => {
                         return Err(err(
-                            "subset externo montável (Fase 135) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<`, `>`, `<=` e `>=`), `virar` mínimo explícito (`u32` slot -> `u64` e `u64` slot -> `u32`), call direta com até 3 argumentos (`bombom`/`u32`/`u64`/`verso` opaco/`seta<T>`), `deref_store` mínimo em `bombom`/`u32`/`u64` (incluindo escrita heterogênea de campo de `ninho` via offset explícito), `deref_load` mínimo em `bombom`/`u32`/`u64` (incluindo campo heterogêneo de `ninho` via offset explícito), literal `verso` estático mínimo em `.rodata` carregado por endereço e tráfego opaco por slot/parâmetro, composição heterogênea mínima auditável no mesmo `ninho` (`u32` + `u64` por offset) e load/store em slots de frame, preservando recorte conservador de `quebrar`/`continuar` em `sempre que` via saltos já materializados (até três níveis de laço aninhado)",
+                            "subset externo montável (Fase 135) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<`, `>`, `<=` e `>=`), `virar` mínimo explícito (`u32` slot -> `u64` e `u64` slot -> `u32`), call direta com N argumentos (`bombom`/`u32`/`u64`/`verso` opaco/`seta<T>`; ABI SysV completa, Fase 213/B2), `deref_store` mínimo em `bombom`/`u32`/`u64` (incluindo escrita heterogênea de campo de `ninho` via offset explícito), `deref_load` mínimo em `bombom`/`u32`/`u64` (incluindo campo heterogêneo de `ninho` via offset explícito), literal `verso` estático mínimo em `.rodata` carregado por endereço e tráfego opaco por slot/parâmetro, composição heterogênea mínima auditável no mesmo `ninho` (`u32` + `u64` por offset) e load/store em slots de frame, preservando recorte conservador de `quebrar`/`continuar` em `sempre que` via saltos já materializados (até três níveis de laço aninhado)",
                         ));
                     }
                 }
@@ -566,7 +571,7 @@ fn render_external_x86_64_linux_callconv_impl(
     line(
         &mut out,
         0,
-        "# pinker v0 external toolchain subset (fase 135, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + quebrar/continuar camada 3 conservadora (composicao minima ate tres niveis de laço) + globais estaticas minimas em .rodata + abi minima mais larga ate 3 args + composto minimo com deref_store/deref_load heterogeneo camada 4 (composicao `u32`+`u64` no mesmo ninho por offset) + u32/u64 minimos em params/locals + comparacao `>=` minima (camada 4 conservadora de 10.2) + `virar` minimo bidirecional por slot (`u32->u64` e `u64->u32`) + `verso` minimo condicional (literal estatico em .rodata, carga de endereco e trafego opaco em slot/parametro))",
+        "# pinker v0 external toolchain subset (fase 135, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + quebrar/continuar camada 3 conservadora (composicao minima ate tres niveis de laço) + globais estaticas minimas em .rodata + composto minimo com deref_store/deref_load heterogeneo camada 4 (composicao `u32`+`u64` no mesmo ninho por offset) + u32/u64 minimos em params/locals + comparacao `>=` minima (camada 4 conservadora de 10.2) + `virar` minimo bidirecional por slot (`u32->u64` e `u64->u32`) + `verso` minimo condicional (literal estatico em .rodata, carga de endereco e trafego opaco em slot/parametro) + abi sysv completa fase 213/B2 (6 regs + args de pilha com padding de alinhamento, N parametros, recursao e chamadas aninhadas))",
     );
     if !program.rodata_globals.is_empty() || !program.rodata_strings.is_empty() {
         line(&mut out, 0, ".section .rodata");
@@ -605,14 +610,26 @@ fn render_external_x86_64_linux_callconv_impl(
             line(&mut out, 1, &format!("subq ${}, %rsp", function.stack_size));
         }
         for (idx, param) in function.params.iter().enumerate() {
-            line(
-                &mut out,
-                1,
-                &format!(
-                    "movq {}, -{}(%rbp)",
-                    ARG_REGS[idx], function.slot_offsets[param]
-                ),
-            );
+            if idx < ARG_REGS.len() {
+                line(
+                    &mut out,
+                    1,
+                    &format!(
+                        "movq {}, -{}(%rbp)",
+                        ARG_REGS[idx], function.slot_offsets[param]
+                    ),
+                );
+            } else {
+                // Parâmetros 7+ chegam pela pilha do chamador: retorno em
+                // 8(%rbp), primeiro argumento de pilha em 16(%rbp).
+                let incoming = 16 + 8 * (idx - ARG_REGS.len());
+                line(&mut out, 1, &format!("movq {}(%rbp), %r10", incoming));
+                line(
+                    &mut out,
+                    1,
+                    &format!("movq %r10, -{}(%rbp)", function.slot_offsets[param]),
+                );
+            }
         }
         if function.stack_size > 0 {
             line(
