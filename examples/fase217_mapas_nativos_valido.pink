@@ -1,0 +1,28 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova notas: mapa<verso,bombom> = mapa_verso_bombom_criar();
+    mapa_verso_bombom_definir(notas, "rosa", 10);
+    mapa_verso_bombom_definir(notas, "pinker", 9);
+    mapa_verso_bombom_definir(notas, "rosa", 8);
+    falar("tamanho:", mapa_verso_bombom_tamanho(notas));
+    falar("rosa:", mapa_verso_bombom_obter(notas, "rosa"));
+    talvez mapa_verso_bombom_tem(notas, "pinker") {
+        falar("tem pinker");
+    }
+    mapa_verso_bombom_remover(notas, "pinker");
+    falar("apos remover:", mapa_verso_bombom_tamanho(notas));
+
+    nova nomes: mapa<bombom,verso> = mapa_bombom_verso_criar();
+    mapa_bombom_verso_definir(nomes, 1, "um");
+    para cada chave em nomes {
+        falar(chave, mapa_bombom_verso_obter(nomes, chave));
+    }
+
+    nova pares: mapa<bombom,bombom> = mapa_bombom_bombom_criar();
+    mapa_bombom_bombom_definir(pares, 21, 42);
+    nova traducoes: mapa<verso,verso> = mapa_verso_verso_criar();
+    mapa_verso_verso_definir(traducoes, "flor", "rosa");
+    falar(mapa_verso_verso_obter(traducoes, "flor"));
+    mimo mapa_bombom_bombom_obter(pares, 21) - 42;
+}

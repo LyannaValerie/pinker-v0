@@ -350,6 +350,229 @@ pub unsafe extern "C" fn pinker_lista_inserir(l: *mut u8, indice: u64, valor: u6
     dados.add(indice as usize).write(valor);
 }
 
+// ---------------------------------------------------------------------------
+// Mapas nativos (Fase 217/B6)
+//
+// Um mapa é um ponteiro para o header `[len: u64][cap: u64][chaves: *mut u64]
+// [valores: *mut u64][chave_e_verso: u64]`. Chaves e valores são palavras de
+// 8 bytes; chaves `verso` (ponteiros) comparam por CONTEÚDO via
+// `pinker_verso_igual`, chaves `bombom` comparam por valor. A ordem de
+// inserção é preservada (inclusive na iteração e após remoções), o que torna
+// a iteração nativa determinística.
+// ---------------------------------------------------------------------------
+
+const MAPA_CAP_INICIAL: u64 = 8;
+
+unsafe fn mapa_len(m: *mut u8) -> u64 {
+    (m as *const u64).read()
+}
+
+unsafe fn mapa_cap(m: *mut u8) -> u64 {
+    (m as *const u64).add(1).read()
+}
+
+unsafe fn mapa_chaves(m: *mut u8) -> *mut u64 {
+    (m as *const usize).add(2).read() as *mut u64
+}
+
+unsafe fn mapa_valores(m: *mut u8) -> *mut u64 {
+    (m as *const usize).add(3).read() as *mut u64
+}
+
+unsafe fn mapa_chave_e_verso(m: *mut u8) -> bool {
+    (m as *const u64).add(4).read() != 0
+}
+
+unsafe fn mapa_chave_igual(m: *mut u8, a: u64, b: u64) -> bool {
+    if mapa_chave_e_verso(m) {
+        pinker_verso_igual(a as *const u8, b as *const u8) != 0
+    } else {
+        a == b
+    }
+}
+
+unsafe fn mapa_buscar(m: *mut u8, chave: u64) -> Option<u64> {
+    let len = mapa_len(m);
+    let chaves = mapa_chaves(m);
+    let mut i = 0u64;
+    while i < len {
+        if mapa_chave_igual(m, chaves.add(i as usize).read(), chave) {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+fn mapa_criar_com_tipo(chave_e_verso: u64) -> *mut u8 {
+    let header = pinker_alocar(40);
+    if header.is_null() {
+        return header;
+    }
+    let chaves = pinker_alocar(MAPA_CAP_INICIAL * 8);
+    let valores = pinker_alocar(MAPA_CAP_INICIAL * 8);
+    if chaves.is_null() || valores.is_null() {
+        return std::ptr::null_mut();
+    }
+    unsafe {
+        (header as *mut u64).write(0);
+        (header as *mut u64).add(1).write(MAPA_CAP_INICIAL);
+        (header as *mut usize).add(2).write(chaves as usize);
+        (header as *mut usize).add(3).write(valores as usize);
+        (header as *mut u64).add(4).write(chave_e_verso);
+    }
+    header
+}
+
+/// Cria um mapa com chave `bombom` (comparação por valor).
+#[no_mangle]
+pub extern "C" fn pinker_mapa_criar_chave_bombom() -> *mut u8 {
+    mapa_criar_com_tipo(0)
+}
+
+/// Cria um mapa com chave `verso` (comparação por conteúdo).
+#[no_mangle]
+pub extern "C" fn pinker_mapa_criar_chave_verso() -> *mut u8 {
+    mapa_criar_com_tipo(1)
+}
+
+/// Define/substitui o valor de uma chave, preservando a ordem de inserção.
+///
+/// # Safety
+/// `m` deve ser um mapa criado por `pinker_mapa_criar_*`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_mapa_definir(m: *mut u8, chave: u64, valor: u64) {
+    if let Some(indice) = mapa_buscar(m, chave) {
+        mapa_valores(m).add(indice as usize).write(valor);
+        return;
+    }
+    let len = mapa_len(m);
+    let cap = mapa_cap(m);
+    if len == cap {
+        let nova_cap = cap * 2;
+        let novas_chaves = pinker_alocar(nova_cap * 8);
+        let novos_valores = pinker_alocar(nova_cap * 8);
+        if novas_chaves.is_null() || novos_valores.is_null() {
+            erro_fatal("sem memória ao crescer mapa");
+        }
+        std::ptr::copy_nonoverlapping(
+            mapa_chaves(m) as *const u8,
+            novas_chaves,
+            (len * 8) as usize,
+        );
+        std::ptr::copy_nonoverlapping(
+            mapa_valores(m) as *const u8,
+            novos_valores,
+            (len * 8) as usize,
+        );
+        pinker_liberar(mapa_chaves(m) as *mut u8);
+        pinker_liberar(mapa_valores(m) as *mut u8);
+        (m as *mut u64).add(1).write(nova_cap);
+        (m as *mut usize).add(2).write(novas_chaves as usize);
+        (m as *mut usize).add(3).write(novos_valores as usize);
+    }
+    mapa_chaves(m).add(len as usize).write(chave);
+    mapa_valores(m).add(len as usize).write(valor);
+    (m as *mut u64).write(len + 1);
+}
+
+/// Valor de uma chave; aborta com erro claro se a chave estiver ausente,
+/// espelhando o erro de runtime do interpretador.
+///
+/// # Safety
+/// `m` deve ser um mapa criado por `pinker_mapa_criar_*`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_mapa_obter(m: *mut u8, chave: u64) -> u64 {
+    let Some(indice) = mapa_buscar(m, chave) else {
+        erro_fatal("chave ausente em leitura de mapa");
+    };
+    mapa_valores(m).add(indice as usize).read()
+}
+
+/// 1 se a chave existe, 0 caso contrário.
+///
+/// # Safety
+/// `m` deve ser um mapa criado por `pinker_mapa_criar_*`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_mapa_tem(m: *mut u8, chave: u64) -> u64 {
+    u64::from(mapa_buscar(m, chave).is_some())
+}
+
+/// Quantidade de pares do mapa.
+///
+/// # Safety
+/// `m` deve ser um mapa criado por `pinker_mapa_criar_*`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_mapa_tamanho(m: *mut u8) -> u64 {
+    mapa_len(m)
+}
+
+/// Remove uma chave se existir (ausência é silenciosa, como no interpretador),
+/// deslocando o sufixo para preservar a ordem de inserção.
+///
+/// # Safety
+/// `m` deve ser um mapa criado por `pinker_mapa_criar_*`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_mapa_remover(m: *mut u8, chave: u64) {
+    let Some(indice) = mapa_buscar(m, chave) else {
+        return;
+    };
+    let len = mapa_len(m);
+    let chaves = mapa_chaves(m);
+    let valores = mapa_valores(m);
+    let mut i = indice;
+    while i + 1 < len {
+        chaves
+            .add(i as usize)
+            .write(chaves.add((i + 1) as usize).read());
+        valores
+            .add(i as usize)
+            .write(valores.add((i + 1) as usize).read());
+        i += 1;
+    }
+    (m as *mut u64).write(len - 1);
+}
+
+/// Cria um cursor de iteração com snapshot das chaves (mesma semântica do
+/// interpretador: mutações após a criação do cursor não afetam a iteração).
+/// Layout do cursor: `[restante... na verdade: [len: u64][proximo: u64][chaves...]]`.
+///
+/// # Safety
+/// `m` deve ser um mapa criado por `pinker_mapa_criar_*`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_mapa_iterador_criar(m: *mut u8) -> *mut u8 {
+    let len = mapa_len(m);
+    let cursor = pinker_alocar(16 + len * 8);
+    if cursor.is_null() {
+        erro_fatal("sem memória ao criar cursor de mapa");
+    }
+    (cursor as *mut u64).write(len);
+    (cursor as *mut u64).add(1).write(0);
+    std::ptr::copy_nonoverlapping(
+        mapa_chaves(m) as *const u8,
+        cursor.add(16),
+        (len * 8) as usize,
+    );
+    cursor
+}
+
+/// Próxima chave do cursor; aborta se o cursor estiver esgotado (o desugaring
+/// de `para cada` nunca avança além do tamanho do snapshot).
+///
+/// # Safety
+/// `cursor` deve ter sido criado por `pinker_mapa_iterador_criar`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_mapa_iterador_proxima(cursor: *mut u8) -> u64 {
+    let len = (cursor as *const u64).read();
+    let proximo = (cursor as *const u64).add(1).read();
+    if proximo >= len {
+        erro_fatal("cursor de mapa esgotado");
+    }
+    let chave = (cursor.add(16) as *const u64).add(proximo as usize).read();
+    (cursor as *mut u64).add(1).write(proximo + 1);
+    chave
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -521,6 +744,86 @@ mod tests {
             assert_eq!(pinker_lista_tamanho(l), 1);
             assert_eq!(pinker_lista_tirar_ultimo(l), 10);
             assert_eq!(pinker_lista_tamanho(l), 0);
+        }
+    }
+
+    #[test]
+    fn mapa_chave_bombom_definir_obter_tem_tamanho() {
+        let m = pinker_mapa_criar_chave_bombom();
+        unsafe {
+            pinker_mapa_definir(m, 1, 10);
+            pinker_mapa_definir(m, 2, 20);
+            pinker_mapa_definir(m, 1, 11);
+            assert_eq!(pinker_mapa_tamanho(m), 2);
+            assert_eq!(pinker_mapa_obter(m, 1), 11);
+            assert_eq!(pinker_mapa_obter(m, 2), 20);
+            assert_eq!(pinker_mapa_tem(m, 2), 1);
+            assert_eq!(pinker_mapa_tem(m, 3), 0);
+        }
+    }
+
+    #[test]
+    fn mapa_chave_verso_compara_por_conteudo() {
+        let m = pinker_mapa_criar_chave_verso();
+        let chave_a = verso_de("rosa");
+        let chave_a_clone = verso_de("rosa");
+        let chave_b = verso_de("pinker");
+        unsafe {
+            pinker_mapa_definir(m, chave_a.as_ptr() as u64, 7);
+            // Ponteiro diferente, mesmo conteúdo: precisa achar a entrada.
+            assert_eq!(pinker_mapa_tem(m, chave_a_clone.as_ptr() as u64), 1);
+            assert_eq!(pinker_mapa_obter(m, chave_a_clone.as_ptr() as u64), 7);
+            assert_eq!(pinker_mapa_tem(m, chave_b.as_ptr() as u64), 0);
+            pinker_mapa_definir(m, chave_a_clone.as_ptr() as u64, 8);
+            assert_eq!(pinker_mapa_tamanho(m), 1);
+            assert_eq!(pinker_mapa_obter(m, chave_a.as_ptr() as u64), 8);
+        }
+    }
+
+    #[test]
+    fn mapa_remover_preserva_ordem_e_ausencia_e_silenciosa() {
+        let m = pinker_mapa_criar_chave_bombom();
+        unsafe {
+            pinker_mapa_definir(m, 1, 10);
+            pinker_mapa_definir(m, 2, 20);
+            pinker_mapa_definir(m, 3, 30);
+            pinker_mapa_remover(m, 2);
+            assert_eq!(pinker_mapa_tamanho(m), 2);
+            assert_eq!(pinker_mapa_tem(m, 2), 0);
+            pinker_mapa_remover(m, 99);
+            assert_eq!(pinker_mapa_tamanho(m), 2);
+            let cursor = pinker_mapa_iterador_criar(m);
+            assert_eq!(pinker_mapa_iterador_proxima(cursor), 1);
+            assert_eq!(pinker_mapa_iterador_proxima(cursor), 3);
+        }
+    }
+
+    #[test]
+    fn mapa_cresce_alem_da_capacidade_inicial() {
+        let m = pinker_mapa_criar_chave_bombom();
+        unsafe {
+            for i in 0..50 {
+                pinker_mapa_definir(m, i, i * 2);
+            }
+            assert_eq!(pinker_mapa_tamanho(m), 50);
+            for i in 0..50 {
+                assert_eq!(pinker_mapa_obter(m, i), i * 2);
+            }
+        }
+    }
+
+    #[test]
+    fn mapa_iterador_usa_snapshot_das_chaves() {
+        let m = pinker_mapa_criar_chave_bombom();
+        unsafe {
+            pinker_mapa_definir(m, 1, 10);
+            pinker_mapa_definir(m, 2, 20);
+            let cursor = pinker_mapa_iterador_criar(m);
+            // Mutação após o cursor não afeta o snapshot.
+            pinker_mapa_definir(m, 3, 30);
+            pinker_mapa_remover(m, 1);
+            assert_eq!(pinker_mapa_iterador_proxima(cursor), 1);
+            assert_eq!(pinker_mapa_iterador_proxima(cursor), 2);
         }
     }
 }

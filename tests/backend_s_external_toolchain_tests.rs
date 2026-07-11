@@ -1726,9 +1726,9 @@ fn asm_s_external_subset_fluxo_real_fase115_abi_minima_mais_larga_camada1() {
 
 #[test]
 fn asm_s_external_subset_falha_clara_fora_do_subset() {
-    // Fase 216 (B5) absorveu listas; a fronteira de recusa clara passa a ser
-    // exercida por locals de mapa, que aguardam B6.
-    let code = "pacote main;\n\ncarinho principal() -> bombom {\n    nova mapa_notas: mapa<verso,bombom> = mapa_verso_bombom_criar();\n    mapa_verso_bombom_definir(mapa_notas, \"rosa\", 10);\n    mimo mapa_verso_bombom_obter(mapa_notas, \"rosa\");\n}\n";
+    // Fase 217 (B6) absorveu mapas; a fronteira de recusa clara passa a ser
+    // exercida por leques com carga, cujo runtime aguarda B7.
+    let code = "pacote main;\n\nleque Token { Numero(bombom), Fim }\n\ncarinho principal() -> bombom {\n    nova t: Token = Token.Numero(42);\n    nova muda r: bombom = 0;\n    encaixe t {\n        caso Token.Numero(n) { r = n; }\n        caso Token.Fim { r = 0; }\n    }\n    mimo r;\n}\n";
 
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains("subset externo montável"));
