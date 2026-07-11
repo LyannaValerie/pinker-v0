@@ -491,6 +491,50 @@ fn extract_external_callconv_program(
                                 "subset externo montável (Fase 84) só aceita call com retorno `bombom`",
                             ));
                         }
+                        // Ternário (Fase 214/B3): `__ternario(cond, a, b)` é
+                        // pseudo-função do pipeline; nativo vira seleção por
+                        // cmov, sem call real (ambos os lados já avaliados,
+                        // mesma semântica eager do interpretador).
+                        if callee == "__ternario" {
+                            if args.len() != 3 {
+                                return Err(err(
+                                    "subset externo montável (Fase 214) exige `__ternario` com 3 argumentos",
+                                ));
+                            }
+                            for arg in args.iter() {
+                                register_rodata_strings_for_operand(
+                                    arg,
+                                    &mut rodata_string_labels,
+                                    &mut rodata_strings,
+                                );
+                            }
+                            body.extend(load_operand(
+                                REG_RET,
+                                &args[1],
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                            body.extend(load_operand(
+                                "%r10",
+                                &args[2],
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                            body.extend(load_operand(
+                                "%r11",
+                                &args[0],
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                            body.push("cmpq $0, %r11".to_string());
+                            body.push(format!("cmoveq %r10, {}", REG_RET));
+                            body.push(format!(
+                                "movq {}, -{}(%rbp)",
+                                REG_RET,
+                                slot_offsets[&temp_key(*dest)]
+                            ));
+                            continue;
+                        }
                         if !selected.functions.iter().any(|f| &f.name == callee) {
                             return Err(err(
                                 "subset externo montável (Fase 84) encontrou call para função inexistente",
