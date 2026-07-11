@@ -100,6 +100,113 @@ pub unsafe extern "C" fn pinker_liberar(ptr: *mut u8) {
     dealloc(base, layout_para(total));
 }
 
+// ---------------------------------------------------------------------------
+// Verso dinâmico (Fase 215/B4)
+//
+// Representação nativa de `verso`: ponteiro único para um bloco
+// `[tamanho_em_bytes: u64][bytes utf-8...]`. Literais estáticos em `.rodata`
+// e versos de heap compartilham o mesmo layout, então todas as operações
+// abaixo funcionam uniformemente sobre qualquer valor de verso.
+// ---------------------------------------------------------------------------
+
+/// Bytes de um verso length-prefixed, sem copiar.
+///
+/// # Safety
+/// `v` deve apontar para um bloco `[u64 len][len bytes]` válido.
+unsafe fn verso_bytes<'a>(v: *const u8) -> &'a [u8] {
+    let len = (v as *const u64).read_unaligned() as usize;
+    std::slice::from_raw_parts(v.add(8), len)
+}
+
+/// Quantidade de caracteres (code points Unicode) de um verso — espelha a
+/// semântica de `tamanho_verso` do interpretador (`chars().count()`).
+///
+/// # Safety
+/// `v` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_tamanho(v: *const u8) -> u64 {
+    verso_bytes(v)
+        .iter()
+        .filter(|byte| (**byte & 0b1100_0000) != 0b1000_0000)
+        .count() as u64
+}
+
+/// Concatena dois versos num novo bloco de heap (layout length-prefixed).
+///
+/// # Safety
+/// `a` e `b` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_juntar(a: *const u8, b: *const u8) -> *mut u8 {
+    let bytes_a = verso_bytes(a);
+    let bytes_b = verso_bytes(b);
+    let total = bytes_a.len() + bytes_b.len();
+    let bloco = pinker_alocar(total as u64 + 8);
+    if bloco.is_null() {
+        return bloco;
+    }
+    (bloco as *mut u64).write_unaligned(total as u64);
+    std::ptr::copy_nonoverlapping(bytes_a.as_ptr(), bloco.add(8), bytes_a.len());
+    std::ptr::copy_nonoverlapping(
+        bytes_b.as_ptr(),
+        bloco.add(8 + bytes_a.len()),
+        bytes_b.len(),
+    );
+    bloco
+}
+
+/// Igualdade byte a byte entre dois versos (1 = iguais, 0 = diferentes) —
+/// espelha `igual_verso` do interpretador.
+///
+/// # Safety
+/// `a` e `b` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_igual(a: *const u8, b: *const u8) -> u64 {
+    u64::from(verso_bytes(a) == verso_bytes(b))
+}
+
+// ---------------------------------------------------------------------------
+// `falar` nativo (Fase 215/B4) — espelha byte a byte as instruções de máquina
+// do interpretador: PrintIntInline, PrintBoolInline, PrintStrValueInline,
+// PrintSpace e PrintNewline. O flush acontece na quebra de linha (LineWriter).
+// ---------------------------------------------------------------------------
+
+/// Imprime um `bombom` decimal sem quebra de linha.
+#[no_mangle]
+pub extern "C" fn pinker_falar_pedaco_bombom(valor: u64) {
+    print!("{}", valor);
+}
+
+/// Imprime uma `logica` como `verdade`/`falso` sem quebra de linha.
+#[no_mangle]
+pub extern "C" fn pinker_falar_pedaco_logica(valor: u64) {
+    print!("{}", if valor != 0 { "verdade" } else { "falso" });
+}
+
+/// Imprime os bytes de um verso sem quebra de linha.
+///
+/// # Safety
+/// `v` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_falar_pedaco_verso(v: *const u8) {
+    use std::io::Write;
+    let bytes = verso_bytes(v);
+    let stdout = std::io::stdout();
+    let mut lock = stdout.lock();
+    let _ = lock.write_all(bytes);
+}
+
+/// Separador entre argumentos de `falar` (espaço simples).
+#[no_mangle]
+pub extern "C" fn pinker_falar_espaco() {
+    print!(" ");
+}
+
+/// Fim de um `falar` (quebra de linha; o LineWriter da std faz o flush).
+#[no_mangle]
+pub extern "C" fn pinker_falar_fim() {
+    println!();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,5 +266,47 @@ mod tests {
     #[test]
     fn versao_da_abi_atual() {
         assert_eq!(pinker_rt_versao(), 1);
+    }
+
+    fn verso_de(texto: &str) -> Vec<u8> {
+        let mut bloco = Vec::with_capacity(texto.len() + 8);
+        bloco.extend_from_slice(&(texto.len() as u64).to_ne_bytes());
+        bloco.extend_from_slice(texto.as_bytes());
+        bloco
+    }
+
+    #[test]
+    fn verso_tamanho_conta_code_points_unicode() {
+        let ascii = verso_de("rosa");
+        let acentuado = verso_de("coração");
+        unsafe {
+            assert_eq!(pinker_verso_tamanho(ascii.as_ptr()), 4);
+            // 7 caracteres, 9 bytes — espelha chars().count() do interpretador.
+            assert_eq!(pinker_verso_tamanho(acentuado.as_ptr()), 7);
+        }
+    }
+
+    #[test]
+    fn verso_juntar_concatena_em_novo_bloco() {
+        let a = verso_de("ola ");
+        let b = verso_de("rosa");
+        unsafe {
+            let junto = pinker_verso_juntar(a.as_ptr(), b.as_ptr());
+            assert!(!junto.is_null());
+            assert_eq!(verso_bytes(junto), b"ola rosa");
+            assert_eq!(pinker_verso_tamanho(junto), 8);
+            pinker_liberar(junto);
+        }
+    }
+
+    #[test]
+    fn verso_igual_compara_conteudo() {
+        let a = verso_de("pinker");
+        let b = verso_de("pinker");
+        let c = verso_de("rosa");
+        unsafe {
+            assert_eq!(pinker_verso_igual(a.as_ptr(), b.as_ptr()), 1);
+            assert_eq!(pinker_verso_igual(a.as_ptr(), c.as_ptr()), 0);
+        }
     }
 }
