@@ -125,6 +125,29 @@ fn controle_fluxo_geral_emite_todos_os_construtos() {
     assert!(!asm.contains("__ternario"), "{}", asm);
 }
 
+#[test]
+fn verso_dinamico_emite_layout_length_prefixed_e_calls_de_runtime() {
+    let code = include_str!("../examples/fase215_verso_dinamico_nativo_valido.pink");
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    // Literais com header de tamanho em bytes.
+    assert!(asm.contains(".quad 4"), "{}", asm); // "rosa"
+    assert!(asm.contains(".ascii \"rosa\""), "{}", asm);
+    // Operações e falar viram chamadas ao runtime nativo.
+    for symbol in [
+        "call pinker_verso_juntar",
+        "call pinker_verso_tamanho",
+        "call pinker_verso_igual",
+        "call pinker_falar_pedaco_verso",
+        "call pinker_falar_pedaco_bombom",
+        "call pinker_falar_pedaco_logica",
+        "call pinker_falar_espaco",
+        "call pinker_falar_fim",
+    ] {
+        assert!(asm.contains(symbol), "faltou {} em:\n{}", symbol, asm);
+    }
+}
+
 fn detect_cc_driver() -> Option<String> {
     ["cc", "gcc", "clang"].iter().find_map(|candidate| {
         let probe = Command::new(candidate).arg("--version").output().ok()?;
@@ -237,6 +260,74 @@ fn abi_completa_executa_nativo_com_oito_args_aninhamento_e_recursao() {
         run.status.code(),
         Some(42),
         "esperava soma8(1..7, zero()+8) + fatorial(3) = 42 no executável nativo"
+    );
+
+    let _ = fs::remove_dir_all(&out_dir);
+}
+
+#[test]
+fn verso_dinamico_nativo_tem_paridade_de_stdout_com_interpretador() {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return;
+    }
+    if detect_cc_driver().is_none() {
+        return;
+    }
+    let pink = env!("CARGO_BIN_EXE_pink");
+    let runtime_lib = std::path::Path::new(pink)
+        .parent()
+        .expect("diretório do pink")
+        .join("libpinker_rt.a");
+    if !runtime_lib.is_file() {
+        eprintln!("libpinker_rt.a ausente; pulando teste de paridade de verso");
+        return;
+    }
+
+    let exemplo = "examples/fase215_verso_dinamico_nativo_valido.pink";
+
+    let interp = Command::new(pink)
+        .arg("--run")
+        .arg(exemplo)
+        .output()
+        .expect("falha ao rodar interpretador");
+    assert!(interp.status.success());
+    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
+    // O CLI imprime o valor de retorno de `principal` como última linha;
+    // o stdout do programa em si é tudo antes dela.
+    let programa_interp = interp_stdout
+        .strip_suffix("0\n")
+        .expect("esperava retorno 0 na última linha do interpretador");
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("tempo do sistema")
+        .as_nanos();
+    let out_dir = std::env::temp_dir().join(format!("pinker_fase215_{}", nanos));
+    let build = Command::new(pink)
+        .arg("build")
+        .arg("--nativo")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .arg(exemplo)
+        .env("PINKER_RT_LIB", &runtime_lib)
+        .output()
+        .expect("falha ao invocar pink build");
+    assert!(
+        build.status.success(),
+        "build nativo falhou: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let bin_path = out_dir.join("fase215_verso_dinamico_nativo_valido");
+    let run = Command::new(bin_path)
+        .output()
+        .expect("falha ao executar binário nativo");
+    assert_eq!(run.status.code(), Some(0));
+    let nativo_stdout = String::from_utf8_lossy(&run.stdout);
+
+    assert_eq!(
+        programa_interp, nativo_stdout,
+        "stdout do programa deve ser idêntico entre interpretador e nativo"
     );
 
     let _ = fs::remove_dir_all(&out_dir);

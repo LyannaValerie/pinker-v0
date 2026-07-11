@@ -284,18 +284,22 @@ fn asm_s_external_subset_fase135_exemplo_versionado_verso_camada1() {
     let out = render_backend_s_external_subset(code).unwrap();
     assert!(out.contains("# pinker v0 external toolchain subset (fase 135"));
     assert!(out.contains(".Lpinker_verso_0:"));
-    assert!(out.contains(".asciz \"fase135\""));
+    // Fase 215 (B4): literais `verso` passaram a ser length-prefixed
+    // (`.quad tamanho` + `.ascii`), o layout único de verso nativo.
+    assert!(out.contains(".quad 7"));
+    assert!(out.contains(".ascii \"fase135\""));
     assert!(out.contains("leaq .Lpinker_verso_0(%rip), %rax"));
     assert!(out.contains("call mede_tag"));
 }
 
 #[test]
-fn asm_s_external_subset_fase135_recusa_retorno_verso_fora_do_recorte() {
+fn asm_s_external_subset_fase215_aceita_retorno_verso_com_layout_length_prefixed() {
+    // Antes da Fase 215 (B4), retorno `verso` era recusado; com o verso
+    // dinâmico nativo, funções que devolvem verso emitem normalmente.
     let code = include_str!("../examples/fase135_verso_camada1_invalido.pink");
-    let err = render_backend_s_external_subset(code).unwrap_err();
-    let msg = err.to_string();
-    assert!(msg.contains("Fase 84"));
-    assert!(msg.contains("retorno `bombom`"));
+    let out = render_backend_s_external_subset(code).unwrap();
+    assert!(out.contains(".quad 4"), "{}", out);
+    assert!(out.contains(".ascii \"fora\""), "{}", out);
 }
 
 #[test]
@@ -1722,10 +1726,9 @@ fn asm_s_external_subset_fluxo_real_fase115_abi_minima_mais_larga_camada1() {
 
 #[test]
 fn asm_s_external_subset_falha_clara_fora_do_subset() {
-    // Fase 213 (B2) absorveu o caso de 4+ argumentos na ABI completa; a
-    // fronteira de recusa clara passa a ser exercida por retorno não-bombom,
-    // que segue fora do recorte externo atual.
-    let code = "pacote main;\n\ncarinho texto() -> verso {\n    mimo \"fora\";\n}\n\ncarinho principal() -> bombom {\n    nova t: verso = texto();\n    mimo 0;\n}\n";
+    // Fase 215 (B4) absorveu retorno `verso`; a fronteira de recusa clara
+    // passa a ser exercida por locals de coleção, que aguardam B5.
+    let code = "pacote main;\n\ncarinho principal() -> bombom {\n    nova numeros: lista<bombom> = lista_bombom_criar();\n    lista_bombom_anexar(numeros, 7);\n    mimo lista_bombom_obter(numeros, 0);\n}\n";
 
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains("subset externo montável"));

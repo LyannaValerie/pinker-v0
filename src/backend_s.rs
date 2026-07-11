@@ -177,9 +177,9 @@ fn extract_external_callconv_program(
     let mut rodata_string_labels = HashMap::new();
     let mut rodata_strings = Vec::new();
     for function in &selected.functions {
-        if function.ret_type != TypeIR::Bombom {
+        if !is_external_ret_type(&function.ret_type) {
             return Err(err(
-                "subset externo montável (Fase 84) exige retorno `bombom` em todas as funções",
+                "subset externo montável (Fase 215) aceita retorno `bombom`, `verso` ou `logica` em funções",
             ));
         }
         if function.name == "principal" && !function.params.is_empty() {
@@ -247,6 +247,13 @@ fn extract_external_callconv_program(
             let terminator = match &block.terminator {
                 SelectedTerminator::Jmp(target) => ExternalCallConvTerminator::Jmp(target.clone()),
                 SelectedTerminator::Ret(Some(value)) => {
+                    // Literais `verso` também podem aparecer direto no retorno
+                    // (`mimo "texto";`); materializa o rodata aqui (Fase 215/B4).
+                    register_rodata_strings_for_operand(
+                        value,
+                        &mut rodata_string_labels,
+                        &mut rodata_strings,
+                    );
                     ExternalCallConvTerminator::Ret(value.clone())
                 }
                 SelectedTerminator::Br {
@@ -486,9 +493,9 @@ fn extract_external_callconv_program(
                         args,
                         ret_type,
                     } => {
-                        if *ret_type != TypeIR::Bombom {
+                        if !is_external_ret_type(ret_type) {
                             return Err(err(
-                                "subset externo montável (Fase 84) só aceita call com retorno `bombom`",
+                                "subset externo montável (Fase 215) só aceita call com retorno `bombom`, `verso` ou `logica`",
                             ));
                         }
                         // Ternário (Fase 214/B3): `__ternario(cond, a, b)` é
@@ -535,11 +542,18 @@ fn extract_external_callconv_program(
                             ));
                             continue;
                         }
-                        if !selected.functions.iter().any(|f| &f.name == callee) {
-                            return Err(err(
-                                "subset externo montável (Fase 84) encontrou call para função inexistente",
-                            ));
-                        }
+                        let call_target = if let Some(runtime_symbol) =
+                            runtime_intrinsic_symbol(callee)
+                        {
+                            runtime_symbol.to_string()
+                        } else {
+                            if !selected.functions.iter().any(|f| &f.name == callee) {
+                                return Err(err(
+                                    "subset externo montável (Fase 84) encontrou call para função inexistente",
+                                ));
+                            }
+                            callee.clone()
+                        };
                         for arg in args.iter() {
                             register_rodata_strings_for_operand(
                                 arg,
@@ -567,7 +581,7 @@ fn extract_external_callconv_program(
                                 &rodata_strings,
                             )?);
                         }
-                        body.push(format!("call {}", callee));
+                        body.push(format!("call {}", call_target));
                         if stack_args > 0 {
                             body.push(format!("addq ${}, %rsp", 8 * (stack_args + pad)));
                         }
@@ -576,6 +590,35 @@ fn extract_external_callconv_program(
                             REG_RET,
                             slot_offsets[&temp_key(*dest)]
                         ));
+                    }
+                    // `falar` nativo (Fase 215/B4): cada pedaço vira uma
+                    // chamada ao runtime conforme o tipo, com separador entre
+                    // pedaços e quebra de linha ao final — espelhando as
+                    // instruções PrintInt/PrintBool/PrintStr do interpretador.
+                    SelectedInstr::Falar { args } => {
+                        for (idx, arg) in args.iter().enumerate() {
+                            if idx > 0 {
+                                body.push("call pinker_falar_espaco".to_string());
+                            }
+                            register_rodata_strings_for_operand(
+                                &arg.value,
+                                &mut rodata_string_labels,
+                                &mut rodata_strings,
+                            );
+                            body.extend(load_operand(
+                                ARG_REGS[0],
+                                &arg.value,
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                            let pedaco = match arg.ty {
+                                TypeIR::Verso => "pinker_falar_pedaco_verso",
+                                TypeIR::Logica => "pinker_falar_pedaco_logica",
+                                _ => "pinker_falar_pedaco_bombom",
+                            };
+                            body.push(format!("call {}", pedaco));
+                        }
+                        body.push("call pinker_falar_fim".to_string());
                     }
                     _ => {
                         return Err(err(
@@ -625,12 +668,18 @@ fn render_external_x86_64_linux_callconv_impl(
             line(&mut out, 1, &format!(".quad {}", global.value));
         }
         for text in &program.rodata_strings {
+            // Layout length-prefixed (Fase 215/B4): todo verso — estático ou
+            // de heap — é um ponteiro para `[u64 tamanho_em_bytes][bytes]`.
+            line(&mut out, 0, ".align 8");
             line(&mut out, 0, &format!("{}:", text.label));
-            line(
-                &mut out,
-                1,
-                &format!(".asciz \"{}\"", escape_gas_string(&text.value)),
-            );
+            line(&mut out, 1, &format!(".quad {}", text.value.len()));
+            if !text.value.is_empty() {
+                line(
+                    &mut out,
+                    1,
+                    &format!(".ascii \"{}\"", escape_gas_string(&text.value)),
+                );
+            }
         }
     }
     line(&mut out, 0, ".text");
@@ -1114,6 +1163,21 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
 
 fn is_external_local_type(ty: &TypeIR) -> bool {
     is_external_param_type(ty)
+}
+
+fn is_external_ret_type(ty: &TypeIR) -> bool {
+    matches!(ty, TypeIR::Bombom | TypeIR::Verso | TypeIR::Logica)
+}
+
+/// Intrínsecas de `verso` com implementação no runtime nativo (Fase 215/B4).
+/// O símbolo devolvido é resolvido no link com `libpinker_rt.a`.
+fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
+    match callee {
+        "juntar_verso" => Some("pinker_verso_juntar"),
+        "tamanho_verso" => Some("pinker_verso_tamanho"),
+        "igual_verso" => Some("pinker_verso_igual"),
+        _ => None,
+    }
 }
 
 fn collect_rodata_string_label(

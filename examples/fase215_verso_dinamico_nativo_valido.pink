@@ -1,0 +1,21 @@
+pacote main;
+
+carinho sauda(nome: verso) -> verso {
+    mimo juntar_verso("ola ", nome);
+}
+
+carinho principal() -> bombom {
+    nova nome: verso = "rosa";
+    nova saudacao: verso = sauda(nome);
+    falar(saudacao);
+
+    nova completo: verso = juntar_verso(saudacao, juntar_verso(" ", "pinker"));
+    falar(completo, tamanho_verso(completo), verdade);
+
+    talvez igual_verso(saudacao, "ola rosa") {
+        falar("igual confere");
+    }
+
+    falar(tamanho_verso("coração"));
+    mimo tamanho_verso(completo) - 15;
+}
