@@ -185,8 +185,10 @@ fn asm_s_external_subset_fase129_recusa_campo_heterogeneo_fora_recorte() {
     let code = include_str!("../examples/fase129_ninho_heterogeneo_camada1_invalido.pink");
     let err = render_backend_s_external_subset(code).unwrap_err();
     let msg = err.to_string();
-    assert!(msg.contains("Fase 135"));
-    assert!(msg.contains("deref_load") || msg.contains("slot") || msg.contains("seta"));
+    // Fase 219 (B8): locals `logica` passaram a ser aceitos, então o exemplo
+    // avança até a recusa real de `deref_load` fora do recorte (Fase 134).
+    assert!(msg.contains("Fase 134"), "{}", msg);
+    assert!(msg.contains("deref_load"), "{}", msg);
 }
 
 #[test]
@@ -194,8 +196,10 @@ fn asm_s_external_subset_fase130_recusa_campo_heterogeneo_fora_recorte() {
     let code = include_str!("../examples/fase130_ninho_heterogeneo_camada2_invalido.pink");
     let err = render_backend_s_external_subset(code).unwrap_err();
     let msg = err.to_string();
-    assert!(msg.contains("Fase 135"));
-    assert!(msg.contains("deref_load") || msg.contains("slot") || msg.contains("seta"));
+    // Fase 219 (B8): locals `logica` passaram a ser aceitos, então o exemplo
+    // avança até a recusa real de `deref_load` fora do recorte (Fase 134).
+    assert!(msg.contains("Fase 134"), "{}", msg);
+    assert!(msg.contains("deref_load"), "{}", msg);
 }
 
 #[test]
@@ -1726,9 +1730,9 @@ fn asm_s_external_subset_fluxo_real_fase115_abi_minima_mais_larga_camada1() {
 
 #[test]
 fn asm_s_external_subset_falha_clara_fora_do_subset() {
-    // Fase 218 (B7) absorveu leques com carga; a fronteira de recusa clara
-    // passa a ser exercida pelas intrínsecas de texto amplas, que aguardam B8.
-    let code = "pacote main;\n\ncarinho principal() -> bombom {\n    nova fonte: verso = \"a b\";\n    nova pedaco: verso = dividir_verso_em(fonte, \" \", 0);\n    mimo tamanho_verso(pedaco);\n}\n";
+    // Fase 219 (B8) absorveu a família texto; a fronteira de recusa clara
+    // passa a ser exercida pelas intrínsecas de arquivo, que aguardam B9.
+    let code = "pacote main;\n\ncarinho principal() -> bombom {\n    nova conteudo: verso = ler_arquivo_verso(\"Cargo.toml\");\n    mimo tamanho_verso(conteudo);\n}\n";
 
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains("subset externo montável"));

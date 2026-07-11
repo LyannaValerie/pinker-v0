@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **218** — Eixo B: leques com carga nativos, AST recursiva nativa (B7) |
+| Fase funcional mais recente | **219** — Eixo B: família texto completa nativa; compilador da Fase 211 executa como ELF (B8) |
 | Rodada documental mais recente | **Doc-41** — formalização dos dois eixos do Bloco 20 (A — linguagem; B — backend nativo) |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -54,16 +54,16 @@
 | 216 | Bloco 20, Eixo B (B5): listas nativas completas — runtime unificado (elementos = palavras de 8 bytes) servindo `lista<bombom>`/`lista<verso>`/`lista<Leque>`, `para cada` nativo, paridade de stdout |
 | 217 | Bloco 20, Eixo B (B6): mapas nativos completos — 4 tipos, chave `verso` por conteúdo, snapshot de iteração, ordem de inserção determinística, paridade de stdout |
 | 218 | Bloco 20, Eixo B (B7): leques com carga nativos — handles `[tag][n][cap][cargas]`, AST recursiva nativa; **avaliador da Fase 210 executa nativo com paridade** |
+| 219 | Bloco 20, Eixo B (B8): família texto completa nativa — 17 operações + `formatar_verso` por aridade + interpolação; **o compilador de brinquedo da Fase 211 executa como ELF com paridade** |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Fase 218 — Eixo B, fase B7: leques com carga nativos**.
-- Runtime: handle = ponteiro para `[tag][n][cap][cargas]`; cargas são palavras de 8 bytes incluindo ponteiros para outros leques (recursão); construção espelha a cadeia `criar_0` + `anexar` da IR; extração verifica consistência de variante.
-- As 6 intrínsecas internas colapsam em 4 funções do runtime (anexar/carga não distinguem bombom/verso).
-- Critério de pronto cumprido: avaliador de AST recursiva da Fase 210 nativo com paridade de stdout; exemplo novo integra `lista<Token>` de cargas mistas + `para cada` + `encaixe`.
-- Constatação: o compilador da Fase 211 depende das intrínsecas de texto → vira o critério de pronto da B8.
-- Cobertura: exemplo fase218; helper reutilizável de paridade; 3 testes de backend + 3 unitários de runtime (22 no total).
+- **Fase 219 — Eixo B, fase B8: família texto completa nativa**.
+- Runtime +17 funções de texto usando exatamente as mesmas chamadas std do interpretador (paridade por construção, incl. Unicode); `formatar_verso` via conversão de args `bombom`→verso na IR + wrappers por aridade (0..8) no runtime.
+- Locals/params `logica` aceitos no subset externo (último bloqueio do compilador de brinquedo).
+- Critério de pronto cumprido: **compilador da Fase 211 nativo com paridade de stdout** (lexer → parser → AST → 42); lexer da Fase 209 idem.
+- Cobertura: exemplo fase219 (17 linhas idênticas); 4 testes de paridade/emissão; 2 testes históricos de ninho atualizados; fronteira movida para arquivo (B9).
 - `make ci` passa integralmente.
 
 ## 4. Limites canônicos ativos
@@ -80,8 +80,8 @@ Histórico completo por fase: `docs/history/phases/`.
 
 ## 5. Próximo passo
 - Estrutura do Bloco 20 formalizada em dois eixos (Doc-41): **Eixo A — linguagem** (faixas) e **Eixo B — backend nativo**. Ordem vigente: A (itens 1–3 ✓) → B (integral, em curso) → A (itens 5 → 6 → 4).
-- Próxima fase: **Eixo B, B8 (prevista Fase 219) — família texto completa nativa** — `dividir_verso_em`/`_contar`, `substituir_verso`, `buscar_verso`, `comeca_com`/`termina_com`, `contem_verso`, `aparar_verso`, `minusculo`/`maiusculo`, `indice_verso`/`_em`, `vazio`/`nao_vazio`, conversões `verso↔bombom`, `formatar_verso` (aridade variável) e interpolação. **Critério de pronto: o compilador de brinquedo da Fase 211 executando nativo com paridade de stdout.**
-- Escada completa do eixo (B1 ✓ ... B7 ✓, B8–B11) em `docs/roadmap/blocos/bloco_20.md`; regra do eixo: sem recorte mínimo, e B11 fecha com suíte de paridade interpretador × nativo no CI.
+- Próxima fase: **Eixo B, B9 (prevista Fase 220) — arquivo + caminho + tempo + acaso nativos** — intrínsecas de arquivo (handle e caminho) e filesystem sobre a std no runtime; `tempo_unix`/`formatar_tempo_unix`; gerador de acaso (mesmo algoritmo do interpretador para paridade de sementes); exemplos de arquivo executando nativos.
+- Escada completa do eixo (B1 ✓ ... B8 ✓, B9–B11) em `docs/roadmap/blocos/bloco_20.md`; regra do eixo: sem recorte mínimo, e B11 fecha com suíte de paridade interpretador × nativo no CI.
 - Após o eixo: itens 5 (**error handling**), 6 (**closures**) e 4 (**traits**) do Eixo A, com a regra nova de que toda fase de linguagem entrega o lowering nativo junto.
 
 ## 6. Arquitetura documental ativa

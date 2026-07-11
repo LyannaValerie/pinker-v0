@@ -165,6 +165,293 @@ pub unsafe extern "C" fn pinker_verso_igual(a: *const u8, b: *const u8) -> u64 {
 }
 
 // ---------------------------------------------------------------------------
+// Família texto completa (Fase 219/B8)
+//
+// Cada função converte os bytes UTF-8 do verso para `&str` e usa exatamente
+// as mesmas chamadas da std que o interpretador usa (`trim`, `to_lowercase`,
+// `split`, `replace`, `find`, `chars().nth`, `parse`, ...), garantindo
+// paridade de comportamento por construção.
+// ---------------------------------------------------------------------------
+
+/// Visão `&str` de um verso (as fontes Pinker são UTF-8 válido).
+///
+/// # Safety
+/// `v` deve apontar para um bloco de verso válido com bytes UTF-8.
+unsafe fn verso_str<'a>(v: *const u8) -> &'a str {
+    std::str::from_utf8_unchecked(verso_bytes(v))
+}
+
+/// Aloca um novo verso length-prefixed a partir de um `&str`.
+fn verso_alocar(texto: &str) -> *mut u8 {
+    let bytes = texto.as_bytes();
+    let bloco = pinker_alocar(bytes.len() as u64 + 8);
+    if bloco.is_null() {
+        erro_fatal("sem memória ao alocar verso");
+    }
+    unsafe {
+        (bloco as *mut u64).write_unaligned(bytes.len() as u64);
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), bloco.add(8), bytes.len());
+    }
+    bloco
+}
+
+/// # Safety
+/// `v` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_indice(v: *const u8, indice: u64) -> *mut u8 {
+    let Some(ch) = verso_str(v).chars().nth(indice as usize) else {
+        erro_fatal("índice fora da faixa em 'indice_verso'");
+    };
+    verso_alocar(&ch.to_string())
+}
+
+/// # Safety
+/// `texto` e `trecho` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_contem(texto: *const u8, trecho: *const u8) -> u64 {
+    u64::from(verso_str(texto).contains(verso_str(trecho)))
+}
+
+/// # Safety
+/// `texto` e `prefixo` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_comeca_com(texto: *const u8, prefixo: *const u8) -> u64 {
+    u64::from(verso_str(texto).starts_with(verso_str(prefixo)))
+}
+
+/// # Safety
+/// `texto` e `sufixo` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_termina_com(texto: *const u8, sufixo: *const u8) -> u64 {
+    u64::from(verso_str(texto).ends_with(verso_str(sufixo)))
+}
+
+/// # Safety
+/// `texto` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_vazio(texto: *const u8) -> u64 {
+    u64::from(verso_str(texto).is_empty())
+}
+
+/// # Safety
+/// `texto` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_nao_vazio(texto: *const u8) -> u64 {
+    u64::from(!verso_str(texto).is_empty())
+}
+
+/// # Safety
+/// `texto` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_aparar(texto: *const u8) -> *mut u8 {
+    verso_alocar(verso_str(texto).trim())
+}
+
+/// # Safety
+/// `texto` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_minusculo(texto: *const u8) -> *mut u8 {
+    verso_alocar(&verso_str(texto).to_lowercase())
+}
+
+/// # Safety
+/// `texto` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_maiusculo(texto: *const u8) -> *mut u8 {
+    verso_alocar(&verso_str(texto).to_uppercase())
+}
+
+/// Posição em bytes do trecho, ou `u64::MAX` se ausente (como o interpretador).
+///
+/// # Safety
+/// `texto` e `trecho` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_indice_em(texto: *const u8, trecho: *const u8) -> u64 {
+    verso_str(texto)
+        .find(verso_str(trecho))
+        .map_or(u64::MAX, |v| v as u64)
+}
+
+/// Como `indice_em`, mas rejeita padrão vazio (semântica de `buscar_verso`).
+///
+/// # Safety
+/// `texto` e `padrao` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_buscar(texto: *const u8, padrao: *const u8) -> u64 {
+    let padrao = verso_str(padrao);
+    if padrao.is_empty() {
+        erro_fatal("intrínseca 'buscar_verso' não aceita padrão vazio");
+    }
+    verso_str(texto).find(padrao).map_or(u64::MAX, |v| v as u64)
+}
+
+/// # Safety
+/// `texto` e `sep` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_dividir_em(
+    texto: *const u8,
+    sep: *const u8,
+    indice: u64,
+) -> *mut u8 {
+    let sep = verso_str(sep);
+    if sep.is_empty() {
+        erro_fatal("separador vazio em 'dividir_verso_em'");
+    }
+    let Some(parte) = verso_str(texto).split(sep).nth(indice as usize) else {
+        erro_fatal("índice fora da faixa em 'dividir_verso_em' para o verso informado");
+    };
+    verso_alocar(parte)
+}
+
+/// # Safety
+/// `texto` e `sep` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_dividir_contar(texto: *const u8, sep: *const u8) -> u64 {
+    let sep = verso_str(sep);
+    if sep.is_empty() {
+        erro_fatal("separador vazio em 'dividir_verso_contar'");
+    }
+    verso_str(texto).split(sep).count() as u64
+}
+
+/// # Safety
+/// `texto`, `de` e `para` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_substituir(
+    texto: *const u8,
+    de: *const u8,
+    para: *const u8,
+) -> *mut u8 {
+    let de = verso_str(de);
+    if de.is_empty() {
+        erro_fatal("trecho de busca vazio em 'substituir_verso'");
+    }
+    verso_alocar(&verso_str(texto).replace(de, verso_str(para)))
+}
+
+/// `juntar_verso_com(a, sep, b)` — concatena com separador no meio.
+///
+/// # Safety
+/// `a`, `sep` e `b` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_juntar_com(
+    a: *const u8,
+    sep: *const u8,
+    b: *const u8,
+) -> *mut u8 {
+    verso_alocar(&format!(
+        "{}{}{}",
+        verso_str(a),
+        verso_str(sep),
+        verso_str(b)
+    ))
+}
+
+/// Converte texto para `bombom` (`trim` + `parse`), abortando em falha —
+/// espelha o erro do interpretador.
+///
+/// # Safety
+/// `texto` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_para_bombom(texto: *const u8) -> u64 {
+    let texto = verso_str(texto);
+    match texto.trim().parse::<u64>() {
+        Ok(valor) => valor,
+        Err(_) => {
+            eprintln!(
+                "Erro de Execução (pinker_rt): falha ao converter '{}' para bombom",
+                texto
+            );
+            std::process::exit(1)
+        }
+    }
+}
+
+/// Converte `bombom` para verso decimal.
+#[no_mangle]
+pub extern "C" fn pinker_bombom_para_verso(valor: u64) -> *mut u8 {
+    verso_alocar(&valor.to_string())
+}
+
+/// Núcleo do `formatar_verso`: placeholders `{}` na ordem, com validação de
+/// contagem e de placeholders malformados — espelha o interpretador. Todos os
+/// argumentos já chegam como versos (a IR converte `bombom` antes).
+unsafe fn formatar_verso_nucleo(modelo: *const u8, args: &[*const u8]) -> *mut u8 {
+    let modelo = verso_str(modelo);
+    let mut saida = String::new();
+    let mut ultimo_idx = 0usize;
+    let mut arg_idx = 0usize;
+    let mut chars = modelo.char_indices().peekable();
+    while let Some((idx, ch)) = chars.next() {
+        match ch {
+            '{' => {
+                saida.push_str(&modelo[ultimo_idx..idx]);
+                let Some((close_idx, next_ch)) = chars.next() else {
+                    erro_fatal(
+                        "modelo inválido em 'formatar_verso': placeholders devem ser apenas '{}'",
+                    );
+                };
+                if next_ch != '}' {
+                    erro_fatal(
+                        "modelo inválido em 'formatar_verso': placeholders devem ser apenas '{}'",
+                    );
+                }
+                let Some(arg) = args.get(arg_idx) else {
+                    erro_fatal("quantidade de placeholders '{}' em 'formatar_verso' difere da quantidade de argumentos");
+                };
+                saida.push_str(verso_str(*arg));
+                arg_idx += 1;
+                ultimo_idx = close_idx + 1;
+            }
+            '}' => {
+                erro_fatal(
+                    "modelo inválido em 'formatar_verso': placeholders devem ser apenas '{}'",
+                );
+            }
+            _ => {}
+        }
+    }
+    saida.push_str(&modelo[ultimo_idx..]);
+    if arg_idx != args.len() {
+        erro_fatal(
+            "quantidade de placeholders '{}' em 'formatar_verso' difere da quantidade de argumentos",
+        );
+    }
+    verso_alocar(&saida)
+}
+
+macro_rules! formatar_wrappers {
+    ($(($nome:ident, $($arg:ident),*)),* $(,)?) => {
+        $(
+            /// # Safety
+            /// Todos os ponteiros devem apontar para blocos de verso válidos.
+            #[no_mangle]
+            pub unsafe extern "C" fn $nome(modelo: *const u8, $($arg: *const u8),*) -> *mut u8 {
+                formatar_verso_nucleo(modelo, &[$($arg),*])
+            }
+        )*
+    };
+}
+
+/// # Safety
+/// `modelo` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_formatar_verso_0(modelo: *const u8) -> *mut u8 {
+    formatar_verso_nucleo(modelo, &[])
+}
+
+formatar_wrappers!(
+    (pinker_formatar_verso_1, a1),
+    (pinker_formatar_verso_2, a1, a2),
+    (pinker_formatar_verso_3, a1, a2, a3),
+    (pinker_formatar_verso_4, a1, a2, a3, a4),
+    (pinker_formatar_verso_5, a1, a2, a3, a4, a5),
+    (pinker_formatar_verso_6, a1, a2, a3, a4, a5, a6),
+    (pinker_formatar_verso_7, a1, a2, a3, a4, a5, a6, a7),
+    (pinker_formatar_verso_8, a1, a2, a3, a4, a5, a6, a7, a8),
+);
+
+// ---------------------------------------------------------------------------
 // `falar` nativo (Fase 215/B4) — espelha byte a byte as instruções de máquina
 // do interpretador: PrintIntInline, PrintBoolInline, PrintStrValueInline,
 // PrintSpace e PrintNewline. O flush acontece na quebra de linha (LineWriter).
