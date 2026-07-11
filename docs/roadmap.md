@@ -29,15 +29,15 @@
 Expandir a linguagem na direção dos dois propósitos de longo prazo: gerar um sistema operacional usando apenas Pinker e tornar a Pinker capaz de escrever o próprio código (self-hosting).
 
 **Estado atual**
-Trilha aberta com 11 faixas ordenadas por prioridade (52 itens inventariados frente a C, C#, C++, Python, TypeScript e Shell), mais o **Eixo B — paridade real do backend nativo** (fases planejadas 212–222). A Faixa 2 (consolidação do Bloco 18) nasceu concluída pelo fechamento do bloco na Fase 207. Da Faixa 1, os itens 1 (enums), 2 (pattern matching) e 3 (generics) foram entregues nas Fases 208–211. A execução corrente é o Eixo B; os itens 5 (error handling), 6 (closures) e 4 (traits) da Faixa 1 retomam depois.
+O bloco executa em **dois eixos** (Doc-41): **Eixo A — linguagem** (11 faixas, 52 itens inventariados frente a C, C#, C++, Python, TypeScript e Shell) e **Eixo B — paridade real do backend nativo** (fases B1–B11, previstas como Fases 212–222). Do Eixo A, os itens 1 (enums), 2 (pattern matching) e 3 (generics) da Faixa 1 foram entregues nas Fases 208–211; a Faixa 2 nasceu concluída pelo fechamento do Bloco 18. O Eixo B está em execução desde a Fase 212 (B1 entregue); os itens 5 (error handling), 6 (closures) e 4 (traits) do Eixo A retomam após o eixo.
 
 **Escada macro**
-- Faixa 1 — funcionalidades de alta dificuldade (itens 1–3 entregues; 5, 6 e 4 após o Eixo B);
-- **Eixo B — paridade real do backend nativo** (runtime próprio + lowering completo da superfície atual; fases 212–222);
-- Faixa 3 — ponteiros de função, alocador de memória, inline assembly real;
-- Faixas 4–6 — sistema de tipos, funções e controle de fluxo;
-- Faixas 7–9 — baixo nível, metaprogramação, módulos e build;
-- Faixas 10–11 — concorrência, SO, I/O e rede.
+- Eixo A, Faixa 1 — funcionalidades de alta dificuldade (itens 1–3 entregues; 5, 6 e 4 após o Eixo B);
+- **Eixo B — paridade real do backend nativo** (runtime próprio + lowering completo da superfície atual; B1 entregue na Fase 212; B2–B11 a seguir);
+- Eixo A, Faixa 3 — ponteiros de função, alocador de memória, inline assembly real;
+- Eixo A, Faixas 4–6 — sistema de tipos, funções e controle de fluxo;
+- Eixo A, Faixas 7–9 — baixo nível, metaprogramação, módulos e build;
+- Eixo A, Faixas 10–11 — concorrência, SO, I/O e rede.
 
 **Detalhe estrutural**
 - `docs/roadmap/blocos/bloco_20.md`
