@@ -307,6 +307,15 @@ struct EnumInfoIR {
     variants: HashMap<String, (u64, Vec<TypeIR>)>,
 }
 
+fn is_generic_list_create_expr(expr: &Expr) -> bool {
+    if let ExprKind::Call(callee, args) = &expr.kind {
+        if let ExprKind::Ident(name) = &callee.kind {
+            return name == "lista_criar" && args.is_empty();
+        }
+    }
+    false
+}
+
 // `FunctionLowerer` mantém estado mutable por função durante o lowering:
 // - `scopes`: pilha de escopos léxicos (topo = escopo atual).
 // - `slot_counters`: contador por nome-fonte para gerar slots únicos (`%nome#N`).
@@ -1653,6 +1662,33 @@ impl<'a> FunctionLowerer<'a> {
     }
 
     fn lower_let(&mut self, let_stmt: &LetStmt) -> Result<InstructionIR, PinkerError> {
+        // `nova l: lista<...> = lista_criar();` — a criação genérica abaixa
+        // para o criar monomorphizado do tipo anotado (semântica já validou).
+        if let Some(annotated_ty) = let_stmt.ty.as_ref() {
+            if is_generic_list_create_expr(&let_stmt.init) {
+                let slot_ty = self.context.resolve_type(annotated_ty)?;
+                let callee = match slot_ty {
+                    TypeIR::ListVerso => "lista_verso_criar",
+                    _ => "lista_bombom_criar",
+                };
+                let binding = self.allocate_binding(
+                    &let_stmt.name,
+                    slot_ty,
+                    None,
+                    None,
+                    Some(let_stmt.is_mut),
+                );
+                return Ok(InstructionIR::Let {
+                    slot: binding.slot,
+                    value: ValueIR::Call {
+                        callee: callee.to_string(),
+                        args: Vec::new(),
+                        ret_type: slot_ty,
+                    },
+                    span: let_stmt.span,
+                });
+            }
+        }
         let value = self.lower_value(&let_stmt.init)?;
         let ty = if let Some(annotated_ty) = let_stmt.ty.as_ref() {
             self.context.resolve_type(annotated_ty)?
@@ -2002,6 +2038,53 @@ impl<'a> FunctionLowerer<'a> {
                         span: expr.span,
                     });
                 };
+
+                // Intrínsecas genéricas de lista (Fase 211): abaixam para a
+                // forma monomorphizada conforme o tipo da lista no argumento 1.
+                if matches!(
+                    name.as_str(),
+                    "lista_tamanho"
+                        | "lista_obter"
+                        | "lista_anexar"
+                        | "lista_definir"
+                        | "lista_tirar_ultimo"
+                        | "lista_inserir"
+                ) {
+                    let typed_args: Vec<TypedValueIR> = args
+                        .iter()
+                        .map(|arg| self.lower_value(arg))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let prefix = match typed_args.first().map(|arg| arg.ty) {
+                        Some(TypeIR::ListVerso) => "lista_verso",
+                        _ => "lista_bombom",
+                    };
+                    let suffix = name.strip_prefix("lista").unwrap_or_default();
+                    let mono_name = format!("{}{}", prefix, suffix);
+                    let ret_type = self
+                        .context
+                        .function_sigs
+                        .get(&mono_name)
+                        .map(|sig| sig.ret_type)
+                        .ok_or_else(|| PinkerError::Ir {
+                            msg: format!(
+                                "lowering falhou ao resolver intrínseca genérica '{}' ('{}')",
+                                name, mono_name
+                            ),
+                            span: expr.span,
+                        })?;
+                    let ir_args: Vec<ValueIR> =
+                        typed_args.into_iter().map(|typed| typed.value).collect();
+                    return Ok(TypedValueIR {
+                        value: ValueIR::Call {
+                            callee: mono_name,
+                            args: ir_args,
+                            ret_type,
+                        },
+                        ty: ret_type,
+                        struct_name: None,
+                        ptr_array_bombom_size: None,
+                    });
+                }
 
                 if name == "__ternario" {
                     let typed_args: Vec<TypedValueIR> = args
@@ -2604,6 +2687,9 @@ impl TypeIR {
             Type::Verso(_) => Ok(TypeIR::Verso),
             Type::ListBombom(_) => Ok(TypeIR::ListBombom),
             Type::ListVerso(_) => Ok(TypeIR::ListVerso),
+            // Elementos de leque são bombom na IR (discriminante ou handle);
+            // a lista genérica reaproveita o runtime de lista<bombom>.
+            Type::ListEnum { .. } => Ok(TypeIR::ListBombom),
             Type::MapVersoBombom(_) => Ok(TypeIR::MapVersoBombom),
             Type::MapVersoVerso(_) => Ok(TypeIR::MapVersoVerso),
             Type::MapBombomBombom(_) => Ok(TypeIR::MapBombomBombom),

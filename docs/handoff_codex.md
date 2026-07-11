@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **210** — carga recursiva e múltiplas cargas em `leque` (AST recursiva) |
+| Fase funcional mais recente | **211** — `lista<T>` genérica sobre leques (generics mínimos) |
 | Rodada documental mais recente | **Doc-39** — fechamento do Bloco 18 e abertura do Bloco 20 |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -46,15 +46,16 @@
 | 208 | Bloco 20, Faixa 1, item 1 (recorte mínimo): `leque` — enum nominal estilo C |
 | 209 | Bloco 20, Faixa 1: carga por variante (`bombom`/`verso`) + `encaixe` com exaustividade; **primeiro degrau do Marco self-hosting 1 verificado** (lexer de brinquedo em Pinker) |
 | 210 | Bloco 20, Faixa 1: múltiplas cargas + carga de tipo leque (recursão e recursão mútua); **fundação do Marco self-hosting 2 verificada** (avaliador recursivo de AST em Pinker) |
+| 211 | Bloco 20, Faixa 1: `lista<T>` genérica sobre leques + 7 intrínsecas genéricas; **Marco self-hosting 2 verificado em miniatura** (compilador de brinquedo lexer→parser→avaliador em Pinker) |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Fase 210 — carga recursiva e múltiplas cargas em `leque`**, completando o item 1 da Faixa 1 no nível exigido pela direção self-hosting.
-- `leque Expr { Lit(bombom), Soma(Expr, Expr), Rotulo(verso, Expr) }`: múltiplas cargas por variante, carga de tipo leque com autorreferência e recursão mútua; `encaixe` liga múltiplos nomes por caso com validação de contagem no parse.
-- Construção na IR virou cadeia composável `criar_0` + `anexar_b`/`anexar_v` por carga (sem explosão combinatória); extração `carga_b`/`carga_v` agora carrega `(tag, índice)` com verificação de consistência no runtime.
-- Critério de pronto cumprido: avaliador recursivo de expressões 100% em Pinker (`examples/fase210_leque_recursivo_avaliador_valido.pink`) avaliando `Rotulo("resposta", Soma(Lit(2), Mult(Lit(4), Lit(10))))` → 42.
-- Cobertura: 1 exemplo ponta a ponta, 7 testes semânticos novos, 2 testes CLI.
+- **Fase 211 — `lista<T>` genérica sobre leques (generics mínimos)**, entregando o item 3 da Faixa 1 no recorte utilizável pelos marcos.
+- Novo tipo paramétrico `lista<Leque>` com tipagem nominal do elemento; 7 intrínsecas genéricas (`lista_criar` com anotação em `nova`, `lista_anexar`, `lista_obter`, `lista_tamanho`, `lista_definir`, `lista_tirar_ultimo`, `lista_inserir`) sobre qualquer lista; `para cada` sobre lista de leque; nomes monomorphizados legados preservados.
+- Implementação enxuta: `lista<Leque>` abaixa para o runtime de `lista<bombom>`; as genéricas são reescritas na IR para as formas monomorphizadas — zero mudança em validadores posteriores e interpretador.
+- Critério de pronto cumprido: compilador de brinquedo de ponta a ponta em Pinker (`examples/fase211_compilador_brinquedo_valido.pink`): `"2 + 4 * 10"` → lexer → `lista<Token>` → parser com precedência → AST `Expr` → avaliação → 42.
+- Cobertura: 2 exemplos ponta a ponta, 10 testes semânticos novos, 3 testes CLI.
 - `make ci` passa integralmente.
 
 ## 4. Limites canônicos ativos
@@ -65,11 +66,12 @@ Histórico completo por fase: `docs/history/phases/`.
 | Fechamento do Bloco 18 | Sem resolução qualificada (`familia.intrinseca`), sem importação seletiva, sem modo estrito, sem reorganização do engine |
 | Fases 190–206 | Sem generics (`lista<T>`, `mapa<K,V>` amplos); cada combinação monomorphizada; sem coleções heterogêneas |
 | Fases 208–210 (`leque`/`encaixe`) | Cargas: `bombom`, `verso` ou leque declarado (sem `ninho`/coleções como carga); sem guards, padrões aninhados ou encaixe-expressão; igualdade direta e `virar` rejeitados para leque com carga; sem discriminante customizado; sem `bombom -> leque`; handles sem liberação (consistente com coleções); nome de leque tem precedência sobre variável homônima em posição de base `X.Y` |
+| Fase 211 (`lista<T>`) | T = leque declarado (além de `bombom`/`verso` legados); `mapa<K,V>` genérico fora; funções genéricas de usuário fora; generics em `leque`/`ninho` fora; `lista_criar()` só como init de `nova` anotada |
 | Bloco 20 | Nenhum item das faixas está entregue por constar na trilha; entrega exige fase numerada com validação objetiva |
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- Continuar a **Faixa 1** do Bloco 20. Itens 1 e 2 entregues no nível utilizável; candidatos: item 3 (**generics mínimos** — `lista<T>`/`mapa<K,V>`), item 5 (**error handling estruturado**) ou item 6 (**closures**).
+- Continuar a **Faixa 1** do Bloco 20 na ordem decidida (3 → 5 → 6 → 4). Itens 1, 2 e 3 entregues no nível utilizável; próximo: item 5 (**error handling estruturado** — `tentar/pegar` ou Result via leque; keywords candidatas `amparo`/`tropeco` no vocabulário provisório), depois item 6 (**closures**) e por fim item 4 (**traits**).
 - Trilha completa: `docs/roadmap/blocos/bloco_20.md`.
 
 ## 6. Arquitetura documental ativa

@@ -56,6 +56,9 @@ fn layout_of_type_inner(
         Type::ListVerso(_) => {
             Err("tipo 'lista<verso>' ainda não possui layout estático nesta fase".to_string())
         }
+        Type::ListEnum { .. } => {
+            Err("tipo 'lista<Leque>' ainda não possui layout estático nesta fase".to_string())
+        }
         Type::MapVersoBombom(_) => {
             Err("tipo 'mapa<verso,bombom>' ainda não possui layout estático nesta fase".to_string())
         }

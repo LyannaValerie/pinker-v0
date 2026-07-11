@@ -158,6 +158,16 @@ impl SemanticChecker {
                 lhs_name == rhs_name
             }
             (
+                Type::ListEnum {
+                    element: lhs_element,
+                    ..
+                },
+                Type::ListEnum {
+                    element: rhs_element,
+                    ..
+                },
+            ) => lhs_element == rhs_element,
+            (
                 Type::FixedArray {
                     element: lhs_element,
                     size: lhs_size,
@@ -284,7 +294,41 @@ impl SemanticChecker {
                 })
             }
             Type::Struct { .. } => Ok(ty.clone()),
+            Type::ListEnum { element, span } => {
+                if !self.enums.contains_key(element) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "lista genérica exige leque declarado como elemento; '{}' não é um leque",
+                            element
+                        ),
+                        span: *span,
+                    });
+                }
+                Ok(ty.clone())
+            }
             _ => Ok(ty.clone()),
+        }
+    }
+
+    fn expr_is_generic_list_create(expr: &Expr) -> bool {
+        if let ExprKind::Call(callee, args) = &expr.kind {
+            if let ExprKind::Ident(name) = &callee.kind {
+                return name == "lista_criar" && args.is_empty();
+            }
+        }
+        false
+    }
+
+    /// Tipo do elemento de um tipo de lista (legado ou genérico).
+    fn list_element_type(list_ty: &Type, span: Span) -> Option<Type> {
+        match list_ty {
+            Type::ListBombom(_) => Some(Type::Bombom(span)),
+            Type::ListVerso(_) => Some(Type::Verso(span)),
+            Type::ListEnum { element, .. } => Some(Type::Enum {
+                name: element.clone(),
+                span,
+            }),
+            _ => None,
         }
     }
 
@@ -804,6 +848,31 @@ impl SemanticChecker {
         for stmt in &block.stmts {
             match stmt {
                 Stmt::Let(let_stmt) => {
+                    // `nova l: lista<...> = lista_criar();` — a criação genérica
+                    // recebe o tipo da anotação (única forma de inferência desta fase).
+                    if let Some(declared_ty) = &let_stmt.ty {
+                        if Self::expr_is_generic_list_create(&let_stmt.init) {
+                            let resolved_declared_ty = self.resolve_type_or_error(declared_ty)?;
+                            if Self::list_element_type(&resolved_declared_ty, let_stmt.span)
+                                .is_none()
+                            {
+                                return Err(PinkerError::Semantic {
+                                    msg: format!(
+                                        "'lista_criar()' exige anotação de tipo de lista em 'nova'; encontrado '{}'",
+                                        resolved_declared_ty.name()
+                                    ),
+                                    span: let_stmt.init.span,
+                                });
+                            }
+                            self.declare_var(
+                                &let_stmt.name,
+                                resolved_declared_ty,
+                                let_stmt.is_mut,
+                                let_stmt.span,
+                            )?;
+                            continue;
+                        }
+                    }
                     let init_ty = self.check_value_expr(
                         &let_stmt.init,
                         "resultado de função sem retorno não pode ser usado em inicialização de variável",
@@ -1764,6 +1833,106 @@ impl SemanticChecker {
                 return Ok(Type::Verso(expr_span));
             }
             return Ok(resolved.with_span(expr_span));
+        }
+
+        // Intrínsecas genéricas de lista (Fase 211): tipam sobre qualquer
+        // lista (`lista<bombom>`, `lista<verso>`, `lista<Leque>`), com o tipo
+        // do elemento derivado do primeiro argumento.
+        if name == "lista_criar" {
+            return Err(PinkerError::Semantic {
+                msg: "'lista_criar()' só pode aparecer como inicialização de 'nova' com anotação de tipo de lista nesta fase"
+                    .to_string(),
+                span: expr_span,
+            });
+        }
+        if matches!(
+            name.as_str(),
+            "lista_tamanho"
+                | "lista_obter"
+                | "lista_anexar"
+                | "lista_definir"
+                | "lista_tirar_ultimo"
+                | "lista_inserir"
+        ) {
+            let expected_arity: usize = match name.as_str() {
+                "lista_tamanho" | "lista_tirar_ultimo" => 1,
+                "lista_obter" | "lista_anexar" => 2,
+                _ => 3,
+            };
+            if args.len() != expected_arity {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de '{}' com aridade inválida: esperado {}, recebido {}",
+                        name,
+                        expected_arity,
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let list_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como lista",
+            )?;
+            let Some(element_ty) = Self::list_element_type(&list_ty, expr_span) else {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "'{}' exige lista no argumento 1, encontrado '{}'",
+                        name,
+                        list_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            };
+            let check_index = |checker: &mut Self, index_arg: &Expr| -> Result<(), PinkerError> {
+                let index_ty = checker.check_value_expr(
+                    index_arg,
+                    "resultado de função sem retorno não pode ser índice",
+                )?;
+                if !matches!(index_ty, Type::Bombom(_)) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!("'{}' exige índice 'bombom'", name),
+                        span: index_arg.span,
+                    });
+                }
+                Ok(())
+            };
+            let check_element = |checker: &mut Self, value_arg: &Expr| -> Result<(), PinkerError> {
+                let value_ty = checker.check_value_expr(
+                    value_arg,
+                    "resultado de função sem retorno não pode ser elemento de lista",
+                )?;
+                if !Self::check_expected_type_for_expr(&element_ty, &value_ty, value_arg) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "'{}' exige elemento '{}', encontrado '{}'",
+                            name,
+                            element_ty.name(),
+                            value_ty.name()
+                        ),
+                        span: value_arg.span,
+                    });
+                }
+                Ok(())
+            };
+            return match name.as_str() {
+                "lista_tamanho" => Ok(Type::Bombom(expr_span)),
+                "lista_tirar_ultimo" => Ok(element_ty),
+                "lista_obter" => {
+                    check_index(self, &args[1])?;
+                    Ok(element_ty)
+                }
+                "lista_anexar" => {
+                    check_element(self, &args[1])?;
+                    Ok(Type::Nulo(expr_span))
+                }
+                "lista_definir" | "lista_inserir" => {
+                    check_index(self, &args[1])?;
+                    check_element(self, &args[2])?;
+                    Ok(Type::Nulo(expr_span))
+                }
+                _ => unreachable!(),
+            };
         }
 
         if name == "ouvir" {

@@ -1,0 +1,99 @@
+pacote main;
+
+leque Token { Numero(bombom), Mais, Vezes, Fim }
+
+leque Expr { Lit(bombom), Soma(Expr, Expr), Mult(Expr, Expr) }
+
+carinho lexar(fonte: verso) -> lista<Token> {
+    nova tokens: lista<Token> = lista_criar();
+    nova quantos: bombom = dividir_verso_contar(fonte, " ");
+    nova muda i: bombom = 0;
+    sempre que i < quantos {
+        nova pedaco: verso = dividir_verso_em(fonte, " ", i);
+        talvez igual_verso(pedaco, "+") {
+            lista_anexar(tokens, Token.Mais);
+        } senao talvez igual_verso(pedaco, "*") {
+            lista_anexar(tokens, Token.Vezes);
+        } senao {
+            lista_anexar(tokens, Token.Numero(verso_para_bombom(pedaco)));
+        }
+        i = i + 1;
+    }
+    lista_anexar(tokens, Token.Fim);
+    mimo tokens;
+}
+
+carinho pos(cursor: lista<bombom>) -> bombom {
+    mimo lista_obter(cursor, 0);
+}
+
+carinho avancar(cursor: lista<bombom>) -> bombom {
+    lista_definir(cursor, 0, lista_obter(cursor, 0) + 1);
+    mimo 0;
+}
+
+carinho analisa_fator(tokens: lista<Token>, cursor: lista<bombom>) -> Expr {
+    nova t: Token = lista_obter(tokens, pos(cursor));
+    nova ignorado: bombom = avancar(cursor);
+    encaixe t {
+        caso Token.Numero(n) { mimo Expr.Lit(n); }
+        senao { mimo Expr.Lit(0); }
+    }
+}
+
+carinho analisa_termo(tokens: lista<Token>, cursor: lista<bombom>) -> Expr {
+    nova muda esquerda: Expr = analisa_fator(tokens, cursor);
+    nova muda continua: logica = verdade;
+    sempre que continua {
+        nova t: Token = lista_obter(tokens, pos(cursor));
+        encaixe t {
+            caso Token.Vezes {
+                nova ignorado: bombom = avancar(cursor);
+                nova direita: Expr = analisa_fator(tokens, cursor);
+                esquerda = Expr.Mult(esquerda, direita);
+            }
+            senao { continua = falso; }
+        }
+    }
+    mimo esquerda;
+}
+
+carinho analisa_expr(tokens: lista<Token>, cursor: lista<bombom>) -> Expr {
+    nova muda esquerda: Expr = analisa_termo(tokens, cursor);
+    nova muda continua: logica = verdade;
+    sempre que continua {
+        nova t: Token = lista_obter(tokens, pos(cursor));
+        encaixe t {
+            caso Token.Mais {
+                nova ignorado: bombom = avancar(cursor);
+                nova direita: Expr = analisa_termo(tokens, cursor);
+                esquerda = Expr.Soma(esquerda, direita);
+            }
+            senao { continua = falso; }
+        }
+    }
+    mimo esquerda;
+}
+
+carinho avalia(e: Expr) -> bombom {
+    encaixe e {
+        caso Expr.Lit(n) { mimo n; }
+        caso Expr.Soma(a, b) { mimo avalia(a) + avalia(b); }
+        caso Expr.Mult(a, b) { mimo avalia(a) * avalia(b); }
+    }
+    mimo 0;
+}
+
+carinho principal() -> bombom {
+    nova fonte: verso = "2 + 4 * 10";
+    nova tokens: lista<Token> = lexar(fonte);
+    falar("tokens:", lista_tamanho(tokens));
+
+    nova cursor: lista<bombom> = lista_criar();
+    lista_anexar(cursor, 0);
+
+    nova arvore: Expr = analisa_expr(tokens, cursor);
+    nova resultado: bombom = avalia(arvore);
+    falar(resultado);
+    mimo 0;
+}

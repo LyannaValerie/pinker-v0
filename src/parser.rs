@@ -6,10 +6,11 @@ use std::collections::HashMap;
 
 /// Tipo de coleção detectado durante o parse de declarações de variáveis e parâmetros.
 /// Usado para despachar o construto `para cada` para a desugaring correta.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum CollectionKind {
     ListBombom,
     ListVerso,
+    ListEnum(String),
     MapVersoBombom,
     MapVersoVerso,
     MapBombomBombom,
@@ -299,8 +300,16 @@ impl Parser {
                 if matches!(inner, Type::Verso(_)) {
                     return Ok(Type::ListVerso(outer_span));
                 }
+                // `lista<NomeDeLeque>` — a existência do leque é validada na semântica.
+                if let Type::Alias { name, .. } = &inner {
+                    return Ok(Type::ListEnum {
+                        element: name.clone(),
+                        span: outer_span,
+                    });
+                }
                 return Err(PinkerError::Expected {
-                    expected: "tipo 'lista<bombom>' ou 'lista<verso>' nesta fase".to_string(),
+                    expected: "tipo 'lista<bombom>', 'lista<verso>' ou 'lista<Leque>' nesta fase"
+                        .to_string(),
                     found: format!("lista<{}>", inner.name()),
                     span: inner.span(),
                 });
@@ -821,6 +830,12 @@ impl Parser {
                     self.collection_types
                         .insert(param.name.clone(), CollectionKind::ListVerso);
                 }
+                Type::ListEnum { element, .. } => {
+                    self.collection_types.insert(
+                        param.name.clone(),
+                        CollectionKind::ListEnum(element.clone()),
+                    );
+                }
                 Type::MapVersoBombom(_) => {
                     self.collection_types
                         .insert(param.name.clone(), CollectionKind::MapVersoBombom);
@@ -928,6 +943,10 @@ impl Parser {
                     Type::ListVerso(_) => {
                         self.collection_types
                             .insert(name.clone(), CollectionKind::ListVerso);
+                    }
+                    Type::ListEnum { element, .. } => {
+                        self.collection_types
+                            .insert(name.clone(), CollectionKind::ListEnum(element.clone()));
                     }
                     Type::MapVersoBombom(_) => {
                         self.collection_types
@@ -1319,7 +1338,7 @@ impl Parser {
         let loop_span = merge_span(start_span, body.span);
 
         let collection_kind = match &collection_expr.kind {
-            ExprKind::Ident(name) => self.collection_types.get(name.as_str()).copied(),
+            ExprKind::Ident(name) => self.collection_types.get(name.as_str()).cloned(),
             _ => None,
         };
 
@@ -1339,8 +1358,138 @@ impl Parser {
             Some(CollectionKind::ListVerso) => {
                 self.desugar_for_each_list_verso(item_name, collection_expr, body, loop_span)
             }
+            Some(CollectionKind::ListEnum(element)) => self.desugar_for_each_list_enum(
+                item_name,
+                element,
+                collection_expr,
+                body,
+                loop_span,
+            ),
             _ => self.desugar_for_each_list(item_name, collection_expr, body, loop_span),
         }
+    }
+
+    /// Desugaring de `para cada item em lista<Leque>` — usa as intrínsecas
+    /// genéricas de lista (Fase 211) e liga o item com o tipo do leque.
+    fn desugar_for_each_list_enum(
+        &mut self,
+        item_name: String,
+        element: String,
+        list_expr: Expr,
+        body: Block,
+        loop_span: Span,
+    ) -> Result<Vec<Stmt>, PinkerError> {
+        self.synthetic_counter += 1;
+        let suffix = self.synthetic_counter;
+        let list_slot_name = format!("__iter_lista_{suffix}");
+        let index_slot_name = format!("__iter_indice_{suffix}");
+        let helper_span = loop_span;
+
+        let list_binding_stmt = Stmt::Let(LetStmt {
+            name: list_slot_name.clone(),
+            is_mut: false,
+            ty: None,
+            init: list_expr,
+            span: helper_span,
+        });
+        let index_binding_stmt = Stmt::Let(LetStmt {
+            name: index_slot_name.clone(),
+            is_mut: true,
+            ty: Some(Type::Bombom(helper_span)),
+            init: Expr {
+                kind: ExprKind::IntLit(0),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let condition = Expr {
+            kind: ExprKind::Binary(
+                Box::new(Expr {
+                    kind: ExprKind::Ident(index_slot_name.clone()),
+                    span: helper_span,
+                }),
+                BinaryOp::Lt,
+                Box::new(Expr {
+                    kind: ExprKind::Call(
+                        Box::new(Expr {
+                            kind: ExprKind::Ident("lista_tamanho".to_string()),
+                            span: helper_span,
+                        }),
+                        vec![Expr {
+                            kind: ExprKind::Ident(list_slot_name.clone()),
+                            span: helper_span,
+                        }],
+                    ),
+                    span: helper_span,
+                }),
+            ),
+            span: helper_span,
+        };
+
+        let item_binding = Stmt::Let(LetStmt {
+            name: item_name,
+            is_mut: false,
+            ty: Some(Type::Alias {
+                name: element,
+                span: helper_span,
+            }),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident("lista_obter".to_string()),
+                        span: helper_span,
+                    }),
+                    vec![
+                        Expr {
+                            kind: ExprKind::Ident(list_slot_name),
+                            span: helper_span,
+                        },
+                        Expr {
+                            kind: ExprKind::Ident(index_slot_name.clone()),
+                            span: helper_span,
+                        },
+                    ],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let index_increment = Stmt::Assign(AssignStmt {
+            target: AssignTarget::Ident(index_slot_name.clone()),
+            expr: Expr {
+                kind: ExprKind::Binary(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(index_slot_name),
+                        span: helper_span,
+                    }),
+                    BinaryOp::Add,
+                    Box::new(Expr {
+                        kind: ExprKind::IntLit(1),
+                        span: helper_span,
+                    }),
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+
+        let mut while_body_stmts = Vec::with_capacity(2 + body.stmts.len());
+        while_body_stmts.push(item_binding);
+        while_body_stmts.push(index_increment);
+        while_body_stmts.extend(body.stmts);
+
+        let while_stmt = Stmt::While(WhileStmt {
+            condition,
+            body: Block {
+                stmts: while_body_stmts,
+                span: helper_span,
+            },
+            span: loop_span,
+        });
+
+        Ok(vec![list_binding_stmt, index_binding_stmt, while_stmt])
     }
 
     /// Desugaring de `para cada item em lista<bombom>` — reutilizado da Fase 153.

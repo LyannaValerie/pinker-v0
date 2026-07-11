@@ -60,6 +60,14 @@ nova nome: verso = "Pinker";
 
 Também existem tipos inteiros fixos (`u8..u64`, `i8..i64`) no estado atual.
 
+Coleções: `lista<bombom>`, `lista<verso>` e, desde a Fase 211, `lista<T>` com `T` sendo qualquer `leque` declarado — todas operadas pelas intrínsecas genéricas `lista_criar` (exige anotação em `nova`), `lista_anexar`, `lista_obter`, `lista_tamanho`, `lista_definir`, `lista_tirar_ultimo` e `lista_inserir`:
+
+```pink
+nova tokens: lista<Token> = lista_criar();
+lista_anexar(tokens, Token.Fim);
+nova primeiro: Token = lista_obter(tokens, 0);
+```
+
 ### `leque`
 Enumeração nominal com variantes nomeadas, opcionalmente com cargas (`bombom`, `verso` ou outro leque — inclusive o próprio, permitindo tipos recursivos):
 

@@ -302,6 +302,10 @@ pub enum Type {
     Verso(Span),
     ListBombom(Span),
     ListVerso(Span),
+    ListEnum {
+        element: String,
+        span: Span,
+    },
     MapVersoBombom(Span),
     MapVersoVerso(Span),
     MapBombomBombom(Span),
@@ -382,6 +386,7 @@ impl PartialEq for Type {
             (Type::Alias { name: n1, .. }, Type::Alias { name: n2, .. }) => n1 == n2,
             (Type::Struct { name: n1, .. }, Type::Struct { name: n2, .. }) => n1 == n2,
             (Type::Enum { name: n1, .. }, Type::Enum { name: n2, .. }) => n1 == n2,
+            (Type::ListEnum { element: e1, .. }, Type::ListEnum { element: e2, .. }) => e1 == e2,
             _ => false,
         }
     }
@@ -413,6 +418,7 @@ impl Type {
             Type::Alias { span, .. }
             | Type::Struct { span, .. }
             | Type::Enum { span, .. }
+            | Type::ListEnum { span, .. }
             | Type::FixedArray { span, .. }
             | Type::Pointer { span, .. } => *span,
         }
@@ -442,6 +448,7 @@ impl Type {
             Type::Alias { .. } => "alias",
             Type::Struct { .. } => "struct",
             Type::Enum { .. } => "leque",
+            Type::ListEnum { .. } => "lista<leque>",
             Type::Nulo(_) => "nulo",
         }
     }
@@ -487,6 +494,10 @@ impl Type {
             },
             Type::Enum { name, .. } => Type::Enum {
                 name: name.clone(),
+                span,
+            },
+            Type::ListEnum { element, .. } => Type::ListEnum {
+                element: element.clone(),
                 span,
             },
             Type::Nulo(_) => Type::Nulo(span),

@@ -282,7 +282,15 @@ Nome de família **em avaliação lexical** — não canonizado nesta fase.
 | 104 | `mapa_bombom_verso_tamanho` | `(mapa<bombom,verso>) → bombom` | Fase 206 |
 | 105 | `mapa_bombom_verso_remover` | `(mapa<bombom,verso>, bombom) → nulo` | Fase 206 |
 
-**Total: 38 intrínsecas.** Domínio funcional claro, mas nome `colecao` em avaliação lexical. Domínio provisório atribuído internamente; canonização pública adiada. As Fases 193–206 expandiram o domínio com novos tipos de coleção e operações adicionais.
+| 113 | `lista_criar` | `() → lista<T>` (exige anotação em `nova`) | Fase 211 |
+| 114 | `lista_anexar` | `(lista<T>, T) → nulo` | Fase 211 |
+| 115 | `lista_obter` | `(lista<T>, bombom) → T` | Fase 211 |
+| 116 | `lista_tamanho` | `(lista<T>) → bombom` | Fase 211 |
+| 117 | `lista_definir` | `(lista<T>, bombom, T) → nulo` | Fase 211 |
+| 118 | `lista_tirar_ultimo` | `(lista<T>) → T` | Fase 211 |
+| 119 | `lista_inserir` | `(lista<T>, bombom, T) → nulo` | Fase 211 |
+
+**Total: 45 intrínsecas.** Domínio funcional claro, mas nome `colecao` em avaliação lexical. Domínio provisório atribuído internamente; canonização pública adiada. As Fases 193–206 expandiram o domínio com novos tipos de coleção e operações adicionais; a Fase 211 abriu a superfície genérica de lista (`lista<T>` com `T` = `bombom`, `verso` ou leque), mantendo os nomes monomorphizados como legado válido.
 
 ### 3.10 Domínio provisório: formato
 
@@ -344,11 +352,11 @@ Estas intrínsecas não fazem parte da superfície pública e não participam da
 | Família candidata: tempo | 2 |
 | Família candidata: ambiente | 9 |
 | Família candidata: acaso | 3 |
-| Domínio provisório: colecao | 38 |
+| Domínio provisório: colecao | 45 |
 | Domínio provisório: formato | 5 |
 | Aliases legados | 3 |
 | Intrínsecas internas | 14 |
-| **Total de intrínsecas públicas distintas** | **112** |
+| **Total de intrínsecas públicas distintas** | **119** |
 
 ## 5. Observações para as próximas fases
 

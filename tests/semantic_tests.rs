@@ -3681,6 +3681,160 @@ fn leque_carga_de_tipo_desconhecido_rejeitada() {
 }
 
 #[test]
+fn lista_generica_de_leque_aceita() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho principal() -> bombom {
+            nova cores: lista<Cor> = lista_criar();
+            lista_anexar(cores, Cor.Vermelho);
+            nova primeira: Cor = lista_obter(cores, 0);
+            talvez primeira == Cor.Vermelho {
+                mimo lista_tamanho(cores);
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn lista_generica_como_parametro_e_retorno_aceita() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho fabrica() -> lista<Cor> {
+            nova cores: lista<Cor> = lista_criar();
+            lista_anexar(cores, Cor.Verde);
+            mimo cores;
+        }
+        carinho conta(cores: lista<Cor>) -> bombom {
+            mimo lista_tamanho(cores);
+        }
+        carinho principal() -> bombom {
+            mimo conta(fabrica());
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn lista_generica_para_cada_aceito() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho principal() -> bombom {
+            nova cores: lista<Cor> = lista_criar();
+            lista_anexar(cores, Cor.Verde);
+            para cada cor em cores {
+                talvez cor == Cor.Verde {
+                    falar("verde");
+                }
+            }
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn lista_generica_elemento_de_outro_leque_rejeitado() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        leque Fruta { Banana, Maca }
+        carinho principal() -> bombom {
+            nova cores: lista<Cor> = lista_criar();
+            lista_anexar(cores, Fruta.Banana);
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("exige elemento"), "{}", err);
+}
+
+#[test]
+fn lista_generica_de_nao_leque_rejeitada() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova coisas: lista<Fantasma> = lista_criar();
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("não é um leque"), "{}", err);
+}
+
+#[test]
+fn lista_criar_sem_anotacao_rejeitado() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova coisas = lista_criar();
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("anotação de tipo"), "{}", err);
+}
+
+#[test]
+fn lista_criar_fora_de_nova_rejeitado() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            mimo lista_tamanho(lista_criar());
+        }
+    "#;
+    assert!(parse_and_check(code).is_err());
+}
+
+#[test]
+fn intrinsecas_genericas_sobre_listas_legadas_aceitas() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova numeros: lista<bombom> = lista_criar();
+            lista_anexar(numeros, 7);
+            nova palavras: lista<verso> = lista_criar();
+            lista_anexar(palavras, "rosa");
+            nova p: verso = lista_obter(palavras, 0);
+            falar(p);
+            mimo lista_obter(numeros, 0) + lista_tamanho(palavras);
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn lista_legada_monomorphizada_continua_valida() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova numeros: lista<bombom> = lista_bombom_criar();
+            lista_bombom_anexar(numeros, 7);
+            mimo lista_bombom_obter(numeros, 0);
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn lista_generica_nao_aceita_intrinseca_monomorphizada_de_bombom() {
+    let code = r#"
+        pacote main;
+        leque Cor { Vermelho, Verde }
+        carinho principal() -> bombom {
+            nova cores: lista<Cor> = lista_criar();
+            lista_bombom_anexar(cores, 1);
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_err());
+}
+
+#[test]
 fn encaixe_em_leque_sem_carga_aceito() {
     let code = r#"
         pacote main;
