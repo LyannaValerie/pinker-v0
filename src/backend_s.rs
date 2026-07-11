@@ -1204,6 +1204,10 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
         || *ty == TypeIR::Verso
         || *ty == TypeIR::ListBombom
         || *ty == TypeIR::ListVerso
+        || *ty == TypeIR::MapVersoBombom
+        || *ty == TypeIR::MapVersoVerso
+        || *ty == TypeIR::MapBombomBombom
+        || *ty == TypeIR::MapBombomVerso
         || *ty == TypeIR::Pointer { is_volatile: false }
 }
 
@@ -1214,7 +1218,15 @@ fn is_external_local_type(ty: &TypeIR) -> bool {
 fn is_external_ret_type(ty: &TypeIR) -> bool {
     matches!(
         ty,
-        TypeIR::Bombom | TypeIR::Verso | TypeIR::Logica | TypeIR::ListBombom | TypeIR::ListVerso
+        TypeIR::Bombom
+            | TypeIR::Verso
+            | TypeIR::Logica
+            | TypeIR::ListBombom
+            | TypeIR::ListVerso
+            | TypeIR::MapVersoBombom
+            | TypeIR::MapVersoVerso
+            | TypeIR::MapBombomBombom
+            | TypeIR::MapBombomVerso
     )
 }
 
@@ -1246,6 +1258,46 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
             Some("pinker_lista_tirar_ultimo")
         }
         "lista_bombom_inserir" | "lista_verso_inserir" => Some("pinker_lista_inserir"),
+        // Mapas (Fase 217/B6): chave `verso` compara por conteúdo, chave
+        // `bombom` por valor; os 4 tipos compartilham as demais operações.
+        "mapa_verso_bombom_criar" | "mapa_verso_verso_criar" => {
+            Some("pinker_mapa_criar_chave_verso")
+        }
+        "mapa_bombom_bombom_criar" | "mapa_bombom_verso_criar" => {
+            Some("pinker_mapa_criar_chave_bombom")
+        }
+        "mapa_verso_bombom_definir"
+        | "mapa_verso_verso_definir"
+        | "mapa_bombom_bombom_definir"
+        | "mapa_bombom_verso_definir" => Some("pinker_mapa_definir"),
+        "mapa_verso_bombom_obter"
+        | "mapa_verso_verso_obter"
+        | "mapa_bombom_bombom_obter"
+        | "mapa_bombom_verso_obter" => Some("pinker_mapa_obter"),
+        "mapa_verso_bombom_tem"
+        | "mapa_verso_verso_tem"
+        | "mapa_bombom_bombom_tem"
+        | "mapa_bombom_verso_tem" => Some("pinker_mapa_tem"),
+        "mapa_verso_bombom_tamanho"
+        | "mapa_verso_verso_tamanho"
+        | "mapa_bombom_bombom_tamanho"
+        | "mapa_bombom_verso_tamanho" => Some("pinker_mapa_tamanho"),
+        "mapa_verso_bombom_remover"
+        | "mapa_verso_verso_remover"
+        | "mapa_bombom_bombom_remover"
+        | "mapa_bombom_verso_remover" => Some("pinker_mapa_remover"),
+        "__pinker_internal_mapa_verso_bombom_iterador_criar"
+        | "__pinker_internal_mapa_verso_verso_iterador_criar"
+        | "__pinker_internal_mapa_bombom_bombom_iterador_criar"
+        | "__pinker_internal_mapa_bombom_verso_iterador_criar" => {
+            Some("pinker_mapa_iterador_criar")
+        }
+        "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave"
+        | "__pinker_internal_mapa_verso_verso_iterador_proxima_chave"
+        | "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave"
+        | "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave" => {
+            Some("pinker_mapa_iterador_proxima")
+        }
         _ => None,
     }
 }

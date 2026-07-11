@@ -171,6 +171,28 @@ fn listas_nativas_emitem_calls_unificados_de_runtime() {
     assert!(!asm.contains("lista_verso_"), "{}", asm);
 }
 
+#[test]
+fn mapas_nativos_emitem_calls_unificados_de_runtime() {
+    let code = include_str!("../examples/fase217_mapas_nativos_valido.pink");
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    for symbol in [
+        "call pinker_mapa_criar_chave_verso",
+        "call pinker_mapa_criar_chave_bombom",
+        "call pinker_mapa_definir",
+        "call pinker_mapa_obter",
+        "call pinker_mapa_tem",
+        "call pinker_mapa_tamanho",
+        "call pinker_mapa_remover",
+        "call pinker_mapa_iterador_criar",
+        "call pinker_mapa_iterador_proxima",
+    ] {
+        assert!(asm.contains(symbol), "faltou {} em:\n{}", symbol, asm);
+    }
+    assert!(!asm.contains("mapa_verso_bombom_"), "{}", asm);
+    assert!(!asm.contains("__pinker_internal_mapa"), "{}", asm);
+}
+
 fn detect_cc_driver() -> Option<String> {
     ["cc", "gcc", "clang"].iter().find_map(|candidate| {
         let probe = Command::new(candidate).arg("--version").output().ok()?;
@@ -417,6 +439,72 @@ fn listas_nativas_tem_paridade_de_stdout_com_interpretador() {
     assert_eq!(
         programa_interp, nativo_stdout,
         "stdout de listas deve ser idêntico entre interpretador e nativo"
+    );
+
+    let _ = fs::remove_dir_all(&out_dir);
+}
+
+#[test]
+fn mapas_nativos_tem_paridade_de_stdout_com_interpretador() {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return;
+    }
+    if detect_cc_driver().is_none() {
+        return;
+    }
+    let pink = env!("CARGO_BIN_EXE_pink");
+    let runtime_lib = std::path::Path::new(pink)
+        .parent()
+        .expect("diretório do pink")
+        .join("libpinker_rt.a");
+    if !runtime_lib.is_file() {
+        eprintln!("libpinker_rt.a ausente; pulando teste de paridade de mapas");
+        return;
+    }
+
+    let exemplo = "examples/fase217_mapas_nativos_valido.pink";
+
+    let interp = Command::new(pink)
+        .arg("--run")
+        .arg(exemplo)
+        .output()
+        .expect("falha ao rodar interpretador");
+    assert!(interp.status.success());
+    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
+    let programa_interp = interp_stdout
+        .strip_suffix("0\n")
+        .expect("esperava retorno 0 na última linha do interpretador");
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("tempo do sistema")
+        .as_nanos();
+    let out_dir = std::env::temp_dir().join(format!("pinker_fase217_{}", nanos));
+    let build = Command::new(pink)
+        .arg("build")
+        .arg("--nativo")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .arg(exemplo)
+        .env("PINKER_RT_LIB", &runtime_lib)
+        .output()
+        .expect("falha ao invocar pink build");
+    assert!(
+        build.status.success(),
+        "build nativo falhou: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let bin_path = out_dir.join("fase217_mapas_nativos_valido");
+    let run = Command::new(bin_path)
+        .output()
+        .expect("falha ao executar binário nativo");
+    assert_eq!(run.status.code(), Some(0));
+    let nativo_stdout = String::from_utf8_lossy(&run.stdout);
+
+    assert_eq!(
+        programa_interp, nativo_stdout,
+        "stdout de mapas deve ser idêntico entre interpretador e nativo"
     );
 
     let _ = fs::remove_dir_all(&out_dir);
