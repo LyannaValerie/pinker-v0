@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **212** — Eixo B: runtime `pinker_rt` + `pink build --nativo` (B1) |
+| Fase funcional mais recente | **213** — Eixo B: ABI SysV completa de funções (B2) |
 | Rodada documental mais recente | **Doc-41** — formalização dos dois eixos do Bloco 20 (A — linguagem; B — backend nativo) |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -48,16 +48,17 @@
 | 210 | Bloco 20, Faixa 1: múltiplas cargas + carga de tipo leque (recursão e recursão mútua); **fundação do Marco self-hosting 2 verificada** (avaliador recursivo de AST em Pinker) |
 | 211 | Bloco 20, Faixa 1: `lista<T>` genérica sobre leques + 7 intrínsecas genéricas; **Marco self-hosting 2 verificado em miniatura** (compilador de brinquedo lexer→parser→avaliador em Pinker) |
 | 212 | Bloco 20, Eixo B (B1): workspace com runtime nativo `pinker_rt` (staticlib ABI C, alocador testado) + `pink build --nativo` produzindo ELF real linkado ao runtime |
+| 213 | Bloco 20, Eixo B (B2): ABI SysV completa — 6 registradores + args de pilha com padding, N parâmetros, recursão e chamadas aninhadas nativas |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Fase 212 — Eixo B, fase B1: runtime `pinker_rt` + pipeline `pink build --nativo`**.
-- Repositório virou workspace Cargo: crate novo `runtime/pinker_rt` (staticlib + rlib, zero dependências) com `pinker_rt_iniciar(argc, argv)`, `pinker_rt_argc`/`argv`/`versao` e o alocador real `pinker_alocar`/`pinker_liberar` (cabeçalho de tamanho, alinhamento 16, nulo seguro), 6 testes unitários.
-- Backend `.s`: emissão nativa nova (`emit_external_toolchain_subset_nativo`) com `call pinker_rt_iniciar` no prólogo do `main`; emissão padrão inalterada.
-- CLI: `pink build --nativo [--out-dir dir] arquivo.pink` monta e linka via driver C detectado + `libpinker_rt.a` (env `PINKER_RT_LIB` ou ao lado do `pink`).
-- Critério de pronto cumprido: executável ELF real com `exit 42` verificado por teste automatizado de ponta a ponta (`tests/backend_nativo_tests.rs`).
-- `make ci` passa integralmente (incluindo o crate do runtime).
+- **Fase 213 — Eixo B, fase B2: ABI SysV completa de funções**.
+- `ARG_REGS` 3→6 (`%rdi`..`%r9`); argumentos 7+ pela pilha (push reverso, padding de alinhamento, limpeza pós-call); parâmetros 7+ lidos de `16(%rbp)`+ no callee; retorno em `%rax`.
+- Recusas históricas removidas: limite de 3 parâmetros/argumentos (Fase 115) e proibição de recursão direta (Fase 84); recursão mútua também compila.
+- Critério de pronto cumprido: `soma8(1..7, zero()+8) + fatorial(3) = 42` executando **nativo** com exit 42 (8 args, aninhamento, recursão), mesmo resultado no interpretador.
+- Cobertura: exemplo fase213 versionado; 4 testes novos (registradores+pilha, padding, recursão, execução real); 2 testes históricos de fronteira invertidos para aceitação.
+- `make ci` passa integralmente.
 
 ## 4. Limites canônicos ativos
 
@@ -73,8 +74,8 @@ Histórico completo por fase: `docs/history/phases/`.
 
 ## 5. Próximo passo
 - Estrutura do Bloco 20 formalizada em dois eixos (Doc-41): **Eixo A — linguagem** (faixas) e **Eixo B — backend nativo**. Ordem vigente: A (itens 1–3 ✓) → B (integral, em curso) → A (itens 5 → 6 → 4).
-- Próxima fase: **Eixo B, B2 (prevista Fase 213) — ABI completa de funções** — N argumentos de qualquer tipo já suportado nativamente, retorno em `rax`, alinhamento de pilha e disciplina caller/callee-saved corretos; testes executáveis com 0 a 8+ argumentos e chamadas aninhadas/recursivas.
-- Escada completa do eixo (B1 ✓, B2–B11) em `docs/roadmap/blocos/bloco_20.md`; regra do eixo: sem recorte mínimo, e B11 fecha com suíte de paridade interpretador × nativo no CI.
+- Próxima fase: **Eixo B, B3 (prevista Fase 214) — controle de fluxo geral** — todo CFG que o pipeline produz executa nativo: `talvez`/`senao` aninhados em qualquer profundidade, `sempre que` com `quebrar`/`continuar`, cadeias completas de `escolha`/`encaixe` desugaradas, `repetir...até`, `para...de...até`; nenhum "bloco não suportado" restante.
+- Escada completa do eixo (B1 ✓, B2 ✓, B3–B11) em `docs/roadmap/blocos/bloco_20.md`; regra do eixo: sem recorte mínimo, e B11 fecha com suíte de paridade interpretador × nativo no CI.
 - Após o eixo: itens 5 (**error handling**), 6 (**closures**) e 4 (**traits**) do Eixo A, com a regra nova de que toda fase de linguagem entrega o lowering nativo junto.
 
 ## 6. Arquitetura documental ativa

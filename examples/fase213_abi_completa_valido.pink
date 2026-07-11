@@ -1,0 +1,21 @@
+pacote main;
+
+carinho zero() -> bombom {
+    mimo 0;
+}
+
+carinho soma8(a: bombom, b: bombom, c: bombom, d: bombom, e: bombom, f: bombom, g: bombom, h: bombom) -> bombom {
+    mimo a + b + c + d + e + f + g + h;
+}
+
+carinho fatorial(n: bombom) -> bombom {
+    talvez n < 2 {
+        mimo 1;
+    }
+    mimo n * fatorial(n - 1);
+}
+
+carinho principal() -> bombom {
+    nova base: bombom = soma8(1, 2, 3, 4, 5, 6, 7, zero() + 8);
+    mimo base + fatorial(3);
+}
