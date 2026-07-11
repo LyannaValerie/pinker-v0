@@ -36,7 +36,18 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 /// via driver C (`cc`/`gcc`/`clang`) sem runtime próprio.
 pub fn emit_external_toolchain_subset(selected: &SelectedProgram) -> Result<String, PinkerError> {
     let program = extract_external_callconv_program(selected)?;
-    Ok(render_external_x86_64_linux_callconv(&program))
+    Ok(render_external_x86_64_linux_callconv_impl(&program, false))
+}
+
+/// Variante nativa do subset externo (Eixo B do Bloco 20, fase B1): o `main`
+/// gerado chama `pinker_rt_iniciar(argc, argv)` no prólogo, exigindo link com
+/// a staticlib `libpinker_rt.a` do workspace. É o caminho usado por
+/// `pink build --nativo`.
+pub fn emit_external_toolchain_subset_nativo(
+    selected: &SelectedProgram,
+) -> Result<String, PinkerError> {
+    let program = extract_external_callconv_program(selected)?;
+    Ok(render_external_x86_64_linux_callconv_impl(&program, true))
 }
 
 fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerError> {
@@ -547,7 +558,10 @@ fn extract_external_callconv_program(
     })
 }
 
-fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> String {
+fn render_external_x86_64_linux_callconv_impl(
+    program: &ExternalCallConvProgram,
+    runtime_init: bool,
+) -> String {
     let mut out = String::new();
     line(
         &mut out,
@@ -582,6 +596,11 @@ fn render_external_x86_64_linux_callconv(program: &ExternalCallConvProgram) -> S
         line(&mut out, 0, &format!("{}:", symbol));
         line(&mut out, 1, "pushq %rbp");
         line(&mut out, 1, "movq %rsp, %rbp");
+        if runtime_init && symbol == "main" {
+            // argc em %rdi e argv em %rsi (ABI C do main); pilha alinhada a 16
+            // após o push do %rbp, então a chamada é válida aqui.
+            line(&mut out, 1, "call pinker_rt_iniciar");
+        }
         if function.stack_size > 0 {
             line(&mut out, 1, &format!("subq ${}, %rsp", function.stack_size));
         }

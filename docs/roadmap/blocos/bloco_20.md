@@ -120,18 +120,51 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 | 51 | Block device abstraction | C (Linux) |
 | 52 | Character device abstraction | C (Linux) |
 
+## Eixo B — paridade real do backend nativo (fases planejadas B1–B11, previstas como Fases 212–222)
+
+**Origem.** Débito estrutural registrado na Doc-40: toda a superfície nova da linguagem desde as coleções (Fases 149–211: listas, mapas, `verso` dinâmico, intrínsecas de texto/arquivo/processo, leques, `encaixe`, listas genéricas) executa **apenas no interpretador**. O backend `.s` cobre um subset linear antigo (ABI de até 3 args `bombom`, controle de fluxo parcial, `verso` estático camada 1). Cada fase de linguagem entregue sem lowering nativo **alarga** a lacuna — e sem paridade nativa, o propósito "SO em Pinker" fica estruturalmente adiado, não importa quantos itens de faixa caiam.
+
+**Posição na trilha.** O Eixo B começa imediatamente após a Fase 211. Os itens restantes da Faixa 1 (5 — error handling, 6 — closures, 4 — traits) retomam após o eixo, com a regra permanente de que **toda fase de linguagem futura entrega o lowering nativo junto** (fim das features interpreter-only).
+
+**Decisão estratégica do eixo** (formalizada e validada em B1):
+- Caminho canônico: **backend `.s` próprio** (x86-64 System V), evoluído — não substituído.
+- **Runtime nativo próprio (`pinker_rt`)**: staticlib construída no próprio workspace, com ABI C estável, linkada aos executáveis gerados. É onde vivem alocador, strings dinâmicas, coleções, leques e as intrínsecas de sistema.
+- **Sem LLVM/Cranelift** (dependência pesada, contra a sobriedade zero-dependency do projeto) e **sem transpilar para C** (perderia o controle fino de ABI/memória que o propósito SO exige).
+- O runtime nasce em Rust dentro do workspace (mesma toolchain já exigida, zero dependência nova) e é substituível no futuro por implementação em Pinker (convergência com a direção self-hosting).
+
+**Regra do eixo — sem recorte mínimo.** Cada fase entrega a cobertura **completa** do seu subproblema, com critério de pronto executável e verificação contra o interpretador. Nenhuma fase fecha "no menor recorte auditável"; fecha quando o subproblema inteiro executa nativo.
+
+| Fase | Prevista | Entrega | Critério de pronto |
+|---|---|---|---|
+| B1 | 212 | Runtime nativo `pinker_rt` + pipeline de build integrado — **entregue na Fase 212** | `pink build --nativo prog.pink` produz executável ELF real, montado e linkado ao runtime; alocador do runtime (`pinker_alocar`/`pinker_liberar`) funcionando sob teste; executável de fumaça roda e retorna código correto ✓ |
+| B2 | 213 | ABI completa de funções | funções com N argumentos de qualquer tipo já suportado nativamente, retorno em `rax`, alinhamento de pilha e disciplina caller/callee-saved corretos; testes executáveis com 0 a 8+ argumentos e chamadas aninhadas/recursivas |
+| B3 | 214 | Controle de fluxo geral | todo CFG que o pipeline produz executa nativo: `talvez`/`senao` aninhados em qualquer profundidade, `sempre que` com `quebrar`/`continuar`, cadeias completas de `escolha`/`encaixe` desugaradas, `repetir...até`, `para...de...até`; nenhum "bloco não suportado" restante |
+| B4 | 215 | `verso` dinâmico nativo | strings de heap no runtime (ponteiro+tamanho); literais, `juntar_verso`, `tamanho_verso`, comparações (`igual_verso` etc.) e `falar` de verso dinâmico executando nativo |
+| B5 | 216 | Listas nativas completas | `lista<bombom>`, `lista<verso>` e `lista<Leque>` com **todas** as intrínsecas (monomorphizadas e genéricas) via runtime; `para cada` sobre listas nativo |
+| B6 | 217 | Mapas nativos completos | os 4 tipos de mapa com todas as intrínsecas + iteradores internos de `para cada` no runtime |
+| B7 | 218 | Leques com carga nativos | handles no runtime (`criar_0`/`anexar_*`/`tag`/`carga_*`); `encaixe` integral executando nativo, incluindo AST recursiva (o avaliador da Fase 210 nativo) |
+| B8 | 219 | Família texto completa nativa | `dividir_verso_em`/`_contar`, `substituir_verso`, `buscar_verso`, `comeca_com`/`termina_com`, conversões `verso↔bombom`, `formatar_verso` e interpolação — tudo nativo |
+| B9 | 220 | arquivo + caminho + tempo + acaso nativos | intrínsecas de arquivo/filesystem sobre syscalls/libc no runtime; `tempo_unix`/`formatar_tempo_unix`; gerador de acaso; exemplos de arquivo executam nativos |
+| B10 | 221 | ambiente + processo nativos | argv/env nativos (`argumento`, `ambiente_ou`, ...); `executar_processo`/`capturar_stdout`/`capturar_stderr`/`executar_com_entrada`/`pipeline_minimo` via fork/exec/pipes no runtime |
+| B11 | 222 | **Marco de paridade** + fechamento do eixo | suíte automatizada executa cada exemplo versionado válido nos **dois modos** (interpretador e nativo) e exige stdout e código de saída idênticos; a paridade só é declarada com a suíte verde no CI; o compilador de brinquedo da Fase 211 executa nativo |
+
+**Relação com a Faixa 3.** O item 13 (alocador como superfície de linguagem, `alocar`/`liberar`) é distinto e continua na Faixa 3: o Eixo B entrega o alocador **interno** do runtime; a exposição na linguagem vem depois, sobre ele.
+
+**Relação com os marcos.** O Marco SO 1 depende diretamente do Eixo B completo (não existe programa bare-metal saindo de interpretador). O Marco self-hosting real (compilador Pinker compilando Pinker com saída executável) também: sem backend nativo com paridade, self-hosting seria interpretação sobre interpretação.
+
 ## Marcos de verificação dos propósitos
 
 - **Marco self-hosting 1**: lexer da Pinker escrito em Pinker (exige Faixa 1 completa). **Primeiro degrau verificado na Fase 209**: lexer de brinquedo 100% em Pinker (`examples/fase209_lexer_brinquedo_valido.pink`) tokenizando fonte real com `leque` + `encaixe`.
 - **Marco self-hosting 2**: parser + AST em Pinker (exige Faixas 1 e 4–5). **Fundação verificada na Fase 210** (AST recursiva avaliada em Pinker) e **verificado em miniatura na Fase 211**: compilador de brinquedo de ponta a ponta — lexer → `lista<Token>` → parser recursivo com precedência → AST → avaliação (`examples/fase211_compilador_brinquedo_valido.pink`).
-- **Marco SO 1**: programa bare-metal com alocador próprio e handler de interrupção (exige Faixas 1, 3 e 7).
+- **Marco SO 1**: programa bare-metal com alocador próprio e handler de interrupção (exige Faixas 1, 3 e 7 **e o Eixo B completo**).
 - **Marco SO 2**: kernel mínimo com scheduler e syscalls (exige Faixas 10–11).
 
 ## Método de execução
 
 - Cada item vira uma ou mais fases numeradas normais, com exemplo versionado, testes e entrada no histórico.
-- O padrão de suficiência conservadora continua valendo por item: recorte mínimo auditável primeiro, expansão depois.
-- A ordem entre faixas é a prioridade canônica; dentro de uma faixa, itens podem ser reordenados por dependência técnica.
+- Nas faixas de linguagem, o alvo de cada item é o nível "utilizável pelos marcos" (Fases 208–211 são o padrão); no **Eixo B**, a regra é mais dura: cobertura completa do subproblema por fase, sem recorte mínimo.
+- Após o Eixo B, toda fase de linguagem nova entrega o lowering nativo junto — features interpreter-only deixam de ser aceitas.
+- A ordem entre faixas é a prioridade canônica; dentro de uma faixa, itens podem ser reordenados por dependência técnica (ordem vigente da Faixa 1: 3 → 5 → 6 → 4, com o Eixo B intercalado após o item 3).
 
 ## Limites explícitos
 - Esta trilha não reabre o Bloco 18 nem antecipa o Bloco 19 (reformas sintáticas), que segue candidato futuro.

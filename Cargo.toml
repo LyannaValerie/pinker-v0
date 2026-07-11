@@ -1,3 +1,10 @@
+# Workspace: o compilador (pacote raiz) + o runtime nativo (Eixo B do Bloco 20).
+# default-members inclui ambos para que `cargo build`/`cargo test` na raiz
+# construam e testem o workspace inteiro (contrato do `make ci`).
+[workspace]
+members = [".", "runtime/pinker_rt"]
+default-members = [".", "runtime/pinker_rt"]
+
 [package]
 name = "pinker-v0"
 version = "0.1.0"

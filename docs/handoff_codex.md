@@ -13,8 +13,8 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **211** — `lista<T>` genérica sobre leques (generics mínimos) |
-| Rodada documental mais recente | **Doc-39** — fechamento do Bloco 18 e abertura do Bloco 20 |
+| Fase funcional mais recente | **212** — Eixo B: runtime `pinker_rt` + `pink build --nativo` (B1) |
+| Rodada documental mais recente | **Doc-40** — abertura do Eixo B do Bloco 20 (paridade real do backend nativo) |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
@@ -47,16 +47,17 @@
 | 209 | Bloco 20, Faixa 1: carga por variante (`bombom`/`verso`) + `encaixe` com exaustividade; **primeiro degrau do Marco self-hosting 1 verificado** (lexer de brinquedo em Pinker) |
 | 210 | Bloco 20, Faixa 1: múltiplas cargas + carga de tipo leque (recursão e recursão mútua); **fundação do Marco self-hosting 2 verificada** (avaliador recursivo de AST em Pinker) |
 | 211 | Bloco 20, Faixa 1: `lista<T>` genérica sobre leques + 7 intrínsecas genéricas; **Marco self-hosting 2 verificado em miniatura** (compilador de brinquedo lexer→parser→avaliador em Pinker) |
+| 212 | Bloco 20, Eixo B (B1): workspace com runtime nativo `pinker_rt` (staticlib ABI C, alocador testado) + `pink build --nativo` produzindo ELF real linkado ao runtime |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Fase 211 — `lista<T>` genérica sobre leques (generics mínimos)**, entregando o item 3 da Faixa 1 no recorte utilizável pelos marcos.
-- Novo tipo paramétrico `lista<Leque>` com tipagem nominal do elemento; 7 intrínsecas genéricas (`lista_criar` com anotação em `nova`, `lista_anexar`, `lista_obter`, `lista_tamanho`, `lista_definir`, `lista_tirar_ultimo`, `lista_inserir`) sobre qualquer lista; `para cada` sobre lista de leque; nomes monomorphizados legados preservados.
-- Implementação enxuta: `lista<Leque>` abaixa para o runtime de `lista<bombom>`; as genéricas são reescritas na IR para as formas monomorphizadas — zero mudança em validadores posteriores e interpretador.
-- Critério de pronto cumprido: compilador de brinquedo de ponta a ponta em Pinker (`examples/fase211_compilador_brinquedo_valido.pink`): `"2 + 4 * 10"` → lexer → `lista<Token>` → parser com precedência → AST `Expr` → avaliação → 42.
-- Cobertura: 2 exemplos ponta a ponta, 10 testes semânticos novos, 3 testes CLI.
-- `make ci` passa integralmente.
+- **Fase 212 — Eixo B, fase B1: runtime `pinker_rt` + pipeline `pink build --nativo`**.
+- Repositório virou workspace Cargo: crate novo `runtime/pinker_rt` (staticlib + rlib, zero dependências) com `pinker_rt_iniciar(argc, argv)`, `pinker_rt_argc`/`argv`/`versao` e o alocador real `pinker_alocar`/`pinker_liberar` (cabeçalho de tamanho, alinhamento 16, nulo seguro), 6 testes unitários.
+- Backend `.s`: emissão nativa nova (`emit_external_toolchain_subset_nativo`) com `call pinker_rt_iniciar` no prólogo do `main`; emissão padrão inalterada.
+- CLI: `pink build --nativo [--out-dir dir] arquivo.pink` monta e linka via driver C detectado + `libpinker_rt.a` (env `PINKER_RT_LIB` ou ao lado do `pink`).
+- Critério de pronto cumprido: executável ELF real com `exit 42` verificado por teste automatizado de ponta a ponta (`tests/backend_nativo_tests.rs`).
+- `make ci` passa integralmente (incluindo o crate do runtime).
 
 ## 4. Limites canônicos ativos
 
@@ -71,8 +72,9 @@ Histórico completo por fase: `docs/history/phases/`.
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- Continuar a **Faixa 1** do Bloco 20 na ordem decidida (3 → 5 → 6 → 4). Itens 1, 2 e 3 entregues no nível utilizável; próximo: item 5 (**error handling estruturado** — `tentar/pegar` ou Result via leque; keywords candidatas `amparo`/`tropeco` no vocabulário provisório), depois item 6 (**closures**) e por fim item 4 (**traits**).
-- Trilha completa: `docs/roadmap/blocos/bloco_20.md`.
+- **Eixo B, fase B2 (prevista Fase 213): ABI completa de funções** — N argumentos de qualquer tipo já suportado nativamente, retorno em `rax`, alinhamento de pilha e disciplina caller/callee-saved corretos; testes executáveis com 0 a 8+ argumentos e chamadas aninhadas/recursivas.
+- Escada completa do eixo (B1 ✓, B2–B11) em `docs/roadmap/blocos/bloco_20.md`; regra do eixo: sem recorte mínimo, e B11 fecha com suíte de paridade interpretador × nativo no CI.
+- Após o eixo: itens 5 (**error handling**), 6 (**closures**) e 4 (**traits**) da Faixa 1, com a regra nova de que toda fase de linguagem entrega o lowering nativo junto.
 
 ## 6. Arquitetura documental ativa
 - `roadmap.md` = ordem ativa.
