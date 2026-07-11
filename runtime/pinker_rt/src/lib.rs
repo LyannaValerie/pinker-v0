@@ -951,6 +951,420 @@ pub unsafe extern "C" fn pinker_leque_carga(l: *mut u8, tag: u64, indice: u64) -
     leque_cargas(l).add(indice as usize).read()
 }
 
+// ---------------------------------------------------------------------------
+// Arquivo, caminho, tempo e acaso nativos (Fase 220/B9)
+//
+// O modelo de arquivo espelha o interpretador: handles apontam para entradas
+// em memória (`caminho` + `conteudo` + flag de anexo) e toda escrita persiste
+// imediatamente no disco; handles fechados produzem erro distinto. O gerador
+// de acaso replica o MESMO LCG do interpretador (paridade de sementes).
+// ---------------------------------------------------------------------------
+
+use std::collections::{HashMap, HashSet};
+use std::sync::{Mutex, OnceLock};
+
+struct ArquivoAberto {
+    caminho: String,
+    conteudo: String,
+    anexo: bool,
+}
+
+struct EstadoIo {
+    arquivos: HashMap<u64, ArquivoAberto>,
+    fechados: HashSet<u64>,
+    proximo_handle: u64,
+}
+
+fn estado_io() -> &'static Mutex<EstadoIo> {
+    static IO: OnceLock<Mutex<EstadoIo>> = OnceLock::new();
+    IO.get_or_init(|| {
+        Mutex::new(EstadoIo {
+            arquivos: HashMap::new(),
+            fechados: HashSet::new(),
+            proximo_handle: 1,
+        })
+    })
+}
+
+fn io_lock() -> std::sync::MutexGuard<'static, EstadoIo> {
+    estado_io()
+        .lock()
+        .unwrap_or_else(|_| erro_fatal("estado de arquivos corrompido"))
+}
+
+fn abrir_com_flag(caminho: &str, conteudo: String, anexo: bool) -> u64 {
+    let mut io = io_lock();
+    let handle = io.proximo_handle;
+    io.proximo_handle = io.proximo_handle.saturating_add(1);
+    io.arquivos.insert(
+        handle,
+        ArquivoAberto {
+            caminho: caminho.to_string(),
+            conteudo,
+            anexo,
+        },
+    );
+    handle
+}
+
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_arquivo_abrir(caminho: *const u8) -> u64 {
+    let caminho = verso_str(caminho);
+    let conteudo = std::fs::read_to_string(caminho)
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao abrir arquivo '{caminho}': {err}")));
+    abrir_com_flag(caminho, conteudo, false)
+}
+
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_arquivo_criar(caminho: *const u8) -> u64 {
+    let caminho = verso_str(caminho);
+    std::fs::write(caminho, "")
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao criar arquivo '{caminho}': {err}")));
+    abrir_com_flag(caminho, String::new(), false)
+}
+
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_arquivo_abrir_anexo(caminho: *const u8) -> u64 {
+    let caminho = verso_str(caminho);
+    let conteudo = std::fs::read_to_string(caminho).unwrap_or_else(|err| {
+        erro_fatal(&format!(
+            "falha ao abrir arquivo para anexo '{caminho}': {err}"
+        ))
+    });
+    abrir_com_flag(caminho, conteudo, true)
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_arquivo_fechar(handle: u64) {
+    let mut io = io_lock();
+    if io.arquivos.remove(&handle).is_none() {
+        if io.fechados.contains(&handle) {
+            erro_fatal("handle de arquivo já fechado em 'fechar'");
+        }
+        erro_fatal("handle de arquivo inválido em 'fechar'");
+    }
+    io.fechados.insert(handle);
+}
+
+fn com_arquivo<R>(handle: u64, nome: &str, f: impl FnOnce(&mut ArquivoAberto) -> R) -> R {
+    let mut io = io_lock();
+    if !io.arquivos.contains_key(&handle) {
+        if io.fechados.contains(&handle) {
+            erro_fatal(&format!("handle de arquivo já fechado em '{nome}'"));
+        }
+        erro_fatal(&format!("handle de arquivo inválido em '{nome}'"));
+    }
+    f(io.arquivos.get_mut(&handle).expect("verificado acima"))
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_arquivo_ler_bombom(handle: u64) -> u64 {
+    com_arquivo(handle, "ler_arquivo", |arq| {
+        let aparado = arq.conteudo.trim();
+        if aparado.is_empty() {
+            erro_fatal("arquivo vazio em 'ler_arquivo'");
+        }
+        aparado.parse::<u64>().unwrap_or_else(|_| {
+            erro_fatal(&format!(
+                "conteúdo não numérico em 'ler_arquivo': '{aparado}'"
+            ))
+        })
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_arquivo_ler_verso(handle: u64) -> *mut u8 {
+    com_arquivo(handle, "ler_verso_arquivo", |arq| {
+        verso_alocar(&arq.conteudo)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_arquivo_escrever_bombom(handle: u64, valor: u64) {
+    com_arquivo(handle, "escrever", |arq| {
+        let novo = valor.to_string();
+        std::fs::write(&arq.caminho, &novo)
+            .unwrap_or_else(|err| erro_fatal(&format!("falha ao escrever em arquivo: {err}")));
+        arq.conteudo = novo;
+    })
+}
+
+/// # Safety
+/// `valor` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_arquivo_escrever_verso(handle: u64, valor: *const u8) {
+    let valor = verso_str(valor);
+    com_arquivo(handle, "escrever_verso", |arq| {
+        std::fs::write(&arq.caminho, valor)
+            .unwrap_or_else(|err| erro_fatal(&format!("falha ao escrever verso: {err}")));
+        arq.conteudo = valor.to_string();
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_arquivo_truncar(handle: u64) {
+    com_arquivo(handle, "truncar_arquivo", |arq| {
+        std::fs::write(&arq.caminho, "")
+            .unwrap_or_else(|err| erro_fatal(&format!("falha ao truncar arquivo: {err}")));
+        arq.conteudo.clear();
+    })
+}
+
+/// # Safety
+/// `valor` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_arquivo_anexar_verso(handle: u64, valor: *const u8) {
+    let valor = verso_str(valor);
+    com_arquivo(handle, "anexar_verso", |arq| {
+        if !arq.anexo {
+            erro_fatal("handle sem modo anexo em 'anexar_verso'; use 'abrir_anexo'");
+        }
+        use std::io::Write as _;
+        let mut arquivo = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&arq.caminho)
+            .unwrap_or_else(|err| erro_fatal(&format!("falha ao anexar verso: {err}")));
+        arquivo
+            .write_all(valor.as_bytes())
+            .unwrap_or_else(|err| erro_fatal(&format!("falha ao anexar verso: {err}")));
+        arq.conteudo.push_str(valor);
+    })
+}
+
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_arquivo_ler_caminho_verso(caminho: *const u8) -> *mut u8 {
+    let caminho = verso_str(caminho);
+    let conteudo = std::fs::read_to_string(caminho)
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao ler arquivo '{caminho}': {err}")));
+    verso_alocar(&conteudo)
+}
+
+/// # Safety
+/// `caminho` e `fallback` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_arquivo_ou(caminho: *const u8, fallback: *const u8) -> *mut u8 {
+    match std::fs::read_to_string(verso_str(caminho)) {
+        Ok(conteudo) => verso_alocar(&conteudo),
+        Err(_) => verso_alocar(verso_str(fallback)),
+    }
+}
+
+/// # Safety
+/// `origem` e `destino` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_arquivo_copiar(origem: *const u8, destino: *const u8) {
+    std::fs::copy(verso_str(origem), verso_str(destino))
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao copiar arquivo: {err}")));
+}
+
+/// # Safety
+/// `de` e `para` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_arquivo_renomear(de: *const u8, para: *const u8) {
+    std::fs::rename(verso_str(de), verso_str(para))
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao renomear arquivo: {err}")));
+}
+
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_caminho_existe(caminho: *const u8) -> u64 {
+    u64::from(std::path::Path::new(verso_str(caminho)).exists())
+}
+
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_caminho_e_arquivo(caminho: *const u8) -> u64 {
+    u64::from(std::path::Path::new(verso_str(caminho)).is_file())
+}
+
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_caminho_e_diretorio(caminho: *const u8) -> u64 {
+    u64::from(std::path::Path::new(verso_str(caminho)).is_dir())
+}
+
+/// # Safety
+/// `base` e `filho` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_caminho_juntar(base: *const u8, filho: *const u8) -> *mut u8 {
+    let junto = std::path::PathBuf::from(verso_str(base)).join(verso_str(filho));
+    verso_alocar(&junto.to_string_lossy())
+}
+
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_caminho_tamanho_arquivo(caminho: *const u8) -> u64 {
+    let caminho = verso_str(caminho);
+    let meta = std::fs::metadata(caminho)
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao medir arquivo '{caminho}': {err}")));
+    if !meta.is_file() {
+        erro_fatal("caminho não é arquivo em 'tamanho_arquivo'");
+    }
+    meta.len()
+}
+
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_caminho_e_vazio(caminho: *const u8) -> u64 {
+    let caminho = verso_str(caminho);
+    let meta = std::fs::metadata(caminho)
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao medir arquivo '{caminho}': {err}")));
+    if !meta.is_file() {
+        erro_fatal("caminho não é arquivo em 'e_vazio'");
+    }
+    u64::from(meta.len() == 0)
+}
+
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_caminho_criar_diretorio(caminho: *const u8) {
+    std::fs::create_dir_all(verso_str(caminho))
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao criar diretório: {err}")));
+}
+
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_caminho_remover_arquivo(caminho: *const u8) {
+    std::fs::remove_file(verso_str(caminho))
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao remover arquivo: {err}")));
+}
+
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_caminho_remover_diretorio(caminho: *const u8) {
+    std::fs::remove_dir(verso_str(caminho))
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao remover diretório: {err}")));
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_caminho_diretorio_atual() -> *mut u8 {
+    let atual = std::env::current_dir()
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao obter diretório atual: {err}")));
+    verso_alocar(&atual.to_string_lossy())
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_tempo_unix() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_else(|_| erro_fatal("relógio do sistema anterior à época Unix"))
+        .as_secs()
+}
+
+fn civil_de_dias(dias: i64) -> (i64, u64, u64) {
+    // Algoritmo civil idêntico ao do interpretador (Howard Hinnant).
+    let z = dias
+        .checked_add(719_468)
+        .unwrap_or_else(|| erro_fatal("timestamp inválido em 'formatar_tempo_unix'"));
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let mut ano = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let dia = doy - (153 * mp + 2) / 5 + 1;
+    let mes = mp + if mp < 10 { 3 } else { -9 };
+    if mes <= 2 {
+        ano += 1;
+    }
+    (ano, mes as u64, dia as u64)
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_formatar_tempo_unix(timestamp: u64) -> *mut u8 {
+    let dias = i64::try_from(timestamp / 86_400)
+        .unwrap_or_else(|_| erro_fatal("timestamp inválido em 'formatar_tempo_unix'"));
+    let segundos_do_dia = timestamp % 86_400;
+    let (ano, mes, dia) = civil_de_dias(dias);
+    let hora = segundos_do_dia / 3_600;
+    let minuto = (segundos_do_dia % 3_600) / 60;
+    let segundo = segundos_do_dia % 60;
+    verso_alocar(&format!(
+        "{ano:04}-{mes:02}-{dia:02}T{hora:02}:{minuto:02}:{segundo:02}Z"
+    ))
+}
+
+struct EstadoAcaso {
+    geradores: HashMap<u64, u64>,
+    proximo_handle: u64,
+}
+
+fn estado_acaso() -> &'static Mutex<EstadoAcaso> {
+    static ACASO: OnceLock<Mutex<EstadoAcaso>> = OnceLock::new();
+    ACASO.get_or_init(|| {
+        Mutex::new(EstadoAcaso {
+            geradores: HashMap::new(),
+            proximo_handle: 1,
+        })
+    })
+}
+
+/// LCG idêntico ao do interpretador — paridade de sementes garantida.
+fn avancar_gerador(estado: &mut u64) -> u64 {
+    *estado = estado
+        .wrapping_mul(6_364_136_223_846_793_005)
+        .wrapping_add(1_442_695_040_888_963_407);
+    *estado
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_aleatorio_criar(semente: u64) -> u64 {
+    let mut acaso = estado_acaso()
+        .lock()
+        .unwrap_or_else(|_| erro_fatal("estado de acaso corrompido"));
+    let handle = acaso.proximo_handle;
+    acaso.proximo_handle = acaso.proximo_handle.saturating_add(1);
+    acaso.geradores.insert(handle, semente);
+    handle
+}
+
+fn com_gerador<R>(handle: u64, nome: &str, f: impl FnOnce(&mut u64) -> R) -> R {
+    let mut acaso = estado_acaso()
+        .lock()
+        .unwrap_or_else(|_| erro_fatal("estado de acaso corrompido"));
+    let Some(estado) = acaso.geradores.get_mut(&handle) else {
+        erro_fatal(&format!("gerador inválido em '{nome}'"));
+    };
+    f(estado)
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_aleatorio_proximo(handle: u64) -> u64 {
+    com_gerador(handle, "aleatorio_proximo", avancar_gerador)
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_aleatorio_entre(handle: u64, min: u64, max: u64) -> u64 {
+    if min > max {
+        erro_fatal("intrínseca 'aleatorio_entre': min não pode ser maior que max");
+    }
+    com_gerador(handle, "aleatorio_entre", |estado| {
+        let bruto = avancar_gerador(estado);
+        let faixa = max - min + 1;
+        if faixa == 0 {
+            bruto
+        } else {
+            min + (bruto % faixa)
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

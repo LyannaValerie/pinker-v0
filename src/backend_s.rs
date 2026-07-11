@@ -1325,6 +1325,36 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         | "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave" => {
             Some("pinker_mapa_iterador_proxima")
         }
+        // Arquivo, caminho, tempo e acaso (Fase 220/B9).
+        "abrir" => Some("pinker_arquivo_abrir"),
+        "criar_arquivo" => Some("pinker_arquivo_criar"),
+        "abrir_anexo" => Some("pinker_arquivo_abrir_anexo"),
+        "fechar" => Some("pinker_arquivo_fechar"),
+        "ler_arquivo" => Some("pinker_arquivo_ler_bombom"),
+        "ler_verso_arquivo" => Some("pinker_arquivo_ler_verso"),
+        "escrever" => Some("pinker_arquivo_escrever_bombom"),
+        "escrever_verso" => Some("pinker_arquivo_escrever_verso"),
+        "truncar_arquivo" => Some("pinker_arquivo_truncar"),
+        "anexar_verso" => Some("pinker_arquivo_anexar_verso"),
+        "ler_arquivo_verso" => Some("pinker_arquivo_ler_caminho_verso"),
+        "arquivo_ou" => Some("pinker_arquivo_ou"),
+        "copiar_arquivo" => Some("pinker_arquivo_copiar"),
+        "renomear_arquivo" => Some("pinker_arquivo_renomear"),
+        "caminho_existe" => Some("pinker_caminho_existe"),
+        "e_arquivo" => Some("pinker_caminho_e_arquivo"),
+        "e_diretorio" => Some("pinker_caminho_e_diretorio"),
+        "juntar_caminho" => Some("pinker_caminho_juntar"),
+        "tamanho_arquivo" => Some("pinker_caminho_tamanho_arquivo"),
+        "e_vazio" => Some("pinker_caminho_e_vazio"),
+        "criar_diretorio" => Some("pinker_caminho_criar_diretorio"),
+        "remover_arquivo" => Some("pinker_caminho_remover_arquivo"),
+        "remover_diretorio" => Some("pinker_caminho_remover_diretorio"),
+        "diretorio_atual" => Some("pinker_caminho_diretorio_atual"),
+        "tempo_unix" => Some("pinker_tempo_unix"),
+        "formatar_tempo_unix" => Some("pinker_formatar_tempo_unix"),
+        "aleatorio_criar" => Some("pinker_aleatorio_criar"),
+        "aleatorio_proximo" => Some("pinker_aleatorio_proximo"),
+        "aleatorio_entre" => Some("pinker_aleatorio_entre"),
         // Leques com carga (Fase 218/B7): anexar e carga não distinguem
         // bombom/verso no runtime — toda carga é uma palavra de 8 bytes.
         "__pinker_internal_leque_criar_0" => Some("pinker_leque_criar_0"),

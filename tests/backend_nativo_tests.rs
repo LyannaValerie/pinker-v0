@@ -239,6 +239,34 @@ fn texto_nativo_emite_calls_de_runtime_e_formatar_por_aridade() {
     assert!(!asm.contains("call formatar_verso"), "{}", asm);
 }
 
+#[test]
+fn arquivo_tempo_acaso_emitem_calls_de_runtime() {
+    let code = include_str!("../examples/fase220_arquivo_tempo_acaso_nativos_valido.pink");
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    for symbol in [
+        "call pinker_arquivo_criar",
+        "call pinker_arquivo_escrever_verso",
+        "call pinker_arquivo_fechar",
+        "call pinker_arquivo_ler_caminho_verso",
+        "call pinker_arquivo_abrir_anexo",
+        "call pinker_arquivo_anexar_verso",
+        "call pinker_arquivo_ou",
+        "call pinker_arquivo_copiar",
+        "call pinker_caminho_juntar",
+        "call pinker_caminho_existe",
+        "call pinker_caminho_e_arquivo",
+        "call pinker_caminho_tamanho_arquivo",
+        "call pinker_caminho_remover_arquivo",
+        "call pinker_formatar_tempo_unix",
+        "call pinker_aleatorio_criar",
+        "call pinker_aleatorio_proximo",
+        "call pinker_aleatorio_entre",
+    ] {
+        assert!(asm.contains(symbol), "faltou {} em:\n{}", symbol, asm);
+    }
+}
+
 fn detect_cc_driver() -> Option<String> {
     ["cc", "gcc", "clang"].iter().find_map(|candidate| {
         let probe = Command::new(candidate).arg("--version").output().ok()?;
@@ -663,6 +691,15 @@ fn lexer_de_brinquedo_da_fase209_executa_nativo_com_paridade() {
         "examples/fase209_lexer_brinquedo_valido.pink",
         "fase209_lexer_brinquedo_valido",
         5,
+    );
+}
+
+#[test]
+fn arquivo_tempo_acaso_tem_paridade_de_stdout_com_interpretador() {
+    paridade_stdout(
+        "examples/fase220_arquivo_tempo_acaso_nativos_valido.pink",
+        "fase220_arquivo_tempo_acaso_nativos_valido",
+        6,
     );
 }
 
