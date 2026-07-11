@@ -542,9 +542,17 @@ fn extract_external_callconv_program(
                             ));
                             continue;
                         }
-                        let call_target = if let Some(runtime_symbol) =
-                            runtime_intrinsic_symbol(callee)
-                        {
+                        // `formatar_verso` tem aridade variável; o runtime
+                        // expõe wrappers por aridade (Fase 219/B8).
+                        let call_target = if callee == "formatar_verso" {
+                            let substituicoes = args.len().saturating_sub(1);
+                            if substituicoes > 8 {
+                                return Err(err(
+                                    "subset externo montável (Fase 219) aceita 'formatar_verso' nativo com até 8 argumentos de substituição",
+                                ));
+                            }
+                            format!("pinker_formatar_verso_{}", substituicoes)
+                        } else if let Some(runtime_symbol) = runtime_intrinsic_symbol(callee) {
                             runtime_symbol.to_string()
                         } else {
                             if !selected.functions.iter().any(|f| &f.name == callee) {
@@ -1202,6 +1210,7 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
         || *ty == TypeIR::U32
         || *ty == TypeIR::U64
         || *ty == TypeIR::Verso
+        || *ty == TypeIR::Logica
         || *ty == TypeIR::ListBombom
         || *ty == TypeIR::ListVerso
         || *ty == TypeIR::MapVersoBombom
@@ -1249,6 +1258,24 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         "juntar_verso" => Some("pinker_verso_juntar"),
         "tamanho_verso" => Some("pinker_verso_tamanho"),
         "igual_verso" => Some("pinker_verso_igual"),
+        // Família texto completa (Fase 219/B8).
+        "indice_verso" => Some("pinker_verso_indice"),
+        "contem_verso" => Some("pinker_verso_contem"),
+        "comeca_com" => Some("pinker_verso_comeca_com"),
+        "termina_com" => Some("pinker_verso_termina_com"),
+        "vazio_verso" => Some("pinker_verso_vazio"),
+        "nao_vazio_verso" => Some("pinker_verso_nao_vazio"),
+        "aparar_verso" => Some("pinker_verso_aparar"),
+        "minusculo_verso" => Some("pinker_verso_minusculo"),
+        "maiusculo_verso" => Some("pinker_verso_maiusculo"),
+        "indice_verso_em" => Some("pinker_verso_indice_em"),
+        "buscar_verso" => Some("pinker_verso_buscar"),
+        "dividir_verso_em" => Some("pinker_verso_dividir_em"),
+        "dividir_verso_contar" => Some("pinker_verso_dividir_contar"),
+        "substituir_verso" => Some("pinker_verso_substituir"),
+        "juntar_verso_com" => Some("pinker_verso_juntar_com"),
+        "verso_para_bombom" => Some("pinker_verso_para_bombom"),
+        "bombom_para_verso" => Some("pinker_bombom_para_verso"),
         "lista_bombom_criar" | "lista_verso_criar" => Some("pinker_lista_criar"),
         "lista_bombom_anexar" | "lista_verso_anexar" => Some("pinker_lista_anexar"),
         "lista_bombom_obter" | "lista_verso_obter" => Some("pinker_lista_obter"),

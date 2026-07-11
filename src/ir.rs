@@ -2086,6 +2086,36 @@ impl<'a> FunctionLowerer<'a> {
                     });
                 }
 
+                // `formatar_verso` (Fase 219/B8): argumentos `bombom` são
+                // convertidos para verso já na IR (mesmo texto que o
+                // interpretador produziria), permitindo que o runtime nativo
+                // trate todos os argumentos uniformemente como versos.
+                if name == "formatar_verso" {
+                    let mut ir_args = Vec::with_capacity(args.len());
+                    for (idx, arg) in args.iter().enumerate() {
+                        let typed = self.lower_value(arg)?;
+                        if idx > 0 && typed.ty != TypeIR::Verso {
+                            ir_args.push(ValueIR::Call {
+                                callee: "bombom_para_verso".to_string(),
+                                args: vec![typed.value],
+                                ret_type: TypeIR::Verso,
+                            });
+                        } else {
+                            ir_args.push(typed.value);
+                        }
+                    }
+                    return Ok(TypedValueIR {
+                        value: ValueIR::Call {
+                            callee: name.clone(),
+                            args: ir_args,
+                            ret_type: TypeIR::Verso,
+                        },
+                        ty: TypeIR::Verso,
+                        struct_name: None,
+                        ptr_array_bombom_size: None,
+                    });
+                }
+
                 if name == "__ternario" {
                     let typed_args: Vec<TypedValueIR> = args
                         .iter()

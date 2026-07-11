@@ -209,6 +209,36 @@ fn leques_com_carga_emitem_calls_unificados_de_runtime() {
     assert!(!asm.contains("__pinker_internal_leque"), "{}", asm);
 }
 
+#[test]
+fn texto_nativo_emite_calls_de_runtime_e_formatar_por_aridade() {
+    let code = include_str!("../examples/fase219_texto_nativo_valido.pink");
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    for symbol in [
+        "call pinker_verso_aparar",
+        "call pinker_verso_minusculo",
+        "call pinker_verso_maiusculo",
+        "call pinker_verso_contem",
+        "call pinker_verso_comeca_com",
+        "call pinker_verso_termina_com",
+        "call pinker_verso_indice_em",
+        "call pinker_verso_buscar",
+        "call pinker_verso_indice",
+        "call pinker_verso_dividir_contar",
+        "call pinker_verso_dividir_em",
+        "call pinker_verso_substituir",
+        "call pinker_verso_juntar_com",
+        "call pinker_verso_para_bombom",
+        "call pinker_bombom_para_verso",
+        "call pinker_verso_vazio",
+        "call pinker_verso_nao_vazio",
+        "call pinker_formatar_verso_2",
+    ] {
+        assert!(asm.contains(symbol), "faltou {} em:\n{}", symbol, asm);
+    }
+    assert!(!asm.contains("call formatar_verso"), "{}", asm);
+}
+
 fn detect_cc_driver() -> Option<String> {
     ["cc", "gcc", "clang"].iter().find_map(|candidate| {
         let probe = Command::new(candidate).arg("--version").output().ok()?;
@@ -606,6 +636,33 @@ fn avaliador_recursivo_da_fase210_executa_nativo_com_paridade() {
         "examples/fase210_leque_recursivo_avaliador_valido.pink",
         "fase210_leque_recursivo_avaliador_valido",
         2,
+    );
+}
+
+#[test]
+fn texto_nativo_tem_paridade_de_stdout_com_interpretador() {
+    paridade_stdout(
+        "examples/fase219_texto_nativo_valido.pink",
+        "fase219_texto_nativo_valido",
+        3,
+    );
+}
+
+#[test]
+fn compilador_de_brinquedo_da_fase211_executa_nativo_com_paridade() {
+    paridade_stdout(
+        "examples/fase211_compilador_brinquedo_valido.pink",
+        "fase211_compilador_brinquedo_valido",
+        4,
+    );
+}
+
+#[test]
+fn lexer_de_brinquedo_da_fase209_executa_nativo_com_paridade() {
+    paridade_stdout(
+        "examples/fase209_lexer_brinquedo_valido.pink",
+        "fase209_lexer_brinquedo_valido",
+        5,
     );
 }
 

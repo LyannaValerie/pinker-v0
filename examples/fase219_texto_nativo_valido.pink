@@ -1,0 +1,41 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova fonte: verso = "  Rosa Pinker canta 42 versos  ";
+    nova limpo: verso = aparar_verso(fonte);
+    falar(limpo);
+    falar(minusculo_verso(limpo));
+    falar(maiusculo_verso("pinker"));
+
+    talvez contem_verso(limpo, "canta") {
+        falar("contem canta");
+    }
+    talvez comeca_com(limpo, "Rosa") {
+        falar("comeca com Rosa");
+    }
+    talvez termina_com(limpo, "versos") {
+        falar("termina com versos");
+    }
+
+    falar("indice de canta:", indice_verso_em(limpo, "canta"));
+    falar("buscar Pinker:", buscar_verso(limpo, "Pinker"));
+    falar("primeira letra:", indice_verso(limpo, 0));
+
+    falar("pedacos:", dividir_verso_contar(limpo, " "));
+    falar("quarto pedaco:", dividir_verso_em(limpo, " ", 3));
+
+    falar(substituir_verso(limpo, "canta", "escreve"));
+    falar(juntar_verso_com("rosa", " & ", "pinker"));
+
+    nova numero: bombom = verso_para_bombom(dividir_verso_em(limpo, " ", 3));
+    falar("numero + 1:", numero + 1);
+    falar(juntar_verso("como verso: ", bombom_para_verso(numero)));
+
+    talvez nao_vazio_verso(limpo) {
+        falar(formatar_verso("modelo: {} tem {} pedacos", limpo, dividir_verso_contar(limpo, " ")));
+    }
+    talvez vazio_verso("") {
+        falar("vazio confere");
+    }
+    mimo numero - 42;
+}
