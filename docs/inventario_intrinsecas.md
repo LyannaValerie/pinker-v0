@@ -322,8 +322,14 @@ Estes aliases existem por compatibilidade temporária e devem ser tratados como 
 | `__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave` | `(bombom) → bombom` | Suporte interno ao lowering de `para cada chave em mapa<bombom,bombom>` |
 | `__pinker_internal_mapa_bombom_verso_iterador_criar` | `(mapa<bombom,verso>) → bombom` | Suporte interno ao lowering de `para cada chave em mapa<bombom,verso>` |
 | `__pinker_internal_mapa_bombom_verso_iterador_proxima_chave` | `(bombom) → bombom` | Suporte interno ao lowering de `para cada chave em mapa<bombom,verso>` |
+| `__pinker_internal_leque_criar_0` | `(tag) → handle` | Suporte interno à construção de variante de leque sem carga (Fase 209) |
+| `__pinker_internal_leque_criar_b` | `(tag, bombom) → handle` | Suporte interno à construção de variante de leque com carga `bombom` (Fase 209) |
+| `__pinker_internal_leque_criar_v` | `(tag, verso) → handle` | Suporte interno à construção de variante de leque com carga `verso` (Fase 209) |
+| `__pinker_internal_leque_tag` | `(handle) → bombom` | Suporte interno ao desugaring de `encaixe` (leitura de discriminante) |
+| `__pinker_internal_leque_carga_b` | `(handle) → bombom` | Suporte interno ao desugaring de `encaixe` (extração de carga `bombom`) |
+| `__pinker_internal_leque_carga_v` | `(handle) → verso` | Suporte interno ao desugaring de `encaixe` (extração de carga `verso`) |
 
-Estas intrínsecas não fazem parte da superfície pública e não participam da classificação do Bloco 18. São mecanismo interno do compilador para desdobrar `para cada` sobre os tipos de mapa.
+Estas intrínsecas não fazem parte da superfície pública e não participam da classificação do Bloco 18. São mecanismo interno do compilador para desdobrar `para cada` sobre os tipos de mapa e para construção/desconstrução de valores de `leque` com carga via `encaixe`.
 
 ## 4. Resumo quantitativo
 
@@ -341,7 +347,7 @@ Estas intrínsecas não fazem parte da superfície pública e não participam da
 | Domínio provisório: colecao | 38 |
 | Domínio provisório: formato | 5 |
 | Aliases legados | 3 |
-| Intrínsecas internas | 8 |
+| Intrínsecas internas | 14 |
 | **Total de intrínsecas públicas distintas** | **112** |
 
 ## 5. Observações para as próximas fases

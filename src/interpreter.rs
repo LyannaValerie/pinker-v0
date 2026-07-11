@@ -65,6 +65,15 @@ struct RuntimeMapState {
     map_iters_bombom_bombom: HashMap<u64, RuntimeMapBombomBombomIter>,
     map_iters_bombom_verso: HashMap<u64, RuntimeMapBombomVersoIter>,
     next_map_iter_handle: u64,
+    // Fase 209 — valores de leque com carga: handle -> (tag, carga).
+    enum_values: HashMap<u64, (u64, RuntimeEnumPayload)>,
+    next_enum_handle: u64,
+}
+
+enum RuntimeEnumPayload {
+    None,
+    Int(u64),
+    Str(String),
 }
 
 struct RuntimeRandomState {
@@ -164,6 +173,8 @@ pub fn run_program_with_args(
         map_iters_bombom_bombom: HashMap::new(),
         map_iters_bombom_verso: HashMap::new(),
         next_map_iter_handle: 1,
+        enum_values: HashMap::new(),
+        next_enum_handle: 1,
     };
     let mut random_state = RuntimeRandomState {
         generators: HashMap::new(),
@@ -1207,6 +1218,124 @@ fn try_call_intrinsic(
             })?;
             iter.next_index = iter.next_index.saturating_add(1);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(key.clone()))))
+        }
+        "__pinker_internal_leque_criar_0" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_leque_criar_0' exige 1 argumento (tag)",
+                ));
+            }
+            let RuntimeValue::Int(tag) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_leque_criar_0' exige tag 'bombom'",
+                ));
+            };
+            let handle = map_state.next_enum_handle;
+            map_state.next_enum_handle = map_state.next_enum_handle.saturating_add(1);
+            map_state
+                .enum_values
+                .insert(handle, (*tag, RuntimeEnumPayload::None));
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(handle))))
+        }
+        "__pinker_internal_leque_criar_b" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_leque_criar_b' exige 2 argumentos (tag, carga)",
+                ));
+            }
+            let (RuntimeValue::Int(tag), RuntimeValue::Int(payload)) = (&args[0], &args[1]) else {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_leque_criar_b' exige tag e carga 'bombom'",
+                ));
+            };
+            let handle = map_state.next_enum_handle;
+            map_state.next_enum_handle = map_state.next_enum_handle.saturating_add(1);
+            map_state
+                .enum_values
+                .insert(handle, (*tag, RuntimeEnumPayload::Int(*payload)));
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(handle))))
+        }
+        "__pinker_internal_leque_criar_v" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_leque_criar_v' exige 2 argumentos (tag, carga)",
+                ));
+            }
+            let (RuntimeValue::Int(tag), RuntimeValue::Str(payload)) = (&args[0], &args[1]) else {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_leque_criar_v' exige tag 'bombom' e carga 'verso'",
+                ));
+            };
+            let handle = map_state.next_enum_handle;
+            map_state.next_enum_handle = map_state.next_enum_handle.saturating_add(1);
+            map_state
+                .enum_values
+                .insert(handle, (*tag, RuntimeEnumPayload::Str(payload.clone())));
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(handle))))
+        }
+        "__pinker_internal_leque_tag" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_leque_tag' exige 1 argumento (leque)",
+                ));
+            }
+            let RuntimeValue::Int(handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_leque_tag' exige handle 'bombom'",
+                ));
+            };
+            let Some((tag, _)) = map_state.enum_values.get(handle) else {
+                return Err(runtime_err(
+                    "handle de leque inválido em '__pinker_internal_leque_tag'",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(*tag))))
+        }
+        "__pinker_internal_leque_carga_b" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_leque_carga_b' exige 1 argumento (leque)",
+                ));
+            }
+            let RuntimeValue::Int(handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_leque_carga_b' exige handle 'bombom'",
+                ));
+            };
+            let Some((_, payload)) = map_state.enum_values.get(handle) else {
+                return Err(runtime_err(
+                    "handle de leque inválido em '__pinker_internal_leque_carga_b'",
+                ));
+            };
+            let RuntimeEnumPayload::Int(value) = payload else {
+                return Err(runtime_err(
+                    "variante sem carga 'bombom' em '__pinker_internal_leque_carga_b'",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(*value))))
+        }
+        "__pinker_internal_leque_carga_v" => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_leque_carga_v' exige 1 argumento (leque)",
+                ));
+            }
+            let RuntimeValue::Int(handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca interna '__pinker_internal_leque_carga_v' exige handle 'bombom'",
+                ));
+            };
+            let Some((_, payload)) = map_state.enum_values.get(handle) else {
+                return Err(runtime_err(
+                    "handle de leque inválido em '__pinker_internal_leque_carga_v'",
+                ));
+            };
+            let RuntimeEnumPayload::Str(value) = payload else {
+                return Err(runtime_err(
+                    "variante sem carga 'verso' em '__pinker_internal_leque_carga_v'",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value.clone()))))
         }
         "ouvir" => {
             if !args.is_empty() {

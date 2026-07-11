@@ -96,6 +96,24 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
         "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave".to_string(),
         TypeIR::Bombom,
     );
+    sigs.insert(
+        "__pinker_internal_leque_criar_0".to_string(),
+        TypeIR::Bombom,
+    );
+    sigs.insert(
+        "__pinker_internal_leque_criar_b".to_string(),
+        TypeIR::Bombom,
+    );
+    sigs.insert(
+        "__pinker_internal_leque_criar_v".to_string(),
+        TypeIR::Bombom,
+    );
+    sigs.insert("__pinker_internal_leque_tag".to_string(), TypeIR::Bombom);
+    sigs.insert(
+        "__pinker_internal_leque_carga_b".to_string(),
+        TypeIR::Bombom,
+    );
+    sigs.insert("__pinker_internal_leque_carga_v".to_string(), TypeIR::Verso);
     sigs.insert("argumento".to_string(), TypeIR::Verso);
     sigs.insert("argumento_ou".to_string(), TypeIR::Verso);
     sigs.insert("tem_chave".to_string(), TypeIR::Logica);

@@ -23,8 +23,8 @@ Os itens da Faixa 1 mais os três primeiros da Faixa 3 formam o conjunto que des
 
 | # | Item | Inspiração | Motivação SO/self-hosting |
 |---|---|---|---|
-| 1 | Enums / tipos algébricos | Rust, TS, C# | nós de AST, estados de kernel, códigos de erro — **em curso: recorte mínimo nominal (`leque`, sem payload) entregue na Fase 208; dados por variante ainda futuros** |
-| 2 | Pattern matching | Rust, C#, TS | despacho sobre enums/AST, parsing de tokens |
+| 1 | Enums / tipos algébricos | Rust, TS, C# | nós de AST, estados de kernel, códigos de erro — **alvo funcional entregue nas Fases 208–209: `leque` nominal com carga por variante (`bombom`/`verso`) e construção `Leque.Variante(valor)`; carga de tipo leque (AST recursiva) e múltiplas cargas ainda futuras** |
+| 2 | Pattern matching | Rust, C#, TS | despacho sobre enums/AST, parsing de tokens — **em curso: `encaixe` mínimo entregue na Fase 209 (despacho por variante, extração de carga, exaustividade no parse); guards, padrões aninhados e encaixe-expressão ainda futuros** |
 | 3 | Generics mínimos (`lista<T>`, `mapa<K,V>`) | C++, TS, C# | eliminar monomorphização manual |
 | 4 | Traits / interfaces mínimas | Rust, TS, C# | polimorfismo sem herança, contratos de driver |
 | 5 | Error handling estruturado (`tentar/pegar` ou Result) | C#, Python, Rust | recuperação sem abort, relatório de erros do compilador |
@@ -122,7 +122,7 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 
 ## Marcos de verificação dos propósitos
 
-- **Marco self-hosting 1**: lexer da Pinker escrito em Pinker (exige Faixa 1 completa).
+- **Marco self-hosting 1**: lexer da Pinker escrito em Pinker (exige Faixa 1 completa). **Primeiro degrau verificado na Fase 209**: lexer de brinquedo 100% em Pinker (`examples/fase209_lexer_brinquedo_valido.pink`) tokenizando fonte real com `leque` + `encaixe`.
 - **Marco self-hosting 2**: parser + AST em Pinker (exige Faixas 1 e 4–5).
 - **Marco SO 1**: programa bare-metal com alocador próprio e handler de interrupção (exige Faixas 1, 3 e 7).
 - **Marco SO 2**: kernel mínimo com scheduler e syscalls (exige Faixas 10–11).

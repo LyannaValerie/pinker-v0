@@ -61,22 +61,25 @@ nova nome: verso = "Pinker";
 Também existem tipos inteiros fixos (`u8..u64`, `i8..i64`) no estado atual.
 
 ### `leque`
-Enumeração nominal com variantes nomeadas (recorte mínimo, sem dados por variante):
+Enumeração nominal com variantes nomeadas, opcionalmente com carga (`bombom` ou `verso`):
 
 ```pink
 leque Cor { Vermelho, Verde, Azul }
 
+leque Token { Numero(bombom), Palavra(verso), Fim }
+
 carinho principal() -> bombom {
-    nova escolhida: Cor = Cor.Verde;
-    escolha escolhida {
-        caso Cor.Vermelho { falar("quente"); }
-        senao { falar("fria"); }
+    nova t: Token = Token.Numero(42);
+    encaixe t {
+        caso Token.Numero(n) { falar("numero", n); }
+        caso Token.Palavra(p) { falar("palavra", p); }
+        caso Token.Fim { falar("fim"); }
     }
     mimo 0;
 }
 ```
 
-Dois leques diferentes são tipos distintos mesmo com variantes de mesmo nome; a comparação usa `==`/`!=` e o discriminante inteiro pode ser lido com `virar bombom`.
+Dois leques diferentes são tipos distintos mesmo com variantes de mesmo nome. Em leques **sem carga**, a comparação usa `==`/`!=` (inclusive em `escolha`) e o discriminante pode ser lido com `virar bombom`. Em leques **com carga**, a desconstrução acontece exclusivamente via `encaixe`: o compilador exige que todas as variantes sejam cobertas ou que exista um `senao`, e cada `caso Leque.Variante(nome)` liga a carga a uma variável nova no corpo do caso.
 
 ## 5) Fluxo de controle
 

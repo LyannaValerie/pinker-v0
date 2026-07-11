@@ -131,7 +131,9 @@ Referências cruzadas: `docs/familias/resolucao.md`, `docs/familias/superficie.m
 
 ### Núcleo de linguagem
 
-`pacote`, `carinho`, `mimo`, `talvez`, `senao`, `sempre que`, `quebrar`, `continuar`, `eterno`, `nova`, `muda`, `bombom`, `logica`, `verdade`, `falso`, `principal`.
+`pacote`, `carinho`, `mimo`, `talvez`, `senao`, `sempre que`, `quebrar`, `continuar`, `eterno`, `nova`, `muda`, `bombom`, `logica`, `verdade`, `falso`, `principal`, `encaixe`.
+
+Nota factual: `encaixe` foi promovida de provisória a aceita/implementada na Fase 209 como pattern matching mínimo sobre `leque` (despacho por variante, extração de carga e exaustividade verificada no parse).
 
 ### Sistema de tipos e memória
 
@@ -156,7 +158,7 @@ Nota factual: `leque` foi promovida de provisória a aceita/implementada na Fase
 ## 6. Keywords provisórias (aceitáveis, ainda não fechadas)
 
 - Tipos/estrutura: `par`, `canto`, `letra`, `grao` (`leque` foi promovida a aceita na Fase 208).
-- Controle: `passeio`, `encaixe`, `roda`.
+- Controle: `passeio`, `roda` (`encaixe` foi promovida a aceita na Fase 209).
 - Erros/fluxo: `amparo`, `tropeco`.
 - Abstração: `molde`, `vestir`, `qualquer`.
 - Sistemas: `reserva`, `soltar`, `raiz`.
