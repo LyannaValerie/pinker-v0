@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **221** — Eixo B: ambiente e processo nativos (B10) |
+| Fase funcional mais recente | **222** — Eixo B: marco de paridade e fechamento do eixo (B11) |
 | Rodada documental mais recente | **Doc-41** — formalização dos dois eixos do Bloco 20 (A — linguagem; B — backend nativo) |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -57,15 +57,16 @@
 | 219 | Bloco 20, Eixo B (B8): família texto completa nativa — 17 operações + `formatar_verso` por aridade + interpolação; **o compilador de brinquedo da Fase 211 executa como ELF com paridade** |
 | 220 | Bloco 20, Eixo B (B9): arquivo/caminho/tempo/acaso nativos — modelo de handles do interpretador, mesmo algoritmo civil de datas, **mesmo LCG (paridade de sementes)** |
 | 221 | Bloco 20, Eixo B (B10): ambiente/processo nativos — argv/env consumindo o `argc`/`argv` da B1, subprocessos completos; **paridade verificada com argumentos reais** |
+| 222 | Bloco 20, Eixo B (B11): marco de paridade e fechamento do eixo — suíte automatizada executa exemplos versionados compatíveis nos dois modos, comparando stdout e exit; **Eixo B encerrado** |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Fase 221 — Eixo B, fase B10: ambiente e processo nativos**.
-- Ambiente: 9 funções consumindo o `argc`/`argv` capturado por `pinker_rt_iniciar` (B1); réplica exata do lookup `chave valor`/`chave=valor`; aliases legados mapeados.
-- Processo: `executar`/`capturar_stdout`/`capturar_stderr` (1–2 args), `com_entrada` (2–3, via pipe de stdin), `pipeline_minimo` — validações e mensagens do interpretador; wrappers por aridade generalizados no backend.
-- Critério de pronto cumprido: paridade de stdout com e sem argv real (`quantos: 5`, flag, `chave=valor`, par `chave valor` idênticos nos dois modos).
-- Cobertura: exemplo fase221; 3 testes (emissão, paridade sem args, paridade com argv); fronteira movida para `ouvir` (fora do eixo).
+- **Fase 222 — Eixo B, fase B11: marco de paridade e fechamento do eixo**.
+- Suíte B11: manifesto explícito em `tests/backend_nativo_tests.rs` com os exemplos versionados compatíveis do Eixo B (`fase212`–`fase221`), o caso com `argv` real da Fase 221 e os marcos self-hosting compatíveis (`fase209`, `fase210`, `fase211`).
+- Critério de pronto cumprido: cada caso roda no interpretador e como ELF nativo gerado por `pink build --nativo`; o stdout do programa é comparado byte a byte e o retorno de `principal` no interpretador é comparado ao exit code nativo.
+- Fechamento: **Eixo B encerrado**; o backend `.s` próprio + runtime `pinker_rt` passam a ser a base obrigatória para novas fases de linguagem.
+- Limites honestos mantidos: `ouvir` interativo, ordem de iteração de mapa multi-chave e exemplos dependentes de argv/binários auxiliares fora do manifesto controlado não viram critério global.
 - `make ci` passa integralmente.
 
 ## 4. Limites canônicos ativos
@@ -81,10 +82,10 @@ Histórico completo por fase: `docs/history/phases/`.
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41): **Eixo A — linguagem** (faixas) e **Eixo B — backend nativo**. Ordem vigente: A (itens 1–3 ✓) → B (integral, em curso) → A (itens 5 → 6 → 4).
-- Próxima fase: **Eixo B, B11 (prevista Fase 222) — marco de paridade e fechamento do eixo** — suíte automatizada que executa cada exemplo versionado compatível nos **dois modos** (interpretador e nativo) exigindo stdout e exit idênticos, verde no CI; o fechamento registra os limites honestos (iteração de mapa multi-chave, `ouvir` interativo, exemplos dependentes de argv/binários auxiliares) e encerra o eixo. Depois: Eixo A retoma nos itens 5 (error handling) → 6 (closures) → 4 (traits), com lowering nativo obrigatório em cada fase nova.
-- Escada completa do eixo (B1 ✓ ... B10 ✓, B11) em `docs/roadmap/blocos/bloco_20.md`.
-- Após o eixo: itens 5 (**error handling**), 6 (**closures**) e 4 (**traits**) do Eixo A, com a regra nova de que toda fase de linguagem entrega o lowering nativo junto.
+- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41): **Eixo A — linguagem** (faixas) e **Eixo B — backend nativo**. Ordem vigente agora: A (itens 1–3 ✓) → B (integral ✓) → A (itens 5 → 6 → 4).
+- Próxima fase: retomar o **Eixo A, item 5 da Faixa 1 — error handling estruturado** (prevista Fase 223), com lowering nativo obrigatório desde o início.
+- Escada completa do eixo encerrado (B1 ✓ ... B11 ✓) em `docs/roadmap/blocos/bloco_20.md`.
+- Depois do item 5: itens 6 (**closures**) e 4 (**traits**) do Eixo A, mantendo a regra de que toda fase de linguagem entrega o lowering nativo junto.
 
 ## 6. Arquitetura documental ativa
 - `roadmap.md` = ordem ativa.
