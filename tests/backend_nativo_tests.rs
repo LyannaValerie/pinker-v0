@@ -605,6 +605,191 @@ fn mapas_nativos_tem_paridade_de_stdout_com_interpretador() {
     let _ = fs::remove_dir_all(&out_dir);
 }
 
+#[derive(Clone, Copy)]
+struct ParidadeNativaCaso {
+    exemplo: &'static str,
+    bin_nome: &'static str,
+    argv: &'static [&'static str],
+}
+
+const ARGVS_FASE221: &[&str] = &[
+    "primeiro",
+    "--modo",
+    "--saida=custom.txt",
+    "--nivel",
+    "alto",
+];
+
+const CASOS_PARIDADE_B11: &[ParidadeNativaCaso] = &[
+    ParidadeNativaCaso {
+        exemplo: "examples/fase212_build_nativo_fumaca_valido.pink",
+        bin_nome: "fase212_build_nativo_fumaca_valido",
+        argv: &[],
+    },
+    ParidadeNativaCaso {
+        exemplo: "examples/fase213_abi_completa_valido.pink",
+        bin_nome: "fase213_abi_completa_valido",
+        argv: &[],
+    },
+    ParidadeNativaCaso {
+        exemplo: "examples/fase214_controle_fluxo_geral_valido.pink",
+        bin_nome: "fase214_controle_fluxo_geral_valido",
+        argv: &[],
+    },
+    ParidadeNativaCaso {
+        exemplo: "examples/fase215_verso_dinamico_nativo_valido.pink",
+        bin_nome: "fase215_verso_dinamico_nativo_valido",
+        argv: &[],
+    },
+    ParidadeNativaCaso {
+        exemplo: "examples/fase216_listas_nativas_valido.pink",
+        bin_nome: "fase216_listas_nativas_valido",
+        argv: &[],
+    },
+    ParidadeNativaCaso {
+        exemplo: "examples/fase217_mapas_nativos_valido.pink",
+        bin_nome: "fase217_mapas_nativos_valido",
+        argv: &[],
+    },
+    ParidadeNativaCaso {
+        exemplo: "examples/fase218_leques_carga_nativos_valido.pink",
+        bin_nome: "fase218_leques_carga_nativos_valido",
+        argv: &[],
+    },
+    ParidadeNativaCaso {
+        exemplo: "examples/fase219_texto_nativo_valido.pink",
+        bin_nome: "fase219_texto_nativo_valido",
+        argv: &[],
+    },
+    ParidadeNativaCaso {
+        exemplo: "examples/fase220_arquivo_tempo_acaso_nativos_valido.pink",
+        bin_nome: "fase220_arquivo_tempo_acaso_nativos_valido",
+        argv: &[],
+    },
+    ParidadeNativaCaso {
+        exemplo: "examples/fase221_ambiente_processo_nativos_valido.pink",
+        bin_nome: "fase221_ambiente_processo_nativos_valido",
+        argv: &[],
+    },
+    ParidadeNativaCaso {
+        exemplo: "examples/fase221_ambiente_processo_nativos_valido.pink",
+        bin_nome: "fase221_ambiente_processo_nativos_valido",
+        argv: ARGVS_FASE221,
+    },
+    ParidadeNativaCaso {
+        exemplo: "examples/fase209_lexer_brinquedo_valido.pink",
+        bin_nome: "fase209_lexer_brinquedo_valido",
+        argv: &[],
+    },
+    ParidadeNativaCaso {
+        exemplo: "examples/fase210_leque_recursivo_avaliador_valido.pink",
+        bin_nome: "fase210_leque_recursivo_avaliador_valido",
+        argv: &[],
+    },
+    ParidadeNativaCaso {
+        exemplo: "examples/fase211_compilador_brinquedo_valido.pink",
+        bin_nome: "fase211_compilador_brinquedo_valido",
+        argv: &[],
+    },
+];
+
+fn separar_stdout_e_retorno_interpretador(stdout: &str) -> (&str, i32) {
+    let sem_quebra_final = stdout
+        .strip_suffix('\n')
+        .expect("stdout do interpretador deve terminar com quebra de linha");
+    let (programa_stdout, retorno) = match sem_quebra_final.rsplit_once('\n') {
+        Some((prefixo, ultima)) => (&stdout[..prefixo.len() + 1], ultima),
+        None => ("", sem_quebra_final),
+    };
+    let retorno = retorno
+        .parse::<i32>()
+        .expect("última linha do interpretador deve ser o retorno numérico de principal");
+    (programa_stdout, retorno)
+}
+
+fn paridade_stdout_e_exit(caso: ParidadeNativaCaso, marcador: u128) {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return;
+    }
+    if detect_cc_driver().is_none() {
+        return;
+    }
+    let pink = env!("CARGO_BIN_EXE_pink");
+    let runtime_lib = std::path::Path::new(pink)
+        .parent()
+        .expect("diretório do pink")
+        .join("libpinker_rt.a");
+    if !runtime_lib.is_file() {
+        eprintln!("libpinker_rt.a ausente; pulando teste de paridade B11");
+        return;
+    }
+
+    let mut interp_cmd = Command::new(pink);
+    interp_cmd.arg("--run").arg(caso.exemplo);
+    if !caso.argv.is_empty() {
+        interp_cmd.arg("--").args(caso.argv);
+    }
+    let interp = interp_cmd.output().expect("falha ao rodar interpretador");
+    assert!(
+        interp.status.success(),
+        "interpretador falhou para {}: {}",
+        caso.exemplo,
+        String::from_utf8_lossy(&interp.stderr)
+    );
+    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
+    let (programa_interp, retorno_interp) = separar_stdout_e_retorno_interpretador(&interp_stdout);
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("tempo do sistema")
+        .as_nanos()
+        + marcador;
+    let out_dir = std::env::temp_dir().join(format!("pinker_paridade_b11_{}", nanos));
+    let build = Command::new(pink)
+        .arg("build")
+        .arg("--nativo")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .arg(caso.exemplo)
+        .env("PINKER_RT_LIB", &runtime_lib)
+        .output()
+        .expect("falha ao invocar pink build");
+    assert!(
+        build.status.success(),
+        "build nativo falhou para {}: {}",
+        caso.exemplo,
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let bin_path = out_dir.join(caso.bin_nome);
+    let run = Command::new(bin_path)
+        .args(caso.argv)
+        .output()
+        .expect("falha ao executar binário nativo");
+    let nativo_stdout = String::from_utf8_lossy(&run.stdout);
+
+    assert_eq!(
+        run.status.code(),
+        Some(retorno_interp),
+        "exit deve ser idêntico ao retorno de principal para {}",
+        caso.exemplo
+    );
+    assert_eq!(
+        programa_interp, nativo_stdout,
+        "stdout deve ser idêntico entre interpretador e nativo para {}",
+        caso.exemplo
+    );
+
+    let _ = fs::remove_dir_all(&out_dir);
+}
+
+#[test]
+fn b11_marco_de_paridade_executa_exemplos_versionados_compativeis() {
+    for (indice, caso) in CASOS_PARIDADE_B11.iter().copied().enumerate() {
+        paridade_stdout_e_exit(caso, 10_000 + indice as u128);
+    }
+}
+
 fn paridade_stdout(exemplo: &str, bin_nome: &str, marcador: u128) {
     if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
         return;
