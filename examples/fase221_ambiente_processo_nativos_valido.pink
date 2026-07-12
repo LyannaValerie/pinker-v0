@@ -1,0 +1,17 @@
+pacote main;
+
+carinho principal() -> bombom {
+    falar("quantos:", quantos_argumentos());
+    falar("arg0:", argumento_ou(0, "sem arg"));
+    falar("flag:", tem_flag("--modo"));
+    falar("chave:", pedir_argumento("--saida", "padrao.txt"));
+    falar("env:", ambiente_ou("PINKER_B10_TESTE", "sem env"));
+    falar("contexto:", buscar_contexto("--nivel", "PINKER_B10_NIVEL", "normal"));
+
+    falar("exit true:", executar_processo("true"));
+    falar("exit false:", executar_processo("false"));
+    falar("eco:", capturar_stdout("echo", "rosa pinker"));
+    falar("com entrada:", executar_com_entrada("cat", "engolido\n"));
+    falar("pipeline:", pipeline_minimo("true", "true"));
+    mimo 0;
+}

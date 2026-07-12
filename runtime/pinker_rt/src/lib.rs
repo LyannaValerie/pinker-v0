@@ -1365,6 +1365,367 @@ pub extern "C" fn pinker_aleatorio_entre(handle: u64, min: u64, max: u64) -> u64
     })
 }
 
+// ---------------------------------------------------------------------------
+// Ambiente e processo nativos (Fase 221/B10)
+//
+// Os argumentos do programa vêm do `argc`/`argv` capturados por
+// `pinker_rt_iniciar` (B1): `argv[0]` é o binário, então os "argumentos do
+// programa" são `argv[1..]` — o equivalente nativo do `cli_args` do
+// interpretador. A busca por chave nomeada replica `find_named_cli_argument`
+// (`chave valor` ou `chave=valor`). Subprocessos usam `std::process` com as
+// mesmas validações (comando não vazio, UTF-8 estrito, exit code exigido).
+// ---------------------------------------------------------------------------
+
+fn argumentos_do_programa() -> Vec<String> {
+    let argc = pinker_rt_argc();
+    let argv = pinker_rt_argv();
+    if argv.is_null() || argc <= 1 {
+        return Vec::new();
+    }
+    let mut argumentos = Vec::with_capacity((argc - 1) as usize);
+    for i in 1..argc {
+        unsafe {
+            let ptr = *argv.add(i as usize);
+            if ptr.is_null() {
+                break;
+            }
+            let cstr = std::ffi::CStr::from_ptr(ptr as *const std::os::raw::c_char);
+            argumentos.push(cstr.to_string_lossy().to_string());
+        }
+    }
+    argumentos
+}
+
+/// Réplica de `find_named_cli_argument`: `chave valor` ou `chave=valor`;
+/// devolve `Some(valor)` apenas quando há valor presente.
+fn buscar_argumento_nomeado(argumentos: &[String], chave: &str) -> Option<String> {
+    let chave_igual = format!("{chave}=");
+    for (indice, argumento) in argumentos.iter().enumerate() {
+        if argumento == chave {
+            return argumentos.get(indice + 1).cloned();
+        }
+        if let Some(valor) = argumento.strip_prefix(&chave_igual) {
+            return Some(valor.to_string());
+        }
+    }
+    None
+}
+
+fn exigir_chave_nao_vazia(nome: &str, chave: &str) {
+    if chave.is_empty() {
+        erro_fatal(&format!("intrínseca '{nome}' exige chave não vazia"));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_ambiente_quantos_argumentos() -> u64 {
+    argumentos_do_programa().len() as u64
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_ambiente_argumento(indice: u64) -> *mut u8 {
+    let argumentos = argumentos_do_programa();
+    let Some(argumento) = argumentos.get(indice as usize) else {
+        erro_fatal("argumento ausente em 'argumento'");
+    };
+    verso_alocar(argumento)
+}
+
+/// # Safety
+/// `padrao` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_ambiente_argumento_ou(indice: u64, padrao: *const u8) -> *mut u8 {
+    let argumentos = argumentos_do_programa();
+    match argumentos.get(indice as usize) {
+        Some(argumento) => verso_alocar(argumento),
+        None => verso_alocar(verso_str(padrao)),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_ambiente_tem_argumento(indice: u64) -> u64 {
+    u64::from(argumentos_do_programa().get(indice as usize).is_some())
+}
+
+/// # Safety
+/// `chave` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_ambiente_tem_chave(chave: *const u8) -> u64 {
+    let chave = verso_str(chave);
+    exigir_chave_nao_vazia("tem_chave", chave);
+    u64::from(buscar_argumento_nomeado(&argumentos_do_programa(), chave).is_some())
+}
+
+/// # Safety
+/// `chave` e `padrao` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_ambiente_pedir_argumento(
+    chave: *const u8,
+    padrao: *const u8,
+) -> *mut u8 {
+    let chave = verso_str(chave);
+    exigir_chave_nao_vazia("pedir_argumento", chave);
+    match buscar_argumento_nomeado(&argumentos_do_programa(), chave) {
+        Some(valor) => verso_alocar(&valor),
+        None => verso_alocar(verso_str(padrao)),
+    }
+}
+
+/// # Safety
+/// `chave` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_ambiente_tem_flag(chave: *const u8) -> u64 {
+    let chave = verso_str(chave);
+    exigir_chave_nao_vazia("tem_flag", chave);
+    u64::from(
+        argumentos_do_programa()
+            .iter()
+            .any(|argumento| argumento == chave),
+    )
+}
+
+/// # Safety
+/// `chave` e `padrao` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_ambiente_ou(chave: *const u8, padrao: *const u8) -> *mut u8 {
+    let chave = verso_str(chave);
+    exigir_chave_nao_vazia("ambiente_ou", chave);
+    match std::env::var(chave) {
+        Ok(valor) => verso_alocar(&valor),
+        Err(_) => verso_alocar(verso_str(padrao)),
+    }
+}
+
+/// # Safety
+/// `chave_arg`, `chave_env` e `padrao` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_ambiente_buscar_contexto(
+    chave_arg: *const u8,
+    chave_env: *const u8,
+    padrao: *const u8,
+) -> *mut u8 {
+    let chave_arg = verso_str(chave_arg);
+    let chave_env = verso_str(chave_env);
+    exigir_chave_nao_vazia("buscar_contexto", chave_arg);
+    exigir_chave_nao_vazia("buscar_contexto", chave_env);
+    if let Some(valor) = buscar_argumento_nomeado(&argumentos_do_programa(), chave_arg) {
+        return verso_alocar(&valor);
+    }
+    match std::env::var(chave_env) {
+        Ok(valor) => verso_alocar(&valor),
+        Err(_) => verso_alocar(verso_str(padrao)),
+    }
+}
+
+fn exigir_comando_nao_vazio(nome: &str, comando: &str) {
+    if comando.trim().is_empty() {
+        erro_fatal(&format!("intrínseca '{nome}' exige comando não vazio"));
+    }
+}
+
+fn exit_code_ou_erro(nome: &str, codigo: Option<i32>) -> u64 {
+    let Some(codigo) = codigo else {
+        erro_fatal(&format!(
+            "processo finalizado sem código de saída suportado em '{nome}'"
+        ));
+    };
+    u64::try_from(codigo).unwrap_or_else(|_| {
+        erro_fatal(&format!(
+            "código de saída inválido em '{nome}': valor negativo"
+        ))
+    })
+}
+
+fn processo_executar(comando: &str, argv1: Option<&str>) -> u64 {
+    exigir_comando_nao_vazio("executar_processo", comando);
+    let mut processo = std::process::Command::new(comando);
+    if let Some(argumento) = argv1 {
+        processo.arg(argumento);
+    }
+    let status = processo.status().unwrap_or_else(|err| {
+        erro_fatal(&format!(
+            "falha ao executar processo em 'executar_processo': {err}"
+        ))
+    });
+    exit_code_ou_erro("executar_processo", status.code())
+}
+
+/// # Safety
+/// `comando` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_processo_executar_1(comando: *const u8) -> u64 {
+    processo_executar(verso_str(comando), None)
+}
+
+/// # Safety
+/// `comando` e `argv1` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_processo_executar_2(comando: *const u8, argv1: *const u8) -> u64 {
+    processo_executar(verso_str(comando), Some(verso_str(argv1)))
+}
+
+fn processo_capturar(nome: &str, comando: &str, argv1: Option<&str>, stderr: bool) -> *mut u8 {
+    exigir_comando_nao_vazio(nome, comando);
+    let mut processo = std::process::Command::new(comando);
+    if let Some(argumento) = argv1 {
+        processo.arg(argumento);
+    }
+    let saida = processo.output().unwrap_or_else(|err| {
+        erro_fatal(&format!("falha ao executar processo em '{nome}': {err}"))
+    });
+    let bytes = if stderr { saida.stderr } else { saida.stdout };
+    match String::from_utf8(bytes) {
+        Ok(texto) => verso_alocar(&texto),
+        Err(_) => erro_fatal(&format!(
+            "{} inválido em '{nome}': UTF-8 estrito é obrigatório",
+            if stderr { "stderr" } else { "stdout" }
+        )),
+    }
+}
+
+/// # Safety
+/// `comando` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_processo_capturar_stdout_1(comando: *const u8) -> *mut u8 {
+    processo_capturar("capturar_stdout", verso_str(comando), None, false)
+}
+
+/// # Safety
+/// `comando` e `argv1` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_processo_capturar_stdout_2(
+    comando: *const u8,
+    argv1: *const u8,
+) -> *mut u8 {
+    processo_capturar(
+        "capturar_stdout",
+        verso_str(comando),
+        Some(verso_str(argv1)),
+        false,
+    )
+}
+
+/// # Safety
+/// `comando` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_processo_capturar_stderr_1(comando: *const u8) -> *mut u8 {
+    processo_capturar("capturar_stderr", verso_str(comando), None, true)
+}
+
+/// # Safety
+/// `comando` e `argv1` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_processo_capturar_stderr_2(
+    comando: *const u8,
+    argv1: *const u8,
+) -> *mut u8 {
+    processo_capturar(
+        "capturar_stderr",
+        verso_str(comando),
+        Some(verso_str(argv1)),
+        true,
+    )
+}
+
+fn processo_com_entrada(comando: &str, entrada: &str, argv1: Option<&str>) -> u64 {
+    exigir_comando_nao_vazio("executar_com_entrada", comando);
+    let mut processo = std::process::Command::new(comando);
+    if let Some(argumento) = argv1 {
+        processo.arg(argumento);
+    }
+    let mut filho = processo
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .unwrap_or_else(|err| {
+            erro_fatal(&format!(
+                "falha ao executar processo em 'executar_com_entrada': {err}"
+            ))
+        });
+    {
+        use std::io::Write as _;
+        let Some(mut stdin) = filho.stdin.take() else {
+            erro_fatal(
+                "stdin indisponível em 'executar_com_entrada': processo sem pipe configurado",
+            );
+        };
+        stdin.write_all(entrada.as_bytes()).unwrap_or_else(|err| {
+            erro_fatal(&format!(
+                "falha ao escrever stdin em 'executar_com_entrada': {err}"
+            ))
+        });
+    }
+    let status = filho.wait().unwrap_or_else(|err| {
+        erro_fatal(&format!(
+            "falha ao aguardar processo em 'executar_com_entrada': {err}"
+        ))
+    });
+    exit_code_ou_erro("executar_com_entrada", status.code())
+}
+
+/// # Safety
+/// `comando` e `entrada` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_processo_com_entrada_2(
+    comando: *const u8,
+    entrada: *const u8,
+) -> u64 {
+    processo_com_entrada(verso_str(comando), verso_str(entrada), None)
+}
+
+/// # Safety
+/// `comando`, `entrada` e `argv1` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_processo_com_entrada_3(
+    comando: *const u8,
+    entrada: *const u8,
+    argv1: *const u8,
+) -> u64 {
+    processo_com_entrada(
+        verso_str(comando),
+        verso_str(entrada),
+        Some(verso_str(argv1)),
+    )
+}
+
+/// # Safety
+/// `produtor` e `consumidor` devem apontar para blocos de verso válidos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_processo_pipeline(
+    produtor: *const u8,
+    consumidor: *const u8,
+) -> u64 {
+    let produtor_nome = verso_str(produtor);
+    let consumidor_nome = verso_str(consumidor);
+    exigir_comando_nao_vazio("pipeline_minimo", produtor_nome);
+    exigir_comando_nao_vazio("pipeline_minimo", consumidor_nome);
+    let mut produtor = std::process::Command::new(produtor_nome)
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap_or_else(|err| {
+            erro_fatal(&format!(
+                "falha ao executar processo produtor em 'pipeline_minimo': {err}"
+            ))
+        });
+    let Some(saida_produtor) = produtor.stdout.take() else {
+        erro_fatal("stdout indisponível em 'pipeline_minimo': produtor sem pipe configurado");
+    };
+    let mut consumidor = std::process::Command::new(consumidor_nome)
+        .stdin(std::process::Stdio::from(saida_produtor))
+        .spawn()
+        .unwrap_or_else(|err| {
+            erro_fatal(&format!(
+                "falha ao executar processo consumidor em 'pipeline_minimo': {err}"
+            ))
+        });
+    let _ = produtor.wait();
+    let status = consumidor.wait().unwrap_or_else(|err| {
+        erro_fatal(&format!(
+            "falha ao aguardar consumidor em 'pipeline_minimo': {err}"
+        ))
+    });
+    exit_code_ou_erro("pipeline_minimo", status.code())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

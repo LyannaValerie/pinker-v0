@@ -542,16 +542,17 @@ fn extract_external_callconv_program(
                             ));
                             continue;
                         }
-                        // `formatar_verso` tem aridade variável; o runtime
-                        // expõe wrappers por aridade (Fase 219/B8).
-                        let call_target = if callee == "formatar_verso" {
-                            let substituicoes = args.len().saturating_sub(1);
-                            if substituicoes > 8 {
+                        // Intrínsecas de aridade variável usam wrappers por
+                        // aridade no runtime (Fases 219/B8 e 221/B10).
+                        let call_target = if is_arity_runtime_intrinsic(callee) {
+                            let Some(symbol) =
+                                runtime_intrinsic_symbol_por_aridade(callee, args.len())
+                            else {
                                 return Err(err(
-                                    "subset externo montável (Fase 219) aceita 'formatar_verso' nativo com até 8 argumentos de substituição",
+                                    "subset externo montável (Fase 221) recusa aridade fora do recorte da intrínseca de runtime",
                                 ));
-                            }
-                            format!("pinker_formatar_verso_{}", substituicoes)
+                            };
+                            symbol
                         } else if let Some(runtime_symbol) = runtime_intrinsic_symbol(callee) {
                             runtime_symbol.to_string()
                         } else {
@@ -1246,6 +1247,36 @@ fn is_external_call_ret_type(ty: &TypeIR) -> bool {
     is_external_ret_type(ty) || matches!(ty, TypeIR::Nulo)
 }
 
+/// Intrínsecas de aridade variável (Fases 219/B8 e 221/B10): o símbolo do
+/// runtime é escolhido pela quantidade de argumentos no call site.
+fn runtime_intrinsic_symbol_por_aridade(callee: &str, argc: usize) -> Option<String> {
+    match (callee, argc) {
+        ("formatar_verso", n) if n >= 1 => {
+            let substituicoes = n - 1;
+            if substituicoes > 8 {
+                return None;
+            }
+            Some(format!("pinker_formatar_verso_{}", substituicoes))
+        }
+        ("executar_processo", 1 | 2) => Some(format!("pinker_processo_executar_{}", argc)),
+        ("capturar_stdout", 1 | 2) => Some(format!("pinker_processo_capturar_stdout_{}", argc)),
+        ("capturar_stderr", 1 | 2) => Some(format!("pinker_processo_capturar_stderr_{}", argc)),
+        ("executar_com_entrada", 2 | 3) => Some(format!("pinker_processo_com_entrada_{}", argc)),
+        _ => None,
+    }
+}
+
+fn is_arity_runtime_intrinsic(callee: &str) -> bool {
+    matches!(
+        callee,
+        "formatar_verso"
+            | "executar_processo"
+            | "capturar_stdout"
+            | "capturar_stderr"
+            | "executar_com_entrada"
+    )
+}
+
 /// Intrínsecas com implementação no runtime nativo (Fases 215/B4 e 216/B5).
 /// O símbolo devolvido é resolvido no link com `libpinker_rt.a`.
 ///
@@ -1355,6 +1386,19 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         "aleatorio_criar" => Some("pinker_aleatorio_criar"),
         "aleatorio_proximo" => Some("pinker_aleatorio_proximo"),
         "aleatorio_entre" => Some("pinker_aleatorio_entre"),
+        // Ambiente (Fase 221/B10) — argv/env capturados por pinker_rt_iniciar.
+        "quantos_argumentos" => Some("pinker_ambiente_quantos_argumentos"),
+        "argumento" => Some("pinker_ambiente_argumento"),
+        "argumento_ou" => Some("pinker_ambiente_argumento_ou"),
+        "tem_argumento" => Some("pinker_ambiente_tem_argumento"),
+        "tem_chave" | "tem_argumento_nomeado" => Some("pinker_ambiente_tem_chave"),
+        "pedir_argumento" | "argumento_nomeado_ou" => Some("pinker_ambiente_pedir_argumento"),
+        "tem_flag" => Some("pinker_ambiente_tem_flag"),
+        "ambiente_ou" => Some("pinker_ambiente_ou"),
+        "buscar_contexto" | "argumento_nomeado_ou_ambiente_ou" => {
+            Some("pinker_ambiente_buscar_contexto")
+        }
+        "pipeline_minimo" => Some("pinker_processo_pipeline"),
         // Leques com carga (Fase 218/B7): anexar e carga não distinguem
         // bombom/verso no runtime — toda carga é uma palavra de 8 bytes.
         "__pinker_internal_leque_criar_0" => Some("pinker_leque_criar_0"),
