@@ -267,6 +267,27 @@ fn arquivo_tempo_acaso_emitem_calls_de_runtime() {
     }
 }
 
+#[test]
+fn ambiente_e_processo_emitem_calls_de_runtime() {
+    let code = include_str!("../examples/fase221_ambiente_processo_nativos_valido.pink");
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    for symbol in [
+        "call pinker_ambiente_quantos_argumentos",
+        "call pinker_ambiente_argumento_ou",
+        "call pinker_ambiente_tem_flag",
+        "call pinker_ambiente_pedir_argumento",
+        "call pinker_ambiente_ou",
+        "call pinker_ambiente_buscar_contexto",
+        "call pinker_processo_executar_1",
+        "call pinker_processo_capturar_stdout_2",
+        "call pinker_processo_com_entrada_2",
+        "call pinker_processo_pipeline",
+    ] {
+        assert!(asm.contains(symbol), "faltou {} em:\n{}", symbol, asm);
+    }
+}
+
 fn detect_cc_driver() -> Option<String> {
     ["cc", "gcc", "clang"].iter().find_map(|candidate| {
         let probe = Command::new(candidate).arg("--version").output().ok()?;
@@ -701,6 +722,91 @@ fn arquivo_tempo_acaso_tem_paridade_de_stdout_com_interpretador() {
         "fase220_arquivo_tempo_acaso_nativos_valido",
         6,
     );
+}
+
+#[test]
+fn ambiente_processo_tem_paridade_de_stdout_sem_args() {
+    paridade_stdout(
+        "examples/fase221_ambiente_processo_nativos_valido.pink",
+        "fase221_ambiente_processo_nativos_valido",
+        7,
+    );
+}
+
+#[test]
+fn ambiente_nativo_le_argv_com_paridade() {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return;
+    }
+    if detect_cc_driver().is_none() {
+        return;
+    }
+    let pink = env!("CARGO_BIN_EXE_pink");
+    let runtime_lib = std::path::Path::new(pink)
+        .parent()
+        .expect("diretório do pink")
+        .join("libpinker_rt.a");
+    if !runtime_lib.is_file() {
+        eprintln!("libpinker_rt.a ausente; pulando teste de argv");
+        return;
+    }
+
+    let exemplo = "examples/fase221_ambiente_processo_nativos_valido.pink";
+    let argv = [
+        "primeiro",
+        "--modo",
+        "--saida=custom.txt",
+        "--nivel",
+        "alto",
+    ];
+
+    let interp = Command::new(pink)
+        .arg("--run")
+        .arg(exemplo)
+        .arg("--")
+        .args(argv)
+        .output()
+        .expect("falha ao rodar interpretador");
+    assert!(interp.status.success());
+    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
+    let programa_interp = interp_stdout
+        .strip_suffix("0\n")
+        .expect("esperava retorno 0 na última linha do interpretador");
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("tempo do sistema")
+        .as_nanos();
+    let out_dir = std::env::temp_dir().join(format!("pinker_fase221_argv_{}", nanos));
+    let build = Command::new(pink)
+        .arg("build")
+        .arg("--nativo")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .arg(exemplo)
+        .env("PINKER_RT_LIB", &runtime_lib)
+        .output()
+        .expect("falha ao invocar pink build");
+    assert!(
+        build.status.success(),
+        "build nativo falhou: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let bin_path = out_dir.join("fase221_ambiente_processo_nativos_valido");
+    let run = Command::new(bin_path)
+        .args(argv)
+        .output()
+        .expect("falha ao executar binário nativo");
+    assert_eq!(run.status.code(), Some(0));
+    let nativo_stdout = String::from_utf8_lossy(&run.stdout);
+
+    assert_eq!(
+        programa_interp, nativo_stdout,
+        "argv/env devem produzir stdout idêntico entre interpretador e nativo"
+    );
+
+    let _ = fs::remove_dir_all(&out_dir);
 }
 
 #[test]
