@@ -160,7 +160,11 @@ impl Parser {
 
         let mut items = Vec::new();
         while self.peek().is_some() {
-            items.push(self.parse_item()?);
+            if self.match_token(TokenKind::KwImpl) {
+                items.extend(self.parse_impl_block()?.into_iter().map(Item::Function));
+            } else {
+                items.push(self.parse_item()?);
+            }
         }
         items.extend(self.pending_functions.drain(..).map(Item::Function));
 
@@ -199,7 +203,7 @@ impl Parser {
             })
         } else {
             Err(PinkerError::Expected {
-                expected: "carinho, eterno, apelido, ninho, leque ou trato".to_string(),
+                expected: "carinho, eterno, apelido, ninho, leque, trato ou impl".to_string(),
                 found: self
                     .peek()
                     .map(|token| token.lexeme.clone())
@@ -423,6 +427,46 @@ impl Parser {
             fields,
             span: merge_span(start_span, self.previous().span),
         })
+    }
+
+    fn parse_impl_block(&mut self) -> Result<Vec<FunctionDecl>, PinkerError> {
+        let trait_name = self
+            .consume(TokenKind::Ident, "nome do trato em impl")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::KwPara, "para em impl")?;
+        let target_ty = self.parse_type()?;
+        self.consume(TokenKind::LBrace, "{")?;
+        let mut methods = Vec::new();
+        while !self.check(TokenKind::RBrace) && self.peek().is_some() {
+            self.consume(TokenKind::KwCarinho, "carinho dentro de impl")?;
+            let function = self.parse_function()?;
+            if let Some(first_param) = function.params.first() {
+                let expected = target_ty.name();
+                let found = first_param.ty.name();
+                if expected != found {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "impl '{}' para '{}' exige primeiro parâmetro do método com tipo '{}' (encontrado '{}')",
+                            trait_name, expected, expected, found
+                        ),
+                        span: first_param.span,
+                    });
+                }
+            } else {
+                return Err(PinkerError::Parse {
+                    msg: format!(
+                        "impl '{}' para '{}' exige métodos com receiver explícito como primeiro parâmetro",
+                        trait_name,
+                        target_ty.name()
+                    ),
+                    span: function.span,
+                });
+            }
+            methods.push(function);
+        }
+        self.consume(TokenKind::RBrace, "}")?;
+        Ok(methods)
     }
 
     fn parse_trait_decl(&mut self) -> Result<TraitDecl, PinkerError> {

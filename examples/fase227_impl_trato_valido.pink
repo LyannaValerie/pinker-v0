@@ -1,0 +1,17 @@
+pacote demo;
+
+trato Dobravel {
+    carinho dobrar(valor: bombom) -> bombom;
+}
+
+impl Dobravel para bombom {
+    carinho dobrar(valor: bombom) -> bombom {
+        mimo valor + valor;
+    }
+}
+
+carinho principal() -> bombom {
+    nova base: bombom = 21;
+    falar(base.dobrar());
+    mimo 0;
+}

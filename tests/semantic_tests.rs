@@ -3952,3 +3952,26 @@ fn trato_exige_funcao_compativel() {
         err
     );
 }
+
+#[test]
+fn fase227_impl_trato_com_receiver_explicito_aceito() {
+    let code = include_str!("../examples/fase227_impl_trato_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn impl_trato_exige_receiver_do_tipo_alvo() {
+    let code = r#"
+        pacote demo;
+        trato Dobravel { carinho dobrar(valor: bombom) -> bombom; }
+        impl Dobravel para u32 {
+            carinho dobrar(valor: bombom) -> bombom { mimo valor; }
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("exige primeiro parâmetro do método com tipo 'u32'"),
+        "erro inesperado: {err}"
+    );
+}
