@@ -1090,3 +1090,12 @@ fn fase227_impl_trato_tem_paridade_nativa() {
         22_700,
     );
 }
+
+#[test]
+fn fase228_impl_resolucao_nominal_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase228_impl_resolucao_nominal_valido.pink",
+        "fase228_impl_resolucao_nominal_valido",
+        22_800,
+    );
+}

@@ -1,0 +1,25 @@
+pacote demo;
+
+trato Dobravel {
+    carinho dobrar(valor: bombom) -> bombom;
+}
+
+carinho dobrar(valor: bombom) -> bombom {
+    mimo 999;
+}
+
+impl Dobravel para bombom {
+    carinho dobrar(valor: bombom) -> bombom {
+        mimo valor + valor;
+    }
+}
+
+carinho principal() -> bombom {
+    nova resultado: bombom = 21.dobrar();
+    falar(resultado);
+    talvez resultado == 42 {
+        mimo 0;
+    } senao {
+        mimo 1;
+    }
+}

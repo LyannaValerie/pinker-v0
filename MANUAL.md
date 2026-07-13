@@ -159,6 +159,18 @@ nova valor: bombom = 21.dobrar();
 
 Um `trato` declara assinaturas que precisam existir como funções top-level compatíveis. A chamada `alvo.metodo(a, b)` é açúcar para `metodo(alvo, a, b)`, portanto baixa para chamada direta comum e roda no interpretador e no backend nativo. Esta fase não introduz implementação por tipo, dicionários/vtables, dynamic dispatch, herança ou objetos de trait; ela cria o contrato estático inicial e a ergonomia de chamada necessária para continuar o item.
 
+Desde as Fases 227–228, `impl Trato para Tipo { ... }` agrupa métodos com receiver explícito e a chamada `alvo.metodo(...)` resolve primeiro pelo tipo do receiver:
+
+```pinker
+impl Dobravel para bombom {
+    carinho dobrar(valor: bombom) -> bombom {
+        mimo valor + valor;
+    }
+}
+```
+
+O método do `impl` recebe nome interno e não colide com função top-level homônima; se não houver `impl` compatível, a forma antiga por função global ainda é aceita como fallback. Objetos de trait, vtables, dynamic dispatch, coerções e overloading amplo continuam fora.
+
 ## 5) Fluxo de controle
 
 ### `talvez` / `senao`

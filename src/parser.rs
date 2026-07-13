@@ -51,6 +51,27 @@ impl Parser {
         }
     }
 
+    fn impl_type_key(ty: &Type) -> String {
+        match ty {
+            Type::Alias { name, .. } | Type::Struct { name, .. } | Type::Enum { name, .. } => {
+                name.clone()
+            }
+            _ => ty.name().to_string(),
+        }
+    }
+
+    fn impl_function_name(trait_name: &str, target_ty: &Type, method_name: &str) -> String {
+        let target_key = Self::impl_type_key(target_ty);
+        format!(
+            "__impl_{}_{}_{}_{}_{}",
+            trait_name.len(),
+            trait_name,
+            target_key.len(),
+            target_key,
+            method_name
+        )
+    }
+
     fn peek(&self) -> Option<&Token> {
         self.tokens
             .get(self.current)
@@ -453,10 +474,10 @@ impl Parser {
         let mut methods = Vec::new();
         while !self.check(TokenKind::RBrace) && self.peek().is_some() {
             self.consume(TokenKind::KwCarinho, "carinho dentro de impl")?;
-            let function = self.parse_function()?;
+            let mut function = self.parse_function()?;
             if let Some(first_param) = function.params.first() {
-                let expected = target_ty.name();
-                let found = first_param.ty.name();
+                let expected = Self::impl_type_key(&target_ty);
+                let found = Self::impl_type_key(&first_param.ty);
                 if expected != found {
                     return Err(PinkerError::Parse {
                         msg: format!(
@@ -471,11 +492,12 @@ impl Parser {
                     msg: format!(
                         "impl '{}' para '{}' exige métodos com receiver explícito como primeiro parâmetro",
                         trait_name,
-                        target_ty.name()
+                        Self::impl_type_key(&target_ty)
                     ),
                     span: function.span,
                 });
             }
+            function.name = Self::impl_function_name(&trait_name, &target_ty, &function.name);
             methods.push(function);
         }
         self.consume(TokenKind::RBrace, "}")?;
@@ -3306,41 +3328,13 @@ impl Parser {
                     .consume(TokenKind::Ident, "nome do campo após '.'")?
                     .clone();
                 let field = field_token.lexeme.clone();
-                let is_enum_path = matches!(
-                    &base_expr.kind,
-                    ExprKind::Ident(name) if self.enum_decls.contains_key(name)
-                );
-                if self.check(TokenKind::LParen) && !is_enum_path {
-                    self.consume(TokenKind::LParen, "(")?;
-                    let mut args = vec![base_expr];
-                    if !self.check(TokenKind::RParen) {
-                        loop {
-                            args.push(self.parse_expr()?);
-                            if !self.match_token(TokenKind::Comma) {
-                                break;
-                            }
-                        }
-                    }
-                    self.consume(TokenKind::RParen, ")")?;
-                    expr = Expr {
-                        span: merge_span(field_token.span, self.previous().span),
-                        kind: ExprKind::Call(
-                            Box::new(Expr {
-                                kind: ExprKind::Ident(field),
-                                span: field_token.span,
-                            }),
-                            args,
-                        ),
-                    };
-                } else {
-                    expr = Expr {
-                        span: merge_span(base_expr.span, field_token.span),
-                        kind: ExprKind::FieldAccess {
-                            base: Box::new(base_expr),
-                            field,
-                        },
-                    };
-                }
+                expr = Expr {
+                    span: merge_span(base_expr.span, field_token.span),
+                    kind: ExprKind::FieldAccess {
+                        base: Box::new(base_expr),
+                        field,
+                    },
+                };
                 continue;
             }
             if self.match_token(TokenKind::LBracket) {
