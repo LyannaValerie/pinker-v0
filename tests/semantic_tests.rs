@@ -3851,3 +3851,30 @@ fn encaixe_em_leque_sem_carga_aceito() {
     "#;
     assert!(parse_and_check(code).is_ok());
 }
+
+#[test]
+fn tentar_error_handling_estruturado_aceito() {
+    let code = include_str!("../examples/fase223_error_handling_tentar_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn tentar_exige_sucesso_e_falha() {
+    let code = r#"
+        pacote main;
+        leque Resultado { Ok(bombom), Erro(verso) }
+        carinho principal() -> bombom {
+            nova r: Resultado = Resultado.Ok(1);
+            tentar r {
+                sucesso Resultado.Ok(v) { mimo v; }
+            }
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("tentar exige exatamente um braço 'sucesso' e um braço 'falha'"),
+        "{}",
+        err
+    );
+}

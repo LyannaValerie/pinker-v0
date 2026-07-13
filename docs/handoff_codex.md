@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **222** — Eixo B: marco de paridade e fechamento do eixo (B11) |
+| Fase funcional mais recente | **223** — Eixo A: error handling estruturado inicial com `tentar` |
 | Rodada documental mais recente | **Doc-42** — referência `expandir.md`, novo padrão pós-Eixo B e remoção de referências ativas a `docs/phases.md` |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -58,11 +58,13 @@
 | 220 | Bloco 20, Eixo B (B9): arquivo/caminho/tempo/acaso nativos — modelo de handles do interpretador, mesmo algoritmo civil de datas, **mesmo LCG (paridade de sementes)** |
 | 221 | Bloco 20, Eixo B (B10): ambiente/processo nativos — argv/env consumindo o `argc`/`argv` da B1, subprocessos completos; **paridade verificada com argumentos reais** |
 | 222 | Bloco 20, Eixo B (B11): marco de paridade e fechamento do eixo — suíte automatizada executa exemplos versionados compatíveis nos dois modos, comparando stdout e exit; **Eixo B encerrado** |
+| 223 | Bloco 20, Eixo A: error handling estruturado inicial — `tentar` com braços `sucesso`/`falha` sobre leques de resultado declarados pelo usuário, com paridade interpretador × nativo |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Fase 222 — Eixo B, fase B11: marco de paridade e fechamento do eixo**.
+- **Fase 223 — Eixo A, item 5 da Faixa 1: error handling estruturado inicial com `tentar`**.
+- A Fase 223 abre `tentar resultado { sucesso Leque.Ok(v) { ... } falha Leque.Erro(e) { ... } }`, validado no parser e abaixado para infraestrutura existente de leques/controle, com execução no interpretador e no backend nativo.
 - Suíte B11: manifesto explícito em `tests/backend_nativo_tests.rs` com os exemplos versionados compatíveis do Eixo B (`fase212`–`fase221`), o caso com `argv` real da Fase 221 e os marcos self-hosting compatíveis (`fase209`, `fase210`, `fase211`).
 - Critério de pronto cumprido: cada caso roda no interpretador e como ELF nativo gerado por `pink build --nativo`; o stdout do programa é comparado byte a byte e o retorno de `principal` no interpretador é comparado ao exit code nativo.
 - Fechamento: **Eixo B encerrado**; o backend `.s` próprio + runtime `pinker_rt` passam a ser a base obrigatória para novas fases de linguagem.
@@ -83,7 +85,7 @@ Histórico completo por fase: `docs/history/phases/`.
 
 ## 5. Próximo passo
 - Estrutura do Bloco 20 formalizada em dois eixos (Doc-41) e novo padrão pós-Eixo B registrado na Doc-42: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado. Ordem vigente agora: A (itens 1–3 ✓) → B (integral ✓) → A (itens 5 → 6 → 4).
-- Próxima fase: retomar o **Eixo A, item 5 da Faixa 1 — error handling estruturado** (prevista Fase 223), com lowering nativo obrigatório desde o início e com o padrão de expansão adulta de `docs/expandir.md`.
+- Próxima fase: ampliar o item 5 (**error handling estruturado**) a partir da base da Fase 223, avaliando propagação explícita, biblioteca padrão de resultado e integração com diagnósticos do compilador, mantendo lowering nativo obrigatório.
 - Escada completa do eixo encerrado (B1 ✓ ... B11 ✓) em `docs/roadmap/blocos/bloco_20.md`.
 - Depois do item 5: itens 6 (**closures**) e 4 (**traits**) do Eixo A, mantendo a regra de que toda fase de linguagem entrega o lowering nativo junto.
 

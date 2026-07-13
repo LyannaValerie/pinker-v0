@@ -40,7 +40,7 @@ Os itens da Faixa 1 mais os três primeiros da Faixa 3 formam o conjunto que des
 | 2 | Pattern matching | Rust, C#, TS | despacho sobre enums/AST, parsing de tokens — **entregue no recorte utilizável nas Fases 209–210**: `encaixe` com despacho por variante, extração de múltiplas cargas e exaustividade no parse; fora: guards, padrões aninhados e encaixe-expressão |
 | 3 | Generics mínimos (`lista<T>`, `mapa<K,V>`) | C++, TS, C# | eliminar monomorphização manual — **entregue no recorte utilizável na Fase 211**: `lista<T>` com T = leque + 7 intrínsecas genéricas sobre qualquer lista; fora: `mapa<K,V>` genérico, funções genéricas de usuário, generics em `leque`/`ninho` |
 | 4 | Traits / interfaces mínimas | Rust, TS, C# | polimorfismo sem herança, contratos de driver |
-| 5 | Error handling estruturado (`tentar/pegar` ou Result) | C#, Python, Rust | recuperação sem abort, relatório de erros do compilador |
+| 5 | Error handling estruturado | C#, Python, Rust | recuperação sem abort, relatório de erros do compilador — **iniciado na Fase 223**: `tentar` com braços `sucesso`/`falha` sobre leque de resultado declarado pelo usuário, com lowering nativo desde a entrega; fora: operador de propagação, biblioteca padrão de `Resultado<T,E>` e integração automática com erros de runtime |
 | 6 | Closures / funções anônimas | Rust, TS, Python | callbacks, iteradores, handlers |
 
 ### Faixa 2 — consolidação do Bloco 18 (ex-Direção A) — **concluída**

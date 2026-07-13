@@ -94,6 +94,33 @@ carinho principal() -> bombom {
 
 Dois leques diferentes são tipos distintos mesmo com variantes de mesmo nome. Em leques **sem carga**, a comparação usa `==`/`!=` (inclusive em `escolha`) e o discriminante pode ser lido com `virar bombom`. Em leques **com carga**, a desconstrução acontece exclusivamente via `encaixe`: o compilador exige que todas as variantes sejam cobertas ou que exista um `senao`, e cada `caso Leque.Variante(a, b, ...)` liga as cargas a variáveis novas no corpo do caso, na ordem da declaração.
 
+### `tentar` para resultado estruturado
+
+Desde a Fase 223, a Pinker aceita um primeiro construto de error handling estruturado sobre leques de resultado declarados pelo usuário. O padrão canônico é declarar um leque com uma variante de sucesso e uma variante de falha, ambas com carga, e despachar com `tentar`:
+
+```pink
+leque Resultado { Ok(bombom), Erro(verso) }
+
+carinho validar(v: bombom, ok: logica) -> Resultado {
+    talvez ok {
+        mimo Resultado.Ok(v);
+    }
+    mimo Resultado.Erro("falha");
+}
+
+carinho principal() -> bombom {
+    nova r: Resultado = validar(42, verdade);
+    tentar r {
+        sucesso Resultado.Ok(valor) { falar(valor); }
+        falha Resultado.Erro(msg) { falar(msg); }
+    }
+    mimo 0;
+}
+```
+
+`sucesso` e `falha` precisam aparecer exatamente uma vez dentro de `tentar`, apontar para variantes do mesmo leque e ligar a mesma quantidade de cargas declaradas na variante. A implementação abaixa para a infraestrutura de leques/`encaixe`, portanto roda no interpretador e no backend nativo.
+
+
 ## 5) Fluxo de controle
 
 ### `talvez` / `senao`
@@ -390,8 +417,8 @@ das fases B2–B11 do Eixo B.
 ## 11.1) Limites atuais da linguagem
 
 No estado atual, ainda há limites importantes para uso geral:
-- o backend nativo cobre um subset da linguagem (a paridade completa é a trilha ativa do Eixo B); coleções, `verso` dinâmico e leques com carga executam hoje apenas em `--run`;
-- error handling estruturado, closures e traits ainda não existem (itens 5, 6 e 4 da Faixa 1 do Bloco 20);
+- o backend nativo alcançou paridade para a superfície versionada compatível do Eixo B, mas ainda há limites fora desse manifesto, como `ouvir` interativo e futuras features de linguagem ainda não abertas;
+- error handling estruturado existe no primeiro patamar via `tentar` sobre leques de resultado declarados pelo usuário; closures e traits ainda não existem (itens 6 e 4 da Faixa 1 do Bloco 20);
 - generics cobrem `lista<T>` com `T` = leque; `mapa<K,V>` genérico e funções genéricas de usuário seguem fora;
 - API de arquivo segue sem modos avançados de streaming.
 

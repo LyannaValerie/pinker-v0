@@ -1,0 +1,38 @@
+pacote main;
+
+leque Resultado { Ok(bombom), Erro(verso) }
+
+carinho validar(a: bombom, ok: logica) -> Resultado {
+    talvez ok {
+        mimo Resultado.Ok(a);
+    }
+    mimo Resultado.Erro("falha validada");
+}
+
+carinho principal() -> bombom {
+    nova bom: Resultado = validar(42, verdade);
+    nova ruim: Resultado = validar(10, falso);
+    nova muda total: bombom = 0;
+
+    tentar bom {
+        sucesso Resultado.Ok(valor) {
+            total += valor;
+        }
+        falha Resultado.Erro(msg) {
+            falar(msg);
+        }
+    }
+
+    tentar ruim {
+        sucesso Resultado.Ok(valor) {
+            total += valor;
+        }
+        falha Resultado.Erro(msg) {
+            falar(msg);
+            total += 1;
+        }
+    }
+
+    falar(total);
+    mimo 0;
+}
