@@ -3966,6 +3966,18 @@ fn fase228_impl_resolucao_nominal_prefere_impl_a_funcao_global() {
 }
 
 #[test]
+fn fase229_impl_ninho_nominal_aceito() {
+    let code = include_str!("../examples/fase229_impl_ninho_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase230_impl_cobertura_completa_aceita() {
+    let code = include_str!("../examples/fase230_impl_cobertura_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
 fn impl_trato_exige_receiver_do_tipo_alvo() {
     let code = r#"
         pacote demo;
@@ -3978,6 +3990,46 @@ fn impl_trato_exige_receiver_do_tipo_alvo() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(
         err.contains("exige primeiro parâmetro do método com tipo 'u32'"),
+        "erro inesperado: {err}"
+    );
+}
+
+#[test]
+fn impl_trato_rejeita_metodo_faltante() {
+    let code = r#"
+        pacote demo;
+        trato Aritmetico {
+            carinho dobrar(valor: bombom) -> bombom;
+            carinho triplicar(valor: bombom) -> bombom;
+        }
+        impl Aritmetico para bombom {
+            carinho dobrar(valor: bombom) -> bombom { mimo valor + valor; }
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("não implementa método 'triplicar'"),
+        "erro inesperado: {err}"
+    );
+}
+
+#[test]
+fn impl_trato_rejeita_metodo_extra() {
+    let code = r#"
+        pacote demo;
+        trato Aritmetico {
+            carinho dobrar(valor: bombom) -> bombom;
+        }
+        impl Aritmetico para bombom {
+            carinho dobrar(valor: bombom) -> bombom { mimo valor + valor; }
+            carinho triplicar(valor: bombom) -> bombom { mimo valor + valor + valor; }
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("declara método 'triplicar' que não existe no trato"),
         "erro inesperado: {err}"
     );
 }

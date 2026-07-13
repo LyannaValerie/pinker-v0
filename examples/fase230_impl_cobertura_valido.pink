@@ -1,0 +1,26 @@
+pacote demo;
+
+trato Aritmetico {
+    carinho dobrar(valor: bombom) -> bombom;
+    carinho triplicar(valor: bombom) -> bombom;
+}
+
+impl Aritmetico para bombom {
+    carinho dobrar(valor: bombom) -> bombom {
+        mimo valor + valor;
+    }
+
+    carinho triplicar(valor: bombom) -> bombom {
+        mimo valor + valor + valor;
+    }
+}
+
+carinho principal() -> bombom {
+    nova a: bombom = 7.dobrar();
+    nova b: bombom = 7.triplicar();
+    talvez a == 14 && b == 21 {
+        mimo 0;
+    } senao {
+        mimo 1;
+    }
+}
