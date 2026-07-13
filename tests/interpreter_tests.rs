@@ -9244,3 +9244,10 @@ fn fase226_trato_metodo_executa_no_interpretador() {
     let result = run_code(code).unwrap();
     assert_eq!(result, Some(RuntimeValue::Int(0)));
 }
+
+#[test]
+fn fase227_impl_trato_executa_no_interpretador() {
+    let code = include_str!("../examples/fase227_impl_trato_valido.pink");
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(0)));
+}

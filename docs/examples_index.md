@@ -30,7 +30,7 @@ Nota factual de estilo: a Fase 172 uniformizou visualmente um primeiro lote pequ
 
 | closures / funções anônimas | `examples/fase225_carinho_anonimo_valido.pink` | literal `carinho (...) -> tipo { ... }` não capturante chamado diretamente, com paridade nativa | `tests/semantic_tests.rs`, `tests/interpreter_tests.rs`, `tests/backend_nativo_tests.rs` |
 
-| traits / interfaces estáticos | `examples/fase226_trato_metodo_valido.pink` | `trato` com função top-level compatível e chamada por método `alvo.metodo()` com paridade nativa | `tests/semantic_tests.rs`, `tests/interpreter_tests.rs`, `tests/backend_nativo_tests.rs` |
+| traits / interfaces estáticos | `examples/fase226_trato_metodo_valido.pink`, `examples/fase227_impl_trato_valido.pink` | `trato` com função top-level compatível, chamada por método `alvo.metodo()` e `impl Trato para Tipo { ... }` com receiver explícito e paridade nativa | `tests/semantic_tests.rs`, `tests/interpreter_tests.rs`, `tests/backend_nativo_tests.rs` |
 
 Regra prática:
 - mudança em parser/léxico: começar por `tests/parser_tests.rs`

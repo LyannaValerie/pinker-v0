@@ -2,7 +2,7 @@ use crate::ast::*;
 use crate::error::PinkerError;
 use crate::lexer::Lexer;
 use crate::token::{Span, Token, TokenKind};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Tipo de coleção detectado durante o parse de declarações de variáveis e parâmetros.
 /// Usado para despachar o construto `para cada` para a desugaring correta.
@@ -27,6 +27,9 @@ pub struct Parser {
     /// Leques declarados até o ponto atual do parse (nome -> variantes com cargas).
     /// Usado pelo desugaring de `encaixe`; exige o leque declarado antes do uso.
     enum_decls: HashMap<String, Vec<(String, Vec<Type>)>>,
+    /// Tratos declarados até o ponto atual do parse.
+    /// Usado por `impl`; exige o trato declarado antes do uso.
+    trait_decls: HashSet<String>,
     /// Funções sintéticas geradas por literais `carinho (...) { ... }` não capturantes.
     pending_functions: Vec<FunctionDecl>,
 }
@@ -43,6 +46,7 @@ impl Parser {
             synthetic_counter: 0,
             collection_types: HashMap::new(),
             enum_decls: HashMap::new(),
+            trait_decls: HashSet::new(),
             pending_functions: Vec::new(),
         }
     }
@@ -160,7 +164,11 @@ impl Parser {
 
         let mut items = Vec::new();
         while self.peek().is_some() {
-            items.push(self.parse_item()?);
+            if self.match_token(TokenKind::KwImpl) {
+                items.extend(self.parse_impl_block()?.into_iter().map(Item::Function));
+            } else {
+                items.push(self.parse_item()?);
+            }
         }
         items.extend(self.pending_functions.drain(..).map(Item::Function));
 
@@ -199,7 +207,7 @@ impl Parser {
             })
         } else {
             Err(PinkerError::Expected {
-                expected: "carinho, eterno, apelido, ninho, leque ou trato".to_string(),
+                expected: "carinho, eterno, apelido, ninho, leque, trato ou impl".to_string(),
                 found: self
                     .peek()
                     .map(|token| token.lexeme.clone())
@@ -425,6 +433,55 @@ impl Parser {
         })
     }
 
+    fn parse_impl_block(&mut self) -> Result<Vec<FunctionDecl>, PinkerError> {
+        let trait_name = self
+            .consume(TokenKind::Ident, "nome do trato em impl")?
+            .lexeme
+            .clone();
+        if !self.trait_decls.contains(&trait_name) {
+            return Err(PinkerError::Parse {
+                msg: format!(
+                    "impl usa trato '{}' não declarado antes deste ponto",
+                    trait_name
+                ),
+                span: self.previous().span,
+            });
+        }
+        self.consume(TokenKind::KwPara, "para em impl")?;
+        let target_ty = self.parse_type()?;
+        self.consume(TokenKind::LBrace, "{")?;
+        let mut methods = Vec::new();
+        while !self.check(TokenKind::RBrace) && self.peek().is_some() {
+            self.consume(TokenKind::KwCarinho, "carinho dentro de impl")?;
+            let function = self.parse_function()?;
+            if let Some(first_param) = function.params.first() {
+                let expected = target_ty.name();
+                let found = first_param.ty.name();
+                if expected != found {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "impl '{}' para '{}' exige primeiro parâmetro do método com tipo '{}' (encontrado '{}')",
+                            trait_name, expected, expected, found
+                        ),
+                        span: first_param.span,
+                    });
+                }
+            } else {
+                return Err(PinkerError::Parse {
+                    msg: format!(
+                        "impl '{}' para '{}' exige métodos com receiver explícito como primeiro parâmetro",
+                        trait_name,
+                        target_ty.name()
+                    ),
+                    span: function.span,
+                });
+            }
+            methods.push(function);
+        }
+        self.consume(TokenKind::RBrace, "}")?;
+        Ok(methods)
+    }
+
     fn parse_trait_decl(&mut self) -> Result<TraitDecl, PinkerError> {
         let start_span = self.previous().span;
         let name = self
@@ -477,6 +534,7 @@ impl Parser {
             });
         }
         self.consume(TokenKind::RBrace, "}")?;
+        self.trait_decls.insert(name.clone());
         Ok(TraitDecl {
             name,
             methods,

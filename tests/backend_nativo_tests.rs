@@ -1081,3 +1081,12 @@ fn fase226_trato_metodo_tem_paridade_nativa() {
         22_600,
     );
 }
+
+#[test]
+fn fase227_impl_trato_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase227_impl_trato_valido.pink",
+        "fase227_impl_trato_valido",
+        22_700,
+    );
+}
