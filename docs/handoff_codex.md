@@ -14,7 +14,7 @@
 | Campo | Valor |
 |---|---|
 | Fase funcional mais recente | **225** — Eixo A: funções anônimas não capturantes com `carinho (...)` |
-| Rodada documental mais recente | **Doc-42** — referência `expandir.md`, novo padrão pós-Eixo B e remoção de referências ativas a `docs/phases.md` |
+| Rodada documental mais recente | **Doc-43** — reconciliação do README pós-Eixo B e preservação da referência `expandir.md`/ausência de `docs/phases.md` |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |

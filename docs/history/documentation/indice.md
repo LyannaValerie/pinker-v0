@@ -7,4 +7,4 @@
 Rodadas documentais e estruturais, agrupadas por faixa nominal de 50.
 
 ## Shards
-- `001a050.md` — faixa nominal `001a050`; cobre de `Doc-1 - viabilidade de escrita em globals (análise)` até `Doc-42 - referência de expansão pós-Eixo B e saneamento de docs/phases.md`.
+- `001a050.md` — faixa nominal `001a050`; cobre de `Doc-1 - viabilidade de escrita em globals (análise)` até `Doc-43 - reconciliação do README pós-Eixo B`.

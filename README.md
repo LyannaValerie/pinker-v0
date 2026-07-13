@@ -97,15 +97,14 @@ A lista abaixo resume apenas o que já está implementado no workspace atual, se
 - editor/TUI oficial mínimo (`pink editor <arquivo.pink>`) com abertura de `.pink`, visualização textual em layout TUI simples (header + editor + painel de saída), edição mínima por comando (`:append`, `:set`, `:save`) e ação Pinker real no painel (`:tokens`, `:ast`)
 
 ## O que não faz
-- codegen nativo real
-- backend nativo pleno
-- LLVM / Cranelift
-- otimizações grandes
-- FFI, enums, generics, traits
+- LLVM / Cranelift, JIT, otimizações globais ou codegen multi-plataforma; o backend nativo atual é o caminho próprio `.s` x86-64 System V + runtime `pinker_rt`, com paridade verificada para a superfície versionada compatível do Eixo B
+- backend nativo para alvo bare-metal/SO real, múltiplas ABIs, múltiplas arquiteturas ou runtime escrito em Pinker; `pink build --nativo` gera ELF Linux linkado ao runtime C/Rust do workspace
+- FFI geral, traits/interfaces, closures capturantes, funções como valores armazenáveis/passáveis e tipos-função públicos
+- generics amplos de usuário: há `lista<T>` no recorte nominal de leques, mas seguem fora funções genéricas de usuário, generics em `leque`/`ninho` e `mapa<K,V>` genérico público
 - operações completas de ponteiro (aritmética além do subset mínimo atual, como `n + ptr`, `ptr - ptr`), acesso completo via ponteiro (`seta<T>`), escrita em campo/index, layout físico/ABI
 - acesso operacional de campo de `ninho` além do subset atual (ex.: base por valor `p.campo`, escrita de campo, campos não escalares)
 - indexação operacional de arrays além do subset atual (ex.: elementos não `bombom` e operações de array fora do recorte conservador)
-- coleções dinâmicas além do recorte mínimo atual (`lista<bombom>` + `mapa<verso,bombom>`): seguem fora `lista<T>`/`mapa<K,V>` amplos, remoção arbitrária por chave, ordenação, insert/erase gerais e iteração confortável ampla (há recorte mínimo de `para cada` sobre `lista<bombom>` e `mapa<verso,bombom>` nas Fases 153, 154 e 155)
+- coleções dinâmicas além da superfície versionada atual: seguem fora `mapa<K,V>` genérico público, coleções heterogêneas, ordenação, APIs ricas de iteradores/generators e operações amplas não versionadas; listas/mapas versionados têm paridade nativa no recorte compatível do Eixo B
 - aleatoriedade além do recorte mínimo atual: seguem fora distribuição rica, geração de `float`, intervalo dedicado, shuffle, escolha aleatória sobre coleção, tokens/UUIDs, hash aleatório e qualquer API criptográfica (há apenas `aleatorio_criar(semente)` + `aleatorio_proximo(gerador)` na Fase 156)
 - leitura indireta além do subset mínimo atual (`*p` apenas para `seta<bombom>` com endereçamento abstrato de globals escalares no runtime)
 - escrita indireta além do subset mínimo atual (`*p = v` apenas para `seta<bombom>` com endereçamento abstrato de globals escalares já mapeadas no runtime)
