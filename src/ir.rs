@@ -354,6 +354,7 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
             Item::TypeAlias(_) => {}
             Item::Struct(_) => {}
             Item::Enum(_) => {}
+            Item::Trait(_) => {}
         }
     }
 
@@ -509,7 +510,7 @@ impl LoweringContext {
                         )?,
                     );
                 }
-                Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => {}
+                Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) | Item::Trait(_) => {}
             }
         }
         function_sigs.insert(

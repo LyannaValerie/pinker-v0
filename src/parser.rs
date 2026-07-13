@@ -27,6 +27,8 @@ pub struct Parser {
     /// Leques declarados até o ponto atual do parse (nome -> variantes com cargas).
     /// Usado pelo desugaring de `encaixe`; exige o leque declarado antes do uso.
     enum_decls: HashMap<String, Vec<(String, Vec<Type>)>>,
+    /// Funções sintéticas geradas por literais `carinho (...) { ... }` não capturantes.
+    pending_functions: Vec<FunctionDecl>,
 }
 
 fn merge_span(a: Span, b: Span) -> Span {
@@ -41,6 +43,7 @@ impl Parser {
             synthetic_counter: 0,
             collection_types: HashMap::new(),
             enum_decls: HashMap::new(),
+            pending_functions: Vec::new(),
         }
     }
 
@@ -159,6 +162,7 @@ impl Parser {
         while self.peek().is_some() {
             items.push(self.parse_item()?);
         }
+        items.extend(self.pending_functions.drain(..).map(Item::Function));
 
         Ok(Program {
             package,
@@ -179,6 +183,8 @@ impl Parser {
             Ok(Item::Struct(self.parse_struct_decl()?))
         } else if self.match_token(TokenKind::KwLeque) {
             Ok(Item::Enum(self.parse_enum_decl()?))
+        } else if self.match_token(TokenKind::KwTrato) {
+            Ok(Item::Trait(self.parse_trait_decl()?))
         } else if self.match_token(TokenKind::KwLivre) {
             Err(PinkerError::Expected {
                 expected: "marcador `livre;` apenas uma vez no topo do programa (após `pacote`, antes dos itens)".to_string(),
@@ -193,7 +199,7 @@ impl Parser {
             })
         } else {
             Err(PinkerError::Expected {
-                expected: "carinho, eterno, apelido, ninho ou leque".to_string(),
+                expected: "carinho, eterno, apelido, ninho, leque ou trato".to_string(),
                 found: self
                     .peek()
                     .map(|token| token.lexeme.clone())
@@ -415,6 +421,65 @@ impl Parser {
         Ok(StructDecl {
             name,
             fields,
+            span: merge_span(start_span, self.previous().span),
+        })
+    }
+
+    fn parse_trait_decl(&mut self) -> Result<TraitDecl, PinkerError> {
+        let start_span = self.previous().span;
+        let name = self
+            .consume(TokenKind::Ident, "nome do trato")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::LBrace, "{")?;
+        let mut methods = Vec::new();
+        while !self.check(TokenKind::RBrace) && self.peek().is_some() {
+            let method_start = self
+                .consume(TokenKind::KwCarinho, "carinho em assinatura de trato")?
+                .span;
+            let method_name = self
+                .consume(TokenKind::Ident, "nome do método do trato")?
+                .lexeme
+                .clone();
+            self.consume(TokenKind::LParen, "(")?;
+            let mut params = Vec::new();
+            if !self.check(TokenKind::RParen) {
+                loop {
+                    let param_start = self.peek_span();
+                    let param_name = self
+                        .consume(TokenKind::Ident, "nome do parâmetro do método")?
+                        .lexeme
+                        .clone();
+                    self.consume(TokenKind::Colon, ":")?;
+                    let ty = self.parse_type()?;
+                    params.push(Param {
+                        name: param_name,
+                        ty,
+                        span: merge_span(param_start, self.previous().span),
+                    });
+                    if !self.match_token(TokenKind::Comma) {
+                        break;
+                    }
+                }
+            }
+            self.consume(TokenKind::RParen, ")")?;
+            let ret_type = if self.match_token(TokenKind::Arrow) {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+            self.consume(TokenKind::Semi, ";")?;
+            methods.push(TraitMethodSig {
+                name: method_name,
+                params,
+                ret_type,
+                span: merge_span(method_start, self.previous().span),
+            });
+        }
+        self.consume(TokenKind::RBrace, "}")?;
+        Ok(TraitDecl {
+            name,
+            methods,
             span: merge_span(start_span, self.previous().span),
         })
     }
@@ -782,6 +847,630 @@ impl Parser {
         Ok(vec![target_stmt, Stmt::If(*root_if)])
     }
 
+    /// Desugaring de `tentar` (Fase 223): tratamento estruturado sobre um
+    /// leque de resultado declarado pelo usuário.
+    ///
+    /// ```text
+    /// tentar expr {
+    ///     sucesso Resultado.Ok(valor) { ... }
+    ///     falha Resultado.Erro(erro) { ... }
+    /// }
+    /// ```
+    ///
+    /// O construto exige exatamente um braço `sucesso` e um braço `falha`, ambos
+    /// apontando para variantes do mesmo leque. A execução abaixa para a mesma
+    /// representação de `encaixe`, logo funciona no interpretador e no backend
+    /// nativo sem caminho especial interpreter-only.
+    fn parse_tentar_desugared(&mut self) -> Result<Vec<Stmt>, PinkerError> {
+        self.consume(TokenKind::KwTentar, "tentar")?;
+        let start_span = self.previous().span;
+        let scrutinee = self.parse_expr()?;
+        self.consume(TokenKind::LBrace, "{")?;
+
+        struct TentarArm {
+            variant: String,
+            bindings: Vec<String>,
+            body: Block,
+            span: Span,
+        }
+
+        let mut enum_name: Option<String> = None;
+        let mut arms: Vec<TentarArm> = Vec::new();
+        let mut saw_success = false;
+        let mut saw_failure = false;
+
+        while !self.check(TokenKind::RBrace) && self.peek().is_some() {
+            let label = self
+                .consume(TokenKind::Ident, "'sucesso' ou 'falha' dentro de 'tentar'")?
+                .clone();
+            let label_span = label.span;
+            match label.lexeme.as_str() {
+                "sucesso" => {
+                    if saw_success {
+                        return Err(PinkerError::Parse {
+                            msg: "tentar aceita apenas um braço 'sucesso'".to_string(),
+                            span: label_span,
+                        });
+                    }
+                    saw_success = true;
+                }
+                "falha" => {
+                    if saw_failure {
+                        return Err(PinkerError::Parse {
+                            msg: "tentar aceita apenas um braço 'falha'".to_string(),
+                            span: label_span,
+                        });
+                    }
+                    saw_failure = true;
+                }
+                other => {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "esperado 'sucesso' ou 'falha' dentro de 'tentar', encontrado '{}'",
+                            other
+                        ),
+                        span: label_span,
+                    });
+                }
+            }
+
+            let base = self
+                .consume(TokenKind::Ident, "nome do leque no braço de tentar")?
+                .lexeme
+                .clone();
+            self.consume(TokenKind::Dot, ".")?;
+            let variant = self
+                .consume(TokenKind::Ident, "nome da variante no braço de tentar")?
+                .lexeme
+                .clone();
+            self.consume(TokenKind::LParen, "(")?;
+            let mut bindings = Vec::new();
+            if !self.check(TokenKind::RParen) {
+                loop {
+                    bindings.push(
+                        self.consume(TokenKind::Ident, "nome da variável ligada pelo braço")?
+                            .lexeme
+                            .clone(),
+                    );
+                    if !self.match_token(TokenKind::Comma) {
+                        break;
+                    }
+                }
+            }
+            self.consume(TokenKind::RParen, ")")?;
+
+            match &enum_name {
+                None => enum_name = Some(base),
+                Some(existing) if *existing == base => {}
+                Some(existing) => {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "tentar mistura leques diferentes: '{}' e '{}'",
+                            existing, base
+                        ),
+                        span: label_span,
+                    });
+                }
+            }
+
+            let body = self.parse_block()?;
+            arms.push(TentarArm {
+                variant,
+                bindings,
+                body,
+                span: label_span,
+            });
+        }
+        self.consume(TokenKind::RBrace, "}")?;
+        let end_span = self.previous().span;
+        let helper_span = merge_span(start_span, end_span);
+
+        if !saw_success || !saw_failure {
+            return Err(PinkerError::Parse {
+                msg: "tentar exige exatamente um braço 'sucesso' e um braço 'falha'".to_string(),
+                span: helper_span,
+            });
+        }
+        let Some(enum_name) = enum_name else {
+            return Err(PinkerError::Parse {
+                msg: "tentar exige braços com padrão Leque.Variante(...)".to_string(),
+                span: helper_span,
+            });
+        };
+        let Some(declared_variants) = self.enum_decls.get(&enum_name).cloned() else {
+            return Err(PinkerError::Parse {
+                msg: format!(
+                    "tentar usa leque '{}' não declarado antes deste ponto",
+                    enum_name
+                ),
+                span: helper_span,
+            });
+        };
+        if !declared_variants
+            .iter()
+            .any(|(_, payloads)| !payloads.is_empty())
+        {
+            return Err(PinkerError::Parse {
+                msg: "tentar exige leque com variantes de carga para transportar sucesso/falha"
+                    .to_string(),
+                span: helper_span,
+            });
+        }
+
+        let mut seen_variants: Vec<&str> = Vec::new();
+        for arm in &arms {
+            let Some((_, payloads)) = declared_variants
+                .iter()
+                .find(|(name, _)| *name == arm.variant)
+            else {
+                return Err(PinkerError::Parse {
+                    msg: format!(
+                        "variante '{}' não existe no leque '{}'",
+                        arm.variant, enum_name
+                    ),
+                    span: arm.span,
+                });
+            };
+            if seen_variants.contains(&arm.variant.as_str()) {
+                return Err(PinkerError::Parse {
+                    msg: format!("variante '{}' repetida no tentar", arm.variant),
+                    span: arm.span,
+                });
+            }
+            seen_variants.push(arm.variant.as_str());
+            if payloads.is_empty() {
+                return Err(PinkerError::Parse {
+                    msg: format!(
+                        "variante '{}' não carrega valor; tentar exige carga explícita",
+                        arm.variant
+                    ),
+                    span: arm.span,
+                });
+            }
+            if payloads.len() != arm.bindings.len() {
+                return Err(PinkerError::Parse {
+                    msg: format!(
+                        "variante '{}' carrega {} valor(es), mas o braço liga {} nome(s)",
+                        arm.variant,
+                        payloads.len(),
+                        arm.bindings.len()
+                    ),
+                    span: arm.span,
+                });
+            }
+        }
+
+        self.synthetic_counter += 1;
+        let target_name = format!("__tentar_alvo_{}", self.synthetic_counter);
+        let target_stmt = Stmt::Let(LetStmt {
+            name: target_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Alias {
+                name: enum_name.clone(),
+                span: helper_span,
+            }),
+            init: scrutinee,
+            span: helper_span,
+        });
+        let target_ident = |span: Span| Expr {
+            kind: ExprKind::Ident(target_name.clone()),
+            span,
+        };
+
+        let mut else_branch: Option<ElseBlock> = None;
+        for arm in arms.into_iter().rev() {
+            let tag = declared_variants
+                .iter()
+                .position(|(name, _)| *name == arm.variant)
+                .expect("variante validada acima") as u64;
+            let condition = Expr {
+                kind: ExprKind::Binary(
+                    Box::new(Expr {
+                        kind: ExprKind::Call(
+                            Box::new(Expr {
+                                kind: ExprKind::Ident("__pinker_internal_leque_tag".to_string()),
+                                span: arm.span,
+                            }),
+                            vec![target_ident(arm.span)],
+                        ),
+                        span: arm.span,
+                    }),
+                    BinaryOp::Eq,
+                    Box::new(Expr {
+                        kind: ExprKind::IntLit(tag),
+                        span: arm.span,
+                    }),
+                ),
+                span: arm.span,
+            };
+
+            let payload_types = declared_variants
+                .iter()
+                .find(|(name, _)| *name == arm.variant)
+                .map(|(_, payloads)| payloads.clone())
+                .expect("variante validada acima");
+            let mut body_stmts = Vec::new();
+            for (index, (bind_name, payload_ty)) in
+                arm.bindings.into_iter().zip(payload_types).enumerate()
+            {
+                let carga_fn = match payload_ty {
+                    Type::Verso(_) => "__pinker_internal_leque_carga_v",
+                    _ => "__pinker_internal_leque_carga_b",
+                };
+                body_stmts.push(Stmt::Let(LetStmt {
+                    name: bind_name,
+                    is_mut: false,
+                    ty: Some(payload_ty.with_span(arm.span)),
+                    init: Expr {
+                        kind: ExprKind::Call(
+                            Box::new(Expr {
+                                kind: ExprKind::Ident(carga_fn.to_string()),
+                                span: arm.span,
+                            }),
+                            vec![
+                                target_ident(arm.span),
+                                Expr {
+                                    kind: ExprKind::IntLit(tag),
+                                    span: arm.span,
+                                },
+                                Expr {
+                                    kind: ExprKind::IntLit(index as u64),
+                                    span: arm.span,
+                                },
+                            ],
+                        ),
+                        span: arm.span,
+                    },
+                    span: arm.span,
+                }));
+            }
+            body_stmts.extend(arm.body.stmts);
+            let then_branch = Block {
+                stmts: body_stmts,
+                span: arm.body.span,
+            };
+            let if_stmt = IfStmt {
+                condition,
+                then_branch,
+                else_branch,
+                span: helper_span,
+            };
+            else_branch = Some(ElseBlock::If(Box::new(if_stmt)));
+        }
+
+        let Some(ElseBlock::If(root_if)) = else_branch else {
+            unreachable!("tentar tem dois braços validados acima");
+        };
+        Ok(vec![target_stmt, Stmt::If(*root_if)])
+    }
+
+    /// Desugaring de `propagar` (Fase 224): retorno antecipado explícito para
+    /// resultados baseados em leques.
+    ///
+    /// ```text
+    /// propagar expr como Resultado.Ok(valor) senao Resultado.Erro(erro);
+    /// ```
+    ///
+    /// A variante de sucesso é validada e ignorada; a variante de falha tem sua
+    /// carga extraída e retornada como `Resultado.Erro(carga)`. A sintaxe mantém
+    /// o leque e as variantes explícitos para evitar inferência global prematura.
+    fn parse_propagar_desugared(&mut self) -> Result<Vec<Stmt>, PinkerError> {
+        self.consume(TokenKind::KwPropagar, "propagar")?;
+        let start_span = self.previous().span;
+        let scrutinee = self.parse_expr()?;
+        let como = self.consume(TokenKind::Ident, "'como' após expressão de propagar")?;
+        if como.lexeme != "como" {
+            return Err(PinkerError::Parse {
+                msg: format!(
+                    "esperado 'como' após expressão de propagar, encontrado '{}'",
+                    como.lexeme
+                ),
+                span: como.span,
+            });
+        }
+        let success_base = self
+            .consume(TokenKind::Ident, "nome do leque no sucesso de propagar")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::Dot, ".")?;
+        let success_variant = self
+            .consume(TokenKind::Ident, "nome da variante de sucesso em propagar")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::LParen, "(")?;
+        let _success_binding = self
+            .consume(
+                TokenKind::Ident,
+                "nome simbólico da carga de sucesso em propagar",
+            )?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::RParen, ")")?;
+        self.consume(TokenKind::KwSenao, "senao")?;
+        let failure_base = self
+            .consume(TokenKind::Ident, "nome do leque na falha de propagar")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::Dot, ".")?;
+        let failure_variant = self
+            .consume(TokenKind::Ident, "nome da variante de falha em propagar")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::LParen, "(")?;
+        let failure_binding = self
+            .consume(TokenKind::Ident, "nome da carga de falha em propagar")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::RParen, ")")?;
+        self.consume(TokenKind::Semi, ";")?;
+        let helper_span = merge_span(start_span, self.previous().span);
+
+        if success_base != failure_base {
+            return Err(PinkerError::Parse {
+                msg: format!(
+                    "propagar mistura leques diferentes: '{}' e '{}'",
+                    success_base, failure_base
+                ),
+                span: helper_span,
+            });
+        }
+        if success_variant == failure_variant {
+            return Err(PinkerError::Parse {
+                msg: format!(
+                    "propagar exige variantes distintas para sucesso e falha; '{}' foi repetida",
+                    success_variant
+                ),
+                span: helper_span,
+            });
+        }
+        let Some(declared_variants) = self.enum_decls.get(&success_base).cloned() else {
+            return Err(PinkerError::Parse {
+                msg: format!(
+                    "propagar usa leque '{}' não declarado antes deste ponto",
+                    success_base
+                ),
+                span: helper_span,
+            });
+        };
+        let success_payloads = declared_variants
+            .iter()
+            .find(|(name, _)| *name == success_variant)
+            .map(|(_, payloads)| payloads.clone())
+            .ok_or_else(|| PinkerError::Parse {
+                msg: format!(
+                    "variante '{}' não existe no leque '{}'",
+                    success_variant, success_base
+                ),
+                span: helper_span,
+            })?;
+        if success_payloads.len() != 1 {
+            return Err(PinkerError::Parse {
+                msg: format!(
+                    "propagar exige sucesso com exatamente 1 carga; variante '{}' tem {}",
+                    success_variant,
+                    success_payloads.len()
+                ),
+                span: helper_span,
+            });
+        }
+        let failure_payloads = declared_variants
+            .iter()
+            .find(|(name, _)| *name == failure_variant)
+            .map(|(_, payloads)| payloads.clone())
+            .ok_or_else(|| PinkerError::Parse {
+                msg: format!(
+                    "variante '{}' não existe no leque '{}'",
+                    failure_variant, success_base
+                ),
+                span: helper_span,
+            })?;
+        if failure_payloads.len() != 1 {
+            return Err(PinkerError::Parse {
+                msg: format!(
+                    "propagar exige falha com exatamente 1 carga; variante '{}' tem {}",
+                    failure_variant,
+                    failure_payloads.len()
+                ),
+                span: helper_span,
+            });
+        }
+
+        self.synthetic_counter += 1;
+        let target_name = format!("__propagar_alvo_{}", self.synthetic_counter);
+        let target_stmt = Stmt::Let(LetStmt {
+            name: target_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Alias {
+                name: success_base.clone(),
+                span: helper_span,
+            }),
+            init: scrutinee,
+            span: helper_span,
+        });
+        let failure_tag = declared_variants
+            .iter()
+            .position(|(name, _)| *name == failure_variant)
+            .expect("variante validada acima") as u64;
+        let target_ident = || Expr {
+            kind: ExprKind::Ident(target_name.clone()),
+            span: helper_span,
+        };
+        let failure_payload_ty = failure_payloads
+            .into_iter()
+            .next()
+            .expect("validado exatamente uma carga")
+            .with_span(helper_span);
+        let carga_fn = match failure_payload_ty {
+            Type::Verso(_) => "__pinker_internal_leque_carga_v",
+            _ => "__pinker_internal_leque_carga_b",
+        };
+        let failure_binding_stmt = Stmt::Let(LetStmt {
+            name: failure_binding.clone(),
+            is_mut: false,
+            ty: Some(failure_payload_ty),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(carga_fn.to_string()),
+                        span: helper_span,
+                    }),
+                    vec![
+                        target_ident(),
+                        Expr {
+                            kind: ExprKind::IntLit(failure_tag),
+                            span: helper_span,
+                        },
+                        Expr {
+                            kind: ExprKind::IntLit(0),
+                            span: helper_span,
+                        },
+                    ],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
+        let return_stmt = Stmt::Return(ReturnStmt {
+            expr: Some(Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::FieldAccess {
+                            base: Box::new(Expr {
+                                kind: ExprKind::Ident(success_base),
+                                span: helper_span,
+                            }),
+                            field: failure_variant,
+                        },
+                        span: helper_span,
+                    }),
+                    vec![Expr {
+                        kind: ExprKind::Ident(failure_binding),
+                        span: helper_span,
+                    }],
+                ),
+                span: helper_span,
+            }),
+            span: helper_span,
+        });
+        let condition = Expr {
+            kind: ExprKind::Binary(
+                Box::new(Expr {
+                    kind: ExprKind::Call(
+                        Box::new(Expr {
+                            kind: ExprKind::Ident("__pinker_internal_leque_tag".to_string()),
+                            span: helper_span,
+                        }),
+                        vec![target_ident()],
+                    ),
+                    span: helper_span,
+                }),
+                BinaryOp::Eq,
+                Box::new(Expr {
+                    kind: ExprKind::IntLit(failure_tag),
+                    span: helper_span,
+                }),
+            ),
+            span: helper_span,
+        };
+        Ok(vec![
+            target_stmt,
+            Stmt::If(IfStmt {
+                condition,
+                then_branch: Block {
+                    stmts: vec![failure_binding_stmt, return_stmt],
+                    span: helper_span,
+                },
+                else_branch: None,
+                span: helper_span,
+            }),
+        ])
+    }
+
+    fn register_collection_type(&mut self, name: &str, ty: &Type) {
+        match ty {
+            Type::ListBombom(_) => {
+                self.collection_types
+                    .insert(name.to_string(), CollectionKind::ListBombom);
+            }
+            Type::ListVerso(_) => {
+                self.collection_types
+                    .insert(name.to_string(), CollectionKind::ListVerso);
+            }
+            Type::ListEnum { element, .. } => {
+                self.collection_types
+                    .insert(name.to_string(), CollectionKind::ListEnum(element.clone()));
+            }
+            Type::MapVersoBombom(_) => {
+                self.collection_types
+                    .insert(name.to_string(), CollectionKind::MapVersoBombom);
+            }
+            Type::MapVersoVerso(_) => {
+                self.collection_types
+                    .insert(name.to_string(), CollectionKind::MapVersoVerso);
+            }
+            Type::MapBombomBombom(_) => {
+                self.collection_types
+                    .insert(name.to_string(), CollectionKind::MapBombomBombom);
+            }
+            Type::MapBombomVerso(_) => {
+                self.collection_types
+                    .insert(name.to_string(), CollectionKind::MapBombomVerso);
+            }
+            _ => {}
+        }
+    }
+
+    fn parse_anonymous_function_expr(&mut self, start_span: Span) -> Result<Expr, PinkerError> {
+        self.consume(TokenKind::LParen, "(")?;
+        let mut params = Vec::new();
+        if !self.check(TokenKind::RParen) {
+            loop {
+                let param_start = self.peek_span();
+                let name = self
+                    .consume(TokenKind::Ident, "nome do parâmetro")?
+                    .lexeme
+                    .clone();
+                self.consume(TokenKind::Colon, ":")?;
+                let ty = self.parse_type()?;
+                params.push(Param {
+                    name,
+                    ty,
+                    span: merge_span(param_start, self.previous().span),
+                });
+                if !self.match_token(TokenKind::Comma) {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenKind::RParen, ")")?;
+        let ret_type = if self.match_token(TokenKind::Arrow) {
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+        self.synthetic_counter += 1;
+        let name = format!("__anon_carinho_{}", self.synthetic_counter);
+        let saved_collection_types = self.collection_types.clone();
+        self.collection_types.clear();
+        for param in &params {
+            self.register_collection_type(&param.name, &param.ty);
+        }
+        let body = self.parse_block()?;
+        self.collection_types = saved_collection_types;
+        let span = merge_span(start_span, body.span);
+        self.pending_functions.push(FunctionDecl {
+            name: name.clone(),
+            params,
+            ret_type,
+            body,
+            span,
+        });
+        Ok(Expr {
+            kind: ExprKind::Ident(name),
+            span,
+        })
+    }
+
     fn parse_function(&mut self) -> Result<FunctionDecl, PinkerError> {
         let start_span = self.previous().span;
         let name = self
@@ -908,6 +1597,10 @@ impl Parser {
                 stmts.extend(self.parse_for_stmt_desugared()?);
             } else if self.check(TokenKind::KwEncaixe) {
                 stmts.extend(self.parse_encaixe_desugared()?);
+            } else if self.check(TokenKind::KwTentar) {
+                stmts.extend(self.parse_tentar_desugared()?);
+            } else if self.check(TokenKind::KwPropagar) {
+                stmts.extend(self.parse_propagar_desugared()?);
             } else {
                 stmts.push(self.parse_stmt()?);
             }
@@ -2457,10 +3150,13 @@ impl Parser {
 
     fn parse_expr_primary(&mut self) -> Result<Expr, PinkerError> {
         let eof_span = self.peek_span();
-        let token = self.advance().ok_or(PinkerError::Parse {
-            msg: "fim inesperado da expressão".to_string(),
-            span: eof_span,
-        })?;
+        let token = self
+            .advance()
+            .ok_or(PinkerError::Parse {
+                msg: "fim inesperado da expressão".to_string(),
+                span: eof_span,
+            })?
+            .clone();
 
         let base = match token.kind {
             TokenKind::IntLit => Ok(Expr {
@@ -2488,6 +3184,7 @@ impl Parser {
                 kind: ExprKind::Ident(token.lexeme.clone()),
                 span: token.span,
             }),
+            TokenKind::KwCarinho => self.parse_anonymous_function_expr(token.span),
             TokenKind::LParen => {
                 let lparen_span = token.span;
                 let expr = self.parse_expr()?;
@@ -2546,17 +3243,46 @@ impl Parser {
                 continue;
             }
             if self.match_token(TokenKind::Dot) {
-                let field = self
+                let base_expr = expr;
+                let field_token = self
                     .consume(TokenKind::Ident, "nome do campo após '.'")?
-                    .lexeme
                     .clone();
-                expr = Expr {
-                    span: merge_span(expr.span, self.previous().span),
-                    kind: ExprKind::FieldAccess {
-                        base: Box::new(expr),
-                        field,
-                    },
-                };
+                let field = field_token.lexeme.clone();
+                let is_enum_path = matches!(
+                    &base_expr.kind,
+                    ExprKind::Ident(name) if self.enum_decls.contains_key(name)
+                );
+                if self.check(TokenKind::LParen) && !is_enum_path {
+                    self.consume(TokenKind::LParen, "(")?;
+                    let mut args = vec![base_expr];
+                    if !self.check(TokenKind::RParen) {
+                        loop {
+                            args.push(self.parse_expr()?);
+                            if !self.match_token(TokenKind::Comma) {
+                                break;
+                            }
+                        }
+                    }
+                    self.consume(TokenKind::RParen, ")")?;
+                    expr = Expr {
+                        span: merge_span(field_token.span, self.previous().span),
+                        kind: ExprKind::Call(
+                            Box::new(Expr {
+                                kind: ExprKind::Ident(field),
+                                span: field_token.span,
+                            }),
+                            args,
+                        ),
+                    };
+                } else {
+                    expr = Expr {
+                        span: merge_span(base_expr.span, field_token.span),
+                        kind: ExprKind::FieldAccess {
+                            base: Box::new(base_expr),
+                            field,
+                        },
+                    };
+                }
                 continue;
             }
             if self.match_token(TokenKind::LBracket) {

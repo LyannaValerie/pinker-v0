@@ -1045,3 +1045,39 @@ fn controle_fluxo_geral_executa_nativo_com_todos_os_construtos() {
 
     let _ = fs::remove_dir_all(&out_dir);
 }
+
+#[test]
+fn fase223_tentar_error_handling_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase223_error_handling_tentar_valido.pink",
+        "fase223_error_handling_tentar_valido",
+        22_300,
+    );
+}
+
+#[test]
+fn fase224_propagar_error_handling_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase224_error_handling_propagar_valido.pink",
+        "fase224_error_handling_propagar_valido",
+        22_400,
+    );
+}
+
+#[test]
+fn fase225_carinho_anonimo_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase225_carinho_anonimo_valido.pink",
+        "fase225_carinho_anonimo_valido",
+        22_500,
+    );
+}
+
+#[test]
+fn fase226_trato_metodo_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase226_trato_metodo_valido.pink",
+        "fase226_trato_metodo_valido",
+        22_600,
+    );
+}

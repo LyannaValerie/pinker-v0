@@ -13,7 +13,7 @@ A documentação da Pinker segue arquitetura dual:
 - **Ponte**: documentos que conectam ambos sem confundir presente e aspiração.
 
 Arquivo mestre de navegação: `docs/atlas.md`.
-Sistema histórico canônico: `docs/history.md` -> `docs/history/indice.md` -> índices locais por categoria -> shards em `docs/history/`.
+Sistema histórico canônico: `docs/history.md` -> `docs/history/indice.md` -> índices locais por categoria -> shards em `docs/history/`. `docs/phases.md` não existe mais no workspace atual; referências legadas devem apontar para esse sistema histórico shardado.
 Arquitetura do roadmap: `docs/roadmap.md` -> `docs/roadmap/indice.md` -> `docs/roadmap/blocos/bloco_XX.md`.
 
 ## 2. Quando atualizar cada documento
@@ -27,6 +27,7 @@ Arquitetura do roadmap: `docs/roadmap.md` -> `docs/roadmap/indice.md` -> `docs/r
 | abertura/fechamento de bloco | `docs/roadmap.md`, `docs/roadmap/indice.md`, `docs/roadmap/blocos/bloco_XX.md`, `docs/handoff_codex.md`, `docs/history/phases/*.md` ou `docs/history/documentation/*.md` | transição de bloco, shard estrutural e justificativa |
 | decisão lexical relevante | `docs/vocabulario.md`, `docs/history/phases/*.md` ou `docs/history/documentation/*.md` | aceitação/rejeição/provisório + referência histórica |
 | criação/mudança estrutural de docs | `docs/atlas.md`, `README.md`, `docs/history/documentation/*.md`, `docs/handoff_codex.md` | navegação atualizada e migração registrada |
+| criação/atualização de referência de expansão | `docs/expandir.md`, `docs/atlas.md`, `docs/history/documentation/*.md`, `docs/handoff_codex.md` | escopo, critérios e integração documental da referência |
 | intrínseca nova adicionada | `docs/inventario_intrinsecas.md`, `docs/handoff_codex.md`, `docs/history/phases/*.md` | entrada no inventário, fase histórica |
 | exemplo/teste novo adicionado | `docs/examples_index.md`, `docs/history/phases/*.md` | entrada no índice e fase histórica |
 
@@ -44,9 +45,11 @@ Arquitetura do roadmap: `docs/roadmap.md` -> `docs/roadmap/indice.md` -> `docs/r
 - `docs/history/indice.md`: hub principal de navegação histórica.
 - `docs/history/*/indice.md`: índices roteadores por categoria.
 - `docs/history/*/*.md`: shards com o conteúdo factual das entradas.
+- `docs/expandir.md`: referência operacional para planejar expansões de implementações históricas mínimas/conservadoras, sem virar roadmap paralelo.
 - `handoff_codex.md`: estado operacional unificado (estado corrente, handoff da rodada, limites, restrições, arquitetura documental).
 - `agent_state.md`: redirecionamento para `handoff_codex.md`.
 - `vocabulario.md`: arquitetura lexical canônica.
+- `docs/phases.md`: ausente no workspace atual; não criar novo arquivo de compatibilidade por inércia. Use `docs/history.md` e shards em `docs/history/`.
 
 ## 4. Classificação obrigatória para papéis estruturais
 

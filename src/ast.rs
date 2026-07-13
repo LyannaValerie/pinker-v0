@@ -106,6 +106,7 @@ pub enum Item {
     TypeAlias(TypeAliasDecl),
     Struct(StructDecl),
     Enum(EnumDecl),
+    Trait(TraitDecl),
 }
 
 impl Item {
@@ -116,6 +117,7 @@ impl Item {
             Item::TypeAlias(alias) => alias.span,
             Item::Struct(struct_decl) => struct_decl.span,
             Item::Enum(enum_decl) => enum_decl.span,
+            Item::Trait(trait_decl) => trait_decl.span,
         }
     }
 
@@ -126,8 +128,50 @@ impl Item {
             Item::TypeAlias(alias) => alias.write_json(writer),
             Item::Struct(struct_decl) => struct_decl.write_json(writer),
             Item::Enum(enum_decl) => enum_decl.write_json(writer),
+            Item::Trait(trait_decl) => trait_decl.write_json(writer),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct TraitDecl {
+    pub name: String,
+    pub methods: Vec<TraitMethodSig>,
+    pub span: Span,
+}
+
+impl TraitDecl {
+    fn write_json(&self, writer: &mut JsonWriter<'_>) {
+        writer.begin_object();
+        writer.field_str("node", "TraitDecl");
+        writer.field_str("name", &self.name);
+        writer.field_span("span", self.span);
+        writer.field_array("methods", &self.methods, |writer, method| {
+            writer.begin_object();
+            writer.field_str("node", "TraitMethodSig");
+            writer.field_str("name", &method.name);
+            writer.field_span("span", method.span);
+            writer.field_array("params", &method.params, |writer, param| {
+                param.write_json(writer)
+            });
+            match &method.ret_type {
+                Some(ret_type) => {
+                    writer.field_value("ret_type", |writer| ret_type.write_json(writer))
+                }
+                None => writer.field_null("ret_type"),
+            }
+            writer.end_object();
+        });
+        writer.end_object();
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TraitMethodSig {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub ret_type: Option<Type>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]

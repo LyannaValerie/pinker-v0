@@ -94,6 +94,71 @@ carinho principal() -> bombom {
 
 Dois leques diferentes são tipos distintos mesmo com variantes de mesmo nome. Em leques **sem carga**, a comparação usa `==`/`!=` (inclusive em `escolha`) e o discriminante pode ser lido com `virar bombom`. Em leques **com carga**, a desconstrução acontece exclusivamente via `encaixe`: o compilador exige que todas as variantes sejam cobertas ou que exista um `senao`, e cada `caso Leque.Variante(a, b, ...)` liga as cargas a variáveis novas no corpo do caso, na ordem da declaração.
 
+### `tentar` para resultado estruturado
+
+Desde a Fase 223, a Pinker aceita um primeiro construto de error handling estruturado sobre leques de resultado declarados pelo usuário. O padrão canônico é declarar um leque com uma variante de sucesso e uma variante de falha, ambas com carga, e despachar com `tentar`:
+
+```pink
+leque Resultado { Ok(bombom), Erro(verso) }
+
+carinho validar(v: bombom, ok: logica) -> Resultado {
+    talvez ok {
+        mimo Resultado.Ok(v);
+    }
+    mimo Resultado.Erro("falha");
+}
+
+carinho principal() -> bombom {
+    nova r: Resultado = validar(42, verdade);
+    tentar r {
+        sucesso Resultado.Ok(valor) { falar(valor); }
+        falha Resultado.Erro(msg) { falar(msg); }
+    }
+    mimo 0;
+}
+```
+
+`sucesso` e `falha` precisam aparecer exatamente uma vez dentro de `tentar`, apontar para variantes do mesmo leque e ligar a mesma quantidade de cargas declaradas na variante. A implementação abaixa para a infraestrutura de leques/`encaixe`, portanto roda no interpretador e no backend nativo.
+
+Desde a Fase 224, funções que retornam o mesmo leque de resultado também podem propagar falhas de forma explícita:
+
+```pinker
+propagar validar(42, verdade) como Resultado.Ok(valor) senao Resultado.Erro(msg);
+```
+
+`propagar` exige que as duas variantes pertençam ao mesmo leque, sejam distintas e carreguem exatamente um valor. Em caso de falha, a carga é extraída e retornada imediatamente como a variante de falha indicada; em caso de sucesso, a execução continua. A carga de sucesso é nomeada na sintaxe para documentar o contrato, mas ainda não fica disponível depois do comando — extração de valor com continuação nomeada permanece para uma fase posterior.
+
+
+## Funções anônimas não capturantes
+
+Desde a Fase 225, a Pinker aceita literais `carinho` em expressão para callbacks imediatos e pequenos adaptadores sem captura de escopo externo:
+
+```pinker
+nova dobrado: bombom = carinho(v: bombom) -> bombom {
+    mimo v * 2;
+}(21);
+```
+
+O literal usa a mesma sintaxe de parâmetros, retorno e bloco de uma função nomeada, mas sem nome entre `carinho` e `(`. A implementação gera uma função sintética top-level e a chamada baixa como chamada direta comum, portanto funciona no interpretador e no backend nativo. Por essa razão, a Fase 225 é deliberadamente **não capturante**: o corpo pode usar seus próprios parâmetros e globais já válidos, mas não pode ler variáveis locais do bloco onde o literal aparece. Literais como valores armazenáveis, tipos-função públicos e closures com ambiente capturado continuam para fases posteriores do Eixo A.
+
+## Tratos estáticos e chamada por método
+
+Desde a Fase 226, a Pinker aceita contratos estáticos com `trato`:
+
+```pinker
+trato Dobravel {
+    carinho dobrar(x: bombom) -> bombom;
+}
+
+carinho dobrar(x: bombom) -> bombom {
+    mimo x * 2;
+}
+
+nova valor: bombom = 21.dobrar();
+```
+
+Um `trato` declara assinaturas que precisam existir como funções top-level compatíveis. A chamada `alvo.metodo(a, b)` é açúcar para `metodo(alvo, a, b)`, portanto baixa para chamada direta comum e roda no interpretador e no backend nativo. Esta fase não introduz implementação por tipo, dicionários/vtables, dynamic dispatch, herança ou objetos de trait; ela cria o contrato estático inicial e a ergonomia de chamada necessária para continuar o item.
+
 ## 5) Fluxo de controle
 
 ### `talvez` / `senao`
@@ -390,8 +455,8 @@ das fases B2–B11 do Eixo B.
 ## 11.1) Limites atuais da linguagem
 
 No estado atual, ainda há limites importantes para uso geral:
-- o backend nativo cobre um subset da linguagem (a paridade completa é a trilha ativa do Eixo B); coleções, `verso` dinâmico e leques com carga executam hoje apenas em `--run`;
-- error handling estruturado, closures e traits ainda não existem (itens 5, 6 e 4 da Faixa 1 do Bloco 20);
+- o backend nativo alcançou paridade para a superfície versionada compatível do Eixo B, mas ainda há limites fora desse manifesto, como `ouvir` interativo e futuras features de linguagem ainda não abertas;
+- error handling estruturado existe via `tentar` e propagação explícita `propagar` sobre leques de resultado declarados pelo usuário; tratos estáticos e chamada por método existem no recorte da Fase 226; closures capturantes, `impl` por tipo e dynamic dispatch seguem fora;
 - generics cobrem `lista<T>` com `T` = leque; `mapa<K,V>` genérico e funções genéricas de usuário seguem fora;
 - API de arquivo segue sem modos avançados de streaming.
 

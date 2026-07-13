@@ -1,0 +1,15 @@
+pacote main;
+
+trato Dobravel {
+    carinho dobrar(x: bombom) -> bombom;
+}
+
+carinho dobrar(x: bombom) -> bombom {
+    mimo x * 2;
+}
+
+carinho principal() -> bombom {
+    nova valor: bombom = 21.dobrar();
+    falar(valor);
+    mimo 0;
+}

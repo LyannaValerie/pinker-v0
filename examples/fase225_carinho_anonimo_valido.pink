@@ -1,0 +1,17 @@
+pacote main;
+
+carinho aplicar_duas_vezes(x: bombom) -> bombom {
+    nova primeiro: bombom = carinho(v: bombom) -> bombom {
+        mimo v + 1;
+    }(x);
+    nova segundo: bombom = carinho(v: bombom) -> bombom {
+        mimo v * 2;
+    }(primeiro);
+    mimo segundo;
+}
+
+carinho principal() -> bombom {
+    nova valor: bombom = aplicar_duas_vezes(20);
+    falar(valor);
+    mimo 0;
+}

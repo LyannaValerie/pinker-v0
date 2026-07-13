@@ -19,10 +19,10 @@ A trilha é organizada em **11 faixas ordenadas por prioridade**, mescladas a pa
 
 O Bloco 20 executa em **dois eixos** que se alternam por decisão explícita:
 
-- **Eixo A — linguagem**: as 11 faixas abaixo (superfície, tipos, funções, controle, baixo nível, metaprogramação, módulos, concorrência, I/O). Executou os itens 1–3 da Faixa 1 (Fases 208–211) e retoma nos itens 5 → 6 → 4 após o Eixo B.
+- **Eixo A — linguagem**: as 11 faixas abaixo (superfície, tipos, funções, controle, baixo nível, metaprogramação, módulos, concorrência, I/O). Executou os itens 1–3 da Faixa 1 (Fases 208–211) e, após o Eixo B, retomou os itens 5 → 6 → 4 nas Fases 223–226.
 - **Eixo B — backend nativo**: paridade real do backend `.s` + runtime próprio com a superfície atual da linguagem (B1–B11, Fases 212–222). Aberto pela Doc-40, executado e encerrado na Fase 222.
 
-Ordem vigente: Eixo A (itens 1–3) → **Eixo B (integral, concluído)** → Eixo A (itens 5 → 6 → 4, agora com lowering nativo obrigatório em cada fase) → demais faixas.
+Ordem vigente: Eixo A (itens 1–3) → **Eixo B (integral, concluído)** → Eixo A (itens 5 → 6 → 4, agora com lowering nativo obrigatório em cada fase e com o padrão de expansão de `docs/expandir.md`) → demais faixas.
 
 Nota de nomenclatura (Doc-41): o "B" nasceu de **B**ackend; a formalização A/B remove a ambiguidade de sequência — o Eixo A é o trilho de linguagem e veio primeiro de fato.
 
@@ -39,9 +39,9 @@ Os itens da Faixa 1 mais os três primeiros da Faixa 3 formam o conjunto que des
 | 1 | Enums / tipos algébricos | Rust, TS, C# | nós de AST, estados de kernel, códigos de erro — **entregue nas Fases 208–210**: `leque` nominal com múltiplas cargas por variante (`bombom`/`verso`/leque, incl. recursão e recursão mútua); fora: carga de `ninho`/coleções e generics em leque |
 | 2 | Pattern matching | Rust, C#, TS | despacho sobre enums/AST, parsing de tokens — **entregue no recorte utilizável nas Fases 209–210**: `encaixe` com despacho por variante, extração de múltiplas cargas e exaustividade no parse; fora: guards, padrões aninhados e encaixe-expressão |
 | 3 | Generics mínimos (`lista<T>`, `mapa<K,V>`) | C++, TS, C# | eliminar monomorphização manual — **entregue no recorte utilizável na Fase 211**: `lista<T>` com T = leque + 7 intrínsecas genéricas sobre qualquer lista; fora: `mapa<K,V>` genérico, funções genéricas de usuário, generics em `leque`/`ninho` |
-| 4 | Traits / interfaces mínimas | Rust, TS, C# | polimorfismo sem herança, contratos de driver |
-| 5 | Error handling estruturado (`tentar/pegar` ou Result) | C#, Python, Rust | recuperação sem abort, relatório de erros do compilador |
-| 6 | Closures / funções anônimas | Rust, TS, Python | callbacks, iteradores, handlers |
+| 4 | Traits / interfaces mínimas | Rust, TS, C# | polimorfismo sem herança, contratos de driver — **iniciado na Fase 226**: `trato` como contrato estático de funções top-level compatíveis e chamada por método como açúcar para chamada direta; fora: `impl` por tipo, resolução nominal por receiver, objetos de trait, vtables e dynamic dispatch |
+| 5 | Error handling estruturado | C#, Python, Rust | recuperação sem abort, relatório de erros do compilador — **expandido nas Fases 223–224**: `tentar` com braços `sucesso`/`falha` e `propagar` para retorno antecipado explícito sobre leque de resultado declarado pelo usuário, com lowering nativo desde a entrega; fora: operador curto de propagação, biblioteca padrão de `Resultado<T,E>`, extração nomeada do sucesso propagado e integração automática com erros de runtime |
+| 6 | Closures / funções anônimas | Rust, TS, Python | callbacks, iteradores, handlers — **iniciado na Fase 225**: literal `carinho (...) -> tipo { ... }` não capturante em expressão, gerado como função sintética e executado também no backend nativo; fora: captura de ambiente, função como valor armazenável/passável e tipos-função públicos |
 
 ### Faixa 2 — consolidação do Bloco 18 (ex-Direção A) — **concluída**
 
@@ -175,7 +175,8 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 ## Método de execução
 
 - Cada item vira uma ou mais fases numeradas normais, com exemplo versionado, testes e entrada no histórico.
-- Nas faixas de linguagem, o alvo de cada item é o nível "utilizável pelos marcos" (Fases 208–211 são o padrão); no **Eixo B**, a regra é mais dura: cobertura completa do subproblema por fase, sem recorte mínimo.
+- Nas faixas de linguagem, o alvo de cada item deixa de ser o menor recorte auditável por hábito: após o Eixo B, o padrão passa a ser implementação adulta, utilizável pelos marcos, com profundidade proporcional ao domínio e com referência explícita em `docs/expandir.md`.
+- No **Eixo B**, a regra já foi mais dura: cobertura completa do subproblema por fase, sem recorte mínimo. Esse espírito passa a influenciar o Eixo A, sem apagar a necessidade de limites honestos.
 - Após o Eixo B, toda fase de linguagem nova entrega o lowering nativo junto — features interpreter-only deixam de ser aceitas.
 - A ordem entre faixas é a prioridade canônica; dentro de uma faixa, itens podem ser reordenados por dependência técnica (ordem vigente da Faixa 1: 3 → 5 → 6 → 4, com o Eixo B intercalado após o item 3).
 

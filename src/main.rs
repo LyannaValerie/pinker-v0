@@ -763,6 +763,7 @@ fn importable_item_name(item: &ast::Item) -> Option<&str> {
         ast::Item::Struct(struct_decl) => Some(struct_decl.name.as_str()),
         ast::Item::TypeAlias(alias) => Some(alias.name.as_str()),
         ast::Item::Enum(enum_decl) => Some(enum_decl.name.as_str()),
+        ast::Item::Trait(trait_decl) => Some(trait_decl.name.as_str()),
     }
 }
 
@@ -772,7 +773,8 @@ fn importable_item_clone(item: &ast::Item) -> Option<ast::Item> {
         | ast::Item::Const(_)
         | ast::Item::Struct(_)
         | ast::Item::TypeAlias(_)
-        | ast::Item::Enum(_) => Some(item.clone()),
+        | ast::Item::Enum(_)
+        | ast::Item::Trait(_) => Some(item.clone()),
     }
 }
 

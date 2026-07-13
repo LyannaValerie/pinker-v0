@@ -9216,3 +9216,31 @@ fn cli_run_fase207_trazer_arquivo_caminho_processo_valido() {
     assert!(stdout.contains("rosa pinker"), "stdout={}", stdout);
     assert!(stdout.contains('0'), "stdout={}", stdout);
 }
+
+#[test]
+fn fase223_tentar_error_handling_executa_no_interpretador() {
+    let code = include_str!("../examples/fase223_error_handling_tentar_valido.pink");
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn fase224_propagar_error_handling_executa_no_interpretador() {
+    let code = include_str!("../examples/fase224_error_handling_propagar_valido.pink");
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn fase225_carinho_anonimo_executa_no_interpretador() {
+    let code = include_str!("../examples/fase225_carinho_anonimo_valido.pink");
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn fase226_trato_metodo_executa_no_interpretador() {
+    let code = include_str!("../examples/fase226_trato_metodo_valido.pink");
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(0)));
+}
