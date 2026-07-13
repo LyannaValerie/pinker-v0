@@ -482,6 +482,7 @@ Referências centrais:
 - `docs/vocabulario.md` — arquitetura lexical canônica.
 - `docs/ponte_engine_rosa.md` — ponte explícita entre factual e visão.
 - `docs/future.md` e `docs/parallel.md` — acervos de apoio (técnico e visionário).
+- `docs/expandir.md` — referência para elevar implementações históricas mínimas/conservadoras a um patamar adulto após o Eixo B.
 
 ## Licença
 [MIT](LICENSE)

@@ -22,7 +22,7 @@ O Bloco 20 executa em **dois eixos** que se alternam por decisão explícita:
 - **Eixo A — linguagem**: as 11 faixas abaixo (superfície, tipos, funções, controle, baixo nível, metaprogramação, módulos, concorrência, I/O). Executou os itens 1–3 da Faixa 1 (Fases 208–211) e retoma nos itens 5 → 6 → 4 após o Eixo B.
 - **Eixo B — backend nativo**: paridade real do backend `.s` + runtime próprio com a superfície atual da linguagem (B1–B11, Fases 212–222). Aberto pela Doc-40, executado e encerrado na Fase 222.
 
-Ordem vigente: Eixo A (itens 1–3) → **Eixo B (integral, concluído)** → Eixo A (itens 5 → 6 → 4, agora com lowering nativo obrigatório em cada fase) → demais faixas.
+Ordem vigente: Eixo A (itens 1–3) → **Eixo B (integral, concluído)** → Eixo A (itens 5 → 6 → 4, agora com lowering nativo obrigatório em cada fase e com o padrão de expansão de `docs/expandir.md`) → demais faixas.
 
 Nota de nomenclatura (Doc-41): o "B" nasceu de **B**ackend; a formalização A/B remove a ambiguidade de sequência — o Eixo A é o trilho de linguagem e veio primeiro de fato.
 
@@ -175,7 +175,8 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 ## Método de execução
 
 - Cada item vira uma ou mais fases numeradas normais, com exemplo versionado, testes e entrada no histórico.
-- Nas faixas de linguagem, o alvo de cada item é o nível "utilizável pelos marcos" (Fases 208–211 são o padrão); no **Eixo B**, a regra é mais dura: cobertura completa do subproblema por fase, sem recorte mínimo.
+- Nas faixas de linguagem, o alvo de cada item deixa de ser o menor recorte auditável por hábito: após o Eixo B, o padrão passa a ser implementação adulta, utilizável pelos marcos, com profundidade proporcional ao domínio e com referência explícita em `docs/expandir.md`.
+- No **Eixo B**, a regra já foi mais dura: cobertura completa do subproblema por fase, sem recorte mínimo. Esse espírito passa a influenciar o Eixo A, sem apagar a necessidade de limites honestos.
 - Após o Eixo B, toda fase de linguagem nova entrega o lowering nativo junto — features interpreter-only deixam de ser aceitas.
 - A ordem entre faixas é a prioridade canônica; dentro de uma faixa, itens podem ser reordenados por dependência técnica (ordem vigente da Faixa 1: 3 → 5 → 6 → 4, com o Eixo B intercalado após o item 3).
 

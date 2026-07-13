@@ -27,7 +27,7 @@ Apoio Engine:
 - `docs/history/parallel_phases/indice.md` — índice local das rodadas paralelas.
 - `docs/future.md` — inventário técnico (não é roadmap).
 - `docs/inventario_intrinsecas.md` — inventário canônico de intrínsecas (Bloco 18, Fase 180).
-- `docs/phases.md` — arquivo de compatibilidade para referências legadas.
+- `docs/expandir.md` — referência operacional para elevar implementações históricas mínimas/conservadoras a patamar adulto, sem apagar a crônica factual.
 
 ## 2) Hemisfério Rosa (identitário / lexical / visão)
 
