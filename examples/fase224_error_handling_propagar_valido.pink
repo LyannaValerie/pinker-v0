@@ -1,0 +1,39 @@
+pacote main;
+
+leque Resultado { Ok(bombom), Erro(verso) }
+
+carinho etapa(v: bombom, ok: logica) -> Resultado {
+    talvez ok {
+        mimo Resultado.Ok(v);
+    }
+    mimo Resultado.Erro("erro propagado");
+}
+
+carinho validar_duas(a: bombom, b: bombom, ok_a: logica, ok_b: logica) -> Resultado {
+    propagar etapa(a, ok_a) como Resultado.Ok(valor) senao Resultado.Erro(msg);
+    propagar etapa(b, ok_b) como Resultado.Ok(valor) senao Resultado.Erro(msg);
+    mimo Resultado.Ok(a + b);
+}
+
+carinho principal() -> bombom {
+    nova bom: Resultado = validar_duas(20, 22, verdade, verdade);
+    tentar bom {
+        sucesso Resultado.Ok(valor) {
+            falar(valor);
+        }
+        falha Resultado.Erro(msg) {
+            falar(msg);
+        }
+    }
+
+    nova ruim: Resultado = validar_duas(1, 2, verdade, falso);
+    tentar ruim {
+        sucesso Resultado.Ok(valor) {
+            falar(valor);
+        }
+        falha Resultado.Erro(msg) {
+            falar(msg);
+        }
+    }
+    mimo 0;
+}
