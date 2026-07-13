@@ -14,7 +14,7 @@
 | Campo | Valor |
 |---|---|
 | Fase funcional mais recente | **222** — Eixo B: marco de paridade e fechamento do eixo (B11) |
-| Rodada documental mais recente | **Doc-41** — formalização dos dois eixos do Bloco 20 (A — linguagem; B — backend nativo) |
+| Rodada documental mais recente | **Doc-42** — referência `expandir.md`, novo padrão pós-Eixo B e remoção de referências ativas a `docs/phases.md` |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
@@ -82,8 +82,8 @@ Histórico completo por fase: `docs/history/phases/`.
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41): **Eixo A — linguagem** (faixas) e **Eixo B — backend nativo**. Ordem vigente agora: A (itens 1–3 ✓) → B (integral ✓) → A (itens 5 → 6 → 4).
-- Próxima fase: retomar o **Eixo A, item 5 da Faixa 1 — error handling estruturado** (prevista Fase 223), com lowering nativo obrigatório desde o início.
+- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41) e novo padrão pós-Eixo B registrado na Doc-42: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado. Ordem vigente agora: A (itens 1–3 ✓) → B (integral ✓) → A (itens 5 → 6 → 4).
+- Próxima fase: retomar o **Eixo A, item 5 da Faixa 1 — error handling estruturado** (prevista Fase 223), com lowering nativo obrigatório desde o início e com o padrão de expansão adulta de `docs/expandir.md`.
 - Escada completa do eixo encerrado (B1 ✓ ... B11 ✓) em `docs/roadmap/blocos/bloco_20.md`.
 - Depois do item 5: itens 6 (**closures**) e 4 (**traits**) do Eixo A, mantendo a regra de que toda fase de linguagem entrega o lowering nativo junto.
 
@@ -99,7 +99,8 @@ Histórico completo por fase: `docs/history/phases/`.
 - `atlas.md` = navegação mestre.
 - `ponte_engine_rosa.md` = mediação estável Engine ↔ Rosa.
 - `inventario_intrinsecas.md` = inventário canônico de intrínsecas.
-- `phases.md` = compatibilidade legada.
+- `expandir.md` = referência de expansão para elevar implementações históricas mínimas/conservadoras.
+- `docs/phases.md` está ausente no workspace atual; referências legadas devem apontar para `docs/history.md` e shards em `docs/history/`.
 
 ## 7. Restrições do projeto
 - Não abrir fase funcional fora da ordem ativa do roadmap.
