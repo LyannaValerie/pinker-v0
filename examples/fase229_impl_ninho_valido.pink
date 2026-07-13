@@ -1,0 +1,23 @@
+pacote demo;
+
+ninho Ponto {
+    x: bombom;
+}
+
+trato Medivel {
+    carinho medir(p: Ponto) -> bombom;
+}
+
+impl Medivel para Ponto {
+    carinho medir(p: Ponto) -> bombom {
+        mimo 42;
+    }
+}
+
+carinho usar_ponto(p: Ponto) -> bombom {
+    mimo p.medir();
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}

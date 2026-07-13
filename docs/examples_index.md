@@ -30,7 +30,7 @@ Nota factual de estilo: a Fase 172 uniformizou visualmente um primeiro lote pequ
 
 | closures / funções anônimas | `examples/fase225_carinho_anonimo_valido.pink` | literal `carinho (...) -> tipo { ... }` não capturante chamado diretamente, com paridade nativa | `tests/semantic_tests.rs`, `tests/interpreter_tests.rs`, `tests/backend_nativo_tests.rs` |
 
-| traits / interfaces estáticos | `examples/fase226_trato_metodo_valido.pink`, `examples/fase227_impl_trato_valido.pink`, `examples/fase228_impl_resolucao_nominal_valido.pink` | `trato` com função top-level compatível, chamada por método `alvo.metodo()`, `impl Trato para Tipo { ... }` com receiver explícito e resolução nominal pelo tipo do receiver, com paridade nativa | `tests/semantic_tests.rs`, `tests/interpreter_tests.rs`, `tests/backend_nativo_tests.rs` |
+| traits / interfaces estáticos | `examples/fase226_trato_metodo_valido.pink`, `examples/fase227_impl_trato_valido.pink`, `examples/fase228_impl_resolucao_nominal_valido.pink`, `examples/fase229_impl_ninho_valido.pink`, `examples/fase230_impl_cobertura_valido.pink` | `trato` com função top-level compatível, chamada por método `alvo.metodo()`, `impl Trato para Tipo { ... }` com receiver explícito, resolução nominal pelo tipo do receiver, receiver nominal `ninho` opaco e cobertura completa do contrato, com paridade nativa | `tests/semantic_tests.rs`, `tests/interpreter_tests.rs`, `tests/backend_nativo_tests.rs` |
 
 Regra prática:
 - mudança em parser/léxico: começar por `tests/parser_tests.rs`

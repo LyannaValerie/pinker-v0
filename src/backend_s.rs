@@ -195,7 +195,7 @@ fn extract_external_callconv_program(
             };
             if !is_external_param_type(ty) {
                 return Err(err(
-                "subset externo montável (Fase 135) aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo ou `seta<T>` no recorte conservador",
+                "subset externo montável aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>` no recorte conservador",
                 ));
             }
         }
@@ -207,7 +207,7 @@ fn extract_external_callconv_program(
             };
             if !is_external_local_type(ty) {
                 return Err(err(&format!(
-                    "subset externo montável (Fase 135) só aceita local `bombom`, `u32`, `u64`, `verso` opaco mínimo ou `seta<T>`; '{}' é '{}'",
+                    "subset externo montável só aceita local `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>`; '{}' é '{}'",
                     local,
                     ty.name()
                 )));
@@ -1218,6 +1218,7 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
         || *ty == TypeIR::MapVersoVerso
         || *ty == TypeIR::MapBombomBombom
         || *ty == TypeIR::MapBombomVerso
+        || *ty == TypeIR::Struct
         || *ty == TypeIR::Pointer { is_volatile: false }
 }
 

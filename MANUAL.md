@@ -157,9 +157,9 @@ carinho dobrar(x: bombom) -> bombom {
 nova valor: bombom = 21.dobrar();
 ```
 
-Um `trato` declara assinaturas que precisam existir como funções top-level compatíveis. A chamada `alvo.metodo(a, b)` é açúcar para `metodo(alvo, a, b)`, portanto baixa para chamada direta comum e roda no interpretador e no backend nativo. Esta fase não introduz implementação por tipo, dicionários/vtables, dynamic dispatch, herança ou objetos de trait; ela cria o contrato estático inicial e a ergonomia de chamada necessária para continuar o item.
+Um `trato` declara assinaturas que precisam existir como funções top-level compatíveis. A chamada `alvo.metodo(a, b)` é açúcar estático para chamada direta com o receiver como primeiro argumento e roda no interpretador e no backend nativo. Esta fase não introduz dicionários/vtables, dynamic dispatch, herança ou objetos de trait; ela cria o contrato estático inicial e a ergonomia de chamada necessária para continuar o item.
 
-Desde as Fases 227–228, `impl Trato para Tipo { ... }` agrupa métodos com receiver explícito e a chamada `alvo.metodo(...)` resolve primeiro pelo tipo do receiver:
+Desde as Fases 227–230, `impl Trato para Tipo { ... }` agrupa métodos com receiver explícito, valida cobertura completa do contrato e a chamada `alvo.metodo(...)` resolve primeiro pelo tipo do receiver:
 
 ```pinker
 impl Dobravel para bombom {
@@ -169,7 +169,7 @@ impl Dobravel para bombom {
 }
 ```
 
-O método do `impl` recebe nome interno e não colide com função top-level homônima; se não houver `impl` compatível, a forma antiga por função global ainda é aceita como fallback. Objetos de trait, vtables, dynamic dispatch, coerções e overloading amplo continuam fora.
+O método do `impl` recebe nome interno e não colide com função top-level homônima; se não houver `impl` compatível, a forma antiga por função global ainda é aceita como fallback. O tipo alvo pode ser escalar ou um `ninho` nominal no recorte atual; no backend nativo, `ninho` trafega como parâmetro/local opaco, sem abrir construção por valor nem acesso `p.campo` operacional por valor. Cada `impl` precisa implementar todos os métodos do `trato` e não pode declarar métodos extras. Objetos de trait, vtables, dynamic dispatch, coerções, default methods e overloading amplo continuam fora.
 
 ## 5) Fluxo de controle
 
@@ -468,7 +468,7 @@ das fases B2–B11 do Eixo B.
 
 No estado atual, ainda há limites importantes para uso geral:
 - o backend nativo alcançou paridade para a superfície versionada compatível do Eixo B, mas ainda há limites fora desse manifesto, como `ouvir` interativo e futuras features de linguagem ainda não abertas;
-- error handling estruturado existe via `tentar` e propagação explícita `propagar` sobre leques de resultado declarados pelo usuário; tratos estáticos e chamada por método existem no recorte da Fase 226; closures capturantes, `impl` por tipo e dynamic dispatch seguem fora;
+- error handling estruturado existe via `tentar` e propagação explícita `propagar` sobre leques de resultado declarados pelo usuário; tratos estáticos, chamada por método e `impl` nominal com cobertura completa existem no recorte das Fases 226–230; closures capturantes e dynamic dispatch seguem fora;
 - generics cobrem `lista<T>` com `T` = leque; `mapa<K,V>` genérico e funções genéricas de usuário seguem fora;
 - API de arquivo segue sem modos avançados de streaming.
 

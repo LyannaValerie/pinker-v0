@@ -1745,7 +1745,7 @@ fn asm_s_external_subset_falha_parametro_nao_bombom() {
 
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains(
-        "subset externo montável (Fase 135) aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo ou `seta<T>`"
+        "subset externo montável aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>`"
     ));
 }
 
@@ -1833,7 +1833,7 @@ fn asm_s_external_subset_fase116_recusa_composto_fora_da_camada1() {
     let code = include_str!("../examples/fase116_compostos_minimos_camada1_invalida.pink");
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains(
-        "subset externo montável (Fase 135) aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo ou `seta<T>`"
+        "subset externo montável aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>`"
     ));
 }
 
@@ -1842,7 +1842,7 @@ fn asm_s_external_subset_fase117_recusa_local_composto_fora_da_camada2() {
     let code = include_str!("../examples/fase117_compostos_minimos_camada2_invalida.pink");
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains(
-        "subset externo montável (Fase 135) só aceita local `bombom`, `u32`, `u64`, `verso` opaco mínimo ou `seta<T>`"
+        "subset externo montável só aceita local `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>`"
     ));
 }
 
@@ -1851,7 +1851,7 @@ fn asm_s_external_subset_fase118_recusa_store_fragil_fora_do_subset() {
     let code = include_str!("../examples/fase118_compostos_minimos_camada3_invalida.pink");
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains(
-        "subset externo montável (Fase 135) aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo ou `seta<T>`"
+        "subset externo montável aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>`"
     ));
 }
 
@@ -1868,7 +1868,7 @@ carinho principal() -> bombom {
 "#;
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains(
-        "subset externo montável (Fase 135) aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo ou `seta<T>`"
+        "subset externo montável aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>`"
     ));
 }
 

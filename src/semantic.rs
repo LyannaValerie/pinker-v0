@@ -80,6 +80,7 @@ struct Scope {
 #[derive(Clone)]
 struct ImplMethodMeta {
     trait_name: String,
+    target_type: String,
     method_name: String,
     function_name: String,
 }
@@ -652,6 +653,7 @@ impl SemanticChecker {
                         self.method_index.insert(key, function.name.clone());
                         self.impl_methods.push(ImplMethodMeta {
                             trait_name,
+                            target_type,
                             method_name,
                             function_name: function.name.clone(),
                         });
@@ -829,6 +831,7 @@ impl SemanticChecker {
             }
         }
 
+        self.validate_impl_contracts()?;
         self.validate_trait_contracts()?;
 
         // --- Passagem 2: verificação de corpos ---
@@ -839,6 +842,79 @@ impl SemanticChecker {
                 Item::Function(function) => self.check_function(function)?,
                 Item::Const(constant) => self.check_const_body(constant)?,
                 Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) | Item::Trait(_) => {}
+            }
+        }
+
+        Ok(())
+    }
+
+    fn validate_impl_contracts(&self) -> Result<(), PinkerError> {
+        let mut groups: HashMap<(String, String), Vec<&ImplMethodMeta>> = HashMap::new();
+        for meta in &self.impl_methods {
+            groups
+                .entry((meta.trait_name.clone(), meta.target_type.clone()))
+                .or_default()
+                .push(meta);
+        }
+
+        for ((trait_name, target_type), methods) in groups {
+            let Some(trait_decl) = self.traits.get(&trait_name) else {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "impl '{}' para '{}' referencia trato não declarado",
+                        trait_name, target_type
+                    ),
+                    span: Span::new(Position::new(0, 0), Position::new(0, 0)),
+                });
+            };
+            let trait_methods: HashSet<&str> = trait_decl
+                .methods
+                .iter()
+                .map(|method| method.name.as_str())
+                .collect();
+            let mut seen = HashSet::new();
+
+            for meta in &methods {
+                if !trait_methods.contains(meta.method_name.as_str()) {
+                    let span = self
+                        .funcs
+                        .get(&meta.function_name)
+                        .map(|function| function.span)
+                        .unwrap_or(trait_decl.span);
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "impl '{}' para '{}' declara método '{}' que não existe no trato",
+                            trait_name, target_type, meta.method_name
+                        ),
+                        span,
+                    });
+                }
+                if !seen.insert(meta.method_name.as_str()) {
+                    let span = self
+                        .funcs
+                        .get(&meta.function_name)
+                        .map(|function| function.span)
+                        .unwrap_or(trait_decl.span);
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "impl '{}' para '{}' declara método '{}' mais de uma vez",
+                            trait_name, target_type, meta.method_name
+                        ),
+                        span,
+                    });
+                }
+            }
+
+            for method in &trait_decl.methods {
+                if !seen.contains(method.name.as_str()) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "impl '{}' para '{}' não implementa método '{}'",
+                            trait_name, target_type, method.name
+                        ),
+                        span: method.span,
+                    });
+                }
             }
         }
 

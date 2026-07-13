@@ -1099,3 +1099,21 @@ fn fase228_impl_resolucao_nominal_tem_paridade_nativa() {
         22_800,
     );
 }
+
+#[test]
+fn fase229_impl_ninho_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase229_impl_ninho_valido.pink",
+        "fase229_impl_ninho_valido",
+        22_900,
+    );
+}
+
+#[test]
+fn fase230_impl_cobertura_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase230_impl_cobertura_valido.pink",
+        "fase230_impl_cobertura_valido",
+        23_000,
+    );
+}
