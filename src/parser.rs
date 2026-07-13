@@ -183,6 +183,8 @@ impl Parser {
             Ok(Item::Struct(self.parse_struct_decl()?))
         } else if self.match_token(TokenKind::KwLeque) {
             Ok(Item::Enum(self.parse_enum_decl()?))
+        } else if self.match_token(TokenKind::KwTrato) {
+            Ok(Item::Trait(self.parse_trait_decl()?))
         } else if self.match_token(TokenKind::KwLivre) {
             Err(PinkerError::Expected {
                 expected: "marcador `livre;` apenas uma vez no topo do programa (após `pacote`, antes dos itens)".to_string(),
@@ -197,7 +199,7 @@ impl Parser {
             })
         } else {
             Err(PinkerError::Expected {
-                expected: "carinho, eterno, apelido, ninho ou leque".to_string(),
+                expected: "carinho, eterno, apelido, ninho, leque ou trato".to_string(),
                 found: self
                     .peek()
                     .map(|token| token.lexeme.clone())
@@ -419,6 +421,65 @@ impl Parser {
         Ok(StructDecl {
             name,
             fields,
+            span: merge_span(start_span, self.previous().span),
+        })
+    }
+
+    fn parse_trait_decl(&mut self) -> Result<TraitDecl, PinkerError> {
+        let start_span = self.previous().span;
+        let name = self
+            .consume(TokenKind::Ident, "nome do trato")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::LBrace, "{")?;
+        let mut methods = Vec::new();
+        while !self.check(TokenKind::RBrace) && self.peek().is_some() {
+            let method_start = self
+                .consume(TokenKind::KwCarinho, "carinho em assinatura de trato")?
+                .span;
+            let method_name = self
+                .consume(TokenKind::Ident, "nome do método do trato")?
+                .lexeme
+                .clone();
+            self.consume(TokenKind::LParen, "(")?;
+            let mut params = Vec::new();
+            if !self.check(TokenKind::RParen) {
+                loop {
+                    let param_start = self.peek_span();
+                    let param_name = self
+                        .consume(TokenKind::Ident, "nome do parâmetro do método")?
+                        .lexeme
+                        .clone();
+                    self.consume(TokenKind::Colon, ":")?;
+                    let ty = self.parse_type()?;
+                    params.push(Param {
+                        name: param_name,
+                        ty,
+                        span: merge_span(param_start, self.previous().span),
+                    });
+                    if !self.match_token(TokenKind::Comma) {
+                        break;
+                    }
+                }
+            }
+            self.consume(TokenKind::RParen, ")")?;
+            let ret_type = if self.match_token(TokenKind::Arrow) {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+            self.consume(TokenKind::Semi, ";")?;
+            methods.push(TraitMethodSig {
+                name: method_name,
+                params,
+                ret_type,
+                span: merge_span(method_start, self.previous().span),
+            });
+        }
+        self.consume(TokenKind::RBrace, "}")?;
+        Ok(TraitDecl {
+            name,
+            methods,
             span: merge_span(start_span, self.previous().span),
         })
     }
@@ -3182,17 +3243,46 @@ impl Parser {
                 continue;
             }
             if self.match_token(TokenKind::Dot) {
-                let field = self
+                let base_expr = expr;
+                let field_token = self
                     .consume(TokenKind::Ident, "nome do campo após '.'")?
-                    .lexeme
                     .clone();
-                expr = Expr {
-                    span: merge_span(expr.span, self.previous().span),
-                    kind: ExprKind::FieldAccess {
-                        base: Box::new(expr),
-                        field,
-                    },
-                };
+                let field = field_token.lexeme.clone();
+                let is_enum_path = matches!(
+                    &base_expr.kind,
+                    ExprKind::Ident(name) if self.enum_decls.contains_key(name)
+                );
+                if self.check(TokenKind::LParen) && !is_enum_path {
+                    self.consume(TokenKind::LParen, "(")?;
+                    let mut args = vec![base_expr];
+                    if !self.check(TokenKind::RParen) {
+                        loop {
+                            args.push(self.parse_expr()?);
+                            if !self.match_token(TokenKind::Comma) {
+                                break;
+                            }
+                        }
+                    }
+                    self.consume(TokenKind::RParen, ")")?;
+                    expr = Expr {
+                        span: merge_span(field_token.span, self.previous().span),
+                        kind: ExprKind::Call(
+                            Box::new(Expr {
+                                kind: ExprKind::Ident(field),
+                                span: field_token.span,
+                            }),
+                            args,
+                        ),
+                    };
+                } else {
+                    expr = Expr {
+                        span: merge_span(base_expr.span, field_token.span),
+                        kind: ExprKind::FieldAccess {
+                            base: Box::new(base_expr),
+                            field,
+                        },
+                    };
+                }
                 continue;
             }
             if self.match_token(TokenKind::LBracket) {

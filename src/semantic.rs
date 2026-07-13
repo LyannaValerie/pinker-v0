@@ -83,6 +83,7 @@ pub struct SemanticChecker {
     type_aliases: HashMap<String, Type>,
     structs: HashMap<String, StructDecl>,
     enums: HashMap<String, EnumDecl>,
+    traits: HashMap<String, TraitDecl>,
     scopes: Vec<Scope>,
     current_func_name: Option<String>,
     current_func_ret: Option<Type>,
@@ -103,6 +104,7 @@ impl SemanticChecker {
             type_aliases: HashMap::new(),
             structs: HashMap::new(),
             enums: HashMap::new(),
+            traits: HashMap::new(),
             scopes: Vec::new(),
             current_func_name: None,
             current_func_ret: None,
@@ -697,6 +699,42 @@ impl SemanticChecker {
                     }
                     self.enums.insert(enum_decl.name.clone(), enum_decl.clone());
                 }
+                Item::Trait(trait_decl) => {
+                    if self.traits.contains_key(&trait_decl.name) {
+                        return Err(PinkerError::Semantic {
+                            msg: format!("trato '{}' já declarado", trait_decl.name),
+                            span: trait_decl.span,
+                        });
+                    }
+                    if self.funcs.contains_key(&trait_decl.name)
+                        || self.consts.contains_key(&trait_decl.name)
+                        || self.type_aliases.contains_key(&trait_decl.name)
+                        || self.structs.contains_key(&trait_decl.name)
+                        || self.enums.contains_key(&trait_decl.name)
+                    {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "nome '{}' já utilizado por função/constante/alias/struct/leque",
+                                trait_decl.name
+                            ),
+                            span: trait_decl.span,
+                        });
+                    }
+                    let mut seen_methods = HashSet::new();
+                    for method in &trait_decl.methods {
+                        if !seen_methods.insert(method.name.as_str()) {
+                            return Err(PinkerError::Semantic {
+                                msg: format!(
+                                    "método '{}' duplicado no trato '{}'",
+                                    method.name, trait_decl.name
+                                ),
+                                span: method.span,
+                            });
+                        }
+                    }
+                    self.traits
+                        .insert(trait_decl.name.clone(), trait_decl.clone());
+                }
             }
         }
 
@@ -729,6 +767,8 @@ impl SemanticChecker {
             }
         }
 
+        self.validate_trait_contracts()?;
+
         // --- Passagem 2: verificação de corpos ---
         self.check_principal(program)?;
 
@@ -736,10 +776,93 @@ impl SemanticChecker {
             match item {
                 Item::Function(function) => self.check_function(function)?,
                 Item::Const(constant) => self.check_const_body(constant)?,
-                Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => {}
+                Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) | Item::Trait(_) => {}
             }
         }
 
+        Ok(())
+    }
+
+    fn validate_trait_contracts(&self) -> Result<(), PinkerError> {
+        for trait_decl in self.traits.values() {
+            if trait_decl.methods.is_empty() {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "trato '{}' deve declarar ao menos um método",
+                        trait_decl.name
+                    ),
+                    span: trait_decl.span,
+                });
+            }
+            for method in &trait_decl.methods {
+                let Some(function) = self.funcs.get(&method.name) else {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "trato '{}' exige função '{}' compatível declarada no topo",
+                            trait_decl.name, method.name
+                        ),
+                        span: method.span,
+                    });
+                };
+                if function.params.len() != method.params.len() {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "método '{}' do trato '{}' espera {} parâmetro(s), mas função declarada tem {}",
+                            method.name,
+                            trait_decl.name,
+                            method.params.len(),
+                            function.params.len()
+                        ),
+                        span: function.span,
+                    });
+                }
+                for (expected, found) in method.params.iter().zip(function.params.iter()) {
+                    let expected_ty = self.resolve_type_or_error(&expected.ty)?;
+                    let found_ty = self.resolve_type_or_error(&found.ty)?;
+                    if expected_ty.name() != found_ty.name() {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "parâmetro '{}' do método '{}' no trato '{}' espera '{}', mas função usa '{}'",
+                                expected.name,
+                                method.name,
+                                trait_decl.name,
+                                expected_ty.name(),
+                                found_ty.name()
+                            ),
+                            span: found.span,
+                        });
+                    }
+                }
+                match (&method.ret_type, &function.ret_type) {
+                    (None, None) => {}
+                    (Some(expected), Some(found)) => {
+                        let expected_ty = self.resolve_type_or_error(expected)?;
+                        let found_ty = self.resolve_type_or_error(found)?;
+                        if expected_ty.name() != found_ty.name() {
+                            return Err(PinkerError::Semantic {
+                                msg: format!(
+                                    "retorno do método '{}' no trato '{}' espera '{}', mas função usa '{}'",
+                                    method.name,
+                                    trait_decl.name,
+                                    expected_ty.name(),
+                                    found_ty.name()
+                                ),
+                                span: found.span(),
+                            });
+                        }
+                    }
+                    _ => {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "retorno do método '{}' no trato '{}' é incompatível com a função declarada",
+                                method.name, trait_decl.name
+                            ),
+                            span: function.span,
+                        });
+                    }
+                }
+            }
+        }
         Ok(())
     }
 

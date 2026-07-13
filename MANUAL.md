@@ -141,6 +141,24 @@ nova dobrado: bombom = carinho(v: bombom) -> bombom {
 
 O literal usa a mesma sintaxe de parâmetros, retorno e bloco de uma função nomeada, mas sem nome entre `carinho` e `(`. A implementação gera uma função sintética top-level e a chamada baixa como chamada direta comum, portanto funciona no interpretador e no backend nativo. Por essa razão, a Fase 225 é deliberadamente **não capturante**: o corpo pode usar seus próprios parâmetros e globais já válidos, mas não pode ler variáveis locais do bloco onde o literal aparece. Literais como valores armazenáveis, tipos-função públicos e closures com ambiente capturado continuam para fases posteriores do Eixo A.
 
+## Tratos estáticos e chamada por método
+
+Desde a Fase 226, a Pinker aceita contratos estáticos com `trato`:
+
+```pinker
+trato Dobravel {
+    carinho dobrar(x: bombom) -> bombom;
+}
+
+carinho dobrar(x: bombom) -> bombom {
+    mimo x * 2;
+}
+
+nova valor: bombom = 21.dobrar();
+```
+
+Um `trato` declara assinaturas que precisam existir como funções top-level compatíveis. A chamada `alvo.metodo(a, b)` é açúcar para `metodo(alvo, a, b)`, portanto baixa para chamada direta comum e roda no interpretador e no backend nativo. Esta fase não introduz implementação por tipo, dicionários/vtables, dynamic dispatch, herança ou objetos de trait; ela cria o contrato estático inicial e a ergonomia de chamada necessária para continuar o item.
+
 ## 5) Fluxo de controle
 
 ### `talvez` / `senao`
@@ -438,7 +456,7 @@ das fases B2–B11 do Eixo B.
 
 No estado atual, ainda há limites importantes para uso geral:
 - o backend nativo alcançou paridade para a superfície versionada compatível do Eixo B, mas ainda há limites fora desse manifesto, como `ouvir` interativo e futuras features de linguagem ainda não abertas;
-- error handling estruturado existe via `tentar` e propagação explícita `propagar` sobre leques de resultado declarados pelo usuário; closures capturantes e traits ainda não existem (itens 6 e 4 da Faixa 1 do Bloco 20);
+- error handling estruturado existe via `tentar` e propagação explícita `propagar` sobre leques de resultado declarados pelo usuário; tratos estáticos e chamada por método existem no recorte da Fase 226; closures capturantes, `impl` por tipo e dynamic dispatch seguem fora;
 - generics cobrem `lista<T>` com `T` = leque; `mapa<K,V>` genérico e funções genéricas de usuário seguem fora;
 - API de arquivo segue sem modos avançados de streaming.
 

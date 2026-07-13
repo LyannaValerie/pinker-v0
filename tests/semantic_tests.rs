@@ -3929,3 +3929,26 @@ fn carinho_anonimo_nao_captura_escopo_externo() {
         err
     );
 }
+
+#[test]
+fn trato_com_funcao_compativel_e_chamada_metodo_aceito() {
+    let code = include_str!("../examples/fase226_trato_metodo_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn trato_exige_funcao_compativel() {
+    let code = r#"
+        pacote main;
+        trato Dobravel {
+            carinho dobrar(x: bombom) -> bombom;
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("trato 'Dobravel' exige função 'dobrar' compatível"),
+        "{}",
+        err
+    );
+}

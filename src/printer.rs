@@ -95,6 +95,20 @@ fn render_item(item: &Item, indent: usize, out: &mut String) {
                 );
             }
         }
+        Item::Trait(trait_decl) => {
+            line(
+                out,
+                indent,
+                &format!("Trait {} {}", trait_decl.name, format_span(trait_decl.span)),
+            );
+            for method in &trait_decl.methods {
+                line(
+                    out,
+                    indent + 1,
+                    &format!("Method {} {}", method.name, format_span(method.span)),
+                );
+            }
+        }
         Item::Struct(struct_decl) => {
             line(
                 out,

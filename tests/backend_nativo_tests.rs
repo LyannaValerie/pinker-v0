@@ -1072,3 +1072,12 @@ fn fase225_carinho_anonimo_tem_paridade_nativa() {
         22_500,
     );
 }
+
+#[test]
+fn fase226_trato_metodo_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase226_trato_metodo_valido.pink",
+        "fase226_trato_metodo_valido",
+        22_600,
+    );
+}
