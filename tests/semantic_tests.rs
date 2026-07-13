@@ -3851,3 +3851,55 @@ fn encaixe_em_leque_sem_carga_aceito() {
     "#;
     assert!(parse_and_check(code).is_ok());
 }
+
+#[test]
+fn tentar_error_handling_estruturado_aceito() {
+    let code = include_str!("../examples/fase223_error_handling_tentar_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn tentar_exige_sucesso_e_falha() {
+    let code = r#"
+        pacote main;
+        leque Resultado { Ok(bombom), Erro(verso) }
+        carinho principal() -> bombom {
+            nova r: Resultado = Resultado.Ok(1);
+            tentar r {
+                sucesso Resultado.Ok(v) { mimo v; }
+            }
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("tentar exige exatamente um braço 'sucesso' e um braço 'falha'"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn propagar_error_handling_estruturado_aceito() {
+    let code = include_str!("../examples/fase224_error_handling_propagar_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn propagar_exige_variantes_distintas() {
+    let code = r#"
+        pacote main;
+        leque Resultado { Ok(bombom), Erro(verso) }
+        carinho validar() -> Resultado { mimo Resultado.Ok(1); }
+        carinho principal() -> bombom {
+            propagar validar() como Resultado.Ok(v) senao Resultado.Ok(e);
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("propagar exige variantes distintas para sucesso e falha"),
+        "{}",
+        err
+    );
+}
