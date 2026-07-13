@@ -9223,10 +9223,3 @@ fn fase223_tentar_error_handling_executa_no_interpretador() {
     let result = run_code(code).unwrap();
     assert_eq!(result, Some(RuntimeValue::Int(0)));
 }
-
-#[test]
-fn fase224_propagar_error_handling_executa_no_interpretador() {
-    let code = include_str!("../examples/fase224_error_handling_propagar_valido.pink");
-    let result = run_code(code).unwrap();
-    assert_eq!(result, Some(RuntimeValue::Int(0)));
-}
