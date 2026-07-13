@@ -3878,3 +3878,54 @@ fn tentar_exige_sucesso_e_falha() {
         err
     );
 }
+
+#[test]
+fn propagar_error_handling_estruturado_aceito() {
+    let code = include_str!("../examples/fase224_error_handling_propagar_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn propagar_exige_variantes_distintas() {
+    let code = r#"
+        pacote main;
+        leque Resultado { Ok(bombom), Erro(verso) }
+        carinho validar() -> Resultado { mimo Resultado.Ok(1); }
+        carinho principal() -> bombom {
+            propagar validar() como Resultado.Ok(v) senao Resultado.Ok(e);
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("propagar exige variantes distintas para sucesso e falha"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn carinho_anonimo_nao_capturante_aceito() {
+    let code = include_str!("../examples/fase225_carinho_anonimo_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn carinho_anonimo_nao_captura_escopo_externo() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova base: bombom = 10;
+            nova valor: bombom = carinho(x: bombom) -> bombom {
+                mimo x + base;
+            }(1);
+            mimo valor;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("identificador 'base' não declarado"),
+        "{}",
+        err
+    );
+}

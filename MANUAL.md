@@ -120,6 +120,26 @@ carinho principal() -> bombom {
 
 `sucesso` e `falha` precisam aparecer exatamente uma vez dentro de `tentar`, apontar para variantes do mesmo leque e ligar a mesma quantidade de cargas declaradas na variante. A implementação abaixa para a infraestrutura de leques/`encaixe`, portanto roda no interpretador e no backend nativo.
 
+Desde a Fase 224, funções que retornam o mesmo leque de resultado também podem propagar falhas de forma explícita:
+
+```pinker
+propagar validar(42, verdade) como Resultado.Ok(valor) senao Resultado.Erro(msg);
+```
+
+`propagar` exige que as duas variantes pertençam ao mesmo leque, sejam distintas e carreguem exatamente um valor. Em caso de falha, a carga é extraída e retornada imediatamente como a variante de falha indicada; em caso de sucesso, a execução continua. A carga de sucesso é nomeada na sintaxe para documentar o contrato, mas ainda não fica disponível depois do comando — extração de valor com continuação nomeada permanece para uma fase posterior.
+
+
+## Funções anônimas não capturantes
+
+Desde a Fase 225, a Pinker aceita literais `carinho` em expressão para callbacks imediatos e pequenos adaptadores sem captura de escopo externo:
+
+```pinker
+nova dobrado: bombom = carinho(v: bombom) -> bombom {
+    mimo v * 2;
+}(21);
+```
+
+O literal usa a mesma sintaxe de parâmetros, retorno e bloco de uma função nomeada, mas sem nome entre `carinho` e `(`. A implementação gera uma função sintética top-level e a chamada baixa como chamada direta comum, portanto funciona no interpretador e no backend nativo. Por essa razão, a Fase 225 é deliberadamente **não capturante**: o corpo pode usar seus próprios parâmetros e globais já válidos, mas não pode ler variáveis locais do bloco onde o literal aparece. Literais como valores armazenáveis, tipos-função públicos e closures com ambiente capturado continuam para fases posteriores do Eixo A.
 
 ## 5) Fluxo de controle
 
@@ -418,7 +438,7 @@ das fases B2–B11 do Eixo B.
 
 No estado atual, ainda há limites importantes para uso geral:
 - o backend nativo alcançou paridade para a superfície versionada compatível do Eixo B, mas ainda há limites fora desse manifesto, como `ouvir` interativo e futuras features de linguagem ainda não abertas;
-- error handling estruturado existe no primeiro patamar via `tentar` sobre leques de resultado declarados pelo usuário; closures e traits ainda não existem (itens 6 e 4 da Faixa 1 do Bloco 20);
+- error handling estruturado existe via `tentar` e propagação explícita `propagar` sobre leques de resultado declarados pelo usuário; closures capturantes e traits ainda não existem (itens 6 e 4 da Faixa 1 do Bloco 20);
 - generics cobrem `lista<T>` com `T` = leque; `mapa<K,V>` genérico e funções genéricas de usuário seguem fora;
 - API de arquivo segue sem modos avançados de streaming.
 

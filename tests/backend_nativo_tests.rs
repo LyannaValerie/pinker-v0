@@ -1054,3 +1054,21 @@ fn fase223_tentar_error_handling_tem_paridade_nativa() {
         22_300,
     );
 }
+
+#[test]
+fn fase224_propagar_error_handling_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase224_error_handling_propagar_valido.pink",
+        "fase224_error_handling_propagar_valido",
+        22_400,
+    );
+}
+
+#[test]
+fn fase225_carinho_anonimo_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase225_carinho_anonimo_valido.pink",
+        "fase225_carinho_anonimo_valido",
+        22_500,
+    );
+}
