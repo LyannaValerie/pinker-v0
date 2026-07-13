@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **227** — Eixo A: impl nominal inicial para tratos |
+| Fase funcional mais recente | **228** — Eixo A: resolução nominal de método por `impl` |
 | Rodada documental mais recente | **Doc-43** — reconciliação do README pós-Eixo B e preservação da referência `expandir.md`/ausência de `docs/phases.md` |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -63,12 +63,13 @@
 | 225 | Bloco 20, Eixo A: closures/funções anônimas não capturantes — literal `carinho (...) -> tipo { ... }` em expressão gera função sintética e chamada direta com paridade nativa |
 | 226 | Bloco 20, Eixo A: traits/interfaces iniciais — `trato` valida funções top-level compatíveis e `alvo.metodo(...)` abaixa para chamada direta com paridade nativa |
 | 227 | Bloco 20, Eixo A: impl nominal inicial para tratos — `impl Trato para Tipo { ... }` agrupa métodos com receiver explícito, validando o tipo alvo e mantendo paridade nativa |
+| 228 | Bloco 20, Eixo A: resolução nominal de método por `impl` — `alvo.metodo(...)` prefere a função interna do `impl` compatível com o tipo do receiver antes do fallback legado global |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Fase 227 — Eixo A, item 4 da Faixa 1: impl nominal inicial para tratos**.
-- A Fase 227 adiciona `impl Trato para Tipo { ... }` como agrupamento nominal inicial de métodos de trato, com receiver explícito como primeiro parâmetro e validação do tipo alvo.
+- **Fase 228 — Eixo A, item 4 da Faixa 1: resolução nominal de método por `impl`**.
+- A Fase 228 faz `alvo.metodo(...)` resolver primeiro contra `impl Trato para Tipo { ... }` compatível com o tipo do receiver, preservando fallback legado para função top-level homônima quando não há `impl`.
 - Suíte B11: manifesto explícito em `tests/backend_nativo_tests.rs` com os exemplos versionados compatíveis do Eixo B (`fase212`–`fase221`), o caso com `argv` real da Fase 221 e os marcos self-hosting compatíveis (`fase209`, `fase210`, `fase211`).
 - Critério de pronto cumprido: cada caso roda no interpretador e como ELF nativo gerado por `pink build --nativo`; o stdout do programa é comparado byte a byte e o retorno de `principal` no interpretador é comparado ao exit code nativo.
 - Fechamento: **Eixo B encerrado**; o backend `.s` próprio + runtime `pinker_rt` passam a ser a base obrigatória para novas fases de linguagem.
@@ -88,8 +89,8 @@ Histórico completo por fase: `docs/history/phases/`.
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41) e novo padrão pós-Eixo B registrado na Doc-42: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado. Ordem cumprida até aqui: A (itens 1–3 ✓) → B (integral ✓) → A (itens 5 → 6 → 4 iniciados/expandidos nas Fases 223–226).
-- Próxima fase: aprofundar o item 4 com resolução por múltiplas implementações homônimas ou avançar no item 6 para closures capturantes/valores de função, sem recorte mínimo automático e mantendo lowering nativo obrigatório. No item 5, seguem pendentes biblioteca padrão de resultado, extração nomeada do valor propagado e integração com diagnósticos do compilador.
+- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41) e novo padrão pós-Eixo B registrado na Doc-42: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado. Ordem cumprida até aqui: A (itens 1–3 ✓) → B (integral ✓) → A (itens 5 → 6 → 4 iniciados/expandidos nas Fases 223–228).
+- Próxima fase: aprofundar o item 4 com métodos em `ninho`/receivers nominais mais amplos ou avançar no item 6 para closures capturantes/valores de função, sem recorte mínimo automático e mantendo lowering nativo obrigatório. No item 5, seguem pendentes biblioteca padrão de resultado, extração nomeada do valor propagado e integração com diagnósticos do compilador.
 - Escada completa do eixo encerrado (B1 ✓ ... B11 ✓) em `docs/roadmap/blocos/bloco_20.md`.
 - Depois do item 5: itens 6 (**closures**) e 4 (**traits**) do Eixo A, mantendo a regra de que toda fase de linguagem entrega o lowering nativo junto.
 

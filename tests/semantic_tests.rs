@@ -3960,6 +3960,12 @@ fn fase227_impl_trato_com_receiver_explicito_aceito() {
 }
 
 #[test]
+fn fase228_impl_resolucao_nominal_prefere_impl_a_funcao_global() {
+    let code = include_str!("../examples/fase228_impl_resolucao_nominal_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
 fn impl_trato_exige_receiver_do_tipo_alvo() {
     let code = r#"
         pacote demo;

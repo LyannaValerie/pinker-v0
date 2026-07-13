@@ -77,6 +77,13 @@ struct Scope {
     vars: HashMap<String, VarMeta>,
 }
 
+#[derive(Clone)]
+struct ImplMethodMeta {
+    trait_name: String,
+    method_name: String,
+    function_name: String,
+}
+
 pub struct SemanticChecker {
     funcs: HashMap<String, FunctionDecl>,
     consts: HashMap<String, ConstDecl>,
@@ -84,6 +91,8 @@ pub struct SemanticChecker {
     structs: HashMap<String, StructDecl>,
     enums: HashMap<String, EnumDecl>,
     traits: HashMap<String, TraitDecl>,
+    impl_methods: Vec<ImplMethodMeta>,
+    method_index: HashMap<(String, String), String>,
     scopes: Vec<Scope>,
     current_func_name: Option<String>,
     current_func_ret: Option<Type>,
@@ -105,11 +114,44 @@ impl SemanticChecker {
             structs: HashMap::new(),
             enums: HashMap::new(),
             traits: HashMap::new(),
+            impl_methods: Vec::new(),
+            method_index: HashMap::new(),
             scopes: Vec::new(),
             current_func_name: None,
             current_func_ret: None,
             loop_depth: 0,
         }
+    }
+
+    fn type_key(ty: &Type) -> String {
+        match ty {
+            Type::Alias { name, .. } | Type::Struct { name, .. } | Type::Enum { name, .. } => {
+                name.clone()
+            }
+            _ => ty.name().to_string(),
+        }
+    }
+
+    fn parse_impl_function_name(name: &str) -> Option<(String, String, String)> {
+        let rest = name.strip_prefix("__impl_")?;
+        let (trait_len, rest) = rest.split_once('_')?;
+        let trait_len: usize = trait_len.parse().ok()?;
+        if rest.len() < trait_len + 1 {
+            return None;
+        }
+        let trait_name = rest[..trait_len].to_string();
+        let rest = rest.get(trait_len + 1..)?;
+        let (target_len, rest) = rest.split_once('_')?;
+        let target_len: usize = target_len.parse().ok()?;
+        if rest.len() < target_len + 1 {
+            return None;
+        }
+        let target_type = rest[..target_len].to_string();
+        let method_name = rest.get(target_len + 1..)?.to_string();
+        if method_name.is_empty() {
+            return None;
+        }
+        Some((trait_name, target_type, method_name))
     }
 
     fn push_scope(&mut self) {
@@ -594,6 +636,26 @@ impl SemanticChecker {
                             span: function.span,
                         });
                     }
+                    if let Some((trait_name, target_type, method_name)) =
+                        Self::parse_impl_function_name(&function.name)
+                    {
+                        let key = (target_type.clone(), method_name.clone());
+                        if let Some(previous) = self.method_index.get(&key) {
+                            return Err(PinkerError::Semantic {
+                                msg: format!(
+                                    "método '{}' para tipo '{}' já implementado por '{}'",
+                                    method_name, target_type, previous
+                                ),
+                                span: function.span,
+                            });
+                        }
+                        self.method_index.insert(key, function.name.clone());
+                        self.impl_methods.push(ImplMethodMeta {
+                            trait_name,
+                            method_name,
+                            function_name: function.name.clone(),
+                        });
+                    }
                     self.funcs.insert(function.name.clone(), function.clone());
                 }
                 Item::Const(constant) => {
@@ -795,7 +857,18 @@ impl SemanticChecker {
                 });
             }
             for method in &trait_decl.methods {
-                let Some(function) = self.funcs.get(&method.name) else {
+                let mut candidates = Vec::new();
+                if let Some(function) = self.funcs.get(&method.name) {
+                    candidates.push(function);
+                }
+                for meta in &self.impl_methods {
+                    if meta.trait_name == trait_decl.name && meta.method_name == method.name {
+                        if let Some(function) = self.funcs.get(&meta.function_name) {
+                            candidates.push(function);
+                        }
+                    }
+                }
+                if candidates.is_empty() {
                     return Err(PinkerError::Semantic {
                         msg: format!(
                             "trato '{}' exige função '{}' compatível declarada no topo",
@@ -804,63 +877,86 @@ impl SemanticChecker {
                         span: method.span,
                     });
                 };
-                if function.params.len() != method.params.len() {
+                let mut first_error = None;
+                for function in candidates {
+                    match self.validate_trait_method_function(trait_decl, method, function) {
+                        Ok(()) => {
+                            first_error = None;
+                            break;
+                        }
+                        Err(err) if first_error.is_none() => first_error = Some(err),
+                        Err(_) => {}
+                    }
+                }
+                if let Some(err) = first_error {
+                    return Err(err);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_trait_method_function(
+        &self,
+        trait_decl: &TraitDecl,
+        method: &TraitMethodSig,
+        function: &FunctionDecl,
+    ) -> Result<(), PinkerError> {
+        if function.params.len() != method.params.len() {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "método '{}' do trato '{}' espera {} parâmetro(s), mas função declarada tem {}",
+                    method.name,
+                    trait_decl.name,
+                    method.params.len(),
+                    function.params.len()
+                ),
+                span: function.span,
+            });
+        }
+        for (expected, found) in method.params.iter().zip(function.params.iter()) {
+            let expected_ty = self.resolve_type_or_error(&expected.ty)?;
+            let found_ty = self.resolve_type_or_error(&found.ty)?;
+            if Self::type_key(&expected_ty) != Self::type_key(&found_ty) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "parâmetro '{}' do método '{}' no trato '{}' espera '{}', mas função usa '{}'",
+                        expected.name,
+                        method.name,
+                        trait_decl.name,
+                        Self::type_key(&expected_ty),
+                        Self::type_key(&found_ty)
+                    ),
+                    span: found.span,
+                });
+            }
+        }
+        match (&method.ret_type, &function.ret_type) {
+            (None, None) => {}
+            (Some(expected), Some(found)) => {
+                let expected_ty = self.resolve_type_or_error(expected)?;
+                let found_ty = self.resolve_type_or_error(found)?;
+                if Self::type_key(&expected_ty) != Self::type_key(&found_ty) {
                     return Err(PinkerError::Semantic {
                         msg: format!(
-                            "método '{}' do trato '{}' espera {} parâmetro(s), mas função declarada tem {}",
+                            "retorno do método '{}' no trato '{}' espera '{}', mas função usa '{}'",
                             method.name,
                             trait_decl.name,
-                            method.params.len(),
-                            function.params.len()
+                            Self::type_key(&expected_ty),
+                            Self::type_key(&found_ty)
                         ),
-                        span: function.span,
+                        span: found.span(),
                     });
                 }
-                for (expected, found) in method.params.iter().zip(function.params.iter()) {
-                    let expected_ty = self.resolve_type_or_error(&expected.ty)?;
-                    let found_ty = self.resolve_type_or_error(&found.ty)?;
-                    if expected_ty.name() != found_ty.name() {
-                        return Err(PinkerError::Semantic {
-                            msg: format!(
-                                "parâmetro '{}' do método '{}' no trato '{}' espera '{}', mas função usa '{}'",
-                                expected.name,
-                                method.name,
-                                trait_decl.name,
-                                expected_ty.name(),
-                                found_ty.name()
-                            ),
-                            span: found.span,
-                        });
-                    }
-                }
-                match (&method.ret_type, &function.ret_type) {
-                    (None, None) => {}
-                    (Some(expected), Some(found)) => {
-                        let expected_ty = self.resolve_type_or_error(expected)?;
-                        let found_ty = self.resolve_type_or_error(found)?;
-                        if expected_ty.name() != found_ty.name() {
-                            return Err(PinkerError::Semantic {
-                                msg: format!(
-                                    "retorno do método '{}' no trato '{}' espera '{}', mas função usa '{}'",
-                                    method.name,
-                                    trait_decl.name,
-                                    expected_ty.name(),
-                                    found_ty.name()
-                                ),
-                                span: found.span(),
-                            });
-                        }
-                    }
-                    _ => {
-                        return Err(PinkerError::Semantic {
-                            msg: format!(
-                                "retorno do método '{}' no trato '{}' é incompatível com a função declarada",
-                                method.name, trait_decl.name
-                            ),
-                            span: function.span,
-                        });
-                    }
-                }
+            }
+            _ => {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "retorno do método '{}' no trato '{}' é incompatível com a função declarada",
+                        method.name, trait_decl.name
+                    ),
+                    span: function.span,
+                });
             }
         }
         Ok(())
@@ -1777,6 +1873,88 @@ impl SemanticChecker {
         None
     }
 
+    fn resolve_impl_method(
+        &self,
+        receiver_ty: &Type,
+        method_name: &str,
+        span: Span,
+    ) -> Result<String, PinkerError> {
+        let direct_key = Self::type_key(receiver_ty);
+        if let Some(function_name) = self
+            .method_index
+            .get(&(direct_key.clone(), method_name.to_string()))
+        {
+            return Ok(function_name.clone());
+        }
+        let resolved_ty = self.resolve_type_or_error(receiver_ty)?;
+        let resolved_key = Self::type_key(&resolved_ty);
+        if resolved_key != direct_key {
+            if let Some(function_name) = self
+                .method_index
+                .get(&(resolved_key.clone(), method_name.to_string()))
+            {
+                return Ok(function_name.clone());
+            }
+        }
+        Err(PinkerError::Semantic {
+            msg: format!(
+                "método '{}' não implementado para tipo '{}'",
+                method_name, direct_key
+            ),
+            span,
+        })
+    }
+
+    fn check_named_function_call(
+        &mut self,
+        expr_span: Span,
+        callee_span: Span,
+        name: &str,
+        args: &[&Expr],
+    ) -> Result<Type, PinkerError> {
+        let Some(function) = self.funcs.get(name).cloned() else {
+            return Err(PinkerError::Semantic {
+                msg: format!("função '{}' não declarada", name),
+                span: callee_span,
+            });
+        };
+
+        if args.len() != function.params.len() {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "chamada de '{}' com aridade inválida: esperado {}, recebido {}",
+                    name,
+                    function.params.len(),
+                    args.len()
+                ),
+                span: expr_span,
+            });
+        }
+
+        for (index, (arg, param)) in args.iter().zip(function.params.iter()).enumerate() {
+            let arg_ty = self.check_value_expr(
+                arg,
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            let expected_param_ty = self.resolve_type_or_error(&param.ty)?;
+            if !Self::check_expected_type_for_expr(&expected_param_ty, &arg_ty, arg) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento {} da chamada '{}': esperado '{}', encontrado '{}'",
+                        index + 1,
+                        name,
+                        Self::type_key(&expected_param_ty),
+                        Self::type_key(&arg_ty)
+                    ),
+                    span: arg.span,
+                });
+            }
+            Self::validate_int_literal_range(&expected_param_ty, arg)?;
+        }
+
+        Ok(self.function_result_type(&function, expr_span))
+    }
+
     fn check_call_expr(
         &mut self,
         expr_span: Span,
@@ -1849,6 +2027,24 @@ impl SemanticChecker {
                     });
                 }
             }
+            let receiver_ty = self.check_value_expr(
+                base,
+                "resultado de função sem retorno não pode ser receiver de método",
+            )?;
+            let function_name = match self.resolve_impl_method(&receiver_ty, field, callee.span) {
+                Ok(function_name) => function_name,
+                Err(_) if self.funcs.contains_key(field) => field.clone(),
+                Err(err) => return Err(err),
+            };
+            let mut method_args = Vec::with_capacity(args.len() + 1);
+            method_args.push(base.as_ref());
+            method_args.extend(args.iter());
+            return self.check_named_function_call(
+                expr_span,
+                callee.span,
+                &function_name,
+                &method_args,
+            );
         }
 
         let ExprKind::Ident(name) = &callee.kind else {
@@ -5797,47 +5993,8 @@ impl SemanticChecker {
             return Ok(Type::Bombom(expr_span));
         }
 
-        let Some(function) = self.funcs.get(name).cloned() else {
-            return Err(PinkerError::Semantic {
-                msg: format!("função '{}' não declarada", name),
-                span: callee.span,
-            });
-        };
-
-        if args.len() != function.params.len() {
-            return Err(PinkerError::Semantic {
-                msg: format!(
-                    "chamada de '{}' com aridade inválida: esperado {}, recebido {}",
-                    name,
-                    function.params.len(),
-                    args.len()
-                ),
-                span: expr_span,
-            });
-        }
-
-        for (index, (arg, param)) in args.iter().zip(function.params.iter()).enumerate() {
-            let arg_ty = self.check_value_expr(
-                arg,
-                "resultado de função sem retorno não pode ser usado como argumento",
-            )?;
-            let expected_param_ty = self.resolve_type_or_error(&param.ty)?;
-            if !Self::check_expected_type_for_expr(&expected_param_ty, &arg_ty, arg) {
-                return Err(PinkerError::Semantic {
-                    msg: format!(
-                        "tipo inválido no argumento {} da chamada '{}': esperado '{}', encontrado '{}'",
-                        index + 1,
-                        name,
-                        expected_param_ty.name(),
-                        arg_ty.name()
-                    ),
-                    span: arg.span,
-                });
-            }
-            Self::validate_int_literal_range(&expected_param_ty, arg)?;
-        }
-
-        Ok(self.function_result_type(&function, expr_span))
+        let arg_refs: Vec<&Expr> = args.iter().collect();
+        self.check_named_function_call(expr_span, callee.span, name, &arg_refs)
     }
 }
 

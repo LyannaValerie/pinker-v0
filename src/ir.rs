@@ -316,6 +316,28 @@ fn is_generic_list_create_expr(expr: &Expr) -> bool {
     false
 }
 
+fn parse_impl_function_name(name: &str) -> Option<(String, String, String)> {
+    let rest = name.strip_prefix("__impl_")?;
+    let (trait_len, rest) = rest.split_once('_')?;
+    let trait_len: usize = trait_len.parse().ok()?;
+    if rest.len() < trait_len + 1 {
+        return None;
+    }
+    let trait_name = rest[..trait_len].to_string();
+    let rest = rest.get(trait_len + 1..)?;
+    let (target_len, rest) = rest.split_once('_')?;
+    let target_len: usize = target_len.parse().ok()?;
+    if rest.len() < target_len + 1 {
+        return None;
+    }
+    let target_type = rest[..target_len].to_string();
+    let method_name = rest.get(target_len + 1..)?.to_string();
+    if method_name.is_empty() {
+        return None;
+    }
+    Some((trait_name, target_type, method_name))
+}
+
 // `FunctionLowerer` mantém estado mutable por função durante o lowering:
 // - `scopes`: pilha de escopos léxicos (topo = escopo atual).
 // - `slot_counters`: contador por nome-fonte para gerar slots únicos (`%nome#N`).
@@ -1446,6 +1468,25 @@ impl<'a> FunctionLowerer<'a> {
         }
     }
 
+    fn impl_receiver_key(typed: &TypedValueIR) -> Option<String> {
+        if typed.ty == TypeIR::Struct {
+            return typed.struct_name.clone();
+        }
+        Some(typed.ty.name().to_string())
+    }
+
+    fn resolve_impl_method(&self, receiver: &TypedValueIR, method_name: &str) -> Option<String> {
+        let receiver_key = Self::impl_receiver_key(receiver)?;
+        self.context
+            .function_sigs
+            .keys()
+            .filter_map(|name| {
+                let (_, target_type, method) = parse_impl_function_name(name)?;
+                (target_type == receiver_key && method == method_name).then(|| name.clone())
+            })
+            .next()
+    }
+
     fn lower_function(mut self, function: &FunctionDecl) -> Result<FunctionIR, PinkerError> {
         self.push_scope();
 
@@ -2031,6 +2072,56 @@ impl<'a> FunctionLowerer<'a> {
                             });
                         }
                     }
+                }
+                if let ExprKind::FieldAccess { base, field } = &callee.kind {
+                    let receiver = self.lower_value(base)?;
+                    let function_name =
+                        if let Some(function_name) = self.resolve_impl_method(&receiver, field) {
+                            function_name
+                        } else if self.context.function_sigs.contains_key(field) {
+                            field.clone()
+                        } else {
+                            return Err(PinkerError::Ir {
+                                msg: format!(
+                                    "lowering falhou ao resolver método '{}' para receiver '{}'",
+                                    field,
+                                    Self::impl_receiver_key(&receiver)
+                                        .unwrap_or_else(|| receiver.ty.name().to_string())
+                                ),
+                                span: expr.span,
+                            });
+                        };
+                    let mut ir_args = Vec::with_capacity(args.len() + 1);
+                    ir_args.push(receiver.value);
+                    for arg in args {
+                        ir_args.push(self.lower_value(arg)?.value);
+                    }
+                    let ret_type = self
+                        .context
+                        .function_sigs
+                        .get(&function_name)
+                        .map(|sig| sig.ret_type)
+                        .ok_or_else(|| PinkerError::Ir {
+                            msg: format!(
+                                "lowering falhou ao resolver método interno '{}'",
+                                function_name
+                            ),
+                            span: expr.span,
+                        })?;
+                    return Ok(TypedValueIR {
+                        value: ValueIR::Call {
+                            callee: function_name.clone(),
+                            args: ir_args,
+                            ret_type,
+                        },
+                        ty: ret_type,
+                        struct_name: self
+                            .context
+                            .function_sigs
+                            .get(&function_name)
+                            .and_then(|sig| sig.ret_struct_name.clone()),
+                        ptr_array_bombom_size: None,
+                    });
                 }
 
                 let ExprKind::Ident(name) = &callee.kind else {
