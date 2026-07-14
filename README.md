@@ -46,7 +46,7 @@ Pinker v0 ainda não é uma linguagem geral, nem um compilador de produção.
 | Generics amplos em `ninho`/`leque` e inferência genérica | O recorte atual exige chamada genérica explícita |
 | Ponteiros e layout físico completos | Há operações úteis, mas ainda conservadoras |
 | Biblioteca padrão rica | APIs existem por fases e recortes objetivos |
-| SO em Pinker | É direção de roadmap, não estado atual |
+| SO em Pinker | A cadeia freestanding foi formalizada no roadmap, mas nenhuma capacidade bare-metal foi implementada por essa decisão documental |
 
 ## Fluxo Rápido
 
@@ -122,6 +122,7 @@ pipeline. O README só mantém o mapa de leitura.
 | `docs/handoff_codex.md` | Estado operacional corrente |
 | `docs/roadmap.md` | Ordem ativa oficial |
 | `docs/roadmap/blocos/bloco_20.md` | Estrutura do bloco ativo |
+| `docs/roadmap/bare_metal_bootstrap.md` | Convergência bare-metal e bootstrap com critérios anti-mínimo |
 | `docs/history.md` | Entrada do histórico canônico |
 | `docs/history/indice.md` | Índice histórico shardado |
 | `docs/examples_index.md` | Índice de exemplos versionados |
