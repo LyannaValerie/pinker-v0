@@ -31,6 +31,8 @@ Apoio Engine:
 - `docs/future.md` — inventário técnico (não é roadmap).
 - `docs/inventario_intrinsecas.md` — inventário canônico de intrínsecas (Bloco 18, Fase 180).
 - `docs/expandir.md` — referência operacional para elevar implementações históricas mínimas/conservadoras a patamar adulto, sem apagar a crônica factual.
+- `.github/copilot-instructions.md` — contrato geral do GitHub Copilot no repositório.
+- `AGENTS.md` — contrato operacional curto para agentes.
 
 ## 2) Hemisfério Rosa (identitário / lexical / visão)
 
@@ -45,6 +47,8 @@ Documentos canônicos:
 Apoio Rosa:
 
 - `docs/parallel.md` — acervo visionário (não backlog técnico).
+- `.github/agents/rosa.agent.md` — agente personalizado Rosa para GitHub Copilot, selecionável manualmente.
+- `.github/instructions/rosa-governance.instructions.md` — governança específica para identidade, léxico, agente e Guardião.
 
 ## 3) Ponte explícita Engine ↔ Rosa
 
