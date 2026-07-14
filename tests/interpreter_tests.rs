@@ -9300,3 +9300,10 @@ fn fase234_impl_homonimos_executa_no_interpretador() {
     let result = run_code(code).unwrap();
     assert_eq!(result, Some(RuntimeValue::Int(0)));
 }
+
+#[test]
+fn fase235_mapa_generico_expressoes_executa_no_interpretador() {
+    let code = include_str!("../examples/fase235_mapa_generico_expressoes_valido.pink");
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(0)));
+}

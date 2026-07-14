@@ -325,6 +325,32 @@ fn is_generic_map_create_expr(expr: &Expr) -> bool {
     false
 }
 
+fn generic_map_monomorphic_callee(map_ty: TypeIR, name: &str) -> Option<&'static str> {
+    match (map_ty, name) {
+        (TypeIR::MapVersoBombom, "mapa_definir") => Some("mapa_verso_bombom_definir"),
+        (TypeIR::MapVersoBombom, "mapa_obter") => Some("mapa_verso_bombom_obter"),
+        (TypeIR::MapVersoBombom, "mapa_tem") => Some("mapa_verso_bombom_tem"),
+        (TypeIR::MapVersoBombom, "mapa_tamanho") => Some("mapa_verso_bombom_tamanho"),
+        (TypeIR::MapVersoBombom, "mapa_remover") => Some("mapa_verso_bombom_remover"),
+        (TypeIR::MapVersoVerso, "mapa_definir") => Some("mapa_verso_verso_definir"),
+        (TypeIR::MapVersoVerso, "mapa_obter") => Some("mapa_verso_verso_obter"),
+        (TypeIR::MapVersoVerso, "mapa_tem") => Some("mapa_verso_verso_tem"),
+        (TypeIR::MapVersoVerso, "mapa_tamanho") => Some("mapa_verso_verso_tamanho"),
+        (TypeIR::MapVersoVerso, "mapa_remover") => Some("mapa_verso_verso_remover"),
+        (TypeIR::MapBombomBombom, "mapa_definir") => Some("mapa_bombom_bombom_definir"),
+        (TypeIR::MapBombomBombom, "mapa_obter") => Some("mapa_bombom_bombom_obter"),
+        (TypeIR::MapBombomBombom, "mapa_tem") => Some("mapa_bombom_bombom_tem"),
+        (TypeIR::MapBombomBombom, "mapa_tamanho") => Some("mapa_bombom_bombom_tamanho"),
+        (TypeIR::MapBombomBombom, "mapa_remover") => Some("mapa_bombom_bombom_remover"),
+        (TypeIR::MapBombomVerso, "mapa_definir") => Some("mapa_bombom_verso_definir"),
+        (TypeIR::MapBombomVerso, "mapa_obter") => Some("mapa_bombom_verso_obter"),
+        (TypeIR::MapBombomVerso, "mapa_tem") => Some("mapa_bombom_verso_tem"),
+        (TypeIR::MapBombomVerso, "mapa_tamanho") => Some("mapa_bombom_verso_tamanho"),
+        (TypeIR::MapBombomVerso, "mapa_remover") => Some("mapa_bombom_verso_remover"),
+        _ => None,
+    }
+}
+
 fn parse_impl_function_name(name: &str) -> Option<(String, String, String)> {
     let rest = name.strip_prefix("__impl_")?;
     let (trait_len, rest) = rest.split_once('_')?;
@@ -2278,6 +2304,51 @@ impl<'a> FunctionLowerer<'a> {
                         struct_name: None,
                         ptr_array_bombom_size: None,
                     });
+                }
+
+                if matches!(
+                    name.as_str(),
+                    "mapa_definir" | "mapa_obter" | "mapa_tem" | "mapa_tamanho" | "mapa_remover"
+                ) {
+                    let typed_args: Vec<TypedValueIR> = args
+                        .iter()
+                        .map(|arg| self.lower_value(arg))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let Some(first_arg) = typed_args.first() else {
+                        return Err(PinkerError::Ir {
+                            msg: format!(
+                                "lowering falhou ao resolver intrínseca genérica '{}' sem mapa",
+                                name
+                            ),
+                            span: expr.span,
+                        });
+                    };
+                    if let Some(mono_name) = generic_map_monomorphic_callee(first_arg.ty, name) {
+                        let ret_type = self
+                            .context
+                            .function_sigs
+                            .get(mono_name)
+                            .map(|sig| sig.ret_type)
+                            .ok_or_else(|| PinkerError::Ir {
+                                msg: format!(
+                                    "lowering falhou ao resolver intrínseca genérica '{}' ('{}')",
+                                    name, mono_name
+                                ),
+                                span: expr.span,
+                            })?;
+                        let ir_args: Vec<ValueIR> =
+                            typed_args.into_iter().map(|typed| typed.value).collect();
+                        return Ok(TypedValueIR {
+                            value: ValueIR::Call {
+                                callee: mono_name.to_string(),
+                                args: ir_args,
+                                ret_type,
+                            },
+                            ty: ret_type,
+                            struct_name: None,
+                            ptr_array_bombom_size: None,
+                        });
+                    }
                 }
 
                 // `formatar_verso` (Fase 219/B8): argumentos `bombom` são

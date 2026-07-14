@@ -60,7 +60,7 @@ nova nome: verso = "Pinker";
 
 Também existem tipos inteiros fixos (`u8..u64`, `i8..i64`) no estado atual.
 
-Coleções: `lista<bombom>`, `lista<verso>` e, desde a Fase 211, `lista<T>` com `T` sendo qualquer `leque` declarado — todas operadas pelas intrínsecas genéricas `lista_criar` (exige anotação em `nova`), `lista_anexar`, `lista_obter`, `lista_tamanho`, `lista_definir`, `lista_tirar_ultimo` e `lista_inserir`. Desde a Fase 233, as quatro combinações públicas de `mapa<K,V>` (`verso`/`bombom`) também têm fachada genérica: `mapa_criar`, `mapa_definir`, `mapa_obter`, `mapa_tem`, `mapa_tamanho` e `mapa_remover`.
+Coleções: `lista<bombom>`, `lista<verso>` e, desde a Fase 211, `lista<T>` com `T` sendo qualquer `leque` declarado — todas operadas pelas intrínsecas genéricas `lista_criar` (exige anotação em `nova`), `lista_anexar`, `lista_obter`, `lista_tamanho`, `lista_definir`, `lista_tirar_ultimo` e `lista_inserir`. Desde a Fase 233, as quatro combinações públicas de `mapa<K,V>` (`verso`/`bombom`) também têm fachada genérica: `mapa_criar`, `mapa_definir`, `mapa_obter`, `mapa_tem`, `mapa_tamanho` e `mapa_remover`. Desde a Fase 235, essas operações aceitam o mapa como expressão tipada no primeiro argumento, não apenas variável local/parâmetro reconhecido pelo parser.
 
 ```pink
 nova tokens: lista<Token> = lista_criar();

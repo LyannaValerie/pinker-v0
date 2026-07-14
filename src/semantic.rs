@@ -2068,6 +2068,32 @@ impl SemanticChecker {
         })
     }
 
+    fn generic_map_monomorphic_callee(map_ty: &Type, name: &str) -> Option<&'static str> {
+        match (map_ty, name) {
+            (Type::MapVersoBombom(_), "mapa_definir") => Some("mapa_verso_bombom_definir"),
+            (Type::MapVersoBombom(_), "mapa_obter") => Some("mapa_verso_bombom_obter"),
+            (Type::MapVersoBombom(_), "mapa_tem") => Some("mapa_verso_bombom_tem"),
+            (Type::MapVersoBombom(_), "mapa_tamanho") => Some("mapa_verso_bombom_tamanho"),
+            (Type::MapVersoBombom(_), "mapa_remover") => Some("mapa_verso_bombom_remover"),
+            (Type::MapVersoVerso(_), "mapa_definir") => Some("mapa_verso_verso_definir"),
+            (Type::MapVersoVerso(_), "mapa_obter") => Some("mapa_verso_verso_obter"),
+            (Type::MapVersoVerso(_), "mapa_tem") => Some("mapa_verso_verso_tem"),
+            (Type::MapVersoVerso(_), "mapa_tamanho") => Some("mapa_verso_verso_tamanho"),
+            (Type::MapVersoVerso(_), "mapa_remover") => Some("mapa_verso_verso_remover"),
+            (Type::MapBombomBombom(_), "mapa_definir") => Some("mapa_bombom_bombom_definir"),
+            (Type::MapBombomBombom(_), "mapa_obter") => Some("mapa_bombom_bombom_obter"),
+            (Type::MapBombomBombom(_), "mapa_tem") => Some("mapa_bombom_bombom_tem"),
+            (Type::MapBombomBombom(_), "mapa_tamanho") => Some("mapa_bombom_bombom_tamanho"),
+            (Type::MapBombomBombom(_), "mapa_remover") => Some("mapa_bombom_bombom_remover"),
+            (Type::MapBombomVerso(_), "mapa_definir") => Some("mapa_bombom_verso_definir"),
+            (Type::MapBombomVerso(_), "mapa_obter") => Some("mapa_bombom_verso_obter"),
+            (Type::MapBombomVerso(_), "mapa_tem") => Some("mapa_bombom_verso_tem"),
+            (Type::MapBombomVerso(_), "mapa_tamanho") => Some("mapa_bombom_verso_tamanho"),
+            (Type::MapBombomVerso(_), "mapa_remover") => Some("mapa_bombom_verso_remover"),
+            _ => None,
+        }
+    }
+
     fn check_named_function_call(
         &mut self,
         expr_span: Span,
@@ -2244,6 +2270,40 @@ impl SemanticChecker {
                 span: callee.span,
             });
         };
+
+        if matches!(
+            name.as_str(),
+            "mapa_definir" | "mapa_obter" | "mapa_tem" | "mapa_tamanho" | "mapa_remover"
+        ) {
+            let Some(first_arg) = args.first() else {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de '{}' com aridade inválida: esperado ao menos 1 argumento",
+                        name
+                    ),
+                    span: expr_span,
+                });
+            };
+            let map_ty = self.check_value_expr(
+                first_arg,
+                "resultado de função sem retorno não pode ser usado como mapa",
+            )?;
+            if let Some(mono_name) = Self::generic_map_monomorphic_callee(&map_ty, name) {
+                let mono_callee = Expr {
+                    kind: ExprKind::Ident(mono_name.to_string()),
+                    span: callee.span,
+                };
+                return self.check_call_expr(expr_span, &mono_callee, args);
+            }
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "operação genérica '{}' exige mapa como primeiro argumento; encontrado '{}'",
+                    name,
+                    map_ty.name()
+                ),
+                span: first_arg.span,
+            });
+        }
 
         // Intrínsecas internas do desugaring de `encaixe` (Fases 209–210).
         if name == "__pinker_internal_leque_tag" {
