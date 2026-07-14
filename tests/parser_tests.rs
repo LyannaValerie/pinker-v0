@@ -102,6 +102,17 @@ fn erro_sintatico_expected_vs_found_e_span() {
 }
 
 #[test]
+fn parser_rejeita_literal_inteiro_acima_de_u64_sem_panico() {
+    parse("pacote main; carinho principal() -> bombom { mimo 18446744073709551615; }")
+        .expect("u64::MAX deve ser aceito como bombom");
+
+    let err = parse("pacote main; carinho principal() -> bombom { mimo 18446744073709551616; }")
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("literal inteiro fora da faixa de bombom/u64"));
+}
+
+#[test]
 fn parser_de_sempre_que() {
     let code = "
         pacote main;
