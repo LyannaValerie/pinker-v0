@@ -1,0 +1,31 @@
+pacote demo;
+
+trato Exibivel {
+    carinho valor(valor: bombom) -> bombom;
+}
+
+trato Medivel {
+    carinho valor(valor: bombom) -> bombom;
+}
+
+impl Exibivel para bombom {
+    carinho valor(valor: bombom) -> bombom {
+        mimo valor + 1;
+    }
+}
+
+impl Medivel para bombom {
+    carinho valor(valor: bombom) -> bombom {
+        mimo valor + valor;
+    }
+}
+
+carinho principal() -> bombom {
+    nova exibido: bombom = Exibivel.valor(20);
+    nova medido: bombom = Medivel.valor(21);
+    talvez exibido == 21 && medido == 42 {
+        mimo 0;
+    } senao {
+        mimo 1;
+    }
+}

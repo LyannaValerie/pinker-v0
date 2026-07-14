@@ -1144,3 +1144,12 @@ fn fase233_mapa_generico_tem_paridade_nativa() {
         23_300,
     );
 }
+
+#[test]
+fn fase234_impl_homonimos_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase234_impl_homonimos_valido.pink",
+        "fase234_impl_homonimos_valido",
+        23_400,
+    );
+}

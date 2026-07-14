@@ -3705,6 +3705,36 @@ fn fase233_mapa_generico_aceito() {
 }
 
 #[test]
+fn fase234_impl_homonimos_aceito() {
+    let code = include_str!("../examples/fase234_impl_homonimos_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase234_impl_homonimos_exigem_qualificacao_quando_ambiguo() {
+    let code = r#"
+        pacote demo;
+
+        trato Exibivel { carinho valor(valor: bombom) -> bombom; }
+        trato Medivel { carinho valor(valor: bombom) -> bombom; }
+
+        impl Exibivel para bombom {
+            carinho valor(valor: bombom) -> bombom { mimo valor + 1; }
+        }
+
+        impl Medivel para bombom {
+            carinho valor(valor: bombom) -> bombom { mimo valor + valor; }
+        }
+
+        carinho principal() -> bombom {
+            mimo 20.valor();
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("é ambíguo"), "erro inesperado: {err}");
+}
+
+#[test]
 fn lista_generica_como_parametro_e_retorno_aceita() {
     let code = r#"
         pacote main;

@@ -93,7 +93,7 @@ pub struct SemanticChecker {
     enums: HashMap<String, EnumDecl>,
     traits: HashMap<String, TraitDecl>,
     impl_methods: Vec<ImplMethodMeta>,
-    method_index: HashMap<(String, String), String>,
+    method_index: HashMap<(String, String), Vec<String>>,
     scopes: Vec<Scope>,
     current_func_name: Option<String>,
     current_func_ret: Option<Type>,
@@ -659,17 +659,24 @@ impl SemanticChecker {
                     if let Some((trait_name, target_type, method_name)) =
                         Self::parse_impl_function_name(&function.name)
                     {
-                        let key = (target_type.clone(), method_name.clone());
-                        if let Some(previous) = self.method_index.get(&key) {
+                        if let Some(previous) = self.impl_methods.iter().find(|meta| {
+                            meta.trait_name == trait_name
+                                && meta.target_type == target_type
+                                && meta.method_name == method_name
+                        }) {
                             return Err(PinkerError::Semantic {
                                 msg: format!(
-                                    "método '{}' para tipo '{}' já implementado por '{}'",
-                                    method_name, target_type, previous
+                                    "método '{}' do trato '{}' para tipo '{}' já implementado por '{}'",
+                                    method_name, trait_name, target_type, previous.function_name
                                 ),
                                 span: function.span,
                             });
                         }
-                        self.method_index.insert(key, function.name.clone());
+                        let key = (target_type.clone(), method_name.clone());
+                        self.method_index
+                            .entry(key)
+                            .or_default()
+                            .push(function.name.clone());
                         self.impl_methods.push(ImplMethodMeta {
                             trait_name,
                             target_type,
@@ -1994,26 +2001,68 @@ impl SemanticChecker {
         span: Span,
     ) -> Result<String, PinkerError> {
         let direct_key = Self::type_key(receiver_ty);
-        if let Some(function_name) = self
+        let mut candidates = self
             .method_index
             .get(&(direct_key.clone(), method_name.to_string()))
-        {
-            return Ok(function_name.clone());
-        }
+            .cloned()
+            .unwrap_or_default();
         let resolved_ty = self.resolve_type_or_error(receiver_ty)?;
         let resolved_key = Self::type_key(&resolved_ty);
         if resolved_key != direct_key {
-            if let Some(function_name) = self
+            for function_name in self
                 .method_index
                 .get(&(resolved_key.clone(), method_name.to_string()))
+                .cloned()
+                .unwrap_or_default()
             {
-                return Ok(function_name.clone());
+                if !candidates.contains(&function_name) {
+                    candidates.push(function_name);
+                }
+            }
+        }
+
+        match candidates.as_slice() {
+            [function_name] => Ok(function_name.clone()),
+            [] => Err(PinkerError::Semantic {
+                msg: format!(
+                    "método '{}' não implementado para tipo '{}'",
+                    method_name, direct_key
+                ),
+                span,
+            }),
+            _ => Err(PinkerError::Semantic {
+                msg: format!(
+                    "método '{}' para tipo '{}' é ambíguo; use 'Trato.{}(valor, ...)'",
+                    method_name, direct_key, method_name
+                ),
+                span,
+            }),
+        }
+    }
+
+    fn resolve_qualified_impl_method(
+        &self,
+        trait_name: &str,
+        receiver_ty: &Type,
+        method_name: &str,
+        span: Span,
+    ) -> Result<String, PinkerError> {
+        let direct_key = Self::type_key(receiver_ty);
+        let resolved_ty = self.resolve_type_or_error(receiver_ty)?;
+        let resolved_key = Self::type_key(&resolved_ty);
+        for target_key in [&direct_key, &resolved_key] {
+            if let Some(meta) = self.impl_methods.iter().find(|meta| {
+                meta.trait_name == trait_name
+                    && meta.target_type == *target_key
+                    && meta.method_name == method_name
+            }) {
+                return Ok(meta.function_name.clone());
             }
         }
         Err(PinkerError::Semantic {
             msg: format!(
-                "método '{}' não implementado para tipo '{}'",
-                method_name, direct_key
+                "método '{}.{}' não implementado para tipo '{}'",
+                trait_name, method_name, direct_key
             ),
             span,
         })
@@ -2139,6 +2188,34 @@ impl SemanticChecker {
                         name: enum_name,
                         span: expr_span,
                     });
+                }
+                if self.traits.contains_key(base_name) {
+                    if args.is_empty() {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "chamada qualificada '{}.{}' exige receiver como primeiro argumento",
+                                base_name, field
+                            ),
+                            span: expr_span,
+                        });
+                    }
+                    let receiver_ty = self.check_value_expr(
+                        &args[0],
+                        "resultado de função sem retorno não pode ser receiver de método",
+                    )?;
+                    let function_name = self.resolve_qualified_impl_method(
+                        base_name,
+                        &receiver_ty,
+                        field,
+                        callee.span,
+                    )?;
+                    let qualified_args: Vec<&Expr> = args.iter().collect();
+                    return self.check_named_function_call(
+                        expr_span,
+                        callee.span,
+                        &function_name,
+                        &qualified_args,
+                    );
                 }
             }
             let receiver_ty = self.check_value_expr(

@@ -1486,14 +1486,33 @@ impl<'a> FunctionLowerer<'a> {
 
     fn resolve_impl_method(&self, receiver: &TypedValueIR, method_name: &str) -> Option<String> {
         let receiver_key = Self::impl_receiver_key(receiver)?;
-        self.context
+        let candidates: Vec<String> = self
+            .context
             .function_sigs
             .keys()
             .filter_map(|name| {
                 let (_, target_type, method) = parse_impl_function_name(name)?;
                 (target_type == receiver_key && method == method_name).then(|| name.clone())
             })
-            .next()
+            .collect();
+        match candidates.as_slice() {
+            [function_name] => Some(function_name.clone()),
+            _ => None,
+        }
+    }
+
+    fn resolve_qualified_impl_method(
+        &self,
+        receiver: &TypedValueIR,
+        trait_name: &str,
+        method_name: &str,
+    ) -> Option<String> {
+        let receiver_key = Self::impl_receiver_key(receiver)?;
+        self.context.function_sigs.keys().find_map(|name| {
+            let (candidate_trait, target_type, method) = parse_impl_function_name(name)?;
+            (candidate_trait == trait_name && target_type == receiver_key && method == method_name)
+                .then(|| name.clone())
+        })
     }
 
     fn lower_function(mut self, function: &FunctionDecl) -> Result<FunctionIR, PinkerError> {
@@ -2117,6 +2136,46 @@ impl<'a> FunctionLowerer<'a> {
                     }
                 }
                 if let ExprKind::FieldAccess { base, field } = &callee.kind {
+                    if let ExprKind::Ident(trait_name) = &base.kind {
+                        if !args.is_empty() {
+                            let receiver = self.lower_value(&args[0])?;
+                            if let Some(function_name) =
+                                self.resolve_qualified_impl_method(&receiver, trait_name, field)
+                            {
+                                let mut ir_args = Vec::with_capacity(args.len());
+                                ir_args.push(receiver.value);
+                                for arg in args.iter().skip(1) {
+                                    ir_args.push(self.lower_value(arg)?.value);
+                                }
+                                let ret_type = self
+                                    .context
+                                    .function_sigs
+                                    .get(&function_name)
+                                    .map(|sig| sig.ret_type)
+                                    .ok_or_else(|| PinkerError::Ir {
+                                        msg: format!(
+                                            "lowering falhou ao resolver método interno '{}'",
+                                            function_name
+                                        ),
+                                        span: expr.span,
+                                    })?;
+                                return Ok(TypedValueIR {
+                                    value: ValueIR::Call {
+                                        callee: function_name.clone(),
+                                        args: ir_args,
+                                        ret_type,
+                                    },
+                                    ty: ret_type,
+                                    struct_name: self
+                                        .context
+                                        .function_sigs
+                                        .get(&function_name)
+                                        .and_then(|sig| sig.ret_struct_name.clone()),
+                                    ptr_array_bombom_size: None,
+                                });
+                            }
+                        }
+                    }
                     let receiver = self.lower_value(base)?;
                     let function_name =
                         if let Some(function_name) = self.resolve_impl_method(&receiver, field) {

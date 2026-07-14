@@ -173,7 +173,7 @@ impl Dobravel para bombom {
 }
 ```
 
-O método do `impl` recebe nome interno e não colide com função top-level homônima; se não houver `impl` compatível, a forma antiga por função global ainda é aceita como fallback. O tipo alvo pode ser escalar ou um `ninho` nominal no recorte atual; no backend nativo, `ninho` trafega como parâmetro/local opaco, sem abrir construção por valor nem acesso `p.campo` operacional por valor. Cada `impl` precisa implementar todos os métodos do `trato` e não pode declarar métodos extras. Desde a Fase 232, um mesmo tipo pode implementar múltiplos tratos quando os métodos têm nomes distintos. Objetos de trait, vtables, dynamic dispatch, coerções, default methods, métodos homônimos entre contratos do mesmo tipo e overloading amplo continuam fora.
+O método do `impl` recebe nome interno e não colide com função top-level homônima; se não houver `impl` compatível, a forma antiga por função global ainda é aceita como fallback. O tipo alvo pode ser escalar ou um `ninho` nominal no recorte atual; no backend nativo, `ninho` trafega como parâmetro/local opaco, sem abrir construção por valor nem acesso `p.campo` operacional por valor. Cada `impl` precisa implementar todos os métodos do `trato` e não pode declarar métodos extras. Desde a Fase 232, um mesmo tipo pode implementar múltiplos tratos. Desde a Fase 234, quando tratos diferentes implementados pelo mesmo tipo expõem o mesmo nome de método, `valor.metodo()` é ambíguo e a chamada deve escolher o contrato explicitamente com `Trato.metodo(valor, ...)`. Objetos de trait, vtables, dynamic dispatch, coerções, default methods e overloading amplo continuam fora.
 
 ## 5) Fluxo de controle
 
