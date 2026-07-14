@@ -177,6 +177,7 @@ pub struct TraitMethodSig {
 #[derive(Debug, Clone)]
 pub struct EnumDecl {
     pub name: String,
+    pub type_params: Vec<String>,
     pub variants: Vec<EnumVariant>,
     pub span: Span,
 }
@@ -187,6 +188,11 @@ impl EnumDecl {
         writer.field_str("node", "EnumDecl");
         writer.field_str("name", &self.name);
         writer.field_span("span", self.span);
+        if !self.type_params.is_empty() {
+            writer.field_array("type_params", &self.type_params, |writer, type_param| {
+                writer.value_str(type_param)
+            });
+        }
         writer.field_array("variants", &self.variants, |writer, variant| {
             writer.begin_object();
             writer.field_str("node", "EnumVariant");
@@ -387,6 +393,11 @@ pub enum Type {
         name: String,
         span: Span,
     },
+    Applied {
+        name: String,
+        args: Vec<Type>,
+        span: Span,
+    },
     Nulo(Span),
 }
 
@@ -441,6 +452,14 @@ impl PartialEq for Type {
             (Type::Alias { name: n1, .. }, Type::Alias { name: n2, .. }) => n1 == n2,
             (Type::Struct { name: n1, .. }, Type::Struct { name: n2, .. }) => n1 == n2,
             (Type::Enum { name: n1, .. }, Type::Enum { name: n2, .. }) => n1 == n2,
+            (
+                Type::Applied {
+                    name: n1, args: a1, ..
+                },
+                Type::Applied {
+                    name: n2, args: a2, ..
+                },
+            ) => n1 == n2 && a1 == a2,
             (Type::ListEnum { element: e1, .. }, Type::ListEnum { element: e2, .. }) => e1 == e2,
             (
                 Type::Function {
@@ -485,6 +504,7 @@ impl Type {
             Type::Alias { span, .. }
             | Type::Struct { span, .. }
             | Type::Enum { span, .. }
+            | Type::Applied { span, .. }
             | Type::ListEnum { span, .. }
             | Type::FixedArray { span, .. }
             | Type::Pointer { span, .. }
@@ -517,6 +537,7 @@ impl Type {
             Type::Alias { .. } => "alias",
             Type::Struct { .. } => "struct",
             Type::Enum { .. } => "leque",
+            Type::Applied { .. } => "tipo aplicado",
             Type::ListEnum { .. } => "lista<leque>",
             Type::Nulo(_) => "nulo",
         }
@@ -568,6 +589,11 @@ impl Type {
             },
             Type::Enum { name, .. } => Type::Enum {
                 name: name.clone(),
+                span,
+            },
+            Type::Applied { name, args, .. } => Type::Applied {
+                name: name.clone(),
+                args: args.clone(),
                 span,
             },
             Type::ListEnum { element, .. } => Type::ListEnum {

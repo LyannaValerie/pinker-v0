@@ -124,6 +124,16 @@ impl SemanticChecker {
         }
     }
 
+    fn resolve_enum_base_name(&self, base_name: &str) -> Option<String> {
+        if self.enums.contains_key(base_name) {
+            return Some(base_name.to_string());
+        }
+        match self.type_aliases.get(base_name) {
+            Some(Type::Enum { name, .. }) if self.enums.contains_key(name) => Some(name.clone()),
+            _ => None,
+        }
+    }
+
     fn type_key(ty: &Type) -> String {
         match ty {
             Type::Alias { name, .. } | Type::Struct { name, .. } | Type::Enum { name, .. } => {
@@ -1701,7 +1711,8 @@ impl SemanticChecker {
                 // `Leque.Variante` — o nome do leque em posição de base tem
                 // precedência sobre variáveis homônimas nesta fase.
                 if let ExprKind::Ident(base_name) = &base.kind {
-                    if let Some(enum_decl) = self.enums.get(base_name) {
+                    if let Some(enum_name) = self.resolve_enum_base_name(base_name) {
+                        let enum_decl = self.enums.get(&enum_name).expect("leque resolvido existe");
                         let Some(variant) = enum_decl
                             .variants
                             .iter()
@@ -1725,7 +1736,7 @@ impl SemanticChecker {
                             });
                         }
                         return Ok(Type::Enum {
-                            name: base_name.clone(),
+                            name: enum_name,
                             span: expr.span,
                         });
                     }
@@ -2179,7 +2190,8 @@ impl SemanticChecker {
         // Construção de variante de leque: `Leque.Variante(carga)`.
         if let ExprKind::FieldAccess { base, field } = &callee.kind {
             if let ExprKind::Ident(base_name) = &base.kind {
-                if let Some(enum_decl) = self.enums.get(base_name) {
+                if let Some(enum_name) = self.resolve_enum_base_name(base_name) {
+                    let enum_decl = self.enums.get(&enum_name).expect("leque resolvido existe");
                     let Some(variant) = enum_decl
                         .variants
                         .iter()
@@ -2194,7 +2206,6 @@ impl SemanticChecker {
                             span: expr_span,
                         });
                     };
-                    let enum_name = base_name.clone();
                     if variant.payloads.is_empty() {
                         return Err(PinkerError::Semantic {
                             msg: format!(

@@ -153,6 +153,19 @@ propagar? validar(42, verdade) como Resultado.Ok(valor);
 
 `propagar?` continua exigindo a variante de sucesso e o nome do valor que segue no fluxo normal. A inferência é local ao leque declarado: se não existir uma única variante de falha possível com uma carga, o programa é rejeitado.
 
+Desde a Fase 240, leques podem declarar parâmetros de tipo explícitos e serem instanciados por alias:
+
+```pinker
+leque Resultado<T, E> {
+    Ok(T),
+    Erro(E),
+}
+
+apelido ResultadoBombomVerso = Resultado<bombom, verso>;
+```
+
+O alias nomeia uma instância monomorfizada concreta; construtores e `encaixe` usam o alias (`ResultadoBombomVerso.Ok(42)`, `caso ResultadoBombomVerso.Erro(msg)`). Neste recorte, o uso precisa ser explícito por alias e ainda não há inferência, bounds, métodos associados ou integração automática com erros de runtime.
+
 
 ## Funções anônimas não capturantes
 

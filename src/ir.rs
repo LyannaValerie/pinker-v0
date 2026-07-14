@@ -302,6 +302,7 @@ struct LoweringContext {
 
 // Leques na IR: sem carga, o valor é o próprio discriminante imediato; com
 // carga, o valor é um handle opaco (bombom) para o estado do runtime.
+#[derive(Clone)]
 struct EnumInfoIR {
     has_payload: bool,
     variants: HashMap<String, (u64, Vec<TypeIR>)>,
@@ -514,6 +515,13 @@ impl LoweringContext {
                         variants,
                     },
                 );
+            }
+        }
+        for (alias_name, target) in type_aliases.clone() {
+            if let Type::Enum { name, .. } = target {
+                if let Some(info) = enum_variants.get(&name).cloned() {
+                    enum_variants.insert(alias_name, info);
+                }
             }
         }
         let mut struct_fields = HashMap::new();
@@ -3034,6 +3042,10 @@ impl TypeIR {
             }
             Type::Function { span, .. } => Err(PinkerError::Ir {
                 msg: "tipo função não é materializável na IR nesta fase; use apenas função local chamada diretamente".to_string(),
+                span: *span,
+            }),
+            Type::Applied { span, .. } => Err(PinkerError::Ir {
+                msg: "tipo genérico aplicado não monomorfizado antes da IR".to_string(),
                 span: *span,
             }),
             Type::Nulo(_) => Ok(TypeIR::Nulo),

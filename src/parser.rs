@@ -66,6 +66,9 @@ pub struct Parser {
     /// Templates de funções genéricas de usuário, monomorfizados após o parse.
     generic_templates: HashMap<String, FunctionDecl>,
     generic_instantiations: Vec<GenericInstantiation>,
+    /// Templates de leques genéricos, monomorfizados por uso explícito `Nome<T,...>`.
+    enum_generic_templates: HashMap<String, EnumDecl>,
+    enum_generic_instantiations: Vec<EnumGenericInstantiation>,
     /// Templates de funções que recebem callback estático `carinho(...) -> T`.
     /// A função original não é materializada; cada chamada com callback concreto
     /// gera uma especialização sem parâmetro-função e com chamadas diretas.
@@ -78,6 +81,13 @@ pub struct Parser {
 
 #[derive(Clone)]
 struct GenericInstantiation {
+    name: String,
+    type_args: Vec<Type>,
+    span: Span,
+}
+
+#[derive(Clone)]
+struct EnumGenericInstantiation {
     name: String,
     type_args: Vec<Type>,
     span: Span,
@@ -113,6 +123,8 @@ impl Parser {
             pending_functions: Vec::new(),
             generic_templates: HashMap::new(),
             generic_instantiations: Vec::new(),
+            enum_generic_templates: HashMap::new(),
+            enum_generic_instantiations: Vec::new(),
             function_param_templates: HashMap::new(),
             function_param_instantiations: Vec::new(),
             function_value_scopes: Vec::new(),
@@ -121,9 +133,10 @@ impl Parser {
 
     fn impl_type_key(ty: &Type) -> String {
         match ty {
-            Type::Alias { name, .. } | Type::Struct { name, .. } | Type::Enum { name, .. } => {
-                name.clone()
-            }
+            Type::Alias { name, .. }
+            | Type::Struct { name, .. }
+            | Type::Enum { name, .. }
+            | Type::Applied { name, .. } => name.clone(),
             _ => ty.name().to_string(),
         }
     }
@@ -300,9 +313,24 @@ impl Parser {
                         continue;
                     }
                 }
+                if let Item::Enum(enum_decl) = &item {
+                    if !enum_decl.type_params.is_empty() {
+                        if self.enum_generic_templates.contains_key(&enum_decl.name) {
+                            return Err(PinkerError::Parse {
+                                msg: format!("leque genérico '{}' já declarado", enum_decl.name),
+                                span: enum_decl.span,
+                            });
+                        }
+                        self.enum_generic_templates
+                            .insert(enum_decl.name.clone(), enum_decl.clone());
+                        continue;
+                    }
+                }
                 items.push(item);
             }
         }
+        let generic_enums = self.instantiate_generic_enums()?;
+        items.extend(generic_enums.into_iter().map(Item::Enum));
         let generic_functions = self.instantiate_generic_functions()?;
         items.extend(generic_functions.into_iter().map(Item::Function));
         let function_param_functions = self.instantiate_function_param_functions(&items)?;
@@ -513,6 +541,39 @@ impl Parser {
             }
             let mut name = self.previous().lexeme.clone();
             let mut type_span = self.previous().span;
+            if self.match_token(TokenKind::Less) {
+                let mut args = Vec::new();
+                loop {
+                    args.push(self.parse_type()?);
+                    if !self.match_token(TokenKind::Comma) {
+                        break;
+                    }
+                }
+                self.consume(TokenKind::Greater, ">")?;
+                let applied_span = merge_span(type_span, self.previous().span);
+                self.enum_generic_instantiations
+                    .push(EnumGenericInstantiation {
+                        name: name.clone(),
+                        type_args: args.clone(),
+                        span: applied_span,
+                    });
+                if let Some(template) = self.enum_generic_templates.get(&name).cloned() {
+                    let concrete =
+                        Self::instantiate_generic_enum_decl(&template, &args, applied_span)?;
+                    self.enum_decls.insert(
+                        concrete.name,
+                        concrete
+                            .variants
+                            .into_iter()
+                            .map(|variant| (variant.name, variant.payloads))
+                            .collect(),
+                    );
+                }
+                return Ok(Type::Enum {
+                    name: Self::generic_enum_name(&name, &args),
+                    span: applied_span,
+                });
+            }
             if self.match_token(TokenKind::Dot) {
                 let separator_span = self.previous().span;
                 let qualified = self
@@ -553,6 +614,14 @@ impl Parser {
         self.consume(TokenKind::Eq, "=")?;
         let target = self.parse_type()?;
         self.consume(TokenKind::Semi, ";")?;
+        if let Type::Enum {
+            name: enum_name, ..
+        } = &target
+        {
+            if let Some(variants) = self.enum_decls.get(enum_name).cloned() {
+                self.enum_decls.insert(name.clone(), variants);
+            }
+        }
         Ok(TypeAliasDecl {
             name,
             target,
@@ -707,6 +776,7 @@ impl Parser {
             .consume(TokenKind::Ident, "nome do leque")?
             .lexeme
             .clone();
+        let type_params = self.parse_optional_type_params()?;
         self.consume(TokenKind::LBrace, "{")?;
         let mut variants = Vec::new();
         loop {
@@ -745,6 +815,7 @@ impl Parser {
         );
         Ok(EnumDecl {
             name,
+            type_params,
             variants,
             span: merge_span(start_span, self.previous().span),
         })
@@ -2023,9 +2094,10 @@ impl Parser {
             Type::MapVersoVerso(_) => "mapa_verso_verso".to_string(),
             Type::MapBombomBombom(_) => "mapa_bombom_bombom".to_string(),
             Type::MapBombomVerso(_) => "mapa_bombom_verso".to_string(),
-            Type::Alias { name, .. } | Type::Struct { name, .. } | Type::Enum { name, .. } => {
-                name.clone()
-            }
+            Type::Alias { name, .. }
+            | Type::Struct { name, .. }
+            | Type::Enum { name, .. }
+            | Type::Applied { name, .. } => name.clone(),
             Type::FixedArray { element, size, .. } => {
                 format!("array_{}_{}", Self::generic_type_key(element), size)
             }
@@ -2055,6 +2127,57 @@ impl Parser {
             .collect::<Vec<_>>()
             .join("_");
         format!("__gen_{}_{}", name, suffix)
+    }
+
+    fn generic_enum_name(name: &str, type_args: &[Type]) -> String {
+        let suffix = type_args
+            .iter()
+            .map(Self::generic_type_key)
+            .collect::<Vec<_>>()
+            .join("_");
+        format!("__gen_leque_{}_{}", name, suffix)
+    }
+
+    fn instantiate_generic_enum_decl(
+        template: &EnumDecl,
+        type_args: &[Type],
+        span: Span,
+    ) -> Result<EnumDecl, PinkerError> {
+        if template.type_params.len() != type_args.len() {
+            return Err(PinkerError::Parse {
+                msg: format!(
+                    "leque genérico '{}' exige {} argumento(s) de tipo, recebido {}",
+                    template.name,
+                    template.type_params.len(),
+                    type_args.len()
+                ),
+                span,
+            });
+        }
+        let substitutions = template
+            .type_params
+            .iter()
+            .cloned()
+            .zip(type_args.iter().cloned())
+            .collect::<HashMap<_, _>>();
+        Ok(EnumDecl {
+            name: Self::generic_enum_name(&template.name, type_args),
+            type_params: Vec::new(),
+            variants: template
+                .variants
+                .iter()
+                .map(|variant| EnumVariant {
+                    name: variant.name.clone(),
+                    payloads: variant
+                        .payloads
+                        .iter()
+                        .map(|ty| Self::substitute_type(ty, &substitutions))
+                        .collect(),
+                    span: variant.span,
+                })
+                .collect(),
+            span: template.span,
+        })
     }
 
     fn has_function_param(function: &FunctionDecl) -> bool {
@@ -2123,6 +2246,14 @@ impl Parser {
                     .map(|param| Self::substitute_type(param, substitutions))
                     .collect(),
                 ret: Box::new(Self::substitute_type(ret, substitutions)),
+                span: *span,
+            },
+            Type::Applied { name, args, span } => Type::Applied {
+                name: name.clone(),
+                args: args
+                    .iter()
+                    .map(|arg| Self::substitute_type(arg, substitutions))
+                    .collect(),
                 span: *span,
             },
             Type::ListEnum { element, span } => {
@@ -2653,6 +2784,29 @@ impl Parser {
                 body: Self::substitute_block(&template.body, &substitutions),
                 span: template.span,
             });
+        }
+        Ok(out)
+    }
+
+    fn instantiate_generic_enums(&self) -> Result<Vec<EnumDecl>, PinkerError> {
+        let mut out = Vec::new();
+        let mut emitted = HashSet::new();
+        for instantiation in &self.enum_generic_instantiations {
+            let Some(template) = self.enum_generic_templates.get(&instantiation.name) else {
+                return Err(PinkerError::Parse {
+                    msg: format!("leque genérico '{}' não declarado", instantiation.name),
+                    span: instantiation.span,
+                });
+            };
+            let mono_name = Self::generic_enum_name(&instantiation.name, &instantiation.type_args);
+            if !emitted.insert(mono_name) {
+                continue;
+            }
+            out.push(Self::instantiate_generic_enum_decl(
+                template,
+                &instantiation.type_args,
+                instantiation.span,
+            )?);
         }
         Ok(out)
     }
