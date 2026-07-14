@@ -3886,6 +3886,12 @@ fn propagar_error_handling_estruturado_aceito() {
 }
 
 #[test]
+fn fase231_propagar_valor_nomeado_aceito() {
+    let code = include_str!("../examples/fase231_propagar_valor_nomeado_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
 fn propagar_exige_variantes_distintas() {
     let code = r#"
         pacote main;
@@ -3974,6 +3980,12 @@ fn fase229_impl_ninho_nominal_aceito() {
 #[test]
 fn fase230_impl_cobertura_completa_aceita() {
     let code = include_str!("../examples/fase230_impl_cobertura_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase232_impl_multiplos_contratos_aceito() {
+    let code = include_str!("../examples/fase232_impl_multiplos_contratos_valido.pink");
     assert!(parse_and_check(code).is_ok());
 }
 

@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **230** — Eixo A: cobertura completa de contrato em `impl` |
+| Fase funcional mais recente | **232** — Eixo A: múltiplos contratos por tipo com métodos distintos |
 | Rodada documental mais recente | **Doc-43** — reconciliação do README pós-Eixo B e preservação da referência `expandir.md`/ausência de `docs/phases.md` |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -66,13 +66,15 @@
 | 228 | Bloco 20, Eixo A: resolução nominal de método por `impl` — `alvo.metodo(...)` prefere a função interna do `impl` compatível com o tipo do receiver antes do fallback legado global |
 | 229 | Bloco 20, Eixo A: `impl` sobre receiver nominal `ninho` — chamada `p.metodo()` resolve contra `impl Trato para Ninho`, com parâmetro `ninho` trafegando de forma opaca no backend nativo |
 | 230 | Bloco 20, Eixo A: cobertura completa de contrato em `impl` — cada `impl` precisa implementar todos os métodos do `trato` e não pode declarar métodos fora do contrato |
+| 231 | Bloco 20, Eixo A: `propagar` com valor de sucesso nomeado — a carga de sucesso fica disponível para a continuação do bloco após a checagem de falha |
+| 232 | Bloco 20, Eixo A: múltiplos contratos por tipo com métodos distintos — um mesmo tipo pode implementar mais de um `trato` quando não há colisão de nome de método |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Fases 229–230 — Eixo A, item 4 da Faixa 1: `impl` nominal sobre `ninho` e cobertura completa de contrato**.
-- A Fase 229 permite que `alvo.metodo(...)` resolva contra `impl Trato para Ninho { ... }` quando o receiver tem tipo nominal de `ninho`; no backend nativo, `ninho` trafega como parâmetro/local opaco no recorte atual.
-- A Fase 230 valida que cada `impl Trato para Tipo` implemente todos os métodos declarados no `trato` e rejeita método extra fora do contrato.
+- **Fases 231–232 — Eixo A, itens 5 e 4 da Faixa 1: continuação nomeada em `propagar` e múltiplos contratos por tipo**.
+- A Fase 231 faz `propagar expr como Resultado.Ok(valor) senao Resultado.Erro(erro);` ligar `valor` no fluxo de sucesso para os comandos seguintes do mesmo bloco, preservando o retorno antecipado da falha.
+- A Fase 232 versiona múltiplos `impl` para o mesmo tipo quando os métodos são distintos, preservando cobertura completa por contrato e resolução nominal por receiver.
 - Suíte B11: manifesto explícito em `tests/backend_nativo_tests.rs` com os exemplos versionados compatíveis do Eixo B (`fase212`–`fase221`), o caso com `argv` real da Fase 221 e os marcos self-hosting compatíveis (`fase209`, `fase210`, `fase211`).
 - Critério de pronto cumprido: cada caso roda no interpretador e como ELF nativo gerado por `pink build --nativo`; o stdout do programa é comparado byte a byte e o retorno de `principal` no interpretador é comparado ao exit code nativo.
 - Fechamento: **Eixo B encerrado**; o backend `.s` próprio + runtime `pinker_rt` passam a ser a base obrigatória para novas fases de linguagem.
@@ -92,8 +94,8 @@ Histórico completo por fase: `docs/history/phases/`.
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41) e novo padrão pós-Eixo B registrado na Doc-42: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado. Ordem cumprida até aqui: A (itens 1–3 ✓) → B (integral ✓) → A (itens 5 → 6 → 4 expandidos nas Fases 223–230).
-- Próxima fase: escolher entre aprofundar traits com retorno/uso nominal mais amplo de `ninho` e contratos múltiplos, avançar no item 6 para closures capturantes/valores de função, ou retomar o item 5 com biblioteca padrão de resultado e extração nomeada do valor propagado. Em qualquer caso, sem recorte mínimo automático e mantendo lowering nativo obrigatório.
+- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41) e novo padrão pós-Eixo B registrado na Doc-42: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado. Ordem cumprida até aqui: A (itens 1–3 parcialmente/entregues conforme recorte documentado) → B (integral ✓) → A (itens 5 → 6 → 4 expandidos nas Fases 223–232).
+- Próxima fase: escolher entre fechar lacunas do item 3 (`mapa<K,V>` genérico/funções genéricas), aprofundar traits com contratos múltiplos e uso nominal mais amplo de `ninho`, avançar no item 6 para closures capturantes/valores de função, ou continuar o item 5 com biblioteca padrão de resultado e operador curto de propagação. Em qualquer caso, sem recorte mínimo automático e mantendo lowering nativo obrigatório.
 - Escada completa do eixo encerrado (B1 ✓ ... B11 ✓) em `docs/roadmap/blocos/bloco_20.md`.
 - Depois do item 5: itens 6 (**closures**) e 4 (**traits**) do Eixo A, mantendo a regra de que toda fase de linguagem entrega o lowering nativo junto.
 

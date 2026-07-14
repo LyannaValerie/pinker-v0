@@ -1258,7 +1258,7 @@ impl Parser {
             .lexeme
             .clone();
         self.consume(TokenKind::LParen, "(")?;
-        let _success_binding = self
+        let success_binding = self
             .consume(
                 TokenKind::Ident,
                 "nome simbólico da carga de sucesso em propagar",
@@ -1371,19 +1371,58 @@ impl Parser {
             .iter()
             .position(|(name, _)| *name == failure_variant)
             .expect("variante validada acima") as u64;
+        let success_tag = declared_variants
+            .iter()
+            .position(|(name, _)| *name == success_variant)
+            .expect("variante validada acima") as u64;
         let target_ident = || Expr {
             kind: ExprKind::Ident(target_name.clone()),
             span: helper_span,
         };
+        let success_payload_ty = success_payloads
+            .into_iter()
+            .next()
+            .expect("validado exatamente uma carga")
+            .with_span(helper_span);
         let failure_payload_ty = failure_payloads
             .into_iter()
             .next()
             .expect("validado exatamente uma carga")
             .with_span(helper_span);
-        let carga_fn = match failure_payload_ty {
+        let success_carga_fn = match success_payload_ty {
             Type::Verso(_) => "__pinker_internal_leque_carga_v",
             _ => "__pinker_internal_leque_carga_b",
         };
+        let failure_carga_fn = match failure_payload_ty {
+            Type::Verso(_) => "__pinker_internal_leque_carga_v",
+            _ => "__pinker_internal_leque_carga_b",
+        };
+        let success_binding_stmt = Stmt::Let(LetStmt {
+            name: success_binding,
+            is_mut: false,
+            ty: Some(success_payload_ty),
+            init: Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(success_carga_fn.to_string()),
+                        span: helper_span,
+                    }),
+                    vec![
+                        target_ident(),
+                        Expr {
+                            kind: ExprKind::IntLit(success_tag),
+                            span: helper_span,
+                        },
+                        Expr {
+                            kind: ExprKind::IntLit(0),
+                            span: helper_span,
+                        },
+                    ],
+                ),
+                span: helper_span,
+            },
+            span: helper_span,
+        });
         let failure_binding_stmt = Stmt::Let(LetStmt {
             name: failure_binding.clone(),
             is_mut: false,
@@ -1391,7 +1430,7 @@ impl Parser {
             init: Expr {
                 kind: ExprKind::Call(
                     Box::new(Expr {
-                        kind: ExprKind::Ident(carga_fn.to_string()),
+                        kind: ExprKind::Ident(failure_carga_fn.to_string()),
                         span: helper_span,
                     }),
                     vec![
@@ -1463,6 +1502,7 @@ impl Parser {
                 else_branch: None,
                 span: helper_span,
             }),
+            success_binding_stmt,
         ])
     }
 

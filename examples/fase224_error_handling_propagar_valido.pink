@@ -10,9 +10,9 @@ carinho etapa(v: bombom, ok: logica) -> Resultado {
 }
 
 carinho validar_duas(a: bombom, b: bombom, ok_a: logica, ok_b: logica) -> Resultado {
-    propagar etapa(a, ok_a) como Resultado.Ok(valor) senao Resultado.Erro(msg);
-    propagar etapa(b, ok_b) como Resultado.Ok(valor) senao Resultado.Erro(msg);
-    mimo Resultado.Ok(a + b);
+    propagar etapa(a, ok_a) como Resultado.Ok(valor_a) senao Resultado.Erro(msg);
+    propagar etapa(b, ok_b) como Resultado.Ok(valor_b) senao Resultado.Erro(msg);
+    mimo Resultado.Ok(valor_a + valor_b);
 }
 
 carinho principal() -> bombom {
