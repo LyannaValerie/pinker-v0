@@ -81,6 +81,8 @@ Histórico completo por fase: `docs/history/phases/`.
 ## 3. Rodada atual
 - **Fase 239 — Eixo A, item 6 da Faixa 1: passagem estática de função como parâmetro**.
 - A Fase 239 permite chamar funções que recebem parâmetro `carinho(...) -> tipo` com função local estática compatível; o parser gera especializações por callback concreto, remove o argumento de função da chamada materializada e reescreve chamadas internas para chamada direta.
+- Correção operacional pós-Fase 239: o lowering CFG agora emite `let`/`assign` no bloco final produzido pela expressão, corrigindo uso de `&&`/`||` de curto-circuito como valor em chamadas/atribuições; o Guardião voltou a exercitar esse caminho.
+- O Guardião Pinker ganhou modo consultivo com `--docs`/`--src`, `--arquivo`, `--status`, `--fase` e `--busca` para consultar um arquivo específico sem rodar toda a varredura.
 - **Doc-45 — apps internos e Guardião Pinker**.
 - `apps/` passa a abrigar aplicações reais escritas em Pinker para apoiar o desenvolvimento da própria linguagem; `apps/guardiao_pinker/principal.pink` é o primeiro app ativo e roda em `make guard`/`make ci`.
 - **Doc-44 — README como porta de entrada visual**.

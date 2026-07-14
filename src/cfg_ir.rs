@@ -335,7 +335,7 @@ impl FunctionLowerer {
         match instruction {
             InstructionIR::Let { slot, value, span } => {
                 let (operand, next_current) = self.lower_value_operand(value, current, *span)?;
-                self.blocks[current]
+                self.blocks[next_current]
                     .instructions
                     .push(InstructionCfgIR::Let {
                         slot: slot.clone(),
@@ -345,7 +345,7 @@ impl FunctionLowerer {
             }
             InstructionIR::Assign { slot, value, span } => {
                 let (operand, next_current) = self.lower_value_operand(value, current, *span)?;
-                self.blocks[current]
+                self.blocks[next_current]
                     .instructions
                     .push(InstructionCfgIR::Assign {
                         slot: slot.clone(),

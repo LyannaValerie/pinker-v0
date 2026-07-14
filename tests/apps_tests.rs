@@ -53,7 +53,7 @@ fn fixture_repo(root: &Path) {
     write_file(root, "apps/README.md", "# Apps\n");
 }
 
-fn run_guard(repo: &Path) -> interpreter::RunOutcome {
+fn run_guard_with_args(repo: &Path, extra_args: &[&str]) -> interpreter::RunOutcome {
     let code = include_str!("../apps/guardiao_pinker/principal.pink");
     let program = common::parse(code).unwrap();
     semantic::check_program(&program).unwrap();
@@ -65,8 +65,13 @@ fn run_guard(repo: &Path) -> interpreter::RunOutcome {
     instr_select_validate::validate_program(&selected).unwrap();
     let machine = pinker_v0::abstract_machine::lower_program(&selected).unwrap();
     abstract_machine_validate::validate_program(&machine).unwrap();
-    let args = vec!["--repo".to_string(), repo.to_string_lossy().to_string()];
+    let mut args = vec!["--repo".to_string(), repo.to_string_lossy().to_string()];
+    args.extend(extra_args.iter().map(|arg| arg.to_string()));
     interpreter::run_program_with_args(&machine, &args).unwrap()
+}
+
+fn run_guard(repo: &Path) -> interpreter::RunOutcome {
+    run_guard_with_args(repo, &[])
 }
 
 #[test]
@@ -106,5 +111,56 @@ fn guardiao_pinker_reprova_readme_com_fase_divergente() {
     let out = run_guard(&root);
 
     assert_eq!(out.exit_status, Some(1));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn guardiao_pinker_consulta_doc_por_fase() {
+    let root = temp_repo("guard_docs_fase");
+    fixture_repo(&root);
+
+    let out = run_guard_with_args(
+        &root,
+        &[
+            "--docs",
+            "--arquivo",
+            "docs/handoff_codex.md",
+            "--status",
+            "fase",
+            "--fase",
+            "239",
+        ],
+    );
+
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(0)));
+    assert_eq!(out.exit_status, None);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn guardiao_pinker_consulta_src_por_busca() {
+    let root = temp_repo("guard_src_busca");
+    fixture_repo(&root);
+    write_file(
+        &root,
+        "src/cfg_ir.rs",
+        "fn lower_short_circuit_value() {}\n",
+    );
+
+    let out = run_guard_with_args(
+        &root,
+        &[
+            "--src",
+            "--arquivo",
+            "src/cfg_ir.rs",
+            "--status",
+            "busca",
+            "--busca",
+            "lower_short_circuit_value",
+        ],
+    );
+
+    assert_eq!(out.return_value, Some(RuntimeValue::Int(0)));
+    assert_eq!(out.exit_status, None);
     fs::remove_dir_all(root).unwrap();
 }

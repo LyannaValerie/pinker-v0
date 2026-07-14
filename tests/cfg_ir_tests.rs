@@ -407,3 +407,24 @@ fn cfg_ir_logicos_viram_branch_de_curto_circuito() {
     assert!(cfg.contains("logic_short_"), "{}", cfg);
     assert!(cfg.contains("logic_join_"), "{}", cfg);
 }
+
+#[test]
+fn cfg_ir_logico_com_chamada_pode_ser_usado_como_valor() {
+    let code = r#"
+        pacote main;
+
+        carinho aceita(ok: logica) -> logica {
+            mimo ok;
+        }
+
+        carinho principal() -> bombom {
+            nova fase: bombom = 239;
+            nova ok: logica = aceita(fase > 0 && contem_verso("Fase 239", "239"));
+            talvez ok { mimo 0; } senao { mimo 1; }
+        }
+    "#;
+
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("logic_join_"), "{}", cfg);
+    assert!(cfg.contains("call aceita("), "{}", cfg);
+}
