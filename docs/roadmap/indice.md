@@ -35,3 +35,4 @@ Este índice roteia os blocos do roadmap sem substituir o topo executivo nem com
 - Bloco 18 — core nobre e bibliotecas temáticas — encerrado — `docs/roadmap/blocos/bloco_18.md`
 - Bloco 19 — superfície Pinker — candidato futuro — `docs/roadmap/blocos/bloco_19.md`
 - Bloco 20 — expansão funcional rumo a SO e self-hosting (trilha por faixas) — ativo — `docs/roadmap/blocos/bloco_20.md`
+  - convergência bare-metal e bootstrap, padrão anti-mínimo — `docs/roadmap/bare_metal_bootstrap.md`
