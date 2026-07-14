@@ -29,24 +29,27 @@
 Expandir a linguagem na direção dos dois propósitos de longo prazo: gerar um sistema operacional usando apenas Pinker e tornar a Pinker capaz de escrever o próprio código (self-hosting).
 
 **Estado atual**
-O bloco executa em **dois eixos** (Doc-41): **Eixo A — linguagem** (11 faixas, 52 itens inventariados frente a C, C#, C++, Python, TypeScript e Shell) e **Eixo B — paridade real do backend nativo** (B1–B11, Fases 212–222, encerrado). Do Eixo A, os itens 1 (enums), 2 (pattern matching) e 3 (generics) da Faixa 1 foram entregues e depois expandidos em fases numeradas: item 3 inclui `lista<T>`, `mapa<K,V>`, funções genéricas explícitas até a Fase 236 e leques genéricos explícitos na Fase 240. A Faixa 2 nasceu concluída pelo fechamento do Bloco 18. O Eixo B foi executado nas Fases 212–222 e está encerrado; o item 5 (error handling) foi retomado nas Fases 223–224, 231, 237 e 240, o item 6 (closures) foi iniciado na Fase 225 e expandido nas Fases 238–239, e o item 4 (traits/interfaces) foi iniciado na Fase 226 com lowering nativo obrigatório e com o padrão de expansão registrado em `docs/expandir.md`, deixando de tratar “mínimo/pequeno/conservador” como padrão automático de implementação.
+O bloco executa em **dois eixos** (Doc-41): **Eixo A — linguagem** (11 faixas, 52 itens inventariados frente a C, C#, C++, Python, TypeScript e Shell) e **Eixo B — paridade real do backend nativo** (B1–B11, Fases 212–222, encerrado). Do Eixo A, os itens 1 (enums), 2 (pattern matching) e 3 (generics) da Faixa 1 foram entregues e depois expandidos em fases numeradas: item 3 inclui `lista<T>`, `mapa<K,V>`, funções genéricas explícitas até a Fase 236 e leques genéricos explícitos na Fase 240. A Faixa 2 nasceu concluída pelo fechamento do Bloco 18. O Eixo B foi executado nas Fases 212–222 e está encerrado; o item 5 (error handling) foi retomado nas Fases 223–224, 231, 237 e 240, o item 6 (closures) foi iniciado na Fase 225 e expandido nas Fases 238–239, e o item 4 (traits/interfaces) foi iniciado na Fase 226 com lowering nativo obrigatório e com o padrão de expansão registrado em `docs/expandir.md`, deixando de tratar “mínimo/pequeno/conservador” como padrão automático de implementação. A Doc-46 formaliza a trilha bare-metal e bootstrap como ponte entre as capacidades do Eixo A e um artefato freestanding verificável, sem declarar qualquer suporte bare-metal já entregue.
 
 **Escada macro**
 - Eixo A, Faixa 1 — funcionalidades de alta dificuldade (itens 1–3 entregues; 5, 6 e 4 após o Eixo B);
 - **Eixo B — paridade real do backend nativo** (runtime próprio + lowering completo da superfície atual; B1–B11 entregues nas Fases 212–222);
 - Eixo A, Faixa 3 — ponteiros de função, alocador de memória, inline assembly real;
+- **trilha bare-metal e bootstrap** — alvo freestanding, objeto relocável, seções/linker, entrada, runtime sem host, boot, imagem e QEMU;
 - Eixo A, Faixas 4–6 — sistema de tipos, funções e controle de fluxo;
 - Eixo A, Faixas 7–9 — baixo nível, metaprogramação, módulos e build;
 - Eixo A, Faixas 10–11 — concorrência, SO, I/O e rede.
 
 **Detalhe estrutural**
 - `docs/roadmap/blocos/bloco_20.md`
+- `docs/roadmap/bare_metal_bootstrap.md`
 
 ## Relação com os demais documentos
 
 - `docs/roadmap.md` define a ordem ativa.
 - `docs/roadmap/indice.md` organiza a navegação curta por blocos.
 - `docs/roadmap/blocos/bloco_XX.md` guardam o detalhe estrutural de cada bloco.
+- `docs/roadmap/bare_metal_bootstrap.md` detalha a ponte freestanding do Bloco 20 sem declarar implementação.
 - `docs/history.md` e `docs/history/` preservam a crônica factual detalhada.
 - `docs/future.md` continua sendo inventário técnico e não dita a ordem ativa.
 
@@ -54,5 +57,6 @@ O bloco executa em **dois eixos** (Doc-41): **Eixo A — linguagem** (11 faixas,
 
 - Hub do roadmap: `docs/roadmap/indice.md`
 - Bloco ativo atual: `docs/roadmap/blocos/bloco_20.md`
+- Trilha bare-metal do bloco ativo: `docs/roadmap/bare_metal_bootstrap.md`
 - Bloco recém-encerrado: `docs/roadmap/blocos/bloco_18.md`
 - Candidato futuro não ativo: `docs/roadmap/blocos/bloco_19.md`
