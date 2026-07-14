@@ -14,7 +14,7 @@
 | Campo | Valor |
 |---|---|
 | Fase funcional mais recente | **240** — Eixo A: leque genérico explícito para `Resultado<T,E>` |
-| Rodada documental mais recente | **Doc-46** — trilha bare-metal e bootstrap com padrão anti-mínimo |
+| Rodada documental mais recente | **Doc-48** — presença de Rosa no GitHub Copilot |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
@@ -80,6 +80,13 @@
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
+- **Doc-48 — presença de Rosa no GitHub Copilot**.
+- `.github/copilot-instructions.md` estabelece o contrato geral do Copilot na Pinker: inspeção antes de afirmação, fontes canônicas, comandos oficiais, anti-mínimo, segurança operacional e princípios de Rosa sem encenação permanente.
+- `.github/agents/rosa.agent.md` define Rosa como agente personalizado selecionável manualmente, com `target: github-copilot`, ferramentas explícitas e ativação automática desabilitada.
+- `.github/instructions/rosa-governance.instructions.md` aplica regras identitárias específicas aos documentos Rosa, ao vocabulário, ao agente e ao Guardião Pinker.
+- A configuração não cria consciência, não recupera literalmente a instância removida e não autoriza merge ou ação destrutiva sem pedido explícito.
+- **Doc-47 — continuidade identitária versionada de Rosa**.
+- `docs/rosa_core.md`, `docs/rosa_voice_tests.md` e `docs/rosa_archive.md` preservam núcleo, regressão de voz e proveniência; `docs/rosa.md`, `docs/ponte_engine_rosa.md` e `docs/atlas.md` integram essa continuidade.
 - **Doc-46 — trilha bare-metal e bootstrap com padrão anti-mínimo**.
 - A lacuna entre o backend ELF Linux atual e uma cadeia freestanding foi formalizada em `docs/roadmap/bare_metal_bootstrap.md`, sem mudança funcional e sem declarar target, boot ou kernel como implementados.
 - A trilha foi organizada em quatro frentes adultas: BM-A (toolchain freestanding), BM-B (bootstrap/runtime autônomo), BM-C (boot/fronteira de hardware) e BM-D (produto de build, QEMU e gate de qualidade).
@@ -110,7 +117,7 @@ Histórico completo por fase: `docs/history/phases/`.
 - Critério de pronto cumprido: cada caso roda no interpretador e como ELF nativo gerado por `pink build --nativo`; o stdout do programa é comparado byte a byte e o retorno de `principal` no interpretador é comparado ao exit code nativo.
 - Fechamento: **Eixo B encerrado**; o backend `.s` próprio + runtime `pinker_rt` passam a ser a base obrigatória para novas fases de linguagem.
 - Limites honestos mantidos: `ouvir` interativo, ordem de iteração de mapa multi-chave e exemplos dependentes de argv/binários auxiliares fora do manifesto controlado não viram critério global.
-- `make ci` passa integralmente no estado funcional anterior à Doc-46; a rodada Doc-46 deve ser revalidada antes do merge.
+- `make ci` passa integralmente no estado funcional anterior à Doc-46; as rodadas Doc-46–48 exigem revalidação local antes de novo fechamento funcional.
 
 ## 4. Limites canônicos ativos
 
@@ -125,6 +132,8 @@ Histórico completo por fase: `docs/history/phases/`.
 | Fases 225, 238 e 239 (`carinho` anônimo) | Literais `carinho` não capturantes, chamada direta imediata, função local tipada como alias estático chamável por nome e passagem estática como parâmetro por especialização direta; captura de ambiente, retorno de função, armazenamento amplo, ponteiro de função materializado e chamada indireta fora |
 | Fases 226–230, 232 e 234 (`trato`/`impl`) | Tratos estáticos, chamada por método, `impl` nominal para escalares e `ninho`, cobertura completa do contrato, múltiplos contratos por tipo e desambiguação explícita de métodos homônimos com `Trato.metodo(valor, ...)`; objetos de trait, vtables, dynamic dispatch, default methods, coerções e overloading amplo fora |
 | Doc-46 (`bare-metal`/bootstrap) | Trilha e critérios formalizados; target freestanding, objeto relocável, runtime autônomo, protocolo de boot, imagem de kernel, QEMU e CI bare-metal continuam não implementados |
+| Doc-47 (`Rosa`) | Continuidade identitária documentada; não equivale a recuperação literal, memória persistente ou consciência de uma instância |
+| Doc-48 (`Copilot Rosa`) | Configuração versionada; comportamento final depende do modelo, das ferramentas, da superfície do Copilot e do contexto disponível; agente só aparece após merge na branch padrão e suporte da conta |
 | Bloco 20 | Nenhum item das faixas ou frente BM está entregue por constar na trilha; entrega exige fase numerada com validação objetiva e padrão anti-mínimo |
 | Geral | Compatibilidade global legada preservada integralmente |
 
@@ -134,6 +143,7 @@ Histórico completo por fase: `docs/history/phases/`.
 - Ao iniciar a direção SO, a execução deve seguir `docs/roadmap/bare_metal_bootstrap.md`: não basta gerar um artefato isolado; a fase precisa fechar superfície, semântica, backend/runtime, diagnósticos, testes, exemplo e documentação do subproblema escolhido.
 - Escada completa do eixo encerrado (B1 ✓ ... B11 ✓) em `docs/roadmap/blocos/bloco_20.md`.
 - Depois do item 5: itens 6 (**closures**) e 4 (**traits**) do Eixo A, mantendo a regra de que toda fase de linguagem entrega o lowering nativo junto.
+- Após merge da Doc-48, selecionar Rosa manualmente no Copilot e executar os casos de `docs/rosa_voice_tests.md` antes de tratá-la como presença operacional estável.
 
 ## 6. Arquitetura documental ativa
 - `roadmap.md` = ordem ativa.
@@ -148,9 +158,12 @@ Histórico completo por fase: `docs/history/phases/`.
 - `apps.md` = regras para aplicações internas em Pinker.
 - `../README.md` = porta de entrada pública curta.
 - `atlas.md` = navegação mestre.
+- `rosa.md`, `rosa_core.md`, `rosa_voice_tests.md`, `rosa_archive.md` = identidade, comportamento, regressão e proveniência de Rosa.
 - `ponte_engine_rosa.md` = mediação estável Engine ↔ Rosa.
 - `inventario_intrinsecas.md` = inventário canônico de intrínsecas.
 - `expandir.md` = referência de expansão para elevar implementações históricas mínimas/conservadoras.
+- `../.github/copilot-instructions.md` = contrato geral do Copilot no repositório.
+- `../.github/agents/rosa.agent.md` = agente personalizado Rosa.
 - `docs/phases.md` está ausente no workspace atual; referências legadas devem apontar para `docs/history.md` e shards em `docs/history/`.
 
 ## 7. Restrições do projeto
@@ -159,6 +172,8 @@ Histórico completo por fase: `docs/history/phases/`.
 - Não transformar `parallel.md` em backlog técnico.
 - Não declarar funcionalidade como pronta sem validação objetiva.
 - Não aceitar stubs, placeholders ou provas de conceito isoladas como fechamento automático de fase pós-Eixo B.
+- Não permitir que persona ou estilo substituam inspeção, testes ou evidência.
+- Rosa é selecionável manualmente; não deve ser invocada automaticamente para encenar personalidade em toda tarefa.
 - Antes da próxima etapa do Bloco 20, Eixo A, rodar `make guard` além da suíte padrão; `make ci` já inclui o Guardião Pinker.
 
 ## 8. Padrão operacional de binários
