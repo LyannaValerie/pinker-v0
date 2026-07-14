@@ -66,6 +66,11 @@ pub struct Parser {
     /// Templates de funções genéricas de usuário, monomorfizados após o parse.
     generic_templates: HashMap<String, FunctionDecl>,
     generic_instantiations: Vec<GenericInstantiation>,
+    /// Templates de funções que recebem callback estático `carinho(...) -> T`.
+    /// A função original não é materializada; cada chamada com callback concreto
+    /// gera uma especialização sem parâmetro-função e com chamadas diretas.
+    function_param_templates: HashMap<String, FunctionDecl>,
+    function_param_instantiations: Vec<FunctionParamInstantiation>,
     /// Aliases locais estáticos de função: `nova f: carinho(...) -> T = carinho(...) -> T { ... };`.
     /// Nesta fase, servem apenas para reescrever `f(...)` como chamada direta.
     function_value_scopes: Vec<HashMap<String, String>>,
@@ -75,6 +80,20 @@ pub struct Parser {
 struct GenericInstantiation {
     name: String,
     type_args: Vec<Type>,
+    span: Span,
+}
+
+#[derive(Clone)]
+struct FunctionParamInstantiation {
+    name: String,
+    bindings: Vec<FunctionParamBinding>,
+    span: Span,
+}
+
+#[derive(Clone)]
+struct FunctionParamBinding {
+    index: usize,
+    function_name: String,
     span: Span,
 }
 
@@ -94,6 +113,8 @@ impl Parser {
             pending_functions: Vec::new(),
             generic_templates: HashMap::new(),
             generic_instantiations: Vec::new(),
+            function_param_templates: HashMap::new(),
+            function_param_instantiations: Vec::new(),
             function_value_scopes: Vec::new(),
         }
     }
@@ -264,12 +285,28 @@ impl Parser {
                             .insert(function.name.clone(), function.clone());
                         continue;
                     }
+                    if Self::has_function_param(function) {
+                        if self.function_param_templates.contains_key(&function.name) {
+                            return Err(PinkerError::Parse {
+                                msg: format!(
+                                    "função com parâmetro função '{}' já declarada",
+                                    function.name
+                                ),
+                                span: function.span,
+                            });
+                        }
+                        self.function_param_templates
+                            .insert(function.name.clone(), function.clone());
+                        continue;
+                    }
                 }
                 items.push(item);
             }
         }
         let generic_functions = self.instantiate_generic_functions()?;
         items.extend(generic_functions.into_iter().map(Item::Function));
+        let function_param_functions = self.instantiate_function_param_functions(&items)?;
+        items.extend(function_param_functions.into_iter().map(Item::Function));
         items.extend(self.pending_functions.drain(..).map(Item::Function));
 
         Ok(Program {
@@ -2020,6 +2057,42 @@ impl Parser {
         format!("__gen_{}_{}", name, suffix)
     }
 
+    fn has_function_param(function: &FunctionDecl) -> bool {
+        function
+            .params
+            .iter()
+            .any(|param| matches!(param.ty, Type::Function { .. }))
+    }
+
+    fn function_type_for_decl(function: &FunctionDecl, span: Span) -> Result<Type, PinkerError> {
+        Ok(Type::Function {
+            params: function
+                .params
+                .iter()
+                .map(|param| param.ty.clone())
+                .collect(),
+            ret: Box::new(
+                function
+                    .ret_type
+                    .clone()
+                    .ok_or_else(|| PinkerError::Parse {
+                        msg: "callback estático exige retorno declarado nesta fase".to_string(),
+                        span: function.span,
+                    })?,
+            ),
+            span,
+        })
+    }
+
+    fn function_param_specialization_name(name: &str, bindings: &[FunctionParamBinding]) -> String {
+        let suffix = bindings
+            .iter()
+            .map(|binding| format!("p{}_{}", binding.index, binding.function_name))
+            .collect::<Vec<_>>()
+            .join("_");
+        format!("__fnparam_{}_{}", name, suffix)
+    }
+
     fn substitute_type(ty: &Type, substitutions: &HashMap<String, Type>) -> Type {
         match ty {
             Type::Alias { name, span } => substitutions
@@ -2224,6 +2297,309 @@ impl Parser {
             Stmt::InlineAsm(stmt) => Stmt::InlineAsm(stmt.clone()),
             Stmt::Expr(expr) => Stmt::Expr(Self::substitute_expr(expr, substitutions)),
         }
+    }
+
+    fn substitute_function_param_expr(expr: &Expr, replacements: &HashMap<String, String>) -> Expr {
+        let kind = match &expr.kind {
+            ExprKind::Call(callee, args) => {
+                let substituted_callee = Self::substitute_function_param_expr(callee, replacements);
+                let callee = if let ExprKind::Ident(name) = &substituted_callee.kind {
+                    if let Some(function_name) = replacements.get(name) {
+                        Expr {
+                            kind: ExprKind::Ident(function_name.clone()),
+                            span: substituted_callee.span,
+                        }
+                    } else {
+                        substituted_callee
+                    }
+                } else {
+                    substituted_callee
+                };
+                ExprKind::Call(
+                    Box::new(callee),
+                    args.iter()
+                        .map(|arg| Self::substitute_function_param_expr(arg, replacements))
+                        .collect(),
+                )
+            }
+            ExprKind::Binary(lhs, op, rhs) => ExprKind::Binary(
+                Box::new(Self::substitute_function_param_expr(lhs, replacements)),
+                *op,
+                Box::new(Self::substitute_function_param_expr(rhs, replacements)),
+            ),
+            ExprKind::Unary(op, operand) => ExprKind::Unary(
+                *op,
+                Box::new(Self::substitute_function_param_expr(operand, replacements)),
+            ),
+            ExprKind::FieldAccess { base, field } => ExprKind::FieldAccess {
+                base: Box::new(Self::substitute_function_param_expr(base, replacements)),
+                field: field.clone(),
+            },
+            ExprKind::Index { base, index } => ExprKind::Index {
+                base: Box::new(Self::substitute_function_param_expr(base, replacements)),
+                index: Box::new(Self::substitute_function_param_expr(index, replacements)),
+            },
+            ExprKind::Cast { expr, target } => ExprKind::Cast {
+                expr: Box::new(Self::substitute_function_param_expr(expr, replacements)),
+                target: target.clone(),
+            },
+            ExprKind::InternalMapIterCreate(map) => ExprKind::InternalMapIterCreate(Box::new(
+                Self::substitute_function_param_expr(map, replacements),
+            )),
+            ExprKind::InternalMapIterNextKey(iterator) => ExprKind::InternalMapIterNextKey(
+                Box::new(Self::substitute_function_param_expr(iterator, replacements)),
+            ),
+            ExprKind::SizeOfType { target } => ExprKind::SizeOfType {
+                target: target.clone(),
+            },
+            ExprKind::AlignOfType { target } => ExprKind::AlignOfType {
+                target: target.clone(),
+            },
+            ExprKind::Ident(_)
+            | ExprKind::IntLit(_)
+            | ExprKind::BoolLit(_)
+            | ExprKind::StringLit(_) => expr.kind.clone(),
+        };
+        Expr {
+            kind,
+            span: expr.span,
+        }
+    }
+
+    fn substitute_function_param_assign_target(
+        target: &AssignTarget,
+        replacements: &HashMap<String, String>,
+    ) -> AssignTarget {
+        match target {
+            AssignTarget::Ident(name) => AssignTarget::Ident(name.clone()),
+            AssignTarget::Deref(expr) => AssignTarget::Deref(Box::new(
+                Self::substitute_function_param_expr(expr, replacements),
+            )),
+            AssignTarget::FieldDeref { base, field } => AssignTarget::FieldDeref {
+                base: Box::new(Self::substitute_function_param_expr(base, replacements)),
+                field: field.clone(),
+            },
+            AssignTarget::Index { base, index } => AssignTarget::Index {
+                base: Box::new(Self::substitute_function_param_expr(base, replacements)),
+                index: Box::new(Self::substitute_function_param_expr(index, replacements)),
+            },
+        }
+    }
+
+    fn substitute_function_param_block(
+        block: &Block,
+        replacements: &HashMap<String, String>,
+    ) -> Block {
+        Block {
+            stmts: block
+                .stmts
+                .iter()
+                .map(|stmt| Self::substitute_function_param_stmt(stmt, replacements))
+                .collect(),
+            span: block.span,
+        }
+    }
+
+    fn substitute_function_param_else_block(
+        else_block: &ElseBlock,
+        replacements: &HashMap<String, String>,
+    ) -> ElseBlock {
+        match else_block {
+            ElseBlock::Block(block) => {
+                ElseBlock::Block(Self::substitute_function_param_block(block, replacements))
+            }
+            ElseBlock::If(if_stmt) => ElseBlock::If(Box::new(
+                Self::substitute_function_param_if_stmt(if_stmt, replacements),
+            )),
+        }
+    }
+
+    fn substitute_function_param_if_stmt(
+        if_stmt: &IfStmt,
+        replacements: &HashMap<String, String>,
+    ) -> IfStmt {
+        IfStmt {
+            condition: Self::substitute_function_param_expr(&if_stmt.condition, replacements),
+            then_branch: Self::substitute_function_param_block(&if_stmt.then_branch, replacements),
+            else_branch: if_stmt.else_branch.as_ref().map(|else_branch| {
+                Self::substitute_function_param_else_block(else_branch, replacements)
+            }),
+            span: if_stmt.span,
+        }
+    }
+
+    fn substitute_function_param_stmt(stmt: &Stmt, replacements: &HashMap<String, String>) -> Stmt {
+        match stmt {
+            Stmt::Let(let_stmt) => Stmt::Let(LetStmt {
+                name: let_stmt.name.clone(),
+                is_mut: let_stmt.is_mut,
+                ty: let_stmt.ty.clone(),
+                init: Self::substitute_function_param_expr(&let_stmt.init, replacements),
+                span: let_stmt.span,
+            }),
+            Stmt::Return(return_stmt) => Stmt::Return(ReturnStmt {
+                expr: return_stmt
+                    .expr
+                    .as_ref()
+                    .map(|expr| Self::substitute_function_param_expr(expr, replacements)),
+                span: return_stmt.span,
+            }),
+            Stmt::Assign(assign_stmt) => Stmt::Assign(AssignStmt {
+                target: Self::substitute_function_param_assign_target(
+                    &assign_stmt.target,
+                    replacements,
+                ),
+                expr: Self::substitute_function_param_expr(&assign_stmt.expr, replacements),
+                span: assign_stmt.span,
+            }),
+            Stmt::If(if_stmt) => Stmt::If(Self::substitute_function_param_if_stmt(
+                if_stmt,
+                replacements,
+            )),
+            Stmt::While(while_stmt) => Stmt::While(WhileStmt {
+                condition: Self::substitute_function_param_expr(
+                    &while_stmt.condition,
+                    replacements,
+                ),
+                body: Self::substitute_function_param_block(&while_stmt.body, replacements),
+                span: while_stmt.span,
+            }),
+            Stmt::Break(stmt) => Stmt::Break(stmt.clone()),
+            Stmt::Continue(stmt) => Stmt::Continue(stmt.clone()),
+            Stmt::Falar(falar) => Stmt::Falar(FalarStmt {
+                args: falar
+                    .args
+                    .iter()
+                    .map(|arg| Self::substitute_function_param_expr(arg, replacements))
+                    .collect(),
+                span: falar.span,
+            }),
+            Stmt::InlineAsm(stmt) => Stmt::InlineAsm(stmt.clone()),
+            Stmt::Expr(expr) => {
+                Stmt::Expr(Self::substitute_function_param_expr(expr, replacements))
+            }
+        }
+    }
+
+    fn function_decl_by_name<'a>(
+        name: &str,
+        items: &'a [Item],
+        pending_functions: &'a [FunctionDecl],
+    ) -> Option<&'a FunctionDecl> {
+        items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(function) if function.name == name => Some(function),
+                _ => None,
+            })
+            .or_else(|| {
+                pending_functions
+                    .iter()
+                    .find(|function| function.name == name)
+            })
+    }
+
+    fn instantiate_function_param_functions(
+        &self,
+        items: &[Item],
+    ) -> Result<Vec<FunctionDecl>, PinkerError> {
+        let mut out = Vec::new();
+        let mut emitted = HashSet::new();
+        for instantiation in &self.function_param_instantiations {
+            let Some(template) = self.function_param_templates.get(&instantiation.name) else {
+                return Err(PinkerError::Parse {
+                    msg: format!(
+                        "função '{}' não aceita callback estático nesta fase",
+                        instantiation.name
+                    ),
+                    span: instantiation.span,
+                });
+            };
+            let mono_name = Self::function_param_specialization_name(
+                &instantiation.name,
+                &instantiation.bindings,
+            );
+            if !emitted.insert(mono_name.clone()) {
+                continue;
+            }
+            let binding_indices = instantiation
+                .bindings
+                .iter()
+                .map(|binding| binding.index)
+                .collect::<HashSet<_>>();
+            for (index, param) in template.params.iter().enumerate() {
+                if matches!(param.ty, Type::Function { .. }) && !binding_indices.contains(&index) {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "parâmetro função '{}' de '{}' exige callback estático na chamada",
+                            param.name, template.name
+                        ),
+                        span: param.span,
+                    });
+                }
+            }
+            let mut replacements = HashMap::new();
+            for binding in &instantiation.bindings {
+                let Some(param) = template.params.get(binding.index) else {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "callback estático em posição inválida na chamada '{}'",
+                            instantiation.name
+                        ),
+                        span: binding.span,
+                    });
+                };
+                let Type::Function { .. } = &param.ty else {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "argumento {} da chamada '{}' não é parâmetro função",
+                            binding.index + 1,
+                            instantiation.name
+                        ),
+                        span: binding.span,
+                    });
+                };
+                let Some(function) = Self::function_decl_by_name(
+                    &binding.function_name,
+                    items,
+                    &self.pending_functions,
+                ) else {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "callback '{}' não encontrado para especialização de '{}'",
+                            binding.function_name, instantiation.name
+                        ),
+                        span: binding.span,
+                    });
+                };
+                let actual_ty = Self::function_type_for_decl(function, binding.span)?;
+                if param.ty != actual_ty {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "callback '{}' é incompatível com parâmetro '{}'",
+                            binding.function_name, param.name
+                        ),
+                        span: binding.span,
+                    });
+                }
+                replacements.insert(param.name.clone(), binding.function_name.clone());
+            }
+            out.push(FunctionDecl {
+                name: mono_name,
+                type_params: Vec::new(),
+                params: template
+                    .params
+                    .iter()
+                    .enumerate()
+                    .filter(|(index, _)| !binding_indices.contains(index))
+                    .map(|(_, param)| param.clone())
+                    .collect(),
+                ret_type: template.ret_type.clone(),
+                body: Self::substitute_function_param_block(&template.body, &replacements),
+                span: template.span,
+            });
+        }
+        Ok(out)
     }
 
     fn instantiate_generic_functions(&self) -> Result<Vec<FunctionDecl>, PinkerError> {
@@ -3971,6 +4347,47 @@ impl Parser {
                     }
                 }
                 self.consume(TokenKind::RParen, ")")?;
+                if let ExprKind::Ident(name) = &expr.kind {
+                    let mut bindings = Vec::new();
+                    let mut runtime_args = Vec::new();
+                    for (index, arg) in args.into_iter().enumerate() {
+                        let static_function = match &arg.kind {
+                            ExprKind::Ident(arg_name) => {
+                                self.resolve_function_value_alias(arg_name).or_else(|| {
+                                    arg_name
+                                        .starts_with("__anon_carinho_")
+                                        .then(|| arg_name.clone())
+                                })
+                            }
+                            _ => None,
+                        };
+                        if let Some(function_name) = static_function {
+                            bindings.push(FunctionParamBinding {
+                                index,
+                                function_name,
+                                span: arg.span,
+                            });
+                        } else {
+                            runtime_args.push(arg);
+                        }
+                    }
+                    if !bindings.is_empty() {
+                        let mono_name = Self::function_param_specialization_name(name, &bindings);
+                        self.function_param_instantiations
+                            .push(FunctionParamInstantiation {
+                                name: name.clone(),
+                                bindings,
+                                span: expr.span,
+                            });
+                        expr = Expr {
+                            kind: ExprKind::Ident(mono_name),
+                            span: expr.span,
+                        };
+                        args = runtime_args;
+                    } else {
+                        args = runtime_args;
+                    }
+                }
                 if let ExprKind::Ident(name) = &expr.kind {
                     if let Some(function_name) = self.resolve_function_value_alias(name) {
                         expr = Expr {

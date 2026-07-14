@@ -176,7 +176,21 @@ nova dobrar: carinho(bombom) -> bombom = carinho(v: bombom) -> bombom {
 nova valor: bombom = dobrar(21);
 ```
 
-Neste recorte, a função local é um alias estático de chamada: ela precisa ser inicializada diretamente por literal `carinho`, não pode ser `muda` e ainda não é valor passável/retornável. Tipos-função públicos para parâmetros/retorno, passagem de função como argumento e closures com ambiente capturado continuam para fases posteriores do Eixo A.
+Desde a Fase 239, funções que recebem parâmetros `carinho(...) -> tipo` podem ser chamadas com funções locais estáticas compatíveis:
+
+```pinker
+carinho aplicar(f: carinho(bombom) -> bombom, x: bombom) -> bombom {
+    mimo f(x);
+}
+
+nova dobrar: carinho(bombom) -> bombom = carinho(v: bombom) -> bombom {
+    mimo v * 2;
+};
+
+nova valor: bombom = aplicar(dobrar, 21);
+```
+
+Neste recorte, a função local continua sendo um alias estático de chamada: ela precisa ser inicializada diretamente por literal `carinho`, não pode ser `muda`, e a passagem como parâmetro especializa estaticamente a função chamada. Retorno de função, armazenamento amplo, closures com ambiente capturado e chamada indireta real continuam para fases posteriores do Eixo A.
 
 ## Tratos estáticos e chamada por método
 

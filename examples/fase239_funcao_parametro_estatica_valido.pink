@@ -1,0 +1,20 @@
+pacote main;
+
+carinho aplicar(f: carinho(bombom) -> bombom, x: bombom) -> bombom {
+    mimo f(x);
+}
+
+carinho principal() -> bombom {
+    nova dobrar: carinho(bombom) -> bombom = carinho(x: bombom) -> bombom {
+        mimo x * 2;
+    };
+
+    nova triplicar: carinho(bombom) -> bombom = carinho(x: bombom) -> bombom {
+        mimo x * 3;
+    };
+
+    nova a: bombom = aplicar(dobrar, 21);
+    nova b: bombom = aplicar(triplicar, 14);
+    falar(a, b);
+    mimo 0;
+}

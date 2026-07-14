@@ -68,7 +68,7 @@ carinho principal() -> bombom {
     falhas = falhas + registrar("roadmap sem conflito", sem_marcador_conflito(roadmap));
     falhas = falhas + registrar("history indice sem conflito", sem_marcador_conflito(hist_indice));
 
-    falhas = falhas + registrar("handoff fase 238", contem_verso(handoff, "Fase funcional mais recente | **238**"));
+    falhas = falhas + registrar("handoff fase 239", contem_verso(handoff, "Fase funcional mais recente | **239**"));
     falhas = falhas + registrar("handoff HF-6", contem_verso(handoff, "HF-6"));
     falhas = falhas + registrar("roadmap bloco 20", contem_verso(roadmap, "Bloco 20"));
 

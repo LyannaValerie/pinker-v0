@@ -35,7 +35,7 @@ fn fixture_repo(root: &Path) {
     write_file(
         root,
         "docs/handoff_codex.md",
-        "| Fase funcional mais recente | **238** |\n| Ultimo hotfix | **HF-6** |\n",
+        "| Fase funcional mais recente | **239** |\n| Ultimo hotfix | **HF-6** |\n",
     );
     write_file(root, "docs/roadmap.md", "# Bloco 20\n");
     write_file(root, "docs/history.md", "# Historico\n");
