@@ -74,6 +74,9 @@ fn layout_of_type_inner(
         Type::Function { .. } => {
             Err("tipo função ainda não possui layout de memória nesta fase".to_string())
         }
+        Type::Applied { .. } => {
+            Err("tipo genérico aplicado não monomorfizado antes do layout".to_string())
+        }
         Type::Pointer { .. } => Ok(TypeLayout {
             size: POINTER_SIZE,
             align: POINTER_ALIGN,

@@ -4031,6 +4031,28 @@ fn fase239_funcao_parametro_estatica_aceita() {
 }
 
 #[test]
+fn fase240_leque_generico_resultado_aceita() {
+    let code = include_str!("../examples/fase240_leque_generico_resultado_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase240_leque_generico_rejeita_aridade_de_tipo_invalida() {
+    let code = r#"
+        pacote main;
+        leque Resultado<T, E> { Ok(T), Erro(E) }
+        apelido Ruim = Resultado<bombom>;
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("leque genérico 'Resultado' exige 2 argumento(s) de tipo"),
+        "{}",
+        err
+    );
+}
+
+#[test]
 fn fase239_funcao_parametro_estatica_rejeita_assinatura_incompativel() {
     let code = r#"
         pacote main;

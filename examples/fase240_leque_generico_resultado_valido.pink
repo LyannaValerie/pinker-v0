@@ -1,0 +1,43 @@
+pacote main;
+
+leque Resultado<T, E> {
+    Ok(T),
+    Erro(E),
+}
+
+apelido ResultadoBombomVerso = Resultado<bombom, verso>;
+
+carinho sucesso(valor: bombom) -> ResultadoBombomVerso {
+    mimo ResultadoBombomVerso.Ok(valor);
+}
+
+carinho falha(msg: verso) -> ResultadoBombomVerso {
+    mimo ResultadoBombomVerso.Erro(msg);
+}
+
+carinho principal() -> bombom {
+    nova a: ResultadoBombomVerso = sucesso(42);
+    nova b: ResultadoBombomVerso = falha("erro");
+    nova muda total: bombom = 0;
+
+    encaixe a {
+        caso ResultadoBombomVerso.Ok(valor) {
+            total = total + valor;
+        }
+        caso ResultadoBombomVerso.Erro(msg) {
+            falar(msg);
+        }
+    }
+
+    encaixe b {
+        caso ResultadoBombomVerso.Ok(valor) {
+            total = total + valor;
+        }
+        caso ResultadoBombomVerso.Erro(msg) {
+            falar(msg);
+        }
+    }
+
+    falar(total);
+    mimo 0;
+}

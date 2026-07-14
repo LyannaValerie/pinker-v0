@@ -1155,6 +1155,15 @@ fn fase239_funcao_parametro_estatica_tem_paridade_nativa() {
 }
 
 #[test]
+fn fase240_leque_generico_resultado_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase240_leque_generico_resultado_valido.pink",
+        "fase240_leque_generico_resultado_valido",
+        24_000,
+    );
+}
+
+#[test]
 fn fase232_impl_multiplos_contratos_tem_paridade_nativa() {
     paridade_stdout(
         "examples/fase232_impl_multiplos_contratos_valido.pink",
