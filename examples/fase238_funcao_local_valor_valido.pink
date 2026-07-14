@@ -1,0 +1,20 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova dobrar: carinho(bombom) -> bombom = carinho(x: bombom) -> bombom {
+        mimo x * 2;
+    };
+
+    nova ajustar: carinho(bombom) -> bombom = carinho(x: bombom) -> bombom {
+        mimo x + 1;
+    };
+
+    nova a: bombom = dobrar(20);
+    nova b: bombom = ajustar(1);
+
+    talvez a == 40 && b == 2 {
+        mimo 0;
+    } senao {
+        mimo 1;
+    }
+}

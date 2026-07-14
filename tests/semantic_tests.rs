@@ -3973,6 +3973,27 @@ fn fase231_propagar_valor_nomeado_aceito() {
 }
 
 #[test]
+fn fase237_propagar_curto_aceito() {
+    let code = include_str!("../examples/fase237_propagar_curto_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase237_propagar_curto_rejeita_falha_ambigua() {
+    let code = r#"
+        pacote main;
+        leque Resultado { Ok(bombom), Erro(verso), Cancelado(verso) }
+        carinho validar() -> Resultado { mimo Resultado.Ok(1); }
+        carinho principal() -> bombom {
+            propagar? validar() como Resultado.Ok(v);
+            mimo v;
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("propagar? é ambíguo"), "{}", err);
+}
+
+#[test]
 fn propagar_exige_variantes_distintas() {
     let code = r#"
         pacote main;
@@ -3995,6 +4016,31 @@ fn propagar_exige_variantes_distintas() {
 fn carinho_anonimo_nao_capturante_aceito() {
     let code = include_str!("../examples/fase225_carinho_anonimo_valido.pink");
     assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase238_funcao_local_valor_aceita() {
+    let code = include_str!("../examples/fase238_funcao_local_valor_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase238_funcao_local_valor_rejeita_tipo_incompativel() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova f: carinho(verso) -> bombom = carinho(x: bombom) -> bombom {
+                mimo x;
+            };
+            mimo f("x");
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("tipo da função local é incompatível"),
+        "{}",
+        err
+    );
 }
 
 #[test]

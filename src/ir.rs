@@ -3032,6 +3032,10 @@ impl TypeIR {
                     is_volatile: *is_volatile,
                 })
             }
+            Type::Function { span, .. } => Err(PinkerError::Ir {
+                msg: "tipo função não é materializável na IR nesta fase; use apenas função local chamada diretamente".to_string(),
+                span: *span,
+            }),
             Type::Nulo(_) => Ok(TypeIR::Nulo),
             Type::Struct { .. } => Ok(TypeIR::Struct),
             Type::Alias { name, span } => {
