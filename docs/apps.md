@@ -39,6 +39,15 @@ O Guardiao Pinker nao substitui `make ci`; ele cobre contratos editoriais e oper
 
 Na validacao de fase funcional, a fase esperada nao deve ficar fixa no codigo do app. O Guardiao deriva a fase atual de `docs/handoff_codex.md` e confere se o mesmo numero aparece na porta publica (`README.md`), no indice historico de fases, no shard historico ativo e no roadmap.
 
+O app tambem possui modo consultivo para olhar um arquivo especifico sem rodar todas as regras:
+
+```bash
+./ci_env.sh cargo run --bin pink -- --run apps/guardiao_pinker/principal.pink -- --repo . --docs --arquivo docs/handoff_codex.md --status fase --fase 239
+./ci_env.sh cargo run --bin pink -- --run apps/guardiao_pinker/principal.pink -- --repo . --src --arquivo src/cfg_ir.rs --status busca --busca lower_short_circuit_value
+```
+
+No recorte atual, argumentos nomeados seguem o formato `--chave valor`; formas compactas como `--fase:239` ficam para uma expansao futura da ergonomia de argv.
+
 ## Evolucao
 
 Novos apps podem entrar quando houver dor concreta no desenvolvimento. Cada app novo deve justificar:
