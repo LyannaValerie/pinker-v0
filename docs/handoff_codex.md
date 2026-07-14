@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **232** — Eixo A: múltiplos contratos por tipo com métodos distintos |
+| Fase funcional mais recente | **233** — Eixo A: fachada genérica para `mapa<K,V>` |
 | Rodada documental mais recente | **Doc-43** — reconciliação do README pós-Eixo B e preservação da referência `expandir.md`/ausência de `docs/phases.md` |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -68,11 +68,13 @@
 | 230 | Bloco 20, Eixo A: cobertura completa de contrato em `impl` — cada `impl` precisa implementar todos os métodos do `trato` e não pode declarar métodos fora do contrato |
 | 231 | Bloco 20, Eixo A: `propagar` com valor de sucesso nomeado — a carga de sucesso fica disponível para a continuação do bloco após a checagem de falha |
 | 232 | Bloco 20, Eixo A: múltiplos contratos por tipo com métodos distintos — um mesmo tipo pode implementar mais de um `trato` quando não há colisão de nome de método |
+| 233 | Bloco 20, Eixo A: fachada genérica para `mapa<K,V>` — `mapa_criar` e operações genéricas roteiam para as quatro combinações públicas `verso`/`bombom` |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Fases 231–232 — Eixo A, itens 5 e 4 da Faixa 1: continuação nomeada em `propagar` e múltiplos contratos por tipo**.
+- **Fase 233 — Eixo A, item 3 da Faixa 1: fachada genérica para `mapa<K,V>`**.
+- A Fase 233 adiciona `mapa_criar`, `mapa_definir`, `mapa_obter`, `mapa_tem`, `mapa_tamanho` e `mapa_remover` como fachada genérica para `mapa<verso,bombom>`, `mapa<verso,verso>`, `mapa<bombom,bombom>` e `mapa<bombom,verso>`.
 - A Fase 231 faz `propagar expr como Resultado.Ok(valor) senao Resultado.Erro(erro);` ligar `valor` no fluxo de sucesso para os comandos seguintes do mesmo bloco, preservando o retorno antecipado da falha.
 - A Fase 232 versiona múltiplos `impl` para o mesmo tipo quando os métodos são distintos, preservando cobertura completa por contrato e resolução nominal por receiver.
 - Suíte B11: manifesto explícito em `tests/backend_nativo_tests.rs` com os exemplos versionados compatíveis do Eixo B (`fase212`–`fase221`), o caso com `argv` real da Fase 221 e os marcos self-hosting compatíveis (`fase209`, `fase210`, `fase211`).
@@ -89,13 +91,13 @@ Histórico completo por fase: `docs/history/phases/`.
 | Fechamento do Bloco 18 | Sem resolução qualificada (`familia.intrinseca`), sem importação seletiva, sem modo estrito, sem reorganização do engine |
 | Fases 190–206 | Sem generics (`lista<T>`, `mapa<K,V>` amplos); cada combinação monomorphizada; sem coleções heterogêneas |
 | Fases 208–210 (`leque`/`encaixe`) | Cargas: `bombom`, `verso` ou leque declarado (sem `ninho`/coleções como carga); sem guards, padrões aninhados ou encaixe-expressão; igualdade direta e `virar` rejeitados para leque com carga; sem discriminante customizado; sem `bombom -> leque`; handles sem liberação (consistente com coleções); nome de leque tem precedência sobre variável homônima em posição de base `X.Y` |
-| Fase 211 (`lista<T>`) | T = leque declarado (além de `bombom`/`verso` legados); `mapa<K,V>` genérico fora; funções genéricas de usuário fora; generics em `leque`/`ninho` fora; `lista_criar()` só como init de `nova` anotada |
+| Fases 211 e 233 (`lista<T>`, `mapa<K,V>`) | `lista<T>` com T = leque declarado (além de `bombom`/`verso` legados); `mapa<K,V>` nas quatro combinações públicas `verso`/`bombom`; funções genéricas de usuário fora; generics em `leque`/`ninho` fora; `lista_criar()`/`mapa_criar()` só como init de `nova` anotada |
 | Bloco 20 | Nenhum item das faixas está entregue por constar na trilha; entrega exige fase numerada com validação objetiva |
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41) e novo padrão pós-Eixo B registrado na Doc-42: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado. Ordem cumprida até aqui: A (itens 1–3 parcialmente/entregues conforme recorte documentado) → B (integral ✓) → A (itens 5 → 6 → 4 expandidos nas Fases 223–232).
-- Próxima fase: escolher entre fechar lacunas do item 3 (`mapa<K,V>` genérico/funções genéricas), aprofundar traits com contratos múltiplos e uso nominal mais amplo de `ninho`, avançar no item 6 para closures capturantes/valores de função, ou continuar o item 5 com biblioteca padrão de resultado e operador curto de propagação. Em qualquer caso, sem recorte mínimo automático e mantendo lowering nativo obrigatório.
+- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41) e novo padrão pós-Eixo B registrado na Doc-42: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado. Ordem cumprida até aqui: A (itens 1–3 expandidos conforme recorte documentado) → B (integral ✓) → A (itens 5 → 6 → 4 expandidos nas Fases 223–233).
+- Próxima fase: escolher entre funções genéricas de usuário/generics em tipos nominais, aprofundar traits com desambiguação de métodos homônimos, avançar no item 6 para closures capturantes/valores de função, ou continuar o item 5 com biblioteca padrão de resultado e operador curto de propagação. Em qualquer caso, sem recorte mínimo automático e mantendo lowering nativo obrigatório.
 - Escada completa do eixo encerrado (B1 ✓ ... B11 ✓) em `docs/roadmap/blocos/bloco_20.md`.
 - Depois do item 5: itens 6 (**closures**) e 4 (**traits**) do Eixo A, mantendo a regra de que toda fase de linguagem entrega o lowering nativo junto.
 

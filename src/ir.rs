@@ -316,6 +316,15 @@ fn is_generic_list_create_expr(expr: &Expr) -> bool {
     false
 }
 
+fn is_generic_map_create_expr(expr: &Expr) -> bool {
+    if let ExprKind::Call(callee, args) = &expr.kind {
+        if let ExprKind::Ident(name) = &callee.kind {
+            return name == "mapa_criar" && args.is_empty();
+        }
+    }
+    false
+}
+
 fn parse_impl_function_name(name: &str) -> Option<(String, String, String)> {
     let rest = name.strip_prefix("__impl_")?;
     let (trait_len, rest) = rest.split_once('_')?;
@@ -1712,6 +1721,40 @@ impl<'a> FunctionLowerer<'a> {
                 let callee = match slot_ty {
                     TypeIR::ListVerso => "lista_verso_criar",
                     _ => "lista_bombom_criar",
+                };
+                let binding = self.allocate_binding(
+                    &let_stmt.name,
+                    slot_ty,
+                    None,
+                    None,
+                    Some(let_stmt.is_mut),
+                );
+                return Ok(InstructionIR::Let {
+                    slot: binding.slot,
+                    value: ValueIR::Call {
+                        callee: callee.to_string(),
+                        args: Vec::new(),
+                        ret_type: slot_ty,
+                    },
+                    span: let_stmt.span,
+                });
+            }
+            if is_generic_map_create_expr(&let_stmt.init) {
+                let slot_ty = self.context.resolve_type(annotated_ty)?;
+                let callee = match slot_ty {
+                    TypeIR::MapVersoBombom => "mapa_verso_bombom_criar",
+                    TypeIR::MapVersoVerso => "mapa_verso_verso_criar",
+                    TypeIR::MapBombomBombom => "mapa_bombom_bombom_criar",
+                    TypeIR::MapBombomVerso => "mapa_bombom_verso_criar",
+                    _ => {
+                        return Err(PinkerError::Ir {
+                            msg: format!(
+                                "mapa_criar() exige anotação de mapa; encontrado '{}'",
+                                slot_ty.name()
+                            ),
+                            span: let_stmt.span,
+                        });
+                    }
                 };
                 let binding = self.allocate_binding(
                     &let_stmt.name,

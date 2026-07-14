@@ -1135,3 +1135,12 @@ fn fase232_impl_multiplos_contratos_tem_paridade_nativa() {
         23_200,
     );
 }
+
+#[test]
+fn fase233_mapa_generico_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase233_mapa_generico_valido.pink",
+        "fase233_mapa_generico_valido",
+        23_300,
+    );
+}

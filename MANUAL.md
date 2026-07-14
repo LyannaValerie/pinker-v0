@@ -60,12 +60,16 @@ nova nome: verso = "Pinker";
 
 Também existem tipos inteiros fixos (`u8..u64`, `i8..i64`) no estado atual.
 
-Coleções: `lista<bombom>`, `lista<verso>` e, desde a Fase 211, `lista<T>` com `T` sendo qualquer `leque` declarado — todas operadas pelas intrínsecas genéricas `lista_criar` (exige anotação em `nova`), `lista_anexar`, `lista_obter`, `lista_tamanho`, `lista_definir`, `lista_tirar_ultimo` e `lista_inserir`:
+Coleções: `lista<bombom>`, `lista<verso>` e, desde a Fase 211, `lista<T>` com `T` sendo qualquer `leque` declarado — todas operadas pelas intrínsecas genéricas `lista_criar` (exige anotação em `nova`), `lista_anexar`, `lista_obter`, `lista_tamanho`, `lista_definir`, `lista_tirar_ultimo` e `lista_inserir`. Desde a Fase 233, as quatro combinações públicas de `mapa<K,V>` (`verso`/`bombom`) também têm fachada genérica: `mapa_criar`, `mapa_definir`, `mapa_obter`, `mapa_tem`, `mapa_tamanho` e `mapa_remover`.
 
 ```pink
 nova tokens: lista<Token> = lista_criar();
 lista_anexar(tokens, Token.Fim);
 nova primeiro: Token = lista_obter(tokens, 0);
+
+nova idades: mapa<verso,bombom> = mapa_criar();
+mapa_definir(idades, "ana", 42);
+nova idade: bombom = mapa_obter(idades, "ana");
 ```
 
 ### `leque`
@@ -469,7 +473,7 @@ das fases B2–B11 do Eixo B.
 No estado atual, ainda há limites importantes para uso geral:
 - o backend nativo alcançou paridade para a superfície versionada compatível do Eixo B, mas ainda há limites fora desse manifesto, como `ouvir` interativo e futuras features de linguagem ainda não abertas;
 - error handling estruturado existe via `tentar` e propagação explícita `propagar` sobre leques de resultado declarados pelo usuário; tratos estáticos, chamada por método e `impl` nominal com cobertura completa existem no recorte das Fases 226–230; closures capturantes e dynamic dispatch seguem fora;
-- generics cobrem `lista<T>` com `T` = leque; `mapa<K,V>` genérico e funções genéricas de usuário seguem fora;
+- generics cobrem `lista<T>` com `T` = leque e `mapa<K,V>` nas quatro combinações públicas `verso`/`bombom`; funções genéricas de usuário seguem fora;
 - API de arquivo segue sem modos avançados de streaming.
 
 ## 12) Onde olhar depois
