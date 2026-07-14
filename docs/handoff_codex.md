@@ -80,6 +80,8 @@ Histórico completo por fase: `docs/history/phases/`.
 ## 3. Rodada atual
 - **Doc-45 — apps internos e Guardião Pinker**.
 - `apps/` passa a abrigar aplicações reais escritas em Pinker para apoiar o desenvolvimento da própria linguagem; `apps/guardiao_pinker/principal.pink` é o primeiro app ativo e roda em `make guard`/`make ci`.
+- **Doc-44 — README como porta de entrada visual**.
+- `README.md` foi reduzido e reorganizado em quadros de estado, superfície implementada, limites honestos, fluxo rápido, CLI, exemplo mínimo, pipeline e navegação para os docs canônicos, sem mudança funcional.
 - **HF-6 — robustez de literal inteiro fora da faixa**.
 - Literais decimais acima de `u64::MAX` agora produzem erro sintático com span, em vez de provocar pânico no parser; a fronteira válida de `bombom` permanece inalterada.
 - **Fase 238 — Eixo A, item 6 da Faixa 1: funções locais tipadas não capturantes**.
@@ -128,6 +130,7 @@ Histórico completo por fase: `docs/history/phases/`.
 - `history/*/*.md` = shards factuais do histórico.
 - `handoff_codex.md` = estado operacional unificado (este arquivo).
 - `apps.md` = regras para aplicações internas em Pinker.
+- `../README.md` = porta de entrada pública curta.
 - `atlas.md` = navegação mestre.
 - `ponte_engine_rosa.md` = mediação estável Engine ↔ Rosa.
 - `inventario_intrinsecas.md` = inventário canônico de intrínsecas.

@@ -10,6 +10,7 @@ Este é o arquivo mestre de navegação documental da Pinker v0.
 
 Documentos canônicos:
 
+- `README.md` — porta de entrada pública curta; orienta, mas não substitui manual, roadmap ou histórico.
 - `docs/roadmap.md` — ordem ativa oficial.
 - `docs/roadmap/indice.md` — hub de navegação do roadmap por blocos.
 - `docs/roadmap/blocos/*.md` — shards estruturais por bloco; não substituem o histórico.
