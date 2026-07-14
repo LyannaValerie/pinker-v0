@@ -145,6 +145,14 @@ propagar validar(42, verdade) como Resultado.Ok(valor) senao Resultado.Erro(msg)
 
 `propagar` exige que as duas variantes pertençam ao mesmo leque, sejam distintas e carreguem exatamente um valor. Em caso de falha, a carga é extraída e retornada imediatamente como a variante de falha indicada; em caso de sucesso, desde a Fase 231 a carga de sucesso fica disponível no nome declarado em `Resultado.Ok(valor)` para os comandos seguintes no mesmo bloco.
 
+Desde a Fase 237, a mesma operação também aceita a forma curta quando o leque tem exatamente uma outra variante com uma carga, que passa a ser a falha inferida:
+
+```pinker
+propagar? validar(42, verdade) como Resultado.Ok(valor);
+```
+
+`propagar?` continua exigindo a variante de sucesso e o nome do valor que segue no fluxo normal. A inferência é local ao leque declarado: se não existir uma única variante de falha possível com uma carga, o programa é rejeitado.
+
 
 ## Funções anônimas não capturantes
 
@@ -156,7 +164,19 @@ nova dobrado: bombom = carinho(v: bombom) -> bombom {
 }(21);
 ```
 
-O literal usa a mesma sintaxe de parâmetros, retorno e bloco de uma função nomeada, mas sem nome entre `carinho` e `(`. A implementação gera uma função sintética top-level e a chamada baixa como chamada direta comum, portanto funciona no interpretador e no backend nativo. Por essa razão, a Fase 225 é deliberadamente **não capturante**: o corpo pode usar seus próprios parâmetros e globais já válidos, mas não pode ler variáveis locais do bloco onde o literal aparece. Literais como valores armazenáveis, tipos-função públicos e closures com ambiente capturado continuam para fases posteriores do Eixo A.
+O literal usa a mesma sintaxe de parâmetros, retorno e bloco de uma função nomeada, mas sem nome entre `carinho` e `(`. A implementação gera uma função sintética top-level e a chamada baixa como chamada direta comum, portanto funciona no interpretador e no backend nativo. Por essa razão, a Fase 225 é deliberadamente **não capturante**: o corpo pode usar seus próprios parâmetros e globais já válidos, mas não pode ler variáveis locais do bloco onde o literal aparece.
+
+Desde a Fase 238, um literal não capturante também pode ser ligado a uma função local tipada e chamado pelo nome local:
+
+```pinker
+nova dobrar: carinho(bombom) -> bombom = carinho(v: bombom) -> bombom {
+    mimo v * 2;
+};
+
+nova valor: bombom = dobrar(21);
+```
+
+Neste recorte, a função local é um alias estático de chamada: ela precisa ser inicializada diretamente por literal `carinho`, não pode ser `muda` e ainda não é valor passável/retornável. Tipos-função públicos para parâmetros/retorno, passagem de função como argumento e closures com ambiente capturado continuam para fases posteriores do Eixo A.
 
 ## Tratos estáticos e chamada por método
 
@@ -485,7 +505,7 @@ das fases B2–B11 do Eixo B.
 
 No estado atual, ainda há limites importantes para uso geral:
 - o backend nativo alcançou paridade para a superfície versionada compatível do Eixo B, mas ainda há limites fora desse manifesto, como `ouvir` interativo e futuras features de linguagem ainda não abertas;
-- error handling estruturado existe via `tentar` e propagação explícita `propagar` sobre leques de resultado declarados pelo usuário; tratos estáticos, chamada por método e `impl` nominal com cobertura completa existem no recorte das Fases 226–230; closures capturantes e dynamic dispatch seguem fora;
+- error handling estruturado existe via `tentar`, propagação explícita `propagar` e forma curta `propagar?` sobre leques de resultado declarados pelo usuário; tratos estáticos, chamada por método e `impl` nominal com cobertura completa existem no recorte das Fases 226–230; funções locais tipadas não capturantes existem como alias estático de chamada; closures capturantes e dynamic dispatch seguem fora;
 - generics cobrem `lista<T>` com `T` = leque e `mapa<K,V>` nas quatro combinações públicas `verso`/`bombom`; funções genéricas de usuário seguem fora;
 - API de arquivo segue sem modos avançados de streaming.
 

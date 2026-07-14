@@ -129,6 +129,14 @@ impl SemanticChecker {
             Type::Alias { name, .. } | Type::Struct { name, .. } | Type::Enum { name, .. } => {
                 name.clone()
             }
+            Type::Function { params, ret, .. } => {
+                let params = params
+                    .iter()
+                    .map(Self::type_key)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                format!("carinho({})->{}", params, Self::type_key(ret))
+            }
             _ => ty.name().to_string(),
         }
     }
@@ -335,6 +343,24 @@ impl SemanticChecker {
                 Ok(Type::Pointer {
                     base: Box::new(resolved_base),
                     is_volatile: *is_volatile,
+                    span: *span,
+                })
+            }
+            Type::Function { params, ret, span } => {
+                let resolved_params = params
+                    .iter()
+                    .map(|param| self.resolve_type_named(param, resolving))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let resolved_ret = self.resolve_type_named(ret.as_ref(), resolving)?;
+                if matches!(resolved_ret, Type::Nulo(_)) {
+                    return Err(PinkerError::Semantic {
+                        msg: "tipo função público exige retorno declarado nesta fase".to_string(),
+                        span: resolved_ret.span(),
+                    });
+                }
+                Ok(Type::Function {
+                    params: resolved_params,
+                    ret: Box::new(resolved_ret),
                     span: *span,
                 })
             }

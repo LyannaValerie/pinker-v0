@@ -370,6 +370,11 @@ pub enum Type {
         is_volatile: bool,
         span: Span,
     },
+    Function {
+        params: Vec<Type>,
+        ret: Box<Type>,
+        span: Span,
+    },
     Alias {
         name: String,
         span: Span,
@@ -437,6 +442,18 @@ impl PartialEq for Type {
             (Type::Struct { name: n1, .. }, Type::Struct { name: n2, .. }) => n1 == n2,
             (Type::Enum { name: n1, .. }, Type::Enum { name: n2, .. }) => n1 == n2,
             (Type::ListEnum { element: e1, .. }, Type::ListEnum { element: e2, .. }) => e1 == e2,
+            (
+                Type::Function {
+                    params: p1,
+                    ret: r1,
+                    ..
+                },
+                Type::Function {
+                    params: p2,
+                    ret: r2,
+                    ..
+                },
+            ) => p1 == p2 && r1 == r2,
             _ => false,
         }
     }
@@ -470,7 +487,8 @@ impl Type {
             | Type::Enum { span, .. }
             | Type::ListEnum { span, .. }
             | Type::FixedArray { span, .. }
-            | Type::Pointer { span, .. } => *span,
+            | Type::Pointer { span, .. }
+            | Type::Function { span, .. } => *span,
         }
     }
 
@@ -495,6 +513,7 @@ impl Type {
             Type::MapBombomVerso(_) => "mapa<bombom,verso>",
             Type::FixedArray { .. } => "array",
             Type::Pointer { .. } => "seta",
+            Type::Function { .. } => "carinho",
             Type::Alias { .. } => "alias",
             Type::Struct { .. } => "struct",
             Type::Enum { .. } => "leque",
@@ -532,6 +551,11 @@ impl Type {
             } => Type::Pointer {
                 base: base.clone(),
                 is_volatile: *is_volatile,
+                span,
+            },
+            Type::Function { params, ret, .. } => Type::Function {
+                params: params.clone(),
+                ret: ret.clone(),
                 span,
             },
             Type::Alias { name, .. } => Type::Alias {
@@ -572,6 +596,10 @@ impl Type {
         }
         if let Type::Pointer { is_volatile, .. } = self {
             writer.field_bool("is_volatile", *is_volatile);
+        }
+        if let Type::Function { params, ret, .. } = self {
+            writer.field_array("params", params, |writer, param| param.write_json(writer));
+            writer.field_value("ret", |writer| ret.write_json(writer));
         }
         writer.end_object();
     }
