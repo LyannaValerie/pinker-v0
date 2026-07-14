@@ -13,22 +13,22 @@ Expandir a Pinker na direção dos dois propósitos de longo prazo do projeto:
 1. **gerar um sistema operacional usando apenas Pinker**;
 2. **a Pinker escrever o próprio código (self-hosting)**.
 
-A trilha é organizada em **11 faixas ordenadas por prioridade**, mescladas a partir do inventário de lacunas frente a C, C#, C++, Python, TypeScript e Shell. A ordem entre faixas é canônica; a ordem dentro de cada faixa é recomendada, não obrigatória.
+A trilha é organizada em **11 faixas ordenadas por prioridade**, mescladas a partir do inventário de lacunas frente a C, C#, C++, Python, TypeScript e Shell, mais uma **trilha transversal bare-metal e bootstrap** que fecha a passagem entre as capacidades da linguagem e um artefato freestanding verificável. A ordem entre faixas é canônica; a ordem dentro de cada faixa é recomendada, não obrigatória.
 
 ## Estrutura em dois eixos
 
 O Bloco 20 executa em **dois eixos** que se alternam por decisão explícita:
 
-- **Eixo A — linguagem**: as 11 faixas abaixo (superfície, tipos, funções, controle, baixo nível, metaprogramação, módulos, concorrência, I/O). Executou os itens 1–3 da Faixa 1 (Fases 208–211) e, após o Eixo B, retomou e expandiu os itens 5 → 6 → 4 → 3 → 5 → 6 nas Fases 223–238.
+- **Eixo A — linguagem**: as 11 faixas abaixo (superfície, tipos, funções, controle, baixo nível, metaprogramação, módulos, concorrência, I/O). Executou os itens 1–3 da Faixa 1 (Fases 208–211) e, após o Eixo B, retomou e expandiu os itens 5 → 6 → 4 → 3 → 5 → 6 nas Fases 223–240.
 - **Eixo B — backend nativo**: paridade real do backend `.s` + runtime próprio com a superfície atual da linguagem (B1–B11, Fases 212–222). Aberto pela Doc-40, executado e encerrado na Fase 222.
 
-Ordem vigente: Eixo A (itens 1–3) → **Eixo B (integral, concluído)** → Eixo A (itens 5 → 6 → 4, agora com lowering nativo obrigatório em cada fase e com o padrão de expansão de `docs/expandir.md`) → demais faixas.
+Ordem vigente: Eixo A (itens 1–3) → **Eixo B (integral, concluído)** → Eixo A (itens 5 → 6 → 4, com lowering nativo obrigatório) → Faixa 3 → **trilha bare-metal e bootstrap** → demais faixas.
 
 Nota de nomenclatura (Doc-41): o "B" nasceu de **B**ackend; a formalização A/B remove a ambiguidade de sequência — o Eixo A é o trilho de linguagem e veio primeiro de fato.
 
 ## Convergência estratégica
 
-Os itens da Faixa 1 mais os três primeiros da Faixa 3 formam o conjunto que desbloqueia simultaneamente os dois propósitos: enums, pattern matching, generics, traits, error handling, closures, ponteiros de função, alocador de memória e inline assembly real. Nenhum dos dois objetivos avança de forma sustentável sem esse conjunto.
+Os itens da Faixa 1 mais os três primeiros da Faixa 3 formam o conjunto que desbloqueia simultaneamente os dois propósitos: enums, pattern matching, generics, traits, error handling, closures, ponteiros de função, alocador de memória e inline assembly real. A trilha bare-metal e bootstrap transforma esse conjunto em um caminho executável sem Linux. Nenhum dos dois objetivos avança de forma sustentável sem essas duas camadas.
 
 ## Eixo A — faixas de linguagem
 
@@ -38,10 +38,10 @@ Os itens da Faixa 1 mais os três primeiros da Faixa 3 formam o conjunto que des
 |---|---|---|---|
 | 1 | Enums / tipos algébricos | Rust, TS, C# | nós de AST, estados de kernel, códigos de erro — **entregue nas Fases 208–210**: `leque` nominal com múltiplas cargas por variante (`bombom`/`verso`/leque, incl. recursão e recursão mútua); fora: carga de `ninho`/coleções e generics em leque |
 | 2 | Pattern matching | Rust, C#, TS | despacho sobre enums/AST, parsing de tokens — **entregue no recorte utilizável nas Fases 209–210**: `encaixe` com despacho por variante, extração de múltiplas cargas e exaustividade no parse; fora: guards, padrões aninhados e encaixe-expressão |
-| 3 | Generics mínimos (`lista<T>`, `mapa<K,V>`) | C++, TS, C# | eliminar monomorphização manual — **expandido nas Fases 211, 233, 235, 236 e 240**: `lista<T>` com T = leque + 7 intrínsecas genéricas sobre qualquer lista; `mapa<K,V>` nas quatro combinações públicas `verso`/`bombom` com fachada genérica e despacho pelo tipo da expressão de mapa; funções genéricas de usuário com chamada explícita `nome<T>(...)`; `leque Nome<T,...>` com monomorfização por alias concreto; fora: inferência de tipo, generics em `ninho`, bounds/especialização e coleções heterogêneas |
-| 4 | Traits / interfaces mínimas | Rust, TS, C# | polimorfismo sem herança, contratos de driver — **expandido nas Fases 226–230, 232 e 234**: `trato` como contrato estático, chamada por método, `impl Trato para Tipo { ... }` com receiver explícito, resolução nominal pelo tipo do receiver, suporte a receiver nominal `ninho` no recorte opaco atual, cobertura completa do contrato, múltiplos contratos por tipo e desambiguação explícita de métodos homônimos com `Trato.metodo(valor, ...)`; fora: objetos de trait, vtables, dynamic dispatch, coerções, default methods e overloading amplo |
-| 5 | Error handling estruturado | C#, Python, Rust | recuperação sem abort, relatório de erros do compilador — **expandido nas Fases 223–224, 231, 237 e 240**: `tentar` com braços `sucesso`/`falha`, `propagar` para retorno antecipado explícito sobre leque de resultado declarado pelo usuário, ligação nomeada do valor de sucesso para continuação, forma curta `propagar?` quando há uma única variante de falha inferível com uma carga e base genérica declarável `Resultado<T,E>` via alias concreto, com lowering nativo desde a entrega; fora: biblioteca padrão predeclarada de `Resultado<T,E>` e integração automática com erros de runtime |
-| 6 | Closures / funções anônimas | Rust, TS, Python | callbacks, iteradores, handlers — **expandido nas Fases 225, 238 e 239**: literal `carinho (...) -> tipo { ... }` não capturante em expressão, função local tipada `nova f: carinho(...) -> tipo = carinho(...) -> tipo { ... };` chamável por nome local e passagem estática dessa função como parâmetro por especialização direta, executados também no backend nativo; fora: captura de ambiente, retorno de função, função armazenável ampla, ponteiro de função materializado e chamada indireta |
+| 3 | Generics mínimos (`lista<T>`, `mapa<K,V>`) | C++, TS, C# | eliminar monomorphização manual — **expandido nas Fases 211, 233, 235, 236 e 240**: `lista<T>` com T = leque + 7 intrínsecas genéricas; `mapa<K,V>` nas quatro combinações públicas `verso`/`bombom`; funções genéricas de usuário com chamada explícita `nome<T>(...)`; `leque Nome<T,...>` com monomorfização por alias concreto; fora: inferência de tipo, generics em `ninho`, bounds/especialização e coleções heterogêneas |
+| 4 | Traits / interfaces mínimas | Rust, TS, C# | polimorfismo sem herança, contratos de driver — **expandido nas Fases 226–230, 232 e 234**: `trato`, `impl`, resolução nominal, receiver `ninho` opaco, cobertura completa, múltiplos contratos e desambiguação explícita; fora: objetos de trait, vtables, dynamic dispatch, coerções, default methods e overloading amplo |
+| 5 | Error handling estruturado | C#, Python, Rust | recuperação sem abort, relatório de erros do compilador — **expandido nas Fases 223–224, 231, 237 e 240**: `tentar`, `propagar`, valor de sucesso nomeado, `propagar?` e base genérica declarável `Resultado<T,E>`; fora: biblioteca padrão predeclarada e integração automática com erros de runtime |
+| 6 | Closures / funções anônimas | Rust, TS, Python | callbacks, iteradores, handlers — **expandido nas Fases 225, 238 e 239**: literal não capturante, função local tipada e passagem estática por especialização direta; fora: captura de ambiente, retorno de função, função armazenável ampla, ponteiro de função materializado e chamada indireta |
 
 ### Faixa 2 — consolidação do Bloco 18 (ex-Direção A) — **concluída**
 
@@ -54,6 +54,24 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 | 12 | Ponteiros de função / tipos função | C, C++, TS | tabelas de interrupção, callbacks, vtables |
 | 13 | Alocador de memória (`alocar`/`liberar`) | C | inegociável para SO: heap próprio |
 | 14 | Inline assembly real (lowering completo de `sussurro`) | C | `mov cr3`, `lgdt`, `iret` etc. |
+
+### Trilha transversal — bare-metal e bootstrap (Doc-46)
+
+Esta trilha não substitui nenhuma faixa e não declara suporte implementado. Ela formaliza o caminho entre o backend Linux atual e um artefato freestanding:
+
+| Degrau | Entrega | Critério de pronto |
+|---|---|---|
+| BM1 | alvo freestanding x86-64 | programa sem libc, syscalls Linux ou runtime de processo hospedeiro |
+| BM2 | objeto relocável | emissão `.o` com símbolos e relocations verificáveis |
+| BM3 | seções e linker | `.text`, `.rodata`, `.data`, `.bss`, endereço de carga e entrada controlados |
+| BM4 | entrada própria | `_start` ou equivalente configura stack, zera `.bss` e chama Pinker |
+| BM5 | runtime sem host | memória, serial e abort funcionam sem `std`, libc ou Linux |
+| BM6 | protocolo de boot | kernel inicializa por protocolo documentado |
+| BM7 | imagem reproduzível | build produz imagem/ISO/disco com manifesto de artefatos |
+| BM8 | QEMU | boot e saída serial são verificados automaticamente |
+| BM9 | gate de CI | divergência de boot, saída ou retorno falha a suíte |
+
+Detalhe e limites: `docs/roadmap/bare_metal_bootstrap.md`.
 
 ### Faixa 4 — sistema de tipos
 
@@ -135,55 +153,56 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 
 ## Eixo B — paridade real do backend nativo (B1–B11, Fases 212–222, encerrado)
 
-**Origem.** Débito estrutural registrado na Doc-40: toda a superfície nova da linguagem desde as coleções (Fases 149–211: listas, mapas, `verso` dinâmico, intrínsecas de texto/arquivo/processo, leques, `encaixe`, listas genéricas) executa **apenas no interpretador**. O backend `.s` cobre um subset linear antigo (ABI de até 3 args `bombom`, controle de fluxo parcial, `verso` estático camada 1). Cada fase de linguagem entregue sem lowering nativo **alarga** a lacuna — e sem paridade nativa, o propósito "SO em Pinker" fica estruturalmente adiado, não importa quantos itens de faixa caiam.
+**Origem.** Débito estrutural registrado na Doc-40: a superfície nova da linguagem precisava alcançar o backend `.s`; sem paridade nativa, o propósito "SO em Pinker" ficava estruturalmente adiado.
 
-**Posição na trilha.** O Eixo B começou imediatamente após a Fase 211 e foi encerrado na Fase 222. Os itens restantes da Faixa 1 (5 — error handling, 6 — closures, 4 — traits) retomam após o eixo, com a regra permanente de que **toda fase de linguagem futura entrega o lowering nativo junto** (fim das features interpreter-only).
+**Posição na trilha.** O Eixo B começou imediatamente após a Fase 211 e foi encerrado na Fase 222. Toda fase de linguagem futura entrega o lowering nativo junto.
 
-**Decisão estratégica do eixo** (formalizada e validada em B1):
-- Caminho canônico: **backend `.s` próprio** (x86-64 System V), evoluído — não substituído.
-- **Runtime nativo próprio (`pinker_rt`)**: staticlib construída no próprio workspace, com ABI C estável, linkada aos executáveis gerados. É onde vivem alocador, strings dinâmicas, coleções, leques e as intrínsecas de sistema.
-- **Sem LLVM/Cranelift** (dependência pesada, contra a sobriedade zero-dependency do projeto) e **sem transpilar para C** (perderia o controle fino de ABI/memória que o propósito SO exige).
-- O runtime nasce em Rust dentro do workspace (mesma toolchain já exigida, zero dependência nova) e é substituível no futuro por implementação em Pinker (convergência com a direção self-hosting).
-
-**Regra do eixo — sem recorte mínimo.** Cada fase entrega a cobertura **completa** do seu subproblema, com critério de pronto executável e verificação contra o interpretador. Nenhuma fase fecha "no menor recorte auditável"; fecha quando o subproblema inteiro executa nativo.
+**Decisão estratégica do eixo:**
+- backend `.s` próprio x86-64 System V, sem LLVM/Cranelift e sem transpilação para C;
+- runtime `pinker_rt` como staticlib Rust com ABI C estável, substituível no futuro por Pinker;
+- cada fase fechou um subproblema completo com comparação interpretador × nativo.
 
 | Fase | Prevista | Entrega | Critério de pronto |
 |---|---|---|---|
-| B1 | 212 | Runtime nativo `pinker_rt` + pipeline de build integrado — **entregue na Fase 212** | `pink build --nativo prog.pink` produz executável ELF real, montado e linkado ao runtime; alocador do runtime (`pinker_alocar`/`pinker_liberar`) funcionando sob teste; executável de fumaça roda e retorna código correto ✓ |
-| B2 | 213 | ABI completa de funções — **entregue na Fase 213** | funções com N argumentos de qualquer tipo já suportado nativamente, retorno em `rax`, alinhamento de pilha e disciplina caller/callee-saved corretos; testes executáveis com 0 a 8+ argumentos e chamadas aninhadas/recursivas ✓ |
-| B3 | 214 | Controle de fluxo geral — **entregue na Fase 214** | todo CFG que o pipeline produz executa nativo: `talvez`/`senao` aninhados em qualquer profundidade, `sempre que` com `quebrar`/`continuar`, cadeias completas de `escolha`/`encaixe` desugaradas, `repetir...até`, `para...de...até`, ternário via `cmov`; nenhum "bloco não suportado" restante ✓ (`encaixe` com carga aguarda o runtime de leques em B7) |
-| B4 | 215 | `verso` dinâmico nativo — **entregue na Fase 215** | strings de heap no runtime (ponteiro+tamanho); literais length-prefixed, `juntar_verso`, `tamanho_verso` (Unicode), `igual_verso` e `falar` completo (`verso`/`bombom`/`logica`) executando nativo com paridade de stdout verificada ✓ (`==` de verso nativo compara ponteiro; forma canônica é `igual_verso`) |
-| B5 | 216 | Listas nativas completas — **entregue na Fase 216** | `lista<bombom>`, `lista<verso>` e `lista<Leque>` com **todas** as intrínsecas (monomorphizadas e genéricas) via runtime unificado; `para cada` sobre listas nativo; paridade de stdout verificada ✓ |
-| B6 | 217 | Mapas nativos completos — **entregue na Fase 217** | os 4 tipos de mapa com todas as intrínsecas + iteradores internos de `para cada` no runtime; chave `verso` compara por conteúdo; iteração nativa em ordem de inserção (determinística; o interpretador usa HashMap não determinística) ✓ |
-| B7 | 218 | Leques com carga nativos — **entregue na Fase 218** | handles no runtime (`criar_0`/`anexar`/`tag`/`carga`); `encaixe` integral executando nativo, incluindo AST recursiva — o avaliador da Fase 210 nativo com paridade de stdout ✓ (o compilador da Fase 211 vira critério da B8, que lhe deve as intrínsecas de texto) |
-| B8 | 219 | Família texto completa nativa — **entregue na Fase 219** | as 17 operações de texto + conversões + `formatar_verso` (wrappers por aridade, até 8 substituições) + interpolação, todas nativas com as mesmas chamadas std do interpretador; **o compilador de brinquedo da Fase 211 executa nativo com paridade de stdout** ✓ |
-| B9 | 220 | arquivo + caminho + tempo + acaso nativos — **entregue na Fase 220** | ~29 funções: modelo de handles de arquivo espelhando o interpretador, caminho via std, tempo com o mesmo algoritmo civil, acaso com o **mesmo LCG** (paridade de sementes); paridade de stdout verificada em 14 linhas ✓ |
-| B10 | 221 | ambiente + processo nativos — **entregue na Fase 221** | argv/env nativos consumindo o `argc`/`argv` da B1 (paridade verificada com argumentos reais, incl. `chave=valor` e `chave valor`); subprocessos completos via std::process com wrappers por aridade ✓ (stdin interativo `ouvir` fica fora do eixo) |
-| B11 | 222 | **Marco de paridade** + fechamento do eixo — **entregue na Fase 222** | suíte automatizada executa o manifesto de exemplos versionados compatíveis nos **dois modos** (interpretador e nativo) e exige stdout do programa e código de saída idênticos; inclui o compilador de brinquedo da Fase 211 e fecha o eixo ✓ |
+| B1 | 212 | runtime `pinker_rt` + build integrado | ELF Linux real e alocador interno testado ✓ |
+| B2 | 213 | ABI completa de funções | N argumentos, pilha, recursão e chamadas aninhadas ✓ |
+| B3 | 214 | controle de fluxo geral | todo CFG versionado executa nativo ✓ |
+| B4 | 215 | `verso` dinâmico | strings e `falar` com paridade ✓ |
+| B5 | 216 | listas nativas | listas e `para cada` com paridade ✓ |
+| B6 | 217 | mapas nativos | quatro mapas e iteração determinística ✓ |
+| B7 | 218 | leques com carga | `encaixe` e AST recursiva nativos ✓ |
+| B8 | 219 | família texto | 17 operações e compilador de brinquedo nativo ✓ |
+| B9 | 220 | arquivo/caminho/tempo/acaso | paridade funcional e de sementes ✓ |
+| B10 | 221 | ambiente/processo | argv real e subprocessos ✓ |
+| B11 | 222 | marco de paridade | manifesto compatível nos dois modos ✓ |
 
-**Relação com a Faixa 3.** O item 13 (alocador como superfície de linguagem, `alocar`/`liberar`) é distinto e continua na Faixa 3: o Eixo B entrega o alocador **interno** do runtime; a exposição na linguagem vem depois, sobre ele.
+**Relação com a Faixa 3.** O alocador interno do runtime não equivale à superfície `alocar`/`liberar` da linguagem.
 
-**Relação com os marcos.** O Marco SO 1 depende diretamente do Eixo B completo (não existe programa bare-metal saindo de interpretador). O Marco self-hosting real (compilador Pinker compilando Pinker com saída executável) também: sem backend nativo com paridade, self-hosting seria interpretação sobre interpretação.
+**Relação com bare-metal.** O Eixo B prova execução nativa sobre Linux; BM1–BM9 tratam da retirada do sistema hospedeiro.
 
 ## Marcos de verificação dos propósitos
 
-- **Marco self-hosting 1**: lexer da Pinker escrito em Pinker (exige Faixa 1 completa). **Primeiro degrau verificado na Fase 209**: lexer de brinquedo 100% em Pinker (`examples/fase209_lexer_brinquedo_valido.pink`) tokenizando fonte real com `leque` + `encaixe`.
-- **Marco self-hosting 2**: parser + AST em Pinker (exige Faixas 1 e 4–5). **Fundação verificada na Fase 210** (AST recursiva avaliada em Pinker) e **verificado em miniatura na Fase 211**: compilador de brinquedo de ponta a ponta — lexer → `lista<Token>` → parser recursivo com precedência → AST → avaliação (`examples/fase211_compilador_brinquedo_valido.pink`).
-- **Marco SO 1**: programa bare-metal com alocador próprio e handler de interrupção (exige Faixas 1, 3 e 7 **e o Eixo B completo**).
-- **Marco SO 2**: kernel mínimo com scheduler e syscalls (exige Faixas 10–11).
+- **Marco self-hosting 1**: lexer da Pinker escrito em Pinker. Primeiro degrau verificado na Fase 209 com lexer de brinquedo.
+- **Marco self-hosting 2**: parser + AST em Pinker. Fundação na Fase 210 e compilador de brinquedo na Fase 211.
+- **Marco SO 0**: imagem Pinker freestanding inicia em QEMU e produz saída serial sem Linux — exige BM1–BM9 no recorte necessário.
+- **Marco SO 1**: programa bare-metal com alocador próprio e handler de interrupção — exige Faixas 1, 3 e 7, trilha bare-metal e Eixo B completo.
+- **Marco SO 2**: kernel mínimo com scheduler e syscalls — exige Faixas 10–11 sobre o Marco SO 1.
 
 ## Método de execução
 
-- Cada item vira uma ou mais fases numeradas normais, com exemplo versionado, testes e entrada no histórico.
-- Nas faixas de linguagem, o alvo de cada item deixa de ser o menor recorte auditável por hábito: após o Eixo B, o padrão passa a ser implementação adulta, utilizável pelos marcos, com profundidade proporcional ao domínio e com referência explícita em `docs/expandir.md`.
-- No **Eixo B**, a regra já foi mais dura: cobertura completa do subproblema por fase, sem recorte mínimo. Esse espírito passa a influenciar o Eixo A, sem apagar a necessidade de limites honestos.
-- Após o Eixo B, toda fase de linguagem nova entrega o lowering nativo junto — features interpreter-only deixam de ser aceitas.
-- A ordem entre faixas é a prioridade canônica; dentro de uma faixa, itens podem ser reordenados por dependência técnica (ordem vigente da Faixa 1: 3 → 5 → 6 → 4, com o Eixo B intercalado após o item 3).
+- Cada item vira uma ou mais fases numeradas, com exemplo, testes e histórico.
+- Após o Eixo B, toda fase nova entrega lowering nativo.
+- Nenhum degrau BM é considerado entregue sem artefato freestanding e validação objetiva.
+- A ordem entre faixas é canônica; dentro de uma faixa, itens podem ser reordenados por dependência técnica.
 
 ## Limites explícitos
-- Esta trilha não reabre o Bloco 18 nem antecipa o Bloco 19 (reformas sintáticas), que segue candidato futuro.
-- Nenhum item está entregue por constar aqui; entrega exige fase numerada com validação objetiva.
+- Esta trilha não reabre o Bloco 18 nem antecipa o Bloco 19.
+- Nenhum item está entregue por constar aqui.
+- O alvo nativo operacional atual continua sendo ELF Linux até fase funcional específica de BM.
+- A trilha bare-metal não substitui memória/layout da Faixa 7 nem kernel/dispositivos das Faixas 10–11.
 
 ## Relação com os demais documentos
-- `docs/future.md` continua sendo inventário amplo; esta trilha é a ordem ativa.
-- A crônica factual de cada item entregue vive em `docs/history/phases/`.
+- `docs/roadmap.md` define a ordem ativa.
+- `docs/roadmap/bare_metal_bootstrap.md` detalha BM1–BM9.
+- `docs/future.md` continua sendo inventário amplo, não roadmap.
+- A crônica factual vive em `docs/history/`.
