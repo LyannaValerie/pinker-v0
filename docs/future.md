@@ -33,7 +33,28 @@
 - ABI mais completa (além de até 3 args `bombom`) (→ Eixo B, fase B2);
 - passos para artefato executável mais amplo e reproduzível (→ Eixo B, fase B1).
 
-### 2.3 Biblioteca e ecossistema útil
+### 2.3 Cadeia freestanding, bootstrap e kernel
+
+> **Atualização factual (Doc-46):** a ordem ativa e os critérios de execução dessa frente estão em `docs/roadmap/blocos/bloco_20.md` e `docs/roadmap/bare_metal_bootstrap.md`. Esta seção apenas preserva o inventário técnico; não cria sequência paralela.
+
+Lacunas ainda não implementadas:
+
+- target x86-64 freestanding explícito;
+- objetos relocáveis com símbolos, relocations e referências entre unidades;
+- controle adulto de seções, linker script, endereço de carga e entry point;
+- bootstrap com stack, `.bss`/`.data` e convenção de entrada Pinker;
+- runtime autônomo sem Linux, libc ou `std`, com serial, abort/panic e memória própria;
+- protocolo de boot e estruturas de informações de boot com layout verificável;
+- mapa de memória, acesso volátil/MMIO, raw I/O e fronteiras especiais de ABI;
+- exceções e interrupções reais;
+- imagem reproduzível e manifesto de artefatos;
+- execução automatizada em QEMU, captura serial, testes negativos e gate de CI;
+- regressão conjunta dos targets Linux e freestanding;
+- evolução posterior para scheduler, syscalls, sincronização, dispositivos e rede.
+
+Regra de inventário: os itens acima não devem ser reinterpretados como pequenos marcos independentes. Quando promovidos ao roadmap, devem obedecer ao padrão anti-mínimo de `docs/expandir.md`: fatias verticais utilizáveis, sem stubs ou provas de conceito descartáveis.
+
+### 2.4 Biblioteca e ecossistema útil
 
 - I/O mais rica (arquivo/texto) com recorte incremental;
 - tooling de projeto além do `pink build` mínimo;
@@ -59,7 +80,7 @@ Alinhamento factual do Bloco 15:
 - shell amplo, quoting rico, cadeia longa de pipes, sessão interativa, PTY, job control e integração adulta de subprocessos continuam fora do que foi entregue;
 - expansões além desses subdegraus pequenos continuam pertencendo ao inventário futuro, não a uma continuação automática da trilha oficial do bloco.
 
-### 2.4 Editor/TUI oficial da Pinker (frente funcional aberta em camada 1, atualmente pausada)
+### 2.5 Editor/TUI oficial da Pinker (frente funcional aberta em camada 1, atualmente pausada)
 
 - A Fase 136 abriu a base funcional inicial do editor/TUI oficial da Pinker.
 - O recorte técnico permanece pequeno e conservador.
@@ -96,7 +117,7 @@ Itens de longo prazo ainda sem bloco definido:
 - abstrações avançadas (traits/generics);
 - biblioteca padrão mais robusta além da trilha 12–16;
 - self-hosting (horizonte distante);
-- kernel/ambiente bare-metal mais robusto;
+- ampliações de kernel e ambiente bare-metal além da trilha ativa do Bloco 20;
 - package manager soberano.
 
 Alinhamento do Bloco 16 após as Fases 179–181:
@@ -117,6 +138,6 @@ A Pinker já possui motor técnico real. A direção de “superfície Pinker”
 - **Bloco 17 — forma visual e superfície documental**: encerrado por suficiência conservadora na Fase 176.
 - **Bloco 18 — core nobre e bibliotecas temáticas**: encerrado por suficiência conservadora na Fase 207, com importação por família (`trazer familia;`) entregue para as 7 famílias públicas; resolução qualificada, importação seletiva e modo estrito permanecem no inventário futuro.
 - **Bloco 19 — reformas sintáticas e semânticas de superfície**: permanece como candidato futuro, não ativo. Possíveis ajustes de sintaxe (keywords, inferência, pontuação) para maior clareza e elegância, subordinados à estabilidade do motor.
-- **Bloco 20 — expansão funcional rumo a SO e self-hosting**: **aberto como trilha ativa na Fase 207**, organizado em 11 faixas priorizadas (`docs/roadmap/blocos/bloco_20.md`), subordinado aos dois propósitos de longo prazo: SO em Pinker e self-hosting.
+- **Bloco 20 — expansão funcional rumo a SO e self-hosting**: **aberto como trilha ativa na Fase 207**, organizado em 11 faixas priorizadas e uma convergência transversal bare-metal/boot (`docs/roadmap/blocos/bloco_20.md` e `docs/roadmap/bare_metal_bootstrap.md`), subordinado aos dois propósitos de longo prazo: SO em Pinker e self-hosting.
 
 **Importante:** mudanças como novas keywords, inferência local, `;` opcional e reavaliação de `->` permanecem fora do estado operacional atual.
