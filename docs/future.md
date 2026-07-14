@@ -49,7 +49,7 @@ Itens explicitamente para depois do foco inicial do Bloco 11:
 - linguagem-cola;
 - captura de saída de comandos e integração de processos além do recorte mínimo aberto nas Fases 161–163;
 - integração rica com stdin/stdout/stderr além da escada pequena atualmente ativa no Bloco 15;
-- coleções básicas além do recorte já aberto (`lista<bombom>`, `lista<verso>`, `mapa<verso,bombom>`, `mapa<verso,verso>`, `mapa<bombom,bombom>` e `mapa<bombom,verso>` com iteração confortável via `para cada` e aleatoriedade básica; seguem fora `lista<T>`/`mapa<K,V>` amplos com generics, dicionário rico e iteração confortável ampla);
+- coleções básicas além do recorte já aberto (`lista<bombom>`, `lista<verso>`, `lista<Leque>`, `mapa<verso,bombom>`, `mapa<verso,verso>`, `mapa<bombom,bombom>` e `mapa<bombom,verso>` com iteração confortável via `para cada`, aleatoriedade básica e fachadas genéricas versionadas; seguem fora coleções heterogêneas, dicionário rico, iteração confortável ampla, inferência de generics e generics em tipos nominais);
 - JSON amplo, datas/tempo com timezone/locale e formatação rica além do recorte mínimo já entregue e encerrado no Bloco 14 (Fases 157–160).
 
 Alinhamento factual do Bloco 15:

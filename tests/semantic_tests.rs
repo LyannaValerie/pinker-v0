@@ -3717,6 +3717,30 @@ fn fase235_mapa_generico_expressoes_aceito() {
 }
 
 #[test]
+fn fase236_funcao_generica_usuario_aceita() {
+    let code = include_str!("../examples/fase236_funcao_generica_usuario_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase236_funcao_generica_usuario_rejeita_tipo_incompativel() {
+    let code = r#"
+        pacote demo;
+        carinho identidade<T>(valor: T) -> T {
+            mimo valor;
+        }
+        carinho principal() -> bombom {
+            mimo identidade<bombom>("texto");
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("tipo inválido no argumento"),
+        "erro inesperado: {err}"
+    );
+}
+
+#[test]
 fn fase235_mapa_generico_rejeita_primeiro_argumento_nao_mapa() {
     let code = r#"
         pacote demo;

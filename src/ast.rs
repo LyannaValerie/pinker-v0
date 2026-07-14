@@ -269,6 +269,7 @@ impl StructField {
 #[derive(Debug, Clone)]
 pub struct FunctionDecl {
     pub name: String,
+    pub type_params: Vec<String>,
     pub params: Vec<Param>,
     pub ret_type: Option<Type>,
     pub body: Block,
@@ -281,6 +282,11 @@ impl FunctionDecl {
         writer.field_str("node", "FunctionDecl");
         writer.field_str("name", &self.name);
         writer.field_span("span", self.span);
+        if !self.type_params.is_empty() {
+            writer.field_array("type_params", &self.type_params, |writer, type_param| {
+                writer.value_str(type_param)
+            });
+        }
         writer.field_array("params", &self.params, |writer, param| {
             param.write_json(writer)
         });

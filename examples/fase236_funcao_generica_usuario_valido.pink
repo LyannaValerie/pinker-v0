@@ -1,0 +1,28 @@
+pacote demo;
+
+carinho identidade<T>(valor: T) -> T {
+    mimo valor;
+}
+
+carinho primeiro<T>(itens: lista<T>) -> T {
+    mimo lista_obter(itens, 0);
+}
+
+carinho principal() -> bombom {
+    nova numeros: lista<bombom> = lista_criar();
+    lista_anexar(numeros, 42);
+
+    nova textos: lista<verso> = lista_criar();
+    lista_anexar(textos, "ok");
+
+    nova numero: bombom = identidade<bombom>(21) + identidade<bombom>(21);
+    nova texto: verso = identidade<verso>("ok");
+    nova primeiro_numero: bombom = primeiro<bombom>(numeros);
+    nova primeiro_texto: verso = primeiro<verso>(textos);
+
+    talvez numero == 42 && primeiro_numero == 42 && igual_verso(texto, primeiro_texto) {
+        mimo 0;
+    } senao {
+        mimo 1;
+    }
+}

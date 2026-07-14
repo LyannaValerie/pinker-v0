@@ -72,6 +72,19 @@ mapa_definir(idades, "ana", 42);
 nova idade: bombom = mapa_obter(idades, "ana");
 ```
 
+Desde a Fase 236, funções de usuário podem declarar parâmetros de tipo explícitos e são monomorfizadas por chamada concreta:
+
+```pink
+carinho identidade<T>(valor: T) -> T {
+    mimo valor;
+}
+
+nova n: bombom = identidade<bombom>(42);
+nova s: verso = identidade<verso>("ok");
+```
+
+O recorte atual exige chamada explícita `nome<T>(...)`; não há inferência de tipo, generics em `leque`/`ninho` nominais, tipos associados, bounds ou especialização. `T` pode aparecer em parâmetros, retorno, anotações locais e em `lista<T>` no recorte público já suportado.
+
 ### `leque`
 Enumeração nominal com variantes nomeadas, opcionalmente com cargas (`bombom`, `verso` ou outro leque — inclusive o próprio, permitindo tipos recursivos):
 
