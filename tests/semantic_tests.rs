@@ -3699,6 +3699,12 @@ fn lista_generica_de_leque_aceita() {
 }
 
 #[test]
+fn fase233_mapa_generico_aceito() {
+    let code = include_str!("../examples/fase233_mapa_generico_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
 fn lista_generica_como_parametro_e_retorno_aceita() {
     let code = r#"
         pacote main;

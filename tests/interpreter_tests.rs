@@ -9286,3 +9286,10 @@ fn fase232_impl_multiplos_contratos_executa_no_interpretador() {
     let result = run_code(code).unwrap();
     assert_eq!(result, Some(RuntimeValue::Int(0)));
 }
+
+#[test]
+fn fase233_mapa_generico_executa_no_interpretador() {
+    let code = include_str!("../examples/fase233_mapa_generico_valido.pink");
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(0)));
+}

@@ -17,6 +17,37 @@ enum CollectionKind {
     MapBombomVerso,
 }
 
+impl CollectionKind {
+    fn generic_map_callee(&self, name: &str) -> Option<&'static str> {
+        match (self, name) {
+            (CollectionKind::MapVersoBombom, "mapa_definir") => Some("mapa_verso_bombom_definir"),
+            (CollectionKind::MapVersoBombom, "mapa_obter") => Some("mapa_verso_bombom_obter"),
+            (CollectionKind::MapVersoBombom, "mapa_tem") => Some("mapa_verso_bombom_tem"),
+            (CollectionKind::MapVersoBombom, "mapa_tamanho") => Some("mapa_verso_bombom_tamanho"),
+            (CollectionKind::MapVersoBombom, "mapa_remover") => Some("mapa_verso_bombom_remover"),
+
+            (CollectionKind::MapVersoVerso, "mapa_definir") => Some("mapa_verso_verso_definir"),
+            (CollectionKind::MapVersoVerso, "mapa_obter") => Some("mapa_verso_verso_obter"),
+            (CollectionKind::MapVersoVerso, "mapa_tem") => Some("mapa_verso_verso_tem"),
+            (CollectionKind::MapVersoVerso, "mapa_tamanho") => Some("mapa_verso_verso_tamanho"),
+            (CollectionKind::MapVersoVerso, "mapa_remover") => Some("mapa_verso_verso_remover"),
+
+            (CollectionKind::MapBombomBombom, "mapa_definir") => Some("mapa_bombom_bombom_definir"),
+            (CollectionKind::MapBombomBombom, "mapa_obter") => Some("mapa_bombom_bombom_obter"),
+            (CollectionKind::MapBombomBombom, "mapa_tem") => Some("mapa_bombom_bombom_tem"),
+            (CollectionKind::MapBombomBombom, "mapa_tamanho") => Some("mapa_bombom_bombom_tamanho"),
+            (CollectionKind::MapBombomBombom, "mapa_remover") => Some("mapa_bombom_bombom_remover"),
+
+            (CollectionKind::MapBombomVerso, "mapa_definir") => Some("mapa_bombom_verso_definir"),
+            (CollectionKind::MapBombomVerso, "mapa_obter") => Some("mapa_bombom_verso_obter"),
+            (CollectionKind::MapBombomVerso, "mapa_tem") => Some("mapa_bombom_verso_tem"),
+            (CollectionKind::MapBombomVerso, "mapa_tamanho") => Some("mapa_bombom_verso_tamanho"),
+            (CollectionKind::MapBombomVerso, "mapa_remover") => Some("mapa_bombom_verso_remover"),
+            _ => None,
+        }
+    }
+}
+
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
@@ -3356,6 +3387,20 @@ impl Parser {
                     }
                 }
                 self.consume(TokenKind::RParen, ")")?;
+                if let ExprKind::Ident(name) = &expr.kind {
+                    if let Some(first_arg) = args.first() {
+                        if let ExprKind::Ident(map_name) = &first_arg.kind {
+                            if let Some(kind) = self.collection_types.get(map_name.as_str()) {
+                                if let Some(mono_name) = kind.generic_map_callee(name) {
+                                    expr = Expr {
+                                        kind: ExprKind::Ident(mono_name.to_string()),
+                                        span: expr.span,
+                                    };
+                                }
+                            }
+                        }
+                    }
+                }
                 expr = Expr {
                     span: merge_span(expr.span, self.previous().span),
                     kind: ExprKind::Call(Box::new(expr), args),

@@ -364,6 +364,25 @@ impl SemanticChecker {
         false
     }
 
+    fn expr_is_generic_map_create(expr: &Expr) -> bool {
+        if let ExprKind::Call(callee, args) = &expr.kind {
+            if let ExprKind::Ident(name) = &callee.kind {
+                return name == "mapa_criar" && args.is_empty();
+            }
+        }
+        false
+    }
+
+    fn is_map_type(ty: &Type) -> bool {
+        matches!(
+            ty,
+            Type::MapVersoBombom(_)
+                | Type::MapVersoVerso(_)
+                | Type::MapBombomBombom(_)
+                | Type::MapBombomVerso(_)
+        )
+    }
+
     /// Tipo do elemento de um tipo de lista (legado ou genérico).
     fn list_element_type(list_ty: &Type, span: Span) -> Option<Type> {
         match list_ty {
@@ -1154,6 +1173,25 @@ impl SemanticChecker {
                                 return Err(PinkerError::Semantic {
                                     msg: format!(
                                         "'lista_criar()' exige anotação de tipo de lista em 'nova'; encontrado '{}'",
+                                        resolved_declared_ty.name()
+                                    ),
+                                    span: let_stmt.init.span,
+                                });
+                            }
+                            self.declare_var(
+                                &let_stmt.name,
+                                resolved_declared_ty,
+                                let_stmt.is_mut,
+                                let_stmt.span,
+                            )?;
+                            continue;
+                        }
+                        if Self::expr_is_generic_map_create(&let_stmt.init) {
+                            let resolved_declared_ty = self.resolve_type_or_error(declared_ty)?;
+                            if !Self::is_map_type(&resolved_declared_ty) {
+                                return Err(PinkerError::Semantic {
+                                    msg: format!(
+                                        "'mapa_criar()' exige anotação de tipo de mapa em 'nova'; encontrado '{}'",
                                         resolved_declared_ty.name()
                                     ),
                                     span: let_stmt.init.span,

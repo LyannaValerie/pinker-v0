@@ -1,0 +1,26 @@
+pacote demo;
+
+carinho principal() -> bombom {
+    nova vb: mapa<verso,bombom> = mapa_criar();
+    mapa_definir(vb, "idade", 42);
+    nova idade: bombom = mapa_obter(vb, "idade");
+
+    nova vv: mapa<verso,verso> = mapa_criar();
+    mapa_definir(vv, "nome", "pinker");
+    nova tem_nome: logica = mapa_tem(vv, "nome");
+
+    nova bb: mapa<bombom,bombom> = mapa_criar();
+    mapa_definir(bb, 7, 35);
+    nova soma: bombom = mapa_obter(bb, 7) + mapa_tamanho(bb);
+
+    nova bv: mapa<bombom,verso> = mapa_criar();
+    mapa_definir(bv, 1, "ok");
+    mapa_remover(bv, 1);
+    nova vazio: bombom = mapa_tamanho(bv);
+
+    talvez idade == 42 && tem_nome && soma == 36 && vazio == 0 {
+        mimo 0;
+    } senao {
+        mimo 1;
+    }
+}
