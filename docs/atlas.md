@@ -17,6 +17,7 @@ Documentos canônicos:
 - `docs/history/indice.md` — hub principal de navegação histórica.
 - `docs/handoff_codex.md` — estado operacional unificado (estado corrente, handoff da rodada, limites, restrições).
 - `docs/doc_rules.md` — regras de atualização documental.
+- `docs/apps.md` — regras para aplicações internas escritas em Pinker.
 - `MANUAL.md` — manual prático de uso no estado implementado.
 
 Apoio Engine:

@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: preflight build test fmt-check clippy ci run-example check-example audit-example smoke
+.PHONY: preflight build test fmt-check clippy guard ci run-example check-example audit-example smoke
 
 CI_ENV := ./ci_env.sh
 
@@ -21,7 +21,10 @@ fmt-check:
 clippy:
 	$(CI_ENV) cargo clippy --all-targets --all-features -- -D warnings
 
-ci: preflight build test fmt-check clippy
+guard:
+	$(CI_ENV) cargo run --bin pink -- --run apps/guardiao_pinker/principal.pink -- --repo .
+
+ci: preflight build test fmt-check clippy guard
 
 run-example:
 	$(CI_ENV) cargo run --bin pink -- $(EX)

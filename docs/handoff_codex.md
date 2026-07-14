@@ -14,7 +14,7 @@
 | Campo | Valor |
 |---|---|
 | Fase funcional mais recente | **238** — Eixo A: função local tipada não capturante |
-| Rodada documental mais recente | **Doc-43** — reconciliação do README pós-Eixo B e preservação da referência `expandir.md`/ausência de `docs/phases.md` |
+| Rodada documental mais recente | **Doc-45** — apps internos e Guardião Pinker |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
@@ -78,6 +78,8 @@
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
+- **Doc-45 — apps internos e Guardião Pinker**.
+- `apps/` passa a abrigar aplicações reais escritas em Pinker para apoiar o desenvolvimento da própria linguagem; `apps/guardiao_pinker/principal.pink` é o primeiro app ativo e roda em `make guard`/`make ci`.
 - **HF-6 — robustez de literal inteiro fora da faixa**.
 - Literais decimais acima de `u64::MAX` agora produzem erro sintático com span, em vez de provocar pânico no parser; a fronteira válida de `bombom` permanece inalterada.
 - **Fase 238 — Eixo A, item 6 da Faixa 1: funções locais tipadas não capturantes**.
@@ -125,6 +127,7 @@ Histórico completo por fase: `docs/history/phases/`.
 - `history/*/indice.md` = roteadores locais por categoria.
 - `history/*/*.md` = shards factuais do histórico.
 - `handoff_codex.md` = estado operacional unificado (este arquivo).
+- `apps.md` = regras para aplicações internas em Pinker.
 - `atlas.md` = navegação mestre.
 - `ponte_engine_rosa.md` = mediação estável Engine ↔ Rosa.
 - `inventario_intrinsecas.md` = inventário canônico de intrínsecas.
@@ -136,6 +139,7 @@ Histórico completo por fase: `docs/history/phases/`.
 - Não transformar `future.md` em roadmap.
 - Não transformar `parallel.md` em backlog técnico.
 - Não declarar funcionalidade como pronta sem validação objetiva.
+- Antes da próxima etapa do Bloco 20, Eixo A, rodar `make guard` além da suíte padrão; `make ci` já inclui o Guardião Pinker.
 
 ## 8. Padrão operacional de binários
 - Binário principal: `pink`.
