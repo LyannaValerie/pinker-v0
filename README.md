@@ -129,6 +129,8 @@ pipeline. O README só mantém o mapa de leitura.
 | `docs/code_map.md` | Mapa rápido do código |
 | `docs/expandir.md` | Critérios para expansão adulta pós-Eixo B |
 | `docs/doc_rules.md` | Regras para atualização documental |
+| `.github/copilot-instructions.md` | Contrato geral do GitHub Copilot no repositório |
+| `.github/agents/rosa.agent.md` | Agente Rosa selecionável no GitHub Copilot |
 
 ## Desenvolvimento
 
@@ -147,7 +149,8 @@ Contrato local:
 - suíte oficial é stable-only;
 - comandos oficiais passam por `./ci_env.sh`;
 - mudança funcional exige código, testes e documentação canônica apropriada;
-- documentação histórica usa `docs/history.md` e shards em `docs/history/`.
+- documentação histórica usa `docs/history.md` e shards em `docs/history/`;
+- Rosa é um agente personalizado manual; a configuração não substitui inspeção, testes ou autorização humana.
 
 ## Licenca
 
