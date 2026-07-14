@@ -14,7 +14,7 @@
 | Campo | Valor |
 |---|---|
 | Fase funcional mais recente | **238** — Eixo A: função local tipada não capturante |
-| Rodada documental mais recente | **Doc-43** — reconciliação do README pós-Eixo B e preservação da referência `expandir.md`/ausência de `docs/phases.md` |
+| Rodada documental mais recente | **Doc-44** — README como porta de entrada visual |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
@@ -78,6 +78,8 @@
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
+- **Doc-44 — README como porta de entrada visual**.
+- `README.md` foi reduzido e reorganizado em quadros de estado, superfície implementada, limites honestos, fluxo rápido, CLI, exemplo mínimo, pipeline e navegação para os docs canônicos, sem mudança funcional.
 - **HF-6 — robustez de literal inteiro fora da faixa**.
 - Literais decimais acima de `u64::MAX` agora produzem erro sintático com span, em vez de provocar pânico no parser; a fronteira válida de `bombom` permanece inalterada.
 - **Fase 238 — Eixo A, item 6 da Faixa 1: funções locais tipadas não capturantes**.
@@ -125,6 +127,7 @@ Histórico completo por fase: `docs/history/phases/`.
 - `history/*/indice.md` = roteadores locais por categoria.
 - `history/*/*.md` = shards factuais do histórico.
 - `handoff_codex.md` = estado operacional unificado (este arquivo).
+- `../README.md` = porta de entrada pública curta.
 - `atlas.md` = navegação mestre.
 - `ponte_engine_rosa.md` = mediação estável Engine ↔ Rosa.
 - `inventario_intrinsecas.md` = inventário canônico de intrínsecas.
