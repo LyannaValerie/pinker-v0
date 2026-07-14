@@ -1162,3 +1162,12 @@ fn fase235_mapa_generico_expressoes_tem_paridade_nativa() {
         23_500,
     );
 }
+
+#[test]
+fn fase236_funcao_generica_usuario_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase236_funcao_generica_usuario_valido.pink",
+        "fase236_funcao_generica_usuario_valido",
+        23_600,
+    );
+}

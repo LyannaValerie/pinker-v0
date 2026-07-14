@@ -9307,3 +9307,10 @@ fn fase235_mapa_generico_expressoes_executa_no_interpretador() {
     let result = run_code(code).unwrap();
     assert_eq!(result, Some(RuntimeValue::Int(0)));
 }
+
+#[test]
+fn fase236_funcao_generica_usuario_executa_no_interpretador() {
+    let code = include_str!("../examples/fase236_funcao_generica_usuario_valido.pink");
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(0)));
+}

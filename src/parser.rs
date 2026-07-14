@@ -63,6 +63,16 @@ pub struct Parser {
     trait_decls: HashSet<String>,
     /// Funções sintéticas geradas por literais `carinho (...) { ... }` não capturantes.
     pending_functions: Vec<FunctionDecl>,
+    /// Templates de funções genéricas de usuário, monomorfizados após o parse.
+    generic_templates: HashMap<String, FunctionDecl>,
+    generic_instantiations: Vec<GenericInstantiation>,
+}
+
+#[derive(Clone)]
+struct GenericInstantiation {
+    name: String,
+    type_args: Vec<Type>,
+    span: Span,
 }
 
 fn merge_span(a: Span, b: Span) -> Span {
@@ -79,6 +89,8 @@ impl Parser {
             enum_decls: HashMap::new(),
             trait_decls: HashSet::new(),
             pending_functions: Vec::new(),
+            generic_templates: HashMap::new(),
+            generic_instantiations: Vec::new(),
         }
     }
 
@@ -217,11 +229,36 @@ impl Parser {
         let mut items = Vec::new();
         while self.peek().is_some() {
             if self.match_token(TokenKind::KwImpl) {
-                items.extend(self.parse_impl_block()?.into_iter().map(Item::Function));
+                for function in self.parse_impl_block()? {
+                    if !function.type_params.is_empty() {
+                        return Err(PinkerError::Parse {
+                            msg: "método de impl não pode declarar parâmetros genéricos nesta fase"
+                                .to_string(),
+                            span: function.span,
+                        });
+                    }
+                    items.push(Item::Function(function));
+                }
             } else {
-                items.push(self.parse_item()?);
+                let item = self.parse_item()?;
+                if let Item::Function(function) = &item {
+                    if !function.type_params.is_empty() {
+                        if self.generic_templates.contains_key(&function.name) {
+                            return Err(PinkerError::Parse {
+                                msg: format!("função genérica '{}' já declarada", function.name),
+                                span: function.span,
+                            });
+                        }
+                        self.generic_templates
+                            .insert(function.name.clone(), function.clone());
+                        continue;
+                    }
+                }
+                items.push(item);
             }
         }
+        let generic_functions = self.instantiate_generic_functions()?;
+        items.extend(generic_functions.into_iter().map(Item::Function));
         items.extend(self.pending_functions.drain(..).map(Item::Function));
 
         Ok(Program {
@@ -1611,6 +1648,7 @@ impl Parser {
         let span = merge_span(start_span, body.span);
         self.pending_functions.push(FunctionDecl {
             name: name.clone(),
+            type_params: Vec::new(),
             params,
             ret_type,
             body,
@@ -1628,6 +1666,7 @@ impl Parser {
             .consume(TokenKind::Ident, "nome da função")?
             .lexeme
             .clone();
+        let type_params = self.parse_optional_type_params()?;
 
         self.consume(TokenKind::LParen, "(")?;
         let mut params = Vec::new();
@@ -1712,11 +1751,335 @@ impl Parser {
 
         Ok(FunctionDecl {
             name,
+            type_params,
             params,
             ret_type,
             span: merge_span(start_span, body.span),
             body,
         })
+    }
+
+    fn parse_optional_type_params(&mut self) -> Result<Vec<String>, PinkerError> {
+        if !self.match_token(TokenKind::Less) {
+            return Ok(Vec::new());
+        }
+        let mut params = Vec::new();
+        loop {
+            let token = self
+                .consume(TokenKind::Ident, "nome do parâmetro de tipo")?
+                .clone();
+            if params.iter().any(|param| param == &token.lexeme) {
+                return Err(PinkerError::Parse {
+                    msg: format!("parâmetro de tipo '{}' repetido", token.lexeme),
+                    span: token.span,
+                });
+            }
+            params.push(token.lexeme.clone());
+            if !self.match_token(TokenKind::Comma) {
+                break;
+            }
+        }
+        self.consume(TokenKind::Greater, ">")?;
+        Ok(params)
+    }
+
+    fn generic_type_key(ty: &Type) -> String {
+        match ty {
+            Type::Bombom(_) => "bombom".to_string(),
+            Type::U8(_) => "u8".to_string(),
+            Type::U16(_) => "u16".to_string(),
+            Type::U32(_) => "u32".to_string(),
+            Type::U64(_) => "u64".to_string(),
+            Type::I8(_) => "i8".to_string(),
+            Type::I16(_) => "i16".to_string(),
+            Type::I32(_) => "i32".to_string(),
+            Type::I64(_) => "i64".to_string(),
+            Type::Logica(_) => "logica".to_string(),
+            Type::Verso(_) => "verso".to_string(),
+            Type::ListBombom(_) => "lista_bombom".to_string(),
+            Type::ListVerso(_) => "lista_verso".to_string(),
+            Type::ListEnum { element, .. } => format!("lista_{}", element),
+            Type::MapVersoBombom(_) => "mapa_verso_bombom".to_string(),
+            Type::MapVersoVerso(_) => "mapa_verso_verso".to_string(),
+            Type::MapBombomBombom(_) => "mapa_bombom_bombom".to_string(),
+            Type::MapBombomVerso(_) => "mapa_bombom_verso".to_string(),
+            Type::Alias { name, .. } | Type::Struct { name, .. } | Type::Enum { name, .. } => {
+                name.clone()
+            }
+            Type::FixedArray { element, size, .. } => {
+                format!("array_{}_{}", Self::generic_type_key(element), size)
+            }
+            Type::Pointer {
+                base, is_volatile, ..
+            } => format!(
+                "{}seta_{}",
+                if *is_volatile { "fragil_" } else { "" },
+                Self::generic_type_key(base)
+            ),
+            Type::Nulo(_) => "nulo".to_string(),
+        }
+    }
+
+    fn generic_function_name(name: &str, type_args: &[Type]) -> String {
+        let suffix = type_args
+            .iter()
+            .map(Self::generic_type_key)
+            .collect::<Vec<_>>()
+            .join("_");
+        format!("__gen_{}_{}", name, suffix)
+    }
+
+    fn substitute_type(ty: &Type, substitutions: &HashMap<String, Type>) -> Type {
+        match ty {
+            Type::Alias { name, span } => substitutions
+                .get(name)
+                .map(|ty| ty.with_span(*span))
+                .unwrap_or_else(|| ty.clone()),
+            Type::FixedArray {
+                element,
+                size,
+                span,
+            } => Type::FixedArray {
+                element: Box::new(Self::substitute_type(element, substitutions)),
+                size: *size,
+                span: *span,
+            },
+            Type::Pointer {
+                base,
+                is_volatile,
+                span,
+            } => Type::Pointer {
+                base: Box::new(Self::substitute_type(base, substitutions)),
+                is_volatile: *is_volatile,
+                span: *span,
+            },
+            Type::ListEnum { element, span } => {
+                if let Some(ty) = substitutions.get(element) {
+                    match ty {
+                        Type::Bombom(_) => Type::ListBombom(*span),
+                        Type::Verso(_) => Type::ListVerso(*span),
+                        Type::Alias { name, .. }
+                        | Type::Enum { name, .. }
+                        | Type::Struct { name, .. } => Type::ListEnum {
+                            element: name.clone(),
+                            span: *span,
+                        },
+                        _ => ty.clone(),
+                    }
+                } else {
+                    ty.clone()
+                }
+            }
+            _ => ty.clone(),
+        }
+    }
+
+    fn substitute_expr(expr: &Expr, substitutions: &HashMap<String, Type>) -> Expr {
+        let kind = match &expr.kind {
+            ExprKind::Binary(lhs, op, rhs) => ExprKind::Binary(
+                Box::new(Self::substitute_expr(lhs, substitutions)),
+                *op,
+                Box::new(Self::substitute_expr(rhs, substitutions)),
+            ),
+            ExprKind::Unary(op, operand) => {
+                ExprKind::Unary(*op, Box::new(Self::substitute_expr(operand, substitutions)))
+            }
+            ExprKind::Call(callee, args) => ExprKind::Call(
+                Box::new(Self::substitute_expr(callee, substitutions)),
+                args.iter()
+                    .map(|arg| Self::substitute_expr(arg, substitutions))
+                    .collect(),
+            ),
+            ExprKind::InternalMapIterCreate(map) => {
+                ExprKind::InternalMapIterCreate(Box::new(Self::substitute_expr(map, substitutions)))
+            }
+            ExprKind::InternalMapIterNextKey(iterator) => ExprKind::InternalMapIterNextKey(
+                Box::new(Self::substitute_expr(iterator, substitutions)),
+            ),
+            ExprKind::FieldAccess { base, field } => ExprKind::FieldAccess {
+                base: Box::new(Self::substitute_expr(base, substitutions)),
+                field: field.clone(),
+            },
+            ExprKind::Index { base, index } => ExprKind::Index {
+                base: Box::new(Self::substitute_expr(base, substitutions)),
+                index: Box::new(Self::substitute_expr(index, substitutions)),
+            },
+            ExprKind::Cast { expr, target } => ExprKind::Cast {
+                expr: Box::new(Self::substitute_expr(expr, substitutions)),
+                target: Self::substitute_type(target, substitutions),
+            },
+            ExprKind::SizeOfType { target } => ExprKind::SizeOfType {
+                target: Self::substitute_type(target, substitutions),
+            },
+            ExprKind::AlignOfType { target } => ExprKind::AlignOfType {
+                target: Self::substitute_type(target, substitutions),
+            },
+            ExprKind::Ident(_)
+            | ExprKind::IntLit(_)
+            | ExprKind::BoolLit(_)
+            | ExprKind::StringLit(_) => expr.kind.clone(),
+        };
+        Expr {
+            kind,
+            span: expr.span,
+        }
+    }
+
+    fn substitute_assign_target(
+        target: &AssignTarget,
+        substitutions: &HashMap<String, Type>,
+    ) -> AssignTarget {
+        match target {
+            AssignTarget::Ident(name) => AssignTarget::Ident(name.clone()),
+            AssignTarget::Deref(expr) => {
+                AssignTarget::Deref(Box::new(Self::substitute_expr(expr, substitutions)))
+            }
+            AssignTarget::FieldDeref { base, field } => AssignTarget::FieldDeref {
+                base: Box::new(Self::substitute_expr(base, substitutions)),
+                field: field.clone(),
+            },
+            AssignTarget::Index { base, index } => AssignTarget::Index {
+                base: Box::new(Self::substitute_expr(base, substitutions)),
+                index: Box::new(Self::substitute_expr(index, substitutions)),
+            },
+        }
+    }
+
+    fn substitute_block(block: &Block, substitutions: &HashMap<String, Type>) -> Block {
+        Block {
+            stmts: block
+                .stmts
+                .iter()
+                .map(|stmt| Self::substitute_stmt(stmt, substitutions))
+                .collect(),
+            span: block.span,
+        }
+    }
+
+    fn substitute_else_block(
+        else_block: &ElseBlock,
+        substitutions: &HashMap<String, Type>,
+    ) -> ElseBlock {
+        match else_block {
+            ElseBlock::Block(block) => {
+                ElseBlock::Block(Self::substitute_block(block, substitutions))
+            }
+            ElseBlock::If(if_stmt) => {
+                ElseBlock::If(Box::new(Self::substitute_if_stmt(if_stmt, substitutions)))
+            }
+        }
+    }
+
+    fn substitute_if_stmt(if_stmt: &IfStmt, substitutions: &HashMap<String, Type>) -> IfStmt {
+        IfStmt {
+            condition: Self::substitute_expr(&if_stmt.condition, substitutions),
+            then_branch: Self::substitute_block(&if_stmt.then_branch, substitutions),
+            else_branch: if_stmt
+                .else_branch
+                .as_ref()
+                .map(|else_branch| Self::substitute_else_block(else_branch, substitutions)),
+            span: if_stmt.span,
+        }
+    }
+
+    fn substitute_stmt(stmt: &Stmt, substitutions: &HashMap<String, Type>) -> Stmt {
+        match stmt {
+            Stmt::Let(let_stmt) => Stmt::Let(LetStmt {
+                name: let_stmt.name.clone(),
+                is_mut: let_stmt.is_mut,
+                ty: let_stmt
+                    .ty
+                    .as_ref()
+                    .map(|ty| Self::substitute_type(ty, substitutions)),
+                init: Self::substitute_expr(&let_stmt.init, substitutions),
+                span: let_stmt.span,
+            }),
+            Stmt::Return(return_stmt) => Stmt::Return(ReturnStmt {
+                expr: return_stmt
+                    .expr
+                    .as_ref()
+                    .map(|expr| Self::substitute_expr(expr, substitutions)),
+                span: return_stmt.span,
+            }),
+            Stmt::Assign(assign_stmt) => Stmt::Assign(AssignStmt {
+                target: Self::substitute_assign_target(&assign_stmt.target, substitutions),
+                expr: Self::substitute_expr(&assign_stmt.expr, substitutions),
+                span: assign_stmt.span,
+            }),
+            Stmt::If(if_stmt) => Stmt::If(Self::substitute_if_stmt(if_stmt, substitutions)),
+            Stmt::While(while_stmt) => Stmt::While(WhileStmt {
+                condition: Self::substitute_expr(&while_stmt.condition, substitutions),
+                body: Self::substitute_block(&while_stmt.body, substitutions),
+                span: while_stmt.span,
+            }),
+            Stmt::Break(stmt) => Stmt::Break(stmt.clone()),
+            Stmt::Continue(stmt) => Stmt::Continue(stmt.clone()),
+            Stmt::Falar(falar) => Stmt::Falar(FalarStmt {
+                args: falar
+                    .args
+                    .iter()
+                    .map(|arg| Self::substitute_expr(arg, substitutions))
+                    .collect(),
+                span: falar.span,
+            }),
+            Stmt::InlineAsm(stmt) => Stmt::InlineAsm(stmt.clone()),
+            Stmt::Expr(expr) => Stmt::Expr(Self::substitute_expr(expr, substitutions)),
+        }
+    }
+
+    fn instantiate_generic_functions(&self) -> Result<Vec<FunctionDecl>, PinkerError> {
+        let mut out = Vec::new();
+        let mut emitted = HashSet::new();
+        for instantiation in &self.generic_instantiations {
+            let Some(template) = self.generic_templates.get(&instantiation.name) else {
+                return Err(PinkerError::Parse {
+                    msg: format!("função genérica '{}' não declarada", instantiation.name),
+                    span: instantiation.span,
+                });
+            };
+            if template.type_params.len() != instantiation.type_args.len() {
+                return Err(PinkerError::Parse {
+                    msg: format!(
+                        "função genérica '{}' exige {} argumento(s) de tipo, recebido {}",
+                        instantiation.name,
+                        template.type_params.len(),
+                        instantiation.type_args.len()
+                    ),
+                    span: instantiation.span,
+                });
+            }
+            let mono_name =
+                Self::generic_function_name(&instantiation.name, &instantiation.type_args);
+            if !emitted.insert(mono_name.clone()) {
+                continue;
+            }
+            let substitutions = template
+                .type_params
+                .iter()
+                .cloned()
+                .zip(instantiation.type_args.iter().cloned())
+                .collect::<HashMap<_, _>>();
+            out.push(FunctionDecl {
+                name: mono_name,
+                type_params: Vec::new(),
+                params: template
+                    .params
+                    .iter()
+                    .map(|param| Param {
+                        name: param.name.clone(),
+                        ty: Self::substitute_type(&param.ty, &substitutions),
+                        span: param.span,
+                    })
+                    .collect(),
+                ret_type: template
+                    .ret_type
+                    .as_ref()
+                    .map(|ty| Self::substitute_type(ty, &substitutions)),
+                body: Self::substitute_block(&template.body, &substitutions),
+                span: template.span,
+            });
+        }
+        Ok(out)
     }
 
     fn parse_const(&mut self) -> Result<ConstDecl, PinkerError> {
@@ -3376,6 +3739,10 @@ impl Parser {
 
     fn parse_postfix_suffix(&mut self, mut expr: Expr) -> Result<Expr, PinkerError> {
         loop {
+            if let Some(generic_call) = self.try_parse_explicit_generic_call(&expr)? {
+                expr = generic_call;
+                continue;
+            }
             if self.match_token(TokenKind::LParen) {
                 let mut args = Vec::new();
                 if !self.check(TokenKind::RParen) {
@@ -3437,6 +3804,62 @@ impl Parser {
             break;
         }
         Ok(expr)
+    }
+
+    fn try_parse_explicit_generic_call(
+        &mut self,
+        expr: &Expr,
+    ) -> Result<Option<Expr>, PinkerError> {
+        let ExprKind::Ident(name) = &expr.kind else {
+            return Ok(None);
+        };
+        if !self.check(TokenKind::Less) {
+            return Ok(None);
+        }
+        let saved = self.current;
+        self.advance();
+        let mut type_args = Vec::new();
+        loop {
+            match self.parse_type() {
+                Ok(ty) => type_args.push(ty),
+                Err(_) => {
+                    self.current = saved;
+                    return Ok(None);
+                }
+            }
+            if !self.match_token(TokenKind::Comma) {
+                break;
+            }
+        }
+        if !self.match_token(TokenKind::Greater) || !self.match_token(TokenKind::LParen) {
+            self.current = saved;
+            return Ok(None);
+        }
+
+        let mut args = Vec::new();
+        if !self.check(TokenKind::RParen) {
+            loop {
+                args.push(self.parse_expr()?);
+                if !self.match_token(TokenKind::Comma) {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenKind::RParen, ")")?;
+        let mono_name = Self::generic_function_name(name, &type_args);
+        self.generic_instantiations.push(GenericInstantiation {
+            name: name.clone(),
+            type_args,
+            span: expr.span,
+        });
+        let callee = Expr {
+            kind: ExprKind::Ident(mono_name),
+            span: expr.span,
+        };
+        Ok(Some(Expr {
+            span: merge_span(expr.span, self.previous().span),
+            kind: ExprKind::Call(Box::new(callee), args),
+        }))
     }
 
     fn parse_cast_suffix(&mut self, mut expr: Expr) -> Result<Expr, PinkerError> {

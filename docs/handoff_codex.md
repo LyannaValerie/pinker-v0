@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **235** — Eixo A: mapa genérico sobre expressão tipada |
+| Fase funcional mais recente | **236** — Eixo A: funções genéricas de usuário explícitas |
 | Rodada documental mais recente | **Doc-43** — reconciliação do README pós-Eixo B e preservação da referência `expandir.md`/ausência de `docs/phases.md` |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -71,11 +71,13 @@
 | 233 | Bloco 20, Eixo A: fachada genérica para `mapa<K,V>` — `mapa_criar` e operações genéricas roteiam para as quatro combinações públicas `verso`/`bombom` |
 | 234 | Bloco 20, Eixo A: métodos homônimos em tratos — chamadas ambíguas por receiver são recusadas e `Trato.metodo(valor, ...)` escolhe explicitamente o contrato |
 | 235 | Bloco 20, Eixo A: mapa genérico sobre expressão tipada — operações `mapa_*` genéricas roteiam pelo tipo do primeiro argumento mesmo quando ele é uma chamada/expressão |
+| 236 | Bloco 20, Eixo A: funções genéricas de usuário explícitas — `carinho nome<T>(...)` gera especializações monomorfizadas por chamadas `nome<T>(...)` concretas |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Fase 235 — Eixo A, item 3 da Faixa 1: mapa genérico sobre expressão tipada**.
+- **Fase 236 — Eixo A, item 3 da Faixa 1: funções genéricas de usuário explícitas**.
+- A Fase 236 adiciona funções genéricas definidas pelo usuário com chamada explícita `nome<T>(...)`; o parser gera especializações monomorfizadas concretas, mantendo semântica, IR e backend nativo sem caminho genérico dinâmico.
 - A Fase 235 faz `mapa_definir`, `mapa_obter`, `mapa_tem`, `mapa_tamanho` e `mapa_remover` rotearem pelo tipo semântico/IR do primeiro argumento, cobrindo expressões como `mapa_obter(fabrica_mapa(), "chave")`.
 - A Fase 234 permite que tratos diferentes implementados pelo mesmo tipo declarem o mesmo nome de método; `valor.metodo()` é erro quando há ambiguidade e `Trato.metodo(valor, ...)` seleciona o contrato explicitamente.
 - A Fase 233 adicionou `mapa_criar`, `mapa_definir`, `mapa_obter`, `mapa_tem`, `mapa_tamanho` e `mapa_remover` como fachada genérica para `mapa<verso,bombom>`, `mapa<verso,verso>`, `mapa<bombom,bombom>` e `mapa<bombom,verso>`.
@@ -95,14 +97,14 @@ Histórico completo por fase: `docs/history/phases/`.
 | Fechamento do Bloco 18 | Sem resolução qualificada (`familia.intrinseca`), sem importação seletiva, sem modo estrito, sem reorganização do engine |
 | Fases 190–206 | Sem generics (`lista<T>`, `mapa<K,V>` amplos); cada combinação monomorphizada; sem coleções heterogêneas |
 | Fases 208–210 (`leque`/`encaixe`) | Cargas: `bombom`, `verso` ou leque declarado (sem `ninho`/coleções como carga); sem guards, padrões aninhados ou encaixe-expressão; igualdade direta e `virar` rejeitados para leque com carga; sem discriminante customizado; sem `bombom -> leque`; handles sem liberação (consistente com coleções); nome de leque tem precedência sobre variável homônima em posição de base `X.Y` |
-| Fases 211, 233 e 235 (`lista<T>`, `mapa<K,V>`) | `lista<T>` com T = leque declarado (além de `bombom`/`verso` legados); `mapa<K,V>` nas quatro combinações públicas `verso`/`bombom`, com operações genéricas sobre variável/parâmetro e expressão tipada; funções genéricas de usuário fora; generics em `leque`/`ninho` fora; `lista_criar()`/`mapa_criar()` só como init de `nova` anotada |
+| Fases 211, 233, 235 e 236 (`lista<T>`, `mapa<K,V>`, funções genéricas) | `lista<T>` com T = leque declarado (além de `bombom`/`verso` legados); `mapa<K,V>` nas quatro combinações públicas `verso`/`bombom`, com operações genéricas sobre variável/parâmetro e expressão tipada; funções genéricas de usuário com chamada explícita e monomorfização; inferência de tipo fora; generics em `leque`/`ninho` fora; `lista_criar()`/`mapa_criar()` só como init de `nova` anotada |
 | Fases 226–230, 232 e 234 (`trato`/`impl`) | Tratos estáticos, chamada por método, `impl` nominal para escalares e `ninho`, cobertura completa do contrato, múltiplos contratos por tipo e desambiguação explícita de métodos homônimos com `Trato.metodo(valor, ...)`; objetos de trait, vtables, dynamic dispatch, default methods, coerções e overloading amplo fora |
 | Bloco 20 | Nenhum item das faixas está entregue por constar na trilha; entrega exige fase numerada com validação objetiva |
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41) e novo padrão pós-Eixo B registrado na Doc-42: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado. Ordem cumprida até aqui: A (itens 1–3 expandidos conforme recorte documentado) → B (integral ✓) → A (itens 5 → 6 → 4 → 3 expandidos nas Fases 223–235).
-- Próxima fase: escolher entre funções genéricas de usuário/generics em tipos nominais, avançar no item 6 para closures capturantes/valores de função, ou continuar o item 5 com biblioteca padrão de resultado e operador curto de propagação. Em qualquer caso, sem recorte mínimo automático e mantendo lowering nativo obrigatório.
+- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41) e novo padrão pós-Eixo B registrado na Doc-42: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado. Ordem cumprida até aqui: A (itens 1–3 expandidos conforme recorte documentado) → B (integral ✓) → A (itens 5 → 6 → 4 → 3 expandidos nas Fases 223–236).
+- Próxima fase: avançar no item 6 para closures capturantes/valores de função, continuar o item 5 com biblioteca padrão de resultado e operador curto de propagação, ou iniciar a Faixa 3 (`ponteiros de função`/`alocador`/`inline asm`) se a direção for SO. Em qualquer caso, sem recorte mínimo automático e mantendo lowering nativo obrigatório.
 - Escada completa do eixo encerrado (B1 ✓ ... B11 ✓) em `docs/roadmap/blocos/bloco_20.md`.
 - Depois do item 5: itens 6 (**closures**) e 4 (**traits**) do Eixo A, mantendo a regra de que toda fase de linguagem entrega o lowering nativo junto.
 
