@@ -37,6 +37,8 @@ make ci
 
 O Guardiao Pinker nao substitui `make ci`; ele cobre contratos editoriais e operacionais que historicamente causaram desalinhamento entre README, handoff, roadmap e historico.
 
+Na validacao de fase funcional, a fase esperada nao deve ficar fixa no codigo do app. O Guardiao deriva a fase atual de `docs/handoff_codex.md` e confere se o mesmo numero aparece na porta publica (`README.md`), no indice historico de fases, no shard historico ativo e no roadmap.
+
 ## Evolucao
 
 Novos apps podem entrar quando houver dor concreta no desenvolvimento. Cada app novo deve justificar:
@@ -45,4 +47,3 @@ Novos apps podem entrar quando houver dor concreta no desenvolvimento. Cada app 
 - quais recursos da Pinker ele exercita;
 - qual limite atual da linguagem ele torna visivel;
 - qual teste garante que ele continua executavel.
-

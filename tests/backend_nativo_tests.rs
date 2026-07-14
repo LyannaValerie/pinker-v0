@@ -1146,6 +1146,15 @@ fn fase238_funcao_local_valor_tem_paridade_nativa() {
 }
 
 #[test]
+fn fase239_funcao_parametro_estatica_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase239_funcao_parametro_estatica_valido.pink",
+        "fase239_funcao_parametro_estatica_valido",
+        23_900,
+    );
+}
+
+#[test]
 fn fase232_impl_multiplos_contratos_tem_paridade_nativa() {
     paridade_stdout(
         "examples/fase232_impl_multiplos_contratos_valido.pink",

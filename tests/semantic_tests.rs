@@ -4025,6 +4025,36 @@ fn fase238_funcao_local_valor_aceita() {
 }
 
 #[test]
+fn fase239_funcao_parametro_estatica_aceita() {
+    let code = include_str!("../examples/fase239_funcao_parametro_estatica_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase239_funcao_parametro_estatica_rejeita_assinatura_incompativel() {
+    let code = r#"
+        pacote main;
+
+        carinho aplicar(f: carinho(bombom) -> bombom, x: bombom) -> bombom {
+            mimo f(x);
+        }
+
+        carinho principal() -> bombom {
+            nova tamanho: carinho(verso) -> bombom = carinho(s: verso) -> bombom {
+                mimo tamanho(s);
+            };
+            mimo aplicar(tamanho, 1);
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("callback") && err.contains("incompatível"),
+        "{}",
+        err
+    );
+}
+
+#[test]
 fn fase238_funcao_local_valor_rejeita_tipo_incompativel() {
     let code = r#"
         pacote main;

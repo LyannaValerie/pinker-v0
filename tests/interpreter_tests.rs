@@ -9295,6 +9295,13 @@ fn fase238_funcao_local_valor_executa_no_interpretador() {
 }
 
 #[test]
+fn fase239_funcao_parametro_estatica_executa_no_interpretador() {
+    let code = include_str!("../examples/fase239_funcao_parametro_estatica_valido.pink");
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
 fn fase232_impl_multiplos_contratos_executa_no_interpretador() {
     let code = include_str!("../examples/fase232_impl_multiplos_contratos_valido.pink");
     let result = run_code(code).unwrap();

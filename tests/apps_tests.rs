@@ -30,16 +30,26 @@ fn write_file(root: &Path, rel: &str, content: &str) {
 }
 
 fn fixture_repo(root: &Path) {
-    write_file(root, "README.md", "# Pinker v0\n");
+    write_file(
+        root,
+        "README.md",
+        "| Fase funcional mais recente | Fase 239: teste |\n",
+    );
     write_file(root, "MANUAL.md", "# Manual\n");
     write_file(
         root,
         "docs/handoff_codex.md",
-        "| Fase funcional mais recente | **238** |\n| Ultimo hotfix | **HF-6** |\n",
+        "| Fase funcional mais recente | **239** |\n| Ultimo hotfix | **HF-6** |\n",
     );
-    write_file(root, "docs/roadmap.md", "# Bloco 20\n");
+    write_file(root, "docs/roadmap.md", "# Bloco 20\nFase 239\n");
     write_file(root, "docs/history.md", "# Historico\n");
     write_file(root, "docs/history/indice.md", "# Indice\n");
+    write_file(
+        root,
+        "docs/history/phases/indice.md",
+        "- `201a250.md` — cobre até `239 - teste`.\n",
+    );
+    write_file(root, "docs/history/phases/201a250.md", "### 239 - teste\n");
     write_file(root, "apps/README.md", "# Apps\n");
 }
 
@@ -76,6 +86,22 @@ fn guardiao_pinker_reprova_docs_phases_legado() {
     let root = temp_repo("guard_phases");
     fixture_repo(&root);
     write_file(&root, "docs/phases.md", "# legado\n");
+
+    let out = run_guard(&root);
+
+    assert_eq!(out.exit_status, Some(1));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn guardiao_pinker_reprova_readme_com_fase_divergente() {
+    let root = temp_repo("guard_readme_fase");
+    fixture_repo(&root);
+    write_file(
+        &root,
+        "README.md",
+        "| Fase funcional mais recente | Fase 238: antiga |\n",
+    );
 
     let out = run_guard(&root);
 

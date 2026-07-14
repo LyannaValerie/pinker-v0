@@ -15,7 +15,7 @@ fases; para isso, use os documentos apontados em [Navegação](#navegacao).
 | Backend nativo | `pink build --nativo` gera ELF Linux via `.s` x86-64 System V + `pinker_rt` |
 | Paridade | Fases compatíveis do Eixo B verificam interpretador x nativo |
 | Bloco ativo | Bloco 20: expansão rumo a SO e self-hosting |
-| Fase funcional mais recente | Fase 238: função local tipada não capturante |
+| Fase funcional mais recente | Fase 239: passagem estática de função como parâmetro |
 
 ## Superficie Implementada
 
@@ -27,7 +27,7 @@ fases; para isso, use os documentos apontados em [Navegação](#navegacao).
 | Resultado | `leque` com carga, `encaixe`, `tentar`, `propagar` e `propagar?` |
 | Generics | `lista<T>`, `mapa<K,V>` e funções genéricas explícitas `nome<T>(...)` com monomorfização |
 | Contratos | `trato`/`impl` estáticos, múltiplos contratos por tipo e desambiguação nominal |
-| Funções | `carinho`, literais não capturantes e função local tipada como alias estático |
+| Funções | `carinho`, literais não capturantes, função local tipada e passagem estática como parâmetro |
 | Sistema | argv, ambiente, arquivos, processos, caminhos e texto no recorte versionado |
 | Ponteiros | `seta<T>`, `fragil`, deref/escrita indireta e aritmética mínima no subset atual |
 | Ferramentas | CLI com check, run, IR textual, CFG, machine e build nativo |
