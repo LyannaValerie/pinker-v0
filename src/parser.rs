@@ -66,6 +66,9 @@ pub struct Parser {
     /// Templates de funções genéricas de usuário, monomorfizados após o parse.
     generic_templates: HashMap<String, FunctionDecl>,
     generic_instantiations: Vec<GenericInstantiation>,
+    /// Aliases locais estáticos de função: `nova f: carinho(...) -> T = carinho(...) -> T { ... };`.
+    /// Nesta fase, servem apenas para reescrever `f(...)` como chamada direta.
+    function_value_scopes: Vec<HashMap<String, String>>,
 }
 
 #[derive(Clone)]
@@ -91,6 +94,7 @@ impl Parser {
             pending_functions: Vec::new(),
             generic_templates: HashMap::new(),
             generic_instantiations: Vec::new(),
+            function_value_scopes: Vec::new(),
         }
     }
 
@@ -149,6 +153,13 @@ impl Parser {
 
     fn check(&self, kind: TokenKind) -> bool {
         self.peek().map(|token| token.kind == kind).unwrap_or(false)
+    }
+
+    fn check_at(&self, offset: usize, kind: TokenKind) -> bool {
+        self.tokens
+            .get(self.current + offset)
+            .map(|token| token.kind == kind)
+            .unwrap_or(false)
     }
 
     fn match_token(&mut self, kind: TokenKind) -> bool {
@@ -366,6 +377,27 @@ impl Parser {
             return Ok(Type::Pointer {
                 base: Box::new(base),
                 is_volatile: false,
+                span: merge_span(start_span, self.previous().span),
+            });
+        }
+        if self.match_token(TokenKind::KwCarinho) {
+            let start_span = self.previous().span;
+            self.consume(TokenKind::LParen, "(")?;
+            let mut params = Vec::new();
+            if !self.check(TokenKind::RParen) {
+                loop {
+                    params.push(self.parse_type()?);
+                    if !self.match_token(TokenKind::Comma) {
+                        break;
+                    }
+                }
+            }
+            self.consume(TokenKind::RParen, ")")?;
+            self.consume(TokenKind::Arrow, "-> em tipo função")?;
+            let ret = self.parse_type()?;
+            return Ok(Type::Function {
+                params,
+                ret: Box::new(ret),
                 span: merge_span(start_span, self.previous().span),
             });
         }
@@ -1292,19 +1324,23 @@ impl Parser {
         Ok(vec![target_stmt, Stmt::If(*root_if)])
     }
 
-    /// Desugaring de `propagar` (Fase 224): retorno antecipado explícito para
-    /// resultados baseados em leques.
+    /// Desugaring de `propagar` (Fases 224 e 237): retorno antecipado explícito
+    /// para resultados baseados em leques.
     ///
     /// ```text
     /// propagar expr como Resultado.Ok(valor) senao Resultado.Erro(erro);
+    /// propagar? expr como Resultado.Ok(valor);
     /// ```
     ///
     /// A variante de sucesso é validada e ignorada; a variante de falha tem sua
     /// carga extraída e retornada como `Resultado.Erro(carga)`. A sintaxe mantém
     /// o leque e as variantes explícitos para evitar inferência global prematura.
+    /// A forma curta com `?` infere a falha apenas quando há exatamente uma
+    /// outra variante com uma carga no mesmo leque.
     fn parse_propagar_desugared(&mut self) -> Result<Vec<Stmt>, PinkerError> {
         self.consume(TokenKind::KwPropagar, "propagar")?;
         let start_span = self.previous().span;
+        let short_form = self.match_token(TokenKind::Question);
         let scrutinee = self.parse_expr()?;
         let como = self.consume(TokenKind::Ident, "'como' após expressão de propagar")?;
         if como.lexeme != "como" {
@@ -1334,23 +1370,35 @@ impl Parser {
             .lexeme
             .clone();
         self.consume(TokenKind::RParen, ")")?;
-        self.consume(TokenKind::KwSenao, "senao")?;
-        let failure_base = self
-            .consume(TokenKind::Ident, "nome do leque na falha de propagar")?
-            .lexeme
-            .clone();
-        self.consume(TokenKind::Dot, ".")?;
-        let failure_variant = self
-            .consume(TokenKind::Ident, "nome da variante de falha em propagar")?
-            .lexeme
-            .clone();
-        self.consume(TokenKind::LParen, "(")?;
-        let failure_binding = self
-            .consume(TokenKind::Ident, "nome da carga de falha em propagar")?
-            .lexeme
-            .clone();
-        self.consume(TokenKind::RParen, ")")?;
-        self.consume(TokenKind::Semi, ";")?;
+
+        let (failure_base, failure_variant, failure_binding) = if short_form {
+            self.consume(TokenKind::Semi, ";")?;
+            self.synthetic_counter += 1;
+            (
+                success_base.clone(),
+                String::new(),
+                format!("__propagar_falha_{}", self.synthetic_counter),
+            )
+        } else {
+            self.consume(TokenKind::KwSenao, "senao")?;
+            let failure_base = self
+                .consume(TokenKind::Ident, "nome do leque na falha de propagar")?
+                .lexeme
+                .clone();
+            self.consume(TokenKind::Dot, ".")?;
+            let failure_variant = self
+                .consume(TokenKind::Ident, "nome da variante de falha em propagar")?
+                .lexeme
+                .clone();
+            self.consume(TokenKind::LParen, "(")?;
+            let failure_binding = self
+                .consume(TokenKind::Ident, "nome da carga de falha em propagar")?
+                .lexeme
+                .clone();
+            self.consume(TokenKind::RParen, ")")?;
+            self.consume(TokenKind::Semi, ";")?;
+            (failure_base, failure_variant, failure_binding)
+        };
         let helper_span = merge_span(start_span, self.previous().span);
 
         if success_base != failure_base {
@@ -1358,15 +1406,6 @@ impl Parser {
                 msg: format!(
                     "propagar mistura leques diferentes: '{}' e '{}'",
                     success_base, failure_base
-                ),
-                span: helper_span,
-            });
-        }
-        if success_variant == failure_variant {
-            return Err(PinkerError::Parse {
-                msg: format!(
-                    "propagar exige variantes distintas para sucesso e falha; '{}' foi repetida",
-                    success_variant
                 ),
                 span: helper_span,
             });
@@ -1380,6 +1419,46 @@ impl Parser {
                 span: helper_span,
             });
         };
+        let failure_variant = if short_form {
+            let candidates: Vec<String> = declared_variants
+                .iter()
+                .filter(|(name, payloads)| *name != success_variant && payloads.len() == 1)
+                .map(|(name, _)| name.clone())
+                .collect();
+            match candidates.as_slice() {
+                [only] => only.clone(),
+                [] => {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "propagar? não encontrou variante de falha única com 1 carga no leque '{}'",
+                            success_base
+                        ),
+                        span: helper_span,
+                    });
+                }
+                many => {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "propagar? é ambíguo no leque '{}'; variantes candidatas: {}",
+                            success_base,
+                            many.join(", ")
+                        ),
+                        span: helper_span,
+                    });
+                }
+            }
+        } else {
+            failure_variant
+        };
+        if success_variant == failure_variant {
+            return Err(PinkerError::Parse {
+                msg: format!(
+                    "propagar exige variantes distintas para sucesso e falha; '{}' foi repetida",
+                    success_variant
+                ),
+                span: helper_span,
+            });
+        }
         let success_payloads = declared_variants
             .iter()
             .find(|(name, _)| *name == success_variant)
@@ -1660,6 +1739,110 @@ impl Parser {
         })
     }
 
+    fn starts_function_value_let(&self) -> bool {
+        if !self.check(TokenKind::KwNova) {
+            return false;
+        }
+        let mut offset = 1;
+        if self.check_at(offset, TokenKind::KwMuda) {
+            offset += 1;
+        }
+        self.check_at(offset, TokenKind::Ident)
+            && self.check_at(offset + 1, TokenKind::Colon)
+            && self.check_at(offset + 2, TokenKind::KwCarinho)
+    }
+
+    fn current_function_value_scope_mut(&mut self) -> &mut HashMap<String, String> {
+        if self.function_value_scopes.is_empty() {
+            self.function_value_scopes.push(HashMap::new());
+        }
+        self.function_value_scopes
+            .last_mut()
+            .expect("escopo presente")
+    }
+
+    fn resolve_function_value_alias(&self, name: &str) -> Option<String> {
+        self.function_value_scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(name).cloned())
+    }
+
+    fn parse_function_value_let(&mut self) -> Result<(), PinkerError> {
+        let start_span = self.consume(TokenKind::KwNova, "nova")?.span;
+        if self.match_token(TokenKind::KwMuda) {
+            return Err(PinkerError::Parse {
+                msg: "função local como valor não pode ser 'muda' nesta fase".to_string(),
+                span: self.previous().span,
+            });
+        }
+        let local_name = self
+            .consume(TokenKind::Ident, "nome da função local")?
+            .lexeme
+            .clone();
+        self.consume(TokenKind::Colon, ":")?;
+        let declared_ty = self.parse_type()?;
+        if !matches!(declared_ty, Type::Function { .. }) {
+            return Err(PinkerError::Parse {
+                msg: "função local exige anotação de tipo função".to_string(),
+                span: declared_ty.span(),
+            });
+        }
+        self.consume(TokenKind::Eq, "=")?;
+        let init = self.parse_expr()?;
+        self.consume(TokenKind::Semi, ";")?;
+        let ExprKind::Ident(function_name) = init.kind else {
+            return Err(PinkerError::Parse {
+                msg:
+                    "função local exige literal 'carinho (...) -> tipo { ... }' como inicialização"
+                        .to_string(),
+                span: init.span,
+            });
+        };
+        if !function_name.starts_with("__anon_carinho_") {
+            return Err(PinkerError::Parse {
+                msg: "função local exige literal anônimo nesta fase".to_string(),
+                span: init.span,
+            });
+        }
+        let Some(function) = self
+            .pending_functions
+            .iter()
+            .find(|function| function.name == function_name)
+        else {
+            return Err(PinkerError::Parse {
+                msg: "função sintética não encontrada para função local".to_string(),
+                span: merge_span(start_span, self.previous().span),
+            });
+        };
+        let actual_ty = Type::Function {
+            params: function
+                .params
+                .iter()
+                .map(|param| param.ty.clone())
+                .collect(),
+            ret: Box::new(
+                function
+                    .ret_type
+                    .clone()
+                    .ok_or_else(|| PinkerError::Parse {
+                        msg: "função local exige retorno declarado nesta fase".to_string(),
+                        span: function.span,
+                    })?,
+            ),
+            span: init.span,
+        };
+        if declared_ty != actual_ty {
+            return Err(PinkerError::Parse {
+                msg: "tipo da função local é incompatível com o literal informado".to_string(),
+                span: init.span,
+            });
+        }
+        self.current_function_value_scope_mut()
+            .insert(local_name, function_name);
+        Ok(())
+    }
+
     fn parse_function(&mut self) -> Result<FunctionDecl, PinkerError> {
         let start_span = self.previous().span;
         let name = self
@@ -1816,6 +1999,14 @@ impl Parser {
                 if *is_volatile { "fragil_" } else { "" },
                 Self::generic_type_key(base)
             ),
+            Type::Function { params, ret, .. } => {
+                let params = params
+                    .iter()
+                    .map(Self::generic_type_key)
+                    .collect::<Vec<_>>()
+                    .join("_");
+                format!("carinho_{}_ret_{}", params, Self::generic_type_key(ret))
+            }
             Type::Nulo(_) => "nulo".to_string(),
         }
     }
@@ -1851,6 +2042,14 @@ impl Parser {
             } => Type::Pointer {
                 base: Box::new(Self::substitute_type(base, substitutions)),
                 is_volatile: *is_volatile,
+                span: *span,
+            },
+            Type::Function { params, ret, span } => Type::Function {
+                params: params
+                    .iter()
+                    .map(|param| Self::substitute_type(param, substitutions))
+                    .collect(),
+                ret: Box::new(Self::substitute_type(ret, substitutions)),
                 span: *span,
             },
             Type::ListEnum { element, span } => {
@@ -2105,6 +2304,7 @@ impl Parser {
     fn parse_block(&mut self) -> Result<Block, PinkerError> {
         let start_span = self.consume(TokenKind::LBrace, "{")?.span;
         let mut stmts = Vec::new();
+        self.function_value_scopes.push(HashMap::new());
 
         while !self.check(TokenKind::RBrace) && self.peek().is_some() {
             if self.check(TokenKind::KwPara) {
@@ -2115,12 +2315,20 @@ impl Parser {
                 stmts.extend(self.parse_tentar_desugared()?);
             } else if self.check(TokenKind::KwPropagar) {
                 stmts.extend(self.parse_propagar_desugared()?);
+            } else if self.starts_function_value_let() {
+                self.parse_function_value_let()?;
             } else {
-                stmts.push(self.parse_stmt()?);
+                let stmt = self.parse_stmt()?;
+                if let Stmt::Let(let_stmt) = &stmt {
+                    self.current_function_value_scope_mut()
+                        .remove(&let_stmt.name);
+                }
+                stmts.push(stmt);
             }
         }
 
         self.consume(TokenKind::RBrace, "}")?;
+        self.function_value_scopes.pop();
         Ok(Block {
             stmts,
             span: merge_span(start_span, self.previous().span),
@@ -3763,6 +3971,14 @@ impl Parser {
                     }
                 }
                 self.consume(TokenKind::RParen, ")")?;
+                if let ExprKind::Ident(name) = &expr.kind {
+                    if let Some(function_name) = self.resolve_function_value_alias(name) {
+                        expr = Expr {
+                            kind: ExprKind::Ident(function_name),
+                            span: expr.span,
+                        };
+                    }
+                }
                 if let ExprKind::Ident(name) = &expr.kind {
                     if let Some(first_arg) = args.first() {
                         if let ExprKind::Ident(map_name) = &first_arg.kind {

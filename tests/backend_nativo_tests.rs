@@ -1128,6 +1128,24 @@ fn fase231_propagar_valor_nomeado_tem_paridade_nativa() {
 }
 
 #[test]
+fn fase237_propagar_curto_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase237_propagar_curto_valido.pink",
+        "fase237_propagar_curto_valido",
+        23_700,
+    );
+}
+
+#[test]
+fn fase238_funcao_local_valor_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase238_funcao_local_valor_valido.pink",
+        "fase238_funcao_local_valor_valido",
+        23_800,
+    );
+}
+
+#[test]
 fn fase232_impl_multiplos_contratos_tem_paridade_nativa() {
     paridade_stdout(
         "examples/fase232_impl_multiplos_contratos_valido.pink",

@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **236** — Eixo A: funções genéricas de usuário explícitas |
+| Fase funcional mais recente | **238** — Eixo A: função local tipada não capturante |
 | Rodada documental mais recente | **Doc-43** — reconciliação do README pós-Eixo B e preservação da referência `expandir.md`/ausência de `docs/phases.md` |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -72,13 +72,17 @@
 | 234 | Bloco 20, Eixo A: métodos homônimos em tratos — chamadas ambíguas por receiver são recusadas e `Trato.metodo(valor, ...)` escolhe explicitamente o contrato |
 | 235 | Bloco 20, Eixo A: mapa genérico sobre expressão tipada — operações `mapa_*` genéricas roteiam pelo tipo do primeiro argumento mesmo quando ele é uma chamada/expressão |
 | 236 | Bloco 20, Eixo A: funções genéricas de usuário explícitas — `carinho nome<T>(...)` gera especializações monomorfizadas por chamadas `nome<T>(...)` concretas |
+| 237 | Bloco 20, Eixo A: operador curto de propagação — `propagar? expr como Resultado.Ok(v);` infere a falha quando há uma única outra variante com uma carga e mantém paridade nativa |
+| 238 | Bloco 20, Eixo A: funções locais tipadas — `nova f: carinho(...) -> tipo = carinho(...) -> tipo { ... };` cria alias estático chamável por nome local com paridade nativa |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
 - **HF-6 — robustez de literal inteiro fora da faixa**.
 - Literais decimais acima de `u64::MAX` agora produzem erro sintático com span, em vez de provocar pânico no parser; a fronteira válida de `bombom` permanece inalterada.
-- **Fase 236 — Eixo A, item 3 da Faixa 1: funções genéricas de usuário explícitas**.
+- **Fase 238 — Eixo A, item 6 da Faixa 1: funções locais tipadas não capturantes**.
+- A Fase 238 adiciona `nova f: carinho(...) -> tipo = carinho(...) -> tipo { ... };` como alias estático local chamável por `f(...)`; o parser reescreve para a função sintética top-level, mantendo chamada direta no interpretador e no backend nativo.
+- A Fase 237 adiciona `propagar? expr como Resultado.Ok(valor);` como forma curta de retorno antecipado: a variante de falha é inferida apenas quando há exatamente uma outra variante com uma carga no mesmo leque; caso contrário o parser rejeita por ausência/ambiguidade.
 - A Fase 236 adiciona funções genéricas definidas pelo usuário com chamada explícita `nome<T>(...)`; o parser gera especializações monomorfizadas concretas, mantendo semântica, IR e backend nativo sem caminho genérico dinâmico.
 - A Fase 235 faz `mapa_definir`, `mapa_obter`, `mapa_tem`, `mapa_tamanho` e `mapa_remover` rotearem pelo tipo semântico/IR do primeiro argumento, cobrindo expressões como `mapa_obter(fabrica_mapa(), "chave")`.
 - A Fase 234 permite que tratos diferentes implementados pelo mesmo tipo declarem o mesmo nome de método; `valor.metodo()` é erro quando há ambiguidade e `Trato.metodo(valor, ...)` seleciona o contrato explicitamente.
@@ -100,13 +104,15 @@ Histórico completo por fase: `docs/history/phases/`.
 | Fases 190–206 | Sem generics (`lista<T>`, `mapa<K,V>` amplos); cada combinação monomorphizada; sem coleções heterogêneas |
 | Fases 208–210 (`leque`/`encaixe`) | Cargas: `bombom`, `verso` ou leque declarado (sem `ninho`/coleções como carga); sem guards, padrões aninhados ou encaixe-expressão; igualdade direta e `virar` rejeitados para leque com carga; sem discriminante customizado; sem `bombom -> leque`; handles sem liberação (consistente com coleções); nome de leque tem precedência sobre variável homônima em posição de base `X.Y` |
 | Fases 211, 233, 235 e 236 (`lista<T>`, `mapa<K,V>`, funções genéricas) | `lista<T>` com T = leque declarado (além de `bombom`/`verso` legados); `mapa<K,V>` nas quatro combinações públicas `verso`/`bombom`, com operações genéricas sobre variável/parâmetro e expressão tipada; funções genéricas de usuário com chamada explícita e monomorfização; inferência de tipo fora; generics em `leque`/`ninho` fora; `lista_criar()`/`mapa_criar()` só como init de `nova` anotada |
+| Fases 223–224, 231 e 237 (`tentar`/`propagar`) | Error handling estruturado sobre leques de resultado declarados pelo usuário; `tentar`, `propagar` explícito, ligação nomeada do sucesso e `propagar?` com inferência local de falha única com uma carga; biblioteca padrão `Resultado<T,E>`, integração automática com erros de runtime e diagnósticos enriquecidos fora |
+| Fases 225 e 238 (`carinho` anônimo) | Literais `carinho` não capturantes, chamada direta imediata e função local tipada como alias estático chamável por nome; captura de ambiente, passagem/retorno de função, armazenamento amplo e chamada indireta fora |
 | Fases 226–230, 232 e 234 (`trato`/`impl`) | Tratos estáticos, chamada por método, `impl` nominal para escalares e `ninho`, cobertura completa do contrato, múltiplos contratos por tipo e desambiguação explícita de métodos homônimos com `Trato.metodo(valor, ...)`; objetos de trait, vtables, dynamic dispatch, default methods, coerções e overloading amplo fora |
 | Bloco 20 | Nenhum item das faixas está entregue por constar na trilha; entrega exige fase numerada com validação objetiva |
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41) e novo padrão pós-Eixo B registrado na Doc-42: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado. Ordem cumprida até aqui: A (itens 1–3 expandidos conforme recorte documentado) → B (integral ✓) → A (itens 5 → 6 → 4 → 3 expandidos nas Fases 223–236).
-- Próxima fase: avançar no item 6 para closures capturantes/valores de função, continuar o item 5 com biblioteca padrão de resultado e operador curto de propagação, ou iniciar a Faixa 3 (`ponteiros de função`/`alocador`/`inline asm`) se a direção for SO. Em qualquer caso, sem recorte mínimo automático e mantendo lowering nativo obrigatório.
+- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41) e novo padrão pós-Eixo B registrado na Doc-42: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado. Ordem cumprida até aqui: A (itens 1–3 expandidos conforme recorte documentado) → B (integral ✓) → A (itens 5 → 6 → 4 → 3 → 5 → 6 expandidos nas Fases 223–238).
+- Próxima fase: continuar o item 6 com passagem de função como parâmetro ou chamada indireta real, continuar o item 5 com biblioteca padrão de resultado sobre a base genérica existente, ou iniciar a Faixa 3 (`ponteiros de função`/`alocador`/`inline asm`) se a direção for SO. Em qualquer caso, sem recorte mínimo automático e mantendo lowering nativo obrigatório.
 - Escada completa do eixo encerrado (B1 ✓ ... B11 ✓) em `docs/roadmap/blocos/bloco_20.md`.
 - Depois do item 5: itens 6 (**closures**) e 4 (**traits**) do Eixo A, mantendo a regra de que toda fase de linguagem entrega o lowering nativo junto.
 
