@@ -3881,10 +3881,19 @@ impl Parser {
             .clone();
 
         let base = match token.kind {
-            TokenKind::IntLit => Ok(Expr {
-                kind: ExprKind::IntLit(token.lexeme.parse().unwrap()),
-                span: token.span,
-            }),
+            TokenKind::IntLit => {
+                let value = token
+                    .lexeme
+                    .parse::<u64>()
+                    .map_err(|_| PinkerError::Parse {
+                        msg: "literal inteiro fora da faixa de bombom/u64".to_string(),
+                        span: token.span,
+                    })?;
+                Ok(Expr {
+                    kind: ExprKind::IntLit(value),
+                    span: token.span,
+                })
+            }
             TokenKind::KwVerdade => Ok(Expr {
                 kind: ExprKind::BoolLit(true),
                 span: token.span,

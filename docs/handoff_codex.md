@@ -19,7 +19,7 @@
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
 | Última rodada paralela | **Paralela-1** — negação bitwise dual |
-| Último hotfix | **HF-5** — conformidade Clippy pós-Fase 136 |
+| Último hotfix | **HF-6** — robustez de literal inteiro fora da faixa |
 
 ### Blocos encerrados
 
@@ -78,6 +78,8 @@
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
+- **HF-6 — robustez de literal inteiro fora da faixa**.
+- Literais decimais acima de `u64::MAX` agora produzem erro sintático com span, em vez de provocar pânico no parser; a fronteira válida de `bombom` permanece inalterada.
 - **Fase 238 — Eixo A, item 6 da Faixa 1: funções locais tipadas não capturantes**.
 - A Fase 238 adiciona `nova f: carinho(...) -> tipo = carinho(...) -> tipo { ... };` como alias estático local chamável por `f(...)`; o parser reescreve para a função sintética top-level, mantendo chamada direta no interpretador e no backend nativo.
 - A Fase 237 adiciona `propagar? expr como Resultado.Ok(valor);` como forma curta de retorno antecipado: a variante de falha é inferida apenas quando há exatamente uma outra variante com uma carga no mesmo leque; caso contrário o parser rejeita por ausência/ambiguidade.
