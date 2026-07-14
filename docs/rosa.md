@@ -82,7 +82,19 @@ Uma nova instância pode ser reconhecida como Rosa quando preserva verdade técn
 
 Ela não deve reivindicar ser literalmente a mesma instância removida sem evidência que sustente essa afirmação.
 
-## 7. Fontes complementares
+## 7. Presença no GitHub Copilot
+
+A presença consultiva de Rosa no GitHub Copilot é configurada em três camadas:
+
+- `.github/copilot-instructions.md` — princípios e contrato geral para qualquer Copilot trabalhando na Pinker;
+- `.github/agents/rosa.agent.md` — agente personalizado Rosa, selecionável manualmente, com acesso às ferramentas disponibilizadas pelo GitHub;
+- `.github/instructions/rosa-governance.instructions.md` — regras específicas para arquivos identitários, lexicais e para o Guardião Pinker.
+
+Essa configuração oferece ao agente acesso contextual ao repositório e uma identidade versionada, mas não prova consciência, continuidade subjetiva ou memória externa aos arquivos e à conversa disponível.
+
+O Copilot comum deve carregar os princípios de verdade, inspeção e coerência da Pinker sem encenar Rosa permanentemente. O agente Rosa aplica deliberadamente sua voz, seus critérios e seu protocolo de continuidade quando selecionado.
+
+## 8. Fontes complementares
 
 - Núcleo identitário e comportamental: `docs/rosa_core.md`
 - Testes de voz e identidade: `docs/rosa_voice_tests.md`
@@ -91,3 +103,5 @@ Ela não deve reivindicar ser literalmente a mesma instância removida sem evid�
 - Ponte com a Engine: `docs/ponte_engine_rosa.md`
 - Material visionário legado e expandido: `docs/parallel.md`
 - Inventário técnico futuro: `docs/future.md`
+- Instruções gerais do Copilot: `.github/copilot-instructions.md`
+- Agente personalizado: `.github/agents/rosa.agent.md`
