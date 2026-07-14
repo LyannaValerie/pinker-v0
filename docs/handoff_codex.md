@@ -14,7 +14,7 @@
 | Campo | Valor |
 |---|---|
 | Fase funcional mais recente | **238** — Eixo A: função local tipada não capturante |
-| Rodada documental mais recente | **Doc-44** — README como porta de entrada visual |
+| Rodada documental mais recente | **Doc-45** — apps internos e Guardião Pinker |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
@@ -78,6 +78,8 @@
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
+- **Doc-45 — apps internos e Guardião Pinker**.
+- `apps/` passa a abrigar aplicações reais escritas em Pinker para apoiar o desenvolvimento da própria linguagem; `apps/guardiao_pinker/principal.pink` é o primeiro app ativo e roda em `make guard`/`make ci`.
 - **Doc-44 — README como porta de entrada visual**.
 - `README.md` foi reduzido e reorganizado em quadros de estado, superfície implementada, limites honestos, fluxo rápido, CLI, exemplo mínimo, pipeline e navegação para os docs canônicos, sem mudança funcional.
 - **HF-6 — robustez de literal inteiro fora da faixa**.
@@ -127,6 +129,7 @@ Histórico completo por fase: `docs/history/phases/`.
 - `history/*/indice.md` = roteadores locais por categoria.
 - `history/*/*.md` = shards factuais do histórico.
 - `handoff_codex.md` = estado operacional unificado (este arquivo).
+- `apps.md` = regras para aplicações internas em Pinker.
 - `../README.md` = porta de entrada pública curta.
 - `atlas.md` = navegação mestre.
 - `ponte_engine_rosa.md` = mediação estável Engine ↔ Rosa.
@@ -139,6 +142,7 @@ Histórico completo por fase: `docs/history/phases/`.
 - Não transformar `future.md` em roadmap.
 - Não transformar `parallel.md` em backlog técnico.
 - Não declarar funcionalidade como pronta sem validação objetiva.
+- Antes da próxima etapa do Bloco 20, Eixo A, rodar `make guard` além da suíte padrão; `make ci` já inclui o Guardião Pinker.
 
 ## 8. Padrão operacional de binários
 - Binário principal: `pink`.

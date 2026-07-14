@@ -10,6 +10,7 @@ make build
 make test
 make fmt-check
 make clippy
+make guard
 make ci
 make run-example EX=examples/principal_valida.pink
 make check-example EX=examples/principal_valida.pink
@@ -25,6 +26,7 @@ Sem `make`:
 ./ci_env.sh cargo test --locked
 ./ci_env.sh cargo fmt --check
 ./ci_env.sh cargo clippy --all-targets --all-features -- -D warnings
+./ci_env.sh cargo run --bin pink -- --run apps/guardiao_pinker/principal.pink -- --repo .
 ./ci_env.sh cargo run --bin pink -- examples/principal_valida.pink
 ./ci_env.sh cargo run --bin pink -- --check examples/principal_valida.pink
 ```
