@@ -13,22 +13,24 @@ Expandir a Pinker na direção dos dois propósitos de longo prazo do projeto:
 1. **gerar um sistema operacional usando apenas Pinker**;
 2. **a Pinker escrever o próprio código (self-hosting)**.
 
-A trilha é organizada em **11 faixas ordenadas por prioridade**, mescladas a partir do inventário de lacunas frente a C, C#, C++, Python, TypeScript e Shell. A ordem entre faixas é canônica; a ordem dentro de cada faixa é recomendada, não obrigatória.
+A trilha é organizada em **11 faixas ordenadas por prioridade**, mescladas a partir do inventário de lacunas frente a C, C#, C++, Python, TypeScript e Shell. A ordem entre faixas é canônica; a ordem dentro de cada faixa é recomendada, não obrigatória. A Doc-46 acrescenta uma trilha transversal de convergência bare-metal e bootstrap sem renumerar os 52 itens existentes.
 
 ## Estrutura em dois eixos
 
 O Bloco 20 executa em **dois eixos** que se alternam por decisão explícita:
 
-- **Eixo A — linguagem**: as 11 faixas abaixo (superfície, tipos, funções, controle, baixo nível, metaprogramação, módulos, concorrência, I/O). Executou os itens 1–3 da Faixa 1 (Fases 208–211) e, após o Eixo B, retomou e expandiu os itens 5 → 6 → 4 → 3 → 5 → 6 nas Fases 223–238.
+- **Eixo A — linguagem**: as 11 faixas abaixo (superfície, tipos, funções, controle, baixo nível, metaprogramação, módulos, concorrência, I/O). Executou os itens 1–3 da Faixa 1 (Fases 208–211) e, após o Eixo B, retomou e expandiu os itens 5 → 6 → 4 → 3 → 5 → 6 → 3/5 nas Fases 223–240.
 - **Eixo B — backend nativo**: paridade real do backend `.s` + runtime próprio com a superfície atual da linguagem (B1–B11, Fases 212–222). Aberto pela Doc-40, executado e encerrado na Fase 222.
 
-Ordem vigente: Eixo A (itens 1–3) → **Eixo B (integral, concluído)** → Eixo A (itens 5 → 6 → 4, agora com lowering nativo obrigatório em cada fase e com o padrão de expansão de `docs/expandir.md`) → demais faixas.
+Ordem vigente: Eixo A (itens 1–3) → **Eixo B (integral, concluído)** → Eixo A (itens 5 → 6 → 4, agora com lowering nativo obrigatório em cada fase e com o padrão de expansão de `docs/expandir.md`) → Faixa 3 → trilha bare-metal e bootstrap em convergência com a Faixa 7 → demais faixas.
 
 Nota de nomenclatura (Doc-41): o "B" nasceu de **B**ackend; a formalização A/B remove a ambiguidade de sequência — o Eixo A é o trilho de linguagem e veio primeiro de fato.
 
 ## Convergência estratégica
 
 Os itens da Faixa 1 mais os três primeiros da Faixa 3 formam o conjunto que desbloqueia simultaneamente os dois propósitos: enums, pattern matching, generics, traits, error handling, closures, ponteiros de função, alocador de memória e inline assembly real. Nenhum dos dois objetivos avança de forma sustentável sem esse conjunto.
+
+Para o propósito de SO, esse conjunto ainda precisa convergir em uma cadeia freestanding adulta: target, objeto, linker, entrada, runtime sem host, protocolo de boot, fronteira de hardware, imagem reproduzível e validação automatizada. Essa convergência é detalhada em `docs/roadmap/bare_metal_bootstrap.md`.
 
 ## Eixo A — faixas de linguagem
 
@@ -54,6 +56,19 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 | 12 | Ponteiros de função / tipos função | C, C++, TS | tabelas de interrupção, callbacks, vtables |
 | 13 | Alocador de memória (`alocar`/`liberar`) | C | inegociável para SO: heap próprio |
 | 14 | Inline assembly real (lowering completo de `sussurro`) | C | `mov cr3`, `lgdt`, `iret` etc. |
+
+### Trilha transversal — bare-metal e bootstrap (Doc-46)
+
+A trilha transversal não substitui uma faixa e não cria itens falsamente concluídos. Ela organiza quatro frentes adultas de convergência:
+
+| Frente | Cobertura exigida |
+|---|---|
+| BM-A — toolchain freestanding | target explícito, objetos relocáveis, símbolos/relocations, seções, linker, entry point, diagnósticos e compatibilidade com o target Linux |
+| BM-B — bootstrap e runtime autônomo | stack, `.bss`/`.data`, abort/panic, serial, alocação/liberação e ausência verificável de dependências de Linux/libc/`std` |
+| BM-C — boot e hardware | protocolo de boot, estruturas de boot, mapa de memória, layout/ABI, acesso volátil/raw I/O e interrupções reais |
+| BM-D — produto e validação | imagem reproduzível, manifesto, QEMU, captura serial, testes positivos/negativos, regressão Linux e gate de CI |
+
+Cada frente pode exigir várias fases, mas nenhuma fase fecha como stub ou demonstração isolada. O critério é uma fatia vertical utilizável com superfície, semântica, backend/runtime, diagnósticos, testes, exemplo e documentação. Detalhe: `docs/roadmap/bare_metal_bootstrap.md`.
 
 ### Faixa 4 — sistema de tipos
 
@@ -169,21 +184,28 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 
 - **Marco self-hosting 1**: lexer da Pinker escrito em Pinker (exige Faixa 1 completa). **Primeiro degrau verificado na Fase 209**: lexer de brinquedo 100% em Pinker (`examples/fase209_lexer_brinquedo_valido.pink`) tokenizando fonte real com `leque` + `encaixe`.
 - **Marco self-hosting 2**: parser + AST em Pinker (exige Faixas 1 e 4–5). **Fundação verificada na Fase 210** (AST recursiva avaliada em Pinker) e **verificado em miniatura na Fase 211**: compilador de brinquedo de ponta a ponta — lexer → `lista<Token>` → parser recursivo com precedência → AST → avaliação (`examples/fase211_compilador_brinquedo_valido.pink`).
-- **Marco SO 1**: programa bare-metal com alocador próprio e handler de interrupção (exige Faixas 1, 3 e 7 **e o Eixo B completo**).
-- **Marco SO 2**: kernel mínimo com scheduler e syscalls (exige Faixas 10–11).
+- **Marco SO 0 — boot freestanding verificável**: a toolchain oficial produz uma imagem reproduzível que inicia em QEMU, entra em código Pinker e comunica estado pela serial sem Linux.
+- **Marco SO 1 — núcleo de baixo nível operacional**: a Pinker usa alocação própria, informações de boot, layout físico controlado e handler de interrupção real (exige Faixas 1, 3 e 7, trilha bare-metal e Eixo B completo).
+- **Marco SO 2 — kernel operacional**: scheduler, syscalls e sincronização essencial executam sobre o ambiente próprio (exige Faixas 10–11 sobre o Marco SO 1).
+- **Marco SO 3 — subsistema de dispositivos**: abstrações de dispositivo de bloco e caractere sustentam armazenamento e console próprios.
 
 ## Método de execução
 
 - Cada item vira uma ou mais fases numeradas normais, com exemplo versionado, testes e entrada no histórico.
 - Nas faixas de linguagem, o alvo de cada item deixa de ser o menor recorte auditável por hábito: após o Eixo B, o padrão passa a ser implementação adulta, utilizável pelos marcos, com profundidade proporcional ao domínio e com referência explícita em `docs/expandir.md`.
-- No **Eixo B**, a regra já foi mais dura: cobertura completa do subproblema por fase, sem recorte mínimo. Esse espírito passa a influenciar o Eixo A, sem apagar a necessidade de limites honestos.
+- No **Eixo B**, a regra já foi mais dura: cobertura completa do subproblema por fase, sem recorte mínimo. Esse espírito passa a influenciar o Eixo A e a trilha bare-metal, sem apagar a necessidade de limites honestos.
+- Na trilha bare-metal, uma fase só fecha quando entrega uma fatia vertical utilizável: superfície/CLI, semântica e diagnósticos, backend/runtime, testes positivos e negativos, exemplo composto, documentação e evidência executável.
+- Gerar apenas um `.o`, imprimir apenas uma linha pela serial ou iniciar apenas uma vez no emulador não basta para declarar uma frente entregue.
 - Após o Eixo B, toda fase de linguagem nova entrega o lowering nativo junto — features interpreter-only deixam de ser aceitas.
 - A ordem entre faixas é a prioridade canônica; dentro de uma faixa, itens podem ser reordenados por dependência técnica (ordem vigente da Faixa 1: 3 → 5 → 6 → 4, com o Eixo B intercalado após o item 3).
 
 ## Limites explícitos
 - Esta trilha não reabre o Bloco 18 nem antecipa o Bloco 19 (reformas sintáticas), que segue candidato futuro.
-- Nenhum item está entregue por constar aqui; entrega exige fase numerada com validação objetiva.
+- Nenhum item ou frente bare-metal está entregue por constar aqui; entrega exige fase numerada com validação objetiva.
+- O target nativo operacional continua sendo ELF Linux x86-64 System V até que fases freestanding sejam implementadas e verificadas.
+- Escopo delimitado continua permitido; stub, placeholder e demonstração descartável não satisfazem o padrão pós-Eixo B.
 
 ## Relação com os demais documentos
+- `docs/roadmap/bare_metal_bootstrap.md` detalha a convergência freestanding e seus critérios anti-mínimo.
 - `docs/future.md` continua sendo inventário amplo; esta trilha é a ordem ativa.
 - A crônica factual de cada item entregue vive em `docs/history/phases/`.

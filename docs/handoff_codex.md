@@ -14,7 +14,7 @@
 | Campo | Valor |
 |---|---|
 | Fase funcional mais recente | **240** — Eixo A: leque genérico explícito para `Resultado<T,E>` |
-| Rodada documental mais recente | **Doc-45** — apps internos e Guardião Pinker |
+| Rodada documental mais recente | **Doc-46** — trilha bare-metal e bootstrap com padrão anti-mínimo |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
@@ -80,6 +80,11 @@
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
+- **Doc-46 — trilha bare-metal e bootstrap com padrão anti-mínimo**.
+- A lacuna entre o backend ELF Linux atual e uma cadeia freestanding foi formalizada em `docs/roadmap/bare_metal_bootstrap.md`, sem mudança funcional e sem declarar target, boot ou kernel como implementados.
+- A trilha foi organizada em quatro frentes adultas: BM-A (toolchain freestanding), BM-B (bootstrap/runtime autônomo), BM-C (boot/fronteira de hardware) e BM-D (produto de build, QEMU e gate de qualidade).
+- O padrão anti-mínimo de `docs/expandir.md` passa a ser explícito também para SO: cada fase deve fechar uma fatia vertical utilizável com superfície, semântica, backend/runtime, diagnósticos, testes positivos/negativos, exemplo, documentação e evidência executável; stubs e provas de conceito isoladas não contam como entrega.
+- A documentação preserva o backend atual como ELF Linux x86-64 System V + `pinker_rt`; a trilha freestanding continua totalmente pendente de fases funcionais.
 - **Fase 240 — Eixo A, itens 3 e 5 da Faixa 1: leques genéricos explícitos para base de `Resultado<T,E>`**.
 - A Fase 240 permite declarar `leque Nome<T,...>` e instanciar usos concretos por alias (`apelido ResultadoBombomVerso = Resultado<bombom, verso>;`); o parser emite leques monomorfizados internos, enquanto construtores e `encaixe` usam o alias público.
 - **Fase 239 — Eixo A, item 6 da Faixa 1: passagem estática de função como parâmetro**.
@@ -105,7 +110,7 @@ Histórico completo por fase: `docs/history/phases/`.
 - Critério de pronto cumprido: cada caso roda no interpretador e como ELF nativo gerado por `pink build --nativo`; o stdout do programa é comparado byte a byte e o retorno de `principal` no interpretador é comparado ao exit code nativo.
 - Fechamento: **Eixo B encerrado**; o backend `.s` próprio + runtime `pinker_rt` passam a ser a base obrigatória para novas fases de linguagem.
 - Limites honestos mantidos: `ouvir` interativo, ordem de iteração de mapa multi-chave e exemplos dependentes de argv/binários auxiliares fora do manifesto controlado não viram critério global.
-- `make ci` passa integralmente.
+- `make ci` passa integralmente no estado funcional anterior à Doc-46; a rodada Doc-46 deve ser revalidada antes do merge.
 
 ## 4. Limites canônicos ativos
 
@@ -119,12 +124,14 @@ Histórico completo por fase: `docs/history/phases/`.
 | Fases 223–224, 231, 237 e 240 (`tentar`/`propagar`/`Resultado`) | Error handling estruturado sobre leques de resultado declarados pelo usuário; `tentar`, `propagar` explícito, ligação nomeada do sucesso, `propagar?` com inferência local de falha única com uma carga e base genérica declarável para `Resultado<T,E>` via alias concreto; biblioteca padrão predeclarada de `Resultado<T,E>`, integração automática com erros de runtime e diagnósticos enriquecidos fora |
 | Fases 225, 238 e 239 (`carinho` anônimo) | Literais `carinho` não capturantes, chamada direta imediata, função local tipada como alias estático chamável por nome e passagem estática como parâmetro por especialização direta; captura de ambiente, retorno de função, armazenamento amplo, ponteiro de função materializado e chamada indireta fora |
 | Fases 226–230, 232 e 234 (`trato`/`impl`) | Tratos estáticos, chamada por método, `impl` nominal para escalares e `ninho`, cobertura completa do contrato, múltiplos contratos por tipo e desambiguação explícita de métodos homônimos com `Trato.metodo(valor, ...)`; objetos de trait, vtables, dynamic dispatch, default methods, coerções e overloading amplo fora |
-| Bloco 20 | Nenhum item das faixas está entregue por constar na trilha; entrega exige fase numerada com validação objetiva |
+| Doc-46 (`bare-metal`/bootstrap) | Trilha e critérios formalizados; target freestanding, objeto relocável, runtime autônomo, protocolo de boot, imagem de kernel, QEMU e CI bare-metal continuam não implementados |
+| Bloco 20 | Nenhum item das faixas ou frente BM está entregue por constar na trilha; entrega exige fase numerada com validação objetiva e padrão anti-mínimo |
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41) e novo padrão pós-Eixo B registrado na Doc-42: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado. Ordem cumprida até aqui: A (itens 1–3 expandidos conforme recorte documentado) → B (integral ✓) → A (itens 5 → 6 → 4 → 3 → 5 → 6 → 3/5 expandidos nas Fases 223–240).
-- Próxima fase: continuar o item 5 com biblioteca padrão predeclarada de `Resultado<T,E>` sobre a base genérica da Fase 240, continuar o item 6 com chamada indireta real/ponteiro de função materializado, ou iniciar a Faixa 3 (`ponteiros de função`/`alocador`/`inline asm`) se a direção for SO. Em qualquer caso, sem recorte mínimo automático e mantendo lowering nativo obrigatório.
+- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41), padrão pós-Eixo B registrado na Doc-42 e convergência bare-metal formalizada na Doc-46: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado; a trilha BM permanece documental e não implementada.
+- Próxima fase: continuar o item 5 com biblioteca padrão predeclarada de `Resultado<T,E>` sobre a base genérica da Fase 240, continuar o item 6 com chamada indireta real/ponteiro de função materializado, ou iniciar a Faixa 3 se a direção imediata for SO. Em qualquer caso, sem recorte mínimo automático, com lowering nativo obrigatório e com fatia vertical utilizável.
+- Ao iniciar a direção SO, a execução deve seguir `docs/roadmap/bare_metal_bootstrap.md`: não basta gerar um artefato isolado; a fase precisa fechar superfície, semântica, backend/runtime, diagnósticos, testes, exemplo e documentação do subproblema escolhido.
 - Escada completa do eixo encerrado (B1 ✓ ... B11 ✓) em `docs/roadmap/blocos/bloco_20.md`.
 - Depois do item 5: itens 6 (**closures**) e 4 (**traits**) do Eixo A, mantendo a regra de que toda fase de linguagem entrega o lowering nativo junto.
 
@@ -132,6 +139,7 @@ Histórico completo por fase: `docs/history/phases/`.
 - `roadmap.md` = ordem ativa.
 - `roadmap/indice.md` = hub de navegação por blocos.
 - `roadmap/blocos/*.md` = detalhe estrutural por bloco.
+- `roadmap/bare_metal_bootstrap.md` = convergência freestanding do Bloco 20 e critérios anti-mínimo.
 - `history.md` = ponteiro canônico curto do histórico.
 - `history/indice.md` = hub histórico principal.
 - `history/*/indice.md` = roteadores locais por categoria.
@@ -150,6 +158,7 @@ Histórico completo por fase: `docs/history/phases/`.
 - Não transformar `future.md` em roadmap.
 - Não transformar `parallel.md` em backlog técnico.
 - Não declarar funcionalidade como pronta sem validação objetiva.
+- Não aceitar stubs, placeholders ou provas de conceito isoladas como fechamento automático de fase pós-Eixo B.
 - Antes da próxima etapa do Bloco 20, Eixo A, rodar `make guard` além da suíte padrão; `make ci` já inclui o Guardião Pinker.
 
 ## 8. Padrão operacional de binários

@@ -14,6 +14,7 @@ Documentos canônicos:
 - `docs/roadmap.md` — ordem ativa oficial.
 - `docs/roadmap/indice.md` — hub de navegação do roadmap por blocos.
 - `docs/roadmap/blocos/*.md` — shards estruturais por bloco; não substituem o histórico.
+- `docs/roadmap/bare_metal_bootstrap.md` — convergência freestanding do Bloco 20, com frentes adultas e critérios anti-mínimo; não declara implementação.
 - `docs/history.md` — ponteiro canônico curto para o sistema histórico.
 - `docs/history/indice.md` — hub principal de navegação histórica.
 - `docs/handoff_codex.md` — estado operacional unificado (estado corrente, handoff da rodada, limites, restrições).
