@@ -1,0 +1,46 @@
+pacote demo;
+
+carinho mapa_idades() -> mapa<verso,bombom> {
+    nova m: mapa<verso,bombom> = mapa_criar();
+    mapa_definir(m, "idade", 42);
+    mimo m;
+}
+
+carinho mapa_nomes() -> mapa<verso,verso> {
+    nova m: mapa<verso,verso> = mapa_criar();
+    mapa_definir(m, "nome", "pinker");
+    mimo m;
+}
+
+carinho mapa_pontos() -> mapa<bombom,bombom> {
+    nova m: mapa<bombom,bombom> = mapa_criar();
+    mapa_definir(m, 7, 35);
+    mimo m;
+}
+
+carinho mapa_rotulos() -> mapa<bombom,verso> {
+    nova m: mapa<bombom,verso> = mapa_criar();
+    mapa_definir(m, 1, "ok");
+    mimo m;
+}
+
+carinho mapa_vazio() -> mapa<verso,bombom> {
+    nova m: mapa<verso,bombom> = mapa_criar();
+    mimo m;
+}
+
+carinho principal() -> bombom {
+    nova idade: bombom = mapa_obter(mapa_idades(), "idade");
+    nova tem_nome: logica = mapa_tem(mapa_nomes(), "nome");
+    nova soma: bombom = mapa_obter(mapa_pontos(), 7) + mapa_tamanho(mapa_idades());
+    nova rotulo: verso = mapa_obter(mapa_rotulos(), 1);
+
+    mapa_definir(mapa_vazio(), "descartado", 1);
+    mapa_remover(mapa_rotulos(), 1);
+
+    talvez idade == 42 && tem_nome && soma == 36 && igual_verso(rotulo, "ok") {
+        mimo 0;
+    } senao {
+        mimo 1;
+    }
+}

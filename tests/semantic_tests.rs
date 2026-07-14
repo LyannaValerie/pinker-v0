@@ -3711,6 +3711,27 @@ fn fase234_impl_homonimos_aceito() {
 }
 
 #[test]
+fn fase235_mapa_generico_expressoes_aceito() {
+    let code = include_str!("../examples/fase235_mapa_generico_expressoes_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase235_mapa_generico_rejeita_primeiro_argumento_nao_mapa() {
+    let code = r#"
+        pacote demo;
+        carinho principal() -> bombom {
+            mimo mapa_obter(1, "idade");
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("exige mapa como primeiro argumento"),
+        "erro inesperado: {err}"
+    );
+}
+
+#[test]
 fn fase234_impl_homonimos_exigem_qualificacao_quando_ambiguo() {
     let code = r#"
         pacote demo;
