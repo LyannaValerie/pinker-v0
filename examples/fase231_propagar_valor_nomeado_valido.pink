@@ -1,0 +1,29 @@
+pacote main;
+
+leque Resultado { Ok(bombom), Erro(verso) }
+
+carinho validar(v: bombom, ok: logica) -> Resultado {
+    talvez ok {
+        mimo Resultado.Ok(v);
+    }
+    mimo Resultado.Erro("falha");
+}
+
+carinho somar_validados(a: bombom, b: bombom) -> Resultado {
+    propagar validar(a, verdade) como Resultado.Ok(valor_a) senao Resultado.Erro(msg);
+    propagar validar(b, verdade) como Resultado.Ok(valor_b) senao Resultado.Erro(msg);
+    mimo Resultado.Ok(valor_a + valor_b);
+}
+
+carinho principal() -> bombom {
+    nova resultado: Resultado = somar_validados(20, 22);
+    tentar resultado {
+        sucesso Resultado.Ok(valor) {
+            falar(valor);
+        }
+        falha Resultado.Erro(msg) {
+            falar(msg);
+        }
+    }
+    mimo 0;
+}

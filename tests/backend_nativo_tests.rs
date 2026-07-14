@@ -1117,3 +1117,21 @@ fn fase230_impl_cobertura_tem_paridade_nativa() {
         23_000,
     );
 }
+
+#[test]
+fn fase231_propagar_valor_nomeado_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase231_propagar_valor_nomeado_valido.pink",
+        "fase231_propagar_valor_nomeado_valido",
+        23_100,
+    );
+}
+
+#[test]
+fn fase232_impl_multiplos_contratos_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase232_impl_multiplos_contratos_valido.pink",
+        "fase232_impl_multiplos_contratos_valido",
+        23_200,
+    );
+}

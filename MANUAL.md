@@ -126,7 +126,7 @@ Desde a Fase 224, funções que retornam o mesmo leque de resultado também pode
 propagar validar(42, verdade) como Resultado.Ok(valor) senao Resultado.Erro(msg);
 ```
 
-`propagar` exige que as duas variantes pertençam ao mesmo leque, sejam distintas e carreguem exatamente um valor. Em caso de falha, a carga é extraída e retornada imediatamente como a variante de falha indicada; em caso de sucesso, a execução continua. A carga de sucesso é nomeada na sintaxe para documentar o contrato, mas ainda não fica disponível depois do comando — extração de valor com continuação nomeada permanece para uma fase posterior.
+`propagar` exige que as duas variantes pertençam ao mesmo leque, sejam distintas e carreguem exatamente um valor. Em caso de falha, a carga é extraída e retornada imediatamente como a variante de falha indicada; em caso de sucesso, desde a Fase 231 a carga de sucesso fica disponível no nome declarado em `Resultado.Ok(valor)` para os comandos seguintes no mesmo bloco.
 
 
 ## Funções anônimas não capturantes
@@ -169,7 +169,7 @@ impl Dobravel para bombom {
 }
 ```
 
-O método do `impl` recebe nome interno e não colide com função top-level homônima; se não houver `impl` compatível, a forma antiga por função global ainda é aceita como fallback. O tipo alvo pode ser escalar ou um `ninho` nominal no recorte atual; no backend nativo, `ninho` trafega como parâmetro/local opaco, sem abrir construção por valor nem acesso `p.campo` operacional por valor. Cada `impl` precisa implementar todos os métodos do `trato` e não pode declarar métodos extras. Objetos de trait, vtables, dynamic dispatch, coerções, default methods e overloading amplo continuam fora.
+O método do `impl` recebe nome interno e não colide com função top-level homônima; se não houver `impl` compatível, a forma antiga por função global ainda é aceita como fallback. O tipo alvo pode ser escalar ou um `ninho` nominal no recorte atual; no backend nativo, `ninho` trafega como parâmetro/local opaco, sem abrir construção por valor nem acesso `p.campo` operacional por valor. Cada `impl` precisa implementar todos os métodos do `trato` e não pode declarar métodos extras. Desde a Fase 232, um mesmo tipo pode implementar múltiplos tratos quando os métodos têm nomes distintos. Objetos de trait, vtables, dynamic dispatch, coerções, default methods, métodos homônimos entre contratos do mesmo tipo e overloading amplo continuam fora.
 
 ## 5) Fluxo de controle
 

@@ -1,0 +1,31 @@
+pacote demo;
+
+trato Incrementavel {
+    carinho inc(valor: bombom) -> bombom;
+}
+
+trato Escalavel {
+    carinho dobro(valor: bombom) -> bombom;
+}
+
+impl Incrementavel para bombom {
+    carinho inc(valor: bombom) -> bombom {
+        mimo valor + 1;
+    }
+}
+
+impl Escalavel para bombom {
+    carinho dobro(valor: bombom) -> bombom {
+        mimo valor + valor;
+    }
+}
+
+carinho principal() -> bombom {
+    nova a: bombom = 20.inc();
+    nova b: bombom = 21.dobro();
+    talvez a == 21 && b == 42 {
+        mimo 0;
+    } senao {
+        mimo 1;
+    }
+}
