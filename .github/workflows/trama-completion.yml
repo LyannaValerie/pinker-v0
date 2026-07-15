@@ -4,16 +4,20 @@ on:
   push:
     branches:
       - trama/completion-v2
+  pull_request:
+    types: [opened]
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   apply-and-validate:
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore(trama-bot):') }}
+    if: ${{ github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'chore(trama-bot):') }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout writable branch
         uses: actions/checkout@v4
         with:
           ref: trama/completion-v2
