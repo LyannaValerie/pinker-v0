@@ -6,6 +6,12 @@ on:
       - '**'
   pull_request:
 
+# Permissões mínimas: este CI apenas verifica (build, testes, lint, doc). Ele
+# nunca faz push nem cria commits; declarar leitura explícita impede qualquer
+# escrita na branch, mesmo que o padrão do repositório seja permissivo.
+permissions:
+  contents: read
+
 jobs:
   rust:
     runs-on: ubuntu-latest
