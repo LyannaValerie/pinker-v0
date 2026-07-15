@@ -24,11 +24,21 @@ related:
 
 ## 1. Objetivo
 
+<!-- @pinker-doc:start
+id: bridge.engine-rosa
+tags: [ponte, engine, rosa, mediacao]
+aliases:
+  - ponte engine rosa
+  - mediacao engine rosa
+  - relacao engine rosa
+summary: Mediação explícita entre o estado factual (Engine), a direção identitária (Rosa) e a agência do Guardião.
+-->
 Conectar explicitamente:
 
 - o **estado real implementado** (Engine);
 - a **direção identitária/lexical/visionária** (Rosa);
 - a **agência executável determinística** já iniciada pelo Guardião Pinker.
+<!-- @pinker-doc:end bridge.engine-rosa -->
 
 ## 2. Papéis
 

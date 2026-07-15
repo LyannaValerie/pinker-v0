@@ -24,6 +24,30 @@ related:
 Portal do território **Desenvolvimento**. Reúne o que orienta o trabalho prático
 sobre a base: aplicações internas em Pinker, exemplos/testes e o mapa de código.
 
+<!-- @pinker-doc:start
+id: development.trama
+tags: [desenvolvimento, trama, catalogos, navegacao]
+aliases:
+  - trama pinker
+  - como usar a trama
+  - navegacao por catalogos
+summary: Como agentes e humanos usam a Trama Pinker (catálogos, doc/nav e manifestos) neste território.
+-->
+## Trama Pinker no desenvolvimento
+
+A Trama Pinker é a superfície dual deste território: portais Markdown para
+humanos e catálogos JSONL para agentes. Fluxo de consulta:
+
+1. `pink doc rota "<intenção>"` para achar destinos documentais;
+2. `pink doc mostrar <id>` para extrair só a seção necessária;
+3. `pink nav buscar "<conceito>"` e `pink nav mostrar <chave>` para o código.
+
+Sincronização (`pink doc sincronizar`, `pink nav sincronizar`) regenera os
+catálogos a partir das fontes marcadas; `make ci` valida sem corrigir. Mudanças
+posteriores ao marco #330 carregam o bloco `pinker-change` e viram manifestos em
+`.pinker/changes/`.
+<!-- @pinker-doc:end development.trama -->
+
 ## Propósito
 
 Dar entrada rápida a quem vai escrever código, exemplos ou apps sobre a Pinker,
