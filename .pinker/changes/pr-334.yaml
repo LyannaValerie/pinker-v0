@@ -20,6 +20,7 @@ sections:
     - trama.catalog-runtime
     - trama.manifest-immutability
     - trama.generated-human-ledger
+    - trama.safe-sync
 validation:
   required:
     - make ci
