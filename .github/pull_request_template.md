@@ -41,15 +41,26 @@ commits. Sincronizar catálogos e projeções é responsabilidade de quem abre o
 Preencha o bloco abaixo apenas para mudanças posteriores ao marco #330.
 Mantenha-o separado da narrativa acima. Campos e enums seguem
 .pinker/schemas/change-v1.schema.json.
+
+NÃO deixe comentários dentro do bloco ```pinker-change```: ele é lido pela
+automação, não pelo YAML padrão. Substitua TODAS as sentinelas <preencher-...>
+por valores reais antes de abrir ou atualizar o PR — sentinelas remanescentes
+falham no CI com E-CHANGE-PLACEHOLDER.
+
+Valores aceitos:
+  kind:   phase | hotfix | documentation | parallel-phase
+  status: completed | in-progress | planned
+  area:   ids semânticos de território/domínio, ex.: development.trama,
+          language.result (formato [a-z0-9]+([._-][a-z0-9]+)*)
 -->
 
 ```pinker-change
 schema: 1
-kind: phase            # phase | hotfix | documentation | parallel-phase
-title: <título curto da mudança>
-status: completed      # completed | in-progress | planned
+kind: <preencher-kind>
+title: <preencher-titulo>
+status: <preencher-status>
 area:
-  - <territorio.ou.dominio>
+  - <preencher-area>
 updates:
   state: false
   history: false

@@ -10,6 +10,10 @@ name: Trama Pinker
 
 on:
   pull_request:
+    # `edited` é incluído explicitamente: por padrão `pull_request` só dispara
+    # em opened/synchronize/reopened, então corrigir o corpo do PR (o bloco
+    # pinker-change) re-executa a validação sem exigir um commit vazio.
+    types: [opened, synchronize, reopened, edited]
 
 # Permissões mínimas: apenas leitura do conteúdo e do PR.
 permissions:
@@ -42,13 +46,12 @@ jobs:
           set -euo pipefail
           # Grava o corpo do PR em disco sem interpretá-lo como script.
           printf '%s' "$PR_BODY" > pr-body.md
-          if grep -q '```pinker-change' pr-body.md; then
-            echo "Bloco pinker-change encontrado; validando em modo --check (sem escrita)."
-            # --check valida baseline, bloco e schema, e compara com o manifesto
-            # versionado quando presente. Nunca escreve arquivos.
-            ./ci_env.sh cargo run --bin pink -- \
-              doc importar-pr "$PR_NUMBER" --corpo pr-body.md --check
-          else
-            echo "Nenhum bloco pinker-change no corpo do PR; nada a validar."
-          fi
+          # A política fica centralizada no `pink`, não duplicada em Bash: o
+          # importador em modo --check decide tudo (baseline, presença do bloco,
+          # schema, enums, sentinelas de template) e nunca escreve arquivos.
+          # PR posterior ao marco SEM bloco falha com E-CHANGE-BLOCK — sem
+          # escape silencioso quando o bloco está ausente.
+          echo "Validando bloco pinker-change em modo --check (sem escrita)."
+          ./ci_env.sh cargo run --bin pink -- \
+            doc importar-pr "$PR_NUMBER" --corpo pr-body.md --check
           rm -f pr-body.md
