@@ -7,6 +7,7 @@ pub mod backend_text_validate;
 pub mod boot;
 pub mod cfg_ir;
 pub mod cfg_ir_validate;
+pub mod change;
 pub mod doc;
 pub mod doc_index;
 pub mod editor_tui;

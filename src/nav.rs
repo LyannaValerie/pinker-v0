@@ -151,6 +151,9 @@ impl fmt::Display for NavVerifyError {
 impl CodeIndex {
     /// Varre recursivamente `src_root` e constrói o índice.
     pub fn scan(src_root: &Path) -> Result<CodeIndex, ScanError> {
+        if !src_root.exists() {
+            return Ok(CodeIndex::default());
+        }
         let mut files = Vec::new();
         collect_rust(src_root, &mut files)?;
         files.sort();

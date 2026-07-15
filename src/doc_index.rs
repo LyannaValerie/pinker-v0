@@ -191,6 +191,9 @@ impl fmt::Display for DocVerifyError {
 impl DocIndex {
     /// Varre recursivamente `docs_root` e constrói o índice em memória.
     pub fn scan(docs_root: &Path) -> Result<DocIndex, ScanError> {
+        if !docs_root.exists() {
+            return Ok(DocIndex::default());
+        }
         let mut files = Vec::new();
         collect_markdown(docs_root, &mut files)?;
         files.sort();

@@ -5,6 +5,7 @@ use pinker_v0::backend_text;
 use pinker_v0::backend_text_validate;
 use pinker_v0::cfg_ir;
 use pinker_v0::cfg_ir_validate;
+use pinker_v0::change;
 use pinker_v0::doc;
 use pinker_v0::doc_index;
 use pinker_v0::editor_tui::EditorTui;
@@ -56,8 +57,9 @@ struct ReplConfig;
 
 /// Subcomando de `pink doc` (Trama Pinker — Etapas 0 e 2).
 enum DocSub {
-    /// Aplica a política do marco a um número de PR.
-    ImportarPr { pr: u64 },
+    /// Aplica a política do marco a um número de PR; com `corpo`, importa o
+    /// bloco `pinker-change` e grava o manifesto versionado.
+    ImportarPr { pr: u64, corpo: Option<String> },
     /// Exibe o marco documental configurado.
     Marco,
     /// Extrai uma seção ou documento pelo id semântico.
@@ -160,7 +162,9 @@ fn doc_usage(binary: &str) -> String {
          \n\
          Subcomandos:\n\
            marco               exibe o marco documental configurado em {config}\n\
-           importar-pr <n>     aplica a política do marco a um PR (E-DOC-BASELINE)\n\
+           importar-pr <n>     aplica a política do marco a um PR (E-DOC-BASELINE);\n\
+                               com --corpo <arquivo>, importa o bloco pinker-change\n\
+                               e grava .pinker/changes/pr-<n>.yaml\n\
            mostrar <id>        extrai a seção/documento pelo id semântico\n\
            listar <territorio> lista documentos de um território (domain)\n\
            buscar <consulta>   busca seções por id, título, tags, aliases, resumo\n\
@@ -169,7 +173,8 @@ fn doc_usage(binary: &str) -> String {
            verificar           valida documentação e catálogo (não corrige)\n\
          \n\
          Opções:\n\
-           --repo      raiz do repositório (padrão: .)\n",
+           --repo      raiz do repositório (padrão: .)\n\
+           --corpo     arquivo com o corpo do PR (para importar-pr)\n",
         binary = binary,
         config = doc::CONFIG_RELATIVE_PATH,
     )
@@ -326,6 +331,7 @@ fn parse_repl_args(binary: &str, args: &[String]) -> Result<ReplConfig, String> 
 
 fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String> {
     let mut repo = ".".to_string();
+    let mut corpo: Option<String> = None;
     let mut subcommand: Option<String> = None;
     let mut positionals: Vec<String> = Vec::new();
     let mut i = 0usize;
@@ -343,6 +349,16 @@ fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String>
                     ));
                 }
                 repo.clone_from(&args[i]);
+            }
+            "--corpo" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--corpo' requer um caminho de arquivo.\n\n{}",
+                        doc_usage(binary)
+                    ));
+                }
+                corpo = Some(args[i].clone());
             }
             _ if arg.starts_with("--") => {
                 return Err(format!(
@@ -393,7 +409,7 @@ fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String>
             let pr = raw.parse::<u64>().map_err(|_| {
                 format!("Número de PR inválido: '{}'\n\n{}", raw, doc_usage(binary))
             })?;
-            DocSub::ImportarPr { pr }
+            DocSub::ImportarPr { pr, corpo }
         }
         "marco" => {
             require_none("marco")?;
@@ -852,18 +868,23 @@ fn run_doc(config: DocConfigCli) {
             println!("  docs:    {}", doc_config.generated.docs_index);
             println!("  código:  {}", doc_config.generated.code_index);
         }
-        DocSub::ImportarPr { pr } => {
+        DocSub::ImportarPr { pr, corpo } => {
             if let Err(rejection) = doc_config.baseline_gate(pr) {
                 eprintln!("{rejection}");
                 std::process::exit(1);
             }
-            println!(
-                "PR #{pr} posterior ao marco #{} — elegível para importação.",
-                doc_config.github.baseline_pr
-            );
-            println!(
-                "(Etapa 0 valida o marco; a geração de manifesto estrutural chega na Etapa 4 da Trama.)"
-            );
+            match corpo {
+                None => {
+                    println!(
+                        "PR #{pr} posterior ao marco #{} — elegível para importação.",
+                        doc_config.github.baseline_pr
+                    );
+                    println!(
+                        "Forneça --corpo <arquivo> para gerar o manifesto .pinker/changes/pr-{pr}.yaml."
+                    );
+                }
+                Some(corpo) => run_doc_importar(repo_root, &doc_config, pr, &corpo),
+            }
         }
         DocSub::Mostrar { id } => run_doc_mostrar(repo_root, &id),
         DocSub::Listar { territorio } => run_doc_listar(repo_root, &territorio),
@@ -1015,6 +1036,83 @@ fn run_doc_sincronizar(repo_root: &Path, config: &doc::DocConfig) {
         config.generated.docs_index,
         index.sections.len()
     );
+
+    // Histórico mecânico derivado dos manifestos (Etapa 4).
+    let manifests = change::Manifests::load(&repo_root.join(".pinker/changes"));
+    write_ledger(repo_root, &manifests);
+    println!(
+        "Histórico mecânico sincronizado: .pinker/changes/index.jsonl ({} manifesto(s)).",
+        manifests.changes.len()
+    );
+}
+
+const LEDGER_REL: &str = ".pinker/changes/index.jsonl";
+
+fn write_ledger(repo_root: &Path, manifests: &change::Manifests) {
+    let rendered = manifests.render_ledger();
+    let path = repo_root.join(LEDGER_REL);
+    if rendered.is_empty() {
+        // Zero manifestos: não materializa arquivo (mantém a árvore limpa).
+        let _ = fs::remove_file(&path);
+        return;
+    }
+    if let Some(parent) = path.parent() {
+        if let Err(err) = fs::create_dir_all(parent) {
+            eprintln!("Falha ao criar '{}': {}", parent.display(), err);
+            std::process::exit(1);
+        }
+    }
+    if let Err(err) = fs::write(&path, rendered) {
+        eprintln!("Falha ao gravar '{}': {}", path.display(), err);
+        std::process::exit(1);
+    }
+}
+
+fn run_doc_importar(repo_root: &Path, config: &doc::DocConfig, pr: u64, corpo: &str) {
+    let body = match fs::read_to_string(corpo) {
+        Ok(body) => body,
+        Err(err) => {
+            eprintln!("Falha ao ler corpo do PR '{}': {}", corpo, err);
+            std::process::exit(1);
+        }
+    };
+    let mut manifest = match change::Change::parse_pr_body(&body) {
+        Ok(manifest) => manifest,
+        Err(err) => {
+            eprintln!("{err}");
+            std::process::exit(1);
+        }
+    };
+    if let Err(err) = manifest.validate() {
+        eprintln!("{err}");
+        std::process::exit(1);
+    }
+    manifest.source = Some(change::Source {
+        kind: "github-pr".to_string(),
+        number: pr,
+        repository: config.github.repository.clone(),
+    });
+
+    let changes_dir = repo_root.join(".pinker/changes");
+    if let Err(err) = fs::create_dir_all(&changes_dir) {
+        eprintln!("Falha ao criar '{}': {}", changes_dir.display(), err);
+        std::process::exit(1);
+    }
+    let manifest_path = changes_dir.join(format!("pr-{pr}.yaml"));
+    if let Err(err) = fs::write(&manifest_path, manifest.render_yaml()) {
+        eprintln!("Falha ao gravar '{}': {}", manifest_path.display(), err);
+        std::process::exit(1);
+    }
+
+    // Atualiza o histórico mecânico (idempotente por número de PR).
+    let manifests = change::Manifests::load(&changes_dir);
+    write_ledger(repo_root, &manifests);
+
+    println!(
+        "Manifesto importado: .pinker/changes/pr-{pr}.yaml (fase {:?}, bloco {:?}).",
+        manifest.phase, manifest.block
+    );
+    println!("Rode `pink doc sincronizar` e revise os documentos derivados.");
 }
 
 fn run_doc_verificar(repo_root: &Path, config: &doc::DocConfig) {
@@ -1030,15 +1128,44 @@ fn run_doc_verificar(repo_root: &Path, config: &doc::DocConfig) {
         });
     }
 
-    if errors.is_empty() {
-        println!("Documentação e catálogo verificados: ok.");
+    // Manifestos de mudança (Etapa 4): esquema, número, baseline e histórico.
+    let mut manifest_errors: Vec<String> = Vec::new();
+    let changes_dir = repo_root.join(".pinker/changes");
+    let manifests = change::Manifests::load(&changes_dir);
+    for problem in &manifests.problems {
+        manifest_errors.push(problem.to_string());
+    }
+    for manifest in &manifests.changes {
+        if let Some(source) = &manifest.source {
+            if let Err(rejection) = config.baseline_gate(source.number) {
+                manifest_errors.push(format!(
+                    "manifesto pr-{} anterior ou igual ao marco #{}",
+                    source.number, rejection.baseline_pr
+                ));
+            }
+        } else {
+            manifest_errors.push(format!("manifesto '{}' sem source.number", manifest.title));
+        }
+    }
+    let ledger_rendered = manifests.render_ledger();
+    let ledger_on_disk = fs::read_to_string(repo_root.join(LEDGER_REL)).unwrap_or_default();
+    if ledger_on_disk != ledger_rendered {
+        manifest_errors.push(format!(
+            "histórico mecânico '{}' dessincronizado; rode `pink doc sincronizar`",
+            LEDGER_REL
+        ));
+    }
+
+    if errors.is_empty() && manifest_errors.is_empty() {
+        println!("Documentação, catálogo e manifestos verificados: ok.");
         return;
     }
-    eprintln!(
-        "E-DOC-VERIFY: {} divergência(s) encontrada(s):",
-        errors.len()
-    );
+    let total = errors.len() + manifest_errors.len();
+    eprintln!("E-DOC-VERIFY: {} divergência(s) encontrada(s):", total);
     for error in &errors {
+        eprintln!("  - {error}");
+    }
+    for error in &manifest_errors {
         eprintln!("  - {error}");
     }
     std::process::exit(1);
