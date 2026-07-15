@@ -20,6 +20,10 @@ use crate::layout;
 use crate::token::Span;
 use std::collections::{HashMap, HashSet};
 
+// @pinker-nav:start ir.modelo.representacao
+// @pinker-nav:domain modelo
+// @pinker-nav:layer ir
+// @pinker-nav:summary Modelo de dados da IR estruturada: programa, constantes, funções, blocos, instruções, valores, tipos (`TypeIR`/`ScalarTypeIR`) e operadores — a representação com slots normalizados e tipos explícitos produzida após a semântica.
 /// Programa completo na IR estruturada.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramIR {
@@ -270,6 +274,7 @@ pub enum BinaryOpIR {
     Gt,
     Gte,
 }
+// @pinker-nav:end ir.modelo.representacao
 
 #[derive(Clone)]
 struct FunctionSigIR {

@@ -3,6 +3,10 @@ use crate::error::PinkerError;
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
 use std::collections::HashMap;
 
+// @pinker-nav:start select.modelo.representacao
+// @pinker-nav:domain modelo
+// @pinker-nav:layer select
+// @pinker-nav:summary Modelo de dados da seleção de instruções: programa, globais, funções, blocos, instruções selecionadas (`SelectedInstr`) e terminadores — a representação já próxima da máquina, ainda sobre operandos do CFG.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgram {
     pub module_name: String,
@@ -181,6 +185,7 @@ pub enum SelectedTerminator {
     },
     Ret(Option<OperandIR>),
 }
+// @pinker-nav:end select.modelo.representacao
 
 pub fn lower_program(cfg: &ProgramCfgIR) -> Result<SelectedProgram, PinkerError> {
     let globals = cfg
