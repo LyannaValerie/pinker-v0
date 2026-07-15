@@ -5,6 +5,7 @@ use pinker_v0::backend_text;
 use pinker_v0::backend_text_validate;
 use pinker_v0::cfg_ir;
 use pinker_v0::cfg_ir_validate;
+use pinker_v0::doc;
 use pinker_v0::editor_tui::EditorTui;
 use pinker_v0::instr_select;
 use pinker_v0::instr_select_validate;
@@ -51,11 +52,25 @@ struct EditorConfig {
 
 struct ReplConfig;
 
+/// Subcomando de `pink doc` (Trama Pinker — Etapa 0, Marco).
+enum DocSub {
+    /// Aplica a política do marco a um número de PR.
+    ImportarPr { pr: u64 },
+    /// Exibe o marco documental configurado.
+    Marco,
+}
+
+struct DocConfigCli {
+    repo: String,
+    sub: DocSub,
+}
+
 enum CliCommand {
     Analyze(Config),
     Build(BuildConfig),
     Editor(EditorConfig),
     Repl(ReplConfig),
+    Doc(DocConfigCli),
 }
 
 fn usage(binary: &str) -> String {
@@ -82,7 +97,28 @@ fn usage(binary: &str) -> String {
          Comandos:\n\
           build       gera artefato textual `.s` em disco\n\
           editor      abre a TUI oficial mínima da Pinker (Fase 136)\n\
-          repl        abre o REPL mínimo auditável (Fase 167)\n"
+          repl        abre o REPL mínimo auditável (Fase 167)\n\
+          doc         ferramenta documental da Trama Pinker (marco / importação)\n"
+    )
+}
+
+fn doc_usage(binary: &str) -> String {
+    format!(
+        "Uso: {binary} doc importar-pr [--repo <dir>] <numero>\n\
+         Uso: {binary} doc marco [--repo <dir>]\n\
+         \n\
+         Comando:\n\
+           doc         ferramenta documental da Trama Pinker (Etapa 0 — Marco)\n\
+         \n\
+         Subcomandos:\n\
+           importar-pr aplica a política do marco a um número de PR;\n\
+                       rejeita PRs anteriores ou iguais ao marco (E-DOC-BASELINE)\n\
+           marco       exibe o marco documental configurado em {config}\n\
+         \n\
+         Opções:\n\
+           --repo      raiz do repositório onde procurar {config} (padrão: .)\n",
+        binary = binary,
+        config = doc::CONFIG_RELATIVE_PATH,
     )
 }
 
@@ -235,6 +271,86 @@ fn parse_repl_args(binary: &str, args: &[String]) -> Result<ReplConfig, String> 
     }
 }
 
+fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String> {
+    let mut repo = ".".to_string();
+    let mut subcommand: Option<String> = None;
+    let mut positionals: Vec<String> = Vec::new();
+    let mut i = 0usize;
+
+    while i < args.len() {
+        let arg = &args[i];
+        match arg.as_str() {
+            "--help" | "-h" => return Err(doc_usage(binary)),
+            "--repo" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--repo' requer um valor.\n\n{}",
+                        doc_usage(binary)
+                    ));
+                }
+                repo.clone_from(&args[i]);
+            }
+            _ if arg.starts_with("--") => {
+                return Err(format!(
+                    "Flag desconhecida no comando doc: '{}'\n\n{}",
+                    arg,
+                    doc_usage(binary)
+                ));
+            }
+            _ => {
+                if subcommand.is_none() {
+                    subcommand = Some(arg.clone());
+                } else {
+                    positionals.push(arg.clone());
+                }
+            }
+        }
+        i += 1;
+    }
+
+    let Some(subcommand) = subcommand else {
+        return Err(doc_usage(binary));
+    };
+
+    let sub = match subcommand.as_str() {
+        "importar-pr" => {
+            if positionals.len() != 1 {
+                return Err(format!(
+                    "O subcomando 'importar-pr' requer exatamente um número de PR.\n\n{}",
+                    doc_usage(binary)
+                ));
+            }
+            let pr = positionals[0].parse::<u64>().map_err(|_| {
+                format!(
+                    "Número de PR inválido: '{}'\n\n{}",
+                    positionals[0],
+                    doc_usage(binary)
+                )
+            })?;
+            DocSub::ImportarPr { pr }
+        }
+        "marco" => {
+            if !positionals.is_empty() {
+                return Err(format!(
+                    "O subcomando 'marco' não aceita argumentos posicionais.\n\n{}",
+                    doc_usage(binary)
+                ));
+            }
+            DocSub::Marco
+        }
+        other => {
+            return Err(format!(
+                "Subcomando doc desconhecido: '{}'\n\n{}",
+                other,
+                doc_usage(binary)
+            ));
+        }
+    };
+
+    Ok(DocConfigCli { repo, sub })
+}
+
 fn parse_args() -> Result<CliCommand, String> {
     let mut input: Option<String> = None;
     let mut print_tokens = false;
@@ -278,6 +394,9 @@ fn parse_args() -> Result<CliCommand, String> {
         }
         if cmd == "repl" {
             return parse_repl_args(&binary, &flag_args[1..]).map(CliCommand::Repl);
+        }
+        if cmd == "doc" {
+            return parse_doc_args(&binary, &flag_args[1..]).map(CliCommand::Doc);
         }
     }
 
@@ -368,6 +487,48 @@ fn main() {
         CliCommand::Build(config) => run_build(config),
         CliCommand::Editor(config) => run_editor(config),
         CliCommand::Repl(config) => run_repl(config),
+        CliCommand::Doc(config) => run_doc(config),
+    }
+}
+
+fn run_doc(config: DocConfigCli) {
+    let repo_root = Path::new(&config.repo);
+    let doc_config = match doc::DocConfig::load(repo_root) {
+        Ok(cfg) => cfg,
+        Err(err) => {
+            eprintln!("{err}");
+            std::process::exit(1);
+        }
+    };
+
+    match config.sub {
+        DocSub::Marco => {
+            let github = &doc_config.github;
+            let limite = if github.baseline_inclusive {
+                "inclusivo"
+            } else {
+                "exclusivo"
+            };
+            println!("Trama Pinker — marco documental");
+            println!("  modo:    {}", github.mode);
+            println!("  marco:   PR #{}, {}", github.baseline_pr, limite);
+            println!("  commit:  {}", github.baseline_commit);
+            println!("  docs:    {}", doc_config.generated.docs_index);
+            println!("  código:  {}", doc_config.generated.code_index);
+        }
+        DocSub::ImportarPr { pr } => {
+            if let Err(rejection) = doc_config.baseline_gate(pr) {
+                eprintln!("{rejection}");
+                std::process::exit(1);
+            }
+            println!(
+                "PR #{pr} posterior ao marco #{} — elegível para importação.",
+                doc_config.github.baseline_pr
+            );
+            println!(
+                "(Etapa 0 valida o marco; a geração de manifesto estrutural chega na Etapa 4 da Trama.)"
+            );
+        }
     }
 }
 

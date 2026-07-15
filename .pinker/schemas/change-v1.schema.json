@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://pinker.dev/schemas/change-v1.schema.json",
+  "title": "Pinker change manifest (v1)",
+  "description": "Manifesto estruturado de mudança da Trama Pinker. Corresponde ao bloco pinker-change do corpo do PR e ao arquivo versionado .pinker/changes/pr-N.yaml (especificação, seções 14 e 15).",
+  "type": "object",
+  "required": ["schema", "kind", "title", "status"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": 1,
+      "description": "Versão do esquema do manifesto."
+    },
+    "source": {
+      "type": "object",
+      "description": "Origem do manifesto. Presente no arquivo versionado; ausente no bloco embutido no PR.",
+      "required": ["type", "number"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "github-pr" },
+        "number": { "type": "integer", "minimum": 1 },
+        "repository": { "type": "string" }
+      }
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["phase", "hotfix", "documentation", "parallel-phase"],
+      "description": "Natureza estrutural da mudança."
+    },
+    "phase": { "type": "integer", "minimum": 0 },
+    "block": { "type": "integer", "minimum": 0 },
+    "title": { "type": "string", "minLength": 1 },
+    "area": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "IDs de território/domínio afetados (ex.: language.result)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "in-progress", "planned"]
+    },
+    "updates": {
+      "type": "object",
+      "description": "Quais famílias de documento derivado a mudança atualiza.",
+      "additionalProperties": { "type": "boolean" },
+      "properties": {
+        "state": { "type": "boolean" },
+        "history": { "type": "boolean" },
+        "roadmap": { "type": "boolean" },
+        "manual": { "type": "boolean" },
+        "readme": { "type": "boolean" }
+      }
+    },
+    "sections": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "implemented": { "type": "array", "items": { "type": "string" } },
+        "pending_remove": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}
