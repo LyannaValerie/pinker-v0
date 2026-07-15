@@ -187,7 +187,7 @@ impl Change {
             }
 
             if let Some(item) = trimmed.strip_prefix("- ") {
-                let value = unquote(item.trim());
+                let value = unquote(&strip_inline_comment(item.trim()));
                 match (top.as_deref(), sub.as_deref()) {
                     (Some("area"), _) => change.area.push(value),
                     (Some("sections"), Some("implemented")) => change.implemented.push(value),
@@ -204,7 +204,7 @@ impl Change {
                 continue;
             };
             let key = trimmed[..colon].trim().to_string();
-            let rest = trimmed[colon + 1..].trim().to_string();
+            let rest = strip_inline_comment(trimmed[colon + 1..].trim());
 
             if indent == 0 {
                 top = None;
@@ -555,6 +555,31 @@ fn pr_number_from_filename(path: &Path) -> Option<u64> {
     stem.parse().ok()
 }
 
+/// Remove comentário inline no estilo YAML (` # ...`) fora de aspas.
+///
+/// Um `#` inicia comentário apenas no início do valor ou precedido por espaço,
+/// e nunca dentro de aspas simples/duplas. Torna o parser tolerante a
+/// comentários deixados no template do PR (ex.: `kind: phase  # phase | ...`).
+fn strip_inline_comment(value: &str) -> String {
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut prev_ws = true; // início do valor conta como precedido por espaço
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch == '#' && !in_single && !in_double && prev_ws {
+            break;
+        }
+        match ch {
+            '\'' if !in_double => in_single = !in_single,
+            '"' if !in_single => in_double = !in_double,
+            _ => {}
+        }
+        prev_ws = ch.is_whitespace();
+        out.push(ch);
+    }
+    out.trim_end().to_string()
+}
+
 fn unquote(value: &str) -> String {
     let value = value.trim();
     if value.len() >= 2
@@ -606,6 +631,18 @@ mod tests {
         assert_eq!(change.validation_required, vec!["make ci"]);
         assert!(change.updates.contains(&("state".to_string(), true)));
         assert!(change.updates.contains(&("roadmap".to_string(), false)));
+    }
+
+    #[test]
+    fn strips_inline_template_comments() {
+        // Bloco com comentários inline deixados no template do PR.
+        let body = "```pinker-change\nschema: 1\nkind: phase  # phase | hotfix | documentation | parallel-phase\ntitle: build#42  # nota inline\nstatus: completed # ok\narea:\n  - language.result  # comentário no item\n```\n";
+        let change = Change::parse_pr_body(body).unwrap();
+        assert_eq!(change.kind, "phase");
+        assert_eq!(change.status, "completed");
+        // `#` colado (sem espaço antes) é mantido; o ` # nota inline` é removido.
+        assert_eq!(change.title, "build#42");
+        assert_eq!(change.area, vec!["language.result"]);
     }
 
     #[test]
