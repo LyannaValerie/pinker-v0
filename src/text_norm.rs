@@ -14,6 +14,10 @@
 //! zero-dependência do compilador. A remoção de diacríticos cobre o alfabeto
 //! latino usado no repositório (português) por mapeamento explícito e auditável.
 
+// @pinker-nav:start trama.consultas.normalizacao
+// @pinker-nav:domain consultas
+// @pinker-nav:layer trama
+// @pinker-nav:summary Normalização determinística de texto para as consultas da Trama (minúsculas, remoção de diacríticos, pontuação vira espaço, colapso e separação em termos), sem stemming nem fuzzy — base compartilhada por `pink doc` e `pink nav`.
 /// Normaliza uma string para uma forma canônica comparável: minúsculas, sem
 /// acentos, com pontuação virada em espaço e espaços colapsados em um único
 /// separador. O resultado tem no máximo um espaço entre termos e não tem
@@ -102,6 +106,7 @@ fn passthrough(ch: char) -> &'static str {
     // é conservador e determinístico; nenhum termo do repositório depende disso.
     " "
 }
+// @pinker-nav:end trama.consultas.normalizacao
 
 #[cfg(test)]
 mod tests {

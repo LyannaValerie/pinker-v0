@@ -1,6 +1,10 @@
 use crate::ast::*;
 use crate::token::Span;
 
+// @pinker-nav:start printer.ast.renderizacao
+// @pinker-nav:domain ast
+// @pinker-nav:layer printer
+// @pinker-nav:summary Renderiza a AST como árvore textual indentada (itens, funções, blocos, comandos, expressões e tipos) para inspeção humana via `--ast`; a variante `--json-ast` delega ao serializador da própria AST.
 pub fn render_program(program: &Program) -> String {
     let mut out = String::new();
     render_program_into(program, 0, &mut out);
@@ -476,3 +480,4 @@ fn line(out: &mut String, indent: usize, text: &str) {
     out.push_str(text);
     out.push('\n');
 }
+// @pinker-nav:end printer.ast.renderizacao

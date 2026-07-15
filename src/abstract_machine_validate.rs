@@ -29,6 +29,10 @@ enum StackValueType {
     Unknown,
 }
 
+// @pinker-nav:start machine.validacao.invariantes
+// @pinker-nav:domain validacao
+// @pinker-nav:layer machine
+// @pinker-nav:summary Valida a máquina abstrata de pilha: balanceamento de push/pop, profundidade de pilha consistente por caminho, rótulos e saltos válidos e boa formação das operações antes da interpretação.
 pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
     let mut globals = HashMap::new();
     for g in &program.globals {
@@ -1748,3 +1752,5 @@ fn err_ctx_with_detail(
     };
     err(&scoped)
 }
+
+// @pinker-nav:end machine.validacao.invariantes

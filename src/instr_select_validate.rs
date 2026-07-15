@@ -5,6 +5,10 @@ use crate::ir::TypeIR;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet};
 
+// @pinker-nav:start select.validacao.invariantes
+// @pinker-nav:domain validacao
+// @pinker-nav:layer select
+// @pinker-nav:summary Valida a camada de seleção de instruções: operandos e destinos bem formados, uso coerente de temporários e conformidade das instruções selecionadas antes de descer à máquina abstrata.
 pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     let mut globals = HashSet::new();
     for g in &program.globals {
@@ -377,3 +381,5 @@ fn err(msg: &str) -> PinkerError {
         span: Span::single(Position::new(1, 1)),
     }
 }
+
+// @pinker-nav:end select.validacao.invariantes

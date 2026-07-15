@@ -9,6 +9,10 @@
 
 // ── Cor RGB ──────────────────────────────────────────────────────────
 
+// @pinker-nav:start palette.visual.identidade
+// @pinker-nav:domain visual
+// @pinker-nav:layer palette
+// @pinker-nav:summary Identidade cromática canônica da Pinker: tipo RGB truecolor com geração de sequências ANSI, as cores nomeadas da paleta e o tema estruturado TEMA_PINKER.
 /// Representação de uma cor em RGB de 24 bits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rgb {
@@ -130,6 +134,7 @@ pub const TEMA_PINKER: Tema = Tema {
     cursor: CURSOR,
     selecao: SELECAO,
 };
+// @pinker-nav:end palette.visual.identidade
 
 // ── Reset ANSI ───────────────────────────────────────────────────────
 
@@ -137,6 +142,10 @@ pub const RESET: &str = "\x1b[0m";
 
 // ── Helpers para estilização ─────────────────────────────────────────
 
+// @pinker-nav:start palette.visual.estilizacao
+// @pinker-nav:domain visual
+// @pinker-nav:layer palette
+// @pinker-nav:summary Helpers de estilização ANSI (cor, negrito, itálico, sublinhado), detecção de supressão de cor via NO_COLOR e exportação textual da paleta para integrações com editores.
 /// Envolve `texto` com a cor de foreground indicada e reset ao final.
 pub fn colorir(cor: Rgb, texto: &str) -> String {
     format!("{}{}{}", cor.fg_ansi(), texto, RESET)
@@ -234,6 +243,7 @@ Seleção               {selecao}",
         selecao = t.selecao.to_hex_string(),
     )
 }
+// @pinker-nav:end palette.visual.estilizacao
 
 // ── Testes ───────────────────────────────────────────────────────────
 
