@@ -153,6 +153,10 @@ impl Parser {
         )
     }
 
+    // @pinker-nav:start parser.fluxo.nucleo
+    // @pinker-nav:domain fluxo
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Núcleo do parser: cursor sobre a lista de tokens (peek/advance/previous/check/consume) e antecipação com offset, mais o erro `Expected` de sincronização básica; utilitários fundamentais que todas as regras gramaticais consomem.
     fn peek(&self) -> Option<&Token> {
         self.tokens
             .get(self.current)
@@ -221,6 +225,12 @@ impl Parser {
         }
     }
 
+    // @pinker-nav:end parser.fluxo.nucleo
+
+    // @pinker-nav:start parser.programa.estrutura
+    // @pinker-nav:domain programa
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo (funções, structs, leques, tratos, impl, aliases, constantes) via `parse_item`.
     pub fn parse(&mut self) -> Result<Program, PinkerError> {
         let package = if self.match_token(TokenKind::KwPacote) {
             let start_span = self.previous().span;
@@ -382,6 +392,12 @@ impl Parser {
         }
     }
 
+    // @pinker-nav:end parser.programa.estrutura
+
+    // @pinker-nav:start parser.tipos.gramatica
+    // @pinker-nav:domain tipos
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Gramática de tipos: reconhece tipos primitivos, nomeados, listas/mapas, ponteiros e arrays, função e aplicações genéricas na sintaxe, produzindo nós `ast::Type` sem resolver aliases nem significado (isso é da semântica).
     fn parse_type(&mut self) -> Result<Type, PinkerError> {
         let span = self.peek_span();
         if self.match_token(TokenKind::KwFragil) {
@@ -605,6 +621,12 @@ impl Parser {
         }
     }
 
+    // @pinker-nav:end parser.tipos.gramatica
+
+    // @pinker-nav:start parser.declaracoes.tipos
+    // @pinker-nav:domain declaracoes
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Declarações de tipos e itens de topo: `apelido` (type alias), `ninho` (struct), blocos `impl`, `trato` e `leque` (enum), consumindo cada gramática e produzindo os nós de declaração correspondentes.
     fn parse_type_alias(&mut self) -> Result<TypeAliasDecl, PinkerError> {
         let start_span = self.previous().span;
         let name = self
@@ -821,6 +843,12 @@ impl Parser {
         })
     }
 
+    // @pinker-nav:end parser.declaracoes.tipos
+
+    // @pinker-nav:start parser.encaixe.expressao
+    // @pinker-nav:domain encaixe
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Desugaring de `encaixe` (pattern matching sobre leques): reconhece os `caso Variante(bind) { ... }` e o `senao`, exige exaustividade e produz uma âncora `nova` seguida de cadeia `talvez`/`senao` comparando tags — nós `ast::Stmt`.
     /// Desugaring de `encaixe` (pattern matching mínimo sobre leques).
     ///
     /// ```text
@@ -1135,6 +1163,12 @@ impl Parser {
         Ok(vec![target_stmt, Stmt::If(*root_if)])
     }
 
+    // @pinker-nav:end parser.encaixe.expressao
+
+    // @pinker-nav:start parser.resultado.tentar-propagar
+    // @pinker-nav:domain resultado
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Desugaring de `tentar` e `propagar`/`propagar?` sobre leques de resultado: reconhece os braços `sucesso`/`falha` (ou a forma curta de propagação) e abaixa para a mesma representação de `encaixe`, produzindo `ast::Stmt` sem caminho especial de runtime.
     /// Desugaring de `tentar` (Fase 223): tratamento estruturado sobre um
     /// leque de resultado declarado pelo usuário.
     ///
@@ -1761,6 +1795,8 @@ impl Parser {
         ])
     }
 
+    // @pinker-nav:end parser.resultado.tentar-propagar
+
     fn register_collection_type(&mut self, name: &str, ty: &Type) {
         match ty {
             Type::ListBombom(_) => {
@@ -1795,6 +1831,10 @@ impl Parser {
         }
     }
 
+    // @pinker-nav:start parser.closures.expressao
+    // @pinker-nav:domain closures
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Funções anônimas e vínculos de valor-função: reconhece a closure `(params) -> tipo { corpo }` e os `nova f = ...` que ligam nomes a funções, mantendo o escopo de aliases de valor-função e produzindo `ast::Expr`/vínculos locais.
     fn parse_anonymous_function_expr(&mut self, start_span: Span) -> Result<Expr, PinkerError> {
         self.consume(TokenKind::LParen, "(")?;
         let mut params = Vec::new();
@@ -1951,6 +1991,12 @@ impl Parser {
         Ok(())
     }
 
+    // @pinker-nav:end parser.closures.expressao
+
+    // @pinker-nav:start parser.funcoes.declaracao
+    // @pinker-nav:domain funcoes
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Declaração de função: reconhece `carinho nome<params-de-tipo>(params) -> tipo { corpo }`, incluindo os parâmetros de tipo genéricos opcionais, e produz o nó `ast::FunctionDecl`.
     fn parse_function(&mut self) -> Result<FunctionDecl, PinkerError> {
         let start_span = self.previous().span;
         let name = self
@@ -2073,6 +2119,8 @@ impl Parser {
         self.consume(TokenKind::Greater, ">")?;
         Ok(params)
     }
+
+    // @pinker-nav:end parser.funcoes.declaracao
 
     fn generic_type_key(ty: &Type) -> String {
         match ty {
@@ -2811,6 +2859,10 @@ impl Parser {
         Ok(out)
     }
 
+    // @pinker-nav:start parser.constantes.declaracao
+    // @pinker-nav:domain constantes
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Declaração de constante global: reconhece `eterno nome: tipo = expr;` e produz o nó `ast::ConstDecl`, consumindo tipo e expressão inicial pela gramática comum.
     fn parse_const(&mut self) -> Result<ConstDecl, PinkerError> {
         let start_span = self.previous().span;
         let name = self
@@ -2831,6 +2883,12 @@ impl Parser {
         })
     }
 
+    // @pinker-nav:end parser.constantes.declaracao
+
+    // @pinker-nav:start parser.comandos.bloco
+    // @pinker-nav:domain comandos
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Blocos e comandos: reconhece `{ ... }`, declarações locais (`nova`/`muda`), atribuições, `mimo` (retorno), `talvez`/`senao`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, produzindo `ast::Block`/`ast::Stmt`.
     fn parse_block(&mut self) -> Result<Block, PinkerError> {
         let start_span = self.consume(TokenKind::LBrace, "{")?.span;
         let mut stmts = Vec::new();
@@ -3194,6 +3252,12 @@ impl Parser {
         }))
     }
 
+    // @pinker-nav:end parser.comandos.bloco
+
+    // @pinker-nav:start parser.lacos.for-each
+    // @pinker-nav:domain lacos
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Desugaring de `para cada X em COL { ... }`: reconhece a forma for-each e a reescreve em laço explícito com cursor/índice e chamadas de iteração conforme o tipo da coleção (listas e mapas, por chave/valor), produzindo `ast::Stmt`.
     fn parse_for_stmt_desugared(&mut self) -> Result<Vec<Stmt>, PinkerError> {
         let start_span = self.consume(TokenKind::KwPara, "para")?.span;
         if self.match_token(TokenKind::KwCada) {
@@ -4299,6 +4363,12 @@ impl Parser {
         ])
     }
 
+    // @pinker-nav:end parser.lacos.for-each
+
+    // @pinker-nav:start parser.expressoes.precedencia
+    // @pinker-nav:domain expressoes
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Escada de precedência e operadores: `parse_expr`/`parse_expr_binary` com climbing por precedência e associatividade, e `parse_expr_unary`, produzindo `ast::Expr` com `BinaryOp`/`UnaryOp`.
     fn parse_expr(&mut self) -> Result<Expr, PinkerError> {
         let expr = self.parse_expr_binary(0)?;
         if self.match_token(TokenKind::Question) {
@@ -4400,6 +4470,12 @@ impl Parser {
         self.parse_cast_suffix(expr)
     }
 
+    // @pinker-nav:end parser.expressoes.precedencia
+
+    // @pinker-nav:start parser.expressoes.primarias
+    // @pinker-nav:domain expressoes
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Expressões primárias: literais, identificadores, agrupamento, listas/mapas e construção de struct/leque, produzindo o nó base `ast::Expr` antes da cadeia postfix.
     fn parse_expr_primary(&mut self) -> Result<Expr, PinkerError> {
         let eof_span = self.peek_span();
         let token = self
@@ -4484,6 +4560,12 @@ impl Parser {
         self.parse_postfix_suffix(base)
     }
 
+    // @pinker-nav:end parser.expressoes.primarias
+
+    // @pinker-nav:start parser.expressoes.postfix
+    // @pinker-nav:domain expressoes
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final.
     fn parse_postfix_suffix(&mut self, mut expr: Expr) -> Result<Expr, PinkerError> {
         loop {
             if let Some(generic_call) = self.try_parse_explicit_generic_call(&expr)? {
@@ -4672,6 +4754,12 @@ impl Parser {
         Ok(expr)
     }
 
+    // @pinker-nav:end parser.expressoes.postfix
+
+    // @pinker-nav:start parser.texto.interpolacao
+    // @pinker-nav:domain texto
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Desugaring de strings interpoladas `$"..."`: reconhece os segmentos de texto e `{expr}`, parseia cada expressão embutida e produz uma chamada a `formatar_verso` — um `ast::Expr`.
     fn desugar_fstring(&mut self, raw: &str, span: Span) -> Result<Expr, PinkerError> {
         let mut template = String::new();
         let mut expr_sources: Vec<String> = Vec::new();
@@ -4742,4 +4830,5 @@ impl Parser {
             span,
         })
     }
+    // @pinker-nav:end parser.texto.interpolacao
 }
