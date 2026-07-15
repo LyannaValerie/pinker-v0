@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: preflight build test fmt-check clippy guard ci run-example check-example audit-example smoke docs-sync docs-check
+.PHONY: preflight build test fmt-check clippy guard ci run-example check-example audit-example smoke docs-sync docs-check nav-sync nav-check
 
 CI_ENV := ./ci_env.sh
 
@@ -32,7 +32,14 @@ docs-sync:
 docs-check:
 	$(CI_ENV) cargo run --bin pink -- doc verificar
 
-ci: preflight build test fmt-check clippy guard docs-check
+# Trama Pinker — navegação do código (Etapa 3).
+nav-sync:
+	$(CI_ENV) cargo run --bin pink -- nav sincronizar
+
+nav-check:
+	$(CI_ENV) cargo run --bin pink -- nav verificar
+
+ci: preflight build test fmt-check clippy guard docs-check nav-check
 
 run-example:
 	$(CI_ENV) cargo run --bin pink -- $(EX)

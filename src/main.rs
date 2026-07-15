@@ -14,6 +14,7 @@ use pinker_v0::interpreter;
 use pinker_v0::ir;
 use pinker_v0::ir_validate;
 use pinker_v0::lexer::Lexer;
+use pinker_v0::nav;
 use pinker_v0::parser::Parser;
 use pinker_v0::printer;
 use pinker_v0::repl;
@@ -78,12 +79,27 @@ struct DocConfigCli {
     sub: DocSub,
 }
 
+/// Subcomando de `pink nav` (Trama Pinker — Etapa 3, navegação do código).
+enum NavSub {
+    Mostrar { key: String },
+    Buscar { consulta: String },
+    Listar { seletor: String },
+    Sincronizar,
+    Verificar,
+}
+
+struct NavConfigCli {
+    repo: String,
+    sub: NavSub,
+}
+
 enum CliCommand {
     Analyze(Config),
     Build(BuildConfig),
     Editor(EditorConfig),
     Repl(ReplConfig),
     Doc(DocConfigCli),
+    Nav(NavConfigCli),
 }
 
 fn usage(binary: &str) -> String {
@@ -111,7 +127,27 @@ fn usage(binary: &str) -> String {
           build       gera artefato textual `.s` em disco\n\
           editor      abre a TUI oficial mínima da Pinker (Fase 136)\n\
           repl        abre o REPL mínimo auditável (Fase 167)\n\
-          doc         ferramenta documental da Trama Pinker (marco / importação)\n"
+          doc         ferramenta documental da Trama Pinker (marco / importação)\n\
+          nav         navegação semântica do código da Trama Pinker\n"
+    )
+}
+
+fn nav_usage(binary: &str) -> String {
+    format!(
+        "Uso: {binary} nav <subcomando> [--repo <dir>] [args...]\n\
+         \n\
+         Comando:\n\
+           nav         navegação semântica do código da Trama Pinker\n\
+         \n\
+         Subcomandos:\n\
+           mostrar <key>       extrai a região de código pela chave\n\
+           buscar <consulta>   busca regiões por chave, domínio, camada, resumo\n\
+           listar <seletor>    lista regiões de uma camada (layer) ou domínio\n\
+           sincronizar         regenera o catálogo src/navigation.jsonl\n\
+           verificar           valida os marcadores e o catálogo (não corrige)\n\
+         \n\
+         Opções:\n\
+           --repo      raiz do repositório (padrão: .)\n",
     )
 }
 
@@ -403,6 +439,107 @@ fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String>
     Ok(DocConfigCli { repo, sub })
 }
 
+fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String> {
+    let mut repo = ".".to_string();
+    let mut subcommand: Option<String> = None;
+    let mut positionals: Vec<String> = Vec::new();
+    let mut i = 0usize;
+
+    while i < args.len() {
+        let arg = &args[i];
+        match arg.as_str() {
+            "--help" | "-h" => return Err(nav_usage(binary)),
+            "--repo" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--repo' requer um valor.\n\n{}",
+                        nav_usage(binary)
+                    ));
+                }
+                repo.clone_from(&args[i]);
+            }
+            _ if arg.starts_with("--") => {
+                return Err(format!(
+                    "Flag desconhecida no comando nav: '{}'\n\n{}",
+                    arg,
+                    nav_usage(binary)
+                ));
+            }
+            _ => {
+                if subcommand.is_none() {
+                    subcommand = Some(arg.clone());
+                } else {
+                    positionals.push(arg.clone());
+                }
+            }
+        }
+        i += 1;
+    }
+
+    let Some(subcommand) = subcommand else {
+        return Err(nav_usage(binary));
+    };
+
+    let require_one = |what: &str| -> Result<String, String> {
+        if positionals.len() != 1 {
+            return Err(format!(
+                "O subcomando '{}' requer exatamente um argumento.\n\n{}",
+                what,
+                nav_usage(binary)
+            ));
+        }
+        Ok(positionals[0].clone())
+    };
+    let require_none = |what: &str| -> Result<(), String> {
+        if !positionals.is_empty() {
+            return Err(format!(
+                "O subcomando '{}' não aceita argumentos posicionais.\n\n{}",
+                what,
+                nav_usage(binary)
+            ));
+        }
+        Ok(())
+    };
+
+    let sub = match subcommand.as_str() {
+        "mostrar" => NavSub::Mostrar {
+            key: require_one("mostrar")?,
+        },
+        "listar" => NavSub::Listar {
+            seletor: require_one("listar")?,
+        },
+        "buscar" => {
+            if positionals.is_empty() {
+                return Err(format!(
+                    "O subcomando 'buscar' requer uma consulta.\n\n{}",
+                    nav_usage(binary)
+                ));
+            }
+            NavSub::Buscar {
+                consulta: positionals.join(" "),
+            }
+        }
+        "sincronizar" => {
+            require_none("sincronizar")?;
+            NavSub::Sincronizar
+        }
+        "verificar" => {
+            require_none("verificar")?;
+            NavSub::Verificar
+        }
+        other => {
+            return Err(format!(
+                "Subcomando nav desconhecido: '{}'\n\n{}",
+                other,
+                nav_usage(binary)
+            ));
+        }
+    };
+
+    Ok(NavConfigCli { repo, sub })
+}
+
 fn parse_args() -> Result<CliCommand, String> {
     let mut input: Option<String> = None;
     let mut print_tokens = false;
@@ -449,6 +586,9 @@ fn parse_args() -> Result<CliCommand, String> {
         }
         if cmd == "doc" {
             return parse_doc_args(&binary, &flag_args[1..]).map(CliCommand::Doc);
+        }
+        if cmd == "nav" {
+            return parse_nav_args(&binary, &flag_args[1..]).map(CliCommand::Nav);
         }
     }
 
@@ -540,6 +680,150 @@ fn main() {
         CliCommand::Editor(config) => run_editor(config),
         CliCommand::Repl(config) => run_repl(config),
         CliCommand::Doc(config) => run_doc(config),
+        CliCommand::Nav(config) => run_nav(config),
+    }
+}
+
+fn scan_code(repo_root: &Path) -> nav::CodeIndex {
+    let src_root = repo_root.join("src");
+    match nav::CodeIndex::scan(&src_root) {
+        Ok(index) => index,
+        Err(err) => {
+            eprintln!("{err}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn run_nav(config: NavConfigCli) {
+    let repo_root = Path::new(&config.repo);
+    match config.sub {
+        NavSub::Mostrar { key } => {
+            let index = scan_code(repo_root);
+            let Some(region) = index.region(&key) else {
+                eprintln!(
+                    "chave de código não encontrada: '{key}'. Tente `pink nav buscar \"{key}\"`."
+                );
+                std::process::exit(1);
+            };
+            println!(
+                "// {} — {}:{}-{}",
+                region.key, region.file, region.content_start, region.content_end
+            );
+            if !region.summary.is_empty() {
+                println!("// {}", region.summary);
+            }
+            println!();
+            let path = repo_root.join(&region.file);
+            match fs::read_to_string(&path) {
+                Ok(text) => {
+                    let lines: Vec<&str> = text.lines().collect();
+                    let start = region.content_start.saturating_sub(1);
+                    let end = region.content_end.min(lines.len());
+                    for line in &lines[start..end] {
+                        println!("{line}");
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Falha ao ler '{}': {}", path.display(), err);
+                    std::process::exit(1);
+                }
+            }
+        }
+        NavSub::Buscar { consulta } => {
+            let index = scan_code(repo_root);
+            let hits = index.search(&consulta);
+            if hits.is_empty() {
+                println!("Nenhuma região encontrada para: {consulta}");
+                return;
+            }
+            for region in hits.iter().take(10) {
+                println!("{}", region.key);
+                if !region.summary.is_empty() {
+                    println!("   {}", region.summary);
+                }
+                println!(
+                    "   {}:{}-{}",
+                    region.file, region.content_start, region.content_end
+                );
+            }
+        }
+        NavSub::Listar { seletor } => {
+            let index = scan_code(repo_root);
+            let regions = index.list(&seletor);
+            if regions.is_empty() {
+                println!("Nenhuma região na camada/domínio '{seletor}'.");
+                return;
+            }
+            println!("Regiões em '{seletor}':");
+            for region in regions {
+                println!(
+                    "- {} [{}/{}] {}:{}-{}",
+                    region.key,
+                    region.domain.as_deref().unwrap_or("-"),
+                    region.layer.as_deref().unwrap_or("-"),
+                    region.file,
+                    region.content_start,
+                    region.content_end
+                );
+            }
+        }
+        NavSub::Sincronizar => {
+            let doc_config = load_doc_config(repo_root);
+            let index = scan_code(repo_root);
+            let rendered = index.render_jsonl();
+            let path = repo_root.join(&doc_config.generated.code_index);
+            if let Some(parent) = path.parent() {
+                if let Err(err) = fs::create_dir_all(parent) {
+                    eprintln!("Falha ao criar '{}': {}", parent.display(), err);
+                    std::process::exit(1);
+                }
+            }
+            if let Err(err) = fs::write(&path, rendered) {
+                eprintln!("Falha ao gravar '{}': {}", path.display(), err);
+                std::process::exit(1);
+            }
+            println!(
+                "Catálogo de código sincronizado: {} ({} regiões).",
+                doc_config.generated.code_index,
+                index.regions.len()
+            );
+        }
+        NavSub::Verificar => {
+            let doc_config = load_doc_config(repo_root);
+            let index = scan_code(repo_root);
+            let mut errors = index.verify();
+            let path = repo_root.join(&doc_config.generated.code_index);
+            let rendered = index.render_jsonl();
+            let on_disk = fs::read_to_string(path).unwrap_or_default();
+            if on_disk != rendered {
+                errors.push(nav::NavVerifyError::IndexOutOfDate {
+                    path: doc_config.generated.code_index.clone(),
+                });
+            }
+            if errors.is_empty() {
+                println!("Marcadores e catálogo de código verificados: ok.");
+                return;
+            }
+            eprintln!(
+                "E-NAV-VERIFY: {} divergência(s) encontrada(s):",
+                errors.len()
+            );
+            for error in &errors {
+                eprintln!("  - {error}");
+            }
+            std::process::exit(1);
+        }
+    }
+}
+
+fn load_doc_config(repo_root: &Path) -> doc::DocConfig {
+    match doc::DocConfig::load(repo_root) {
+        Ok(cfg) => cfg,
+        Err(err) => {
+            eprintln!("{err}");
+            std::process::exit(1);
+        }
     }
 }
 

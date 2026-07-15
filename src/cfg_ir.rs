@@ -1023,6 +1023,10 @@ impl FunctionLowerer {
         self.lower_value_operand(value, current, span)
     }
 
+    // @pinker-nav:start cfg.logica.curto-circuito
+    // @pinker-nav:domain logica
+    // @pinker-nav:layer cfg
+    // @pinker-nav:summary Lowering de curto-circuito de `e`/`ou` em blocos e saltos explícitos.
     fn lower_short_circuit_value(
         &mut self,
         op: BinaryOpIR,
@@ -1076,7 +1080,12 @@ impl FunctionLowerer {
 
         Ok((OperandIR::Local(logical_slot), join_idx))
     }
+    // @pinker-nav:end cfg.logica.curto-circuito
 
+    // @pinker-nav:start cfg.logica.slot-logico
+    // @pinker-nav:domain logica
+    // @pinker-nav:layer cfg
+    // @pinker-nav:summary Aloca o local temporário booleano usado pelo curto-circuito.
     fn next_logical_slot(&mut self) -> String {
         let index = self.next_logical_slot;
         self.next_logical_slot += 1;
@@ -1089,6 +1098,7 @@ impl FunctionLowerer {
         });
         slot
     }
+    // @pinker-nav:end cfg.logica.slot-logico
 
     fn fresh_block(&mut self, label: String) -> usize {
         let idx = self.blocks.len();
