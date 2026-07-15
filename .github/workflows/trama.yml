@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout do PR
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Instalar toolchain Rust
         uses: dtolnay/rust-toolchain@master
