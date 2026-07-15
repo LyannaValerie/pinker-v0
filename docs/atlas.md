@@ -1,3 +1,15 @@
+---
+pinker-doc: 1
+id: atlas
+domain: atlas
+kind: portal
+status: active
+parent: root
+audience:
+  - human
+  - agent
+---
+
 # Atlas documental da Pinker v0
 
 - **Classe:** Ponte
@@ -8,6 +20,15 @@ Este é o arquivo mestre de navegação documental da Pinker v0.
 
 ## 0) Territórios (portais)
 
+<!-- @pinker-doc:start
+id: atlas.territories
+tags: [atlas, territorios, portais, navegacao]
+aliases:
+  - territorios
+  - quais sao os territorios
+  - mapa de territorios
+summary: Lista dos territórios documentais e seus portais locais.
+-->
 A Trama Pinker organiza a documentação em **territórios**. O Atlas aponta para o
 portal de cada território; o portal conhece os documentos internos. Portais de
 território (Etapa 5 — migração gradual, sem reorganização global destrutiva; os
@@ -20,6 +41,7 @@ documentos canônicos abaixo permanecem no lugar):
 - **Desenvolvimento:** `development/README.md`
 - **Roadmap:** `roadmap/README.md`
 - **Histórico:** `history/README.md`
+<!-- @pinker-doc:end atlas.territories -->
 
 Consulta por agentes: `pink doc rota "<intenção>"`, `pink doc mostrar <id>` e
 `pink nav buscar "<conceito>"` (ver `../AGENTS.md`).

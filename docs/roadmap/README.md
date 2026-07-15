@@ -54,6 +54,53 @@ histórica nem declara implementação por interpretação.
 | shards estruturais por bloco | `blocos/` |
 | convergência bare-metal/bootstrap | `bare_metal_bootstrap.md` |
 
+## Direção
+
+<!-- @pinker-doc:start
+id: roadmap.current
+tags: [roadmap, corrente, ordem-ativa]
+aliases:
+  - ordem ativa
+  - qual a ordem atual
+summary: Onde vive a ordem ativa oficial do roadmap.
+-->
+### Ordem corrente
+
+A ordem ativa oficial vive em `../roadmap.md`. O portal não duplica a ordem: ele
+aponta para a fonte canônica e para os shards estruturais por bloco.
+<!-- @pinker-doc:end roadmap.current -->
+
+<!-- @pinker-doc:start
+id: roadmap.active-block
+tags: [roadmap, bloco, corrente]
+aliases:
+  - bloco corrente
+  - qual bloco esta ativo
+summary: Como localizar o bloco corrente e seus shards estruturais.
+-->
+### Bloco corrente
+
+O bloco corrente é determinado pela ordem ativa em `../roadmap.md`; seus shards
+estruturais estão em `blocos/` e a convergência bare-metal em
+`bare_metal_bootstrap.md`.
+<!-- @pinker-doc:end roadmap.active-block -->
+
+<!-- @pinker-doc:start
+id: roadmap.next
+tags: [roadmap, proximo, direcao]
+aliases:
+  - proxima fase
+  - qual a proxima fase
+  - proxima direcao
+summary: Direção imediata da trilha — para onde o roadmap aponta a seguir.
+-->
+### Próxima direção
+
+Para descobrir a próxima direção da trilha, consulte a ordem ativa em
+`../roadmap.md` e o hub de navegação `indice.md`. A próxima direção nunca é
+inferida por heurística: ela é declarada na ordem ativa.
+<!-- @pinker-doc:end roadmap.next -->
+
 ## Rotas de leitura
 
 ### Descobrir a próxima direção

@@ -7,12 +7,19 @@
 //! O catálogo é totalmente gerado, ordenado de forma determinística por `id` e
 //! nunca editado à mão. Zero dependências externas, coerente com o compilador.
 
+use crate::jsonl;
+use crate::text_norm;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// Versão do formato do catálogo documental (`docs/navigation.jsonl`).
+/// Formato discriminado (§6): registros `document` e `section` num único
+/// catálogo crescente.
+pub const CATALOG_SCHEMA: u64 = 2;
 
 /// Raízes sentinela aceitas como `parent` sem serem documentos concretos.
 const ROOT_PARENTS: &[&str] = &["atlas", "root"];
@@ -37,6 +44,7 @@ pub struct DocDocument {
     pub parent: Option<String>,
     pub file: String,
     pub title: String,
+    pub audience: Vec<String>,
     pub canonical_for: Vec<String>,
     pub related: Vec<String>,
     pub missing_fields: Vec<String>,
@@ -215,12 +223,21 @@ impl DocIndex {
         Ok(index)
     }
 
-    /// Serializa as seções em JSONL determinístico (ordenado por `id`).
+    /// Serializa o catálogo discriminado em JSONL determinístico (§6): primeiro
+    /// os registros `document` (ordenados por `id`), depois os registros
+    /// `section` (ordenados por `id`, `file`). Um único catálogo crescente.
     pub fn render_jsonl(&self) -> String {
-        let mut sorted = self.sections.clone();
-        sorted.sort_by(|a, b| a.id.cmp(&b.id).then(a.file.cmp(&b.file)));
+        let mut documents = self.documents.clone();
+        documents.sort_by(|a, b| a.id.cmp(&b.id));
+        let mut sections = self.sections.clone();
+        sections.sort_by(|a, b| a.id.cmp(&b.id).then(a.file.cmp(&b.file)));
+
         let mut out = String::new();
-        for section in &sorted {
+        for document in &documents {
+            out.push_str(&render_document_json(document));
+            out.push('\n');
+        }
+        for section in &sections {
             out.push_str(&render_section_json(section));
             out.push('\n');
         }
@@ -337,29 +354,10 @@ impl DocIndex {
         self.documents.iter().find(|d| d.id == id)
     }
 
-    /// Busca determinística por ids, títulos, tags, aliases e resumos.
-    /// Devolve resultados ordenados por relevância e id.
+    /// Busca determinística sobre as seções (política §7.2). Devolve resultados
+    /// ordenados por pontuação, cobertura de termos e id lexicográfico.
     pub fn search(&self, query: &str) -> Vec<SearchHit> {
-        let needle = query.to_lowercase();
-        let mut hits: Vec<SearchHit> = Vec::new();
-        for section in &self.sections {
-            if let Some(score) = section_score(section, &needle) {
-                hits.push(SearchHit {
-                    id: section.id.clone(),
-                    file: section.file.clone(),
-                    start: section.start,
-                    end: section.end,
-                    summary: if section.summary.is_empty() {
-                        section.title.clone()
-                    } else {
-                        section.summary.clone()
-                    },
-                    score,
-                });
-            }
-        }
-        hits.sort_by(|a, b| b.score.cmp(&a.score).then(a.id.cmp(&b.id)));
-        hits
+        search_sections(&self.sections, query)
     }
 }
 
@@ -372,56 +370,125 @@ pub struct SearchHit {
     pub end: usize,
     pub summary: String,
     pub score: u32,
+    pub coverage: usize,
 }
 
-fn section_score(section: &DocSection, needle: &str) -> Option<u32> {
-    if needle.is_empty() {
+/// Pontuação e cobertura de uma seção para uma consulta já normalizada.
+/// Política determinística da especificação (§7.2):
+///
+/// - ID exato: 100; alias exato: 90; ID contendo a consulta: 70;
+/// - título contendo a consulta: 60; cobertura em aliases: 50;
+/// - cobertura em tags: 40; cobertura no resumo: 20.
+fn score_section(section: &DocSection, q_norm: &str, terms: &[String]) -> Option<(u32, usize)> {
+    if q_norm.is_empty() {
         return None;
     }
+    let id_norm = text_norm::normalize(&section.id);
+    let title_norm = text_norm::normalize(&section.title);
+    let alias_norms: Vec<String> = section
+        .aliases
+        .iter()
+        .map(|a| text_norm::normalize(a))
+        .collect();
+    let tag_norms: Vec<String> = section
+        .tags
+        .iter()
+        .map(|t| text_norm::normalize(t))
+        .collect();
+    let summary_norm = text_norm::normalize(&section.summary);
+
     let mut score = 0u32;
-    if section.id.to_lowercase() == needle {
+    if id_norm == q_norm {
         score += 100;
-    } else if section.id.to_lowercase().contains(needle) {
+    }
+    if alias_norms.iter().any(|a| a == q_norm) {
+        score += 90;
+    }
+    if id_norm.contains(q_norm) {
+        score += 70;
+    }
+    if title_norm.contains(q_norm) {
+        score += 60;
+    }
+    if covers(&alias_norms.join(" "), terms) {
+        score += 50;
+    }
+    if covers(&tag_norms.join(" "), terms) {
         score += 40;
     }
-    if section.title.to_lowercase().contains(needle) {
-        score += 25;
+    if covers(&summary_norm, terms) {
+        score += 20;
     }
-    for tag in &section.tags {
-        if tag.to_lowercase() == needle {
-            score += 20;
-        } else if tag.to_lowercase().contains(needle) {
-            score += 10;
+
+    // Cobertura de termos = quantos termos distintos aparecem em qualquer campo
+    // (usado como primeiro critério de desempate).
+    let haystack = format!(
+        "{} {} {} {} {}",
+        id_norm,
+        title_norm,
+        alias_norms.join(" "),
+        tag_norms.join(" "),
+        summary_norm
+    );
+    let coverage = terms
+        .iter()
+        .filter(|t| haystack.split(' ').any(|w| w == t.as_str()))
+        .count();
+
+    if score == 0 {
+        return None;
+    }
+    Some((score, coverage))
+}
+
+/// Verdadeiro se a maioria dos termos da consulta aparece como palavra no texto
+/// normalizado. Usa maioria (≥ metade, mínimo 1) em vez de cobertura total para
+/// tolerar conectivos ("qual é a próxima fase"), sem recorrer a stemming ou
+/// fuzzy search — política determinística e equivalente à da especificação
+/// (§7.2, "equivalente a").
+fn covers(haystack_norm: &str, terms: &[String]) -> bool {
+    if terms.is_empty() {
+        return false;
+    }
+    let words: Vec<&str> = haystack_norm.split(' ').filter(|w| !w.is_empty()).collect();
+    let matched = terms
+        .iter()
+        .filter(|t| words.iter().any(|w| *w == t.as_str()))
+        .count();
+    let needed = terms.len().div_ceil(2);
+    matched >= needed
+}
+
+/// Núcleo de busca compartilhado por `DocIndex` (memória) e `DocCatalog`
+/// (JSONL). Ordena por (pontuação desc, cobertura desc, id asc).
+fn search_sections(sections: &[DocSection], query: &str) -> Vec<SearchHit> {
+    let q_norm = text_norm::normalize(query);
+    let terms = text_norm::terms(query);
+    let mut hits: Vec<SearchHit> = Vec::new();
+    for section in sections {
+        if let Some((score, coverage)) = score_section(section, &q_norm, &terms) {
+            hits.push(SearchHit {
+                id: section.id.clone(),
+                file: section.file.clone(),
+                start: section.start,
+                end: section.end,
+                summary: if section.summary.is_empty() {
+                    section.title.clone()
+                } else {
+                    section.summary.clone()
+                },
+                score,
+                coverage,
+            });
         }
     }
-    for alias in &section.aliases {
-        if alias.to_lowercase().contains(needle) {
-            score += 15;
-        }
-    }
-    if section.summary.to_lowercase().contains(needle) {
-        score += 8;
-    }
-    for word in needle.split_whitespace() {
-        if word.len() < 3 {
-            continue;
-        }
-        if section.title.to_lowercase().contains(word)
-            || section.tags.iter().any(|t| t.to_lowercase().contains(word))
-            || section
-                .aliases
-                .iter()
-                .any(|a| a.to_lowercase().contains(word))
-            || section.summary.to_lowercase().contains(word)
-        {
-            score += 3;
-        }
-    }
-    if score > 0 {
-        Some(score)
-    } else {
-        None
-    }
+    hits.sort_by(|a, b| {
+        b.score
+            .cmp(&a.score)
+            .then(b.coverage.cmp(&a.coverage))
+            .then(a.id.cmp(&b.id))
+    });
+    hits
 }
 
 fn collect_markdown(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), ScanError> {
@@ -521,6 +588,7 @@ fn build_document(
         parent: get_scalar("parent"),
         file: rel_path.to_string(),
         title: first_heading(lines, body_start).unwrap_or_default(),
+        audience: get_list("audience"),
         canonical_for: get_list("canonical_for"),
         related: get_list("related"),
         missing_fields,
@@ -760,9 +828,41 @@ fn unquote(value: &str) -> String {
     }
 }
 
+fn render_document_json(d: &DocDocument) -> String {
+    let mut out = String::new();
+    out.push_str(&format!("{{\"schema\":{}", CATALOG_SCHEMA));
+    out.push_str(",\"record\":\"document\"");
+    out.push_str(&format!(",\"id\":{}", json_string(&d.id)));
+    out.push_str(&format!(",\"domain\":{}", json_string(&d.domain)));
+    out.push_str(&format!(",\"kind\":{}", json_string(&d.kind)));
+    out.push_str(&format!(",\"status\":{}", json_string(&d.status)));
+    if let Some(parent) = &d.parent {
+        out.push_str(&format!(",\"parent\":{}", json_string(parent)));
+    }
+    if !d.title.is_empty() {
+        out.push_str(&format!(",\"title\":{}", json_string(&d.title)));
+    }
+    if !d.audience.is_empty() {
+        out.push_str(&format!(",\"audience\":{}", json_string_array(&d.audience)));
+    }
+    if !d.canonical_for.is_empty() {
+        out.push_str(&format!(
+            ",\"canonical_for\":{}",
+            json_string_array(&d.canonical_for)
+        ));
+    }
+    if !d.related.is_empty() {
+        out.push_str(&format!(",\"related\":{}", json_string_array(&d.related)));
+    }
+    out.push_str(&format!(",\"file\":{}", json_string(&d.file)));
+    out.push('}');
+    out
+}
+
 fn render_section_json(s: &DocSection) -> String {
     let mut out = String::new();
-    out.push_str("{\"schema\":1");
+    out.push_str(&format!("{{\"schema\":{}", CATALOG_SCHEMA));
+    out.push_str(",\"record\":\"section\"");
     out.push_str(&format!(",\"id\":{}", json_string(&s.id)));
     out.push_str(&format!(",\"document\":{}", json_string(&s.document)));
     out.push_str(&format!(",\"file\":{}", json_string(&s.file)));
@@ -803,6 +903,223 @@ fn json_string(value: &str) -> String {
     }
     out.push('"');
     out
+}
+
+// ---------------------------------------------------------------------------
+// Catálogo carregado do JSONL (superfície de consulta — §5).
+// ---------------------------------------------------------------------------
+
+/// Falha ao carregar o catálogo documental versionado.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CatalogError {
+    Missing {
+        path: String,
+    },
+    Invalid {
+        path: String,
+        line: usize,
+        msg: String,
+    },
+}
+
+impl fmt::Display for CatalogError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CatalogError::Missing { path } => write!(
+                f,
+                "E-DOC-CATALOG\nCatálogo documental ausente: '{}'. Rode `pink doc sincronizar`.",
+                path
+            ),
+            CatalogError::Invalid { path, line, msg } => write!(
+                f,
+                "E-DOC-CATALOG\nCatálogo documental inválido em '{}' (linha {}): {}. Rode `pink doc sincronizar`.",
+                path, line, msg
+            ),
+        }
+    }
+}
+
+/// Catálogo documental em memória, reconstruído a partir do JSONL versionado.
+/// As consultas (`mostrar`, `listar`, `buscar`, `rota`) usam esta superfície e
+/// não revarrem `docs/` (§5).
+#[derive(Debug, Clone, Default)]
+pub struct DocCatalog {
+    pub documents: Vec<DocDocument>,
+    pub sections: Vec<DocSection>,
+}
+
+impl DocCatalog {
+    /// Carrega o catálogo do arquivo JSONL versionado.
+    pub fn load(path: &Path) -> Result<DocCatalog, CatalogError> {
+        let text = fs::read_to_string(path).map_err(|_| CatalogError::Missing {
+            path: path.display().to_string(),
+        })?;
+        Self::parse(&text, &path.display().to_string())
+    }
+
+    /// Interpreta o conteúdo textual do catálogo (útil também para testes).
+    pub fn parse(text: &str, path: &str) -> Result<DocCatalog, CatalogError> {
+        let mut catalog = DocCatalog::default();
+        for (idx, raw) in text.lines().enumerate() {
+            let line = raw.trim();
+            if line.is_empty() {
+                continue;
+            }
+            let obj = jsonl::parse_object(line).map_err(|err| CatalogError::Invalid {
+                path: path.to_string(),
+                line: idx + 1,
+                msg: err.msg,
+            })?;
+            let invalid = |msg: &str| CatalogError::Invalid {
+                path: path.to_string(),
+                line: idx + 1,
+                msg: msg.to_string(),
+            };
+            let schema = obj.get("schema").and_then(|v| v.as_int()).unwrap_or(0);
+            if schema != CATALOG_SCHEMA as i64 {
+                return Err(invalid(&format!("schema {} não suportado", schema)));
+            }
+            let record = obj
+                .get("record")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| invalid("campo 'record' ausente"))?;
+            match record {
+                "document" => catalog
+                    .documents
+                    .push(parse_document_record(&obj, &invalid)?),
+                "section" => catalog.sections.push(parse_section_record(&obj, &invalid)?),
+                other => return Err(invalid(&format!("record desconhecido '{}'", other))),
+            }
+        }
+        catalog.documents.sort_by(|a, b| a.id.cmp(&b.id));
+        catalog
+            .sections
+            .sort_by(|a, b| a.id.cmp(&b.id).then(a.file.cmp(&b.file)));
+        Ok(catalog)
+    }
+
+    pub fn section(&self, id: &str) -> Option<&DocSection> {
+        self.sections.iter().find(|s| s.id == id)
+    }
+
+    pub fn document(&self, id: &str) -> Option<&DocDocument> {
+        self.documents.iter().find(|d| d.id == id)
+    }
+
+    pub fn documents_in_domain(&self, domain: &str) -> Vec<&DocDocument> {
+        self.documents
+            .iter()
+            .filter(|d| d.domain == domain)
+            .collect()
+    }
+
+    pub fn sections_of(&self, document: &str) -> Vec<&DocSection> {
+        self.sections
+            .iter()
+            .filter(|s| s.document == document)
+            .collect()
+    }
+
+    pub fn search(&self, query: &str) -> Vec<SearchHit> {
+        search_sections(&self.sections, query)
+    }
+}
+
+fn parse_document_record(
+    obj: &jsonl::JsonObject,
+    invalid: &impl Fn(&str) -> CatalogError,
+) -> Result<DocDocument, CatalogError> {
+    let req_str = |key: &str| -> Result<String, CatalogError> {
+        obj.get(key)
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .ok_or_else(|| invalid(&format!("documento sem campo '{}'", key)))
+    };
+    let opt_str = |key: &str| obj.get(key).and_then(|v| v.as_str()).map(str::to_string);
+    let opt_list = |key: &str| {
+        obj.get(key)
+            .and_then(|v| v.as_str_array())
+            .unwrap_or_default()
+    };
+    Ok(DocDocument {
+        id: req_str("id")?,
+        domain: req_str("domain")?,
+        kind: req_str("kind")?,
+        status: req_str("status")?,
+        parent: opt_str("parent"),
+        file: req_str("file")?,
+        title: opt_str("title").unwrap_or_default(),
+        audience: opt_list("audience"),
+        canonical_for: opt_list("canonical_for"),
+        related: opt_list("related"),
+        missing_fields: Vec::new(),
+    })
+}
+
+fn parse_section_record(
+    obj: &jsonl::JsonObject,
+    invalid: &impl Fn(&str) -> CatalogError,
+) -> Result<DocSection, CatalogError> {
+    let req_str = |key: &str| -> Result<String, CatalogError> {
+        obj.get(key)
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .ok_or_else(|| invalid(&format!("seção sem campo '{}'", key)))
+    };
+    let req_int = |key: &str| -> Result<usize, CatalogError> {
+        obj.get(key)
+            .and_then(|v| v.as_int())
+            .filter(|v| *v >= 0)
+            .map(|v| v as usize)
+            .ok_or_else(|| invalid(&format!("seção sem inteiro '{}'", key)))
+    };
+    let opt_list = |key: &str| {
+        obj.get(key)
+            .and_then(|v| v.as_str_array())
+            .unwrap_or_default()
+    };
+    Ok(DocSection {
+        id: req_str("id")?,
+        document: req_str("document")?,
+        file: req_str("file")?,
+        start: req_int("start")?,
+        end: req_int("end")?,
+        title: obj
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string(),
+        tags: opt_list("tags"),
+        aliases: opt_list("aliases"),
+        summary: obj
+            .get("summary")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string(),
+    })
+}
+
+/// Valida uma seção ao extrair conteúdo (§5): reescaneia apenas o arquivo-fonte
+/// que o catálogo apontou e confirma que a seção de mesmo id ainda ocupa
+/// exatamente o mesmo intervalo `[start, end]`. Abrir o único arquivo indicado
+/// pelo catálogo é permitido (não é revarrer `docs/`); qualquer divergência de
+/// posição significa catálogo desatualizado e a resposta é recusada.
+pub fn validate_section_anchor(source: &str, section: &DocSection) -> bool {
+    let lines: Vec<&str> = source.lines().collect();
+    let (_, body_start) = extract_frontmatter(&lines);
+    // Reaproveita o mesmo scanner de âncoras usado pela sincronização.
+    let mut index = DocIndex::default();
+    scan_anchors(
+        &section.file,
+        &section.document,
+        &lines,
+        body_start,
+        &mut index,
+    );
+    match index.sections.iter().find(|s| s.id == section.id) {
+        Some(fresh) => fresh.start == section.start && fresh.end == section.end,
+        None => false,
+    }
 }
 
 #[cfg(test)]

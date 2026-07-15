@@ -17,7 +17,23 @@ repository = "LyannaValerie/pinker-v0"
 [generated]
 docs_index = "docs/navigation.jsonl"
 code_index = "src/navigation.jsonl"
+
+[projections.state]
+file = "docs/engine/state.md"
+region = "engine.state.generated"
+
+[projections.history]
+file = "docs/history/changes.md"
+region = "change.history"
 "#;
+
+const STATE_DOC: &str = "---\npinker-doc: 1\nid: engine.state\ndomain: engine\nkind: reference\nstatus: active\nparent: engine\n---\n\n# Estado\n\n<!-- @pinker-generated:start engine.state.generated -->\n<!-- @pinker-generated:end engine.state.generated -->\n";
+
+const HISTORY_DOC: &str = "---\npinker-doc: 1\nid: history.changes\ndomain: history\nkind: index\nstatus: active\nparent: history\n---\n\n# Mudanças\n\n<!-- @pinker-generated:start change.history -->\n<!-- @pinker-generated:end change.history -->\n";
+
+const ENGINE_PORTAL: &str = "---\npinker-doc: 1\nid: engine\ndomain: engine\nkind: portal\nstatus: active\nparent: atlas\n---\n\n# Engine\n\nPortal.\n";
+
+const HISTORY_PORTAL: &str = "---\npinker-doc: 1\nid: history\ndomain: history\nkind: portal\nstatus: active\nparent: atlas\n---\n\n# Histórico\n\nPortal.\n";
 
 const BODY: &str = "## Resumo\nImplementa Resultado.\n\n```pinker-change\nschema: 1\nkind: phase\nphase: 241\nblock: 20\ntitle: Biblioteca predeclarada de Resultado\narea:\n  - language.result\nstatus: completed\nupdates:\n  state: true\n  history: true\nsections:\n  implemented:\n    - result.predeclared\nvalidation:\n  required:\n    - make ci\n```\n";
 
@@ -48,6 +64,10 @@ fn run(root: &Path, args: &[&str]) -> std::process::Output {
 fn fixture(root: &Path) {
     write(root, ".pinker/doc.toml", DOC_TOML);
     write(root, "body.md", BODY);
+    write(root, "docs/engine/README.md", ENGINE_PORTAL);
+    write(root, "docs/engine/state.md", STATE_DOC);
+    write(root, "docs/history/README.md", HISTORY_PORTAL);
+    write(root, "docs/history/changes.md", HISTORY_DOC);
 }
 
 #[test]
@@ -73,6 +93,22 @@ fn importa_pr_posterior_gera_manifesto_e_historico() {
 
     let ledger = fs::read_to_string(root.join(".pinker/changes/index.jsonl")).unwrap();
     assert!(ledger.contains("\"pr\":341"), "{ledger}");
+
+    // Sincroniza catálogo e projeções antes de verificar.
+    let sync = run(&root, &["sincronizar"]);
+    assert!(
+        sync.status.success(),
+        "{}",
+        String::from_utf8_lossy(&sync.stderr)
+    );
+
+    // A projeção de histórico deve conter a mudança importada.
+    let changes = fs::read_to_string(root.join("docs/history/changes.md")).unwrap();
+    assert!(changes.contains("#341"), "{changes}");
+    assert!(
+        changes.contains("Biblioteca predeclarada de Resultado"),
+        "{changes}"
+    );
 
     let verify = run(&root, &["verificar"]);
     assert!(

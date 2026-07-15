@@ -14,6 +14,21 @@ use std::path::{Path, PathBuf};
 const FENCE_OPEN: &str = "```pinker-change";
 const FENCE_CLOSE: &str = "```";
 
+/// Valores aceitos para `kind` (§11, enum do schema).
+const KIND_ENUM: &[&str] = &["phase", "hotfix", "documentation", "parallel-phase"];
+/// Valores aceitos para `status` (§11, enum do schema).
+const STATUS_ENUM: &[&str] = &["completed", "in-progress", "planned"];
+
+/// Mensagem canônica de violação de imutabilidade de manifesto (§10).
+pub fn immutable_error(pr: u64) -> String {
+    format!(
+        "E-CHANGE-IMMUTABLE\n\
+         O manifesto .pinker/changes/pr-{pr}.yaml já existe com conteúdo diferente.\n\
+         Manifestos são imutáveis após a primeira importação; nenhuma alteração\n\
+         silenciosa é permitida. Reverta a mudança ou registre um novo PR."
+    )
+}
+
 /// Origem de um manifesto (presente no arquivo versionado).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Source {
@@ -38,6 +53,10 @@ pub struct Change {
     pub implemented: Vec<String>,
     pub pending_remove: Vec<String>,
     pub validation_required: Vec<String>,
+    /// Campos de topo desconhecidos encontrados no bloco (§11 — rejeição).
+    pub unknown_fields: Vec<String>,
+    /// `source.type` declarado (para validar `github-pr`).
+    pub source_type_present: Option<String>,
 }
 
 /// Falhas de manifesto.
@@ -45,10 +64,38 @@ pub struct Change {
 pub enum ChangeError {
     NoBlock,
     UnterminatedBlock,
-    UnsupportedSchema { found: u64 },
-    MissingField { field: String },
-    NumberMismatch { file: u64, source: u64 },
-    Io { path: String, msg: String },
+    UnsupportedSchema {
+        found: u64,
+    },
+    MissingField {
+        field: String,
+    },
+    NumberMismatch {
+        file: u64,
+        source: u64,
+    },
+    UnknownField {
+        field: String,
+    },
+    InvalidEnum {
+        field: String,
+        value: String,
+        allowed: String,
+    },
+    InvalidSourceType {
+        found: String,
+    },
+    InvalidNumber {
+        found: i64,
+    },
+    InvalidIdFormat {
+        field: String,
+        value: String,
+    },
+    Io {
+        path: String,
+        msg: String,
+    },
 }
 
 impl fmt::Display for ChangeError {
@@ -76,6 +123,35 @@ impl fmt::Display for ChangeError {
                 f,
                 "E-CHANGE-NUMBER\nManifesto pr-{}.yaml declara source.number {}.",
                 file, source
+            ),
+            ChangeError::UnknownField { field } => write!(
+                f,
+                "E-CHANGE-SCHEMA\nCampo desconhecido no manifesto: '{}'.",
+                field
+            ),
+            ChangeError::InvalidEnum {
+                field,
+                value,
+                allowed,
+            } => write!(
+                f,
+                "E-CHANGE-SCHEMA\nValor inválido em '{}': '{}'. Aceitos: {}.",
+                field, value, allowed
+            ),
+            ChangeError::InvalidSourceType { found } => write!(
+                f,
+                "E-CHANGE-SCHEMA\nsource.type inválido: '{}'; esperado 'github-pr'.",
+                found
+            ),
+            ChangeError::InvalidNumber { found } => write!(
+                f,
+                "E-CHANGE-SCHEMA\nsource.number inválido: {}; esperado inteiro positivo.",
+                found
+            ),
+            ChangeError::InvalidIdFormat { field, value } => write!(
+                f,
+                "E-CHANGE-SCHEMA\nId inválido em '{}': '{}' (formato [a-z0-9]+([._-][a-z0-9]+)*).",
+                field, value
             ),
             ChangeError::Io { path, msg } => {
                 write!(f, "E-CHANGE-IO\nFalha em '{}': {}", path, msg)
@@ -142,7 +218,12 @@ impl Change {
                         }
                         top = Some(key);
                     }
-                    _ => {}
+                    other => {
+                        // Campo de topo desconhecido: registrado para rejeição (§11).
+                        if !change.unknown_fields.iter().any(|f| f == other) {
+                            change.unknown_fields.push(other.to_string());
+                        }
+                    }
                 }
             } else if let Some(current) = top.as_deref() {
                 match current {
@@ -168,20 +249,35 @@ impl Change {
         }
 
         if has_source {
+            change.source_type_present = Some(source.kind.clone());
             change.source = Some(source);
         }
 
         Ok(change)
     }
 
-    /// Valida campos obrigatórios e o esquema.
+    /// Valida de fato as restrições do schema (§11): versão, campos
+    /// obrigatórios, rejeição de campos desconhecidos, enums de `kind`/`status`,
+    /// `source.type`, número de PR positivo, tipos e formato de ids.
     pub fn validate(&self) -> Result<(), ChangeError> {
         if self.schema != 1 {
             return Err(ChangeError::UnsupportedSchema { found: self.schema });
         }
+        if let Some(field) = self.unknown_fields.first() {
+            return Err(ChangeError::UnknownField {
+                field: field.clone(),
+            });
+        }
         if self.kind.is_empty() {
             return Err(ChangeError::MissingField {
                 field: "kind".to_string(),
+            });
+        }
+        if !KIND_ENUM.contains(&self.kind.as_str()) {
+            return Err(ChangeError::InvalidEnum {
+                field: "kind".to_string(),
+                value: self.kind.clone(),
+                allowed: KIND_ENUM.join(", "),
             });
         }
         if self.title.is_empty() {
@@ -193,6 +289,44 @@ impl Change {
             return Err(ChangeError::MissingField {
                 field: "status".to_string(),
             });
+        }
+        if !STATUS_ENUM.contains(&self.status.as_str()) {
+            return Err(ChangeError::InvalidEnum {
+                field: "status".to_string(),
+                value: self.status.clone(),
+                allowed: STATUS_ENUM.join(", "),
+            });
+        }
+        if let Some(source) = &self.source {
+            if source.kind != "github-pr" {
+                return Err(ChangeError::InvalidSourceType {
+                    found: source.kind.clone(),
+                });
+            }
+            if source.number == 0 {
+                return Err(ChangeError::InvalidNumber { found: 0 });
+            }
+        } else if let Some(source_type) = &self.source_type_present {
+            // `source:` presente no bloco mas sem `type` válido.
+            if source_type != "github-pr" {
+                return Err(ChangeError::InvalidSourceType {
+                    found: source_type.clone(),
+                });
+            }
+        }
+        // Ids semânticos (área e seções) devem seguir o formato permitido.
+        for id in self
+            .area
+            .iter()
+            .chain(&self.implemented)
+            .chain(&self.pending_remove)
+        {
+            if !valid_id(id) {
+                return Err(ChangeError::InvalidIdFormat {
+                    field: "id".to_string(),
+                    value: id.clone(),
+                });
+            }
         }
         Ok(())
     }
@@ -371,6 +505,33 @@ fn extract_block(body: &str) -> Result<String, ChangeError> {
     Err(ChangeError::UnterminatedBlock)
 }
 
+/// Formato permitido de id semântico: `[a-z0-9]+([._-][a-z0-9]+)*`.
+fn valid_id(id: &str) -> bool {
+    if id.is_empty() {
+        return false;
+    }
+    let bytes = id.as_bytes();
+    let is_alnum = |c: u8| c.is_ascii_lowercase() || c.is_ascii_digit();
+    let is_sep = |c: u8| c == b'.' || c == b'_' || c == b'-';
+    if !is_alnum(bytes[0]) || !is_alnum(bytes[bytes.len() - 1]) {
+        return false;
+    }
+    let mut prev_sep = false;
+    for &c in bytes {
+        if is_alnum(c) {
+            prev_sep = false;
+        } else if is_sep(c) {
+            if prev_sep {
+                return false;
+            }
+            prev_sep = true;
+        } else {
+            return false;
+        }
+    }
+    true
+}
+
 fn is_pr_yaml(path: &Path) -> bool {
     path.file_name()
         .and_then(|n| n.to_str())
@@ -459,6 +620,82 @@ mod tests {
         assert_eq!(once, twice);
         assert!(once.contains("number: 341"));
         assert!(once.contains("title: Biblioteca predeclarada"));
+    }
+
+    #[test]
+    fn validate_rejects_invalid_enums() {
+        let mut change = Change {
+            schema: 1,
+            kind: "banana".to_string(),
+            title: "x".to_string(),
+            status: "completed".to_string(),
+            ..Default::default()
+        };
+        assert!(matches!(
+            change.validate(),
+            Err(ChangeError::InvalidEnum { .. })
+        ));
+        change.kind = "phase".to_string();
+        change.status = "talvez".to_string();
+        assert!(matches!(
+            change.validate(),
+            Err(ChangeError::InvalidEnum { .. })
+        ));
+    }
+
+    #[test]
+    fn validate_rejects_unknown_field() {
+        let block = "schema: 1\nkind: phase\ntitle: x\nstatus: completed\nbanana: 42\n";
+        let change = Change::parse_block(block).unwrap();
+        assert!(matches!(
+            change.validate(),
+            Err(ChangeError::UnknownField { .. })
+        ));
+    }
+
+    #[test]
+    fn validate_rejects_bad_source_type_and_number() {
+        let mut change = Change {
+            schema: 1,
+            kind: "phase".to_string(),
+            title: "x".to_string(),
+            status: "completed".to_string(),
+            source: Some(Source {
+                kind: "gitlab-mr".to_string(),
+                number: 5,
+                repository: None,
+            }),
+            ..Default::default()
+        };
+        assert!(matches!(
+            change.validate(),
+            Err(ChangeError::InvalidSourceType { .. })
+        ));
+        change.source = Some(Source {
+            kind: "github-pr".to_string(),
+            number: 0,
+            repository: None,
+        });
+        assert!(matches!(
+            change.validate(),
+            Err(ChangeError::InvalidNumber { .. })
+        ));
+    }
+
+    #[test]
+    fn validate_rejects_bad_id_format() {
+        let change = Change {
+            schema: 1,
+            kind: "phase".to_string(),
+            title: "x".to_string(),
+            status: "completed".to_string(),
+            area: vec!["Nao Valido".to_string()],
+            ..Default::default()
+        };
+        assert!(matches!(
+            change.validate(),
+            Err(ChangeError::InvalidIdFormat { .. })
+        ));
     }
 
     #[test]

@@ -1,0 +1,54 @@
+name: Trama Pinker
+
+# CI permanente e SOMENTE LEITURA da Trama Pinker (especificação §14).
+#
+# Substitui o runner temporário da tentativa anterior. Este workflow apenas
+# VERIFICA: nunca faz push, nunca cria commit, nunca reconstrói patches Base64,
+# nunca edita a branch e não roda bot de correção. O agente ou desenvolvedor é
+# quem sincroniza (`pink doc sincronizar` / `pink nav sincronizar`); o CI só
+# valida com `make ci` e confere o bloco `pinker-change` do PR atual.
+
+on:
+  pull_request:
+
+# Permissões mínimas: apenas leitura do conteúdo e do PR.
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  validate:
+    name: Validação somente-leitura
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do PR
+        uses: actions/checkout@v4
+
+      - name: Instalar toolchain Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.78.0"
+          components: rustfmt, clippy
+
+      - name: make ci (build, test, fmt, clippy, guard, docs-check, nav-check)
+        run: make ci
+
+      - name: Validar bloco pinker-change do PR (somente leitura)
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Grava o corpo do PR em disco sem interpretá-lo como script.
+          printf '%s' "$PR_BODY" > pr-body.md
+          if grep -q '```pinker-change' pr-body.md; then
+            echo "Bloco pinker-change encontrado; validando em modo --check (sem escrita)."
+            # --check valida baseline, bloco e schema, e compara com o manifesto
+            # versionado quando presente. Nunca escreve arquivos.
+            ./ci_env.sh cargo run --bin pink -- \
+              doc importar-pr "$PR_NUMBER" --corpo pr-body.md --check
+          else
+            echo "Nenhum bloco pinker-change no corpo do PR; nada a validar."
+          fi
+          rm -f pr-body.md

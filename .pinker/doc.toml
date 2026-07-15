@@ -26,3 +26,18 @@ repository = "LyannaValerie/pinker-v0"
 # Catálogos derivados, gerados pela ferramenta e nunca editados à mão.
 docs_index = "docs/navigation.jsonl"
 code_index = "src/navigation.jsonl"
+
+# Projeções documentais determinísticas (Trama Pinker, §12). Cada projeção é
+# aplicada dentro de uma região gerada explícita (@pinker-generated:start/end);
+# o texto fora da região é propriedade humana e nunca é tocado.
+[projections.history]
+file = "docs/history/changes.md"
+region = "change.history"
+
+[projections.state]
+file = "docs/engine/state.md"
+region = "engine.state.generated"
+
+[projections.roadmap]
+file = "docs/roadmap/generated.md"
+region = "roadmap.generated"

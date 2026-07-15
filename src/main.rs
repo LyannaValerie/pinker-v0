@@ -18,6 +18,7 @@ use pinker_v0::lexer::Lexer;
 use pinker_v0::nav;
 use pinker_v0::parser::Parser;
 use pinker_v0::printer;
+use pinker_v0::projection;
 use pinker_v0::repl;
 use pinker_v0::semantic;
 use pinker_v0::token::Span;
@@ -26,6 +27,48 @@ use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// Códigos de saída padronizados das consultas da Trama (especificação §7.4).
+const EXIT_OK: i32 = 0;
+const EXIT_USAGE: i32 = 2;
+const EXIT_CATALOG: i32 = 3;
+const EXIT_NORESULT: i32 = 4;
+const EXIT_SOURCE: i32 = 5;
+
+/// Limites de resultados por subcomando (§7).
+const LIMIT_MIN: usize = 1;
+const LIMIT_MAX: usize = 20;
+const LIMIT_DEFAULT_ROTA: usize = 5;
+const LIMIT_DEFAULT_BUSCAR: usize = 10;
+
+/// Ajusta o limite pedido aos contornos [1, 20], usando `default` se ausente.
+fn clamp_limit(requested: Option<usize>, default: usize) -> usize {
+    requested.unwrap_or(default).clamp(LIMIT_MIN, LIMIT_MAX)
+}
+
+/// Escapa uma string para JSON estável (idêntico ao usado nos catálogos).
+fn json_escape(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push('"');
+    for ch in value.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+fn json_string_array(items: &[String]) -> String {
+    let parts: Vec<String> = items.iter().map(|s| json_escape(s)).collect();
+    format!("[{}]", parts.join(","))
+}
 
 struct Config {
     input: String,
@@ -58,8 +101,13 @@ struct ReplConfig;
 /// Subcomando de `pink doc` (Trama Pinker — Etapas 0 e 2).
 enum DocSub {
     /// Aplica a política do marco a um número de PR; com `corpo`, importa o
-    /// bloco `pinker-change` e grava o manifesto versionado.
-    ImportarPr { pr: u64, corpo: Option<String> },
+    /// bloco `pinker-change` e grava o manifesto versionado. Com `check`,
+    /// valida sem escrever (modo somente-leitura).
+    ImportarPr {
+        pr: u64,
+        corpo: Option<String>,
+        check: bool,
+    },
     /// Exibe o marco documental configurado.
     Marco,
     /// Extrai uma seção ou documento pelo id semântico.
@@ -78,6 +126,8 @@ enum DocSub {
 
 struct DocConfigCli {
     repo: String,
+    json: bool,
+    limite: Option<usize>,
     sub: DocSub,
 }
 
@@ -92,6 +142,8 @@ enum NavSub {
 
 struct NavConfigCli {
     repo: String,
+    json: bool,
+    limite: Option<usize>,
     sub: NavSub,
 }
 
@@ -149,7 +201,12 @@ fn nav_usage(binary: &str) -> String {
            verificar           valida os marcadores e o catálogo (não corrige)\n\
          \n\
          Opções:\n\
-           --repo      raiz do repositório (padrão: .)\n",
+           --repo      raiz do repositório (padrão: .)\n\
+           --json      saída estável em JSON (mostrar/buscar/listar)\n\
+           --limite N  máximo de resultados (1..20; buscar=10)\n\
+         \n\
+         Códigos de saída: 0 sucesso · 2 uso inválido · 3 catálogo ausente/inválido\n\
+                           · 4 sem resultado · 5 fonte/âncora divergente\n",
     )
 }
 
@@ -164,7 +221,8 @@ fn doc_usage(binary: &str) -> String {
            marco               exibe o marco documental configurado em {config}\n\
            importar-pr <n>     aplica a política do marco a um PR (E-DOC-BASELINE);\n\
                                com --corpo <arquivo>, importa o bloco pinker-change\n\
-                               e grava .pinker/changes/pr-<n>.yaml\n\
+                               e grava .pinker/changes/pr-<n>.yaml;\n\
+                               com --check, valida sem escrever\n\
            mostrar <id>        extrai a seção/documento pelo id semântico\n\
            listar <territorio> lista documentos de um território (domain)\n\
            buscar <consulta>   busca seções por id, título, tags, aliases, resumo\n\
@@ -174,7 +232,13 @@ fn doc_usage(binary: &str) -> String {
          \n\
          Opções:\n\
            --repo      raiz do repositório (padrão: .)\n\
-           --corpo     arquivo com o corpo do PR (para importar-pr)\n",
+           --corpo     arquivo com o corpo do PR (para importar-pr)\n\
+           --check     valida sem escrever (importar-pr)\n\
+           --json      saída estável em JSON (mostrar/buscar/rota/listar)\n\
+           --limite N  máximo de resultados (1..20; rota=5, buscar=10)\n\
+         \n\
+         Códigos de saída: 0 sucesso · 2 uso inválido · 3 catálogo ausente/inválido\n\
+                           · 4 sem resultado · 5 fonte/âncora divergente\n",
         binary = binary,
         config = doc::CONFIG_RELATIVE_PATH,
     )
@@ -332,6 +396,9 @@ fn parse_repl_args(binary: &str, args: &[String]) -> Result<ReplConfig, String> 
 fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String> {
     let mut repo = ".".to_string();
     let mut corpo: Option<String> = None;
+    let mut check = false;
+    let mut json = false;
+    let mut limite: Option<usize> = None;
     let mut subcommand: Option<String> = None;
     let mut positionals: Vec<String> = Vec::new();
     let mut i = 0usize;
@@ -359,6 +426,26 @@ fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String>
                     ));
                 }
                 corpo = Some(args[i].clone());
+            }
+            "--check" => check = true,
+            "--json" => json = true,
+            "--limite" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--limite' requer um valor.\n\n{}",
+                        doc_usage(binary)
+                    ));
+                }
+                let raw = &args[i];
+                let value = raw.parse::<usize>().map_err(|_| {
+                    format!(
+                        "Valor de '--limite' inválido: '{}'\n\n{}",
+                        raw,
+                        doc_usage(binary)
+                    )
+                })?;
+                limite = Some(value);
             }
             _ if arg.starts_with("--") => {
                 return Err(format!(
@@ -409,7 +496,7 @@ fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String>
             let pr = raw.parse::<u64>().map_err(|_| {
                 format!("Número de PR inválido: '{}'\n\n{}", raw, doc_usage(binary))
             })?;
-            DocSub::ImportarPr { pr, corpo }
+            DocSub::ImportarPr { pr, corpo, check }
         }
         "marco" => {
             require_none("marco")?;
@@ -452,11 +539,18 @@ fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String>
         ));
     }
 
-    Ok(DocConfigCli { repo, sub })
+    Ok(DocConfigCli {
+        repo,
+        json,
+        limite,
+        sub,
+    })
 }
 
 fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String> {
     let mut repo = ".".to_string();
+    let mut json = false;
+    let mut limite: Option<usize> = None;
     let mut subcommand: Option<String> = None;
     let mut positionals: Vec<String> = Vec::new();
     let mut i = 0usize;
@@ -474,6 +568,25 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                     ));
                 }
                 repo.clone_from(&args[i]);
+            }
+            "--json" => json = true,
+            "--limite" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--limite' requer um valor.\n\n{}",
+                        nav_usage(binary)
+                    ));
+                }
+                let raw = &args[i];
+                let value = raw.parse::<usize>().map_err(|_| {
+                    format!(
+                        "Valor de '--limite' inválido: '{}'\n\n{}",
+                        raw,
+                        nav_usage(binary)
+                    )
+                })?;
+                limite = Some(value);
             }
             _ if arg.starts_with("--") => {
                 return Err(format!(
@@ -553,7 +666,12 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
         }
     };
 
-    Ok(NavConfigCli { repo, sub })
+    Ok(NavConfigCli {
+        repo,
+        json,
+        limite,
+        sub,
+    })
 }
 
 fn parse_args() -> Result<CliCommand, String> {
@@ -686,7 +804,10 @@ fn main() {
         Ok(config) => config,
         Err(msg) => {
             eprintln!("{}", msg);
-            std::process::exit(1);
+            // Uso inválido de `doc`/`nav` sai com 2 (§7.4); demais mantêm 1.
+            let raw: Vec<String> = env::args().collect();
+            let is_trama = matches!(raw.get(1).map(String::as_str), Some("doc") | Some("nav"));
+            std::process::exit(if is_trama { EXIT_USAGE } else { 1 });
         }
     };
 
@@ -695,8 +816,8 @@ fn main() {
         CliCommand::Build(config) => run_build(config),
         CliCommand::Editor(config) => run_editor(config),
         CliCommand::Repl(config) => run_repl(config),
-        CliCommand::Doc(config) => run_doc(config),
-        CliCommand::Nav(config) => run_nav(config),
+        CliCommand::Doc(config) => std::process::exit(run_doc(config)),
+        CliCommand::Nav(config) => std::process::exit(run_nav(config)),
     }
 }
 
@@ -711,126 +832,265 @@ fn scan_code(repo_root: &Path) -> nav::CodeIndex {
     }
 }
 
-fn run_nav(config: NavConfigCli) {
+fn run_nav(config: NavConfigCli) -> i32 {
     let repo_root = Path::new(&config.repo);
     match config.sub {
-        NavSub::Mostrar { key } => {
-            let index = scan_code(repo_root);
-            let Some(region) = index.region(&key) else {
-                eprintln!(
-                    "chave de código não encontrada: '{key}'. Tente `pink nav buscar \"{key}\"`."
-                );
-                std::process::exit(1);
-            };
-            println!(
-                "// {} — {}:{}-{}",
-                region.key, region.file, region.content_start, region.content_end
-            );
-            if !region.summary.is_empty() {
-                println!("// {}", region.summary);
-            }
-            println!();
-            let path = repo_root.join(&region.file);
-            match fs::read_to_string(&path) {
-                Ok(text) => {
-                    let lines: Vec<&str> = text.lines().collect();
-                    let start = region.content_start.saturating_sub(1);
-                    let end = region.content_end.min(lines.len());
-                    for line in &lines[start..end] {
-                        println!("{line}");
-                    }
-                }
-                Err(err) => {
-                    eprintln!("Falha ao ler '{}': {}", path.display(), err);
-                    std::process::exit(1);
-                }
-            }
-        }
+        NavSub::Mostrar { key } => run_nav_mostrar(repo_root, &key, config.json),
         NavSub::Buscar { consulta } => {
-            let index = scan_code(repo_root);
-            let hits = index.search(&consulta);
-            if hits.is_empty() {
-                println!("Nenhuma região encontrada para: {consulta}");
-                return;
-            }
-            for region in hits.iter().take(10) {
-                println!("{}", region.key);
-                if !region.summary.is_empty() {
-                    println!("   {}", region.summary);
-                }
-                println!(
-                    "   {}:{}-{}",
-                    region.file, region.content_start, region.content_end
-                );
-            }
+            run_nav_buscar(repo_root, &consulta, config.json, config.limite)
         }
-        NavSub::Listar { seletor } => {
-            let index = scan_code(repo_root);
-            let regions = index.list(&seletor);
-            if regions.is_empty() {
-                println!("Nenhuma região na camada/domínio '{seletor}'.");
-                return;
-            }
-            println!("Regiões em '{seletor}':");
-            for region in regions {
-                println!(
-                    "- {} [{}/{}] {}:{}-{}",
-                    region.key,
-                    region.domain.as_deref().unwrap_or("-"),
-                    region.layer.as_deref().unwrap_or("-"),
-                    region.file,
-                    region.content_start,
-                    region.content_end
-                );
-            }
-        }
-        NavSub::Sincronizar => {
-            let doc_config = load_doc_config(repo_root);
-            let index = scan_code(repo_root);
-            let rendered = index.render_jsonl();
-            let path = repo_root.join(&doc_config.generated.code_index);
-            if let Some(parent) = path.parent() {
-                if let Err(err) = fs::create_dir_all(parent) {
-                    eprintln!("Falha ao criar '{}': {}", parent.display(), err);
-                    std::process::exit(1);
-                }
-            }
-            if let Err(err) = fs::write(&path, rendered) {
-                eprintln!("Falha ao gravar '{}': {}", path.display(), err);
-                std::process::exit(1);
-            }
-            println!(
-                "Catálogo de código sincronizado: {} ({} regiões).",
-                doc_config.generated.code_index,
-                index.regions.len()
-            );
-        }
-        NavSub::Verificar => {
-            let doc_config = load_doc_config(repo_root);
-            let index = scan_code(repo_root);
-            let mut errors = index.verify();
-            let path = repo_root.join(&doc_config.generated.code_index);
-            let rendered = index.render_jsonl();
-            let on_disk = fs::read_to_string(path).unwrap_or_default();
-            if on_disk != rendered {
-                errors.push(nav::NavVerifyError::IndexOutOfDate {
-                    path: doc_config.generated.code_index.clone(),
-                });
-            }
-            if errors.is_empty() {
-                println!("Marcadores e catálogo de código verificados: ok.");
-                return;
-            }
-            eprintln!(
-                "E-NAV-VERIFY: {} divergência(s) encontrada(s):",
-                errors.len()
-            );
-            for error in &errors {
-                eprintln!("  - {error}");
-            }
-            std::process::exit(1);
+        NavSub::Listar { seletor } => run_nav_listar(repo_root, &seletor, config.json),
+        NavSub::Sincronizar => run_nav_sincronizar(repo_root),
+        NavSub::Verificar => run_nav_verificar(repo_root),
+    }
+}
+
+/// Carrega o catálogo de código versionado (superfície de consulta — §5).
+fn load_code_catalog(repo_root: &Path) -> Result<nav::CodeCatalog, i32> {
+    let doc_config = load_doc_config(repo_root);
+    let path = repo_root.join(doc_config.generated.code_index.clone());
+    match nav::CodeCatalog::load(&path) {
+        Ok(catalog) => Ok(catalog),
+        Err(err) => {
+            eprintln!("{err}");
+            Err(EXIT_CATALOG)
         }
     }
+}
+
+fn run_nav_mostrar(repo_root: &Path, key: &str, json: bool) -> i32 {
+    let catalog = match load_code_catalog(repo_root) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
+    let Some(region) = catalog.region(key) else {
+        eprintln!("chave de código não encontrada: '{key}'. Tente `pink nav buscar \"{key}\"`.");
+        return EXIT_NORESULT;
+    };
+    let path = repo_root.join(&region.file);
+    let source = match fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(err) => {
+            eprintln!(
+                "E-NAV-SOURCE\nFalha ao ler fonte '{}': {}",
+                path.display(),
+                err
+            );
+            return EXIT_SOURCE;
+        }
+    };
+    match nav::validate_region(&source, region) {
+        nav::RegionCheck::Ok => {}
+        nav::RegionCheck::AnchorDrift => {
+            eprintln!(
+                "E-NAV-SOURCE\nMarcador divergente para '{}' em {}; catálogo desatualizado. Rode `pink nav sincronizar`.",
+                region.key, region.file
+            );
+            return EXIT_SOURCE;
+        }
+        nav::RegionCheck::HashMismatch { expected, found } => {
+            eprintln!(
+                "E-NAV-SOURCE\nHash divergente para '{}' em {} (esperado {}, obtido {}); catálogo desatualizado. Rode `pink nav sincronizar`.",
+                region.key, region.file, expected, found
+            );
+            return EXIT_SOURCE;
+        }
+    }
+    let content = nav::extract_region_content(&source, region);
+    if json {
+        let mut out = String::new();
+        out.push_str("{\"schema\":1");
+        out.push_str(&format!(",\"key\":{}", json_escape(&region.key)));
+        out.push_str(&format!(",\"kind\":{}", json_escape(&region.kind)));
+        if let Some(domain) = &region.domain {
+            out.push_str(&format!(",\"domain\":{}", json_escape(domain)));
+        }
+        if let Some(layer) = &region.layer {
+            out.push_str(&format!(",\"layer\":{}", json_escape(layer)));
+        }
+        if let Some(phase) = region.phase {
+            out.push_str(&format!(",\"phase\":{}", phase));
+        }
+        out.push_str(&format!(",\"file\":{}", json_escape(&region.file)));
+        out.push_str(&format!(",\"content_start\":{}", region.content_start));
+        out.push_str(&format!(",\"content_end\":{}", region.content_end));
+        out.push_str(&format!(",\"hash\":{}", json_escape(&region.hash)));
+        out.push_str(&format!(
+            ",\"content\":{}",
+            json_escape(&content.join("\n"))
+        ));
+        out.push('}');
+        println!("{out}");
+    } else {
+        println!(
+            "// {} — {}:{}-{}",
+            region.key, region.file, region.content_start, region.content_end
+        );
+        if !region.summary.is_empty() {
+            println!("// {}", region.summary);
+        }
+        println!();
+        for line in &content {
+            println!("{line}");
+        }
+    }
+    EXIT_OK
+}
+
+fn run_nav_buscar(repo_root: &Path, consulta: &str, json: bool, limite: Option<usize>) -> i32 {
+    let catalog = match load_code_catalog(repo_root) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
+    let limit = clamp_limit(limite, LIMIT_DEFAULT_BUSCAR);
+    let hits = catalog.search(consulta);
+    if hits.is_empty() {
+        if json {
+            println!(
+                "{{\"schema\":1,\"query\":{},\"normalized\":{},\"results\":[]}}",
+                json_escape(consulta),
+                json_escape(&pinker_v0::text_norm::normalize(consulta))
+            );
+        } else {
+            eprintln!("Nenhuma região encontrada para: {consulta}");
+        }
+        return EXIT_NORESULT;
+    }
+    let shown: Vec<&nav::CodeRegion> = hits.into_iter().take(limit).collect();
+    if json {
+        let results: Vec<String> = shown
+            .iter()
+            .map(|r| {
+                let mut o = String::from("{");
+                o.push_str(&format!("\"key\":{}", json_escape(&r.key)));
+                if let Some(domain) = &r.domain {
+                    o.push_str(&format!(",\"domain\":{}", json_escape(domain)));
+                }
+                if let Some(layer) = &r.layer {
+                    o.push_str(&format!(",\"layer\":{}", json_escape(layer)));
+                }
+                o.push_str(&format!(",\"file\":{}", json_escape(&r.file)));
+                o.push_str(&format!(",\"content_start\":{}", r.content_start));
+                o.push_str(&format!(",\"content_end\":{}", r.content_end));
+                if !r.summary.is_empty() {
+                    o.push_str(&format!(",\"summary\":{}", json_escape(&r.summary)));
+                }
+                o.push('}');
+                o
+            })
+            .collect();
+        println!(
+            "{{\"schema\":1,\"query\":{},\"normalized\":{},\"results\":[{}]}}",
+            json_escape(consulta),
+            json_escape(&pinker_v0::text_norm::normalize(consulta)),
+            results.join(",")
+        );
+    } else {
+        for region in shown {
+            println!("{}", region.key);
+            if !region.summary.is_empty() {
+                println!("   {}", region.summary);
+            }
+            println!(
+                "   {}:{}-{}",
+                region.file, region.content_start, region.content_end
+            );
+        }
+    }
+    EXIT_OK
+}
+
+fn run_nav_listar(repo_root: &Path, seletor: &str, json: bool) -> i32 {
+    let catalog = match load_code_catalog(repo_root) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
+    let regions = catalog.list(seletor);
+    if regions.is_empty() {
+        if json {
+            println!("{{\"selector\":{},\"results\":[]}}", json_escape(seletor));
+        } else {
+            eprintln!("Nenhuma região na camada/domínio '{seletor}'.");
+        }
+        return EXIT_NORESULT;
+    }
+    if json {
+        let results: Vec<String> = regions.iter().map(|r| json_escape(&r.key)).collect();
+        println!(
+            "{{\"selector\":{},\"results\":[{}]}}",
+            json_escape(seletor),
+            results.join(",")
+        );
+    } else {
+        println!("Regiões em '{seletor}':");
+        for region in regions {
+            println!(
+                "- {} [{}/{}] {}:{}-{}",
+                region.key,
+                region.domain.as_deref().unwrap_or("-"),
+                region.layer.as_deref().unwrap_or("-"),
+                region.file,
+                region.content_start,
+                region.content_end
+            );
+        }
+    }
+    EXIT_OK
+}
+
+fn run_nav_sincronizar(repo_root: &Path) -> i32 {
+    let doc_config = load_doc_config(repo_root);
+    let index = scan_code(repo_root);
+    // Validação antes de escrever (§8): não sobrescreve catálogo válido com
+    // árvore inválida.
+    let problems = index.verify();
+    if !problems.is_empty() {
+        eprintln!(
+            "E-NAV-SYNC: {} divergência(s); catálogo NÃO alterado.",
+            problems.len()
+        );
+        for problem in &problems {
+            eprintln!("  - {problem}");
+        }
+        return EXIT_SOURCE;
+    }
+    let rendered = index.render_jsonl();
+    let path = repo_root.join(&doc_config.generated.code_index);
+    if let Err(code) = write_atomic(&path, &rendered) {
+        return code;
+    }
+    println!(
+        "Catálogo de código sincronizado: {} ({} regiões).",
+        doc_config.generated.code_index,
+        index.regions.len()
+    );
+    EXIT_OK
+}
+
+fn run_nav_verificar(repo_root: &Path) -> i32 {
+    let doc_config = load_doc_config(repo_root);
+    let index = scan_code(repo_root);
+    let mut errors = index.verify();
+    let path = repo_root.join(&doc_config.generated.code_index);
+    let rendered = index.render_jsonl();
+    let on_disk = fs::read_to_string(path).unwrap_or_default();
+    if on_disk != rendered {
+        errors.push(nav::NavVerifyError::IndexOutOfDate {
+            path: doc_config.generated.code_index.clone(),
+        });
+    }
+    if errors.is_empty() {
+        println!("Marcadores e catálogo de código verificados: ok.");
+        return EXIT_OK;
+    }
+    eprintln!(
+        "E-NAV-VERIFY: {} divergência(s) encontrada(s):",
+        errors.len()
+    );
+    for error in &errors {
+        eprintln!("  - {error}");
+    }
+    EXIT_SOURCE
 }
 
 fn load_doc_config(repo_root: &Path) -> doc::DocConfig {
@@ -843,13 +1103,13 @@ fn load_doc_config(repo_root: &Path) -> doc::DocConfig {
     }
 }
 
-fn run_doc(config: DocConfigCli) {
+fn run_doc(config: DocConfigCli) -> i32 {
     let repo_root = Path::new(&config.repo);
     let doc_config = match doc::DocConfig::load(repo_root) {
         Ok(cfg) => cfg,
         Err(err) => {
             eprintln!("{err}");
-            std::process::exit(1);
+            return EXIT_CATALOG;
         }
     };
 
@@ -867,11 +1127,12 @@ fn run_doc(config: DocConfigCli) {
             println!("  commit:  {}", github.baseline_commit);
             println!("  docs:    {}", doc_config.generated.docs_index);
             println!("  código:  {}", doc_config.generated.code_index);
+            EXIT_OK
         }
-        DocSub::ImportarPr { pr, corpo } => {
+        DocSub::ImportarPr { pr, corpo, check } => {
             if let Err(rejection) = doc_config.baseline_gate(pr) {
                 eprintln!("{rejection}");
-                std::process::exit(1);
+                return EXIT_SOURCE;
             }
             match corpo {
                 None => {
@@ -882,14 +1143,29 @@ fn run_doc(config: DocConfigCli) {
                     println!(
                         "Forneça --corpo <arquivo> para gerar o manifesto .pinker/changes/pr-{pr}.yaml."
                     );
+                    EXIT_OK
                 }
-                Some(corpo) => run_doc_importar(repo_root, &doc_config, pr, &corpo),
+                Some(corpo) => run_doc_importar(repo_root, &doc_config, pr, &corpo, check),
             }
         }
-        DocSub::Mostrar { id } => run_doc_mostrar(repo_root, &id),
-        DocSub::Listar { territorio } => run_doc_listar(repo_root, &territorio),
-        DocSub::Buscar { consulta } => run_doc_buscar(repo_root, &consulta),
-        DocSub::Rota { consulta } => run_doc_rota(repo_root, &consulta),
+        DocSub::Mostrar { id } => run_doc_mostrar(repo_root, &doc_config, &id, config.json),
+        DocSub::Listar { territorio } => {
+            run_doc_listar(repo_root, &doc_config, &territorio, config.json)
+        }
+        DocSub::Buscar { consulta } => run_doc_buscar(
+            repo_root,
+            &doc_config,
+            &consulta,
+            config.json,
+            config.limite,
+        ),
+        DocSub::Rota { consulta } => run_doc_rota(
+            repo_root,
+            &doc_config,
+            &consulta,
+            config.json,
+            config.limite,
+        ),
         DocSub::Sincronizar => run_doc_sincronizar(repo_root, &doc_config),
         DocSub::Verificar => run_doc_verificar(repo_root, &doc_config),
     }
@@ -906,216 +1182,475 @@ fn scan_docs(repo_root: &Path) -> doc_index::DocIndex {
     }
 }
 
-fn run_doc_mostrar(repo_root: &Path, id: &str) {
-    let index = scan_docs(repo_root);
-    if let Some(section) = index.section(id) {
-        println!(
-            "# {} — {}:{}-{}",
-            section.id, section.file, section.start, section.end
-        );
-        if !section.summary.is_empty() {
-            println!("# {}", section.summary);
-        }
-        println!();
-        let path = repo_root.join(&section.file);
-        match fs::read_to_string(&path) {
-            Ok(text) => {
-                let lines: Vec<&str> = text.lines().collect();
-                let start = section.start.saturating_sub(1);
-                let end = section.end.min(lines.len());
-                for line in &lines[start..end] {
-                    println!("{line}");
-                }
-            }
-            Err(err) => {
-                eprintln!("Falha ao ler '{}': {}", path.display(), err);
-                std::process::exit(1);
-            }
-        }
-        return;
-    }
-
-    if let Some(doc) = index.document(id) {
-        println!("# documento {} ({})", doc.id, doc.kind);
-        println!("  território: {}", doc.domain);
-        println!("  arquivo:    {}", doc.file);
-        if !doc.canonical_for.is_empty() {
-            println!("  autoridade: {}", doc.canonical_for.join(", "));
-        }
-        let sections: Vec<&doc_index::DocSection> = index
-            .sections
-            .iter()
-            .filter(|s| s.document == doc.id)
-            .collect();
-        if sections.is_empty() {
-            println!("  seções:     (nenhuma âncora)");
-        } else {
-            println!("  seções:");
-            for section in sections {
-                println!(
-                    "    - {} ({}:{}-{})",
-                    section.id, section.file, section.start, section.end
-                );
-            }
-        }
-        return;
-    }
-
-    eprintln!("id documental não encontrado: '{id}'. Tente `pink doc buscar \"{id}\"`.");
-    std::process::exit(1);
-}
-
-fn run_doc_listar(repo_root: &Path, territorio: &str) {
-    let index = scan_docs(repo_root);
-    let docs: Vec<&doc_index::DocDocument> = index
-        .documents
-        .iter()
-        .filter(|d| d.domain == territorio)
-        .collect();
-    if docs.is_empty() {
-        println!("Nenhum documento estrutural no território '{territorio}'.");
-        return;
-    }
-    println!("Território '{territorio}':");
-    for doc in docs {
-        println!("- {} [{}] {}", doc.id, doc.kind, doc.file);
-        for section in index.sections.iter().filter(|s| s.document == doc.id) {
-            println!("    · {} — {}", section.id, section.title);
-        }
-    }
-}
-
-fn run_doc_buscar(repo_root: &Path, consulta: &str) {
-    let index = scan_docs(repo_root);
-    let hits = index.search(consulta);
-    if hits.is_empty() {
-        println!("Nenhuma seção encontrada para: {consulta}");
-        return;
-    }
-    for hit in hits.iter().take(10) {
-        println!("{}", hit.id);
-        println!("   {}", hit.summary);
-        println!("   {}:{}-{}", hit.file, hit.start, hit.end);
-    }
-}
-
-fn run_doc_rota(repo_root: &Path, consulta: &str) {
-    let index = scan_docs(repo_root);
-    let hits = index.search(consulta);
-    println!("Consulta: {consulta}");
-    if hits.is_empty() {
-        println!("Nenhuma rota encontrada. Tente `pink doc buscar`.");
-        return;
-    }
-    for (i, hit) in hits.iter().take(5).enumerate() {
-        println!("{}. {}", i + 1, hit.id);
-        println!("   {}", hit.summary);
-        println!("   {}:{}-{}", hit.file, hit.start, hit.end);
-    }
-    println!();
-    println!("Use:");
-    println!("    pink doc mostrar {}", hits[0].id);
-}
-
-fn run_doc_sincronizar(repo_root: &Path, config: &doc::DocConfig) {
-    let index = scan_docs(repo_root);
-    let rendered = index.render_jsonl();
+/// Carrega o catálogo documental versionado (superfície de consulta — §5).
+fn load_doc_catalog(
+    repo_root: &Path,
+    config: &doc::DocConfig,
+) -> Result<doc_index::DocCatalog, i32> {
     let path = repo_root.join(&config.generated.docs_index);
+    match doc_index::DocCatalog::load(&path) {
+        Ok(catalog) => Ok(catalog),
+        Err(err) => {
+            eprintln!("{err}");
+            Err(EXIT_CATALOG)
+        }
+    }
+}
+
+/// Escrita atômica: grava em arquivo temporário e renomeia por cima (§8).
+fn write_atomic(path: &Path, content: &str) -> Result<(), i32> {
     if let Some(parent) = path.parent() {
         if let Err(err) = fs::create_dir_all(parent) {
             eprintln!("Falha ao criar '{}': {}", parent.display(), err);
-            std::process::exit(1);
+            return Err(1);
         }
     }
-    if let Err(err) = fs::write(&path, rendered) {
-        eprintln!("Falha ao gravar '{}': {}", path.display(), err);
-        std::process::exit(1);
+    let tmp = path.with_extension("jsonl.tmp");
+    if let Err(err) = fs::write(&tmp, content) {
+        eprintln!("Falha ao gravar temporário '{}': {}", tmp.display(), err);
+        return Err(1);
     }
+    if let Err(err) = fs::rename(&tmp, path) {
+        eprintln!(
+            "Falha ao substituir '{}' por '{}': {}",
+            path.display(),
+            tmp.display(),
+            err
+        );
+        let _ = fs::remove_file(&tmp);
+        return Err(1);
+    }
+    Ok(())
+}
+
+fn run_doc_mostrar(repo_root: &Path, config: &doc::DocConfig, id: &str, json: bool) -> i32 {
+    let catalog = match load_doc_catalog(repo_root, config) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
+
+    if let Some(section) = catalog.section(id) {
+        let path = repo_root.join(&section.file);
+        let source = match fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(err) => {
+                eprintln!(
+                    "E-DOC-SOURCE\nFalha ao ler fonte '{}': {}",
+                    path.display(),
+                    err
+                );
+                return EXIT_SOURCE;
+            }
+        };
+        // Valida que a âncora ainda delimita o intervalo registrado (§5).
+        if !doc_index::validate_section_anchor(&source, section) {
+            eprintln!(
+                "E-DOC-SOURCE\nÂncora divergente para '{}' em {}; catálogo desatualizado. Rode `pink doc sincronizar`.",
+                section.id, section.file
+            );
+            return EXIT_SOURCE;
+        }
+        let lines: Vec<&str> = source.lines().collect();
+        let start = section.start.saturating_sub(1);
+        let end = section.end.min(lines.len());
+        let content: Vec<&str> = lines[start..end].to_vec();
+        if json {
+            let mut out = String::new();
+            out.push_str(&format!("{{\"schema\":{}", doc_index::CATALOG_SCHEMA));
+            out.push_str(",\"record\":\"section\"");
+            out.push_str(&format!(",\"id\":{}", json_escape(&section.id)));
+            out.push_str(&format!(",\"document\":{}", json_escape(&section.document)));
+            out.push_str(&format!(",\"file\":{}", json_escape(&section.file)));
+            out.push_str(&format!(",\"start\":{}", section.start));
+            out.push_str(&format!(",\"end\":{}", section.end));
+            out.push_str(&format!(",\"title\":{}", json_escape(&section.title)));
+            if !section.summary.is_empty() {
+                out.push_str(&format!(",\"summary\":{}", json_escape(&section.summary)));
+            }
+            out.push_str(&format!(
+                ",\"content\":{}",
+                json_escape(&content.join("\n"))
+            ));
+            out.push('}');
+            println!("{out}");
+        } else {
+            println!(
+                "# {} — {}:{}-{}",
+                section.id, section.file, section.start, section.end
+            );
+            if !section.summary.is_empty() {
+                println!("# {}", section.summary);
+            }
+            println!();
+            for line in &content {
+                println!("{line}");
+            }
+        }
+        return EXIT_OK;
+    }
+
+    if let Some(doc) = catalog.document(id) {
+        let sections = catalog.sections_of(&doc.id);
+        if json {
+            let mut out = String::new();
+            out.push_str(&format!("{{\"schema\":{}", doc_index::CATALOG_SCHEMA));
+            out.push_str(",\"record\":\"document\"");
+            out.push_str(&format!(",\"id\":{}", json_escape(&doc.id)));
+            out.push_str(&format!(",\"domain\":{}", json_escape(&doc.domain)));
+            out.push_str(&format!(",\"kind\":{}", json_escape(&doc.kind)));
+            out.push_str(&format!(",\"status\":{}", json_escape(&doc.status)));
+            out.push_str(&format!(",\"file\":{}", json_escape(&doc.file)));
+            if !doc.canonical_for.is_empty() {
+                out.push_str(&format!(
+                    ",\"canonical_for\":{}",
+                    json_string_array(&doc.canonical_for)
+                ));
+            }
+            let ids: Vec<String> = sections.iter().map(|s| s.id.clone()).collect();
+            out.push_str(&format!(",\"sections\":{}", json_string_array(&ids)));
+            out.push('}');
+            println!("{out}");
+        } else {
+            println!("# documento {} ({})", doc.id, doc.kind);
+            println!("  território: {}", doc.domain);
+            println!("  arquivo:    {}", doc.file);
+            if !doc.canonical_for.is_empty() {
+                println!("  autoridade: {}", doc.canonical_for.join(", "));
+            }
+            if sections.is_empty() {
+                println!("  seções:     (nenhuma âncora)");
+            } else {
+                println!("  seções:");
+                for section in sections {
+                    println!(
+                        "    - {} ({}:{}-{})",
+                        section.id, section.file, section.start, section.end
+                    );
+                }
+            }
+        }
+        return EXIT_OK;
+    }
+
+    eprintln!("id documental não encontrado: '{id}'. Tente `pink doc buscar \"{id}\"`.");
+    EXIT_NORESULT
+}
+
+fn run_doc_listar(repo_root: &Path, config: &doc::DocConfig, territorio: &str, json: bool) -> i32 {
+    let catalog = match load_doc_catalog(repo_root, config) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
+    let docs = catalog.documents_in_domain(territorio);
+    if docs.is_empty() {
+        if json {
+            println!(
+                "{{\"domain\":{},\"documents\":[]}}",
+                json_escape(territorio)
+            );
+        } else {
+            eprintln!("Nenhum documento estrutural no território '{territorio}'.");
+        }
+        return EXIT_NORESULT;
+    }
+    if json {
+        let ids: Vec<String> = docs.iter().map(|d| d.id.clone()).collect();
+        println!(
+            "{{\"domain\":{},\"documents\":{}}}",
+            json_escape(territorio),
+            json_string_array(&ids)
+        );
+    } else {
+        println!("Território '{territorio}':");
+        for doc in docs {
+            println!("- {} [{}] {}", doc.id, doc.kind, doc.file);
+            for section in catalog.sections_of(&doc.id) {
+                println!("    · {} — {}", section.id, section.title);
+            }
+        }
+    }
+    EXIT_OK
+}
+
+fn run_doc_buscar(
+    repo_root: &Path,
+    config: &doc::DocConfig,
+    consulta: &str,
+    json: bool,
+    limite: Option<usize>,
+) -> i32 {
+    let catalog = match load_doc_catalog(repo_root, config) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
+    let limit = clamp_limit(limite, LIMIT_DEFAULT_BUSCAR);
+    let hits = catalog.search(consulta);
+    if hits.is_empty() {
+        if json {
+            print_doc_results_json(consulta, &[], None);
+        } else {
+            eprintln!("Nenhuma seção encontrada para: {consulta}");
+        }
+        return EXIT_NORESULT;
+    }
+    let shown: Vec<&doc_index::SearchHit> = hits.iter().take(limit).collect();
+    if json {
+        print_doc_results_json(consulta, &shown, None);
+    } else {
+        for hit in &shown {
+            println!("{}", hit.id);
+            println!("   {}", hit.summary);
+            println!("   {}:{}-{}", hit.file, hit.start, hit.end);
+        }
+    }
+    EXIT_OK
+}
+
+fn run_doc_rota(
+    repo_root: &Path,
+    config: &doc::DocConfig,
+    consulta: &str,
+    json: bool,
+    limite: Option<usize>,
+) -> i32 {
+    let catalog = match load_doc_catalog(repo_root, config) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
+    let limit = clamp_limit(limite, LIMIT_DEFAULT_ROTA);
+    let hits = catalog.search(consulta);
+    if hits.is_empty() {
+        if json {
+            print_doc_results_json(consulta, &[], None);
+        } else {
+            println!("Consulta: {consulta}");
+            eprintln!("Nenhuma rota encontrada. Tente `pink doc buscar`.");
+        }
+        return EXIT_NORESULT;
+    }
+    let shown: Vec<&doc_index::SearchHit> = hits.iter().take(limit).collect();
+    let next = format!("pink doc mostrar {}", shown[0].id);
+    if json {
+        print_doc_results_json(consulta, &shown, Some(&next));
+    } else {
+        println!("Consulta: {consulta}");
+        println!();
+        for (i, hit) in shown.iter().enumerate() {
+            println!("{}. {}", i + 1, hit.id);
+            println!("   {}", hit.summary);
+            println!("   {}:{}-{}", hit.file, hit.start, hit.end);
+        }
+        println!();
+        println!("Use:");
+        println!("    {next}");
+    }
+    EXIT_OK
+}
+
+/// Saída JSON estável de resultados de `buscar`/`rota` (§7.2).
+fn print_doc_results_json(consulta: &str, hits: &[&doc_index::SearchHit], next: Option<&str>) {
+    let results: Vec<String> = hits
+        .iter()
+        .map(|h| {
+            let mut o = String::from("{");
+            o.push_str(&format!("\"id\":{}", json_escape(&h.id)));
+            o.push_str(&format!(",\"score\":{}", h.score));
+            o.push_str(&format!(",\"file\":{}", json_escape(&h.file)));
+            o.push_str(&format!(",\"start\":{}", h.start));
+            o.push_str(&format!(",\"end\":{}", h.end));
+            o.push_str(&format!(",\"summary\":{}", json_escape(&h.summary)));
+            o.push_str(&format!(
+                ",\"next\":{}",
+                json_escape(&format!("pink doc mostrar {}", h.id))
+            ));
+            o.push('}');
+            o
+        })
+        .collect();
+    let mut out = String::new();
+    out.push_str(&format!("{{\"schema\":{}", doc_index::CATALOG_SCHEMA));
+    out.push_str(&format!(",\"query\":{}", json_escape(consulta)));
+    out.push_str(&format!(
+        ",\"normalized\":{}",
+        json_escape(&pinker_v0::text_norm::normalize(consulta))
+    ));
+    out.push_str(&format!(",\"results\":[{}]", results.join(",")));
+    if let Some(next) = next {
+        out.push_str(&format!(",\"next\":{}", json_escape(next)));
+    }
+    out.push('}');
+    println!("{out}");
+}
+
+fn run_doc_sincronizar(repo_root: &Path, config: &doc::DocConfig) -> i32 {
+    let index = scan_docs(repo_root);
+    // Validação completa antes de qualquer escrita (§8): uma árvore inválida
+    // nunca sobrescreve o último catálogo válido.
+    let problems = index.verify();
+    if !problems.is_empty() {
+        eprintln!(
+            "E-DOC-SYNC: {} divergência(s); catálogo e projeções NÃO alterados.",
+            problems.len()
+        );
+        for problem in &problems {
+            eprintln!("  - {problem}");
+        }
+        return EXIT_SOURCE;
+    }
+    let manifests = change::Manifests::load(&repo_root.join(".pinker/changes"));
+    if !manifests.problems.is_empty() {
+        eprintln!(
+            "E-DOC-SYNC: {} problema(s) em manifestos; nada alterado.",
+            manifests.problems.len()
+        );
+        for problem in &manifests.problems {
+            eprintln!("  - {problem}");
+        }
+        return EXIT_SOURCE;
+    }
+
+    // Renderiza tudo em memória antes de tocar o disco.
+    let rendered = index.render_jsonl();
+    let catalog_path = repo_root.join(&config.generated.docs_index);
+
+    // Projeções documentais (§12): calculadas em memória e validadas.
+    let plan = match projection::plan(repo_root, config, &manifests) {
+        Ok(plan) => plan,
+        Err(err) => {
+            eprintln!("{err}");
+            return EXIT_SOURCE;
+        }
+    };
+
+    // Escrita atômica do catálogo.
+    if let Err(code) = write_atomic(&catalog_path, &rendered) {
+        return code;
+    }
+    if let Err(code) = write_ledger(repo_root, &manifests) {
+        return code;
+    }
+    // Aplica as projeções (regiões geradas) idempotentemente.
+    for change in &plan.writes {
+        if let Err(err) = fs::write(&change.path, &change.content) {
+            eprintln!(
+                "Falha ao gravar projeção '{}': {}",
+                change.path.display(),
+                err
+            );
+            return 1;
+        }
+    }
+
     println!(
-        "Catálogo documental sincronizado: {} ({} seções).",
+        "Catálogo documental sincronizado: {} ({} documentos, {} seções).",
         config.generated.docs_index,
+        index.documents.len(),
         index.sections.len()
     );
-
-    // Histórico mecânico derivado dos manifestos (Etapa 4).
-    let manifests = change::Manifests::load(&repo_root.join(".pinker/changes"));
-    write_ledger(repo_root, &manifests);
     println!(
-        "Histórico mecânico sincronizado: .pinker/changes/index.jsonl ({} manifesto(s)).",
+        "Histórico mecânico sincronizado: {} ({} manifesto(s)).",
+        LEDGER_REL,
         manifests.changes.len()
     );
+    if !plan.writes.is_empty() {
+        println!("Projeções aplicadas: {}.", plan.summary());
+    }
+    EXIT_OK
 }
 
 const LEDGER_REL: &str = ".pinker/changes/index.jsonl";
 
-fn write_ledger(repo_root: &Path, manifests: &change::Manifests) {
+fn write_ledger(repo_root: &Path, manifests: &change::Manifests) -> Result<(), i32> {
     let rendered = manifests.render_ledger();
     let path = repo_root.join(LEDGER_REL);
     if rendered.is_empty() {
         // Zero manifestos: não materializa arquivo (mantém a árvore limpa).
         let _ = fs::remove_file(&path);
-        return;
+        return Ok(());
     }
-    if let Some(parent) = path.parent() {
-        if let Err(err) = fs::create_dir_all(parent) {
-            eprintln!("Falha ao criar '{}': {}", parent.display(), err);
-            std::process::exit(1);
-        }
-    }
-    if let Err(err) = fs::write(&path, rendered) {
-        eprintln!("Falha ao gravar '{}': {}", path.display(), err);
-        std::process::exit(1);
-    }
+    write_atomic(&path, &rendered)
 }
 
-fn run_doc_importar(repo_root: &Path, config: &doc::DocConfig, pr: u64, corpo: &str) {
+fn run_doc_importar(
+    repo_root: &Path,
+    config: &doc::DocConfig,
+    pr: u64,
+    corpo: &str,
+    check: bool,
+) -> i32 {
     let body = match fs::read_to_string(corpo) {
         Ok(body) => body,
         Err(err) => {
             eprintln!("Falha ao ler corpo do PR '{}': {}", corpo, err);
-            std::process::exit(1);
+            return EXIT_SOURCE;
         }
     };
     let mut manifest = match change::Change::parse_pr_body(&body) {
         Ok(manifest) => manifest,
         Err(err) => {
             eprintln!("{err}");
-            std::process::exit(1);
+            return EXIT_SOURCE;
         }
     };
     if let Err(err) = manifest.validate() {
         eprintln!("{err}");
-        std::process::exit(1);
+        return EXIT_SOURCE;
     }
     manifest.source = Some(change::Source {
         kind: "github-pr".to_string(),
         number: pr,
         repository: config.github.repository.clone(),
     });
+    let rendered = manifest.render_yaml();
 
     let changes_dir = repo_root.join(".pinker/changes");
+    let manifest_path = changes_dir.join(format!("pr-{pr}.yaml"));
+
+    // Contrato de imutabilidade (§10): se já existe, o conteúdo canônico precisa
+    // ser idêntico; conteúdo diferente falha com E-CHANGE-IMMUTABLE.
+    if manifest_path.exists() {
+        let existing = fs::read_to_string(&manifest_path).unwrap_or_default();
+        if existing == rendered {
+            if check {
+                println!("Manifesto pr-{pr}.yaml já sincronizado (idempotente).");
+            } else {
+                println!("Manifesto pr-{pr}.yaml inalterado (idempotente).");
+            }
+            return EXIT_OK;
+        }
+        eprintln!("{}", change::immutable_error(pr));
+        return EXIT_SOURCE;
+    }
+
+    if check {
+        println!("Modo --check: manifesto pr-{pr}.yaml válido e ausente (seria criado).");
+        return EXIT_OK;
+    }
+
     if let Err(err) = fs::create_dir_all(&changes_dir) {
         eprintln!("Falha ao criar '{}': {}", changes_dir.display(), err);
-        std::process::exit(1);
+        return 1;
     }
-    let manifest_path = changes_dir.join(format!("pr-{pr}.yaml"));
-    if let Err(err) = fs::write(&manifest_path, manifest.render_yaml()) {
+    if let Err(err) = fs::write(&manifest_path, &rendered) {
         eprintln!("Falha ao gravar '{}': {}", manifest_path.display(), err);
-        std::process::exit(1);
+        return 1;
     }
 
     // Atualiza o histórico mecânico (idempotente por número de PR).
     let manifests = change::Manifests::load(&changes_dir);
-    write_ledger(repo_root, &manifests);
+    if let Err(code) = write_ledger(repo_root, &manifests) {
+        return code;
+    }
 
     println!(
         "Manifesto importado: .pinker/changes/pr-{pr}.yaml (fase {:?}, bloco {:?}).",
         manifest.phase, manifest.block
     );
     println!("Rode `pink doc sincronizar` e revise os documentos derivados.");
+    EXIT_OK
 }
 
-fn run_doc_verificar(repo_root: &Path, config: &doc::DocConfig) {
+fn run_doc_verificar(repo_root: &Path, config: &doc::DocConfig) -> i32 {
     let index = scan_docs(repo_root);
     let mut errors = index.verify();
 
@@ -1156,9 +1691,21 @@ fn run_doc_verificar(repo_root: &Path, config: &doc::DocConfig) {
         ));
     }
 
+    // Projeções documentais (§12): compara o versionado com o gerado em memória.
+    if manifests.problems.is_empty() {
+        match projection::plan(repo_root, config, &manifests) {
+            Ok(plan) => {
+                for drift in plan.drift() {
+                    manifest_errors.push(drift);
+                }
+            }
+            Err(err) => manifest_errors.push(err.to_string()),
+        }
+    }
+
     if errors.is_empty() && manifest_errors.is_empty() {
-        println!("Documentação, catálogo e manifestos verificados: ok.");
-        return;
+        println!("Documentação, catálogo, manifestos e projeções verificados: ok.");
+        return EXIT_OK;
     }
     let total = errors.len() + manifest_errors.len();
     eprintln!("E-DOC-VERIFY: {} divergência(s) encontrada(s):", total);
@@ -1168,7 +1715,7 @@ fn run_doc_verificar(repo_root: &Path, config: &doc::DocConfig) {
     for error in &manifest_errors {
         eprintln!("  - {error}");
     }
-    std::process::exit(1);
+    EXIT_SOURCE
 }
 
 fn run_editor(config: EditorConfig) {
