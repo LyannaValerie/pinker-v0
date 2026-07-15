@@ -1,0 +1,25 @@
+schema: 1
+source:
+  type: github-pr
+  number: 334
+  repository: LyannaValerie/pinker-v0
+kind: documentation
+title: Completa contratos operacionais da Trama Pinker
+area:
+  - development.trama
+  - documentation.navigation
+status: completed
+updates:
+  state: false
+  history: true
+  roadmap: false
+  manual: false
+  readme: true
+sections:
+  implemented:
+    - trama.catalog-runtime
+    - trama.manifest-immutability
+    - trama.generated-human-ledger
+validation:
+  required:
+    - make ci
