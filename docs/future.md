@@ -26,7 +26,7 @@
 
 ### 2.2 Backend nativo real além do subset linear
 
-> **Atualização factual (Doc-40):** esta frente deixou de ser apenas inventário — ela é agora o **Eixo B do Bloco 20** (fases planejadas 212–222), com escada estruturada em `docs/roadmap/blocos/bloco_20.md`: runtime nativo próprio (`pinker_rt`), ABI completa, controle de fluxo geral, verso dinâmico, coleções, leques, texto, I/O e processo nativos, fechando com suíte de paridade interpretador × nativo. Permanecem aqui apenas as ampliações além do eixo (outras arquiteturas, otimizações, artefatos reproduzíveis avançados).
+> **Atualização factual (Doc-40; concluído na Fase 222):** esta frente deixou de ser inventário e virou o **Eixo B do Bloco 20** (Fases 212–222), **encerrado por paridade verificada**: runtime nativo próprio (`pinker_rt`, staticlib ABI-C de ~90 funções), ABI SysV completa, controle de fluxo geral, verso dinâmico, coleções, leques com carga, texto, arquivo/tempo/acaso e ambiente/processo nativos, com suíte de paridade interpretador × nativo cobrindo 155 exemplos no CI. Permanecem aqui apenas as ampliações **além** do eixo, agora explícitas: ponteiros nativos reais (memória real, hoje fora da paridade — Faixa 7 do Eixo A), outras arquiteturas além de x86-64 Linux, otimizações e artefatos reproduzíveis avançados.
 
 - controle de fluxo geral no backend externo (→ Eixo B, fase B3);
 - cobertura de memória indireta/ponteiros;

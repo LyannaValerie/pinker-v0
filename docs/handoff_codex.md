@@ -13,9 +13,9 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **221** — Eixo B: ambiente e processo nativos (B10) |
+| Fase funcional mais recente | **222** — Eixo B: marco de paridade e fechamento do eixo (B11); **Eixo B ENCERRADO** |
 | Rodada documental mais recente | **Doc-41** — formalização dos dois eixos do Bloco 20 (A — linguagem; B — backend nativo) |
-| Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
+| Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (Eixo A retomado; Eixo B encerrado) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
 | Última rodada paralela | **Paralela-1** — negação bitwise dual |
@@ -57,15 +57,15 @@
 | 219 | Bloco 20, Eixo B (B8): família texto completa nativa — 17 operações + `formatar_verso` por aridade + interpolação; **o compilador de brinquedo da Fase 211 executa como ELF com paridade** |
 | 220 | Bloco 20, Eixo B (B9): arquivo/caminho/tempo/acaso nativos — modelo de handles do interpretador, mesmo algoritmo civil de datas, **mesmo LCG (paridade de sementes)** |
 | 221 | Bloco 20, Eixo B (B10): ambiente/processo nativos — argv/env consumindo o `argc`/`argv` da B1, subprocessos completos; **paridade verificada com argumentos reais** |
+| 222 | Bloco 20, Eixo B (B11): **suíte de paridade** (155 exemplos interpretador × nativo); **Eixo B ENCERRADO** — runtime `pinker_rt` ~90 funções ABI-C |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Fase 221 — Eixo B, fase B10: ambiente e processo nativos**.
-- Ambiente: 9 funções consumindo o `argc`/`argv` capturado por `pinker_rt_iniciar` (B1); réplica exata do lookup `chave valor`/`chave=valor`; aliases legados mapeados.
-- Processo: `executar`/`capturar_stdout`/`capturar_stderr` (1–2 args), `com_entrada` (2–3, via pipe de stdin), `pipeline_minimo` — validações e mensagens do interpretador; wrappers por aridade generalizados no backend.
-- Critério de pronto cumprido: paridade de stdout com e sem argv real (`quantos: 5`, flag, `chave=valor`, par `chave valor` idênticos nos dois modos).
-- Cobertura: exemplo fase221; 3 testes (emissão, paridade sem args, paridade com argv); fronteira movida para `ouvir` (fora do eixo).
+- **Fase 222 — Eixo B, fase B11: marco de paridade e fechamento do eixo**.
+- Suíte automatizada `suite_de_paridade_interpretador_nativo` descobre cada exemplo versionado, roda nos dois modos e exige stdout + exit idênticos (retorno de `principal` mod 256); 155 exemplos com paridade verificada no CI, piso de 150 contra regressão.
+- Categorias fora da paridade documentadas no teste: tempo ao vivo, ordem de iteração de mapa (HashMap não determinístico no interpretador), memória virtual (ponteiros com endereços literais).
+- **Eixo B encerrado**: Fases 212–222 levaram toda a superfície da linguagem ao executável nativo; substituiu os testes de paridade individuais das Fases 215–221.
 - `make ci` passa integralmente.
 
 ## 4. Limites canônicos ativos
@@ -77,14 +77,15 @@ Histórico completo por fase: `docs/history/phases/`.
 | Fases 190–206 | Sem generics (`lista<T>`, `mapa<K,V>` amplos); cada combinação monomorphizada; sem coleções heterogêneas |
 | Fases 208–210 (`leque`/`encaixe`) | Cargas: `bombom`, `verso` ou leque declarado (sem `ninho`/coleções como carga); sem guards, padrões aninhados ou encaixe-expressão; igualdade direta e `virar` rejeitados para leque com carga; sem discriminante customizado; sem `bombom -> leque`; handles sem liberação (consistente com coleções); nome de leque tem precedência sobre variável homônima em posição de base `X.Y` |
 | Fase 211 (`lista<T>`) | T = leque declarado (além de `bombom`/`verso` legados); `mapa<K,V>` genérico fora; funções genéricas de usuário fora; generics em `leque`/`ninho` fora; `lista_criar()` só como init de `nova` anotada |
+| Eixo B (Fases 212–222) | Encerrado; backend nativo cobre a superfície da linguagem exceto ponteiros com endereços reais (Faixa 7 do Eixo A); alvo: x86-64 Linux; runtime `pinker_rt` sem liberação explícita de memória (consistente com o interpretador) |
 | Bloco 20 | Nenhum item das faixas está entregue por constar na trilha; entrega exige fase numerada com validação objetiva |
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- Estrutura do Bloco 20 formalizada em dois eixos (Doc-41): **Eixo A — linguagem** (faixas) e **Eixo B — backend nativo**. Ordem vigente: A (itens 1–3 ✓) → B (integral, em curso) → A (itens 5 → 6 → 4).
-- Próxima fase: **Eixo B, B11 (prevista Fase 222) — marco de paridade e fechamento do eixo** — suíte automatizada que executa cada exemplo versionado compatível nos **dois modos** (interpretador e nativo) exigindo stdout e exit idênticos, verde no CI; o fechamento registra os limites honestos (iteração de mapa multi-chave, `ouvir` interativo, exemplos dependentes de argv/binários auxiliares) e encerra o eixo. Depois: Eixo A retoma nos itens 5 (error handling) → 6 (closures) → 4 (traits), com lowering nativo obrigatório em cada fase nova.
-- Escada completa do eixo (B1 ✓ ... B10 ✓, B11) em `docs/roadmap/blocos/bloco_20.md`.
-- Após o eixo: itens 5 (**error handling**), 6 (**closures**) e 4 (**traits**) do Eixo A, com a regra nova de que toda fase de linguagem entrega o lowering nativo junto.
+- **Eixo B encerrado (Fase 222).** A trilha ativa volta ao **Eixo A**, Faixa 1, na ordem decidida: item **5 (error handling estruturado)** → item **6 (closures)** → item **4 (traits)**.
+- **Regra permanente agora em vigor:** toda fase de linguagem nova entrega o **lowering nativo junto** (runtime `pinker_rt` + mapa em `runtime_intrinsic_symbol` no backend), sob pena de reabrir o débito que o Eixo B saldou. A suíte de paridade (`suite_de_paridade_interpretador_nativo`) valida isso automaticamente para cada exemplo novo.
+- Próxima fase (prevista 223): item 5 — error handling. Keywords candidatas no vocabulário provisório: `amparo`/`tropeco` (ou Result via `leque`, aproveitando `encaixe`). Considerar que o interpretador aborta em erro de runtime hoje; a fase precisa de um mecanismo de propagação e captura sem abortar.
+- Trilha completa: `docs/roadmap/blocos/bloco_20.md`.
 
 ## 6. Arquitetura documental ativa
 - `roadmap.md` = ordem ativa.

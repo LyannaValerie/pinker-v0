@@ -20,7 +20,7 @@ A trilha é organizada em **11 faixas ordenadas por prioridade**, mescladas a pa
 O Bloco 20 executa em **dois eixos** que se alternam por decisão explícita:
 
 - **Eixo A — linguagem**: as 11 faixas abaixo (superfície, tipos, funções, controle, baixo nível, metaprogramação, módulos, concorrência, I/O). Executou os itens 1–3 da Faixa 1 (Fases 208–211) e retoma nos itens 5 → 6 → 4 após o Eixo B.
-- **Eixo B — backend nativo**: paridade real do backend `.s` + runtime próprio com a superfície atual da linguagem (fases B1–B11, previstas como Fases 212–222). Aberto pela Doc-40, em execução desde a Fase 212.
+- **Eixo B — backend nativo**: paridade real do backend `.s` + runtime próprio com a superfície atual da linguagem (fases B1–B11, Fases 212–222). Aberto pela Doc-40, **ENCERRADO por paridade verificada na Fase 222** (155 exemplos com paridade interpretador × nativo no CI).
 
 Ordem vigente: Eixo A (itens 1–3) → **Eixo B (integral)** → Eixo A (itens 5 → 6 → 4, agora com lowering nativo obrigatório em cada fase) → demais faixas.
 
@@ -137,7 +137,9 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 
 **Origem.** Débito estrutural registrado na Doc-40: toda a superfície nova da linguagem desde as coleções (Fases 149–211: listas, mapas, `verso` dinâmico, intrínsecas de texto/arquivo/processo, leques, `encaixe`, listas genéricas) executa **apenas no interpretador**. O backend `.s` cobre um subset linear antigo (ABI de até 3 args `bombom`, controle de fluxo parcial, `verso` estático camada 1). Cada fase de linguagem entregue sem lowering nativo **alarga** a lacuna — e sem paridade nativa, o propósito "SO em Pinker" fica estruturalmente adiado, não importa quantos itens de faixa caiam.
 
-**Posição na trilha.** O Eixo B começa imediatamente após a Fase 211. Os itens restantes da Faixa 1 (5 — error handling, 6 — closures, 4 — traits) retomam após o eixo, com a regra permanente de que **toda fase de linguagem futura entrega o lowering nativo junto** (fim das features interpreter-only).
+**Posição na trilha.** O Eixo B ocupou as Fases 212–222 (imediatamente após a Fase 211) e está **encerrado**. Os itens restantes da Faixa 1 (5 — error handling, 6 — closures, 4 — traits) retomam agora, com a regra permanente de que **toda fase de linguagem futura entrega o lowering nativo junto** (fim das features interpreter-only).
+
+**Estado final (Fase 222).** Todas as 11 fases entregues: B1 runtime+build, B2 ABI SysV completa, B3 controle de fluxo geral, B4 `verso` dinâmico, B5 listas, B6 mapas, B7 leques com carga, B8 texto (compilador de brinquedo da Fase 211 como ELF), B9 arquivo/caminho/tempo/acaso, B10 ambiente/processo, B11 suíte de paridade (155 exemplos). O runtime `pinker_rt` é uma staticlib ABI-C de ~90 funções.
 
 **Decisão estratégica do eixo** (formalizada e validada em B1):
 - Caminho canônico: **backend `.s` próprio** (x86-64 System V), evoluído — não substituído.
@@ -159,7 +161,7 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 | B8 | 219 | Família texto completa nativa — **entregue na Fase 219** | as 17 operações de texto + conversões + `formatar_verso` (wrappers por aridade, até 8 substituições) + interpolação, todas nativas com as mesmas chamadas std do interpretador; **o compilador de brinquedo da Fase 211 executa nativo com paridade de stdout** ✓ |
 | B9 | 220 | arquivo + caminho + tempo + acaso nativos — **entregue na Fase 220** | ~29 funções: modelo de handles de arquivo espelhando o interpretador, caminho via std, tempo com o mesmo algoritmo civil, acaso com o **mesmo LCG** (paridade de sementes); paridade de stdout verificada em 14 linhas ✓ |
 | B10 | 221 | ambiente + processo nativos — **entregue na Fase 221** | argv/env nativos consumindo o `argc`/`argv` da B1 (paridade verificada com argumentos reais, incl. `chave=valor` e `chave valor`); subprocessos completos via std::process com wrappers por aridade ✓ (stdin interativo `ouvir` fica fora do eixo) |
-| B11 | 222 | **Marco de paridade** + fechamento do eixo | suíte automatizada executa cada exemplo versionado válido nos **dois modos** (interpretador e nativo) e exige stdout e código de saída idênticos; a paridade só é declarada com a suíte verde no CI; o compilador de brinquedo da Fase 211 executa nativo |
+| B11 | 222 | **Marco de paridade** + fechamento do eixo — **entregue na Fase 222; Eixo B ENCERRADO** | suíte automatizada executa cada exemplo versionado nos dois modos e exige stdout + exit idênticos; **155 exemplos com paridade verificada** no CI; categorias fora da paridade (tempo ao vivo, ordem de iteração de mapa, memória virtual) documentadas no teste ✓ |
 
 **Relação com a Faixa 3.** O item 13 (alocador como superfície de linguagem, `alocar`/`liberar`) é distinto e continua na Faixa 3: o Eixo B entrega o alocador **interno** do runtime; a exposição na linguagem vem depois, sobre ele.
 

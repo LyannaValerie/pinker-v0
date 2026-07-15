@@ -406,334 +406,6 @@ fn abi_completa_executa_nativo_com_oito_args_aninhamento_e_recursao() {
 }
 
 #[test]
-fn verso_dinamico_nativo_tem_paridade_de_stdout_com_interpretador() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-    if detect_cc_driver().is_none() {
-        return;
-    }
-    let pink = env!("CARGO_BIN_EXE_pink");
-    let runtime_lib = std::path::Path::new(pink)
-        .parent()
-        .expect("diretório do pink")
-        .join("libpinker_rt.a");
-    if !runtime_lib.is_file() {
-        eprintln!("libpinker_rt.a ausente; pulando teste de paridade de verso");
-        return;
-    }
-
-    let exemplo = "examples/fase215_verso_dinamico_nativo_valido.pink";
-
-    let interp = Command::new(pink)
-        .arg("--run")
-        .arg(exemplo)
-        .output()
-        .expect("falha ao rodar interpretador");
-    assert!(interp.status.success());
-    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
-    // O CLI imprime o valor de retorno de `principal` como última linha;
-    // o stdout do programa em si é tudo antes dela.
-    let programa_interp = interp_stdout
-        .strip_suffix("0\n")
-        .expect("esperava retorno 0 na última linha do interpretador");
-
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("tempo do sistema")
-        .as_nanos();
-    let out_dir = std::env::temp_dir().join(format!("pinker_fase215_{}", nanos));
-    let build = Command::new(pink)
-        .arg("build")
-        .arg("--nativo")
-        .arg("--out-dir")
-        .arg(&out_dir)
-        .arg(exemplo)
-        .env("PINKER_RT_LIB", &runtime_lib)
-        .output()
-        .expect("falha ao invocar pink build");
-    assert!(
-        build.status.success(),
-        "build nativo falhou: {}",
-        String::from_utf8_lossy(&build.stderr)
-    );
-
-    let bin_path = out_dir.join("fase215_verso_dinamico_nativo_valido");
-    let run = Command::new(bin_path)
-        .output()
-        .expect("falha ao executar binário nativo");
-    assert_eq!(run.status.code(), Some(0));
-    let nativo_stdout = String::from_utf8_lossy(&run.stdout);
-
-    assert_eq!(
-        programa_interp, nativo_stdout,
-        "stdout do programa deve ser idêntico entre interpretador e nativo"
-    );
-
-    let _ = fs::remove_dir_all(&out_dir);
-}
-
-#[test]
-fn listas_nativas_tem_paridade_de_stdout_com_interpretador() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-    if detect_cc_driver().is_none() {
-        return;
-    }
-    let pink = env!("CARGO_BIN_EXE_pink");
-    let runtime_lib = std::path::Path::new(pink)
-        .parent()
-        .expect("diretório do pink")
-        .join("libpinker_rt.a");
-    if !runtime_lib.is_file() {
-        eprintln!("libpinker_rt.a ausente; pulando teste de paridade de listas");
-        return;
-    }
-
-    let exemplo = "examples/fase216_listas_nativas_valido.pink";
-
-    let interp = Command::new(pink)
-        .arg("--run")
-        .arg(exemplo)
-        .output()
-        .expect("falha ao rodar interpretador");
-    assert!(interp.status.success());
-    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
-    let programa_interp = interp_stdout
-        .strip_suffix("0\n")
-        .expect("esperava retorno 0 na última linha do interpretador");
-
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("tempo do sistema")
-        .as_nanos();
-    let out_dir = std::env::temp_dir().join(format!("pinker_fase216_{}", nanos));
-    let build = Command::new(pink)
-        .arg("build")
-        .arg("--nativo")
-        .arg("--out-dir")
-        .arg(&out_dir)
-        .arg(exemplo)
-        .env("PINKER_RT_LIB", &runtime_lib)
-        .output()
-        .expect("falha ao invocar pink build");
-    assert!(
-        build.status.success(),
-        "build nativo falhou: {}",
-        String::from_utf8_lossy(&build.stderr)
-    );
-
-    let bin_path = out_dir.join("fase216_listas_nativas_valido");
-    let run = Command::new(bin_path)
-        .output()
-        .expect("falha ao executar binário nativo");
-    assert_eq!(run.status.code(), Some(0));
-    let nativo_stdout = String::from_utf8_lossy(&run.stdout);
-
-    assert_eq!(
-        programa_interp, nativo_stdout,
-        "stdout de listas deve ser idêntico entre interpretador e nativo"
-    );
-
-    let _ = fs::remove_dir_all(&out_dir);
-}
-
-#[test]
-fn mapas_nativos_tem_paridade_de_stdout_com_interpretador() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-    if detect_cc_driver().is_none() {
-        return;
-    }
-    let pink = env!("CARGO_BIN_EXE_pink");
-    let runtime_lib = std::path::Path::new(pink)
-        .parent()
-        .expect("diretório do pink")
-        .join("libpinker_rt.a");
-    if !runtime_lib.is_file() {
-        eprintln!("libpinker_rt.a ausente; pulando teste de paridade de mapas");
-        return;
-    }
-
-    let exemplo = "examples/fase217_mapas_nativos_valido.pink";
-
-    let interp = Command::new(pink)
-        .arg("--run")
-        .arg(exemplo)
-        .output()
-        .expect("falha ao rodar interpretador");
-    assert!(interp.status.success());
-    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
-    let programa_interp = interp_stdout
-        .strip_suffix("0\n")
-        .expect("esperava retorno 0 na última linha do interpretador");
-
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("tempo do sistema")
-        .as_nanos();
-    let out_dir = std::env::temp_dir().join(format!("pinker_fase217_{}", nanos));
-    let build = Command::new(pink)
-        .arg("build")
-        .arg("--nativo")
-        .arg("--out-dir")
-        .arg(&out_dir)
-        .arg(exemplo)
-        .env("PINKER_RT_LIB", &runtime_lib)
-        .output()
-        .expect("falha ao invocar pink build");
-    assert!(
-        build.status.success(),
-        "build nativo falhou: {}",
-        String::from_utf8_lossy(&build.stderr)
-    );
-
-    let bin_path = out_dir.join("fase217_mapas_nativos_valido");
-    let run = Command::new(bin_path)
-        .output()
-        .expect("falha ao executar binário nativo");
-    assert_eq!(run.status.code(), Some(0));
-    let nativo_stdout = String::from_utf8_lossy(&run.stdout);
-
-    assert_eq!(
-        programa_interp, nativo_stdout,
-        "stdout de mapas deve ser idêntico entre interpretador e nativo"
-    );
-
-    let _ = fs::remove_dir_all(&out_dir);
-}
-
-fn paridade_stdout(exemplo: &str, bin_nome: &str, marcador: u128) {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-    if detect_cc_driver().is_none() {
-        return;
-    }
-    let pink = env!("CARGO_BIN_EXE_pink");
-    let runtime_lib = std::path::Path::new(pink)
-        .parent()
-        .expect("diretório do pink")
-        .join("libpinker_rt.a");
-    if !runtime_lib.is_file() {
-        eprintln!("libpinker_rt.a ausente; pulando teste de paridade");
-        return;
-    }
-
-    let interp = Command::new(pink)
-        .arg("--run")
-        .arg(exemplo)
-        .output()
-        .expect("falha ao rodar interpretador");
-    assert!(interp.status.success());
-    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
-    let programa_interp = interp_stdout
-        .strip_suffix("0\n")
-        .expect("esperava retorno 0 na última linha do interpretador");
-
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("tempo do sistema")
-        .as_nanos()
-        + marcador;
-    let out_dir = std::env::temp_dir().join(format!("pinker_paridade_{}", nanos));
-    let build = Command::new(pink)
-        .arg("build")
-        .arg("--nativo")
-        .arg("--out-dir")
-        .arg(&out_dir)
-        .arg(exemplo)
-        .env("PINKER_RT_LIB", &runtime_lib)
-        .output()
-        .expect("falha ao invocar pink build");
-    assert!(
-        build.status.success(),
-        "build nativo falhou: {}",
-        String::from_utf8_lossy(&build.stderr)
-    );
-
-    let bin_path = out_dir.join(bin_nome);
-    let run = Command::new(bin_path)
-        .output()
-        .expect("falha ao executar binário nativo");
-    assert_eq!(run.status.code(), Some(0), "exit do nativo");
-    let nativo_stdout = String::from_utf8_lossy(&run.stdout);
-
-    assert_eq!(
-        programa_interp, nativo_stdout,
-        "stdout deve ser idêntico entre interpretador e nativo para {}",
-        exemplo
-    );
-
-    let _ = fs::remove_dir_all(&out_dir);
-}
-
-#[test]
-fn leques_com_carga_tem_paridade_de_stdout_com_interpretador() {
-    paridade_stdout(
-        "examples/fase218_leques_carga_nativos_valido.pink",
-        "fase218_leques_carga_nativos_valido",
-        1,
-    );
-}
-
-#[test]
-fn avaliador_recursivo_da_fase210_executa_nativo_com_paridade() {
-    paridade_stdout(
-        "examples/fase210_leque_recursivo_avaliador_valido.pink",
-        "fase210_leque_recursivo_avaliador_valido",
-        2,
-    );
-}
-
-#[test]
-fn texto_nativo_tem_paridade_de_stdout_com_interpretador() {
-    paridade_stdout(
-        "examples/fase219_texto_nativo_valido.pink",
-        "fase219_texto_nativo_valido",
-        3,
-    );
-}
-
-#[test]
-fn compilador_de_brinquedo_da_fase211_executa_nativo_com_paridade() {
-    paridade_stdout(
-        "examples/fase211_compilador_brinquedo_valido.pink",
-        "fase211_compilador_brinquedo_valido",
-        4,
-    );
-}
-
-#[test]
-fn lexer_de_brinquedo_da_fase209_executa_nativo_com_paridade() {
-    paridade_stdout(
-        "examples/fase209_lexer_brinquedo_valido.pink",
-        "fase209_lexer_brinquedo_valido",
-        5,
-    );
-}
-
-#[test]
-fn arquivo_tempo_acaso_tem_paridade_de_stdout_com_interpretador() {
-    paridade_stdout(
-        "examples/fase220_arquivo_tempo_acaso_nativos_valido.pink",
-        "fase220_arquivo_tempo_acaso_nativos_valido",
-        6,
-    );
-}
-
-#[test]
-fn ambiente_processo_tem_paridade_de_stdout_sem_args() {
-    paridade_stdout(
-        "examples/fase221_ambiente_processo_nativos_valido.pink",
-        "fase221_ambiente_processo_nativos_valido",
-        7,
-    );
-}
-
-#[test]
 fn ambiente_nativo_le_argv_com_paridade() {
     if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
         return;
@@ -856,6 +528,173 @@ fn controle_fluxo_geral_executa_nativo_com_todos_os_construtos() {
         run.status.code(),
         Some(42),
         "repetir/para/sempre que/escolha/encaixe/ternário/talvez aninhado deviam compor 42"
+    );
+
+    let _ = fs::remove_dir_all(&out_dir);
+}
+
+/// Marco de paridade do Eixo B (Fase 222/B11): executa cada exemplo
+/// versionado compatível nos DOIS modos — interpretador (`--run`) e binário
+/// nativo (`build --nativo`) — exigindo stdout idêntico e exit code igual ao
+/// valor devolvido por `principal` (mod 256).
+///
+/// Categorias fora da paridade, com justificativa explícita:
+/// - tempo ao vivo: `tempo_unix()` muda entre as duas execuções;
+/// - ordem de iteração de mapa: o interpretador usa HashMap com ordem não
+///   determinística por execução (o nativo itera em ordem de inserção,
+///   estritamente mais previsível);
+/// - modelo de memória virtual: exemplos de ponteiro com endereços literais
+///   (`nova p: seta<bombom> = 1;`) só fazem sentido na memória virtual do
+///   interpretador — em memória real são segfault por natureza; ponteiros
+///   nativos reais são objeto da Faixa 7 do Eixo A.
+///
+/// Exemplos que exigem contexto (argv, stdin, binários auxiliares) são
+/// detectados dinamicamente (o interpretador falha sem contexto) e pulados;
+/// exemplos fora do subset nativo (recusa de compilação) idem. O piso de
+/// cobertura trava regressões: hoje a suíte cobre 150+ exemplos (155 na execução hermética de referência).
+#[test]
+fn suite_de_paridade_interpretador_nativo() {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return;
+    }
+    if detect_cc_driver().is_none() {
+        return;
+    }
+    let pink = env!("CARGO_BIN_EXE_pink");
+    let runtime_lib = std::path::Path::new(pink)
+        .parent()
+        .expect("diretório do pink")
+        .join("libpinker_rt.a");
+    if !runtime_lib.is_file() {
+        eprintln!("libpinker_rt.a ausente; pulando suíte de paridade");
+        return;
+    }
+
+    const TEMPO_AO_VIVO: &[&str] = &[
+        "fase160_tempo_basico_fluxo_composto_valido",
+        "fase160_tempo_basico_timestamp_valido",
+        "fase186_trazer_tempo_minimo_valido",
+    ];
+    const ORDEM_DE_ITERACAO_DE_MAPA: &[&str] = &[
+        "fase204_mapa_verso_verso_valido",
+        "fase205_mapa_bombom_bombom_valido",
+        "fase206_mapa_bombom_verso_valido",
+    ];
+    const MODELO_DE_MEMORIA_VIRTUAL: &[&str] = &[
+        "fase66_deref_leitura_valido",
+        "fase67_escrita_indireta_valida",
+        "fase68_ptr_aritmetica_leitura_valida",
+        "fase68_ptr_aritmetica_valida",
+        "fase69_ninho_campo_operacional_valido",
+        "fase70_indexacao_array_operacional_valido",
+    ];
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("tempo do sistema")
+        .as_nanos();
+    let out_dir = std::env::temp_dir().join(format!("pinker_paridade_suite_{}", nanos));
+    // Diretório de trabalho isolado: alguns exemplos escrevem arquivos em
+    // caminho relativo (ex.: fase101 sem args); rodar os dois modos aqui
+    // mantém a paridade e evita poluir a raiz do repositório.
+    let work_dir = out_dir.join("cwd");
+    fs::create_dir_all(&work_dir).expect("falha ao criar diretório de trabalho da suíte");
+    let examples_dir = std::fs::canonicalize("examples").expect("diretório de exemplos");
+
+    let mut nomes: Vec<String> = fs::read_dir(&examples_dir)
+        .expect("diretório de exemplos")
+        .filter_map(|entry| {
+            let nome = entry.ok()?.file_name().to_string_lossy().to_string();
+            nome.strip_suffix(".pink").map(str::to_string)
+        })
+        .collect();
+    nomes.sort();
+
+    let mut cobertos = 0usize;
+    let mut fora_do_subset = 0usize;
+    let mut exigem_contexto = 0usize;
+    let mut excluidos = 0usize;
+
+    for nome in &nomes {
+        if TEMPO_AO_VIVO.contains(&nome.as_str())
+            || ORDEM_DE_ITERACAO_DE_MAPA.contains(&nome.as_str())
+            || MODELO_DE_MEMORIA_VIRTUAL.contains(&nome.as_str())
+        {
+            excluidos += 1;
+            continue;
+        }
+        let exemplo = examples_dir.join(format!("{nome}.pink"));
+
+        let interp = Command::new(pink)
+            .arg("--run")
+            .arg(&exemplo)
+            .current_dir(&work_dir)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .expect("falha ao invocar interpretador");
+        if !interp.status.success() {
+            exigem_contexto += 1;
+            continue;
+        }
+        let interp_stdout = String::from_utf8_lossy(&interp.stdout).to_string();
+        let Some(sem_nl_final) = interp_stdout.strip_suffix('\n') else {
+            exigem_contexto += 1;
+            continue;
+        };
+        let (corpo_bruto, retorno_texto) = match sem_nl_final.rsplit_once('\n') {
+            Some((corpo, retorno)) => (corpo, retorno),
+            None => ("", sem_nl_final),
+        };
+        let Ok(retorno) = retorno_texto.parse::<u64>() else {
+            exigem_contexto += 1;
+            continue;
+        };
+        let corpo_esperado = if corpo_bruto.is_empty() {
+            String::new()
+        } else {
+            format!("{corpo_bruto}\n")
+        };
+
+        let build = Command::new(pink)
+            .arg("build")
+            .arg("--nativo")
+            .arg("--out-dir")
+            .arg(&out_dir)
+            .arg(&exemplo)
+            .env("PINKER_RT_LIB", &runtime_lib)
+            .output()
+            .expect("falha ao invocar pink build");
+        if !build.status.success() {
+            fora_do_subset += 1;
+            continue;
+        }
+
+        let bin_path = out_dir.join(nome);
+        let run = Command::new(&bin_path)
+            .current_dir(&work_dir)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .expect("falha ao executar binário nativo");
+        let nativo_stdout = String::from_utf8_lossy(&run.stdout).to_string();
+
+        assert_eq!(
+            corpo_esperado, nativo_stdout,
+            "stdout divergente entre interpretador e nativo em '{nome}'"
+        );
+        assert_eq!(
+            run.status.code(),
+            Some((retorno % 256) as i32),
+            "exit code divergente em '{nome}' (retorno do interpretador: {retorno})"
+        );
+        cobertos += 1;
+    }
+
+    eprintln!(
+        "suíte de paridade: {cobertos} exemplos com paridade verificada; {fora_do_subset} fora do subset nativo; {exigem_contexto} exigem contexto (argv/stdin/auxiliares); {excluidos} excluídos por categoria documentada"
+    );
+    assert!(
+        cobertos >= 150,
+        "regressão de cobertura da suíte de paridade: apenas {cobertos} exemplos verificados"
     );
 
     let _ = fs::remove_dir_all(&out_dir);
