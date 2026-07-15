@@ -25,9 +25,9 @@ receberam âncoras `@pinker-nav`. O endereçamento para máquinas vive no catál
 substitui.
 
 A cartografia avança em **ondas**, do mais simples ao mais complexo. Cada onda é
-útil sozinha. As **Ondas 0, 1 e 2** já estão na `main`; esta rodada adiciona a
-**Onda 3** (modelos de dados). As demais estão inventariadas e explicitamente
-adiadas.
+útil sozinha. As **Ondas 0–3** já estão na `main`; esta rodada adiciona a
+**Onda 4** (frontend léxico e parsing local). As demais estão inventariadas e
+explicitamente adiadas.
 
 ## Contrato do scanner (limitação registrada)
 
@@ -104,14 +104,62 @@ preservadas.
 | `src/instr_select.rs` | select | Modelo de dados da seleção de instruções (instruções selecionadas, terminadores). | alta (modelo) | `select.modelo.representacao` | modelo integral; lowering → Onda 5 |
 | `src/abstract_machine.rs` | machine | Modelo de dados da máquina de pilha (instruções de pilha, terminadores, slots). | alta (modelo) | `machine.modelo.representacao` | modelo integral; lowering → Onda 5 |
 
-## Onda 4+ — frontend, semântica, execução, orquestração (adiadas)
+## Onda 4 — frontend léxico e parsing local (concluída)
 
-Inventariados; revisão atual `estrutural`.
+Frontend integralmente **revisado**. O lexer está totalmente cartografado; o
+parser está integralmente revisado com **cartografia parcial** — a maquinaria de
+monomorfização de genéricos residente no parser foi **adiada** (não é léxico/
+sintático; ver adiados).
+
+### Lexer (`src/lexer.rs`) — revisão integral
+
+| Âncora | Responsabilidade |
+|---|---|
+| `lexer.espacos-comentarios.consumo` | Espaços, comentários de linha `//` e de bloco `/* */` aninhados; bloco não terminado encerra no EOF sem token. |
+| `lexer.fluxo.tokenizacao` | Laço principal: operadores/delimitadores (incl. multi-caractere), inteiros, strings simples e `"""`, escapes, identificadores × palavras-chave, `$"..."` interpolado, `?`, EOF e erros léxicos. |
+
+**Decisão de granularidade (lexer):** identificadores, números, strings,
+interpolação e operadores são **braços do `match` dentro do único método
+`tokenize`**, não funções separadas. Fragmentá-los exigiria refatoração
+(proibida nesta onda), então são cobertos por `lexer.fluxo.tokenizacao` — uma
+região conceitual única e precisa (§5.5).
+
+### Parser (`src/parser.rs`) — revisão integral, cartografia parcial
+
+| Âncora | Responsabilidade |
+|---|---|
+| `parser.fluxo.nucleo` | Cursor de tokens (peek/advance/check/consume) e erro `Expected`. |
+| `parser.programa.estrutura` | Entrada `parse`: `pacote`, imports, freestanding e despacho de itens de topo. |
+| `parser.tipos.gramatica` | Gramática de tipos → `ast::Type` (só sintaxe). |
+| `parser.declaracoes.tipos` | `apelido`, `ninho` (struct), `impl`, `trato`, `leque` (enum). |
+| `parser.encaixe.expressao` | Desugaring de `encaixe` (pattern matching) em `talvez`/`senao`. |
+| `parser.resultado.tentar-propagar` | Desugaring de `tentar` e `propagar`/`propagar?`. |
+| `parser.closures.expressao` | Funções anônimas e vínculos de valor-função. |
+| `parser.funcoes.declaracao` | `carinho ...` incl. parâmetros de tipo genéricos. |
+| `parser.constantes.declaracao` | `eterno nome: tipo = expr;`. |
+| `parser.comandos.bloco` | Blocos e todos os comandos (`nova`/`muda`/`mimo`/fluxo/`falar`/asm). |
+| `parser.lacos.for-each` | Desugaring de `para cada X em COL`. |
+| `parser.expressoes.precedencia` | Escada de precedência + unários. |
+| `parser.expressoes.primarias` | Expressões primárias (literais, listas/mapas, struct/leque). |
+| `parser.expressoes.postfix` | Cadeia postfix: chamada, campo, índice, genérica explícita, cast. |
+| `parser.texto.interpolacao` | Desugaring de `$"..."` → `formatar_verso`. |
+
+**Adiado (parser):** a maquinaria de **monomorfização de genéricos** residente no
+parser (`generic_type_key`, `substitute_*`, `instantiate_generic_functions`,
+`instantiate_generic_enums`, `instantiate_function_param_functions` — ~
+`src/parser.rs` entre `parser.funcoes.declaracao` e `parser.constantes.declaracao`)
+**não é responsabilidade léxica/sintática**: é monomorfização, explicitamente
+fora do escopo da Onda 4 (§2). Fica como **feature vertical** para a Onda 5/10.
+Helpers isolados (`register_collection_type`, name-mangling de `impl`) ficam sem
+âncora por serem plumbing (§7).
+
+## Onda 5+ — semântica, lowerings, execução, orquestração (adiadas)
+
+Inventariados; revisão atual `estrutural` (exceto o frontend, agora integral).
 
 | Arquivo | Camada | Propósito (do módulo-doc/estrutura) | Complexidade | Âncoras atuais | Onda-alvo |
 |---|---|---|---|---|---|
-| `src/lexer.rs` | lexer | Tokenização (comentários, strings/escapes/interpolação, números, keywords, operadores). | alta | — | 4 |
-| `src/parser.rs` | parser | Parsing recursivo-descendente completo da Pinker (funções, tipos, leques, genéricos, tratos, closures, `tentar`/`propagar`, imports, fluxo). | transversal | — | 4 |
+| `src/parser.rs` (genéricos) | parser | Monomorfização/substituição residente no parser (adiada na Onda 4). | transversal | frontend ancorado | 5/10 |
 | `src/ir.rs` (lowering) | ir | Lowering AST→IR (`lower_program`, `LoweringContext`, `FunctionLowerer`). | transversal | modelo ancorado | 5 |
 | `src/cfg_ir.rs` (lowering) | cfg | Lowering IR→CFG; contém `cfg.logica.*`. | transversal | `cfg.logica.*` | 5 |
 | `src/instr_select.rs` (lowering) | select | Lowering CFG→seleção. | alta | modelo ancorado | 5 |
@@ -147,16 +195,16 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 3)
+## Cobertura acumulada (após Onda 4)
 
 | Métrica | Valor |
 |---|---:|
 | Arquivos de produção em `src/` (excl. gerados e fixtures) | 30 |
-| Arquivos com modelo/responsabilidade ancorada | 23 |
-| Arquivos apenas inventariados (estrutural) | 7 |
-| Regiões antes da Onda 3 | 27 |
-| Regiões adicionadas na Onda 3 | 9 |
-| Regiões no catálogo | 36 |
+| Arquivos com responsabilidade ancorada | 25 |
+| Arquivos apenas inventariados (estrutural) | 5 |
+| Regiões antes da Onda 4 | 36 |
+| Regiões adicionadas na Onda 4 | 17 |
+| Regiões no catálogo | 53 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
 
@@ -170,24 +218,28 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 | repl | 2 | ciclo, pipeline |
 | palette | 2 | identidade, estilização |
 | printer | 1 | renderização |
+| lexer | 2 | espaços-comentários, tokenização (Onda 4) |
+| parser | 15 | núcleo, programa, tipos, declarações, encaixe, resultado, closures, funções, constantes, comandos, for-each, precedência, primárias, postfix, interpolação (Onda 4) |
 | ast | 5 | programa, tipos, comandos, expressões, serialização |
-| ir | 2 | modelo (Onda 3) + validador |
-| cfg | 4 | modelo (Onda 3) + validador + `cfg.logica.*` (históricas) |
-| select | 2 | modelo (Onda 3) + validador |
-| machine | 2 | modelo (Onda 3) + validador |
+| ir | 2 | modelo + validador |
+| cfg | 4 | modelo + validador + `cfg.logica.*` (históricas) |
+| select | 2 | modelo + validador |
+| machine | 2 | modelo + validador |
 | backend-text | 1 | validador |
 | trama | 10 | normalização, jsonl, marco, catálogos e consultas doc/código, manifesto, ledger, projeções |
-| **total** | **36** | |
+| **total** | **53** | |
 
-Pendentes (sem âncora): lowerings de ir/cfg/select/machine (Onda 5),
-lexer/parser (Onda 4), semantic (Onda 5), interpreter/backend-s/runtime (Onda 6),
-cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após ampliar raízes).
+Pendentes (sem âncora): monomorfização de genéricos no parser + lowerings de
+ir/cfg/select/machine + semantic (Onda 5), interpreter/backend-s/runtime
+(Onda 6), cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após ampliar raízes).
 
 ## Próximo ponto de retomada
 
-**Onda 4 — frontend léxico e parsing local:** ancorar `src/lexer.rs`
-(comentários, strings/escapes/interpolação, números, keywords, operadores) e as
-rotinas de fronteira clara de `src/parser.rs`, começando pelas de contorno
-inequívoco e adiando regiões com features profundamente intercaladas. Os
-lowerings de `ir`/`cfg_ir`/`instr_select`/`abstract_machine` ficam para a Onda 5,
-já com o modelo de dados ancorado nesta rodada.
+**Onda 5 — semântica e lowerings por camada:** ancorar `src/semantic.rs`
+(ambientes/escopos, resolução de nomes, compatibilidade de tipos, cobertura de
+`encaixe`, tratos/`impl`) e os **lowerings** — AST→IR (`src/ir.rs`), IR→CFG
+(`src/cfg_ir.rs`, conectando às âncoras `cfg.logica.*` já existentes sem
+duplicá-las), CFG→seleção (`src/instr_select.rs`) e seleção→máquina
+(`src/abstract_machine.rs`). Incluir a **monomorfização de genéricos residente no
+parser** (adiada na Onda 4) como parte da feature vertical de genéricos. Não
+antecipar execução, backends nem runtime (Onda 6).
