@@ -25,7 +25,7 @@ jobs:
         shell: bash
         run: |
           message="$(git log -1 --pretty=%s)"
-          if [[ "$message" == chore\(trama-bot\):* || "$message" == chore\(trama-debug\):* ]]; then
+          if [[ "$message" == chore\(trama-bot\):* ]]; then
             echo "apply=false" >> "$GITHUB_OUTPUT"
           else
             echo "apply=true" >> "$GITHUB_OUTPUT"
@@ -44,14 +44,17 @@ jobs:
           set -e
           if [[ $status -ne 0 ]]; then
             cat trama-run-error.log
-            git config user.name "Trama Pinker Bot"
-            git config user.email "151316340+LyannaValerie@users.noreply.github.com"
-            git add trama-run-error.log
-            git commit -m "chore(trama-debug): registra falha de aplicação"
-            git push
             exit $status
           fi
           rm scripts/apply_trama_completion.py trama-run-error.log
+
+      - name: Upload application diagnosis
+        if: failure() && steps.gate.outputs.apply == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: trama-run-error
+          path: trama-run-error.log
+          if-no-files-found: error
 
       - name: Format and synchronize generated artifacts
         if: steps.gate.outputs.apply == 'true'
