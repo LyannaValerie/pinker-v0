@@ -1,0 +1,50 @@
+name: Trama completion
+
+on:
+  push:
+    branches:
+      - trama/completion-v2
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(trama-bot):') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: trama/completion-v2
+          fetch-depth: 0
+
+      - name: Reconstruct and apply completion
+        shell: bash
+        run: |
+          cat scripts/trama_patch_chunks/*.b64 | base64 -d | gzip -d > scripts/apply_trama_completion.py
+          python3 scripts/apply_trama_completion.py
+          rm scripts/apply_trama_completion.py
+
+      - name: Format and synchronize generated artifacts
+        shell: bash
+        run: |
+          cargo fmt
+          cargo run --bin pink -- doc sincronizar
+          cargo run --bin pink -- nav sincronizar
+
+      - name: Validate full repository
+        run: make ci
+
+      - name: Commit validated result
+        shell: bash
+        run: |
+          git config user.name "Trama Pinker Bot"
+          git config user.email "151316340+LyannaValerie@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(trama-bot): completa contratos e projeções da Trama"
+          git push
