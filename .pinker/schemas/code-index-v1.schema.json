@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://pinker.dev/schemas/code-index-v1.schema.json",
+  "title": "Pinker code index entry (v1)",
+  "description": "Entrada de uma linha de src/navigation.jsonl. Catálogo gerado a partir dos marcadores @pinker-nav no código (especificação, seções 10 e 11). Nunca editado à mão; ordenação determinística por key.",
+  "type": "object",
+  "required": ["schema", "key", "file", "start_marker", "end_marker"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": 1 },
+    "key": {
+      "type": "string",
+      "description": "Chave estável de responsabilidade (ex.: parser.intrinsecos.resolucao).",
+      "pattern": "^[a-z0-9]+([._-][a-z0-9]+)*$"
+    },
+    "kind": { "type": "string", "description": "Natureza do trecho (ex.: region)." },
+    "domain": { "type": "string" },
+    "layer": { "type": "string" },
+    "phase": { "type": "integer", "minimum": 0 },
+    "file": { "type": "string", "description": "Caminho do arquivo fonte." },
+    "start_marker": { "type": "integer", "minimum": 1, "description": "Linha do marcador @pinker-nav:start." },
+    "content_start": { "type": "integer", "minimum": 1 },
+    "content_end": { "type": "integer", "minimum": 1 },
+    "end_marker": { "type": "integer", "minimum": 1, "description": "Linha do marcador @pinker-nav:end." },
+    "summary": { "type": "string" },
+    "hash": { "type": "string", "description": "Hash do conteúdo da região (ex.: sha256:...)." },
+    "status": { "type": "string", "enum": ["active", "retired"] }
+  }
+}

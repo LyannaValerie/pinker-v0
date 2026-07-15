@@ -1,0 +1,26 @@
+# .pinker/doc.toml — configuração da Trama Pinker (Etapa 0 — Marco).
+#
+# Fonte única de configuração do marco documental e dos índices gerados.
+# Este arquivo é canônico e revisável; a ferramenta `pink doc` o lê para
+# aplicar a política estrita anti-retroatividade descrita na especificação
+# "Trama Pinker" (seções 15, 16 e 27).
+#
+# Regra central: somente mudanças POSTERIORES ao PR #330 são processadas
+# automaticamente. Nenhum PR, commit ou documento anterior ao marco é
+# importado retroativamente pela versão inicial.
+schema = 1
+
+[github]
+# "forward-only": apenas eventos posteriores ao marco entram no sistema.
+mode = "forward-only"
+# Marco documental. PRs anteriores ou iguais são rejeitados na importação.
+baseline_pr = 330
+# false => o próprio PR #330 é exclusivo (não importável); apenas PR > 330.
+baseline_inclusive = false
+# Commit da `main` usado ao inicializar a Trama (merge do PR #330).
+baseline_commit = "15e22d4d510f298282c11cafeb21718859f9493a"
+
+[generated]
+# Catálogos derivados, gerados pela ferramenta e nunca editados à mão.
+docs_index = "docs/navigation.jsonl"
+code_index = "src/navigation.jsonl"

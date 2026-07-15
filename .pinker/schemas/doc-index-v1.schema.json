@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://pinker.dev/schemas/doc-index-v1.schema.json",
+  "title": "Pinker documentation index entry (v1)",
+  "description": "Entrada de uma linha de docs/navigation.jsonl. Catálogo gerado a partir das âncoras de seção documental (especificação, seções 8 e 9). Nunca editado à mão; ordenação determinística por id.",
+  "type": "object",
+  "required": ["schema", "id", "document", "file", "start", "end", "title"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": 1 },
+    "id": {
+      "type": "string",
+      "description": "Identidade estável e semântica da seção (ex.: rosa.identity).",
+      "pattern": "^[a-z0-9]+([._-][a-z0-9]+)*$"
+    },
+    "document": { "type": "string", "description": "ID do documento proprietário." },
+    "file": { "type": "string", "description": "Caminho do arquivo Markdown fonte." },
+    "start": { "type": "integer", "minimum": 1, "description": "Primeira linha do intervalo." },
+    "end": { "type": "integer", "minimum": 1, "description": "Última linha do intervalo." },
+    "title": { "type": "string", "description": "Título Markdown da seção." },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "aliases": { "type": "array", "items": { "type": "string" } },
+    "summary": { "type": "string" }
+  }
+}
