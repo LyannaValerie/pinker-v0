@@ -21,6 +21,10 @@ struct FunctionSig {
     params: Vec<TypeIR>,
 }
 
+// @pinker-nav:start ir.validacao.invariantes
+// @pinker-nav:domain validacao
+// @pinker-nav:layer ir
+// @pinker-nav:summary Valida os invariantes da IR estruturada antes do lowering para CFG: constantes globais bem tipadas, bloco de entrada e slots únicos por função, e comandos/expressões com tipos compatíveis via inferência recursiva.
 pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
     let mut consts = HashMap::new();
     for konst in &program.consts {
@@ -1725,3 +1729,5 @@ fn enrich_ir_error(
         _ => err,
     }
 }
+
+// @pinker-nav:end ir.validacao.invariantes

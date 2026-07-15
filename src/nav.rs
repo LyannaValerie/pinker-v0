@@ -150,6 +150,10 @@ impl fmt::Display for NavVerifyError {
     }
 }
 
+// @pinker-nav:start trama.codigo.catalogo
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer trama
+// @pinker-nav:summary Gera o catálogo de navegação de código varrendo `src/` pelos marcadores `@pinker-nav`: monta as regiões, calcula o hash do conteúdo, renderiza JSONL determinístico e valida chaves únicas, marcadores balanceados e ausência de sobreposição.
 impl CodeIndex {
     /// Varre recursivamente `src_root` e constrói o índice.
     pub fn scan(src_root: &Path) -> Result<CodeIndex, ScanError> {
@@ -229,6 +233,7 @@ impl CodeIndex {
             .collect()
     }
 }
+// @pinker-nav:end trama.codigo.catalogo
 
 /// Pontuação de código (§7.3). Prioridade mínima: chave exata, chave parcial,
 /// domínio/camada exatos, termos no resumo, caminho. Devolve
@@ -631,6 +636,10 @@ fn json_string(value: &str) -> String {
 // Catálogo carregado do JSONL (superfície de consulta — §5).
 // ---------------------------------------------------------------------------
 
+// @pinker-nav:start trama.codigo.consulta
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer trama
+// @pinker-nav:summary Reconstrói o catálogo de código do JSONL versionado e serve as consultas (`mostrar`/`buscar`/`listar`) sem revarrer `src/`; ao extrair uma região, valida que os marcadores ainda a delimitam e que o hash do conteúdo confere, recusando drift.
 /// Falha ao carregar o catálogo de código versionado.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogError {
@@ -817,6 +826,7 @@ pub fn validate_region(source: &str, region: &CodeRegion) -> RegionCheck {
     }
     RegionCheck::Ok
 }
+// @pinker-nav:end trama.codigo.consulta
 
 #[cfg(test)]
 mod tests {

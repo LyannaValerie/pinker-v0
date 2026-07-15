@@ -160,6 +160,10 @@ impl fmt::Display for ChangeError {
     }
 }
 
+// @pinker-nav:start trama.mudancas.manifesto
+// @pinker-nav:domain mudancas
+// @pinker-nav:layer trama
+// @pinker-nav:summary Manifesto estruturado de mudança: extrai o bloco `pinker-change` do corpo do PR, aplica de fato o schema (enums de kind/status, rejeição de campos desconhecidos, source.type/número, formato de ids) e renderiza o YAML versionado determinístico.
 impl Change {
     /// Extrai e interpreta o bloco `pinker-change` de um corpo de PR.
     pub fn parse_pr_body(body: &str) -> Result<Change, ChangeError> {
@@ -413,6 +417,7 @@ impl Change {
         out
     }
 }
+// @pinker-nav:end trama.mudancas.manifesto
 
 /// Manifestos carregados de `.pinker/changes/`.
 #[derive(Debug, Clone, Default)]
@@ -421,6 +426,10 @@ pub struct Manifests {
     pub problems: Vec<ChangeError>,
 }
 
+// @pinker-nav:start trama.mudancas.ledger
+// @pinker-nav:domain mudancas
+// @pinker-nav:layer trama
+// @pinker-nav:summary Carrega e valida todos os manifestos `pr-N.yaml` de `.pinker/changes/` e renderiza o ledger mecânico (`index.jsonl`) ordenado por PR, fonte da visão humana e das projeções.
 impl Manifests {
     /// Carrega e valida todos os `.pinker/changes/pr-*.yaml`.
     pub fn load(changes_dir: &Path) -> Manifests {
@@ -484,6 +493,7 @@ impl Manifests {
         out
     }
 }
+// @pinker-nav:end trama.mudancas.ledger
 
 fn extract_block(body: &str) -> Result<String, ChangeError> {
     let lines: Vec<&str> = body.lines().collect();

@@ -151,6 +151,10 @@ impl fmt::Display for BaselineRejection {
     }
 }
 
+// @pinker-nav:start trama.documentos.marco
+// @pinker-nav:domain documentos
+// @pinker-nav:layer trama
+// @pinker-nav:summary Carrega e valida `.pinker/doc.toml` (marco, política forward-only e projeções) e aplica o gate anti-retroatividade: PRs anteriores ou iguais ao baseline são rejeitados com E-DOC-BASELINE, sem backfill.
 impl DocConfig {
     /// Carrega e valida a configuração a partir da raiz do repositório.
     pub fn load(repo_root: &Path) -> Result<DocConfig, ConfigError> {
@@ -224,6 +228,7 @@ impl DocConfig {
         }
     }
 }
+// @pinker-nav:end trama.documentos.marco
 
 /// Leitor mínimo e determinístico de um subconjunto de TOML.
 ///

@@ -196,6 +196,10 @@ impl fmt::Display for DocVerifyError {
     }
 }
 
+// @pinker-nav:start trama.documentos.catalogo
+// @pinker-nav:domain documentos
+// @pinker-nav:layer trama
+// @pinker-nav:summary Gera o catálogo documental discriminado (schema 2, registros document/section) varrendo `docs/`: lê frontmatter e âncoras `@pinker-doc`, renderiza JSONL determinístico e verifica invariantes (âncoras balanceadas, ids únicos, autoridade canônica, portais).
 impl DocIndex {
     /// Varre recursivamente `docs_root` e constrói o índice em memória.
     pub fn scan(docs_root: &Path) -> Result<DocIndex, ScanError> {
@@ -360,6 +364,7 @@ impl DocIndex {
         search_sections(&self.sections, query)
     }
 }
+// @pinker-nav:end trama.documentos.catalogo
 
 /// Um resultado de busca/rota.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -909,6 +914,10 @@ fn json_string(value: &str) -> String {
 // Catálogo carregado do JSONL (superfície de consulta — §5).
 // ---------------------------------------------------------------------------
 
+// @pinker-nav:start trama.documentos.consulta
+// @pinker-nav:domain documentos
+// @pinker-nav:layer trama
+// @pinker-nav:summary Reconstrói o catálogo documental a partir do JSONL versionado e serve as consultas (`mostrar`/`listar`/`buscar`/`rota`) sem revarrer `docs/`; ao extrair uma seção, reescaneia a fonte apontada e recusa a resposta se a âncora divergir.
 /// Falha ao carregar o catálogo documental versionado.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogError {
@@ -1121,6 +1130,7 @@ pub fn validate_section_anchor(source: &str, section: &DocSection) -> bool {
         None => false,
     }
 }
+// @pinker-nav:end trama.documentos.consulta
 
 #[cfg(test)]
 mod tests {

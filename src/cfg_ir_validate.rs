@@ -23,6 +23,10 @@ struct FunctionSigCfg {
     params: Vec<TypeIR>,
 }
 
+// @pinker-nav:start cfg.validacao.invariantes
+// @pinker-nav:domain validacao
+// @pinker-nav:layer cfg
+// @pinker-nav:summary Valida os invariantes do CFG IR: blocos rotulados com terminadores bem formados, alvos de salto existentes, ausência de fall-through implícito e consistência de tipos entre blocos.
 pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
     let mut global_consts = HashMap::new();
     for konst in &program.consts {
@@ -1780,3 +1784,5 @@ fn operand_matches_expected(operand: &OperandIR, actual: TypeIR, expected: TypeI
 fn default_span() -> Span {
     Span::single(Position::new(1, 1))
 }
+
+// @pinker-nav:end cfg.validacao.invariantes

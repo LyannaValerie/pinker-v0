@@ -7,6 +7,10 @@ use crate::ir::TypeIR;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet};
 
+// @pinker-nav:start backend-text.validacao.invariantes
+// @pinker-nav:domain validacao
+// @pinker-nav:layer backend-text
+// @pinker-nav:summary Valida o programa pseudo-assembly do backend textual: instruções e operandos bem formados, rótulos definidos e referências resolvíveis antes da renderização final.
 pub fn validate_program(program: &BackendTextProgram) -> Result<(), PinkerError> {
     if program.module_name.trim().is_empty() {
         return Err(err("módulo textual com nome vazio"));
@@ -289,3 +293,5 @@ fn err(msg: &str) -> PinkerError {
         span: Span::single(Position::new(1, 1)),
     }
 }
+
+// @pinker-nav:end backend-text.validacao.invariantes

@@ -147,6 +147,10 @@ impl Plan {
     }
 }
 
+// @pinker-nav:start trama.projecoes.geracao
+// @pinker-nav:domain projecoes
+// @pinker-nav:layer trama
+// @pinker-nav:summary Projeta os manifestos versionados em regiões geradas explícitas (`@pinker-generated`) para `history`, `state` e `roadmap`: valida que toda flag `updates.*` verdadeira tem consumidor, gera conteúdo determinístico e preserva o texto humano fora da região.
 /// Planeja todas as projeções configuradas e valida as flags dos manifestos.
 pub fn plan(
     repo_root: &Path,
@@ -374,6 +378,7 @@ fn generate_roadmap(manifests: &Manifests) -> String {
     out.pop();
     out
 }
+// @pinker-nav:end trama.projecoes.geracao
 
 #[cfg(test)]
 mod tests {

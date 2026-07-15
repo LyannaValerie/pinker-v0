@@ -13,6 +13,10 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+// @pinker-nav:start trama.catalogo.leitor-jsonl
+// @pinker-nav:domain catalogo
+// @pinker-nav:layer trama
+// @pinker-nav:summary Leitor mínimo e zero-dependência de JSON de uma linha (JSONL): interpreta objetos com strings escapadas, inteiros, booleanos e arrays de strings, permitindo que as consultas reconstruam os catálogos sem revarrer as fontes.
 /// Valor JSON mínimo aceito pelos catálogos da Trama.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JsonValue {
@@ -270,6 +274,7 @@ impl<'a> Parser<'a> {
         Ok(out)
     }
 }
+// @pinker-nav:end trama.catalogo.leitor-jsonl
 
 #[cfg(test)]
 mod tests {
