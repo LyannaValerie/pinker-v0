@@ -1,5 +1,9 @@
 use crate::token::Span;
 
+// @pinker-nav:start error.diagnostico.taxonomia
+// @pinker-nav:domain diagnostico
+// @pinker-nav:layer error
+// @pinker-nav:summary Taxonomia unificada de erros do compilador (léxico, sintático, semântico, cada validação de pipeline e runtime), cada variante carregando mensagem e span de origem.
 #[derive(Debug)]
 pub enum PinkerError {
     Lexer {
@@ -48,7 +52,12 @@ pub enum PinkerError {
         span: Option<Span>,
     },
 }
+// @pinker-nav:end error.diagnostico.taxonomia
 
+// @pinker-nav:start error.diagnostico.contexto-fonte
+// @pinker-nav:domain diagnostico
+// @pinker-nav:layer error
+// @pinker-nav:summary Renderiza um erro para o CLI recuperando a linha de origem pelo span e desenhando um cursor `^` na coluna; formata mensagens e stack traces de runtime.
 impl PinkerError {
     pub fn span(&self) -> Option<Span> {
         match self {
@@ -146,6 +155,7 @@ fn split_runtime_message_and_trace(msg: &str) -> (&str, Option<&str>) {
         None => (msg, None),
     }
 }
+// @pinker-nav:end error.diagnostico.contexto-fonte
 
 impl std::fmt::Display for PinkerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

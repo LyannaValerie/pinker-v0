@@ -14,6 +14,10 @@ use std::io::{self, BufRead, Write};
 
 const PROMPT: &str = "pinker> ";
 
+// @pinker-nav:start repl.ciclo.leitura-avaliacao
+// @pinker-nav:domain fluxo
+// @pinker-nav:layer repl
+// @pinker-nav:summary Laço leitura-avaliação-impressão do REPL: lê uma linha, trata `:quit`/`:sair` e EOF, avalia o trecho e imprime o resultado ou o erro sem manter estado entre linhas.
 pub fn run_repl() -> Result<(), String> {
     let stdin = io::stdin();
     let stdout = io::stdout();
@@ -103,7 +107,12 @@ fn render_value(value: &RuntimeValue) -> String {
         RuntimeValue::MapBombomVerso(handle) => format!("<mapa:bombom,verso:{handle}>"),
     }
 }
+// @pinker-nav:end repl.ciclo.leitura-avaliacao
 
+// @pinker-nav:start repl.avaliacao.pipeline
+// @pinker-nav:domain fluxo
+// @pinker-nav:layer repl
+// @pinker-nav:summary Envolve a linha do REPL como corpo temporário de `principal` e a conduz por todo o pipeline (léxico, parser, semântica, IR, CFG, seleção, máquina e interpretador), devolvendo o valor produzido.
 fn evaluate_snippet(snippet: &str) -> Result<RuntimeValue, String> {
     let source = wrap_snippet(snippet);
     let mut lexer = Lexer::new(&source);
@@ -150,6 +159,7 @@ fn wrap_snippet(snippet: &str) -> String {
 fn snippet_has_explicit_return(snippet: &str) -> bool {
     snippet.contains("mimo")
 }
+// @pinker-nav:end repl.avaliacao.pipeline
 
 #[cfg(test)]
 mod tests {

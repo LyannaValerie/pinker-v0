@@ -1,6 +1,10 @@
 use crate::ast::{StructDecl, Type};
 use std::collections::HashMap;
 
+// @pinker-nav:start layout.tipos.memoria
+// @pinker-nav:domain tipos
+// @pinker-nav:layer layout
+// @pinker-nav:summary Calcula o layout estático (tamanho e alinhamento) dos tipos Pinker e os offsets de campos de struct, com arredondamento de alinhamento, resolução de aliases e proteção contra recursão.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypeLayout {
     pub size: u64,
@@ -214,3 +218,4 @@ fn round_up(value: u64, align: u64) -> Result<u64, String> {
         .ok_or_else(|| "overflow ao arredondar alinhamento".to_string())?;
     Ok((with_add / align) * align)
 }
+// @pinker-nav:end layout.tipos.memoria

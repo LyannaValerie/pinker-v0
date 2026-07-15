@@ -1,3 +1,7 @@
+// @pinker-nav:start token.lexico.vocabulario
+// @pinker-nav:domain lexico
+// @pinker-nav:layer token
+// @pinker-nav:summary Vocabulário canônico de tokens da Pinker: palavras-chave em português, operadores, delimitadores e literais que o léxico produz e o parser consome.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
     KwPacote,
@@ -95,7 +99,12 @@ pub enum TokenKind {
     Arrow,
     Eof,
 }
+// @pinker-nav:end token.lexico.vocabulario
 
+// @pinker-nav:start token.representacao.spans
+// @pinker-nav:domain representacao
+// @pinker-nav:layer token
+// @pinker-nav:summary Posições e spans de origem (linha/coluna) anexados a cada token e propagados aos diagnósticos; inclui a fusão de spans usada ao combinar nós.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Position {
     pub line: usize,
@@ -145,6 +154,7 @@ impl std::fmt::Display for Span {
         write!(f, "{}..{}", self.start, self.end)
     }
 }
+// @pinker-nav:end token.representacao.spans
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
