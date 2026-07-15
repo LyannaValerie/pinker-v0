@@ -21,6 +21,7 @@ sections:
     - trama.manifest-immutability
     - trama.generated-human-ledger
     - trama.safe-sync
+    - trama.schema-validation
 validation:
   required:
     - make ci
