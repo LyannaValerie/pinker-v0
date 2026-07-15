@@ -25,8 +25,9 @@ receberam âncoras `@pinker-nav`. O endereçamento para máquinas vive no catál
 substitui.
 
 A cartografia avança em **ondas**, do mais simples ao mais complexo. Cada onda é
-útil sozinha. Este PR entrega as **Ondas 0, 1 e 2**; as demais estão inventariadas
-e explicitamente adiadas.
+útil sozinha. As **Ondas 0, 1 e 2** já estão na `main`; esta rodada adiciona a
+**Onda 3** (modelos de dados). As demais estão inventariadas e explicitamente
+adiadas.
 
 ## Contrato do scanner (limitação registrada)
 
@@ -89,21 +90,32 @@ e todas as checagens até o fim do arquivo — uma única responsabilidade
 consultável (“onde os invariantes de X são verificados”). Não se fragmentou em
 uma âncora por helper.
 
-## Onda 3+ — modelos, frontend, semântica, execução (adiadas)
+## Onda 3 — modelos de dados e representações (concluída)
 
-Estes arquivos estão inventariados; suas âncoras serão adicionadas nas ondas
-indicadas. Revisão atual: `estrutural` (módulo-doc e estrutura), a ser elevada a
-`integral` ao ancorar.
+Âncoras nas **definições estruturais** (o modelo de dados), não nos lowerings —
+estes ficam para a Onda 5. As âncoras históricas `cfg.logica.*` foram
+preservadas.
+
+| Arquivo | Camada | Propósito da(s) região(ões) | Complexidade | Âncoras adicionadas | Revisão |
+|---|---|---|---|---|---|
+| `src/ast.rs` | ast | Modelo da AST separado por responsabilidade: programa/itens, tipos, comandos, expressões e o escritor JSON. | alta | `ast.programa.estrutura`, `ast.tipos.representacao`, `ast.comandos.representacao`, `ast.expressoes.representacao`, `ast.serializacao.json` | integral |
+| `src/ir.rs` | ir | Modelo de dados da IR estruturada (programa, funções, blocos, instruções, valores, tipos, operadores). | alta (modelo) | `ir.modelo.representacao` | modelo integral; lowering → Onda 5 |
+| `src/cfg_ir.rs` | cfg | Modelo de dados do CFG IR (blocos básicos, instruções, terminadores, operandos). | alta (modelo) | `cfg.modelo.representacao` (+ `cfg.logica.*` preservadas) | modelo integral; lowering → Onda 5 |
+| `src/instr_select.rs` | select | Modelo de dados da seleção de instruções (instruções selecionadas, terminadores). | alta (modelo) | `select.modelo.representacao` | modelo integral; lowering → Onda 5 |
+| `src/abstract_machine.rs` | machine | Modelo de dados da máquina de pilha (instruções de pilha, terminadores, slots). | alta (modelo) | `machine.modelo.representacao` | modelo integral; lowering → Onda 5 |
+
+## Onda 4+ — frontend, semântica, execução, orquestração (adiadas)
+
+Inventariados; revisão atual `estrutural`.
 
 | Arquivo | Camada | Propósito (do módulo-doc/estrutura) | Complexidade | Âncoras atuais | Onda-alvo |
 |---|---|---|---|---|---|
-| `src/ast.rs` | ast | Modelo da árvore sintática (programa, itens, comandos, expressões, tipos) e serialização JSON. | alta | — | 3 |
-| `src/ir.rs` | ir | IR estruturada após a semântica; preserva estrutura e adiciona tipos/slots; lowering a partir da AST. | alta | — | 3/5 |
-| `src/cfg_ir.rs` | cfg | CFG com blocos básicos e terminadores explícitos; lowering da IR. Contém `cfg.logica.*`. | alta | `cfg.logica.curto-circuito`, `cfg.logica.slot-logico` | 3/5 |
-| `src/instr_select.rs` | select | Seleção de instruções a partir do CFG. | alta | — | 3/5 |
-| `src/abstract_machine.rs` | machine | Máquina de pilha abstrata; lowering da seleção. | alta | — | 3/5 |
 | `src/lexer.rs` | lexer | Tokenização (comentários, strings/escapes/interpolação, números, keywords, operadores). | alta | — | 4 |
 | `src/parser.rs` | parser | Parsing recursivo-descendente completo da Pinker (funções, tipos, leques, genéricos, tratos, closures, `tentar`/`propagar`, imports, fluxo). | transversal | — | 4 |
+| `src/ir.rs` (lowering) | ir | Lowering AST→IR (`lower_program`, `LoweringContext`, `FunctionLowerer`). | transversal | modelo ancorado | 5 |
+| `src/cfg_ir.rs` (lowering) | cfg | Lowering IR→CFG; contém `cfg.logica.*`. | transversal | `cfg.logica.*` | 5 |
+| `src/instr_select.rs` (lowering) | select | Lowering CFG→seleção. | alta | modelo ancorado | 5 |
+| `src/abstract_machine.rs` (lowering) | machine | Lowering seleção→máquina. | alta | modelo ancorado | 5 |
 | `src/semantic.rs` | semantic | Checagem semântica em duas passagens (escopos, nomes, tipos, `encaixe`, tratos/impl, monomorfização). | transversal | — | 5 |
 | `src/interpreter.rs` | interpreter | Executa a máquina validada; valores de runtime, frames, intrínsecas, coleções (listas/mapas/versos). | transversal | — | 6 |
 | `src/backend_text.rs` | backend-text | Lowering para pseudo-assembly textual a partir da seleção. | alta | — | 6 |
@@ -135,41 +147,47 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura desta rodada
+## Cobertura acumulada (após Onda 3)
 
 | Métrica | Valor |
 |---|---:|
 | Arquivos de produção em `src/` (excl. gerados e fixtures) | 30 |
-| Arquivos integralmente revisados e ancorados nesta rodada | 18 |
-| Arquivos apenas inventariados (estrutural) | 12 |
-| Regiões existentes antes | 2 |
-| Regiões adicionadas | 25 |
-| Regiões no catálogo | 27 |
+| Arquivos com modelo/responsabilidade ancorada | 23 |
+| Arquivos apenas inventariados (estrutural) | 7 |
+| Regiões antes da Onda 3 | 27 |
+| Regiões adicionadas na Onda 3 | 9 |
+| Regiões no catálogo | 36 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
 
-### Cobertura por camada
+### Cobertura por camada (contagem real no catálogo)
 
-| Camada | Ancorada? | Regiões | Status |
-|---|---|---:|---|
-| token | sim | 2 | completo |
-| error | sim | 2 | completo |
-| layout | sim | 1 | completo |
-| repl | sim | 2 | completo |
-| palette | sim | 2 | completo |
-| printer | sim | 1 | completo |
-| ir/cfg/select/machine/backend-text (validadores) | sim | 5 | entry ancorado |
-| trama (doc/nav/change/projection/text_norm/jsonl) | sim | 10 | completo |
-| ast/ir/cfg/select/machine (modelos+lowerings) | não | 2 (cfg.logica.*) | pendente (ondas 3/5) |
-| lexer/parser/semantic | não | 0 | pendente (ondas 4/5) |
-| interpreter/backend-text/backend-s/runtime | não | 0 | pendente (onda 6) |
-| cli/editor/boot | não | 0 | pendente (onda 7) |
-| tests/apps | não | 0 | pendente (ondas 8/9, requer ampliar raízes) |
+| Camada | Regiões | Composição |
+|---|---:|---|
+| token | 2 | vocabulário, spans |
+| error | 2 | taxonomia, contexto-fonte |
+| layout | 1 | memória |
+| repl | 2 | ciclo, pipeline |
+| palette | 2 | identidade, estilização |
+| printer | 1 | renderização |
+| ast | 5 | programa, tipos, comandos, expressões, serialização |
+| ir | 2 | modelo (Onda 3) + validador |
+| cfg | 4 | modelo (Onda 3) + validador + `cfg.logica.*` (históricas) |
+| select | 2 | modelo (Onda 3) + validador |
+| machine | 2 | modelo (Onda 3) + validador |
+| backend-text | 1 | validador |
+| trama | 10 | normalização, jsonl, marco, catálogos e consultas doc/código, manifesto, ledger, projeções |
+| **total** | **36** | |
+
+Pendentes (sem âncora): lowerings de ir/cfg/select/machine (Onda 5),
+lexer/parser (Onda 4), semantic (Onda 5), interpreter/backend-s/runtime (Onda 6),
+cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após ampliar raízes).
 
 ## Próximo ponto de retomada
 
-**Onda 3 — modelos de dados e representações:** ancorar `src/ast.rs` (programa,
-item, comando, expressão, tipos) e as definições estruturais de `src/ir.rs`,
-`src/cfg_ir.rs`, `src/instr_select.rs`, `src/abstract_machine.rs`, preservando as
-âncoras `cfg.logica.*` já existentes e sem marcar cada variante de enum
-isoladamente.
+**Onda 4 — frontend léxico e parsing local:** ancorar `src/lexer.rs`
+(comentários, strings/escapes/interpolação, números, keywords, operadores) e as
+rotinas de fronteira clara de `src/parser.rs`, começando pelas de contorno
+inequívoco e adiando regiões com features profundamente intercaladas. Os
+lowerings de `ir`/`cfg_ir`/`instr_select`/`abstract_machine` ficam para a Onda 5,
+já com o modelo de dados ancorado nesta rodada.

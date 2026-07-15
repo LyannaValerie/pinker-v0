@@ -1,5 +1,9 @@
 use crate::token::{Span, TokenKind};
 
+// @pinker-nav:start ast.programa.estrutura
+// @pinker-nav:domain programa
+// @pinker-nav:layer ast
+// @pinker-nav:summary Estrutura de topo do programa na AST: pacote, imports e itens (funções, structs, enums, tratos/impl, aliases e constantes), cada declaração com seu span e serialização JSON.
 #[derive(Debug, Clone)]
 pub struct Program {
     pub package: Option<PackageDecl>,
@@ -342,7 +346,12 @@ impl ConstDecl {
         writer.end_object();
     }
 }
+// @pinker-nav:end ast.programa.estrutura
 
+// @pinker-nav:start ast.tipos.representacao
+// @pinker-nav:domain tipos
+// @pinker-nav:layer ast
+// @pinker-nav:summary Representação dos tipos da Pinker na AST (inteiros, bombom, verso, leques, listas/mapas, ponteiros, arrays, structs, aliases, função e genéricos aplicados), com igualdade estrutural própria e serialização.
 #[derive(Debug, Clone)]
 pub enum Type {
     Bombom(Span),
@@ -630,7 +639,12 @@ impl Type {
         writer.end_object();
     }
 }
+// @pinker-nav:end ast.tipos.representacao
 
+// @pinker-nav:start ast.comandos.representacao
+// @pinker-nav:domain comandos
+// @pinker-nav:layer ast
+// @pinker-nav:summary Representação dos comandos na AST: blocos, `mimo` (let), atribuição, retorno, `talvez/senão`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, com seus ramos e serialização.
 #[derive(Debug, Clone)]
 pub struct Block {
     pub stmts: Vec<Stmt>,
@@ -936,7 +950,12 @@ impl ElseBlock {
         }
     }
 }
+// @pinker-nav:end ast.comandos.representacao
 
+// @pinker-nav:start ast.expressoes.representacao
+// @pinker-nav:domain expressoes
+// @pinker-nav:layer ast
+// @pinker-nav:summary Representação das expressões na AST (`ExprKind`) — binárias, unárias, literais, chamadas, acessos, índices, construção de struct/enum, closures, `tentar`/`propagar` — e os operadores binários/unários com sua nomenclatura.
 #[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
@@ -1162,7 +1181,12 @@ impl UnaryOp {
         }
     }
 }
+// @pinker-nav:end ast.expressoes.representacao
 
+// @pinker-nav:start ast.serializacao.json
+// @pinker-nav:domain serializacao
+// @pinker-nav:layer ast
+// @pinker-nav:summary Escritor JSON indentado e determinístico usado por todos os nós da AST (`write_json`): controla objetos/arrays, campos e escapes, produzindo a saída estável de `--json-ast`.
 enum JsonContainer {
     Object { first: bool },
     Array { first: bool },
@@ -1366,3 +1390,5 @@ impl<'a> JsonWriter<'a> {
         self.out.push('"');
     }
 }
+
+// @pinker-nav:end ast.serializacao.json

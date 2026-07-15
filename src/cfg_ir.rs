@@ -17,6 +17,10 @@ use crate::ir::{
 };
 use crate::token::Span;
 
+// @pinker-nav:start cfg.modelo.representacao
+// @pinker-nav:domain modelo
+// @pinker-nav:layer cfg
+// @pinker-nav:summary Modelo de dados do CFG IR: programa, constantes globais, funções em blocos básicos, `BasicBlockIR`, instruções, terminadores (`jump`/`branch`/`return`), temporários e operandos — a representação com fluxo de controle explícito.
 /// Programa na CFG IR: módulo com constantes globais e funções em forma de blocos.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramCfgIR {
@@ -144,6 +148,7 @@ pub enum OperandIR {
 }
 
 pub type ValueCfgIR = OperandIR;
+// @pinker-nav:end cfg.modelo.representacao
 
 // `FunctionLowerer` mantém estado mutable durante o lowering de uma função:
 // - `blocks`: blocos acumulados em ordem de criação (índice = posição no vetor).
