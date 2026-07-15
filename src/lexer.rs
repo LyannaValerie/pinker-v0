@@ -42,6 +42,10 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    // @pinker-nav:start lexer.espacos-comentarios.consumo
+    // @pinker-nav:domain comentarios
+    // @pinker-nav:layer lexer
+    // @pinker-nav:summary Consome espaços em branco e comentários entre tokens: comentários de linha `//` e comentários de bloco `/* */` com aninhamento; comentário de bloco não terminado encerra no fim da fonte sem produzir token.
     fn skip_whitespace_and_comments(&mut self) {
         loop {
             match self.peek_char() {
@@ -94,7 +98,12 @@ impl<'a> Lexer<'a> {
     fn current_pos(&self) -> Position {
         Position::new(self.line, self.col)
     }
+    // @pinker-nav:end lexer.espacos-comentarios.consumo
 
+    // @pinker-nav:start lexer.fluxo.tokenizacao
+    // @pinker-nav:domain lexico
+    // @pinker-nav:layer lexer
+    // @pinker-nav:summary Laço principal de tokenização: consome a fonte após espaços/comentários e despacha pelo primeiro caractere para produzir operadores e delimitadores (incluindo os de múltiplos caracteres como `->`, `==`, `<<`), literais inteiros, strings simples e multi-linha `"""` com escapes, identificadores diferenciados de palavras-chave pelo vocabulário canônico, `$"..."` interpolado e `?`; emite EOF ao fim e reporta caractere inesperado e literais não terminados.
     pub fn tokenize(&mut self) -> Result<Vec<Token>, PinkerError> {
         let mut tokens = Vec::new();
 
@@ -478,4 +487,5 @@ impl<'a> Lexer<'a> {
 
         Ok(tokens)
     }
+    // @pinker-nav:end lexer.fluxo.tokenizacao
 }
