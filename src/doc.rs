@@ -35,6 +35,8 @@ pub struct GithubPolicy {
     /// `false` => o próprio `baseline_pr` é exclusivo (não importável).
     pub baseline_inclusive: bool,
     pub baseline_commit: String,
+    /// Repositório `owner/repo` registrado nos manifestos importados (opcional).
+    pub repository: Option<String>,
 }
 
 /// Caminhos dos catálogos derivados, vindos da seção `[generated]`.
@@ -166,6 +168,7 @@ impl DocConfig {
         let baseline_pr = raw.require_u64("github", "baseline_pr")?;
         let baseline_inclusive = raw.require_bool("github", "baseline_inclusive")?;
         let baseline_commit = raw.require_str("github", "baseline_commit")?.to_string();
+        let repository = raw.optional_str("github", "repository").map(str::to_string);
 
         let docs_index = raw.require_str("generated", "docs_index")?.to_string();
         let code_index = raw.require_str("generated", "code_index")?.to_string();
@@ -177,6 +180,7 @@ impl DocConfig {
                 baseline_pr,
                 baseline_inclusive,
                 baseline_commit,
+                repository,
             },
             generated: GeneratedPaths {
                 docs_index,
@@ -294,6 +298,12 @@ impl RawToml {
             });
         }
         Ok(scalar.text.as_str())
+    }
+
+    fn optional_str(&self, section: &str, key: &str) -> Option<&str> {
+        self.get(section, key)
+            .filter(|scalar| scalar.quoted)
+            .map(|scalar| scalar.text.as_str())
     }
 
     fn require_u64(&self, section: &str, key: &str) -> Result<u64, ConfigError> {

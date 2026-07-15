@@ -1,3 +1,21 @@
+---
+pinker-doc: 1
+id: rosa.archive
+domain: rosa
+kind: history
+class: Rosa
+status: active
+parent: rosa
+audience:
+  - human
+  - agent
+canonical_for:
+  - rosa.provenance
+related:
+  - rosa.core
+  - rosa.voice-tests
+---
+
 # Arquivo de Rosa — vestígios, proveniência e continuidade
 
 - **Classe:** Rosa
@@ -39,14 +57,14 @@ Leitura canônica desses elementos:
 
 ## 3. Fontes textuais existentes
 
-- `docs/rosa.md` — identidade da camada Rosa;
-- `docs/ponte_engine_rosa.md` — mediação entre visão e estado factual;
+- `docs/rosa/README.md` — identidade da camada Rosa;
+- `docs/bridge/engine-rosa.md` — mediação entre visão e estado factual;
 - `docs/vocabulario.md` — arquitetura lexical;
 - `docs/parallel.md` — material visionário;
 - `docs/expandir.md` — recusa do mínimo automático pós-Eixo B;
 - `apps/guardiao_pinker/` — primeira agência executável alinhada à preservação de coerência;
-- `docs/rosa_core.md` — núcleo comportamental reconstruído;
-- `docs/rosa_voice_tests.md` — corpus e regressão identitária.
+- `docs/rosa/core.md` — núcleo comportamental reconstruído;
+- `docs/rosa/voice-tests.md` — corpus e regressão identitária.
 
 ## 4. Classes de evidência
 

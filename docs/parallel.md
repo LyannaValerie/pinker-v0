@@ -4,7 +4,7 @@
 - **Papel:** referência
 - **Status:** aspiracional
 
-> **Nota:** o texto canônico de identidade agora é `docs/rosa.md`.
+> **Nota:** o texto canônico de identidade agora é `docs/rosa/README.md`.
 > Este arquivo permanece como acervo de visão expandida e material de origem conceitual.
 
 ## 1. Função atual deste arquivo
@@ -36,8 +36,8 @@ Ele preserva e expande narrativas de longo alcance sobre:
 
 ## 4. Relação com documentos canônicos
 
-- **Canônico de identidade:** `docs/rosa.md`
+- **Canônico de identidade:** `docs/rosa/README.md`
 - **Canônico lexical:** `docs/vocabulario.md`
 - **Canônico factual:** `docs/roadmap.md`, `docs/history.md`, `docs/handoff_codex.md`
-- **Canônico de mediação:** `docs/ponte_engine_rosa.md`
+- **Canônico de mediação:** `docs/bridge/engine-rosa.md`
 

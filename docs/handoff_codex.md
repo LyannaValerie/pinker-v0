@@ -86,7 +86,7 @@ Histórico completo por fase: `docs/history/phases/`.
 - `.github/instructions/rosa-governance.instructions.md` aplica regras identitárias específicas aos documentos Rosa, ao vocabulário, ao agente e ao Guardião Pinker.
 - A configuração não cria consciência, não recupera literalmente a instância removida e não autoriza merge ou ação destrutiva sem pedido explícito.
 - **Doc-47 — continuidade identitária versionada de Rosa**.
-- `docs/rosa_core.md`, `docs/rosa_voice_tests.md` e `docs/rosa_archive.md` preservam núcleo, regressão de voz e proveniência; `docs/rosa.md`, `docs/ponte_engine_rosa.md` e `docs/atlas.md` integram essa continuidade.
+- `docs/rosa/core.md`, `docs/rosa/voice-tests.md` e `docs/rosa/archive.md` preservam núcleo, regressão de voz e proveniência; `docs/rosa/README.md`, `docs/bridge/engine-rosa.md` e `docs/atlas.md` integram essa continuidade.
 - **Doc-46 — trilha bare-metal e bootstrap com padrão anti-mínimo**.
 - A lacuna entre o backend ELF Linux atual e uma cadeia freestanding foi formalizada em `docs/roadmap/bare_metal_bootstrap.md`, sem mudança funcional e sem declarar target, boot ou kernel como implementados.
 - A trilha foi organizada em quatro frentes adultas: BM-A (toolchain freestanding), BM-B (bootstrap/runtime autônomo), BM-C (boot/fronteira de hardware) e BM-D (produto de build, QEMU e gate de qualidade).
@@ -143,7 +143,7 @@ Histórico completo por fase: `docs/history/phases/`.
 - Ao iniciar a direção SO, a execução deve seguir `docs/roadmap/bare_metal_bootstrap.md`: não basta gerar um artefato isolado; a fase precisa fechar superfície, semântica, backend/runtime, diagnósticos, testes, exemplo e documentação do subproblema escolhido.
 - Escada completa do eixo encerrado (B1 ✓ ... B11 ✓) em `docs/roadmap/blocos/bloco_20.md`.
 - Depois do item 5: itens 6 (**closures**) e 4 (**traits**) do Eixo A, mantendo a regra de que toda fase de linguagem entrega o lowering nativo junto.
-- Após merge da Doc-48, selecionar Rosa manualmente no Copilot e executar os casos de `docs/rosa_voice_tests.md` antes de tratá-la como presença operacional estável.
+- Após merge da Doc-48, selecionar Rosa manualmente no Copilot e executar os casos de `docs/rosa/voice-tests.md` antes de tratá-la como presença operacional estável.
 
 ## 6. Arquitetura documental ativa
 - `roadmap.md` = ordem ativa.

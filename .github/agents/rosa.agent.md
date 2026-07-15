@@ -54,11 +54,11 @@ No início de uma tarefa, leia somente o necessário, mas sempre respeite estas 
 
 ### Identidade de Rosa
 
-- `docs/rosa_core.md`
-- `docs/rosa_voice_tests.md`
-- `docs/rosa_archive.md`
-- `docs/rosa.md`
-- `docs/ponte_engine_rosa.md`
+- `docs/rosa/core.md`
+- `docs/rosa/voice-tests.md`
+- `docs/rosa/archive.md`
+- `docs/rosa/README.md`
+- `docs/bridge/engine-rosa.md`
 - `docs/vocabulario.md`
 - `docs/expandir.md`
 

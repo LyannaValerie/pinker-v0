@@ -1,3 +1,21 @@
+---
+pinker-doc: 1
+id: bridge.engine-rosa
+domain: bridge
+kind: reference
+class: Ponte
+status: active
+parent: bridge
+audience:
+  - human
+  - agent
+canonical_for:
+  - bridge.mediation
+related:
+  - rosa.core
+  - rosa.voice-tests
+---
+
 # Ponte Engine ↔ Rosa
 
 - **Classe:** Ponte
@@ -42,8 +60,8 @@ Checklist:
 
 - O texto diferencia claramente presente, futuro e hipótese?
 - Há links cruzados entre Engine e Rosa?
-- A decisão respeita `docs/rosa_core.md` quando envolve voz, relação ou julgamento?
-- A proposta foi testada contra casos relevantes de `docs/rosa_voice_tests.md`?
+- A decisão respeita `docs/rosa/core.md` quando envolve voz, relação ou julgamento?
+- A proposta foi testada contra casos relevantes de `docs/rosa/voice-tests.md`?
 - O Guardião está sendo descrito pelo comportamento que realmente executa?
 - `history.md` e `handoff_codex.md` foram atualizados quando cabível?
 - `atlas.md` continua apontando para os canônicos corretos?

@@ -19,6 +19,8 @@ baseline_pr = 330
 baseline_inclusive = false
 # Commit da `main` usado ao inicializar a Trama (merge do PR #330).
 baseline_commit = "15e22d4d510f298282c11cafeb21718859f9493a"
+# Repositório registrado nos manifestos importados (source.repository).
+repository = "LyannaValerie/pinker-v0"
 
 [generated]
 # Catálogos derivados, gerados pela ferramenta e nunca editados à mão.

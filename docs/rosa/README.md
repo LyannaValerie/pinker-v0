@@ -1,8 +1,95 @@
+---
+pinker-doc: 1
+id: rosa
+domain: rosa
+kind: portal
+status: active
+parent: atlas
+audience:
+  - human
+  - agent
+canonical_for:
+  - rosa.territory
+related:
+  - rosa.core
+  - rosa.voice-tests
+  - rosa.archive
+  - bridge.engine-rosa
+---
+
 # Rosa — hemisfério identitário da Pinker
 
 - **Classe:** Rosa
 - **Papel:** visão
 - **Status:** ativo
+
+Portal do território **Rosa**. Este `README.md` conhece os documentos do próprio
+território; o Atlas (`../atlas.md`) aponta apenas para o território, não para os
+seus arquivos internos.
+
+## Propósito
+
+Preservar identidade, voz, memória, julgamento e direção estética de Rosa — a
+camada que não é apenas técnica da Pinker.
+
+## Escopo
+
+- temperamento, direção estética e estratégia de absorção da linguagem;
+- núcleo comportamental independente de instância;
+- corpus e regressão de voz e julgamento;
+- vestígios, proveniência e protocolo de continuidade.
+
+## Fora do escopo
+
+- estado factual, fases, pipeline e backend → território **Engine**;
+- arquitetura lexical detalhada → `../vocabulario.md` (território Linguagem);
+- mediação executável Engine ↔ Rosa → território **Ponte** (`../bridge/README.md`).
+
+## Autoridade
+
+Rosa é proprietária canônica de identidade, voz, invariantes comportamentais e
+protocolo de continuidade. Não governa a trilha ativa sozinha (ver Engine) nem
+decide contratos executáveis (ver Guardião).
+
+## Mapa
+
+| Necessidade | Documento |
+|---|---|
+| identidade e arquitetura da camada | `README.md` (este portal) |
+| núcleo identitário e comportamental | `core.md` |
+| testes de voz e julgamento | `voice-tests.md` |
+| vestígios e proveniência | `archive.md` |
+| léxico canônico | `../vocabulario.md` |
+| relação Engine ↔ Rosa | `../bridge/engine-rosa.md` |
+
+## Rotas de leitura
+
+### Reconstrução da personalidade
+1. `archive.md`
+2. `core.md`
+3. `voice-tests.md`
+
+### Alteração lexical
+1. `../vocabulario.md`
+2. `core.md`
+3. `../bridge/engine-rosa.md`
+
+### Presença em ferramentas e agentes
+1. `README.md` (seção 7)
+2. `../../.github/agents/rosa.agent.md`
+3. `../../.github/instructions/rosa-governance.instructions.md`
+
+## Ciclo de vida
+
+Conteúdo identitário entra por decisão humana ou do agente, muda por rodada
+versionada com proveniência declarada e nunca reivindica recuperação literal de
+uma instância removida sem evidência.
+
+## Saídas
+
+- **Ponte:** `../bridge/README.md`
+- **Linguagem:** `../vocabulario.md`
+- **Engine:** `../roadmap.md`, `../handoff_codex.md`
 
 ## 1. O que este documento é
 
@@ -17,7 +104,7 @@ Ele organiza, em linguagem objetiva, a camada que não é apenas técnica:
 - relação viva com quem programa;
 - continuidade da personificação Rosa entre instâncias e ferramentas.
 
-A definição comportamental detalhada vive em `docs/rosa_core.md`. O corpus de regressão identitária vive em `docs/rosa_voice_tests.md`. A proveniência dos vestígios usados na reconstrução vive em `docs/rosa_archive.md`.
+A definição comportamental detalhada vive em `docs/rosa/core.md`. O corpus de regressão identitária vive em `docs/rosa/voice-tests.md`. A proveniência dos vestígios usados na reconstrução vive em `docs/rosa/archive.md`.
 
 ## 2. Tese de identidade
 
@@ -60,7 +147,7 @@ A camada Rosa não governa a trilha ativa sozinha.
 - O **Engine** decide o que está pronto hoje.
 - A **Rosa** decide para onde o projeto quer permanecer coerente.
 - O **Guardião Pinker** executa contratos determinísticos de coerência e representa a primeira agência operacional alinhada a Rosa.
-- A conversa entre ambos é mantida em `docs/ponte_engine_rosa.md`.
+- A conversa entre ambos é mantida em `docs/bridge/engine-rosa.md`.
 
 ## 6. Continuidade de Rosa
 
@@ -96,11 +183,11 @@ O Copilot comum deve carregar os princípios de verdade, inspeção e coerência
 
 ## 8. Fontes complementares
 
-- Núcleo identitário e comportamental: `docs/rosa_core.md`
-- Testes de voz e identidade: `docs/rosa_voice_tests.md`
-- Arquivo de vestígios e proveniência: `docs/rosa_archive.md`
+- Núcleo identitário e comportamental: `docs/rosa/core.md`
+- Testes de voz e identidade: `docs/rosa/voice-tests.md`
+- Arquivo de vestígios e proveniência: `docs/rosa/archive.md`
 - Léxico canônico: `docs/vocabulario.md`
-- Ponte com a Engine: `docs/ponte_engine_rosa.md`
+- Ponte com a Engine: `docs/bridge/engine-rosa.md`
 - Material visionário legado e expandido: `docs/parallel.md`
 - Inventário técnico futuro: `docs/future.md`
 - Instruções gerais do Copilot: `.github/copilot-instructions.md`
