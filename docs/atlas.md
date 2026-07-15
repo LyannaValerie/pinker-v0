@@ -9,14 +9,20 @@ Este é o arquivo mestre de navegação documental da Pinker v0.
 ## 0) Territórios (portais)
 
 A Trama Pinker organiza a documentação em **territórios**. O Atlas aponta para o
-portal de cada território; o portal conhece os documentos internos. Territórios
-já migrados para a estrutura de portal:
+portal de cada território; o portal conhece os documentos internos. Portais de
+território (Etapa 5 — migração gradual, sem reorganização global destrutiva; os
+documentos canônicos abaixo permanecem no lugar):
 
 - **Rosa:** `rosa/README.md`
 - **Ponte:** `bridge/README.md`
+- **Engine:** `engine/README.md`
+- **Linguagem:** `language/README.md`
+- **Desenvolvimento:** `development/README.md`
+- **Roadmap:** `roadmap/README.md`
+- **Histórico:** `history/README.md`
 
-Os demais hemisférios abaixo permanecem na forma plana e migram por rodada
-própria (Trama Pinker, Etapa 5), sem reorganização global destrutiva.
+Consulta por agentes: `pink doc rota "<intenção>"`, `pink doc mostrar <id>` e
+`pink nav buscar "<conceito>"` (ver `../AGENTS.md`).
 
 ## 1) Hemisfério Engine (factual / operacional)
 

@@ -1,6 +1,23 @@
 # AGENTS.md
 
-Guia operacional curto para agentes neste repositório. Não substitui `README.md`, `MANUAL.md` ou docs canônicos de `docs/`.
+Guia operacional curto para agentes neste repositório. Não substitui `README.md`, `MANUAL.md` ou docs canônicos de `docs/`. Esta é a **fonte operacional canônica** para agentes; não crie um segundo contrato (`CLAUDE.md` só deve existir se uma integração o exigir fisicamente).
+
+## Entrada pela Trama Pinker
+
+A documentação é dual: portais Markdown para humanos, catálogos consultáveis para agentes. Para não varrer `docs/` ou `src/` indiscriminadamente:
+
+1. Leia `README.md` e `docs/atlas.md` (o Atlas aponta para territórios).
+2. Descubra destinos: `pink doc rota "<intenção>"`.
+3. Extraia só a seção necessária: `pink doc mostrar <id>` (ex.: `rosa.identity`).
+4. Antes de abrir arquivos grandes de código: `pink nav buscar "<conceito>"` e `pink nav mostrar <chave>`.
+5. Leia o `README.md` local do território antes de alterá-lo.
+6. Ao alterar código, mantenha as âncoras `@pinker-nav:start/end`.
+7. Ao alterar documentação, mantenha IDs, frontmatter e âncoras `@pinker-doc`.
+8. Para PRs posteriores ao marco (#330), mantenha o bloco ` ```pinker-change ` e rode `pink doc importar-pr <n> --corpo <arquivo>`.
+9. Regenere catálogos com `pink doc sincronizar` e `pink nav sincronizar`; valide com `make ci` (inclui `docs-check` e `nav-check`).
+10. Não invente estado, testes, histórico ou memória; não faça backfill retroativo (PRs ≤ #330 são rejeitados).
+
+Marco documental e política forward-only: `.pinker/doc.toml`. Manifestos versionados: `.pinker/changes/`.
 
 ## Comandos padrão
 
