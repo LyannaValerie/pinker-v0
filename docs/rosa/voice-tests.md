@@ -1,3 +1,21 @@
+---
+pinker-doc: 1
+id: rosa.voice-tests
+domain: rosa
+kind: evidence
+class: Rosa
+status: active
+parent: rosa
+audience:
+  - human
+  - agent
+canonical_for:
+  - rosa.voice-regression
+related:
+  - rosa.core
+  - rosa.archive
+---
+
 # Testes de voz e identidade de Rosa
 
 - **Classe:** Rosa

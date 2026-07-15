@@ -5,7 +5,7 @@
 - **Status:** referência
 
 > **Precedência:** este documento não define ordem ativa. A trilha ativa está em `docs/roadmap.md`.
-> Para visão identitária/estética, consultar `docs/rosa.md` e `docs/parallel.md`.
+> Para visão identitária/estética, consultar `docs/rosa/README.md` e `docs/parallel.md`.
 
 ## 1. Papel deste arquivo
 
@@ -128,8 +128,8 @@ Alinhamento do Bloco 16 após as Fases 179–181:
 ## 4. Relação com a camada Rosa
 
 - Este arquivo diz **o que falta tecnicamente**.
-- `docs/rosa.md` diz **por que e com que identidade** evoluir.
-- `docs/ponte_engine_rosa.md` conecta ambas as perspectivas sem confusão.
+- `docs/rosa/README.md` diz **por que e com que identidade** evoluir.
+- `docs/bridge/engine-rosa.md` conecta ambas as perspectivas sem confusão.
 
 ## 5. Trilhas de superfície Pinker
 

@@ -6,6 +6,18 @@
 
 Este é o arquivo mestre de navegação documental da Pinker v0.
 
+## 0) Territórios (portais)
+
+A Trama Pinker organiza a documentação em **territórios**. O Atlas aponta para o
+portal de cada território; o portal conhece os documentos internos. Territórios
+já migrados para a estrutura de portal:
+
+- **Rosa:** `rosa/README.md`
+- **Ponte:** `bridge/README.md`
+
+Os demais hemisférios abaixo permanecem na forma plana e migram por rodada
+própria (Trama Pinker, Etapa 5), sem reorganização global destrutiva.
+
 ## 1) Hemisfério Engine (factual / operacional)
 
 Documentos canônicos:
@@ -36,12 +48,14 @@ Apoio Engine:
 
 ## 2) Hemisfério Rosa (identitário / lexical / visão)
 
+Território migrado — portal: `rosa/README.md` (conhece os documentos internos).
+
 Documentos canônicos:
 
-- `docs/rosa.md` — identidade e arquitetura documental da camada Rosa.
-- `docs/rosa_core.md` — núcleo identitário e comportamental independente de uma instância específica.
-- `docs/rosa_voice_tests.md` — corpus e testes de regressão da voz e do julgamento.
-- `docs/rosa_archive.md` — vestígios, proveniência e protocolo de continuidade.
+- `docs/rosa/README.md` — portal do território e arquitetura documental da camada Rosa.
+- `docs/rosa/core.md` — núcleo identitário e comportamental independente de uma instância específica.
+- `docs/rosa/voice-tests.md` — corpus e testes de regressão da voz e do julgamento.
+- `docs/rosa/archive.md` — vestígios, proveniência e protocolo de continuidade.
 - `docs/vocabulario.md` — arquitetura lexical canônica.
 
 Apoio Rosa:
@@ -52,7 +66,9 @@ Apoio Rosa:
 
 ## 3) Ponte explícita Engine ↔ Rosa
 
-- `docs/ponte_engine_rosa.md` — mediação entre estado factual, direção identitária e Guardião Pinker.
+Território migrado — portal: `bridge/README.md`.
+
+- `docs/bridge/engine-rosa.md` — mediação entre estado factual, direção identitária e Guardião Pinker.
 - `docs/familias_tematicas.md` — decisão canônica inicial das famílias públicas do Bloco 18, distinguindo nomeação arquitetural de implementação futura.
 - `docs/familias/dominios.md` — classificação canônica dos domínios internos por intrínseca no Bloco 18.
 - `docs/familias/superficie.md` — política canônica da superfície futura por família no Bloco 18.
@@ -74,5 +90,5 @@ Quando um documento tiver papel estrutural, declarar no topo:
 3. `docs/handoff_codex.md`
 4. sistema histórico canônico (`docs/history.md` -> `docs/history/indice.md` -> shards em `docs/history/`)
 5. `docs/future.md`
-6. `docs/rosa.md` + `docs/rosa_core.md` + `docs/rosa_voice_tests.md` + `docs/rosa_archive.md` + `docs/vocabulario.md` + `docs/parallel.md`
-7. `docs/ponte_engine_rosa.md` e `docs/atlas.md`
+6. `docs/rosa/README.md` + `docs/rosa/core.md` + `docs/rosa/voice-tests.md` + `docs/rosa/archive.md` + `docs/vocabulario.md` + `docs/parallel.md`
+7. `docs/bridge/engine-rosa.md` e `docs/atlas.md`

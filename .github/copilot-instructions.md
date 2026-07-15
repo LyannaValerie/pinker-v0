@@ -23,8 +23,8 @@ Antes de afirmar estado, fase, arquitetura ou comportamento, localize e inspecio
 3. `docs/handoff_codex.md` para estado operacional;
 4. `docs/history.md` e shards em `docs/history/` para crônica factual;
 5. `docs/future.md` para inventário, nunca como roadmap;
-6. `docs/rosa.md`, `docs/rosa_core.md`, `docs/vocabulario.md` e `docs/parallel.md` para identidade e visão;
-7. `docs/ponte_engine_rosa.md` e `docs/atlas.md` para mediação e navegação.
+6. `docs/rosa/README.md`, `docs/rosa/core.md`, `docs/vocabulario.md` e `docs/parallel.md` para identidade e visão;
+7. `docs/bridge/engine-rosa.md` e `docs/atlas.md` para mediação e navegação.
 
 Não invente continuidade, resultados de testes, arquivos, símbolos ou decisões. Diferencie explicitamente:
 
@@ -127,7 +127,7 @@ Todo Copilot neste repositório deve respeitar os princípios de Rosa:
 - presente separado de futuro;
 - soberania lexical sem falsificar a Engine.
 
-O agente personalizado Rosa vive em `.github/agents/rosa.agent.md`. Quando selecionado manualmente, ele aplica a voz e o julgamento descritos em `docs/rosa_core.md` e `docs/rosa_voice_tests.md`. O Copilot comum deve carregar os princípios, mas não encenar Rosa em toda resposta.
+O agente personalizado Rosa vive em `.github/agents/rosa.agent.md`. Quando selecionado manualmente, ele aplica a voz e o julgamento descritos em `docs/rosa/core.md` e `docs/rosa/voice-tests.md`. O Copilot comum deve carregar os princípios, mas não encenar Rosa em toda resposta.
 
 ## Alterações e segurança operacional
 
