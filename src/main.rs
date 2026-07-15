@@ -6,6 +6,7 @@ use pinker_v0::backend_text_validate;
 use pinker_v0::cfg_ir;
 use pinker_v0::cfg_ir_validate;
 use pinker_v0::doc;
+use pinker_v0::doc_index;
 use pinker_v0::editor_tui::EditorTui;
 use pinker_v0::instr_select;
 use pinker_v0::instr_select_validate;
@@ -52,12 +53,24 @@ struct EditorConfig {
 
 struct ReplConfig;
 
-/// Subcomando de `pink doc` (Trama Pinker — Etapa 0, Marco).
+/// Subcomando de `pink doc` (Trama Pinker — Etapas 0 e 2).
 enum DocSub {
     /// Aplica a política do marco a um número de PR.
     ImportarPr { pr: u64 },
     /// Exibe o marco documental configurado.
     Marco,
+    /// Extrai uma seção ou documento pelo id semântico.
+    Mostrar { id: String },
+    /// Lista os documentos de um território.
+    Listar { territorio: String },
+    /// Busca seções por id, título, tags, aliases e resumo.
+    Buscar { consulta: String },
+    /// Rota: melhores destinos para uma intenção.
+    Rota { consulta: String },
+    /// Regenera o catálogo `docs/navigation.jsonl`.
+    Sincronizar,
+    /// Valida documentação e catálogo (não corrige).
+    Verificar,
 }
 
 struct DocConfigCli {
@@ -104,19 +117,23 @@ fn usage(binary: &str) -> String {
 
 fn doc_usage(binary: &str) -> String {
     format!(
-        "Uso: {binary} doc importar-pr [--repo <dir>] <numero>\n\
-         Uso: {binary} doc marco [--repo <dir>]\n\
+        "Uso: {binary} doc <subcomando> [--repo <dir>] [args...]\n\
          \n\
          Comando:\n\
-           doc         ferramenta documental da Trama Pinker (Etapa 0 — Marco)\n\
+           doc         ferramenta documental da Trama Pinker\n\
          \n\
          Subcomandos:\n\
-           importar-pr aplica a política do marco a um número de PR;\n\
-                       rejeita PRs anteriores ou iguais ao marco (E-DOC-BASELINE)\n\
-           marco       exibe o marco documental configurado em {config}\n\
+           marco               exibe o marco documental configurado em {config}\n\
+           importar-pr <n>     aplica a política do marco a um PR (E-DOC-BASELINE)\n\
+           mostrar <id>        extrai a seção/documento pelo id semântico\n\
+           listar <territorio> lista documentos de um território (domain)\n\
+           buscar <consulta>   busca seções por id, título, tags, aliases, resumo\n\
+           rota <consulta>     melhores destinos para uma intenção\n\
+           sincronizar         regenera o catálogo docs/navigation.jsonl\n\
+           verificar           valida documentação e catálogo (não corrige)\n\
          \n\
          Opções:\n\
-           --repo      raiz do repositório onde procurar {config} (padrão: .)\n",
+           --repo      raiz do repositório (padrão: .)\n",
         binary = binary,
         config = doc::CONFIG_RELATIVE_PATH,
     )
@@ -313,31 +330,58 @@ fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String>
         return Err(doc_usage(binary));
     };
 
+    let require_one = |what: &str| -> Result<String, String> {
+        if positionals.len() != 1 {
+            return Err(format!(
+                "O subcomando '{}' requer exatamente um argumento.\n\n{}",
+                what,
+                doc_usage(binary)
+            ));
+        }
+        Ok(positionals[0].clone())
+    };
+    let require_none = |what: &str| -> Result<(), String> {
+        if !positionals.is_empty() {
+            return Err(format!(
+                "O subcomando '{}' não aceita argumentos posicionais.\n\n{}",
+                what,
+                doc_usage(binary)
+            ));
+        }
+        Ok(())
+    };
+
     let sub = match subcommand.as_str() {
         "importar-pr" => {
-            if positionals.len() != 1 {
-                return Err(format!(
-                    "O subcomando 'importar-pr' requer exatamente um número de PR.\n\n{}",
-                    doc_usage(binary)
-                ));
-            }
-            let pr = positionals[0].parse::<u64>().map_err(|_| {
-                format!(
-                    "Número de PR inválido: '{}'\n\n{}",
-                    positionals[0],
-                    doc_usage(binary)
-                )
+            let raw = require_one("importar-pr")?;
+            let pr = raw.parse::<u64>().map_err(|_| {
+                format!("Número de PR inválido: '{}'\n\n{}", raw, doc_usage(binary))
             })?;
             DocSub::ImportarPr { pr }
         }
         "marco" => {
-            if !positionals.is_empty() {
-                return Err(format!(
-                    "O subcomando 'marco' não aceita argumentos posicionais.\n\n{}",
-                    doc_usage(binary)
-                ));
-            }
+            require_none("marco")?;
             DocSub::Marco
+        }
+        "mostrar" => DocSub::Mostrar {
+            id: require_one("mostrar")?,
+        },
+        "listar" => DocSub::Listar {
+            territorio: require_one("listar")?,
+        },
+        "buscar" => DocSub::Buscar {
+            consulta: positionals.join(" "),
+        },
+        "rota" => DocSub::Rota {
+            consulta: positionals.join(" "),
+        },
+        "sincronizar" => {
+            require_none("sincronizar")?;
+            DocSub::Sincronizar
+        }
+        "verificar" => {
+            require_none("verificar")?;
+            DocSub::Verificar
         }
         other => {
             return Err(format!(
@@ -347,6 +391,14 @@ fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String>
             ));
         }
     };
+
+    if matches!(sub, DocSub::Buscar { .. } | DocSub::Rota { .. }) && positionals.is_empty() {
+        return Err(format!(
+            "O subcomando '{}' requer uma consulta.\n\n{}",
+            subcommand,
+            doc_usage(binary)
+        ));
+    }
 
     Ok(DocConfigCli { repo, sub })
 }
@@ -529,7 +581,183 @@ fn run_doc(config: DocConfigCli) {
                 "(Etapa 0 valida o marco; a geração de manifesto estrutural chega na Etapa 4 da Trama.)"
             );
         }
+        DocSub::Mostrar { id } => run_doc_mostrar(repo_root, &id),
+        DocSub::Listar { territorio } => run_doc_listar(repo_root, &territorio),
+        DocSub::Buscar { consulta } => run_doc_buscar(repo_root, &consulta),
+        DocSub::Rota { consulta } => run_doc_rota(repo_root, &consulta),
+        DocSub::Sincronizar => run_doc_sincronizar(repo_root, &doc_config),
+        DocSub::Verificar => run_doc_verificar(repo_root, &doc_config),
     }
+}
+
+fn scan_docs(repo_root: &Path) -> doc_index::DocIndex {
+    let docs_root = repo_root.join("docs");
+    match doc_index::DocIndex::scan(&docs_root) {
+        Ok(index) => index,
+        Err(err) => {
+            eprintln!("{err}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn run_doc_mostrar(repo_root: &Path, id: &str) {
+    let index = scan_docs(repo_root);
+    if let Some(section) = index.section(id) {
+        println!(
+            "# {} — {}:{}-{}",
+            section.id, section.file, section.start, section.end
+        );
+        if !section.summary.is_empty() {
+            println!("# {}", section.summary);
+        }
+        println!();
+        let path = repo_root.join(&section.file);
+        match fs::read_to_string(&path) {
+            Ok(text) => {
+                let lines: Vec<&str> = text.lines().collect();
+                let start = section.start.saturating_sub(1);
+                let end = section.end.min(lines.len());
+                for line in &lines[start..end] {
+                    println!("{line}");
+                }
+            }
+            Err(err) => {
+                eprintln!("Falha ao ler '{}': {}", path.display(), err);
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
+    if let Some(doc) = index.document(id) {
+        println!("# documento {} ({})", doc.id, doc.kind);
+        println!("  território: {}", doc.domain);
+        println!("  arquivo:    {}", doc.file);
+        if !doc.canonical_for.is_empty() {
+            println!("  autoridade: {}", doc.canonical_for.join(", "));
+        }
+        let sections: Vec<&doc_index::DocSection> = index
+            .sections
+            .iter()
+            .filter(|s| s.document == doc.id)
+            .collect();
+        if sections.is_empty() {
+            println!("  seções:     (nenhuma âncora)");
+        } else {
+            println!("  seções:");
+            for section in sections {
+                println!(
+                    "    - {} ({}:{}-{})",
+                    section.id, section.file, section.start, section.end
+                );
+            }
+        }
+        return;
+    }
+
+    eprintln!("id documental não encontrado: '{id}'. Tente `pink doc buscar \"{id}\"`.");
+    std::process::exit(1);
+}
+
+fn run_doc_listar(repo_root: &Path, territorio: &str) {
+    let index = scan_docs(repo_root);
+    let docs: Vec<&doc_index::DocDocument> = index
+        .documents
+        .iter()
+        .filter(|d| d.domain == territorio)
+        .collect();
+    if docs.is_empty() {
+        println!("Nenhum documento estrutural no território '{territorio}'.");
+        return;
+    }
+    println!("Território '{territorio}':");
+    for doc in docs {
+        println!("- {} [{}] {}", doc.id, doc.kind, doc.file);
+        for section in index.sections.iter().filter(|s| s.document == doc.id) {
+            println!("    · {} — {}", section.id, section.title);
+        }
+    }
+}
+
+fn run_doc_buscar(repo_root: &Path, consulta: &str) {
+    let index = scan_docs(repo_root);
+    let hits = index.search(consulta);
+    if hits.is_empty() {
+        println!("Nenhuma seção encontrada para: {consulta}");
+        return;
+    }
+    for hit in hits.iter().take(10) {
+        println!("{}", hit.id);
+        println!("   {}", hit.summary);
+        println!("   {}:{}-{}", hit.file, hit.start, hit.end);
+    }
+}
+
+fn run_doc_rota(repo_root: &Path, consulta: &str) {
+    let index = scan_docs(repo_root);
+    let hits = index.search(consulta);
+    println!("Consulta: {consulta}");
+    if hits.is_empty() {
+        println!("Nenhuma rota encontrada. Tente `pink doc buscar`.");
+        return;
+    }
+    for (i, hit) in hits.iter().take(5).enumerate() {
+        println!("{}. {}", i + 1, hit.id);
+        println!("   {}", hit.summary);
+        println!("   {}:{}-{}", hit.file, hit.start, hit.end);
+    }
+    println!();
+    println!("Use:");
+    println!("    pink doc mostrar {}", hits[0].id);
+}
+
+fn run_doc_sincronizar(repo_root: &Path, config: &doc::DocConfig) {
+    let index = scan_docs(repo_root);
+    let rendered = index.render_jsonl();
+    let path = repo_root.join(&config.generated.docs_index);
+    if let Some(parent) = path.parent() {
+        if let Err(err) = fs::create_dir_all(parent) {
+            eprintln!("Falha ao criar '{}': {}", parent.display(), err);
+            std::process::exit(1);
+        }
+    }
+    if let Err(err) = fs::write(&path, rendered) {
+        eprintln!("Falha ao gravar '{}': {}", path.display(), err);
+        std::process::exit(1);
+    }
+    println!(
+        "Catálogo documental sincronizado: {} ({} seções).",
+        config.generated.docs_index,
+        index.sections.len()
+    );
+}
+
+fn run_doc_verificar(repo_root: &Path, config: &doc::DocConfig) {
+    let index = scan_docs(repo_root);
+    let mut errors = index.verify();
+
+    let path = repo_root.join(&config.generated.docs_index);
+    let rendered = index.render_jsonl();
+    let on_disk = fs::read_to_string(path).unwrap_or_default();
+    if on_disk != rendered {
+        errors.push(doc_index::DocVerifyError::CatalogOutOfDate {
+            path: config.generated.docs_index.clone(),
+        });
+    }
+
+    if errors.is_empty() {
+        println!("Documentação e catálogo verificados: ok.");
+        return;
+    }
+    eprintln!(
+        "E-DOC-VERIFY: {} divergência(s) encontrada(s):",
+        errors.len()
+    );
+    for error in &errors {
+        eprintln!("  - {error}");
+    }
+    std::process::exit(1);
 }
 
 fn run_editor(config: EditorConfig) {

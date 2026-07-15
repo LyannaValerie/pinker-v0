@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: preflight build test fmt-check clippy guard ci run-example check-example audit-example smoke
+.PHONY: preflight build test fmt-check clippy guard ci run-example check-example audit-example smoke docs-sync docs-check
 
 CI_ENV := ./ci_env.sh
 
@@ -24,7 +24,15 @@ clippy:
 guard:
 	$(CI_ENV) cargo run --bin pink -- --run apps/guardiao_pinker/principal.pink -- --repo .
 
-ci: preflight build test fmt-check clippy guard
+# Trama Pinker — catálogo documental (Etapa 2).
+# `sync` é executado pelo agente/desenvolvedor; `check` roda no CI e não corrige.
+docs-sync:
+	$(CI_ENV) cargo run --bin pink -- doc sincronizar
+
+docs-check:
+	$(CI_ENV) cargo run --bin pink -- doc verificar
+
+ci: preflight build test fmt-check clippy guard docs-check
 
 run-example:
 	$(CI_ENV) cargo run --bin pink -- $(EX)

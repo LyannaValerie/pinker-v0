@@ -8,6 +8,7 @@ pub mod boot;
 pub mod cfg_ir;
 pub mod cfg_ir_validate;
 pub mod doc;
+pub mod doc_index;
 pub mod editor_tui;
 pub mod error;
 pub mod instr_select;
