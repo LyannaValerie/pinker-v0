@@ -46,12 +46,22 @@ pub struct GeneratedPaths {
     pub code_index: String,
 }
 
+/// Mapeamento de uma projeção documental para sua região de destino (§12).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocProjection {
+    pub name: String,
+    pub file: String,
+    pub region: String,
+}
+
 /// Configuração completa de `.pinker/doc.toml`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DocConfig {
     pub schema: u64,
     pub github: GithubPolicy,
     pub generated: GeneratedPaths,
+    /// Projeções documentais determinísticas (§12), ordenadas por nome.
+    pub projections: Vec<DocProjection>,
 }
 
 /// Falhas ao carregar ou validar a configuração.
@@ -173,6 +183,8 @@ impl DocConfig {
         let docs_index = raw.require_str("generated", "docs_index")?.to_string();
         let code_index = raw.require_str("generated", "code_index")?.to_string();
 
+        let projections = raw.projections()?;
+
         Ok(DocConfig {
             schema,
             github: GithubPolicy {
@@ -186,6 +198,7 @@ impl DocConfig {
                 docs_index,
                 code_index,
             },
+            projections,
         })
     }
 
@@ -324,6 +337,28 @@ impl RawToml {
                 field,
                 msg: format!("'{}' não é um inteiro válido", scalar.text),
             })
+    }
+
+    /// Extrai as projeções declaradas em `[projections.<name>]` (§12).
+    /// Cada projeção precisa de `file` e `region`. Determinístico por nome.
+    fn projections(&self) -> Result<Vec<DocProjection>, ConfigError> {
+        use std::collections::BTreeSet;
+        let mut names: BTreeSet<String> = BTreeSet::new();
+        for key in self.values.keys() {
+            if let Some(rest) = key.strip_prefix("projections.") {
+                if let Some((name, _)) = rest.rsplit_once('.') {
+                    names.insert(name.to_string());
+                }
+            }
+        }
+        let mut projections = Vec::new();
+        for name in names {
+            let section = format!("projections.{}", name);
+            let file = self.require_str(&section, "file")?.to_string();
+            let region = self.require_str(&section, "region")?.to_string();
+            projections.push(DocProjection { name, file, region });
+        }
+        Ok(projections)
     }
 
     fn require_bool(&self, section: &str, key: &str) -> Result<bool, ConfigError> {

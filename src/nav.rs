@@ -5,6 +5,8 @@
 //! O agente que altera o código mantém os marcadores; o script nunca decide
 //! semanticamente onde inseri-los. Zero dependências externas.
 
+use crate::jsonl;
+use crate::text_norm;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
@@ -211,42 +213,10 @@ impl CodeIndex {
         self.regions.iter().find(|r| r.key == key)
     }
 
-    /// Busca por chave, domínio, camada e resumo.
+    /// Busca por chave, domínio, camada, resumo e caminho (prioridade §7.3).
     pub fn search(&self, query: &str) -> Vec<&CodeRegion> {
-        let needle = query.to_lowercase();
-        let mut hits: Vec<(&CodeRegion, u32)> = Vec::new();
-        for region in &self.regions {
-            let mut score = 0u32;
-            if region.key.to_lowercase() == needle {
-                score += 100;
-            } else if region.key.to_lowercase().contains(&needle) {
-                score += 40;
-            }
-            if region
-                .domain
-                .as_deref()
-                .map(|d| d.to_lowercase().contains(&needle))
-                == Some(true)
-            {
-                score += 20;
-            }
-            if region
-                .layer
-                .as_deref()
-                .map(|l| l.to_lowercase().contains(&needle))
-                == Some(true)
-            {
-                score += 15;
-            }
-            if region.summary.to_lowercase().contains(&needle) {
-                score += 10;
-            }
-            if score > 0 {
-                hits.push((region, score));
-            }
-        }
-        hits.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.key.cmp(&b.0.key)));
-        hits.into_iter().map(|(r, _)| r).collect()
+        let scored = score_regions(&self.regions, query);
+        scored.into_iter().map(|(r, _, _)| r).collect()
     }
 
     /// Lista regiões de uma camada (layer) ou domínio (domain).
@@ -258,6 +228,77 @@ impl CodeIndex {
             })
             .collect()
     }
+}
+
+/// Pontuação de código (§7.3). Prioridade mínima: chave exata, chave parcial,
+/// domínio/camada exatos, termos no resumo, caminho. Devolve
+/// `(região, pontuação, cobertura)` ordenado por (pontuação, cobertura, chave).
+fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> Vec<(&'a CodeRegion, u32, usize)> {
+    let q_norm = text_norm::normalize(query);
+    let terms = text_norm::terms(query);
+    let mut hits: Vec<(&CodeRegion, u32, usize)> = Vec::new();
+    for region in regions {
+        let key_norm = text_norm::normalize(&region.key);
+        let domain_norm = region
+            .domain
+            .as_deref()
+            .map(text_norm::normalize)
+            .unwrap_or_default();
+        let layer_norm = region
+            .layer
+            .as_deref()
+            .map(text_norm::normalize)
+            .unwrap_or_default();
+        let summary_norm = text_norm::normalize(&region.summary);
+        let file_norm = text_norm::normalize(&region.file);
+
+        let mut score = 0u32;
+        if key_norm == q_norm {
+            score += 100;
+        } else if key_norm.contains(&q_norm) {
+            score += 60;
+        }
+        if domain_norm == q_norm || layer_norm == q_norm {
+            score += 40;
+        }
+        if covers(&summary_norm, &terms) {
+            score += 20;
+        }
+        if covers(&file_norm, &terms) || file_norm.contains(&q_norm) {
+            score += 10;
+        }
+
+        let haystack = format!(
+            "{} {} {} {} {}",
+            key_norm, domain_norm, layer_norm, summary_norm, file_norm
+        );
+        let coverage = terms
+            .iter()
+            .filter(|t| haystack.split(' ').any(|w| w == t.as_str()))
+            .count();
+
+        if score > 0 {
+            hits.push((region, score, coverage));
+        }
+    }
+    hits.sort_by(|a, b| {
+        b.1.cmp(&a.1)
+            .then(b.2.cmp(&a.2))
+            .then(a.0.key.cmp(&b.0.key))
+    });
+    hits
+}
+
+fn covers(haystack_norm: &str, terms: &[String]) -> bool {
+    if terms.is_empty() {
+        return false;
+    }
+    let words: Vec<&str> = haystack_norm.split(' ').filter(|w| !w.is_empty()).collect();
+    let matched = terms
+        .iter()
+        .filter(|t| words.iter().any(|w| *w == t.as_str()))
+        .count();
+    matched >= terms.len().div_ceil(2)
 }
 
 fn collect_rust(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), ScanError> {
@@ -584,6 +625,197 @@ fn json_string(value: &str) -> String {
     }
     out.push('"');
     out
+}
+
+// ---------------------------------------------------------------------------
+// Catálogo carregado do JSONL (superfície de consulta — §5).
+// ---------------------------------------------------------------------------
+
+/// Falha ao carregar o catálogo de código versionado.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CatalogError {
+    Missing {
+        path: String,
+    },
+    Invalid {
+        path: String,
+        line: usize,
+        msg: String,
+    },
+}
+
+impl fmt::Display for CatalogError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CatalogError::Missing { path } => write!(
+                f,
+                "E-NAV-CATALOG\nCatálogo de código ausente: '{}'. Rode `pink nav sincronizar`.",
+                path
+            ),
+            CatalogError::Invalid { path, line, msg } => write!(
+                f,
+                "E-NAV-CATALOG\nCatálogo de código inválido em '{}' (linha {}): {}. Rode `pink nav sincronizar`.",
+                path, line, msg
+            ),
+        }
+    }
+}
+
+/// Resultado da validação de uma região ao extrair conteúdo (§5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RegionCheck {
+    Ok,
+    /// Marcadores não delimitam mais o intervalo com a chave esperada.
+    AnchorDrift,
+    /// O conteúdo mudou: hash do catálogo diverge do hash recalculado.
+    HashMismatch {
+        expected: String,
+        found: String,
+    },
+}
+
+/// Catálogo de código em memória, reconstruído do JSONL versionado. As
+/// consultas (`mostrar`, `listar`, `buscar`) usam esta superfície e não
+/// revarrem `src/` (§5).
+#[derive(Debug, Clone, Default)]
+pub struct CodeCatalog {
+    pub regions: Vec<CodeRegion>,
+}
+
+impl CodeCatalog {
+    pub fn load(path: &Path) -> Result<CodeCatalog, CatalogError> {
+        let text = fs::read_to_string(path).map_err(|_| CatalogError::Missing {
+            path: path.display().to_string(),
+        })?;
+        Self::parse(&text, &path.display().to_string())
+    }
+
+    pub fn parse(text: &str, path: &str) -> Result<CodeCatalog, CatalogError> {
+        let mut catalog = CodeCatalog::default();
+        for (idx, raw) in text.lines().enumerate() {
+            let line = raw.trim();
+            if line.is_empty() {
+                continue;
+            }
+            let obj = jsonl::parse_object(line).map_err(|err| CatalogError::Invalid {
+                path: path.to_string(),
+                line: idx + 1,
+                msg: err.msg,
+            })?;
+            let invalid = |msg: String| CatalogError::Invalid {
+                path: path.to_string(),
+                line: idx + 1,
+                msg,
+            };
+            let schema = obj.get("schema").and_then(|v| v.as_int()).unwrap_or(0);
+            if schema != 1 {
+                return Err(invalid(format!("schema {} não suportado", schema)));
+            }
+            catalog.regions.push(parse_region_record(&obj, &invalid)?);
+        }
+        catalog
+            .regions
+            .sort_by(|a, b| a.key.cmp(&b.key).then(a.file.cmp(&b.file)));
+        Ok(catalog)
+    }
+
+    pub fn region(&self, key: &str) -> Option<&CodeRegion> {
+        self.regions.iter().find(|r| r.key == key)
+    }
+
+    pub fn search(&self, query: &str) -> Vec<&CodeRegion> {
+        score_regions(&self.regions, query)
+            .into_iter()
+            .map(|(r, _, _)| r)
+            .collect()
+    }
+
+    pub fn list(&self, selector: &str) -> Vec<&CodeRegion> {
+        self.regions
+            .iter()
+            .filter(|r| {
+                r.layer.as_deref() == Some(selector) || r.domain.as_deref() == Some(selector)
+            })
+            .collect()
+    }
+}
+
+fn parse_region_record(
+    obj: &jsonl::JsonObject,
+    invalid: &impl Fn(String) -> CatalogError,
+) -> Result<CodeRegion, CatalogError> {
+    let req_str = |key: &str| -> Result<String, CatalogError> {
+        obj.get(key)
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .ok_or_else(|| invalid(format!("região sem campo '{}'", key)))
+    };
+    let req_int = |key: &str| -> Result<usize, CatalogError> {
+        obj.get(key)
+            .and_then(|v| v.as_int())
+            .filter(|v| *v >= 0)
+            .map(|v| v as usize)
+            .ok_or_else(|| invalid(format!("região sem inteiro '{}'", key)))
+    };
+    let opt_str = |key: &str| obj.get(key).and_then(|v| v.as_str()).map(str::to_string);
+    Ok(CodeRegion {
+        key: req_str("key")?,
+        kind: opt_str("kind").unwrap_or_else(|| "region".to_string()),
+        domain: opt_str("domain"),
+        layer: opt_str("layer"),
+        phase: obj.get("phase").and_then(|v| v.as_int()).map(|v| v as u64),
+        file: req_str("file")?,
+        start_marker: req_int("start_marker")?,
+        content_start: req_int("content_start").unwrap_or(0),
+        content_end: req_int("content_end").unwrap_or(0),
+        end_marker: req_int("end_marker")?,
+        summary: opt_str("summary").unwrap_or_default(),
+        hash: opt_str("hash").unwrap_or_default(),
+        status: opt_str("status").unwrap_or_else(|| "active".to_string()),
+    })
+}
+
+/// Extrai as linhas de conteúdo de uma região a partir do texto-fonte atual,
+/// no intervalo `[content_start, content_end]` (1-indexado, inclusivo).
+pub fn extract_region_content(source: &str, region: &CodeRegion) -> Vec<String> {
+    let lines: Vec<&str> = source.lines().collect();
+    if region.content_start == 0 || region.content_end == 0 || region.content_end > lines.len() {
+        return Vec::new();
+    }
+    let start = region.content_start - 1;
+    let end = region.content_end;
+    lines[start..end].iter().map(|s| s.to_string()).collect()
+}
+
+/// Valida que os marcadores ainda delimitam o intervalo com a chave esperada e
+/// que o hash do conteúdo continua igual ao registrado (§5).
+pub fn validate_region(source: &str, region: &CodeRegion) -> RegionCheck {
+    let lines: Vec<&str> = source.lines().collect();
+    if region.start_marker == 0 || region.end_marker == 0 || region.end_marker > lines.len() {
+        return RegionCheck::AnchorDrift;
+    }
+    let start_line = lines[region.start_marker - 1];
+    let end_line = lines[region.end_marker - 1];
+    let start_ok = parse_marker(start_line.trim(), START).as_deref() == Some(region.key.as_str());
+    let end_ok = parse_marker(end_line.trim(), END).as_deref() == Some(region.key.as_str());
+    if !start_ok || !end_ok {
+        return RegionCheck::AnchorDrift;
+    }
+    // Recalcula o hash do conteúdo (linhas não-vazias do intervalo).
+    let content = extract_region_content(source, region);
+    let body: Vec<&str> = content
+        .iter()
+        .map(|s| s.as_str())
+        .filter(|l| !l.trim().is_empty())
+        .collect();
+    let found = fnv1a64(&body.join("\n"));
+    if !region.hash.is_empty() && found != region.hash {
+        return RegionCheck::HashMismatch {
+            expected: region.hash.clone(),
+            found,
+        };
+    }
+    RegionCheck::Ok
 }
 
 #[cfg(test)]

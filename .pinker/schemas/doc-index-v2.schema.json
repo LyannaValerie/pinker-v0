@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://pinker.dev/schemas/doc-index-v2.schema.json",
+  "title": "Pinker documentation catalog entry (v2)",
+  "description": "Entrada de uma linha de docs/navigation.jsonl no formato discriminado (especificação, §6). Um único catálogo crescente com registros 'document' e 'section'. Gerado a partir do frontmatter e das âncoras de seção; nunca editado à mão. Ordenação determinística: documentos por id, depois seções por id e file.",
+  "oneOf": [
+    { "$ref": "#/definitions/document" },
+    { "$ref": "#/definitions/section" }
+  ],
+  "definitions": {
+    "document": {
+      "type": "object",
+      "required": ["schema", "record", "id", "domain", "kind", "status", "file"],
+      "additionalProperties": false,
+      "properties": {
+        "schema": { "const": 2 },
+        "record": { "const": "document" },
+        "id": {
+          "type": "string",
+          "description": "Identidade estável e semântica do documento (ex.: roadmap).",
+          "pattern": "^[a-z0-9]+([._-][a-z0-9]+)*$"
+        },
+        "domain": { "type": "string", "description": "Território (domain)." },
+        "kind": {
+          "type": "string",
+          "enum": ["portal", "reference", "guide", "index", "chronicle"],
+          "description": "Natureza do documento."
+        },
+        "status": { "type": "string", "enum": ["active", "draft", "retired"] },
+        "parent": { "type": "string" },
+        "title": { "type": "string" },
+        "audience": { "type": "array", "items": { "type": "string", "enum": ["human", "agent"] } },
+        "canonical_for": { "type": "array", "items": { "type": "string" } },
+        "related": { "type": "array", "items": { "type": "string" } },
+        "file": { "type": "string", "description": "Caminho do arquivo Markdown fonte." }
+      }
+    },
+    "section": {
+      "type": "object",
+      "required": ["schema", "record", "id", "document", "file", "start", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "schema": { "const": 2 },
+        "record": { "const": "section" },
+        "id": {
+          "type": "string",
+          "description": "Identidade estável e semântica da seção (ex.: rosa.identity).",
+          "pattern": "^[a-z0-9]+([._-][a-z0-9]+)*$"
+        },
+        "document": { "type": "string", "description": "ID do documento proprietário." },
+        "file": { "type": "string", "description": "Caminho do arquivo Markdown fonte." },
+        "start": { "type": "integer", "minimum": 1, "description": "Primeira linha do intervalo." },
+        "end": { "type": "integer", "minimum": 1, "description": "Última linha do intervalo." },
+        "title": { "type": "string", "description": "Título Markdown da seção." },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "aliases": { "type": "array", "items": { "type": "string" } },
+        "summary": { "type": "string" }
+      }
+    }
+  }
+}
