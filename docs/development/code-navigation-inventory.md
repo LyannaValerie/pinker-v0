@@ -25,9 +25,10 @@ receberam âncoras `@pinker-nav`. O endereçamento para máquinas vive no catál
 substitui.
 
 A cartografia avança em **ondas**, do mais simples ao mais complexo. Cada onda é
-útil sozinha. As **Ondas 0–3** já estão na `main`; esta rodada adiciona a
-**Onda 4** (frontend léxico e parsing local). As demais estão inventariadas e
-explicitamente adiadas.
+útil sozinha. As **Ondas 0–4** já estão na `main`; esta rodada adiciona a
+**Onda 5A** (checagem semântica em `src/semantic.rs`). A monomorfização de
+genéricos no parser (Onda 5B) e cada lowering por camada (Ondas 5C–5E), além das
+demais camadas, seguem inventariados e explicitamente adiados.
 
 ## Contrato do scanner (limitação registrada)
 
@@ -149,22 +150,57 @@ parser (`generic_type_key`, `substitute_*`, `instantiate_generic_functions`,
 `instantiate_generic_enums`, `instantiate_function_param_functions` — ~
 `src/parser.rs` entre `parser.funcoes.declaracao` e `parser.constantes.declaracao`)
 **não é responsabilidade léxica/sintática**: é monomorfização, explicitamente
-fora do escopo da Onda 4 (§2). Fica como **feature vertical** para a Onda 5/10.
+fora do escopo da Onda 4 (§2). Fica como **feature vertical** para a **Onda 5B**.
 Helpers isolados (`register_collection_type`, name-mangling de `impl`) ficam sem
 âncora por serem plumbing (§7).
 
-## Onda 5+ — semântica, lowerings, execução, orquestração (adiadas)
+## Onda 5A — checagem semântica (concluída)
+
+`src/semantic.rs` **integralmente revisado** (linha a linha) e cartografado nas
+responsabilidades semânticas estáveis. O `SemanticChecker` roda em duas
+passagens (declaração global → verificação de corpos); as âncoras seguem essa
+espinha, do frontal (importações, sistema de tipos, escopos) ao despacho de
+chamadas.
+
+| Âncora | Responsabilidade |
+|---|---|
+| `semantic.importacoes.familias` | Famílias de intrínsecas importáveis e validação de `trazer` (família inteira sim; seletiva/desconhecida não). |
+| `semantic.tipos.sistema` | Compatibilidade estrutural, resolução de tipos nomeados/aliases (com recursão), validação de struct, regras de inteiro/cast e faixa de literais. |
+| `semantic.escopos.variaveis` | Pilha de escopos léxicos: `declare_var` (sem sombreamento no mesmo escopo) e `resolve_var` (com fallback para constantes). |
+| `semantic.programa.duas-passagens` | Entrada `check_program`: coleta global (funcs/consts/aliases/structs/leques/tratos, conflitos e cargas de variante) e disparo da verificação. |
+| `semantic.tratos.contratos` | Contratos de trato/`impl`: cobertura exata, compatibilidade de assinatura (aridade, parâmetros, retorno). |
+| `semantic.funcoes.verificacao` | `principal` (política fixa), corpo de constante e de função com alcançabilidade de retorno. |
+| `semantic.comandos.verificacao` | Verificação de comandos do bloco (`mimo`/atribuições/fluxo/`falar`/`sussurro`/expressão-comando). |
+| `semantic.fluxo.retornos` | Ramo `talvez`/`senão` aninhado, checagem de `mimo` de retorno e análise superficial de alcançabilidade. |
+| `semantic.expressoes.verificacao` | Despacho de tipos de expressão (`check_expr`): literais, acessos, cast, `peso`/`alinhamento`, binárias (incl. aritmética de ponteiro) e unárias. |
+| `semantic.chamadas.despacho` | Resolução de método de `impl`, chamada nomeada e o grande despachante `check_call_expr` (variantes, `encaixe`, intrínsecas de lista/mapa/texto/CSV/JSON/tempo/processo). |
+
+**Decisão de granularidade (semantic):** `check_call_expr` é um único
+despachante de ~4100 linhas com braços sequenciais fortemente interligados
+(construção de variante, desugaring de `encaixe`, intrínsecas). Fragmentá-lo
+exigiria refatoração (proibida nesta onda), então fica coberto por uma região
+conceitual ampla, `semantic.chamadas.despacho`, junto aos resolvedores de método
+que ele consome (§6.8). Helpers de plumbing do `SemanticChecker` (construtor,
+`type_key`, `parse_impl_function_name`, `push_scope`/`pop_scope`,
+`resolve_struct_field_type`) ficam sem âncora por serem infraestrutura (§7).
+
+**Adiado (Ondas 5B–5E):** a **monomorfização de genéricos residente no parser**
+(`src/parser.rs`) é a **Onda 5B**, exclusiva; os **lowerings** por camada seguem
+uma onda cada (5C–5E). Ver adiados abaixo.
+
+## Onda 5B+ — monomorfização, lowerings, execução, orquestração (adiadas)
 
 Inventariados; revisão atual `estrutural` (exceto o frontend, agora integral).
+Cada camada de lowering é sua própria onda, para não reintroduzir um PR
+transversal enorme.
 
 | Arquivo | Camada | Propósito (do módulo-doc/estrutura) | Complexidade | Âncoras atuais | Onda-alvo |
 |---|---|---|---|---|---|
-| `src/parser.rs` (genéricos) | parser | Monomorfização/substituição residente no parser (adiada na Onda 4). | transversal | frontend ancorado | 5/10 |
-| `src/ir.rs` (lowering) | ir | Lowering AST→IR (`lower_program`, `LoweringContext`, `FunctionLowerer`). | transversal | modelo ancorado | 5 |
-| `src/cfg_ir.rs` (lowering) | cfg | Lowering IR→CFG; contém `cfg.logica.*`. | transversal | `cfg.logica.*` | 5 |
-| `src/instr_select.rs` (lowering) | select | Lowering CFG→seleção. | alta | modelo ancorado | 5 |
-| `src/abstract_machine.rs` (lowering) | machine | Lowering seleção→máquina. | alta | modelo ancorado | 5 |
-| `src/semantic.rs` | semantic | Checagem semântica em duas passagens (escopos, nomes, tipos, `encaixe`, tratos/impl, monomorfização). | transversal | — | 5 |
+| `src/parser.rs` (genéricos) | parser | Monomorfização/substituição residente no parser (adiada na Onda 4). | transversal | frontend ancorado | 5B |
+| `src/ir.rs` (lowering) | ir | Lowering AST→IR (`lower_program`, `LoweringContext`, `FunctionLowerer`). | transversal | modelo ancorado | 5C |
+| `src/cfg_ir.rs` (lowering) | cfg | Lowering IR→CFG; contém `cfg.logica.*`. | transversal | `cfg.logica.*` | 5D |
+| `src/instr_select.rs` (lowering) | select | Lowering CFG→seleção. | alta | modelo ancorado | 5E |
+| `src/abstract_machine.rs` (lowering) | machine | Lowering seleção→máquina. | alta | modelo ancorado | 5E |
 | `src/interpreter.rs` | interpreter | Executa a máquina validada; valores de runtime, frames, intrínsecas, coleções (listas/mapas/versos). | transversal | — | 6 |
 | `src/backend_text.rs` | backend-text | Lowering para pseudo-assembly textual a partir da seleção. | alta | — | 6 |
 | `src/backend_s.rs` | backend-s | Emissão de `.s` e toolchain nativa (ABI SysV, alinhamento, chamadas ao runtime). | alta | — | 6 |
@@ -195,16 +231,16 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 4)
+## Cobertura acumulada (após Onda 5A)
 
 | Métrica | Valor |
 |---|---:|
 | Arquivos de produção em `src/` (excl. gerados e fixtures) | 30 |
-| Arquivos com responsabilidade ancorada | 25 |
-| Arquivos apenas inventariados (estrutural) | 5 |
-| Regiões antes da Onda 4 | 36 |
-| Regiões adicionadas na Onda 4 | 17 |
-| Regiões no catálogo | 53 |
+| Arquivos com responsabilidade ancorada | 26 |
+| Arquivos apenas inventariados (estrutural) | 4 |
+| Regiões antes da Onda 5A | 53 |
+| Regiões adicionadas na Onda 5A | 10 |
+| Regiões no catálogo | 63 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
 
@@ -226,20 +262,24 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 | select | 2 | modelo + validador |
 | machine | 2 | modelo + validador |
 | backend-text | 1 | validador |
+| semantic | 10 | importações, sistema de tipos, escopos, duas-passagens, tratos, funções, comandos, fluxo, expressões, chamadas (Onda 5A) |
 | trama | 10 | normalização, jsonl, marco, catálogos e consultas doc/código, manifesto, ledger, projeções |
-| **total** | **53** | |
+| **total** | **63** | |
 
-Pendentes (sem âncora): monomorfização de genéricos no parser + lowerings de
-ir/cfg/select/machine + semantic (Onda 5), interpreter/backend-s/runtime
-(Onda 6), cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após ampliar raízes).
+Pendentes (sem âncora): monomorfização de genéricos no parser (Onda 5B) +
+lowerings de ir (5C), cfg (5D), select/machine (5E), interpreter/backend-s/
+runtime (Onda 6), cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após ampliar
+raízes).
 
 ## Próximo ponto de retomada
 
-**Onda 5 — semântica e lowerings por camada:** ancorar `src/semantic.rs`
-(ambientes/escopos, resolução de nomes, compatibilidade de tipos, cobertura de
-`encaixe`, tratos/`impl`) e os **lowerings** — AST→IR (`src/ir.rs`), IR→CFG
+**Onda 5B — monomorfização de genéricos no parser (exclusiva):** ancorar
+**apenas** a maquinaria de monomorfização de genéricos residente em
+`src/parser.rs` (`generic_type_key`, `substitute_*`,
+`instantiate_generic_functions`, `instantiate_generic_enums`,
+`instantiate_function_param_functions`). **Nenhum lowering** entra na 5B — cada
+lowering é sua própria onda depois: AST→IR (`src/ir.rs`, Onda 5C), IR→CFG
 (`src/cfg_ir.rs`, conectando às âncoras `cfg.logica.*` já existentes sem
-duplicá-las), CFG→seleção (`src/instr_select.rs`) e seleção→máquina
-(`src/abstract_machine.rs`). Incluir a **monomorfização de genéricos residente no
-parser** (adiada na Onda 4) como parte da feature vertical de genéricos. Não
-antecipar execução, backends nem runtime (Onda 6).
+duplicá-las, Onda 5D) e CFG→seleção→máquina (`src/instr_select.rs` +
+`src/abstract_machine.rs`, Onda 5E). Não modificar `src/semantic.rs` (concluído
+na Onda 5A) nem antecipar execução, backends ou runtime (Onda 6).

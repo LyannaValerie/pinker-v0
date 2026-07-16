@@ -92,9 +92,9 @@ fn catalogo_deterministico() {
     fs::remove_dir_all(dir).unwrap();
 }
 
-/// O catálogo real versionado contém as chaves essenciais do frontend (Onda 4)
-/// e as âncoras históricas, todas únicas. Verifica presença e unicidade — não um
-/// número exato permanente de regiões.
+/// O catálogo real versionado contém as chaves essenciais do frontend (Onda 4),
+/// da checagem semântica (Onda 5A) e as âncoras históricas, todas únicas.
+/// Verifica presença e unicidade — não um número exato permanente de regiões.
 #[test]
 fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
@@ -107,7 +107,8 @@ fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
     dedup.dedup();
     assert_eq!(keys.len(), dedup.len(), "chaves duplicadas no catálogo");
 
-    // Chaves essenciais do frontend (Onda 4) e âncoras históricas preservadas.
+    // Chaves essenciais do frontend (Onda 4), da semântica (Onda 5A) e âncoras
+    // históricas preservadas.
     for essential in [
         "lexer.fluxo.tokenizacao",
         "lexer.espacos-comentarios.consumo",
@@ -117,6 +118,13 @@ fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
         "parser.expressoes.precedencia",
         "cfg.logica.curto-circuito",
         "cfg.logica.slot-logico",
+        // Checagem semântica (Onda 5A).
+        "semantic.importacoes.familias",
+        "semantic.tipos.sistema",
+        "semantic.escopos.variaveis",
+        "semantic.programa.duas-passagens",
+        "semantic.expressoes.verificacao",
+        "semantic.chamadas.despacho",
     ] {
         assert!(
             catalog.region(essential).is_some(),

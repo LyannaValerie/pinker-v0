@@ -18,6 +18,10 @@ use crate::layout;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet};
 
+// @pinker-nav:start semantic.importacoes.familias
+// @pinker-nav:domain importacoes
+// @pinker-nav:layer semantic
+// @pinker-nav:summary Famílias de intrínsecas importáveis (`tempo`, `ambiente`, `acaso`, `texto`, `arquivo`, `caminho`, `processo`) e a validação de `trazer`: aceita a importação da família inteira e rejeita importação seletiva (`familia.simbolo`) ou família desconhecida.
 const IMPORTABLE_BUILTIN_FAMILIES: &[&str] = &[
     "tempo", "ambiente", "acaso", "texto", "arquivo", "caminho", "processo",
 ];
@@ -66,6 +70,7 @@ pub fn validate_builtin_family_import(import: &ImportDecl) -> Result<(), PinkerE
     }
     Ok(())
 }
+// @pinker-nav:end semantic.importacoes.familias
 
 #[derive(Clone)]
 struct VarMeta {
@@ -193,6 +198,10 @@ impl SemanticChecker {
             .unwrap_or_else(|| Span::single(Position::new(1, 1)))
     }
 
+    // @pinker-nav:start semantic.tipos.sistema
+    // @pinker-nav:domain tipos
+    // @pinker-nav:layer semantic
+    // @pinker-nav:summary Sistema de tipos da checagem: compatibilidade estrutural (`check_type_match`), resolução de tipos nomeados/aliases com detecção de recursão (`resolve_type_named`/`resolve_type_or_error`), validação de struct, regras de inteiro/cast e verificação de faixa de literais inteiros contra o tipo-alvo.
     fn check_type_match(expected: &Type, actual: &Type) -> bool {
         match (expected, actual) {
             (Type::Bombom(_), Type::Bombom(_))
@@ -592,7 +601,12 @@ impl SemanticChecker {
             })
         }
     }
+    // @pinker-nav:end semantic.tipos.sistema
 
+    // @pinker-nav:start semantic.escopos.variaveis
+    // @pinker-nav:domain escopos
+    // @pinker-nav:layer semantic
+    // @pinker-nav:summary Tabela de escopos léxicos: declaração de variável com proibição de sombreamento no mesmo escopo (`declare_var`) e resolução de nome subindo a pilha de escopos, com fallback para constantes globais (`resolve_var`).
     fn declare_var(
         &mut self,
         name: &str,
@@ -628,6 +642,7 @@ impl SemanticChecker {
             is_mut: false,
         })
     }
+    // @pinker-nav:end semantic.escopos.variaveis
 
     fn resolve_struct_field_type(
         &self,
@@ -660,6 +675,10 @@ impl SemanticChecker {
             .map(|ty| ty.with_span(span))
     }
 
+    // @pinker-nav:start semantic.programa.duas-passagens
+    // @pinker-nav:domain programa
+    // @pinker-nav:layer semantic
+    // @pinker-nav:summary Entrada em duas passagens sobre o `Program`: passagem 1 valida importações e coleta funções, constantes, aliases, structs, leques e tratos em tabelas globais (detectando duplicações e conflitos de nome entre categorias, cargas de variante e recursão de alias/struct); passagem 2 dispara a verificação de contratos e de todos os corpos.
     // --- Passagem 1: declaração global ---
     // Registra funções e constantes antes de verificar qualquer corpo.
     // Erros aqui interrompem antes da passagem 2.
@@ -909,7 +928,12 @@ impl SemanticChecker {
 
         Ok(())
     }
+    // @pinker-nav:end semantic.programa.duas-passagens
 
+    // @pinker-nav:start semantic.tratos.contratos
+    // @pinker-nav:domain tratos
+    // @pinker-nav:layer semantic
+    // @pinker-nav:summary Contratos de tratos e implementações: agrupa os métodos `__impl_*` por (trato, tipo-alvo) e exige cobertura exata do trato (sem método estranho, sem duplicata, sem faltante), garante que todo trato tenha método compatível declarado no topo e confere aridade e tipos de parâmetros/retorno entre a assinatura do trato e a função.
     fn validate_impl_contracts(&self) -> Result<(), PinkerError> {
         let mut groups: HashMap<(String, String), Vec<&ImplMethodMeta>> = HashMap::new();
         for meta in &self.impl_methods {
@@ -1099,7 +1123,12 @@ impl SemanticChecker {
         }
         Ok(())
     }
+    // @pinker-nav:end semantic.tratos.contratos
 
+    // @pinker-nav:start semantic.funcoes.verificacao
+    // @pinker-nav:domain funcoes
+    // @pinker-nav:layer semantic
+    // @pinker-nav:summary Verificação de corpos de topo: política fixa de `principal` (sem parâmetros, retorno `bombom`), checagem de constante (tipo do inicializador e faixa) e de função (parâmetros no escopo, corpo, e alcançabilidade de retorno em todos os caminhos simples quando há retorno declarado).
     // `principal` é a política fixa de entrada da v0: sem parâmetros e retorno bombom.
     fn check_principal(&self, program: &Program) -> Result<(), PinkerError> {
         let Some(main_fn) = self.funcs.get("principal") else {
@@ -1196,7 +1225,12 @@ impl SemanticChecker {
         self.loop_depth = 0;
         Ok(())
     }
+    // @pinker-nav:end semantic.funcoes.verificacao
 
+    // @pinker-nav:start semantic.comandos.verificacao
+    // @pinker-nav:domain comandos
+    // @pinker-nav:layer semantic
+    // @pinker-nav:summary Verificação de comandos de um bloco: `mimo` (let) com inferência de `lista_criar`/`mapa_criar` pela anotação e checagem de tipo/faixa, retorno, atribuição a variável/deref/campo/índice (mutabilidade e tipos), `talvez`/`senão`, laço `sempre que` (com controle de profundidade), `quebrar`/`continuar`, `falar` (tipos imprimíveis), `sussurro` (asm) e expressão-comando.
     fn check_block(&mut self, block: &Block, function_level: bool) -> Result<(), PinkerError> {
         if !function_level {
             self.push_scope();
@@ -1561,7 +1595,12 @@ impl SemanticChecker {
 
         Ok(())
     }
+    // @pinker-nav:end semantic.comandos.verificacao
 
+    // @pinker-nav:start semantic.fluxo.retornos
+    // @pinker-nav:domain fluxo
+    // @pinker-nav:layer semantic
+    // @pinker-nav:summary Fluxo e retornos: verificação de ramo `talvez`/`senão` aninhado com escopo próprio, checagem de `mimo` de retorno contra o tipo declarado (presença/ausência de valor, tipo e faixa) e análise superficial de alcançabilidade — um bloco retorna se contém `mimo` direto ou um `talvez`/`senão` em que ambos os ramos retornam.
     fn check_if_as_nested_branch(&mut self, if_stmt: &IfStmt) -> Result<(), PinkerError> {
         self.push_scope();
         let cond_ty = self.check_value_expr(
@@ -1646,7 +1685,12 @@ impl SemanticChecker {
         };
         then_returns && else_returns
     }
+    // @pinker-nav:end semantic.fluxo.retornos
 
+    // @pinker-nav:start semantic.expressoes.verificacao
+    // @pinker-nav:domain expressoes
+    // @pinker-nav:layer semantic
+    // @pinker-nav:summary Verificação de expressões que produz o tipo de cada nó: exigência de valor não-`Nulo` (`check_value_expr`), tipo de resultado de função, e o despacho central (`check_expr`) sobre literais, identificadores, cursores internos de mapa, acesso a campo/variante de leque, indexação, `virar` (cast), `peso`/`alinhamento`, operações binárias (incluindo aritmética de ponteiro) e unárias (negação, `nao`, bitwise, dereferência).
     fn check_value_expr(&mut self, expr: &Expr, void_message: &str) -> Result<Type, PinkerError> {
         let ty = self.check_expr(expr)?;
         if ty.is_nulo() {
@@ -2030,7 +2074,12 @@ impl SemanticChecker {
         }
         None
     }
+    // @pinker-nav:end semantic.expressoes.verificacao
 
+    // @pinker-nav:start semantic.chamadas.despacho
+    // @pinker-nav:domain chamadas
+    // @pinker-nav:layer semantic
+    // @pinker-nav:summary Despacho de chamadas: resolução de método de impl (direta e qualificada por trato, com detecção de ambiguidade), seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o grande despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, intrínsecas genéricas de lista/mapa, texto/verso, CSV/JSON, tempo e processo, caindo para a chamada de função declarada.
     fn resolve_impl_method(
         &self,
         receiver_ty: &Type,
@@ -6284,6 +6333,7 @@ impl SemanticChecker {
         let arg_refs: Vec<&Expr> = args.iter().collect();
         self.check_named_function_call(expr_span, callee.span, name, &arg_refs)
     }
+    // @pinker-nav:end semantic.chamadas.despacho
 }
 
 pub fn check_program(program: &Program) -> Result<(), PinkerError> {
