@@ -2911,10 +2911,10 @@ fn try_call_intrinsic(
         }
         // @pinker-nav:end interpreter.intrinsecos.tempo-processos-ambiente
 
-        // @pinker-nav:start interpreter.intrinsecos.conversoes-colecoes-tardias
+        // @pinker-nav:start interpreter.intrinsecos.conversoes-numero-texto
         // @pinker-nav:domain intrinsecos
         // @pinker-nav:layer interpreter
-        // @pinker-nav:summary Agrupa o intervalo final contíguo de intrínsecas hospedadas de conversão textual-numérica, aleatoriedade com intervalo, remoção e demais especializações de mapas e inserção tardia em lista, preservando a ordem física do dispatcher e evitando uma região por intrínseca.
+        // @pinker-nav:summary Intrínsecas hospedadas de conversão entre número e texto: `verso_para_bombom` (parse de `verso` para `bombom`, com erro em texto inválido) e `bombom_para_verso` (formatação de `bombom` como `verso`). Valida aridade e tipos dos argumentos.
         "verso_para_bombom" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -2947,6 +2947,10 @@ fn try_call_intrinsic(
                 valor.to_string(),
             ))))
         }
+        // @pinker-nav:end interpreter.intrinsecos.conversoes-numero-texto
+
+        // Arm isolado da família `acaso` (ver `interpreter.intrinsecos.acaso`),
+        // fisicamente separado dela neste ponto do dispatcher; sem âncora própria.
         "aleatorio_entre" => {
             if args.len() != 3 {
                 return Err(runtime_err(
@@ -2978,6 +2982,11 @@ fn try_call_intrinsic(
             let result = if range == 0 { raw } else { min + (raw % range) };
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(result))))
         }
+
+        // @pinker-nav:start interpreter.intrinsecos.mapas-tipados
+        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:layer interpreter
+        // @pinker-nav:summary Intrínsecas hospedadas das famílias tipadas de mapa `mapa<verso,verso>`, `mapa<bombom,bombom>` e `mapa<bombom,verso>` — cada uma com `criar`/`definir`/`obter`/`tem`/`tamanho`/`remover` e os cursores internos de iteração (`__pinker_internal_..._iterador_criar`/`_proxima_chave`) — mais a remoção residual de `mapa<verso,bombom>`. Opera sobre as tabelas de estado do hospedeiro; valida aridade e tipos.
         "mapa_verso_bombom_remover" => {
             if args.len() != 2 {
                 return Err(runtime_err(
@@ -3575,6 +3584,11 @@ fn try_call_intrinsic(
             iter.next_index = iter.next_index.saturating_add(1);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(key_val))))
         }
+        // @pinker-nav:end interpreter.intrinsecos.mapas-tipados
+
+        // Arm isolado da família `listas` (ver `interpreter.intrinsecos.listas`),
+        // fisicamente separado dela neste ponto do dispatcher; sem âncora própria.
+        // Segue o ramo `_ => NotIntrinsic` de encerramento do dispatcher.
         "lista_bombom_inserir" => {
             if args.len() != 3 {
                 return Err(runtime_err(
@@ -3612,8 +3626,6 @@ fn try_call_intrinsic(
         _ => Ok(IntrinsicCall::NotIntrinsic),
     }
 }
-
-// @pinker-nav:end interpreter.intrinsecos.conversoes-colecoes-tardias
 
 // @pinker-nav:start interpreter.hospedeiro.servicos-auxiliares
 // @pinker-nav:domain hospedeiro

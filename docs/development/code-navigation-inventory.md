@@ -450,17 +450,24 @@ scanner. O estado hospedado daqui não é runtime nativo linkável.
 | `interpreter.intrinsecos.leques` | Leques hospedados por handle opaco, tag e payload inteiro/textual. |
 | `interpreter.intrinsecos.io-arquivo-texto` | Stdin, arquivos por handle, leitura/escrita/truncamento/fechamento, texto, CSV e JSON mínimo, com efeitos reais no host. |
 | `interpreter.intrinsecos.tempo-processos-ambiente` | Relógio, processos, argumentos CLI, ambiente, caminhos, `sair`, `afirmar`, `dormir` e filesystem direto. |
-| `interpreter.intrinsecos.conversoes-colecoes-tardias` | Conversões `verso`/`bombom`, `aleatorio_entre`, remoções e especializações tardias de mapas e lista, preservando a ordem física do dispatcher. |
+| `interpreter.intrinsecos.conversoes-numero-texto` | Conversões `verso_para_bombom` e `bombom_para_verso`, com validação de aridade/tipos. |
+| `interpreter.intrinsecos.mapas-tipados` | Famílias tipadas de mapa (`verso↔verso`, `bombom↔bombom`, `bombom↔verso`) com `criar`/`definir`/`obter`/`tem`/`tamanho`/`remover` e cursores internos, mais a remoção residual de `mapa<verso,bombom>`. |
 | `interpreter.hospedeiro.servicos-auxiliares` | Helpers de stdin, aleatoriedade, ambiente, formatação, CSV/JSON, tempo UTC e processos (`Command`, pipes, códigos de saída). |
 | `interpreter.execucao.valores-tipos` | Busca de função, `pop*`, coerções para `TypeIR`, ponteiros simulados, aritmética, comparação e signedness defensivos. |
 | `interpreter.diagnostico.stack-trace` | Erros enriquecidos, classificação, prevenção de trace duplicado, renderização/truncamento de frames e nomes de instruções. |
 
 **Granularidade de `try_call_intrinsic`:** o dispatcher foi dividido por
-intervalos contíguos reais, não por intrínseca. Como algumas famílias reaparecem
-fora do primeiro bloco (por exemplo mapas e listas tardias), foram usadas regiões
-factuais de intervalo (`mapas-verso-bombom` e `conversoes-colecoes-tardias`) sem
-mover braços nem criar região descontínua. Não há `interpreter.intrinsecos.tudo`
-e não há uma âncora por intrínseca.
+responsabilidade semântica, não por intrínseca, respeitando a ordem física do
+`match` (sem mover braços). O intervalo final foi cartografado em duas regiões
+estáveis — `conversoes-numero-texto` (as duas conversões `verso`↔`bombom`) e
+`mapas-tipados` (as demais famílias tipadas de mapa e seus cursores) — em vez de
+um único intervalo genérico. Dois braços isolados permanecem **sem âncora
+própria** por serem membros de famílias já ancoradas, fisicamente separados
+delas: `aleatorio_entre` (pertence a `interpreter.intrinsecos.acaso`) e
+`lista_bombom_inserir` (pertence a `interpreter.intrinsecos.listas`); ancorá-los
+seria a anti-prática de uma região por intrínseca, e mover código está fora do
+escopo. O ramo `_ => NotIntrinsic` de encerramento do dispatcher é plumbing
+trivial. Não há `interpreter.intrinsecos.tudo` nem âncora por intrínseca.
 
 **Decisão para `exec_instr`:** uma única região cobre as variantes de
 `MachineInstr`, pois todas seguem a mesma disciplina de pilha/slots/memória e
@@ -573,8 +580,8 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 | Arquivos com responsabilidade ancorada | 27 |
 | Arquivos apenas inventariados (estrutural) | 3 |
 | Regiões antes da Onda 6A | 100 |
-| Regiões adicionadas na Onda 6A | 14 |
-| Regiões no catálogo | 114 |
+| Regiões adicionadas na Onda 6A | 15 |
+| Regiões no catálogo | 115 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
 
@@ -595,11 +602,11 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 | cfg | 13 | modelo + validador + `cfg.logica.*` (históricas); Onda 5D (9): programa-orquestração, funções-blocos, instruções-controle, valores-temporários, memória-indireta, construção-blocos, constantes, renderização programa/componentes |
 | select | 6 | modelo + validador; Onda 5E (4): programa-blocos, instruções, renderização programa/componentes |
 | machine | 9 | modelo + validador; Onda 5E (7): programa-blocos, instruções-pilha, terminadores, operandos-slots, renderização programa/apresentação/componentes |
-| interpreter | 14 | modelo/estado, execução (programa, fluxo, instruções, valores/tipos), intrínsecos hospedados (6 intervalos), serviços auxiliares do host, diagnóstico |
+| interpreter | 15 | modelo/estado, execução (programa, fluxo, instruções, valores/tipos), intrínsecos hospedados (8 regiões: acaso, listas, mapas-verso-bombom, leques, io-arquivo-texto, tempo-processos-ambiente, conversões-número-texto, mapas-tipados), serviços auxiliares do host, diagnóstico |
 | backend-text | 1 | validador |
 | semantic | 10 | importações, sistema de tipos, escopos, duas-passagens, tratos, funções, comandos, fluxo, expressões, chamadas (Onda 5A) |
 | trama | 10 | normalização, jsonl, marco, catálogos e consultas doc/código, manifesto, ledger, projeções |
-| **total** | **114** | |
+| **total** | **115** | |
 
 Pendentes de cartografia: backend-text (6B), backend-s (6C), ampliação de raízes
 do scanner (6D), runtime nativo (6E), cli/editor/boot (Onda 7), tests/apps
