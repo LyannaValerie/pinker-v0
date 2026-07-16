@@ -11,12 +11,21 @@ use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
 use crate::token::{Position, Span};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+// @pinker-nav:start backend-s.pipeline.textual-selecionado
+// @pinker-nav:domain pipeline
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary `emit_from_selected`: entrada pública do caminho `.s` textual. Recebe `&SelectedProgram`, valida o subset textual (`validate_supported_subset`), delega o lowering a `backend_text::lower_selected_program` (produz um `BackendTextProgram`) e serializa com `render_program`. Não constrói `ExternalCallConvProgram` nem emite assembly montável; a saída é a representação textual com metadados `abi.*`, distinta da representação usada pela toolchain externa.
 pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerError> {
     validate_supported_subset(selected)?;
     let lowered = backend_text::lower_selected_program(selected)?;
     Ok(render_program(&lowered))
 }
+// @pinker-nav:end backend-s.pipeline.textual-selecionado
 
+// @pinker-nav:start backend-s.pipeline.toolchain-externa
+// @pinker-nav:domain pipeline
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary `emit_external_toolchain_subset`: entrada pública do caminho montável hospedado. Recebe `&SelectedProgram`, constrói o `ExternalCallConvProgram` próprio via `extract_external_callconv_program` — **sem** passar por `BackendTextProgram` — e renderiza com `render_external_x86_64_linux_callconv_impl(.., false)`. Emite assembly x86-64/Linux SysV montável e ligável por toolchain externa (`cc`/`gcc`/`clang`), sem inicialização de runtime. O doc `///` do módulo enumera o subset conservador aceito.
 /// Emite um `.s` mínimo montável por toolchain externa (assembler+linker do sistema).
 ///
 /// Escopo deliberadamente mínimo para a Fase 135:
@@ -38,7 +47,12 @@ pub fn emit_external_toolchain_subset(selected: &SelectedProgram) -> Result<Stri
     let program = extract_external_callconv_program(selected)?;
     Ok(render_external_x86_64_linux_callconv_impl(&program, false))
 }
+// @pinker-nav:end backend-s.pipeline.toolchain-externa
 
+// @pinker-nav:start backend-s.pipeline.nativo-runtime
+// @pinker-nav:domain pipeline
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary `emit_external_toolchain_subset_nativo`: entrada pública do caminho de build nativo. Usa a **mesma** representação externa (`extract_external_callconv_program`) do caminho hospedado, mas renderiza com `render_external_x86_64_linux_callconv_impl(.., true)`, habilitando a chamada a `pinker_rt_iniciar` no prólogo de `main`. Emite referências a símbolos resolvidos por `libpinker_rt.a`; o runtime não é implementado neste arquivo.
 /// Variante nativa do subset externo (Eixo B do Bloco 20, fase B1): o `main`
 /// gerado chama `pinker_rt_iniciar(argc, argv)` no prólogo, exigindo link com
 /// a staticlib `libpinker_rt.a` do workspace. É o caminho usado por
@@ -49,7 +63,12 @@ pub fn emit_external_toolchain_subset_nativo(
     let program = extract_external_callconv_program(selected)?;
     Ok(render_external_x86_64_linux_callconv_impl(&program, true))
 }
+// @pinker-nav:end backend-s.pipeline.nativo-runtime
 
+// @pinker-nav:start backend-s.validacao.subset-textual
+// @pinker-nav:domain validacao
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary `validate_supported_subset`: validação do subset aceito **apenas** pelo caminho `.s` textual (`emit_from_selected`). Percorre funções recusando retorno, tipo de slot e retorno de `call` fora de `is_supported_type` (`bombom`, inteiros `u8..i64`, `logica`, `nulo`). É independente das validações incorporadas em `extract_external_callconv_program` (caminho montável), que aceitam um conjunto distinto de tipos (`verso`, listas, mapas, `seta<T>`, `ninho`).
 fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerError> {
     for function in &selected.functions {
         if !is_supported_type(function.ret_type) {
@@ -87,7 +106,12 @@ fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerErr
 
     Ok(())
 }
+// @pinker-nav:end backend-s.validacao.subset-textual
 
+// @pinker-nav:start backend-s.modelo.callconv-externa
+// @pinker-nav:domain modelo
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary Modelo intermediário do caminho montável: `ExternalCallConvProgram` (globais de `.rodata`, strings de `.rodata`, funções) e seus componentes — `ExternalCallConvGlobal` (nome + valor `u64`), `ExternalCallConvString` (label + valor), `ExternalCallConvFunction` (nome, `stack_size`, `slot_offsets`, blocos, parâmetros) e `ExternalCallConvBlock` (label, `body: Vec<String>`, terminador) com o enum `ExternalCallConvTerminator` (`Jmp`/`Br`/`Ret`). **Não** é `BackendTextProgram`: os corpos dos blocos já são linhas de assembly textualizadas (`Vec<String>`), perdendo a estrutura semântica original (tipos, spans, temporários estruturados). Não há alocador geral de registradores; os papéis de registrador são fixos.
 struct ExternalCallConvProgram {
     rodata_globals: Vec<ExternalCallConvGlobal>,
     rodata_strings: Vec<ExternalCallConvString>,
@@ -127,14 +151,24 @@ enum ExternalCallConvTerminator {
     },
     Ret(OperandIR),
 }
+// @pinker-nav:end backend-s.modelo.callconv-externa
 
+// @pinker-nav:start backend-s.abi.registradores-argumentos
+// @pinker-nav:domain abi
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary Papéis fixos de registrador na ABI SysV x86-64 do caminho montável: `REG_RET` (`%rax`, retorno/acumulador), `ARG_REGS` (os 6 registradores de argumento `%rdi`/`%rsi`/`%rdx`/`%rcx`/`%r8`/`%r9`) e `REG_TMP` (`%r10`, temporário). Argumentos a partir do 7º viajam pela pilha, com padding para o alinhamento de 16 bytes no `call`. Não há alocação dinâmica de registradores; os papéis são codificados diretamente no arquivo.
 const REG_RET: &str = "%rax";
 // ABI SysV x86-64 completa (Fase 213/B2): 6 registradores de argumento;
 // argumentos adicionais viajam pela pilha (7º em diante), com padding para
 // manter o alinhamento de 16 bytes exigido no `call`.
 const ARG_REGS: [&str; 6] = ["%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"];
 const REG_TMP: &str = "%r10";
+// @pinker-nav:end backend-s.abi.registradores-argumentos
 
+// @pinker-nav:start backend-s.lowering.globais-rodata
+// @pinker-nav:domain lowering
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary `extract_external_callconv_program` (início): deduplicação de símbolos globais (recusa duplicados), aceitação apenas de globais estáticas `bombom`/`logica` com inicializador literal inteiro/lógico (`OperandIR::Int`/`Bool`), montagem de `rodata_globals`, e a exigência de função `principal`. Primeira responsabilidade contígua da extração para `ExternalCallConvProgram`.
 fn extract_external_callconv_program(
     selected: &SelectedProgram,
 ) -> Result<ExternalCallConvProgram, PinkerError> {
@@ -172,7 +206,12 @@ fn extract_external_callconv_program(
             "subset externo montável (Fase 84) exige função `principal`",
         ));
     }
+    // @pinker-nav:end backend-s.lowering.globais-rodata
 
+    // @pinker-nav:start backend-s.lowering.funcoes-frames
+    // @pinker-nav:domain lowering
+    // @pinker-nav:layer backend-s
+    // @pinker-nav:summary Validação e enquadramento por função no caminho montável: recusa de retorno fora de `is_external_ret_type`, `principal` sem parâmetros, tipos de parâmetro/local fora de `is_external_param_type`/`is_external_local_type`, exigência de ao menos um bloco e `validate_external_block_labels`. Em seguida constrói `slot_offsets` alocando 8 bytes por slot na ordem parâmetros → locais → temporários (`collect_temp_ids`), calcula `raw_stack` e arredonda `stack_size` para múltiplo de 16 (0 quando não há slots). Tipos menores ainda ocupam slot de 8 bytes.
     let mut functions = Vec::new();
     let mut rodata_string_labels = HashMap::new();
     let mut rodata_strings = Vec::new();
@@ -241,7 +280,12 @@ fn extract_external_callconv_program(
         } else {
             raw_stack.div_ceil(16) * 16
         };
+        // @pinker-nav:end backend-s.lowering.funcoes-frames
 
+        // @pinker-nav:start backend-s.lowering.blocos-terminadores
+        // @pinker-nav:domain lowering
+        // @pinker-nav:layer backend-s
+        // @pinker-nav:summary Abertura do laço de blocos e seleção do terminador de cada bloco: `SelectedTerminator::Jmp` → `ExternalCallConvTerminator::Jmp`; `Ret(Some(value))` materializa literais `verso` de retorno em `.rodata` (`register_rodata_strings_for_operand`) e vira `Ret`; `Br` copia condição e rótulos; demais terminadores são recusados. Constrói o `terminator` antes do corpo do bloco.
         let mut blocks = Vec::new();
         for block in &function.blocks {
             let terminator = match &block.terminator {
@@ -271,6 +315,12 @@ fn extract_external_callconv_program(
                     ));
                 }
             };
+            // @pinker-nav:end backend-s.lowering.blocos-terminadores
+
+            // @pinker-nav:start backend-s.lowering.operacoes-memoria
+            // @pinker-nav:domain lowering
+            // @pinker-nav:layer backend-s
+            // @pinker-nav:summary Lowering das instruções de dados/memória do corpo de cada bloco: `Mov` (carga do operando + store em slot), aritmética linear `Add`/`Sub`/`Mul` (via `lower_linear_binop` → `addq`/`subq`/`imulq`), comparações `==`/`!=`/`<`/`>`/`<=`/`>=` (via `lower_cmp_*`), `DerefLoad`/`DerefStore` mínimos (`bombom`/`u32`/`u64`, recusam `is_volatile`, sempre `movq` de 8 bytes) e `Cast` (`virar` mínimo `u32↔u64` por slot, emitindo `movl %eax, %eax`). Não distingue signed/unsigned e não trata divisão/módulo/shift/bitwise (caem no catch-all).
             let mut body = Vec::new();
             for inst in &block.instructions {
                 match inst {
@@ -487,6 +537,12 @@ fn extract_external_callconv_program(
                             slot_offsets[&temp_key(*dest)]
                         ));
                     }
+                    // @pinker-nav:end backend-s.lowering.operacoes-memoria
+
+                    // @pinker-nav:start backend-s.lowering.chamadas-sysv
+                    // @pinker-nav:domain lowering
+                    // @pinker-nav:layer backend-s
+                    // @pinker-nav:summary Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino — trata `__ternario` como seleção por `cmpq`+`cmoveq` (sem `call` real, ambos os lados avaliados eager), resolve intrínsecas por aridade (`runtime_intrinsic_symbol_por_aridade`) e por nome (`runtime_intrinsic_symbol`) ou chama função Pinker por símbolo direto, passa os 6 primeiros argumentos em `ARG_REGS`, empilha o 7º+ do último ao primeiro com padding de alinhamento e limpa a pilha após o `call`, guardando `%rax` no slot de destino — e `CallVoid` (mesma ABI, sem store de retorno). Símbolo desconhecido de função inexistente é recusado.
                     SelectedInstr::Call {
                         dest,
                         callee,
@@ -644,6 +700,12 @@ fn extract_external_callconv_program(
                             body.push(format!("addq ${}, %rsp", 8 * (stack_args + pad)));
                         }
                     }
+                    // @pinker-nav:end backend-s.lowering.chamadas-sysv
+
+                    // @pinker-nav:start backend-s.lowering.falar-runtime
+                    // @pinker-nav:domain lowering
+                    // @pinker-nav:layer backend-s
+                    // @pinker-nav:summary Lowering de `falar` no corpo do bloco: cada pedaço vira uma chamada ao runtime conforme o tipo (`pinker_falar_pedaco_verso`/`_logica`/`_bombom`), com `pinker_falar_espaco` como separador entre pedaços e `pinker_falar_fim` ao final — espelhando `PrintInt`/`PrintBool`/`PrintStr` do interpretador. Inclui o braço catch-all do `match` que recusa instruções fora do subset montável. `falar` continua instrução própria (não intrínseca); mesmo o caminho hospedado (não nativo) emite referências a esses símbolos de `pinker_rt` quando o programa usa `falar` ou intrínsecas.
                     // `falar` nativo (Fase 215/B4): cada pedaço vira uma
                     // chamada ao runtime conforme o tipo, com separador entre
                     // pedaços e quebra de linha ao final — espelhando as
@@ -680,6 +742,7 @@ fn extract_external_callconv_program(
                     }
                 }
             }
+            // @pinker-nav:end backend-s.lowering.falar-runtime
             blocks.push(ExternalCallConvBlock {
                 label: block.label.clone(),
                 body,
@@ -703,6 +766,10 @@ fn extract_external_callconv_program(
     })
 }
 
+// @pinker-nav:start backend-s.renderizacao.callconv-programa
+// @pinker-nav:domain renderizacao
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary `render_external_x86_64_linux_callconv_impl` (início): cabeçalho comentado e emissão da seção `.rodata` — globais (`.globl`/label/`.quad valor`) e strings com layout length-prefixed `[.quad tamanho][.ascii bytes]` (via `escape_gas_string`), seguida da diretiva `.text`. O parâmetro `runtime_init` distingue o caminho nativo do hospedado. Renderer do modelo `ExternalCallConvProgram`, separado do renderer `.s` textual baseado em `BackendTextProgram`.
 fn render_external_x86_64_linux_callconv_impl(
     program: &ExternalCallConvProgram,
     runtime_init: bool,
@@ -736,7 +803,12 @@ fn render_external_x86_64_linux_callconv_impl(
         }
     }
     line(&mut out, 0, ".text");
+    // @pinker-nav:end backend-s.renderizacao.callconv-programa
 
+    // @pinker-nav:start backend-s.abi.prologo-parametros
+    // @pinker-nav:domain abi
+    // @pinker-nav:layer backend-s
+    // @pinker-nav:summary Prólogo e passagem de parâmetros do renderer montável: mapeia `principal` para o símbolo `main`, emite `pushq %rbp`/`movq %rsp,%rbp`, insere a chamada a `pinker_rt_iniciar` quando `runtime_init` e o símbolo é `main` (pilha alinhada a 16 após o push), reserva o frame (`subq $stack_size,%rsp`), armazena os 6 primeiros parâmetros de `ARG_REGS` nos slots e carrega o 7º+ a partir de `16(%rbp)`. A única diferença observável entre os dois caminhos externos é essa chamada de runtime.
     for function in &program.functions {
         let symbol = if function.name == "principal" {
             "main".to_string()
@@ -787,6 +859,12 @@ fn render_external_x86_64_linux_callconv_impl(
                 ),
             );
         }
+        // @pinker-nav:end backend-s.abi.prologo-parametros
+
+        // @pinker-nav:start backend-s.abi.blocos-terminadores
+        // @pinker-nav:domain abi
+        // @pinker-nav:layer backend-s
+        // @pinker-nav:summary Emissão de blocos e terminadores do renderer montável: `jmp .L<fn>_entry`, rótulos `.L<fn>_<label>:`, corpo já textualizado linha a linha, e cada terminador — `Jmp` → `jmp`; `Br` carrega a condição (`load_operand` com `.expect`), `cmpq $0,%rax` + `jne`/`jmp`; `Ret` carrega o valor (`.expect`), `leave` e `ret`. Fecha a função e devolve o `.s`. Os `.expect` dependem de invariantes garantidas antes, no lowering (condição/retorno carregáveis).
         line(&mut out, 1, &format!("jmp .L{}_entry", function.name));
         for block in &function.blocks {
             line(
@@ -847,6 +925,7 @@ fn render_external_x86_64_linux_callconv_impl(
     }
     out
 }
+// @pinker-nav:end backend-s.abi.blocos-terminadores
 
 fn ensure_dest_is_local_or_param(
     dest: &str,
@@ -863,6 +942,10 @@ fn ensure_dest_is_local_or_param(
     }
 }
 
+// @pinker-nav:start backend-s.lowering.operacoes-lineares
+// @pinker-nav:domain lowering
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary Helpers de lowering de operações lineares e comparações: `lower_linear_binop` (carrega `lhs`/`rhs`, aplica `addq`/`subq`/`imulq` e guarda no slot) e os seis `lower_cmp_eq`/`_ne`/`_lt`/`_gt`/`_le`/`_ge` (`cmpq` + `set*` + `movzbq`). Usam `%rax`/`%r10`, registram strings de `.rodata` dos operandos e materializam o resultado no slot do temporário. As comparações `<`/`>`/`<=`/`>=` usam `setb`/`seta`/`setbe`/`setae` (unsigned), sem distinção de signedness. Mantidas em uma única região contígua por serem variações do mesmo padrão.
 fn lower_linear_binop(
     opcode: &str,
     dest: crate::cfg_ir::TempIR,
@@ -1029,7 +1112,12 @@ fn lower_cmp_ge(
     ));
     Ok(body)
 }
+// @pinker-nav:end backend-s.lowering.operacoes-lineares
 
+// @pinker-nav:start backend-s.lowering.operandos-slots
+// @pinker-nav:domain lowering
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary Coleta de temporários, carga de operandos e nomeação de slots: `collect_temp_ids` (varre instruções e retornos para reunir os `%tN` que ocupam slots de frame), `load_operand` (carrega `Int`/`Bool` via `movabsq`, `Local`/`Temp` de `-off(%rbp)`, `GlobalConst` RIP-relative, `Str` por `leaq label(%rip)` do rodata materializado) e `temp_key` (nome canônico `%tN`). Alimentam o cálculo de frame e a emissão de acesso a slots.
 fn collect_temp_ids(function: &crate::instr_select::SelectedFunction) -> BTreeSet<String> {
     let mut ids = BTreeSet::new();
     for block in &function.blocks {
@@ -1117,7 +1205,12 @@ fn load_operand(
 fn temp_key(temp: crate::cfg_ir::TempIR) -> String {
     format!("%t{}", temp.0)
 }
+// @pinker-nav:end backend-s.lowering.operandos-slots
 
+// @pinker-nav:start backend-s.validacao.labels-tipos
+// @pinker-nav:domain validacao
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary Validação de rótulos e predicados de tipo do caminho montável: `validate_external_block_labels` (recusa bloco sem label, label duplicado, exige bloco `entry`, valida alvos de `jmp`/`br` e a condição de `br`) e os predicados `is_supported_type`, `is_external_deref_load_type`/`_store_type`, `is_external_param_type`/`_local_type`/`_ret_type` e `is_external_call_ret_type` (retornos de função mais `nulo` para intrínsecas de efeito). Nomes de função/global são usados diretamente como símbolos, sem sanitização nesta camada.
 fn validate_external_block_labels(
     function: &crate::instr_select::SelectedFunction,
 ) -> Result<(), PinkerError> {
@@ -1247,7 +1340,12 @@ fn is_external_ret_type(ty: &TypeIR) -> bool {
 fn is_external_call_ret_type(ty: &TypeIR) -> bool {
     is_external_ret_type(ty) || matches!(ty, TypeIR::Nulo)
 }
+// @pinker-nav:end backend-s.validacao.labels-tipos
 
+// @pinker-nav:start backend-s.runtime.intrinsecas-por-aridade
+// @pinker-nav:domain runtime
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary Resolução de intrínsecas de aridade variável por número de argumentos: `runtime_intrinsic_symbol_por_aridade` (escolhe o wrapper `pinker_formatar_verso_N`, `pinker_processo_executar_N`, etc., recusando aridade fora do recorte) e `is_arity_runtime_intrinsic` (nomes que usam essa resolução). Símbolos resolvidos no link com `libpinker_rt.a`.
 /// Intrínsecas de aridade variável (Fases 219/B8 e 221/B10): o símbolo do
 /// runtime é escolhido pela quantidade de argumentos no call site.
 fn runtime_intrinsic_symbol_por_aridade(callee: &str, argc: usize) -> Option<String> {
@@ -1277,7 +1375,12 @@ fn is_arity_runtime_intrinsic(callee: &str) -> bool {
             | "executar_com_entrada"
     )
 }
+// @pinker-nav:end backend-s.runtime.intrinsecas-por-aridade
 
+// @pinker-nav:start backend-s.runtime.simbolos-intrinsecas
+// @pinker-nav:domain runtime
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary `runtime_intrinsic_symbol`: catálogo estático extenso que mapeia nomes de intrínsecas Pinker para símbolos `pinker_*` do runtime nativo (texto/`verso`, listas, mapas por chave `verso`/`bombom`, iteradores internos, arquivo/caminho, tempo, acaso, ambiente e leques). Uma única palavra de 8 bytes por elemento faz `lista<bombom>` e `lista<verso>` compartilharem os mesmos símbolos. Funções Pinker comuns não são intrínsecas (retornam `None` → símbolo direto). Mapear um símbolo **não** prova paridade completa da implementação nativa; o runtime não foi cartografado nesta onda. Região única — sem uma âncora por intrínseca.
 /// Intrínsecas com implementação no runtime nativo (Fases 215/B4 e 216/B5).
 /// O símbolo devolvido é resolvido no link com `libpinker_rt.a`.
 ///
@@ -1413,7 +1516,12 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         _ => None,
     }
 }
+// @pinker-nav:end backend-s.runtime.simbolos-intrinsecas
 
+// @pinker-nav:start backend-s.dados.strings-rodata
+// @pinker-nav:domain dados
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary Deduplicação e escape de literais `verso` para `.rodata`: `collect_rodata_string_label` (deduplica por valor, cria labels `.Lpinker_verso_N` e registra o operando textual), `register_rodata_strings_for_operand` (registra quando o operando é `Str`) e `escape_gas_string` (escapa `\`, `"`, `\n`, `\t` para o GAS; caracteres de controle não tratados explicitamente passam crus). Sustenta o layout `[u64 tamanho][bytes]` do renderer montável.
 fn collect_rodata_string_label(
     value: &str,
     labels: &mut HashMap<String, String>,
@@ -1454,7 +1562,12 @@ fn escape_gas_string(value: &str) -> String {
     }
     escaped
 }
+// @pinker-nav:end backend-s.dados.strings-rodata
 
+// @pinker-nav:start backend-s.renderizacao.abi-textual-programa
+// @pinker-nav:domain renderizacao
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary `render_program`: renderer do `.s` **textual** baseado em `BackendTextProgram` (caminho `emit_from_selected`), distinto do renderer montável. Emite cabeçalho, `module`, `mode` livre/hospedado, metadados `abi.*` **como comentários** (`; abi.func`/`abi.params`/`abi.ret`/`abi.frame`/`abi.prologue`/`abi.epilogue`), `.rodata` de globais e blocos. No modo freestanding embute `boot.entry`, o linker script e o kernel stub textuais e um loop `.Lpinker_hang`. **Não** é assembly GAS montável nem ABI SysV real: `mov $slot`/`unop`/`binop` e os `@arg`/`@ret` são convenções textuais, não reconhecíveis diretamente pelo assembler.
 pub fn render_program(program: &BackendTextProgram) -> String {
     let mut out = String::new();
 
@@ -1582,7 +1695,12 @@ pub fn render_program(program: &BackendTextProgram) -> String {
 
     out
 }
+// @pinker-nav:end backend-s.renderizacao.abi-textual-programa
 
+// @pinker-nav:start backend-s.renderizacao.abi-textual-instrucoes
+// @pinker-nav:domain renderizacao
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary `render_instruction` e `render_terminator` do `.s` textual: formatam cada `BackendTextInstruction` (`mov`, `unop`, `binop`, `call ; abi.call ... -> ...` com ramo defensivo de call inválida, `falar` com pares `valor:tipo`) e cada `BackendTextTerminator` (`jmp`, `br`, `ret @ret`, `ret_void`). Convenções textuais anotadas — não emitem instruções x86 reais.
 fn render_instruction(inst: &crate::backend_text::BackendTextInstruction) -> String {
     match inst {
         crate::backend_text::BackendTextInstruction::Mov { dest, src } => {
@@ -1659,7 +1777,12 @@ fn render_terminator(
         crate::backend_text::BackendTextTerminator::Return(None) => "ret_void".to_string(),
     }
 }
+// @pinker-nav:end backend-s.renderizacao.abi-textual-instrucoes
 
+// @pinker-nav:start backend-s.renderizacao.abi-textual-componentes
+// @pinker-nav:domain renderizacao
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary Componentes do renderer `.s` textual: `render_unary`/`render_binop` (nomes de operador), `render_operand` (locais `$slot`, globais `@nome(%rip)`, inteiros, `1`/`0`, strings entre aspas **sem escape**, temporários `%tN`), `render_temp`, `render_slot`, `join_or_empty` e os helpers de metadado `render_abi_params`/`render_abi_return`/`render_call_site`/`render_abi_call_args` (`@arg`/`@ret`, comentários). Serializam elementos individuais da representação textual; não produzem código nativo.
 fn render_unary(op: UnaryOpIR) -> &'static str {
     match op {
         UnaryOpIR::Neg => "neg",
@@ -1774,6 +1897,7 @@ fn render_abi_call_args(args: &[crate::cfg_ir::OperandIR]) -> String {
         format!("[{}]", args)
     }
 }
+// @pinker-nav:end backend-s.renderizacao.abi-textual-componentes
 
 fn line(out: &mut String, indent: usize, text: &str) {
     for _ in 0..indent {
