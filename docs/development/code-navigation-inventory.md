@@ -25,12 +25,12 @@ receberam âncoras `@pinker-nav`. O endereçamento para máquinas vive no catál
 substitui.
 
 A cartografia avança em **ondas**, do mais simples ao mais complexo. Cada onda é
-útil sozinha. As **Ondas 0–5E** já estão na `main`, fechando a cadeia de lowerings
-AST → IR → CFG → seleção → máquina. A **Onda 6** foi decomposta em entregas
-independentes: 6A (`src/interpreter.rs`), 6B (`src/backend_text.rs`), 6C
-(`src/backend_s.rs`), 6D (ampliação controlada das raízes do scanner) e 6E
-(`runtime/pinker_rt/src/lib.rs`). Esta rodada conclui exclusivamente a **Onda
-6A**: cartografia do interpretador hospedado da máquina abstrata.
+útil sozinha. As **Ondas 0–6A** já estão na `main`, fechando a cadeia de lowerings
+AST → IR → CFG → seleção → máquina e a execução hospedada. A **Onda 6** foi
+decomposta em entregas independentes: 6A (`src/interpreter.rs`), 6B
+(`src/backend_text.rs`), 6C (`src/backend_s.rs`), 6D (ampliação controlada das
+raízes do scanner) e 6E (`runtime/pinker_rt/src/lib.rs`). Esta rodada conclui
+exclusivamente a **Onda 6B**: cartografia do backend textual (pseudo-assembly).
 
 ## Contrato do scanner (limitação registrada)
 
@@ -536,13 +536,70 @@ defensivo de busca.
 política de overflow não explicitada pelo interpretador; paridade com
 `runtime/pinker_rt` não demonstrada nesta onda; scanner ainda não cobre runtime.
 
-## Onda 6B–6E e orquestração (adiadas)
+## Onda 6B — backend textual (concluída)
+
+`src/backend_text.rs` **integralmente revisado** (linha a linha) e cartografado.
+O validador já estava coberto por `backend-text.validacao.invariantes` (em
+`src/backend_text_validate.rs`, intocado, preservado); a 6B acrescenta modelo,
+os dois caminhos de lowering, o pipeline público e a renderização.
+
+| Âncora | Responsabilidade |
+|---|---|
+| `backend-text.modelo.representacao` | Structs/enums do backend textual (programa, global, função, bloco, instrução, arg de `falar`, terminador). |
+| `backend-text.lowering.cfg-programa` | `lower_program`: lowering direto `ProgramCfgIR` → `BackendTextProgram`. |
+| `backend-text.lowering.selecao-programa` | `lower_selected_program`: `SelectedProgram` → `BackendTextProgram` (caminho usado). |
+| `backend-text.lowering.instrucoes-selecionadas` | `map_selected_instr` (+ `map_selected_term` dobrado): `SelectedInstr`/`SelectedTerminator` → representação textual. |
+| `backend-text.pipeline.emissao` | `emit_program`: select → validate → lower_selected → validate → render. |
+| `backend-text.renderizacao.programa` | `render_program`: módulo/modo/globais/funções/blocos em pseudo-assembly. |
+| `backend-text.renderizacao.instrucoes` | `render_instruction`: `mov`/`unop`/`binop`/`call`/`falar`. |
+| `backend-text.renderizacao.componentes` | `render_terminator`/`render_operand`/`render_temp`/`op_name`/`binop_name`/`line`. |
+
+**Separação de responsabilidades:** o **modelo** (`modelo.representacao`) define as
+estruturas; o **lowering** (`lowering.*`) constrói a representação a partir de CFG
+ou de seleção; o **pipeline** (`pipeline.emissao`) encadeia seleção, validação e
+renderização; a **validação** (`backend-text.validacao.invariantes`, intocada)
+verifica invariantes; a **renderização** (`renderizacao.*`) serializa. O backend
+textual produz pseudo-assembly **validável**, não código nativo — o backend `.s`
+(Onda 6C) é a emissão nativa/ABI.
+
+**Decisões de granularidade:** `map_selected_instr` fica **uma região ampla** (não
+por variante de `SelectedInstr`); `map_selected_term`, trivial e adjacente, foi
+**dobrado** em `lowering.instrucoes-selecionadas`. A renderização usa três regiões
+(programa, instruções, componentes). Os dois mapeadores de `falar`
+(`map_falar_args_from_cfg`/`_from_selected`) são helpers de lowering fisicamente
+situados entre os renderizadores e ficam **sem âncora** (documentado no código).
+
+**Auditorias registradas (não corrigidas):**
+
+- **§7.1 Dois caminhos de lowering:** `lower_program` (direto de `ProgramCfgIR`) e
+  `lower_selected_program` (de `SelectedProgram`) constroem o mesmo modelo por
+  caminhos distintos. `emit_program`, a CLI `--backend-text` (`src/main.rs`) e
+  `src/backend_s.rs` usam **apenas** `lower_selected_program`; `lower_program`
+  (direto) e `emit_program` são `pub` **sem chamadores na árvore**. Paridade
+  completa entre os dois caminhos não foi demonstrada.
+- **§7.2 Informação preservada × descartada:** preservados módulo,
+  `is_freestanding`, globais, tipo de retorno, nomes de parâmetros/locais, blocos,
+  labels e temporários; **descartados** os tipos de parâmetros/locais
+  (`BackendTextFunction` guarda só nomes, ao contrário de `SelectedFunction`), a
+  volatilidade e os spans.
+- **§7.3 Deref/volatilidade/cast:** em ambos os caminhos, `DerefLoad` vira
+  `Unary`/`Deref` **sem** a volatilidade; `DerefStore` e `Cast` são recusados com
+  span sintético `Position::new(1,1)`.
+- **§7.5 Chamadas/retorno:** `Call{dest}` → `Call` com destino e `ret_type`;
+  `CallVoid` → `Call` sem destino e `ret_type` `Nulo`. O renderer tem um ramo
+  defensivo `(sem destino, retorno não-nulo)` que imprime `_` — **não** produzido
+  pelos mapeadores.
+- **§7.6 `falar`:** permanece instrução própria, com mapeadores de CFG e de
+  seleção; não é intrínseca do backend.
+- **§7.7 Renderização:** strings são emitidas entre aspas **sem escape** de aspas,
+  barras ou caracteres de controle.
+
+## Onda 6C–6E e orquestração (adiadas)
 
 Inventariados; revisão atual `estrutural` para as camadas ainda pendentes.
 
 | Arquivo | Camada | Propósito (do módulo-doc/estrutura) | Complexidade | Âncoras atuais | Onda-alvo |
 |---|---|---|---|---|---|
-| `src/backend_text.rs` | backend-text | Lowering para pseudo-assembly textual a partir da seleção. | alta | — | 6B |
 | `src/backend_s.rs` | backend-s | Emissão de `.s` e toolchain nativa (ABI SysV, alinhamento, chamadas ao runtime). | alta | — | 6C |
 | `src/nav.rs` | trama | Ampliação controlada das raízes do scanner antes de catalogar runtime fora de `src/`. | alta | `trama.codigo.*` | 6D |
 | `runtime/pinker_rt/src/lib.rs` | runtime | Runtime nativo linkado por `pink build --nativo`; alocação, coleções nativas, ABI. **Fora do scanner atual.** | transversal | — | 6E (após ampliar raízes) |
@@ -572,16 +629,16 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 6A)
+## Cobertura acumulada (após Onda 6B)
 
 | Métrica | Valor |
 |---|---:|
 | Arquivos de produção em `src/` (excl. gerados e fixtures) | 30 |
-| Arquivos com responsabilidade ancorada | 27 |
-| Arquivos apenas inventariados (estrutural) | 3 |
-| Regiões antes da Onda 6A | 100 |
-| Regiões adicionadas na Onda 6A | 15 |
-| Regiões no catálogo | 115 |
+| Arquivos com responsabilidade ancorada | 28 |
+| Arquivos apenas inventariados (estrutural) | 2 |
+| Regiões antes da Onda 6B | 115 |
+| Regiões adicionadas na Onda 6B | 8 |
+| Regiões no catálogo | 123 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
 
@@ -603,23 +660,21 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 | select | 6 | modelo + validador; Onda 5E (4): programa-blocos, instruções, renderização programa/componentes |
 | machine | 9 | modelo + validador; Onda 5E (7): programa-blocos, instruções-pilha, terminadores, operandos-slots, renderização programa/apresentação/componentes |
 | interpreter | 15 | modelo/estado, execução (programa, fluxo, instruções, valores/tipos), intrínsecos hospedados (8 regiões: acaso, listas, mapas-verso-bombom, leques, io-arquivo-texto, tempo-processos-ambiente, conversões-número-texto, mapas-tipados), serviços auxiliares do host, diagnóstico |
-| backend-text | 1 | validador |
+| backend-text | 9 | validador; Onda 6B (8): modelo, lowering (cfg-programa, seleção-programa, instruções-selecionadas), pipeline emissão, renderização (programa, instruções, componentes) |
 | semantic | 10 | importações, sistema de tipos, escopos, duas-passagens, tratos, funções, comandos, fluxo, expressões, chamadas (Onda 5A) |
 | trama | 10 | normalização, jsonl, marco, catálogos e consultas doc/código, manifesto, ledger, projeções |
-| **total** | **115** | |
+| **total** | **123** | |
 
-Pendentes de cartografia: backend-text (6B), backend-s (6C), ampliação de raízes
-do scanner (6D), runtime nativo (6E), cli/editor/boot (Onda 7), tests/apps
-(Ondas 8/9, após ampliar raízes). Nota: `src/backend_text.rs` tem hoje apenas o
-validador ancorado (`backend-text.validacao.invariantes`); o lowering do backend
-textual segue sem cartografia até a Onda 6B.
+Pendentes de cartografia: backend-s (6C), ampliação de raízes do scanner (6D),
+runtime nativo (6E), cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após
+ampliar raízes).
 
 ## Próximo ponto de retomada
 
-**Onda 6B — backend textual em `src/backend_text.rs`.** A próxima entrega deve
-tratar modelo `BackendTextProgram`, entradas de `ProgramCfgIR` e
-`SelectedProgram`, mapeamento de instruções, terminadores, limitações de
-dereferência indireta/casts, representação textual e preservação de
-`backend-text.validacao.invariantes`. Permanecem depois: 6C — backend `.s` e ABI
-nativa; 6D — ampliação controlada das raízes do scanner; 6E — runtime nativo
-`pinker_rt`.
+**Onda 6C — backend `.s` e ABI nativa em `src/backend_s.rs`.** A próxima entrega
+deve cartografar a emissão de assembly nativo: seleção/alocação para a ISA alvo,
+ABI SysV, alinhamento, prólogo/epílogo, chamadas ao runtime e serialização `.s`,
+consumindo o `BackendTextProgram` produzido pela 6B. Preservar os modelos e
+validadores existentes; não modificar `src/backend_text.rs` (concluído na 6B).
+Permanecem depois: 6D — ampliação controlada das raízes do scanner; 6E — runtime
+nativo `pinker_rt` (fora da raiz atual do scanner).
