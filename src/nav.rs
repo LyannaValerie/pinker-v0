@@ -370,7 +370,7 @@ impl ScanRoot {
 /// As raízes oficiais varridas pelo fluxo `pink nav sincronizar`/`verificar`
 /// (§15): ambas obrigatórias. Fonte única da política de raízes — a CLI
 /// oficial e os testes que exercitam o caminho oficial usam esta mesma lista;
-/// a API genérica [`scan_roots`] (via [`CodeIndex::scan`]) aceita listas
+/// a API genérica `scan_roots` (via [`CodeIndex::scan`]) aceita listas
 /// menores para fixtures.
 pub fn official_scan_roots() -> Vec<ScanRoot> {
     vec![
