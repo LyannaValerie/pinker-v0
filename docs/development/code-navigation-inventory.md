@@ -573,7 +573,7 @@ situados entre os renderizadores e ficam **sem âncora** (documentado no código
 
 - **§7.1 Dois caminhos de lowering:** `lower_program` (direto de `ProgramCfgIR`) e
   `lower_selected_program` (de `SelectedProgram`) constroem o mesmo modelo por
-  caminhos distintos. `emit_program`, a CLI `--backend-text` (`src/main.rs`) e
+  caminhos distintos. `emit_program`, a CLI `--pseudo-asm` (`src/main.rs`) e
   `src/backend_s.rs` usam **apenas** `lower_selected_program`; `lower_program`
   (direto) e `emit_program` são `pub` **sem chamadores na árvore**. Paridade
   completa entre os dois caminhos não foi demonstrada.
@@ -603,10 +603,14 @@ situados entre os renderizadores e ficam **sem âncora** (documentado no código
   **não verifica aridade nem os tipos declarados** dos parâmetros; (d) reconstrói o
   mapa de temporários **por bloco** (a inferência de temporário é por bloco, não por
   função); (e) **não valida** os argumentos de `BackendTextInstruction::Falar`. Além
-  disso, `lower_program`, `lower_selected_program` e `render_program` são `pub`:
-  apenas `emit_program` encadeia seleção → os dois validadores → renderização, então
+  disso, `lower_program`, `lower_selected_program` e `render_program` são `pub`, então
   um consumidor pode construir ou renderizar um `BackendTextProgram` **sem** passar
-  por `backend_text_validate::validate_program`. Fronteira registrada, não corrigida.
+  por `backend_text_validate::validate_program`. Entre as funções públicas do módulo
+  `backend_text`, `emit_program` é a única que encapsula seleção, validação da
+  seleção, lowering textual, validação textual e renderização; a CLI executa
+  manualmente um fluxo equivalente para `--pseudo-asm` (parte da seleção já validada,
+  chama `lower_selected_program`, valida o backend textual e chama `render_program`).
+  Fronteira registrada, não corrigida.
 - **§7.5 Chamadas/retorno:** `Call{dest}` → `Call` com destino e `ret_type`;
   `CallVoid` → `Call` sem destino e `ret_type` `Nulo`. O renderer tem um ramo
   defensivo `(sem destino, retorno não-nulo)` que imprime `_` — **não** produzido
@@ -695,13 +699,15 @@ ampliar raízes).
 
 **Onda 6C — backend `.s` e ABI nativa em `src/backend_s.rs`.** A próxima entrega
 deve cartografar a emissão de assembly nativo: ABI SysV, alinhamento,
-prólogo/epílogo, chamadas ao runtime e serialização `.s`. **Atenção — o
-`src/backend_s.rs` tem caminhos com entradas distintas e a 6C deve auditá-los
-separadamente:** `emit_from_selected` consome o `BackendTextProgram` (via
-`backend_text::lower_selected_program`), mas `emit_external_toolchain_subset` e sua
-variante `_nativo` operam **diretamente sobre `SelectedProgram`** e constroem sua
-própria representação interna `ExternalCallConvProgram` (via
-`extract_external_callconv_program`), **sem** consumir o `BackendTextProgram` da 6B.
+prólogo/epílogo, chamadas ao runtime e serialização `.s`. **Atenção — os três
+caminhos públicos de `src/backend_s.rs` recebem todos `&SelectedProgram`
+(`emit_from_selected`, `emit_external_toolchain_subset`,
+`emit_external_toolchain_subset_nativo`); a diferença está na representação
+intermediária, e a 6C deve auditá-los separadamente:** `emit_from_selected` valida
+o subset, passa pelo `BackendTextProgram` (via `backend_text::lower_selected_program`)
+e o renderiza, enquanto `emit_external_toolchain_subset` e a variante `_nativo`
+constroem diretamente `ExternalCallConvProgram` (via
+`extract_external_callconv_program`), **sem** passar pelo `BackendTextProgram` da 6B.
 Não descrever genericamente `backend_s` como consumidor do `BackendTextProgram`.
 Preservar os modelos e validadores existentes; não modificar `src/backend_text.rs`
 (concluído na 6B). Permanecem depois: 6D — ampliação controlada das raízes do
