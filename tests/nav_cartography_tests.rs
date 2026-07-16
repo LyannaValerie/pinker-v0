@@ -93,9 +93,9 @@ fn catalogo_deterministico() {
 }
 
 /// O catálogo real versionado contém as chaves essenciais do frontend (Onda 4),
-/// da checagem semântica (Onda 5A), da monomorfização no parser (Onda 5B) e as
-/// âncoras históricas, todas únicas. Verifica presença e unicidade — não um
-/// número exato permanente de regiões.
+/// da checagem semântica (Onda 5A), da monomorfização no parser (Onda 5B), do
+/// lowering AST→IR (Onda 5C) e as âncoras históricas, todas únicas. Verifica
+/// presença e unicidade — não um número exato permanente de regiões.
 #[test]
 fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
@@ -133,12 +133,62 @@ fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
         "parser.genericos.leques-instanciacao",
         "parser.callbacks.substituicao-estatica",
         "parser.callbacks.instanciacao-estatica",
+        // Lowering AST → IR (Onda 5C); modelo/validador da Onda 3 preservados.
+        "ir.modelo.representacao",
+        "ir.validacao.invariantes",
+        "ir.lowering.programa-orquestracao",
+        "ir.lowering.contexto-declaracoes",
+        "ir.lowering.assinaturas-intrinsecos",
+        "ir.lowering.comandos-controle",
+        "ir.lowering.expressoes-valores",
+        "ir.lowering.bindings-escopos",
+        "ir.tipos.conversao-ast",
+        "ir.renderizacao.textual",
     ] {
         assert!(
             catalog.region(essential).is_some(),
             "chave essencial ausente: {essential}"
         );
     }
+}
+
+/// A camada `ir` separa modelo, lowering, validação, tipos e renderização em
+/// domínios distintos (Onda 5C sobre o modelo da Onda 3). Verifica que o lowering
+/// tem várias regiões próprias e que os domínios não colidem — sem fixar total.
+#[test]
+fn camada_ir_separa_modelo_lowering_e_renderizacao() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    let ir_by_domain = |domain: &str| -> Vec<&str> {
+        catalog
+            .regions
+            .iter()
+            .filter(|r| r.layer.as_deref() == Some("ir") && r.domain.as_deref() == Some(domain))
+            .map(|r| r.key.as_str())
+            .collect()
+    };
+
+    // O lowering é o grosso da Onda 5C: várias regiões próprias.
+    assert!(
+        ir_by_domain("lowering").len() >= 5,
+        "domínio ir.lowering deveria ter várias regiões: {:?}",
+        ir_by_domain("lowering")
+    );
+    // Modelo, validação, tipos e renderização existem como domínios distintos.
+    for domain in ["modelo", "validacao", "tipos", "renderizacao"] {
+        assert!(
+            !ir_by_domain(domain).is_empty(),
+            "domínio ir.{domain} ausente na camada ir"
+        );
+    }
+    // O lowering não invade o domínio do modelo.
+    assert!(
+        ir_by_domain("lowering")
+            .iter()
+            .all(|k| !ir_by_domain("modelo").contains(k)),
+        "lowering e modelo não podem compartilhar chaves"
+    );
 }
 
 /// Busca vertical por domínio: a Onda 5B distingue `genericos` (substituição de
