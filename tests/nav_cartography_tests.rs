@@ -3,7 +3,7 @@
 //! Cobre: múltiplas regiões no mesmo arquivo, preservação de âncoras
 //! existentes, domínio/camada válidos e determinismo do catálogo.
 
-use pinker_v0::nav::CodeIndex;
+use pinker_v0::nav::{CodeCatalog, CodeIndex};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -90,4 +90,37 @@ fn catalogo_deterministico() {
     let index = CodeIndex::scan(&dir).unwrap();
     assert_eq!(index.render_jsonl(), index.render_jsonl());
     fs::remove_dir_all(dir).unwrap();
+}
+
+/// O catálogo real versionado contém as chaves essenciais do frontend (Onda 4)
+/// e as âncoras históricas, todas únicas. Verifica presença e unicidade — não um
+/// número exato permanente de regiões.
+#[test]
+fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    // Unicidade de todas as chaves.
+    let mut keys: Vec<&str> = catalog.regions.iter().map(|r| r.key.as_str()).collect();
+    keys.sort_unstable();
+    let mut dedup = keys.clone();
+    dedup.dedup();
+    assert_eq!(keys.len(), dedup.len(), "chaves duplicadas no catálogo");
+
+    // Chaves essenciais do frontend (Onda 4) e âncoras históricas preservadas.
+    for essential in [
+        "lexer.fluxo.tokenizacao",
+        "lexer.espacos-comentarios.consumo",
+        "parser.fluxo.nucleo",
+        "parser.tipos.gramatica",
+        "parser.comandos.bloco",
+        "parser.expressoes.precedencia",
+        "cfg.logica.curto-circuito",
+        "cfg.logica.slot-logico",
+    ] {
+        assert!(
+            catalog.region(essential).is_some(),
+            "chave essencial ausente: {essential}"
+        );
+    }
 }
