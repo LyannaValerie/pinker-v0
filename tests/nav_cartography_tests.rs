@@ -94,9 +94,9 @@ fn catalogo_deterministico() {
 
 /// O catálogo real versionado contém as chaves essenciais do frontend (Onda 4),
 /// da checagem semântica (Onda 5A), da monomorfização no parser (Onda 5B), do
-/// lowering AST→IR (Onda 5C), do lowering IR→CFG (Onda 5D) e as âncoras
-/// históricas, todas únicas. Verifica presença e unicidade — não um número exato
-/// permanente de regiões.
+/// lowering AST→IR (Onda 5C), do lowering IR→CFG (Onda 5D), da seleção→máquina
+/// (Onda 5E) e as âncoras históricas, todas únicas. Verifica presença e unicidade
+/// — não um número exato permanente de regiões.
 #[test]
 fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
@@ -156,6 +156,18 @@ fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
         "cfg.lowering.construcao-blocos",
         "cfg.renderizacao.programa",
         "cfg.renderizacao.componentes",
+        // Seleção e máquina (Onda 5E); modelos/validadores preservados.
+        "select.modelo.representacao",
+        "select.validacao.invariantes",
+        "select.lowering.programa-blocos",
+        "select.lowering.instrucoes",
+        "select.renderizacao.componentes",
+        "machine.modelo.representacao",
+        "machine.validacao.invariantes",
+        "machine.lowering.instrucoes-pilha",
+        "machine.lowering.terminadores",
+        "machine.lowering.operandos-slots",
+        "machine.renderizacao.apresentacao",
     ] {
         assert!(
             catalog.region(essential).is_some(),
@@ -249,6 +261,45 @@ fn camada_cfg_separa_lowering_logica_e_renderizacao() {
             .all(|k| !logica.contains(k)),
         "lowering e logica não podem compartilhar chaves"
     );
+}
+
+/// As camadas `select` e `machine` (Onda 5E) separam modelo, lowering, validação e
+/// renderização em domínios distintos, cada uma com várias regiões de lowering
+/// próprias — sem fixar total.
+#[test]
+fn camadas_select_e_machine_separam_lowering_e_renderizacao() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    let by = |layer: &str, domain: &str| -> Vec<&str> {
+        catalog
+            .regions
+            .iter()
+            .filter(|r| r.layer.as_deref() == Some(layer) && r.domain.as_deref() == Some(domain))
+            .map(|r| r.key.as_str())
+            .collect()
+    };
+
+    for layer in ["select", "machine"] {
+        assert!(
+            by(layer, "lowering").len() >= 2,
+            "camada {layer} deveria ter várias regiões de lowering: {:?}",
+            by(layer, "lowering")
+        );
+        for domain in ["modelo", "validacao", "renderizacao"] {
+            assert!(
+                !by(layer, domain).is_empty(),
+                "domínio {layer}.{domain} ausente"
+            );
+        }
+        // O lowering não invade o domínio do modelo preservado.
+        assert!(
+            by(layer, "lowering")
+                .iter()
+                .all(|k| !by(layer, "modelo").contains(k)),
+            "lowering e modelo de {layer} não podem compartilhar chaves"
+        );
+    }
 }
 
 /// Busca vertical por domínio: a Onda 5B distingue `genericos` (substituição de
