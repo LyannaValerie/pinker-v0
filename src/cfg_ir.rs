@@ -172,6 +172,10 @@ struct BlockBuilder {
     terminator: Option<TerminatorIR>,
 }
 
+// @pinker-nav:start cfg.lowering.programa-orquestracao
+// @pinker-nav:domain lowering
+// @pinker-nav:layer cfg
+// @pinker-nav:summary Entrada do lowering IR → CFG: converte cada constante global (`lower_constant_value`) em `GlobalConstCfgIR`, abaixa cada função (`lower_function`) em `FunctionCfgIR` e monta o `ProgramCfgIR` preservando nome do módulo e modo freestanding. Não seleciona instruções nem gera assembly.
 pub fn lower_program(program: &ProgramIR) -> Result<ProgramCfgIR, PinkerError> {
     let consts = program
         .consts
@@ -199,7 +203,12 @@ pub fn lower_program(program: &ProgramIR) -> Result<ProgramCfgIR, PinkerError> {
         functions,
     })
 }
+// @pinker-nav:end cfg.lowering.programa-orquestracao
 
+// @pinker-nav:start cfg.renderizacao.programa
+// @pinker-nav:domain renderizacao
+// @pinker-nav:layer cfg
+// @pinker-nav:summary Renderização textual da CFG já pronta ao nível de programa: `render_program` percorre módulo, modo, constantes e cada função (parâmetros, locais, blocos com instruções e terminador), delegando a formatação de cada elemento aos helpers `render_*`. Recebe uma `ProgramCfgIR` pronta; não altera blocos, não valida, não seleciona instruções nem executa.
 pub fn render_program(program: &ProgramCfgIR) -> String {
     let mut out = String::new();
     line(&mut out, 0, &format!("module {}", program.module_name));
@@ -273,7 +282,12 @@ pub fn render_program(program: &ProgramCfgIR) -> String {
 
     out
 }
+// @pinker-nav:end cfg.renderizacao.programa
 
+// @pinker-nav:start cfg.lowering.funcoes-blocos
+// @pinker-nav:domain lowering
+// @pinker-nav:layer cfg
+// @pinker-nav:summary Cria e finaliza a CFG de uma função a partir de `FunctionIR`: inicializa o bloco `entry` e os contadores/pilhas por função, percorre as instruções abrindo bloco sintético `dead_N` quando a sequência continua após um terminador, garante um terminador por bloco (retorno implícito só para função `nulo`; erro se função não-`nulo` ficar sem terminador), converte cada `BlockBuilder` em `BasicBlockIR` na ordem de criação e incorpora os locais lógicos, produzindo `FunctionCfgIR`.
 fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
     let mut lowerer = FunctionLowerer {
         blocks: vec![BlockBuilder::new("entry".to_string())],
@@ -328,8 +342,13 @@ fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
         span: function.span,
     })
 }
+// @pinker-nav:end cfg.lowering.funcoes-blocos
 
 impl FunctionLowerer {
+    // @pinker-nav:start cfg.lowering.instrucoes-controle
+    // @pinker-nav:domain lowering
+    // @pinker-nav:layer cfg
+    // @pinker-nav:summary Dispatcher `lower_instruction` que abaixa `InstructionIR` num bloco corrente: `Let`/`Assign`, stores indiretos/de campo/indexados, expressão-comando, retorno, e o achatamento de `If` e `While` em blocos `then`/`else`/corpo/junção com terminadores `Branch`/`Jump` explícitos (fall-through vira `Jump`), mantendo as pilhas de destino de laço para `Break`/`Continue` (com bloco de continuação sintético) e `Falar`. Rejeita `sussurro` (inline asm) nesta fase e devolve o índice do bloco corrente para a sequência; não é `phi`/SSA.
     #[allow(clippy::only_used_in_recursion)]
     fn lower_instruction(
         &mut self,
@@ -574,6 +593,12 @@ impl FunctionLowerer {
         }
     }
 
+    // @pinker-nav:end cfg.lowering.instrucoes-controle
+
+    // @pinker-nav:start cfg.lowering.valores-temporarios
+    // @pinker-nav:domain lowering
+    // @pinker-nav:layer cfg
+    // @pinker-nav:summary Lineariza `ValueIR` em operandos e instruções CFG no bloco corrente: literais, locais (`%nome#N`) e globais viram operandos diretos; unários, dereferência, binários não lógicos, chamadas e casts emitem instruções cujo resultado recebe um `TempIR` (`%tN`); `lower_expr_stmt` descarta o retorno de chamadas `nulo` e rejeita chamada `nulo` usada como valor. Pode avançar para outro bloco quando uma subexpressão lógica altera o fluxo (delega o curto-circuito). Temporários têm escopo de função — não são registradores físicos nem SSA de slots.
     fn lower_expr_stmt(
         &mut self,
         value: &ValueIR,
@@ -725,6 +750,12 @@ impl FunctionLowerer {
         }
     }
 
+    // @pinker-nav:end cfg.lowering.valores-temporarios
+
+    // @pinker-nav:start cfg.lowering.memoria-indireta
+    // @pinker-nav:domain lowering
+    // @pinker-nav:layer cfg
+    // @pinker-nav:summary Acesso e escrita de campos e índices por endereço calculado: `lower_field_access`/`lower_field_store` e `lower_index_access`/`lower_index_store` produzem o endereço a partir da base e do offset/índice e emitem `DerefLoad`/`DerefStore` (com volatilidade), reutilizando `TempIR` para os endereços. Reflete os limites efetivos desta fase (tipos escalares, base `[bombom; N]`); não os apresenta como comportamento ideal futuro.
     fn lower_field_access(
         &mut self,
         base: &ValueIR,
@@ -986,6 +1017,8 @@ impl FunctionLowerer {
         Ok(next_current)
     }
 
+    // @pinker-nav:end cfg.lowering.memoria-indireta
+
     /// Like `lower_value_operand` but also handles `ValueIR::String` for `falar`.
     fn lower_falar_operand(
         &mut self,
@@ -1105,6 +1138,10 @@ impl FunctionLowerer {
     }
     // @pinker-nav:end cfg.logica.slot-logico
 
+    // @pinker-nav:start cfg.lowering.construcao-blocos
+    // @pinker-nav:domain lowering
+    // @pinker-nav:layer cfg
+    // @pinker-nav:summary Primitivas de construção do CFG: `fresh_block` acrescenta um `BlockBuilder` e devolve seu índice, `next_label` gera rótulos sintéticos sufixados (`join_N`, `dead_N`, …), `next_temp` numera os temporários `%tN` por função, e `BlockBuilder::new`/`is_terminated` distinguem bloco aberto (`terminator: None`) de bloco já terminado. Estado de construção; não seleciona instruções.
     fn fresh_block(&mut self, label: String) -> usize {
         let idx = self.blocks.len();
         self.blocks.push(BlockBuilder::new(label));
@@ -1136,8 +1173,13 @@ impl BlockBuilder {
     fn is_terminated(&self) -> bool {
         self.terminator.is_some()
     }
+    // @pinker-nav:end cfg.lowering.construcao-blocos
 }
 
+// @pinker-nav:start cfg.lowering.constantes
+// @pinker-nav:domain lowering
+// @pinker-nav:layer cfg
+// @pinker-nav:summary Converte o valor de uma constante global (`ValueIR`) no operando CFG (`ValueCfgIR`): aceita literais inteiro/lógico/string, referência a global e local, e recusa valores compostos como fora do escopo da CFG IR nesta fase. O `GlobalConstCfgIR` em si é montado pela orquestração do programa.
 fn lower_constant_value(value: &ValueIR, span: Span) -> Result<ValueCfgIR, PinkerError> {
     match value {
         ValueIR::Int(v) => Ok(OperandIR::Int(*v)),
@@ -1151,7 +1193,12 @@ fn lower_constant_value(value: &ValueIR, span: Span) -> Result<ValueCfgIR, Pinke
         }),
     }
 }
+// @pinker-nav:end cfg.lowering.constantes
 
+// @pinker-nav:start cfg.renderizacao.componentes
+// @pinker-nav:domain renderizacao
+// @pinker-nav:layer cfg
+// @pinker-nav:summary Formatação textual de cada elemento da CFG: `render_instruction`, `render_terminator`, `render_operand`, `render_temp`, os nomes de operadores (`render_unary_op`/`render_binary_op`) e o utilitário `line`. Produz as linhas legíveis consumidas por `render_program` (o wrapper público, junto à orquestração); não altera a CFG, não valida nem executa.
 fn render_instruction(inst: &InstructionCfgIR) -> String {
     match inst {
         InstructionCfgIR::Let { slot, value } => {
@@ -1319,3 +1366,4 @@ fn line(out: &mut String, indent: usize, text: &str) {
     out.push_str(text);
     out.push('\n');
 }
+// @pinker-nav:end cfg.renderizacao.componentes
