@@ -403,6 +403,10 @@ struct TypedValueIR {
 
 // Fase 2 escolhe IR estruturada: blocos e `if` seguem explícitos, sem SSA e sem saltos.
 // Isso mantém o lowering pequeno e auditável sem quebrar o frontend estabilizado.
+// @pinker-nav:start ir.lowering.programa-orquestracao
+// @pinker-nav:domain lowering
+// @pinker-nav:layer ir
+// @pinker-nav:summary Ponto de entrada do lowering AST → IR: constrói o `LoweringContext` global, percorre os itens do programa, despacha constantes (`lower_const`) e funções (`FunctionLowerer`) e monta o `ProgramIR` (nome do módulo, modo freestanding). Aliases/structs/leques/tratos são ignorados aqui (já viraram fatos do contexto); não reexecuta análise semântica.
 pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
     let context = LoweringContext::from_program(program)?;
     let mut consts = Vec::new();
@@ -428,6 +432,7 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
         functions,
     })
 }
+// @pinker-nav:end ir.lowering.programa-orquestracao
 
 pub fn render_program(program: &ProgramIR) -> String {
     let mut out = String::new();
@@ -472,6 +477,10 @@ pub fn render_program(program: &ProgramIR) -> String {
 }
 
 impl LoweringContext {
+    // @pinker-nav:start ir.lowering.contexto-declaracoes
+    // @pinker-nav:domain lowering
+    // @pinker-nav:layer ir
+    // @pinker-nav:summary Primeira metade de `from_program`: coleta os fatos globais que todos os corpos consomem — nome do módulo, aliases de tipo (com leques registrados como alias para `bombom`), structs e seus campos/offsets de layout, variantes de leque com índices e cargas, e as assinaturas das funções e tipos das constantes declaradas no programa. Prepara o contexto; não reexecuta a checagem semântica.
     fn from_program(program: &Program) -> Result<Self, PinkerError> {
         let module_name = program
             .package
@@ -583,6 +592,12 @@ impl LoweringContext {
                 Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) | Item::Trait(_) => {}
             }
         }
+        // @pinker-nav:end ir.lowering.contexto-declaracoes
+
+        // @pinker-nav:start ir.lowering.assinaturas-intrinsecos
+        // @pinker-nav:domain lowering
+        // @pinker-nav:layer ir
+        // @pinker-nav:summary Segunda metade de `from_program`: catálogo centralizado de assinaturas das intrínsecas embutidas e internas (E/S, texto/verso, listas, mapas, CSV/JSON, tempo, ambiente, acaso, arquivo, caminho, processo) — cada `function_sigs.insert` registra o tipo de retorno usado depois para tipar chamadas no lowering de expressões. Encerra montando o `LoweringContext`. Não valida os corpos das intrínsecas; apenas declara contratos de retorno.
         function_sigs.insert(
             "ouvir".to_string(),
             FunctionSigIR {
@@ -1496,6 +1511,7 @@ impl LoweringContext {
             enum_variants,
         })
     }
+    // @pinker-nav:end ir.lowering.assinaturas-intrinsecos
 
     fn resolve_type(&self, ty: &Type) -> Result<TypeIR, PinkerError> {
         TypeIR::from_ast_with_context(ty, &self.type_aliases, &self.struct_names)
@@ -1503,6 +1519,10 @@ impl LoweringContext {
 }
 
 impl<'a> FunctionLowerer<'a> {
+    // @pinker-nav:start ir.lowering.funcoes-blocos
+    // @pinker-nav:domain lowering
+    // @pinker-nav:layer ir
+    // @pinker-nav:summary Configuração do `FunctionLowerer` e lowering de funções e blocos estruturados: constrói o lowerer, aloca os parâmetros como bindings, abaixa o bloco de entrada, coleta locais e tipo de retorno em `FunctionIR`, e percorre `BlockIR` abrindo/fechando escopo opcional. Inclui os resolvedores de método de `impl` (direto e qualificado por trato) consultados pelo lowering de expressões. Preserva a estrutura aninhada; não divide o fluxo em blocos básicos de CFG.
     fn new(context: &'a LoweringContext) -> Self {
         Self {
             context,
@@ -1615,7 +1635,12 @@ impl<'a> FunctionLowerer<'a> {
             span: block.span,
         })
     }
+    // @pinker-nav:end ir.lowering.funcoes-blocos
 
+    // @pinker-nav:start ir.lowering.comandos-controle
+    // @pinker-nav:domain lowering
+    // @pinker-nav:layer ir
+    // @pinker-nav:summary Abaixa comandos AST de um bloco para `InstructionIR`: despacho de `Stmt`, declaração local (`mimo`, incluindo o desvio de `lista_criar`/`mapa_criar` para o criar monomórfico anotado), atribuição a slot/deref/campo/índice, retorno, `falar`, asm inline, e o controle estruturado `talvez`/`senão` e `sempre que` com `quebrar`/`continuar` carregando destinos simbólicos de laço. Preserva spans; `if`/`while` continuam com blocos filhos — a divisão em blocos básicos ocorre depois em `cfg_ir`.
     fn lower_stmt(&mut self, stmt: &Stmt) -> Result<InstructionIR, PinkerError> {
         match stmt {
             Stmt::Let(let_stmt) => self.lower_let(let_stmt),
@@ -1960,7 +1985,12 @@ impl<'a> FunctionLowerer<'a> {
             span: break_stmt.span,
         })
     }
+    // @pinker-nav:end ir.lowering.comandos-controle
 
+    // @pinker-nav:start ir.lowering.expressoes-valores
+    // @pinker-nav:domain lowering
+    // @pinker-nav:layer ir
+    // @pinker-nav:summary Grande despachante que abaixa expressões AST para `TypedValueIR` (valor + `TypeIR` + nome de struct + metadados de ponteiro-para-array): literais, identificadores locais e constantes globais, operadores unários/binários, dereferência, chamadas diretas (com tipo de retorno vindo do catálogo de assinaturas), métodos de `impl` e qualificados, intrínsecas genéricas de lista/mapa direcionadas ao nome monomórfico, construção/leitura de leque (discriminante/handle), acesso a campo e offset de struct, indexação, cast, `peso` e `alinhamento`. Consome informação já validada; não executa a expressão nem seleciona instruções de máquina.
     fn lower_value(&mut self, expr: &Expr) -> Result<TypedValueIR, PinkerError> {
         match &expr.kind {
             ExprKind::IntLit(value) => Ok(TypedValueIR {
@@ -2604,6 +2634,12 @@ impl<'a> FunctionLowerer<'a> {
         }
     }
 
+    // @pinker-nav:end ir.lowering.expressoes-valores
+
+    // @pinker-nav:start ir.lowering.bindings-escopos
+    // @pinker-nav:domain lowering
+    // @pinker-nav:layer ir
+    // @pinker-nav:summary Normalização de nomes-fonte em slots e gestão de escopos léxicos: `allocate_binding` gera `%nome#N` (contador por nome-fonte), registra o binding no escopo atual e coleta `LocalIR`; a resolução sobe a pilha de escopos; e os rótulos de bloco/laço são gerados aqui. Slots são nomes normalizados desta camada — não são SSA nem registradores físicos de máquina.
     fn allocate_binding(
         &mut self,
         source_name: &str,
@@ -2675,8 +2711,13 @@ impl<'a> FunctionLowerer<'a> {
     fn pop_scope(&mut self) {
         self.scopes.pop();
     }
+    // @pinker-nav:end ir.lowering.bindings-escopos
 }
 
+// @pinker-nav:start ir.lowering.constantes
+// @pinker-nav:domain lowering
+// @pinker-nav:layer ir
+// @pinker-nav:summary Abaixa uma constante global: cria um `FunctionLowerer` mínimo para o inicializador, abaixa o valor e o tipo declarado e monta `ConstIR`. Consome o contexto já preparado; não valida o inicializador (a semântica já o fez).
 fn lower_const(const_decl: &ConstDecl, context: &LoweringContext) -> Result<ConstIR, PinkerError> {
     let mut lowerer = FunctionLowerer::new(context);
     let value = lowerer.lower_value(&const_decl.init)?;
@@ -2687,6 +2728,7 @@ fn lower_const(const_decl: &ConstDecl, context: &LoweringContext) -> Result<Cons
         span: const_decl.span,
     })
 }
+// @pinker-nav:end ir.lowering.constantes
 
 fn resolve_struct_name_from_type(
     ty: &Type,
@@ -2729,6 +2771,10 @@ fn pointer_to_bombom_array_size(ty: &Type, aliases: &HashMap<String, Type>) -> O
     }
 }
 
+// @pinker-nav:start ir.renderizacao.textual
+// @pinker-nav:domain renderizacao
+// @pinker-nav:layer ir
+// @pinker-nav:summary Renderização textual auditável da IR já construída: `render_function`/`render_block`/`render_instruction`/`render_value` (com o helper `line`) percorrem `FunctionIR`/`BlockIR`/`InstructionIR`/`ValueIR` e produzem a forma legível consumida por depuração e testes. Recebe uma `ProgramIR` pronta (a entrada pública `render_program` fica junto à orquestração e delega a estas funções); não modifica a IR, não valida invariantes, não executa e não gera assembly.
 fn render_function(function: &FunctionIR, indent: usize, out: &mut String) {
     line(
         out,
@@ -2952,6 +2998,7 @@ fn line(out: &mut String, indent: usize, text: &str) {
     out.push_str(text);
     out.push('\n');
 }
+// @pinker-nav:end ir.renderizacao.textual
 
 impl TypeIR {
     pub fn is_unsigned(&self) -> bool {
@@ -2975,6 +3022,10 @@ impl TypeIR {
                 || (*self == TypeIR::U64 && other == TypeIR::Bombom))
     }
 
+    // @pinker-nav:start ir.tipos.conversao-ast
+    // @pinker-nav:domain tipos
+    // @pinker-nav:layer ir
+    // @pinker-nav:summary Converte tipos AST semanticamente válidos em `TypeIR`: resolve aliases (com detecção de recursão), reduz leques a `bombom` (discriminante/handle), reduz listas de leque a `lista<bombom>`, converte primitivos, listas/mapas, arrays fixos (via `ScalarTypeIR`), ponteiros (com volatilidade) e structs, e recusa tipo função materializável ou genérico não monomorfizado. Conversão mecânica que respeita os limites de materialização da IR; não reexecuta a checagem semântica de tipos.
     fn from_ast_inner(
         ty: &Type,
         aliases: &HashMap<String, Type>,
@@ -3096,6 +3147,7 @@ impl TypeIR {
             .transpose()
             .map(|resolved| resolved.unwrap_or(TypeIR::Nulo))
     }
+    // @pinker-nav:end ir.tipos.conversao-ast
 
     pub fn name(&self) -> &'static str {
         match self {
