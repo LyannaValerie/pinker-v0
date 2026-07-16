@@ -27,8 +27,8 @@ substitui.
 A cartografia avança em **ondas**, do mais simples ao mais complexo. Cada onda é
 útil sozinha. As **Ondas 0–4** já estão na `main`; esta rodada adiciona a
 **Onda 5A** (checagem semântica em `src/semantic.rs`). A monomorfização de
-genéricos e os lowerings (Onda 5B) e as demais camadas seguem inventariados e
-explicitamente adiados.
+genéricos no parser (Onda 5B) e cada lowering por camada (Ondas 5C–5E), além das
+demais camadas, seguem inventariados e explicitamente adiados.
 
 ## Contrato do scanner (limitação registrada)
 
@@ -150,7 +150,7 @@ parser (`generic_type_key`, `substitute_*`, `instantiate_generic_functions`,
 `instantiate_generic_enums`, `instantiate_function_param_functions` — ~
 `src/parser.rs` entre `parser.funcoes.declaracao` e `parser.constantes.declaracao`)
 **não é responsabilidade léxica/sintática**: é monomorfização, explicitamente
-fora do escopo da Onda 4 (§2). Fica como **feature vertical** para a Onda 5/10.
+fora do escopo da Onda 4 (§2). Fica como **feature vertical** para a **Onda 5B**.
 Helpers isolados (`register_collection_type`, name-mangling de `impl`) ficam sem
 âncora por serem plumbing (§7).
 
@@ -184,21 +184,23 @@ que ele consome (§6.8). Helpers de plumbing do `SemanticChecker` (construtor,
 `type_key`, `parse_impl_function_name`, `push_scope`/`pop_scope`,
 `resolve_struct_field_type`) ficam sem âncora por serem infraestrutura (§7).
 
-**Adiado (Onda 5B):** a **monomorfização de genéricos residente no parser**
-(`src/parser.rs`) e os **lowerings** por camada seguem fora desta onda; ver
-adiados abaixo.
+**Adiado (Ondas 5B–5E):** a **monomorfização de genéricos residente no parser**
+(`src/parser.rs`) é a **Onda 5B**, exclusiva; os **lowerings** por camada seguem
+uma onda cada (5C–5E). Ver adiados abaixo.
 
 ## Onda 5B+ — monomorfização, lowerings, execução, orquestração (adiadas)
 
 Inventariados; revisão atual `estrutural` (exceto o frontend, agora integral).
+Cada camada de lowering é sua própria onda, para não reintroduzir um PR
+transversal enorme.
 
 | Arquivo | Camada | Propósito (do módulo-doc/estrutura) | Complexidade | Âncoras atuais | Onda-alvo |
 |---|---|---|---|---|---|
 | `src/parser.rs` (genéricos) | parser | Monomorfização/substituição residente no parser (adiada na Onda 4). | transversal | frontend ancorado | 5B |
-| `src/ir.rs` (lowering) | ir | Lowering AST→IR (`lower_program`, `LoweringContext`, `FunctionLowerer`). | transversal | modelo ancorado | 5B |
-| `src/cfg_ir.rs` (lowering) | cfg | Lowering IR→CFG; contém `cfg.logica.*`. | transversal | `cfg.logica.*` | 5B |
-| `src/instr_select.rs` (lowering) | select | Lowering CFG→seleção. | alta | modelo ancorado | 5B |
-| `src/abstract_machine.rs` (lowering) | machine | Lowering seleção→máquina. | alta | modelo ancorado | 5B |
+| `src/ir.rs` (lowering) | ir | Lowering AST→IR (`lower_program`, `LoweringContext`, `FunctionLowerer`). | transversal | modelo ancorado | 5C |
+| `src/cfg_ir.rs` (lowering) | cfg | Lowering IR→CFG; contém `cfg.logica.*`. | transversal | `cfg.logica.*` | 5D |
+| `src/instr_select.rs` (lowering) | select | Lowering CFG→seleção. | alta | modelo ancorado | 5E |
+| `src/abstract_machine.rs` (lowering) | machine | Lowering seleção→máquina. | alta | modelo ancorado | 5E |
 | `src/interpreter.rs` | interpreter | Executa a máquina validada; valores de runtime, frames, intrínsecas, coleções (listas/mapas/versos). | transversal | — | 6 |
 | `src/backend_text.rs` | backend-text | Lowering para pseudo-assembly textual a partir da seleção. | alta | — | 6 |
 | `src/backend_s.rs` | backend-s | Emissão de `.s` e toolchain nativa (ABI SysV, alinhamento, chamadas ao runtime). | alta | — | 6 |
@@ -264,17 +266,20 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 | trama | 10 | normalização, jsonl, marco, catálogos e consultas doc/código, manifesto, ledger, projeções |
 | **total** | **63** | |
 
-Pendentes (sem âncora): monomorfização de genéricos no parser + lowerings de
-ir/cfg/select/machine (Onda 5B), interpreter/backend-s/runtime (Onda 6),
-cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após ampliar raízes).
+Pendentes (sem âncora): monomorfização de genéricos no parser (Onda 5B) +
+lowerings de ir (5C), cfg (5D), select/machine (5E), interpreter/backend-s/
+runtime (Onda 6), cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após ampliar
+raízes).
 
 ## Próximo ponto de retomada
 
-**Onda 5B — monomorfização e lowerings por camada:** ancorar a **monomorfização
-de genéricos residente no parser** (`src/parser.rs`: `generic_type_key`,
-`substitute_*`, `instantiate_generic_functions`, `instantiate_generic_enums`,
-`instantiate_function_param_functions`) e os **lowerings** — AST→IR (`src/ir.rs`),
-IR→CFG (`src/cfg_ir.rs`, conectando às âncoras `cfg.logica.*` já existentes sem
-duplicá-las), CFG→seleção (`src/instr_select.rs`) e seleção→máquina
-(`src/abstract_machine.rs`). Não modificar `src/semantic.rs` (concluído na Onda
-5A) nem antecipar execução, backends ou runtime (Onda 6).
+**Onda 5B — monomorfização de genéricos no parser (exclusiva):** ancorar
+**apenas** a maquinaria de monomorfização de genéricos residente em
+`src/parser.rs` (`generic_type_key`, `substitute_*`,
+`instantiate_generic_functions`, `instantiate_generic_enums`,
+`instantiate_function_param_functions`). **Nenhum lowering** entra na 5B — cada
+lowering é sua própria onda depois: AST→IR (`src/ir.rs`, Onda 5C), IR→CFG
+(`src/cfg_ir.rs`, conectando às âncoras `cfg.logica.*` já existentes sem
+duplicá-las, Onda 5D) e CFG→seleção→máquina (`src/instr_select.rs` +
+`src/abstract_machine.rs`, Onda 5E). Não modificar `src/semantic.rs` (concluído
+na Onda 5A) nem antecipar execução, backends ou runtime (Onda 6).
