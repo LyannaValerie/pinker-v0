@@ -25,10 +25,10 @@ receberam âncoras `@pinker-nav`. O endereçamento para máquinas vive no catál
 substitui.
 
 A cartografia avança em **ondas**, do mais simples ao mais complexo. Cada onda é
-útil sozinha. As **Ondas 0–5A** já estão na `main`; esta rodada adiciona a
-**Onda 5B** (monomorfização e especialização residentes em `src/parser.rs`). Cada
-lowering por camada (Ondas 5C–5E), além das demais camadas, segue inventariado e
-explicitamente adiado.
+útil sozinha. As **Ondas 0–5B** já estão na `main`; esta rodada adiciona a
+**Onda 5C** (lowering AST → IR em `src/ir.rs`). Os demais lowerings por camada
+(Ondas 5D–5E), além das demais camadas, seguem inventariados e explicitamente
+adiados.
 
 ## Contrato do scanner (limitação registrada)
 
@@ -243,15 +243,67 @@ ancorá-lo exigiria englobar campos alheios, então fica como plumbing. Os helpe
 em `callbacks.instanciacao-estatica`) são infraestrutura local, sem âncora
 própria.
 
-## Onda 5C+ — lowerings, execução, orquestração (adiadas)
+## Onda 5C — lowering AST → IR (concluída)
 
-Inventariados; revisão atual `estrutural` (exceto o frontend, agora integral).
-Cada camada de lowering é sua própria onda, para não reintroduzir um PR
-transversal enorme.
+`src/ir.rs` **integralmente revisado** (linha a linha) e cartografado na
+transformação da AST semanticamente válida para a IR estruturada. O modelo de
+dados já estava coberto por `ir.modelo.representacao` (preservado, não movido); a
+5C acrescenta a maquinaria de lowering, conversão de tipos e renderização.
+
+| Âncora | Responsabilidade |
+|---|---|
+| `ir.lowering.programa-orquestracao` | Entrada `lower_program`: cria o contexto, despacha constantes/funções e monta `ProgramIR`. |
+| `ir.lowering.contexto-declaracoes` | 1ª metade de `from_program`: coleta aliases, structs/campos/offsets, variantes de leque, assinaturas e tipos de constantes do programa. |
+| `ir.lowering.assinaturas-intrinsecos` | 2ª metade de `from_program`: catálogo centralizado de assinaturas das intrínsecas embutidas/internas + montagem do contexto. |
+| `ir.lowering.funcoes-blocos` | `FunctionLowerer`: parâmetros, bloco de entrada, locais, `FunctionIR`/`BlockIR`; inclui os resolvedores de método de `impl`. |
+| `ir.lowering.comandos-controle` | Lowering de `Stmt` → `InstructionIR` (declaração, stores, retorno, `falar`, asm, `talvez`/`sempre que` estruturados com destinos de laço). |
+| `ir.lowering.expressoes-valores` | Grande despachante `lower_value` → `TypedValueIR` (literais, chamadas/métodos, intrínsecas de lista/mapa, leques, campos/offsets, cast, `peso`/`alinhamento`). |
+| `ir.lowering.bindings-escopos` | Normalização de nomes em slots `%nome#N`, pilha de escopos, coleta de `LocalIR` e geração de rótulos. |
+| `ir.lowering.constantes` | `lower_const`: abaixa o inicializador e o tipo de uma constante global em `ConstIR`. |
+| `ir.renderizacao.textual` | `render_function`/`render_block`/`render_instruction`/`render_value` — forma textual auditável da IR. |
+| `ir.tipos.conversao-ast` | `TypeIR::from_ast_*`: conversão mecânica `Type` → `TypeIR` (aliases, redução de leques, arrays/ponteiros/structs, recusa de função/genérico). |
+
+**Separação de responsabilidades (§3):** o **modelo** (`ir.modelo.representacao`)
+define as estruturas; o **lowering** (`ir.lowering.*`) transforma AST → IR; a
+**validação** (`ir.validacao.invariantes`, em `src/ir_validate.rs`, intocada)
+confere invariantes; a **renderização** (`ir.renderizacao.textual`) produz texto;
+o **CFG** (`src/cfg_ir.rs`, Onda 5D) é que divide o fluxo em blocos básicos. Nesta
+camada `if`/`while` ainda são estruturas aninhadas, `break`/`continue` carregam
+destinos simbólicos e não há SSA, terminadores nem blocos básicos.
+
+**Decisão sobre `LoweringContext::from_program` (§7):** a função (~1025 linhas)
+foi dividida em **duas regiões adjacentes** (não aninhadas) no seio da própria
+função — `contexto-declaracoes` (fatos derivados do programa) e
+`assinaturas-intrinsecos` (catálogo embutido) — porque a segunda metade é um
+catálogo repetitivo e volumoso com contrato distinto. Não se criou uma região por
+família de intrínseca nem por comentário de fase (§6.3): o catálogo é uma única
+responsabilidade conceitual.
+
+**Granularidade de `lower_value` (§6.6):** permanece **uma região ampla**
+(`expressoes-valores`), pois é um despachante único e fortemente interligado;
+não foi refatorado para gerar regiões menores.
+
+**Helpers deliberadamente não ancorados (§11):** a entrada pública
+`render_program` (fica junto a `lower_program`, fisicamente separada do restante
+da renderização; é um wrapper fino que delega às funções ancoradas em
+`ir.renderizacao.textual`); `resolve_type`, `resolve_struct_name_from_type` e
+`pointer_to_bombom_array_size` (helpers de resolução consumidos pelo lowering);
+os predicados/nomeação de `TypeIR`, e os `impl` de `ScalarTypeIR`/`UnaryOpIR`/
+`BinaryOpIR` (métodos de modelo). Nenhum tem responsabilidade consultável própria.
+
+**Limitações registradas (não corrigidas):** leques abaixam para `bombom`
+(discriminante/handle) sem tipo nominal na IR; structs dependem de nome auxiliar e
+offsets; ponteiros carregam apenas volatilidade. São representações efetivas da
+fase, não bugs; nenhuma mensagem de erro foi alterada.
+
+## Onda 5D+ — lowerings restantes, execução, orquestração (adiadas)
+
+Inventariados; revisão atual `estrutural` (exceto frontend e AST→IR, agora
+integrais). Cada camada de lowering é sua própria onda, para não reintroduzir um
+PR transversal enorme.
 
 | Arquivo | Camada | Propósito (do módulo-doc/estrutura) | Complexidade | Âncoras atuais | Onda-alvo |
 |---|---|---|---|---|---|
-| `src/ir.rs` (lowering) | ir | Lowering AST→IR (`lower_program`, `LoweringContext`, `FunctionLowerer`). | transversal | modelo ancorado | 5C |
 | `src/cfg_ir.rs` (lowering) | cfg | Lowering IR→CFG; contém `cfg.logica.*`. | transversal | `cfg.logica.*` | 5D |
 | `src/instr_select.rs` (lowering) | select | Lowering CFG→seleção. | alta | modelo ancorado | 5E |
 | `src/abstract_machine.rs` (lowering) | machine | Lowering seleção→máquina. | alta | modelo ancorado | 5E |
@@ -285,16 +337,16 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 5B)
+## Cobertura acumulada (após Onda 5C)
 
 | Métrica | Valor |
 |---|---:|
 | Arquivos de produção em `src/` (excl. gerados e fixtures) | 30 |
 | Arquivos com responsabilidade ancorada | 26 |
 | Arquivos apenas inventariados (estrutural) | 4 |
-| Regiões antes da Onda 5B | 63 |
-| Regiões adicionadas na Onda 5B | 7 |
-| Regiões no catálogo | 70 |
+| Regiões antes da Onda 5C | 70 |
+| Regiões adicionadas na Onda 5C | 10 |
+| Regiões no catálogo | 80 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
 
@@ -311,29 +363,29 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 | lexer | 2 | espaços-comentários, tokenização (Onda 4) |
 | parser | 22 | Onda 4 (15): núcleo, programa, tipos, declarações, encaixe, resultado, closures, funções, constantes, comandos, for-each, precedência, primárias, postfix, interpolação; Onda 5B (7): identidade-especialização, leques-template, substituição-ast, callbacks (substituição/instanciação estática), funções-instanciação, leques-instanciação |
 | ast | 5 | programa, tipos, comandos, expressões, serialização |
-| ir | 2 | modelo + validador |
+| ir | 12 | modelo + validador (Onda 3); Onda 5C (10): programa-orquestração, contexto-declarações, assinaturas-intrínsecos, funções-blocos, comandos-controle, expressões-valores, bindings-escopos, constantes, renderização textual, conversão de tipos AST→IR |
 | cfg | 4 | modelo + validador + `cfg.logica.*` (históricas) |
 | select | 2 | modelo + validador |
 | machine | 2 | modelo + validador |
 | backend-text | 1 | validador |
 | semantic | 10 | importações, sistema de tipos, escopos, duas-passagens, tratos, funções, comandos, fluxo, expressões, chamadas (Onda 5A) |
 | trama | 10 | normalização, jsonl, marco, catálogos e consultas doc/código, manifesto, ledger, projeções |
-| **total** | **70** | |
+| **total** | **80** | |
 
-Pendentes (sem âncora): lowerings de ir (5C), cfg (5D), select/machine (5E),
+Pendentes (sem âncora): lowerings de cfg (5D), select/machine (5E),
 interpreter/backend-s/runtime (Onda 6), cli/editor/boot (Onda 7), tests/apps
 (Ondas 8/9, após ampliar raízes).
 
 ## Próximo ponto de retomada
 
-**Onda 5C — lowering AST → IR em `src/ir.rs`:** ancorar a descida da AST
-semanticamente válida para a representação intermediária. Trata posteriormente:
-`LoweringContext`; coleta de assinaturas e declarações; transformação de tipos
-AST → `TypeIR`; lowering de constantes; lowering de funções; slots e escopos;
-lowering de comandos; lowering de expressões; e structs, leques, coleções e
-intrínsecas na IR. **Somente `src/ir.rs`** — não atribuir CFG, seleção ou máquina
-à 5C. Preservar as fronteiras: `5D — IR → CFG` (`src/cfg_ir.rs`, conectando às
-âncoras `cfg.logica.*` já existentes sem duplicá-las) e `5E — CFG → seleção →
-máquina` (`src/instr_select.rs` + `src/abstract_machine.rs`). Não modificar
-`src/parser.rs` (concluído na Onda 5B) nem `src/semantic.rs` (Onda 5A), nem
-antecipar execução, backends ou runtime (Onda 6).
+**Onda 5D — lowering IR → CFG em `src/cfg_ir.rs`:** ancorar a divisão do fluxo
+estruturado em blocos básicos. Trata posteriormente: entrada `ProgramIR`; criação
+de funções e blocos básicos do CFG; transformação de `BlockIR`; flattening de
+`if`/`while`; geração de rótulos e terminadores; saltos; joins; destinos de
+`quebrar`/`continuar`; temporários; e integração com `cfg_ir_validate`. Preservar
+sem duplicar as âncoras `cfg.logica.curto-circuito` e `cfg.logica.slot-logico` já
+existentes. **Somente `src/cfg_ir.rs`** — não atribuir seleção ou máquina à 5D
+(seguem para `5E — CFG → seleção → máquina`, `src/instr_select.rs` +
+`src/abstract_machine.rs`). Não modificar `src/ir.rs` (concluído na Onda 5C),
+`src/parser.rs` (5B) nem `src/semantic.rs` (5A), nem antecipar execução, backends
+ou runtime (Onda 6).
