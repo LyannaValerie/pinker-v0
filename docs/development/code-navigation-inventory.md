@@ -30,7 +30,9 @@ AST → IR → CFG → seleção → máquina e a execução hospedada. A **Onda
 decomposta em entregas independentes: 6A (`src/interpreter.rs`), 6B
 (`src/backend_text.rs`), 6C (`src/backend_s.rs`), 6D (ampliação controlada das
 raízes do scanner) e 6E (`runtime/pinker_rt/src/lib.rs`). Esta rodada conclui
-exclusivamente a **Onda 6B**: cartografia do backend textual (pseudo-assembly).
+exclusivamente a **Onda 6C**: cartografia do backend `.s` e da ABI nativa —
+os três caminhos públicos, o modelo externo `ExternalCallConvProgram`, o
+lowering montável, a ABI SysV, a renderização e a integração com `pinker_rt`.
 
 ## Contrato do scanner (limitação registrada)
 
@@ -620,13 +622,160 @@ situados entre os renderizadores e ficam **sem âncora** (documentado no código
 - **§7.7 Renderização:** strings são emitidas entre aspas **sem escape** de aspas,
   barras ou caracteres de controle.
 
-## Onda 6C–6E e orquestração (adiadas)
+## Onda 6C — backend `.s` e ABI nativa (concluída)
+
+`src/backend_s.rs` **integralmente revisado** (linha a linha) e cartografado. O
+arquivo hospeda **três superfícies conceituais distintas** que não podem ser
+descritas como um único backend, uma única representação ou uma única política
+de validação. A Onda 6C separa-as em 24 regiões.
+
+**Os três caminhos públicos** — todos recebem `&SelectedProgram`, mas diferem na
+representação intermediária e no renderer:
+
+| Função pública | Entrada | Validação | Representação intermediária | Renderer | Consumidor real | Runtime |
+|---|---|---|---|---|---|---|
+| `emit_from_selected` | `&SelectedProgram` | `validate_supported_subset` | `BackendTextProgram` (via `backend_text::lower_selected_program`) | `render_program` | caminho `.s` textual (`--asm-s`) | não |
+| `emit_external_toolchain_subset` | `&SelectedProgram` | embutida em `extract_external_callconv_program` | `ExternalCallConvProgram` | `render_external_x86_64_linux_callconv_impl(.., false)` | `pink build` (toolchain externa) | não (mas emite refs a `pinker_rt` se há `falar`/intrínsecas) |
+| `emit_external_toolchain_subset_nativo` | `&SelectedProgram` | embutida em `extract_external_callconv_program` | `ExternalCallConvProgram` | `render_external_x86_64_linux_callconv_impl(.., true)` | `pink build --nativo` | sim (`pinker_rt_iniciar` + `libpinker_rt.a`) |
+
+O caminho textual **não** compartilha representação com os dois caminhos
+montáveis: `BackendTextProgram` (metadados `abi.*` como comentários, operações
+ainda abstratas) ≠ `ExternalCallConvProgram` (corpos de bloco já textualizados em
+`Vec<String>`, frames, offsets, ABI SysV real). O `.s` textual **não** é
+assembly GAS montável; os dois caminhos externos sim.
+
+| Âncora | Responsabilidade |
+|---|---|
+| `backend-s.pipeline.textual-selecionado` | `emit_from_selected`: entrada do `.s` textual; valida subset textual, delega a `backend_text::lower_selected_program` e serializa com `render_program`. |
+| `backend-s.pipeline.toolchain-externa` | `emit_external_toolchain_subset`: entrada do montável hospedado; constrói `ExternalCallConvProgram` e renderiza com `runtime_init=false`. |
+| `backend-s.pipeline.nativo-runtime` | `emit_external_toolchain_subset_nativo`: entrada do build nativo; mesma representação externa, `runtime_init=true` (chama `pinker_rt_iniciar`). |
+| `backend-s.validacao.subset-textual` | `validate_supported_subset`: subset aceito **só** pelo caminho textual (`is_supported_type`), independente das validações do caminho montável. |
+| `backend-s.modelo.callconv-externa` | `ExternalCallConvProgram` e componentes; corpos de bloco em `Vec<String>`, papéis de registrador fixos; **não** é `BackendTextProgram`. |
+| `backend-s.abi.registradores-argumentos` | `REG_RET`/`ARG_REGS`/`REG_TMP`: papéis fixos SysV; args 7+ pela pilha com padding de 16. |
+| `backend-s.lowering.globais-rodata` | Início de `extract_external_callconv_program`: dedup de globais, `bombom`/`logica` literais em `.rodata`, exigência de `principal`. |
+| `backend-s.lowering.funcoes-frames` | Validação por função + `slot_offsets` (8 bytes/slot, param→local→temp), `raw_stack`, `stack_size` arredondado a 16. |
+| `backend-s.lowering.blocos-terminadores` | Abertura do laço de blocos + seleção de terminador (`Jmp`/`Br`/`Ret`, rodata de `verso` de retorno). |
+| `backend-s.lowering.operacoes-memoria` | Corpo: `Mov`, aritmética linear, comparações, `DerefLoad`/`DerefStore` mínimos, `Cast` `u32↔u64`. |
+| `backend-s.lowering.chamadas-sysv` | `Call` (ternário via `cmov`, resolução de intrínsecas, ABI SysV com args de pilha) e `CallVoid`. |
+| `backend-s.lowering.falar-runtime` | `Falar` (chamadas a `pinker_falar_*`) + catch-all do subset. |
+| `backend-s.renderizacao.callconv-programa` | Cabeçalho + `.rodata` (globais e strings length-prefixed) do renderer montável. |
+| `backend-s.abi.prologo-parametros` | Prólogo montável: `principal`→`main`, `pushq %rbp`, `pinker_rt_iniciar` condicional, reserva de frame, stores de parâmetros. |
+| `backend-s.abi.blocos-terminadores` | Emissão montável de blocos e terminadores (`jmp`/`cmpq $0`+`jne`/`leave`+`ret`). |
+| `backend-s.lowering.operacoes-lineares` | `lower_linear_binop` + os seis `lower_cmp_*` (`set*`/`movzbq`, comparações unsigned). |
+| `backend-s.lowering.operandos-slots` | `collect_temp_ids`, `load_operand` (imediatos/slots/global RIP/`leaq` de string) e `temp_key`. |
+| `backend-s.validacao.labels-tipos` | `validate_external_block_labels` + predicados de tipo do caminho montável. |
+| `backend-s.runtime.intrinsecas-por-aridade` | Resolução de intrínsecas de aridade variável (`pinker_formatar_verso_N`, processos). |
+| `backend-s.runtime.simbolos-intrinsecas` | Catálogo estático `runtime_intrinsic_symbol` (texto/listas/mapas/arquivo/tempo/acaso/ambiente/leques). |
+| `backend-s.dados.strings-rodata` | Dedup de literais `verso`, labels `.Lpinker_verso_N`, `escape_gas_string`. |
+| `backend-s.renderizacao.abi-textual-programa` | `render_program`: `.s` textual baseado em `BackendTextProgram` (metadados `abi.*` como comentários, freestanding). |
+| `backend-s.renderizacao.abi-textual-instrucoes` | `render_instruction`/`render_terminator` textuais. |
+| `backend-s.renderizacao.abi-textual-componentes` | `render_operand`/`render_unary`/`render_binop`/metadados `@arg`/`@ret`. |
+
+**Decisões de granularidade (§8):**
+
+- **`extract_external_callconv_program` (~566 linhas) foi dividido**, não mantido
+  amplo: seis regiões contíguas dentro da função (`globais-rodata`,
+  `funcoes-frames`, `blocos-terminadores`, `operacoes-memoria`, `chamadas-sysv`,
+  `falar-runtime`) seguindo responsabilidades físicas reais.
+- **O `match` de `SelectedInstr` não teve braços movidos.** Dados/memória
+  (`Mov`/aritmética/comparação/`Deref`/`Cast`) ficam em `operacoes-memoria`;
+  `Call`/`CallVoid` em `chamadas-sysv`; `Falar` e o catch-all em `falar-runtime`.
+- **Renderers separados por representação:** o montável (`callconv-programa` +
+  `abi.prologo-parametros` + `abi.blocos-terminadores`, sobre
+  `ExternalCallConvProgram`) e o textual (`abi-textual-*`, sobre
+  `BackendTextProgram`) são domínios/regiões distintos.
+- **Catálogo de símbolos do runtime** dividido em duas regiões: resolução por
+  aridade (`intrinsecas-por-aridade`) e o catálogo estático amplo
+  (`simbolos-intrinsecas`) — **sem** uma região por intrínseca nem `runtime.tudo`.
+- **Helpers dobrados:** `temp_key` em `operandos-slots`; `is_arity_runtime_intrinsic`
+  em `intrinsecas-por-aridade`; `register_rodata_strings_for_operand`/
+  `escape_gas_string` em `dados.strings-rodata`; os seis `lower_cmp_*` numa única
+  região com `lower_linear_binop`.
+- **Helpers deliberadamente não ancorados (plumbing):** `ensure_dest_is_local_or_param`
+  (entre o renderer montável e os helpers de lowering), o rabo de montagem de
+  `extract_external_callconv_program` (`blocks.push`/`functions.push`/`Ok(..)`) e
+  `line`/`err` no fim do arquivo.
+- Não se criou região por opcode, por variante de enum nem por intrínseca (§5).
+
+**Auditorias registradas (não corrigidas, §7):**
+
+- **§7.1 Três entradas públicas:** todas recebem `&SelectedProgram`; diferem em
+  representação intermediária (`BackendTextProgram` × `ExternalCallConvProgram`),
+  validação (subset textual × validações embutidas), renderer e consumidor
+  (`--asm-s` × `pink build` × `pink build --nativo`). As duas externas diferem
+  **apenas** pelo `runtime_init`.
+- **§7.2 `.s` textual × montável:** `render_program(&BackendTextProgram)` emite
+  `mov $slot`/`unop`/`binop`, `@arg`/`@ret` e metadados `abi.*` como **comentários**
+  `;` — convenções textuais, **não** montáveis diretamente por GAS. O modo
+  freestanding embute `boot.entry`/linker script/kernel stub/`.Lpinker_hang`
+  **só** nesse renderer. Difere estruturalmente do assembly x86 real de
+  `render_external_x86_64_linux_callconv_impl`. Sem equivalência presumida.
+- **§7.3 Modelo externo e perda de informação:** `ExternalCallConvProgram`
+  preserva nome de função, `stack_size`, `slot_offsets`, labels, params e globais/
+  strings de `.rodata`; **descarta** tipos de retorno/parâmetro/local, nomes de
+  parâmetro estruturados, temporários estruturados, spans, volatilidade,
+  terminadores estruturados e `is_freestanding` — os corpos de bloco viram
+  `Vec<String>` já textualizados.
+- **§7.4 Target/portabilidade:** target único Linux x86-64, sintaxe GAS AT&T,
+  ABI SysV, registradores físicos codificados diretamente; sem abstração de target.
+- **§7.5 Stack frame:** ordem param→local→temp; **todo slot ocupa 8 bytes** mesmo
+  para tipos menores; `raw_stack = (slot_index-1)*8`; frame arredondado a 16 (0
+  sem slots); prólogo `pushq %rbp`/`movq %rsp,%rbp`/`subq`; 6 primeiros params dos
+  `ARG_REGS`, 7º+ de `16(%rbp)`; epílogo `leave`+`ret`.
+- **§7.6 ABI de chamadas:** `%rax` retorno; 6 `ARG_REGS`; args extra empilhados do
+  último ao primeiro com padding; `addq` de limpeza após `call`; retorno guardado
+  em temporário; `CallVoid` sem store. Conformidade SysV não declarada só pelos
+  comentários — o comportamento real foi descrito.
+- **§7.7 Aritmética/comparações/signedness:** suportadas `Add`/`Sub`/`Mul`
+  (`addq`/`subq`/`imulq`) e as seis comparações (`set*`+`movzbq`), **sempre
+  unsigned** (`setb`/`seta`/`setbe`/`setae`); divisão, módulo, shift e bitwise
+  **não** são lowerados (catch-all). Sem política de overflow própria.
+- **§7.8 Memória indireta/volatilidade:** `DerefLoad`/`DerefStore` aceitam só
+  `bombom`/`u32`/`u64`, **sempre `movq` de 8 bytes** (não estreita `u32`);
+  `is_volatile=true` é recusado (só `Pointer{is_volatile:false}`). Offsets de
+  campo/array vêm do lowering anterior. Difere do interpretador hospedado.
+- **§7.9 Casts:** só `u32→u64` e `u64→u32` a partir de slot tipado (consulta
+  `slot_types`), emitindo `movl %eax, %eax`; outros casts recusados.
+- **§7.10 Globais/strings:** globais só `bombom`/`logica` literais, dedup por nome,
+  `.section .rodata`/`.quad`; strings dedup por valor, layout `[.quad tamanho]
+  [.ascii bytes]`, `escape_gas_string` trata `\`/`"`/`\n`/`\t` — **caracteres de
+  controle não tratados passam crus**; carga RIP-relative (`leaq`).
+- **§7.11 Labels/símbolos:** exige bloco `entry`, recusa label duplicado, valida
+  alvos de `jmp`/`br`; prefixo `.L<fn>_<label>`; `principal`→`main`; nomes de
+  função/global usados diretamente como símbolos **sem sanitização** — colisões
+  possíveis não são checadas.
+- **§7.12 Ternário:** `__ternario(cond,a,b)` é tratado especialmente — exige
+  aridade 3, avalia ambos os lados eager, usa `%rax`/`%r10`/`%r11`, `cmpq $0` +
+  `cmoveq`, **sem `call` real**.
+- **§7.13 `falar`:** instrução própria; cada pedaço → `pinker_falar_pedaco_verso`/
+  `_logica`/`_bombom`, `pinker_falar_espaco` como separador, `pinker_falar_fim` ao
+  final. O caminho hospedado (não nativo) **também** emite referências a esses
+  símbolos de `pinker_rt` — não há independência completa de `libpinker_rt.a`.
+- **§7.14 Intrínsecas/símbolos do runtime:** resolução por nome
+  (`runtime_intrinsic_symbol`) e por aridade
+  (`runtime_intrinsic_symbol_por_aridade`); famílias de texto/lista/mapa/arquivo/
+  caminho/processo/tempo/ambiente/acaso/leque; função inexistente → erro. **Mapear
+  um símbolo não prova paridade** com `runtime/pinker_rt` (não cartografado nesta
+  onda).
+- **§7.15 Inicialização nativa:** `runtime_init && symbol=="main"` → `call
+  pinker_rt_iniciar` logo após `movq %rsp,%rbp` (pilha alinhada a 16), **antes** da
+  reserva de frame; `argc`/`argv` pela ABI C do `main`. É a **única** diferença
+  observável entre os dois caminhos externos.
+- **§7.16 Freestanding:** `is_freestanding`, `FREESTANDING_BOOT_ENTRY_SYMBOL`/
+  `_FUNCTION`, linker script e kernel stub textuais e o loop `.Lpinker_hang`
+  pertencem **só** ao renderer baseado em `BackendTextProgram`; o
+  `ExternalCallConvProgram` **descarta** a intenção freestanding.
+- **§7.17 Diagnósticos:** todos os erros usam `PinkerError::BackendTextValidation`
+  com span sintético `(1,1)` via `err`; validações espalhadas pelo lowering
+  garantem as invariantes que os `.expect` do renderer montável (condição/retorno
+  carregáveis) assumem.
+
+## Onda 6D–6E e orquestração (adiadas)
 
 Inventariados; revisão atual `estrutural` para as camadas ainda pendentes.
 
 | Arquivo | Camada | Propósito (do módulo-doc/estrutura) | Complexidade | Âncoras atuais | Onda-alvo |
 |---|---|---|---|---|---|
-| `src/backend_s.rs` | backend-s | Emissão de `.s` e toolchain nativa (ABI SysV, alinhamento, chamadas ao runtime). | alta | — | 6C |
 | `src/nav.rs` | trama | Ampliação controlada das raízes do scanner antes de catalogar runtime fora de `src/`. | alta | `trama.codigo.*` | 6D |
 | `runtime/pinker_rt/src/lib.rs` | runtime | Runtime nativo linkado por `pink build --nativo`; alocação, coleções nativas, ABI. **Fora do scanner atual.** | transversal | — | 6E (após ampliar raízes) |
 | `src/main.rs` | cli | Orquestração da CLI: parsing de flags, roteamento, pipeline de análise/build, importação de módulos, link nativo, comandos `doc`/`nav`. | transversal | — | 7 |
@@ -655,16 +804,16 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 6B)
+## Cobertura acumulada (após Onda 6C)
 
 | Métrica | Valor |
 |---|---:|
 | Arquivos de produção em `src/` (excl. gerados e fixtures) | 30 |
-| Arquivos com responsabilidade ancorada | 28 |
-| Arquivos apenas inventariados (estrutural) | 2 |
-| Regiões antes da Onda 6B | 115 |
-| Regiões adicionadas na Onda 6B | 8 |
-| Regiões no catálogo | 123 |
+| Arquivos com responsabilidade ancorada | 29 |
+| Arquivos apenas inventariados (estrutural) | 1 |
+| Regiões antes da Onda 6C | 123 |
+| Regiões adicionadas na Onda 6C | 24 |
+| Regiões no catálogo | 147 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
 
@@ -687,28 +836,22 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 | machine | 9 | modelo + validador; Onda 5E (7): programa-blocos, instruções-pilha, terminadores, operandos-slots, renderização programa/apresentação/componentes |
 | interpreter | 15 | modelo/estado, execução (programa, fluxo, instruções, valores/tipos), intrínsecos hospedados (8 regiões: acaso, listas, mapas-verso-bombom, leques, io-arquivo-texto, tempo-processos-ambiente, conversões-número-texto, mapas-tipados), serviços auxiliares do host, diagnóstico |
 | backend-text | 9 | validador; Onda 6B (8): modelo, lowering (cfg-programa, seleção-programa, instruções-selecionadas), pipeline emissão, renderização (programa, instruções, componentes) |
+| backend-s | 24 | Onda 6C: pipeline (textual-selecionado, toolchain-externa, nativo-runtime), validação (subset-textual, labels-tipos), modelo (callconv-externa), abi (registradores-argumentos, prólogo-parâmetros, blocos-terminadores), lowering (globais-rodata, funções-frames, blocos-terminadores, operações-memória, chamadas-sysv, falar-runtime, operações-lineares, operandos-slots), renderização (callconv-programa, abi-textual programa/instruções/componentes), runtime (intrínsecas-por-aridade, símbolos-intrínsecas), dados (strings-rodata) |
 | semantic | 10 | importações, sistema de tipos, escopos, duas-passagens, tratos, funções, comandos, fluxo, expressões, chamadas (Onda 5A) |
 | trama | 10 | normalização, jsonl, marco, catálogos e consultas doc/código, manifesto, ledger, projeções |
-| **total** | **123** | |
+| **total** | **147** | |
 
-Pendentes de cartografia: backend-s (6C), ampliação de raízes do scanner (6D),
-runtime nativo (6E), cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após
-ampliar raízes).
+Pendentes de cartografia: ampliação de raízes do scanner (6D), runtime nativo
+(6E), cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após ampliar raízes).
 
 ## Próximo ponto de retomada
 
-**Onda 6C — backend `.s` e ABI nativa em `src/backend_s.rs`.** A próxima entrega
-deve cartografar a emissão de assembly nativo: ABI SysV, alinhamento,
-prólogo/epílogo, chamadas ao runtime e serialização `.s`. **Atenção — os três
-caminhos públicos de `src/backend_s.rs` recebem todos `&SelectedProgram`
-(`emit_from_selected`, `emit_external_toolchain_subset`,
-`emit_external_toolchain_subset_nativo`); a diferença está na representação
-intermediária, e a 6C deve auditá-los separadamente:** `emit_from_selected` valida
-o subset, passa pelo `BackendTextProgram` (via `backend_text::lower_selected_program`)
-e o renderiza, enquanto `emit_external_toolchain_subset` e a variante `_nativo`
-constroem diretamente `ExternalCallConvProgram` (via
-`extract_external_callconv_program`), **sem** passar pelo `BackendTextProgram` da 6B.
-Não descrever genericamente `backend_s` como consumidor do `BackendTextProgram`.
-Preservar os modelos e validadores existentes; não modificar `src/backend_text.rs`
-(concluído na 6B). Permanecem depois: 6D — ampliação controlada das raízes do
-scanner; 6E — runtime nativo `pinker_rt` (fora da raiz atual do scanner).
+**Onda 6D — ampliação controlada das raízes do scanner em `src/nav.rs`.** O
+scanner de `pink nav` indexa hoje **somente `src/**/*.rs`** (ver
+`trama.codigo.catalogo`: os caminhos são derivados com prefixo `src/`). A 6D deve
+preparar o scanner para arquivos fora de `src/` — com testes próprios, sem
+quebrar o contrato do catálogo (chaves únicas, sem sobreposição, hash
+determinístico) — habilitando a cartografia posterior de `runtime/pinker_rt`
+(6E). **Não** antecipar a cartografia de `runtime/pinker_rt` nesta preparação.
+Permanecem depois: 6E — runtime nativo `pinker_rt`; Onda 7 — cli/editor/boot;
+Ondas 8/9 — tests/apps.

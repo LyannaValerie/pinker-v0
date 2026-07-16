@@ -95,9 +95,9 @@ fn catalogo_deterministico() {
 /// O catálogo real versionado contém as chaves essenciais do frontend (Onda 4),
 /// da checagem semântica (Onda 5A), da monomorfização no parser (Onda 5B), do
 /// lowering AST→IR (Onda 5C), do lowering IR→CFG (Onda 5D), da seleção→máquina
-/// (Onda 5E), da execução hospedada (Onda 6A), do backend textual (Onda 6B) e as
-/// âncoras históricas, todas únicas. Verifica presença e unicidade — não um
-/// número exato permanente de regiões.
+/// (Onda 5E), da execução hospedada (Onda 6A), do backend textual (Onda 6B), do
+/// backend `.s` e ABI nativa (Onda 6C) e as âncoras históricas, todas únicas.
+/// Verifica presença e unicidade — não um número exato permanente de regiões.
 #[test]
 fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
@@ -185,6 +185,19 @@ fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
         "backend-text.pipeline.emissao",
         "backend-text.renderizacao.programa",
         "backend-text.renderizacao.instrucoes",
+        // Backend `.s` e ABI nativa (Onda 6C): superfície textual, modelo
+        // externo, lowering externo, ABI, renderização e runtime.
+        "backend-s.pipeline.textual-selecionado",
+        "backend-s.pipeline.toolchain-externa",
+        "backend-s.pipeline.nativo-runtime",
+        "backend-s.validacao.subset-textual",
+        "backend-s.modelo.callconv-externa",
+        "backend-s.abi.registradores-argumentos",
+        "backend-s.lowering.chamadas-sysv",
+        "backend-s.abi.prologo-parametros",
+        "backend-s.renderizacao.callconv-programa",
+        "backend-s.runtime.simbolos-intrinsecas",
+        "backend-s.renderizacao.abi-textual-programa",
     ] {
         assert!(
             catalog.region(essential).is_some(),
@@ -443,5 +456,93 @@ fn dominios_verticais_genericos_e_callbacks_distintos() {
     assert!(
         genericos.iter().all(|k| !callbacks.contains(k)),
         "genericos e callbacks não podem compartilhar chaves"
+    );
+}
+
+/// A camada `backend-s` (Onda 6C) distingue as três entradas públicas
+/// (`pipeline`), o modelo externo, a validação, o lowering externo, a ABI, a
+/// renderização (montável e textual) e a integração com o runtime, em domínios
+/// distintos e disjuntos. Cada um dos três caminhos públicos tem chave própria e
+/// a representação `.s` textual (`renderizacao.abi-textual-*`) é separada do
+/// renderer montável (`renderizacao.callconv-programa`). Verifica presença e
+/// disjunção — sem fixar o total de regiões.
+#[test]
+fn camada_backend_s_separa_pipelines_lowering_abi_e_renderizacao() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    let by_domain = |domain: &str| -> Vec<&str> {
+        catalog
+            .regions
+            .iter()
+            .filter(|r| {
+                r.layer.as_deref() == Some("backend-s") && r.domain.as_deref() == Some(domain)
+            })
+            .map(|r| r.key.as_str())
+            .collect()
+    };
+
+    // Os oito domínios da onda existem, cada um com ao menos uma região própria.
+    let dominios = [
+        "pipeline",
+        "modelo",
+        "validacao",
+        "lowering",
+        "abi",
+        "renderizacao",
+        "runtime",
+        "dados",
+    ];
+    for domain in dominios {
+        assert!(
+            !by_domain(domain).is_empty(),
+            "domínio backend-s.{domain} ausente"
+        );
+    }
+
+    // Os domínios são disjuntos: nenhuma chave aparece em dois deles.
+    for (i, a) in dominios.iter().enumerate() {
+        for b in &dominios[i + 1..] {
+            let da = by_domain(a);
+            let db = by_domain(b);
+            assert!(
+                da.iter().all(|k| !db.contains(k)),
+                "domínios backend-s.{a} e backend-s.{b} não podem compartilhar chaves"
+            );
+        }
+    }
+
+    // As três entradas públicas são caminhos distintos, com chave própria.
+    let pipeline = by_domain("pipeline");
+    for entrada in [
+        "backend-s.pipeline.textual-selecionado",
+        "backend-s.pipeline.toolchain-externa",
+        "backend-s.pipeline.nativo-runtime",
+    ] {
+        assert!(
+            pipeline.contains(&entrada),
+            "entrada pública {entrada} ausente no domínio pipeline"
+        );
+    }
+
+    // O lowering externo tem várias regiões próprias.
+    assert!(
+        by_domain("lowering").len() >= 4,
+        "backend-s.lowering deveria ter várias regiões: {:?}",
+        by_domain("lowering")
+    );
+
+    // A representação `.s` textual (baseada em `BackendTextProgram`) é separada do
+    // renderer montável (baseado em `ExternalCallConvProgram`).
+    let render = by_domain("renderizacao");
+    assert!(
+        render.contains(&"backend-s.renderizacao.callconv-programa"),
+        "renderer montável ausente"
+    );
+    assert!(
+        render
+            .iter()
+            .any(|k| k.starts_with("backend-s.renderizacao.abi-textual-")),
+        "renderer `.s` textual ausente"
     );
 }
