@@ -25,11 +25,12 @@ receberam âncoras `@pinker-nav`. O endereçamento para máquinas vive no catál
 substitui.
 
 A cartografia avança em **ondas**, do mais simples ao mais complexo. Cada onda é
-útil sozinha. As **Ondas 0–5D** já estão na `main`; esta rodada adiciona a
-**Onda 5E** (lowering CFG → seleção → máquina em `src/instr_select.rs` e
-`src/abstract_machine.rs`), fechando a cadeia de lowerings. A execução, os
-backends e o runtime (Onda 6) e as demais camadas seguem inventariados e
-explicitamente adiados.
+útil sozinha. As **Ondas 0–5E** já estão na `main`, fechando a cadeia de lowerings
+AST → IR → CFG → seleção → máquina. A **Onda 6** foi decomposta em entregas
+independentes: 6A (`src/interpreter.rs`), 6B (`src/backend_text.rs`), 6C
+(`src/backend_s.rs`), 6D (ampliação controlada das raízes do scanner) e 6E
+(`runtime/pinker_rt/src/lib.rs`). Esta rodada conclui exclusivamente a **Onda
+6A**: cartografia do interpretador hospedado da máquina abstrata.
 
 ## Contrato do scanner (limitação registrada)
 
@@ -425,17 +426,119 @@ de papéis de bloco por prefixo de label — é responsabilidade distinta do low
 `lower_falar_arg` foram dobrados nas regiões de instruções; `line` está incluído nos
 componentes de renderização. Não há plumbing isolado relevante nesta onda.
 
-## Onda 6+ — execução, backends, orquestração (adiadas)
+## Onda 6A — interpretador da máquina abstrata (concluída)
 
-Inventariados; revisão atual `estrutural` (exceto frontend e toda a cadeia de
-lowerings, agora integrais).
+`src/interpreter.rs` foi **integralmente revisado** (linha a linha). A cartografia
+desta onda torna navegável o runtime hospedado do interpretador: entrada de um
+`MachineProgram` já validado, frames, slots, pilha, memória indireta simulada,
+despacho de intrínsecas e diagnóstico. A fronteira conceitual permanece: a
+máquina (`abstract_machine`) define a VM de pilha; o validador da máquina verifica
+invariantes estáticas; o interpretador executa a máquina dentro do processo Rust;
+o backend textual apenas renderiza uma forma intermediária; o backend `.s` emite
+assembly/ABI; `runtime/pinker_rt` é crate nativa separada, ainda fora da raiz do
+scanner. O estado hospedado daqui não é runtime nativo linkável.
+
+| Âncora | Responsabilidade |
+|---|---|
+| `interpreter.modelo.valores-estado` | Valores de execução, handles lógicos, estados de IO/listas/mapas/leques/aleatoriedade/arquivos e frames; diferencia handles, slots e endereços simulados de ponteiros nativos. |
+| `interpreter.execucao.programa-globais` | `run_program`/`run_program_with_args`, argumentos CLI, chamada de `principal`, `RunOutcome`, globais e memória inicial em `HashMap`. |
+| `interpreter.execucao.funcoes-fluxo` | `call_function`: profundidade, frames, aridade, labels, slots, pilha, percurso de blocos, terminadores e propagação de `sair`/erros com trace. |
+| `interpreter.execucao.instrucoes-pilha` | `exec_instr`: padrão desempilhar/operar/empilhar ou armazenar, slots/globais/memória simulada, chamadas, casts, aritmética e impressões de `falar`. |
+| `interpreter.intrinsecos.acaso` | Geradores pseudoaleatórios hospedados iniciais, com handles próprios do interpretador. |
+| `interpreter.intrinsecos.listas` | Bloco contíguo de listas `bombom`/`verso`, handles tipados, índice e mutação. |
+| `interpreter.intrinsecos.mapas-verso-bombom` | Primeiro bloco contíguo de mapa `verso -> bombom` e cursores internos. |
+| `interpreter.intrinsecos.leques` | Leques hospedados por handle opaco, tag e payload inteiro/textual. |
+| `interpreter.intrinsecos.io-arquivo-texto` | Stdin, arquivos por handle, leitura/escrita/truncamento/fechamento, texto, CSV e JSON mínimo, com efeitos reais no host. |
+| `interpreter.intrinsecos.tempo-processos-ambiente` | Relógio, processos, argumentos CLI, ambiente, caminhos, `sair`, `afirmar`, `dormir` e filesystem direto. |
+| `interpreter.intrinsecos.conversoes-colecoes-tardias` | Conversões `verso`/`bombom`, `aleatorio_entre`, remoções e especializações tardias de mapas e lista, preservando a ordem física do dispatcher. |
+| `interpreter.hospedeiro.servicos-auxiliares` | Helpers de stdin, aleatoriedade, ambiente, formatação, CSV/JSON, tempo UTC e processos (`Command`, pipes, códigos de saída). |
+| `interpreter.execucao.valores-tipos` | Busca de função, `pop*`, coerções para `TypeIR`, ponteiros simulados, aritmética, comparação e signedness defensivos. |
+| `interpreter.diagnostico.stack-trace` | Erros enriquecidos, classificação, prevenção de trace duplicado, renderização/truncamento de frames e nomes de instruções. |
+
+**Granularidade de `try_call_intrinsic`:** o dispatcher foi dividido por
+intervalos contíguos reais, não por intrínseca. Como algumas famílias reaparecem
+fora do primeiro bloco (por exemplo mapas e listas tardias), foram usadas regiões
+factuais de intervalo (`mapas-verso-bombom` e `conversoes-colecoes-tardias`) sem
+mover braços nem criar região descontínua. Não há `interpreter.intrinsecos.tudo`
+e não há uma âncora por intrínseca.
+
+**Decisão para `exec_instr`:** uma única região cobre as variantes de
+`MachineInstr`, pois todas seguem a mesma disciplina de pilha/slots/memória e
+fragmentá-las criaria granularidade por instrução. `falar` aparece aqui como
+instruções explícitas (`Print*`), não como intrínseca.
+
+**Helpers de pilha e conversão:** `pop_args`, `pop`, `pop_numeric`, `pop_bool`,
+`pop_str`, coerções, casts, aritmética e comparação ficam juntos em
+`interpreter.execucao.valores-tipos`, pois são verificações dinâmicas defensivas,
+não o sistema estático de tipos.
+
+**Processos:** os braços de processo aparecem no intervalo
+`tempo-processos-ambiente`; os helpers `executar_*`, `pipeline_minimo`,
+`capturar_*`, validação de comando e código de saída ficam em
+`interpreter.hospedeiro.servicos-auxiliares`, porque não são contíguos ao
+dispatcher.
+
+**Auditorias registradas (não corrigidas):**
+
+- **Máquina validada × verificações defensivas:** o validador da máquina deve
+  garantir funções, labels, aridade, disciplina de pilha e slots/globais bem
+  formados, mas o interpretador ainda verifica defensivamente função inexistente,
+  aridade, label inexistente, underflow, tipo errado no topo, pilha inválida em
+  retorno, slot/global ausente e handle inválido. A sobreposição foi preservada.
+- **Memória simulada:** `build_memory` cria endereços `usize` sequenciais e
+  artificiais para globais que possuem valor inicial, armazena células em
+  `HashMap<usize, RuntimeValue>` e usa `RuntimeValue::Ptr(usize)`; `DerefLoad` e
+  `DerefStore` consultam esse mapa. Tamanho/alinhamento não produzem alocação
+  nativa; endereço desconhecido vira erro. Ponteiro nulo não tem semântica nativa
+  especial além de falhar se o endereço não existir.
+- **Volatilidade:** `DerefLoad`/`DerefStore` recebem `is_volatile`, mas o
+  comportamento observável do interpretador é o mesmo para operações voláteis e
+  não voláteis; helpers `*_fragil`/normal retornam/armazenam de forma equivalente.
+- **Inteiros e overflow:** `Int` (`u64`) e `IntSigned` (`i64`) são preservados;
+  divisões e módulos por zero são erro; signedness mista passa por normalização
+  defensiva com recusa de casos fora de faixa; aritmética usa operadores Rust
+  diretos no modo corrente de compilação, sem política explícita de overflow
+  própria do interpretador.
+- **`sair`:** a intrínseca marca `exit_requested`, interrompe a execução Pinker e
+  devolve `RunOutcome.exit_status`; ela não encerra diretamente o processo Rust.
+  O bloco em curso para de progredir quando `exec_instr` retorna e o fluxo propaga
+  o status.
+- **Profundidade e stack trace:** `MAX_CALL_DEPTH` é 64. O frame é inserido ao
+  entrar em `call_function` e removido ao sair; os traces preservam ordem dos
+  frames ativos, truncam acima de 10 mantendo 5 de cabeça e 5 de cauda, evitam
+  anexação duplicada e aceitam `future_span`, que hoje pode ficar indisponível.
+- **Handles:** listas, mapas, cursores, leques, arquivos e aleatoriedade usam
+  contadores/estados separados; valores numéricos podem coincidir entre famílias,
+  mas os domínios são diferenciados pelo `RuntimeValue`/estado consultado, não por
+  ponteiros nativos.
+- **Paridade com `pinker_rt`:** a comparação foi limitada e factual. Há famílias
+  coincidentes de coleções, texto, arquivo/processo/ambiente e conversões, mas as
+  representações são evidentemente diferentes (estado Rust hospedado por handles
+  contra runtime nativo linkável). Intrínsecas hospedadas e nativas não tiveram
+  paridade completa demonstrada; o runtime não foi cartografado porque o scanner
+  continua limitado a `src/`.
+
+**Helpers deliberadamente não ancorados:** os helpers mínimos de memória
+`deref_load_normal`/`deref_load_fragil`/`deref_store_normal`/`deref_store_fragil`
+foram deixados no entorno diagnóstico/execução por serem wrappers triviais; a
+semântica consultável está em `programa-globais`, `instrucoes-pilha` e na auditoria
+de volatilidade. `current_function` fica dobrado em valores/tipos como helper
+defensivo de busca.
+
+**Ambiguidades/inconsistências registradas:** volatilidade sem efeito observável;
+política de overflow não explicitada pelo interpretador; paridade com
+`runtime/pinker_rt` não demonstrada nesta onda; scanner ainda não cobre runtime.
+
+## Onda 6B–6E e orquestração (adiadas)
+
+Inventariados; revisão atual `estrutural` para as camadas ainda pendentes.
 
 | Arquivo | Camada | Propósito (do módulo-doc/estrutura) | Complexidade | Âncoras atuais | Onda-alvo |
 |---|---|---|---|---|---|
-| `src/interpreter.rs` | interpreter | Executa a máquina validada; valores de runtime, frames, intrínsecas, coleções (listas/mapas/versos). | transversal | — | 6 |
-| `src/backend_text.rs` | backend-text | Lowering para pseudo-assembly textual a partir da seleção. | alta | — | 6 |
-| `src/backend_s.rs` | backend-s | Emissão de `.s` e toolchain nativa (ABI SysV, alinhamento, chamadas ao runtime). | alta | — | 6 |
-| `runtime/pinker_rt/src/lib.rs` | runtime | Runtime nativo linkado por `pink build --nativo`; alocação, coleções nativas, ABI. **Fora do scanner atual.** | transversal | — | 6 (após ampliar raízes) |
+| `src/backend_text.rs` | backend-text | Lowering para pseudo-assembly textual a partir da seleção. | alta | — | 6B |
+| `src/backend_s.rs` | backend-s | Emissão de `.s` e toolchain nativa (ABI SysV, alinhamento, chamadas ao runtime). | alta | — | 6C |
+| `src/nav.rs` | trama | Ampliação controlada das raízes do scanner antes de catalogar runtime fora de `src/`. | alta | `trama.codigo.*` | 6D |
+| `runtime/pinker_rt/src/lib.rs` | runtime | Runtime nativo linkado por `pink build --nativo`; alocação, coleções nativas, ABI. **Fora do scanner atual.** | transversal | — | 6E (após ampliar raízes) |
 | `src/main.rs` | cli | Orquestração da CLI: parsing de flags, roteamento, pipeline de análise/build, importação de módulos, link nativo, comandos `doc`/`nav`. | transversal | — | 7 |
 | `src/editor_tui.rs` | editor | TUI mínima oficial (Fase 136): estado, comandos, ações Pinker reais. | moderada | — | 7 |
 | `src/boot.rs` | boot | Fronteiras freestanding: entry `_start`, linker script e stub de kernel. | simples | — | 7 |
@@ -462,16 +565,16 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 5E)
+## Cobertura acumulada (após Onda 6A)
 
 | Métrica | Valor |
 |---|---:|
 | Arquivos de produção em `src/` (excl. gerados e fixtures) | 30 |
-| Arquivos com responsabilidade ancorada | 26 |
-| Arquivos apenas inventariados (estrutural) | 4 |
-| Regiões antes da Onda 5E | 89 |
-| Regiões adicionadas na Onda 5E | 11 |
-| Regiões no catálogo | 100 |
+| Arquivos com responsabilidade ancorada | 27 |
+| Arquivos apenas inventariados (estrutural) | 3 |
+| Regiões antes da Onda 6A | 100 |
+| Regiões adicionadas na Onda 6A | 14 |
+| Regiões no catálogo | 114 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
 
@@ -492,26 +595,24 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 | cfg | 13 | modelo + validador + `cfg.logica.*` (históricas); Onda 5D (9): programa-orquestração, funções-blocos, instruções-controle, valores-temporários, memória-indireta, construção-blocos, constantes, renderização programa/componentes |
 | select | 6 | modelo + validador; Onda 5E (4): programa-blocos, instruções, renderização programa/componentes |
 | machine | 9 | modelo + validador; Onda 5E (7): programa-blocos, instruções-pilha, terminadores, operandos-slots, renderização programa/apresentação/componentes |
+| interpreter | 14 | modelo/estado, execução (programa, fluxo, instruções, valores/tipos), intrínsecos hospedados (6 intervalos), serviços auxiliares do host, diagnóstico |
 | backend-text | 1 | validador |
 | semantic | 10 | importações, sistema de tipos, escopos, duas-passagens, tratos, funções, comandos, fluxo, expressões, chamadas (Onda 5A) |
 | trama | 10 | normalização, jsonl, marco, catálogos e consultas doc/código, manifesto, ledger, projeções |
-| **total** | **100** | |
+| **total** | **114** | |
 
-Pendentes de cartografia: interpreter/backend-text/backend-s/runtime (Onda 6),
-cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após ampliar raízes). Nota:
-`src/backend_text.rs` tem hoje apenas o validador ancorado
-(`backend-text.validacao.invariantes`); o lowering do backend textual segue sem
-cartografia até a Onda 6.
+Pendentes de cartografia: backend-text (6B), backend-s (6C), ampliação de raízes
+do scanner (6D), runtime nativo (6E), cli/editor/boot (Onda 7), tests/apps
+(Ondas 8/9, após ampliar raízes). Nota: `src/backend_text.rs` tem hoje apenas o
+validador ancorado (`backend-text.validacao.invariantes`); o lowering do backend
+textual segue sem cartografia até a Onda 6B.
 
 ## Próximo ponto de retomada
 
-**Onda 6 — execução, backends e runtime.** Com toda a cadeia de lowerings
-cartografada (AST → IR → CFG → seleção → máquina), a próxima onda trata a execução
-e a emissão: o **interpretador** (`src/interpreter.rs` — executa a máquina validada:
-valores de runtime, frames, intrínsecas, coleções), o **backend textual**
-(`src/backend_text.rs`) e o **backend `.s`** (`src/backend_s.rs` — emissão nativa,
-ABI SysV, toolchain). O **runtime** (`runtime/pinker_rt/src/lib.rs`) está **fora da
-raiz atual do scanner** e exigirá uma decisão própria de ampliação de raízes — não
-ampliar o scanner antes disso. Não modificar a cadeia de lowerings já concluída
-(`instr_select.rs`/`abstract_machine.rs` na 5E; `cfg_ir.rs` na 5D; `ir.rs` na 5C)
-nem os validadores.
+**Onda 6B — backend textual em `src/backend_text.rs`.** A próxima entrega deve
+tratar modelo `BackendTextProgram`, entradas de `ProgramCfgIR` e
+`SelectedProgram`, mapeamento de instruções, terminadores, limitações de
+dereferência indireta/casts, representação textual e preservação de
+`backend-text.validacao.invariantes`. Permanecem depois: 6C — backend `.s` e ABI
+nativa; 6D — ampliação controlada das raízes do scanner; 6E — runtime nativo
+`pinker_rt`.
