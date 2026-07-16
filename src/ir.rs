@@ -1640,7 +1640,7 @@ impl<'a> FunctionLowerer<'a> {
     // @pinker-nav:start ir.lowering.comandos-controle
     // @pinker-nav:domain lowering
     // @pinker-nav:layer ir
-    // @pinker-nav:summary Abaixa comandos AST de um bloco para `InstructionIR`: despacho de `Stmt`, declaração local (`mimo`, incluindo o desvio de `lista_criar`/`mapa_criar` para o criar monomórfico anotado), atribuição a slot/deref/campo/índice, retorno, `falar`, asm inline, e o controle estruturado `talvez`/`senão` e `sempre que` com `quebrar`/`continuar` carregando destinos simbólicos de laço. Preserva spans; `if`/`while` continuam com blocos filhos — a divisão em blocos básicos ocorre depois em `cfg_ir`.
+    // @pinker-nav:summary Abaixa comandos AST de um bloco para `InstructionIR`: despacho de `Stmt`, declaração local (`nova`/`muda`, incluindo o desvio de `lista_criar`/`mapa_criar` para o criar monomórfico anotado), atribuição a slot/deref/campo/índice, retorno (`mimo`), `falar`, asm inline, e o controle estruturado `talvez`/`senão` e `sempre que` com `quebrar`/`continuar` carregando destinos simbólicos de laço. Preserva spans; `if`/`while` continuam com blocos filhos — a divisão em blocos básicos ocorre depois em `cfg_ir`.
     fn lower_stmt(&mut self, stmt: &Stmt) -> Result<InstructionIR, PinkerError> {
         match stmt {
             Stmt::Let(let_stmt) => self.lower_let(let_stmt),
