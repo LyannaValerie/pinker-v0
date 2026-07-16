@@ -92,6 +92,11 @@ pub enum ChangeError {
         field: String,
         value: String,
     },
+    /// Campo ainda com a sentinela do template (`<preencher-...>` ou `<...>`).
+    TemplatePlaceholder {
+        field: String,
+        value: String,
+    },
     Io {
         path: String,
         msg: String,
@@ -153,6 +158,12 @@ impl fmt::Display for ChangeError {
                 "E-CHANGE-SCHEMA\nId inválido em '{}': '{}' (formato [a-z0-9]+([._-][a-z0-9]+)*).",
                 field, value
             ),
+            ChangeError::TemplatePlaceholder { field, value } => write!(
+                f,
+                "E-CHANGE-PLACEHOLDER\nCampo '{}' ainda contém o placeholder '{}'.\n\
+                 Preencha o bloco pinker-change antes de abrir ou atualizar o PR.",
+                field, value
+            ),
             ChangeError::Io { path, msg } => {
                 write!(f, "E-CHANGE-IO\nFalha em '{}': {}", path, msg)
             }
@@ -187,7 +198,7 @@ impl Change {
             }
 
             if let Some(item) = trimmed.strip_prefix("- ") {
-                let value = unquote(item.trim());
+                let value = unquote(&strip_inline_comment(item.trim()));
                 match (top.as_deref(), sub.as_deref()) {
                     (Some("area"), _) => change.area.push(value),
                     (Some("sections"), Some("implemented")) => change.implemented.push(value),
@@ -204,7 +215,7 @@ impl Change {
                 continue;
             };
             let key = trimmed[..colon].trim().to_string();
-            let rest = trimmed[colon + 1..].trim().to_string();
+            let rest = strip_inline_comment(trimmed[colon + 1..].trim());
 
             if indent == 0 {
                 top = None;
@@ -266,6 +277,17 @@ impl Change {
     pub fn validate(&self) -> Result<(), ChangeError> {
         if self.schema != 1 {
             return Err(ChangeError::UnsupportedSchema { found: self.schema });
+        }
+        // Sentinelas do template (`<preencher-...>`) devem ter sido substituídas;
+        // relatamos o campo exato antes de qualquer validação de enum/formato,
+        // para diagnóstico direto (§13 — bloco preenchido).
+        for (field, value) in self.placeholder_fields() {
+            if is_placeholder(value) {
+                return Err(ChangeError::TemplatePlaceholder {
+                    field,
+                    value: value.to_string(),
+                });
+            }
         }
         if let Some(field) = self.unknown_fields.first() {
             return Err(ChangeError::UnknownField {
@@ -333,6 +355,27 @@ impl Change {
             }
         }
         Ok(())
+    }
+
+    /// Campos escalares e de lista sujeitos a sentinela do template, com um
+    /// rótulo estável para diagnóstico. `validation.required` fica de fora: o
+    /// template não coloca sentinela ali (é sempre `- make ci`).
+    fn placeholder_fields(&self) -> Vec<(String, &str)> {
+        let mut fields: Vec<(String, &str)> = vec![
+            ("kind".to_string(), self.kind.as_str()),
+            ("title".to_string(), self.title.as_str()),
+            ("status".to_string(), self.status.as_str()),
+        ];
+        for (i, v) in self.area.iter().enumerate() {
+            fields.push((format!("area[{i}]"), v.as_str()));
+        }
+        for (i, v) in self.implemented.iter().enumerate() {
+            fields.push((format!("sections.implemented[{i}]"), v.as_str()));
+        }
+        for (i, v) in self.pending_remove.iter().enumerate() {
+            fields.push((format!("sections.pending_remove[{i}]"), v.as_str()));
+        }
+        fields
     }
 
     /// Serializa o manifesto versionado (`.pinker/changes/pr-N.yaml`) de forma
@@ -555,6 +598,39 @@ fn pr_number_from_filename(path: &Path) -> Option<u64> {
     stem.parse().ok()
 }
 
+/// Remove comentário inline no estilo YAML (` # ...`) fora de aspas.
+///
+/// Um `#` inicia comentário apenas no início do valor ou precedido por espaço,
+/// e nunca dentro de aspas simples/duplas. Torna o parser tolerante a
+/// comentários deixados no template do PR (ex.: `kind: phase  # phase | ...`).
+fn strip_inline_comment(value: &str) -> String {
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut prev_ws = true; // início do valor conta como precedido por espaço
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch == '#' && !in_single && !in_double && prev_ws {
+            break;
+        }
+        match ch {
+            '\'' if !in_double => in_single = !in_single,
+            '"' if !in_single => in_double = !in_double,
+            _ => {}
+        }
+        prev_ws = ch.is_whitespace();
+        out.push(ch);
+    }
+    out.trim_end().to_string()
+}
+
+/// Um valor é sentinela de template quando, após trim, começa com `<` e termina
+/// com `>` (ex.: `<preencher-titulo>`, `<territorio.ou.dominio>`). Vazio não é
+/// sentinela — a ausência de campo é tratada por `MissingField`.
+fn is_placeholder(value: &str) -> bool {
+    let value = value.trim();
+    value.starts_with('<') && value.ends_with('>') && value.len() >= 2
+}
+
 fn unquote(value: &str) -> String {
     let value = value.trim();
     if value.len() >= 2
@@ -606,6 +682,46 @@ mod tests {
         assert_eq!(change.validation_required, vec!["make ci"]);
         assert!(change.updates.contains(&("state".to_string(), true)));
         assert!(change.updates.contains(&("roadmap".to_string(), false)));
+    }
+
+    #[test]
+    fn strips_inline_template_comments() {
+        // Bloco com comentários inline deixados no template do PR.
+        let body = "```pinker-change\nschema: 1\nkind: phase  # phase | hotfix | documentation | parallel-phase\ntitle: build#42  # nota inline\nstatus: completed # ok\narea:\n  - language.result  # comentário no item\n```\n";
+        let change = Change::parse_pr_body(body).unwrap();
+        assert_eq!(change.kind, "phase");
+        assert_eq!(change.status, "completed");
+        // `#` colado (sem espaço antes) é mantido; o ` # nota inline` é removido.
+        assert_eq!(change.title, "build#42");
+        assert_eq!(change.area, vec!["language.result"]);
+    }
+
+    #[test]
+    fn template_placeholder_is_reported_per_field() {
+        // Bloco cru do template: sentinelas ainda não preenchidas.
+        let body = "```pinker-change\nschema: 1\nkind: <preencher-kind>\ntitle: <preencher-titulo>\nstatus: <preencher-status>\narea:\n  - <preencher-area>\nvalidation:\n  required:\n    - make ci\n```\n";
+        let change = Change::parse_pr_body(body).unwrap();
+        match change.validate() {
+            Err(ChangeError::TemplatePlaceholder { field, value }) => {
+                // Primeiro campo escaneado é `kind`.
+                assert_eq!(field, "kind");
+                assert_eq!(value, "<preencher-kind>");
+            }
+            other => panic!("esperado TemplatePlaceholder, veio {other:?}"),
+        }
+    }
+
+    #[test]
+    fn template_placeholder_detected_in_area_item() {
+        let body = "```pinker-change\nschema: 1\nkind: hotfix\ntitle: Título real\nstatus: completed\narea:\n  - <territorio.ou.dominio>\nvalidation:\n  required:\n    - make ci\n```\n";
+        let change = Change::parse_pr_body(body).unwrap();
+        match change.validate() {
+            Err(ChangeError::TemplatePlaceholder { field, value }) => {
+                assert_eq!(field, "area[0]");
+                assert_eq!(value, "<territorio.ou.dominio>");
+            }
+            other => panic!("esperado TemplatePlaceholder, veio {other:?}"),
+        }
     }
 
     #[test]

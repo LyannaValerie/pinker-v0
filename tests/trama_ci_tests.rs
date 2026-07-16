@@ -45,6 +45,37 @@ fn workflow_permanente_e_somente_leitura() {
     }
 }
 
+/// Contrato do gatilho e da validação do bloco pinker-change.
+#[test]
+fn workflow_valida_bloco_incondicionalmente_e_reage_a_edicao() {
+    let path = workflow_dir().join("trama.yml");
+    let text = std::fs::read_to_string(path).expect("workflow permanente presente");
+
+    // Editar o corpo do PR deve re-executar a validação: `edited` precisa estar
+    // entre os tipos de evento (não faz parte dos três eventos padrão).
+    assert!(
+        text.contains("edited"),
+        "o gatilho pull_request deve incluir o tipo 'edited'"
+    );
+
+    // O importador roda em modo --check (somente leitura).
+    assert!(
+        text.contains("importar-pr") && text.contains("--check"),
+        "deve validar com `doc importar-pr ... --check`"
+    );
+
+    // Não pode mais existir o escape silencioso: PR posterior ao marco sem
+    // bloco tem de falhar (E-CHANGE-BLOCK), nunca cair em "nada a validar".
+    assert!(
+        !text.contains("nada a validar"),
+        "o workflow não pode ter o escape 'nada a validar'"
+    );
+    assert!(
+        !text.contains("if grep"),
+        "a presença do bloco não deve ser decidida por grep no Bash"
+    );
+}
+
 /// Nenhum arquivo da tentativa temporária pode voltar à árvore.
 #[test]
 fn artefatos_temporarios_nao_existem() {
