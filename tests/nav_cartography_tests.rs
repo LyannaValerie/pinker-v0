@@ -95,9 +95,9 @@ fn catalogo_deterministico() {
 /// O catálogo real versionado contém as chaves essenciais do frontend (Onda 4),
 /// da checagem semântica (Onda 5A), da monomorfização no parser (Onda 5B), do
 /// lowering AST→IR (Onda 5C), do lowering IR→CFG (Onda 5D), da seleção→máquina
-/// (Onda 5E), da execução hospedada (Onda 6A) e as âncoras históricas, todas
-/// únicas. Verifica presença e unicidade — não um número exato permanente de
-/// regiões.
+/// (Onda 5E), da execução hospedada (Onda 6A), do backend textual (Onda 6B) e as
+/// âncoras históricas, todas únicas. Verifica presença e unicidade — não um
+/// número exato permanente de regiões.
 #[test]
 fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
@@ -176,6 +176,15 @@ fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
         "interpreter.intrinsecos.listas",
         "interpreter.hospedeiro.servicos-auxiliares",
         "interpreter.diagnostico.stack-trace",
+        // Backend textual (Onda 6B); validador preservado.
+        "backend-text.validacao.invariantes",
+        "backend-text.modelo.representacao",
+        "backend-text.lowering.cfg-programa",
+        "backend-text.lowering.selecao-programa",
+        "backend-text.lowering.instrucoes-selecionadas",
+        "backend-text.pipeline.emissao",
+        "backend-text.renderizacao.programa",
+        "backend-text.renderizacao.instrucoes",
     ] {
         assert!(
             catalog.region(essential).is_some(),
@@ -354,6 +363,53 @@ fn camada_interpreter_separa_dominios_de_execucao() {
             );
         }
     }
+}
+
+/// A camada `backend-text` (Onda 6B) separa modelo, lowering, pipeline,
+/// renderização e validação em domínios distintos, com regiões próprias de
+/// lowering e de renderização, preservando `backend-text.validacao.invariantes`.
+/// Verifica presença e disjunção — sem fixar o total de regiões.
+#[test]
+fn camada_backend_text_separa_lowering_pipeline_e_renderizacao() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    let by_domain = |domain: &str| -> Vec<&str> {
+        catalog
+            .regions
+            .iter()
+            .filter(|r| {
+                r.layer.as_deref() == Some("backend-text") && r.domain.as_deref() == Some(domain)
+            })
+            .map(|r| r.key.as_str())
+            .collect()
+    };
+
+    // Lowering e renderização têm mais de uma região próprias.
+    assert!(
+        by_domain("lowering").len() >= 2,
+        "backend-text.lowering deveria ter várias regiões: {:?}",
+        by_domain("lowering")
+    );
+    assert!(
+        by_domain("renderizacao").len() >= 2,
+        "backend-text.renderizacao deveria ter várias regiões: {:?}",
+        by_domain("renderizacao")
+    );
+    // Modelo, pipeline e validação existem como domínios distintos.
+    for domain in ["modelo", "pipeline", "validacao"] {
+        assert!(
+            !by_domain(domain).is_empty(),
+            "domínio backend-text.{domain} ausente"
+        );
+    }
+    // O lowering não invade a validação preservada.
+    assert!(
+        by_domain("lowering")
+            .iter()
+            .all(|k| !by_domain("validacao").contains(k)),
+        "lowering e validacao de backend-text não podem compartilhar chaves"
+    );
 }
 
 /// Busca vertical por domínio: a Onda 5B distingue `genericos` (substituição de

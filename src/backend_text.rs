@@ -3,6 +3,10 @@ use crate::error::PinkerError;
 use crate::instr_select::{FalarArgSelected, SelectedInstr, SelectedProgram, SelectedTerminator};
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
 
+// @pinker-nav:start backend-text.modelo.representacao
+// @pinker-nav:domain modelo
+// @pinker-nav:layer backend-text
+// @pinker-nav:summary Modelo do backend textual: `BackendTextProgram` (nome de módulo, `is_freestanding`, globais e funções), `BackendTextFunction` (tipo de retorno, parâmetros e locais como nomes de slot — sem tipos correspondentes), `BackendTextBlock`, `BackendTextInstruction` (`Mov`/`Unary`/`Binary`/`Call`/`Falar`), `BackendTextFalarArg` e `BackendTextTerminator`. Representa operações textuais reutilizando `OperandIR`/`TempIR`/`TypeIR`/`UnaryOpIR`/`BinaryOpIR`; não define registradores físicos, stack frame nativo nem ABI.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BackendTextProgram {
     pub module_name: String,
@@ -77,7 +81,12 @@ pub enum BackendTextTerminator {
     },
     Return(Option<OperandIR>),
 }
+// @pinker-nav:end backend-text.modelo.representacao
 
+// @pinker-nav:start backend-text.lowering.cfg-programa
+// @pinker-nav:domain lowering
+// @pinker-nav:layer backend-text
+// @pinker-nav:summary Lowering direto de `ProgramCfgIR` para `BackendTextProgram`: copia globais, funções (parâmetros/locais como nomes de slot), blocos, instruções e terminadores. `DerefLoad` vira `Unary`/`Deref` descartando `ty` e volatilidade; `DerefStore` e `Cast` são recusados com erro de span sintético `(1,1)`. É um caminho público sem chamadores na árvore (o pipeline real usa `lower_selected_program`); não executa o programa nem emite código nativo.
 pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, PinkerError> {
     let globals = program
         .consts
@@ -190,7 +199,12 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
         functions,
     })
 }
+// @pinker-nav:end backend-text.lowering.cfg-programa
 
+// @pinker-nav:start backend-text.lowering.selecao-programa
+// @pinker-nav:domain lowering
+// @pinker-nav:layer backend-text
+// @pinker-nav:summary Lowering de `SelectedProgram` para `BackendTextProgram` — o caminho efetivamente usado (por `emit_program`, pela CLI `--backend-text` e por `backend_s`). Copia globais e funções (parâmetros/locais como nomes de slot, sem tipos), delegando cada instrução a `map_selected_instr` e cada terminador a `map_selected_term`, e preserva módulo e `is_freestanding`.
 pub fn lower_selected_program(
     selected: &SelectedProgram,
 ) -> Result<BackendTextProgram, PinkerError> {
@@ -239,7 +253,12 @@ pub fn lower_selected_program(
         functions,
     })
 }
+// @pinker-nav:end backend-text.lowering.selecao-programa
 
+// @pinker-nav:start backend-text.lowering.instrucoes-selecionadas
+// @pinker-nav:domain lowering
+// @pinker-nav:layer backend-text
+// @pinker-nav:summary Mapeamento das instruções e terminadores selecionados para a representação genérica do backend textual: `map_selected_instr` reconverte cada `SelectedInstr` (`Mov`, unários, aritmética/bitwise/shift/comparação via `UnaryOpIR`/`BinaryOpIR`, `Call`/`CallVoid`, `Falar`) e `map_selected_term` traduz `Jmp`/`Br`/`Ret`. `DerefLoad` vira `Unary`/`Deref` (descarta volatilidade); `DerefStore` e `Cast` são recusados com span sintético `(1,1)`; `CallVoid` vira `Call` com `dest` ausente e retorno `Nulo`. `map_selected_term` é dobrado aqui por ser um mapeamento trivial adjacente.
 fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, PinkerError> {
     match i {
         SelectedInstr::Mov { dest, src } => Ok(BackendTextInstruction::Mov {
@@ -408,7 +427,12 @@ fn map_selected_term(t: &SelectedTerminator) -> BackendTextTerminator {
         SelectedTerminator::Ret(v) => BackendTextTerminator::Return(v.clone()),
     }
 }
+// @pinker-nav:end backend-text.lowering.instrucoes-selecionadas
 
+// @pinker-nav:start backend-text.pipeline.emissao
+// @pinker-nav:domain pipeline
+// @pinker-nav:layer backend-text
+// @pinker-nav:summary `emit_program`: pipeline público que encadeia `ProgramCfgIR` → `instr_select::lower_program` → `instr_select_validate::validate_program` → `lower_selected_program` → `backend_text_validate::validate_program` → `render_program`, devolvendo o pseudo-assembly textual validado. Não é compilação nativa; não tem chamadores na árvore (a CLI intercala os mesmos passos).
 pub fn emit_program(program: &ProgramCfgIR) -> Result<String, PinkerError> {
     let selected = crate::instr_select::lower_program(program)?;
     crate::instr_select_validate::validate_program(&selected)?;
@@ -416,7 +440,12 @@ pub fn emit_program(program: &ProgramCfgIR) -> Result<String, PinkerError> {
     crate::backend_text_validate::validate_program(&lowered)?;
     Ok(render_program(&lowered))
 }
+// @pinker-nav:end backend-text.pipeline.emissao
 
+// @pinker-nav:start backend-text.renderizacao.programa
+// @pinker-nav:domain renderizacao
+// @pinker-nav:layer backend-text
+// @pinker-nav:summary `render_program`: serializa o `BackendTextProgram` em pseudo-assembly textual — `module`, `mode livre`/`hospedado`, `globals:`, `text:`, e por função `func`/`params`/`locals` e cada bloco (rótulo, `ins` e `term`), delegando aos renderizadores de componentes. Recebe a representação pronta; não abaixa de novo, não valida e não emite código nativo.
 pub fn render_program(program: &BackendTextProgram) -> String {
     let mut out = String::new();
 
@@ -496,7 +525,12 @@ pub fn render_program(program: &BackendTextProgram) -> String {
 
     out
 }
+// @pinker-nav:end backend-text.renderizacao.programa
 
+// @pinker-nav:start backend-text.renderizacao.instrucoes
+// @pinker-nav:domain renderizacao
+// @pinker-nav:layer backend-text
+// @pinker-nav:summary `render_instruction`: formata cada `BackendTextInstruction` — `mov`, `unop`, `binop`, `call`/`call_void` (com um ramo defensivo `(dest ausente, retorno não-nulo)` que imprime o destino como `_`, não produzido pelos mapeadores) e `falar` (pares `valor:tipo`). Produz uma linha textual por instrução; não altera a representação.
 fn render_instruction(inst: &BackendTextInstruction) -> String {
     match inst {
         BackendTextInstruction::Mov { dest, src } => {
@@ -551,7 +585,10 @@ fn render_instruction(inst: &BackendTextInstruction) -> String {
         ),
     }
 }
+// @pinker-nav:end backend-text.renderizacao.instrucoes
 
+// Ajudantes de lowering de argumentos de `falar` (de CFG e de seleção),
+// fisicamente entre os renderizadores; helpers triviais deixados sem âncora.
 fn map_falar_args_from_cfg(args: &[FalarArgCfgIR]) -> Vec<BackendTextFalarArg> {
     args.iter()
         .map(|arg| BackendTextFalarArg {
@@ -570,6 +607,10 @@ fn map_falar_args_from_selected(args: &[FalarArgSelected]) -> Vec<BackendTextFal
         .collect()
 }
 
+// @pinker-nav:start backend-text.renderizacao.componentes
+// @pinker-nav:domain renderizacao
+// @pinker-nav:layer backend-text
+// @pinker-nav:summary Renderizadores de componentes do backend textual: `render_terminator` (`jmp`/`br`/`ret`), `render_operand` (locais, globais `@`, inteiros, `verdade`/`falso`, strings entre aspas **sem escape** de aspas/barras/controle, temporários), `render_temp` (`%tN`), os nomes de operadores `op_name`/`binop_name` e o utilitário `line` de indentação. Serializam elementos individuais; não alteram a representação.
 fn render_terminator(term: &BackendTextTerminator) -> String {
     match term {
         BackendTextTerminator::Jump(label) => format!("jmp {}", label),
@@ -648,3 +689,4 @@ fn line(out: &mut String, indent: usize, text: &str) {
     out.push_str(text);
     out.push('\n');
 }
+// @pinker-nav:end backend-text.renderizacao.componentes
