@@ -497,8 +497,11 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 | trama | 10 | normalização, jsonl, marco, catálogos e consultas doc/código, manifesto, ledger, projeções |
 | **total** | **100** | |
 
-Pendentes (sem âncora): interpreter/backend-s/runtime (Onda 6),
-cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após ampliar raízes).
+Pendentes de cartografia: interpreter/backend-text/backend-s/runtime (Onda 6),
+cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após ampliar raízes). Nota:
+`src/backend_text.rs` tem hoje apenas o validador ancorado
+(`backend-text.validacao.invariantes`); o lowering do backend textual segue sem
+cartografia até a Onda 6.
 
 ## Próximo ponto de retomada
 
