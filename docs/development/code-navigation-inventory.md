@@ -318,7 +318,7 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 | backend-text | 1 | validador |
 | semantic | 10 | importações, sistema de tipos, escopos, duas-passagens, tratos, funções, comandos, fluxo, expressões, chamadas (Onda 5A) |
 | trama | 10 | normalização, jsonl, marco, catálogos e consultas doc/código, manifesto, ledger, projeções |
-| **total** | **63** | |
+| **total** | **70** | |
 
 Pendentes (sem âncora): lowerings de ir (5C), cfg (5D), select/machine (5E),
 interpreter/backend-s/runtime (Onda 6), cli/editor/boot (Onda 7), tests/apps
