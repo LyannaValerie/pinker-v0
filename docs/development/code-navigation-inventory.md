@@ -585,6 +585,28 @@ situados entre os renderizadores e ficam **sem âncora** (documentado no código
 - **§7.3 Deref/volatilidade/cast:** em ambos os caminhos, `DerefLoad` vira
   `Unary`/`Deref` **sem** a volatilidade; `DerefStore` e `Cast` são recusados com
   span sintético `Position::new(1,1)`.
+- **§7.4 Modelo × validador — operadores unários representáveis mas rejeitados:**
+  `BackendTextInstruction::Unary` pode carregar `BitNot` e `Deref`, e o lowering
+  os produz: `map_selected_instr` gera `Unary`/`BitNot` para `SelectedInstr::BitNot`
+  e `Unary`/`Deref` para `DerefLoad`; o caminho direto (`lower_program`) também
+  gera `Unary`/`Deref` para `DerefLoad`. Contudo, `backend_text_validate` só aceita
+  `Neg` (operando inteiro) e `Not` (operando lógico) — qualquer outro operador cai
+  em `"unop textual com operando inválido"`. Logo, `BitNot` e `Deref` são
+  **representáveis e renderizáveis** (`op_name` os serializa como `bitnot`/`deref`),
+  mas **não atravessam o pipeline validado** atual. Limitação registrada, não
+  corrigida.
+- **§7.4 Modelo × validador — tipagem e superfície pública do validador:** o
+  validador textual (a) representa a assinatura de cada função **apenas pelo tipo de
+  retorno** (mapa `sigs`); (b) trata **todos** os parâmetros e locais como
+  `TypeIR::Bombom` (não há tipos no modelo textual); (c) em chamadas, confere que os
+  argumentos são operandos resolvíveis e que o tipo de retorno é compatível, mas
+  **não verifica aridade nem os tipos declarados** dos parâmetros; (d) reconstrói o
+  mapa de temporários **por bloco** (a inferência de temporário é por bloco, não por
+  função); (e) **não valida** os argumentos de `BackendTextInstruction::Falar`. Além
+  disso, `lower_program`, `lower_selected_program` e `render_program` são `pub`:
+  apenas `emit_program` encadeia seleção → os dois validadores → renderização, então
+  um consumidor pode construir ou renderizar um `BackendTextProgram` **sem** passar
+  por `backend_text_validate::validate_program`. Fronteira registrada, não corrigida.
 - **§7.5 Chamadas/retorno:** `Call{dest}` → `Call` com destino e `ret_type`;
   `CallVoid` → `Call` sem destino e `ret_type` `Nulo`. O renderer tem um ramo
   defensivo `(sem destino, retorno não-nulo)` que imprime `_` — **não** produzido
@@ -672,9 +694,15 @@ ampliar raízes).
 ## Próximo ponto de retomada
 
 **Onda 6C — backend `.s` e ABI nativa em `src/backend_s.rs`.** A próxima entrega
-deve cartografar a emissão de assembly nativo: seleção/alocação para a ISA alvo,
-ABI SysV, alinhamento, prólogo/epílogo, chamadas ao runtime e serialização `.s`,
-consumindo o `BackendTextProgram` produzido pela 6B. Preservar os modelos e
-validadores existentes; não modificar `src/backend_text.rs` (concluído na 6B).
-Permanecem depois: 6D — ampliação controlada das raízes do scanner; 6E — runtime
-nativo `pinker_rt` (fora da raiz atual do scanner).
+deve cartografar a emissão de assembly nativo: ABI SysV, alinhamento,
+prólogo/epílogo, chamadas ao runtime e serialização `.s`. **Atenção — o
+`src/backend_s.rs` tem caminhos com entradas distintas e a 6C deve auditá-los
+separadamente:** `emit_from_selected` consome o `BackendTextProgram` (via
+`backend_text::lower_selected_program`), mas `emit_external_toolchain_subset` e sua
+variante `_nativo` operam **diretamente sobre `SelectedProgram`** e constroem sua
+própria representação interna `ExternalCallConvProgram` (via
+`extract_external_callconv_program`), **sem** consumir o `BackendTextProgram` da 6B.
+Não descrever genericamente `backend_s` como consumidor do `BackendTextProgram`.
+Preservar os modelos e validadores existentes; não modificar `src/backend_text.rs`
+(concluído na 6B). Permanecem depois: 6D — ampliação controlada das raízes do
+scanner; 6E — runtime nativo `pinker_rt` (fora da raiz atual do scanner).
