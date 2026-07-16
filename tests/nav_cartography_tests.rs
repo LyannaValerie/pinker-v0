@@ -93,8 +93,9 @@ fn catalogo_deterministico() {
 }
 
 /// O catálogo real versionado contém as chaves essenciais do frontend (Onda 4),
-/// da checagem semântica (Onda 5A) e as âncoras históricas, todas únicas.
-/// Verifica presença e unicidade — não um número exato permanente de regiões.
+/// da checagem semântica (Onda 5A), da monomorfização no parser (Onda 5B) e as
+/// âncoras históricas, todas únicas. Verifica presença e unicidade — não um
+/// número exato permanente de regiões.
 #[test]
 fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
@@ -125,10 +126,51 @@ fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
         "semantic.programa.duas-passagens",
         "semantic.expressoes.verificacao",
         "semantic.chamadas.despacho",
+        // Monomorfização/especialização no parser (Onda 5B).
+        "parser.genericos.identidade-especializacao",
+        "parser.genericos.substituicao-ast",
+        "parser.genericos.funcoes-instanciacao",
+        "parser.genericos.leques-instanciacao",
+        "parser.callbacks.substituicao-estatica",
+        "parser.callbacks.instanciacao-estatica",
     ] {
         assert!(
             catalog.region(essential).is_some(),
             "chave essencial ausente: {essential}"
         );
     }
+}
+
+/// Busca vertical por domínio: a Onda 5B distingue `genericos` (substituição de
+/// parâmetros de tipo) de `callbacks` (especialização de parâmetros-função). Cada
+/// domínio deve ter regiões próprias na camada `parser`, sem se confundirem.
+#[test]
+fn dominios_verticais_genericos_e_callbacks_distintos() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    let by_domain = |domain: &str| -> Vec<&str> {
+        catalog
+            .regions
+            .iter()
+            .filter(|r| r.layer.as_deref() == Some("parser") && r.domain.as_deref() == Some(domain))
+            .map(|r| r.key.as_str())
+            .collect()
+    };
+
+    let genericos = by_domain("genericos");
+    let callbacks = by_domain("callbacks");
+    assert!(
+        genericos.len() >= 2,
+        "domínio genericos deveria ter regiões próprias: {genericos:?}"
+    );
+    assert!(
+        callbacks.len() >= 2,
+        "domínio callbacks deveria ter regiões próprias: {callbacks:?}"
+    );
+    // Os dois domínios não se sobrepõem em chaves.
+    assert!(
+        genericos.iter().all(|k| !callbacks.contains(k)),
+        "genericos e callbacks não podem compartilhar chaves"
+    );
 }
