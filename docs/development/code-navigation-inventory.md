@@ -25,10 +25,10 @@ receberam âncoras `@pinker-nav`. O endereçamento para máquinas vive no catál
 substitui.
 
 A cartografia avança em **ondas**, do mais simples ao mais complexo. Cada onda é
-útil sozinha. As **Ondas 0–5B** já estão na `main`; esta rodada adiciona a
-**Onda 5C** (lowering AST → IR em `src/ir.rs`). Os demais lowerings por camada
-(Ondas 5D–5E), além das demais camadas, seguem inventariados e explicitamente
-adiados.
+útil sozinha. As **Ondas 0–5C** já estão na `main`; esta rodada adiciona a
+**Onda 5D** (lowering IR → CFG em `src/cfg_ir.rs`). O lowering restante
+(`5E — CFG → seleção → máquina`), além das demais camadas, segue inventariado e
+explicitamente adiado.
 
 ## Contrato do scanner (limitação registrada)
 
@@ -296,15 +296,76 @@ os predicados/nomeação de `TypeIR`, e os `impl` de `ScalarTypeIR`/`UnaryOpIR`/
 offsets; ponteiros carregam apenas volatilidade. São representações efetivas da
 fase, não bugs; nenhuma mensagem de erro foi alterada.
 
-## Onda 5D+ — lowerings restantes, execução, orquestração (adiadas)
+## Onda 5D — lowering IR → CFG (concluída)
 
-Inventariados; revisão atual `estrutural` (exceto frontend e AST→IR, agora
+`src/cfg_ir.rs` **integralmente revisado** (linha a linha) e cartografado na
+transformação da IR estruturada em blocos básicos com terminadores explícitos. O
+modelo de dados já estava coberto por `cfg.modelo.representacao` (preservado, não
+movido) e as duas responsabilidades especializadas de lógica por
+`cfg.logica.curto-circuito` e `cfg.logica.slot-logico` (históricas, preservadas
+sem duplicação); a 5D acrescenta a maquinaria de lowering, construção de blocos e
+renderização em torno delas.
+
+| Âncora | Responsabilidade |
+|---|---|
+| `cfg.lowering.programa-orquestracao` | Entrada `lower_program`: constantes, funções e `ProgramCfgIR`. |
+| `cfg.lowering.funcoes-blocos` | `lower_function`: bloco `entry`, um terminador por bloco, `dead_N`, retorno implícito só para `nulo`, `FunctionCfgIR`. |
+| `cfg.lowering.instrucoes-controle` | `lower_instruction`: stores, retorno e achatamento de `if`/`while` em `Branch`/`Jump`/join com pilhas de `break`/`continue`. |
+| `cfg.lowering.valores-temporarios` | `lower_value_operand`/`lower_expr_stmt`: linearização de valores em operandos e `TempIR`. |
+| `cfg.lowering.memoria-indireta` | Acesso/escrita de campos e índices por endereço → `DerefLoad`/`DerefStore`. |
+| `cfg.lowering.construcao-blocos` | `fresh_block`/`next_label`/`next_temp` e `BlockBuilder::new`/`is_terminated` (bloco aberto × terminado). |
+| `cfg.lowering.constantes` | `lower_constant_value`: valor de constante global → operando CFG. |
+| `cfg.renderizacao.programa` | `render_program`: forma textual da CFG ao nível de programa/função/bloco. |
+| `cfg.renderizacao.componentes` | `render_instruction`/`render_terminator`/`render_operand`/`render_temp` + operadores + `line`. |
+
+**Regiões `cfg.logica.*` (§5/§8/§9, preservadas):** `cfg.logica.curto-circuito`
+já cobre a avaliação do operando esquerdo, os blocos `logic_rhs`/`logic_short`/
+`logic_join`, a direção distinta de `e`/`ou`, a materialização do resultado num
+slot e os jumps ao join; `cfg.logica.slot-logico` cobre a criação de `%logic#N`
+como `LocalIR` mutável para o merge do curto-circuito (não é `phi`, não é SSA). As
+novas regiões de lowering **param antes** de `cfg.logica.curto-circuito` e
+**retomam depois** de `cfg.logica.slot-logico`; nenhuma fronteira histórica foi
+movida, nem se criou região aninhada/sobreposta.
+
+**Separação de responsabilidades (§3):** o **modelo** (`cfg.modelo.representacao`)
+define as estruturas; o **lowering** (`cfg.lowering.*`) achata o controle
+estruturado em blocos básicos; a **lógica** (`cfg.logica.*`) trata o curto-circuito
+e seu slot; a **validação** (`cfg.validacao.invariantes`, em
+`src/cfg_ir_validate.rs`, intocada) confere invariantes; a **renderização**
+(`cfg.renderizacao.*`) produz texto; a **seleção** (`src/instr_select.rs`, Onda 5E)
+é a próxima camada. Os temporários `TempIR` (`%tN`) são resultados intermediários
+do CFG — não são slots locais nem registradores físicos; não há SSA.
+
+**Decisões de granularidade:** `lower_instruction` (dispatcher de controle) e
+`lower_value_operand` (dispatcher de valores) ficam cada um como **uma região
+ampla**, não fragmentada por variante. Campos e índices formam uma região própria
+contígua (`memoria-indireta`), conceitualmente distinta do dispatcher de valores.
+A renderização usa **duas regiões**: `render_program` (fisicamente junto à
+orquestração) e os componentes finais — a alternativa de deixar `render_program`
+sem âncora foi descartada por ser função pública substancial.
+
+**Helpers deliberadamente não ancorados (§6.7/§12):** os structs de estado
+`FunctionLowerer`/`BlockBuilder` (preâmbulo de plumbing) e os helpers de argumento
+`lower_falar_operand`/`lower_falar_args`/`lower_call_operand` (entre
+`memoria-indireta` e `cfg.logica.curto-circuito`; a distinção de chamada com/sem
+retorno já é descrita por `valores-temporarios`). Nenhum tem responsabilidade
+consultável própria.
+
+**Limitações registradas (não corrigidas):** inline asm (`sussurro`) ainda não é
+abaixado para CFG (erro local); chamada `nulo` usada como valor é rejeitada;
+constante global composta é recusada; campos/índices têm limites de tipo escalar e
+base `[bombom; N]`; função não-`nulo` sem terminador e `break`/`continue` fora de
+laço produzem erro. `break`/`continue` usam `Branch` com condição constante e
+bloco de continuação sintético — registrado como observação, sem alteração.
+
+## Onda 5E+ — seleção, máquina, execução, orquestração (adiadas)
+
+Inventariados; revisão atual `estrutural` (exceto frontend, AST→IR e IR→CFG, agora
 integrais). Cada camada de lowering é sua própria onda, para não reintroduzir um
 PR transversal enorme.
 
 | Arquivo | Camada | Propósito (do módulo-doc/estrutura) | Complexidade | Âncoras atuais | Onda-alvo |
 |---|---|---|---|---|---|
-| `src/cfg_ir.rs` (lowering) | cfg | Lowering IR→CFG; contém `cfg.logica.*`. | transversal | `cfg.logica.*` | 5D |
 | `src/instr_select.rs` (lowering) | select | Lowering CFG→seleção. | alta | modelo ancorado | 5E |
 | `src/abstract_machine.rs` (lowering) | machine | Lowering seleção→máquina. | alta | modelo ancorado | 5E |
 | `src/interpreter.rs` | interpreter | Executa a máquina validada; valores de runtime, frames, intrínsecas, coleções (listas/mapas/versos). | transversal | — | 6 |
@@ -337,16 +398,16 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 5C)
+## Cobertura acumulada (após Onda 5D)
 
 | Métrica | Valor |
 |---|---:|
 | Arquivos de produção em `src/` (excl. gerados e fixtures) | 30 |
 | Arquivos com responsabilidade ancorada | 26 |
 | Arquivos apenas inventariados (estrutural) | 4 |
-| Regiões antes da Onda 5C | 70 |
-| Regiões adicionadas na Onda 5C | 10 |
-| Regiões no catálogo | 80 |
+| Regiões antes da Onda 5D | 80 |
+| Regiões adicionadas na Onda 5D | 9 |
+| Regiões no catálogo | 89 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
 
@@ -364,28 +425,26 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 | parser | 22 | Onda 4 (15): núcleo, programa, tipos, declarações, encaixe, resultado, closures, funções, constantes, comandos, for-each, precedência, primárias, postfix, interpolação; Onda 5B (7): identidade-especialização, leques-template, substituição-ast, callbacks (substituição/instanciação estática), funções-instanciação, leques-instanciação |
 | ast | 5 | programa, tipos, comandos, expressões, serialização |
 | ir | 12 | modelo + validador (Onda 3); Onda 5C (10): programa-orquestração, contexto-declarações, assinaturas-intrínsecos, funções-blocos, comandos-controle, expressões-valores, bindings-escopos, constantes, renderização textual, conversão de tipos AST→IR |
-| cfg | 4 | modelo + validador + `cfg.logica.*` (históricas) |
+| cfg | 13 | modelo + validador + `cfg.logica.*` (históricas); Onda 5D (9): programa-orquestração, funções-blocos, instruções-controle, valores-temporários, memória-indireta, construção-blocos, constantes, renderização programa/componentes |
 | select | 2 | modelo + validador |
 | machine | 2 | modelo + validador |
 | backend-text | 1 | validador |
 | semantic | 10 | importações, sistema de tipos, escopos, duas-passagens, tratos, funções, comandos, fluxo, expressões, chamadas (Onda 5A) |
 | trama | 10 | normalização, jsonl, marco, catálogos e consultas doc/código, manifesto, ledger, projeções |
-| **total** | **80** | |
+| **total** | **89** | |
 
-Pendentes (sem âncora): lowerings de cfg (5D), select/machine (5E),
+Pendentes (sem âncora): lowerings de select/machine (5E),
 interpreter/backend-s/runtime (Onda 6), cli/editor/boot (Onda 7), tests/apps
 (Ondas 8/9, após ampliar raízes).
 
 ## Próximo ponto de retomada
 
-**Onda 5D — lowering IR → CFG em `src/cfg_ir.rs`:** ancorar a divisão do fluxo
-estruturado em blocos básicos. Trata posteriormente: entrada `ProgramIR`; criação
-de funções e blocos básicos do CFG; transformação de `BlockIR`; flattening de
-`if`/`while`; geração de rótulos e terminadores; saltos; joins; destinos de
-`quebrar`/`continuar`; temporários; e integração com `cfg_ir_validate`. Preservar
-sem duplicar as âncoras `cfg.logica.curto-circuito` e `cfg.logica.slot-logico` já
-existentes. **Somente `src/cfg_ir.rs`** — não atribuir seleção ou máquina à 5D
-(seguem para `5E — CFG → seleção → máquina`, `src/instr_select.rs` +
-`src/abstract_machine.rs`). Não modificar `src/ir.rs` (concluído na Onda 5C),
-`src/parser.rs` (5B) nem `src/semantic.rs` (5A), nem antecipar execução, backends
-ou runtime (Onda 6).
+**Onda 5E — CFG → seleção → máquina** (`src/instr_select.rs` e
+`src/abstract_machine.rs`): ancorar a seleção das instruções do CFG e a passagem à
+máquina abstrata. Trata posteriormente: entrada `ProgramCfgIR`; seleção das
+instruções do CFG; tradução de operandos e temporários; rótulos e terminadores;
+representação selecionada; passagem da seleção à máquina abstrata; funções, blocos
+e operações da máquina. Preservar os modelos e validadores já ancorados de
+`select`/`machine`. Não modificar `src/cfg_ir.rs` (concluído na Onda 5D),
+`src/ir.rs` (5C), `src/parser.rs` (5B) nem `src/semantic.rs` (5A), nem antecipar
+interpretador, backends ou runtime (Onda 6).

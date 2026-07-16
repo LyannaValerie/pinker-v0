@@ -94,8 +94,9 @@ fn catalogo_deterministico() {
 
 /// O catálogo real versionado contém as chaves essenciais do frontend (Onda 4),
 /// da checagem semântica (Onda 5A), da monomorfização no parser (Onda 5B), do
-/// lowering AST→IR (Onda 5C) e as âncoras históricas, todas únicas. Verifica
-/// presença e unicidade — não um número exato permanente de regiões.
+/// lowering AST→IR (Onda 5C), do lowering IR→CFG (Onda 5D) e as âncoras
+/// históricas, todas únicas. Verifica presença e unicidade — não um número exato
+/// permanente de regiões.
 #[test]
 fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
@@ -144,6 +145,17 @@ fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
         "ir.lowering.bindings-escopos",
         "ir.tipos.conversao-ast",
         "ir.renderizacao.textual",
+        // Lowering IR → CFG (Onda 5D); modelo/validador/lógica preservados.
+        "cfg.modelo.representacao",
+        "cfg.validacao.invariantes",
+        "cfg.lowering.programa-orquestracao",
+        "cfg.lowering.funcoes-blocos",
+        "cfg.lowering.instrucoes-controle",
+        "cfg.lowering.valores-temporarios",
+        "cfg.lowering.memoria-indireta",
+        "cfg.lowering.construcao-blocos",
+        "cfg.renderizacao.programa",
+        "cfg.renderizacao.componentes",
     ] {
         assert!(
             catalog.region(essential).is_some(),
@@ -188,6 +200,54 @@ fn camada_ir_separa_modelo_lowering_e_renderizacao() {
             .iter()
             .all(|k| !ir_by_domain("modelo").contains(k)),
         "lowering e modelo não podem compartilhar chaves"
+    );
+}
+
+/// A camada `cfg` separa modelo, lowering, lógica, validação e renderização em
+/// domínios distintos (Onda 5D sobre modelo/lógica históricos). Verifica que o
+/// lowering tem várias regiões próprias, que as âncoras `cfg.logica.*` seguem no
+/// domínio `logica` e que os domínios não colidem — sem fixar total.
+#[test]
+fn camada_cfg_separa_lowering_logica_e_renderizacao() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    let cfg_by_domain = |domain: &str| -> Vec<&str> {
+        catalog
+            .regions
+            .iter()
+            .filter(|r| r.layer.as_deref() == Some("cfg") && r.domain.as_deref() == Some(domain))
+            .map(|r| r.key.as_str())
+            .collect()
+    };
+
+    // O lowering é o grosso da Onda 5D: várias regiões próprias.
+    assert!(
+        cfg_by_domain("lowering").len() >= 5,
+        "domínio cfg.lowering deveria ter várias regiões: {:?}",
+        cfg_by_domain("lowering")
+    );
+    // Modelo, lógica, validação e renderização existem como domínios distintos.
+    for domain in ["modelo", "logica", "validacao", "renderizacao"] {
+        assert!(
+            !cfg_by_domain(domain).is_empty(),
+            "domínio cfg.{domain} ausente na camada cfg"
+        );
+    }
+    // As duas âncoras históricas de curto-circuito seguem no domínio `logica`.
+    let logica = cfg_by_domain("logica");
+    for historica in ["cfg.logica.curto-circuito", "cfg.logica.slot-logico"] {
+        assert!(
+            logica.contains(&historica),
+            "âncora histórica {historica} deveria permanecer no domínio logica"
+        );
+    }
+    // O lowering não invade a lógica especializada preservada.
+    assert!(
+        cfg_by_domain("lowering")
+            .iter()
+            .all(|k| !logica.contains(k)),
+        "lowering e logica não podem compartilhar chaves"
     );
 }
 
