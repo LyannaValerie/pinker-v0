@@ -711,11 +711,16 @@ assembly GAS montável; os dois caminhos externos sim.
   **só** nesse renderer. Difere estruturalmente do assembly x86 real de
   `render_external_x86_64_linux_callconv_impl`. Sem equivalência presumida.
 - **§7.3 Modelo externo e perda de informação:** `ExternalCallConvProgram`
-  preserva nome de função, `stack_size`, `slot_offsets`, labels, params e globais/
-  strings de `.rodata`; **descarta** tipos de retorno/parâmetro/local, nomes de
-  parâmetro estruturados, temporários estruturados, spans, volatilidade,
-  terminadores estruturados e `is_freestanding` — os corpos de bloco viram
-  `Vec<String>` já textualizados.
+  **preserva** nome de função, `stack_size`, `slot_offsets`, labels, **os nomes
+  dos parâmetros** (`ExternalCallConvFunction.params: Vec<String>`), globais/
+  strings de `.rodata` e **o terminador estruturado** de cada bloco
+  (`ExternalCallConvBlock.terminator: ExternalCallConvTerminator`, com `Jmp`/`Br`/
+  `Ret` mantidos como enum até a renderização). **Descarta** os tipos de
+  retorno/parâmetro/local e a associação estruturada nome–tipo, os spans, a
+  volatilidade e `is_freestanding`. Quem vira `Vec<String>` é **o corpo de
+  instruções** de cada bloco (`ExternalCallConvBlock.body`): os temporários deixam
+  de ser instruções estruturadas e passam a aparecer indiretamente em slots e
+  linhas de assembly já textualizadas.
 - **§7.4 Target/portabilidade:** target único Linux x86-64, sintaxe GAS AT&T,
   ABI SysV, registradores físicos codificados diretamente; sem abstração de target.
 - **§7.5 Stack frame:** ordem param→local→temp; **todo slot ocupa 8 bytes** mesmo
@@ -727,9 +732,12 @@ assembly GAS montável; os dois caminhos externos sim.
   em temporário; `CallVoid` sem store. Conformidade SysV não declarada só pelos
   comentários — o comportamento real foi descrito.
 - **§7.7 Aritmética/comparações/signedness:** suportadas `Add`/`Sub`/`Mul`
-  (`addq`/`subq`/`imulq`) e as seis comparações (`set*`+`movzbq`), **sempre
-  unsigned** (`setb`/`seta`/`setbe`/`setae`); divisão, módulo, shift e bitwise
-  **não** são lowerados (catch-all). Sem política de overflow própria.
+  (`addq`/`subq`/`imulq`) e as seis comparações (`set*`+`movzbq`). A **aritmética
+  não tem distinção explícita de signedness** no backend; `Eq`/`Ne` usam
+  `sete`/`setne` e são **neutras** quanto a signedness; **apenas** as comparações
+  de ordenação `<`/`>`/`<=`/`>=` usam condições **unsigned**
+  (`setb`/`seta`/`setbe`/`setae`). Divisão, módulo, shift e bitwise **não** são
+  lowerados (catch-all). Sem política de overflow própria.
 - **§7.8 Memória indireta/volatilidade:** `DerefLoad`/`DerefStore` aceitam só
   `bombom`/`u32`/`u64`, **sempre `movq` de 8 bytes** (não estreita `u32`);
   `is_volatile=true` é recusado (só `Pointer{is_volatile:false}`). Offsets de
@@ -808,14 +816,22 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 
 | Métrica | Valor |
 |---|---:|
-| Arquivos de produção em `src/` (excl. gerados e fixtures) | 30 |
-| Arquivos com responsabilidade ancorada | 29 |
-| Arquivos apenas inventariados (estrutural) | 1 |
+| Arquivos de produção em `src/` (excl. `lib.rs`, fixtures `bin/*` e o gerado `navigation.jsonl`) | 32 |
+| Arquivos com responsabilidade ancorada (Ondas 0–6C) | 29 |
+| Arquivos de produção ainda pendentes (adiados à Onda 7) | 3 |
 | Regiões antes da Onda 6C | 123 |
 | Regiões adicionadas na Onda 6C | 24 |
 | Regiões no catálogo | 147 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
+
+Os **3 pendentes** são `src/main.rs`, `src/editor_tui.rs` e `src/boot.rs` — todos
+arquivos de produção reais em `src/`, sem âncoras, explicitamente adiados à Onda 7
+(ver a tabela "Onda 6D–6E e orquestração (adiadas)"). A contagem `32 = 29 + 3` é o
+corpus completo de produção; `src/lib.rs` (só `pub mod`), os binários-fixture
+`src/bin/pinker_fase16x_*.rs` e o catálogo gerado `src/navigation.jsonl` ficam de
+fora por não terem responsabilidade nomeável (ver "Arquivos sem candidatos a
+âncora"). A métrica não conta as superfícies adiadas como ancoradas.
 
 ### Cobertura por camada (contagem real no catálogo)
 
