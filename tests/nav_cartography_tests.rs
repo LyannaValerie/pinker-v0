@@ -95,8 +95,9 @@ fn catalogo_deterministico() {
 /// O catálogo real versionado contém as chaves essenciais do frontend (Onda 4),
 /// da checagem semântica (Onda 5A), da monomorfização no parser (Onda 5B), do
 /// lowering AST→IR (Onda 5C), do lowering IR→CFG (Onda 5D), da seleção→máquina
-/// (Onda 5E) e as âncoras históricas, todas únicas. Verifica presença e unicidade
-/// — não um número exato permanente de regiões.
+/// (Onda 5E), da execução hospedada (Onda 6A) e as âncoras históricas, todas
+/// únicas. Verifica presença e unicidade — não um número exato permanente de
+/// regiões.
 #[test]
 fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
@@ -168,6 +169,13 @@ fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
         "machine.lowering.terminadores",
         "machine.lowering.operandos-slots",
         "machine.renderizacao.apresentacao",
+        // Execução hospedada / interpretador (Onda 6A).
+        "interpreter.modelo.valores-estado",
+        "interpreter.execucao.funcoes-fluxo",
+        "interpreter.execucao.instrucoes-pilha",
+        "interpreter.intrinsecos.listas",
+        "interpreter.hospedeiro.servicos-auxiliares",
+        "interpreter.diagnostico.stack-trace",
     ] {
         assert!(
             catalog.region(essential).is_some(),
@@ -299,6 +307,52 @@ fn camadas_select_e_machine_separam_lowering_e_renderizacao() {
                 .all(|k| !by(layer, "modelo").contains(k)),
             "lowering e modelo de {layer} não podem compartilhar chaves"
         );
+    }
+}
+
+/// A camada `interpreter` (Onda 6A) separa a execução hospedada em domínios
+/// distintos — modelo, execução, intrínsecos, hospedeiro e diagnóstico —, cada um
+/// com pelo menos uma região própria e sem chaves compartilhadas entre domínios.
+/// Verifica presença e disjunção — sem fixar o total de regiões.
+#[test]
+fn camada_interpreter_separa_dominios_de_execucao() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    let by_domain = |domain: &str| -> Vec<&str> {
+        catalog
+            .regions
+            .iter()
+            .filter(|r| {
+                r.layer.as_deref() == Some("interpreter") && r.domain.as_deref() == Some(domain)
+            })
+            .map(|r| r.key.as_str())
+            .collect()
+    };
+
+    let dominios = [
+        "modelo",
+        "execucao",
+        "intrinsecos",
+        "hospedeiro",
+        "diagnostico",
+    ];
+    for domain in dominios {
+        assert!(
+            !by_domain(domain).is_empty(),
+            "domínio interpreter.{domain} ausente"
+        );
+    }
+    // Os domínios são disjuntos: nenhuma chave aparece em dois deles.
+    for (i, a) in dominios.iter().enumerate() {
+        for b in &dominios[i + 1..] {
+            let da = by_domain(a);
+            let db = by_domain(b);
+            assert!(
+                da.iter().all(|k| !db.contains(k)),
+                "domínios interpreter.{a} e interpreter.{b} não podem compartilhar chaves"
+            );
+        }
     }
 }
 

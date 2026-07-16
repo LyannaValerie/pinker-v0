@@ -29,6 +29,10 @@ const TRACE_TRUNC_THRESHOLD: usize = 10;
 const TRACE_HEAD: usize = 5;
 const TRACE_TAIL: usize = 5;
 
+// @pinker-nav:start interpreter.modelo.valores-estado
+// @pinker-nav:domain modelo
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Define valores executados, handles lógicos e estados hospedados do interpretador para IO, listas, mapas, leques, aleatoriedade, arquivos e frames de diagnóstico; diferencia slots e endereços simulados de ponteiros nativos e não define a representação do runtime nativo linkável.
 enum IntrinsicCall {
     NotIntrinsic,
     Done(Option<RuntimeValue>),
@@ -139,6 +143,12 @@ pub struct RunOutcome {
     pub exit_status: Option<i32>,
 }
 
+// @pinker-nav:end interpreter.modelo.valores-estado
+
+// @pinker-nav:start interpreter.execucao.programa-globais
+// @pinker-nav:domain execucao
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Inicia a execução hospedada de um `MachineProgram`, copia argumentos CLI para o estado do interpretador, chama `principal`, converte globais em `RuntimeValue`, monta a memória indireta simulada em `HashMap` e devolve valor ou status de saída sem gerar código nativo.
 pub fn run_program(program: &MachineProgram) -> Result<Option<RuntimeValue>, PinkerError> {
     Ok(run_program_with_args(program, &[])?.return_value)
 }
@@ -255,6 +265,12 @@ fn build_memory(
 // O call_stack acumula os nomes ativos para montar o stack trace em erros.
 // Retorna `None` para funções void, `Some(valor)` caso contrário.
 #[allow(clippy::too_many_arguments)]
+// @pinker-nav:end interpreter.execucao.programa-globais
+
+// @pinker-nav:start interpreter.execucao.funcoes-fluxo
+// @pinker-nav:domain execucao
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Executa uma `MachineFunction` validada a partir do bloco `entry`, criando frame, slots, pilha e mapa de labels, seguindo terminadores e propagando retornos ou `sair`; consulta intrínsecas hospedadas e funções Pinker sem reconstruir CFG, escalonar concorrência ou emitir ABI nativa.
 fn call_function(
     fn_name: &str,
     args: Vec<RuntimeValue>,
@@ -385,6 +401,12 @@ fn call_function(
 }
 
 #[allow(clippy::too_many_arguments)]
+// @pinker-nav:end interpreter.execucao.funcoes-fluxo
+
+// @pinker-nav:start interpreter.execucao.instrucoes-pilha
+// @pinker-nav:domain execucao
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Executa instruções da máquina de pilha lendo ou desempilhando operandos, mutando slots, pilha, globais e memória simulada, despachando intrínsecas antes de funções Pinker e materializando impressões de `falar`; mantém verificações defensivas de underflow e tipos sem substituir a validação estática.
 fn exec_instr(
     instr: &MachineInstr,
     slots: &mut HashMap<String, RuntimeValue>,
@@ -715,6 +737,12 @@ fn exec_instr(
     Ok(())
 }
 
+// @pinker-nav:end interpreter.execucao.instrucoes-pilha
+
+// @pinker-nav:start interpreter.intrinsecos.acaso
+// @pinker-nav:domain intrinsecos
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Implementa intrínsecas hospedadas de aleatoriedade inicial, validando aridade, semente e handle de gerador, mutando o estado pseudoaleatório do interpretador e retornando handles ou números; não representa geradores do runtime nativo.
 fn try_call_intrinsic(
     callee: &str,
     args: &[RuntimeValue],
@@ -762,6 +790,12 @@ fn try_call_intrinsic(
             let next = advance_random_generator(&mut generator.state);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(next))))
         }
+        // @pinker-nav:end interpreter.intrinsecos.acaso
+
+        // @pinker-nav:start interpreter.intrinsecos.listas
+        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:layer interpreter
+        // @pinker-nav:summary Implementa operações hospedadas contíguas de listas de bombom e verso, criando handles tipados, anexando, obtendo, medindo, definindo, removendo e inserindo elementos com validação dinâmica de aridade, índice, handle e tipo; os handles pertencem ao estado do interpretador.
         "lista_bombom_criar" => {
             if !args.is_empty() {
                 return Err(runtime_err(
@@ -1052,6 +1086,12 @@ fn try_call_intrinsic(
             lista.insert(idx, valor);
             Ok(IntrinsicCall::Done(None))
         }
+        // @pinker-nav:end interpreter.intrinsecos.listas
+
+        // @pinker-nav:start interpreter.intrinsecos.mapas-verso-bombom
+        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:layer interpreter
+        // @pinker-nav:summary Implementa o primeiro bloco contíguo de mapa hospedado `verso -> bombom`, incluindo criação, escrita, leitura, presença, tamanho e cursores internos usados por lowering de iteração; valida aridade, handles e chaves sem definir layout nativo.
         "mapa_verso_bombom_criar" => {
             if !args.is_empty() {
                 return Err(runtime_err(
@@ -1218,6 +1258,12 @@ fn try_call_intrinsic(
             iter.next_index = iter.next_index.saturating_add(1);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(key.clone()))))
         }
+        // @pinker-nav:end interpreter.intrinsecos.mapas-verso-bombom
+
+        // @pinker-nav:start interpreter.intrinsecos.leques
+        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:layer interpreter
+        // @pinker-nav:summary Implementa leques hospedados por handle opaco, criando valores, anexando payload inteiro ou textual e carregando tag ou carga com validações de handle, tag e índice; descreve somente a representação do interpretador, não o layout futuro do runtime nativo.
         "__pinker_internal_leque_criar_0" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -1352,6 +1398,12 @@ fn try_call_intrinsic(
             };
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value.clone()))))
         }
+        // @pinker-nav:end interpreter.intrinsecos.leques
+
+        // @pinker-nav:start interpreter.intrinsecos.io-arquivo-texto
+        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:layer interpreter
+        // @pinker-nav:summary Agrupa intrínsecas hospedadas contíguas de stdin, arquivos por handle, operações diretas de texto e serialização mínima, validando aridade e tipos, lendo stdin, escrevendo stdout ou filesystem real e retornando valores Pinker; não é filesystem virtual nem runtime nativo.
         "ouvir" => {
             if !args.is_empty() {
                 return Err(runtime_err("intrínseca 'ouvir' exige 0 argumentos"));
@@ -2246,6 +2298,12 @@ fn try_call_intrinsic(
             let json = emit_json_plano_bombom(mapa)?;
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(json))))
         }
+        // @pinker-nav:end interpreter.intrinsecos.io-arquivo-texto
+
+        // @pinker-nav:start interpreter.intrinsecos.tempo-processos-ambiente
+        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:layer interpreter
+        // @pinker-nav:summary Agrupa intrínsecas hospedadas contíguas de relógio, processos, argumentos CLI, ambiente, caminhos, status de saída, assertivas, espera e cópia ou renomeação, com efeitos reais no host como `Command`, pipes, diretório atual, variáveis de ambiente, sono e filesystem; devolve resultados ao interpretador sem prometer modo freestanding.
         "tempo_unix" => {
             if !args.is_empty() {
                 return Err(runtime_err("intrínseca 'tempo_unix' exige 0 argumentos"));
@@ -2851,6 +2909,12 @@ fn try_call_intrinsic(
             })?;
             Ok(IntrinsicCall::Done(None))
         }
+        // @pinker-nav:end interpreter.intrinsecos.tempo-processos-ambiente
+
+        // @pinker-nav:start interpreter.intrinsecos.conversoes-numero-texto
+        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:layer interpreter
+        // @pinker-nav:summary Intrínsecas hospedadas de conversão entre número e texto: `verso_para_bombom` (parse de `verso` para `bombom`, com erro em texto inválido) e `bombom_para_verso` (formatação de `bombom` como `verso`). Valida aridade e tipos dos argumentos.
         "verso_para_bombom" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -2883,6 +2947,10 @@ fn try_call_intrinsic(
                 valor.to_string(),
             ))))
         }
+        // @pinker-nav:end interpreter.intrinsecos.conversoes-numero-texto
+
+        // Arm isolado da família `acaso` (ver `interpreter.intrinsecos.acaso`),
+        // fisicamente separado dela neste ponto do dispatcher; sem âncora própria.
         "aleatorio_entre" => {
             if args.len() != 3 {
                 return Err(runtime_err(
@@ -2914,6 +2982,11 @@ fn try_call_intrinsic(
             let result = if range == 0 { raw } else { min + (raw % range) };
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(result))))
         }
+
+        // @pinker-nav:start interpreter.intrinsecos.mapas-tipados
+        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:layer interpreter
+        // @pinker-nav:summary Intrínsecas hospedadas das famílias tipadas de mapa `mapa<verso,verso>`, `mapa<bombom,bombom>` e `mapa<bombom,verso>` — cada uma com `criar`/`definir`/`obter`/`tem`/`tamanho`/`remover` e os cursores internos de iteração (`__pinker_internal_..._iterador_criar`/`_proxima_chave`) — mais a remoção residual de `mapa<verso,bombom>`. Opera sobre as tabelas de estado do hospedeiro; valida aridade e tipos.
         "mapa_verso_bombom_remover" => {
             if args.len() != 2 {
                 return Err(runtime_err(
@@ -3511,6 +3584,11 @@ fn try_call_intrinsic(
             iter.next_index = iter.next_index.saturating_add(1);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(key_val))))
         }
+        // @pinker-nav:end interpreter.intrinsecos.mapas-tipados
+
+        // Arm isolado da família `listas` (ver `interpreter.intrinsecos.listas`),
+        // fisicamente separado dela neste ponto do dispatcher; sem âncora própria.
+        // Segue o ramo `_ => NotIntrinsic` de encerramento do dispatcher.
         "lista_bombom_inserir" => {
             if args.len() != 3 {
                 return Err(runtime_err(
@@ -3549,6 +3627,10 @@ fn try_call_intrinsic(
     }
 }
 
+// @pinker-nav:start interpreter.hospedeiro.servicos-auxiliares
+// @pinker-nav:domain hospedeiro
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Reúne helpers hospedados usados pelas intrínsecas para stdin, aleatoriedade, argumentos nomeados, ambiente, formatação textual, CSV, JSON mínimo, tempo UTC e processos; encapsula efeitos e normalizações auxiliares sem criar novas ferramentas da Trama nem alterar a semântica do dispatcher.
 fn read_stdin_line_minima(intrinsic_name: &str) -> Result<Option<String>, PinkerError> {
     let mut raw = String::new();
     let bytes = io::stdin().read_line(&mut raw).map_err(|err| {
@@ -4090,6 +4172,12 @@ fn trim_final_newline_minimo(mut line: String) -> String {
     line
 }
 
+// @pinker-nav:end interpreter.hospedeiro.servicos-auxiliares
+
+// @pinker-nav:start interpreter.execucao.valores-tipos
+// @pinker-nav:domain execucao
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Implementa busca de função, desempilhamento de argumentos, validações dinâmicas de tipo, coerção para `TypeIR`, conversões de ponteiros simulados, aritmética, comparação e signedness usados pela execução; são defesas de runtime, não o sistema estático de tipos Pinker.
 fn find_function<'a>(
     name: &str,
     program: &'a MachineProgram,
@@ -4411,6 +4499,12 @@ fn normalize_numeric_pair(
     }
 }
 
+// @pinker-nav:end interpreter.execucao.valores-tipos
+
+// @pinker-nav:start interpreter.diagnostico.stack-trace
+// @pinker-nav:domain diagnostico
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Cria erros de runtime enriquecidos e stack traces do interpretador a partir dos frames Pinker ativos, incluindo função, bloco, instrução e span futuro quando disponível, prevenindo anexação duplicada e truncando traces longos; não é backtrace nativo Rust.
 fn runtime_err(msg: &str) -> PinkerError {
     PinkerError::Runtime {
         msg: enrich_runtime_msg(msg),
@@ -4610,3 +4704,4 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::PrintNewline => "print_newline",
     }
 }
+// @pinker-nav:end interpreter.diagnostico.stack-trace
