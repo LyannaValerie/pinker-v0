@@ -120,6 +120,10 @@ pub enum MachineTerminator {
 }
 // @pinker-nav:end machine.modelo.representacao
 
+// @pinker-nav:start machine.lowering.programa-blocos
+// @pinker-nav:domain lowering
+// @pinker-nav:layer machine
+// @pinker-nav:summary Entrada da máquina abstrata de pilha: converte `SelectedProgram` em `MachineProgram`, copiando as globais, transformando cada função (sequência de instruções por bloco via `lower_instr`, terminador via `lower_term`) e preservando parâmetros, locais e `slot_types`. Nota: `slot_types` é apenas copiado da seleção (parâmetros+locais) — os temporários `%tN` não são acrescentados aqui, embora o doc de `MachineFunction` afirme o contrário; e `is_freestanding` do `SelectedProgram` não é propagado ao `MachineProgram`.
 pub fn lower_program(selected: &SelectedProgram) -> Result<MachineProgram, PinkerError> {
     let globals = selected
         .globals
@@ -169,9 +173,12 @@ pub fn lower_program(selected: &SelectedProgram) -> Result<MachineProgram, Pinke
         functions,
     })
 }
+// @pinker-nav:end machine.lowering.programa-blocos
 
-// Padrão de lowering para instruções binárias/unárias: carrega operandos na pilha,
-// emite a operação, depois armazena o resultado em um slot temporário `%tN`.
+// @pinker-nav:start machine.lowering.instrucoes-pilha
+// @pinker-nav:domain lowering
+// @pinker-nav:layer machine
+// @pinker-nav:summary Dispatcher `lower_instr` que converte cada `SelectedInstr` em operações da máquina de pilha seguindo o padrão carregar operandos → emitir a operação → armazenar o resultado em `StoreSlot("%tN")` quando há destino: `Mov`, unários, `DerefLoad`/`DerefStore`, `Cast`, bitwise, aritmética, comparações, chamadas (`Call`/`CallVoid` empilham os argumentos) e a emissão de `falar` (via `lower_falar_arg`, distinguindo string literal, `verso`, `lógica` e inteiro). Os `%tN` são slots nomeados de resultado — não são registradores físicos; não há SSA nem ABI de hardware.
 fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) {
     match inst {
         SelectedInstr::Mov { dest, src } => {
@@ -375,6 +382,12 @@ fn lower_falar_arg(arg: &FalarArgSelected, code: &mut Vec<MachineInstr>) {
     }
 }
 
+// @pinker-nav:end machine.lowering.instrucoes-pilha
+
+// @pinker-nav:start machine.lowering.terminadores
+// @pinker-nav:domain lowering
+// @pinker-nav:layer machine
+// @pinker-nav:summary `lower_term` converte cada `SelectedTerminator` em `MachineTerminator`: `Jmp` direto; `Br` carrega a condição na pilha antes de `BrTrue`; `Ret(Some)` carrega o valor de retorno antes de `Ret`; `Ret(None)` vira `RetVoid`. Os rótulos vêm do CFG — não há reconstrução de fluxo.
 fn lower_term(term: &SelectedTerminator, code: &mut Vec<MachineInstr>) -> MachineTerminator {
     match term {
         SelectedTerminator::Jmp(label) => MachineTerminator::Jmp(label.clone()),
@@ -397,6 +410,12 @@ fn lower_term(term: &SelectedTerminator, code: &mut Vec<MachineInstr>) -> Machin
     }
 }
 
+// @pinker-nav:end machine.lowering.terminadores
+
+// @pinker-nav:start machine.lowering.operandos-slots
+// @pinker-nav:domain lowering
+// @pinker-nav:layer machine
+// @pinker-nav:summary Tradução de cada `OperandIR` numa carga da pilha: literais inteiro/lógico/string viram `PushInt`/`PushBool`/`PushStr`; local e global viram `LoadSlot`/`LoadGlobal`; temporário vira `LoadSlot(temp_name)`, e `temp_name` produz o nome canônico `%tN` reconhecido pelo validador. Não faz inferência de tipos nem validação de pilha.
 fn emit_load(op: &OperandIR, code: &mut Vec<MachineInstr>) {
     match op {
         OperandIR::Int(v) => code.push(MachineInstr::PushInt(*v)),
@@ -413,7 +432,12 @@ fn emit_load(op: &OperandIR, code: &mut Vec<MachineInstr>) {
 fn temp_name(t: crate::cfg_ir::TempIR) -> String {
     format!("%t{}", t.0)
 }
+// @pinker-nav:end machine.lowering.operandos-slots
 
+// @pinker-nav:start machine.renderizacao.programa
+// @pinker-nav:domain renderizacao
+// @pinker-nav:layer machine
+// @pinker-nav:summary `render_program`: forma textual do `MachineProgram` ao nível de módulo, globais e cada função (parâmetros, locais, descoberta e exibição dos temporários, blocos com instruções e terminador), delegando a formatação de cada elemento aos helpers de componentes e apresentação. Recebe a máquina pronta; não abaixa de novo, não valida nem executa.
 pub fn render_program(program: &MachineProgram) -> String {
     let mut out = String::new();
     line(&mut out, 0, &format!("module {}", program.module_name));
@@ -515,7 +539,12 @@ pub fn render_program(program: &MachineProgram) -> String {
 
     out
 }
+// @pinker-nav:end machine.renderizacao.programa
 
+// @pinker-nav:start machine.renderizacao.apresentacao
+// @pinker-nav:domain renderizacao
+// @pinker-nav:layer machine
+// @pinker-nav:summary Apresentação humana dos nomes e blocos na renderização: `clean_slot_display` limpa `%nome#N` para a forma legível preservando `%tN`, `is_render_temp` distingue os temporários internos, e `block_role_annotation` anota o papel de cada bloco (entry, ramos, laços, joins, curto-circuito) por convenções de prefixo de label. É apresentação, não lowering; os nomes limpos e as anotações não voltam para o modelo interno nem são metadados semânticos persistidos.
 // Converte nome interno de slot para forma legível ao usuário.
 // `%varname#0` → `varname`; `%t0` permanece `%t0` (temporário interno).
 fn clean_slot_display(s: &str) -> String {
@@ -583,7 +612,12 @@ fn block_role_annotation(label: &str) -> &'static str {
     }
     ""
 }
+// @pinker-nav:end machine.renderizacao.apresentacao
 
+// @pinker-nav:start machine.renderizacao.componentes
+// @pinker-nav:domain renderizacao
+// @pinker-nav:layer machine
+// @pinker-nav:summary Formatação textual de instruções e fluxo da máquina: `render_instr`, `render_term` (com `jmp_comment`/`br_true_comment`/`with_comment`), `render_operand` e o utilitário `line`. Os comentários de fluxo são heurísticos, derivados dos prefixos dos labels — não são metadados semânticos persistidos no modelo. Não altera a máquina, não valida nem executa.
 fn render_instr(i: &MachineInstr) -> String {
     match i {
         MachineInstr::PushInt(v) => {
@@ -799,3 +833,4 @@ fn line(out: &mut String, indent: usize, text: &str) {
     out.push_str(text);
     out.push('\n');
 }
+// @pinker-nav:end machine.renderizacao.componentes
