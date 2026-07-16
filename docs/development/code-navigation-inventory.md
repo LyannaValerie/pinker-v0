@@ -25,26 +25,42 @@ receberam âncoras `@pinker-nav`. O endereçamento para máquinas vive no catál
 substitui.
 
 A cartografia avança em **ondas**, do mais simples ao mais complexo. Cada onda é
-útil sozinha. As **Ondas 0–6A** já estão na `main`, fechando a cadeia de lowerings
-AST → IR → CFG → seleção → máquina e a execução hospedada. A **Onda 6** foi
-decomposta em entregas independentes: 6A (`src/interpreter.rs`), 6B
-(`src/backend_text.rs`), 6C (`src/backend_s.rs`), 6D (ampliação controlada das
-raízes do scanner) e 6E (`runtime/pinker_rt/src/lib.rs`). Esta rodada conclui
-exclusivamente a **Onda 6C**: cartografia do backend `.s` e da ABI nativa —
-os três caminhos públicos, o modelo externo `ExternalCallConvProgram`, o
-lowering montável, a ABI SysV, a renderização e a integração com `pinker_rt`.
+útil sozinha. As **Ondas 0–6C** já estão na `main`, fechando a cadeia de lowerings
+AST → IR → CFG → seleção → máquina, a execução hospedada e os dois backends
+(textual e `.s`/ABI nativa). A **Onda 6** foi decomposta em entregas
+independentes: 6A (`src/interpreter.rs`), 6B (`src/backend_text.rs`), 6C
+(`src/backend_s.rs`), 6D (ampliação controlada das raízes do scanner) e 6E
+(`runtime/pinker_rt/src/lib.rs`). Esta rodada conclui a **Onda 6D**:
+generalização de `pink nav` para raízes de código controladas — `src/` e
+`runtime/pinker_rt/src/`, ambas ativas e obrigatórias no fluxo oficial —, sem
+cartografar o conteúdo do runtime (isso é a Onda 6E).
 
-## Contrato do scanner (limitação registrada)
+## Contrato do scanner
 
-O scanner de `pink nav` indexa hoje **somente `src/**/*.rs`** (ver
-`trama.codigo.catalogo` em `src/nav.rs`: os caminhos são derivados com prefixo
-`src/`). Runtime, testes e apps **não** são varridos.
+O scanner de `pink nav` indexa hoje um **conjunto explícito de raízes
+controladas** do repositório (`official_scan_roots()` em `src/nav.rs`, região
+`trama.codigo.raizes`): `src/` e `runtime/pinker_rt/src/`, ambas obrigatórias
+no fluxo oficial (`pink nav sincronizar`/`verificar`). Cada raiz é validada
+antes de qualquer leitura — ausência, caminho que não é diretório ou link
+simbólico falham com `E-NAV-SCAN` antes de qualquer escrita do catálogo, sem
+gerar índice parcial. Os caminhos registrados em `file` são **repo-relativos**
+(`src/nav.rs`, `runtime/pinker_rt/src/lib.rs`), com `/` como separador, nunca
+absolutos e nunca contendo `..`. Links simbólicos não são seguidos — nem de
+diretório (evita ciclos e fuga da raiz) nem de arquivo — e uma raiz oficial que
+seja, ela mesma, um link simbólico é recusada. A extensão indexada em ambas as
+raízes é `.rs`. `tests/` e `apps/` permanecem **desativadas**: `tests/` tem
+fixtures com textos semelhantes a marcadores dentro de strings (risco de falso
+positivo ao varrer sem uma política própria de exclusão) e `apps/` reúne
+fontes `.pink`, que exigem uma política de marcadores própria antes de entrar
+no scanner. Ambas ficam para ondas específicas (8 e 9).
 
-**Estratégia escolhida: B** — concluir a cobertura de `src/` progressivamente e
-deixar `runtime/`, `tests/` e `apps/` explicitamente inventariados para PRs
-seguintes. Não ampliamos o scanner de forma improvisada para não quebrar o
-contrato do catálogo (chaves únicas, sem sobreposição, hash determinístico). A
-ampliação de raízes é, ela mesma, uma onda posterior com testes próprios.
+**Estratégia escolhida: B** — `CodeIndex::scan` permanece como wrapper fino de
+raiz única para fixtures/testes (sem prefixo fabricado; o caminho é relativo à
+raiz recebida), enquanto a produção usa a API multi-raiz
+(`CodeIndex::scan_repo` → `official_scan_roots()` → `scan_roots` →
+`collect_source_files` → `scan_file`), única fonte da política de raízes. A
+chave de região continua global: nenhuma raiz vira namespace, e uma mesma
+chave em duas raízes é reportada como `DuplicateKey` com os dois caminhos.
 
 ## Convenção de chaves
 
@@ -778,14 +794,64 @@ assembly GAS montável; os dois caminhos externos sim.
   garantem as invariantes que os `.expect` do renderer montável (condição/retorno
   carregáveis) assumem.
 
-## Onda 6D–6E e orquestração (adiadas)
+## Onda 6D — raízes controladas de código (concluída)
+
+`src/nav.rs` ganhou uma raiz nova de política: `official_scan_roots()` define
+as raízes de código controladas do repositório — hoje `src/` e
+`runtime/pinker_rt/src/`, ambas **ativas** e ambas **obrigatórias** no fluxo
+oficial (`pink nav sincronizar`/`verificar`). A onda cartografa essa política
+em uma região nova, `trama.codigo.raizes`, sem invadir `trama.codigo.catalogo`
+(orquestração: `scan`/`scan_repo`) nem `trama.codigo.consulta` (leitura do
+JSONL versionado, que continua sem revarrer nada).
+
+- **Raízes ativas:** `src/` e `runtime/pinker_rt/src/`, extensão `.rs` em
+  ambas. `tests/` e `apps/` seguem **desativadas** — `tests/` por ter fixtures
+  com textos parecidos com marcadores dentro de strings (risco de falso
+  positivo sem uma política de exclusão própria) e `apps/` por reunir fontes
+  `.pink`, que precisam de uma convenção de marcador própria antes de entrar no
+  scanner. Ambas ficam para as Ondas 8 e 9.
+- **Caminhos:** sempre repo-relativos, com `/`, nunca absolutos, nunca com
+  `..`. Nenhum prefixo é fabricado — o caminho nasce de
+  `relative_path` da raiz + caminho do arquivo dentro dela.
+- **Unicidade global:** a chave de região continua global entre raízes; a
+  mesma chave em `src/` e em `runtime/pinker_rt/src/` é reportada como
+  `DuplicateKey` com os dois arquivos. Nenhuma raiz vira namespace de chave.
+- **Determinismo:** os arquivos de todas as raízes são combinados, ordenados
+  por caminho repo-relativo e cada um é varrido no máximo uma vez — a ordem em
+  que as raízes são declaradas não altera o JSONL final.
+- **Symlinks:** nunca seguidos, nem de diretório (evita ciclos e fuga da
+  raiz) nem de arquivo (não é catalogado); uma raiz oficial que seja, ela
+  mesma, um link simbólico é recusada.
+- **Raiz obrigatória ausente:** `src/` ou `runtime/pinker_rt/src/` ausente,
+  inacessível, não-diretório ou recusada por symlink falha com `E-NAV-SCAN`
+  **antes** de qualquer escrita do catálogo — sem índice parcial e sem
+  sobrescrever o último catálogo válido.
+- **Runtime ativado, não cartografado:** `runtime/pinker_rt/src/` já é
+  varrida pelo scanner (é uma raiz ativa), mas `runtime/pinker_rt/src/lib.rs`
+  **não** recebeu nenhuma âncora `@pinker-nav` nesta onda — nenhuma região do
+  catálogo real tem `file` começando por `runtime/`. Cartografar o conteúdo do
+  runtime é trabalho da **Onda 6E**, não desta.
+- **Catálogo:** 147 → **148** regiões (uma única região nova,
+  `trama.codigo.raizes`); nenhuma chave anterior foi removida; camada `trama`
+  10 → **11** regiões.
+
+| Raiz | Estado | Extensão | Cartografia |
+|---|---|---|---|
+| `src/` | ativa | `.rs` | existente |
+| `runtime/pinker_rt/src/` | ativa | `.rs` | aguardando 6E |
+| `tests/` | desativada | futura `.rs` | Onda 8 |
+| `apps/` | desativada | futura `.pink` | Onda 9 |
+
+Esta onda **não** conclui a Onda 6 inteira: falta a 6E (cartografia do
+conteúdo do runtime nativo) antes de a Onda 6 poder ser dada por encerrada.
+
+## Onda 6E e orquestração (adiadas)
 
 Inventariados; revisão atual `estrutural` para as camadas ainda pendentes.
 
 | Arquivo | Camada | Propósito (do módulo-doc/estrutura) | Complexidade | Âncoras atuais | Onda-alvo |
 |---|---|---|---|---|---|
-| `src/nav.rs` | trama | Ampliação controlada das raízes do scanner antes de catalogar runtime fora de `src/`. | alta | `trama.codigo.*` | 6D |
-| `runtime/pinker_rt/src/lib.rs` | runtime | Runtime nativo linkado por `pink build --nativo`; alocação, coleções nativas, ABI. **Fora do scanner atual.** | transversal | — | 6E (após ampliar raízes) |
+| `runtime/pinker_rt/src/lib.rs` | runtime | Runtime nativo linkado por `pink build --nativo`; alocação, coleções nativas, ABI. Raiz **ativa** desde a Onda 6D, mas ainda **sem cartografia** (nenhuma região aponta para `runtime/`). | transversal | — | 6E |
 | `src/main.rs` | cli | Orquestração da CLI: parsing de flags, roteamento, pipeline de análise/build, importação de módulos, link nativo, comandos `doc`/`nav`. | transversal | — | 7 |
 | `src/editor_tui.rs` | editor | TUI mínima oficial (Fase 136): estado, comandos, ações Pinker reais. | moderada | — | 7 |
 | `src/boot.rs` | boot | Fronteiras freestanding: entry `_start`, linker script e stub de kernel. | simples | — | 7 |
@@ -800,10 +866,15 @@ Registrados para não desaparecerem da análise; não recebem âncoras.
 | `src/bin/pinker_fase16x_*.rs` | Binários-fixture minúsculos (3–35 linhas) usados por testes de I/O; sem responsabilidade nomeável. |
 | `src/navigation.jsonl` | Catálogo **gerado**; nunca é fonte de âncoras. |
 
-## Testes e apps (adiados — fora do scanner atual)
+## Testes e apps (adiados — raízes desativadas)
 
-Inventariados para as Ondas 8 e 9. Enquanto o scanner indexar só `src/`, estes
-não são varridos; suas âncoras dependem da ampliação de raízes (onda própria).
+Inventariados para as Ondas 8 e 9. O scanner já indexa duas raízes (`src/` e
+`runtime/pinker_rt/src/`, Onda 6D), mas `tests/` e `apps/` permanecem
+desativadas por política explícita — `tests/` tem fixtures com textos
+parecidos com marcadores dentro de strings (risco de falso positivo sem uma
+regra própria de exclusão) e `apps/` reúne fontes `.pink`, que exigem uma
+convenção de marcador própria antes de entrar no scanner. Ativar qualquer uma
+delas é onda própria.
 
 - `tests/*.rs` — evidência por camada (lexer, parser, semântica, IR/CFG/seleção/
   máquina, interpretador, backends, runtime nativo, Trama, CLI, paridade nativa).
@@ -812,26 +883,28 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 6C)
+## Cobertura acumulada (após Onda 6D)
 
 | Métrica | Valor |
 |---|---:|
 | Arquivos de produção em `src/` (excl. `lib.rs`, fixtures `bin/*` e o gerado `navigation.jsonl`) | 32 |
-| Arquivos com responsabilidade ancorada (Ondas 0–6C) | 29 |
+| Arquivos com responsabilidade ancorada (Ondas 0–6D) | 29 |
 | Arquivos de produção ainda pendentes (adiados à Onda 7) | 3 |
-| Regiões antes da Onda 6C | 123 |
-| Regiões adicionadas na Onda 6C | 24 |
-| Regiões no catálogo | 147 |
+| Regiões antes da Onda 6D | 147 |
+| Regiões adicionadas na Onda 6D | 1 |
+| Regiões no catálogo | 148 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
 
 Os **3 pendentes** são `src/main.rs`, `src/editor_tui.rs` e `src/boot.rs` — todos
 arquivos de produção reais em `src/`, sem âncoras, explicitamente adiados à Onda 7
-(ver a tabela "Onda 6D–6E e orquestração (adiadas)"). A contagem `32 = 29 + 3` é o
+(ver a tabela "Onda 6E e orquestração (adiadas)"). A contagem `32 = 29 + 3` é o
 corpus completo de produção; `src/lib.rs` (só `pub mod`), os binários-fixture
 `src/bin/pinker_fase16x_*.rs` e o catálogo gerado `src/navigation.jsonl` ficam de
 fora por não terem responsabilidade nomeável (ver "Arquivos sem candidatos a
-âncora"). A métrica não conta as superfícies adiadas como ancoradas.
+âncora"). A métrica não conta as superfícies adiadas como ancoradas; a raiz
+`runtime/pinker_rt/src/` está **ativa** no scanner, mas nenhum arquivo dela é
+contado como ancorado — ela ainda não recebeu nenhuma região (Onda 6E).
 
 ### Cobertura por camada (contagem real no catálogo)
 
@@ -854,20 +927,20 @@ fora por não terem responsabilidade nomeável (ver "Arquivos sem candidatos a
 | backend-text | 9 | validador; Onda 6B (8): modelo, lowering (cfg-programa, seleção-programa, instruções-selecionadas), pipeline emissão, renderização (programa, instruções, componentes) |
 | backend-s | 24 | Onda 6C: pipeline (textual-selecionado, toolchain-externa, nativo-runtime), validação (subset-textual, labels-tipos), modelo (callconv-externa), abi (registradores-argumentos, prólogo-parâmetros, blocos-terminadores), lowering (globais-rodata, funções-frames, blocos-terminadores, operações-memória, chamadas-sysv, falar-runtime, operações-lineares, operandos-slots), renderização (callconv-programa, abi-textual programa/instruções/componentes), runtime (intrínsecas-por-aridade, símbolos-intrínsecas), dados (strings-rodata) |
 | semantic | 10 | importações, sistema de tipos, escopos, duas-passagens, tratos, funções, comandos, fluxo, expressões, chamadas (Onda 5A) |
-| trama | 10 | normalização, jsonl, marco, catálogos e consultas doc/código, manifesto, ledger, projeções |
-| **total** | **147** | |
+| trama | 11 | normalização, jsonl, marco, catálogos e consultas doc/código, raízes de código controladas (Onda 6D), manifesto, ledger, projeções |
+| **total** | **148** | |
 
-Pendentes de cartografia: ampliação de raízes do scanner (6D), runtime nativo
-(6E), cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após ampliar raízes).
+Pendentes de cartografia: conteúdo do runtime nativo (6E), cli/editor/boot
+(Onda 7), tests/apps (Ondas 8/9, após ativar as respectivas raízes).
 
 ## Próximo ponto de retomada
 
-**Onda 6D — ampliação controlada das raízes do scanner em `src/nav.rs`.** O
-scanner de `pink nav` indexa hoje **somente `src/**/*.rs`** (ver
-`trama.codigo.catalogo`: os caminhos são derivados com prefixo `src/`). A 6D deve
-preparar o scanner para arquivos fora de `src/` — com testes próprios, sem
-quebrar o contrato do catálogo (chaves únicas, sem sobreposição, hash
-determinístico) — habilitando a cartografia posterior de `runtime/pinker_rt`
-(6E). **Não** antecipar a cartografia de `runtime/pinker_rt` nesta preparação.
-Permanecem depois: 6E — runtime nativo `pinker_rt`; Onda 7 — cli/editor/boot;
-Ondas 8/9 — tests/apps.
+**Onda 6E — cartografia integral de `runtime/pinker_rt/src/lib.rs`.** A Onda
+6D já ativou `runtime/pinker_rt/src/` como raiz do scanner (obrigatória no
+fluxo oficial), mas **não** ancorou nenhum conteúdo nela — nenhuma região do
+catálogo real tem `file` começando por `runtime/`. A 6E deve revisar
+`runtime/pinker_rt/src/lib.rs` linha a linha e cartografar suas
+responsabilidades reais (alocação, coleções nativas, ABI) com âncoras
+`@pinker-nav` próprias, sem tocar a política de raízes definida em
+`trama.codigo.raizes`. Permanecem depois: Onda 7 — cli/editor/boot; Ondas 8/9
+— tests/apps (cada uma exige ativar sua própria raiz primeiro).
