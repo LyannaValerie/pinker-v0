@@ -25,10 +25,11 @@ receberam âncoras `@pinker-nav`. O endereçamento para máquinas vive no catál
 substitui.
 
 A cartografia avança em **ondas**, do mais simples ao mais complexo. Cada onda é
-útil sozinha. As **Ondas 0–5C** já estão na `main`; esta rodada adiciona a
-**Onda 5D** (lowering IR → CFG em `src/cfg_ir.rs`). O lowering restante
-(`5E — CFG → seleção → máquina`), além das demais camadas, segue inventariado e
-explicitamente adiado.
+útil sozinha. As **Ondas 0–5D** já estão na `main`; esta rodada adiciona a
+**Onda 5E** (lowering CFG → seleção → máquina em `src/instr_select.rs` e
+`src/abstract_machine.rs`), fechando a cadeia de lowerings. A execução, os
+backends e o runtime (Onda 6) e as demais camadas seguem inventariados e
+explicitamente adiados.
 
 ## Contrato do scanner (limitação registrada)
 
@@ -358,16 +359,79 @@ base `[bombom; N]`; função não-`nulo` sem terminador e `break`/`continue` for
 laço produzem erro. `break`/`continue` usam `Branch` com condição constante e
 bloco de continuação sintético — registrado como observação, sem alteração.
 
-## Onda 5E+ — seleção, máquina, execução, orquestração (adiadas)
+## Onda 5E — CFG → seleção → máquina (concluída)
 
-Inventariados; revisão atual `estrutural` (exceto frontend, AST→IR e IR→CFG, agora
-integrais). Cada camada de lowering é sua própria onda, para não reintroduzir um
-PR transversal enorme.
+`src/instr_select.rs` e `src/abstract_machine.rs` **integralmente revisados**
+(linha a linha), fechando a cadeia de lowerings. Os modelos já estavam cobertos por
+`select.modelo.representacao`/`machine.modelo.representacao` (preservados) e os
+validadores por `select.validacao.invariantes`/`machine.validacao.invariantes` (em
+arquivos próprios, intocados); a 5E acrescenta o lowering e a renderização de cada
+camada.
+
+**Seleção (`select`, 4 regiões):**
+
+| Âncora | Responsabilidade |
+|---|---|
+| `select.lowering.programa-blocos` | `lower_program`: `ProgramCfgIR` → `SelectedProgram` (globais, funções, `slot_types`, blocos, terminadores). |
+| `select.lowering.instrucoes` | `select_instruction`: `InstructionCfgIR` → `SelectedInstr` (enum-a-enum), com `lower_falar_args`. |
+| `select.renderizacao.programa` | `render_program` da seleção. |
+| `select.renderizacao.componentes` | `render_instr`/`render_term`/`render_operand`/`render_temp`. |
+
+**Máquina (`machine`, 7 regiões):**
+
+| Âncora | Responsabilidade |
+|---|---|
+| `machine.lowering.programa-blocos` | `lower_program`: `SelectedProgram` → `MachineProgram`. |
+| `machine.lowering.instrucoes-pilha` | `lower_instr`: `SelectedInstr` → operações de pilha (carregar → operar → `StoreSlot %tN`), incl. `falar`. |
+| `machine.lowering.terminadores` | `lower_term`: carga de condição/retorno antes de `BrTrue`/`Ret`. |
+| `machine.lowering.operandos-slots` | `emit_load`/`temp_name`: `OperandIR` → carga na pilha e nome canônico `%tN`. |
+| `machine.renderizacao.programa` | `render_program` da máquina. |
+| `machine.renderizacao.apresentacao` | `clean_slot_display`/`is_render_temp`/`block_role_annotation` (apresentação humana). |
+| `machine.renderizacao.componentes` | `render_instr`/`render_term`/comentários de fluxo/`render_operand`. |
+
+**A seleção é abstrata e independente de ISA (§4/§6.4):** `select_instruction` é
+essencialmente uma transformação enum-a-enum que preserva `OperandIR`, `TempIR`,
+tipos e labels e converte terminadores diretamente; **não** escolhe instruções de
+CPU, **não** aloca registradores, **não** define ABI. A máquina é uma **VM abstrata
+de pilha**: operandos são empilhados, operações consomem a pilha, resultados vão
+para slots `%tN` — que **não** são registradores físicos; não há SSA nem ABI de
+hardware nesta camada. CFG, seleção, máquina, validação, interpretador e backend
+permanecem distintos.
+
+**Decisões de granularidade:** `select_instruction` e `lower_instr` ficam cada um
+como **região ampla** (não fragmentada por variante). `lower_falar_args` (select) e
+`lower_falar_arg` (machine) foram **incluídos** nas respectivas regiões de
+instruções (contíguos, sem região própria). A renderização usa **duas regiões** em
+`select` (programa + componentes) e **três** em `machine` (programa + apresentação
++ componentes), pois a apresentação humana — limpeza de nomes e anotação heurística
+de papéis de bloco por prefixo de label — é responsabilidade distinta do lowering.
+
+**Auditorias registradas (não corrigidas, §6):**
+
+- **`is_freestanding`:** `SelectedProgram` preserva o campo, mas `MachineProgram`
+  **não o possui** e `lower_program` da máquina o descarta na fronteira
+  seleção→máquina. Limitação da fronteira atual — campo não adicionado.
+- **`slot_types` × `%tN`:** o doc de `MachineFunction` afirma que os temporários
+  `%tN` são registrados em `slot_types`, mas o lowering apenas **copia** o
+  `slot_types` da seleção (só parâmetros+locais); os `%tN` são descobertos por
+  `StoreSlot` e reconhecidos pelo validador via padrão nominal (`is_temp_slot`).
+  Inconsistência documental registrada — `///` não corrigido neste PR.
+- **Spans sintéticos:** os erros de `select_instruction` para invariantes já
+  resolvidos (`Deref`, `LogicalAnd`/`LogicalOr`, call com retorno sem destino) usam
+  um span fixo `Position::new(1, 1)`. Limitação diagnóstica registrada — span não
+  alterado.
+
+**Helpers deliberadamente não ancorados:** nenhum de peso — `lower_falar_args`/
+`lower_falar_arg` foram dobrados nas regiões de instruções; `line` está incluído nos
+componentes de renderização. Não há plumbing isolado relevante nesta onda.
+
+## Onda 6+ — execução, backends, orquestração (adiadas)
+
+Inventariados; revisão atual `estrutural` (exceto frontend e toda a cadeia de
+lowerings, agora integrais).
 
 | Arquivo | Camada | Propósito (do módulo-doc/estrutura) | Complexidade | Âncoras atuais | Onda-alvo |
 |---|---|---|---|---|---|
-| `src/instr_select.rs` (lowering) | select | Lowering CFG→seleção. | alta | modelo ancorado | 5E |
-| `src/abstract_machine.rs` (lowering) | machine | Lowering seleção→máquina. | alta | modelo ancorado | 5E |
 | `src/interpreter.rs` | interpreter | Executa a máquina validada; valores de runtime, frames, intrínsecas, coleções (listas/mapas/versos). | transversal | — | 6 |
 | `src/backend_text.rs` | backend-text | Lowering para pseudo-assembly textual a partir da seleção. | alta | — | 6 |
 | `src/backend_s.rs` | backend-s | Emissão de `.s` e toolchain nativa (ABI SysV, alinhamento, chamadas ao runtime). | alta | — | 6 |
@@ -398,16 +462,16 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 5D)
+## Cobertura acumulada (após Onda 5E)
 
 | Métrica | Valor |
 |---|---:|
 | Arquivos de produção em `src/` (excl. gerados e fixtures) | 30 |
 | Arquivos com responsabilidade ancorada | 26 |
 | Arquivos apenas inventariados (estrutural) | 4 |
-| Regiões antes da Onda 5D | 80 |
-| Regiões adicionadas na Onda 5D | 9 |
-| Regiões no catálogo | 89 |
+| Regiões antes da Onda 5E | 89 |
+| Regiões adicionadas na Onda 5E | 11 |
+| Regiões no catálogo | 100 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
 
@@ -426,25 +490,25 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 | ast | 5 | programa, tipos, comandos, expressões, serialização |
 | ir | 12 | modelo + validador (Onda 3); Onda 5C (10): programa-orquestração, contexto-declarações, assinaturas-intrínsecos, funções-blocos, comandos-controle, expressões-valores, bindings-escopos, constantes, renderização textual, conversão de tipos AST→IR |
 | cfg | 13 | modelo + validador + `cfg.logica.*` (históricas); Onda 5D (9): programa-orquestração, funções-blocos, instruções-controle, valores-temporários, memória-indireta, construção-blocos, constantes, renderização programa/componentes |
-| select | 2 | modelo + validador |
-| machine | 2 | modelo + validador |
+| select | 6 | modelo + validador; Onda 5E (4): programa-blocos, instruções, renderização programa/componentes |
+| machine | 9 | modelo + validador; Onda 5E (7): programa-blocos, instruções-pilha, terminadores, operandos-slots, renderização programa/apresentação/componentes |
 | backend-text | 1 | validador |
 | semantic | 10 | importações, sistema de tipos, escopos, duas-passagens, tratos, funções, comandos, fluxo, expressões, chamadas (Onda 5A) |
 | trama | 10 | normalização, jsonl, marco, catálogos e consultas doc/código, manifesto, ledger, projeções |
-| **total** | **89** | |
+| **total** | **100** | |
 
-Pendentes (sem âncora): lowerings de select/machine (5E),
-interpreter/backend-s/runtime (Onda 6), cli/editor/boot (Onda 7), tests/apps
-(Ondas 8/9, após ampliar raízes).
+Pendentes (sem âncora): interpreter/backend-s/runtime (Onda 6),
+cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após ampliar raízes).
 
 ## Próximo ponto de retomada
 
-**Onda 5E — CFG → seleção → máquina** (`src/instr_select.rs` e
-`src/abstract_machine.rs`): ancorar a seleção das instruções do CFG e a passagem à
-máquina abstrata. Trata posteriormente: entrada `ProgramCfgIR`; seleção das
-instruções do CFG; tradução de operandos e temporários; rótulos e terminadores;
-representação selecionada; passagem da seleção à máquina abstrata; funções, blocos
-e operações da máquina. Preservar os modelos e validadores já ancorados de
-`select`/`machine`. Não modificar `src/cfg_ir.rs` (concluído na Onda 5D),
-`src/ir.rs` (5C), `src/parser.rs` (5B) nem `src/semantic.rs` (5A), nem antecipar
-interpretador, backends ou runtime (Onda 6).
+**Onda 6 — execução, backends e runtime.** Com toda a cadeia de lowerings
+cartografada (AST → IR → CFG → seleção → máquina), a próxima onda trata a execução
+e a emissão: o **interpretador** (`src/interpreter.rs` — executa a máquina validada:
+valores de runtime, frames, intrínsecas, coleções), o **backend textual**
+(`src/backend_text.rs`) e o **backend `.s`** (`src/backend_s.rs` — emissão nativa,
+ABI SysV, toolchain). O **runtime** (`runtime/pinker_rt/src/lib.rs`) está **fora da
+raiz atual do scanner** e exigirá uma decisão própria de ampliação de raízes — não
+ampliar o scanner antes disso. Não modificar a cadeia de lowerings já concluída
+(`instr_select.rs`/`abstract_machine.rs` na 5E; `cfg_ir.rs` na 5D; `ir.rs` na 5C)
+nem os validadores.
