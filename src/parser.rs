@@ -2122,6 +2122,10 @@ impl Parser {
 
     // @pinker-nav:end parser.funcoes.declaracao
 
+    // @pinker-nav:start parser.genericos.identidade-especializacao
+    // @pinker-nav:domain genericos
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Identidade determinística de especializações: `generic_type_key` codifica qualquer `ast::Type` (primitivos, listas/mapas, arrays, ponteiros, funções, tipos aplicados) numa chave textual estável, e `generic_function_name`/`generic_enum_name` derivam os nomes monomórficos (`__gen_*`) a partir dos argumentos de tipo. Produz chaves e nomes internos; não valida os tipos semanticamente.
     fn generic_type_key(ty: &Type) -> String {
         match ty {
             Type::Bombom(_) => "bombom".to_string(),
@@ -2186,6 +2190,12 @@ impl Parser {
         format!("__gen_leque_{}_{}", name, suffix)
     }
 
+    // @pinker-nav:end parser.genericos.identidade-especializacao
+
+    // @pinker-nav:start parser.genericos.leques-template
+    // @pinker-nav:domain genericos
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Materializa um `EnumDecl` concreto a partir de um template de leque genérico e seus argumentos de tipo: confere a aridade (erro `Parse` se divergir), monta a tabela parâmetro-de-tipo → tipo concreto, substitui as cargas das variantes, remove os parâmetros de tipo e nomeia a instância pelo nome monomórfico. Não valida os tipos resultantes nem os anexa ao `Program`.
     fn instantiate_generic_enum_decl(
         template: &EnumDecl,
         type_args: &[Type],
@@ -2227,6 +2237,7 @@ impl Parser {
             span: template.span,
         })
     }
+    // @pinker-nav:end parser.genericos.leques-template
 
     fn has_function_param(function: &FunctionDecl) -> bool {
         function
@@ -2264,6 +2275,10 @@ impl Parser {
         format!("__fnparam_{}_{}", name, suffix)
     }
 
+    // @pinker-nav:start parser.genericos.substituicao-ast
+    // @pinker-nav:domain genericos
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Substituição recursiva de parâmetros de tipo numa AST-template: aplica a tabela parâmetro-de-tipo → tipo concreto percorrendo `Type` (inclusive `ListEnum` que colapsa para lista concreta), `Expr`, `AssignTarget`, `Block`, `ElseBlock`, `IfStmt` e `Stmt`, produzindo uma cópia concreta com os spans preservados. É uma única operação recursiva distribuída por vários helpers `substitute_*`; não executa checagem semântica nem lowering para IR.
     fn substitute_type(ty: &Type, substitutions: &HashMap<String, Type>) -> Type {
         match ty {
             Type::Alias { name, span } => substitutions
@@ -2477,7 +2492,12 @@ impl Parser {
             Stmt::Expr(expr) => Stmt::Expr(Self::substitute_expr(expr, substitutions)),
         }
     }
+    // @pinker-nav:end parser.genericos.substituicao-ast
 
+    // @pinker-nav:start parser.callbacks.substituicao-estatica
+    // @pinker-nav:domain callbacks
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Reescrita de chamadas a parâmetros-função por chamadas diretas: percorre recursivamente `Expr`, `AssignTarget`, `Block`, `ElseBlock`, `IfStmt` e `Stmt` de um corpo-template e, quando o callee de uma chamada é um identificador ligado a um callback (tabela nome-do-parâmetro → função concreta), troca-o pelo nome da função concreta, preservando as demais expressões e spans. É especialização de callbacks estáticos, não substituição de tipos genéricos.
     fn substitute_function_param_expr(expr: &Expr, replacements: &HashMap<String, String>) -> Expr {
         let kind = match &expr.kind {
             ExprKind::Call(callee, args) => {
@@ -2659,7 +2679,12 @@ impl Parser {
             }
         }
     }
+    // @pinker-nav:end parser.callbacks.substituicao-estatica
 
+    // @pinker-nav:start parser.callbacks.instanciacao-estatica
+    // @pinker-nav:domain callbacks
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Materializa as especializações de callback estático solicitadas: localiza a função concreta (entre itens e funções pendentes via `function_decl_by_name`), exige que todo parâmetro-função receba um callback, valida posição e compatibilidade de assinatura de cada vínculo (erros `Parse` locais), gera o nome monomórfico (`__fnparam_*`), remove os parâmetros-função da assinatura, reescreve as chamadas no corpo e deduplica pelas instâncias já emitidas. Produz `FunctionDecl` concretos; não faz checagem semântica.
     fn function_decl_by_name<'a>(
         name: &str,
         items: &'a [Item],
@@ -2780,7 +2805,12 @@ impl Parser {
         }
         Ok(out)
     }
+    // @pinker-nav:end parser.callbacks.instanciacao-estatica
 
+    // @pinker-nav:start parser.genericos.funcoes-instanciacao
+    // @pinker-nav:domain genericos
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Materializa as funções genéricas solicitadas durante o parsing: localiza o template (erro `Parse` se ausente), confere a aridade dos argumentos de tipo, gera o nome monomórfico e deduplica por ele, monta a tabela de substituições e substitui tipos de parâmetros, tipo de retorno e corpo, produzindo `FunctionDecl` concretos sem parâmetros de tipo. Não valida semanticamente nem anexa ao `Program`.
     fn instantiate_generic_functions(&self) -> Result<Vec<FunctionDecl>, PinkerError> {
         let mut out = Vec::new();
         let mut emitted = HashSet::new();
@@ -2835,7 +2865,12 @@ impl Parser {
         }
         Ok(out)
     }
+    // @pinker-nav:end parser.genericos.funcoes-instanciacao
 
+    // @pinker-nav:start parser.genericos.leques-instanciacao
+    // @pinker-nav:domain genericos
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Percorre as solicitações de leque genérico registradas, localiza cada template (erro `Parse` se ausente), gera o nome monomórfico e deduplica por ele, e delega a `instantiate_generic_enum_decl` a construção da declaração especializada, produzindo os `EnumDecl` concretos que a passagem de entrada anexa ao `Program`. Não valida semanticamente.
     fn instantiate_generic_enums(&self) -> Result<Vec<EnumDecl>, PinkerError> {
         let mut out = Vec::new();
         let mut emitted = HashSet::new();
@@ -2858,6 +2893,7 @@ impl Parser {
         }
         Ok(out)
     }
+    // @pinker-nav:end parser.genericos.leques-instanciacao
 
     // @pinker-nav:start parser.constantes.declaracao
     // @pinker-nav:domain constantes

@@ -25,10 +25,10 @@ receberam âncoras `@pinker-nav`. O endereçamento para máquinas vive no catál
 substitui.
 
 A cartografia avança em **ondas**, do mais simples ao mais complexo. Cada onda é
-útil sozinha. As **Ondas 0–4** já estão na `main`; esta rodada adiciona a
-**Onda 5A** (checagem semântica em `src/semantic.rs`). A monomorfização de
-genéricos no parser (Onda 5B) e cada lowering por camada (Ondas 5C–5E), além das
-demais camadas, seguem inventariados e explicitamente adiados.
+útil sozinha. As **Ondas 0–5A** já estão na `main`; esta rodada adiciona a
+**Onda 5B** (monomorfização e especialização residentes em `src/parser.rs`). Cada
+lowering por camada (Ondas 5C–5E), além das demais camadas, segue inventariado e
+explicitamente adiado.
 
 ## Contrato do scanner (limitação registrada)
 
@@ -150,9 +150,9 @@ parser (`generic_type_key`, `substitute_*`, `instantiate_generic_functions`,
 `instantiate_generic_enums`, `instantiate_function_param_functions` — ~
 `src/parser.rs` entre `parser.funcoes.declaracao` e `parser.constantes.declaracao`)
 **não é responsabilidade léxica/sintática**: é monomorfização, explicitamente
-fora do escopo da Onda 4 (§2). Fica como **feature vertical** para a **Onda 5B**.
-Helpers isolados (`register_collection_type`, name-mangling de `impl`) ficam sem
-âncora por serem plumbing (§7).
+fora do escopo da Onda 4 (§2). Foi cartografada na **Onda 5B** (ver seção
+própria). Helpers isolados (`register_collection_type`, name-mangling de `impl`)
+ficam sem âncora por serem plumbing (§7).
 
 ## Onda 5A — checagem semântica (concluída)
 
@@ -185,10 +185,65 @@ que ele consome (§6.8). Helpers de plumbing do `SemanticChecker` (construtor,
 `resolve_struct_field_type`) ficam sem âncora por serem infraestrutura (§7).
 
 **Adiado (Ondas 5B–5E):** a **monomorfização de genéricos residente no parser**
-(`src/parser.rs`) é a **Onda 5B**, exclusiva; os **lowerings** por camada seguem
-uma onda cada (5C–5E). Ver adiados abaixo.
+(`src/parser.rs`) é a **Onda 5B** (agora concluída, abaixo); os **lowerings** por
+camada seguem uma onda cada (5C–5E). Ver adiados abaixo.
 
-## Onda 5B+ — monomorfização, lowerings, execução, orquestração (adiadas)
+## Onda 5B — monomorfização e especialização no parser (concluída)
+
+`src/parser.rs` já havia sido **integralmente revisado** na Onda 4 (cartografia
+léxico/sintática); esta rodada **releu o arquivo integralmente** e aprofundou
+**somente** a maquinaria de monomorfização/especialização — o bloco de
+transformação que estava fisicamente entre `parser.funcoes.declaracao` e
+`parser.constantes.declaracao` e ainda não tinha âncoras. Essa maquinaria
+converte templates e solicitações registradas durante o parsing em declarações
+AST concretas anexadas ao `Program`.
+
+| Âncora | Responsabilidade |
+|---|---|
+| `parser.genericos.identidade-especializacao` | Chave textual determinística de tipo (`generic_type_key`) e nomes monomórficos de função/leque (`__gen_*`). Só gera identidade; não valida tipos. |
+| `parser.genericos.leques-template` | Materializa um `EnumDecl` concreto a partir de um template de leque + argumentos de tipo (aridade, substituição de cargas, nome monomórfico). |
+| `parser.genericos.substituicao-ast` | Substituição recursiva parâmetro-de-tipo → tipo concreto por `Type`/`Expr`/`AssignTarget`/`Block`/`ElseBlock`/`IfStmt`/`Stmt`, preservando spans. Uma operação única distribuída pelos `substitute_*`. |
+| `parser.callbacks.substituicao-estatica` | Reescrita de chamadas cujo callee é um parâmetro-função por chamadas diretas à função concreta ligada, percorrendo toda a AST do corpo. |
+| `parser.callbacks.instanciacao-estatica` | Especialização de callback estático: localiza a função concreta, valida posição/assinatura, exige callback para todo parâmetro-função, gera `__fnparam_*`, remove os parâmetros-função e deduplica. |
+| `parser.genericos.funcoes-instanciacao` | Materializa `FunctionDecl` concretos das funções genéricas solicitadas (aridade, nome monomórfico, deduplicação, substituição de parâmetros/retorno/corpo). |
+| `parser.genericos.leques-instanciacao` | Percorre as solicitações de leque genérico, deduplica e delega a criação da declaração especializada. |
+
+**Distinção genéricos × callbacks (§3):** os domínios são deliberadamente
+separados. `genericos` cobre substituição de **parâmetros de tipo** (produz tipos
+concretos); `callbacks` cobre especialização de **parâmetros-função estáticos**
+(reescreve chamadas indiretas em diretas e remove o parâmetro-função). Rotular a
+segunda como “substituição de genéricos” seria incorreto.
+
+**Pontos de integração já cobertos por âncoras da Onda 4 (não re-ancorados, §5):**
+
+- `parser.programa.estrutura` — registra templates (função genérica, função com
+  parâmetro-função, leque genérico) durante o laço de itens de topo e, ao final,
+  **invoca** `instantiate_generic_enums`/`instantiate_generic_functions`/
+  `instantiate_function_param_functions` e anexa as declarações resultantes (e as
+  funções pendentes) ao `Program`. É aqui que a materialização entra no programa.
+- `parser.tipos.gramatica` — lê aplicações genéricas de tipo e registra
+  solicitações de leque genérico.
+- `parser.expressoes.postfix` — lê chamadas genéricas explícitas e chamadas com
+  callback estático, registrando as solicitações correspondentes.
+- `parser.funcoes.declaracao` — declara os parâmetros de tipo genéricos.
+- `parser.closures.expressao` — registra funções sintéticas pendentes.
+
+Essas regiões foram **preservadas intactas**; a 5B não moveu fronteiras nem criou
+âncoras aninhadas/sobrepostas.
+
+**Helpers deliberadamente não ancorados (§7/§8):** o estado do `Parser`
+(`generic_templates`, `generic_instantiations`, `enum_generic_templates`,
+`enum_generic_instantiations`, `function_param_templates`,
+`function_param_instantiations`, `pending_functions` e os registros
+`GenericInstantiation`/`EnumGenericInstantiation`/`FunctionParamInstantiation`/
+`FunctionParamBinding`) vive na struct junto a estado sintático não relacionado —
+ancorá-lo exigiria englobar campos alheios, então fica como plumbing. Os helpers
+`has_function_param`, `function_type_for_decl` e `function_param_specialization_name`
+(entre `leques-template` e `substituicao-ast`) e `function_decl_by_name` (dobrado
+em `callbacks.instanciacao-estatica`) são infraestrutura local, sem âncora
+própria.
+
+## Onda 5C+ — lowerings, execução, orquestração (adiadas)
 
 Inventariados; revisão atual `estrutural` (exceto o frontend, agora integral).
 Cada camada de lowering é sua própria onda, para não reintroduzir um PR
@@ -196,7 +251,6 @@ transversal enorme.
 
 | Arquivo | Camada | Propósito (do módulo-doc/estrutura) | Complexidade | Âncoras atuais | Onda-alvo |
 |---|---|---|---|---|---|
-| `src/parser.rs` (genéricos) | parser | Monomorfização/substituição residente no parser (adiada na Onda 4). | transversal | frontend ancorado | 5B |
 | `src/ir.rs` (lowering) | ir | Lowering AST→IR (`lower_program`, `LoweringContext`, `FunctionLowerer`). | transversal | modelo ancorado | 5C |
 | `src/cfg_ir.rs` (lowering) | cfg | Lowering IR→CFG; contém `cfg.logica.*`. | transversal | `cfg.logica.*` | 5D |
 | `src/instr_select.rs` (lowering) | select | Lowering CFG→seleção. | alta | modelo ancorado | 5E |
@@ -231,16 +285,16 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 5A)
+## Cobertura acumulada (após Onda 5B)
 
 | Métrica | Valor |
 |---|---:|
 | Arquivos de produção em `src/` (excl. gerados e fixtures) | 30 |
 | Arquivos com responsabilidade ancorada | 26 |
 | Arquivos apenas inventariados (estrutural) | 4 |
-| Regiões antes da Onda 5A | 53 |
-| Regiões adicionadas na Onda 5A | 10 |
-| Regiões no catálogo | 63 |
+| Regiões antes da Onda 5B | 63 |
+| Regiões adicionadas na Onda 5B | 7 |
+| Regiões no catálogo | 70 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
 
@@ -255,7 +309,7 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 | palette | 2 | identidade, estilização |
 | printer | 1 | renderização |
 | lexer | 2 | espaços-comentários, tokenização (Onda 4) |
-| parser | 15 | núcleo, programa, tipos, declarações, encaixe, resultado, closures, funções, constantes, comandos, for-each, precedência, primárias, postfix, interpolação (Onda 4) |
+| parser | 22 | Onda 4 (15): núcleo, programa, tipos, declarações, encaixe, resultado, closures, funções, constantes, comandos, for-each, precedência, primárias, postfix, interpolação; Onda 5B (7): identidade-especialização, leques-template, substituição-ast, callbacks (substituição/instanciação estática), funções-instanciação, leques-instanciação |
 | ast | 5 | programa, tipos, comandos, expressões, serialização |
 | ir | 2 | modelo + validador |
 | cfg | 4 | modelo + validador + `cfg.logica.*` (históricas) |
@@ -264,22 +318,22 @@ não são varridos; suas âncoras dependem da ampliação de raízes (onda próp
 | backend-text | 1 | validador |
 | semantic | 10 | importações, sistema de tipos, escopos, duas-passagens, tratos, funções, comandos, fluxo, expressões, chamadas (Onda 5A) |
 | trama | 10 | normalização, jsonl, marco, catálogos e consultas doc/código, manifesto, ledger, projeções |
-| **total** | **63** | |
+| **total** | **70** | |
 
-Pendentes (sem âncora): monomorfização de genéricos no parser (Onda 5B) +
-lowerings de ir (5C), cfg (5D), select/machine (5E), interpreter/backend-s/
-runtime (Onda 6), cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após ampliar
-raízes).
+Pendentes (sem âncora): lowerings de ir (5C), cfg (5D), select/machine (5E),
+interpreter/backend-s/runtime (Onda 6), cli/editor/boot (Onda 7), tests/apps
+(Ondas 8/9, após ampliar raízes).
 
 ## Próximo ponto de retomada
 
-**Onda 5B — monomorfização de genéricos no parser (exclusiva):** ancorar
-**apenas** a maquinaria de monomorfização de genéricos residente em
-`src/parser.rs` (`generic_type_key`, `substitute_*`,
-`instantiate_generic_functions`, `instantiate_generic_enums`,
-`instantiate_function_param_functions`). **Nenhum lowering** entra na 5B — cada
-lowering é sua própria onda depois: AST→IR (`src/ir.rs`, Onda 5C), IR→CFG
-(`src/cfg_ir.rs`, conectando às âncoras `cfg.logica.*` já existentes sem
-duplicá-las, Onda 5D) e CFG→seleção→máquina (`src/instr_select.rs` +
-`src/abstract_machine.rs`, Onda 5E). Não modificar `src/semantic.rs` (concluído
-na Onda 5A) nem antecipar execução, backends ou runtime (Onda 6).
+**Onda 5C — lowering AST → IR em `src/ir.rs`:** ancorar a descida da AST
+semanticamente válida para a representação intermediária. Trata posteriormente:
+`LoweringContext`; coleta de assinaturas e declarações; transformação de tipos
+AST → `TypeIR`; lowering de constantes; lowering de funções; slots e escopos;
+lowering de comandos; lowering de expressões; e structs, leques, coleções e
+intrínsecas na IR. **Somente `src/ir.rs`** — não atribuir CFG, seleção ou máquina
+à 5C. Preservar as fronteiras: `5D — IR → CFG` (`src/cfg_ir.rs`, conectando às
+âncoras `cfg.logica.*` já existentes sem duplicá-las) e `5E — CFG → seleção →
+máquina` (`src/instr_select.rs` + `src/abstract_machine.rs`). Não modificar
+`src/parser.rs` (concluído na Onda 5B) nem `src/semantic.rs` (Onda 5A), nem
+antecipar execução, backends ou runtime (Onda 6).
