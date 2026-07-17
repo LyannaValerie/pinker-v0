@@ -379,27 +379,27 @@ pub fn official_scan_roots() -> Vec<ScanRoot> {
     ]
 }
 
-/// Varre múltiplas raízes controladas relativas a `repo_root` (§12-17). Cada
-/// raiz é validada antes de qualquer leitura (§15): ausente, não-diretório ou
-/// link simbólico falham imediatamente com `ScanError`, sem índice parcial —
-/// nada é escrito até que todas as raízes sejam válidas. Os arquivos de todas
-/// as raízes são combinados, deduplicados por caminho repo-relativo e
-/// ordenados antes de varrer, então cada arquivo é lido e catalogado no
-/// máximo uma vez, independente da ordem em que as raízes foram declaradas
-/// (§17). A chave de região continua global: nenhuma raiz vira namespace.
+/// Varre múltiplas raízes controladas relativas a `repo_root` (§12-17) em
+/// duas fases estritamente sequenciais. Fase 1 (`resolve_and_validate_roots`):
+/// resolve e valida *todas* as raízes — ausente, não-diretório ou link
+/// simbólico falham imediatamente com `ScanError`, sem índice parcial. Fase 2:
+/// só então cada raiz já validada é percorrida; nenhuma chamada a
+/// `collect_source_files` ocorre antes de a fase 1 terminar com sucesso para
+/// todas as raízes. Os arquivos de todas as raízes são combinados,
+/// deduplicados por caminho repo-relativo e ordenados antes de varrer, então
+/// cada arquivo é lido e catalogado no máximo uma vez, independente da ordem
+/// em que as raízes foram declaradas (§17). A chave de região continua
+/// global: nenhuma raiz vira namespace.
 fn scan_roots(repo_root: &Path, roots: &[ScanRoot]) -> Result<CodeIndex, ScanError> {
+    // Fase 1: resolve e valida todas as raízes antes de qualquer coleta.
+    let validated = resolve_and_validate_roots(repo_root, roots)?;
+
+    // Fase 2: apenas raízes já validadas são percorridas.
     let mut seen: BTreeSet<String> = BTreeSet::new();
     let mut files: Vec<(String, PathBuf)> = Vec::new();
-
-    for root in roots {
-        let abs_root = if root.relative_path.is_empty() {
-            repo_root.to_path_buf()
-        } else {
-            repo_root.join(&root.relative_path)
-        };
-        validate_root(&abs_root)?;
+    for (root, abs_root) in &validated {
         let mut collected = Vec::new();
-        collect_source_files(&abs_root, &abs_root, &root.extensions, &mut collected)?;
+        collect_source_files(abs_root, abs_root, &root.extensions, &mut collected)?;
         for rel in collected {
             let display = compose_display_path(&root.relative_path, &rel);
             if seen.insert(display.clone()) {
@@ -423,13 +423,49 @@ fn scan_roots(repo_root: &Path, roots: &[ScanRoot]) -> Result<CodeIndex, ScanErr
     Ok(index)
 }
 
+/// Resolve o caminho absoluto de cada raiz e a valida (§15), sem coletar
+/// nenhum arquivo. Falha na primeira raiz inválida, na ordem declarada, sem
+/// ter percorrido nenhuma raiz — a coleta só começa depois que todas as
+/// raízes retornadas aqui já estão validadas (fase 1 de `scan_roots`).
+fn resolve_and_validate_roots<'a>(
+    repo_root: &Path,
+    roots: &'a [ScanRoot],
+) -> Result<Vec<(&'a ScanRoot, PathBuf)>, ScanError> {
+    let mut validated = Vec::with_capacity(roots.len());
+    for root in roots {
+        let abs_root = if root.relative_path.is_empty() {
+            repo_root.to_path_buf()
+        } else {
+            repo_root.join(&root.relative_path)
+        };
+        validate_root(&abs_root)?;
+        validated.push((root, abs_root));
+    }
+    Ok(validated)
+}
+
 /// Valida uma raiz antes de varrê-la (§15): deve existir, ser diretório e não
 /// ser um link simbólico (política explícita de segurança contra fuga/ciclo
 /// via symlink de raiz; §14). Falha antes de qualquer leitura de arquivo.
+/// Distingue ausência (`NotFound`) de outras falhas de metadados (ex.:
+/// permissão negada, componente do caminho que não é diretório): apenas
+/// `NotFound` vira `RootMissing`; qualquer outro erro de I/O vira
+/// `ScanError::Io`, sem ser classificado como raiz ausente.
 fn validate_root(path: &Path) -> Result<(), ScanError> {
-    let meta = fs::symlink_metadata(path).map_err(|_| ScanError::RootMissing {
-        path: path.display().to_string(),
-    })?;
+    let meta = match fs::symlink_metadata(path) {
+        Ok(meta) => meta,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Err(ScanError::RootMissing {
+                path: path.display().to_string(),
+            });
+        }
+        Err(err) => {
+            return Err(ScanError::Io {
+                path: path.display().to_string(),
+                msg: err.to_string(),
+            });
+        }
+    };
     if meta.file_type().is_symlink() {
         return Err(ScanError::RootSymlinkRefused {
             path: path.display().to_string(),
@@ -1228,6 +1264,52 @@ mod tests {
         // `runtime/pinker_rt/src` não existe: o fluxo oficial deve falhar.
         let err = CodeIndex::scan_repo(&dir).unwrap_err();
         assert!(matches!(err, ScanError::RootMissing { .. }));
+        assert!(err.to_string().starts_with("E-NAV-SCAN"));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn todas_as_raizes_sao_validadas_antes_de_qualquer_coleta() {
+        let dir = temp_src("validatefirst");
+        // Raiz A válida e com conteúdo; se a coleta ocorresse antes da
+        // validação global, este arquivo apareceria no índice mesmo com a
+        // raiz B ausente.
+        write(&dir, "src/a.rs", &region_src("preordem.a.chave"));
+        let roots = vec![
+            ScanRoot::new("src", &["rs"]),
+            ScanRoot::new("nao/existe", &["rs"]),
+        ];
+
+        // `resolve_and_validate_roots` isolado: só resolve/valida, nunca
+        // coleta. Deve falhar em B sem ter tocado o conteúdo de A.
+        let err = resolve_and_validate_roots(&dir, &roots).unwrap_err();
+        match &err {
+            ScanError::RootMissing { path } => assert!(path.ends_with("nao/existe")),
+            other => panic!("esperava RootMissing para a raiz ausente, obtive {other:?}"),
+        }
+
+        // `scan_roots` (fluxo completo) reporta o mesmo erro e não produz
+        // índice parcial com a região de A.
+        let full_err = scan_roots(&dir, &roots).unwrap_err();
+        assert!(matches!(full_err, ScanError::RootMissing { .. }));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn erro_de_metadados_diferente_de_notfound_vira_io() {
+        let dir = temp_src("ionotfound");
+        // Cria um arquivo regular e tenta validar um caminho "filho" dele:
+        // `symlink_metadata` falha com `NotADirectory`/erro de I/O, não
+        // `NotFound` — não deve ser confundido com raiz ausente.
+        write(&dir, "arquivo_regular", "conteudo");
+        let child_of_file = dir.join("arquivo_regular").join("filho");
+
+        let err = validate_root(&child_of_file).unwrap_err();
+        assert!(
+            matches!(err, ScanError::Io { .. }),
+            "esperava ScanError::Io, obtive {err:?}"
+        );
         assert!(err.to_string().starts_with("E-NAV-SCAN"));
         fs::remove_dir_all(dir).unwrap();
     }
