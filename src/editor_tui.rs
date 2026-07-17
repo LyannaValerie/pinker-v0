@@ -8,6 +8,10 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+// @pinker-nav:start editor.estado.modelo
+// @pinker-nav:domain estado
+// @pinker-nav:layer editor
+// @pinker-nav:summary OUTPUT_LINES e EDITOR_LINES fixam quantas linhas do painel de saída e do corpo do arquivo são exibidas por render(); struct EditorTui guarda file_path, o buffer de linhas do arquivo (lines), o histórico de mensagens do painel (output) e a flag dirty; from_path lê o arquivo via fs::read_to_string, separa o conteúdo em linhas e inicializa o painel com uma mensagem de boas-vindas, retornando Err(String) se a leitura falhar.
 const OUTPUT_LINES: usize = 10;
 const EDITOR_LINES: usize = 18;
 
@@ -30,7 +34,12 @@ impl EditorTui {
             dirty: false,
         })
     }
+    // @pinker-nav:end editor.estado.modelo
 
+    // @pinker-nav:start editor.sessao.comandos
+    // @pinker-nav:domain sessao
+    // @pinker-nav:layer editor
+    // @pinker-nav:summary run() é o laço REPL do editor: renderiza, lê uma linha de stdin e chama execute_command, encerrando quando este retorna Ok(false); execute_command interpreta os comandos de texto (:quit, :help, :tokens, :ast, :save, :append <texto>, :set <linha> <texto>) e mensagens desconhecidas viram uma linha no painel; run_tokens_command tokeniza a fonte atual e lista as primeiras lexemas no painel; run_ast_command parseia+checa semanticamente (parse_and_check_program) e lista as primeiras linhas da AST renderizada; save_file grava a fonte atual com fs::write (sem escrita atômica) e limpa dirty; set_line substitui uma linha existente por índice 1-based, com mensagens no painel para índice ausente/fora da faixa; erros das ações Pinker (:tokens/:ast) retornam como Err(String) via render_for_cli_with_source, distintos das mensagens de rotina empurradas ao painel.
     pub fn run(&mut self) -> Result<(), String> {
         loop {
             self.render();
@@ -168,7 +177,12 @@ impl EditorTui {
         self.push_output(format!("Linha {} atualizada.", line_number));
         Ok(true)
     }
+    // @pinker-nav:end editor.sessao.comandos
 
+    // @pinker-nav:start editor.render.saida
+    // @pinker-nav:domain render
+    // @pinker-nav:layer editor
+    // @pinker-nav:summary current_source junta `lines` com '\n' para formar a fonte atual; render limpa a tela com sequências ANSI, imprime cabeçalho/status (via palette), até EDITOR_LINES linhas do arquivo com contagem de linhas omitidas, e as últimas OUTPUT_LINES mensagens do painel de saída; push_output apenas empilha uma String em `output`.
     fn current_source(&self) -> String {
         self.lines.join("\n")
     }
@@ -209,8 +223,13 @@ impl EditorTui {
     fn push_output(&mut self, msg: String) {
         self.output.push(msg);
     }
+    // @pinker-nav:end editor.render.saida
 }
 
+// @pinker-nav:start editor.analise.checagem
+// @pinker-nav:domain analise
+// @pinker-nav:layer editor
+// @pinker-nav:summary parse_and_check_program: função livre (fora do impl) que tokeniza, parseia e roda semantic::check_program sobre uma string de fonte, usada por :tokens/:ast como etapa de preview — ela não altera `self.lines`/AST persistente do editor, apenas produz o Program em memória para renderização no painel.
 fn parse_and_check_program(source: &str) -> Result<Program, crate::error::PinkerError> {
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize()?;
@@ -219,6 +238,7 @@ fn parse_and_check_program(source: &str) -> Result<Program, crate::error::Pinker
     semantic::check_program(&program)?;
     Ok(program)
 }
+// @pinker-nav:end editor.analise.checagem
 
 #[cfg(test)]
 mod tests {

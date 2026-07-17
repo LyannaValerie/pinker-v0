@@ -28,6 +28,10 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+// @pinker-nav:start cli.config.modelos
+// @pinker-nav:domain config
+// @pinker-nav:layer cli
+// @pinker-nav:summary Constantes de códigos de saída (EXIT_OK/EXIT_USAGE/EXIT_CATALOG/EXIT_NORESULT/EXIT_SOURCE) e limites de paginação (LIMIT_MIN/MAX, LIMIT_DEFAULT_ROTA/BUSCAR); clamp_limit ajusta um Option<usize> aos limites via .clamp; json_escape escapa aspas/barra/controle para JSON; json_string_array serializa Vec<String>. Structs de configuração por subcomando (Config, BuildConfig, EditorConfig, ReplConfig, DocConfigCli, NavConfigCli) e os enums de subcomando (DocSub, NavSub, CliCommand) usados pelo parsing e roteamento a seguir.
 /// Códigos de saída padronizados das consultas da Trama (especificação §7.4).
 const EXIT_OK: i32 = 0;
 const EXIT_USAGE: i32 = 2;
@@ -155,7 +159,12 @@ enum CliCommand {
     Doc(DocConfigCli),
     Nav(NavConfigCli),
 }
+// @pinker-nav:end cli.config.modelos
 
+// @pinker-nav:start cli.ajuda.usage
+// @pinker-nav:domain ajuda
+// @pinker-nav:layer cli
+// @pinker-nav:summary Funções que montam as strings de uso/ajuda (usage, nav_usage, doc_usage, build_usage, editor_usage, repl_usage) impressas em stderr/stdout quando `--help`/`-h` é pedido ou o parsing rejeita os argumentos; cada uma apenas formata texto com format!, sem side effects.
 fn usage(binary: &str) -> String {
     format!(
         "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--cfg-ir] [--selected] [--machine] [--pseudo-asm] [--asm-s] [--run] [--check] <arquivo.pink> [-- <args...>]\n\
@@ -289,7 +298,12 @@ fn repl_usage(binary: &str) -> String {
            sem multiline amplo; use `:quit` ou `:sair` para encerrar\n"
     )
 }
+// @pinker-nav:end cli.ajuda.usage
 
+// @pinker-nav:start cli.parsing.subcomandos
+// @pinker-nav:domain parsing
+// @pinker-nav:layer cli
+// @pinker-nav:summary Parsers de argumentos por subcomando (parse_build_args, parse_editor_args, parse_repl_args, parse_doc_args, parse_nav_args): percorrem `args: &[String]` reconhecendo flags (--out-dir, --nativo, --repo, --corpo, --check, --json, --limite, --help/-h) e o argumento posicional de entrada/subcomando, retornando Result<Config..., String> com a mensagem de uso correspondente em caso de flag desconhecida ou argumento ausente.
 fn parse_build_args(binary: &str, args: &[String]) -> Result<BuildConfig, String> {
     let mut input: Option<String> = None;
     let mut out_dir = "build".to_string();
@@ -673,7 +687,12 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
         sub,
     })
 }
+// @pinker-nav:end cli.parsing.subcomandos
 
+// @pinker-nav:start cli.parsing.roteamento
+// @pinker-nav:domain parsing
+// @pinker-nav:layer cli
+// @pinker-nav:summary parse_args: lê env::args(), separa o argv em flag_args e runtime_tail (delimitados por '--'), despacha para build/editor/repl/doc/nav quando o primeiro argumento bate um desses nomes, senão interpreta as flags de análise (--tokens/--ast/--json-ast/--ir/--cfg-ir/--selected/--machine/--pseudo-asm/--asm-s/--run/--check) e monta CliCommand::Analyze(Config); erros retornam Err(String) com a mensagem de usage.
 fn parse_args() -> Result<CliCommand, String> {
     let mut input: Option<String> = None;
     let mut print_tokens = false;
@@ -785,7 +804,12 @@ fn parse_args() -> Result<CliCommand, String> {
         check_only,
     }))
 }
+// @pinker-nav:end cli.parsing.roteamento
 
+// @pinker-nav:start cli.execucao.entrada
+// @pinker-nav:domain execucao
+// @pinker-nav:layer cli
+// @pinker-nav:summary try_or_exit! extrai um Result::Ok ou imprime o erro renderizado com a fonte e chama std::process::exit(1); main() chama parse_args, e em Err imprime a mensagem e sai com EXIT_USAGE (para doc/nav) ou 1 (demais), senão despacha CliCommand para run_analyze/run_build/run_editor/run_repl/run_doc/run_nav; scan_code chama nav::CodeIndex::scan_repo e sai com 1 em Err; run_nav roteia NavSub para run_nav_mostrar/buscar/listar/sincronizar/verificar.
 /// Macro para encurtar o padrão "try or exit(1)" repetido no pipeline.
 macro_rules! try_or_exit {
     ($result:expr, $source:expr) => {
@@ -843,7 +867,12 @@ fn run_nav(config: NavConfigCli) -> i32 {
         NavSub::Verificar => run_nav_verificar(repo_root),
     }
 }
+// @pinker-nav:end cli.execucao.entrada
 
+// @pinker-nav:start cli.nav.consulta
+// @pinker-nav:domain nav
+// @pinker-nav:layer cli
+// @pinker-nav:summary load_code_catalog lê o catálogo gerado (nav::CodeCatalog::load) sem escrever; run_nav_mostrar extrai uma região por chave e, via nav::validate_region, verifica se o marcador/hash da fonte ainda bate com o catálogo antes de imprimir o conteúdo (texto ou JSON), retornando EXIT_SOURCE em divergência; run_nav_buscar e run_nav_listar apenas consultam o catálogo em memória (busca textual e filtro por camada/domínio) e imprimem os resultados — nenhuma das três funções grava em disco.
 /// Carrega o catálogo de código versionado (superfície de consulta — §5).
 fn load_code_catalog(repo_root: &Path) -> Result<nav::CodeCatalog, i32> {
     let doc_config = load_doc_config(repo_root);
@@ -1036,7 +1065,12 @@ fn run_nav_listar(repo_root: &Path, seletor: &str, json: bool) -> i32 {
     }
     EXIT_OK
 }
+// @pinker-nav:end cli.nav.consulta
 
+// @pinker-nav:start cli.nav.sincronizacao-verificacao
+// @pinker-nav:domain nav
+// @pinker-nav:layer cli
+// @pinker-nav:summary run_nav_sincronizar reescaneia o repositório (scan_code), roda index.verify() e só grava src/navigation.jsonl via write_atomic quando não há divergências (senão retorna EXIT_SOURCE sem tocar o arquivo); run_nav_verificar também reescaneia e roda verify(), compara o conteúdo renderizado com o arquivo em disco e reporta divergências em stderr, mas não escreve — é somente leitura, retornando EXIT_SOURCE em caso de erro e EXIT_OK caso contrário.
 fn run_nav_sincronizar(repo_root: &Path) -> i32 {
     let doc_config = load_doc_config(repo_root);
     let index = scan_code(repo_root);
@@ -1091,7 +1125,12 @@ fn run_nav_verificar(repo_root: &Path) -> i32 {
     }
     EXIT_SOURCE
 }
+// @pinker-nav:end cli.nav.sincronizacao-verificacao
 
+// @pinker-nav:start cli.doc.consulta
+// @pinker-nav:domain doc
+// @pinker-nav:layer cli
+// @pinker-nav:summary load_doc_config carrega doc::DocConfig::load (sai com 1 em erro); run_doc despacha DocSub (Marco/ImportarPr/Mostrar/Listar/Buscar/Rota/Sincronizar/Verificar) para as funções correspondentes; scan_docs varre docs/ via doc_index::DocIndex::scan; load_doc_catalog lê o catálogo gerado; write_atomic é o único mecanismo desta base que grava atomicamente — escreve um arquivo `.jsonl.tmp` e usa fs::rename por cima do caminho final, usado pelas rotinas de sincronização (não pelas consultas abaixo); run_doc_mostrar/run_doc_listar/run_doc_buscar/run_doc_rota e print_doc_results_json apenas leem o catálogo e imprimem resultados em texto ou JSON, sem escrever em disco.
 fn load_doc_config(repo_root: &Path) -> doc::DocConfig {
     match doc::DocConfig::load(repo_root) {
         Ok(cfg) => cfg,
@@ -1480,7 +1519,12 @@ fn print_doc_results_json(consulta: &str, hits: &[&doc_index::SearchHit], next: 
     out.push('}');
     println!("{out}");
 }
+// @pinker-nav:end cli.doc.consulta
 
+// @pinker-nav:start cli.doc.sincronizacao
+// @pinker-nav:domain doc
+// @pinker-nav:layer cli
+// @pinker-nav:summary run_doc_sincronizar reescaneia docs/ e manifestos de mudança, roda verify() em ambos e só prossegue se não houver divergência; calcula o plano de projeções (projection::plan), grava o catálogo via write_atomic, grava o histórico mecânico via write_ledger e aplica as escritas do plano (fs::write por projeção) — é a rotina que efetivamente altera arquivos em disco nesta região documental.
 fn run_doc_sincronizar(repo_root: &Path, config: &doc::DocConfig) -> i32 {
     let index = scan_docs(repo_root);
     // Validação completa antes de qualquer escrita (§8): uma árvore inválida
@@ -1556,7 +1600,12 @@ fn run_doc_sincronizar(repo_root: &Path, config: &doc::DocConfig) -> i32 {
     }
     EXIT_OK
 }
+// @pinker-nav:end cli.doc.sincronizacao
 
+// @pinker-nav:start cli.doc.mudancas
+// @pinker-nav:domain doc
+// @pinker-nav:layer cli
+// @pinker-nav:summary LEDGER_REL é o caminho fixo do histórico mecânico (.pinker/changes/index.jsonl); write_ledger renderiza os manifestos e grava via write_atomic, ou remove o arquivo quando não há manifestos; run_doc_importar lê o corpo de um PR, parseia e valida o manifesto (change::Change::parse_pr_body/validate), e com `check=true` apenas reporta se o manifesto seria criado sem gravar; sem `check`, grava o YAML em .pinker/changes/pr-<n>.yaml e atualiza o ledger — imutabilidade: se o manifesto já existe com conteúdo idêntico, é tratado como idempotente; conteúdo diferente retorna erro (change::immutable_error).
 const LEDGER_REL: &str = ".pinker/changes/index.jsonl";
 
 fn write_ledger(repo_root: &Path, manifests: &change::Manifests) -> Result<(), i32> {
@@ -1648,7 +1697,12 @@ fn run_doc_importar(
     println!("Rode `pink doc sincronizar` e revise os documentos derivados.");
     EXIT_OK
 }
+// @pinker-nav:end cli.doc.mudancas
 
+// @pinker-nav:start cli.doc.verificacao
+// @pinker-nav:domain doc
+// @pinker-nav:layer cli
+// @pinker-nav:summary run_doc_verificar reescaneia docs/ e manifestos, recomputa o catálogo, o ledger e o plano de projeções em memória e compara cada um com o conteúdo em disco (incluindo o baseline_gate por PR), acumulando divergências em `errors`/`manifest_errors`; não escreve em nenhum arquivo — reporta 'ok' ou a lista de divergências e retorna EXIT_OK/EXIT_SOURCE conforme o resultado.
 fn run_doc_verificar(repo_root: &Path, config: &doc::DocConfig) -> i32 {
     let index = scan_docs(repo_root);
     let mut errors = index.verify();
@@ -1716,7 +1770,12 @@ fn run_doc_verificar(repo_root: &Path, config: &doc::DocConfig) -> i32 {
     }
     EXIT_SOURCE
 }
+// @pinker-nav:end cli.doc.verificacao
 
+// @pinker-nav:start cli.execucao.editor-repl
+// @pinker-nav:domain execucao
+// @pinker-nav:layer cli
+// @pinker-nav:summary run_editor abre EditorTui::from_path e chama editor.run(); em Err de qualquer uma das duas chamadas, imprime o erro e chama std::process::exit(1). run_repl delega a repl::run_repl() (definido em outro módulo, não é um stub local) e, em Err, imprime e também sai com process::exit(1).
 fn run_editor(config: EditorConfig) {
     let mut editor = match EditorTui::from_path(config.input) {
         Ok(editor) => editor,
@@ -1737,7 +1796,12 @@ fn run_repl(_config: ReplConfig) {
         std::process::exit(1);
     }
 }
+// @pinker-nav:end cli.execucao.editor-repl
 
+// @pinker-nav:start cli.analise.pipeline
+// @pinker-nav:domain analise
+// @pinker-nav:layer cli
+// @pinker-nav:summary run_analyze lê o arquivo de entrada e conduz o pipeline de análise: tokeniza, parseia, resolve imports (load_program_with_imports), roda a verificação semântica (semantic::check_program) e, conforme as flags do Config, cada etapa a jusante (IR, CFG IR, seleção de instruções, máquina abstrata, backend `.s` textual, execução via interpretador, backend pseudo-asm) só é computada se alguma flag de saída a exigir (`needs_ir`/`needs_cfg`/`needs_selected`/`needs_machine`); qualquer Err em qualquer etapa passa por try_or_exit! e termina com process::exit(1); esta função não monta nem linka um binário — a emissão `--asm-s` é apenas texto impresso, e `--run` executa via interpreter::run_program_with_args, não via processo nativo.
 fn run_analyze(config: Config) {
     let source = match fs::read_to_string(&config.input) {
         Ok(source) => source,
@@ -1950,7 +2014,12 @@ fn run_analyze(config: Config) {
         println!("Análise semântica concluída sem erros.");
     }
 }
+// @pinker-nav:end cli.analise.pipeline
 
+// @pinker-nav:start cli.build.nativo
+// @pinker-nav:domain build
+// @pinker-nav:layer cli
+// @pinker-nav:summary run_build repete o front-end (lex/parse/imports/semântica/IR/CFG/seleção) e grava o `.s` resultante em <out_dir>/<stem>.s via fs::write; com --nativo, emite via emit_external_toolchain_subset_nativo e, após gravar, chama link_nativo. locate_pinker_rt_lib localiza (não constrói) a staticlib libpinker_rt.a pré-buildada: usa a env PINKER_RT_LIB se apontar para um arquivo existente, senão procura ao lado do executável atual via std::env::current_exe; retorna Err com uma mensagem sugerindo `cargo build` se não encontrar. detect_cc_driver detecta um driver C disponível testando `cc --version`/`gcc --version`/`clang --version` via std::process::Command e retorna o primeiro que responder com status de sucesso. link_nativo invoca esse driver externo passando o `.s`, a staticlib localizada e -lpthread/-ldl/-lm para produzir o binário via -o; a montagem e a linkedição são feitas pelo driver externo, não por este arquivo.
 fn run_build(config: BuildConfig) {
     let source = match fs::read_to_string(&config.input) {
         Ok(source) => source,
@@ -2094,7 +2163,12 @@ fn link_nativo(asm_path: &Path, bin_path: &Path) -> Result<(), String> {
     }
     Ok(())
 }
+// @pinker-nav:end cli.build.nativo
 
+// @pinker-nav:start cli.modulos.importacao
+// @pinker-nav:domain modulos
+// @pinker-nav:layer cli
+// @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte (sem resolver imports). importable_item_name/importable_item_clone/qualified_type_item_clone extraem o nome, clonam ou requalificam (com prefixo `<módulo>.`) um ast::Item importável (Function/Const/Struct/TypeAlias/Enum/Trait). load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import antes de limpar `root_program.imports`.
 fn parse_program_from_source(source: &str) -> Result<ast::Program, PinkerError> {
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize()?;
@@ -2355,3 +2429,4 @@ fn load_program_with_imports(
     root_program.imports.clear();
     Ok(root_program)
 }
+// @pinker-nav:end cli.modulos.importacao
