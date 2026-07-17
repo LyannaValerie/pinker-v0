@@ -25,15 +25,16 @@ receberam âncoras `@pinker-nav`. O endereçamento para máquinas vive no catál
 substitui.
 
 A cartografia avança em **ondas**, do mais simples ao mais complexo. Cada onda é
-útil sozinha. As **Ondas 0–6C** já estão na `main`, fechando a cadeia de lowerings
-AST → IR → CFG → seleção → máquina, a execução hospedada e os dois backends
-(textual e `.s`/ABI nativa). A **Onda 6** foi decomposta em entregas
-independentes: 6A (`src/interpreter.rs`), 6B (`src/backend_text.rs`), 6C
-(`src/backend_s.rs`), 6D (ampliação controlada das raízes do scanner) e 6E
-(`runtime/pinker_rt/src/lib.rs`). Esta rodada conclui a **Onda 6D**:
-generalização de `pink nav` para raízes de código controladas — `src/` e
-`runtime/pinker_rt/src/`, ambas ativas e obrigatórias no fluxo oficial —, sem
-cartografar o conteúdo do runtime (isso é a Onda 6E).
+útil sozinha. As **Ondas 0–6D** já estavam na `main`, fechando a cadeia de
+lowerings AST → IR → CFG → seleção → máquina, a execução hospedada, os dois
+backends (textual e `.s`/ABI nativa) e a ampliação controlada das raízes do
+scanner. A **Onda 6** foi decomposta em entregas independentes: 6A
+(`src/interpreter.rs`), 6B (`src/backend_text.rs`), 6C (`src/backend_s.rs`), 6D
+(raízes controladas do scanner) e 6E (`runtime/pinker_rt/src/lib.rs`). Esta
+rodada conclui a **Onda 6E** e, com ela, a **Onda 6 inteira**: o runtime nativo
+recebeu 15 regiões próprias na camada `runtime`, cobrindo as 99 funções de ABI
+exportadas e os helpers/consts/structs internos de `runtime/pinker_rt/src/lib.rs`
+(produção; `#[cfg(test)] mod tests` fica fora, por decisão explícita da onda).
 
 ## Contrato do scanner
 
@@ -842,16 +843,75 @@ JSONL versionado, que continua sem revarrer nada).
 | `tests/` | desativada | futura `.rs` | Onda 8 |
 | `apps/` | desativada | futura `.pink` | Onda 9 |
 
-Esta onda **não** conclui a Onda 6 inteira: falta a 6E (cartografia do
-conteúdo do runtime nativo) antes de a Onda 6 poder ser dada por encerrada.
+Esta onda **não** concluiu a Onda 6 inteira: faltava a 6E (cartografia do
+conteúdo do runtime nativo), entregue a seguir.
 
-## Onda 6E e orquestração (adiadas)
+## Onda 6E — cartografia do runtime nativo (concluída)
+
+`runtime/pinker_rt/src/lib.rs` (2021 linhas; produção nas linhas 16–1728,
+`#[cfg(test)] mod tests` nas linhas 1729–2021 **fora** desta onda por decisão
+explícita) recebeu 15 regiões na camada nova `runtime`, cobrindo as 99 funções
+`pub extern "C" fn`/`pub unsafe extern "C" fn` exportadas e os helpers,
+constantes e `struct`s internos que as sustentam. Só comentários `//
+@pinker-nav:*` foram inseridos — nenhuma assinatura, visibilidade, ABI, tipo,
+layout, algoritmo, tratamento de erro, import ou dependência mudou; o `git
+diff` do arquivo contém somente linhas adicionadas de comentário.
+
+| Chave | Domínio | Faixa (após formatação) | Responsabilidade e limites observáveis |
+|---|---|---|---|
+| `runtime.inicializacao.bootstrap` | inicializacao | 24–63 | Constantes de layout do alocador (`ALINHAMENTO`, `CABECALHO`) e estado global (`ARGC`/`ARGV` em atômicos) capturado por `pinker_rt_iniciar`; expõe `pinker_rt_argc`/`pinker_rt_argv`/`pinker_rt_versao`. As constantes de alocação ficam fisicamente no preâmbulo, junto ao estado global de inicialização — nota de fronteira honesta preservada no summary. |
+| `runtime.memoria.alocador` | memoria | 70–110 | `pinker_alocar`/`pinker_liberar`: alocador manual com cabeçalho de tamanho; `pinker_liberar` confia, sem validar, que o ponteiro veio de `pinker_alocar` e ainda não foi liberado. |
+| `runtime.texto.operacoes` | texto | 126–362 | Família de operações sobre o verso length-prefixed; helpers `unsafe` (`verso_bytes`, `verso_str`) leem via `from_raw_parts`/`from_utf8_unchecked` sem validar ponteiro ou UTF-8; cada transformação aloca um novo bloco cujo ownership passa ao chamador. |
+| `runtime.conversoes.numero-texto` | conversoes | 369–393 | `pinker_verso_para_bombom` (aborta o processo via `eprintln!`+`process::exit` em texto não numérico) e `pinker_bombom_para_verso`. |
+| `runtime.texto.formatacao` | texto | 400–476 | Núcleo de `formatar_verso` e as variantes `pinker_formatar_verso_0..8` geradas pela macro `formatar_wrappers!`; aridade fixa (0 a 8 argumentos), sem variante para aridade maior. |
+| `runtime.io.saida` | io | 489–524 | Impressão de `falar` direto em stdout, sem buffer próprio; erro de escrita em `pinker_falar_pedaco_verso` é silenciosamente ignorado (`let _ =`). |
+| `runtime.listas.dinamicas` | listas | 541–672 | Lista dinâmica com header fixo e elementos de 8 bytes; contém `erro_fatal`, o helper compartilhado por todos os domínios seguintes que **aborta o processo** — nota de fronteira explícita no summary. |
+| `runtime.mapas.dinamicos` | mapas | 690–900 | Mapa com headers paralelos de chaves/valores, busca linear, comparação por conteúdo (verso) ou valor (bombom), cursor de iteração por snapshot. |
+| `runtime.leques.variantes` | leques | 918–996 | Leque com carga: header `[tag][n][cap][cargas]`, cadeia composável `criar_0`+`anexar`; verificação de tag antes de ler a carga. |
+| `runtime.arquivos.io` | arquivos | 1015–1223 | Tabela de arquivos abertos em **estado global** protegido por `Mutex`/`OnceLock`; toda escrita persiste imediatamente em disco; handle fechado ou inválido aborta via `erro_fatal`. |
+| `runtime.caminhos.sistema` | caminhos | 1230–1314 | Consultas e operações de sistema de arquivos sobre caminhos, delegando a `std::fs`/`std::path`. |
+| `runtime.tempo.relogio` | tempo | 1321–1360 | Tempo Unix e formatação ISO-8601 UTC usando o mesmo algoritmo civil (Howard Hinnant) do interpretador; sem suporte a fuso horário além de UTC. |
+| `runtime.aleatorio.gerador` | aleatorio | 1367–1430 | Geradores em tabela global protegida por `Mutex`, avançados por um LCG idêntico ao do interpretador; **não é criptográfico**. |
+| `runtime.ambiente.argumentos` | ambiente | 1448–1587 | Leitura de `argc`/`argv` global e de variáveis de ambiente; busca por chave nomeada (`chave valor` ou `chave=valor`). |
+| `runtime.processos.execucao` | processos | 1594–1801 | Execução de subprocessos via `std::process::Command`, aridade fixa (0/1 argumento extra); stdout/stderr decodificados como UTF-8 estrito. |
+
+Fronteiras de ABI observadas: todas as 15 regiões cobrem **exportação ABI**
+(`#[no_mangle]` + `extern "C"`) junto dos helpers internos que a sustentam no
+mesmo arquivo — a onda não separou "representação de dados" (headers/structs
+como `ArquivoAberto`, `EstadoIo`, `EstadoAcaso`) de "operações" (funções
+exportadas) em regiões distintas, porque no runtime nativo ambas vivem
+fisicamente entrelaçadas por domínio (ex.: `struct ArquivoAberto`/`EstadoIo`
+abre `runtime.arquivos.io`, que também contém toda a API pública de arquivo).
+Isso é uma decisão de fronteira, não uma afirmação de separação arquitetural
+que o código não sustenta.
+
+Limitações honestas confirmadas e refletidas nos summaries: `erro_fatal`
+**aborta o processo** (índice fora da faixa, separador/padrão vazio, chave
+ausente, cursor esgotado, OOM, aridade incompatível); estado global em
+`Mutex`/atômicos (`ARGC`/`ARGV`, `EstadoIo`, `EstadoAcaso`); helpers `unsafe`
+que leem via `from_raw_parts` sem validar o ponteiro recebido; toda
+transformação de verso aloca um novo bloco cujo ownership passa ao chamador;
+várias famílias (formatação, execução de processo) têm aridade fixa e não
+aceitam variantes arbitrárias.
+
+- **Testes de cartografia:** `tests/nav_cartography_tests.rs` ganhou
+  `camada_runtime_cartografa_o_runtime_nativo`, validando as 15 chaves
+  esperadas, a contagem exata de 15 regiões na camada `runtime`, que todas
+  apontam para `runtime/pinker_rt/src/lib.rs` (nenhuma para `src/`) e a
+  presença dos domínios principais. A asserção obsoleta da Onda 6D ("runtime
+  não deveria ter regiões cartografadas") foi removida de
+  `camada_trama_separa_catalogo_raizes_e_consulta`, já que deixou de ser
+  verdade a partir desta onda.
+- **Catálogo:** 148 → **163** regiões (15 novas, todas na camada `runtime`);
+  nenhuma chave anterior foi removida; nenhuma duplicada; camada `runtime` de
+  0 → **15** regiões.
+
+## Onda 7 — orquestração (adiada)
 
 Inventariados; revisão atual `estrutural` para as camadas ainda pendentes.
 
 | Arquivo | Camada | Propósito (do módulo-doc/estrutura) | Complexidade | Âncoras atuais | Onda-alvo |
 |---|---|---|---|---|---|
-| `runtime/pinker_rt/src/lib.rs` | runtime | Runtime nativo linkado por `pink build --nativo`; alocação, coleções nativas, ABI. Raiz **ativa** desde a Onda 6D, mas ainda **sem cartografia** (nenhuma região aponta para `runtime/`). | transversal | — | 6E |
 | `src/main.rs` | cli | Orquestração da CLI: parsing de flags, roteamento, pipeline de análise/build, importação de módulos, link nativo, comandos `doc`/`nav`. | transversal | — | 7 |
 | `src/editor_tui.rs` | editor | TUI mínima oficial (Fase 136): estado, comandos, ações Pinker reais. | moderada | — | 7 |
 | `src/boot.rs` | boot | Fronteiras freestanding: entry `_start`, linker script e stub de kernel. | simples | — | 7 |
@@ -883,28 +943,36 @@ delas é onda própria.
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 6D)
+## Cobertura acumulada (após Onda 6E)
 
 | Métrica | Valor |
 |---|---:|
-| Arquivos de produção em `src/` (excl. `lib.rs`, fixtures `bin/*` e o gerado `navigation.jsonl`) | 32 |
-| Arquivos com responsabilidade ancorada (Ondas 0–6D) | 29 |
-| Arquivos de produção ainda pendentes (adiados à Onda 7) | 3 |
-| Regiões antes da Onda 6D | 147 |
-| Regiões adicionadas na Onda 6D | 1 |
-| Regiões no catálogo | 148 |
+| Produção em `src/` | 32 |
+| Produção de `src/` ancorada | 29 |
+| Produção de `src/` pendente | 3 |
+| Produção em `runtime/pinker_rt/src/` | 1 |
+| Produção do runtime ancorada | 1 |
+| Produção total nas raízes ativas | 33 |
+| Arquivos ancorados nas raízes ativas | 30 |
+| Arquivos pendentes nas raízes ativas | 3 |
+| Regiões antes da Onda 6E | 148 |
+| Regiões adicionadas na Onda 6E | 15 |
+| Regiões no catálogo | 163 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
 
 Os **3 pendentes** são `src/main.rs`, `src/editor_tui.rs` e `src/boot.rs` — todos
 arquivos de produção reais em `src/`, sem âncoras, explicitamente adiados à Onda 7
-(ver a tabela "Onda 6E e orquestração (adiadas)"). A contagem `32 = 29 + 3` é o
-corpus completo de produção; `src/lib.rs` (só `pub mod`), os binários-fixture
+(ver a tabela "Onda 7 — orquestração (adiada)"). A contagem `33 = 30 + 3` é o
+corpus completo de produção nas duas raízes ativas do scanner (`src/` e
+`runtime/pinker_rt/src/`); `src/lib.rs` (só `pub mod`), os binários-fixture
 `src/bin/pinker_fase16x_*.rs` e o catálogo gerado `src/navigation.jsonl` ficam de
 fora por não terem responsabilidade nomeável (ver "Arquivos sem candidatos a
-âncora"). A métrica não conta as superfícies adiadas como ancoradas; a raiz
-`runtime/pinker_rt/src/` está **ativa** no scanner, mas nenhum arquivo dela é
-contado como ancorado — ela ainda não recebeu nenhuma região (Onda 6E).
+âncora"). O único arquivo de produção do runtime,
+`runtime/pinker_rt/src/lib.rs`, está **totalmente ancorado** desde esta onda
+(15 regiões cobrindo as 99 funções ABI exportadas e os helpers internos; 0
+símbolos não classificados fora do `#[cfg(test)] mod tests`, explicitamente
+excluído).
 
 ### Cobertura por camada (contagem real no catálogo)
 
@@ -928,19 +996,19 @@ contado como ancorado — ela ainda não recebeu nenhuma região (Onda 6E).
 | backend-s | 24 | Onda 6C: pipeline (textual-selecionado, toolchain-externa, nativo-runtime), validação (subset-textual, labels-tipos), modelo (callconv-externa), abi (registradores-argumentos, prólogo-parâmetros, blocos-terminadores), lowering (globais-rodata, funções-frames, blocos-terminadores, operações-memória, chamadas-sysv, falar-runtime, operações-lineares, operandos-slots), renderização (callconv-programa, abi-textual programa/instruções/componentes), runtime (intrínsecas-por-aridade, símbolos-intrínsecas), dados (strings-rodata) |
 | semantic | 10 | importações, sistema de tipos, escopos, duas-passagens, tratos, funções, comandos, fluxo, expressões, chamadas (Onda 5A) |
 | trama | 11 | normalização, jsonl, marco, catálogos e consultas doc/código, raízes de código controladas (Onda 6D), manifesto, ledger, projeções |
-| **total** | **148** | |
+| runtime | 15 | Onda 6E: inicialização/bootstrap, alocador, texto (operações, conversões, formatação), io, listas, mapas, leques, arquivos, caminhos, tempo, aleatório, ambiente, processos |
+| **total** | **163** | |
 
-Pendentes de cartografia: conteúdo do runtime nativo (6E), cli/editor/boot
-(Onda 7), tests/apps (Ondas 8/9, após ativar as respectivas raízes).
+Pendentes de cartografia: cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após
+ativar as respectivas raízes).
 
 ## Próximo ponto de retomada
 
-**Onda 6E — cartografia integral de `runtime/pinker_rt/src/lib.rs`.** A Onda
-6D já ativou `runtime/pinker_rt/src/` como raiz do scanner (obrigatória no
-fluxo oficial), mas **não** ancorou nenhum conteúdo nela — nenhuma região do
-catálogo real tem `file` começando por `runtime/`. A 6E deve revisar
-`runtime/pinker_rt/src/lib.rs` linha a linha e cartografar suas
-responsabilidades reais (alocação, coleções nativas, ABI) com âncoras
-`@pinker-nav` próprias, sem tocar a política de raízes definida em
-`trama.codigo.raizes`. Permanecem depois: Onda 7 — cli/editor/boot; Ondas 8/9
-— tests/apps (cada uma exige ativar sua própria raiz primeiro).
+**Onda 7 — cartografia das superfícies operacionais: `src/main.rs`,
+`src/editor_tui.rs` e `src/boot.rs`.** A Onda 6E encerrou a Onda 6 inteira: o
+runtime nativo (`runtime/pinker_rt/src/lib.rs`) está totalmente ancorado, com
+15 regiões na camada `runtime` cobrindo as 99 funções de ABI exportadas e os
+helpers internos. Os três arquivos de produção restantes em `src/` — CLI,
+editor TUI e boot freestanding — permanecem sem cartografia; a Onda 7 deve
+revisá-los e ancorá-los com o mesmo rigor factual (§7, §12). Permanecem depois:
+Ondas 8/9 — tests/apps (cada uma exige ativar sua própria raiz primeiro).
