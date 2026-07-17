@@ -30,13 +30,17 @@ lowerings AST → IR → CFG → seleção → máquina, a execução hospedada,
 backends (textual e `.s`/ABI nativa) e a ampliação controlada das raízes do
 scanner. A **Onda 6** foi decomposta em entregas independentes: 6A
 (`src/interpreter.rs`), 6B (`src/backend_text.rs`), 6C (`src/backend_s.rs`), 6D
-(raízes controladas do scanner) e 6E (`runtime/pinker_rt/src/lib.rs`). Esta
-rodada conclui a **Onda 6E** e, com ela, a **Onda 6 inteira**: o runtime nativo
-recebeu 15 regiões próprias na camada `runtime`, cobrindo as 99 funções `extern
-"C"` diretas mais os 8 wrappers gerados pela macro `formatar_wrappers!`
-(`pinker_formatar_verso_1..8`) — 107 símbolos de ABI exportados no total — e os
-helpers/consts/structs internos de `runtime/pinker_rt/src/lib.rs` (produção;
-`#[cfg(test)] mod tests` fica fora, por decisão explícita da onda).
+(raízes controladas do scanner) e 6E (`runtime/pinker_rt/src/lib.rs`). A Onda
+6E concluiu a **Onda 6 inteira**: o runtime nativo recebeu 15 regiões próprias
+na camada `runtime`, cobrindo as 99 funções `extern "C"` diretas mais os 8
+wrappers gerados pela macro `formatar_wrappers!` (`pinker_formatar_verso_1..8`)
+— 107 símbolos de ABI exportados no total — e os helpers/consts/structs
+internos de `runtime/pinker_rt/src/lib.rs` (produção; `#[cfg(test)] mod tests`
+fica fora, por decisão explícita da onda). Esta rodada conclui a **Onda 7**:
+as três superfícies operacionais restantes em `src/` — `src/main.rs` (CLI,
+camada `cli`), `src/editor_tui.rs` (editor TUI, camada `editor`) e
+`src/boot.rs` (fronteiras freestanding, camada `boot`) — receberam 20 regiões
+novas, deixando a produção de `src/` **integralmente** ancorada.
 
 ## Contrato do scanner
 
@@ -910,15 +914,62 @@ aceitam variantes arbitrárias.
   nenhuma chave anterior foi removida; nenhuma duplicada; camada `runtime` de
   0 → **15** regiões.
 
-## Onda 7 — orquestração (adiada)
+## Onda 7 — cartografia das superfícies operacionais (concluída)
 
-Inventariados; revisão atual `estrutural` para as camadas ainda pendentes.
+As três superfícies operacionais restantes em `src/` — CLI, editor TUI e
+fronteiras de boot freestanding — receberam 20 regiões novas em três camadas
+novas (`cli`, `editor`, `boot`). Só comentários `// @pinker-nav:*` foram
+inseridos — nenhuma assinatura, mensagem, flag, condição, formato de saída,
+exit code, path ou processo mudou; o `git diff` de cada um dos três arquivos
+contém somente linhas adicionadas de comentário.
 
-| Arquivo | Camada | Propósito (do módulo-doc/estrutura) | Complexidade | Âncoras atuais | Onda-alvo |
-|---|---|---|---|---|---|
-| `src/main.rs` | cli | Orquestração da CLI: parsing de flags, roteamento, pipeline de análise/build, importação de módulos, link nativo, comandos `doc`/`nav`. | transversal | — | 7 |
-| `src/editor_tui.rs` | editor | TUI mínima oficial (Fase 136): estado, comandos, ações Pinker reais. | moderada | — | 7 |
-| `src/boot.rs` | boot | Fronteiras freestanding: entry `_start`, linker script e stub de kernel. | simples | — | 7 |
+### `src/main.rs` — camada `cli` (15 regiões)
+
+| Chave | Domínio | Faixa (após formatação) | Responsabilidade e limites observáveis |
+|---|---|---|---|
+| `cli.config.modelos` | config | 35–161 | Constantes de códigos de saída e limites de paginação; `clamp_limit`/`json_escape`/`json_string_array`; `struct`s de configuração por subcomando e os `enum`s de subcomando (`DocSub`, `NavSub`, `CliCommand`). |
+| `cli.ajuda.usage` | ajuda | 168–300 | `usage`/`nav_usage`/`doc_usage`/`build_usage`/`editor_usage`/`repl_usage`: montam texto de ajuda com `format!`; sem side effects. |
+| `cli.parsing.subcomandos` | parsing | 307–689 | Parsers de argumentos por subcomando (`parse_build_args`, `parse_editor_args`, `parse_repl_args`, `parse_doc_args`, `parse_nav_args`): reconhecem flags e o argumento posicional, retornando `Result<Config..., String>`. |
+| `cli.parsing.roteamento` | parsing | 696–806 | `parse_args`: separa o argv em `flag_args`/`runtime_tail`, despacha para build/editor/repl/doc/nav ou monta `CliCommand::Analyze(Config)`. |
+| `cli.execucao.entrada` | execucao | 813–869 | `try_or_exit!`, `main()`, `scan_code` e `run_nav`: ponto de entrada do processo e roteamento de `CliCommand`/`NavSub`. |
+| `cli.nav.consulta` | nav | 876–1067 | `load_code_catalog`, `run_nav_mostrar`, `run_nav_buscar`, `run_nav_listar`: leem o catálogo gerado; `run_nav_mostrar` valida marcador/hash da fonte antes de imprimir. Nenhuma das três escreve em disco. |
+| `cli.nav.sincronizacao-verificacao` | nav | 1074–1127 | `run_nav_sincronizar` **escreve** `src/navigation.jsonl` via `write_atomic` quando não há divergência; `run_nav_verificar` é **somente leitura** — compara o renderizado com o disco e reporta divergências sem gravar. |
+| `cli.doc.consulta` | doc | 1134–1521 | `load_doc_config`, `run_doc`, `scan_docs`, `load_doc_catalog`, `write_atomic` (único mecanismo de escrita atômica desta base — grava `.tmp` e usa `fs::rename`) e as consultas somente-leitura `run_doc_mostrar`/`run_doc_listar`/`run_doc_buscar`/`run_doc_rota`/`print_doc_results_json`. |
+| `cli.doc.sincronizacao` | doc | 1528–1602 | `run_doc_sincronizar`: **escreve** o catálogo, o ledger e as projeções documentais quando `verify()` não reporta divergência. |
+| `cli.doc.mudancas` | doc | 1609–1699 | `LEDGER_REL`, `write_ledger`, `run_doc_importar`: grava manifestos de mudança; `--check` reporta sem gravar; conteúdo idêntico ao existente é tratado como idempotente, conteúdo diferente falha (`change::immutable_error`). |
+| `cli.doc.verificacao` | doc | 1706–1772 | `run_doc_verificar`: **somente leitura** — recomputa catálogo/ledger/projeções em memória e compara com o disco, acumulando divergências sem escrever. |
+| `cli.execucao.editor-repl` | execucao | 1779–1798 | `run_editor` (abre `EditorTui::from_path` + `run()`) e `run_repl` (delega a `repl::run_repl()`, não é stub local); ambos `process::exit(1)` em erro. |
+| `cli.analise.pipeline` | analise | 1805–2016 | `run_analyze`: conduz parse → imports → semântica → IR/CFG/seleção/máquina/backends conforme as flags do `Config`; `--asm-s` emite texto (não monta/linka); `--run` executa via interpretador. |
+| `cli.build.nativo` | build | 2023–2165 | `run_build` (grava `.s` em disco), `locate_pinker_rt_lib` (**localiza**, não constrói, a staticlib pré-buildada), `detect_cc_driver` (**detecta** um driver C disponível) e `link_nativo` (invoca o driver externo para montar/linkar). |
+| `cli.modulos.importacao` | modulos | 2172–2431 | `parse_program_from_source` e o resolvedor de imports (`load_module_program`, `load_program_with_imports`, helpers de item importável) — detecção de ciclo, colisão de nome e requalificação de tipos por módulo. |
+
+### `src/editor_tui.rs` — camada `editor` (4 regiões)
+
+`#[cfg(test)] mod tests` (linhas finais do arquivo) **não** foi cartografado
+nesta onda — mesma decisão de fronteira da Onda 6E, revisão adiada.
+
+| Chave | Domínio | Faixa (após formatação) | Responsabilidade e limites observáveis |
+|---|---|---|---|
+| `editor.estado.modelo` | estado | 15–36 | Constantes de exibição (`OUTPUT_LINES`/`EDITOR_LINES`), `struct EditorTui` e `from_path` (lê o arquivo, separa em linhas, inicializa o painel). |
+| `editor.sessao.comandos` | sessao | 43–179 | `run` (laço leitura-execução), `execute_command` (interpreta `:quit`/`:help`/`:tokens`/`:ast`/`:save`/`:append`/`:set`), `run_tokens_command`/`run_ast_command` (ações Pinker reais — **preview**, não editam AST persistente), `save_file` (grava com `fs::write`, sem escrita atômica), `set_line`. |
+| `editor.render.saida` | render | 186–225 | `current_source` (junta `lines`), `render` (desenha o painel com ANSI), `push_output` (empilha mensagem). |
+| `editor.analise.checagem` | analise | 233–240 | `parse_and_check_program`: tokeniza + parseia + roda `semantic::check_program` sobre uma string; produz o `Program` em memória para o preview de `:tokens`/`:ast`. |
+
+### `src/boot.rs` — camada `boot` (1 região, arquivo inteiro)
+
+| Chave | Domínio | Faixa (após formatação) | Responsabilidade e limites observáveis |
+|---|---|---|---|
+| `boot.geracao.fronteira-freestanding` | geracao | 5–18 | `FREESTANDING_BOOT_ENTRY_FUNCTION`/`FREESTANDING_BOOT_ENTRY_SYMBOL` (constantes textuais), `freestanding_linker_script` (string literal de script `ld`) e `freestanding_kernel_stub` (string com `call principal` + laço `jmp` para si mesmo). Só produzem strings/constantes de fronteira — nenhuma função executa, aloca, linka, monta ou inicializa hardware/stack/Multiboot/UEFI. |
+
+- **Testes de cartografia:** `tests/nav_cartography_tests.rs` ganhou
+  `camada_operacional_cartografa_cli_editor_boot`, validando as 20 chaves
+  esperadas, a contagem exata por camada (`cli` 15, `editor` 4, `boot` 1), que
+  cada região aponta para o arquivo correto da sua camada sem cruzamento entre
+  os três, domínios representativos e uma amostra de chaves anteriores (0–6E)
+  que permanece presente e fora de `cli`/`editor`/`boot`.
+- **Catálogo:** 163 → **183** regiões (20 novas); nenhuma chave anterior
+  removida; nenhuma duplicada; camada `cli` 0 → **15**, `editor` 0 → **4**,
+  `boot` 0 → **1**.
 
 ## Arquivos sem candidatos a âncora
 
@@ -947,34 +998,36 @@ delas é onda própria.
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 6E)
+## Cobertura acumulada (após Onda 7)
 
 | Métrica | Valor |
 |---|---:|
 | Produção em `src/` | 32 |
-| Produção de `src/` ancorada | 29 |
-| Produção de `src/` pendente | 3 |
+| Produção de `src/` ancorada | 32 |
+| Produção de `src/` pendente | 0 |
 | Produção em `runtime/pinker_rt/src/` | 1 |
 | Produção do runtime ancorada | 1 |
 | Produção total nas raízes ativas | 33 |
-| Arquivos ancorados nas raízes ativas | 30 |
-| Arquivos pendentes nas raízes ativas | 3 |
-| Regiões antes da Onda 6E | 148 |
-| Regiões adicionadas na Onda 6E | 15 |
-| Regiões no catálogo | 163 |
+| Arquivos ancorados nas raízes ativas | 33 |
+| Arquivos pendentes nas raízes ativas | 0 |
+| Regiões antes da Onda 7 | 163 |
+| Regiões adicionadas na Onda 7 | 20 |
+| Regiões no catálogo | 183 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
 
-Os **3 pendentes** são `src/main.rs`, `src/editor_tui.rs` e `src/boot.rs` — todos
-arquivos de produção reais em `src/`, sem âncoras, explicitamente adiados à Onda 7
-(ver a tabela "Onda 7 — orquestração (adiada)"). A contagem `33 = 30 + 3` é o
-corpus completo de produção nas duas raízes ativas do scanner (`src/` e
+A produção das **duas raízes ativas** do scanner (`src/` e
+`runtime/pinker_rt/src/`) está agora **integralmente ancorada** — os 3
+pendentes da Onda 6E (`src/main.rs`, `src/editor_tui.rs`, `src/boot.rs`)
+receberam suas 20 regiões nesta onda (ver "Onda 7 — cartografia das
+superfícies operacionais"). A contagem `33 = 33 + 0` é o corpus completo de
+produção nas duas raízes ativas do scanner (`src/` e
 `runtime/pinker_rt/src/`); `src/lib.rs` (só `pub mod`), os binários-fixture
 `src/bin/pinker_fase16x_*.rs` e o catálogo gerado `src/navigation.jsonl` ficam de
 fora por não terem responsabilidade nomeável (ver "Arquivos sem candidatos a
 âncora"). O único arquivo de produção do runtime,
-`runtime/pinker_rt/src/lib.rs`, está **totalmente ancorado** desde esta onda
-(15 regiões cobrindo as 99 funções ABI diretas mais os 8 wrappers
+`runtime/pinker_rt/src/lib.rs`, permanece **totalmente ancorado** desde a Onda
+6E (15 regiões cobrindo as 99 funções ABI diretas mais os 8 wrappers
 `pinker_formatar_verso_1..8` gerados pela macro `formatar_wrappers!` — 107
 símbolos de ABI exportados no total — e os helpers internos; 0
 símbolos não classificados fora do `#[cfg(test)] mod tests`, explicitamente
@@ -1003,20 +1056,26 @@ excluído).
 | semantic | 10 | importações, sistema de tipos, escopos, duas-passagens, tratos, funções, comandos, fluxo, expressões, chamadas (Onda 5A) |
 | trama | 11 | normalização, jsonl, marco, catálogos e consultas doc/código, raízes de código controladas (Onda 6D), manifesto, ledger, projeções |
 | runtime | 15 | Onda 6E: inicialização/bootstrap, alocador, texto (operações, conversões, formatação), io, listas, mapas, leques, arquivos, caminhos, tempo, aleatório, ambiente, processos |
-| **total** | **163** | |
+| cli | 15 | Onda 7: config-modelos, ajuda-usage, parsing (subcomandos, roteamento), execução (entrada, editor-repl), nav (consulta, sincronização-verificação), doc (consulta, sincronização, mudanças, verificação), análise-pipeline, build-nativo, módulos-importação |
+| editor | 4 | Onda 7: estado-modelo, sessão-comandos, render-saída, análise-checagem |
+| boot | 1 | Onda 7: geração-fronteira-freestanding (arquivo inteiro) |
+| **total** | **183** | |
 
-Pendentes de cartografia: cli/editor/boot (Onda 7), tests/apps (Ondas 8/9, após
-ativar as respectivas raízes).
+Pendentes de cartografia: tests/apps (Ondas 8/9, após ativar as respectivas
+raízes). As três superfícies operacionais (cli/editor/boot) foram concluídas
+nesta onda.
 
 ## Próximo ponto de retomada
 
-**Onda 7 — cartografia das superfícies operacionais: `src/main.rs`,
-`src/editor_tui.rs` e `src/boot.rs`.** A Onda 6E encerrou a Onda 6 inteira: o
-runtime nativo (`runtime/pinker_rt/src/lib.rs`) está totalmente ancorado, com
-15 regiões na camada `runtime` cobrindo as 99 funções de ABI diretas mais os 8
-wrappers `pinker_formatar_verso_1..8` gerados pela macro `formatar_wrappers!`
-(107 símbolos de ABI exportados no total) e os helpers internos. Os três
-arquivos de produção restantes em `src/` — CLI,
-editor TUI e boot freestanding — permanecem sem cartografia; a Onda 7 deve
-revisá-los e ancorá-los com o mesmo rigor factual (§7, §12). Permanecem depois:
-Ondas 8/9 — tests/apps (cada uma exige ativar sua própria raiz primeiro).
+**Onda 8 — ativação da raiz `tests/` e cartografia de evidência por camada.**
+A Onda 7 encerrou a cartografia da produção de `src/`: as três superfícies
+operacionais (`src/main.rs` — CLI, `src/editor_tui.rs` — editor TUI,
+`src/boot.rs` — fronteiras freestanding) receberam 20 regiões novas nas
+camadas `cli`/`editor`/`boot`, deixando as **duas raízes ativas** do scanner
+(`src/` e `runtime/pinker_rt/src/`) com a produção **integralmente ancorada**
+(0 pendentes). A Onda 8 deve ativar `tests/` como raiz oficial do scanner
+(política de exclusão para fixtures com textos parecidos com marcadores dentro
+de strings) e cartografar grupos de evidência conceituais por camada — nunca
+uma âncora por `#[test]`. Depois: Onda 9 — `apps/` (fontes `.pink`, convenção
+de marcador própria antes de entrar no scanner).
+
