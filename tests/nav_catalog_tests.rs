@@ -44,6 +44,7 @@ fn fixture(root: &Path) {
     write(root, ".pinker/doc.toml", DOC_TOML);
     write(root, "src/cfg_ir.rs", SRC);
     write(root, "runtime/pinker_rt/src/lib.rs", RUNTIME_LIB);
+    fs::create_dir_all(root.join("tests")).unwrap();
 }
 
 fn run(root: &Path, args: &[&str]) -> std::process::Output {
@@ -87,8 +88,10 @@ fn sincronizar_e_verificar_do_codigo() {
         catalog.contains("\"file\":\"runtime/pinker_rt/src/lib.rs\""),
         "{catalog}"
     );
-    // `tests/` e `apps/` continuam desativadas (Onda 6D adia essas raízes).
-    assert!(!catalog.contains("falso.teste.chave"), "{catalog}");
+    // `tests/` é a terceira raiz oficial: uma região real nela entra com
+    // caminho repo-relativo. `apps/` continua fora do scanner.
+    assert!(catalog.contains("falso.teste.chave"), "{catalog}");
+    assert!(catalog.contains("\"file\":\"tests/falso.rs\""), "{catalog}");
     assert!(!catalog.contains("falso.pink.chave"), "{catalog}");
 
     let verify = run(&root, &["verificar"]);
@@ -137,10 +140,25 @@ fn verificar_falha_quando_marcador_desbalanceado() {
     // Raiz obrigatória precisa existir para que o desbalanceamento em `src/`
     // seja o único problema detectado (senão a raiz ausente falharia antes).
     fs::create_dir_all(root.join("runtime/pinker_rt/src")).unwrap();
+    fs::create_dir_all(root.join("tests")).unwrap();
     run(&root, &["sincronizar"]);
     let verify = run(&root, &["verificar"]);
     assert!(!verify.status.success());
     assert!(String::from_utf8_lossy(&verify.stderr).contains("E-NAV-VERIFY"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn sincronizar_falha_quando_tests_raiz_obrigatoria_ausente() {
+    let root = temp_repo("missingtests");
+    write(&root, ".pinker/doc.toml", DOC_TOML);
+    write(&root, "src/cfg_ir.rs", SRC);
+    write(&root, "runtime/pinker_rt/src/lib.rs", RUNTIME_LIB);
+    let sync = run(&root, &["sincronizar"]);
+    let stderr = String::from_utf8_lossy(&sync.stderr);
+    assert!(!sync.status.success());
+    assert!(stderr.contains("E-NAV-SCAN"), "{stderr}");
+    assert!(stderr.contains("tests"), "{stderr}");
     fs::remove_dir_all(root).unwrap();
 }
 

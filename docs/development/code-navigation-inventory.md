@@ -46,7 +46,7 @@ novas, deixando a produção de `src/` **integralmente** ancorada.
 
 O scanner de `pink nav` indexa hoje um **conjunto explícito de raízes
 controladas** do repositório (`official_scan_roots()` em `src/nav.rs`, região
-`trama.codigo.raizes`): `src/` e `runtime/pinker_rt/src/`, ambas obrigatórias
+`trama.codigo.raizes`): `src/`, `runtime/pinker_rt/src/` e `tests/`, todas obrigatórias
 no fluxo oficial (`pink nav sincronizar`/`verificar`). Cada raiz é validada
 antes de qualquer leitura — ausência, caminho que não é diretório ou link
 simbólico falham com `E-NAV-SCAN` antes de qualquer escrita do catálogo, sem
@@ -54,12 +54,11 @@ gerar índice parcial. Os caminhos registrados em `file` são **repo-relativos**
 (`src/nav.rs`, `runtime/pinker_rt/src/lib.rs`), com `/` como separador, nunca
 absolutos e nunca contendo `..`. Links simbólicos não são seguidos — nem de
 diretório (evita ciclos e fuga da raiz) nem de arquivo — e uma raiz oficial que
-seja, ela mesma, um link simbólico é recusada. A extensão indexada em ambas as
-raízes é `.rs`. `tests/` e `apps/` permanecem **desativadas**: `tests/` tem
-fixtures com textos semelhantes a marcadores dentro de strings (risco de falso
-positivo ao varrer sem uma política própria de exclusão) e `apps/` reúne
-fontes `.pink`, que exigem uma política de marcadores própria antes de entrar
-no scanner. Ambas ficam para ondas específicas (8 e 9).
+seja, ela mesma, um link simbólico é recusada. A extensão indexada nas três
+raízes é `.rs`. Apenas `apps/` permanece **desativada**: reúne fontes `.pink`,
+que exigem uma política de marcadores própria antes de entrar no scanner, e
+fica para a Onda 9. A segurança das fixtures em `tests/` vem do reconhecimento
+lexical de comentários reais, não da desativação dessa raiz.
 
 **Estratégia escolhida: B** — `CodeIndex::scan` permanece como wrapper fino de
 raiz única para fixtures/testes (sem prefixo fabricado; o caminho é relativo à
@@ -68,6 +67,17 @@ raiz recebida), enquanto a produção usa a API multi-raiz
 `collect_source_files` → `scan_file`), única fonte da política de raízes. A
 chave de região continua global: nenhuma raiz vira namespace, e uma mesma
 chave em duas raízes é reportada como `DuplicateKey` com os dois caminhos.
+
+## Onda 8A — raiz de evidências e reconhecimento lexical
+
+`tests/` passa a ser a terceira raiz oficial obrigatória, indexando apenas
+arquivos `.rs`, ao lado de `src/` e `runtime/pinker_rt/src/`. O scanner mantém
+estado léxico mínimo e só reconhece comentários Pinker reais quando `//` é o
+primeiro token em contexto de código: strings normais, byte strings, raw
+strings e comentários de bloco (inclusive aninhados) não contam. Assim,
+fixtures continuam seguras mesmo quando contêm textos que se parecem com
+marcadores. Nenhuma suite recebeu região nesta onda; o catálogo permanece com
+183 regiões. A Onda 8 segue em andamento e o próximo ponto é a Onda 8B.
 
 ## Convenção de chaves
 
