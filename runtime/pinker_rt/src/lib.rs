@@ -17,6 +17,10 @@
 use std::alloc::{alloc, dealloc, Layout};
 use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
 
+// @pinker-nav:start runtime.inicializacao.bootstrap
+// @pinker-nav:domain inicializacao
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Define constantes de layout do alocador (ALINHAMENTO, CABECALHO) e o estado global (ARGC/ARGV em atômicos) capturado por pinker_rt_iniciar; expõe leitura de argc/argv e a versão da ABI (pinker_rt_versao) — as constantes de alocação ficam fisicamente no preâmbulo, junto ao estado global de inicialização.
 /// Alinhamento garantido dos blocos devolvidos por `pinker_alocar`.
 const ALINHAMENTO: usize = 16;
 
@@ -57,7 +61,12 @@ pub extern "C" fn pinker_rt_argv() -> *const *const u8 {
 pub extern "C" fn pinker_rt_versao() -> u64 {
     1
 }
+// @pinker-nav:end runtime.inicializacao.bootstrap
 
+// @pinker-nav:start runtime.memoria.alocador
+// @pinker-nav:domain memoria
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Alocador manual com cabeçalho de tamanho: pinker_alocar reserva um bloco alinhado a 16 bytes com o tamanho total gravado no cabeçalho (aborta apenas se o sistema recusar a alocação) e pinker_liberar libera a partir do cabeçalho; pinker_liberar exige, sem validar, que o ponteiro tenha sido devolvido por pinker_alocar e ainda não liberado.
 fn layout_para(tamanho_total: usize) -> Layout {
     Layout::from_size_align(tamanho_total, ALINHAMENTO)
         .expect("layout de alocação inválido no runtime pinker_rt")
@@ -99,6 +108,7 @@ pub unsafe extern "C" fn pinker_liberar(ptr: *mut u8) {
     let total = (base as *const u64).read() as usize;
     dealloc(base, layout_para(total));
 }
+// @pinker-nav:end runtime.memoria.alocador
 
 // ---------------------------------------------------------------------------
 // Verso dinâmico (Fase 215/B4)
@@ -109,6 +119,10 @@ pub unsafe extern "C" fn pinker_liberar(ptr: *mut u8) {
 // abaixo funcionam uniformemente sobre qualquer valor de verso.
 // ---------------------------------------------------------------------------
 
+// @pinker-nav:start runtime.texto.operacoes
+// @pinker-nav:domain texto
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Operações de verso (tamanho, concatenação, igualdade, busca, divisão, substituição, caixa) sobre o layout length-prefixed `[u64 len][bytes]`; os helpers `unsafe` (verso_bytes, verso_str) leem via from_raw_parts/from_utf8_unchecked confiando no chamador sem validar o ponteiro nem o UTF-8, e cada transformação aloca um novo bloco de verso cujo ownership passa ao chamador; erros de índice, separador vazio ou padrão vazio abortam o processo via erro_fatal.
 /// Bytes de um verso length-prefixed, sem copiar.
 ///
 /// # Safety
@@ -346,7 +360,12 @@ pub unsafe extern "C" fn pinker_verso_juntar_com(
         verso_str(b)
     ))
 }
+// @pinker-nav:end runtime.texto.operacoes
 
+// @pinker-nav:start runtime.conversoes.numero-texto
+// @pinker-nav:domain conversoes
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Conversão entre verso e bombom: pinker_verso_para_bombom faz trim+parse e aborta o processo (via eprintln + process::exit) em texto não numérico; pinker_bombom_para_verso aloca um novo verso decimal cujo ownership passa ao chamador.
 /// Converte texto para `bombom` (`trim` + `parse`), abortando em falha —
 /// espelha o erro do interpretador.
 ///
@@ -372,7 +391,12 @@ pub unsafe extern "C" fn pinker_verso_para_bombom(texto: *const u8) -> u64 {
 pub extern "C" fn pinker_bombom_para_verso(valor: u64) -> *mut u8 {
     verso_alocar(&valor.to_string())
 }
+// @pinker-nav:end runtime.conversoes.numero-texto
 
+// @pinker-nav:start runtime.texto.formatacao
+// @pinker-nav:domain texto
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Núcleo de formatar_verso (placeholders `{}` na ordem, com erro_fatal em contagem ou placeholder malformado) e as variantes pinker_formatar_verso_0..8 geradas pela macro formatar_wrappers!, cada uma com aridade fixa (0 a 8 argumentos) — não há variante para aridade maior.
 /// Núcleo do `formatar_verso`: placeholders `{}` na ordem, com validação de
 /// contagem e de placeholders malformados — espelha o interpretador. Todos os
 /// argumentos já chegam como versos (a IR converte `bombom` antes).
@@ -450,6 +474,7 @@ formatar_wrappers!(
     (pinker_formatar_verso_7, a1, a2, a3, a4, a5, a6, a7),
     (pinker_formatar_verso_8, a1, a2, a3, a4, a5, a6, a7, a8),
 );
+// @pinker-nav:end runtime.texto.formatacao
 
 // ---------------------------------------------------------------------------
 // `falar` nativo (Fase 215/B4) — espelha byte a byte as instruções de máquina
@@ -457,6 +482,10 @@ formatar_wrappers!(
 // PrintSpace e PrintNewline. O flush acontece na quebra de linha (LineWriter).
 // ---------------------------------------------------------------------------
 
+// @pinker-nav:start runtime.io.saida
+// @pinker-nav:domain io
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Impressão de falar sem buffer próprio: escreve bombom/logica/verso diretamente em stdout (print!/println!/write_all) espelhando as instruções PrintIntInline/PrintBoolInline/PrintStrValueInline/PrintSpace/PrintNewline do interpretador; erros de escrita em pinker_falar_pedaco_verso são silenciosamente ignorados (`let _ =`).
 /// Imprime um `bombom` decimal sem quebra de linha.
 #[no_mangle]
 pub extern "C" fn pinker_falar_pedaco_bombom(valor: u64) {
@@ -493,6 +522,7 @@ pub extern "C" fn pinker_falar_espaco() {
 pub extern "C" fn pinker_falar_fim() {
     println!();
 }
+// @pinker-nav:end runtime.io.saida
 
 // ---------------------------------------------------------------------------
 // Listas nativas (Fase 216/B5)
@@ -504,6 +534,10 @@ pub extern "C" fn pinker_falar_fim() {
 // O header nunca muda de endereço; o crescimento realoca apenas `dados`.
 // ---------------------------------------------------------------------------
 
+// @pinker-nav:start runtime.listas.dinamicas
+// @pinker-nav:domain listas
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Lista dinâmica com header fixo `[len][cap][dados]` e elementos de 8 bytes (crescimento por dobra de capacidade); contém também erro_fatal, o helper que aborta o processo (eprintln + process::exit) e é compartilhado por todos os domínios seguintes do arquivo; leitura, escrita e inserção fora dos limites abortam via erro_fatal.
 const LISTA_CAP_INICIAL: u64 = 8;
 
 fn erro_fatal(msg: &str) -> ! {
@@ -636,6 +670,7 @@ pub unsafe extern "C" fn pinker_lista_inserir(l: *mut u8, indice: u64, valor: u6
     }
     dados.add(indice as usize).write(valor);
 }
+// @pinker-nav:end runtime.listas.dinamicas
 
 // ---------------------------------------------------------------------------
 // Mapas nativos (Fase 217/B6)
@@ -648,6 +683,10 @@ pub unsafe extern "C" fn pinker_lista_inserir(l: *mut u8, indice: u64, valor: u6
 // a iteração nativa determinística.
 // ---------------------------------------------------------------------------
 
+// @pinker-nav:start runtime.mapas.dinamicos
+// @pinker-nav:domain mapas
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Mapa dinâmico com headers paralelos de chaves e valores (`[len][cap][chaves][valores][chave_e_verso]`), busca linear O(n), comparação de chave por conteúdo (pinker_verso_igual) quando chave_e_verso ou por valor caso contrário, remoção com deslocamento que preserva ordem de inserção, e cursor de iteração criado como snapshot das chaves (mutações no mapa após a criação do cursor não afetam a iteração já em curso); chave ausente ou cursor esgotado abortam via erro_fatal.
 const MAPA_CAP_INICIAL: u64 = 8;
 
 unsafe fn mapa_len(m: *mut u8) -> u64 {
@@ -859,6 +898,7 @@ pub unsafe extern "C" fn pinker_mapa_iterador_proxima(cursor: *mut u8) -> u64 {
     (cursor as *mut u64).add(1).write(proximo + 1);
     chave
 }
+// @pinker-nav:end runtime.mapas.dinamicos
 
 // ---------------------------------------------------------------------------
 // Leques com carga nativos (Fase 218/B7)
@@ -871,6 +911,10 @@ pub unsafe extern "C" fn pinker_mapa_iterador_proxima(cursor: *mut u8) -> u64 {
 // Leques SEM carga continuam discriminantes imediatos e nunca chegam aqui.
 // ---------------------------------------------------------------------------
 
+// @pinker-nav:start runtime.leques.variantes
+// @pinker-nav:domain leques
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Leque com carga: header `[tag][n][cap][cargas]` construído por pinker_leque_criar_0 seguido de anexos sucessivos que devolvem o mesmo handle (cadeia composável espelhando a IR); pinker_leque_carga verifica a tag antes de ler e aborta via erro_fatal em variante inconsistente ou índice fora da faixa; leques sem carga não passam por aqui.
 const LEQUE_CAP_INICIAL: u64 = 4;
 
 unsafe fn leque_n(l: *mut u8) -> u64 {
@@ -950,6 +994,7 @@ pub unsafe extern "C" fn pinker_leque_carga(l: *mut u8, tag: u64, indice: u64) -
     }
     leque_cargas(l).add(indice as usize).read()
 }
+// @pinker-nav:end runtime.leques.variantes
 
 // ---------------------------------------------------------------------------
 // Arquivo, caminho, tempo e acaso nativos (Fase 220/B9)
@@ -963,6 +1008,10 @@ pub unsafe extern "C" fn pinker_leque_carga(l: *mut u8, tag: u64, indice: u64) -
 use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, OnceLock};
 
+// @pinker-nav:start runtime.arquivos.io
+// @pinker-nav:domain arquivos
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Tabela de arquivos abertos em estado global protegido por Mutex (OnceLock), mapeando handle para caminho/conteúdo/flag de anexo mantidos em memória; toda escrita persiste imediatamente em disco via std::fs, handles fechados ou inválidos abortam via erro_fatal com mensagem específica por operação; com_arquivo/io_lock concentram o acesso ao Mutex e abortam o processo se o lock estiver envenenado.
 struct ArquivoAberto {
     caminho: String,
     conteudo: String,
@@ -1172,7 +1221,12 @@ pub unsafe extern "C" fn pinker_arquivo_renomear(de: *const u8, para: *const u8)
     std::fs::rename(verso_str(de), verso_str(para))
         .unwrap_or_else(|err| erro_fatal(&format!("falha ao renomear arquivo: {err}")));
 }
+// @pinker-nav:end runtime.arquivos.io
 
+// @pinker-nav:start runtime.caminhos.sistema
+// @pinker-nav:domain caminhos
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Consultas e operações de sistema de arquivos sobre caminhos (existência, tipo, junção, tamanho, vazio, criação/remoção de diretório e arquivo, diretório atual) delegando diretamente a std::fs/std::path; falhas do sistema operacional abortam via erro_fatal com a mensagem do erro original anexada.
 /// # Safety
 /// `caminho` deve apontar para um bloco de verso válido.
 #[no_mangle]
@@ -1258,7 +1312,12 @@ pub extern "C" fn pinker_caminho_diretorio_atual() -> *mut u8 {
         .unwrap_or_else(|err| erro_fatal(&format!("falha ao obter diretório atual: {err}")));
     verso_alocar(&atual.to_string_lossy())
 }
+// @pinker-nav:end runtime.caminhos.sistema
 
+// @pinker-nav:start runtime.tempo.relogio
+// @pinker-nav:domain tempo
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Tempo Unix (segundos desde a época, abortando via erro_fatal se o relógio do sistema estiver anterior à época) e formatação para ISO-8601 UTC usando o mesmo algoritmo civil (civil_de_dias, Howard Hinnant) do interpretador; não há suporte a fuso horário além de UTC.
 #[no_mangle]
 pub extern "C" fn pinker_tempo_unix() -> u64 {
     std::time::SystemTime::now()
@@ -1299,7 +1358,12 @@ pub extern "C" fn pinker_formatar_tempo_unix(timestamp: u64) -> *mut u8 {
         "{ano:04}-{mes:02}-{dia:02}T{hora:02}:{minuto:02}:{segundo:02}Z"
     ))
 }
+// @pinker-nav:end runtime.tempo.relogio
 
+// @pinker-nav:start runtime.aleatorio.gerador
+// @pinker-nav:domain aleatorio
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Geradores de números aleatórios mantidos em tabela global protegida por Mutex (handle -> estado), avançados por um LCG (constantes idênticas às do interpretador, para paridade de sementes); não é um gerador criptográfico; handle inválido ou min maior que max abortam via erro_fatal.
 struct EstadoAcaso {
     geradores: HashMap<u64, u64>,
     proximo_handle: u64,
@@ -1364,6 +1428,7 @@ pub extern "C" fn pinker_aleatorio_entre(handle: u64, min: u64, max: u64) -> u64
         }
     })
 }
+// @pinker-nav:end runtime.aleatorio.gerador
 
 // ---------------------------------------------------------------------------
 // Ambiente e processo nativos (Fase 221/B10)
@@ -1376,6 +1441,10 @@ pub extern "C" fn pinker_aleatorio_entre(handle: u64, min: u64, max: u64) -> u64
 // mesmas validações (comando não vazio, UTF-8 estrito, exit code exigido).
 // ---------------------------------------------------------------------------
 
+// @pinker-nav:start runtime.ambiente.argumentos
+// @pinker-nav:domain ambiente
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Leitura dos argumentos de linha de comando a partir do argc/argv global capturado em pinker_rt_iniciar (argv[0] descartado como nome do binário) e das variáveis de ambiente via std::env::var, incluindo busca por chave nomeada no formato `chave valor` ou `chave=valor`; argumento ausente ou chave vazia abortam via erro_fatal.
 fn argumentos_do_programa() -> Vec<String> {
     let argc = pinker_rt_argc();
     let argv = pinker_rt_argv();
@@ -1516,7 +1585,12 @@ pub unsafe extern "C" fn pinker_ambiente_buscar_contexto(
         Err(_) => verso_alocar(verso_str(padrao)),
     }
 }
+// @pinker-nav:end runtime.ambiente.argumentos
 
+// @pinker-nav:start runtime.processos.execucao
+// @pinker-nav:domain processos
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Execução de subprocessos do sistema operacional via std::process::Command, com variantes de aridade fixa (0 ou 1 argumento extra) para execução simples, captura de stdout/stderr, envio de entrada por stdin e um pipeline mínimo de dois processos; stdout/stderr são decodificados como UTF-8 estrito (falha aborta via erro_fatal) e comando vazio, falha ao spawnar ou código de saída ausente também abortam via erro_fatal.
 fn exigir_comando_nao_vazio(nome: &str, comando: &str) {
     if comando.trim().is_empty() {
         erro_fatal(&format!("intrínseca '{nome}' exige comando não vazio"));
@@ -1725,6 +1799,7 @@ pub unsafe extern "C" fn pinker_processo_pipeline(
     });
     exit_code_ou_erro("pipeline_minimo", status.code())
 }
+// @pinker-nav:end runtime.processos.execucao
 
 #[cfg(test)]
 mod tests {
