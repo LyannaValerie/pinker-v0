@@ -3,6 +3,10 @@ mod common;
 use common::{parse, render_cli_ir_output, render_ir};
 use pinker_v0::ir;
 
+// @pinker-nav:start evidencia.ir.lowering-programa
+// @pinker-nav:domain ir
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita diretamente o lowering AST para IR e inspeciona a estrutura do programa resultante.
 #[test]
 fn lowering_de_funcao_simples() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -13,7 +17,12 @@ fn lowering_de_funcao_simples() {
     assert_eq!(lowered.functions.len(), 1);
     assert_eq!(lowered.functions[0].name, "principal");
 }
+// @pinker-nav:end evidencia.ir.lowering-programa
 
+// @pinker-nav:start evidencia.ir.renderizacao-estruturas-basicas
+// @pinker-nav:domain ir
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Renderiza IR textual após lowering e compara estruturas básicas, tipos, controle e chamadas.
 #[test]
 fn lowering_de_constante_global() {
     let code = "\
@@ -213,7 +222,12 @@ functions:
 "
     );
 }
+// @pinker-nav:end evidencia.ir.renderizacao-estruturas-basicas
 
+// @pinker-nav:start evidencia.ir.renderizacao-cli
+// @pinker-nav:domain ir
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Compara exatamente o cabeçalho e o texto de IR expostos pelo renderer de CLI.
 #[test]
 fn ir_de_principal_tem_cabecalho_estavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -236,7 +250,12 @@ Análise semântica concluída sem erros.
 "
     );
 }
+// @pinker-nav:end evidencia.ir.renderizacao-cli
 
+// @pinker-nav:start evidencia.ir.lowering-controle-de-laco
+// @pinker-nav:domain ir
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita lowering estruturado de laços, quebrar e continuar e inspeciona fragmentos renderizados.
 #[test]
 fn lowering_de_sempre_que() {
     let code = "
@@ -284,7 +303,12 @@ fn lowering_de_sempre_que_com_continuar() {
     let ir = render_ir(code).unwrap();
     assert!(ir.contains("continue loop_continue_"), "{}", ir);
 }
+// @pinker-nav:end evidencia.ir.lowering-controle-de-laco
 
+// @pinker-nav:start evidencia.ir.lowering-operacoes-textuais
+// @pinker-nav:domain ir
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita a preservação textual de asm inline e operadores lógicos na IR estruturada.
 #[test]
 fn lowering_preserva_inline_asm_textual() {
     let code = r#"
@@ -311,7 +335,12 @@ carinho principal() -> bombom {
     assert!(ir.contains("and("), "{}", ir);
     assert!(ir.contains("or("), "{}", ir);
 }
+// @pinker-nav:end evidencia.ir.lowering-operacoes-textuais
 
+// @pinker-nav:start evidencia.ir.lowering-tipos-numericos
+// @pinker-nav:domain ir
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Inspeciona tipos inteiros fixos e operações bitwise e módulo na IR renderizada.
 #[test]
 fn lowering_de_unsigned_fixos_preserva_tipos() {
     let code = r#"
@@ -381,7 +410,12 @@ carinho principal() -> bombom { mimo 10 % 4; }";
     let ir = render_ir(code).unwrap();
     assert!(ir.contains("return mod(10:bombom, 4:bombom)"), "{}", ir);
 }
+// @pinker-nav:end evidencia.ir.lowering-tipos-numericos
 
+// @pinker-nav:start evidencia.ir.lowering-tipos-compostos
+// @pinker-nav:domain ir
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita acessos e a preservação observada de aliases, arrays, ninhos e categorias de ponteiro na IR textual.
 #[test]
 fn lowering_de_acesso_a_campo_e_indexacao() {
     let code = r#"
@@ -465,3 +499,4 @@ carinho principal() -> bombom { mimo 0; }
     assert!(ir.contains("func id -> fragil seta<?>"), "{}", ir);
     assert!(ir.contains("%p#0: fragil seta<?>"), "{}", ir);
 }
+// @pinker-nav:end evidencia.ir.lowering-tipos-compostos

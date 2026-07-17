@@ -45,6 +45,10 @@ fn base_function(ret_type: TypeIR, blocks: Vec<BasicBlockIR>) -> FunctionCfgIR {
     }
 }
 
+// @pinker-nav:start evidencia.cfg.validacao-aceitacao-basica
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Constrói CFG manualmente e aceita o caso simples presente pelo validador direto.
 #[test]
 fn cfg_valida_simples() {
     let function = base_function(
@@ -60,7 +64,12 @@ fn cfg_valida_simples() {
     );
     assert!(cfg_ir_validate::validate_program(&base_program(function)).is_ok());
 }
+// @pinker-nav:end evidencia.cfg.validacao-aceitacao-basica
 
+// @pinker-nav:start evidencia.cfg.validacao-blocos-e-alvos
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Rejeita nos casos presentes entrada ausente, label duplicado e alvos inexistentes de jump ou branch.
 #[test]
 fn falha_entry_ausente() {
     let mut function = base_function(
@@ -136,7 +145,12 @@ fn falha_branch_label_inexistente() {
         Err(PinkerError::CfgIrValidation { .. })
     ));
 }
+// @pinker-nav:end evidencia.cfg.validacao-blocos-e-alvos
 
+// @pinker-nav:start evidencia.cfg.validacao-condicao-e-retorno
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Rejeita condição de branch incompatível e formas de retorno divergentes da assinatura.
 #[test]
 fn falha_branch_condicao_invalida() {
     let function = base_function(
@@ -200,7 +214,12 @@ fn falha_return_vazio_em_funcao_com_retorno() {
         Err(PinkerError::CfgIrValidation { .. })
     ));
 }
+// @pinker-nav:end evidencia.cfg.validacao-condicao-e-retorno
 
+// @pinker-nav:start evidencia.cfg.validacao-chamada-e-referencias
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Constrói CFG manualmente e rejeita destino inválido de chamada, slot, global ou temporário.
 #[test]
 fn falha_call_nulo_com_destino_temporario() {
     let mut function = base_function(
@@ -295,7 +314,12 @@ fn falha_temporario_nao_definido() {
         Err(PinkerError::CfgIrValidation { .. })
     ));
 }
+// @pinker-nav:end evidencia.cfg.validacao-chamada-e-referencias
 
+// @pinker-nav:start evidencia.cfg.validacao-alcancabilidade-e-renderizacao
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Rejeita bloco inalcançável e compara que uma CFG inválida não é renderizada no fluxo montado pelo teste.
 #[test]
 fn politica_inalcancavel_e_erro() {
     let function = base_function(
@@ -342,7 +366,12 @@ fn cfg_invalida_nao_deve_ser_impressa() {
 
     assert_eq!(output, "");
 }
+// @pinker-nav:end evidencia.cfg.validacao-alcancabilidade-e-renderizacao
 
+// @pinker-nav:start evidencia.cfg.validacao-diagnostico
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Inspeciona parcialmente o contexto textual do diagnóstico de incompatibilidade em slot.
 #[test]
 fn erro_cfg_tem_contexto_padronizado() {
     let function = base_function(
@@ -365,3 +394,4 @@ fn erro_cfg_tem_contexto_padronizado() {
     assert!(err.contains("instr='let/assign'"));
     assert!(err.contains("esperado=Bombom, recebido=Logica"));
 }
+// @pinker-nav:end evidencia.cfg.validacao-diagnostico
