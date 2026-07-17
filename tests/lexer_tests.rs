@@ -3,6 +3,10 @@ mod common;
 use common::{parse_and_check, tokenize};
 use pinker_v0::token::TokenKind;
 
+// @pinker-nav:start evidencia.lexico.tokens-e-spans
+// @pinker-nav:domain lexico
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Verifica o reconhecimento básico de tokens (palavras-chave, identificador, pontuação e EOF final) e a coerência de spans (linha/coluna e lexeme) nos casos presentes.
 #[test]
 fn lexer_basico_reconhece_tokens() {
     let tokens = tokenize("pacote main; carinho principal() -> bombom { mimo 0; }").unwrap();
@@ -23,7 +27,12 @@ fn spans_lexicos_sao_coerentes() {
     assert_eq!(tokens[3].span.start.col, 10);
     assert_eq!(tokens[3].span.end.col, 12);
 }
+// @pinker-nav:end evidencia.lexico.tokens-e-spans
 
+// @pinker-nav:start evidencia.lexico.diagnostico
+// @pinker-nav:domain lexico
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita o diagnóstico léxico de caractere inesperado: espera a mensagem exata (assert_eq) com a posição, ainda que acionada através de parse_and_check.
 #[test]
 fn erro_lexico_tem_formato_previsivel() {
     let err =
@@ -32,7 +41,12 @@ fn erro_lexico_tem_formato_previsivel() {
             .to_string();
     assert_eq!(err, "Erro Léxico: caractere inesperado '$' em 1:52..1:53");
 }
+// @pinker-nav:end evidencia.lexico.diagnostico
 
+// @pinker-nav:start evidencia.lexico.palavras-controle
+// @pinker-nav:domain lexico
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Verifica que as palavras-chave de controle de fluxo (sempre/que, para/cada/em, quebrar, continuar) são tokenizadas com os kinds esperados nos casos presentes.
 #[test]
 fn lexer_reconhece_sempre_que() {
     let tokens = tokenize("sempre que verdade { mimo; }").unwrap();
@@ -59,7 +73,12 @@ fn lexer_reconhece_continuar() {
     let tokens = tokenize("continuar;").unwrap();
     assert_eq!(tokens[0].kind, TokenKind::KwContinuar);
 }
+// @pinker-nav:end evidencia.lexico.palavras-controle
 
+// @pinker-nav:start evidencia.lexico.operadores
+// @pinker-nav:domain lexico
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Verifica a presença dos tokens de operadores bitwise (&, |, ^, <<, >>), módulo (%) e lógicos de curto-circuito (&&, ||) nos casos presentes.
 #[test]
 fn lexer_reconhece_operadores_bitwise_basicos() {
     let tokens = tokenize("a & b | c ^ d << 1 >> 2;").unwrap();
@@ -82,7 +101,12 @@ fn lexer_reconhece_operadores_logicos_curto_circuito() {
     assert!(tokens.iter().any(|t| t.kind == TokenKind::AmpAmp));
     assert!(tokens.iter().any(|t| t.kind == TokenKind::PipePipe));
 }
+// @pinker-nav:end evidencia.lexico.operadores
 
+// @pinker-nav:start evidencia.lexico.tipos-fixos
+// @pinker-nav:domain lexico
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Verifica que as palavras-chave dos tipos inteiros de largura fixa unsigned (u8/u16/u32/u64) e signed (i8/i16/i32/i64) são tokenizadas nos casos presentes.
 #[test]
 fn lexer_reconhece_tipos_unsigned_fixos() {
     let tokens = tokenize("u8 u16 u32 u64").unwrap();
@@ -100,7 +124,12 @@ fn lexer_reconhece_tipos_signed_fixos() {
     assert!(tokens.iter().any(|t| t.kind == TokenKind::KwI32));
     assert!(tokens.iter().any(|t| t.kind == TokenKind::KwI64));
 }
+// @pinker-nav:end evidencia.lexico.tipos-fixos
 
+// @pinker-nav:start evidencia.lexico.palavras-de-construcao
+// @pinker-nav:domain lexico
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Verifica que as palavras-chave de construções da linguagem (apelido, ninho, seta, fragil, sussurro com string literal, livre, virar, peso/alinhamento, trazer, verso) são tokenizadas nos casos presentes.
 #[test]
 fn lexer_reconhece_keyword_apelido() {
     let tokens = tokenize("apelido Byte = u8;").unwrap();
@@ -163,7 +192,12 @@ fn lexer_reconhece_keyword_verso() {
     let tokens = tokenize("verso").unwrap();
     assert_eq!(tokens[0].kind, TokenKind::KwVerso);
 }
+// @pinker-nav:end evidencia.lexico.palavras-de-construcao
 
+// @pinker-nav:start evidencia.lexico.arrays-acessos-e-modificadores
+// @pinker-nav:domain lexico
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Verifica a tokenização da sintaxe de array fixo ([u8; 16]), dos tokens de acesso a campo/indexação (Dot/LBracket/RBracket) e do modificador muda como keyword — confirmando que 'mut' permanece identificador.
 #[test]
 fn lexer_reconhece_sintaxe_de_array_fixo() {
     let tokens = tokenize("[u8; 16]").unwrap();
@@ -193,3 +227,4 @@ fn lexer_reconhece_muda_e_rejeita_mut_como_keyword() {
     assert_eq!(tokens_mut[1].kind, TokenKind::Ident);
     assert_eq!(tokens_mut[1].lexeme, "mut");
 }
+// @pinker-nav:end evidencia.lexico.arrays-acessos-e-modificadores
