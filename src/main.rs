@@ -164,7 +164,7 @@ enum CliCommand {
 // @pinker-nav:start cli.ajuda.usage
 // @pinker-nav:domain ajuda
 // @pinker-nav:layer cli
-// @pinker-nav:summary Funções que montam as strings de uso/ajuda (usage, nav_usage, doc_usage, build_usage, editor_usage, repl_usage) impressas em stderr/stdout quando `--help`/`-h` é pedido ou o parsing rejeita os argumentos; cada uma apenas formata texto com format!, sem side effects.
+// @pinker-nav:summary Funções que montam as strings de uso/ajuda (usage, nav_usage, doc_usage, build_usage, editor_usage, repl_usage) impressas em stderr quando `--help`/`-h` é pedido ou o parsing rejeita os argumentos; cada uma apenas formata texto com format!, sem side effects.
 fn usage(binary: &str) -> String {
     format!(
         "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--cfg-ir] [--selected] [--machine] [--pseudo-asm] [--asm-s] [--run] [--check] <arquivo.pink> [-- <args...>]\n\
@@ -692,7 +692,7 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
 // @pinker-nav:start cli.parsing.roteamento
 // @pinker-nav:domain parsing
 // @pinker-nav:layer cli
-// @pinker-nav:summary parse_args: lê env::args(), separa o argv em flag_args e runtime_tail (delimitados por '--'), despacha para build/editor/repl/doc/nav quando o primeiro argumento bate um desses nomes, senão interpreta as flags de análise (--tokens/--ast/--json-ast/--ir/--cfg-ir/--selected/--machine/--pseudo-asm/--asm-s/--run/--check) e monta CliCommand::Analyze(Config); erros retornam Err(String) com a mensagem de usage.
+// @pinker-nav:summary parse_args: lê env::args(), separa o argv em flag_args e runtime_tail (delimitados por '--'), despacha para build/editor/repl/doc/nav quando o primeiro argumento bate um desses nomes, senão interpreta as flags de análise (--tokens/--ast/--json-ast/--ir/--cfg-ir/--selected/--machine/--pseudo-asm/--asm-s (aliases --asm/--s)/--run/--check) e monta CliCommand::Analyze(Config); erros retornam Err(String) com a mensagem de usage.
 fn parse_args() -> Result<CliCommand, String> {
     let mut input: Option<String> = None;
     let mut print_tokens = false;

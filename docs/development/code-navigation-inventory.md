@@ -953,7 +953,7 @@ nesta onda — mesma decisão de fronteira da Onda 6E, revisão adiada.
 | `editor.estado.modelo` | estado | 15–36 | Constantes de exibição (`OUTPUT_LINES`/`EDITOR_LINES`), `struct EditorTui` e `from_path` (lê o arquivo, separa em linhas, inicializa o painel). |
 | `editor.sessao.comandos` | sessao | 43–179 | `run` (laço leitura-execução), `execute_command` (interpreta `:quit`/`:help`/`:tokens`/`:ast`/`:save`/`:append`/`:set`), `run_tokens_command`/`run_ast_command` (ações Pinker reais — **preview**, não editam AST persistente), `save_file` (grava com `fs::write`, sem escrita atômica), `set_line`. |
 | `editor.render.saida` | render | 186–225 | `current_source` (junta `lines`), `render` (desenha o painel com ANSI), `push_output` (empilha mensagem). |
-| `editor.analise.checagem` | analise | 233–240 | `parse_and_check_program`: tokeniza + parseia + roda `semantic::check_program` sobre uma string; produz o `Program` em memória para o preview de `:tokens`/`:ast`. |
+| `editor.analise.checagem` | analise | 233–240 | `parse_and_check_program`: tokeniza + parseia + roda `semantic::check_program` sobre uma string; usada SOMENTE por `:ast` (via `run_ast_command`) para produzir o `Program` em memória do preview — `:tokens` (`run_tokens_command`) chama `Lexer::tokenize` diretamente e não usa esta função. |
 
 ### `src/boot.rs` — camada `boot` (1 região, arquivo inteiro)
 
@@ -1078,4 +1078,3 @@ camadas `cli`/`editor`/`boot`, deixando as **duas raízes ativas** do scanner
 de strings) e cartografar grupos de evidência conceituais por camada — nunca
 uma âncora por `#[test]`. Depois: Onda 9 — `apps/` (fontes `.pink`, convenção
 de marcador própria antes de entrar no scanner).
-

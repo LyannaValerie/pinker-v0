@@ -229,7 +229,7 @@ impl EditorTui {
 // @pinker-nav:start editor.analise.checagem
 // @pinker-nav:domain analise
 // @pinker-nav:layer editor
-// @pinker-nav:summary parse_and_check_program: função livre (fora do impl) que tokeniza, parseia e roda semantic::check_program sobre uma string de fonte, usada por :tokens/:ast como etapa de preview — ela não altera `self.lines`/AST persistente do editor, apenas produz o Program em memória para renderização no painel.
+// @pinker-nav:summary parse_and_check_program: função livre (fora do impl) que tokeniza, parseia e roda semantic::check_program sobre uma string de fonte, usada SOMENTE por :ast (via run_ast_command) como etapa de preview — ela não altera `self.lines`/AST persistente do editor, apenas produz o Program em memória para renderização no painel; :tokens (run_tokens_command) usa apenas Lexer::tokenize diretamente e não chama esta função.
 fn parse_and_check_program(source: &str) -> Result<Program, crate::error::PinkerError> {
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize()?;
