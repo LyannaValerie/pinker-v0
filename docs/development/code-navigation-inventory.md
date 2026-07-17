@@ -36,11 +36,17 @@ na camada `runtime`, cobrindo as 99 funções `extern "C"` diretas mais os 8
 wrappers gerados pela macro `formatar_wrappers!` (`pinker_formatar_verso_1..8`)
 — 107 símbolos de ABI exportados no total — e os helpers/consts/structs
 internos de `runtime/pinker_rt/src/lib.rs` (produção; `#[cfg(test)] mod tests`
-fica fora, por decisão explícita da onda). Esta rodada conclui a **Onda 7**:
-as três superfícies operacionais restantes em `src/` — `src/main.rs` (CLI,
-camada `cli`), `src/editor_tui.rs` (editor TUI, camada `editor`) e
-`src/boot.rs` (fronteiras freestanding, camada `boot`) — receberam 20 regiões
-novas, deixando a produção de `src/` **integralmente** ancorada.
+fica fora, por decisão explícita da onda). A **Onda 7** concluiu a cartografia
+da produção de `src/`: as três superfícies operacionais restantes —
+`src/main.rs` (CLI, camada `cli`), `src/editor_tui.rs` (editor TUI, camada
+`editor`) e `src/boot.rs` (fronteiras freestanding, camada `boot`) — receberam
+20 regiões novas. As **Ondas 8A–8C** ativaram `tests/` como terceira raiz
+oficial e cartografaram evidências: a 8A entregou o reconhecimento lexical e a
+ativação da raiz, a 8B adicionou 19 regiões de evidências léxicas e sintáticas,
+e a 8C adicionou 34 regiões de evidências semânticas em
+`tests/semantic_tests.rs`. O catálogo está em **236 regiões** (produção + 53 de
+evidência). A Onda 8 permanece **in-progress**; `apps/` segue reservada à Onda
+9.
 
 ## Contrato do scanner
 
@@ -66,7 +72,8 @@ raiz recebida), enquanto a produção usa a API multi-raiz
 (`CodeIndex::scan_repo` → `official_scan_roots()` → `scan_roots` →
 `collect_source_files` → `scan_file`), única fonte da política de raízes. A
 chave de região continua global: nenhuma raiz vira namespace, e uma mesma
-chave em duas raízes é reportada como `DuplicateKey` com os dois caminhos.
+chave repetida em raízes distintas é reportada como `DuplicateKey` com os dois
+caminhos.
 
 ## Onda 8A — raiz de evidências e reconhecimento lexical
 
@@ -80,9 +87,8 @@ marcadores. `marker_comment`, `raw_string_start` e `char_literal_len` são
 helpers de suporte do scanner e permanecem sem região própria nesta onda: a
 decisão evita criar região só para implementação auxiliar; o comportamento é
 coberto por testes adversariais e a responsabilidade semântica continua no
-scanner/catalogação. Nenhuma suite recebeu região nesta onda; o catálogo
-permanece com 183 regiões. A Onda 8 segue em andamento e o próximo ponto é a
-Onda 8B.
+scanner/catalogação. Nenhuma suíte recebeu região na Onda 8A; ao fim dela o
+catálogo seguia com 183 regiões, e o próximo ponto era a Onda 8B.
 
 ## Convenção de chaves
 
@@ -1020,9 +1026,9 @@ domínio e camada `evidencia`: 25 atributos `#[test]` do lexer e 36 do parser,
 cada um pertencendo a exatamente uma região e cada região de lexer/parser com
 ao menos um teste. Ele também confirma os três helpers de common dentro da
 região e `render_ast` fora dela. Assim, permanece compatível com futuras
-regiões de evidência. O catálogo atual tem 202 regiões, sem congelar esse
-total. A Onda 8 permanece em andamento: `tests/semantic_tests.rs` fica
-registrado para a Onda 8C.
+regiões de evidência. Ao concluir a Onda 8B, o catálogo tinha 202 regiões; a
+cartografia de `tests/semantic_tests.rs` permanecia então reservada à Onda 8C,
+concluída na seção correspondente abaixo.
 
 ## Arquivos sem candidatos a âncora
 
@@ -1034,15 +1040,62 @@ Registrados para não desaparecerem da análise; não recebem âncoras.
 | `src/bin/pinker_fase16x_*.rs` | Binários-fixture minúsculos (3–35 linhas) usados por testes de I/O; sem responsabilidade nomeável. |
 | `src/navigation.jsonl` | Catálogo **gerado**; nunca é fonte de âncoras. |
 
-## Testes e apps (adiados — raízes desativadas)
+## Onda 8C — evidências semânticas e contratos de tipos
 
-Inventariados para as Ondas 8 e 9. O scanner já indexa duas raízes (`src/` e
-`runtime/pinker_rt/src/`, Onda 6D), mas `tests/` e `apps/` permanecem
-desativadas por política explícita — `tests/` tem fixtures com textos
-parecidos com marcadores dentro de strings (risco de falso positivo sem uma
-regra própria de exclusão) e `apps/` reúne fontes `.pink`, que exigem uma
-convenção de marcador própria antes de entrar no scanner. Ativar qualquer uma
-delas é onda própria.
+`tests/semantic_tests.rs` foi integralmente cartografado: 340 testes em 34
+regiões de evidência (`domain: semantica`, `layer: evidencia`). As chaves são:
+`evidencia.semantica.entrada-principal`, `evidencia.semantica.retornos`,
+`evidencia.semantica.mutabilidade`, `evidencia.semantica.chamadas`,
+`evidencia.semantica.intrinsecas-entrada-ambiente`,
+`evidencia.semantica.intrinsecas-caminhos-e-sistema`,
+`evidencia.semantica.intrinsecas-argumentos-e-contexto`,
+`evidencia.semantica.intrinsecas-arquivos-io`,
+`evidencia.semantica.intrinsecas-texto-e-estruturados`,
+`evidencia.semantica.intrinsecas-processos`,
+`evidencia.semantica.funcoes-sem-retorno`,
+`evidencia.semantica.controle-fluxo-e-diagnostico`,
+`evidencia.semantica.operadores-logicos-e-bitwise`,
+`evidencia.semantica.acesso-campos-e-indexacao`, `evidencia.semantica.casts`,
+`evidencia.semantica.peso-e-alinhamento`,
+`evidencia.semantica.tipos-numericos-largura-fixa`,
+`evidencia.semantica.aliases-arrays-e-ninhos`,
+`evidencia.semantica.ponteiros-e-aritmetica`,
+`evidencia.semantica.ninhos-diagnostico`,
+`evidencia.semantica.aritmetica-modulo-e-literais`,
+`evidencia.semantica.escrita-por-indice`, `evidencia.semantica.listas`,
+`evidencia.semantica.mapas`, `evidencia.semantica.acaso`,
+`evidencia.semantica.imports-por-familia`,
+`evidencia.semantica.leques-simples`, `evidencia.semantica.leques-com-carga`,
+`evidencia.semantica.encaixe-e-bindings`,
+`evidencia.semantica.leques-recursivos-e-multiplas-cargas`,
+`evidencia.semantica.genericos`, `evidencia.semantica.tratamento-de-erro`,
+`evidencia.semantica.funcoes-locais-e-carinho` e
+`evidencia.semantica.tratos-e-impls`.
+
+Os agrupamentos seguem contratos de entrada, retornos, mutabilidade e chamadas;
+famílias de intrínsecas; tipos compostos, ponteiros e coleções; leques,
+encaixe, genéricos, tratamento de erro, funções locais e tratos/impls. A suíte
+combina assertions exatas com assertions parciais. Há exemplos carregados por
+`include_str!`, tratados como casos observados. As limitações são explícitas: a
+suíte verifica aceitação/rejeição pelo pipeline de frontend (`parse_and_check` =
+parse seguido de checagem semântica); parte das rejeições ocorre já no
+parse/desugaring e parte no checker; não executa runtime; `is_ok` não prova
+comportamento operacional; `contains` não fixa a mensagem inteira; e os
+exemplos não provam completude. O catálogo passa de 202 para 236 regiões, com
+as 202 anteriores preservadas. A Onda 8 permanece em andamento.
+
+## Testes ativos e apps adiados
+
+`tests/` é raiz oficial ativa desde a Onda 8A. O scanner tem três raízes
+oficiais: `src/`, `runtime/pinker_rt/src/` e `tests/`. Fixtures com textos
+parecidos com marcadores são protegidas pelo reconhecedor lexical implementado
+na Onda 8A. `apps/` continua desativada até a Onda 9: reúne fontes `.pink`, que
+exigem uma convenção de marcador própria antes de entrar no scanner.
+
+Já estão cartografados como evidência `tests/common/mod.rs` (parcialmente, com
+3 helpers), `tests/lexer_tests.rs`, `tests/parser_tests.rs` e
+`tests/semantic_tests.rs`; os três últimos, integralmente. As demais suítes
+`tests/*.rs` continuam pendentes.
 
 - `tests/*.rs` — evidência por camada (lexer, parser, semântica, IR/CFG/seleção/
   máquina, interpretador, backends, runtime nativo, Trama, CLI, paridade nativa).
@@ -1051,7 +1104,7 @@ delas é onda própria.
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 7)
+## Cobertura acumulada (após Onda 8C)
 
 | Métrica | Valor |
 |---|---:|
@@ -1060,21 +1113,27 @@ delas é onda própria.
 | Produção de `src/` pendente | 0 |
 | Produção em `runtime/pinker_rt/src/` | 1 |
 | Produção do runtime ancorada | 1 |
-| Produção total nas raízes ativas | 33 |
-| Arquivos ancorados nas raízes ativas | 33 |
-| Arquivos pendentes nas raízes ativas | 0 |
+| Produção total nas duas raízes de produção | 33 |
+| Arquivos de produção ancorados | 33 |
+| Arquivos de produção pendentes | 0 |
+| Evidência em `tests/common/mod.rs` | Parcial: 3 helpers |
+| Evidência em `tests/lexer_tests.rs` | Integral |
+| Evidência em `tests/parser_tests.rs` | Integral |
+| Evidência em `tests/semantic_tests.rs` | Integral |
+| Demais suítes `tests/*.rs` | Pendentes |
 | Regiões antes da Onda 7 | 163 |
 | Regiões adicionadas na Onda 7 | 20 |
-| Regiões no catálogo | 183 |
+| Regiões no catálogo | 236 |
+| Raízes oficiais ativas | 3 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
 
-A produção das **duas raízes ativas** do scanner (`src/` e
+A produção das **duas raízes de produção** do scanner (`src/` e
 `runtime/pinker_rt/src/`) está agora **integralmente ancorada** — os 3
 pendentes da Onda 6E (`src/main.rs`, `src/editor_tui.rs`, `src/boot.rs`)
 receberam suas 20 regiões nesta onda (ver "Onda 7 — cartografia das
 superfícies operacionais"). A contagem `33 = 33 + 0` é o corpus completo de
-produção nas duas raízes ativas do scanner (`src/` e
+produção nas duas raízes de produção do scanner (`src/` e
 `runtime/pinker_rt/src/`); `src/lib.rs` (só `pub mod`), os binários-fixture
 `src/bin/pinker_fase16x_*.rs` e o catálogo gerado `src/navigation.jsonl` ficam de
 fora por não terem responsabilidade nomeável (ver "Arquivos sem candidatos a
@@ -1112,25 +1171,17 @@ excluído).
 | cli | 15 | Onda 7: config-modelos, ajuda-usage, parsing (subcomandos, roteamento), execução (entrada, editor-repl), nav (consulta, sincronização-verificação), doc (consulta, sincronização, mudanças, verificação), análise-pipeline, build-nativo, módulos-importação |
 | editor | 4 | Onda 7: estado-modelo, sessão-comandos, render-saída, análise-checagem |
 | boot | 1 | Onda 7: geração-fronteira-freestanding (arquivo inteiro) |
-| **total** | **183** | |
+| evidencia | 53 | Onda 8B (19) + Onda 8C (34) |
+| **total** | **236** | |
 
-Pendentes de cartografia: tests/apps (Ondas 8/9, após ativar as respectivas
-raízes). As três superfícies operacionais (cli/editor/boot) foram concluídas
-nesta onda.
+Pendentes de cartografia: as demais suítes `tests/*.rs` na Onda 8 e `apps/` na
+Onda 9. As três superfícies operacionais (cli/editor/boot) foram concluídas na
+Onda 7.
 
 ## Próximo ponto de retomada
 
-**Onda 8C — evidências semânticas e contratos de tipos em
-`tests/semantic_tests.rs`.**
-
-**Onda 8 — ativação da raiz `tests/` e cartografia de evidência por camada.**
-A Onda 7 encerrou a cartografia da produção de `src/`: as três superfícies
-operacionais (`src/main.rs` — CLI, `src/editor_tui.rs` — editor TUI,
-`src/boot.rs` — fronteiras freestanding) receberam 20 regiões novas nas
-camadas `cli`/`editor`/`boot`, deixando as **duas raízes ativas** do scanner
-(`src/` e `runtime/pinker_rt/src/`) com a produção **integralmente ancorada**
-(0 pendentes). A Onda 8 deve ativar `tests/` como raiz oficial do scanner
-(política de exclusão para fixtures com textos parecidos com marcadores dentro
-de strings) e cartografar grupos de evidência conceituais por camada — nunca
-uma âncora por `#[test]`. Depois: Onda 9 — `apps/` (fontes `.pink`, convenção
-de marcador própria antes de entrar no scanner).
+**Onda 8D — próximo grupo de evidências nas suítes `tests/*.rs` ainda não
+cartografadas, definido por inventário antes da edição.** Candidato prioritário:
+o bloco de pipeline (IR, validação de IR, CFG, validação de CFG, seleção,
+máquina abstrata). Onda 9 continua reservada a `apps/`. A Onda 8 permanece
+**in-progress**.

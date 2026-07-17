@@ -1226,3 +1226,127 @@ fn camada_evidencia_frontend_cartografa_lexer_parser_common() {
         "catálogo deveria conter ao menos 202 regiões após a Onda 8B"
     );
 }
+
+#[test]
+fn onda_8c_cartografa_evidencias_semanticas() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    let expected_semantic_keys = [
+        "evidencia.semantica.entrada-principal",
+        "evidencia.semantica.retornos",
+        "evidencia.semantica.mutabilidade",
+        "evidencia.semantica.chamadas",
+        "evidencia.semantica.intrinsecas-entrada-ambiente",
+        "evidencia.semantica.intrinsecas-caminhos-e-sistema",
+        "evidencia.semantica.intrinsecas-argumentos-e-contexto",
+        "evidencia.semantica.intrinsecas-arquivos-io",
+        "evidencia.semantica.intrinsecas-texto-e-estruturados",
+        "evidencia.semantica.intrinsecas-processos",
+        "evidencia.semantica.funcoes-sem-retorno",
+        "evidencia.semantica.controle-fluxo-e-diagnostico",
+        "evidencia.semantica.operadores-logicos-e-bitwise",
+        "evidencia.semantica.acesso-campos-e-indexacao",
+        "evidencia.semantica.casts",
+        "evidencia.semantica.peso-e-alinhamento",
+        "evidencia.semantica.tipos-numericos-largura-fixa",
+        "evidencia.semantica.aliases-arrays-e-ninhos",
+        "evidencia.semantica.ponteiros-e-aritmetica",
+        "evidencia.semantica.ninhos-diagnostico",
+        "evidencia.semantica.aritmetica-modulo-e-literais",
+        "evidencia.semantica.escrita-por-indice",
+        "evidencia.semantica.listas",
+        "evidencia.semantica.mapas",
+        "evidencia.semantica.acaso",
+        "evidencia.semantica.imports-por-familia",
+        "evidencia.semantica.leques-simples",
+        "evidencia.semantica.leques-com-carga",
+        "evidencia.semantica.encaixe-e-bindings",
+        "evidencia.semantica.leques-recursivos-e-multiplas-cargas",
+        "evidencia.semantica.genericos",
+        "evidencia.semantica.tratamento-de-erro",
+        "evidencia.semantica.funcoes-locais-e-carinho",
+        "evidencia.semantica.tratos-e-impls",
+    ];
+    assert_eq!(expected_semantic_keys.len(), 34);
+    let mut planned_keys = HashSet::new();
+    for key in expected_semantic_keys {
+        assert!(
+            planned_keys.insert(key),
+            "chave repetida no plano da Onda 8C: {key}"
+        );
+        let region = catalog
+            .region(key)
+            .unwrap_or_else(|| panic!("chave ausente: {key}"));
+        assert_eq!(region.file, "tests/semantic_tests.rs");
+        assert_eq!(region.layer.as_deref(), Some("evidencia"));
+        assert_eq!(region.domain.as_deref(), Some("semantica"));
+        assert!(
+            region.start_marker < region.content_start
+                && region.content_start <= region.content_end
+                && region.content_end < region.end_marker,
+            "marcadores fora de ordem: {key}"
+        );
+    }
+
+    let file = "tests/semantic_tests.rs";
+    let source_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(file);
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|error| panic!("não foi possível ler {}: {error}", source_path.display()));
+    let lines: Vec<_> = source.lines().collect();
+    let mut owned_test_counts = vec![0usize; expected_semantic_keys.len()];
+    let mut test_count = 0usize;
+    for (attribute_index, line) in lines.iter().enumerate() {
+        if line.trim() != "#[test]" {
+            continue;
+        }
+        let test_line = attribute_index + 1;
+        let test_name = lines
+            .iter()
+            .skip(attribute_index + 1)
+            .take(8)
+            .find_map(|candidate| {
+                candidate
+                    .trim()
+                    .strip_prefix("fn ")?
+                    .split_once('(')
+                    .map(|(name, _)| name.trim())
+            })
+            .unwrap_or_else(|| {
+                panic!("structural_test_function_not_found: arquivo {file}, linha {test_line}")
+            });
+        let owners: Vec<_> = expected_semantic_keys
+            .iter()
+            .enumerate()
+            .filter_map(|(index, key)| {
+                let region = catalog
+                    .region(key)
+                    .unwrap_or_else(|| panic!("chave ausente: {key}"));
+                (region.content_start <= test_line && test_line <= region.content_end)
+                    .then_some((index, *key))
+            })
+            .collect();
+        match owners.as_slice() {
+            [(index, _)] => owned_test_counts[*index] += 1,
+            [] => panic!(
+                "structural_test_region_not_found: arquivo {file}, linha {test_line}, função {test_name}, chaves {:?}",
+                expected_semantic_keys
+            ),
+            _ => panic!(
+                "structural_test_region_ambiguous: arquivo {file}, linha {test_line}, função {test_name}, chaves {:?}",
+                owners.iter().map(|(_, key)| *key).collect::<Vec<_>>()
+            ),
+        }
+        test_count += 1;
+    }
+    assert_eq!(test_count, 340, "contagem de #[test] inesperada em {file}");
+    for (key, count) in expected_semantic_keys.iter().zip(owned_test_counts) {
+        assert!(
+            count >= 1,
+            "região '{key}' deveria possuir ao menos um #[test]"
+        );
+    }
+    assert!(
+        catalog.regions.len() >= 236,
+        "catálogo deveria conter ao menos 236 regiões"
+    );
+}
