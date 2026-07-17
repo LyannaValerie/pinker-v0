@@ -1,7 +1,7 @@
 //! Trama Pinker — Etapa 3 (Navegação semântica do código).
 //!
-//! Varre um conjunto de raízes de código controladas do repositório (Onda 6D:
-//! `src/` e `runtime/pinker_rt/src/`, ambas obrigatórias no fluxo oficial) em
+//! Varre um conjunto de raízes de código controladas do repositório (Onda 8A:
+//! `src/`, `runtime/pinker_rt/src/` e `tests/`, todas obrigatórias no fluxo oficial) em
 //! busca dos marcadores `@pinker-nav:start/end` e gera o catálogo derivado
 //! `src/navigation.jsonl` (especificação, seções 10, 11, 12-17 e 22). O
 //! agente que altera o código mantém os marcadores; o script nunca decide
@@ -205,7 +205,7 @@ impl CodeIndex {
     }
 
     /// Varre o repositório real usando as raízes de código oficiais e
-    /// obrigatórias (§15): `src/` e `runtime/pinker_rt/src/`. Usado pelo
+    /// obrigatórias (§15): `src/`, `runtime/pinker_rt/src/` e `tests/`. Usado pelo
     /// fluxo oficial `pink nav sincronizar`/`verificar`.
     pub fn scan_repo(repo_root: &Path) -> Result<CodeIndex, ScanError> {
         scan_roots(repo_root, &official_scan_roots())
@@ -345,7 +345,7 @@ fn covers(haystack_norm: &str, terms: &[String]) -> bool {
 // @pinker-nav:start trama.codigo.raizes
 // @pinker-nav:domain navegacao
 // @pinker-nav:layer trama
-// @pinker-nav:summary Define as raízes de código controladas do repositório (`src/` e `runtime/pinker_rt/src/`, ambas obrigatórias), valida cada raiz antes de varrer — ausência, caminho que não é diretório ou link simbólico falham com `E-NAV-SCAN` antes de qualquer escrita —, coleta arquivos por extensão sem seguir links simbólicos e normaliza cada caminho para a forma repo-relativa com `/`, sem prefixo fabricado, garantindo que cada arquivo seja varrido no máximo uma vez, independente da ordem das raízes.
+// @pinker-nav:summary Define as raízes de código controladas do repositório (`src/`, `runtime/pinker_rt/src/` e `tests/`, todas obrigatórias), valida cada raiz antes de varrer — ausência, caminho que não é diretório ou link simbólico falham com `E-NAV-SCAN` antes de qualquer escrita —, coleta arquivos `.rs` sem seguir links simbólicos e normaliza cada caminho para a forma repo-relativa com `/`, sem prefixo fabricado, garantindo que cada arquivo seja varrido no máximo uma vez, independente da ordem das raízes.
 /// Uma raiz de código controlada, relativa à raiz do repositório (§12).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScanRoot {
@@ -368,7 +368,7 @@ impl ScanRoot {
 }
 
 /// As raízes oficiais varridas pelo fluxo `pink nav sincronizar`/`verificar`
-/// (§15): ambas obrigatórias. Fonte única da política de raízes — a CLI
+/// (§15): todas obrigatórias. Fonte única da política de raízes — a CLI
 /// oficial e os testes que exercitam o caminho oficial usam esta mesma lista;
 /// a API genérica `scan_roots` (via [`CodeIndex::scan`]) aceita listas
 /// menores para fixtures.
@@ -376,6 +376,7 @@ pub fn official_scan_roots() -> Vec<ScanRoot> {
     vec![
         ScanRoot::new("src", &["rs"]),
         ScanRoot::new("runtime/pinker_rt/src", &["rs"]),
+        ScanRoot::new("tests", &["rs"]),
     ]
 }
 
@@ -563,12 +564,14 @@ struct OpenRegion {
 fn scan_file(rel_path: &str, text: &str, index: &mut CodeIndex) {
     let lines: Vec<&str> = text.lines().collect();
     let mut stack: Vec<OpenRegion> = Vec::new();
+    let mut lexical_state = LexicalState::Code;
 
     for (i, raw) in lines.iter().enumerate() {
         let line_no = i + 1;
         let trimmed = raw.trim();
+        let marker_line = marker_comment(raw, &mut lexical_state);
 
-        if let Some(key) = parse_marker(trimmed, START) {
+        if let Some(key) = marker_line.and_then(|comment| parse_marker(comment, START)) {
             if let Some(outer) = stack.last() {
                 index.scan_problems.push(NavVerifyError::Overlap {
                     outer: outer.key.clone(),
@@ -602,7 +605,7 @@ fn scan_file(rel_path: &str, text: &str, index: &mut CodeIndex) {
             continue;
         }
 
-        if let Some(end_key) = parse_marker(trimmed, END) {
+        if let Some(end_key) = marker_line.and_then(|comment| parse_marker(comment, END)) {
             match stack.pop() {
                 Some(open) => finish_region(rel_path, open, end_key, line_no, index),
                 None => index.scan_problems.push(NavVerifyError::EndWithoutStart {
@@ -617,7 +620,7 @@ fn scan_file(rel_path: &str, text: &str, index: &mut CodeIndex) {
         // Linha comum ou de metadado dentro de uma região aberta.
         if let Some(open) = stack.last_mut() {
             if open.in_meta {
-                if let Some((field, value)) = parse_meta(trimmed) {
+                if let Some((field, value)) = marker_line.and_then(parse_meta) {
                     apply_meta(open, rel_path, &field, &value, index);
                     continue;
                 }
@@ -640,6 +643,130 @@ fn scan_file(rel_path: &str, text: &str, index: &mut CodeIndex) {
             line: leftover.start_marker,
         });
     }
+}
+
+/// Estado léxico mínimo para distinguir comentários reais de texto que apenas
+/// se parece com marcador. Não pretende analisar Rust completo: só acompanha
+/// os delimitadores que podem atravessar linhas e esconder `//`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LexicalState {
+    Code,
+    NormalString,
+    ByteString,
+    RawString(usize),
+    RawByteString(usize),
+    BlockComment(usize),
+}
+
+/// Devolve o comentário candidato somente quando `//` é o primeiro token não
+/// branco de uma linha iniciada em código. Ao mesmo tempo avança o estado
+/// léxico para a linha seguinte.
+fn marker_comment<'a>(line: &'a str, state: &mut LexicalState) -> Option<&'a str> {
+    let bytes = line.as_bytes();
+    let first_non_whitespace = bytes.iter().position(|byte| !byte.is_ascii_whitespace());
+    let mut i = 0;
+
+    while i < bytes.len() {
+        match *state {
+            LexicalState::Code => {
+                if bytes[i..].starts_with(b"//") {
+                    if Some(i) == first_non_whitespace {
+                        return Some(&line[i..]);
+                    }
+                    return None;
+                }
+                if bytes[i..].starts_with(b"/*") {
+                    *state = LexicalState::BlockComment(1);
+                    i += 2;
+                } else if let Some((raw_len, hashes, is_byte)) = raw_string_start(&bytes[i..]) {
+                    *state = if is_byte {
+                        LexicalState::RawByteString(hashes)
+                    } else {
+                        LexicalState::RawString(hashes)
+                    };
+                    i += raw_len;
+                } else if bytes[i..].starts_with(b"b\"") {
+                    *state = LexicalState::ByteString;
+                    i += 2;
+                } else if let Some(char_len) = char_literal_len(&bytes[i..]) {
+                    i += char_len;
+                } else if bytes[i] == b'\"' {
+                    *state = LexicalState::NormalString;
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            }
+            LexicalState::NormalString | LexicalState::ByteString => {
+                if bytes[i] == b'\\' {
+                    i += 2;
+                } else if bytes[i] == b'\"' {
+                    *state = LexicalState::Code;
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            }
+            LexicalState::RawString(hashes) | LexicalState::RawByteString(hashes) => {
+                if bytes[i] == b'\"' && bytes[i + 1..].starts_with(&vec![b'#'; hashes]) {
+                    *state = LexicalState::Code;
+                    i += hashes + 1;
+                } else {
+                    i += 1;
+                }
+            }
+            LexicalState::BlockComment(depth) => {
+                if bytes[i..].starts_with(b"/*") {
+                    *state = LexicalState::BlockComment(depth + 1);
+                    i += 2;
+                } else if bytes[i..].starts_with(b"*/") {
+                    if depth == 1 {
+                        *state = LexicalState::Code;
+                    } else {
+                        *state = LexicalState::BlockComment(depth - 1);
+                    }
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Reconhece o prefixo de uma raw string Rust e informa seu comprimento, a
+/// quantidade de `#` e se é uma raw byte string (`br`).
+fn raw_string_start(bytes: &[u8]) -> Option<(usize, usize, bool)> {
+    let (prefix_len, is_byte) = if bytes.starts_with(b"br") {
+        (2, true)
+    } else if bytes.starts_with(b"r") {
+        (1, false)
+    } else {
+        return None;
+    };
+    let mut pos = prefix_len;
+    while bytes.get(pos) == Some(&b'#') {
+        pos += 1;
+    }
+    (bytes.get(pos) == Some(&b'\"')).then_some((pos + 1, pos - prefix_len, is_byte))
+}
+
+/// Literais de caractere não atravessam linhas. Só os consome quando o
+/// apóstrofo de fechamento vem imediatamente após um único caractere (ou
+/// escape), para não confundir lifetimes como `'a` com um literal aberto.
+fn char_literal_len(bytes: &[u8]) -> Option<usize> {
+    if bytes.first() != Some(&b'\'') {
+        return None;
+    }
+
+    if bytes.get(1) == Some(&b'\\') {
+        return (bytes.get(3) == Some(&b'\'')).then_some(4);
+    }
+
+    let character = std::str::from_utf8(bytes.get(1..)?).ok()?.chars().next()?;
+    let closing_quote = 1 + character.len_utf8();
+    (bytes.get(closing_quote) == Some(&b'\'')).then_some(closing_quote + 1)
 }
 
 fn finish_region(
@@ -729,13 +856,15 @@ fn apply_meta(
 /// Extrai a chave após um marcador (`@pinker-nav:start`/`:end`) em uma linha
 /// que deve ser um comentário `//`.
 fn parse_marker(trimmed: &str, marker: &str) -> Option<String> {
-    if !trimmed.starts_with("//") {
+    let comment = trimmed.strip_prefix("//")?;
+    if comment.starts_with('/') || comment.starts_with('!') {
         return None;
     }
-    let idx = trimmed.find(marker)?;
+    let marker_text = comment.trim_start();
+    let rest = marker_text.strip_prefix(marker)?;
     // Evita casar `@pinker-nav:start` quando o buscado é `@pinker-nav:end`
     // (ambos contêm `@pinker-nav:`), garantindo limite após o marcador.
-    let after = &trimmed[idx + marker.len()..];
+    let after = rest;
     if !after.starts_with(char::is_whitespace) && !after.is_empty() {
         return None;
     }
@@ -748,11 +877,12 @@ fn parse_marker(trimmed: &str, marker: &str) -> Option<String> {
 }
 
 fn parse_meta(trimmed: &str) -> Option<(String, String)> {
-    if !trimmed.starts_with("//") {
+    let comment = trimmed.strip_prefix("//")?;
+    if comment.starts_with('/') || comment.starts_with('!') {
         return None;
     }
-    let idx = trimmed.find(FIELD_PREFIX)?;
-    let rest = &trimmed[idx + FIELD_PREFIX.len()..];
+    let marker_text = comment.trim_start();
+    let rest = marker_text.strip_prefix(FIELD_PREFIX)?;
     let mut parts = rest.splitn(2, char::is_whitespace);
     let field = parts.next()?.trim().to_string();
     if field == "start" || field == "end" {

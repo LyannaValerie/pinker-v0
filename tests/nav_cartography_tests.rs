@@ -98,6 +98,170 @@ fn catalogo_deterministico() {
     fs::remove_dir_all(dir).unwrap();
 }
 
+#[test]
+fn scanner_reconhece_apenas_marcadores_em_comentarios_reais() {
+    let dir = temp_src("lexical");
+    let false_start = "// @pinker-nav:start falso.literal.chave";
+    let false_end = "// @pinker-nav:end falso.literal.chave";
+    let source = [
+        "let escaped = \"texto com \\\" e \\\\;",
+        false_start,
+        false_end,
+        "ainda dentro da string\";",
+        "let bytes = b\"",
+        false_start,
+        "\";",
+        "let raw0 = r\"",
+        false_start,
+        "\";",
+        "let raw1 = r#\"",
+        false_start,
+        "\"#;",
+        "let raw2 = r##\"",
+        false_start,
+        "\"##;",
+        "let raw_byte = br#\"",
+        false_start,
+        "\"#;",
+        "/* comentário externo",
+        false_start,
+        "/* comentário aninhado",
+        false_end,
+        "*/",
+        "*/",
+        "/// @pinker-nav:start falso.doc.chave",
+        "//! @pinker-nav:end falso.doc.chave",
+        "let x = 1; // @pinker-nav:start falsa.depois.codigo",
+        "// @pinker-nav:start verdadeiro.lexico.chave",
+        "// @pinker-nav:domain teste",
+        "// @pinker-nav:layer teste",
+        "// @pinker-nav:summary Marcador canônico fora de literal.",
+        "fn verdadeiro() {}",
+        "// @pinker-nav:end verdadeiro.lexico.chave",
+    ]
+    .join("\n");
+    write(&dir, "lexical.rs", &source);
+
+    let index = CodeIndex::scan(&dir).unwrap();
+    assert_eq!(index.regions.len(), 1, "{:?}", index.scan_problems);
+    assert_eq!(index.regions[0].key, "verdadeiro.lexico.chave");
+    assert!(index.verify().is_empty(), "{:?}", index.verify());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn scanner_nao_confunde_lifetimes_com_literais_de_caractere() {
+    let dir = temp_src("lifetimes");
+    let source = [
+        "fn f<'a>() { let _ = \"'\"; }",
+        r#"fn chars() { let _ = 'a'; let _ = '\n'; let _ = '\\'; let _ = '\''; let _ = '"'; }"#,
+        "// @pinker-nav:start teste.lifetime.primeiro",
+        "// @pinker-nav:domain teste",
+        "// @pinker-nav:layer teste",
+        "fn primeiro() {}",
+        "// @pinker-nav:end teste.lifetime.primeiro",
+        "fn g<'a>() { let _: &'a str = \"it's\"; }",
+        "// @pinker-nav:start teste.lifetime.segundo",
+        "// @pinker-nav:domain teste",
+        "// @pinker-nav:layer teste",
+        "fn segundo() {}",
+        "// @pinker-nav:end teste.lifetime.segundo",
+    ]
+    .join("\n");
+    write(&dir, "lifetime.rs", &source);
+
+    let index = CodeIndex::scan(&dir).unwrap();
+    assert_eq!(index.regions.len(), 2, "{:?}", index.scan_problems);
+    assert!(index.region("teste.lifetime.primeiro").is_some());
+    assert!(index.region("teste.lifetime.segundo").is_some());
+    assert!(index.verify().is_empty(), "{:?}", index.verify());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn scanner_ignora_doc_comments_como_metadados_de_regiao() {
+    let dir = temp_src("doc_comment_meta");
+    let source = [
+        "// @pinker-nav:start teste.meta.doc-comment",
+        "// @pinker-nav:domain teste",
+        "// @pinker-nav:layer teste",
+        "// @pinker-nav:summary Resumo real.",
+        "/// @pinker-nav:summary Resumo externo indevido.",
+        "//! @pinker-nav:summary Resumo interno indevido.",
+        "fn exemplo() {}",
+        "// @pinker-nav:end teste.meta.doc-comment",
+    ]
+    .join("\n");
+    write(&dir, "doc_comment.rs", &source);
+
+    let index = CodeIndex::scan(&dir).unwrap();
+    let region = index.region("teste.meta.doc-comment").unwrap();
+    assert_eq!(region.summary, "Resumo real.");
+    assert!(index.verify().is_empty(), "{:?}", index.verify());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn scanner_exige_prefixo_estrito_para_metadados() {
+    let dir = temp_src("meta_prefixo_estrito");
+    let source = [
+        "// @pinker-nav:start teste.meta.prefixo-estrito",
+        "// @pinker-nav:domain teste",
+        "// @pinker-nav:layer teste",
+        "// @pinker-nav:summary Resumo verdadeiro.",
+        "// Nota documental: @pinker-nav:summary Resumo falso.",
+        "// texto anterior @pinker-nav:domain falso",
+        "fn exemplo() {}",
+        "// @pinker-nav:end teste.meta.prefixo-estrito",
+    ]
+    .join("\n");
+    write(&dir, "meta_prefixo_estrito.rs", &source);
+
+    let index = CodeIndex::scan(&dir).unwrap();
+    assert_eq!(index.regions.len(), 1, "{:?}", index.scan_problems);
+    let region = index.region("teste.meta.prefixo-estrito").unwrap();
+    assert_eq!(region.key, "teste.meta.prefixo-estrito");
+    assert_eq!(region.summary, "Resumo verdadeiro.");
+    assert_eq!(region.domain.as_deref(), Some("teste"));
+    assert!(index.verify().is_empty(), "{:?}", index.verify());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn scanner_oficial_inclui_tests_sem_catalogar_fixtures_literais() {
+    let dir = temp_src("official_tests_root");
+    write(&dir, "src/lib.rs", "pub fn fonte() {}\n");
+    write(
+        &dir,
+        "runtime/pinker_rt/src/lib.rs",
+        "pub fn runtime() {}\n",
+    );
+    write(
+        &dir,
+        "tests/exemplo.rs",
+        "// @pinker-nav:start tests.exemplo.real\n// @pinker-nav:domain teste\n// @pinker-nav:layer teste\n// @pinker-nav:summary Região real de fixture.\nfn exemplo() {}\n// @pinker-nav:end tests.exemplo.real\n",
+    );
+    let index = CodeIndex::scan_repo(&dir).unwrap();
+    let region = index.region("tests.exemplo.real").unwrap();
+    assert_eq!(region.file, "tests/exemplo.rs");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn scanner_do_repo_real_ignora_textos_de_fixture_nas_suites() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let index = CodeIndex::scan_repo(&root).unwrap();
+    for file in [
+        "tests/nav_catalog_tests.rs",
+        "tests/nav_cartography_tests.rs",
+    ] {
+        assert!(
+            !index.regions.iter().any(|region| region.file == file),
+            "literal de fixture foi catalogado como região em {file}"
+        );
+    }
+}
+
 /// O catálogo real versionado contém as chaves essenciais do frontend (Onda 4),
 /// da checagem semântica (Onda 5A), da monomorfização no parser (Onda 5B), do
 /// lowering AST→IR (Onda 5C), do lowering IR→CFG (Onda 5D), da seleção→máquina
