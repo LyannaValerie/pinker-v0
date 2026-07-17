@@ -5,7 +5,9 @@
 //! acrescenta as raízes de código controladas (`trama.codigo.raizes`),
 //! mantendo a separação entre catálogo, raízes e consulta. Onda 6E cartografa
 //! o runtime nativo (`runtime/pinker_rt/src/lib.rs`, camada `runtime`),
-//! concluindo a Onda 6.
+//! concluindo a Onda 6. Onda 7 cartografa as superfícies operacionais:
+//! `src/main.rs` (camada `cli`), `src/editor_tui.rs` (camada `editor`) e
+//! `src/boot.rs` (camada `boot`).
 
 use pinker_v0::nav::{CodeCatalog, CodeIndex};
 use std::fs;
@@ -655,4 +657,204 @@ fn camada_runtime_cartografa_o_runtime_nativo() {
             "domínio runtime esperado ausente: {domain}"
         );
     }
+}
+
+/// A Onda 7 cartografa as superfícies operacionais: `src/main.rs` (camada
+/// `cli`, 15 regiões), `src/editor_tui.rs` (camada `editor`, 4 regiões) e
+/// `src/boot.rs` (camada `boot`, 1 região). Verifica as 20 chaves planejadas,
+/// a contagem exata por camada, que toda região `cli` aponta para
+/// `src/main.rs`, toda `editor` para `src/editor_tui.rs` e toda `boot` para
+/// `src/boot.rs` — sem cruzamento entre os três arquivos —, domínios
+/// representativos por camada, e que uma amostra de chaves essenciais das
+/// ondas anteriores (0-6E) permanece presente e fora de cli/editor/boot (ou
+/// seja, nenhuma camada preexistente foi reclassificada). Não fixa o total
+/// global do catálogo como invariante permanente (§18.4); usa um piso mínimo
+/// compatível com o crescimento de ondas futuras.
+#[test]
+fn camada_operacional_cartografa_cli_editor_boot() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    let expected_cli_keys = [
+        "cli.config.modelos",
+        "cli.ajuda.usage",
+        "cli.parsing.subcomandos",
+        "cli.parsing.roteamento",
+        "cli.execucao.entrada",
+        "cli.nav.consulta",
+        "cli.nav.sincronizacao-verificacao",
+        "cli.doc.consulta",
+        "cli.doc.sincronizacao",
+        "cli.doc.mudancas",
+        "cli.doc.verificacao",
+        "cli.execucao.editor-repl",
+        "cli.analise.pipeline",
+        "cli.build.nativo",
+        "cli.modulos.importacao",
+    ];
+    let expected_editor_keys = [
+        "editor.estado.modelo",
+        "editor.sessao.comandos",
+        "editor.render.saida",
+        "editor.analise.checagem",
+    ];
+    let expected_boot_keys = ["boot.geracao.fronteira-freestanding"];
+
+    for key in expected_cli_keys {
+        let region = catalog
+            .region(key)
+            .unwrap_or_else(|| panic!("chave cli ausente no catálogo: {key}"));
+        assert_eq!(
+            region.file, "src/main.rs",
+            "chave cli '{key}' deveria apontar para src/main.rs"
+        );
+    }
+    for key in expected_editor_keys {
+        let region = catalog
+            .region(key)
+            .unwrap_or_else(|| panic!("chave editor ausente no catálogo: {key}"));
+        assert_eq!(
+            region.file, "src/editor_tui.rs",
+            "chave editor '{key}' deveria apontar para src/editor_tui.rs"
+        );
+    }
+    for key in expected_boot_keys {
+        let region = catalog
+            .region(key)
+            .unwrap_or_else(|| panic!("chave boot ausente no catálogo: {key}"));
+        assert_eq!(
+            region.file, "src/boot.rs",
+            "chave boot '{key}' deveria apontar para src/boot.rs"
+        );
+    }
+
+    let cli_regions: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|r| r.layer.as_deref() == Some("cli"))
+        .collect();
+    let editor_regions: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|r| r.layer.as_deref() == Some("editor"))
+        .collect();
+    let boot_regions: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|r| r.layer.as_deref() == Some("boot"))
+        .collect();
+
+    assert_eq!(
+        cli_regions.len(),
+        expected_cli_keys.len(),
+        "esperava exatamente {} regiões na camada cli",
+        expected_cli_keys.len()
+    );
+    assert_eq!(
+        editor_regions.len(),
+        expected_editor_keys.len(),
+        "esperava exatamente {} regiões na camada editor",
+        expected_editor_keys.len()
+    );
+    assert_eq!(
+        boot_regions.len(),
+        expected_boot_keys.len(),
+        "esperava exatamente {} regiões na camada boot",
+        expected_boot_keys.len()
+    );
+
+    assert!(
+        cli_regions.iter().all(|r| r.file == "src/main.rs"),
+        "toda região da camada cli deve apontar para src/main.rs"
+    );
+    assert!(
+        editor_regions.iter().all(|r| r.file == "src/editor_tui.rs"),
+        "toda região da camada editor deve apontar para src/editor_tui.rs"
+    );
+    assert!(
+        boot_regions.iter().all(|r| r.file == "src/boot.rs"),
+        "toda região da camada boot deve apontar para src/boot.rs"
+    );
+
+    // Sem cruzamento entre os arquivos das três camadas novas.
+    assert!(
+        cli_regions
+            .iter()
+            .all(|r| r.file != "src/editor_tui.rs" && r.file != "src/boot.rs"),
+        "camada cli não deve cruzar com src/editor_tui.rs/src/boot.rs"
+    );
+    assert!(
+        editor_regions
+            .iter()
+            .all(|r| r.file != "src/main.rs" && r.file != "src/boot.rs"),
+        "camada editor não deve cruzar com src/main.rs/src/boot.rs"
+    );
+    assert!(
+        boot_regions
+            .iter()
+            .all(|r| r.file != "src/main.rs" && r.file != "src/editor_tui.rs"),
+        "camada boot não deve cruzar com src/main.rs/src/editor_tui.rs"
+    );
+
+    // Domínios representativos por camada (amostra, não exaustivo).
+    for domain in [
+        "config", "ajuda", "parsing", "execucao", "nav", "doc", "analise", "build", "modulos",
+    ] {
+        assert!(
+            cli_regions
+                .iter()
+                .any(|r| r.domain.as_deref() == Some(domain)),
+            "domínio cli esperado ausente: {domain}"
+        );
+    }
+    for domain in ["estado", "sessao", "render", "analise"] {
+        assert!(
+            editor_regions
+                .iter()
+                .any(|r| r.domain.as_deref() == Some(domain)),
+            "domínio editor esperado ausente: {domain}"
+        );
+    }
+    assert!(
+        boot_regions
+            .iter()
+            .any(|r| r.domain.as_deref() == Some("geracao")),
+        "domínio boot esperado ausente: geracao"
+    );
+
+    // Amostra de chaves essenciais das ondas anteriores (0-6E): permanecem
+    // presentes e continuam fora de cli/editor/boot — nenhuma camada
+    // preexistente foi reclassificada por esta cápsula.
+    let previous_sample = [
+        "lexer.fluxo.tokenizacao",
+        "parser.fluxo.nucleo",
+        "semantic.programa.duas-passagens",
+        "ir.modelo.representacao",
+        "cfg.modelo.representacao",
+        "select.modelo.representacao",
+        "machine.modelo.representacao",
+        "interpreter.modelo.valores-estado",
+        "backend-text.modelo.representacao",
+        "backend-s.pipeline.textual-selecionado",
+        "trama.codigo.raizes",
+        "runtime.inicializacao.bootstrap",
+    ];
+    for key in previous_sample {
+        let region = catalog
+            .region(key)
+            .unwrap_or_else(|| panic!("chave anterior deveria permanecer no catálogo: {key}"));
+        let layer = region.layer.as_deref();
+        assert!(
+            layer != Some("cli") && layer != Some("editor") && layer != Some("boot"),
+            "chave anterior '{key}' não deveria ter sido reclassificada para cli/editor/boot"
+        );
+    }
+
+    // Piso mínimo compatível com o crescimento de ondas futuras (não fixa o
+    // total global como teto).
+    let new_total = expected_cli_keys.len() + expected_editor_keys.len() + expected_boot_keys.len();
+    assert!(
+        catalog.regions.len() >= previous_sample.len() + new_total,
+        "catálogo deveria conter ao menos as regiões desta onda além das anteriores"
+    );
 }
