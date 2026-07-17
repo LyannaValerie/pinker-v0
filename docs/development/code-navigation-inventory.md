@@ -1015,11 +1015,14 @@ uma alegação de completude da gramática ou dos contratos do frontend.
   `evidencia.parser.aliases-arrays-e-structs` e
   `evidencia.parser.ponteiros-e-colecoes`.
 
-O teste estrutural valida as chaves por arquivo, a camada `evidencia`, o total
-exato de 19 regiões, a ausência de evidência em `tests/semantic_tests.rs`, a
-preservação de chaves anteriores fora dessa camada e o piso do catálogo. O
-catálogo passa de 183 para 202 regiões. A Onda 8 permanece em andamento:
-`tests/semantic_tests.rs` fica registrado para a Onda 8C.
+O teste estrutural valida as 19 chaves específicas da Onda 8B por arquivo,
+domínio e camada `evidencia`: 25 atributos `#[test]` do lexer e 36 do parser,
+cada um pertencendo a exatamente uma região e cada região de lexer/parser com
+ao menos um teste. Ele também confirma os três helpers de common dentro da
+região e `render_ast` fora dela. Assim, permanece compatível com futuras
+regiões de evidência. O catálogo atual tem 202 regiões, sem congelar esse
+total. A Onda 8 permanece em andamento: `tests/semantic_tests.rs` fica
+registrado para a Onda 8C.
 
 ## Arquivos sem candidatos a âncora
 

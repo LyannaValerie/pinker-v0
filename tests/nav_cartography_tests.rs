@@ -10,6 +10,7 @@
 //! `src/boot.rs` (camada `boot`).
 
 use pinker_v0::nav::{CodeCatalog, CodeIndex};
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -1052,12 +1053,25 @@ fn camada_evidencia_frontend_cartografa_lexer_parser_common() {
         "evidencia.parser.ponteiros-e-colecoes",
     ];
 
-    for (keys, file) in [
-        (&expected_common_keys[..], "tests/common/mod.rs"),
-        (&expected_lexer_keys[..], "tests/lexer_tests.rs"),
-        (&expected_parser_keys[..], "tests/parser_tests.rs"),
+    assert_eq!(expected_common_keys.len(), 1);
+    assert_eq!(expected_lexer_keys.len(), 7);
+    assert_eq!(expected_parser_keys.len(), 11);
+    assert_eq!(
+        expected_common_keys.len() + expected_lexer_keys.len() + expected_parser_keys.len(),
+        19
+    );
+
+    let mut planned_keys = HashSet::new();
+    for (keys, file, domain) in [
+        (&expected_common_keys[..], "tests/common/mod.rs", "frontend"),
+        (&expected_lexer_keys[..], "tests/lexer_tests.rs", "lexico"),
+        (&expected_parser_keys[..], "tests/parser_tests.rs", "parser"),
     ] {
-        for key in keys {
+        for &key in keys {
+            assert!(
+                planned_keys.insert(key),
+                "chave de evidência repetida no plano da Onda 8B: {key}"
+            );
             let region = catalog
                 .region(key)
                 .unwrap_or_else(|| panic!("chave de evidência ausente no catálogo: {key}"));
@@ -1070,42 +1084,142 @@ fn camada_evidencia_frontend_cartografa_lexer_parser_common() {
                 Some("evidencia"),
                 "chave '{key}' deveria usar a camada evidencia"
             );
+            assert_eq!(
+                region.domain.as_deref(),
+                Some(domain),
+                "chave '{key}' deveria usar o domínio {domain}"
+            );
+            assert!(
+                region.start_marker < region.content_start
+                    && region.content_start <= region.content_end
+                    && region.content_end < region.end_marker,
+                "chave '{key}' deveria ter marcadores ordenados"
+            );
         }
     }
-
     assert_eq!(
-        catalog
-            .regions
-            .iter()
-            .filter(|r| r.layer.as_deref() == Some("evidencia"))
-            .count(),
+        planned_keys.len(),
         19,
-        "a camada evidencia deve conter exatamente as 19 regiões da Onda 8B"
-    );
-    assert!(
-        catalog
-            .regions
-            .iter()
-            .filter(|r| r.layer.as_deref() == Some("evidencia"))
-            .all(|r| r.file != "tests/semantic_tests.rs"),
-        "nenhuma região de evidencia deve apontar para tests/semantic_tests.rs"
+        "o plano da Onda 8B perdeu uma chave"
     );
 
-    for key in [
-        "lexer.fluxo.tokenizacao",
-        "parser.fluxo.nucleo",
-        "semantic.programa.duas-passagens",
-        "trama.codigo.raizes",
-    ] {
-        let region = catalog
-            .region(key)
-            .unwrap_or_else(|| panic!("chave anterior deveria permanecer no catálogo: {key}"));
-        assert_ne!(
-            region.layer.as_deref(),
-            Some("evidencia"),
-            "chave anterior '{key}' não deveria ser reclassificada para evidencia"
+    let common_source_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/common/mod.rs");
+    let common_source = fs::read_to_string(&common_source_path).unwrap_or_else(|error| {
+        panic!(
+            "não foi possível ler {}: {error}",
+            common_source_path.display()
+        )
+    });
+    let common_region = catalog
+        .region(expected_common_keys[0])
+        .expect("região de helpers comuns deveria existir");
+    let numbered_common_lines: Vec<_> = common_source.lines().enumerate().collect();
+    let public_helpers_in_region: Vec<_> = numbered_common_lines
+        .iter()
+        .filter_map(|(index, line)| {
+            let line_number = index + 1;
+            let name = line.trim().strip_prefix("pub fn ")?.split_once('(')?.0;
+            (common_region.content_start <= line_number && line_number <= common_region.content_end)
+                .then_some(name)
+        })
+        .collect();
+    assert_eq!(
+        public_helpers_in_region,
+        ["tokenize", "parse", "parse_and_check"],
+        "a região comum deve conter exatamente os três helpers públicos básicos"
+    );
+    let render_ast_line = numbered_common_lines
+        .iter()
+        .find_map(|(index, line)| {
+            (line.trim().starts_with("pub fn render_ast(")).then_some(index + 1)
+        })
+        .expect("helper render_ast deveria existir");
+    assert!(
+        common_region.content_end < render_ast_line,
+        "render_ast deve ficar fora da região de helpers básicos"
+    );
+
+    let coverage_for = |file: &str, keys: &[&str], expected_count: usize| {
+        let source_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(file);
+        let source = fs::read_to_string(&source_path).unwrap_or_else(|error| {
+            panic!("não foi possível ler {}: {error}", source_path.display())
+        });
+        let lines: Vec<_> = source.lines().collect();
+        let mut owned_test_counts = vec![0usize; keys.len()];
+        let mut test_count = 0usize;
+
+        for (attribute_index, line) in lines.iter().enumerate() {
+            if line.trim() != "#[test]" {
+                continue;
+            }
+
+            let test_line = attribute_index + 1;
+            let test_name = lines
+                .iter()
+                .skip(attribute_index + 1)
+                .take(8)
+                .find_map(|candidate| {
+                    candidate
+                        .trim()
+                        .strip_prefix("fn ")?
+                        .split_once('(')
+                        .map(|(name, _)| name.trim())
+                })
+                .unwrap_or_else(|| {
+                    panic!("structural_test_function_not_found: arquivo {file}, linha {test_line}")
+                });
+            let owners: Vec<_> = keys
+                .iter()
+                .enumerate()
+                .filter_map(|(index, key)| {
+                    let region = catalog
+                        .region(key)
+                        .unwrap_or_else(|| panic!("chave de evidência ausente no catálogo: {key}"));
+                    (region.content_start <= test_line && test_line <= region.content_end)
+                        .then_some((index, *key))
+                })
+                .collect();
+
+            match owners.as_slice() {
+                [] => panic!(
+                    "structural_test_region_not_found: arquivo {file}, linha {test_line}, função {test_name}"
+                ),
+                [(index, _)] => owned_test_counts[*index] += 1,
+                _ => panic!(
+                    "structural_test_region_ambiguous: arquivo {file}, linha {test_line}, função {test_name}, proprietárias {:?}",
+                    owners.iter().map(|(_, key)| *key).collect::<Vec<_>>()
+                ),
+            }
+            test_count += 1;
+        }
+
+        assert_eq!(
+            test_count, expected_count,
+            "contagem de #[test] inesperada em {file}"
         );
-    }
+        for (key, owned_test_count) in keys.iter().zip(owned_test_counts) {
+            assert!(
+                owned_test_count >= 1,
+                "região '{key}' deveria possuir ao menos um #[test] em {file}"
+            );
+        }
+        test_count
+    };
+
+    let lexer_test_count = coverage_for("tests/lexer_tests.rs", &expected_lexer_keys, 25);
+    let parser_test_count = coverage_for("tests/parser_tests.rs", &expected_parser_keys, 36);
+    assert_eq!(lexer_test_count, 25);
+    assert_eq!(parser_test_count, 36);
+    assert_eq!(lexer_test_count + parser_test_count, 61);
+
+    let previous_sample = catalog
+        .region("lexer.fluxo.tokenizacao")
+        .expect("amostra de chave anterior deveria permanecer no catálogo");
+    assert_ne!(
+        previous_sample.layer.as_deref(),
+        Some("evidencia"),
+        "a amostra anterior não deveria ser reclassificada para evidencia"
+    );
 
     assert!(
         catalog.regions.len() >= 202,
