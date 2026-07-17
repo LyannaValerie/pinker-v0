@@ -76,8 +76,13 @@ estado léxico mínimo e só reconhece comentários Pinker reais quando `//` é 
 primeiro token em contexto de código: strings normais, byte strings, raw
 strings e comentários de bloco (inclusive aninhados) não contam. Assim,
 fixtures continuam seguras mesmo quando contêm textos que se parecem com
-marcadores. Nenhuma suite recebeu região nesta onda; o catálogo permanece com
-183 regiões. A Onda 8 segue em andamento e o próximo ponto é a Onda 8B.
+marcadores. `marker_comment`, `raw_string_start` e `char_literal_len` são
+helpers de suporte do scanner e permanecem sem região própria nesta onda: a
+decisão evita criar região só para implementação auxiliar; o comportamento é
+coberto por testes adversariais e a responsabilidade semântica continua no
+scanner/catalogação. Nenhuma suite recebeu região nesta onda; o catálogo
+permanece com 183 regiões. A Onda 8 segue em andamento e o próximo ponto é a
+Onda 8B.
 
 ## Convenção de chaves
 

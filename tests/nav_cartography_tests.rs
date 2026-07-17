@@ -202,6 +202,32 @@ fn scanner_ignora_doc_comments_como_metadados_de_regiao() {
 }
 
 #[test]
+fn scanner_exige_prefixo_estrito_para_metadados() {
+    let dir = temp_src("meta_prefixo_estrito");
+    let source = [
+        "// @pinker-nav:start teste.meta.prefixo-estrito",
+        "// @pinker-nav:domain teste",
+        "// @pinker-nav:layer teste",
+        "// @pinker-nav:summary Resumo verdadeiro.",
+        "// Nota documental: @pinker-nav:summary Resumo falso.",
+        "// texto anterior @pinker-nav:domain falso",
+        "fn exemplo() {}",
+        "// @pinker-nav:end teste.meta.prefixo-estrito",
+    ]
+    .join("\n");
+    write(&dir, "meta_prefixo_estrito.rs", &source);
+
+    let index = CodeIndex::scan(&dir).unwrap();
+    assert_eq!(index.regions.len(), 1, "{:?}", index.scan_problems);
+    let region = index.region("teste.meta.prefixo-estrito").unwrap();
+    assert_eq!(region.key, "teste.meta.prefixo-estrito");
+    assert_eq!(region.summary, "Resumo verdadeiro.");
+    assert_eq!(region.domain.as_deref(), Some("teste"));
+    assert!(index.verify().is_empty(), "{:?}", index.verify());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn scanner_oficial_inclui_tests_sem_catalogar_fixtures_literais() {
     let dir = temp_src("official_tests_root");
     write(&dir, "src/lib.rs", "pub fn fonte() {}\n");

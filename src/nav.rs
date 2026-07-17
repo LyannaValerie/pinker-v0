@@ -205,7 +205,7 @@ impl CodeIndex {
     }
 
     /// Varre o repositório real usando as raízes de código oficiais e
-    /// obrigatórias (§15): `src/` e `runtime/pinker_rt/src/`. Usado pelo
+    /// obrigatórias (§15): `src/`, `runtime/pinker_rt/src/` e `tests/`. Usado pelo
     /// fluxo oficial `pink nav sincronizar`/`verificar`.
     pub fn scan_repo(repo_root: &Path) -> Result<CodeIndex, ScanError> {
         scan_roots(repo_root, &official_scan_roots())
@@ -881,8 +881,8 @@ fn parse_meta(trimmed: &str) -> Option<(String, String)> {
     if comment.starts_with('/') || comment.starts_with('!') {
         return None;
     }
-    let idx = trimmed.find(FIELD_PREFIX)?;
-    let rest = &trimmed[idx + FIELD_PREFIX.len()..];
+    let marker_text = comment.trim_start();
+    let rest = marker_text.strip_prefix(FIELD_PREFIX)?;
     let mut parts = rest.splitn(2, char::is_whitespace);
     let field = parts.next()?.trim().to_string();
     if field == "start" || field == "end" {
