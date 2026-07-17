@@ -1,7 +1,9 @@
 //! Trama Pinker — cartografia semântica do código (§20 da cartografia).
 //!
 //! Cobre: múltiplas regiões no mesmo arquivo, preservação de âncoras
-//! existentes, domínio/camada válidos e determinismo do catálogo.
+//! existentes, domínio/camada válidos e determinismo do catálogo. Onda 6D
+//! acrescenta as raízes de código controladas (`trama.codigo.raizes`),
+//! mantendo a separação entre catálogo, raízes e consulta.
 
 use pinker_v0::nav::{CodeCatalog, CodeIndex};
 use std::fs;
@@ -50,7 +52,7 @@ fn multiplas_regioes_no_mesmo_arquivo() {
     assert!(keys.contains(&"token.lexico.vocabulario"));
     assert!(keys.contains(&"token.representacao.spans"));
     // Mesmo arquivo, chaves distintas, sem sobreposição reportada.
-    assert!(index.regions.iter().all(|r| r.file == "src/token.rs"));
+    assert!(index.regions.iter().all(|r| r.file == "token.rs"));
     assert!(index.verify().is_empty(), "{:?}", index.verify());
     fs::remove_dir_all(dir).unwrap();
 }
@@ -198,6 +200,8 @@ fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
         "backend-s.renderizacao.callconv-programa",
         "backend-s.runtime.simbolos-intrinsecas",
         "backend-s.renderizacao.abi-textual-programa",
+        // Raízes de código controladas (Onda 6D).
+        "trama.codigo.raizes",
     ] {
         assert!(
             catalog.region(essential).is_some(),
@@ -544,5 +548,36 @@ fn camada_backend_s_separa_pipelines_lowering_abi_e_renderizacao() {
             .iter()
             .any(|k| k.starts_with("backend-s.renderizacao.abi-textual-")),
         "renderer `.s` textual ausente"
+    );
+}
+
+/// A camada `trama` (navegação) separa catálogo, raízes controladas e
+/// consulta em chaves próprias e disjuntas (Onda 6D introduz
+/// `trama.codigo.raizes` sem sobrepor `trama.codigo.catalogo` ou
+/// `trama.codigo.consulta`). Não fixa o total global do catálogo.
+#[test]
+fn camada_trama_separa_catalogo_raizes_e_consulta() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    for essential in [
+        "trama.codigo.catalogo",
+        "trama.codigo.raizes",
+        "trama.codigo.consulta",
+    ] {
+        assert!(
+            catalog.region(essential).is_some(),
+            "chave essencial de navegação ausente: {essential}"
+        );
+    }
+
+    // Nenhuma região tem arquivo cartografado sob `runtime/`: o runtime foi
+    // ativado como raiz, mas não cartografado nesta onda.
+    assert!(
+        catalog
+            .regions
+            .iter()
+            .all(|r| !r.file.starts_with("runtime/")),
+        "runtime não deveria ter regiões cartografadas na Onda 6D"
     );
 }

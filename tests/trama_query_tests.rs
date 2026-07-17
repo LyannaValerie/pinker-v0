@@ -48,6 +48,7 @@ fn fixture(root: &Path) {
     write(root, "docs/rosa/README.md", PORTAL);
     write(root, "docs/rosa/core.md", CORE);
     write(root, "src/rosa.rs", SRC);
+    write(root, "runtime/pinker_rt/src/lib.rs", "pub fn _rt() {}\n");
 }
 
 fn doc(root: &Path, args: &[&str]) -> std::process::Output {

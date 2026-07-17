@@ -1,13 +1,15 @@
 //! Trama Pinker — Etapa 3 (Navegação semântica do código).
 //!
-//! Varre `src/` em busca dos marcadores `@pinker-nav:start/end` e gera o
-//! catálogo derivado `src/navigation.jsonl` (especificação, seções 10, 11 e 22).
-//! O agente que altera o código mantém os marcadores; o script nunca decide
+//! Varre um conjunto de raízes de código controladas do repositório (Onda 6D:
+//! `src/` e `runtime/pinker_rt/src/`, ambas obrigatórias no fluxo oficial) em
+//! busca dos marcadores `@pinker-nav:start/end` e gera o catálogo derivado
+//! `src/navigation.jsonl` (especificação, seções 10, 11, 12-17 e 22). O
+//! agente que altera o código mantém os marcadores; o script nunca decide
 //! semanticamente onde inseri-los. Zero dependências externas.
 
 use crate::jsonl;
 use crate::text_norm;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -43,7 +45,24 @@ pub struct CodeIndex {
 
 #[derive(Debug)]
 pub enum ScanError {
-    Io { path: String, msg: String },
+    Io {
+        path: String,
+        msg: String,
+    },
+    /// Raiz de código obrigatória ausente (§15). Falha antes de qualquer
+    /// escrita do catálogo; não gera índice parcial.
+    RootMissing {
+        path: String,
+    },
+    /// Caminho da raiz existe mas não é um diretório (§15).
+    RootNotDirectory {
+        path: String,
+    },
+    /// Raiz recusada por ser um link simbólico (política explícita de
+    /// segurança contra fuga/ciclo via symlink; §14/§20).
+    RootSymlinkRefused {
+        path: String,
+    },
 }
 
 impl fmt::Display for ScanError {
@@ -51,6 +70,27 @@ impl fmt::Display for ScanError {
         match self {
             ScanError::Io { path, msg } => {
                 write!(f, "E-NAV-SCAN\nFalha ao ler '{}': {}", path, msg)
+            }
+            ScanError::RootMissing { path } => {
+                write!(
+                    f,
+                    "E-NAV-SCAN\nRaiz de código obrigatória ausente: '{}'.",
+                    path
+                )
+            }
+            ScanError::RootNotDirectory { path } => {
+                write!(
+                    f,
+                    "E-NAV-SCAN\nRaiz de código não é um diretório: '{}'.",
+                    path
+                )
+            }
+            ScanError::RootSymlinkRefused { path } => {
+                write!(
+                    f,
+                    "E-NAV-SCAN\nRaiz de código recusada por ser um link simbólico: '{}'.",
+                    path
+                )
             }
         }
     }
@@ -153,30 +193,22 @@ impl fmt::Display for NavVerifyError {
 // @pinker-nav:start trama.codigo.catalogo
 // @pinker-nav:domain navegacao
 // @pinker-nav:layer trama
-// @pinker-nav:summary Gera o catálogo de navegação de código varrendo `src/` pelos marcadores `@pinker-nav`: monta as regiões, calcula o hash do conteúdo, renderiza JSONL determinístico e valida chaves únicas, marcadores balanceados e ausência de sobreposição.
+// @pinker-nav:summary Gera o catálogo de navegação de código varrendo as raízes controladas do repositório (§ trama.codigo.raizes) pelos marcadores `@pinker-nav`: monta as regiões, calcula o hash do conteúdo, renderiza JSONL determinístico e valida chaves únicas, marcadores balanceados e ausência de sobreposição.
 impl CodeIndex {
-    /// Varre recursivamente `src_root` e constrói o índice.
+    /// Varre uma única raiz (uso em fixtures/testes; compatibilidade
+    /// histórica). Delega à varredura multi-raiz (§ trama.codigo.raizes)
+    /// tratando `src_root` como a raiz recebida diretamente: o caminho
+    /// resultante é relativo a `src_root`, sem prefixo fabricado.
     pub fn scan(src_root: &Path) -> Result<CodeIndex, ScanError> {
-        if !src_root.exists() {
-            return Ok(CodeIndex::default());
-        }
-        let mut files = Vec::new();
-        collect_rust(src_root, &mut files)?;
-        files.sort();
+        let root = ScanRoot::new("", &["rs"]);
+        scan_roots(src_root, std::slice::from_ref(&root))
+    }
 
-        let mut index = CodeIndex::default();
-        for file in files {
-            let text = fs::read_to_string(&file).map_err(|err| ScanError::Io {
-                path: file.display().to_string(),
-                msg: err.to_string(),
-            })?;
-            let rel = relative_display(src_root, &file);
-            scan_file(&rel, &text, &mut index);
-        }
-        index
-            .regions
-            .sort_by(|a, b| a.key.cmp(&b.key).then(a.file.cmp(&b.file)));
-        Ok(index)
+    /// Varre o repositório real usando as raízes de código oficiais e
+    /// obrigatórias (§15): `src/` e `runtime/pinker_rt/src/`. Usado pelo
+    /// fluxo oficial `pink nav sincronizar`/`verificar`.
+    pub fn scan_repo(repo_root: &Path) -> Result<CodeIndex, ScanError> {
+        scan_roots(repo_root, &official_scan_roots())
     }
 
     /// Serializa as regiões em JSONL determinístico (ordenado por `key`).
@@ -306,30 +338,211 @@ fn covers(haystack_norm: &str, terms: &[String]) -> bool {
     matched >= terms.len().div_ceil(2)
 }
 
-fn collect_rust(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), ScanError> {
-    let entries = fs::read_dir(dir).map_err(|err| ScanError::Io {
+// ---------------------------------------------------------------------------
+// Raízes controladas de código (Onda 6D — especificação §12 a 17 e 20).
+// ---------------------------------------------------------------------------
+
+// @pinker-nav:start trama.codigo.raizes
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer trama
+// @pinker-nav:summary Define as raízes de código controladas do repositório (`src/` e `runtime/pinker_rt/src/`, ambas obrigatórias), valida cada raiz antes de varrer — ausência, caminho que não é diretório ou link simbólico falham com `E-NAV-SCAN` antes de qualquer escrita —, coleta arquivos por extensão sem seguir links simbólicos e normaliza cada caminho para a forma repo-relativa com `/`, sem prefixo fabricado, garantindo que cada arquivo seja varrido no máximo uma vez, independente da ordem das raízes.
+/// Uma raiz de código controlada, relativa à raiz do repositório (§12).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScanRoot {
+    /// Caminho repo-relativo da raiz (ex.: `"src"`, `"runtime/pinker_rt/src"`).
+    /// Vazio significa "a própria raiz recebida": usado apenas pelo wrapper
+    /// de compatibilidade [`CodeIndex::scan`] para fixtures de teste de
+    /// raiz única, onde nenhum prefixo deve ser fabricado.
+    pub relative_path: String,
+    /// Extensões aceitas nesta raiz, sem ponto (ex.: `"rs"`).
+    pub extensions: Vec<String>,
+}
+
+impl ScanRoot {
+    pub fn new(relative_path: impl Into<String>, extensions: &[&str]) -> ScanRoot {
+        ScanRoot {
+            relative_path: relative_path.into(),
+            extensions: extensions.iter().map(|e| e.to_string()).collect(),
+        }
+    }
+}
+
+/// As raízes oficiais varridas pelo fluxo `pink nav sincronizar`/`verificar`
+/// (§15): ambas obrigatórias. Fonte única da política de raízes — a CLI
+/// oficial e os testes que exercitam o caminho oficial usam esta mesma lista;
+/// a API genérica `scan_roots` (via [`CodeIndex::scan`]) aceita listas
+/// menores para fixtures.
+pub fn official_scan_roots() -> Vec<ScanRoot> {
+    vec![
+        ScanRoot::new("src", &["rs"]),
+        ScanRoot::new("runtime/pinker_rt/src", &["rs"]),
+    ]
+}
+
+/// Varre múltiplas raízes controladas relativas a `repo_root` (§12-17) em
+/// duas fases estritamente sequenciais. Fase 1 (`resolve_and_validate_roots`):
+/// resolve e valida *todas* as raízes — ausente, não-diretório ou link
+/// simbólico falham imediatamente com `ScanError`, sem índice parcial. Fase 2:
+/// só então cada raiz já validada é percorrida; nenhuma chamada a
+/// `collect_source_files` ocorre antes de a fase 1 terminar com sucesso para
+/// todas as raízes. Os arquivos de todas as raízes são combinados,
+/// deduplicados por caminho repo-relativo e ordenados antes de varrer, então
+/// cada arquivo é lido e catalogado no máximo uma vez, independente da ordem
+/// em que as raízes foram declaradas (§17). A chave de região continua
+/// global: nenhuma raiz vira namespace.
+fn scan_roots(repo_root: &Path, roots: &[ScanRoot]) -> Result<CodeIndex, ScanError> {
+    // Fase 1: resolve e valida todas as raízes antes de qualquer coleta.
+    let validated = resolve_and_validate_roots(repo_root, roots)?;
+
+    // Fase 2: apenas raízes já validadas são percorridas.
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    let mut files: Vec<(String, PathBuf)> = Vec::new();
+    for (root, abs_root) in &validated {
+        let mut collected = Vec::new();
+        collect_source_files(abs_root, abs_root, &root.extensions, &mut collected)?;
+        for rel in collected {
+            let display = compose_display_path(&root.relative_path, &rel);
+            if seen.insert(display.clone()) {
+                files.push((display, abs_root.join(&rel)));
+            }
+        }
+    }
+    files.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let mut index = CodeIndex::default();
+    for (display, abs_path) in files {
+        let text = fs::read_to_string(&abs_path).map_err(|err| ScanError::Io {
+            path: abs_path.display().to_string(),
+            msg: err.to_string(),
+        })?;
+        scan_file(&display, &text, &mut index);
+    }
+    index
+        .regions
+        .sort_by(|a, b| a.key.cmp(&b.key).then(a.file.cmp(&b.file)));
+    Ok(index)
+}
+
+/// Resolve o caminho absoluto de cada raiz e a valida (§15), sem coletar
+/// nenhum arquivo. Falha na primeira raiz inválida, na ordem declarada, sem
+/// ter percorrido nenhuma raiz — a coleta só começa depois que todas as
+/// raízes retornadas aqui já estão validadas (fase 1 de `scan_roots`).
+fn resolve_and_validate_roots<'a>(
+    repo_root: &Path,
+    roots: &'a [ScanRoot],
+) -> Result<Vec<(&'a ScanRoot, PathBuf)>, ScanError> {
+    let mut validated = Vec::with_capacity(roots.len());
+    for root in roots {
+        let abs_root = if root.relative_path.is_empty() {
+            repo_root.to_path_buf()
+        } else {
+            repo_root.join(&root.relative_path)
+        };
+        validate_root(&abs_root)?;
+        validated.push((root, abs_root));
+    }
+    Ok(validated)
+}
+
+/// Valida uma raiz antes de varrê-la (§15): deve existir, ser diretório e não
+/// ser um link simbólico (política explícita de segurança contra fuga/ciclo
+/// via symlink de raiz; §14). Falha antes de qualquer leitura de arquivo.
+/// Distingue ausência (`NotFound`) de outras falhas de metadados (ex.:
+/// permissão negada, componente do caminho que não é diretório): apenas
+/// `NotFound` vira `RootMissing`; qualquer outro erro de I/O vira
+/// `ScanError::Io`, sem ser classificado como raiz ausente.
+fn validate_root(path: &Path) -> Result<(), ScanError> {
+    let meta = match fs::symlink_metadata(path) {
+        Ok(meta) => meta,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Err(ScanError::RootMissing {
+                path: path.display().to_string(),
+            });
+        }
+        Err(err) => {
+            return Err(ScanError::Io {
+                path: path.display().to_string(),
+                msg: err.to_string(),
+            });
+        }
+    };
+    if meta.file_type().is_symlink() {
+        return Err(ScanError::RootSymlinkRefused {
+            path: path.display().to_string(),
+        });
+    }
+    if !meta.is_dir() {
+        return Err(ScanError::RootNotDirectory {
+            path: path.display().to_string(),
+        });
+    }
+    Ok(())
+}
+
+/// Caminha recursivamente a partir de `dir` (dentro de `root`) coletando
+/// arquivos cuja extensão está em `extensions`, relativos a `root`. Nunca
+/// segue links simbólicos — nem de diretório (evita ciclos e fuga da raiz)
+/// nem de arquivo — para que nenhum symlink seja catalogado (§14/§20).
+fn collect_source_files(
+    root: &Path,
+    dir: &Path,
+    extensions: &[String],
+    out: &mut Vec<PathBuf>,
+) -> Result<(), ScanError> {
+    let read_dir = fs::read_dir(dir).map_err(|err| ScanError::Io {
         path: dir.display().to_string(),
         msg: err.to_string(),
     })?;
-    for entry in entries {
+    let mut entries = Vec::new();
+    for entry in read_dir {
         let entry = entry.map_err(|err| ScanError::Io {
             path: dir.display().to_string(),
             msg: err.to_string(),
         })?;
+        entries.push(entry);
+    }
+    entries.sort_by_key(|e| e.file_name());
+
+    for entry in entries {
         let path = entry.path();
-        if path.is_dir() {
-            collect_rust(&path, out)?;
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
-            out.push(path);
+        let file_type = entry.file_type().map_err(|err| ScanError::Io {
+            path: path.display().to_string(),
+            msg: err.to_string(),
+        })?;
+        if file_type.is_symlink() {
+            continue;
+        }
+        if file_type.is_dir() {
+            collect_source_files(root, &path, extensions, out)?;
+        } else if file_type.is_file() {
+            let has_ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|ext| extensions.iter().any(|allowed| allowed == ext))
+                .unwrap_or(false);
+            if has_ext {
+                if let Ok(rel) = path.strip_prefix(root) {
+                    out.push(rel.to_path_buf());
+                }
+            }
         }
     }
     Ok(())
 }
 
-fn relative_display(root: &Path, file: &Path) -> String {
-    let stripped = file.strip_prefix(root).unwrap_or(file);
-    format!("src/{}", stripped.display()).replace('\\', "/")
+/// Compõe o caminho repo-relativo exibido no catálogo: `relative_path` da
+/// raiz + caminho do arquivo relativo a ela, sempre com `/` (§14). Uma
+/// `relative_path` vazia (usada só pelo wrapper de raiz única) não injeta
+/// nenhum prefixo — o caminho fica relativo apenas à raiz recebida.
+fn compose_display_path(relative_path: &str, file_relative: &Path) -> String {
+    let file_str = file_relative.to_string_lossy().replace('\\', "/");
+    if relative_path.is_empty() {
+        file_str
+    } else {
+        format!("{relative_path}/{file_str}")
+    }
 }
+// @pinker-nav:end trama.codigo.raizes
 
 struct OpenRegion {
     key: String,
@@ -639,7 +852,7 @@ fn json_string(value: &str) -> String {
 // @pinker-nav:start trama.codigo.consulta
 // @pinker-nav:domain navegacao
 // @pinker-nav:layer trama
-// @pinker-nav:summary Reconstrói o catálogo de código do JSONL versionado e serve as consultas (`mostrar`/`buscar`/`listar`) sem revarrer `src/`; ao extrair uma região, valida que os marcadores ainda a delimitam e que o hash do conteúdo confere, recusando drift.
+// @pinker-nav:summary Reconstrói o catálogo de código do JSONL versionado e serve as consultas (`mostrar`/`buscar`/`listar`) a partir das fontes já catalogadas, sem revarrer as raízes de código controladas; ao extrair uma região, valida que os marcadores ainda a delimitam e que o hash do conteúdo confere, recusando drift.
 /// Falha ao carregar o catálogo de código versionado.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogError {
@@ -685,7 +898,7 @@ pub enum RegionCheck {
 
 /// Catálogo de código em memória, reconstruído do JSONL versionado. As
 /// consultas (`mostrar`, `listar`, `buscar`) usam esta superfície e não
-/// revarrem `src/` (§5).
+/// revarrem as raízes de código controladas (§5).
 #[derive(Debug, Clone, Default)]
 pub struct CodeCatalog {
     pub regions: Vec<CodeRegion>,
@@ -858,7 +1071,7 @@ mod tests {
         assert_eq!(r.key, "cfg.logica.curto-circuito");
         assert_eq!(r.domain.as_deref(), Some("logica"));
         assert_eq!(r.layer.as_deref(), Some("cfg"));
-        assert_eq!(r.file, "src/cfg_ir.rs");
+        assert_eq!(r.file, "cfg_ir.rs");
         assert_eq!(r.start_marker, 1);
         assert_eq!(r.content_start, 5);
         assert_eq!(r.content_end, 7);
@@ -950,5 +1163,195 @@ mod tests {
         assert!(!valid_key("a."));
         assert!(!valid_key("a..b"));
         assert!(!valid_key("Ab"));
+    }
+
+    // -----------------------------------------------------------------
+    // Raízes controladas (Onda 6D — §21).
+    // -----------------------------------------------------------------
+
+    fn region_src(key: &str) -> String {
+        format!(
+            "// @pinker-nav:start {key}\n// @pinker-nav:domain d\n// @pinker-nav:layer l\nfn f() {{ let _x = 1; }}\n// @pinker-nav:end {key}\n"
+        )
+    }
+
+    #[test]
+    fn duas_raizes_produzem_regioes_com_caminhos_corretos() {
+        let dir = temp_src("tworoots");
+        write(&dir, "src/a.rs", &region_src("root.um.chave"));
+        write(
+            &dir,
+            "runtime/pinker_rt/src/lib.rs",
+            &region_src("root.dois.chave"),
+        );
+        let roots = vec![
+            ScanRoot::new("src", &["rs"]),
+            ScanRoot::new("runtime/pinker_rt/src", &["rs"]),
+        ];
+        let index = scan_roots(&dir, &roots).unwrap();
+        assert_eq!(index.regions.len(), 2);
+        assert!(index.verify().is_empty(), "{:?}", index.verify());
+        let files: Vec<&str> = index.regions.iter().map(|r| r.file.as_str()).collect();
+        assert!(files.contains(&"src/a.rs"));
+        assert!(files.contains(&"runtime/pinker_rt/src/lib.rs"));
+        // Nenhum prefixo duplicado (ex.: "src/src/a.rs").
+        assert!(files.iter().all(|f| !f.contains("src/src")));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn chave_duplicada_entre_raizes_reporta_os_dois_arquivos() {
+        let dir = temp_src("duproots");
+        write(&dir, "src/a.rs", &region_src("mesma.chave.aqui"));
+        write(
+            &dir,
+            "runtime/pinker_rt/src/lib.rs",
+            &region_src("mesma.chave.aqui"),
+        );
+        let roots = vec![
+            ScanRoot::new("src", &["rs"]),
+            ScanRoot::new("runtime/pinker_rt/src", &["rs"]),
+        ];
+        let index = scan_roots(&dir, &roots).unwrap();
+        let errors = index.verify();
+        let dup = errors.iter().find_map(|e| match e {
+            NavVerifyError::DuplicateKey { key, files } if key == "mesma.chave.aqui" => {
+                Some(files.clone())
+            }
+            _ => None,
+        });
+        let files = dup.expect("chave duplicada deveria ser reportada");
+        assert!(files.contains(&"src/a.rs".to_string()));
+        assert!(files.contains(&"runtime/pinker_rt/src/lib.rs".to_string()));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn ordem_das_raizes_nao_altera_o_jsonl() {
+        let dir = temp_src("orderroots");
+        write(&dir, "src/a.rs", &region_src("ordem.um.chave"));
+        write(
+            &dir,
+            "runtime/pinker_rt/src/lib.rs",
+            &region_src("ordem.dois.chave"),
+        );
+        let a = ScanRoot::new("src", &["rs"]);
+        let b = ScanRoot::new("runtime/pinker_rt/src", &["rs"]);
+        let forward = scan_roots(&dir, &[a.clone(), b.clone()]).unwrap();
+        let backward = scan_roots(&dir, &[b, a]).unwrap();
+        assert_eq!(forward.render_jsonl(), backward.render_jsonl());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn apenas_extensao_permitida_entra_no_indice() {
+        let dir = temp_src("extfilter");
+        write(&dir, "a.rs", &region_src("ext.rs.chave"));
+        write(&dir, "b.md", &region_src("ext.md.chave"));
+        write(&dir, "c.txt", &region_src("ext.txt.chave"));
+        let root = ScanRoot::new("", &["rs"]);
+        let index = scan_roots(&dir, &[root]).unwrap();
+        assert_eq!(index.regions.len(), 1);
+        assert_eq!(index.regions[0].key, "ext.rs.chave");
+        assert_eq!(index.regions[0].file, "a.rs");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn raiz_obrigatoria_ausente_falha_sem_indice_parcial() {
+        let dir = temp_src("missingroot");
+        write(&dir, "src/a.rs", &region_src("presente.aqui.chave"));
+        // `runtime/pinker_rt/src` não existe: o fluxo oficial deve falhar.
+        let err = CodeIndex::scan_repo(&dir).unwrap_err();
+        assert!(matches!(err, ScanError::RootMissing { .. }));
+        assert!(err.to_string().starts_with("E-NAV-SCAN"));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn todas_as_raizes_sao_validadas_antes_de_qualquer_coleta() {
+        let dir = temp_src("validatefirst");
+        // Raiz A válida e com conteúdo; se a coleta ocorresse antes da
+        // validação global, este arquivo apareceria no índice mesmo com a
+        // raiz B ausente.
+        write(&dir, "src/a.rs", &region_src("preordem.a.chave"));
+        let roots = vec![
+            ScanRoot::new("src", &["rs"]),
+            ScanRoot::new("nao/existe", &["rs"]),
+        ];
+
+        // `resolve_and_validate_roots` isolado: só resolve/valida, nunca
+        // coleta. Deve falhar em B sem ter tocado o conteúdo de A.
+        let err = resolve_and_validate_roots(&dir, &roots).unwrap_err();
+        match &err {
+            ScanError::RootMissing { path } => assert!(path.ends_with("nao/existe")),
+            other => panic!("esperava RootMissing para a raiz ausente, obtive {other:?}"),
+        }
+
+        // `scan_roots` (fluxo completo) reporta o mesmo erro e não produz
+        // índice parcial com a região de A.
+        let full_err = scan_roots(&dir, &roots).unwrap_err();
+        assert!(matches!(full_err, ScanError::RootMissing { .. }));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn erro_de_metadados_diferente_de_notfound_vira_io() {
+        let dir = temp_src("ionotfound");
+        // Cria um arquivo regular e tenta validar um caminho "filho" dele:
+        // `symlink_metadata` falha com `NotADirectory`/erro de I/O, não
+        // `NotFound` — não deve ser confundido com raiz ausente.
+        write(&dir, "arquivo_regular", "conteudo");
+        let child_of_file = dir.join("arquivo_regular").join("filho");
+
+        let err = validate_root(&child_of_file).unwrap_err();
+        assert!(
+            matches!(err, ScanError::Io { .. }),
+            "esperava ScanError::Io, obtive {err:?}"
+        );
+        assert!(err.to_string().starts_with("E-NAV-SCAN"));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn caminhos_sao_repo_relativos_com_barra_e_sem_fuga() {
+        let dir = temp_src("pathshape");
+        write(&dir, "src/sub/a.rs", &region_src("caminho.sub.chave"));
+        let root = ScanRoot::new("src", &["rs"]);
+        let index = scan_roots(&dir, &[root]).unwrap();
+        assert_eq!(index.regions.len(), 1);
+        let file = &index.regions[0].file;
+        assert_eq!(file, "src/sub/a.rs");
+        assert!(!file.starts_with('/'));
+        assert!(!file.contains(".."));
+        assert!(!file.contains('\\'));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinks_nao_sao_seguidos_nem_catalogados() {
+        use std::os::unix::fs::symlink;
+
+        let dir = temp_src("symlinks");
+        write(&dir, "src/real.rs", &region_src("symlink.real.chave"));
+        // Fora da raiz: não deve ser alcançado nem seguido.
+        write(&dir, "outside/fora.rs", &region_src("symlink.fora.chave"));
+
+        // Symlink de diretório apontando para si mesmo (ciclo).
+        let cycle_dir = dir.join("src/ciclo");
+        symlink(&cycle_dir, &cycle_dir).ok();
+        // Symlink de diretório apontando para fora da raiz.
+        symlink(dir.join("outside"), dir.join("src/fuga")).unwrap();
+        // Symlink de arquivo apontando para um arquivo real.
+        symlink(dir.join("src/real.rs"), dir.join("src/link.rs")).unwrap();
+
+        let root = ScanRoot::new("src", &["rs"]);
+        let index = scan_roots(&dir, &[root]).expect("scanner deve terminar normalmente");
+        assert_eq!(index.regions.len(), 1);
+        assert_eq!(index.regions[0].key, "symlink.real.chave");
+        assert_eq!(index.regions[0].file, "src/real.rs");
+        fs::remove_dir_all(dir).unwrap();
     }
 }

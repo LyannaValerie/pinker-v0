@@ -822,8 +822,7 @@ fn main() {
 }
 
 fn scan_code(repo_root: &Path) -> nav::CodeIndex {
-    let src_root = repo_root.join("src");
-    match nav::CodeIndex::scan(&src_root) {
+    match nav::CodeIndex::scan_repo(repo_root) {
         Ok(index) => index,
         Err(err) => {
             eprintln!("{err}");
