@@ -986,6 +986,41 @@ nesta onda — mesma decisão de fronteira da Onda 6E, revisão adiada.
   removida; nenhuma duplicada; camada `cli` 0 → **15**, `editor` 0 → **4**,
   `boot` 0 → **1**.
 
+## Onda 8B — evidências léxicas e sintáticas
+
+Esta etapa seleciona três arquivos de evidência do frontend —
+`tests/common/mod.rs`, `tests/lexer_tests.rs` e `tests/parser_tests.rs` — e
+adiciona 19 regiões na camada `evidencia`. São agrupamentos de evidência, não
+uma alegação de completude da gramática ou dos contratos do frontend.
+
+### Chaves cartografadas
+
+- `evidencia.frontend.pipeline-basico` — os 3 helpers compartilhados do
+  frontend (`tokenize`, `parse`, `parse_and_check`).
+- Léxico (25 testes em `tests/lexer_tests.rs`):
+  `evidencia.lexico.tokens-e-spans`, `evidencia.lexico.diagnostico`,
+  `evidencia.lexico.palavras-controle`, `evidencia.lexico.operadores`,
+  `evidencia.lexico.tipos-fixos`, `evidencia.lexico.palavras-de-construcao` e
+  `evidencia.lexico.arrays-acessos-e-modificadores`.
+- Parser (36 testes em `tests/parser_tests.rs`):
+  `evidencia.parser.ast-basica-e-spans`,
+  `evidencia.parser.diagnostico-e-limites-literais`,
+  `evidencia.parser.controle-de-fluxo`,
+  `evidencia.parser.desugaring-para-cada`,
+  `evidencia.parser.diretivas-topo-e-asm-inline`,
+  `evidencia.parser.tipos-qualificados-e-verso`,
+  `evidencia.parser.expressoes-e-precedencia`,
+  `evidencia.parser.postfix-cast-deref-e-operadores-tipo`,
+  `evidencia.parser.tipos-numericos`,
+  `evidencia.parser.aliases-arrays-e-structs` e
+  `evidencia.parser.ponteiros-e-colecoes`.
+
+O teste estrutural valida as chaves por arquivo, a camada `evidencia`, o total
+exato de 19 regiões, a ausência de evidência em `tests/semantic_tests.rs`, a
+preservação de chaves anteriores fora dessa camada e o piso do catálogo. O
+catálogo passa de 183 para 202 regiões. A Onda 8 permanece em andamento:
+`tests/semantic_tests.rs` fica registrado para a Onda 8C.
+
 ## Arquivos sem candidatos a âncora
 
 Registrados para não desaparecerem da análise; não recebem âncoras.
@@ -1081,6 +1116,9 @@ raízes). As três superfícies operacionais (cli/editor/boot) foram concluídas
 nesta onda.
 
 ## Próximo ponto de retomada
+
+**Onda 8C — evidências semânticas e contratos de tipos em
+`tests/semantic_tests.rs`.**
 
 **Onda 8 — ativação da raiz `tests/` e cartografia de evidência por camada.**
 A Onda 7 encerrou a cartografia da produção de `src/`: as três superfícies

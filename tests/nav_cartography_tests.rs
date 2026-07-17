@@ -1022,3 +1022,93 @@ fn camada_operacional_cartografa_cli_editor_boot() {
         "catálogo deveria conter ao menos as regiões desta onda além das anteriores"
     );
 }
+
+#[test]
+fn camada_evidencia_frontend_cartografa_lexer_parser_common() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    let expected_common_keys = ["evidencia.frontend.pipeline-basico"];
+    let expected_lexer_keys = [
+        "evidencia.lexico.tokens-e-spans",
+        "evidencia.lexico.diagnostico",
+        "evidencia.lexico.palavras-controle",
+        "evidencia.lexico.operadores",
+        "evidencia.lexico.tipos-fixos",
+        "evidencia.lexico.palavras-de-construcao",
+        "evidencia.lexico.arrays-acessos-e-modificadores",
+    ];
+    let expected_parser_keys = [
+        "evidencia.parser.ast-basica-e-spans",
+        "evidencia.parser.diagnostico-e-limites-literais",
+        "evidencia.parser.controle-de-fluxo",
+        "evidencia.parser.desugaring-para-cada",
+        "evidencia.parser.diretivas-topo-e-asm-inline",
+        "evidencia.parser.tipos-qualificados-e-verso",
+        "evidencia.parser.expressoes-e-precedencia",
+        "evidencia.parser.postfix-cast-deref-e-operadores-tipo",
+        "evidencia.parser.tipos-numericos",
+        "evidencia.parser.aliases-arrays-e-structs",
+        "evidencia.parser.ponteiros-e-colecoes",
+    ];
+
+    for (keys, file) in [
+        (&expected_common_keys[..], "tests/common/mod.rs"),
+        (&expected_lexer_keys[..], "tests/lexer_tests.rs"),
+        (&expected_parser_keys[..], "tests/parser_tests.rs"),
+    ] {
+        for key in keys {
+            let region = catalog
+                .region(key)
+                .unwrap_or_else(|| panic!("chave de evidência ausente no catálogo: {key}"));
+            assert_eq!(
+                region.file, file,
+                "chave '{key}' deveria apontar para {file}"
+            );
+            assert_eq!(
+                region.layer.as_deref(),
+                Some("evidencia"),
+                "chave '{key}' deveria usar a camada evidencia"
+            );
+        }
+    }
+
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|r| r.layer.as_deref() == Some("evidencia"))
+            .count(),
+        19,
+        "a camada evidencia deve conter exatamente as 19 regiões da Onda 8B"
+    );
+    assert!(
+        catalog
+            .regions
+            .iter()
+            .filter(|r| r.layer.as_deref() == Some("evidencia"))
+            .all(|r| r.file != "tests/semantic_tests.rs"),
+        "nenhuma região de evidencia deve apontar para tests/semantic_tests.rs"
+    );
+
+    for key in [
+        "lexer.fluxo.tokenizacao",
+        "parser.fluxo.nucleo",
+        "semantic.programa.duas-passagens",
+        "trama.codigo.raizes",
+    ] {
+        let region = catalog
+            .region(key)
+            .unwrap_or_else(|| panic!("chave anterior deveria permanecer no catálogo: {key}"));
+        assert_ne!(
+            region.layer.as_deref(),
+            Some("evidencia"),
+            "chave anterior '{key}' não deveria ser reclassificada para evidencia"
+        );
+    }
+
+    assert!(
+        catalog.regions.len() >= 202,
+        "catálogo deveria conter ao menos 202 regiões após a Onda 8B"
+    );
+}

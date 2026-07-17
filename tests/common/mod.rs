@@ -17,6 +17,10 @@ use pinker_v0::parser::Parser;
 use pinker_v0::printer;
 use pinker_v0::semantic;
 
+// @pinker-nav:start evidencia.frontend.pipeline-basico
+// @pinker-nav:domain frontend
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Define os três helpers básicos compartilhados do frontend usados pelas suítes: tokenize (source -> Lexer -> tokens), parse (tokens -> Parser -> AST) e parse_and_check (parse seguido de checagem semântica via semantic::check_program).
 pub fn tokenize(code: &str) -> Result<Vec<pinker_v0::token::Token>, PinkerError> {
     let mut lexer = Lexer::new(code);
     lexer.tokenize()
@@ -32,6 +36,7 @@ pub fn parse_and_check(code: &str) -> Result<(), PinkerError> {
     let program = parse(code)?;
     semantic::check_program(&program)
 }
+// @pinker-nav:end evidencia.frontend.pipeline-basico
 
 pub fn render_ast(code: &str) -> Result<String, PinkerError> {
     Ok(printer::render_program(&parse(code)?))
