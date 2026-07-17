@@ -1034,6 +1034,50 @@ Registrados para não desaparecerem da análise; não recebem âncoras.
 | `src/bin/pinker_fase16x_*.rs` | Binários-fixture minúsculos (3–35 linhas) usados por testes de I/O; sem responsabilidade nomeável. |
 | `src/navigation.jsonl` | Catálogo **gerado**; nunca é fonte de âncoras. |
 
+## Onda 8C — evidências semânticas e contratos de tipos
+
+`tests/semantic_tests.rs` foi integralmente cartografado: 340 testes em 34
+regiões de evidência (`domain: semantica`, `layer: evidencia`). As chaves são:
+`evidencia.semantica.entrada-principal`, `evidencia.semantica.retornos`,
+`evidencia.semantica.mutabilidade`, `evidencia.semantica.chamadas`,
+`evidencia.semantica.intrinsecas-entrada-ambiente`,
+`evidencia.semantica.intrinsecas-caminhos-e-sistema`,
+`evidencia.semantica.intrinsecas-argumentos-e-contexto`,
+`evidencia.semantica.intrinsecas-arquivos-io`,
+`evidencia.semantica.intrinsecas-texto-e-estruturados`,
+`evidencia.semantica.intrinsecas-processos`,
+`evidencia.semantica.funcoes-sem-retorno`,
+`evidencia.semantica.controle-fluxo-e-diagnostico`,
+`evidencia.semantica.operadores-logicos-e-bitwise`,
+`evidencia.semantica.acesso-campos-e-indexacao`, `evidencia.semantica.casts`,
+`evidencia.semantica.peso-e-alinhamento`,
+`evidencia.semantica.tipos-numericos-largura-fixa`,
+`evidencia.semantica.aliases-arrays-e-ninhos`,
+`evidencia.semantica.ponteiros-e-aritmetica`,
+`evidencia.semantica.ninhos-diagnostico`,
+`evidencia.semantica.aritmetica-modulo-e-literais`,
+`evidencia.semantica.escrita-por-indice`, `evidencia.semantica.listas`,
+`evidencia.semantica.mapas`, `evidencia.semantica.acaso`,
+`evidencia.semantica.imports-por-familia`,
+`evidencia.semantica.leques-simples`, `evidencia.semantica.leques-com-carga`,
+`evidencia.semantica.encaixe-e-bindings`,
+`evidencia.semantica.leques-recursivos-e-multiplas-cargas`,
+`evidencia.semantica.genericos`, `evidencia.semantica.tratamento-de-erro`,
+`evidencia.semantica.funcoes-locais-e-carinho` e
+`evidencia.semantica.tratos-e-impls`.
+
+Os agrupamentos seguem contratos de entrada, retornos, mutabilidade e chamadas;
+famílias de intrínsecas; tipos compostos, ponteiros e coleções; leques,
+encaixe, genéricos, tratamento de erro, funções locais e tratos/impls. A suíte
+combina assertions exatas com assertions parciais. Há exemplos carregados por
+`include_str!`, tratados como casos observados. As limitações são explícitas: a
+suíte verifica aceitação/rejeição pelo pipeline de frontend (`parse_and_check` =
+parse seguido de checagem semântica); parte das rejeições ocorre já no
+parse/desugaring e parte no checker; não executa runtime; `is_ok` não prova
+comportamento operacional; `contains` não fixa a mensagem inteira; e os
+exemplos não provam completude. O catálogo passa de 202 para 236 regiões, com
+as 202 anteriores preservadas. A Onda 8 permanece em andamento.
+
 ## Testes e apps (adiados — raízes desativadas)
 
 Inventariados para as Ondas 8 e 9. O scanner já indexa duas raízes (`src/` e
