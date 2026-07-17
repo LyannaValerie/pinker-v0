@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 // @pinker-nav:start editor.estado.modelo
 // @pinker-nav:domain estado
 // @pinker-nav:layer editor
-// @pinker-nav:summary OUTPUT_LINES e EDITOR_LINES fixam quantas linhas do painel de saída e do corpo do arquivo são exibidas por render(); struct EditorTui guarda file_path, o buffer de linhas do arquivo (lines), o histórico de mensagens do painel (output) e a flag dirty; from_path lê o arquivo via fs::read_to_string, separa o conteúdo em linhas e inicializa o painel com uma mensagem de boas-vindas, retornando Err(String) se a leitura falhar.
+// @pinker-nav:summary OUTPUT_LINES e EDITOR_LINES fixam quantas linhas do painel de saída e do corpo do arquivo são exibidas por render(); struct EditorTui guarda file_path, o buffer de linhas do arquivo (lines), o histórico de mensagens do painel (output) e a flag dirty; from_path lê o arquivo via fs::read_to_string e usa source.lines() para separar o conteúdo, sem armazenar terminadores originais nem a presença de newline final, inicializando o painel com uma mensagem de boas-vindas e retornando Err(String) se a leitura falhar.
 const OUTPUT_LINES: usize = 10;
 const EDITOR_LINES: usize = 18;
 
@@ -39,7 +39,7 @@ impl EditorTui {
     // @pinker-nav:start editor.sessao.comandos
     // @pinker-nav:domain sessao
     // @pinker-nav:layer editor
-    // @pinker-nav:summary run() é o laço REPL do editor: renderiza, lê uma linha de stdin e chama execute_command, encerrando quando este retorna Ok(false); execute_command interpreta os comandos de texto (:quit, :help, :tokens, :ast, :save, :append <texto>, :set <linha> <texto>) e mensagens desconhecidas viram uma linha no painel; run_tokens_command tokeniza a fonte atual e lista as primeiras lexemas no painel; run_ast_command parseia+checa semanticamente (parse_and_check_program) e lista as primeiras linhas da AST renderizada; save_file grava a fonte atual com fs::write (sem escrita atômica) e limpa dirty; set_line substitui uma linha existente por índice 1-based, com mensagens no painel para índice ausente/fora da faixa; erros das ações Pinker (:tokens/:ast) retornam como Err(String) via render_for_cli_with_source, distintos das mensagens de rotina empurradas ao painel.
+    // @pinker-nav:summary run() é o laço REPL do editor: renderiza, lê uma linha de stdin e chama execute_command, encerrando quando este retorna Ok(false); execute_command interpreta os comandos de texto (:quit, :help, :tokens, :ast, :save, :append <texto>, :set <linha> <texto>) e mensagens desconhecidas viram uma linha no painel; run_tokens_command tokeniza a fonte atual e lista as primeiras lexemas no painel; run_ast_command parseia+checa semanticamente (parse_and_check_program) e lista as primeiras linhas da AST renderizada; save_file grava com fs::write (sem escrita atômica) a fonte recomposta por current_source, portanto :save não preserva byte a byte CRLF nem newline final original, e limpa dirty; set_line substitui uma linha existente por índice 1-based, com mensagens no painel para índice ausente/fora da faixa; erros das ações Pinker (:tokens/:ast) retornam como Err(String) via render_for_cli_with_source, distintos das mensagens de rotina empurradas ao painel.
     pub fn run(&mut self) -> Result<(), String> {
         loop {
             self.render();
@@ -182,7 +182,7 @@ impl EditorTui {
     // @pinker-nav:start editor.render.saida
     // @pinker-nav:domain render
     // @pinker-nav:layer editor
-    // @pinker-nav:summary current_source junta `lines` com '\n' para formar a fonte atual; render limpa a tela com sequências ANSI, imprime cabeçalho/status (via palette), até EDITOR_LINES linhas do arquivo com contagem de linhas omitidas, e as últimas OUTPUT_LINES mensagens do painel de saída; push_output apenas empilha uma String em `output`.
+    // @pinker-nav:summary current_source junta `lines` com '\n' para formar a fonte atual: ao salvar, normaliza separadores para LF e não restaura um newline final originalmente presente; render limpa a tela com sequências ANSI, imprime cabeçalho/status (via palette), até EDITOR_LINES linhas do arquivo com contagem de linhas omitidas, e as últimas OUTPUT_LINES mensagens do painel de saída; push_output apenas empilha uma String em `output`.
     fn current_source(&self) -> String {
         self.lines.join("\n")
     }
