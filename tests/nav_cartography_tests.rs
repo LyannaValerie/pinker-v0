@@ -3,7 +3,9 @@
 //! Cobre: múltiplas regiões no mesmo arquivo, preservação de âncoras
 //! existentes, domínio/camada válidos e determinismo do catálogo. Onda 6D
 //! acrescenta as raízes de código controladas (`trama.codigo.raizes`),
-//! mantendo a separação entre catálogo, raízes e consulta.
+//! mantendo a separação entre catálogo, raízes e consulta. Onda 6E cartografa
+//! o runtime nativo (`runtime/pinker_rt/src/lib.rs`, camada `runtime`),
+//! concluindo a Onda 6.
 
 use pinker_v0::nav::{CodeCatalog, CodeIndex};
 use std::fs;
@@ -570,14 +572,87 @@ fn camada_trama_separa_catalogo_raizes_e_consulta() {
             "chave essencial de navegação ausente: {essential}"
         );
     }
+}
 
-    // Nenhuma região tem arquivo cartografado sob `runtime/`: o runtime foi
-    // ativado como raiz, mas não cartografado nesta onda.
-    assert!(
-        catalog
-            .regions
-            .iter()
-            .all(|r| !r.file.starts_with("runtime/")),
-        "runtime não deveria ter regiões cartografadas na Onda 6D"
+/// A camada `runtime` (Onda 6E) cartografa `runtime/pinker_rt/src/lib.rs`
+/// (produção; `#[cfg(test)] mod tests` fica de fora, por decisão explícita da
+/// cápsula). Verifica as 15 chaves planejadas, a contagem exata de 15 regiões
+/// `runtime` e que todas apontam para o arquivo do runtime nativo — nenhuma
+/// para `src/`. Não fixa o total global do catálogo (§18.4).
+#[test]
+fn camada_runtime_cartografa_o_runtime_nativo() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    let expected_runtime_keys = [
+        "runtime.inicializacao.bootstrap",
+        "runtime.memoria.alocador",
+        "runtime.texto.operacoes",
+        "runtime.conversoes.numero-texto",
+        "runtime.texto.formatacao",
+        "runtime.io.saida",
+        "runtime.listas.dinamicas",
+        "runtime.mapas.dinamicos",
+        "runtime.leques.variantes",
+        "runtime.arquivos.io",
+        "runtime.caminhos.sistema",
+        "runtime.tempo.relogio",
+        "runtime.aleatorio.gerador",
+        "runtime.ambiente.argumentos",
+        "runtime.processos.execucao",
+    ];
+
+    for key in expected_runtime_keys {
+        let region = catalog
+            .region(key)
+            .unwrap_or_else(|| panic!("chave runtime ausente no catálogo: {key}"));
+        assert_eq!(
+            region.file, "runtime/pinker_rt/src/lib.rs",
+            "chave runtime '{key}' deveria apontar para runtime/pinker_rt/src/lib.rs"
+        );
+    }
+
+    let runtime_regions: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|r| r.layer.as_deref() == Some("runtime"))
+        .collect();
+
+    let expected_runtime_count = expected_runtime_keys.len();
+    assert_eq!(
+        runtime_regions.len(),
+        expected_runtime_count,
+        "esperava exatamente {expected_runtime_count} regiões na camada runtime"
     );
+
+    assert!(
+        runtime_regions
+            .iter()
+            .all(|r| r.file == "runtime/pinker_rt/src/lib.rs"),
+        "toda região da camada runtime deve apontar para runtime/pinker_rt/src/lib.rs"
+    );
+    assert!(
+        runtime_regions.iter().all(|r| !r.file.starts_with("src/")),
+        "nenhuma região da camada runtime deve apontar para src/"
+    );
+
+    // Confirma a presença dos domínios principais do runtime nativo.
+    for domain in [
+        "inicializacao",
+        "memoria",
+        "listas",
+        "mapas",
+        "leques",
+        "io",
+        "arquivos",
+        "caminhos",
+        "processos",
+    ] {
+        assert!(
+            runtime_regions
+                .iter()
+                .any(|r| r.domain.as_deref() == Some(domain)),
+            "domínio runtime esperado ausente: {domain}"
+        );
+    }
 }
