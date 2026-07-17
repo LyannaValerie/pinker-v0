@@ -2,6 +2,10 @@ mod common;
 
 use common::{render_cli_selected_output, render_selected};
 
+// @pinker-nav:start evidencia.select.blocos-e-terminadores
+// @pinker-nav:domain select
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Compara a renderização da seleção abstrata de funções e desvios condicionais presentes.
 #[test]
 fn seleciona_funcao_simples() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -83,6 +87,11 @@ selected:
     );
 }
 
+// @pinker-nav:end evidencia.select.blocos-e-terminadores
+// @pinker-nav:start evidencia.select.chamadas-e-operadores
+// @pinker-nav:domain select
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Compara chamadas com e sem retorno e operadores unários e binários na seleção abstrata.
 #[test]
 fn seleciona_chamada_retorno_e_call_void() {
     let code = "\
@@ -155,6 +164,11 @@ selected:
     );
 }
 
+// @pinker-nav:end evidencia.select.chamadas-e-operadores
+// @pinker-nav:start evidencia.select.renderizacao-cli
+// @pinker-nav:domain select
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Compara o cabeçalho produzido pelo renderer CLI da seleção.
 #[test]
 fn selected_cli_header_estavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -178,6 +192,11 @@ Análise semântica concluída sem erros.
     );
 }
 
+// @pinker-nav:end evidencia.select.renderizacao-cli
+// @pinker-nav:start evidencia.select.rejeicao-call-sem-destino
+// @pinker-nav:domain select
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita o lowering direto e espera rejeição de chamada com retorno sem destino.
 #[test]
 fn falha_clara_para_call_sem_destino() {
     let cfg = pinker_v0::cfg_ir::ProgramCfgIR {
@@ -213,6 +232,11 @@ fn falha_clara_para_call_sem_destino() {
     assert!(err.to_string().contains("instruction selection"));
 }
 
+// @pinker-nav:end evidencia.select.rejeicao-call-sem-destino
+// @pinker-nav:start evidencia.select.fluxos-de-laco
+// @pinker-nav:domain select
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Inspeciona blocos e terminadores selecionados para laço, quebra e continuação.
 #[test]
 fn seleciona_sempre_que() {
     let code = "
@@ -258,6 +282,11 @@ fn seleciona_sempre_que_com_continuar() {
     assert!(out.contains("loop_continue_cont"), "{}", out);
 }
 
+// @pinker-nav:end evidencia.select.fluxos-de-laco
+// @pinker-nav:start evidencia.select.operadores-bitwise-e-modulo
+// @pinker-nav:domain select
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Inspeciona a seleção abstrata dos operadores bitwise e módulo presentes.
 #[test]
 fn seleciona_bitwise_basico() {
     let code = "
@@ -285,3 +314,4 @@ fn seleciona_modulo_basico() {
     let out = render_selected(code).unwrap();
     assert!(out.contains("isel mod %t0, 10, 4"), "{}", out);
 }
+// @pinker-nav:end evidencia.select.operadores-bitwise-e-modulo
