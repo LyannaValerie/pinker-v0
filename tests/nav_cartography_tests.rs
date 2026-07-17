@@ -1350,3 +1350,270 @@ fn onda_8c_cartografa_evidencias_semanticas() {
         "catálogo deveria conter ao menos 236 regiões"
     );
 }
+
+#[test]
+fn onda_8d_cartografa_evidencias_do_pipeline() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    // Chaves em ordem física: primeiro tests/ir_tests.rs, depois tests/ir_validate_tests.rs.
+    let expected_ir_keys = [
+        "evidencia.ir.lowering-programa",
+        "evidencia.ir.renderizacao-estruturas-basicas",
+        "evidencia.ir.renderizacao-cli",
+        "evidencia.ir.lowering-controle-de-laco",
+        "evidencia.ir.lowering-operacoes-textuais",
+        "evidencia.ir.lowering-tipos-numericos",
+        "evidencia.ir.lowering-tipos-compostos",
+        "evidencia.ir.validacao-aceitacao-basica",
+        "evidencia.ir.validacao-retorno-e-condicao",
+        "evidencia.ir.validacao-chamadas-e-nulo",
+        "evidencia.ir.validacao-estrutura-e-diagnostico",
+    ];
+    // Ordem física: primeiro tests/cfg_ir_tests.rs, depois tests/cfg_ir_validate_tests.rs.
+    let expected_cfg_keys = [
+        "evidencia.cfg.lowering-e-renderizacao-basica",
+        "evidencia.cfg.renderizacao-cli",
+        "evidencia.cfg.lowering-lacos",
+        "evidencia.cfg.lowering-operadores-e-join",
+        "evidencia.cfg.lowering-ponteiros-e-agregados",
+        "evidencia.cfg.lowering-limite-asm",
+        "evidencia.cfg.lowering-verso",
+        "evidencia.cfg.lowering-curto-circuito",
+        "evidencia.cfg.validacao-aceitacao-basica",
+        "evidencia.cfg.validacao-blocos-e-alvos",
+        "evidencia.cfg.validacao-condicao-e-retorno",
+        "evidencia.cfg.validacao-chamada-e-referencias",
+        "evidencia.cfg.validacao-alcancabilidade-e-renderizacao",
+        "evidencia.cfg.validacao-diagnostico",
+    ];
+    let expected_select_keys = [
+        "evidencia.select.blocos-e-terminadores",
+        "evidencia.select.chamadas-e-operadores",
+        "evidencia.select.renderizacao-cli",
+        "evidencia.select.rejeicao-call-sem-destino",
+        "evidencia.select.fluxos-de-laco",
+        "evidencia.select.operadores-bitwise-e-modulo",
+    ];
+    // Ordem física: primeiro tests/abstract_machine_tests.rs, depois
+    // tests/abstract_machine_stack_tests.rs.
+    let expected_machine_keys = [
+        "evidencia.machine.lowering-blocos-e-terminadores",
+        "evidencia.machine.lowering-chamadas",
+        "evidencia.machine.lowering-operadores-e-temporarios",
+        "evidencia.machine.renderizacao-cli",
+        "evidencia.machine.comparacao-representacoes",
+        "evidencia.machine.validacao-programa-e-slots",
+        "evidencia.machine.lowering-bitwise-e-modulo",
+        "evidencia.machine.renderizacao-slots-e-temporarios",
+        "evidencia.machine.renderizacao-chamadas",
+        "evidencia.machine.renderizacao-terminadores-e-fluxos",
+        "evidencia.machine.renderizacao-papeis-de-blocos",
+        "evidencia.machine.renderizacao-programa-valido",
+        "evidencia.machine.validacao-underflow-operadores",
+        "evidencia.machine.validacao-chamadas-aridade-e-underflow",
+        "evidencia.machine.validacao-formato-diagnostico",
+        "evidencia.machine.validacao-branch",
+        "evidencia.machine.renderizacao-branch-valido",
+        "evidencia.machine.validacao-retorno",
+        "evidencia.machine.renderizacao-retorno-valido",
+        "evidencia.machine.validacao-pilha-retvoid-e-merges",
+        "evidencia.machine.validacao-slots-existencia",
+        "evidencia.machine.validacao-slots-tipados",
+        "evidencia.machine.validacao-tipos-operacoes-e-retorno",
+        "evidencia.machine.validacao-tipos-chamadas",
+        "evidencia.machine.renderizacao-casos-validos",
+        "evidencia.machine.validacao-programa-invalido",
+        "evidencia.machine.renderizacao-cli-golden",
+    ];
+
+    assert_eq!(expected_ir_keys.len(), 11);
+    assert_eq!(expected_cfg_keys.len(), 14);
+    assert_eq!(expected_select_keys.len(), 6);
+    assert_eq!(expected_machine_keys.len(), 27);
+    assert_eq!(
+        expected_ir_keys.len()
+            + expected_cfg_keys.len()
+            + expected_select_keys.len()
+            + expected_machine_keys.len(),
+        58,
+        "a Onda 8D deveria planejar exatamente 58 regiões novas"
+    );
+
+    // Cada arquivo recebe a fatia física correspondente de sua trilha/domínio, com a
+    // contagem de #[test] congelada no plano.
+    let per_file: [(&[&str], &str, &str, usize); 7] = [
+        (&expected_ir_keys[..7], "tests/ir_tests.rs", "ir", 25),
+        (
+            &expected_ir_keys[7..],
+            "tests/ir_validate_tests.rs",
+            "ir",
+            7,
+        ),
+        (&expected_cfg_keys[..8], "tests/cfg_ir_tests.rs", "cfg", 23),
+        (
+            &expected_cfg_keys[8..],
+            "tests/cfg_ir_validate_tests.rs",
+            "cfg",
+            15,
+        ),
+        (
+            &expected_select_keys[..],
+            "tests/instr_select_tests.rs",
+            "select",
+            12,
+        ),
+        (
+            &expected_machine_keys[..11],
+            "tests/abstract_machine_tests.rs",
+            "machine",
+            23,
+        ),
+        (
+            &expected_machine_keys[11..],
+            "tests/abstract_machine_stack_tests.rs",
+            "machine",
+            29,
+        ),
+    ];
+
+    let mut planned_keys = HashSet::new();
+    let mut total_test_count = 0usize;
+
+    for (keys, file, domain, expected_count) in per_file {
+        // Unicidade global das chaves e coerência de arquivo/camada/domínio/marcadores.
+        for &key in keys {
+            assert!(
+                planned_keys.insert(key),
+                "chave de evidência repetida no plano da Onda 8D: {key}"
+            );
+            let region = catalog
+                .region(key)
+                .unwrap_or_else(|| panic!("chave de evidência ausente no catálogo: {key}"));
+            assert_eq!(
+                region.file, file,
+                "chave '{key}' deveria apontar para {file}"
+            );
+            assert_eq!(
+                region.layer.as_deref(),
+                Some("evidencia"),
+                "chave '{key}' deveria usar a camada evidencia"
+            );
+            assert_eq!(
+                region.domain.as_deref(),
+                Some(domain),
+                "chave '{key}' deveria usar o domínio {domain}"
+            );
+            assert!(
+                region.start_marker < region.content_start
+                    && region.content_start <= region.content_end
+                    && region.content_end < region.end_marker,
+                "chave '{key}' deveria ter marcadores ordenados"
+            );
+        }
+
+        // Cobertura estrutural: todo #[test] pertence a exatamente uma região da trilha.
+        let source_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(file);
+        let source = fs::read_to_string(&source_path).unwrap_or_else(|error| {
+            panic!("não foi possível ler {}: {error}", source_path.display())
+        });
+        let lines: Vec<_> = source.lines().collect();
+        let mut owned_test_counts = vec![0usize; keys.len()];
+        let mut test_count = 0usize;
+
+        for (attribute_index, line) in lines.iter().enumerate() {
+            if line.trim() != "#[test]" {
+                continue;
+            }
+            let test_line = attribute_index + 1;
+            let test_name = lines
+                .iter()
+                .skip(attribute_index + 1)
+                .take(8)
+                .find_map(|candidate| {
+                    candidate
+                        .trim()
+                        .strip_prefix("fn ")?
+                        .split_once('(')
+                        .map(|(name, _)| name.trim())
+                })
+                .unwrap_or_else(|| {
+                    panic!("structural_test_function_not_found: arquivo {file}, linha {test_line}")
+                });
+            let owners: Vec<_> = keys
+                .iter()
+                .enumerate()
+                .filter_map(|(index, key)| {
+                    let region = catalog
+                        .region(key)
+                        .unwrap_or_else(|| panic!("chave de evidência ausente no catálogo: {key}"));
+                    (region.content_start <= test_line && test_line <= region.content_end)
+                        .then_some((index, *key))
+                })
+                .collect();
+            match owners.as_slice() {
+                [(index, _)] => owned_test_counts[*index] += 1,
+                [] => panic!(
+                    "structural_test_region_not_found: arquivo {file}, linha {test_line}, função {test_name}"
+                ),
+                _ => panic!(
+                    "structural_test_region_ambiguous: arquivo {file}, linha {test_line}, função {test_name}, proprietárias {:?}",
+                    owners.iter().map(|(_, key)| *key).collect::<Vec<_>>()
+                ),
+            }
+            test_count += 1;
+        }
+
+        assert_eq!(
+            test_count, expected_count,
+            "contagem de #[test] inesperada em {file}"
+        );
+        for (key, owned) in keys.iter().zip(owned_test_counts) {
+            assert!(
+                owned >= 1,
+                "região '{key}' deveria possuir ao menos um #[test] em {file}"
+            );
+        }
+        total_test_count += test_count;
+    }
+
+    assert_eq!(
+        planned_keys.len(),
+        58,
+        "o plano da Onda 8D perdeu uma chave"
+    );
+    assert_eq!(
+        total_test_count, 134,
+        "a Onda 8D deveria cobrir exatamente 134 testes (M_TOTAL)"
+    );
+
+    // As 53 regiões de evidência anteriores devem permanecer: total de evidência = 53 + 58.
+    let evidence_total = catalog
+        .regions
+        .iter()
+        .filter(|region| region.layer.as_deref() == Some("evidencia"))
+        .count();
+    assert!(
+        evidence_total >= 111,
+        "catálogo deveria conter ao menos 111 regiões de evidência (53 anteriores + 58 da Onda 8D), obteve {evidence_total}"
+    );
+    for previous in [
+        "evidencia.lexico.tokens-e-spans",
+        "evidencia.parser.ast-basica-e-spans",
+        "evidencia.semantica.entrada-principal",
+    ] {
+        let region = catalog
+            .region(previous)
+            .unwrap_or_else(|| panic!("região de evidência anterior ausente: {previous}"));
+        assert_eq!(
+            region.layer.as_deref(),
+            Some("evidencia"),
+            "região anterior '{previous}' deveria permanecer como evidencia"
+        );
+    }
+
+    assert!(
+        catalog.regions.len() >= 294,
+        "catálogo deveria conter ao menos 294 regiões após a Onda 8D"
+    );
+}

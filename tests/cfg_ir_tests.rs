@@ -2,6 +2,10 @@ mod common;
 
 use common::{render_cfg_ir, render_cli_cfg_ir_output};
 
+// @pinker-nav:start evidencia.cfg.lowering-e-renderizacao-basica
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita lowering IR para CFG e compara exatamente blocos, branches, saltos, retornos e chamadas renderizados.
 #[test]
 fn cfg_ir_funcao_simples() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -116,7 +120,12 @@ functions:
 "
     );
 }
+// @pinker-nav:end evidencia.cfg.lowering-e-renderizacao-basica
 
+// @pinker-nav:start evidencia.cfg.renderizacao-cli
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Compara exatamente o cabeçalho e a CFG textual expostos pelo renderer de CLI.
 #[test]
 fn cfg_ir_cli_header_estavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -139,7 +148,12 @@ Análise semântica concluída sem erros.
 "
     );
 }
+// @pinker-nav:end evidencia.cfg.renderizacao-cli
 
+// @pinker-nav:start evidencia.cfg.lowering-lacos
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita a formação de blocos e labels de laço, quebrar e continuar e inspeciona fragmentos textuais.
 #[test]
 fn cfg_ir_sempre_que() {
     let code = "
@@ -189,7 +203,12 @@ fn cfg_ir_sempre_que_com_continuar() {
     assert!(cfg.contains("block loop_cond_"), "{}", cfg);
     assert!(cfg.contains("loop_continue_cont"), "{}", cfg);
 }
+// @pinker-nav:end evidencia.cfg.lowering-lacos
 
+// @pinker-nav:start evidencia.cfg.lowering-operadores-e-join
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Inspeciona operações bitwise e módulo e a formação de join quando ambos os ramos continuam.
 #[test]
 fn cfg_ir_bitwise_basico() {
     let code = "
@@ -238,7 +257,12 @@ fn cfg_ir_if_else_fallthrough_ambos_ramos_gera_join_valido() {
     assert!(cfg.contains("block join_"), "{}", cfg);
     assert!(cfg.contains("ret %x#0"), "{}", cfg);
 }
+// @pinker-nav:end evidencia.cfg.lowering-operadores-e-join
 
+// @pinker-nav:start evidencia.cfg.lowering-ponteiros-e-agregados
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita casts, dereferência, indexação e campos no subset observado e espera erros nos casos fora dele.
 #[test]
 fn cfg_ir_cast_explicito_bombom_para_seta_bombom_e_volta() {
     let code = r#"
@@ -348,7 +372,12 @@ fn cfg_ir_acesso_campo_em_valor_struct_ainda_fora_do_subset_operacional() {
     let err = render_cfg_ir(code).unwrap_err().to_string();
     assert!(err.contains("(*ptr).campo"), "{}", err);
 }
+// @pinker-nav:end evidencia.cfg.lowering-ponteiros-e-agregados
 
+// @pinker-nav:start evidencia.cfg.lowering-limite-asm
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Espera a rejeição observada de asm inline no lowering para CFG.
 #[test]
 fn cfg_ir_inline_asm_ainda_fora_do_escopo_operacional() {
     let code = r#"
@@ -361,7 +390,12 @@ fn cfg_ir_inline_asm_ainda_fora_do_escopo_operacional() {
     let err = render_cfg_ir(code).unwrap_err().to_string();
     assert!(err.contains("ainda não lowera inline asm"));
 }
+// @pinker-nav:end evidencia.cfg.lowering-limite-asm
 
+// @pinker-nav:start evidencia.cfg.lowering-verso
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita verso em constante, local, parâmetro, retorno, chamada e falar e inspeciona a CFG renderizada.
 #[test]
 fn cfg_ir_verso_constante_global_operacional() {
     let code = r#"
@@ -392,7 +426,12 @@ fn cfg_ir_verso_operacional_minimo_em_local_parametro_retorno() {
     assert!(cfg.contains("call eco(%texto#0) -> verso"), "{}", cfg);
     assert!(cfg.contains("falar %copia#0:verso"), "{}", cfg);
 }
+// @pinker-nav:end evidencia.cfg.lowering-verso
 
+// @pinker-nav:start evidencia.cfg.lowering-curto-circuito
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita curto-circuito lógico como controle e valor e inspeciona seus blocos de branch e join.
 #[test]
 fn cfg_ir_logicos_viram_branch_de_curto_circuito() {
     let code = "
@@ -428,3 +467,4 @@ fn cfg_ir_logico_com_chamada_pode_ser_usado_como_valor() {
     assert!(cfg.contains("logic_join_"), "{}", cfg);
     assert!(cfg.contains("call aceita("), "{}", cfg);
 }
+// @pinker-nav:end evidencia.cfg.lowering-curto-circuito

@@ -29,6 +29,10 @@ fn base_function(ret_type: TypeIR, instructions: Vec<InstructionIR>) -> Function
     }
 }
 
+// @pinker-nav:start evidencia.ir.validacao-aceitacao-basica
+// @pinker-nav:domain ir
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Constrói IR manualmente e aceita o caso simples presente pelo validador direto.
 #[test]
 fn valida_ir_simples_valida() {
     let program = ProgramIR {
@@ -46,7 +50,12 @@ fn valida_ir_simples_valida() {
 
     assert!(ir_validate::validate_program(&program).is_ok());
 }
+// @pinker-nav:end evidencia.ir.validacao-aceitacao-basica
 
+// @pinker-nav:start evidencia.ir.validacao-retorno-e-condicao
+// @pinker-nav:domain ir
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Constrói IR manualmente e rejeita nos casos presentes retorno e condição incompatíveis.
 #[test]
 fn falha_retorno_invalido() {
     let program = ProgramIR {
@@ -105,7 +114,12 @@ fn falha_condicao_if_invalida() {
         Err(PinkerError::IrValidation { .. })
     ));
 }
+// @pinker-nav:end evidencia.ir.validacao-retorno-e-condicao
 
+// @pinker-nav:start evidencia.ir.validacao-chamadas-e-nulo
+// @pinker-nav:domain ir
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Valida diretamente IR manual e rejeita chamadas com argumento incompatível ou valor nulo usado como retorno.
 #[test]
 fn falha_chamada_invalida() {
     let callee = FunctionIR {
@@ -195,7 +209,12 @@ fn falha_uso_incorreto_de_nulo() {
         Err(PinkerError::IrValidation { .. })
     ));
 }
+// @pinker-nav:end evidencia.ir.validacao-chamadas-e-nulo
 
+// @pinker-nav:start evidencia.ir.validacao-estrutura-e-diagnostico
+// @pinker-nav:domain ir
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Rejeita bloco malformado e inspeciona parcialmente o contexto textual do diagnóstico de tipos.
 #[test]
 fn falha_bloco_malformado() {
     let mut function = base_function(
@@ -243,3 +262,4 @@ fn erro_ir_tem_contexto_padronizado() {
     assert!(err.contains("instr='let/assign'"));
     assert!(err.contains("esperado=Bombom, recebido=Logica"));
 }
+// @pinker-nav:end evidencia.ir.validacao-estrutura-e-diagnostico

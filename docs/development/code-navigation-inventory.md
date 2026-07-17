@@ -1084,6 +1084,74 @@ comportamento operacional; `contains` não fixa a mensagem inteira; e os
 exemplos não provam completude. O catálogo passa de 202 para 236 regiões, com
 as 202 anteriores preservadas. A Onda 8 permanece em andamento.
 
+## Onda 8D — evidências do pipeline IR, CFG, seleção e máquina
+
+Sete suítes do pipeline foram integralmente cartografadas em duas trilhas
+paralelas (especialistas distintos, worktrees e contas separados, revisão
+cruzada), com **134 testes** em **58 regiões** de evidência.
+
+**Trilha A — IR e CFG (M_A = 70 testes, N_A = 25 regiões):**
+
+- `tests/ir_tests.rs` — 25 testes, 7 regiões (`domain: ir`): lowering AST→IR e
+  renderização textual/CLI. Chaves: `evidencia.ir.lowering-programa`,
+  `evidencia.ir.renderizacao-estruturas-basicas`, `evidencia.ir.renderizacao-cli`,
+  `evidencia.ir.lowering-controle-de-laco`, `evidencia.ir.lowering-operacoes-textuais`,
+  `evidencia.ir.lowering-tipos-numericos`, `evidencia.ir.lowering-tipos-compostos`.
+- `tests/ir_validate_tests.rs` — 7 testes, 4 regiões (`domain: ir`): invariantes de
+  IR construída manualmente; aceitação/rejeição observadas. Chaves:
+  `evidencia.ir.validacao-aceitacao-basica`, `evidencia.ir.validacao-retorno-e-condicao`,
+  `evidencia.ir.validacao-chamadas-e-nulo`, `evidencia.ir.validacao-estrutura-e-diagnostico`.
+- `tests/cfg_ir_tests.rs` — 23 testes, 8 regiões (`domain: cfg`): lowering IR→CFG,
+  blocos, terminadores, curto-circuito, renderização. Chaves:
+  `evidencia.cfg.lowering-e-renderizacao-basica`, `evidencia.cfg.renderizacao-cli`,
+  `evidencia.cfg.lowering-lacos`, `evidencia.cfg.lowering-operadores-e-join`,
+  `evidencia.cfg.lowering-ponteiros-e-agregados`, `evidencia.cfg.lowering-limite-asm`,
+  `evidencia.cfg.lowering-verso`, `evidencia.cfg.lowering-curto-circuito`.
+- `tests/cfg_ir_validate_tests.rs` — 15 testes, 6 regiões (`domain: cfg`): invariantes
+  de CFG construído manualmente; erros observados. Chaves:
+  `evidencia.cfg.validacao-aceitacao-basica`, `evidencia.cfg.validacao-blocos-e-alvos`,
+  `evidencia.cfg.validacao-condicao-e-retorno`, `evidencia.cfg.validacao-chamada-e-referencias`,
+  `evidencia.cfg.validacao-alcancabilidade-e-renderizacao`, `evidencia.cfg.validacao-diagnostico`.
+
+**Trilha B — seleção e máquina abstrata (M_B = 64 testes, N_B = 33 regiões):**
+
+- `tests/instr_select_tests.rs` — 12 testes, 6 regiões (`domain: select`): seleção
+  abstrata sobre CFG → `SelectedInstr`; renderização. Chaves:
+  `evidencia.select.blocos-e-terminadores`, `evidencia.select.chamadas-e-operadores`,
+  `evidencia.select.renderizacao-cli`, `evidencia.select.rejeicao-call-sem-destino`,
+  `evidencia.select.fluxos-de-laco`, `evidencia.select.operadores-bitwise-e-modulo`.
+- `tests/abstract_machine_tests.rs` — 23 testes, 11 regiões (`domain: machine`):
+  lowering da seleção para máquina de pilha, comparação de representações,
+  renderização. Chaves: `evidencia.machine.lowering-blocos-e-terminadores`,
+  `evidencia.machine.lowering-chamadas`, `evidencia.machine.lowering-operadores-e-temporarios`,
+  `evidencia.machine.renderizacao-cli`, `evidencia.machine.comparacao-representacoes`,
+  `evidencia.machine.validacao-programa-e-slots`, `evidencia.machine.lowering-bitwise-e-modulo`,
+  `evidencia.machine.renderizacao-slots-e-temporarios`, `evidencia.machine.renderizacao-chamadas`,
+  `evidencia.machine.renderizacao-terminadores-e-fluxos`, `evidencia.machine.renderizacao-papeis-de-blocos`.
+- `tests/abstract_machine_stack_tests.rs` — 29 testes, 16 regiões (`domain: machine`):
+  validação da pilha (underflow, tipos, merges, slots, aridade, retorno) e
+  renderização de casos válidos. Chaves: `evidencia.machine.renderizacao-programa-valido`,
+  `evidencia.machine.validacao-underflow-operadores`, `evidencia.machine.validacao-chamadas-aridade-e-underflow`,
+  `evidencia.machine.validacao-formato-diagnostico`, `evidencia.machine.validacao-branch`,
+  `evidencia.machine.renderizacao-branch-valido`, `evidencia.machine.validacao-retorno`,
+  `evidencia.machine.renderizacao-retorno-valido`, `evidencia.machine.validacao-pilha-retvoid-e-merges`,
+  `evidencia.machine.validacao-slots-existencia`, `evidencia.machine.validacao-slots-tipados`,
+  `evidencia.machine.validacao-tipos-operacoes-e-retorno`, `evidencia.machine.validacao-tipos-chamadas`,
+  `evidencia.machine.renderizacao-casos-validos`, `evidencia.machine.validacao-programa-invalido`,
+  `evidencia.machine.renderizacao-cli-golden`.
+
+As regiões separam **lowering**, **renderização** e **validação** quando são
+responsabilidades distintas. As suítes combinam assertions exatas (`assert_eq!`),
+parciais (`contains`) e estruturais. Limites explícitos: a IR não constrói CFG; o
+CFG não é SSA completa nem seleciona instruções nem representa ISA física; a
+seleção é abstrata (não escolhe x86-64, não aloca registradores, não emite bytes);
+a máquina abstrata é representação de pilha, não um interpretador — validação
+estática não é execução, e renderização textual não é assembly nativo montável. O
+catálogo passa de **236 para 294 regiões**, com as 236 anteriores preservadas
+(chave, arquivo, domínio, camada, summary e hash). Nenhuma lógica de teste foi
+alterada: as sete suítes receberam apenas marcadores `// @pinker-nav:`. A Onda 8
+permanece **in-progress**.
+
 ## Testes ativos e apps adiados
 
 `tests/` é raiz oficial ativa desde a Onda 8A. O scanner tem três raízes
@@ -1093,9 +1161,14 @@ na Onda 8A. `apps/` continua desativada até a Onda 9: reúne fontes `.pink`, qu
 exigem uma convenção de marcador própria antes de entrar no scanner.
 
 Já estão cartografados como evidência `tests/common/mod.rs` (parcialmente, com
-3 helpers), `tests/lexer_tests.rs`, `tests/parser_tests.rs` e
-`tests/semantic_tests.rs`; os três últimos, integralmente. As demais suítes
-`tests/*.rs` continuam pendentes.
+3 helpers), `tests/lexer_tests.rs`, `tests/parser_tests.rs`,
+`tests/semantic_tests.rs` e — desde a Onda 8D — as sete suítes de pipeline
+`tests/ir_tests.rs`, `tests/ir_validate_tests.rs`, `tests/cfg_ir_tests.rs`,
+`tests/cfg_ir_validate_tests.rs`, `tests/instr_select_tests.rs`,
+`tests/abstract_machine_tests.rs` e `tests/abstract_machine_stack_tests.rs`;
+todas, integralmente. As demais suítes `tests/*.rs` (interpretador, backends
+textual/`.s`, nativas, runtime, Trama, documentais, CLI, apps) continuam
+pendentes.
 
 - `tests/*.rs` — evidência por camada (lexer, parser, semântica, IR/CFG/seleção/
   máquina, interpretador, backends, runtime nativo, Trama, CLI, paridade nativa).
@@ -1104,7 +1177,7 @@ Já estão cartografados como evidência `tests/common/mod.rs` (parcialmente, co
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 8C)
+## Cobertura acumulada (após Onda 8D)
 
 | Métrica | Valor |
 |---|---:|
@@ -1120,10 +1193,12 @@ Já estão cartografados como evidência `tests/common/mod.rs` (parcialmente, co
 | Evidência em `tests/lexer_tests.rs` | Integral |
 | Evidência em `tests/parser_tests.rs` | Integral |
 | Evidência em `tests/semantic_tests.rs` | Integral |
+| Evidência nas 7 suítes de pipeline (IR/CFG/seleção/máquina) | Integral (Onda 8D) |
 | Demais suítes `tests/*.rs` | Pendentes |
 | Regiões antes da Onda 7 | 163 |
 | Regiões adicionadas na Onda 7 | 20 |
-| Regiões no catálogo | 236 |
+| Regiões adicionadas na Onda 8D | 58 |
+| Regiões no catálogo | 294 |
 | Raízes oficiais ativas | 3 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
@@ -1171,8 +1246,8 @@ excluído).
 | cli | 15 | Onda 7: config-modelos, ajuda-usage, parsing (subcomandos, roteamento), execução (entrada, editor-repl), nav (consulta, sincronização-verificação), doc (consulta, sincronização, mudanças, verificação), análise-pipeline, build-nativo, módulos-importação |
 | editor | 4 | Onda 7: estado-modelo, sessão-comandos, render-saída, análise-checagem |
 | boot | 1 | Onda 7: geração-fronteira-freestanding (arquivo inteiro) |
-| evidencia | 53 | Onda 8B (19) + Onda 8C (34) |
-| **total** | **236** | |
+| evidencia | 111 | Onda 8B (19) + Onda 8C (34) + Onda 8D (58: ir 11, cfg 14, select 6, machine 27) |
+| **total** | **294** | |
 
 Pendentes de cartografia: as demais suítes `tests/*.rs` na Onda 8 e `apps/` na
 Onda 9. As três superfícies operacionais (cli/editor/boot) foram concluídas na
@@ -1180,8 +1255,10 @@ Onda 7.
 
 ## Próximo ponto de retomada
 
-**Onda 8D — próximo grupo de evidências nas suítes `tests/*.rs` ainda não
-cartografadas, definido por inventário antes da edição.** Candidato prioritário:
-o bloco de pipeline (IR, validação de IR, CFG, validação de CFG, seleção,
-máquina abstrata). Onda 9 continua reservada a `apps/`. A Onda 8 permanece
+**Próximo grupo de evidências nas suítes `tests/*.rs` ainda não cartografadas,
+definido por inventário antes da edição.** Concluído o pipeline IR→CFG→seleção→
+máquina na Onda 8D, os candidatos remanescentes são, em ordem de proximidade ao
+pipeline já mapeado: `tests/interpreter_tests.rs` (execução da máquina validada),
+os backends textual (pseudo-asm) e `.s`, a paridade nativa, o runtime, a Trama
+operacional e a CLI. Onda 9 continua reservada a `apps/`. A Onda 8 permanece
 **in-progress**.
