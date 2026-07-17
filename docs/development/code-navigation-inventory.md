@@ -32,9 +32,11 @@ scanner. A **Onda 6** foi decomposta em entregas independentes: 6A
 (`src/interpreter.rs`), 6B (`src/backend_text.rs`), 6C (`src/backend_s.rs`), 6D
 (raízes controladas do scanner) e 6E (`runtime/pinker_rt/src/lib.rs`). Esta
 rodada conclui a **Onda 6E** e, com ela, a **Onda 6 inteira**: o runtime nativo
-recebeu 15 regiões próprias na camada `runtime`, cobrindo as 99 funções de ABI
-exportadas e os helpers/consts/structs internos de `runtime/pinker_rt/src/lib.rs`
-(produção; `#[cfg(test)] mod tests` fica fora, por decisão explícita da onda).
+recebeu 15 regiões próprias na camada `runtime`, cobrindo as 99 funções `extern
+"C"` diretas mais os 8 wrappers gerados pela macro `formatar_wrappers!`
+(`pinker_formatar_verso_1..8`) — 107 símbolos de ABI exportados no total — e os
+helpers/consts/structs internos de `runtime/pinker_rt/src/lib.rs` (produção;
+`#[cfg(test)] mod tests` fica fora, por decisão explícita da onda).
 
 ## Contrato do scanner
 
@@ -848,11 +850,13 @@ conteúdo do runtime nativo), entregue a seguir.
 
 ## Onda 6E — cartografia do runtime nativo (concluída)
 
-`runtime/pinker_rt/src/lib.rs` (2021 linhas; produção nas linhas 16–1728,
-`#[cfg(test)] mod tests` nas linhas 1729–2021 **fora** desta onda por decisão
+`runtime/pinker_rt/src/lib.rs` (2096 linhas; produção nas linhas 1–1802,
+`#[cfg(test)] mod tests` nas linhas 1804–2096 **fora** desta onda por decisão
 explícita) recebeu 15 regiões na camada nova `runtime`, cobrindo as 99 funções
-`pub extern "C" fn`/`pub unsafe extern "C" fn` exportadas e os helpers,
-constantes e `struct`s internos que as sustentam. Só comentários `//
+`pub extern "C" fn`/`pub unsafe extern "C" fn` diretas mais os 8 wrappers
+`pinker_formatar_verso_1..8` gerados pela macro `formatar_wrappers!` — 107
+símbolos de ABI exportados no total — e os helpers, constantes e `struct`s
+internos que as sustentam. Só comentários `//
 @pinker-nav:*` foram inseridos — nenhuma assinatura, visibilidade, ABI, tipo,
 layout, algoritmo, tratamento de erro, import ou dependência mudou; o `git
 diff` do arquivo contém somente linhas adicionadas de comentário.
@@ -970,7 +974,9 @@ corpus completo de produção nas duas raízes ativas do scanner (`src/` e
 fora por não terem responsabilidade nomeável (ver "Arquivos sem candidatos a
 âncora"). O único arquivo de produção do runtime,
 `runtime/pinker_rt/src/lib.rs`, está **totalmente ancorado** desde esta onda
-(15 regiões cobrindo as 99 funções ABI exportadas e os helpers internos; 0
+(15 regiões cobrindo as 99 funções ABI diretas mais os 8 wrappers
+`pinker_formatar_verso_1..8` gerados pela macro `formatar_wrappers!` — 107
+símbolos de ABI exportados no total — e os helpers internos; 0
 símbolos não classificados fora do `#[cfg(test)] mod tests`, explicitamente
 excluído).
 
@@ -1007,8 +1013,10 @@ ativar as respectivas raízes).
 **Onda 7 — cartografia das superfícies operacionais: `src/main.rs`,
 `src/editor_tui.rs` e `src/boot.rs`.** A Onda 6E encerrou a Onda 6 inteira: o
 runtime nativo (`runtime/pinker_rt/src/lib.rs`) está totalmente ancorado, com
-15 regiões na camada `runtime` cobrindo as 99 funções de ABI exportadas e os
-helpers internos. Os três arquivos de produção restantes em `src/` — CLI,
+15 regiões na camada `runtime` cobrindo as 99 funções de ABI diretas mais os 8
+wrappers `pinker_formatar_verso_1..8` gerados pela macro `formatar_wrappers!`
+(107 símbolos de ABI exportados no total) e os helpers internos. Os três
+arquivos de produção restantes em `src/` — CLI,
 editor TUI e boot freestanding — permanecem sem cartografia; a Onda 7 deve
 revisá-los e ancorá-los com o mesmo rigor factual (§7, §12). Permanecem depois:
 Ondas 8/9 — tests/apps (cada uma exige ativar sua própria raiz primeiro).

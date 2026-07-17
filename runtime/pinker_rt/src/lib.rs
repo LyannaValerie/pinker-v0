@@ -66,7 +66,7 @@ pub extern "C" fn pinker_rt_versao() -> u64 {
 // @pinker-nav:start runtime.memoria.alocador
 // @pinker-nav:domain memoria
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Alocador manual com cabeçalho de tamanho: pinker_alocar reserva um bloco alinhado a 16 bytes com o tamanho total gravado no cabeçalho (aborta apenas se o sistema recusar a alocação) e pinker_liberar libera a partir do cabeçalho; pinker_liberar exige, sem validar, que o ponteiro tenha sido devolvido por pinker_alocar e ainda não liberado.
+// @pinker-nav:summary Alocador manual com cabeçalho de tamanho: pinker_alocar reserva um bloco alinhado a 16 bytes com o tamanho total gravado no cabeçalho e devolve ponteiro nulo — sem abortar — em overflow do tamanho (checked_add) ou em falha de alocação do sistema; pinker_liberar libera a partir do cabeçalho, confiando, sem validar, que o ponteiro tenha sido devolvido por pinker_alocar e ainda não liberado.
 fn layout_para(tamanho_total: usize) -> Layout {
     Layout::from_size_align(tamanho_total, ALINHAMENTO)
         .expect("layout de alocação inválido no runtime pinker_rt")
@@ -686,7 +686,7 @@ pub unsafe extern "C" fn pinker_lista_inserir(l: *mut u8, indice: u64, valor: u6
 // @pinker-nav:start runtime.mapas.dinamicos
 // @pinker-nav:domain mapas
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Mapa dinâmico com headers paralelos de chaves e valores (`[len][cap][chaves][valores][chave_e_verso]`), busca linear O(n), comparação de chave por conteúdo (pinker_verso_igual) quando chave_e_verso ou por valor caso contrário, remoção com deslocamento que preserva ordem de inserção, e cursor de iteração criado como snapshot das chaves (mutações no mapa após a criação do cursor não afetam a iteração já em curso); chave ausente ou cursor esgotado abortam via erro_fatal.
+// @pinker-nav:summary Mapa dinâmico com headers paralelos de chaves e valores (`[len][cap][chaves][valores][chave_e_verso]`), busca linear O(n), comparação de chave por conteúdo (pinker_verso_igual) quando chave_e_verso ou por valor caso contrário, remoção com deslocamento que preserva ordem de inserção, e cursor de iteração criado como snapshot das chaves (mutações no mapa após a criação do cursor não afetam a iteração já em curso); somente a leitura por pinker_mapa_obter aborta via erro_fatal em chave ausente — pinker_mapa_tem devolve 0 e pinker_mapa_remover é no-op quando a chave falta —, e o cursor esgotado (pinker_mapa_iterador_proxima) também aborta via erro_fatal.
 const MAPA_CAP_INICIAL: u64 = 8;
 
 unsafe fn mapa_len(m: *mut u8) -> u64 {
@@ -914,7 +914,7 @@ pub unsafe extern "C" fn pinker_mapa_iterador_proxima(cursor: *mut u8) -> u64 {
 // @pinker-nav:start runtime.leques.variantes
 // @pinker-nav:domain leques
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Leque com carga: header `[tag][n][cap][cargas]` construído por pinker_leque_criar_0 seguido de anexos sucessivos que devolvem o mesmo handle (cadeia composável espelhando a IR); pinker_leque_carga verifica a tag antes de ler e aborta via erro_fatal em variante inconsistente ou índice fora da faixa; leques sem carga não passam por aqui.
+// @pinker-nav:summary Leque com carga: header `[tag][n][cap][cargas]` construído por pinker_leque_criar_0, que inicializa a tag com n=0 cargas; anexos sucessivos via pinker_leque_anexar adicionam cargas e devolvem o mesmo handle (cadeia composável espelhando a IR); pinker_leque_carga verifica a tag antes de ler e aborta via erro_fatal em variante inconsistente ou índice fora da faixa.
 const LEQUE_CAP_INICIAL: u64 = 4;
 
 unsafe fn leque_n(l: *mut u8) -> u64 {
@@ -1226,7 +1226,7 @@ pub unsafe extern "C" fn pinker_arquivo_renomear(de: *const u8, para: *const u8)
 // @pinker-nav:start runtime.caminhos.sistema
 // @pinker-nav:domain caminhos
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Consultas e operações de sistema de arquivos sobre caminhos (existência, tipo, junção, tamanho, vazio, criação/remoção de diretório e arquivo, diretório atual) delegando diretamente a std::fs/std::path; falhas do sistema operacional abortam via erro_fatal com a mensagem do erro original anexada.
+// @pinker-nav:summary Consultas e operações de sistema de arquivos sobre caminhos, delegando a std::fs/std::path: pinker_caminho_existe/e_arquivo/e_diretorio devolvem booleano puro (Path::exists/is_file/is_dir) sem nunca abortar, e pinker_caminho_juntar apenas monta o PathBuf; já pinker_caminho_tamanho_arquivo e pinker_caminho_e_vazio (ambas via std::fs::metadata, exigindo que o caminho seja arquivo) e as operações mutadoras (criar/remover diretório, remover arquivo, diretório atual) abortam via erro_fatal com a mensagem do erro original anexada quando o sistema operacional falha.
 /// # Safety
 /// `caminho` deve apontar para um bloco de verso válido.
 #[no_mangle]
