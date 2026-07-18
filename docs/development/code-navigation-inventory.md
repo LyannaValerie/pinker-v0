@@ -1152,6 +1152,69 @@ catálogo passa de **236 para 294 regiões**, com as 236 anteriores preservadas
 alterada: as sete suítes receberam apenas marcadores `// @pinker-nav:`. A Onda 8
 permanece **in-progress**.
 
+## Onda 8E — evidências da execução interpretada
+
+`tests/interpreter_tests.rs` foi integralmente cartografada em **46 regiões** de
+evidência (`domain: interpreter`, `layer: evidencia`), cobrindo os **538 testes**
+`#[test]` da suíte. A lista congelada de chaves e a contagem de testes por região
+estão no teste estrutural `onda_8e_cartografa_evidencias_da_execucao_interpretada`
+(`tests/nav_cartography_tests.rs`), que é a fonte autoritativa. As regiões seguem
+a ordem física da suíte e agrupam responsabilidades reais, não proximidade:
+
+- **Execução núcleo e semântica de linguagem** — `execucao-nucleo-estado-aritmetica-fluxo`,
+  `execucao-operadores-aritmeticos-relacionais-e-sinais`,
+  `execucao-chamadas-e-curto-circuito`, `fluxo-controle-lacos-quebrar-continuar`,
+  `execucao-recursao-e-fluxo-interpretador-e-cli`,
+  `execucao-operadores-e-fluxo-cli-exemplos`, `execucao-cli-exemplos-basicos`,
+  `execucao-funcoes-usuario-tratos-e-genericos`.
+- **Texto e verso** — `texto-verso-intrinsecas-consulta-transformacao`,
+  `texto-io-por-handle-e-arquivos-releitura`,
+  `texto-verso-e-io-textual-por-caminho`, `texto-dividir-juntar-e-buscar`,
+  `texto-formatar-verso`, `texto-formatar-cli-exemplos`.
+- **Entrada, argumentos e ambiente** — `entrada-argumentos-flags-contexto-ambiente`,
+  `entrada-argumentos-e-ambiente-cli-exemplos`.
+- **Arquivos, caminhos, CSV, JSON e tempo** — `arquivos-introspeccao-caminho-e-diretorios`,
+  `arquivos-handle-fechado-e-fluxo-completo`,
+  `arquivos-e-ambiente-fallback-cli-exemplos`, `arquivos-csv-serializacao`,
+  `arquivos-json-serializacao`, `arquivos-csv-json-cli-exemplos`,
+  `tempo-unix-e-formatacao`.
+- **Ponteiros e recortes de baixo nível** — `ponteiros-seta-operacional`,
+  `ponteiros-boot-freestanding-e-subset-nativo`,
+  `ponteiros-indexacao-e-array-operacional`,
+  `ponteiros-escrita-indice-e-array-fixo`,
+  `checagem-cli-modulos-e-recortes-linguagem`.
+- **Processos** — `processos-externo-executar`, `processos-argv-explicito`,
+  `processos-captura-stdout`, `processos-captura-stderr`,
+  `processos-entrada-stdin`, `processos-pipeline`.
+- **Coleções, aleatoriedade e leques** — `colecoes-lista-bombom`,
+  `colecoes-mapa-verso-bombom`, `colecoes-iteracao-lista-e-mapa`,
+  `aleatoriedade-semente`, `leques-trazer-recursos-e-programas-brinquedo`.
+- **Diagnósticos de runtime** — `diagnostico-simbolo-inexistente`,
+  `diagnostico-runtime-aritmetica-e-stack-trace`,
+  `diagnostico-runtime-execucao-invalida`, `diagnostico-stack-trace-truncamento`,
+  `diagnostico-cli-exit-nonzero`, `diagnostico-render-fonte-e-operador-bitnot`,
+  `execucao-repl-e-render-erro-fonte`.
+
+**Limites explícitos honestos.** A suíte exercita a execução **interpretada** da
+Pinker (helper `run_code`/`run_code_with_args` em processo e o binário `pink`
+sobre exemplos `.pink` versionados via `cli_run`/`cli_check`); ela **não** prova
+paridade com o backend nativo. Cada summary distingue comportamento **observado**
+de inferência: casos verificados por `assert_eq!` são igualdade exata, casos por
+`contains` são apenas inclusão de substring (mensagens tratadas como estáveis só
+onde há `contains`), e casos por `is_ok`/`unwrap()` comprovam ausência de erro,
+não semântica integral. Nenhuma região afirma que uma intrínseca inteira está
+validada — apenas o recorte presente (ex.: CSV/JSON planos mínimos, tempo sem
+valor absoluto de relógio, aleatoriedade determinística por semente sem garantia
+estatística, `juntar_caminho` sem canonicalização). Regiões CLI que enumeram
+múltiplas features descrevem a responsabilidade de **harness de execução via
+processo**, sem alegar cobertura total de cada feature citada.
+
+O catálogo passa de **294 para 340 regiões**, com as 294 anteriores preservadas
+(chave, arquivo, domínio, camada, summary e hash). O diff em
+`tests/interpreter_tests.rs` é **marker-only** (230 linhas `// @pinker-nav:`
+inseridas, zero remoções, nenhuma assertion, fixture, nome de teste ou lógica
+alterados). A Onda 8 permanece **in-progress**.
+
 ## Testes ativos e apps adiados
 
 `tests/` é raiz oficial ativa desde a Onda 8A. O scanner tem três raízes
@@ -1177,7 +1240,7 @@ pendentes.
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 8D)
+## Cobertura acumulada (após Onda 8E)
 
 | Métrica | Valor |
 |---|---:|
@@ -1194,11 +1257,13 @@ pendentes.
 | Evidência em `tests/parser_tests.rs` | Integral |
 | Evidência em `tests/semantic_tests.rs` | Integral |
 | Evidência nas 7 suítes de pipeline (IR/CFG/seleção/máquina) | Integral (Onda 8D) |
+| Evidência em `tests/interpreter_tests.rs` | Integral (Onda 8E) |
 | Demais suítes `tests/*.rs` | Pendentes |
 | Regiões antes da Onda 7 | 163 |
 | Regiões adicionadas na Onda 7 | 20 |
 | Regiões adicionadas na Onda 8D | 58 |
-| Regiões no catálogo | 294 |
+| Regiões adicionadas na Onda 8E | 46 |
+| Regiões no catálogo | 340 |
 | Raízes oficiais ativas | 3 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
@@ -1246,8 +1311,8 @@ excluído).
 | cli | 15 | Onda 7: config-modelos, ajuda-usage, parsing (subcomandos, roteamento), execução (entrada, editor-repl), nav (consulta, sincronização-verificação), doc (consulta, sincronização, mudanças, verificação), análise-pipeline, build-nativo, módulos-importação |
 | editor | 4 | Onda 7: estado-modelo, sessão-comandos, render-saída, análise-checagem |
 | boot | 1 | Onda 7: geração-fronteira-freestanding (arquivo inteiro) |
-| evidencia | 111 | Onda 8B (19) + Onda 8C (34) + Onda 8D (58: ir 11, cfg 14, select 6, machine 27) |
-| **total** | **294** | |
+| evidencia | 157 | Onda 8B (19) + Onda 8C (34) + Onda 8D (58: ir 11, cfg 14, select 6, machine 27) + Onda 8E (46: interpreter, execução interpretada) |
+| **total** | **340** | |
 
 Pendentes de cartografia: as demais suítes `tests/*.rs` na Onda 8 e `apps/` na
 Onda 9. As três superfícies operacionais (cli/editor/boot) foram concluídas na
@@ -1256,9 +1321,12 @@ Onda 7.
 ## Próximo ponto de retomada
 
 **Próximo grupo de evidências nas suítes `tests/*.rs` ainda não cartografadas,
-definido por inventário antes da edição.** Concluído o pipeline IR→CFG→seleção→
-máquina na Onda 8D, os candidatos remanescentes são, em ordem de proximidade ao
-pipeline já mapeado: `tests/interpreter_tests.rs` (execução da máquina validada),
-os backends textual (pseudo-asm) e `.s`, a paridade nativa, o runtime, a Trama
-operacional e a CLI. Onda 9 continua reservada a `apps/`. A Onda 8 permanece
-**in-progress**.
+definido por inventário antes da edição.** Concluída a execução interpretada em
+`tests/interpreter_tests.rs` na Onda 8E (46 regiões, 538 testes), os candidatos
+remanescentes são, em ordem de proximidade ao já mapeado: as suítes dos backends
+textual (pseudo-asm) e `.s` e a paridade nativa, o runtime nativo
+(`runtime/pinker_rt`), as suítes da Trama operacional/documental
+(`nav_catalog`, `doc_catalog`, `trama_query`) e as suítes da CLI. Onda 9 continua
+reservada a `apps/`. A Onda 8 permanece **in-progress** — o inventário das suítes
+restantes ainda não prova ausência de pendências, portanto a Onda 8 não é
+declarada concluída.

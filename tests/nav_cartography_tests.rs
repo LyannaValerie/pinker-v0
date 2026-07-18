@@ -1617,3 +1617,266 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
         "catálogo deveria conter ao menos 294 regiões após a Onda 8D"
     );
 }
+
+#[test]
+fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    // A Onda 8E cartografa tests/interpreter_tests.rs (evidências da execução
+    // interpretada da Pinker) em 46 regiões de evidência no domínio `interpreter`.
+    // As contagens de #[test] por região estão congeladas no plano e a ordem
+    // física da suíte é preservada. Chaves em ordem alfabética para diff estável.
+    let expected_interpreter_keys: [(&str, usize); 46] = [
+        ("evidencia.interpreter.aleatoriedade-semente", 8),
+        ("evidencia.interpreter.arquivos-csv-json-cli-exemplos", 7),
+        ("evidencia.interpreter.arquivos-csv-serializacao", 6),
+        (
+            "evidencia.interpreter.arquivos-e-ambiente-fallback-cli-exemplos",
+            12,
+        ),
+        (
+            "evidencia.interpreter.arquivos-handle-fechado-e-fluxo-completo",
+            11,
+        ),
+        (
+            "evidencia.interpreter.arquivos-introspeccao-caminho-e-diretorios",
+            23,
+        ),
+        ("evidencia.interpreter.arquivos-json-serializacao", 7),
+        (
+            "evidencia.interpreter.checagem-cli-modulos-e-recortes-linguagem",
+            20,
+        ),
+        ("evidencia.interpreter.colecoes-iteracao-lista-e-mapa", 18),
+        ("evidencia.interpreter.colecoes-lista-bombom", 17),
+        ("evidencia.interpreter.colecoes-mapa-verso-bombom", 7),
+        ("evidencia.interpreter.diagnostico-cli-exit-nonzero", 1),
+        (
+            "evidencia.interpreter.diagnostico-render-fonte-e-operador-bitnot",
+            9,
+        ),
+        (
+            "evidencia.interpreter.diagnostico-runtime-aritmetica-e-stack-trace",
+            7,
+        ),
+        (
+            "evidencia.interpreter.diagnostico-runtime-execucao-invalida",
+            3,
+        ),
+        ("evidencia.interpreter.diagnostico-simbolo-inexistente", 2),
+        (
+            "evidencia.interpreter.diagnostico-stack-trace-truncamento",
+            4,
+        ),
+        (
+            "evidencia.interpreter.entrada-argumentos-e-ambiente-cli-exemplos",
+            16,
+        ),
+        (
+            "evidencia.interpreter.entrada-argumentos-flags-contexto-ambiente",
+            31,
+        ),
+        (
+            "evidencia.interpreter.execucao-chamadas-e-curto-circuito",
+            7,
+        ),
+        ("evidencia.interpreter.execucao-cli-exemplos-basicos", 3),
+        (
+            "evidencia.interpreter.execucao-funcoes-usuario-tratos-e-genericos",
+            18,
+        ),
+        (
+            "evidencia.interpreter.execucao-nucleo-estado-aritmetica-fluxo",
+            10,
+        ),
+        (
+            "evidencia.interpreter.execucao-operadores-aritmeticos-relacionais-e-sinais",
+            12,
+        ),
+        (
+            "evidencia.interpreter.execucao-operadores-e-fluxo-cli-exemplos",
+            12,
+        ),
+        (
+            "evidencia.interpreter.execucao-recursao-e-fluxo-interpretador-e-cli",
+            13,
+        ),
+        ("evidencia.interpreter.execucao-repl-e-render-erro-fonte", 7),
+        (
+            "evidencia.interpreter.fluxo-controle-lacos-quebrar-continuar",
+            2,
+        ),
+        (
+            "evidencia.interpreter.leques-trazer-recursos-e-programas-brinquedo",
+            20,
+        ),
+        (
+            "evidencia.interpreter.ponteiros-boot-freestanding-e-subset-nativo",
+            21,
+        ),
+        (
+            "evidencia.interpreter.ponteiros-escrita-indice-e-array-fixo",
+            4,
+        ),
+        (
+            "evidencia.interpreter.ponteiros-indexacao-e-array-operacional",
+            4,
+        ),
+        ("evidencia.interpreter.ponteiros-seta-operacional", 13),
+        ("evidencia.interpreter.processos-argv-explicito", 7),
+        ("evidencia.interpreter.processos-captura-stderr", 19),
+        ("evidencia.interpreter.processos-captura-stdout", 18),
+        ("evidencia.interpreter.processos-entrada-stdin", 16),
+        ("evidencia.interpreter.processos-externo-executar", 9),
+        ("evidencia.interpreter.processos-pipeline", 10),
+        ("evidencia.interpreter.tempo-unix-e-formatacao", 7),
+        ("evidencia.interpreter.texto-dividir-juntar-e-buscar", 27),
+        ("evidencia.interpreter.texto-formatar-cli-exemplos", 4),
+        ("evidencia.interpreter.texto-formatar-verso", 5),
+        (
+            "evidencia.interpreter.texto-io-por-handle-e-arquivos-releitura",
+            20,
+        ),
+        (
+            "evidencia.interpreter.texto-verso-e-io-textual-por-caminho",
+            16,
+        ),
+        (
+            "evidencia.interpreter.texto-verso-intrinsecas-consulta-transformacao",
+            25,
+        ),
+    ];
+
+    let file = "tests/interpreter_tests.rs";
+    let mut planned_keys = HashSet::new();
+
+    // Unicidade global das chaves e coerência de arquivo/camada/domínio/marcadores.
+    for &(key, _) in expected_interpreter_keys.iter() {
+        assert!(
+            planned_keys.insert(key),
+            "chave de evidência repetida no plano da Onda 8E: {key}"
+        );
+        let region = catalog
+            .region(key)
+            .unwrap_or_else(|| panic!("chave de evidência ausente no catálogo: {key}"));
+        assert_eq!(
+            region.file, file,
+            "chave '{key}' deveria apontar para {file}"
+        );
+        assert_eq!(
+            region.layer.as_deref(),
+            Some("evidencia"),
+            "chave '{key}' deveria usar a camada evidencia"
+        );
+        assert_eq!(
+            region.domain.as_deref(),
+            Some("interpreter"),
+            "chave '{key}' deveria usar o domínio interpreter"
+        );
+        assert!(
+            region.start_marker < region.content_start
+                && region.content_start <= region.content_end
+                && region.content_end < region.end_marker,
+            "chave '{key}' deveria ter marcadores ordenados"
+        );
+    }
+    assert_eq!(
+        planned_keys.len(),
+        46,
+        "o plano da Onda 8E deveria ter exatamente 46 regiões"
+    );
+
+    // Cobertura estrutural: todo #[test] da suíte pertence a exatamente uma região.
+    let source_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(file);
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|error| panic!("não foi possível ler {}: {error}", source_path.display()));
+    let lines: Vec<_> = source.lines().collect();
+    let mut owned_test_counts = vec![0usize; expected_interpreter_keys.len()];
+    let mut test_count = 0usize;
+
+    for (attribute_index, line) in lines.iter().enumerate() {
+        if line.trim() != "#[test]" {
+            continue;
+        }
+        let test_line = attribute_index + 1;
+        let test_name = lines
+            .iter()
+            .skip(attribute_index + 1)
+            .take(8)
+            .find_map(|candidate| {
+                candidate
+                    .trim()
+                    .strip_prefix("fn ")?
+                    .split_once('(')
+                    .map(|(name, _)| name.trim())
+            })
+            .unwrap_or_else(|| {
+                panic!("structural_test_function_not_found: arquivo {file}, linha {test_line}")
+            });
+        let owners: Vec<_> = expected_interpreter_keys
+            .iter()
+            .enumerate()
+            .filter_map(|(index, (key, _))| {
+                let region = catalog
+                    .region(key)
+                    .unwrap_or_else(|| panic!("chave de evidência ausente no catálogo: {key}"));
+                (region.content_start <= test_line && test_line <= region.content_end)
+                    .then_some((index, *key))
+            })
+            .collect();
+        match owners.as_slice() {
+            [(index, _)] => owned_test_counts[*index] += 1,
+            [] => panic!(
+                "structural_test_region_not_found: arquivo {file}, linha {test_line}, função {test_name}"
+            ),
+            _ => panic!(
+                "structural_test_region_ambiguous: arquivo {file}, linha {test_line}, função {test_name}, proprietárias {:?}",
+                owners.iter().map(|(_, key)| *key).collect::<Vec<_>>()
+            ),
+        }
+        test_count += 1;
+    }
+
+    assert_eq!(
+        test_count, 538,
+        "a Onda 8E deveria cobrir exatamente 538 testes da suíte interpreter"
+    );
+    for ((key, expected), owned) in expected_interpreter_keys.iter().zip(owned_test_counts) {
+        assert_eq!(
+            owned, *expected,
+            "região '{key}' deveria possuir {expected} #[test], obteve {owned}"
+        );
+    }
+
+    // Preservação das evidências anteriores (Ondas 8B–8D) e crescimento do catálogo:
+    // total de evidência = 111 anteriores + 46 da Onda 8E.
+    let evidence_total = catalog
+        .regions
+        .iter()
+        .filter(|region| region.layer.as_deref() == Some("evidencia"))
+        .count();
+    assert!(
+        evidence_total >= 157,
+        "catálogo deveria conter ao menos 157 regiões de evidência (111 anteriores + 46 da Onda 8E), obteve {evidence_total}"
+    );
+    for previous in [
+        "evidencia.ir.lowering-programa",
+        "evidencia.select.blocos-e-terminadores",
+        "evidencia.machine.renderizacao-cli-golden",
+    ] {
+        let region = catalog
+            .region(previous)
+            .unwrap_or_else(|| panic!("região de evidência anterior ausente: {previous}"));
+        assert_eq!(
+            region.layer.as_deref(),
+            Some("evidencia"),
+            "região anterior '{previous}' deveria permanecer como evidencia"
+        );
+    }
+
+    assert!(
+        catalog.regions.len() >= 340,
+        "catálogo deveria conter ao menos 340 regiões após a Onda 8E"
+    );
+}
