@@ -1154,24 +1154,28 @@ permanece **in-progress**.
 
 ## Onda 8E — evidências da execução interpretada
 
-`tests/interpreter_tests.rs` foi integralmente cartografada em **46 regiões** de
-evidência (`domain: interpreter`, `layer: evidencia`), cobrindo os **538 testes**
-`#[test]` da suíte. A lista congelada de chaves e a contagem de testes por região
-estão no teste estrutural `onda_8e_cartografa_evidencias_da_execucao_interpretada`
-(`tests/nav_cartography_tests.rs`), que é a fonte autoritativa. As regiões seguem
-a ordem física da suíte e agrupam responsabilidades reais, não proximidade:
+`tests/interpreter_tests.rs` foi cartografada em **46 regiões** de evidência
+(`domain: interpreter`, `layer: evidencia`), cobrindo **534 dos 538 testes**
+`#[test]` da suíte. A lista congelada de chaves, a contagem de testes por região
+e a lista fechada de quatro `future_item` estão no teste estrutural
+`onda_8e_cartografa_evidencias_da_execucao_interpretada`
+(`tests/nav_cartography_tests.rs`), que também compara o catálogo versionado com
+a regeneração canônica para detectar drift de summary, faixa ou hash. As regiões
+seguem a ordem física da suíte e agrupam responsabilidades reais, não proximidade:
 
 - **Execução núcleo e semântica de linguagem** — `execucao-nucleo-estado-aritmetica-fluxo`,
   `execucao-operadores-aritmeticos-relacionais-e-sinais`,
-  `execucao-chamadas-e-curto-circuito`, `fluxo-controle-lacos-quebrar-continuar`,
+  `execucao-chamadas-e-curto-circuito`, `fluxo-controle-lacos-basicos`,
   `execucao-recursao-e-fluxo-interpretador-e-cli`,
   `execucao-operadores-e-fluxo-cli-exemplos`, `execucao-cli-exemplos-basicos`,
   `execucao-funcoes-usuario-tratos-e-genericos`.
 - **Texto e verso** — `texto-verso-intrinsecas-consulta-transformacao`,
   `texto-io-por-handle-e-arquivos-releitura`,
-  `texto-verso-e-io-textual-por-caminho`, `texto-dividir-juntar-e-buscar`,
+  `texto-verso-e-io-textual-por-caminho`,
+  `texto-dividir-substituir-juntar-e-buscar`,
   `texto-formatar-verso`, `texto-formatar-cli-exemplos`.
-- **Entrada, argumentos e ambiente** — `entrada-argumentos-flags-contexto-ambiente`,
+- **Entrada, argumentos e ambiente** — `entrada-argumentos-nomeados-e-flags`,
+  `entrada-contexto-ambiente-e-saida`,
   `entrada-argumentos-e-ambiente-cli-exemplos`.
 - **Arquivos, caminhos, CSV, JSON e tempo** — `arquivos-introspeccao-caminho-e-diretorios`,
   `arquivos-handle-fechado-e-fluxo-completo`,
@@ -1180,7 +1184,7 @@ a ordem física da suíte e agrupam responsabilidades reais, não proximidade:
   `tempo-unix-e-formatacao`.
 - **Ponteiros e recortes de baixo nível** — `ponteiros-seta-operacional`,
   `ponteiros-boot-freestanding-e-subset-nativo`,
-  `ponteiros-indexacao-e-array-operacional`,
+  `ponteiros-array-fixo-e-cast-memoria-cli`,
   `ponteiros-escrita-indice-e-array-fixo`,
   `checagem-cli-modulos-e-recortes-linguagem`.
 - **Processos** — `processos-externo-executar`, `processos-argv-explicito`,
@@ -1190,9 +1194,9 @@ a ordem física da suíte e agrupam responsabilidades reais, não proximidade:
   `colecoes-mapa-verso-bombom`, `colecoes-iteracao-lista-e-mapa`,
   `aleatoriedade-semente`, `leques-trazer-recursos-e-programas-brinquedo`.
 - **Diagnósticos de runtime** — `diagnostico-simbolo-inexistente`,
-  `diagnostico-runtime-aritmetica-e-stack-trace`,
+  `diagnostico-runtime-avaliacao-e-chamadas`,
   `diagnostico-runtime-execucao-invalida`, `diagnostico-stack-trace-truncamento`,
-  `diagnostico-cli-exit-nonzero`, `diagnostico-render-fonte-e-operador-bitnot`,
+  `diagnostico-render-fonte-e-operador-bitnot`,
   `execucao-repl-e-render-erro-fonte`.
 
 **Limites explícitos honestos.** A suíte exercita a execução **interpretada** da
@@ -1209,11 +1213,21 @@ estatística, `juntar_caminho` sem canonicalização). Regiões CLI que enumeram
 múltiplas features descrevem a responsabilidade de **harness de execução via
 processo**, sem alegar cobertura total de cada feature citada.
 
+Quatro testes de backend/CLI permanecem explicitamente adiados como
+`future_item`, fora de qualquer região da Onda 8E:
+`cli_build_gera_artefato_s_no_diretorio_padrao`,
+`cli_build_com_imports_gera_artefato_no_out_dir`,
+`cli_build_sem_arquivo_falha_com_uso` e
+`cli_build_falha_semantica_retorna_erro`. O gate estrutural rejeita qualquer
+quinta exclusão e também falha se um desses quatro itens for cartografado.
+
 O catálogo passa de **294 para 340 regiões**, com as 294 anteriores preservadas
 (chave, arquivo, domínio, camada, summary e hash). O diff em
 `tests/interpreter_tests.rs` é **marker-only** (230 linhas `// @pinker-nav:`
 inseridas, zero remoções, nenhuma assertion, fixture, nome de teste ou lógica
-alterados). A Onda 8 permanece **in-progress**.
+alterados). As 46 regiões possuem chaves únicas e cobrem 534 testes exatamente
+uma vez; `nav verificar` e a comparação byte a byte com a regeneração canônica
+estão verdes. A Onda 8 e a cartografia da Trama permanecem **in-progress**.
 
 ## Testes ativos e apps adiados
 
@@ -1229,8 +1243,8 @@ Já estão cartografados como evidência `tests/common/mod.rs` (parcialmente, co
 `tests/ir_tests.rs`, `tests/ir_validate_tests.rs`, `tests/cfg_ir_tests.rs`,
 `tests/cfg_ir_validate_tests.rs`, `tests/instr_select_tests.rs`,
 `tests/abstract_machine_tests.rs` e `tests/abstract_machine_stack_tests.rs`;
-todas, integralmente. As demais suítes `tests/*.rs` (interpretador, backends
-textual/`.s`, nativas, runtime, Trama, documentais, CLI, apps) continuam
+todas, integralmente. As demais suítes `tests/*.rs` (backends textual/`.s`,
+nativas, runtime, Trama, documentais, CLI, apps) continuam
 pendentes.
 
 - `tests/*.rs` — evidência por camada (lexer, parser, semântica, IR/CFG/seleção/
@@ -1322,7 +1336,8 @@ Onda 7.
 
 **Próximo grupo de evidências nas suítes `tests/*.rs` ainda não cartografadas,
 definido por inventário antes da edição.** Concluída a execução interpretada em
-`tests/interpreter_tests.rs` na Onda 8E (46 regiões, 538 testes), os candidatos
+`tests/interpreter_tests.rs` na Onda 8E (46 regiões, 534 testes cartografados e
+quatro testes de backend/CLI adiados como `future_item`), os candidatos
 remanescentes são, em ordem de proximidade ao já mapeado: as suítes dos backends
 textual (pseudo-asm) e `.s` e a paridade nativa, o runtime nativo
 (`runtime/pinker_rt`), as suítes da Trama operacional/documental
