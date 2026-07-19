@@ -1933,3 +1933,279 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         "catálogo deveria conter ao menos 340 regiões após a Onda 8E"
     );
 }
+
+#[test]
+fn onda_8f_cartografa_evidencias_do_backend_textual() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let path = repository.join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    let expected_regions: [(&str, &str, &[&str], usize); 8] = [
+        (
+            "evidencia.backend-text.pipeline-helper",
+            "tests/common/mod.rs",
+            &["render_backend_text"],
+            0,
+        ),
+        (
+            "evidencia.backend-text.apresentacao-cli-helper",
+            "tests/common/mod.rs",
+            &["render_cli_pseudo_asm_output"],
+            0,
+        ),
+        (
+            "evidencia.backend-text.renderizacao-programa-minimo",
+            "tests/backend_text_tests.rs",
+            &["emite_funcao_simples"],
+            1,
+        ),
+        (
+            "evidencia.backend-text.renderizacao-controle-fluxo",
+            "tests/backend_text_tests.rs",
+            &["emite_if_else", "emite_if_sem_else"],
+            2,
+        ),
+        (
+            "evidencia.backend-text.renderizacao-chamada-binaria",
+            "tests/backend_text_tests.rs",
+            &["emite_chamada_direta_com_temporario_e_binaria"],
+            1,
+        ),
+        (
+            "evidencia.backend-text.renderizacao-chamada-void-retorno-nulo",
+            "tests/backend_text_tests.rs",
+            &["emite_return_vazio_e_funcao_nulo"],
+            1,
+        ),
+        (
+            "evidencia.backend-text.renderizacao-globais",
+            "tests/backend_text_tests.rs",
+            &["emite_constante_global_e_principal"],
+            1,
+        ),
+        (
+            "evidencia.backend-text.apresentacao-cli-pseudo-asm",
+            "tests/backend_text_tests.rs",
+            &["cli_pseudo_asm_header_estavel"],
+            1,
+        ),
+    ];
+    let expected_future_items: [(&str, &str); 6] = [
+        (
+            "validador_cfg_falha_quando_cfg_invalida",
+            "tests/backend_text_tests.rs",
+        ),
+        (
+            "check_ignora_flags_de_emissao",
+            "tests/backend_text_tests.rs",
+        ),
+        (
+            "cli_build_gera_artefato_s_no_diretorio_padrao",
+            "tests/interpreter_tests.rs",
+        ),
+        (
+            "cli_build_com_imports_gera_artefato_no_out_dir",
+            "tests/interpreter_tests.rs",
+        ),
+        (
+            "cli_build_sem_arquivo_falha_com_uso",
+            "tests/interpreter_tests.rs",
+        ),
+        (
+            "cli_build_falha_semantica_retorna_erro",
+            "tests/interpreter_tests.rs",
+        ),
+    ];
+
+    let mut unique_catalog_keys = HashSet::new();
+    for region in &catalog.regions {
+        assert!(
+            unique_catalog_keys.insert(region.key.as_str()),
+            "chave duplicada no catálogo: {}",
+            region.key
+        );
+    }
+    assert_eq!(
+        catalog.regions.len(),
+        348,
+        "a Onda 8F deve totalizar 348 regiões"
+    );
+
+    let mut expected_keys: Vec<_> = expected_regions.iter().map(|entry| entry.0).collect();
+    expected_keys.sort_unstable();
+    let mut backend_text_keys: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| region.key.starts_with("evidencia.backend-text."))
+        .map(|region| region.key.as_str())
+        .collect();
+    backend_text_keys.sort_unstable();
+    assert_eq!(
+        backend_text_keys, expected_keys,
+        "a lista de regiões de evidência do backend textual deve ser exatamente a aprovada"
+    );
+
+    let mut source_cache = std::collections::HashMap::new();
+    for (_, file, _, _) in expected_regions {
+        source_cache.entry(file).or_insert_with(|| {
+            fs::read_to_string(repository.join(file))
+                .unwrap_or_else(|error| panic!("não foi possível ler {file}: {error}"))
+        });
+    }
+    for &(key, file, owned_symbols, expected_test_count) in &expected_regions {
+        let region = catalog
+            .region(key)
+            .unwrap_or_else(|| panic!("região aprovada ausente: {key}"));
+        assert_eq!(region.file, file, "arquivo divergente para {key}");
+        assert_eq!(region.domain.as_deref(), Some("backend-text"));
+        assert_eq!(region.layer.as_deref(), Some("evidencia"));
+        assert!(!region.summary.trim().is_empty(), "summary vazio em {key}");
+        assert!(
+            region.start_marker < region.content_start
+                && region.content_start <= region.content_end
+                && region.content_end < region.end_marker,
+            "ordem inválida dos marcadores em {key}"
+        );
+
+        let source = source_cache.get(file).unwrap();
+        let lines: Vec<_> = source.lines().collect();
+        let content = lines[(region.content_start - 1)..region.content_end].join("\n");
+        assert!(!content.trim().is_empty(), "conteúdo vazio em {key}");
+        for symbol in owned_symbols {
+            let function_line = lines
+                .iter()
+                .position(|line| {
+                    let line = line.trim();
+                    line.starts_with(&format!("fn {symbol}("))
+                        || line.starts_with(&format!("pub fn {symbol}("))
+                })
+                .map(|index| index + 1)
+                .unwrap_or_else(|| panic!("símbolo aprovado ausente: {symbol}"));
+            assert!(
+                region.content_start <= function_line && function_line <= region.content_end,
+                "símbolo {symbol} não pertence à região {key}"
+            );
+        }
+
+        let owned_test_count = lines
+            .iter()
+            .enumerate()
+            .filter(|(_, line)| line.trim() == "#[test]")
+            .filter(|(index, _)| {
+                let line = index + 1;
+                region.content_start <= line && line <= region.content_end
+            })
+            .count();
+        assert_eq!(
+            owned_test_count, expected_test_count,
+            "contagem de testes divergente em {key}"
+        );
+    }
+
+    let expected_future_names: HashSet<String> = expected_future_items
+        .iter()
+        .map(|(name, _)| (*name).to_string())
+        .collect();
+    let mut found_unowned_tests = HashSet::new();
+    for file in ["tests/backend_text_tests.rs", "tests/interpreter_tests.rs"] {
+        let source = fs::read_to_string(repository.join(file))
+            .unwrap_or_else(|error| panic!("não foi possível ler {file}: {error}"));
+        let lines: Vec<_> = source.lines().collect();
+        for (attribute_index, line) in lines.iter().enumerate() {
+            if line.trim() != "#[test]" {
+                continue;
+            }
+            let test_line = attribute_index + 1;
+            let test_name = lines
+                .iter()
+                .skip(attribute_index + 1)
+                .take(8)
+                .find_map(|candidate| {
+                    candidate
+                        .trim()
+                        .strip_prefix("fn ")?
+                        .split_once('(')
+                        .map(|(name, _)| name.trim())
+                })
+                .unwrap_or_else(|| panic!("função de teste ausente em {file}:{test_line}"));
+            let owners: Vec<_> = catalog
+                .regions
+                .iter()
+                .filter(|region| {
+                    region.file == file
+                        && region.content_start <= test_line
+                        && test_line <= region.content_end
+                })
+                .map(|region| region.key.as_str())
+                .collect();
+            assert!(
+                owners.len() <= 1,
+                "teste {test_name} absorvido por {owners:?}"
+            );
+            if owners.is_empty() {
+                assert!(
+                    expected_future_names.contains(test_name),
+                    "future_item não aprovado: {test_name}"
+                );
+                assert!(found_unowned_tests.insert(test_name.to_string()));
+            }
+        }
+    }
+    assert_eq!(
+        found_unowned_tests, expected_future_names,
+        "a lista de future_item deve permanecer fechada e sem absorção"
+    );
+    for &(name, file) in &expected_future_items {
+        let source = fs::read_to_string(repository.join(file)).unwrap();
+        assert!(
+            source
+                .lines()
+                .any(|line| line.trim().starts_with(&format!("fn {name}("))),
+            "future_item {name} ausente de {file}"
+        );
+    }
+
+    let regenerated = CodeIndex::scan_repo(&repository)
+        .expect("regeneração canônica do catálogo a partir das fontes");
+    assert!(
+        regenerated.verify().is_empty(),
+        "regeneração canônica inválida: {:?}",
+        regenerated.verify()
+    );
+    let versioned = fs::read_to_string(&path).expect("catálogo JSONL versionado");
+    assert_eq!(
+        versioned,
+        regenerated.render_jsonl(),
+        "src/navigation.jsonl diverge da regeneração canônica"
+    );
+
+    let expected_key_set: HashSet<_> = expected_keys.into_iter().collect();
+    let previous_lines: Vec<_> = versioned
+        .lines()
+        .filter(|line| {
+            !expected_key_set
+                .iter()
+                .any(|key| line.contains(&format!("\"key\":\"{key}\"")))
+        })
+        .collect();
+    assert_eq!(
+        previous_lines.len(),
+        340,
+        "as 340 regiões anteriores devem ser preservadas"
+    );
+    let previous_catalog = format!("{}\n", previous_lines.join("\n"));
+    let previous_fingerprint = previous_catalog
+        .bytes()
+        .fold(0xcbf29ce484222325u64, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
+        });
+    assert_eq!(
+        previous_catalog.len(),
+        188_291,
+        "o catálogo anterior mudou de tamanho"
+    );
+    assert_eq!(
+        previous_fingerprint, 0x0d7d4368896b84b7,
+        "as 340 entradas anteriores mudaram"
+    );
+}

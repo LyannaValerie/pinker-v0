@@ -2,6 +2,10 @@ mod common;
 
 use common::{render_backend_text, render_cli_pseudo_asm_output};
 
+// @pinker-nav:start evidencia.backend-text.renderizacao-programa-minimo
+// @pinker-nav:domain backend-text
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Compara por igualdade exata o pseudo-assembly renderizado para um programa mínimo hospedado com função principal e retorno inteiro.
 #[test]
 fn emite_funcao_simples() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -22,7 +26,12 @@ text:
 "
     );
 }
+// @pinker-nav:end evidencia.backend-text.renderizacao-programa-minimo
 
+// @pinker-nav:start evidencia.backend-text.renderizacao-controle-fluxo
+// @pinker-nav:domain backend-text
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Compara por igualdade exata a renderização de controle de fluxo nos casos presentes: if/else com branches de retorno e if sem else com bloco de join e atribuição local.
 #[test]
 fn emite_if_else() {
     let code = "\
@@ -82,7 +91,12 @@ text:
 "
     );
 }
+// @pinker-nav:end evidencia.backend-text.renderizacao-controle-fluxo
 
+// @pinker-nav:start evidencia.backend-text.renderizacao-chamada-binaria
+// @pinker-nav:domain backend-text
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Compara por igualdade exata a renderização de operação binária em temporário e chamada direta com retorno também materializado em temporário.
 #[test]
 fn emite_chamada_direta_com_temporario_e_binaria() {
     let code = "\
@@ -113,7 +127,12 @@ text:
 "
     );
 }
+// @pinker-nav:end evidencia.backend-text.renderizacao-chamada-binaria
 
+// @pinker-nav:start evidencia.backend-text.renderizacao-chamada-void-retorno-nulo
+// @pinker-nav:domain backend-text
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Compara por igualdade exata a renderização de função sem valor de retorno, terminador ret vazio e chamada call_void seguida pelo retorno inteiro da principal.
 #[test]
 fn emite_return_vazio_e_funcao_nulo() {
     let code = "\
@@ -146,7 +165,12 @@ text:
 "
     );
 }
+// @pinker-nav:end evidencia.backend-text.renderizacao-chamada-void-retorno-nulo
 
+// @pinker-nav:start evidencia.backend-text.renderizacao-globais
+// @pinker-nav:domain backend-text
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Compara por igualdade exata a renderização de uma constante global inteira e sua referência no retorno da função principal.
 #[test]
 fn emite_constante_global_e_principal() {
     let code = "\
@@ -170,7 +194,12 @@ text:
 "
     );
 }
+// @pinker-nav:end evidencia.backend-text.renderizacao-globais
 
+// @pinker-nav:start evidencia.backend-text.apresentacao-cli-pseudo-asm
+// @pinker-nav:domain backend-text
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Golden exato da apresentação sintética produzida por render_cli_pseudo_asm_output, incluindo cabeçalho, pseudo-assembly e rodapé histórico; o teste chama o helper em memória e não executa nem comprova um processo CLI.
 #[test]
 fn cli_pseudo_asm_header_estavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -193,6 +222,7 @@ Análise semântica concluída sem erros.
 "
     );
 }
+// @pinker-nav:end evidencia.backend-text.apresentacao-cli-pseudo-asm
 
 #[test]
 fn validador_cfg_falha_quando_cfg_invalida() {
