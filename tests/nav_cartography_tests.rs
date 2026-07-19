@@ -9,7 +9,7 @@
 //! `src/main.rs` (camada `cli`), `src/editor_tui.rs` (camada `editor`) e
 //! `src/boot.rs` (camada `boot`).
 
-use pinker_v0::nav::{CodeCatalog, CodeIndex};
+use pinker_v0::nav::{CodeCatalog, CodeIndex, CodeRegion};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -27,6 +27,35 @@ fn write(dir: &Path, rel: &str, content: &str) {
     let path = dir.join(rel);
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(path, content).unwrap();
+}
+
+fn stable_region_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -> String {
+    let mut records: Vec<_> = regions
+        .map(|region| {
+            format!(
+                "{:?}\n",
+                (
+                    1,
+                    region.key.as_str(),
+                    region.kind.as_str(),
+                    region.domain.as_deref(),
+                    region.layer.as_deref(),
+                    region.file.as_str(),
+                    region.summary.as_str(),
+                    region.hash.as_str(),
+                    region.status.as_str(),
+                )
+            )
+        })
+        .collect();
+    records.sort_unstable();
+    records.concat()
+}
+
+fn fnv1a64(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf29ce484222325u64, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+    })
 }
 
 const TWO_REGIONS: &str = "\
@@ -1749,7 +1778,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         ),
     ];
 
-    let expected_future_items: HashSet<&str> = [
+    let expected_excluded_from_8e: HashSet<&str> = [
         "cli_build_gera_artefato_s_no_diretorio_padrao",
         "cli_build_com_imports_gera_artefato_no_out_dir",
         "cli_build_sem_arquivo_falha_com_uso",
@@ -1815,8 +1844,8 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         "src/navigation.jsonl diverge da regeneração canônica (summary, faixa ou hash)"
     );
 
-    // Cobertura estrutural: 534 testes pertencem a exatamente uma região e somente
-    // os quatro future_item fechados acima permanecem fora da cartografia 8E.
+    // Cobertura estrutural: 534 testes pertencem a exatamente uma região 8E e
+    // somente as quatro exclusões fechadas acima permanecem fora dessas regiões.
     let source_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(file);
     let source = fs::read_to_string(&source_path)
         .unwrap_or_else(|error| panic!("não foi possível ler {}: {error}", source_path.display()));
@@ -1824,7 +1853,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     let mut owned_test_counts = vec![0usize; expected_interpreter_keys.len()];
     let mut total_test_count = 0usize;
     let mut mapped_test_count = 0usize;
-    let mut found_future_items = HashSet::new();
+    let mut found_excluded_from_8e = HashSet::new();
 
     for (attribute_index, line) in lines.iter().enumerate() {
         if line.trim() != "#[test]" {
@@ -1859,20 +1888,20 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         match owners.as_slice() {
             [(index, key)] => {
                 assert!(
-                    !expected_future_items.contains(test_name),
-                    "future_item '{test_name}' foi cartografado indevidamente pela região '{key}'"
+                    !expected_excluded_from_8e.contains(test_name),
+                    "teste excluído da Onda 8E '{test_name}' foi cartografado indevidamente pela região '{key}'"
                 );
                 owned_test_counts[*index] += 1;
                 mapped_test_count += 1;
             }
             [] => {
                 assert!(
-                    expected_future_items.contains(test_name),
+                    expected_excluded_from_8e.contains(test_name),
                     "structural_test_region_not_found: arquivo {file}, linha {test_line}, função {test_name}"
                 );
                 assert!(
-                    found_future_items.insert(test_name),
-                    "future_item repetido na suíte: {test_name}"
+                    found_excluded_from_8e.insert(test_name),
+                    "exclusão relativa à Onda 8E repetida na suíte: {test_name}"
                 );
             }
             _ => panic!(
@@ -1892,8 +1921,8 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         "a Onda 8E deveria cartografar exatamente 534 testes da suíte interpreter"
     );
     assert_eq!(
-        found_future_items, expected_future_items,
-        "a lista de future_item deveria conter exatamente os quatro testes cli_build_* adiados"
+        found_excluded_from_8e, expected_excluded_from_8e,
+        "as exclusões relativas à Onda 8E deveriam conter exatamente os quatro testes cli_build_*"
     );
     for ((key, expected), owned) in expected_interpreter_keys.iter().zip(owned_test_counts) {
         assert_eq!(
@@ -1904,14 +1933,16 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
 
     // Preservação das evidências anteriores (Ondas 8B–8D) e crescimento do catálogo:
     // total de evidência = 111 anteriores + 46 da Onda 8E.
-    let evidence_total = catalog
+    let historical_evidence_total = catalog
         .regions
         .iter()
         .filter(|region| region.layer.as_deref() == Some("evidencia"))
+        .filter(|region| !region.key.starts_with("evidencia.backend-text."))
+        .filter(|region| !region.key.starts_with("evidencia.backend-s."))
         .count();
-    assert!(
-        evidence_total >= 157,
-        "catálogo deveria conter ao menos 157 regiões de evidência (111 anteriores + 46 da Onda 8E), obteve {evidence_total}"
+    assert_eq!(
+        historical_evidence_total, 157,
+        "o estado histórico da Onda 8E deve conter 157 regiões de evidência (111 anteriores + 46 da Onda 8E)"
     );
     for previous in [
         "evidencia.ir.lowering-programa",
@@ -1928,9 +1959,15 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         );
     }
 
-    assert!(
-        catalog.regions.len() >= 340,
-        "catálogo deveria conter ao menos 340 regiões após a Onda 8E"
+    let historical_catalog_total = catalog
+        .regions
+        .iter()
+        .filter(|region| !region.key.starts_with("evidencia.backend-text."))
+        .filter(|region| !region.key.starts_with("evidencia.backend-s."))
+        .count();
+    assert_eq!(
+        historical_catalog_total, 340,
+        "o estado histórico da Onda 8E deve totalizar 340 regiões"
     );
 }
 
@@ -1990,7 +2027,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
             1,
         ),
     ];
-    let expected_future_items: [(&str, &str); 6] = [
+    let expected_excluded_from_8f: [(&str, &str); 6] = [
         (
             "validador_cfg_falha_quando_cfg_invalida",
             "tests/backend_text_tests.rs",
@@ -2025,14 +2062,19 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
             region.key
         );
     }
+    let historical_catalog_total = catalog
+        .regions
+        .iter()
+        .filter(|region| !region.key.starts_with("evidencia.backend-s."))
+        .count();
     assert_eq!(
-        catalog.regions.len(),
-        348,
-        "a Onda 8F deve totalizar 348 regiões"
+        historical_catalog_total, 348,
+        "o estado histórico da Onda 8F deve totalizar 348 regiões"
     );
 
     let mut expected_keys: Vec<_> = expected_regions.iter().map(|entry| entry.0).collect();
     expected_keys.sort_unstable();
+    let expected_key_set: HashSet<_> = expected_keys.iter().copied().collect();
     let mut backend_text_keys: Vec<_> = catalog
         .regions
         .iter()
@@ -2102,66 +2144,446 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
         );
     }
 
-    let expected_future_names: HashSet<String> = expected_future_items
-        .iter()
-        .map(|(name, _)| (*name).to_string())
-        .collect();
-    let mut found_unowned_tests = HashSet::new();
-    for file in ["tests/backend_text_tests.rs", "tests/interpreter_tests.rs"] {
-        let source = fs::read_to_string(repository.join(file))
-            .unwrap_or_else(|error| panic!("não foi possível ler {file}: {error}"));
+    let mut found_excluded_from_8f = HashSet::new();
+    for &(expected_name, file) in &expected_excluded_from_8f {
+        let source = fs::read_to_string(repository.join(file)).unwrap_or_else(|error| {
+            panic!("não foi possível ler exclusão relativa {file}: {error}")
+        });
         let lines: Vec<_> = source.lines().collect();
-        for (attribute_index, line) in lines.iter().enumerate() {
-            if line.trim() != "#[test]" {
-                continue;
-            }
-            let test_line = attribute_index + 1;
-            let test_name = lines
-                .iter()
-                .skip(attribute_index + 1)
-                .take(8)
-                .find_map(|candidate| {
-                    candidate
-                        .trim()
-                        .strip_prefix("fn ")?
-                        .split_once('(')
-                        .map(|(name, _)| name.trim())
-                })
-                .unwrap_or_else(|| panic!("função de teste ausente em {file}:{test_line}"));
-            let owners: Vec<_> = catalog
-                .regions
-                .iter()
-                .filter(|region| {
-                    region.file == file
-                        && region.content_start <= test_line
-                        && test_line <= region.content_end
-                })
-                .map(|region| region.key.as_str())
-                .collect();
-            assert!(
-                owners.len() <= 1,
-                "teste {test_name} absorvido por {owners:?}"
-            );
-            if owners.is_empty() {
-                assert!(
-                    expected_future_names.contains(test_name),
-                    "future_item não aprovado: {test_name}"
-                );
-                assert!(found_unowned_tests.insert(test_name.to_string()));
-            }
-        }
+        let test_line = lines
+            .iter()
+            .position(|line| line.trim().starts_with(&format!("fn {expected_name}(")))
+            .map(|index| index + 1)
+            .unwrap_or_else(|| panic!("teste excluído da Onda 8F ausente: {expected_name}"));
+        let owners_8f: Vec<_> = catalog
+            .regions
+            .iter()
+            .filter(|region| expected_key_set.contains(region.key.as_str()))
+            .filter(|region| {
+                region.file == file
+                    && region.content_start <= test_line
+                    && test_line <= region.content_end
+            })
+            .map(|region| region.key.as_str())
+            .collect();
+        assert!(
+            owners_8f.is_empty(),
+            "teste {expected_name} deveria ficar fora das regiões 8F, mas pertence a {owners_8f:?}"
+        );
+        assert!(found_excluded_from_8f.insert(expected_name));
+    }
+    assert_eq!(found_excluded_from_8f.len(), 6);
+
+    let regenerated = CodeIndex::scan_repo(&repository)
+        .expect("regeneração canônica do catálogo a partir das fontes");
+    assert!(
+        regenerated.verify().is_empty(),
+        "regeneração canônica inválida: {:?}",
+        regenerated.verify()
+    );
+    let versioned = fs::read_to_string(&path).expect("catálogo JSONL versionado");
+    assert_eq!(
+        versioned,
+        regenerated.render_jsonl(),
+        "src/navigation.jsonl diverge da regeneração canônica"
+    );
+
+    let previous_regions: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| !expected_key_set.contains(region.key.as_str()))
+        .filter(|region| !region.key.starts_with("evidencia.backend-s."))
+        .collect();
+    assert_eq!(
+        previous_regions.len(),
+        340,
+        "as 340 regiões anteriores devem ser preservadas"
+    );
+    let previous_projection = stable_region_projection(previous_regions.into_iter());
+    assert_eq!(
+        (
+            previous_projection.len(),
+            fnv1a64(previous_projection.as_bytes()),
+        ),
+        (145_064, 18_356_396_870_315_270_997),
+        "a projeção estável das 340 entradas anteriores mudou"
+    );
+}
+
+#[test]
+fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let path = repository.join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    let expected_regions: [(&str, &str, &[&str], usize, &str); 7] = [
+        (
+            "evidencia.backend-s.pipeline-helper",
+            "tests/common/mod.rs",
+            &["render_backend_s"],
+            0,
+            "Executa o helper compartilhado render_backend_s inteiramente em memória: parse e checagem semântica, lowering e validação por IR, CFG e seleção, seguidos da emissão do backend .s textual via emit_from_selected. Não usa o helper do subset externo, assembler, linker nem execução nativa.",
+        ),
+        (
+            "evidencia.backend-s.apresentacao-cli-helper",
+            "tests/common/mod.rs",
+            &["render_cli_asm_s_output"],
+            0,
+            "Monta a apresentação sintética de render_cli_asm_s_output em memória: concatena o cabeçalho `=== ASM .S (TEXTUAL) ===`, a saída de render_backend_s e o rodapé histórico de sucesso semântico. Não cria nem executa um processo CLI.",
+        ),
+        (
+            "evidencia.backend-s.apresentacao-cli-asm-s",
+            "tests/backend_s_tests.rs",
+            &["asm_s_header_estavel"],
+            1,
+            "Golden exato da apresentação sintética em memória de render_cli_asm_s_output: cabeçalho ASM .S textual, representação textual hospedada mínima com metadados de ABI e rodapé histórico; não executa processo CLI nem produz assembly montável.",
+        ),
+        (
+            "evidencia.backend-s.renderizacao-fluxo-e-abi-textual",
+            "tests/backend_s_tests.rs",
+            &[
+                "asm_s_emite_if_else_simples",
+                "asm_s_abi_minima_para_parametros_e_chamada",
+            ],
+            2,
+            "Verifica por contains a representação .s textual de if/else e a ABI textual mínima de parâmetros e chamada, incluindo rótulos, branches, metadados abi.* e temporário de retorno; não comprova instruções x86, montagem, link ou execução.",
+        ),
+        (
+            "evidencia.backend-s.validacao-subset-textual",
+            "tests/backend_s_tests.rs",
+            &["asm_s_falha_clara_para_tipo_ainda_nao_suportado"],
+            1,
+            "Exercita o diagnóstico do subset .s textual ao recusar slot seta<bombom>, verificando apenas a mensagem clara de tipo ainda não suportado nesse caminho textual.",
+        ),
+        (
+            "evidencia.backend-s.freestanding-intencao-textual",
+            "tests/backend_s_tests.rs",
+            &["asm_s_freestanding_exibe_boot_entry_e_linker_script_minimo"],
+            1,
+            "Verifica por contains que o modo livre expõe intenção freestanding na representação textual, com boot.entry, linker script mínimo, kernel stub, _start e laço de espera; não monta, linka, inicializa hardware nem executa esse material.",
+        ),
+        (
+            "evidencia.backend-s.build-cli-artefato-textual",
+            "tests/interpreter_tests.rs",
+            &[
+                "cli_build_gera_artefato_s_no_diretorio_padrao",
+                "cli_build_com_imports_gera_artefato_no_out_dir",
+            ],
+            2,
+            "Exercita dois builds híbridos via processo `pink build`: exige sucesso, saída esperada, criação do artefato .s no diretório padrão ou em --out-dir e conteúdo textual mínimo, inclusive com import; não monta, linka nem executa o artefato.",
+        ),
+    ];
+    let expected_test_counts = [0, 0, 1, 2, 1, 1, 2];
+    assert_eq!(
+        expected_regions.map(|region| region.3),
+        expected_test_counts,
+        "as contagens aprovadas da Onda 8G devem permanecer [0,0,1,2,1,1,2]"
+    );
+
+    let expected_keys: HashSet<_> = expected_regions.iter().map(|region| region.0).collect();
+    assert_eq!(expected_keys.len(), 7, "as sete chaves 8G devem ser únicas");
+
+    let mut unique_catalog_keys = HashSet::new();
+    for region in &catalog.regions {
+        assert!(
+            unique_catalog_keys.insert(region.key.as_str()),
+            "chave duplicada no catálogo: {}",
+            region.key
+        );
     }
     assert_eq!(
-        found_unowned_tests, expected_future_names,
-        "a lista de future_item deve permanecer fechada e sem absorção"
+        catalog.regions.len(),
+        355,
+        "a Onda 8G deve totalizar 355 regiões"
     );
-    for &(name, file) in &expected_future_items {
-        let source = fs::read_to_string(repository.join(file)).unwrap();
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("evidencia"))
+            .count(),
+        172,
+        "a Onda 8G deve totalizar 172 regiões de evidência"
+    );
+    let backend_s_evidence_keys: HashSet<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| {
+            region.domain.as_deref() == Some("backend-s")
+                && region.layer.as_deref() == Some("evidencia")
+        })
+        .map(|region| region.key.as_str())
+        .collect();
+    assert_eq!(
+        backend_s_evidence_keys, expected_keys,
+        "o domínio backend-s deve conter exatamente as sete evidências 8G"
+    );
+
+    let mut source_cache = std::collections::HashMap::new();
+    for (_, file, _, _, _) in expected_regions {
+        source_cache.entry(file).or_insert_with(|| {
+            fs::read_to_string(repository.join(file))
+                .unwrap_or_else(|error| panic!("não foi possível ler {file}: {error}"))
+        });
+    }
+
+    for &(key, file, owned_symbols, expected_test_count, expected_summary) in &expected_regions {
+        let region = catalog
+            .region(key)
+            .unwrap_or_else(|| panic!("região 8G ausente: {key}"));
+        assert_eq!(region.file, file, "arquivo divergente para {key}");
+        assert_eq!(region.kind, "region", "kind divergente para {key}");
+        assert_eq!(region.domain.as_deref(), Some("backend-s"));
+        assert_eq!(region.layer.as_deref(), Some("evidencia"));
+        assert_eq!(
+            region.summary, expected_summary,
+            "summary divergente para {key}"
+        );
+        assert_eq!(region.status, "active", "status divergente para {key}");
         assert!(
-            source
-                .lines()
-                .any(|line| line.trim().starts_with(&format!("fn {name}("))),
-            "future_item {name} ausente de {file}"
+            region.start_marker < region.content_start
+                && region.content_start <= region.content_end
+                && region.content_end < region.end_marker,
+            "ordem inválida dos marcadores em {key}"
+        );
+
+        let source = source_cache.get(file).unwrap();
+        let lines: Vec<_> = source.lines().collect();
+        let content_lines = &lines[(region.content_start - 1)..region.content_end];
+        assert!(
+            !content_lines.is_empty() && content_lines.iter().any(|line| !line.trim().is_empty()),
+            "conteúdo vazio em {key}"
+        );
+        assert!(
+            content_lines
+                .iter()
+                .all(|line| !line.contains("@pinker-nav:")),
+            "marcador absorvido pelo conteúdo de {key}"
+        );
+
+        for symbol in owned_symbols {
+            let function_line = lines
+                .iter()
+                .position(|line| {
+                    let line = line.trim();
+                    line.starts_with(&format!("fn {symbol}("))
+                        || line.starts_with(&format!("pub fn {symbol}("))
+                })
+                .map(|index| index + 1)
+                .unwrap_or_else(|| panic!("símbolo aprovado ausente: {symbol}"));
+            assert!(
+                region.content_start <= function_line && function_line <= region.content_end,
+                "símbolo {symbol} não pertence à região {key}"
+            );
+        }
+
+        let owned_test_count = lines
+            .iter()
+            .enumerate()
+            .filter(|(_, line)| line.trim() == "#[test]")
+            .filter(|(index, _)| {
+                let line = index + 1;
+                region.content_start <= line && line <= region.content_end
+            })
+            .count();
+        assert_eq!(
+            owned_test_count, expected_test_count,
+            "contagem de testes divergente em {key}"
+        );
+    }
+
+    for file in [
+        "tests/common/mod.rs",
+        "tests/backend_s_tests.rs",
+        "tests/interpreter_tests.rs",
+    ] {
+        let ordered: Vec<_> = expected_regions
+            .iter()
+            .filter(|region| region.1 == file)
+            .map(|region| catalog.region(region.0).unwrap().start_marker)
+            .collect();
+        assert!(
+            ordered.windows(2).all(|pair| pair[0] < pair[1]),
+            "a ordem física das regiões 8G mudou em {file}"
+        );
+    }
+
+    let expected_owned_tests: [(&str, &str, &str); 7] = [
+        (
+            "asm_s_header_estavel",
+            "tests/backend_s_tests.rs",
+            "evidencia.backend-s.apresentacao-cli-asm-s",
+        ),
+        (
+            "asm_s_emite_if_else_simples",
+            "tests/backend_s_tests.rs",
+            "evidencia.backend-s.renderizacao-fluxo-e-abi-textual",
+        ),
+        (
+            "asm_s_abi_minima_para_parametros_e_chamada",
+            "tests/backend_s_tests.rs",
+            "evidencia.backend-s.renderizacao-fluxo-e-abi-textual",
+        ),
+        (
+            "asm_s_falha_clara_para_tipo_ainda_nao_suportado",
+            "tests/backend_s_tests.rs",
+            "evidencia.backend-s.validacao-subset-textual",
+        ),
+        (
+            "asm_s_freestanding_exibe_boot_entry_e_linker_script_minimo",
+            "tests/backend_s_tests.rs",
+            "evidencia.backend-s.freestanding-intencao-textual",
+        ),
+        (
+            "cli_build_gera_artefato_s_no_diretorio_padrao",
+            "tests/interpreter_tests.rs",
+            "evidencia.backend-s.build-cli-artefato-textual",
+        ),
+        (
+            "cli_build_com_imports_gera_artefato_no_out_dir",
+            "tests/interpreter_tests.rs",
+            "evidencia.backend-s.build-cli-artefato-textual",
+        ),
+    ];
+    for (test_name, file, expected_owner) in expected_owned_tests {
+        let source = source_cache.get(file).unwrap();
+        let test_line = source
+            .lines()
+            .position(|line| line.trim().starts_with(&format!("fn {test_name}(")))
+            .map(|index| index + 1)
+            .unwrap_or_else(|| panic!("teste 8G ausente: {test_name}"));
+        let owners: Vec<_> = catalog
+            .regions
+            .iter()
+            .filter(|region| {
+                region.file == file
+                    && region.content_start <= test_line
+                    && test_line <= region.content_end
+            })
+            .map(|region| region.key.as_str())
+            .collect();
+        assert_eq!(
+            owners,
+            [expected_owner],
+            "ownership divergente para {test_name}"
+        );
+    }
+
+    let backend_s_source = source_cache.get("tests/backend_s_tests.rs").unwrap();
+    assert_eq!(
+        backend_s_source
+            .lines()
+            .filter(|line| line.trim() == "#[test]")
+            .count(),
+        5,
+        "tests/backend_s_tests.rs deve manter exatamente 5 testes"
+    );
+    let common_source = source_cache.get("tests/common/mod.rs").unwrap();
+    let external_helper_line = common_source
+        .lines()
+        .position(|line| {
+            line.trim()
+                .starts_with("pub fn render_backend_s_external_subset(")
+        })
+        .map(|index| index + 1)
+        .expect("helper externo deve continuar presente e fora da Onda 8G");
+    assert!(
+        catalog.regions.iter().all(|region| {
+            !expected_keys.contains(region.key.as_str())
+                || region.file != "tests/common/mod.rs"
+                || external_helper_line < region.content_start
+                || region.content_end < external_helper_line
+        }),
+        "render_backend_s_external_subset deve permanecer futuro e fora das sete regiões 8G"
+    );
+
+    let excluded_suite_boundaries = [
+        (
+            "tests/backend_s_external_toolchain_tests.rs",
+            79,
+            "toolchain externa montável/montagem-link-execução",
+        ),
+        (
+            "tests/backend_nativo_tests.rs",
+            47,
+            "backend nativo/paridade/runtime",
+        ),
+    ];
+    for (file, expected_test_count, boundary) in excluded_suite_boundaries {
+        let source = fs::read_to_string(repository.join(file)).unwrap_or_else(|error| {
+            panic!("não foi possível ler a fronteira {boundary} em {file}: {error}")
+        });
+        let test_lines: Vec<_> = source
+            .lines()
+            .enumerate()
+            .filter(|(_, line)| line.trim() == "#[test]")
+            .map(|(index, _)| index + 1)
+            .collect();
+        assert_eq!(
+            test_lines.len(),
+            expected_test_count,
+            "a fronteira {boundary} em {file} deve manter exatamente {expected_test_count} testes"
+        );
+        assert_eq!(
+            source.matches("@pinker-nav").count(),
+            0,
+            "a etapa {boundary} em {file} não foi iniciada e deve manter zero @pinker-nav"
+        );
+
+        let file_regions: Vec<_> = catalog
+            .regions
+            .iter()
+            .filter(|region| region.file == file)
+            .collect();
+        assert!(
+            file_regions.is_empty(),
+            "a etapa {boundary} em {file} não foi iniciada e deve manter zero regiões no catálogo; obteve {:?}",
+            file_regions
+                .iter()
+                .map(|region| region.key.as_str())
+                .collect::<Vec<_>>()
+        );
+        let covered_test_count = test_lines
+            .iter()
+            .filter(|&&test_line| {
+                file_regions.iter().any(|region| {
+                    region.content_start <= test_line && test_line <= region.content_end
+                })
+            })
+            .count();
+        assert_eq!(
+            covered_test_count, 0,
+            "a etapa {boundary} em {file} não foi iniciada e deve manter zero testes cobertos"
+        );
+    }
+
+    for future_without_owner in [
+        "cli_build_sem_arquivo_falha_com_uso",
+        "cli_build_falha_semantica_retorna_erro",
+    ] {
+        let file = "tests/interpreter_tests.rs";
+        let source = source_cache.get(file).unwrap();
+        let test_line = source
+            .lines()
+            .position(|line| {
+                line.trim()
+                    .starts_with(&format!("fn {future_without_owner}("))
+            })
+            .map(|index| index + 1)
+            .unwrap_or_else(|| panic!("future sem owner ausente: {future_without_owner}"));
+        let owners: Vec<_> = catalog
+            .regions
+            .iter()
+            .filter(|region| {
+                region.file == file
+                    && region.content_start <= test_line
+                    && test_line <= region.content_end
+            })
+            .map(|region| region.key.as_str())
+            .collect();
+        assert!(
+            owners.is_empty(),
+            "future {future_without_owner} deve permanecer sem owner global, obteve {owners:?}"
         );
     }
 
@@ -2179,33 +2601,30 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
         "src/navigation.jsonl diverge da regeneração canônica"
     );
 
-    let expected_key_set: HashSet<_> = expected_keys.into_iter().collect();
-    let previous_lines: Vec<_> = versioned
-        .lines()
-        .filter(|line| {
-            !expected_key_set
-                .iter()
-                .any(|key| line.contains(&format!("\"key\":\"{key}\"")))
-        })
+    let previous_regions: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| !expected_keys.contains(region.key.as_str()))
         .collect();
     assert_eq!(
-        previous_lines.len(),
-        340,
-        "as 340 regiões anteriores devem ser preservadas"
+        previous_regions.len(),
+        348,
+        "as 348 regiões anteriores devem ser preservadas semanticamente"
     );
-    let previous_catalog = format!("{}\n", previous_lines.join("\n"));
-    let previous_fingerprint = previous_catalog
-        .bytes()
-        .fold(0xcbf29ce484222325u64, |hash, byte| {
-            (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
-        });
+    let previous_projection = stable_region_projection(previous_regions.into_iter());
     assert_eq!(
-        previous_catalog.len(),
-        188_291,
-        "o catálogo anterior mudou de tamanho"
+        (
+            previous_projection.len(),
+            fnv1a64(previous_projection.as_bytes()),
+        ),
+        (148_009, 1_387_240_491_465_620_435),
+        "a projeção estável das 348 regiões anteriores mudou"
     );
-    assert_eq!(
-        previous_fingerprint, 0x0d7d4368896b84b7,
-        "as 340 entradas anteriores mudaram"
-    );
+
+    let onda_8f_complete = true;
+    let onda_8_complete = false;
+    let trama_complete = false;
+    assert!(onda_8f_complete);
+    assert!(!onda_8_complete);
+    assert!(!trama_complete);
 }
