@@ -47,7 +47,7 @@ a 8C adicionou 34 regiões de evidências semânticas, a 8D cobriu as sete suít
 de pipeline, a 8E cobriu a execução interpretada, a 8F acrescentou oito
 regiões do backend textual e a 8G acrescentou sete evidências do backend `.s`
 textual. O catálogo está em **355 regiões**. Estado explícito:
-`onda_8f_complete = true`, `onda_8_complete = false` e
+`onda_8f_complete = true`, `onda_8g_complete = true`, `onda_8_complete = false` e
 `trama_complete = false`; `apps/` segue reservada à Onda 9.
 
 ## Contrato do scanner
@@ -1318,7 +1318,7 @@ O catálogo passa de **348 para 355 regiões** e a camada `evidencia`, de
 **165 para 172**. As 348 entradas anteriores são congeladas por projeção estável
 que exclui apenas os campos posicionais e inclui `schema`, `key`, `kind`,
 `domain`, `layer`, `file`, `summary`, `hash` e `status`. A regeneração canônica
-permanece obrigatória. `onda_8f_complete = true`, `onda_8_complete = false` e
+permanece obrigatória. `onda_8f_complete = true`, `onda_8g_complete = true`, `onda_8_complete = false` e
 `trama_complete = false`.
 
 ## Testes ativos e apps adiados
