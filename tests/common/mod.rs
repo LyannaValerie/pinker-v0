@@ -80,6 +80,10 @@ pub fn render_cli_cfg_ir_output(code: &str) -> Result<String, PinkerError> {
     Ok(out)
 }
 
+// @pinker-nav:start evidencia.backend-text.pipeline-helper
+// @pinker-nav:domain backend-text
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Executa o helper compartilhado render_backend_text: parse e checagem semântica, lowering e validação por IR, CFG e seleção, lowering e validação do backend textual e renderização final do pseudo-assembly. É pipeline em memória, não processo CLI nem backend nativo.
 pub fn render_backend_text(code: &str) -> Result<String, PinkerError> {
     let program = parse(code)?;
     semantic::check_program(&program)?;
@@ -93,7 +97,12 @@ pub fn render_backend_text(code: &str) -> Result<String, PinkerError> {
     backend_text_validate::validate_program(&backend)?;
     Ok(backend_text::render_program(&backend))
 }
+// @pinker-nav:end evidencia.backend-text.pipeline-helper
 
+// @pinker-nav:start evidencia.backend-text.apresentacao-cli-helper
+// @pinker-nav:domain backend-text
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Monta a apresentação sintética do helper render_cli_pseudo_asm_output em memória: acrescenta o cabeçalho `=== PSEUDO ASM ===`, o texto de render_backend_text e o rodapé histórico `Análise semântica concluída sem erros.`. Não cria nem executa um processo CLI.
 pub fn render_cli_pseudo_asm_output(code: &str) -> Result<String, PinkerError> {
     let mut out = String::new();
     out.push_str("=== PSEUDO ASM ===\n");
@@ -101,6 +110,7 @@ pub fn render_cli_pseudo_asm_output(code: &str) -> Result<String, PinkerError> {
     out.push_str("Análise semântica concluída sem erros.\n");
     Ok(out)
 }
+// @pinker-nav:end evidencia.backend-text.apresentacao-cli-helper
 
 pub fn render_selected(code: &str) -> Result<String, PinkerError> {
     let program = parse(code)?;
