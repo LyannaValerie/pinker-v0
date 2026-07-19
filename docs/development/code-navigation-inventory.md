@@ -1271,7 +1271,7 @@ pendentes.
 | Evidência em `tests/parser_tests.rs` | Integral |
 | Evidência em `tests/semantic_tests.rs` | Integral |
 | Evidência nas 7 suítes de pipeline (IR/CFG/seleção/máquina) | Integral (Onda 8D) |
-| Evidência em `tests/interpreter_tests.rs` | Integral (Onda 8E) |
+| Evidência em `tests/interpreter_tests.rs` | 534/538 (Onda 8E; 4 `cli_build_*` adiados) |
 | Demais suítes `tests/*.rs` | Pendentes |
 | Regiões antes da Onda 7 | 163 |
 | Regiões adicionadas na Onda 7 | 20 |
