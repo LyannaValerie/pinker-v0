@@ -2398,6 +2398,10 @@ fn cli_run_algoritmo_complexo_fallthrough_if_else() {
 }
 
 // @pinker-nav:end evidencia.interpreter.execucao-recursao-e-fluxo-interpretador-e-cli
+// @pinker-nav:start evidencia.backend-s.build-cli-artefato-textual
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita dois builds híbridos via processo `pink build`: exige sucesso, saída esperada, criação do artefato .s no diretório padrão ou em --out-dir e conteúdo textual mínimo, inclusive com import; não monta, linka nem executa o artefato.
 #[test]
 fn cli_build_gera_artefato_s_no_diretorio_padrao() {
     let temp = std::env::temp_dir().join("pinker_build_fase63_ok");
@@ -2465,6 +2469,7 @@ fn cli_build_com_imports_gera_artefato_no_out_dir() {
     assert!(artifact_content.contains(".globl principal"));
     let _ = fs::remove_dir_all(&temp);
 }
+// @pinker-nav:end evidencia.backend-s.build-cli-artefato-textual
 
 #[test]
 fn cli_build_sem_arquivo_falha_com_uso() {

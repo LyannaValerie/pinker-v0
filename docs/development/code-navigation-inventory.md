@@ -40,14 +40,15 @@ fica fora, por decisão explícita da onda). A **Onda 7** concluiu a cartografia
 da produção de `src/`: as três superfícies operacionais restantes —
 `src/main.rs` (CLI, camada `cli`), `src/editor_tui.rs` (editor TUI, camada
 `editor`) e `src/boot.rs` (fronteiras freestanding, camada `boot`) — receberam
-20 regiões novas. As **Ondas 8A–8F** ativaram `tests/` como terceira raiz
+20 regiões novas. As **Ondas 8A–8G** ativaram `tests/` como terceira raiz
 oficial e cartografaram evidências: a 8A entregou o reconhecimento lexical e a
 ativação da raiz, a 8B adicionou 19 regiões de evidências léxicas e sintáticas,
 a 8C adicionou 34 regiões de evidências semânticas, a 8D cobriu as sete suítes
-de pipeline, a 8E cobriu a execução interpretada e a 8F acrescentou oito
-regiões do backend textual. O catálogo está em **348 regiões**. A Onda 8
-permanece **in-progress**, com `trama_complete = false`; `apps/` segue reservada
-à Onda 9.
+de pipeline, a 8E cobriu a execução interpretada, a 8F acrescentou oito
+regiões do backend textual e a 8G acrescentou sete evidências do backend `.s`
+textual. O catálogo está em **355 regiões**. Estado explícito:
+`onda_8f_complete = true`, `onda_8g_complete = true`, `onda_8_complete = false` e
+`trama_complete = false`; `apps/` segue reservada à Onda 9.
 
 ## Contrato do scanner
 
@@ -1158,7 +1159,7 @@ permanece **in-progress**.
 `tests/interpreter_tests.rs` foi cartografada em **46 regiões** de evidência
 (`domain: interpreter`, `layer: evidencia`), cobrindo **534 dos 538 testes**
 `#[test]` da suíte. A lista congelada de chaves, a contagem de testes por região
-e a lista fechada de quatro `future_item` estão no teste estrutural
+e a lista fechada de quatro exclusões relativas à 8E estão no teste estrutural
 `onda_8e_cartografa_evidencias_da_execucao_interpretada`
 (`tests/nav_cartography_tests.rs`), que também compara o catálogo versionado com
 a regeneração canônica para detectar drift de summary, faixa ou hash. As regiões
@@ -1214,13 +1215,15 @@ estatística, `juntar_caminho` sem canonicalização). Regiões CLI que enumeram
 múltiplas features descrevem a responsabilidade de **harness de execução via
 processo**, sem alegar cobertura total de cada feature citada.
 
-Quatro testes de backend/CLI permanecem explicitamente adiados como
-`future_item`, fora de qualquer região da Onda 8E:
+Quatro testes de backend/CLI permanecem explicitamente fora das regiões da
+Onda 8E:
 `cli_build_gera_artefato_s_no_diretorio_padrao`,
 `cli_build_com_imports_gera_artefato_no_out_dir`,
 `cli_build_sem_arquivo_falha_com_uso` e
-`cli_build_falha_semantica_retorna_erro`. O gate estrutural rejeita qualquer
-quinta exclusão e também falha se um desses quatro itens for cartografado.
+`cli_build_falha_semantica_retorna_erro`. Essa exclusão é relativa às 46
+regiões 8E: os dois primeiros passam a ter owner na Onda 8G; as duas falhas
+continuam sem owner global. O gate estrutural rejeita qualquer quinta exclusão
+relativa à 8E.
 
 O catálogo passa de **294 para 340 regiões**, com as 294 anteriores preservadas
 (chave, arquivo, domínio, camada, summary e hash). O diff em
@@ -1256,18 +1259,67 @@ golden exato desse helper e não alega execução processual da CLI. O backend
 textual continua sendo pseudo-assembly auditável, não assembly nativo montável.
 
 Os testes `validador_cfg_falha_quando_cfg_invalida` e
-`check_ignora_flags_de_emissao` ficam fora das regiões 8F como `future_item`.
-Junto aos quatro `cli_build_*` fechados na 8E, o gate estrutural congela a lista
-exata de seis exclusões e rejeita absorção indevida. `tests/backend_text_tests.rs`
+`check_ignora_flags_de_emissao` ficam fora das regiões 8F. Junto aos quatro
+`cli_build_*` excluídos da 8E, o gate estrutural congela a lista exata de seis
+exclusões **relativas às regiões 8F** e rejeita absorção indevida por elas; isso
+permite que os dois builds de sucesso tenham owner 8G. `tests/backend_text_tests.rs`
 mantém seus 9 testes e recebeu apenas 30 linhas de marcadores; os dois helpers
 receberam apenas 10 linhas de marcadores em `tests/common/mod.rs`, sem mudança de
 assertions, fixtures, nomes, imports, helpers ou lógica.
 
 O catálogo passa de **340 para 348 regiões**, com as 340 entradas anteriores
-preservadas byte a byte. As oito regiões têm chaves únicas, conteúdo não vazio,
+preservadas por projeção estável. As oito regiões têm chaves únicas, conteúdo
+não vazio,
 marcadores ordenados, domínio `backend-text` e camada `evidencia`; o catálogo
 versionado é idêntico à regeneração canônica. A Onda 8 permanece
 **in-progress** e `trama_complete` permanece `false`.
+
+## Onda 8G — evidências do backend `.s` textual
+
+A Onda 8G adiciona exatamente sete regiões no domínio `backend-s` e camada
+`evidencia`. Em `tests/common/mod.rs`, duas regiões de contagem zero delimitam
+somente `render_backend_s` e `render_cli_asm_s_output`; o helper
+`render_backend_s_external_subset` permanece fora. Em
+`tests/backend_s_tests.rs`, quatro regiões cobrem seus cinco testes nas
+contagens congeladas 1/2/1/1. Em `tests/interpreter_tests.rs`, uma região cobre
+os dois builds textuais de sucesso. A distribuição total por região é
+**[0, 0, 1, 2, 1, 1, 2]**.
+
+As chaves aprovadas são `evidencia.backend-s.pipeline-helper`,
+`evidencia.backend-s.apresentacao-cli-helper`,
+`evidencia.backend-s.apresentacao-cli-asm-s`,
+`evidencia.backend-s.renderizacao-fluxo-e-abi-textual`,
+`evidencia.backend-s.validacao-subset-textual`,
+`evidencia.backend-s.freestanding-intencao-textual` e
+`evidencia.backend-s.build-cli-artefato-textual`.
+
+`render_cli_asm_s_output` é uma apresentação **sintética em memória**, não um
+processo CLI. Já os testes `cli_build_gera_artefato_s_no_diretorio_padrao` e
+`cli_build_com_imports_gera_artefato_no_out_dir` são híbridos: executam o
+processo `pink build` e comprovam sucesso/saída, criação do `.s` e conteúdo
+textual mínimo, mas não montagem, link ou execução do artefato. Os testes
+`cli_build_sem_arquivo_falha_com_uso` e
+`cli_build_falha_semantica_retorna_erro` continuam como os dois futures sem
+owner global.
+
+O recorte congela literalmente `tests/backend_s_external_toolchain_tests.rs`
+(79 testes): **external toolchain — etapa não iniciada**; e
+`tests/backend_nativo_tests.rs` (47 testes): **backend nativo/paridade — etapa
+não iniciada**, incluindo sua evidência de runtime. Ambos permanecem com zero
+`@pinker-nav`, zero regiões no catálogo e, portanto, zero testes cobertos. O
+helper `render_backend_s_external_subset` permanece **futuro** e fora das sete
+regiões 8G. Nenhuma região 8G alega código x86 montável, montagem, link ou
+execução nativa. Nos três arquivos de evidência o diff é estritamente
+marker-only: 10 linhas em
+`tests/common/mod.rs`, 20 em `tests/backend_s_tests.rs` e 5 em
+`tests/interpreter_tests.rs`.
+
+O catálogo passa de **348 para 355 regiões** e a camada `evidencia`, de
+**165 para 172**. As 348 entradas anteriores são congeladas por projeção estável
+que exclui apenas os campos posicionais e inclui `schema`, `key`, `kind`,
+`domain`, `layer`, `file`, `summary`, `hash` e `status`. A regeneração canônica
+permanece obrigatória. `onda_8f_complete = true`, `onda_8g_complete = true`, `onda_8_complete = false` e
+`trama_complete = false`.
 
 ## Testes ativos e apps adiados
 
@@ -1278,14 +1330,16 @@ na Onda 8A. `apps/` continua desativada até a Onda 9: reúne fontes `.pink`, qu
 exigem uma convenção de marcador própria antes de entrar no scanner.
 
 Já estão cartografados como evidência `tests/common/mod.rs` (parcialmente, com
-5 helpers), `tests/lexer_tests.rs`, `tests/parser_tests.rs`,
+7 helpers), `tests/lexer_tests.rs`, `tests/parser_tests.rs`,
 `tests/semantic_tests.rs` e — desde a Onda 8D — as sete suítes de pipeline
 `tests/ir_tests.rs`, `tests/ir_validate_tests.rs`, `tests/cfg_ir_tests.rs`,
 `tests/cfg_ir_validate_tests.rs`, `tests/instr_select_tests.rs`,
 `tests/abstract_machine_tests.rs` e `tests/abstract_machine_stack_tests.rs`;
 todas, integralmente. O backend textual está parcialmente cartografado na Onda
-8F (7/9 testes). As demais suítes `tests/*.rs` (backend `.s`, nativas, runtime,
-Trama, documentais, CLI, apps) continuam pendentes.
+8F (7/9 testes), e a suíte `tests/backend_s_tests.rs` está integralmente
+cartografada na Onda 8G (5/5), junto a dois builds textuais de sucesso da suíte
+do interpretador. As demais suítes `tests/*.rs` (toolchain externa, backend
+nativo, paridade, runtime, Trama, documentais, CLI, apps) continuam pendentes.
 
 - `tests/*.rs` — evidência por camada (lexer, parser, semântica, IR/CFG/seleção/
   máquina, interpretador, backends, runtime nativo, Trama, CLI, paridade nativa).
@@ -1294,7 +1348,7 @@ Trama, documentais, CLI, apps) continuam pendentes.
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 8F)
+## Cobertura acumulada (após Onda 8G)
 
 | Métrica | Valor |
 |---|---:|
@@ -1306,20 +1360,22 @@ Trama, documentais, CLI, apps) continuam pendentes.
 | Produção total nas duas raízes de produção | 33 |
 | Arquivos de produção ancorados | 33 |
 | Arquivos de produção pendentes | 0 |
-| Evidência em `tests/common/mod.rs` | Parcial: 5 helpers |
+| Evidência em `tests/common/mod.rs` | Parcial: 7 helpers |
 | Evidência em `tests/lexer_tests.rs` | Integral |
 | Evidência em `tests/parser_tests.rs` | Integral |
 | Evidência em `tests/semantic_tests.rs` | Integral |
 | Evidência nas 7 suítes de pipeline (IR/CFG/seleção/máquina) | Integral (Onda 8D) |
-| Evidência em `tests/interpreter_tests.rs` | 534/538 (Onda 8E; 4 `cli_build_*` adiados) |
-| Evidência em `tests/backend_text_tests.rs` | 7/9 (Onda 8F; 2 `future_item` adiados) |
+| Evidência em `tests/interpreter_tests.rs` | 536/538 (534 na Onda 8E + 2 builds textuais na 8G; 2 falhas sem owner) |
+| Evidência em `tests/backend_text_tests.rs` | 7/9 (Onda 8F; 2 exclusões relativas) |
+| Evidência em `tests/backend_s_tests.rs` | 5/5 (Onda 8G) |
 | Demais suítes `tests/*.rs` | Pendentes |
 | Regiões antes da Onda 7 | 163 |
 | Regiões adicionadas na Onda 7 | 20 |
 | Regiões adicionadas na Onda 8D | 58 |
 | Regiões adicionadas na Onda 8E | 46 |
 | Regiões adicionadas na Onda 8F | 8 |
-| Regiões no catálogo | 348 |
+| Regiões adicionadas na Onda 8G | 7 |
+| Regiões no catálogo | 355 |
 | Raízes oficiais ativas | 3 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
@@ -1367,8 +1423,8 @@ excluído).
 | cli | 15 | Onda 7: config-modelos, ajuda-usage, parsing (subcomandos, roteamento), execução (entrada, editor-repl), nav (consulta, sincronização-verificação), doc (consulta, sincronização, mudanças, verificação), análise-pipeline, build-nativo, módulos-importação |
 | editor | 4 | Onda 7: estado-modelo, sessão-comandos, render-saída, análise-checagem |
 | boot | 1 | Onda 7: geração-fronteira-freestanding (arquivo inteiro) |
-| evidencia | 165 | Onda 8B (19) + Onda 8C (34) + Onda 8D (58: ir 11, cfg 14, select 6, machine 27) + Onda 8E (46: interpreter) + Onda 8F (8: backend textual) |
-| **total** | **348** | |
+| evidencia | 172 | Onda 8B (19) + Onda 8C (34) + Onda 8D (58: ir 11, cfg 14, select 6, machine 27) + Onda 8E (46: interpreter) + Onda 8F (8: backend textual) + Onda 8G (7: backend `.s` textual) |
+| **total** | **355** | |
 
 Pendentes de cartografia: as demais suítes `tests/*.rs` na Onda 8 e `apps/` na
 Onda 9. As três superfícies operacionais (cli/editor/boot) foram concluídas na
@@ -1377,11 +1433,11 @@ Onda 7.
 ## Próximo ponto de retomada
 
 **Próximo grupo de evidências nas suítes `tests/*.rs` ainda não cartografadas,
-definido por inventário antes da edição.** Concluída a subonda 8F do backend
-textual (oito regiões, sete testes e dois helpers cartografados; dois testes
-adiados), os candidatos remanescentes são, em ordem de proximidade ao já
-mapeado: as suítes do backend `.s` e a paridade nativa, o runtime nativo
-(`runtime/pinker_rt`), as suítes da Trama operacional/documental
+definido por inventário antes da edição.** Concluída a subonda 8G do backend
+`.s` textual (sete regiões, cinco testes da suíte, dois builds híbridos e dois
+helpers cartografados), os candidatos remanescentes são, em ordem de
+proximidade ao já mapeado: as suítes de toolchain externa, backend nativo e
+paridade, o runtime nativo (`runtime/pinker_rt`), as suítes da Trama operacional/documental
 (`nav_catalog`, `doc_catalog`, `trama_query`) e as suítes da CLI. Onda 9 continua
 reservada a `apps/`. A Onda 8 permanece **in-progress** — o inventário das suítes
 restantes ainda não prova ausência de pendências, portanto a Onda 8 não é

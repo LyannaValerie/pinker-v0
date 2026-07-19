@@ -154,6 +154,10 @@ pub fn render_cli_machine_output(code: &str) -> Result<String, PinkerError> {
     Ok(out)
 }
 
+// @pinker-nav:start evidencia.backend-s.pipeline-helper
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Executa o helper compartilhado render_backend_s inteiramente em memória: parse e checagem semântica, lowering e validação por IR, CFG e seleção, seguidos da emissão do backend .s textual via emit_from_selected. Não usa o helper do subset externo, assembler, linker nem execução nativa.
 pub fn render_backend_s(code: &str) -> Result<String, PinkerError> {
     let program = parse(code)?;
     semantic::check_program(&program)?;
@@ -165,6 +169,7 @@ pub fn render_backend_s(code: &str) -> Result<String, PinkerError> {
     instr_select_validate::validate_program(&selected)?;
     backend_s::emit_from_selected(&selected)
 }
+// @pinker-nav:end evidencia.backend-s.pipeline-helper
 
 pub fn render_backend_s_external_subset(code: &str) -> Result<String, PinkerError> {
     let program = parse(code)?;
@@ -178,6 +183,10 @@ pub fn render_backend_s_external_subset(code: &str) -> Result<String, PinkerErro
     backend_s::emit_external_toolchain_subset(&selected)
 }
 
+// @pinker-nav:start evidencia.backend-s.apresentacao-cli-helper
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Monta a apresentação sintética de render_cli_asm_s_output em memória: concatena o cabeçalho `=== ASM .S (TEXTUAL) ===`, a saída de render_backend_s e o rodapé histórico de sucesso semântico. Não cria nem executa um processo CLI.
 pub fn render_cli_asm_s_output(code: &str) -> Result<String, PinkerError> {
     let mut out = String::new();
     out.push_str(
@@ -191,3 +200,4 @@ pub fn render_cli_asm_s_output(code: &str) -> Result<String, PinkerError> {
     );
     Ok(out)
 }
+// @pinker-nav:end evidencia.backend-s.apresentacao-cli-helper
