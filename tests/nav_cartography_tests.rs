@@ -2520,14 +2520,27 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
     // a cobertura completa daquele arquivo passou para
     // onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo, que exige as 14
     // regiões, o ownership [2,5,7,2,3,1,7,1,1,18] e os 47 testes.
+    let backend_nativo = "tests/backend_nativo_tests.rs";
     let backend_nativo_regions = catalog
         .regions
         .iter()
-        .filter(|region| region.file == "tests/backend_nativo_tests.rs")
+        .filter(|region| region.file == backend_nativo)
         .count();
     assert_eq!(
         backend_nativo_regions, 14,
         "tests/backend_nativo_tests.rs foi cartografado pela Onda 8I e deve manter 14 regiões"
+    );
+    // Redundância estrutural preservada da fronteira antiga: a Onda 8G continua
+    // vigiando o tamanho real da suíte nativa, além das 14 regiões.
+    let backend_nativo_source =
+        fs::read_to_string(repository.join(backend_nativo)).expect("suíte do backend nativo");
+    assert_eq!(
+        backend_nativo_source
+            .lines()
+            .filter(|line| line.trim() == "#[test]")
+            .count(),
+        47,
+        "{backend_nativo} deve manter exatamente 47 #[test]"
     );
 
     for future_without_owner in [
@@ -3194,6 +3207,217 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
     assert!(!trama_complete);
 }
 
+/// Avança sobre um literal de string, um literal de caractere ou um comentário
+/// iniciado em `i`, devolvendo o deslocamento logo após ele. Devolve `None`
+/// quando `i` não inicia nenhuma dessas construções — inclusive quando a aspa
+/// simples é uma lifetime e não um caractere.
+fn pula_literal(texto: &str, i: usize) -> Option<usize> {
+    let bytes = texto.as_bytes();
+    match bytes[i] {
+        b'/' if bytes.get(i + 1) == Some(&b'/') => Some(
+            texto[i..]
+                .find('\n')
+                .map(|salto| i + salto + 1)
+                .unwrap_or(texto.len()),
+        ),
+        b'/' if bytes.get(i + 1) == Some(&b'*') => Some(
+            texto[i + 2..]
+                .find("*/")
+                .map(|salto| i + 2 + salto + 2)
+                .unwrap_or(texto.len()),
+        ),
+        b'"' => {
+            let mut j = i + 1;
+            while j < bytes.len() {
+                match bytes[j] {
+                    b'\\' => j += 2,
+                    b'"' => return Some(j + 1),
+                    _ => j += 1,
+                }
+            }
+            Some(texto.len())
+        }
+        b'\'' => {
+            let escapado = bytes.get(i + 1) == Some(&b'\\');
+            texto[i + 1..]
+                .find('\'')
+                .map(|salto| salto + 1)
+                .filter(|largura| {
+                    if escapado {
+                        *largura <= 4
+                    } else {
+                        *largura == 2
+                    }
+                })
+                .map(|largura| i + largura + 1)
+        }
+        _ => None,
+    }
+}
+
+/// Substitui todo comentário por espaços, preservando strings e caracteres.
+/// Impede que um trecho comentado satisfaça uma invariante textual.
+fn sem_comentarios(texto: &str) -> String {
+    let bytes = texto.as_bytes();
+    let mut saida: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let comentario = bytes[i] == b'/' && matches!(bytes.get(i + 1), Some(b'/') | Some(b'*'));
+        match pula_literal(texto, i).map(|salto| salto.min(bytes.len())) {
+            Some(salto) if comentario => {
+                for byte in &bytes[i..salto] {
+                    saida.push(if *byte == b'\n' { b'\n' } else { b' ' });
+                }
+                i = salto;
+            }
+            Some(salto) => {
+                saida.extend_from_slice(&bytes[i..salto]);
+                i = salto;
+            }
+            None => {
+                saida.push(bytes[i]);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8(saida).expect("remoção de comentários preserva UTF-8")
+}
+
+/// Devolve o conteúdo entre o primeiro `abre` de `texto` e o `fecha`
+/// correspondente, com balanceamento e respeito a literais e comentários.
+fn extrai_delimitado(texto: &str, abre: u8, fecha: u8, rotulo: &str) -> String {
+    let bytes = texto.as_bytes();
+    let mut i = 0usize;
+    let mut profundidade = 0usize;
+    let mut inicio = None;
+    while i < bytes.len() {
+        if let Some(salto) = pula_literal(texto, i) {
+            i = salto.min(bytes.len()).max(i + 1);
+            continue;
+        }
+        if bytes[i] == abre {
+            if inicio.is_none() {
+                inicio = Some(i + 1);
+            }
+            profundidade += 1;
+        } else if bytes[i] == fecha {
+            assert!(profundidade > 0, "fechamento sem abertura em {rotulo}");
+            profundidade -= 1;
+            if profundidade == 0 {
+                return texto[inicio.expect("abertura registrada")..i].to_string();
+            }
+        }
+        i += 1;
+    }
+    panic!("delimitador não balanceado em {rotulo}")
+}
+
+/// Extrai o corpo da única função chamada `nome`, por balanceamento de chaves.
+/// Falha quando a função está ausente ou definida mais de uma vez.
+fn corpo_de_funcao(fonte: &str, nome: &str) -> String {
+    let assinatura = format!("fn {nome}(");
+    let mut inicio = None;
+    let mut deslocamento = 0usize;
+    for linha in fonte.split_inclusive('\n') {
+        if linha.trim_start().starts_with(&assinatura) {
+            assert!(inicio.is_none(), "definição duplicada de {nome}");
+            inicio = Some(deslocamento);
+        }
+        deslocamento += linha.len();
+    }
+    let inicio = inicio.unwrap_or_else(|| panic!("função ausente: {nome}"));
+    extrai_delimitado(&fonte[inicio..], b'{', b'}', nome)
+}
+
+/// Argumentos de topo de uma lista já delimitada, com espaços colapsados.
+fn argumentos_de_topo(interior: &str) -> Vec<String> {
+    let normaliza = |trecho: &str| trecho.split_whitespace().collect::<Vec<_>>().join(" ");
+    let bytes = interior.as_bytes();
+    let mut argumentos = Vec::new();
+    let mut profundidade = 0i32;
+    let mut inicio = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if let Some(salto) = pula_literal(interior, i) {
+            i = salto.min(bytes.len()).max(i + 1);
+            continue;
+        }
+        match bytes[i] {
+            b'(' | b'[' | b'{' => profundidade += 1,
+            b')' | b']' | b'}' => profundidade -= 1,
+            b',' if profundidade == 0 => {
+                argumentos.push(normaliza(&interior[inicio..i]));
+                inicio = i + 1;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    let ultimo = normaliza(&interior[inicio..]);
+    if !ultimo.is_empty() {
+        argumentos.push(ultimo);
+    }
+    argumentos
+}
+
+/// Todas as invocações de `macro_nome` (com `!`) dentro de `corpo`, cada uma
+/// reduzida à lista de argumentos de topo.
+fn argumentos_de_macro(corpo: &str, macro_nome: &str) -> Vec<Vec<String>> {
+    let mut invocacoes = Vec::new();
+    let mut base = 0usize;
+    while let Some(posicao) = corpo[base..].find(macro_nome) {
+        let apos = base + posicao + macro_nome.len();
+        base = apos;
+        if corpo.as_bytes().get(apos) != Some(&b'(') {
+            continue;
+        }
+        let interior = extrai_delimitado(&corpo[apos..], b'(', b')', macro_nome);
+        invocacoes.push(argumentos_de_topo(&interior));
+    }
+    invocacoes
+}
+
+/// Verdadeiro quando existe `assert_eq!` cujos dois primeiros argumentos são
+/// exatamente `esquerda` e `direita`, em qualquer ordem. Nomes de variáveis
+/// fora de um `assert_eq!`, mensagens de falha e chamadas de helper não contam.
+fn assercao_de_igualdade(corpo: &str, esquerda: &str, direita: &str) -> bool {
+    argumentos_de_macro(corpo, "assert_eq!")
+        .iter()
+        .any(|argumentos| {
+            argumentos.len() >= 2
+                && ((argumentos[0] == esquerda && argumentos[1] == direita)
+                    || (argumentos[0] == direita && argumentos[1] == esquerda))
+        })
+}
+
+/// Paridade real de stdout: igualdade entre o stdout normalizado do
+/// interpretador e o stdout do ELF nativo.
+fn paridade_de_stdout_real(corpo: &str) -> bool {
+    assercao_de_igualdade(corpo, "programa_interp", "nativo_stdout")
+}
+
+/// Comparação real do exit do ELF contra `esperado`.
+fn exit_comparado_a(corpo: &str, esperado: &str) -> bool {
+    assercao_de_igualdade(corpo, "run.status.code()", esperado)
+}
+
+/// Verdadeiro quando a cadeia de `pink build` do corpo carrega `--nativo`.
+fn build_com_nativo(corpo: &str) -> bool {
+    corpo.split(".arg(\"build\")").skip(1).any(|trecho| {
+        trecho
+            .split(".output()")
+            .next()
+            .is_some_and(|cadeia| cadeia.contains(".arg(\"--nativo\")"))
+    })
+}
+
+/// As três guardas silenciosas: plataforma, driver C e libpinker_rt.a.
+fn tres_guardas(corpo: &str) -> bool {
+    corpo.contains("cfg!(all(target_os = \"linux\", target_arch = \"x86_64\"))")
+        && corpo.contains("detect_cc_driver().is_none()")
+        && corpo.contains("runtime_lib.is_file()")
+}
+
 #[test]
 fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -3528,6 +3752,70 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         }
     }
 
+    // Cada um dos oito símbolos de suporte é definido exatamente uma vez no
+    // arquivo, dentro da região aprovada e de nenhuma outra. Usos e call sites
+    // fora da região continuam livres; apenas a definição é vigiada.
+    let definicoes_de_suporte: [(&str, &str); 8] = [
+        (
+            "fn lower_to_selected(",
+            "evidencia.backend-nativo.suporte-lowering-memoria",
+        ),
+        (
+            "fn detect_cc_driver(",
+            "evidencia.backend-nativo.suporte-driver-c",
+        ),
+        (
+            "struct ParidadeNativaCaso {",
+            "evidencia.backend-nativo.suporte-matriz-paridade-b11",
+        ),
+        (
+            "const ARGVS_FASE221:",
+            "evidencia.backend-nativo.suporte-matriz-paridade-b11",
+        ),
+        (
+            "const CASOS_PARIDADE_B11:",
+            "evidencia.backend-nativo.suporte-matriz-paridade-b11",
+        ),
+        (
+            "fn separar_stdout_e_retorno_interpretador(",
+            "evidencia.backend-nativo.suporte-matriz-paridade-b11",
+        ),
+        (
+            "fn paridade_stdout_e_exit(",
+            "evidencia.backend-nativo.suporte-matriz-paridade-b11",
+        ),
+        (
+            "fn paridade_stdout(",
+            "evidencia.backend-nativo.suporte-paridade-stdout",
+        ),
+    ];
+    for (definicao, key) in definicoes_de_suporte {
+        let definidas: Vec<usize> = central_lines
+            .iter()
+            .enumerate()
+            .filter(|(_, line)| line.trim_start().starts_with(definicao))
+            .map(|(index, _)| index + 1)
+            .collect();
+        assert_eq!(
+            definidas.len(),
+            1,
+            "{definicao} deve ter exatamente uma definição em {central}, obteve {definidas:?}"
+        );
+        let dona = catalog.region(key).unwrap();
+        assert!(
+            dona.content_start <= definidas[0] && definidas[0] <= dona.content_end,
+            "{definicao} deve ser definido dentro da região aprovada {key}"
+        );
+        for outra in &central_regions {
+            assert!(
+                outra.key == key
+                    || !(outra.content_start <= definidas[0] && definidas[0] <= outra.content_end),
+                "{definicao} não pode ser definido também em {}",
+                outra.key
+            );
+        }
+    }
+
     // Spans de teste limitados pela região proprietária: o suporte físico entre
     // blocos de teste nunca é absorvido pelo teste anterior.
     let spans: Vec<(usize, usize, &str)> = test_lines
@@ -3555,12 +3843,6 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
             || text.contains("paridade_stdout_e_exit(")
             || text.contains("Command::new")
     };
-    let compara_stdout = |text: &str| {
-        text.contains("paridade_stdout(")
-            || text.contains("paridade_stdout_e_exit(")
-            || text.contains("run.stdout")
-    };
-
     assert_eq!(
         count(&|text| !processual(text)),
         14,
@@ -3575,6 +3857,56 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         count(&|text| !processual(text)) + count(&processual),
         47,
         "as duas classes devem particionar os 47 testes"
+    );
+
+    // Classificação das catorze regiões: 3 de evidência exclusivamente textual,
+    // 7 de evidência processual e 4 de suporte. Nenhuma região de evidência
+    // mistura as duas naturezas.
+    let regioes_textuais = [
+        "evidencia.backend-nativo.emissao-init-runtime",
+        "evidencia.backend-nativo.emissao-abi-e-fluxo-textual",
+        "evidencia.backend-nativo.emissao-simbolos-runtime-textual",
+    ];
+    let mut evidencia_textual = 0usize;
+    let mut evidencia_processual = 0usize;
+    for (key, is_support, _) in expected_regions {
+        if is_support {
+            continue;
+        }
+        let corpos: Vec<String> = spans
+            .iter()
+            .filter(|span| span.2 == key)
+            .map(&body)
+            .collect();
+        assert!(!corpos.is_empty(), "região de evidência sem teste: {key}");
+        let toda_textual = corpos.iter().all(|texto| !processual(texto));
+        let toda_processual = corpos.iter().all(|texto| processual(texto));
+        assert!(
+            toda_textual || toda_processual,
+            "a região {key} mistura evidência textual e evidência processual"
+        );
+        if toda_textual {
+            assert!(
+                regioes_textuais.contains(&key),
+                "região exclusivamente textual não declarada: {key}"
+            );
+            evidencia_textual += 1;
+        } else {
+            evidencia_processual += 1;
+        }
+    }
+    assert_eq!(
+        evidencia_textual, 3,
+        "a Onda 8I tem três regiões de evidência exclusivamente textual"
+    );
+    assert_eq!(
+        evidencia_processual, 7,
+        "a Onda 8I tem sete regiões de evidência processual"
+    );
+    assert_eq!(
+        evidencia_textual + evidencia_processual + support_keys.len(),
+        14,
+        "3 regiões textuais + 7 processuais + 4 de suporte = 14"
     );
 
     // Emissão textual: caminho hospedado versus caminho nativo.
@@ -3635,7 +3967,170 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         );
     }
 
+    // Invariantes de paridade provadas DENTRO do corpo de cada função, extraído
+    // por balanceamento de chaves — nunca por busca global no arquivo.
+    let corpo_paridade_stdout = sem_comentarios(&corpo_de_funcao(&central_code, "paridade_stdout"));
+    let corpo_paridade_exit =
+        sem_comentarios(&corpo_de_funcao(&central_code, "paridade_stdout_e_exit"));
+
+    // paridade_stdout: oráculo interpretado, build nativo, normalização exata e
+    // asserção semântica de igualdade de stdout, com exit fixado na constante 0.
+    assert!(
+        corpo_paridade_stdout.contains(".arg(\"--run\")"),
+        "paridade_stdout deve invocar o interpretador com pink --run"
+    );
+    assert!(
+        corpo_paridade_stdout.contains(".arg(\"build\")"),
+        "paridade_stdout deve invocar pink build"
+    );
+    assert!(
+        corpo_paridade_stdout.contains(".arg(\"--nativo\")")
+            && build_com_nativo(&corpo_paridade_stdout),
+        "o pink build de paridade_stdout deve carregar --nativo"
+    );
+    assert!(
+        corpo_paridade_stdout.contains("strip_suffix(\"0\\n\")"),
+        "paridade_stdout deve normalizar o stdout do interpretador com strip_suffix(\"0\\n\")"
+    );
+    assert!(
+        paridade_de_stdout_real(&corpo_paridade_stdout),
+        "paridade_stdout deve conter assert_eq! entre programa_interp e nativo_stdout"
+    );
+    assert!(
+        exit_comparado_a(&corpo_paridade_stdout, "Some(0)"),
+        "paridade_stdout deve comparar o exit do ELF contra a constante Some(0)"
+    );
+    assert!(
+        !corpo_paridade_stdout.contains("retorno_interp"),
+        "paridade_stdout não pode alegar paridade de exit contra o retorno observado"
+    );
+    assert!(
+        tres_guardas(&corpo_paridade_stdout),
+        "paridade_stdout deve concentrar as três guardas silenciosas"
+    );
+
+    // paridade_stdout_e_exit: único caminho com paridade real de exit.
+    assert!(
+        corpo_paridade_exit.contains(".arg(\"--run\")"),
+        "paridade_stdout_e_exit deve invocar o interpretador com pink --run"
+    );
+    assert!(
+        corpo_paridade_exit.contains(".arg(\"build\")"),
+        "paridade_stdout_e_exit deve invocar pink build"
+    );
+    assert!(
+        corpo_paridade_exit.contains(".arg(\"--nativo\")")
+            && build_com_nativo(&corpo_paridade_exit),
+        "o pink build de paridade_stdout_e_exit deve carregar --nativo"
+    );
+    let paridade_exit_normalizado = corpo_paridade_exit
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(
+        paridade_exit_normalizado.contains(
+            "let (programa_interp, retorno_interp) = separar_stdout_e_retorno_interpretador("
+        ),
+        "paridade_stdout_e_exit deve derivar retorno_interp de separar_stdout_e_retorno_interpretador"
+    );
+    assert!(
+        paridade_de_stdout_real(&corpo_paridade_exit),
+        "paridade_stdout_e_exit deve conter assert_eq! entre programa_interp e nativo_stdout"
+    );
+    assert!(
+        exit_comparado_a(&corpo_paridade_exit, "Some(retorno_interp)"),
+        "paridade_stdout_e_exit deve comparar o exit do ELF contra Some(retorno_interp)"
+    );
+    assert!(
+        !exit_comparado_a(&corpo_paridade_exit, "Some(0)"),
+        "Some(0) não pode substituir a paridade real de exit em paridade_stdout_e_exit"
+    );
+    assert!(
+        tres_guardas(&corpo_paridade_exit),
+        "paridade_stdout_e_exit deve concentrar as três guardas silenciosas"
+    );
+
+    // Os quatro testes que comparam stdout sem delegar a helper algum.
+    let inline_com_paridade = [
+        "verso_dinamico_nativo_tem_paridade_de_stdout_com_interpretador",
+        "listas_nativas_tem_paridade_de_stdout_com_interpretador",
+        "mapas_nativos_tem_paridade_de_stdout_com_interpretador",
+        "ambiente_nativo_le_argv_com_paridade",
+    ];
+    for nome in inline_com_paridade {
+        let corpo = sem_comentarios(&corpo_de_funcao(&central_code, nome));
+        assert!(
+            corpo.contains(".arg(\"--run\")") && corpo.contains("strip_suffix(\"0\\n\")"),
+            "{nome} deve obter o stdout normalizado do interpretador"
+        );
+        assert!(
+            corpo.contains(".arg(\"build\")") && build_com_nativo(&corpo),
+            "o pink build de {nome} deve carregar --nativo"
+        );
+        assert!(
+            corpo.contains("String::from_utf8_lossy(&run.stdout)"),
+            "{nome} deve executar o ELF e capturar run.stdout"
+        );
+        assert!(
+            paridade_de_stdout_real(&corpo),
+            "{nome} deve conter assert_eq! entre programa_interp e nativo_stdout"
+        );
+        assert!(
+            exit_comparado_a(&corpo, "Some(0)"),
+            "{nome} deve comparar o exit do ELF contra a constante Some(0)"
+        );
+        assert!(
+            !corpo.contains("paridade_stdout"),
+            "{nome} é inline e não pode delegar a helper de paridade"
+        );
+        assert!(
+            tres_guardas(&corpo),
+            "{nome} deve escrever inline as três guardas silenciosas"
+        );
+    }
+
+    // Paridade real de exit em um único caminho do arquivo.
+    assert_eq!(
+        sem_comentarios(&central_code)
+            .matches("Some(retorno_interp)")
+            .count(),
+        1,
+        "só paridade_stdout_e_exit pode comparar o exit contra o retorno observado"
+    );
+
+    // Um teste só conta como comparação de stdout quando a asserção existe: o
+    // binding run.stdout e o nome do helper, isolados, não bastam.
+    let compara_stdout = |text: &str| {
+        text.contains("paridade_stdout(")
+            || text.contains("paridade_stdout_e_exit(")
+            || paridade_de_stdout_real(&sem_comentarios(text))
+    };
+
     // Evidência processual: build nativo, montagem/linkedição e execução do ELF.
+    let chamadores_paridade_stdout = count(&|text| text.contains("paridade_stdout("));
+    let chamador_paridade_exit = count(&|text| text.contains("paridade_stdout_e_exit("));
+    let inline_com_assercao = count(&|text| {
+        !text.contains("paridade_stdout(")
+            && !text.contains("paridade_stdout_e_exit(")
+            && paridade_de_stdout_real(&sem_comentarios(text))
+    });
+    assert_eq!(
+        chamador_paridade_exit, 1,
+        "só um teste compara stdout e exit contra o retorno observado no interpretador"
+    );
+    assert_eq!(
+        chamadores_paridade_stdout, 25,
+        "devem existir 25 testes que delegam a paridade_stdout"
+    );
+    assert_eq!(
+        inline_com_assercao, 4,
+        "devem existir quatro testes com asserção de paridade de stdout escrita inline"
+    );
+    assert_eq!(
+        chamadores_paridade_stdout + chamador_paridade_exit + inline_com_assercao,
+        30,
+        "as 30 comparações de stdout são 25 via paridade_stdout + 1 via paridade_stdout_e_exit + 4 inline"
+    );
     assert_eq!(
         count(&|text| processual(text) && compara_stdout(text)),
         30,
@@ -3645,16 +4140,6 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         count(&|text| processual(text) && !compara_stdout(text)),
         3,
         "devem existir 3 testes que validam apenas o exit"
-    );
-    assert_eq!(
-        count(&|text| text.contains("paridade_stdout_e_exit(")),
-        1,
-        "só um teste compara stdout e exit contra o retorno observado no interpretador"
-    );
-    assert_eq!(
-        count(&|text| text.contains("paridade_stdout(")),
-        25,
-        "devem existir 25 testes que delegam a paridade_stdout"
     );
     assert_eq!(
         count(&|text| text.contains("argv") || text.contains("CASOS_PARIDADE_B11")),
@@ -3691,27 +4176,42 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
             span.0
         );
     }
-    // Os dois helpers processuais concentram as mesmas três guardas.
-    for helper in ["fn paridade_stdout(", "fn paridade_stdout_e_exit("] {
-        let start = central_lines
-            .iter()
-            .position(|line| line.trim_start().starts_with(helper))
-            .expect("helper processual presente");
-        let text = central_lines[start..(start + 20)].join("\n");
-        assert!(
-            text.contains("cfg!(all(target_os = \"linux\", target_arch = \"x86_64\"))")
-                && text.contains("detect_cc_driver().is_none()")
-                && text.contains("runtime_lib.is_file()"),
-            "o helper {helper} deve concentrar as três guardas silenciosas"
-        );
+    // Os dois helpers processuais concentram as mesmas três guardas, provadas no
+    // corpo extraído por balanceamento e não numa janela fixa de linhas.
+    for (helper, corpo) in [
+        ("paridade_stdout", &corpo_paridade_stdout),
+        ("paridade_stdout_e_exit", &corpo_paridade_exit),
+    ] {
+        for guarda in [
+            "cfg!(all(target_os = \"linux\", target_arch = \"x86_64\"))",
+            "detect_cc_driver().is_none()",
+            "runtime_lib.is_file()",
+        ] {
+            assert!(
+                corpo.contains(guarda),
+                "o helper {helper} deve conter a guarda {guarda}"
+            );
+        }
     }
     // Guardas de plataforma, driver e runtime alcançam os 33 testes processuais e
-    // todos podem permanecer verdes sem exercer evidência processual alguma.
-    let sob_guardas =
-        count(&guarda_inline) + count(&|text| processual(text) && !guarda_inline(text));
+    // todos podem permanecer verdes sem exercer evidência processual alguma. A
+    // cobertura é derivada das três origens disjuntas, não da classificação
+    // prévia de todo teste processual como "sob guardas".
+    assert_eq!(
+        count(&|text| guarda_inline(text)
+            && (text.contains("paridade_stdout(") || text.contains("paridade_stdout_e_exit("))),
+        0,
+        "guardas inline e guardas herdadas de helper devem ser origens disjuntas"
+    );
+    let sob_guardas = count(&guarda_inline) + chamadores_paridade_stdout + chamador_paridade_exit;
     assert_eq!(
         sob_guardas, 33,
-        "os 33 testes processuais estão sujeitos às três guardas e podem passar sem evidência"
+        "os 33 sob guardas são 7 inline + 25 via paridade_stdout + 1 via paridade_stdout_e_exit"
+    );
+    assert_eq!(
+        sob_guardas,
+        count(&processual),
+        "toda evidência processual deve estar sujeita às três guardas e pode passar sem evidência"
     );
 
     // A matriz B11: 14 casos, 13 exemplos distintos, fase221 com e sem argv.

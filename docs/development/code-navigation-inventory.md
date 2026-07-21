@@ -1391,6 +1391,16 @@ testes** da suíte. A distribuição das dez regiões de evidência, em ordem f�
 é **[2, 5, 7, 2, 3, 1, 7, 1, 1, 18]** — soma **47**, sem teste órfão e sem
 ownership duplicado.
 
+**Classificação das catorze regiões.** As catorze regiões se dividem em **três
+regiões de evidência exclusivamente textual** (`emissao-init-runtime`,
+`emissao-abi-e-fluxo-textual`, `emissao-simbolos-runtime-textual`), que reúnem
+os 14 testes em memória; **sete regiões de evidência processual**
+(`execucao-exit-fumaca-abi`, `paridade-stdout-colecoes`, `paridade-marco-b11`,
+`paridade-stdout-programas-maiores`, `paridade-argv`,
+`execucao-exit-controle-fluxo`, `paridade-stdout-fases-avancadas`), que reúnem
+os 33 testes processuais; e **quatro regiões de suporte**, sem ownership direto
+de testes. Somam 3 + 7 + 4 = 14 regiões e 14 + 33 = 47 testes.
+
 **Textual versus processual.** Dos 47 testes, **14 rodam exclusivamente em
 memória** e **33 são processuais**. Entre os testes em memória há **13 chamadas
 diretas ao emissor hospedado** `emit_external_toolchain_subset`
@@ -1437,8 +1447,24 @@ base. O catálogo passa de **365 para 379 regiões** e a camada `evidencia`, de
 renomeada, `SEMANTIC_CHANGES_EXISTING = 0` e `POSITIONAL_CHANGES_EXISTING = 0`.
 As 365 entradas anteriores são congeladas por projeção estável.
 
-A Onda 8I está **completa**; `onda_8_complete = false` e `trama_complete =
-false`. Esta onda **não** declara paridade completa da linguagem, backend nativo
+**Invariantes provadas dentro do corpo certo.** O gate cartográfico não
+classifica um teste como comparação de stdout pela presença do binding
+`run.stdout` nem pelo nome de um helper: extrai o corpo de `paridade_stdout`, de
+`paridade_stdout_e_exit` e dos quatro testes com asserção inline por
+balanceamento de chaves e exige, em cada um, um `assert_eq!` cujos dois
+primeiros argumentos sejam o stdout normalizado do interpretador e o stdout do
+ELF. As 30 comparações são derivadas como **25 + 1 + 4**, e os 33 testes sob
+guardas como **7 inline + 25 + 1**. Também são provados dentro do corpo: o
+`--nativo` na cadeia de `pink build` dos dois helpers, o `strip_suffix("0\n")`
+de `paridade_stdout`, o `Some(retorno_interp)` de `paridade_stdout_e_exit` — que
+não aceita `Some(0)` como substituto — e a definição única, na região aprovada,
+de cada um dos oito símbolos de suporte. A Onda 8G volta a exigir, por
+redundância, que `tests/backend_nativo_tests.rs` mantenha exatamente 47
+`#[test]`, além das 14 regiões.
+
+A Onda 8I está **completa somente após o gate corrigido**, isto é, com essas
+invariantes vigentes; `onda_8_complete = false` e `trama_complete = false`.
+Esta onda **não** declara paridade completa da linguagem, backend nativo
 completo, runtime completo, cobertura incondicional, suporte multiplataforma,
 `clang` validado nem self-hosting. A próxima etapa é o **runtime e as evidências
 do runtime**, na Onda 8J.
