@@ -771,10 +771,13 @@ fn camada_trama_separa_catalogo_raizes_e_consulta() {
 }
 
 /// A camada `runtime` (Onda 6E) cartografa `runtime/pinker_rt/src/lib.rs`
-/// (produção; `#[cfg(test)] mod tests` fica de fora, por decisão explícita da
-/// cápsula). Verifica as 15 chaves planejadas, a contagem exata de 15 regiões
-/// `runtime` e que todas apontam para o arquivo do runtime nativo — nenhuma
-/// para `src/`. Não fixa o total global do catálogo (§18.4).
+/// (produção). A cápsula da 6E continua cobrindo somente produção, e o
+/// `#[cfg(test)] mod tests` permanece fora da camada `runtime`; suas
+/// evidências foram cartografadas posteriormente na camada `evidencia` pela
+/// Onda 8J, sob o prefixo `evidencia.runtime.`. Verifica as 15 chaves
+/// planejadas, a contagem exata de 15 regiões `runtime` e que todas apontam
+/// para o arquivo do runtime nativo — nenhuma para `src/`. Não fixa o total
+/// global do catálogo (§18.4).
 #[test]
 fn camada_runtime_cartografa_o_runtime_nativo() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
@@ -1941,6 +1944,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         .filter(|region| !region.key.starts_with("evidencia.backend-s."))
         .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
+        .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
         historical_evidence_total, 157,
@@ -1968,6 +1972,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         .filter(|region| !region.key.starts_with("evidencia.backend-s."))
         .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
+        .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
         historical_catalog_total, 340,
@@ -2072,6 +2077,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
         .filter(|region| !region.key.starts_with("evidencia.backend-s."))
         .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
+        .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
         historical_catalog_total, 348,
@@ -2201,6 +2207,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
         .filter(|region| !region.key.starts_with("evidencia.backend-s."))
         .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
+        .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .collect();
     assert_eq!(
         previous_regions.len(),
@@ -2304,6 +2311,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         .iter()
         .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
+        .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
         historical_catalog_total, 355,
@@ -2316,6 +2324,8 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
             .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
+            .filter(|region| !region.key.starts_with("evidencia.runtime."))
+            .filter(|region| !region.key.starts_with("evidencia.runtime."))
             .count(),
         172,
         "o estado histórico da Onda 8G deve totalizar 172 regiões de evidência"
@@ -2329,6 +2339,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         })
         .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
+        .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .map(|region| region.key.as_str())
         .collect();
     assert_eq!(
@@ -2593,6 +2604,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         .filter(|region| !expected_keys.contains(region.key.as_str()))
         .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
+        .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .collect();
     assert_eq!(
         previous_regions.len(),
@@ -2711,6 +2723,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
         .regions
         .iter()
         .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
+        .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
         historical_catalog_total, 365,
@@ -2722,6 +2735,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .iter()
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
+            .filter(|region| !region.key.starts_with("evidencia.runtime."))
+            .filter(|region| !region.key.starts_with("evidencia.runtime."))
             .count(),
         182,
         "o estado histórico da Onda 8H deve totalizar 182 regiões de evidência"
@@ -3183,6 +3198,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
         .iter()
         .filter(|region| !expected_keys.contains(region.key.as_str()))
         .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
+        .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .collect();
     assert_eq!(
         previous_regions.len(),
@@ -3315,18 +3331,23 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         );
     }
     assert_eq!(
-        catalog.regions.len(),
+        catalog
+            .regions
+            .iter()
+            .filter(|region| !region.key.starts_with("evidencia.runtime."))
+            .count(),
         379,
-        "a Onda 8I deve totalizar 379 regiões"
+        "o estado histórico da Onda 8I deve totalizar 379 regiões"
     );
     assert_eq!(
         catalog
             .regions
             .iter()
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
+            .filter(|region| !region.key.starts_with("evidencia.runtime."))
             .count(),
         196,
-        "a Onda 8I deve totalizar 196 regiões de evidência"
+        "o estado histórico da Onda 8I deve totalizar 196 regiões de evidência"
     );
     let nativo_keys: HashSet<_> = catalog
         .regions
@@ -3839,6 +3860,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         .regions
         .iter()
         .filter(|region| !expected_keys.contains(region.key.as_str()))
+        .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .collect();
     assert_eq!(
         previous_regions.len(),
@@ -3859,6 +3881,584 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     let onda_8_complete = false;
     let trama_complete = false;
     assert!(onda_8i_complete);
+    assert!(!onda_8_complete);
+    assert!(!trama_complete);
+}
+
+/// A Onda 8J cartografa exclusivamente o `#[cfg(test)] mod tests` de
+/// `runtime/pinker_rt/src/lib.rs` — 22 testes e um helper — em sete regiões
+/// `evidencia.runtime.*`. A produção do runtime já fora cartografada pela Onda
+/// 6E em 15 regiões `runtime.*`, que esta onda não altera nem recartografa: a
+/// cápsula da 6E continua cobrindo somente produção e o `mod tests` permanece
+/// fora da camada `runtime`.
+///
+/// O gate é estritamente cartográfico. Prova catálogo (totais, conjunto exato
+/// de chaves, regeneração canônica), arquivo (contagem de testes, helper
+/// único, ordem física, contiguidade, ausência de sobreposição e de teste sem
+/// dono), ownership `[4,2,3,5,4,3,1]`, classificação (camada `evidencia`,
+/// evidência em memória, arquivo do runtime), preservação da produção (as 15
+/// chaves, 155 símbolos produtivos com ownership único, 107 símbolos de ABI) e
+/// congelamento das 379 regiões anteriores.
+///
+/// Não afirma correção semântica das asserções, segurança de memória, ausência
+/// de vazamentos, equivalência com o interpretador, execução de ELF, completude
+/// de ABI, dataflow, resolução de macros nem alcançabilidade. As relações entre
+/// região de produção e evidência interna são estruturais, por menção/call site.
+#[test]
+fn onda_8j_cartografa_evidencias_internas_do_runtime() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let path = repository.join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    let central = "runtime/pinker_rt/src/lib.rs";
+
+    // As sete regiões da Onda 8J, em ordem física: (chave, domínio, testes).
+    let expected_regions: [(&str, &str, usize); 7] = [
+        ("evidencia.runtime.memoria-alocador", "memoria", 4),
+        ("evidencia.runtime.inicializacao-abi", "inicializacao", 2),
+        ("evidencia.runtime.texto-verso", "texto", 3),
+        ("evidencia.runtime.listas-dinamicas", "listas", 5),
+        ("evidencia.runtime.mapas-dinamicos", "mapas", 4),
+        ("evidencia.runtime.leques-carga", "leques", 3),
+        ("evidencia.runtime.mapas-iterador-snapshot", "mapas", 1),
+    ];
+
+    let expected_keys: HashSet<&str> = expected_regions.iter().map(|entry| entry.0).collect();
+    assert_eq!(expected_keys.len(), 7, "as sete chaves 8J devem ser únicas");
+
+    let expected_ownership: Vec<usize> = expected_regions.iter().map(|entry| entry.2).collect();
+    assert_eq!(
+        expected_ownership,
+        vec![4usize, 2, 3, 5, 4, 3, 1],
+        "o ownership aprovado da Onda 8J é [4,2,3,5,4,3,1]"
+    );
+    assert_eq!(
+        expected_ownership.iter().sum::<usize>(),
+        22,
+        "a soma do ownership 8J deve ser 22"
+    );
+
+    // 1. CATÁLOGO.
+    let mut unique_catalog_keys = HashSet::new();
+    for region in &catalog.regions {
+        assert!(
+            unique_catalog_keys.insert(region.key.as_str()),
+            "chave duplicada no catálogo: {}",
+            region.key
+        );
+    }
+    assert_eq!(
+        catalog.regions.len(),
+        386,
+        "a Onda 8J deve totalizar 386 regiões"
+    );
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("evidencia"))
+            .count(),
+        203,
+        "a Onda 8J deve totalizar 203 regiões de evidência"
+    );
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("runtime"))
+            .count(),
+        15,
+        "a camada runtime permanece com as 15 regiões de produção da Onda 6E"
+    );
+    let evidencia_runtime_keys: HashSet<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| region.key.starts_with("evidencia.runtime."))
+        .map(|region| region.key.as_str())
+        .collect();
+    assert_eq!(
+        evidencia_runtime_keys, expected_keys,
+        "o prefixo evidencia.runtime. deve conter exatamente as sete chaves 8J"
+    );
+
+    let regenerated = CodeIndex::scan_repo(&repository)
+        .expect("regeneração canônica do catálogo a partir das fontes");
+    assert!(
+        regenerated.verify().is_empty(),
+        "regeneração canônica inválida: {:?}",
+        regenerated.verify()
+    );
+    let versioned = fs::read_to_string(&path).expect("catálogo JSONL versionado");
+    assert_eq!(
+        versioned,
+        regenerated.render_jsonl(),
+        "src/navigation.jsonl diverge da regeneração canônica"
+    );
+
+    // 2. ARQUIVO.
+    let central_source = fs::read_to_string(repository.join(central)).expect("runtime nativo");
+    let central_lines: Vec<_> = central_source.lines().collect();
+
+    let evidence_regions: Vec<_> = expected_regions
+        .iter()
+        .map(|entry| {
+            catalog
+                .region(entry.0)
+                .unwrap_or_else(|| panic!("região 8J ausente: {}", entry.0))
+        })
+        .collect();
+
+    for (region, (key, domain, _)) in evidence_regions.iter().zip(expected_regions) {
+        assert_eq!(region.file, central, "arquivo divergente para {key}");
+        assert_eq!(region.kind, "region", "kind divergente para {key}");
+        assert_eq!(region.domain.as_deref(), Some(domain), "domínio de {key}");
+        assert_eq!(
+            region.layer.as_deref(),
+            Some("evidencia"),
+            "camada de {key}"
+        );
+        assert_eq!(region.status, "active", "status divergente para {key}");
+        assert!(
+            region.start_marker < region.content_start
+                && region.content_start <= region.content_end
+                && region.content_end < region.end_marker,
+            "ordem inválida dos marcadores em {key}"
+        );
+        let content_lines = &central_lines[(region.content_start - 1)..region.content_end];
+        assert!(
+            content_lines.iter().any(|line| !line.trim().is_empty()),
+            "conteúdo vazio em {key}"
+        );
+        assert!(
+            content_lines
+                .iter()
+                .all(|line| !line.contains("@pinker-nav:")),
+            "marcador absorvido pelo conteúdo de {key}"
+        );
+    }
+
+    // Ordem física declarada == ordem física real, sem sobreposição, contígua.
+    let ordered: Vec<(usize, usize, usize, usize)> = evidence_regions
+        .iter()
+        .map(|region| {
+            (
+                region.start_marker,
+                region.content_start,
+                region.content_end,
+                region.end_marker,
+            )
+        })
+        .collect();
+    assert!(
+        ordered.windows(2).all(|pair| pair[0].3 < pair[1].0),
+        "as sete regiões 8J devem ser disjuntas e seguir a ordem física declarada"
+    );
+    for pair in ordered.windows(2) {
+        let between = &central_lines[pair[0].3..(pair[1].0 - 1)];
+        assert!(
+            between.iter().all(|line| line.trim().is_empty()),
+            "há código fora de região entre as linhas {} e {}",
+            pair[0].3,
+            pair[1].0
+        );
+    }
+
+    // O bloco cartografado abre no `#[cfg(test)]` e fecha no `}` do módulo.
+    let bloco_inicio = ordered[0].1;
+    let bloco_fim = ordered[6].2;
+    assert_eq!(
+        central_lines[bloco_inicio - 1].trim(),
+        "#[cfg(test)]",
+        "a primeira região 8J deve abrir no atributo #[cfg(test)]"
+    );
+    assert_eq!(
+        central_lines[bloco_inicio].trim(),
+        "mod tests {",
+        "a primeira região 8J deve abranger a abertura de mod tests"
+    );
+    assert_eq!(
+        central_lines[bloco_inicio + 1].trim(),
+        "use super::*;",
+        "a primeira região 8J deve abranger o use super::*;"
+    );
+    assert_eq!(
+        central_lines[bloco_fim - 1],
+        "}",
+        "a última região 8J deve terminar no fechamento físico de mod tests"
+    );
+    assert_eq!(
+        ordered[6].3,
+        central_lines.len(),
+        "o marcador de fim da última região 8J é a última linha do arquivo"
+    );
+
+    // Marcadores: 15 regiões de produção (6E) + 7 de evidência (8J).
+    assert_eq!(
+        central_source.matches("@pinker-nav:start ").count(),
+        22,
+        "{central} deve conter 22 marcadores de início (15 produção + 7 evidência)"
+    );
+    assert_eq!(
+        central_source.matches("@pinker-nav:end ").count(),
+        22,
+        "{central} deve conter 22 marcadores de fim (15 produção + 7 evidência)"
+    );
+    assert_eq!(
+        central_source
+            .matches("@pinker-nav:start evidencia.runtime.")
+            .count(),
+        7,
+        "{central} deve conter sete marcadores de início evidencia.runtime."
+    );
+    assert_eq!(
+        central_source
+            .matches("@pinker-nav:end evidencia.runtime.")
+            .count(),
+        7,
+        "{central} deve conter sete marcadores de fim evidencia.runtime."
+    );
+    let marker_lines_bloco = central_lines
+        .iter()
+        .enumerate()
+        .filter(|(index, line)| index + 1 >= ordered[0].0 && line.contains("@pinker-nav"))
+        .count();
+    assert_eq!(
+        marker_lines_bloco, 35,
+        "as sete regiões 8J somam 35 linhas de marcador (7 × 5)"
+    );
+    assert!(
+        central_lines
+            .iter()
+            .filter(|line| line.contains("@pinker-nav"))
+            .all(|line| line.trim_start().starts_with("// @pinker-nav:")),
+        "toda linha de marcador em {central} deve ser um comentário canônico"
+    );
+
+    // 3. OWNERSHIP.
+    let test_lines: Vec<usize> = central_lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| line.trim() == "#[test]")
+        .map(|(index, _)| index + 1)
+        .collect();
+    assert_eq!(
+        test_lines.len(),
+        22,
+        "{central} deve manter exatamente 22 testes"
+    );
+    assert!(
+        test_lines
+            .iter()
+            .all(|line| bloco_inicio <= *line && *line <= bloco_fim),
+        "todo #[test] deve estar dentro do bloco cartografado"
+    );
+
+    let mut unowned_tests: Vec<usize> = Vec::new();
+    let mut duplicate_ownership: Vec<(usize, Vec<&str>)> = Vec::new();
+    let mut observed_ownership = vec![0usize; expected_regions.len()];
+    for &test_line in &test_lines {
+        let owners: Vec<_> = evidence_regions
+            .iter()
+            .filter(|region| region.content_start <= test_line && test_line <= region.content_end)
+            .map(|region| region.key.as_str())
+            .collect();
+        match owners.len() {
+            0 => unowned_tests.push(test_line),
+            1 => {
+                let index = expected_regions
+                    .iter()
+                    .position(|entry| entry.0 == owners[0])
+                    .unwrap_or_else(|| panic!("owner fora das sete regiões 8J: {}", owners[0]));
+                observed_ownership[index] += 1;
+            }
+            _ => duplicate_ownership.push((test_line, owners)),
+        }
+    }
+    assert!(
+        unowned_tests.is_empty(),
+        "unowned_tests deve ser vazio, obteve {unowned_tests:?}"
+    );
+    assert!(
+        duplicate_ownership.is_empty(),
+        "duplicate_ownership deve ser vazio, obteve {duplicate_ownership:?}"
+    );
+    let evidence_regions_without_tests: Vec<&str> = expected_regions
+        .iter()
+        .zip(&observed_ownership)
+        .filter(|(_, observed)| **observed == 0)
+        .map(|(entry, _)| entry.0)
+        .collect();
+    assert!(
+        evidence_regions_without_tests.is_empty(),
+        "evidence_regions_without_tests deve ser vazio, obteve {evidence_regions_without_tests:?}"
+    );
+    assert_eq!(
+        observed_ownership, expected_ownership,
+        "o ownership real divergiu do inventário aprovado"
+    );
+    assert_eq!(
+        observed_ownership.iter().sum::<usize>(),
+        22,
+        "ownership_sum deve ser 22"
+    );
+
+    // O único helper aprovado do bloco é `verso_de`, e ele pertence a
+    // `evidencia.runtime.texto-verso`. Helper = `fn` do bloco cujo atributo
+    // anterior não é `#[test]`. Nenhuma leitura semântica do corpo.
+    let helpers: Vec<(usize, &str)> = (bloco_inicio..=bloco_fim)
+        .filter(|line| central_lines[line - 1].trim_start().starts_with("fn "))
+        .filter(|line| central_lines[line - 2].trim() != "#[test]")
+        .map(|line| (line, central_lines[line - 1].trim()))
+        .collect();
+    assert_eq!(
+        helpers.len(),
+        1,
+        "o bloco de testes deve conter exatamente um helper, obteve {helpers:?}"
+    );
+    assert!(
+        helpers[0].1.starts_with("fn verso_de("),
+        "o único helper aprovado é verso_de, obteve {}",
+        helpers[0].1
+    );
+    let texto_verso = catalog.region("evidencia.runtime.texto-verso").unwrap();
+    assert!(
+        texto_verso.content_start <= helpers[0].0 && helpers[0].0 <= texto_verso.content_end,
+        "verso_de deve ser definido dentro de evidencia.runtime.texto-verso"
+    );
+    for region in &evidence_regions {
+        assert!(
+            region.key == "evidencia.runtime.texto-verso"
+                || !(region.content_start <= helpers[0].0 && helpers[0].0 <= region.content_end),
+            "verso_de não pode pertencer também a {}",
+            region.key
+        );
+    }
+
+    // 4. CLASSIFICAÇÃO: toda a evidência da Onda 8J é em memória. Nenhum teste
+    // do bloco cria processo, toca o sistema de arquivos ou invoca toolchain.
+    let bloco = central_lines[(bloco_inicio - 1)..bloco_fim].join("\n");
+    for marca in [
+        "Command::new",
+        "std::process",
+        "std::fs",
+        "File::",
+        "env!(",
+        "cargo",
+    ] {
+        assert!(
+            !bloco.contains(marca),
+            "a evidência 8J é em memória: {marca} não pode aparecer no bloco de testes"
+        );
+    }
+
+    // 5. PRODUÇÃO PRESERVADA (Onda 6E).
+    let expected_production_keys: HashSet<&str> = HashSet::from([
+        "runtime.inicializacao.bootstrap",
+        "runtime.memoria.alocador",
+        "runtime.texto.operacoes",
+        "runtime.conversoes.numero-texto",
+        "runtime.texto.formatacao",
+        "runtime.io.saida",
+        "runtime.listas.dinamicas",
+        "runtime.mapas.dinamicos",
+        "runtime.leques.variantes",
+        "runtime.arquivos.io",
+        "runtime.caminhos.sistema",
+        "runtime.tempo.relogio",
+        "runtime.aleatorio.gerador",
+        "runtime.ambiente.argumentos",
+        "runtime.processos.execucao",
+    ]);
+    let production_regions: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| region.key.starts_with("runtime."))
+        .collect();
+    let production_keys: HashSet<&str> = production_regions
+        .iter()
+        .map(|region| region.key.as_str())
+        .collect();
+    assert_eq!(
+        production_keys, expected_production_keys,
+        "as quinze chaves runtime.* da Onda 6E devem permanecer exatamente as mesmas"
+    );
+    for region in &production_regions {
+        assert_eq!(region.file, central, "região de produção fora do runtime");
+        assert_eq!(region.layer.as_deref(), Some("runtime"));
+        assert!(
+            region.end_marker < ordered[0].0,
+            "a região de produção {} invadiu o bloco de testes",
+            region.key
+        );
+    }
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.file == central)
+            .count(),
+        22,
+        "{central} deve registrar 22 regiões (15 de produção + 7 de evidência)"
+    );
+
+    // 155 símbolos produtivos: 147 definições textuais antes do bloco de testes
+    // mais os 8 wrappers `pinker_formatar_verso_1..8` gerados por
+    // `formatar_wrappers!`. Cada definição textual pertence a exatamente uma das
+    // quinze regiões da 6E. Contagem estrutural; não resolve macros.
+    let e_definicao = |line: &str| {
+        let t = line
+            .trim_start()
+            .trim_start_matches("pub(crate) ")
+            .trim_start_matches("pub ")
+            .trim_start_matches("unsafe ")
+            .trim_start_matches("extern \"C\" ");
+        ["fn ", "struct ", "enum ", "const ", "static ", "type "]
+            .iter()
+            .any(|prefixo| t.starts_with(prefixo))
+    };
+    let definicoes: Vec<usize> = (1..bloco_inicio)
+        .filter(|line| e_definicao(central_lines[line - 1]))
+        .collect();
+    assert_eq!(
+        definicoes.len(),
+        147,
+        "a produção do runtime deve manter 147 definições textuais"
+    );
+    let wrappers_gerados = 8usize;
+    assert_eq!(
+        definicoes.len() + wrappers_gerados,
+        155,
+        "147 definições textuais + 8 wrappers gerados = 155 símbolos produtivos"
+    );
+    let mut definicoes_sem_dono: Vec<usize> = Vec::new();
+    let mut definicoes_com_dono_duplo: Vec<usize> = Vec::new();
+    for &linha in &definicoes {
+        let donos = production_regions
+            .iter()
+            .filter(|region| region.content_start <= linha && linha <= region.content_end)
+            .count();
+        match donos {
+            0 => definicoes_sem_dono.push(linha),
+            1 => {}
+            _ => definicoes_com_dono_duplo.push(linha),
+        }
+    }
+    assert!(
+        definicoes_sem_dono.is_empty() && definicoes_com_dono_duplo.is_empty(),
+        "os 155 símbolos produtivos devem manter ownership único, obteve sem dono {definicoes_sem_dono:?} e duplicados {definicoes_com_dono_duplo:?}"
+    );
+
+    // 107 símbolos de ABI: 99 `extern "C" fn` nomeadas na produção mais os 8
+    // wrappers gerados pela macro.
+    let producao = central_lines[..(ordered[0].0 - 1)].join("\n");
+    let abi_nomeadas = producao
+        .match_indices("extern \"C\" fn ")
+        .filter(|(index, marca)| {
+            !producao[(index + marca.len())..].starts_with('$')
+                && !producao[(index + marca.len())..].is_empty()
+        })
+        .count();
+    assert_eq!(
+        abi_nomeadas, 99,
+        "a produção do runtime deve manter 99 funções extern \"C\" nomeadas"
+    );
+    assert_eq!(
+        abi_nomeadas + wrappers_gerados,
+        107,
+        "99 funções ABI diretas + 8 wrappers gerados = 107 símbolos de ABI"
+    );
+    assert_eq!(
+        producao.matches("formatar_wrappers!(").count(),
+        1,
+        "há exatamente uma expansão de formatar_wrappers!"
+    );
+    for indice in 1..=wrappers_gerados {
+        assert!(
+            producao.contains(&format!("pinker_formatar_verso_{indice},")),
+            "o wrapper pinker_formatar_verso_{indice} deve continuar declarado na expansão"
+        );
+    }
+
+    // 7. CONTAGENS FACTUAIS: seis regiões de produção têm alguma evidência
+    // interna relacionada (por menção/call site de um símbolo de ABI que a
+    // região define) e nove não têm. Relação estrutural, não semântica.
+    let sem_evidencia_interna = [
+        "runtime.conversoes.numero-texto",
+        "runtime.texto.formatacao",
+        "runtime.io.saida",
+        "runtime.arquivos.io",
+        "runtime.caminhos.sistema",
+        "runtime.tempo.relogio",
+        "runtime.aleatorio.gerador",
+        "runtime.ambiente.argumentos",
+        "runtime.processos.execucao",
+    ];
+    let mut com_evidencia = 0usize;
+    let mut sem_evidencia: Vec<&str> = Vec::new();
+    for region in &production_regions {
+        let corpo = central_lines[(region.content_start - 1)..region.content_end].join("\n");
+        let mut simbolos: Vec<String> = corpo
+            .match_indices("extern \"C\" fn ")
+            .map(|(index, marca)| {
+                corpo[(index + marca.len())..]
+                    .split(['(', '<', ' '])
+                    .next()
+                    .unwrap_or("")
+                    .to_string()
+            })
+            .filter(|nome| !nome.is_empty() && !nome.starts_with('$'))
+            .collect();
+        if corpo.contains("formatar_wrappers!(") {
+            for indice in 1..=wrappers_gerados {
+                simbolos.push(format!("pinker_formatar_verso_{indice}"));
+            }
+        }
+        if simbolos
+            .iter()
+            .any(|nome| bloco.contains(&format!("{nome}(")))
+        {
+            com_evidencia += 1;
+        } else {
+            sem_evidencia.push(region.key.as_str());
+        }
+    }
+    assert_eq!(
+        com_evidencia, 6,
+        "seis regiões de produção têm ao menos um teste interno relacionado"
+    );
+    sem_evidencia.sort_unstable();
+    let mut esperado_sem: Vec<&str> = sem_evidencia_interna.to_vec();
+    esperado_sem.sort_unstable();
+    assert_eq!(
+        sem_evidencia, esperado_sem,
+        "os nove domínios de produção sem teste interno relacionado divergiram"
+    );
+
+    // 6. HISTÓRICO: as 379 regiões anteriores permanecem congeladas.
+    let previous_regions: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| !expected_keys.contains(region.key.as_str()))
+        .collect();
+    assert_eq!(
+        previous_regions.len(),
+        379,
+        "as 379 regiões anteriores devem ser preservadas semanticamente"
+    );
+    let previous_projection = stable_region_projection(previous_regions.into_iter());
+    assert_eq!(
+        (
+            previous_projection.len(),
+            fnv1a64(previous_projection.as_bytes()),
+        ),
+        (165_434, 12_395_117_943_166_741_653),
+        "a projeção estável das 379 regiões anteriores mudou"
+    );
+
+    let onda_8j_complete = true;
+    let onda_8_complete = false;
+    let trama_complete = false;
+    assert!(onda_8j_complete);
     assert!(!onda_8_complete);
     assert!(!trama_complete);
 }
