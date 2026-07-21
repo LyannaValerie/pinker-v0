@@ -1939,6 +1939,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         .filter(|region| region.layer.as_deref() == Some("evidencia"))
         .filter(|region| !region.key.starts_with("evidencia.backend-text."))
         .filter(|region| !region.key.starts_with("evidencia.backend-s."))
+        .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .count();
     assert_eq!(
         historical_evidence_total, 157,
@@ -1964,6 +1965,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         .iter()
         .filter(|region| !region.key.starts_with("evidencia.backend-text."))
         .filter(|region| !region.key.starts_with("evidencia.backend-s."))
+        .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .count();
     assert_eq!(
         historical_catalog_total, 340,
@@ -2066,6 +2068,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
         .regions
         .iter()
         .filter(|region| !region.key.starts_with("evidencia.backend-s."))
+        .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .count();
     assert_eq!(
         historical_catalog_total, 348,
@@ -2193,6 +2196,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
         .iter()
         .filter(|region| !expected_key_set.contains(region.key.as_str()))
         .filter(|region| !region.key.starts_with("evidencia.backend-s."))
+        .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .collect();
     assert_eq!(
         previous_regions.len(),
@@ -2291,19 +2295,24 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             region.key
         );
     }
+    let historical_catalog_total = catalog
+        .regions
+        .iter()
+        .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
+        .count();
     assert_eq!(
-        catalog.regions.len(),
-        355,
-        "a Onda 8G deve totalizar 355 regiões"
+        historical_catalog_total, 355,
+        "o estado histórico da Onda 8G deve totalizar 355 regiões"
     );
     assert_eq!(
         catalog
             .regions
             .iter()
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
+            .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
             .count(),
         172,
-        "a Onda 8G deve totalizar 172 regiões de evidência"
+        "o estado histórico da Onda 8G deve totalizar 172 regiões de evidência"
     );
     let backend_s_evidence_keys: HashSet<_> = catalog
         .regions
@@ -2312,6 +2321,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             region.domain.as_deref() == Some("backend-s")
                 && region.layer.as_deref() == Some("evidencia")
         })
+        .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .map(|region| region.key.as_str())
         .collect();
     assert_eq!(
@@ -2494,21 +2504,16 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
                 || external_helper_line < region.content_start
                 || region.content_end < external_helper_line
         }),
-        "render_backend_s_external_subset deve permanecer futuro e fora das sete regiões 8G"
+        "render_backend_s_external_subset deve permanecer fora das sete regiões 8G"
     );
 
-    let excluded_suite_boundaries = [
-        (
-            "tests/backend_s_external_toolchain_tests.rs",
-            79,
-            "toolchain externa montável/montagem-link-execução",
-        ),
-        (
-            "tests/backend_nativo_tests.rs",
-            47,
-            "backend nativo/paridade/runtime",
-        ),
-    ];
+    // tests/backend_s_external_toolchain_tests.rs saiu desta lista na Onda 8H, que o
+    // cartografou; a fronteira do backend nativo permanece intocada.
+    let excluded_suite_boundaries = [(
+        "tests/backend_nativo_tests.rs",
+        47,
+        "backend nativo/paridade/runtime",
+    )];
     for (file, expected_test_count, boundary) in excluded_suite_boundaries {
         let source = fs::read_to_string(repository.join(file)).unwrap_or_else(|error| {
             panic!("não foi possível ler a fronteira {boundary} em {file}: {error}")
@@ -2605,6 +2610,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         .regions
         .iter()
         .filter(|region| !expected_keys.contains(region.key.as_str()))
+        .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .collect();
     assert_eq!(
         previous_regions.len(),
@@ -2625,6 +2631,578 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
     let onda_8_complete = false;
     let trama_complete = false;
     assert!(onda_8f_complete);
+    assert!(!onda_8_complete);
+    assert!(!trama_complete);
+}
+
+#[test]
+fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let path = repository.join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    let central = "tests/backend_s_external_toolchain_tests.rs";
+    let helper_file = "tests/common/mod.rs";
+
+    // As nove regiões do arquivo central, em ordem física, com a contagem de testes aprovada.
+    let expected_test_regions: [(&str, usize, &str); 9] = [
+        (
+            "evidencia.backend-s-externo.renderizacao-recortes-versionados",
+            16,
+            "Fornece fonte inline ou exemplos versionados (fase111–125) ao helper render_backend_s_external_subset, que executa parse, semântica, IR, CFG e seleção em memória e emite assembly via emit_external_toolchain_subset; valida por contains o cabeçalho do subset, `.globl main`, rótulos `.L<fn>_*`, `jmp`/`cmpq`/`jne`/`setb`, seção `.rodata`, movimentos de argumento e instruções de deref. Nenhum processo externo é criado: não monta, não linka e não executa; a evidência é sobre o texto emitido, não sobre a corretude do código de máquina.",
+        ),
+        (
+            "evidencia.backend-s-externo.fronteira-ninho-heterogeneo",
+            8,
+            "Alterna aceitações e recusas dos exemplos de `ninho` heterogêneo nas camadas 1–4 (fase129–132): nos casos aceitos verifica por contains os deslocamentos e acessos emitidos no assembly; nos recusados verifica a mensagem de erro do subset externo montável. Todo o trabalho ocorre em memória via render_backend_s_external_subset; nenhuma ferramenta externa é chamada e nada é montado, ligado ou executado.",
+        ),
+        (
+            "evidencia.backend-s-externo.fronteira-conversao-virar",
+            3,
+            "Fornece exemplos versionados de `virar` camadas 1 e 2 (duas aceitações) e um exemplo inválido (uma recusa); verifica textualmente as instruções de conversão emitidas e, no caso inválido, a mensagem de recusa. Execução em memória apenas; nenhuma ferramenta externa é chamada — sem assembler, linker ou binário.",
+        ),
+        (
+            "evidencia.backend-s-externo.renderizacao-verso-rodata",
+            2,
+            "Fornece exemplos de `verso` camada 1 (inclusive um exemplo historicamente marcado como inválido, hoje aceito) e verifica por contains o layout length-prefixed `[.quad tamanho][.ascii bytes]` na seção `.rodata`. Validação apenas textual: não monta, não liga e não executa, e nada é provado sobre a leitura desse layout em tempo de execução.",
+        ),
+        (
+            "evidencia.backend-s-externo.renderizacao-quebrar-continuar",
+            3,
+            "Fornece exemplos versionados de `quebrar`/`continuar` (fase126–128) em ordem física decrescente de camada — 3, 2, 1 — e verifica textualmente os rótulos e saltos emitidos. Execução somente em memória via render_backend_s_external_subset; nenhum processo externo, sem montagem, linkedição ou execução.",
+        ),
+        (
+            "evidencia.backend-s-externo.execucao-real-recortes-versionados",
+            22,
+            "Cada teste renderiza o `.s` com render_backend_s_external_subset, grava o arquivo em diretório temporário único, detecta em tempo de execução um driver C (`cc`, `gcc` ou `clang`) e o invoca como responsável pela montagem e pela linkedição, executando em seguida o binário produzido e validando apenas `status.code()`. Nenhum stdout é validado e o stderr é usado somente como mensagem de falha. O caminho é hospedado com runtime_init=false e sem libpinker_rt.a. Todos são pulados silenciosamente fora de Linux x86_64 ou quando não há driver C — a suíte pode passar sem exercer esta evidência.",
+        ),
+        (
+            "evidencia.backend-s-externo.execucao-real-abi-frame-interprocedural",
+            9,
+            "Mesmos limites da região anterior — renderização do `.s`, gravação em diretório temporário, driver C (`cc`, `gcc` ou `clang`) detectado em runtime responsável por montagem e linkedição, execução do binário, validação apenas de `status.code()`, nenhum stdout validado, stderr somente como mensagem de falha, runtime_init=false, sem libpinker_rt.a e skip silencioso fora de Linux x86_64 ou sem driver C — aplicados a locais, aritmética, chamadas, parâmetros, frame, memória de frame, composição interprocedural e programas lineares maiores. A suíte pode passar sem exercer esta evidência.",
+        ),
+        (
+            "evidencia.backend-s-externo.fronteira-subset-textual",
+            11,
+            "Reúne os testes de fronteira que chamam render_backend_s_external_subset e inspecionam o resultado em memória: recusas com mensagem específica (fonte fora do subset, parâmetro não `bombom`, condição de laço fora do recorte, `quebrar` fora de laço, composto fora das camadas 1–2, store frágil, parâmetro `u16`), aceitações de fronteira (quatro parâmetros com ABI completa, `talvez`/`senão`) e uma matriz auditável do subset montável. Prova mensagens e trechos de texto; não monta, não linka e não executa.",
+        ),
+        (
+            "evidencia.backend-s-externo.validacao-estrutural-sintetica",
+            5,
+            "Constrói à mão um `SelectedProgram` (globais, funções, blocos, terminadores) sem passar pelo front-end e chama emit_external_toolchain_subset diretamente, exigindo recusa para global duplicada, salto para rótulo inexistente, rótulo duplicado e ramificação com alvo verdadeiro ou falso inexistente, validando a mensagem de diagnóstico. Não há front-end, arquivo, assembler, linker nem execução.",
+        ),
+    ];
+    let helper_region: (&str, &str) = (
+        "evidencia.backend-s-externo.pipeline-helper",
+        "Executa o helper compartilhado render_backend_s_external_subset inteiramente em memória: parse e checagem semântica, lowering e validação por IR, CFG e seleção, seguidos da emissão montável hospedada via emit_external_toolchain_subset, que usa runtime_init=false. Não invoca assembler, linker ou binário; as ferramentas externas são chamadas somente por testes de fluxo real que consomem sua saída.",
+    );
+
+    let expected_ownership = [16usize, 8, 3, 2, 3, 22, 9, 11, 5];
+    assert_eq!(
+        expected_test_regions.map(|region| region.1),
+        expected_ownership,
+        "as contagens aprovadas da Onda 8H devem permanecer [16,8,3,2,3,22,9,11,5]"
+    );
+    assert_eq!(
+        expected_ownership.iter().sum::<usize>(),
+        79,
+        "a soma do ownership 8H deve ser 79"
+    );
+
+    let expected_keys: HashSet<&str> = expected_test_regions
+        .iter()
+        .map(|region| region.0)
+        .chain(std::iter::once(helper_region.0))
+        .collect();
+    assert_eq!(expected_keys.len(), 10, "as dez chaves 8H devem ser únicas");
+
+    // Catálogo: crescimento exato e ausência de chaves duplicadas.
+    let mut unique_catalog_keys = HashSet::new();
+    for region in &catalog.regions {
+        assert!(
+            unique_catalog_keys.insert(region.key.as_str()),
+            "chave duplicada no catálogo: {}",
+            region.key
+        );
+    }
+    assert_eq!(
+        catalog.regions.len(),
+        365,
+        "a Onda 8H deve totalizar 365 regiões"
+    );
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("evidencia"))
+            .count(),
+        182,
+        "a Onda 8H deve totalizar 182 regiões de evidência"
+    );
+    let externo_keys: HashSet<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| region.key.starts_with("evidencia.backend-s-externo."))
+        .map(|region| region.key.as_str())
+        .collect();
+    assert_eq!(
+        externo_keys, expected_keys,
+        "o prefixo evidencia.backend-s-externo. deve conter exatamente as dez chaves 8H"
+    );
+
+    let central_source =
+        fs::read_to_string(repository.join(central)).expect("suíte central da Onda 8H");
+    let helper_source =
+        fs::read_to_string(repository.join(helper_file)).expect("helpers compartilhados");
+    let central_lines: Vec<_> = central_source.lines().collect();
+    let helper_lines: Vec<_> = helper_source.lines().collect();
+
+    // Distribuição por arquivo: nove regiões no arquivo central, uma no helper compartilhado.
+    let central_regions: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| region.file == central)
+        .collect();
+    assert_eq!(
+        central_regions.len(),
+        9,
+        "a Onda 8H deve registrar exatamente nove regiões em {central}"
+    );
+    let helper_regions: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| expected_keys.contains(region.key.as_str()) && region.file == helper_file)
+        .collect();
+    assert_eq!(
+        helper_regions.len(),
+        1,
+        "a Onda 8H deve registrar exatamente uma região em {helper_file}"
+    );
+
+    // Metadados, marcadores e conteúdo de cada uma das dez regiões.
+    for (key, file, expected_summary) in expected_test_regions
+        .iter()
+        .map(|region| (region.0, central, region.2))
+        .chain(std::iter::once((
+            helper_region.0,
+            helper_file,
+            helper_region.1,
+        )))
+    {
+        let region = catalog
+            .region(key)
+            .unwrap_or_else(|| panic!("região 8H ausente: {key}"));
+        assert_eq!(region.file, file, "arquivo divergente para {key}");
+        assert_eq!(region.kind, "region", "kind divergente para {key}");
+        assert_eq!(region.domain.as_deref(), Some("backend-s"));
+        assert_eq!(region.layer.as_deref(), Some("evidencia"));
+        assert_eq!(
+            region.summary, expected_summary,
+            "summary divergente para {key}"
+        );
+        assert_eq!(region.status, "active", "status divergente para {key}");
+        assert!(
+            region.start_marker < region.content_start
+                && region.content_start <= region.content_end
+                && region.content_end < region.end_marker,
+            "ordem inválida dos marcadores em {key}"
+        );
+
+        let lines = if file == central {
+            &central_lines
+        } else {
+            &helper_lines
+        };
+        let content_lines = &lines[(region.content_start - 1)..region.content_end];
+        assert!(
+            !content_lines.is_empty() && content_lines.iter().any(|line| !line.trim().is_empty()),
+            "conteúdo vazio em {key}"
+        );
+        assert!(
+            content_lines
+                .iter()
+                .all(|line| !line.contains("@pinker-nav:")),
+            "marcador absorvido pelo conteúdo de {key}"
+        );
+    }
+
+    // Ordem física declarada == ordem física real, sem sobreposição entre regiões.
+    let ordered_markers: Vec<_> = expected_test_regions
+        .iter()
+        .map(|region| {
+            let entry = catalog.region(region.0).unwrap();
+            (entry.start_marker, entry.end_marker)
+        })
+        .collect();
+    assert!(
+        ordered_markers.windows(2).all(|pair| pair[0].1 < pair[1].0),
+        "as nove regiões 8H devem ser disjuntas e seguir a ordem física declarada"
+    );
+
+    // Ownership estrutural: 79 testes, cada um pertencente a exatamente uma região.
+    let test_lines: Vec<usize> = central_lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| line.trim() == "#[test]")
+        .map(|(index, _)| index + 1)
+        .collect();
+    assert_eq!(
+        test_lines.len(),
+        79,
+        "{central} deve manter exatamente 79 testes"
+    );
+
+    let mut unowned_tests: Vec<usize> = Vec::new();
+    let mut duplicate_ownership: Vec<(usize, Vec<&str>)> = Vec::new();
+    let mut observed_ownership = vec![0usize; expected_test_regions.len()];
+    for &test_line in &test_lines {
+        let owners: Vec<_> = central_regions
+            .iter()
+            .filter(|region| region.content_start <= test_line && test_line <= region.content_end)
+            .map(|region| region.key.as_str())
+            .collect();
+        match owners.len() {
+            0 => unowned_tests.push(test_line),
+            1 => {
+                let index = expected_test_regions
+                    .iter()
+                    .position(|region| region.0 == owners[0])
+                    .unwrap_or_else(|| panic!("owner fora das nove regiões 8H: {}", owners[0]));
+                observed_ownership[index] += 1;
+            }
+            _ => duplicate_ownership.push((test_line, owners)),
+        }
+    }
+    assert!(
+        unowned_tests.is_empty(),
+        "unowned_tests deve ser vazio, obteve {unowned_tests:?}"
+    );
+    assert!(
+        duplicate_ownership.is_empty(),
+        "duplicate_ownership deve ser vazio, obteve {duplicate_ownership:?}"
+    );
+    assert_eq!(
+        observed_ownership, expected_ownership,
+        "o ownership real divergiu de [16,8,3,2,3,22,9,11,5]"
+    );
+    assert!(
+        observed_ownership.iter().all(|count| *count > 0),
+        "toda região 8H deve possuir ao menos um teste"
+    );
+
+    // Contiguidade: nenhum teste do arquivo central cai entre duas regiões vizinhas.
+    for pair in ordered_markers.windows(2) {
+        assert!(
+            !test_lines
+                .iter()
+                .any(|line| pair[0].1 < *line && *line < pair[1].0),
+            "há teste fora de região entre as linhas {} e {}",
+            pair[0].1,
+            pair[1].0
+        );
+    }
+
+    // O helper externo pertence só à nova região de helper.
+    let helper_line = helper_lines
+        .iter()
+        .position(|line| {
+            line.trim()
+                .starts_with("pub fn render_backend_s_external_subset(")
+        })
+        .map(|index| index + 1)
+        .expect("helper render_backend_s_external_subset deve continuar presente");
+    let helper_owners: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| {
+            region.file == helper_file
+                && region.content_start <= helper_line
+                && helper_line <= region.content_end
+        })
+        .map(|region| region.key.as_str())
+        .collect();
+    assert_eq!(
+        helper_owners,
+        [helper_region.0],
+        "render_backend_s_external_subset deve pertencer somente à região de helper 8H"
+    );
+
+    // As regiões vizinhas da Onda 8G permanecem semanticamente preservadas.
+    let preserved_neighbours: [(&str, &str, &str); 2] = [
+        (
+            "evidencia.backend-s.pipeline-helper",
+            "render_backend_s",
+            "Executa o helper compartilhado render_backend_s inteiramente em memória: parse e checagem semântica, lowering e validação por IR, CFG e seleção, seguidos da emissão do backend .s textual via emit_from_selected. Não usa o helper do subset externo, assembler, linker nem execução nativa.",
+        ),
+        (
+            "evidencia.backend-s.apresentacao-cli-helper",
+            "render_cli_asm_s_output",
+            "Monta a apresentação sintética de render_cli_asm_s_output em memória: concatena o cabeçalho `=== ASM .S (TEXTUAL) ===`, a saída de render_backend_s e o rodapé histórico de sucesso semântico. Não cria nem executa um processo CLI.",
+        ),
+    ];
+    for (key, symbol, summary) in preserved_neighbours {
+        let region = catalog
+            .region(key)
+            .unwrap_or_else(|| panic!("região vizinha ausente: {key}"));
+        assert_eq!(region.file, helper_file, "arquivo divergente para {key}");
+        assert_eq!(region.domain.as_deref(), Some("backend-s"));
+        assert_eq!(region.layer.as_deref(), Some("evidencia"));
+        assert_eq!(region.summary, summary, "summary alterado em {key}");
+        assert_eq!(region.status, "active");
+        let symbol_line = helper_lines
+            .iter()
+            .position(|line| line.trim().starts_with(&format!("pub fn {symbol}(")))
+            .map(|index| index + 1)
+            .unwrap_or_else(|| panic!("símbolo vizinho ausente: {symbol}"));
+        assert!(
+            region.content_start <= symbol_line && symbol_line <= region.content_end,
+            "{symbol} saiu da região vizinha {key}"
+        );
+        assert!(
+            symbol_line != helper_line,
+            "a região vizinha {key} não pode absorver o helper externo"
+        );
+    }
+
+    // Fronteiras semânticas congeladas, medidas apenas sobre as linhas executáveis.
+    let central_code = central_lines
+        .iter()
+        .filter(|line| !line.trim_start().starts_with("// @pinker-nav:"))
+        .fold(String::new(), |mut code, line| {
+            code.push_str(line);
+            code.push('\n');
+            code
+        });
+    // O último span termina na fronteira cartografada, não no fim do arquivo: os
+    // helpers locais detect_cc_driver/unique_temp_dir ficam fora de qualquer teste.
+    let coverage_end = central_regions
+        .iter()
+        .map(|region| region.content_end)
+        .max()
+        .expect("regiões 8H no arquivo central");
+    let mut spans: Vec<(usize, usize)> = Vec::new();
+    for (index, &start) in test_lines.iter().enumerate() {
+        let end = test_lines
+            .get(index + 1)
+            .map(|next| next - 1)
+            .unwrap_or(coverage_end);
+        spans.push((start, end));
+    }
+    let body = |span: (usize, usize)| central_lines[(span.0 - 1)..span.1].join("\n");
+
+    let external_tests: Vec<_> = spans
+        .iter()
+        .copied()
+        .filter(|span| body(*span).contains("detect_cc_driver()"))
+        .collect();
+    assert_eq!(
+        external_tests.len(),
+        31,
+        "devem existir exatamente 31 testes que montam, linkam e executam de forma condicional"
+    );
+    for span in &external_tests {
+        let text = body(*span);
+        assert!(
+            text.contains("cfg!(all(target_os = \"linux\", target_arch = \"x86_64\"))"),
+            "teste condicional sem guarda de plataforma na linha {}",
+            span.0
+        );
+        assert!(
+            text.contains("Command::new(&driver)") && text.contains("Command::new(&bin_path)"),
+            "teste condicional sem invocação do driver externo e do binário na linha {}",
+            span.0
+        );
+        assert!(
+            text.contains("run.status.code()"),
+            "teste condicional sem validação de status.code() na linha {}",
+            span.0
+        );
+        // O skip é silencioso e nunca é promovido a sucesso incondicional.
+        assert_eq!(
+            text.matches("return;").count(),
+            2,
+            "teste condicional deve manter os dois retornos silenciosos na linha {}",
+            span.0
+        );
+        let owners: Vec<_> = central_regions
+            .iter()
+            .filter(|region| region.content_start <= span.0 && span.0 <= region.content_end)
+            .map(|region| region.key.as_str())
+            .collect();
+        assert!(
+            owners == ["evidencia.backend-s-externo.execucao-real-recortes-versionados"]
+                || owners
+                    == ["evidencia.backend-s-externo.execucao-real-abi-frame-interprocedural"],
+            "teste condicional fora das duas regiões de execução real: {owners:?}"
+        );
+    }
+    let in_memory_tests = spans
+        .iter()
+        .filter(|span| !body(**span).contains("Command::new"))
+        .count();
+    assert_eq!(
+        in_memory_tests, 48,
+        "devem existir exatamente 48 testes sem qualquer processo externo"
+    );
+    assert_eq!(
+        external_tests.len() + in_memory_tests,
+        79,
+        "as duas classes devem particionar os 79 testes"
+    );
+
+    let refusal_tests = spans
+        .iter()
+        .filter(|span| body(**span).contains("unwrap_err()"))
+        .count();
+    assert_eq!(refusal_tests, 18, "devem existir exatamente 18 recusas");
+
+    let synthetic_tests: Vec<_> = spans
+        .iter()
+        .copied()
+        .filter(|span| body(*span).contains("SelectedProgram {"))
+        .collect();
+    assert_eq!(
+        synthetic_tests.len(),
+        5,
+        "devem existir exatamente 5 casos com SelectedProgram sintético"
+    );
+    for span in &synthetic_tests {
+        let text = body(*span);
+        assert!(
+            text.contains("emit_external_toolchain_subset(&program)"),
+            "caso sintético deve chamar emit_external_toolchain_subset diretamente na linha {}",
+            span.0
+        );
+        assert!(
+            !text.contains("render_backend_s_external_subset"),
+            "caso sintético não deve passar pelo front-end na linha {}",
+            span.0
+        );
+        let owners: Vec<_> = central_regions
+            .iter()
+            .filter(|region| region.content_start <= span.0 && span.0 <= region.content_end)
+            .map(|region| region.key.as_str())
+            .collect();
+        assert_eq!(
+            owners,
+            ["evidencia.backend-s-externo.validacao-estrutural-sintetica"],
+            "caso sintético fora da região estrutural"
+        );
+    }
+
+    assert_eq!(
+        central_code.matches(".stdout").count(),
+        0,
+        "o arquivo central não pode validar stdout"
+    );
+    assert_eq!(
+        central_code.matches("stderr").count(),
+        31,
+        "stderr só pode aparecer nas 31 mensagens de falha da compilação"
+    );
+    assert_eq!(
+        central_code
+            .matches("String::from_utf8_lossy(&compile.stderr)")
+            .count(),
+        31,
+        "todo uso de stderr deve ser mensagem de falha, nunca conteúdo validado"
+    );
+    // A menção a libpinker_rt.a existe apenas nos marcadores de honestidade; o código
+    // executável do arquivo central não referencia o runtime nativo.
+    assert!(
+        !central_code.contains("pinker_rt"),
+        "o arquivo central não pode referenciar pinker_rt"
+    );
+
+    // O caminho hospedado do helper externo usa runtime_init=false.
+    let backend_s_source =
+        fs::read_to_string(repository.join("src/backend_s.rs")).expect("src/backend_s.rs");
+    let hosted_entry = backend_s_source
+        .split("pub fn emit_external_toolchain_subset(")
+        .nth(1)
+        .expect("entrada hospedada emit_external_toolchain_subset");
+    let hosted_body = hosted_entry
+        .split("pub fn ")
+        .next()
+        .expect("corpo da entrada hospedada");
+    assert!(
+        hosted_body.contains("render_external_x86_64_linux_callconv_impl(&program, false)"),
+        "a entrada hospedada deve renderizar com runtime_init=false"
+    );
+    let helper_region_entry = catalog.region(helper_region.0).unwrap();
+    let helper_body = helper_lines
+        [(helper_region_entry.content_start - 1)..helper_region_entry.content_end]
+        .join("\n");
+    assert!(
+        helper_body.contains("backend_s::emit_external_toolchain_subset(&selected)"),
+        "o helper 8H deve delegar ao caminho hospedado"
+    );
+    assert!(
+        !helper_body.contains("emit_external_toolchain_subset_nativo"),
+        "o helper 8H não pode usar o caminho nativo"
+    );
+
+    // O backend nativo permanece fora da Onda 8H.
+    let nativo = "tests/backend_nativo_tests.rs";
+    let nativo_source =
+        fs::read_to_string(repository.join(nativo)).expect("suíte do backend nativo");
+    assert_eq!(
+        nativo_source
+            .lines()
+            .filter(|line| line.trim() == "#[test]")
+            .count(),
+        47,
+        "{nativo} deve manter exatamente 47 testes"
+    );
+    assert_eq!(
+        nativo_source.matches("@pinker-nav").count(),
+        0,
+        "{nativo} não foi iniciado e deve manter zero marcadores"
+    );
+    assert!(
+        catalog.regions.iter().all(|region| region.file != nativo),
+        "{nativo} não foi iniciado e deve manter zero regiões no catálogo"
+    );
+
+    // Regeneração canônica e preservação semântica das 355 regiões anteriores.
+    let regenerated = CodeIndex::scan_repo(&repository)
+        .expect("regeneração canônica do catálogo a partir das fontes");
+    assert!(
+        regenerated.verify().is_empty(),
+        "regeneração canônica inválida: {:?}",
+        regenerated.verify()
+    );
+    let versioned = fs::read_to_string(&path).expect("catálogo JSONL versionado");
+    assert_eq!(
+        versioned,
+        regenerated.render_jsonl(),
+        "src/navigation.jsonl diverge da regeneração canônica"
+    );
+
+    let previous_regions: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| !expected_keys.contains(region.key.as_str()))
+        .collect();
+    assert_eq!(
+        previous_regions.len(),
+        355,
+        "as 355 regiões anteriores devem ser preservadas semanticamente"
+    );
+    let previous_projection = stable_region_projection(previous_regions.into_iter());
+    assert_eq!(
+        (
+            previous_projection.len(),
+            fnv1a64(previous_projection.as_bytes()),
+        ),
+        (150_870, 15_749_653_826_456_761_089),
+        "a projeção estável das 355 regiões anteriores mudou"
+    );
+
+    let onda_8h_complete = true;
+    let onda_8_complete = false;
+    let trama_complete = false;
+    assert!(onda_8h_complete);
     assert!(!onda_8_complete);
     assert!(!trama_complete);
 }

@@ -1321,6 +1321,64 @@ que exclui apenas os campos posicionais e inclui `schema`, `key`, `kind`,
 permanece obrigatória. `onda_8f_complete = true`, `onda_8g_complete = true`, `onda_8_complete = false` e
 `trama_complete = false`.
 
+## Onda 8H — evidências da toolchain externa do backend `.s`
+
+A Onda 8H adiciona exatamente **dez regiões** no domínio `backend-s` e camada
+`evidencia`, liberando o congelamento que a Onda 8G mantinha sobre
+`tests/backend_s_external_toolchain_tests.rs`. Nove regiões cobrem os **79
+testes** dessa suíte e uma décima delimita o helper compartilhado
+`render_backend_s_external_subset` em `tests/common/mod.rs`
+(`evidencia.backend-s-externo.pipeline-helper`), que antes permanecia sem owner.
+As regiões vizinhas `evidencia.backend-s.pipeline-helper` e
+`evidencia.backend-s.apresentacao-cli-helper` continuam intactas: nenhuma foi
+ampliada, reduzida ou fundida.
+
+A distribuição por região, em ordem física no arquivo central, é
+**[16, 8, 3, 2, 3, 22, 9, 11, 5]** — soma 79, sem teste órfão e sem ownership
+duplicado. As chaves são
+`evidencia.backend-s-externo.renderizacao-recortes-versionados`,
+`evidencia.backend-s-externo.fronteira-ninho-heterogeneo`,
+`evidencia.backend-s-externo.fronteira-conversao-virar`,
+`evidencia.backend-s-externo.renderizacao-verso-rodata`,
+`evidencia.backend-s-externo.renderizacao-quebrar-continuar`,
+`evidencia.backend-s-externo.execucao-real-recortes-versionados`,
+`evidencia.backend-s-externo.execucao-real-abi-frame-interprocedural`,
+`evidencia.backend-s-externo.fronteira-subset-textual`,
+`evidencia.backend-s-externo.validacao-estrutural-sintetica` e
+`evidencia.backend-s-externo.pipeline-helper`.
+
+**Limites de honestidade congelados pelo gate.** Dos 79 testes, **74 passam
+pelo helper compartilhado** `render_backend_s_external_subset` e **5 constroem
+um `SelectedProgram` sintético** à mão, chamando
+`emit_external_toolchain_subset` diretamente, sem front-end. **31 testes**
+montam, linkam e executam de fato: renderizam o `.s`, gravam-no em diretório
+temporário, detectam em tempo de execução um driver C (`cc`, `gcc` ou `clang`)
+que faz a montagem e a linkedição, executam o binário e validam **apenas
+`status.code()`**. Esses 31 são **condicionais**: são pulados silenciosamente
+fora de Linux x86_64 ou quando não há driver C — **a suíte pode passar sem
+exercer essa evidência**. Os **48 testes restantes** não criam processo algum.
+**18 testes são recusas** com mensagem específica. Não há **nenhuma validação
+de stdout** e o `stderr` aparece somente como mensagem de falha da asserção de
+compilação, nunca como conteúdo validado. Todo o caminho exercitado é o
+**hospedado, com `runtime_init=false`**; não há `libpinker_rt.a` nem qualquer
+referência a `pinker_rt` no código executável do arquivo central.
+
+O diff nos dois arquivos de evidência é estritamente **marker-only**: 45 linhas
+de comentário em `tests/backend_s_external_toolchain_tests.rs` e 5 em
+`tests/common/mod.rs`; removidos os marcadores, ambos os arquivos são
+byte-equivalentes à base. `tests/backend_nativo_tests.rs` **permanece fora**
+desta onda, com 47 testes, zero `@pinker-nav` e zero regiões no catálogo — o
+backend nativo, a paridade e o runtime continuam **futuros**.
+
+O catálogo passa de **355 para 365 regiões** e a camada `evidencia`, de **172
+para 182**: dez chaves adicionadas, nenhuma removida, nenhuma renomeada e
+`SEMANTIC_CHANGES_EXISTING = 0` (apenas deslocamentos posicionais derivados da
+inserção dos comentários). As 355 entradas anteriores são congeladas por
+projeção estável. A Onda 8H está **completa**; `onda_8_complete = false` e
+`trama_complete = false`. Esta onda **não** declara toolchain incondicional,
+paridade nativa, runtime funcional, execução multiplataforma nem self-hosting.
+A próxima etapa é o **backend nativo**.
+
 ## Testes ativos e apps adiados
 
 `tests/` é raiz oficial ativa desde a Onda 8A. O scanner tem três raízes
@@ -1338,8 +1396,10 @@ Já estão cartografados como evidência `tests/common/mod.rs` (parcialmente, co
 todas, integralmente. O backend textual está parcialmente cartografado na Onda
 8F (7/9 testes), e a suíte `tests/backend_s_tests.rs` está integralmente
 cartografada na Onda 8G (5/5), junto a dois builds textuais de sucesso da suíte
-do interpretador. As demais suítes `tests/*.rs` (toolchain externa, backend
-nativo, paridade, runtime, Trama, documentais, CLI, apps) continuam pendentes.
+do interpretador. Desde a Onda 8H, `tests/backend_s_external_toolchain_tests.rs`
+também está integralmente cartografada (79/79). As demais suítes `tests/*.rs`
+(backend nativo, paridade, runtime, Trama, documentais, CLI, apps) continuam
+pendentes.
 
 - `tests/*.rs` — evidência por camada (lexer, parser, semântica, IR/CFG/seleção/
   máquina, interpretador, backends, runtime nativo, Trama, CLI, paridade nativa).
@@ -1348,7 +1408,7 @@ nativo, paridade, runtime, Trama, documentais, CLI, apps) continuam pendentes.
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 8G)
+## Cobertura acumulada (após Onda 8H)
 
 | Métrica | Valor |
 |---|---:|
@@ -1360,7 +1420,7 @@ nativo, paridade, runtime, Trama, documentais, CLI, apps) continuam pendentes.
 | Produção total nas duas raízes de produção | 33 |
 | Arquivos de produção ancorados | 33 |
 | Arquivos de produção pendentes | 0 |
-| Evidência em `tests/common/mod.rs` | Parcial: 7 helpers |
+| Evidência em `tests/common/mod.rs` | Parcial: 8 helpers |
 | Evidência em `tests/lexer_tests.rs` | Integral |
 | Evidência em `tests/parser_tests.rs` | Integral |
 | Evidência em `tests/semantic_tests.rs` | Integral |
@@ -1368,6 +1428,7 @@ nativo, paridade, runtime, Trama, documentais, CLI, apps) continuam pendentes.
 | Evidência em `tests/interpreter_tests.rs` | 536/538 (534 na Onda 8E + 2 builds textuais na 8G; 2 falhas sem owner) |
 | Evidência em `tests/backend_text_tests.rs` | 7/9 (Onda 8F; 2 exclusões relativas) |
 | Evidência em `tests/backend_s_tests.rs` | 5/5 (Onda 8G) |
+| Evidência em `tests/backend_s_external_toolchain_tests.rs` | 79/79 (Onda 8H; 31 condicionais que montam/linkam/executam, 48 só em memória) |
 | Demais suítes `tests/*.rs` | Pendentes |
 | Regiões antes da Onda 7 | 163 |
 | Regiões adicionadas na Onda 7 | 20 |
@@ -1375,7 +1436,8 @@ nativo, paridade, runtime, Trama, documentais, CLI, apps) continuam pendentes.
 | Regiões adicionadas na Onda 8E | 46 |
 | Regiões adicionadas na Onda 8F | 8 |
 | Regiões adicionadas na Onda 8G | 7 |
-| Regiões no catálogo | 355 |
+| Regiões adicionadas na Onda 8H | 10 |
+| Regiões no catálogo | 365 |
 | Raízes oficiais ativas | 3 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
@@ -1423,8 +1485,8 @@ excluído).
 | cli | 15 | Onda 7: config-modelos, ajuda-usage, parsing (subcomandos, roteamento), execução (entrada, editor-repl), nav (consulta, sincronização-verificação), doc (consulta, sincronização, mudanças, verificação), análise-pipeline, build-nativo, módulos-importação |
 | editor | 4 | Onda 7: estado-modelo, sessão-comandos, render-saída, análise-checagem |
 | boot | 1 | Onda 7: geração-fronteira-freestanding (arquivo inteiro) |
-| evidencia | 172 | Onda 8B (19) + Onda 8C (34) + Onda 8D (58: ir 11, cfg 14, select 6, machine 27) + Onda 8E (46: interpreter) + Onda 8F (8: backend textual) + Onda 8G (7: backend `.s` textual) |
-| **total** | **355** | |
+| evidencia | 182 | Onda 8B (19) + Onda 8C (34) + Onda 8D (58: ir 11, cfg 14, select 6, machine 27) + Onda 8E (46: interpreter) + Onda 8F (8: backend textual) + Onda 8G (7: backend `.s` textual) + Onda 8H (10: toolchain externa do backend `.s`) |
+| **total** | **365** | |
 
 Pendentes de cartografia: as demais suítes `tests/*.rs` na Onda 8 e `apps/` na
 Onda 9. As três superfícies operacionais (cli/editor/boot) foram concluídas na
@@ -1433,11 +1495,12 @@ Onda 7.
 ## Próximo ponto de retomada
 
 **Próximo grupo de evidências nas suítes `tests/*.rs` ainda não cartografadas,
-definido por inventário antes da edição.** Concluída a subonda 8G do backend
-`.s` textual (sete regiões, cinco testes da suíte, dois builds híbridos e dois
-helpers cartografados), os candidatos remanescentes são, em ordem de
-proximidade ao já mapeado: as suítes de toolchain externa, backend nativo e
-paridade, o runtime nativo (`runtime/pinker_rt`), as suítes da Trama operacional/documental
+definido por inventário antes da edição.** Concluída a subonda 8H da toolchain
+externa do backend `.s` (dez regiões, 79 testes da suíte e o helper
+compartilhado `render_backend_s_external_subset`), a **próxima etapa é o backend
+nativo** (`tests/backend_nativo_tests.rs`, 47 testes ainda sem marcador). Depois
+dele, os candidatos remanescentes são, em ordem de proximidade ao já mapeado: as
+suítes de paridade, o runtime nativo (`runtime/pinker_rt`), as suítes da Trama operacional/documental
 (`nav_catalog`, `doc_catalog`, `trama_query`) e as suítes da CLI. Onda 9 continua
 reservada a `apps/`. A Onda 8 permanece **in-progress** — o inventário das suítes
 restantes ainda não prova ausência de pendências, portanto a Onda 8 não é
