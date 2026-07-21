@@ -9,6 +9,10 @@ use std::fs;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// @pinker-nav:start evidencia.backend-nativo.suporte-lowering-memoria
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Helper local lower_to_selected: encadeia Lexer → Parser → semântica → IR → CFG → seleção de instruções inteiramente em memória e devolve um SelectedProgram. Não chama nenhum emissor, não cria processo, não monta, não linka e não executa; não utiliza libpinker_rt.a. Região de suporte, sem ownership direto de testes.
 fn lower_to_selected(code: &str) -> pinker_v0::instr_select::SelectedProgram {
     let mut lexer = Lexer::new(code);
     let tokens = lexer.tokenize().expect("lex");
@@ -23,7 +27,12 @@ fn lower_to_selected(code: &str) -> pinker_v0::instr_select::SelectedProgram {
     instr_select_validate::validate_program(&selected).expect("select validate");
     selected
 }
+// @pinker-nav:end evidencia.backend-nativo.suporte-lowering-memoria
 
+// @pinker-nav:start evidencia.backend-nativo.emissao-init-runtime
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Comparação textual entre os dois emissores sobre o mesmo programa: emit_external_toolchain_subset_nativo usa runtime_init=true e emit_external_toolchain_subset usa runtime_init=false; a única diferença comprovada é a presença de `call pinker_rt_iniciar` no prólogo de `main`. Nenhuma montagem, linkedição ou execução ocorre — `contains` sobre o texto emitido não prova comportamento de máquina.
 #[test]
 fn emissao_nativa_inclui_init_do_runtime() {
     let code = include_str!("../examples/fase212_build_nativo_fumaca_valido.pink");
@@ -40,7 +49,12 @@ fn emissao_padrao_nao_inclui_init_do_runtime() {
     let padrao = backend_s::emit_external_toolchain_subset(&selected).expect("emit padrao");
     assert!(!padrao.contains("pinker_rt_iniciar"), "{}", padrao);
 }
+// @pinker-nav:end evidencia.backend-nativo.emissao-init-runtime
 
+// @pinker-nav:start evidencia.backend-nativo.emissao-abi-e-fluxo-textual
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Cinco testes que chamam emit_external_toolchain_subset — caminho HOSPEDADO, runtime_init=false — e verificam apenas o texto emitido para a ABI SysV (seis registradores de argumento e passagem por pilha), o padding de alinhamento de pilha, a recursão direta, o `cmov` do ternário e os saltos dos construtos de controle de fluxo. Nenhuma toolchain externa é invocada, nenhum runtime é ligado e nada é executado.
 #[test]
 fn abi_completa_oito_args_usa_seis_registradores_e_pilha() {
     let code = include_str!("../examples/fase213_abi_completa_valido.pink");
@@ -124,7 +138,12 @@ fn controle_fluxo_geral_emite_todos_os_construtos() {
     assert!(asm.contains("call pontua"), "{}", asm);
     assert!(!asm.contains("__ternario"), "{}", asm);
 }
+// @pinker-nav:end evidencia.backend-nativo.emissao-abi-e-fluxo-textual
 
+// @pinker-nav:start evidencia.backend-nativo.emissao-simbolos-runtime-textual
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Sete testes que, apesar dos nomes “nativo”, chamam emit_external_toolchain_subset — caminho HOSPEDADO, runtime_init=false — e apenas procuram referências textuais a símbolos `pinker_*` para verso, listas, mapas, leques, texto, arquivos, tempo, acaso, ambiente e processos. Não localizam nem ligam libpinker_rt.a, não montam, não linkam e não executam; a presença textual de um símbolo não prova a implementação funcional do runtime.
 #[test]
 fn verso_dinamico_emite_layout_length_prefixed_e_calls_de_runtime() {
     let code = include_str!("../examples/fase215_verso_dinamico_nativo_valido.pink");
@@ -287,7 +306,12 @@ fn ambiente_e_processo_emitem_calls_de_runtime() {
         assert!(asm.contains(symbol), "faltou {} em:\n{}", symbol, asm);
     }
 }
+// @pinker-nav:end evidencia.backend-nativo.emissao-simbolos-runtime-textual
 
+// @pinker-nav:start evidencia.backend-nativo.suporte-driver-c
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Helper local detect_cc_driver: sonda `cc`, `gcc` e `clang` por `--version` e devolve Option<String> com o primeiro que responder. É diferente do homônimo produtivo de src/main.rs, que devolve Result; este helper é a origem da guarda silenciosa de driver herdada pelos testes processuais e não monta por si próprio. Região de suporte, sem ownership direto de testes.
 fn detect_cc_driver() -> Option<String> {
     ["cc", "gcc", "clang"].iter().find_map(|candidate| {
         let probe = Command::new(candidate).arg("--version").output().ok()?;
@@ -298,7 +322,12 @@ fn detect_cc_driver() -> Option<String> {
         }
     })
 }
+// @pinker-nav:end evidencia.backend-nativo.suporte-driver-c
 
+// @pinker-nav:start evidencia.backend-nativo.execucao-exit-fumaca-abi
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Dois testes que executam `pink build --nativo` fornecendo PINKER_RT_LIB: o driver C externo monta e linka, libpinker_rt.a é ligada e o ELF resultante é executado, mas somente `status.code() == 42` é validado — stdout não é comparado e stderr aparece apenas como mensagem de falha. Três guardas silenciosas (Linux x86_64, driver C e libpinker_rt.a) fazem com que a suíte possa passar sem exercer esta evidência.
 #[test]
 fn build_nativo_produz_executavel_real_com_runtime() {
     if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
@@ -404,7 +433,12 @@ fn abi_completa_executa_nativo_com_oito_args_aninhamento_e_recursao() {
 
     let _ = fs::remove_dir_all(&out_dir);
 }
+// @pinker-nav:end evidencia.backend-nativo.execucao-exit-fumaca-abi
 
+// @pinker-nav:start evidencia.backend-nativo.paridade-stdout-colecoes
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Três testes (verso dinâmico, listas e mapas) que usam o interpretador como oráculo, fazem build nativo e executam o ELF comparando stdout; o exit é comparado apenas à constante 0 e o `strip_suffix("0\n")` pressupõe retorno zero, de modo que não existe paridade de exit contra o retorno observado. Três guardas silenciosas (plataforma, driver C e libpinker_rt.a) — a suíte pode passar sem exercer esta evidência.
 #[test]
 fn verso_dinamico_nativo_tem_paridade_de_stdout_com_interpretador() {
     if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
@@ -604,7 +638,12 @@ fn mapas_nativos_tem_paridade_de_stdout_com_interpretador() {
 
     let _ = fs::remove_dir_all(&out_dir);
 }
+// @pinker-nav:end evidencia.backend-nativo.paridade-stdout-colecoes
 
+// @pinker-nav:start evidencia.backend-nativo.suporte-matriz-paridade-b11
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Suporte contíguo da matriz B11: ParidadeNativaCaso, ARGVS_FASE221, CASOS_PARIDADE_B11 com 14 casos sobre 13 exemplos distintos (um caso adicional da fase221 com argv), separar_stdout_e_retorno_interpretador — normalização genérica do retorno do interpretador — e paridade_stdout_e_exit, que compara stdout e exit sob as três guardas. Um único #[test] consome todos os casos e uma falha antecipada impede os casos seguintes; região de suporte, sem ownership direto de testes.
 #[derive(Clone, Copy)]
 struct ParidadeNativaCaso {
     exemplo: &'static str,
@@ -782,14 +821,24 @@ fn paridade_stdout_e_exit(caso: ParidadeNativaCaso, marcador: u128) {
 
     let _ = fs::remove_dir_all(&out_dir);
 }
+// @pinker-nav:end evidencia.backend-nativo.suporte-matriz-paridade-b11
 
+// @pinker-nav:start evidencia.backend-nativo.paridade-marco-b11
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Um único #[test] percorre os 14 casos de CASOS_PARIDADE_B11 sobre 13 exemplos distintos, incluindo um caso com argv: é o único ponto do arquivo que compara o exit do ELF com o retorno realmente observado no interpretador, além de comparar stdout. Não equivale a 14 testes independentes — sob as três guardas o laço inteiro pode virar no-op e permanecer verde.
 #[test]
 fn b11_marco_de_paridade_executa_exemplos_versionados_compativeis() {
     for (indice, caso) in CASOS_PARIDADE_B11.iter().copied().enumerate() {
         paridade_stdout_e_exit(caso, 10_000 + indice as u128);
     }
 }
+// @pinker-nav:end evidencia.backend-nativo.paridade-marco-b11
 
+// @pinker-nav:start evidencia.backend-nativo.suporte-paridade-stdout
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Helper paridade_stdout, com 25 chamadores: executa o interpretador, faz o build nativo e roda o ELF comparando stdout, mas fixa o exit esperado em 0 usando `strip_suffix("0\n")` e nunca passa argv. Concentra as três guardas silenciosas herdadas pelos chamadores; um retorno terminado em zero, como 10, pode gerar diagnóstico enganoso. Região de suporte, sem ownership direto de testes.
 fn paridade_stdout(exemplo: &str, bin_nome: &str, marcador: u128) {
     if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
         return;
@@ -854,7 +903,12 @@ fn paridade_stdout(exemplo: &str, bin_nome: &str, marcador: u128) {
 
     let _ = fs::remove_dir_all(&out_dir);
 }
+// @pinker-nav:end evidencia.backend-nativo.suporte-paridade-stdout
 
+// @pinker-nav:start evidencia.backend-nativo.paridade-stdout-programas-maiores
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Sete programas versionados maiores — leques com carga, avaliador recursivo da fase210, texto, compilador de brinquedo da fase211, lexer de brinquedo da fase209, fase220 com arquivos, tempo fixo e RNG de semente fixa, e fase221 dependente de `true`, `false`, `echo` e `cat` — delegam a paridade_stdout: stdout é comparado e o exit é fixado na constante 0. Três guardas silenciosas — a suíte pode passar sem exercer esta evidência.
 #[test]
 fn leques_com_carga_tem_paridade_de_stdout_com_interpretador() {
     paridade_stdout(
@@ -917,7 +971,12 @@ fn ambiente_processo_tem_paridade_de_stdout_sem_args() {
         7,
     );
 }
+// @pinker-nav:end evidencia.backend-nativo.paridade-stdout-programas-maiores
 
+// @pinker-nav:start evidencia.backend-nativo.paridade-argv
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Único teste que passa o mesmo argv ao interpretador e ao ELF, comprovando a captura de argc/argv pelo runtime para este exemplo: compara stdout, mantém o exit fixado na constante 0 e depende dos processos externos usados pela fase221. Sob as três guardas silenciosas, pode passar sem exercer a evidência.
 #[test]
 fn ambiente_nativo_le_argv_com_paridade() {
     if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
@@ -993,7 +1052,12 @@ fn ambiente_nativo_le_argv_com_paridade() {
 
     let _ = fs::remove_dir_all(&out_dir);
 }
+// @pinker-nav:end evidencia.backend-nativo.paridade-argv
 
+// @pinker-nav:start evidencia.backend-nativo.execucao-exit-controle-fluxo
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Único teste que faz build nativo e execução real cobrindo construções gerais de controle de fluxo, validando somente `status.code() == 42` e não comparando stdout. Está fisicamente entre blocos de paridade, mas não pertence a eles; sob as três guardas silenciosas pode passar sem exercer a evidência.
 #[test]
 fn controle_fluxo_geral_executa_nativo_com_todos_os_construtos() {
     if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
@@ -1045,7 +1109,12 @@ fn controle_fluxo_geral_executa_nativo_com_todos_os_construtos() {
 
     let _ = fs::remove_dir_all(&out_dir);
 }
+// @pinker-nav:end evidencia.backend-nativo.execucao-exit-controle-fluxo
 
+// @pinker-nav:start evidencia.backend-nativo.paridade-stdout-fases-avancadas
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Dezoito testes das fases 223–240 — error handling, funções anônimas, tratos, impls, mapas e funções genéricas — em ordem física não monotônica, todos delegando a paridade_stdout: stdout é comparado e o exit é fixado na constante 0. Três guardas silenciosas fazem com que a suíte possa passar sem exercer esta evidência; o conjunto não declara paridade completa da linguagem.
 #[test]
 fn fase223_tentar_error_handling_tem_paridade_nativa() {
     paridade_stdout(
@@ -1207,3 +1276,4 @@ fn fase236_funcao_generica_usuario_tem_paridade_nativa() {
         23_600,
     );
 }
+// @pinker-nav:end evidencia.backend-nativo.paridade-stdout-fases-avancadas
