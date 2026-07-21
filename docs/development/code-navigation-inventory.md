@@ -1462,6 +1462,44 @@ de cada um dos oito símbolos de suporte. A Onda 8G volta a exigir, por
 redundância, que `tests/backend_nativo_tests.rs` mantenha exatamente 47
 `#[test]`, além das 14 regiões.
 
+**A prova é estrutural e lexical — não é análise de alcançabilidade.** Todo o
+gate 8I trabalha sobre uma **varredura lexical única** do arquivo, que classifica
+cada byte como código, comentário ou literal preservando comprimento em bytes e
+quebras de linha. Essa varredura reconhece strings normais com escapes, byte
+strings, raw strings com qualquer número de cerquilhas (`r"…"`, `r#"…"#`,
+`r##"…"##`, `br"…"`, `br#"…"#`), literais de caractere com escapes, lifetimes,
+comentários de linha e **comentários de bloco aninhados em profundidade
+arbitrária**. Macros, assinaturas de função, chaves e símbolos são procurados
+apenas na visão neutralizada; os argumentos, sim, são recortados da fonte
+original pelos mesmos índices. Consequência direta: um `assert_eq!` que exista
+somente dentro de string, raw string, byte string, comentário de linha ou
+comentário de bloco — simples ou aninhado — **não conta como asserção alguma**, e
+uma definição de função citada em literal ou comentário não conta como duplicata.
+
+**A asserção de paridade precisa ser direta e de primeiro nível.** Não basta que
+o `assert_eq!` exista no corpo: ele tem de ser uma **instrução direta do corpo
+principal** da função auditada — em profundidade zero de chaves, iniciando
+instrução (precedido apenas por `;`, `}` ou pelo início do corpo), depois da
+obtenção dos dois valores comparados e antes de qualquer `return` de primeiro
+nível e da limpeza final. Ficam explicitamente recusados
+`if false { assert_eq!(…) }`, `if true { assert_eq!(…) }`,
+`loop { assert_eq!(…); break; }`, `let _f = || assert_eq!(…)`,
+`#[cfg(any())] assert_eq!(…)`, `return;` antes da asserção e qualquer
+autocomparação (`assert_eq!(programa_interp, programa_interp)`,
+`assert_eq!(nativo_stdout, nativo_stdout)`). O mesmo contrato — macro real,
+primeiro nível, sem literal, sem comentário, sem bloco morto — vale para a
+comparação de exit `assert_eq!(run.status.code(), Some(retorno_interp))` do marco
+B11, que também não aceita `Some(0)` nem `Some(retorno_interp)` solto fora do
+`assert_eq!`. O contrato é deliberadamente estrito.
+
+**O que o gate não afirma.** Ele **não** resolve alcançabilidade geral de Rust:
+não decide se uma instrução é executada, não avalia condições, não expande macros
+nem interpreta `cfg` de compilação. Prova apenas a forma sintática e a posição
+estrutural da asserção. O próprio analisador é auditado por testes unitários em
+`tests/nav_cartography_tests.rs`, que fixam falsos positivos e falsos negativos
+de literais, comentários aninhados, lifetimes, blocos condicionais, closures,
+atributos e funções vizinhas de nome semelhante.
+
 A Onda 8I está **completa somente após o gate corrigido**, isto é, com essas
 invariantes vigentes; `onda_8_complete = false` e `trama_complete = false`.
 Esta onda **não** declara paridade completa da linguagem, backend nativo
