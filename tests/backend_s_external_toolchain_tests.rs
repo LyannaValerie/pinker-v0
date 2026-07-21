@@ -12,6 +12,10 @@ use std::fs;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// @pinker-nav:start evidencia.backend-s-externo.renderizacao-recortes-versionados
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Fornece fonte inline ou exemplos versionados (fase111–125) ao helper render_backend_s_external_subset, que executa parse, semântica, IR, CFG e seleção em memória e emite assembly via emit_external_toolchain_subset; valida por contains o cabeçalho do subset, `.globl main`, rótulos `.L<fn>_*`, `jmp`/`cmpq`/`jne`/`setb`, seção `.rodata`, movimentos de argumento e instruções de deref. Nenhum processo externo é criado: não monta, não linka e não executa; a evidência é sobre o texto emitido, não sobre a corretude do código de máquina.
 #[test]
 fn asm_s_external_subset_emite_main_montavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 42; }";
@@ -159,7 +163,12 @@ fn asm_s_external_subset_fase125_exemplo_versionado_comparacao_ge_minima() {
     assert!(out.contains("setae %al"));
     assert!(out.contains("cmpq %r10, %rax"));
 }
+// @pinker-nav:end evidencia.backend-s-externo.renderizacao-recortes-versionados
 
+// @pinker-nav:start evidencia.backend-s-externo.fronteira-ninho-heterogeneo
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Alterna aceitações e recusas dos exemplos de `ninho` heterogêneo nas camadas 1–4 (fase129–132): nos casos aceitos verifica por contains os deslocamentos e acessos emitidos no assembly; nos recusados verifica a mensagem de erro do subset externo montável. Todo o trabalho ocorre em memória via render_backend_s_external_subset; nenhuma ferramenta externa é chamada e nada é montado, ligado ou executado.
 #[test]
 fn asm_s_external_subset_fase129_exemplo_versionado_ninho_heterogeneo_camada1() {
     let code = include_str!("../examples/fase129_ninho_heterogeneo_camada1_valido.pink");
@@ -254,7 +263,12 @@ fn asm_s_external_subset_fase132_recusa_campo_heterogeneo_fora_recorte() {
             || msg.contains("u16")
     );
 }
+// @pinker-nav:end evidencia.backend-s-externo.fronteira-ninho-heterogeneo
 
+// @pinker-nav:start evidencia.backend-s-externo.fronteira-conversao-virar
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Fornece exemplos versionados de `virar` camadas 1 e 2 (duas aceitações) e um exemplo inválido (uma recusa); verifica textualmente as instruções de conversão emitidas e, no caso inválido, a mensagem de recusa. Execução em memória apenas; nenhuma ferramenta externa é chamada — sem assembler, linker ou binário.
 #[test]
 fn asm_s_external_subset_fase133_exemplo_versionado_virar_camada1() {
     let code = include_str!("../examples/fase133_virar_camada1_valido.pink");
@@ -281,7 +295,12 @@ fn asm_s_external_subset_fase134_recusa_cast_fora_do_recorte_minimo() {
     assert!(msg.contains("Fase 134"));
     assert!(msg.contains("`virar`"));
 }
+// @pinker-nav:end evidencia.backend-s-externo.fronteira-conversao-virar
 
+// @pinker-nav:start evidencia.backend-s-externo.renderizacao-verso-rodata
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Fornece exemplos de `verso` camada 1 (inclusive um exemplo historicamente marcado como inválido, hoje aceito) e verifica por contains o layout length-prefixed `[.quad tamanho][.ascii bytes]` na seção `.rodata`. Validação apenas textual: não monta, não liga e não executa, e nada é provado sobre a leitura desse layout em tempo de execução.
 #[test]
 fn asm_s_external_subset_fase135_exemplo_versionado_verso_camada1() {
     let code = include_str!("../examples/fase135_verso_camada1_valido.pink");
@@ -305,7 +324,12 @@ fn asm_s_external_subset_fase215_aceita_retorno_verso_com_layout_length_prefixed
     assert!(out.contains(".quad 4"), "{}", out);
     assert!(out.contains(".ascii \"fora\""), "{}", out);
 }
+// @pinker-nav:end evidencia.backend-s-externo.renderizacao-verso-rodata
 
+// @pinker-nav:start evidencia.backend-s-externo.renderizacao-quebrar-continuar
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Fornece exemplos versionados de `quebrar`/`continuar` (fase126–128) em ordem física decrescente de camada — 3, 2, 1 — e verifica textualmente os rótulos e saltos emitidos. Execução somente em memória via render_backend_s_external_subset; nenhum processo externo, sem montagem, linkedição ou execução.
 #[test]
 fn asm_s_external_subset_fase128_exemplo_versionado_quebrar_continuar_camada3() {
     let code = include_str!("../examples/fase128_quebrar_continuar_camada3_valido.pink");
@@ -337,7 +361,12 @@ fn asm_s_external_subset_fase126_exemplo_versionado_quebrar_continuar_camada1() 
     assert!(out.contains(".Lprincipal_loop_continue_cont_"));
     assert!(out.contains("jmp .Lprincipal_loop_cond_0"));
 }
+// @pinker-nav:end evidencia.backend-s-externo.renderizacao-quebrar-continuar
 
+// @pinker-nav:start evidencia.backend-s-externo.execucao-real-recortes-versionados
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Cada teste renderiza o `.s` com render_backend_s_external_subset, grava o arquivo em diretório temporário único, detecta em tempo de execução um driver C (`cc`, `gcc` ou `clang`) e o invoca como responsável pela montagem e pela linkedição, executando em seguida o binário produzido e validando apenas `status.code()`. Nenhum stdout é validado e o stderr é usado somente como mensagem de falha. O caminho é hospedado com runtime_init=false e sem libpinker_rt.a. Todos são pulados silenciosamente fora de Linux x86_64 ou quando não há driver C — a suíte pode passar sem exercer esta evidência.
 #[test]
 fn asm_s_external_subset_fluxo_real_fase117_composto_minimo_camada2() {
     if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
@@ -1313,7 +1342,12 @@ fn asm_s_external_subset_fluxo_real_loop_minimo() {
     let _ = fs::remove_file(&bin_path);
     let _ = fs::remove_dir(&workdir);
 }
+// @pinker-nav:end evidencia.backend-s-externo.execucao-real-recortes-versionados
 
+// @pinker-nav:start evidencia.backend-s-externo.execucao-real-abi-frame-interprocedural
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Mesmos limites da região anterior — renderização do `.s`, gravação em diretório temporário, driver C (`cc`, `gcc` ou `clang`) detectado em runtime responsável por montagem e linkedição, execução do binário, validação apenas de `status.code()`, nenhum stdout validado, stderr somente como mensagem de falha, runtime_init=false, sem libpinker_rt.a e skip silencioso fora de Linux x86_64 ou sem driver C — aplicados a locais, aritmética, chamadas, parâmetros, frame, memória de frame, composição interprocedural e programas lineares maiores. A suíte pode passar sem exercer esta evidência.
 #[test]
 fn asm_s_external_subset_fluxo_real_com_locais_e_aritmetica() {
     if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
@@ -1727,7 +1761,12 @@ fn asm_s_external_subset_fluxo_real_fase115_abi_minima_mais_larga_camada1() {
     let _ = fs::remove_file(&bin_path);
     let _ = fs::remove_dir(&workdir);
 }
+// @pinker-nav:end evidencia.backend-s-externo.execucao-real-abi-frame-interprocedural
 
+// @pinker-nav:start evidencia.backend-s-externo.fronteira-subset-textual
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Reúne os testes de fronteira que chamam render_backend_s_external_subset e inspecionam o resultado em memória: recusas com mensagem específica (fonte fora do subset, parâmetro não `bombom`, condição de laço fora do recorte, `quebrar` fora de laço, composto fora das camadas 1–2, store frágil, parâmetro `u16`), aceitações de fronteira (quatro parâmetros com ABI completa, `talvez`/`senão`) e uma matriz auditável do subset montável. Prova mensagens e trechos de texto; não monta, não linka e não executa.
 #[test]
 fn asm_s_external_subset_falha_clara_fora_do_subset() {
     // Fase 221 (B10) absorveu ambiente/processo; a fronteira de recusa clara
@@ -1871,7 +1910,12 @@ carinho principal() -> bombom {
         "subset externo montável aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>`"
     ));
 }
+// @pinker-nav:end evidencia.backend-s-externo.fronteira-subset-textual
 
+// @pinker-nav:start evidencia.backend-s-externo.validacao-estrutural-sintetica
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Constrói à mão um `SelectedProgram` (globais, funções, blocos, terminadores) sem passar pelo front-end e chama emit_external_toolchain_subset diretamente, exigindo recusa para global duplicada, salto para rótulo inexistente, rótulo duplicado e ramificação com alvo verdadeiro ou falso inexistente, validando a mensagem de diagnóstico. Não há front-end, arquivo, assembler, linker nem execução.
 #[test]
 fn asm_s_external_subset_fase114_falha_em_global_duplicada() {
     let program = SelectedProgram {
@@ -2045,6 +2089,7 @@ fn asm_s_external_subset_fase112_falha_em_br_com_alvo_falso_inexistente() {
         .to_string()
         .contains("subset externo montável (Fase 113) encontrou `br` com alvo falso inexistente"));
 }
+// @pinker-nav:end evidencia.backend-s-externo.validacao-estrutural-sintetica
 
 fn detect_cc_driver() -> Option<String> {
     ["cc", "gcc", "clang"].iter().find_map(|candidate| {

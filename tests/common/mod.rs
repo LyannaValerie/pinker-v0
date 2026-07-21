@@ -171,6 +171,10 @@ pub fn render_backend_s(code: &str) -> Result<String, PinkerError> {
 }
 // @pinker-nav:end evidencia.backend-s.pipeline-helper
 
+// @pinker-nav:start evidencia.backend-s-externo.pipeline-helper
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Executa o helper compartilhado render_backend_s_external_subset inteiramente em memória: parse e checagem semântica, lowering e validação por IR, CFG e seleção, seguidos da emissão montável hospedada via emit_external_toolchain_subset, que usa runtime_init=false. Não invoca assembler, linker ou binário; as ferramentas externas são chamadas somente por testes de fluxo real que consomem sua saída.
 pub fn render_backend_s_external_subset(code: &str) -> Result<String, PinkerError> {
     let program = parse(code)?;
     semantic::check_program(&program)?;
@@ -182,6 +186,7 @@ pub fn render_backend_s_external_subset(code: &str) -> Result<String, PinkerErro
     instr_select_validate::validate_program(&selected)?;
     backend_s::emit_external_toolchain_subset(&selected)
 }
+// @pinker-nav:end evidencia.backend-s-externo.pipeline-helper
 
 // @pinker-nav:start evidencia.backend-s.apresentacao-cli-helper
 // @pinker-nav:domain backend-s
