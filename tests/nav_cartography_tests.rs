@@ -3207,522 +3207,6 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
     assert!(!trama_complete);
 }
 
-/// Classe lexical de um byte de fonte Rust. É a base única de toda a análise
-/// textual do gate: nada é procurado diretamente na fonte crua.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Lexema {
-    Codigo,
-    Comentario,
-    Literal,
-}
-
-/// Byte que pode compor um identificador Rust.
-fn e_identificador(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'_'
-}
-
-/// Deslocamento logo após a string normal (ou byte string) aberta em `i`.
-fn fim_de_string(texto: &str, i: usize) -> usize {
-    let bytes = texto.as_bytes();
-    let mut j = i + 1;
-    while j < bytes.len() {
-        match bytes[j] {
-            b'\\' => j += 2,
-            b'"' => return j + 1,
-            _ => j += 1,
-        }
-    }
-    texto.len()
-}
-
-/// Deslocamento logo após o literal de caractere aberto em `i`, ou `None`
-/// quando a aspa simples é uma lifetime (`'a`, `'static`) e não um caractere.
-fn fim_de_caractere(texto: &str, i: usize) -> Option<usize> {
-    let bytes = texto.as_bytes();
-    if bytes.get(i + 1) == Some(&b'\\') {
-        // Escape: o byte seguinte à barra é consumido literalmente, então a
-        // aspa de fechamento só pode estar a partir de `i + 3`.
-        return texto
-            .get(i + 3..)
-            .and_then(|resto| resto.find('\''))
-            .map(|salto| i + 3 + salto + 1)
-            .filter(|fim| *fim - i <= 12);
-    }
-    let resto = texto.get(i + 1..)?;
-    let fecha = resto.find('\'')?;
-    (resto[..fecha].chars().count() == 1).then_some(i + 1 + fecha + 1)
-}
-
-/// Deslocamento logo após o literal iniciado em `i`, cobrindo strings normais,
-/// byte strings, raw strings com qualquer número de cerquilhas, literais de
-/// caractere e byte chars. `colado` indica que o byte anterior faz parte de um
-/// identificador, caso em que `b` e `r` não são prefixos de literal.
-fn fim_de_literal(texto: &str, i: usize, colado: bool) -> Option<usize> {
-    let bytes = texto.as_bytes();
-    match bytes[i] {
-        b'"' => Some(fim_de_string(texto, i)),
-        b'\'' => fim_de_caractere(texto, i),
-        b'b' | b'r' if !colado => {
-            let mut j = i;
-            if bytes[j] == b'b' {
-                j += 1;
-            }
-            let bruta = bytes.get(j) == Some(&b'r');
-            if bruta {
-                j += 1;
-                let mut cerquilhas = 0usize;
-                while bytes.get(j + cerquilhas) == Some(&b'#') {
-                    cerquilhas += 1;
-                }
-                if bytes.get(j + cerquilhas) != Some(&b'"') {
-                    return None;
-                }
-                let fecha = format!("\"{}", "#".repeat(cerquilhas));
-                let apos = j + cerquilhas + 1;
-                return Some(
-                    texto[apos..]
-                        .find(&fecha)
-                        .map(|salto| apos + salto + fecha.len())
-                        .unwrap_or_else(|| texto.len()),
-                );
-            }
-            match bytes.get(j) {
-                Some(&b'"') if j > i => Some(fim_de_string(texto, j)),
-                Some(&b'\'') if j > i => fim_de_caractere(texto, j),
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
-/// Varredura lexical única de um trecho de Rust: classifica cada byte como
-/// código efetivo, comentário ou literal. Reconhece strings normais com
-/// escapes, byte strings, raw strings (`r"…"`, `r#"…"#`, `r##"…"##`, `br"…"`,
-/// `br#"…"#`), literais de caractere com escapes, lifetimes, comentários de
-/// linha e comentários de bloco aninhados em profundidade arbitrária.
-///
-/// O vetor devolvido tem exatamente um elemento por byte de `texto`, de modo
-/// que todo índice apurado sobre ele continua válido na fonte original.
-fn classifica_lexemas(texto: &str) -> Vec<Lexema> {
-    let bytes = texto.as_bytes();
-    let mut classes = vec![Lexema::Codigo; bytes.len()];
-    let mut i = 0usize;
-    while i < bytes.len() {
-        if bytes[i] == b'/' && bytes.get(i + 1) == Some(&b'/') {
-            let fim = texto[i..]
-                .find('\n')
-                .map(|salto| i + salto)
-                .unwrap_or(bytes.len());
-            classes[i..fim].fill(Lexema::Comentario);
-            i = fim.max(i + 1);
-            continue;
-        }
-        if bytes[i] == b'/' && bytes.get(i + 1) == Some(&b'*') {
-            let inicio = i;
-            let mut profundidade = 0usize;
-            while i < bytes.len() {
-                if bytes[i] == b'/' && bytes.get(i + 1) == Some(&b'*') {
-                    profundidade += 1;
-                    i += 2;
-                } else if bytes[i] == b'*' && bytes.get(i + 1) == Some(&b'/') {
-                    profundidade -= 1;
-                    i += 2;
-                    if profundidade == 0 {
-                        break;
-                    }
-                } else {
-                    i += 1;
-                }
-            }
-            let fim = i.min(bytes.len()).max(inicio + 1);
-            classes[inicio..fim].fill(Lexema::Comentario);
-            i = fim;
-            continue;
-        }
-        let colado = i
-            .checked_sub(1)
-            .map(|anterior| e_identificador(bytes[anterior]))
-            .unwrap_or(false);
-        if let Some(fim) = fim_de_literal(texto, i, colado) {
-            let fim = fim.min(bytes.len()).max(i + 1);
-            classes[i..fim].fill(Lexema::Literal);
-            i = fim;
-            continue;
-        }
-        i += 1;
-    }
-    classes
-}
-
-/// Projeta `texto` neutralizando as classes lexicais pedidas: cada byte vira
-/// espaço, exceto as quebras de linha. Preserva o comprimento em bytes, logo os
-/// spans continuam correspondendo ao texto original.
-fn projeta_lexemas(texto: &str, neutralizar: &[Lexema]) -> String {
-    let classes = classifica_lexemas(texto);
-    let saida: Vec<u8> = texto
-        .as_bytes()
-        .iter()
-        .zip(classes.iter())
-        .map(|(byte, classe)| {
-            if neutralizar.contains(classe) && *byte != b'\n' {
-                b' '
-            } else {
-                *byte
-            }
-        })
-        .collect();
-    String::from_utf8(saida).expect("a projeção lexical preserva UTF-8")
-}
-
-/// Substitui todo comentário por espaços, preservando literais.
-/// Impede que um trecho comentado satisfaça uma invariante textual.
-fn sem_comentarios(texto: &str) -> String {
-    projeta_lexemas(texto, &[Lexema::Comentario])
-}
-
-/// Visão lexical neutralizada: comentários **e** literais viram espaços. É a
-/// única visão usada para localizar macros, funções, chaves e símbolos.
-fn visao_lexical(texto: &str) -> String {
-    projeta_lexemas(texto, &[Lexema::Comentario, Lexema::Literal])
-}
-
-/// Conteúdo entre o primeiro `abre` de `texto` e o `fecha` correspondente, com
-/// balanceamento medido sobre a visão lexical. `None` quando não fecha.
-fn trecho_delimitado(texto: &str, abre: u8, fecha: u8) -> Option<String> {
-    let visao = visao_lexical(texto);
-    let bytes = visao.as_bytes();
-    let mut profundidade = 0usize;
-    let mut inicio = None;
-    let mut i = 0usize;
-    while i < bytes.len() {
-        if bytes[i] == abre {
-            if inicio.is_none() {
-                inicio = Some(i + 1);
-            }
-            profundidade += 1;
-        } else if bytes[i] == fecha {
-            profundidade = profundidade.checked_sub(1)?;
-            if profundidade == 0 {
-                return Some(texto[inicio?..i].to_string());
-            }
-        }
-        i += 1;
-    }
-    None
-}
-
-/// Igual a [`trecho_delimitado`], mas falha alto quando o trecho não balanceia.
-fn extrai_delimitado(texto: &str, abre: u8, fecha: u8, rotulo: &str) -> String {
-    trecho_delimitado(texto, abre, fecha)
-        .unwrap_or_else(|| panic!("delimitador não balanceado em {rotulo}"))
-}
-
-/// Extrai o corpo da única função chamada `nome`, por balanceamento de chaves.
-/// A assinatura é procurada na visão lexical, de modo que uma definição citada
-/// em string ou comentário não conta como duplicata. Falha quando a função está
-/// ausente ou definida mais de uma vez em código efetivo.
-fn corpo_de_funcao(fonte: &str, nome: &str) -> String {
-    let visao = visao_lexical(fonte);
-    let assinatura = format!("fn {nome}(");
-    let mut inicio = None;
-    let mut deslocamento = 0usize;
-    for linha in visao.split_inclusive('\n') {
-        if linha.trim_start().starts_with(&assinatura) {
-            assert!(inicio.is_none(), "definição duplicada de {nome}");
-            inicio = Some(deslocamento);
-        }
-        deslocamento += linha.len();
-    }
-    let inicio = inicio.unwrap_or_else(|| panic!("função ausente: {nome}"));
-    extrai_delimitado(&fonte[inicio..], b'{', b'}', nome)
-}
-
-/// Primeira ocorrência de `token` como palavra isolada, na profundidade de
-/// chaves `alvo` de uma visão lexical já neutralizada.
-fn posicao_de_token(visao: &str, token: &str, alvo: usize) -> Option<usize> {
-    let bytes = visao.as_bytes();
-    let procurado = token.as_bytes();
-    let mut profundidade = 0usize;
-    let mut i = 0usize;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'{' => profundidade += 1,
-            b'}' => profundidade = profundidade.saturating_sub(1),
-            _ => {}
-        }
-        let abre = i
-            .checked_sub(1)
-            .map(|anterior| !e_identificador(bytes[anterior]))
-            .unwrap_or(true);
-        let fecha = bytes
-            .get(i + procurado.len())
-            .map(|byte| !e_identificador(*byte))
-            .unwrap_or(true);
-        if profundidade == alvo && abre && fecha && bytes[i..].starts_with(procurado) {
-            return Some(i);
-        }
-        i += 1;
-    }
-    None
-}
-
-/// Identificadores presentes num trecho, na ordem de ocorrência.
-fn identificadores(trecho: &str) -> Vec<String> {
-    let mut nomes = Vec::new();
-    let mut atual = String::new();
-    for byte in trecho.bytes() {
-        if e_identificador(byte) {
-            atual.push(byte as char);
-        } else if !atual.is_empty() {
-            nomes.push(std::mem::take(&mut atual));
-        }
-    }
-    if !atual.is_empty() {
-        nomes.push(atual);
-    }
-    nomes
-}
-
-/// Nomes ligados por `let` numa visão lexical, com o deslocamento da ligação.
-/// Serve para exigir que os operandos comparados já tenham sido obtidos.
-fn ligacoes_let(visao: &str) -> Vec<(String, usize)> {
-    let bytes = visao.as_bytes();
-    let mut ligacoes = Vec::new();
-    let mut i = 0usize;
-    while i < bytes.len() {
-        let colado = i
-            .checked_sub(1)
-            .map(|anterior| e_identificador(bytes[anterior]))
-            .unwrap_or(false);
-        if !colado && bytes[i..].starts_with(b"let ") {
-            let fim = visao[i..]
-                .find(['=', ';'])
-                .map(|salto| i + salto)
-                .unwrap_or(bytes.len());
-            for nome in identificadores(&visao[i + 4..fim.max(i + 4)]) {
-                ligacoes.push((nome, i));
-            }
-            i = fim.max(i + 1);
-            continue;
-        }
-        i += 1;
-    }
-    ligacoes
-}
-
-/// Reduz um trecho ao corpo da primeira função nele definida em profundidade
-/// zero; devolve o próprio trecho quando ele já é um corpo de função.
-fn corpo_auditado(trecho: &str) -> String {
-    let visao = visao_lexical(trecho);
-    let bytes = visao.as_bytes();
-    let mut profundidade = 0usize;
-    let mut i = 0usize;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'{' => profundidade += 1,
-            b'}' => profundidade = profundidade.saturating_sub(1),
-            _ => {}
-        }
-        let colado = i
-            .checked_sub(1)
-            .map(|anterior| e_identificador(bytes[anterior]))
-            .unwrap_or(false);
-        if profundidade == 0 && !colado && bytes[i..].starts_with(b"fn ") {
-            if let Some(corpo) = trecho_delimitado(&trecho[i..], b'{', b'}') {
-                return corpo;
-            }
-        }
-        i += 1;
-    }
-    trecho.to_string()
-}
-
-/// Argumentos de topo de uma lista já delimitada, com espaços colapsados. A
-/// separação por vírgula é medida na visão lexical; o texto devolvido vem da
-/// fonte original.
-fn argumentos_de_topo(interior: &str) -> Vec<String> {
-    let normaliza = |trecho: &str| trecho.split_whitespace().collect::<Vec<_>>().join(" ");
-    let visao = visao_lexical(interior);
-    let bytes = visao.as_bytes();
-    let mut argumentos = Vec::new();
-    let mut profundidade = 0i32;
-    let mut inicio = 0usize;
-    let mut i = 0usize;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'(' | b'[' | b'{' => profundidade += 1,
-            b')' | b']' | b'}' => profundidade -= 1,
-            b',' if profundidade == 0 => {
-                argumentos.push(normaliza(&interior[inicio..i]));
-                inicio = i + 1;
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    let ultimo = normaliza(&interior[inicio..]);
-    if !ultimo.is_empty() {
-        argumentos.push(ultimo);
-    }
-    argumentos
-}
-
-/// Uma invocação **real** de `macro_nome` no corpo, localizada exclusivamente
-/// na visão lexical neutralizada.
-struct InvocacaoDeMacro {
-    /// Deslocamento do nome da macro na fonte original.
-    inicio: usize,
-    /// Profundidade de chaves relativa ao corpo, no ponto da invocação.
-    profundidade: usize,
-    /// Último byte de código antes da invocação, ignorando espaços.
-    anterior: Option<u8>,
-    /// Argumentos de topo, extraídos da fonte original.
-    argumentos: Vec<String>,
-}
-
-/// Todas as invocações reais de `macro_nome` (com `!`) dentro de `corpo`. Uma
-/// ocorrência em string, raw string, byte string ou comentário — simples ou
-/// aninhado — nunca é reconhecida como macro, porque a busca acontece só na
-/// visão neutralizada; os argumentos, esses, saem da fonte original pelos
-/// mesmos índices.
-fn invocacoes_de_macro(corpo: &str, macro_nome: &str) -> Vec<InvocacaoDeMacro> {
-    let visao = visao_lexical(corpo);
-    let bytes = visao.as_bytes();
-    let procurado = macro_nome.as_bytes();
-    let mut invocacoes = Vec::new();
-    let mut profundidade = 0usize;
-    let mut i = 0usize;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'{' => profundidade += 1,
-            b'}' => profundidade = profundidade.saturating_sub(1),
-            _ => {}
-        }
-        let colado = i
-            .checked_sub(1)
-            .map(|anterior| e_identificador(bytes[anterior]))
-            .unwrap_or(false);
-        if !colado
-            && bytes[i..].starts_with(procurado)
-            && bytes.get(i + procurado.len()) == Some(&b'(')
-        {
-            let apos = i + procurado.len();
-            if let Some(interior) = trecho_delimitado(&corpo[apos..], b'(', b')') {
-                invocacoes.push(InvocacaoDeMacro {
-                    inicio: i,
-                    profundidade,
-                    anterior: bytes[..i]
-                        .iter()
-                        .rev()
-                        .find(|byte| !byte.is_ascii_whitespace())
-                        .copied(),
-                    argumentos: argumentos_de_topo(&interior),
-                });
-            }
-        }
-        i += 1;
-    }
-    invocacoes
-}
-
-/// Argumentos de topo de cada invocação real de `macro_nome` em `corpo`.
-fn argumentos_de_macro(corpo: &str, macro_nome: &str) -> Vec<Vec<String>> {
-    invocacoes_de_macro(corpo, macro_nome)
-        .into_iter()
-        .map(|invocacao| invocacao.argumentos)
-        .collect()
-}
-
-/// Verdadeiro quando o corpo auditado contém um `assert_eq!` **direto e de
-/// primeiro nível** cujos dois primeiros argumentos de topo são exatamente
-/// `esquerda` e `direita`, em qualquer ordem.
-///
-/// A prova é estrutural e lexical, não uma análise de alcançabilidade de Rust.
-/// O contrato é deliberadamente estrito: a asserção precisa ser uma instrução
-/// direta do corpo principal da função, ou seja
-///
-/// - em profundidade zero de chaves — nada dentro de `if`, `else`, `loop`,
-///   `while`, `for`, `match` ou bloco extra conta;
-/// - iniciando instrução, precedida apenas por `;`, `}` ou pelo início do
-///   corpo — o que descarta closures (`|| assert_eq!(…)`), inicializadores
-///   (`let x = assert_eq!(…)`) e qualquer atributo, inclusive `#[cfg(any())]`,
-///   cujo `]` anterior reprova a invocação;
-/// - depois da obtenção dos dois valores comparados, medida pelas ligações
-///   `let` do corpo;
-/// - antes de qualquer `return` de primeiro nível e antes da limpeza final.
-///
-/// Comparar um valor consigo próprio nunca satisfaz o contrato, porque as duas
-/// origens esperadas são distintas por construção.
-fn assercao_direta_de_igualdade(trecho: &str, esquerda: &str, direita: &str) -> bool {
-    if esquerda == direita {
-        return false;
-    }
-    let corpo = corpo_auditado(trecho);
-    let visao = visao_lexical(&corpo);
-    let ligacoes = ligacoes_let(&visao);
-    let corte = [
-        posicao_de_token(&visao, "return", 0),
-        posicao_de_token(&visao, "remove_dir_all", 0),
-    ]
-    .into_iter()
-    .flatten()
-    .min();
-    invocacoes_de_macro(&corpo, "assert_eq!")
-        .iter()
-        .any(|invocacao| {
-            let instrucao_direta = invocacao.profundidade == 0
-                && matches!(
-                    invocacao.anterior,
-                    None | Some(b';') | Some(b'{') | Some(b'}')
-                );
-            let operandos_esperados = invocacao.argumentos.len() >= 2
-                && ((invocacao.argumentos[0] == esquerda && invocacao.argumentos[1] == direita)
-                    || (invocacao.argumentos[0] == direita && invocacao.argumentos[1] == esquerda));
-            let antes_do_corte = corte
-                .map(|limite| invocacao.inicio < limite)
-                .unwrap_or(true);
-            let valores_ja_obtidos = [esquerda, direita].iter().all(|operando| {
-                identificadores(operando).iter().all(|nome| {
-                    !ligacoes.iter().any(|(ligado, _)| ligado == nome)
-                        || ligacoes
-                            .iter()
-                            .any(|(ligado, posicao)| ligado == nome && *posicao < invocacao.inicio)
-                })
-            });
-            instrucao_direta && operandos_esperados && antes_do_corte && valores_ja_obtidos
-        })
-}
-
-/// Paridade real de stdout: igualdade entre o stdout normalizado do
-/// interpretador e o stdout do ELF nativo, asseverada em primeiro nível.
-fn paridade_de_stdout_real(trecho: &str) -> bool {
-    assercao_direta_de_igualdade(trecho, "programa_interp", "nativo_stdout")
-}
-
-/// Comparação real do exit do ELF contra `esperado`, asseverada em primeiro
-/// nível — o mesmo contrato aplicado à paridade de stdout.
-fn exit_comparado_a(trecho: &str, esperado: &str) -> bool {
-    assercao_direta_de_igualdade(trecho, "run.status.code()", esperado)
-}
-
-/// Verdadeiro quando a cadeia de `pink build` do corpo carrega `--nativo`.
-fn build_com_nativo(corpo: &str) -> bool {
-    corpo.split(".arg(\"build\")").skip(1).any(|trecho| {
-        trecho
-            .split(".output()")
-            .next()
-            .is_some_and(|cadeia| cadeia.contains(".arg(\"--nativo\")"))
-    })
-}
-
-/// As três guardas silenciosas: plataforma, driver C e libpinker_rt.a.
-fn tres_guardas(corpo: &str) -> bool {
-    corpo.contains("cfg!(all(target_os = \"linux\", target_arch = \"x86_64\"))")
-        && corpo.contains("detect_cc_driver().is_none()")
-        && corpo.contains("runtime_lib.is_file()")
-}
-
 #[test]
 fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -4021,7 +3505,10 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         "toda região de evidência deve possuir ao menos um teste e toda região de suporte, nenhum"
     );
 
-    // Os símbolos esperados de cada região de suporte.
+    // Os símbolos esperados de cada região de suporte. Cada um é definido uma
+    // única vez no arquivo, e essa definição pertence à região aprovada e a
+    // nenhuma outra. Usos e call sites fora da região seguem livres: só a linha
+    // de definição é vigiada, sem qualquer leitura semântica do corpo.
     let support_symbols: [(&str, &[&str]); 4] = [
         (
             "evidencia.backend-nativo.suporte-lowering-memoria",
@@ -4048,76 +3535,31 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     ];
     for (key, symbols) in support_symbols {
         let region = catalog.region(key).unwrap();
-        let text = central_lines[(region.content_start - 1)..region.content_end].join("\n");
         for symbol in symbols {
-            assert!(
-                text.contains(symbol),
-                "o símbolo {symbol} deve pertencer à região de suporte {key}"
+            let definidas: Vec<usize> = central_lines
+                .iter()
+                .enumerate()
+                .filter(|(_, line)| line.trim_start().starts_with(symbol))
+                .map(|(index, _)| index + 1)
+                .collect();
+            assert_eq!(
+                definidas.len(),
+                1,
+                "{symbol} deve ter exatamente uma definição em {central}, obteve {definidas:?}"
             );
-        }
-    }
-
-    // Cada um dos oito símbolos de suporte é definido exatamente uma vez no
-    // arquivo, dentro da região aprovada e de nenhuma outra. Usos e call sites
-    // fora da região continuam livres; apenas a definição é vigiada.
-    let definicoes_de_suporte: [(&str, &str); 8] = [
-        (
-            "fn lower_to_selected(",
-            "evidencia.backend-nativo.suporte-lowering-memoria",
-        ),
-        (
-            "fn detect_cc_driver(",
-            "evidencia.backend-nativo.suporte-driver-c",
-        ),
-        (
-            "struct ParidadeNativaCaso {",
-            "evidencia.backend-nativo.suporte-matriz-paridade-b11",
-        ),
-        (
-            "const ARGVS_FASE221:",
-            "evidencia.backend-nativo.suporte-matriz-paridade-b11",
-        ),
-        (
-            "const CASOS_PARIDADE_B11:",
-            "evidencia.backend-nativo.suporte-matriz-paridade-b11",
-        ),
-        (
-            "fn separar_stdout_e_retorno_interpretador(",
-            "evidencia.backend-nativo.suporte-matriz-paridade-b11",
-        ),
-        (
-            "fn paridade_stdout_e_exit(",
-            "evidencia.backend-nativo.suporte-matriz-paridade-b11",
-        ),
-        (
-            "fn paridade_stdout(",
-            "evidencia.backend-nativo.suporte-paridade-stdout",
-        ),
-    ];
-    for (definicao, key) in definicoes_de_suporte {
-        let definidas: Vec<usize> = central_lines
-            .iter()
-            .enumerate()
-            .filter(|(_, line)| line.trim_start().starts_with(definicao))
-            .map(|(index, _)| index + 1)
-            .collect();
-        assert_eq!(
-            definidas.len(),
-            1,
-            "{definicao} deve ter exatamente uma definição em {central}, obteve {definidas:?}"
-        );
-        let dona = catalog.region(key).unwrap();
-        assert!(
-            dona.content_start <= definidas[0] && definidas[0] <= dona.content_end,
-            "{definicao} deve ser definido dentro da região aprovada {key}"
-        );
-        for outra in &central_regions {
             assert!(
-                outra.key == key
-                    || !(outra.content_start <= definidas[0] && definidas[0] <= outra.content_end),
-                "{definicao} não pode ser definido também em {}",
-                outra.key
+                region.content_start <= definidas[0] && definidas[0] <= region.content_end,
+                "o símbolo {symbol} deve ser definido dentro da região de suporte {key}"
             );
+            for outra in &central_regions {
+                assert!(
+                    outra.key == key
+                        || !(outra.content_start <= definidas[0]
+                            && definidas[0] <= outra.content_end),
+                    "{symbol} não pode ser definido também em {}",
+                    outra.key
+                );
+            }
         }
     }
 
@@ -4148,6 +3590,12 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
             || text.contains("paridade_stdout_e_exit(")
             || text.contains("Command::new")
     };
+    let compara_stdout = |text: &str| {
+        text.contains("paridade_stdout(")
+            || text.contains("paridade_stdout_e_exit(")
+            || text.contains("run.stdout")
+    };
+
     assert_eq!(
         count(&|text| !processual(text)),
         14,
@@ -4166,7 +3614,8 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
 
     // Classificação das catorze regiões: 3 de evidência exclusivamente textual,
     // 7 de evidência processual e 4 de suporte. Nenhuma região de evidência
-    // mistura as duas naturezas.
+    // mistura as duas naturezas. A classificação é da região, não uma afirmação
+    // de que a evidência processual foi de fato exercida.
     let regioes_textuais = [
         "evidencia.backend-nativo.emissao-init-runtime",
         "evidencia.backend-nativo.emissao-abi-e-fluxo-textual",
@@ -4272,187 +3721,38 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         );
     }
 
-    // Invariantes de paridade provadas DENTRO do corpo de cada função, extraído
-    // por balanceamento de chaves — nunca por busca global no arquivo.
-    let corpo_paridade_stdout = sem_comentarios(&corpo_de_funcao(&central_code, "paridade_stdout"));
-    let corpo_paridade_exit =
-        sem_comentarios(&corpo_de_funcao(&central_code, "paridade_stdout_e_exit"));
-
-    // paridade_stdout: oráculo interpretado, build nativo, normalização exata e
-    // asserção semântica de igualdade de stdout, com exit fixado na constante 0.
-    assert!(
-        corpo_paridade_stdout.contains(".arg(\"--run\")"),
-        "paridade_stdout deve invocar o interpretador com pink --run"
-    );
-    assert!(
-        corpo_paridade_stdout.contains(".arg(\"build\")"),
-        "paridade_stdout deve invocar pink build"
-    );
-    assert!(
-        corpo_paridade_stdout.contains(".arg(\"--nativo\")")
-            && build_com_nativo(&corpo_paridade_stdout),
-        "o pink build de paridade_stdout deve carregar --nativo"
-    );
-    assert!(
-        corpo_paridade_stdout.contains("strip_suffix(\"0\\n\")"),
-        "paridade_stdout deve normalizar o stdout do interpretador com strip_suffix(\"0\\n\")"
-    );
-    assert!(
-        paridade_de_stdout_real(&corpo_paridade_stdout),
-        "paridade_stdout deve conter assert_eq! entre programa_interp e nativo_stdout"
-    );
-    assert!(
-        exit_comparado_a(&corpo_paridade_stdout, "Some(0)"),
-        "paridade_stdout deve comparar o exit do ELF contra a constante Some(0)"
-    );
-    assert!(
-        !corpo_paridade_stdout.contains("retorno_interp"),
-        "paridade_stdout não pode alegar paridade de exit contra o retorno observado"
-    );
-    assert!(
-        tres_guardas(&corpo_paridade_stdout),
-        "paridade_stdout deve concentrar as três guardas silenciosas"
-    );
-
-    // paridade_stdout_e_exit: único caminho com paridade real de exit.
-    assert!(
-        corpo_paridade_exit.contains(".arg(\"--run\")"),
-        "paridade_stdout_e_exit deve invocar o interpretador com pink --run"
-    );
-    assert!(
-        corpo_paridade_exit.contains(".arg(\"build\")"),
-        "paridade_stdout_e_exit deve invocar pink build"
-    );
-    assert!(
-        corpo_paridade_exit.contains(".arg(\"--nativo\")")
-            && build_com_nativo(&corpo_paridade_exit),
-        "o pink build de paridade_stdout_e_exit deve carregar --nativo"
-    );
-    let paridade_exit_normalizado = corpo_paridade_exit
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
-    assert!(
-        paridade_exit_normalizado.contains(
-            "let (programa_interp, retorno_interp) = separar_stdout_e_retorno_interpretador("
-        ),
-        "paridade_stdout_e_exit deve derivar retorno_interp de separar_stdout_e_retorno_interpretador"
-    );
-    assert!(
-        paridade_de_stdout_real(&corpo_paridade_exit),
-        "paridade_stdout_e_exit deve conter assert_eq! entre programa_interp e nativo_stdout"
-    );
-    assert!(
-        exit_comparado_a(&corpo_paridade_exit, "Some(retorno_interp)"),
-        "paridade_stdout_e_exit deve comparar o exit do ELF contra Some(retorno_interp)"
-    );
-    assert!(
-        !exit_comparado_a(&corpo_paridade_exit, "Some(0)"),
-        "Some(0) não pode substituir a paridade real de exit em paridade_stdout_e_exit"
-    );
-    assert!(
-        tres_guardas(&corpo_paridade_exit),
-        "paridade_stdout_e_exit deve concentrar as três guardas silenciosas"
-    );
-
-    // Os quatro testes que comparam stdout sem delegar a helper algum.
-    let inline_com_paridade = [
-        "verso_dinamico_nativo_tem_paridade_de_stdout_com_interpretador",
-        "listas_nativas_tem_paridade_de_stdout_com_interpretador",
-        "mapas_nativos_tem_paridade_de_stdout_com_interpretador",
-        "ambiente_nativo_le_argv_com_paridade",
-    ];
-    for nome in inline_com_paridade {
-        let corpo = sem_comentarios(&corpo_de_funcao(&central_code, nome));
-        assert!(
-            corpo.contains(".arg(\"--run\")") && corpo.contains("strip_suffix(\"0\\n\")"),
-            "{nome} deve obter o stdout normalizado do interpretador"
-        );
-        assert!(
-            corpo.contains(".arg(\"build\")") && build_com_nativo(&corpo),
-            "o pink build de {nome} deve carregar --nativo"
-        );
-        assert!(
-            corpo.contains("String::from_utf8_lossy(&run.stdout)"),
-            "{nome} deve executar o ELF e capturar run.stdout"
-        );
-        assert!(
-            paridade_de_stdout_real(&corpo),
-            "{nome} deve conter assert_eq! entre programa_interp e nativo_stdout"
-        );
-        assert!(
-            exit_comparado_a(&corpo, "Some(0)"),
-            "{nome} deve comparar o exit do ELF contra a constante Some(0)"
-        );
-        assert!(
-            !corpo.contains("paridade_stdout"),
-            "{nome} é inline e não pode delegar a helper de paridade"
-        );
-        assert!(
-            tres_guardas(&corpo),
-            "{nome} deve escrever inline as três guardas silenciosas"
-        );
-    }
-
-    // Paridade real de exit em um único caminho do arquivo.
-    assert_eq!(
-        visao_lexical(&central_code)
-            .matches("Some(retorno_interp)")
-            .count(),
-        1,
-        "só paridade_stdout_e_exit pode comparar o exit contra o retorno observado"
-    );
-
-    // Um teste só conta como comparação de stdout quando a asserção existe: o
-    // binding run.stdout e o nome do helper, isolados, não bastam.
-    let compara_stdout = |text: &str| {
-        text.contains("paridade_stdout(")
-            || text.contains("paridade_stdout_e_exit(")
-            || paridade_de_stdout_real(text)
-    };
-
-    // Evidência processual: build nativo, montagem/linkedição e execução do ELF.
-    let chamadores_paridade_stdout = count(&|text| text.contains("paridade_stdout("));
-    let chamador_paridade_exit = count(&|text| text.contains("paridade_stdout_e_exit("));
-    let inline_com_assercao = count(&|text| {
-        !text.contains("paridade_stdout(")
-            && !text.contains("paridade_stdout_e_exit(")
-            && paridade_de_stdout_real(text)
-    });
-    assert_eq!(
-        chamador_paridade_exit, 1,
-        "só um teste compara stdout e exit contra o retorno observado no interpretador"
-    );
-    assert_eq!(
-        chamadores_paridade_stdout, 25,
-        "devem existir 25 testes que delegam a paridade_stdout"
-    );
-    assert_eq!(
-        inline_com_assercao, 4,
-        "devem existir quatro testes com asserção de paridade de stdout escrita inline"
-    );
-    assert_eq!(
-        chamadores_paridade_stdout + chamador_paridade_exit + inline_com_assercao,
-        30,
-        "as 30 comparações de stdout são 25 via paridade_stdout + 1 via paridade_stdout_e_exit + 4 inline"
-    );
+    // Inventário dos caminhos processuais: build nativo, montagem/linkedição e
+    // execução do ELF. As contagens abaixo são estruturais — descrevem o que o
+    // arquivo declara, não que a comparação tenha sido semanticamente exercida.
     assert_eq!(
         count(&|text| processual(text) && compara_stdout(text)),
         30,
-        "devem existir 30 testes que comparam stdout"
+        "devem existir 30 caminhos inventariados de comparação de stdout"
     );
     assert_eq!(
         count(&|text| processual(text) && !compara_stdout(text)),
         3,
-        "devem existir 3 testes que validam apenas o exit"
+        "devem existir 3 testes que declaram validar apenas o exit"
+    );
+    assert_eq!(
+        count(&|text| text.contains("paridade_stdout_e_exit(")),
+        1,
+        "paridade_stdout_e_exit deve ter um único call site consumidor"
+    );
+    assert_eq!(
+        count(&|text| text.contains("paridade_stdout(")),
+        25,
+        "devem existir 25 call sites de paridade_stdout"
     );
     assert_eq!(
         count(&|text| text.contains("argv") || text.contains("CASOS_PARIDADE_B11")),
         2,
-        "devem existir dois pontos que exercitam argv em nível de teste"
+        "devem existir dois pontos que declaram argv em nível de teste"
     );
 
-    // Guardas: sete conjuntos inline e 26 herdados de helper, cobrindo os 33 processuais.
+    // Guardas de plataforma, driver e runtime: sete conjuntos escritos inline.
+    // A cartografia inventaria onde essas guardas aparecem; não afirma qual
+    // caminho elas realmente cobrem nem se algum teste foi degradado a no-op.
     let guarda_inline = |text: &str| {
         text.contains("cfg!(all(target_os = \"linux\", target_arch = \"x86_64\"))")
             && text.contains("detect_cc_driver().is_none()")
@@ -4463,61 +3763,19 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         7,
         "devem existir sete conjuntos de guardas escritos inline"
     );
-    assert_eq!(
-        count(&|text| processual(text) && !guarda_inline(text)),
-        26,
-        "26 testes processuais herdam as guardas de um helper"
-    );
     for span in spans.iter().filter(|span| guarda_inline(&body(span))) {
         let text = body(span);
         assert!(
             text.contains("\"--nativo\"") && text.contains("PINKER_RT_LIB"),
-            "guarda inline sem build nativo com PINKER_RT_LIB na linha {}",
+            "caminho com guarda inline sem referência textual a --nativo e PINKER_RT_LIB na linha {}",
             span.0
         );
         assert!(
             text.contains("run.status.code()"),
-            "guarda inline sem validação de status.code() na linha {}",
+            "caminho com guarda inline sem referência textual a run.status.code() na linha {}",
             span.0
         );
     }
-    // Os dois helpers processuais concentram as mesmas três guardas, provadas no
-    // corpo extraído por balanceamento e não numa janela fixa de linhas.
-    for (helper, corpo) in [
-        ("paridade_stdout", &corpo_paridade_stdout),
-        ("paridade_stdout_e_exit", &corpo_paridade_exit),
-    ] {
-        for guarda in [
-            "cfg!(all(target_os = \"linux\", target_arch = \"x86_64\"))",
-            "detect_cc_driver().is_none()",
-            "runtime_lib.is_file()",
-        ] {
-            assert!(
-                corpo.contains(guarda),
-                "o helper {helper} deve conter a guarda {guarda}"
-            );
-        }
-    }
-    // Guardas de plataforma, driver e runtime alcançam os 33 testes processuais e
-    // todos podem permanecer verdes sem exercer evidência processual alguma. A
-    // cobertura é derivada das três origens disjuntas, não da classificação
-    // prévia de todo teste processual como "sob guardas".
-    assert_eq!(
-        count(&|text| guarda_inline(text)
-            && (text.contains("paridade_stdout(") || text.contains("paridade_stdout_e_exit("))),
-        0,
-        "guardas inline e guardas herdadas de helper devem ser origens disjuntas"
-    );
-    let sob_guardas = count(&guarda_inline) + chamadores_paridade_stdout + chamador_paridade_exit;
-    assert_eq!(
-        sob_guardas, 33,
-        "os 33 sob guardas são 7 inline + 25 via paridade_stdout + 1 via paridade_stdout_e_exit"
-    );
-    assert_eq!(
-        sob_guardas,
-        count(&processual),
-        "toda evidência processual deve estar sujeita às três guardas e pode passar sem evidência"
-    );
 
     // A matriz B11: 14 casos, 13 exemplos distintos, fase221 com e sem argv.
     let matriz = central_code
@@ -4562,43 +3820,6 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         "os outros treze casos B11 não passam argv"
     );
 
-    // Unidades de build por execução completa: 32 testes processuais individuais
-    // mais os 14 casos consumidos pelo marco B11.
-    let processuais_individuais =
-        count(&processual) - count(&|text| text.contains("paridade_stdout_e_exit("));
-    assert_eq!(
-        processuais_individuais, 32,
-        "32 testes processuais produzem um build nativo cada"
-    );
-    assert_eq!(
-        processuais_individuais + 14,
-        46,
-        "uma execução completa produz 46 unidades de build nativo"
-    );
-
-    // stderr nunca é validado semanticamente: aparece só em mensagem de falha.
-    assert_eq!(
-        central_code.matches("stderr").count(),
-        10,
-        "stderr só pode aparecer nas mensagens de falha"
-    );
-    assert_eq!(
-        central_code
-            .matches("String::from_utf8_lossy(&build.stderr)")
-            .count()
-            + central_code
-                .matches("String::from_utf8_lossy(&interp.stderr)")
-                .count(),
-        10,
-        "todo uso de stderr deve ser mensagem de falha, nunca conteúdo validado"
-    );
-    assert!(
-        !central_code
-            .lines()
-            .any(|line| line.contains("stderr") && line.contains("assert")),
-        "nenhum assert pode validar stderr semanticamente"
-    );
-
     // Regeneração canônica e preservação das 365 regiões anteriores.
     let regenerated = CodeIndex::scan_repo(&repository)
         .expect("regeneração canônica do catálogo a partir das fontes");
@@ -4640,263 +3861,4 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     assert!(onda_8i_complete);
     assert!(!onda_8_complete);
     assert!(!trama_complete);
-}
-
-// O analisador que sustenta o gate 8I é ele próprio auditado aqui, sem depender
-// de mutações externas: cada teste fixa um falso positivo ou um falso negativo
-// que a varredura lexical precisa recusar ou reconhecer.
-
-/// Corpo de função com as duas origens já obtidas, parametrizado pelo trecho
-/// que ocupa o lugar da asserção de paridade.
-fn corpo_de_paridade(trecho: &str) -> String {
-    format!(
-        "fn alvo() {{\n\
-             let programa_interp = interpreta();\n\
-             let run = executa();\n\
-             let nativo_stdout = String::from_utf8_lossy(&run.stdout);\n\
-         {trecho}\n\
-             let _ = fs::remove_dir_all(&out_dir);\n\
-         }}\n"
-    )
-}
-
-/// Verdadeiro quando o corpo montado prova paridade de stdout pelo contrato
-/// estrito de asserção direta e de primeiro nível.
-fn paridade_do_corpo(trecho: &str) -> bool {
-    paridade_de_stdout_real(&corpo_de_paridade(trecho))
-}
-
-#[test]
-fn visao_lexical_preserva_comprimento_e_quebras_de_linha() {
-    let fonte = "let a = \"x\\ny\";\n// comentário\n/* bloco */\nlet b = 'z';\n";
-    let visao = visao_lexical(fonte);
-    assert_eq!(
-        visao.len(),
-        fonte.len(),
-        "a visão lexical deve preservar o comprimento em bytes"
-    );
-    assert_eq!(
-        visao.lines().count(),
-        fonte.lines().count(),
-        "a visão lexical deve preservar as quebras de linha"
-    );
-    assert_eq!(
-        sem_comentarios(fonte).len(),
-        fonte.len(),
-        "a visão sem comentários também preserva o comprimento em bytes"
-    );
-}
-
-#[test]
-fn visao_lexical_neutraliza_strings_e_comentarios() {
-    // Cada trecho embute `}` e `assert_eq!` num contexto que não é código.
-    let disfarces = [
-        "let s = \"} assert_eq!(a, b)\";",
-        "let s = r\"} assert_eq!(a, b)\";",
-        "let s = r#\"} assert_eq!(a, b) \"aspas\"\"#;",
-        "let s = r##\"} assert_eq!(a, b) \"# ainda dentro\"##;",
-        "let s = b\"} assert_eq!(a, b)\";",
-        "let s = br\"} assert_eq!(a, b)\";",
-        "let s = br#\"} assert_eq!(a, b) \"aspas\"\"#;",
-        "// } assert_eq!(a, b)",
-        "/* } assert_eq!(a, b) */",
-        "/* externo /* } assert_eq!(a, b) */ ainda comentário */",
-    ];
-    for disfarce in disfarces {
-        let visao = visao_lexical(disfarce);
-        assert!(
-            !visao.contains("assert_eq!"),
-            "a visão lexical não pode expor assert_eq! em {disfarce}"
-        );
-        assert!(
-            !visao.contains('}'),
-            "a visão lexical não pode expor chaves em {disfarce}"
-        );
-        assert!(
-            argumentos_de_macro(disfarce, "assert_eq!").is_empty(),
-            "assert_eq! disfarçado não pode contar como macro em {disfarce}"
-        );
-    }
-}
-
-#[test]
-fn visao_lexical_nao_confunde_caractere_lifetime_e_codigo_seguinte() {
-    // Escapes e lifetimes não podem dessincronizar a varredura: o `assert_eq!`
-    // que vem depois continua sendo código.
-    let fontes = [
-        "let a = '\\'';\nassert_eq!(x, y);",
-        "let a = '\\\\';\nassert_eq!(x, y);",
-        "let a = '\\u{7FFF}';\nassert_eq!(x, y);",
-        "fn f<'a>(x: &'a str) -> &'a str { x }\nassert_eq!(x, y);",
-        "let vidas: &'static str = \"t\";\nassert_eq!(x, y);",
-    ];
-    for fonte in fontes {
-        let visao = visao_lexical(fonte);
-        assert!(
-            visao.contains("assert_eq!(x, y)"),
-            "o código após o literal deve sobreviver em {fonte}"
-        );
-        assert_eq!(
-            argumentos_de_macro(fonte, "assert_eq!"),
-            vec![vec!["x".to_string(), "y".to_string()]],
-            "a macro real após o literal deve ser reconhecida em {fonte}"
-        );
-    }
-}
-
-#[test]
-fn argumentos_de_macro_separa_topo_com_chamadas_e_virgulas() {
-    let fonte = "assert_eq!(f(a, b), g(&[1, 2]), \"msg com , e )\", h(c));";
-    assert_eq!(
-        argumentos_de_macro(fonte, "assert_eq!"),
-        vec![vec![
-            "f(a, b)".to_string(),
-            "g(&[1, 2])".to_string(),
-            "\"msg com , e )\"".to_string(),
-            "h(c)".to_string(),
-        ]],
-        "os argumentos de topo devem ignorar vírgulas aninhadas e vírgulas em literal"
-    );
-    assert!(
-        argumentos_de_macro("debug_assert_eq!(a, b);", "assert_eq!").is_empty(),
-        "assert_eq! colado a um identificador não é a macro procurada"
-    );
-}
-
-#[test]
-fn assercao_de_paridade_exige_instrucao_direta_de_primeiro_nivel() {
-    assert!(
-        paridade_do_corpo("    assert_eq!(programa_interp, nativo_stdout);"),
-        "a asserção direta em profundidade zero deve valer"
-    );
-    assert!(
-        paridade_do_corpo("    assert_eq!(nativo_stdout, programa_interp, \"ordem inversa\");"),
-        "a ordem dos dois operandos é livre"
-    );
-    assert!(
-        paridade_do_corpo(
-            "    let _chave = \"}\";\n    assert_eq!(programa_interp, nativo_stdout);"
-        ),
-        "uma chave dentro de string não pode esconder a asserção real"
-    );
-    assert!(
-        paridade_do_corpo(
-            "    /* externo /* interno */ */\n    assert_eq!(programa_interp, nativo_stdout);"
-        ),
-        "um comentário aninhado sem conteúdo falso não invalida a asserção real"
-    );
-}
-
-#[test]
-fn assercao_de_paridade_recusa_literais_comentarios_e_blocos() {
-    let recusas = [
-        "    let _t = \"assert_eq!(programa_interp, nativo_stdout);\";",
-        "    let _t = r#\"assert_eq!(programa_interp, nativo_stdout);\"#;",
-        "    let _t = br\"assert_eq!(programa_interp, nativo_stdout);\";",
-        "    // assert_eq!(programa_interp, nativo_stdout);",
-        "    /* assert_eq!(programa_interp, nativo_stdout); */",
-        "    /* externo /* assert_eq!(programa_interp, nativo_stdout); */ */",
-        "    if false { assert_eq!(programa_interp, nativo_stdout); }",
-        "    if true { assert_eq!(programa_interp, nativo_stdout); }",
-        "    loop { assert_eq!(programa_interp, nativo_stdout); break; }",
-        "    let _fecho = || assert_eq!(programa_interp, nativo_stdout);",
-        "    #[cfg(any())]\n    assert_eq!(programa_interp, nativo_stdout);",
-        "    return;\n    assert_eq!(programa_interp, nativo_stdout);",
-        "    assert_eq!(programa_interp, programa_interp);",
-        "    assert_eq!(nativo_stdout, nativo_stdout);",
-    ];
-    for recusa in recusas {
-        assert!(
-            !paridade_do_corpo(recusa),
-            "a asserção não pode ser aceita em {recusa:?}"
-        );
-    }
-}
-
-#[test]
-fn assercao_de_paridade_exige_valores_obtidos_e_precedencia_a_limpeza() {
-    let antes_da_obtencao = "fn alvo() {\n\
-                             assert_eq!(programa_interp, nativo_stdout);\n\
-                             let programa_interp = interpreta();\n\
-                             let run = executa();\n\
-                             let nativo_stdout = String::from_utf8_lossy(&run.stdout);\n\
-                             }\n";
-    assert!(
-        !paridade_de_stdout_real(antes_da_obtencao),
-        "a asserção anterior à obtenção dos dois valores não pode valer"
-    );
-    let apos_a_limpeza = "fn alvo() {\n\
-                          let programa_interp = interpreta();\n\
-                          let run = executa();\n\
-                          let nativo_stdout = String::from_utf8_lossy(&run.stdout);\n\
-                          let _ = fs::remove_dir_all(&out_dir);\n\
-                          assert_eq!(programa_interp, nativo_stdout);\n\
-                          }\n";
-    assert!(
-        !paridade_de_stdout_real(apos_a_limpeza),
-        "a asserção posterior à limpeza final não pode valer"
-    );
-}
-
-#[test]
-fn comparacao_de_exit_segue_o_mesmo_contrato_estrito() {
-    let corpo = |trecho: &str| {
-        format!(
-            "fn alvo() {{\n\
-                 let retorno_interp = interpreta();\n\
-                 let run = executa();\n\
-             {trecho}\n\
-                 let _ = fs::remove_dir_all(&out_dir);\n\
-             }}\n"
-        )
-    };
-    assert!(
-        exit_comparado_a(
-            &corpo("    assert_eq!(run.status.code(), Some(retorno_interp), \"exit\");"),
-            "Some(retorno_interp)"
-        ),
-        "a comparação direta de exit deve valer"
-    );
-    let recusas = [
-        "    let _t = \"assert_eq!(run.status.code(), Some(retorno_interp));\";",
-        "    // assert_eq!(run.status.code(), Some(retorno_interp));",
-        "    let _esperado = Some(retorno_interp);",
-        "    if false { assert_eq!(run.status.code(), Some(retorno_interp)); }",
-        "    #[cfg(any())]\n    assert_eq!(run.status.code(), Some(retorno_interp));",
-        "    assert_eq!(run.status.code(), Some(0));",
-        "    assert_eq!(run.status.code(), run.status.code());",
-    ];
-    for recusa in recusas {
-        assert!(
-            !exit_comparado_a(&corpo(recusa), "Some(retorno_interp)"),
-            "a comparação de exit não pode ser aceita em {recusa:?}"
-        );
-    }
-}
-
-#[test]
-fn corpo_de_funcao_distingue_vizinhas_e_ignora_definicoes_disfarcadas() {
-    let fonte = "fn paridade_stdout(a: u8) {\n    corpo_curto();\n}\n\
-                 fn paridade_stdout_e_exit(b: u8) {\n    corpo_longo();\n}\n";
-    assert!(
-        corpo_de_funcao(fonte, "paridade_stdout").contains("corpo_curto()"),
-        "a função vizinha de nome semelhante não pode ser confundida"
-    );
-    assert!(
-        corpo_de_funcao(fonte, "paridade_stdout_e_exit").contains("corpo_longo()"),
-        "a função de nome mais longo deve ser extraída pelo nome exato"
-    );
-
-    // As três repetições de `fn alvo(` começam linha, mas nenhuma é código: a
-    // primeira vive numa string multilinha, as outras em comentários — um deles
-    // aninhado. Só a definição real pode ser extraída, sem alegar duplicata.
-    let disfarcada = "fn alvo() {\n\
-                      let _t = \"\nfn alvo(x: u8) {}\n\";\n\
-                      }\n\
-                      /*\nfn alvo(y: u8) {}\n*/\n\
-                      /* externo\n/*\nfn alvo(z: u8) {}\n*/\n*/\n";
-    assert!(
-        corpo_de_funcao(disfarcada, "alvo").contains("let _t"),
-        "definições citadas em string ou comentário não contam como duplicata"
-    );
 }

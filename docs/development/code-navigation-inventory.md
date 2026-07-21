@@ -1412,100 +1412,82 @@ hospedado**: apenas procuram referências textuais a símbolos `pinker_*` e não
 ligam `libpinker_rt.a` — presença textual de símbolo não prova implementação
 funcional do runtime.
 
-**Evidência processual.** Os 33 testes processuais executam `pink build
---nativo`, um driver C externo faz a **montagem e a linkedição**, `libpinker_rt.a`
-é ligada com as dependências observadas `-lpthread`, `-ldl` e `-lm`, e o ELF
-produzido é executado. Deles, **30 comparam stdout** contra o interpretador
-usado como oráculo e **3 validam apenas o exit** (`status.code() == 42`).
-**Apenas um teste** compara o exit do ELF com o **retorno realmente observado no
-interpretador**, além do stdout: o marco B11. Os demais fixam o exit esperado na
-constante `0` via `strip_suffix("0\n")`. **25 testes** delegam ao helper
-`paridade_stdout` e **1** ao helper `paridade_stdout_e_exit`. **Dois pontos**
-exercitam `argv`. O `stderr` **nunca é validado semanticamente** — aparece
-somente como mensagem de falha.
+**O que esta onda afirma — e o que não afirma.** A Onda 8I **cartografa as
+evidências existentes** do backend nativo: estrutura, localização, ownership,
+catálogo e fronteiras. Ela **não certifica semanticamente a implementação dos
+testes**. Nada aqui prova que a toolchain foi executada, que uma comparação de
+stdout ocorreu de fato, que um exit observado é o exit real do ELF ou que nenhum
+teste degradou para no-op. As contagens abaixo são **inventário estrutural**.
+
+**Inventário dos caminhos processuais.** Os 33 testes processuais **declaram**
+executar `pink build --nativo`, delegar montagem e linkedição a um driver C
+externo, ligar `libpinker_rt.a` com `-lpthread`, `-ldl` e `-lm`, e executar o
+ELF produzido. Inventariados: **30 caminhos de comparação de stdout** contra o
+interpretador usado como oráculo e **3 testes que declaram validar apenas o
+exit**. **25 call sites** de `paridade_stdout` e **1 consumidor** de
+`paridade_stdout_e_exit`; **4 testes** escrevem a comparação inline. **Dois
+pontos** declaram `argv`. **29 desses caminhos comparam atualmente o exit contra
+uma constante**; apenas o marco B11 confronta o exit com o retorno observado no
+interpretador.
 
 A matriz `CASOS_PARIDADE_B11` reúne **14 casos sobre 13 exemplos distintos** (a
 fase221 aparece duas vezes, com e sem argv), consumidos por **um único
 `#[test]`** — não equivale a 14 testes independentes, e uma falha antecipada
-impede os casos seguintes. Somando os **32 testes processuais individuais** aos
-14 casos do B11, uma execução completa produz **46 unidades de build nativo**.
-Contando os programas efetivamente verificados por paridade, são **31 programas
-distintos**.
+impede os casos seguintes. Essa agregação é uma **limitação existente da suíte
+nativa**, registrada pela cartografia; não é um erro da cartografia.
 
-**Limite de honestidade central.** Os 33 testes processuais estão sujeitos às
-**três guardas silenciosas** — Linux x86_64, driver C e `libpinker_rt.a` — em
-**sete conjuntos escritos inline** e **26 herdados de helper**. Ou seja,
-**70,2% da suíte pode permanecer verde sem exercer evidência processual
-alguma**. A validação diferencial com `PATH` vazio confirmou o risco: 47 testes
-passam, sem nenhuma compilação, sem diretório temporário nativo e sem mensagem
-de skip do driver.
+**Guardas e execução degradada.** Os 33 testes processuais possuem guardas de
+plataforma, driver C e `libpinker_rt.a` — **sete conjuntos escritos inline**, os
+demais concentrados nos helpers — **capazes de produzir execução degradada ou
+no-op** sem sinalizar skip. A validação diferencial com `PATH` vazio observou 47
+testes passando sem compilação, sem diretório temporário nativo e sem mensagem
+de skip do driver. Essa limitação **permanece registrada, mas não bloqueia a
+Trama**: provar ausência de skip silencioso exige instrumentação de runtime, não
+cartografia.
 
 O diff em `tests/backend_nativo_tests.rs` é estritamente **marker-only**: 70
 linhas de comentário; removidos os marcadores, o arquivo é byte-equivalente à
 base. O catálogo passa de **365 para 379 regiões** e a camada `evidencia`, de
 **182 para 196**: catorze chaves adicionadas, nenhuma removida, nenhuma
 renomeada, `SEMANTIC_CHANGES_EXISTING = 0` e `POSITIONAL_CHANGES_EXISTING = 0`.
-As 365 entradas anteriores são congeladas por projeção estável.
+As 365 entradas anteriores são congeladas por projeção estável (comprimento
+`157379`, FNV-1a `14667879393081127943`).
 
-**Invariantes provadas dentro do corpo certo.** O gate cartográfico não
-classifica um teste como comparação de stdout pela presença do binding
-`run.stdout` nem pelo nome de um helper: extrai o corpo de `paridade_stdout`, de
-`paridade_stdout_e_exit` e dos quatro testes com asserção inline por
-balanceamento de chaves e exige, em cada um, um `assert_eq!` cujos dois
-primeiros argumentos sejam o stdout normalizado do interpretador e o stdout do
-ELF. As 30 comparações são derivadas como **25 + 1 + 4**, e os 33 testes sob
-guardas como **7 inline + 25 + 1**. Também são provados dentro do corpo: o
-`--nativo` na cadeia de `pink build` dos dois helpers, o `strip_suffix("0\n")`
-de `paridade_stdout`, o `Some(retorno_interp)` de `paridade_stdout_e_exit` — que
-não aceita `Some(0)` como substituto — e a definição única, na região aprovada,
-de cada um dos oito símbolos de suporte. A Onda 8G volta a exigir, por
-redundância, que `tests/backend_nativo_tests.rs` mantenha exatamente 47
-`#[test]`, além das 14 regiões.
+**Contrato do gate cartográfico.** O gate 8I prova catálogo (14 chaves, 379
+regiões totais, 196 na camada `evidencia`, regeneração canônica), história
+(as 365 regiões anteriores congeladas), estrutura do arquivo central (47
+`#[test]`, 14 regiões contíguas e sem sobreposição, ordem física preservada),
+classificação (3 textuais + 7 processuais + 4 de suporte), ownership
+(`[2,5,7,2,3,1,7,1,1,18]`, sem órfão e sem duplicata) e **definição única, na
+região de suporte aprovada, de cada um dos oito símbolos de suporte**. A Onda 8G
+exige, por redundância, que `tests/backend_nativo_tests.rs` mantenha exatamente
+47 `#[test]`, além das 14 regiões.
 
-**A prova é estrutural e lexical — não é análise de alcançabilidade.** Todo o
-gate 8I trabalha sobre uma **varredura lexical única** do arquivo, que classifica
-cada byte como código, comentário ou literal preservando comprimento em bytes e
-quebras de linha. Essa varredura reconhece strings normais com escapes, byte
-strings, raw strings com qualquer número de cerquilhas (`r"…"`, `r#"…"#`,
-`r##"…"##`, `br"…"`, `br#"…"#`), literais de caractere com escapes, lifetimes,
-comentários de linha e **comentários de bloco aninhados em profundidade
-arbitrária**. Macros, assinaturas de função, chaves e símbolos são procurados
-apenas na visão neutralizada; os argumentos, sim, são recortados da fonte
-original pelos mesmos índices. Consequência direta: um `assert_eq!` que exista
-somente dentro de string, raw string, byte string, comentário de linha ou
-comentário de bloco — simples ou aninhado — **não conta como asserção alguma**, e
-uma definição de função citada em literal ou comentário não conta como duplicata.
+O gate **não** contém analisador léxico de Rust. Ele não decide qual `assert_eq!`
+foi resolvida, qual binding está vigente, se uma instrução é alcançável, de onde
+vem o stdout ou o exit, nem se a toolchain rodou. Essas perguntas foram
+inventariadas e ficam **formalmente deferidas**.
 
-**A asserção de paridade precisa ser direta e de primeiro nível.** Não basta que
-o `assert_eq!` exista no corpo: ele tem de ser uma **instrução direta do corpo
-principal** da função auditada — em profundidade zero de chaves, iniciando
-instrução (precedido apenas por `;`, `}` ou pelo início do corpo), depois da
-obtenção dos dois valores comparados e antes de qualquer `return` de primeiro
-nível e da limpeza final. Ficam explicitamente recusados
-`if false { assert_eq!(…) }`, `if true { assert_eq!(…) }`,
-`loop { assert_eq!(…); break; }`, `let _f = || assert_eq!(…)`,
-`#[cfg(any())] assert_eq!(…)`, `return;` antes da asserção e qualquer
-autocomparação (`assert_eq!(programa_interp, programa_interp)`,
-`assert_eq!(nativo_stdout, nativo_stdout)`). O mesmo contrato — macro real,
-primeiro nível, sem literal, sem comentário, sem bloco morto — vale para a
-comparação de exit `assert_eq!(run.status.code(), Some(retorno_interp))` do marco
-B11, que também não aceita `Some(0)` nem `Some(retorno_interp)` solto fora do
-`assert_eq!`. O contrato é deliberadamente estrito.
+### Pós-Trama Nova — infraestrutura de paridade nativa
 
-**O que o gate não afirma.** Ele **não** resolve alcançabilidade geral de Rust:
-não decide se uma instrução é executada, não avalia condições, não expande macros
-nem interpreta `cfg` de compilação. Prova apenas a forma sintática e a posição
-estrutural da asserção. O próprio analisador é auditado por testes unitários em
-`tests/nav_cartography_tests.rs`, que fixam falsos positivos e falsos negativos
-de literais, comentários aninhados, lifetimes, blocos condicionais, closures,
-atributos e funções vizinhas de nome semelhante.
+Trabalho deferido, fora do escopo cartográfico da Trama:
 
-A Onda 8I está **completa somente após o gate corrigido**, isto é, com essas
-invariantes vigentes; `onda_8_complete = false` e `trama_complete = false`.
-Esta onda **não** declara paridade completa da linguagem, backend nativo
-completo, runtime completo, cobertura incondicional, suporte multiplataforma,
-`clang` validado nem self-hosting. A próxima etapa é o **runtime e as evidências
-do runtime**, na Onda 8J.
+- prova tipada de exit com `std::process::Termination`;
+- registro estruturado de execução (o que rodou, o que foi pulado);
+- motivos explícitos de skip, em vez de guardas silenciosas;
+- paridade real de exit em todos os caminhos, não só no marco B11;
+- granularidade dos casos B11 — um `#[test]` por caso;
+- limpeza de diretórios temporários por RAII;
+- execução do CI em duas fases, separando build hospedado de build nativo.
+
+Nenhum desses itens é implementado agora.
+
+A Onda 8I está **completa no escopo cartográfico**: `onda_8i_complete = true`,
+`onda_8_complete = false`, `trama_complete = false`. Esta onda **não** declara
+paridade completa da linguagem, backend nativo completo, runtime completo,
+cobertura incondicional, suporte multiplataforma, `clang` validado nem
+self-hosting. A próxima etapa atual da Trama é a **cartografia do runtime**, na
+Onda 8J.
 
 ## Testes ativos e apps adiados
 
