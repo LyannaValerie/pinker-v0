@@ -46,9 +46,11 @@ da execução interpretada, dos backends textual e nativo, da toolchain externa
 e dos testes internos do runtime. A convergência cartográfica da Onda 8 foi
 aceita com **386 regiões**, das quais **203** estão na camada `evidencia` e
 **15** na camada `runtime`. A primeira cápsula operacional/documental da Trama
-está completa e acrescenta seis regiões em `tests/nav_catalog_tests.rs`. Estado
-atual explícito: Onda 8A–8J; catálogo atual = 392; evidencia atual = 209;
-runtime atual = 15; `onda_8_complete = true`; `trama_complete = false`.
+está completa e acrescenta seis regiões em `tests/nav_catalog_tests.rs`; a
+segunda cápsula operacional/documental da Trama está completa e acrescenta seis
+regiões em `tests/doc_catalog_tests.rs`. Estado atual explícito: Onda 8A–8J;
+catálogo atual = 398; evidencia atual = 215; runtime atual = 15;
+`onda_8_complete = true`; `trama_complete = false`.
 `apps/` permanece reservada à Onda 9.
 
 ## Contrato do scanner
@@ -1705,8 +1707,8 @@ excluído).
 | cli | 15 | Onda 7: config-modelos, ajuda-usage, parsing (subcomandos, roteamento), execução (entrada, editor-repl), nav (consulta, sincronização-verificação), doc (consulta, sincronização, mudanças, verificação), análise-pipeline, build-nativo, módulos-importação |
 | editor | 4 | Onda 7: estado-modelo, sessão-comandos, render-saída, análise-checagem |
 | boot | 1 | Onda 7: geração-fronteira-freestanding (arquivo inteiro) |
-| evidencia | 209 | Onda 8B (19) + Onda 8C (34) + Onda 8D (58: ir 11, cfg 14, select 6, machine 27) + Onda 8E (46: interpreter) + Onda 8F (8: backend textual) + Onda 8G (7: backend `.s` textual) + Onda 8H (10: toolchain externa do backend `.s`) + Onda 8I (14: backend nativo — 4 de suporte, 10 de evidência) + Onda 8J (7: evidência interna do runtime) + cápsula de `nav_catalog_tests` (6) |
-| **total** | **392** | |
+| evidencia | 215 | Onda 8B (19) + Onda 8C (34) + Onda 8D (58: ir 11, cfg 14, select 6, machine 27) + Onda 8E (46: interpreter) + Onda 8F (8: backend textual) + Onda 8G (7: backend `.s` textual) + Onda 8H (10: toolchain externa do backend `.s`) + Onda 8I (14: backend nativo — 4 de suporte, 10 de evidência) + Onda 8J (7: evidência interna do runtime) + cápsula de `nav_catalog_tests` (6) + cápsula de `doc_catalog_tests` (6) |
+| **total** | **398** | |
 
 Pendentes de cartografia: as demais suítes `tests/*.rs` na Onda 8 e `apps/` na
 Onda 9. As três superfícies operacionais (cli/editor/boot) foram concluídas na
@@ -1770,14 +1772,52 @@ exaustiva do catálogo e não prova comportamento de processos independente de
 plataforma. Também não conclui a Trama, não ativa a Onda 9 e não oferece
 suporte a apps/.
 
-Estado de continuidade: próximo alvo: tests/doc_catalog_tests.rs;
+No vocabulário daquela cápsula: catálogo atual = 392; evidencia atual = 209;
+runtime atual = 15. Estado de continuidade registrado por ela, preservado como
+marco histórico: próximo alvo: tests/doc_catalog_tests.rs;
 alvo subsequente: tests/trama_query_tests.rs. `apps/` permanece reservada à Onda 9.
+
+## Segunda cápsula operacional/documental da Trama
+
+A segunda cápsula operacional/documental da Trama está completa.
+`tests/doc_catalog_tests.rs: 6 regiões`, classificadas como
+**2 suporte + 4 evidência**, cobrem a estrutura exata de
+**3 constantes + 4 helpers + 4 testes**. As duas regiões de suporte agrupam a
+configuração documental (`DOC_TOML`, `PORTAL`, `CORE`) e o maquinário de
+processo (`temp_repo`, `write`, `fixture`, `run`); cada uma das quatro regiões
+de evidência possui exatamente um teste — sincronização e verificação,
+catálogo desatualizado, extração de seção e âncora `@pinker-doc` desbalanceada.
+
+A cartografia é **somente por linhas de marcador**: retirar as 30 linhas
+`@pinker-nav:` reconstrói byte a byte a fonte-base
+`c2759331fb4377521c4f51479ae732c74ef0e4121d4e5ee0415a41eb67a37dd3`. Nenhuma
+linha original foi alterada, nenhum teste foi reordenado, nenhum helper foi
+movido e nenhuma fixture foi reescrita. O catálogo passa a 398/215/15 sem
+remover ou alterar semanticamente as 392 regiões da base mergeada — projeção
+estável preservada em 170076 bytes / `a887306f8c75b75c` — nem as 386 regiões
+históricas da Onda 8 — projeção estável preservada em 168339 bytes /
+`16afa50464b712b5`. A projeção completa das 398 regiões mede 171741 bytes /
+`61ac3eb554228685`. Estado atual explícito desta cápsula: catálogo atual = 398;
+evidencia atual = 215; runtime atual = 15; `onda_8_complete = true`;
+`trama_complete = false`.
+
+O escopo continua deliberadamente limitado: a suíte usa repositórios
+sintéticos, executa `pink doc` em processos filhos, faz asserções seletivas e
+usa limpeza explícita, não RAII, portanto pode deixar sobras após panic. A
+cartografia não prova a correção semântica completa da CLI, não é validação
+exaustiva do catálogo documental e não prova comportamento de processos
+independente de plataforma. Também não conclui a Trama, não ativa a Onda 9 e
+não oferece suporte a apps/.
+
+Estado de continuidade: próximo alvo: tests/trama_query_tests.rs.
+`apps/` permanece reservada à Onda 9.
 
 ## Próximo ponto de retomada
 
-A tarefa singular seguinte é **cartografar `tests/doc_catalog_tests.rs`**. A
-cápsula de `tests/nav_catalog_tests.rs` já está completa, a Onda 8 permanece
-completa e a Trama permanece incompleta. Ordem nominal subsequente esperada:
+A tarefa singular seguinte é **cartografar `tests/trama_query_tests.rs`**. As
+cápsulas de `tests/nav_catalog_tests.rs` e `tests/doc_catalog_tests.rs` já estão
+completas, a Onda 8 permanece completa e a Trama permanece incompleta. Ordem
+nominal subsequente esperada:
 
-1. `tests/doc_catalog_tests.rs`
-2. `tests/trama_query_tests.rs`
+1. `tests/trama_query_tests.rs`
+2. demais suítes operacionais de `tests/`
