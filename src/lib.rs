@@ -1,5 +1,6 @@
 pub mod abstract_machine;
 pub mod abstract_machine_validate;
+pub mod agent;
 pub mod ast;
 pub mod backend_s;
 pub mod backend_text;
