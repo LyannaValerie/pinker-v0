@@ -61,8 +61,8 @@ Os comandos oficiais passam por `./ci_env.sh`, diretamente ou pelos alvos do
 
 Evite varrer `docs/`, `src/`, `examples/` ou `tests/` sem necessidade:
 
-1. use `pink doc rota "<intenção>"` e `pink doc mostrar <id>` para a documentação;
-2. use `pink nav buscar "<conceito>"` e `pink nav mostrar <chave>` para o código;
+1. use `./ci_env.sh cargo run --bin pink -- doc rota "<intenção>"` e `./ci_env.sh cargo run --bin pink -- doc mostrar <id>` para a documentação;
+2. use `./ci_env.sh cargo run --bin pink -- nav buscar "<conceito>"` e `./ci_env.sh cargo run --bin pink -- nav mostrar <chave>` para o código;
 3. leia o `README.md` local do território antes de alterá-lo;
 4. consulte [docs/code_map.md](docs/code_map.md) para o mapa por camada;
 5. consulte [docs/examples_index.md](docs/examples_index.md) para encontrar um
@@ -136,7 +136,7 @@ Pull requests posteriores ao marco #330 usam o único bloco estruturado
 separado da narrativa e, com o número real do PR, importe-o por:
 
 ```bash
-pink doc importar-pr <n> --corpo <arquivo>
+./ci_env.sh cargo run --bin pink -- doc importar-pr <n> --corpo <arquivo>
 ```
 
 A política é forward-only: PRs de número menor ou igual a #330 não recebem
