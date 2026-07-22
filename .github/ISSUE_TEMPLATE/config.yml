@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Onde contribuir
+    url: https://github.com/LyannaValerie/pinker-v0/discussions/372
+    about: Veja tarefas prontas, propostas em design e como assumir trabalhos maiores.
   - name: Dúvidas e ajuda
     url: https://github.com/LyannaValerie/pinker-v0/discussions/categories/q-a
     about: Use a categoria Q&A para dúvidas de uso.

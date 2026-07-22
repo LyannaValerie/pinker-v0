@@ -33,6 +33,45 @@ Isso evita furar a ordem ativa ou trabalhar sobre
 uma proposta que ainda é apenas horizonte. Correções documentais simples devem
 continuar pequenas e factuais.
 
+## Onde encontrar trabalho
+
+O painel dinâmico [Onde contribuir na Pinker](https://github.com/LyannaValerie/pinker-v0/discussions/372)
+reúne buscas de trabalho pronto, propostas que ainda precisam de design, itens
+bloqueados e o foco corrente. Ele é uma superfície de descoberta: somente
+Issues abertas com contrato completo formam o backlog executável; roadmap e
+`docs/future.md` não autorizam implementação.
+
+Os rótulos classificam tamanho e estado:
+
+- `good first issue`: recorte pequeno para primeira contribuição;
+- `community`: contribuição intermediária delimitada;
+- `ambitious` + `design accepted`: trabalho grande cuja fronteira de design foi aceita;
+- `needs design` e `discussion-needed`: decisão ainda aberta;
+- `blocked`: dependência registrada impede avanço;
+- `needs triage`: contrato ou evidência ainda incompletos;
+- `help wanted`: trabalho aberto à contribuição externa.
+
+Antes de começar, comente na Issue a abordagem pretendida. Trabalho ambicioso
+ou incerto exige confirmação de escopo da manutenção. Isso não cria reserva
+exclusiva nem garantia de merge. Contribuições grandes são bem-vindas quando a
+fronteira de design foi aceita; propostas novas começam em
+[Discussions](https://github.com/LyannaValerie/pinker-v0/discussions), não como
+implementação antecipada.
+
+## Trabalho paralelo e dependências
+
+O roadmap registra direção, dependências e ordem de integração; não é uma fila
+serial universal. Múltiplas Issues aceitas podem avançar ao mesmo tempo quando
+cada uma declara dependências, estado de integração, subsistemas afetados,
+compatibilidade, coordenação e critérios de conclusão. Engenharia independente
+pode prosseguir enquanto a Founder continua a Trama.
+
+Mudanças em raízes do scanner, marcadores, schemas, catálogos gerados ou
+contratos de CLI da Trama permanecem coordenadas na trilha da Trama. Trabalho
+grande exige design aceito, marcos e fronteiras de compatibilidade. Comentar uma
+Issue não reserva ownership permanente; a ordem de implementação não garante a
+ordem de merge, e o merge manual da manutenção permanece a autoridade final.
+
 ## Fluxo por fork e pull request
 
 Para contribuir sem acesso de escrita ao repositório, faça um fork, trabalhe em
