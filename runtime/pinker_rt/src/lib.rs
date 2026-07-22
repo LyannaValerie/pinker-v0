@@ -1801,6 +1801,10 @@ pub unsafe extern "C" fn pinker_processo_pipeline(
 }
 // @pinker-nav:end runtime.processos.execucao
 
+// @pinker-nav:start evidencia.runtime.memoria-alocador
+// @pinker-nav:domain memoria
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Abertura do módulo de testes internos do runtime nativo e evidência em memória do alocador: alinhamento e usabilidade do bloco devolvido por `pinker_alocar`, não sobreposição entre alocações independentes, alocação de zero bytes e tolerância a `pinker_liberar` sobre ponteiro nulo.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1848,7 +1852,12 @@ mod tests {
     fn liberar_nulo_e_seguro() {
         unsafe { pinker_liberar(std::ptr::null_mut()) };
     }
+    // @pinker-nav:end evidencia.runtime.memoria-alocador
 
+    // @pinker-nav:start evidencia.runtime.inicializacao-abi
+    // @pinker-nav:domain inicializacao
+    // @pinker-nav:layer evidencia
+    // @pinker-nav:summary Evidência em memória do bootstrap e da ABI: `pinker_rt_iniciar` captura `argc`/`argv` e os devolve por `pinker_rt_argc`/`pinker_rt_argv`, e `pinker_rt_versao` reporta a versão corrente da ABI.
     #[test]
     fn iniciar_captura_argc_e_argv() {
         let argv: [*const u8; 2] = [b"pink\0".as_ptr(), std::ptr::null()];
@@ -1861,7 +1870,12 @@ mod tests {
     fn versao_da_abi_atual() {
         assert_eq!(pinker_rt_versao(), 1);
     }
+    // @pinker-nav:end evidencia.runtime.inicializacao-abi
 
+    // @pinker-nav:start evidencia.runtime.texto-verso
+    // @pinker-nav:domain texto
+    // @pinker-nav:layer evidencia
+    // @pinker-nav:summary Helper `verso_de`, que monta blocos de verso em memória para toda a suíte interna, e evidência das operações de texto: `pinker_verso_tamanho` conta code points Unicode, `pinker_verso_juntar` concatena em bloco novo e `pinker_verso_igual` compara por conteúdo.
     fn verso_de(texto: &str) -> Vec<u8> {
         let mut bloco = Vec::with_capacity(texto.len() + 8);
         bloco.extend_from_slice(&(texto.len() as u64).to_ne_bytes());
@@ -1903,7 +1917,12 @@ mod tests {
             assert_eq!(pinker_verso_igual(a.as_ptr(), c.as_ptr()), 0);
         }
     }
+    // @pinker-nav:end evidencia.runtime.texto-verso
 
+    // @pinker-nav:start evidencia.runtime.listas-dinamicas
+    // @pinker-nav:domain listas
+    // @pinker-nav:layer evidencia
+    // @pinker-nav:summary Evidência em memória das listas dinâmicas do runtime: anexar/obter/tamanho, crescimento além da capacidade inicial, `pinker_lista_definir` substituindo elemento, `pinker_lista_inserir` deslocando o sufixo e `pinker_lista_tirar_ultimo` removendo e devolvendo o topo.
     #[test]
     fn lista_anexar_obter_e_tamanho() {
         let l = pinker_lista_criar();
@@ -1974,7 +1993,12 @@ mod tests {
             assert_eq!(pinker_lista_tamanho(l), 0);
         }
     }
+    // @pinker-nav:end evidencia.runtime.listas-dinamicas
 
+    // @pinker-nav:start evidencia.runtime.mapas-dinamicos
+    // @pinker-nav:domain mapas
+    // @pinker-nav:layer evidencia
+    // @pinker-nav:summary Evidência em memória dos mapas dinâmicos do runtime: definição/obtenção/`tem`/tamanho com chave bombom, comparação por conteúdo com chave verso, remoção preservando a ordem e ausência silenciosa, e crescimento além da capacidade inicial.
     #[test]
     fn mapa_chave_bombom_definir_obter_tem_tamanho() {
         let m = pinker_mapa_criar_chave_bombom();
@@ -2039,7 +2063,12 @@ mod tests {
             }
         }
     }
+    // @pinker-nav:end evidencia.runtime.mapas-dinamicos
 
+    // @pinker-nav:start evidencia.runtime.leques-carga
+    // @pinker-nav:domain leques
+    // @pinker-nav:layer evidencia
+    // @pinker-nav:summary Evidência em memória dos leques (variantes com carga) do runtime: criação com tag e leitura de cargas posicionais, aninhamento de leque dentro de leque habilitando recursão, e crescimento além da capacidade inicial.
     #[test]
     fn leque_criar_anexar_tag_e_carga() {
         unsafe {
@@ -2078,7 +2107,12 @@ mod tests {
             }
         }
     }
+    // @pinker-nav:end evidencia.runtime.leques-carga
 
+    // @pinker-nav:start evidencia.runtime.mapas-iterador-snapshot
+    // @pinker-nav:domain mapas
+    // @pinker-nav:layer evidencia
+    // @pinker-nav:summary Evidência em memória do iterador de mapas: `pinker_mapa_iterador_criar` fixa um snapshot das chaves, de modo que definições e remoções posteriores não afetam a sequência devolvida por `pinker_mapa_iterador_proxima`; fecha fisicamente o módulo de testes internos do runtime.
     #[test]
     fn mapa_iterador_usa_snapshot_das_chaves() {
         let m = pinker_mapa_criar_chave_bombom();
@@ -2094,3 +2128,4 @@ mod tests {
         }
     }
 }
+// @pinker-nav:end evidencia.runtime.mapas-iterador-snapshot

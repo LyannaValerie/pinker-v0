@@ -1489,6 +1489,111 @@ cobertura incondicional, suporte multiplataforma, `clang` validado nem
 self-hosting. A próxima etapa atual da Trama é a **cartografia do runtime**, na
 Onda 8J.
 
+## Onda 8J — evidências internas do runtime nativo
+
+A **Onda 6E já cartografou integralmente a produção** de
+`runtime/pinker_rt/src/lib.rs` em **15 regiões `runtime.*`**. A Onda 8J **não
+altera e não recartografa** essas quinze regiões: a cápsula da 6E continua
+cobrindo somente produção, e o `#[cfg(test)] mod tests` permanece **fora** da
+camada `runtime`. Suas evidências foram cartografadas agora, na camada
+`evidencia`, sob o prefixo `evidencia.runtime.`.
+
+A Onda 8J adiciona exatamente **sete regiões** na camada `evidencia`, cobrindo
+os **22 `#[test]`** e o **único helper** (`verso_de`) do bloco de testes
+internos do runtime. A distribuição, em ordem física, é **[4, 2, 3, 5, 4, 3, 1]**
+— soma **22**, sem teste órfão, sem ownership duplicado e sem região de
+evidência vazia.
+
+| Chave | Domínio | Testes | Cobertura |
+|---|---|---:|---|
+| `evidencia.runtime.memoria-alocador` | memoria | 4 | Abertura de `#[cfg(test)] mod tests` e do `use super::*;`; alinhamento e usabilidade do bloco de `pinker_alocar`, não sobreposição entre alocações, alocação de zero bytes, `pinker_liberar` sobre nulo. |
+| `evidencia.runtime.inicializacao-abi` | inicializacao | 2 | Captura de `argc`/`argv` por `pinker_rt_iniciar` e versão corrente da ABI. |
+| `evidencia.runtime.texto-verso` | texto | 3 | Helper `verso_de` (pertence exclusivamente a esta região, embora seja consumido depois por outros testes) e as operações de verso: tamanho em code points, concatenação e igualdade por conteúdo. |
+| `evidencia.runtime.listas-dinamicas` | listas | 5 | Anexar/obter/tamanho, crescimento, `definir`, `inserir` com deslocamento de sufixo e `tirar_ultimo`. |
+| `evidencia.runtime.mapas-dinamicos` | mapas | 4 | Chave bombom, chave verso comparada por conteúdo, remoção preservando ordem com ausência silenciosa e crescimento. |
+| `evidencia.runtime.leques-carga` | leques | 3 | Tag e cargas posicionais, aninhamento recursivo e crescimento. |
+| `evidencia.runtime.mapas-iterador-snapshot` | mapas | 1 | Snapshot das chaves do iterador de mapas; contém o fechamento físico de `mod tests`. |
+
+**Toda a evidência da Onda 8J é evidência em memória.** Nenhum dos 22 testes
+cria processo, toca o sistema de arquivos ou invoca toolchain. A onda **não**
+declara evidência processual nem paridade.
+
+**Relação com as quinze regiões de produção.** Por menção/call site — relação
+estrutural, não semântica —, **seis regiões produtivas** possuem alguma
+evidência interna relacionada: `runtime.inicializacao.bootstrap`,
+`runtime.memoria.alocador`, `runtime.texto.operacoes`,
+`runtime.listas.dinamicas`, `runtime.mapas.dinamicos` e
+`runtime.leques.variantes`. As **nove restantes não possuem teste interno
+relacionado**:
+
+- `runtime.conversoes.numero-texto`;
+- `runtime.texto.formatacao`;
+- `runtime.io.saida`;
+- `runtime.arquivos.io`;
+- `runtime.caminhos.sistema`;
+- `runtime.tempo.relogio`;
+- `runtime.aleatorio.gerador`;
+- `runtime.ambiente.argumentos`;
+- `runtime.processos.execucao`.
+
+Isso é uma **lacuna registrada, não um bloqueio da Trama**. A Onda 8J **não
+criou nenhum teste novo**: a alteração em `runtime/pinker_rt/src/lib.rs` é
+**marker-only** — 35 linhas de comentário `// @pinker-nav:*` adicionadas (7
+regiões × 5 linhas), zero linhas removidas, zero linhas de código ou de teste
+alteradas.
+
+**Limites observados durante o inventário.** A suíte `backend_nativo_tests`
+pode passar em **modo degradado sem a staticlib** do runtime; com
+`PINKER_RT_LIB` presente, houve **evidência processual observada** durante o
+inventário. Isso **confirma, mas não modifica**, os limites já documentados na
+Onda 8I.
+
+**Contrato do gate cartográfico.** O gate
+`onda_8j_cartografa_evidencias_internas_do_runtime` prova catálogo (as sete
+chaves exatas, 386 regiões totais, 203 na camada `evidencia`, 15 na camada
+`runtime`, regeneração canônica), estrutura do arquivo (22 `#[test]`, helper
+único, sete regiões contíguas, disjuntas e em ordem física, abertura e
+fechamento do módulo pertencendo à primeira e à última região), ownership
+(`[4,2,3,5,4,3,1]`, `unowned_tests=[]`, `duplicate_ownership=[]`,
+`evidence_regions_without_tests=[]`, `ownership_sum=22`), classificação (camada
+`evidencia`, evidência em memória, arquivo do runtime), preservação da produção
+(as 15 chaves `runtime.*` inalteradas e inteiramente anteriores ao bloco de
+testes, 155 símbolos produtivos com ownership único — 147 definições textuais
+mais os 8 wrappers gerados por `formatar_wrappers!` — e 107 símbolos de ABI —
+99 `extern "C" fn` diretas mais os mesmos 8 wrappers) e história (as **379
+regiões anteriores** congeladas por projeção estável e FNV-1a).
+
+O gate **não** contém analisador semântico. Não decide se as asserções estão
+semanticamente corretas, não prova segurança de memória, ausência de
+vazamentos, equivalência com o interpretador, execução de ELF, completude de
+ABI, dataflow, resolução de macros nem alcançabilidade.
+
+**Nota sobre referências históricas.** As seções anteriores deste inventário
+(entre elas as das Ondas 6A, 6E, 7 e 8G) descrevem o estado **no momento de
+cada onda**. Onde afirmam que o `#[cfg(test)] mod tests` do runtime está fora
+da cartografia, isso continua verdadeiro **para a camada `runtime`**: o bloco
+segue fora dela, e passou a ser coberto pela camada `evidencia` a partir desta
+onda.
+
+### Pós-Trama — evidência interna do runtime
+
+Trabalho deferido, fora do escopo cartográfico da Trama:
+
+- testes para os nove domínios sem evidência interna;
+- prova tipada e registro de execução;
+- skips observáveis;
+- segurança de memória;
+- vazamentos e RAII;
+- completude de ABI;
+- portabilidade;
+- self-hosting.
+
+Nenhum desses itens é implementado agora.
+
+A Onda 8J está **completa no escopo cartográfico**: `onda_8j_complete = true`,
+`onda_8_complete = false`, `trama_complete = false`. A próxima etapa é a
+**auditoria de convergência da Onda 8**.
+
 ## Testes ativos e apps adiados
 
 `tests/` é raiz oficial ativa desde a Onda 8A. O scanner tem três raízes
@@ -1518,7 +1623,7 @@ paridade restante, Trama, documentais, CLI, apps) continuam pendentes.
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
   do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
 
-## Cobertura acumulada (após Onda 8I)
+## Cobertura acumulada (após Onda 8J)
 
 | Métrica | Valor |
 |---|---:|
@@ -1540,6 +1645,7 @@ paridade restante, Trama, documentais, CLI, apps) continuam pendentes.
 | Evidência em `tests/backend_s_tests.rs` | 5/5 (Onda 8G) |
 | Evidência em `tests/backend_s_external_toolchain_tests.rs` | 79/79 (Onda 8H; 31 condicionais que montam/linkam/executam, 48 só em memória) |
 | Evidência em `tests/backend_nativo_tests.rs` | 47/47 (Onda 8I; 33 processuais sob três guardas, 14 só em memória) |
+| Evidência em `runtime/pinker_rt/src/lib.rs` (`mod tests`) | 22/22 (Onda 8J; todas em memória) |
 | Demais suítes `tests/*.rs` | Pendentes |
 | Regiões antes da Onda 7 | 163 |
 | Regiões adicionadas na Onda 7 | 20 |
@@ -1549,7 +1655,8 @@ paridade restante, Trama, documentais, CLI, apps) continuam pendentes.
 | Regiões adicionadas na Onda 8G | 7 |
 | Regiões adicionadas na Onda 8H | 10 |
 | Regiões adicionadas na Onda 8I | 14 (4 de suporte + 10 de evidência) |
-| Regiões no catálogo | 379 |
+| Regiões adicionadas na Onda 8J | 7 (evidência interna do runtime) |
+| Regiões no catálogo | 386 |
 | Raízes oficiais ativas | 3 |
 | Chaves duplicadas | 0 |
 | Erros de validação (`nav verificar`) | 0 |
@@ -1597,8 +1704,8 @@ excluído).
 | cli | 15 | Onda 7: config-modelos, ajuda-usage, parsing (subcomandos, roteamento), execução (entrada, editor-repl), nav (consulta, sincronização-verificação), doc (consulta, sincronização, mudanças, verificação), análise-pipeline, build-nativo, módulos-importação |
 | editor | 4 | Onda 7: estado-modelo, sessão-comandos, render-saída, análise-checagem |
 | boot | 1 | Onda 7: geração-fronteira-freestanding (arquivo inteiro) |
-| evidencia | 196 | Onda 8B (19) + Onda 8C (34) + Onda 8D (58: ir 11, cfg 14, select 6, machine 27) + Onda 8E (46: interpreter) + Onda 8F (8: backend textual) + Onda 8G (7: backend `.s` textual) + Onda 8H (10: toolchain externa do backend `.s`) + Onda 8I (14: backend nativo — 4 de suporte, 10 de evidência) |
-| **total** | **379** | |
+| evidencia | 203 | Onda 8B (19) + Onda 8C (34) + Onda 8D (58: ir 11, cfg 14, select 6, machine 27) + Onda 8E (46: interpreter) + Onda 8F (8: backend textual) + Onda 8G (7: backend `.s` textual) + Onda 8H (10: toolchain externa do backend `.s`) + Onda 8I (14: backend nativo — 4 de suporte, 10 de evidência) + Onda 8J (7: evidência interna do runtime) |
+| **total** | **386** | |
 
 Pendentes de cartografia: as demais suítes `tests/*.rs` na Onda 8 e `apps/` na
 Onda 9. As três superfícies operacionais (cli/editor/boot) foram concluídas na
@@ -1606,11 +1713,10 @@ Onda 7.
 
 ## Próximo ponto de retomada
 
-**Próximo grupo de evidências nas suítes `tests/*.rs` ainda não cartografadas,
-definido por inventário antes da edição.** Concluída a subonda 8I do backend
-nativo (catorze regiões — quatro de suporte e dez de evidência — cobrindo os 47
-testes de `tests/backend_nativo_tests.rs`), a **próxima etapa é o runtime e as
-evidências do runtime, na Onda 8J**. Depois dela, os candidatos remanescentes
+**Auditoria de convergência da Onda 8.** Concluída a subonda 8J (sete regiões
+`evidencia.runtime.*` cobrindo os 22 testes internos e o helper `verso_de` de
+`runtime/pinker_rt/src/lib.rs`), a **próxima etapa é a auditoria de convergência
+da Onda 8**. Depois dela, os candidatos remanescentes
 são, em ordem de proximidade ao já mapeado: as suítes de paridade restantes, as
 suítes da Trama operacional/documental (`nav_catalog`, `doc_catalog`,
 `trama_query`) e as suítes da CLI. Onda 9 continua
