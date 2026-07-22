@@ -58,6 +58,87 @@ fn fnv1a64(bytes: &[u8]) -> u64 {
     })
 }
 
+fn sha256_hex(bytes: &[u8]) -> String {
+    const K: [u32; 64] = [
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
+        0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
+        0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+        0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
+        0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+        0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
+        0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
+        0xc67178f2,
+    ];
+    let bit_len = (bytes.len() as u64) * 8;
+    let mut padded = bytes.to_vec();
+    padded.push(0x80);
+    while padded.len() % 64 != 56 {
+        padded.push(0);
+    }
+    padded.extend_from_slice(&bit_len.to_be_bytes());
+    let mut state = [
+        0x6a09e667u32,
+        0xbb67ae85,
+        0x3c6ef372,
+        0xa54ff53a,
+        0x510e527f,
+        0x9b05688c,
+        0x1f83d9ab,
+        0x5be0cd19,
+    ];
+    for chunk in padded.chunks_exact(64) {
+        let mut words = [0u32; 64];
+        for (index, word) in words.iter_mut().take(16).enumerate() {
+            let offset = index * 4;
+            *word = u32::from_be_bytes(chunk[offset..offset + 4].try_into().unwrap());
+        }
+        for index in 16..64 {
+            let s0 = words[index - 15].rotate_right(7)
+                ^ words[index - 15].rotate_right(18)
+                ^ (words[index - 15] >> 3);
+            let s1 = words[index - 2].rotate_right(17)
+                ^ words[index - 2].rotate_right(19)
+                ^ (words[index - 2] >> 10);
+            words[index] = words[index - 16]
+                .wrapping_add(s0)
+                .wrapping_add(words[index - 7])
+                .wrapping_add(s1);
+        }
+        let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = state;
+        for index in 0..64 {
+            let sum1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
+            let choice = (e & f) ^ ((!e) & g);
+            let temp1 = h
+                .wrapping_add(sum1)
+                .wrapping_add(choice)
+                .wrapping_add(K[index])
+                .wrapping_add(words[index]);
+            let sum0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
+            let majority = (a & b) ^ (a & c) ^ (b & c);
+            let temp2 = sum0.wrapping_add(majority);
+            h = g;
+            g = f;
+            f = e;
+            e = d.wrapping_add(temp1);
+            d = c;
+            c = b;
+            b = a;
+            a = temp1.wrapping_add(temp2);
+        }
+        for (slot, value) in state.iter_mut().zip([a, b, c, d, e, f, g, h]) {
+            *slot = slot.wrapping_add(value);
+        }
+    }
+    use std::fmt::Write as _;
+    let mut digest = String::with_capacity(64);
+    for word in state {
+        write!(&mut digest, "{word:08x}").unwrap();
+    }
+    digest
+}
+
 const TWO_REGIONS: &str = "\
 // @pinker-nav:start token.lexico.vocabulario
 // @pinker-nav:domain lexico
@@ -281,14 +362,28 @@ fn scanner_oficial_inclui_tests_sem_catalogar_fixtures_literais() {
 fn scanner_do_repo_real_ignora_textos_de_fixture_nas_suites() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let index = CodeIndex::scan_repo(&root).unwrap();
-    for file in [
-        "tests/nav_catalog_tests.rs",
-        "tests/nav_cartography_tests.rs",
+    let nav_catalog_regions: Vec<_> = index
+        .regions
+        .iter()
+        .filter(|region| region.file == "tests/nav_catalog_tests.rs")
+        .collect();
+    assert_eq!(nav_catalog_regions.len(), 6);
+    assert!(nav_catalog_regions
+        .iter()
+        .all(|region| region.key.starts_with("evidencia.trama.nav-catalog.")));
+    assert!(!index
+        .regions
+        .iter()
+        .any(|region| region.file == "tests/nav_cartography_tests.rs"));
+    for fixture_key in [
+        "cfg.logica.curto-circuito",
+        "runtime.exemplo.ficticio",
+        "falso.teste.chave",
+        "falso.pink.chave",
     ] {
-        assert!(
-            !index.regions.iter().any(|region| region.file == file),
-            "literal de fixture foi catalogado como região em {file}"
-        );
+        assert!(!index.regions.iter().any(|region| {
+            region.file == "tests/nav_catalog_tests.rs" && region.key == fixture_key
+        }));
     }
 }
 
@@ -1939,6 +2034,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     let historical_evidence_total = catalog
         .regions
         .iter()
+        .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .filter(|region| region.layer.as_deref() == Some("evidencia"))
         .filter(|region| !region.key.starts_with("evidencia.backend-text."))
         .filter(|region| !region.key.starts_with("evidencia.backend-s."))
@@ -1968,6 +2064,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     let historical_catalog_total = catalog
         .regions
         .iter()
+        .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .filter(|region| !region.key.starts_with("evidencia.backend-text."))
         .filter(|region| !region.key.starts_with("evidencia.backend-s."))
         .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
@@ -2074,6 +2171,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
     let historical_catalog_total = catalog
         .regions
         .iter()
+        .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .filter(|region| !region.key.starts_with("evidencia.backend-s."))
         .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
@@ -2203,6 +2301,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
     let previous_regions: Vec<_> = catalog
         .regions
         .iter()
+        .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .filter(|region| !expected_key_set.contains(region.key.as_str()))
         .filter(|region| !region.key.starts_with("evidencia.backend-s."))
         .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
@@ -2309,6 +2408,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
     let historical_catalog_total = catalog
         .regions
         .iter()
+        .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
@@ -2321,6 +2421,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         catalog
             .regions
             .iter()
+            .filter(|region| region.file != "tests/nav_catalog_tests.rs")
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
             .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
@@ -2601,6 +2702,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
     let previous_regions: Vec<_> = catalog
         .regions
         .iter()
+        .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .filter(|region| !expected_keys.contains(region.key.as_str()))
         .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
@@ -2629,6 +2731,343 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
     assert!(!trama_complete);
 }
 
+#[test]
+fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let target_path = "tests/nav_catalog_tests.rs";
+    let source = fs::read_to_string(repository.join(target_path)).expect("fonte da cápsula");
+    let lines: Vec<_> = source.lines().collect();
+    let expected_keys = [
+        "evidencia.trama.nav-catalog.fixture-config",
+        "evidencia.trama.nav-catalog.process-support",
+        "evidencia.trama.nav-catalog.sync-verify-roots",
+        "evidencia.trama.nav-catalog.show-extraction",
+        "evidencia.trama.nav-catalog.unbalanced-marker",
+        "evidencia.trama.nav-catalog.required-roots",
+    ];
+    let support_keys = &expected_keys[..2];
+    let evidence_keys = &expected_keys[2..];
+
+    #[derive(Debug)]
+    struct Span {
+        key: String,
+        start: usize,
+        end: usize,
+    }
+    let mut spans = Vec::new();
+    let mut active: Option<(String, usize)> = None;
+    let mut marker_lines = 0;
+    for (index, line) in lines.iter().enumerate() {
+        let trimmed = line.trim_start();
+        if !trimmed.starts_with("// @pinker-nav:") {
+            continue;
+        }
+        marker_lines += 1;
+        if let Some(key) = trimmed.strip_prefix("// @pinker-nav:start ") {
+            assert!(active.is_none(), "regiões da cápsula não podem aninhar");
+            active = Some((key.to_string(), index + 1));
+        } else if let Some(key) = trimmed.strip_prefix("// @pinker-nav:end ") {
+            let (open_key, start) = active.take().expect("fim sem início");
+            assert_eq!(key, open_key, "marcadores inicial/final divergentes");
+            spans.push(Span {
+                key: open_key,
+                start,
+                end: index + 1,
+            });
+        }
+    }
+    assert!(active.is_none(), "região sem marcador final");
+    assert_eq!(marker_lines, 30, "a cápsula exige exatamente 30 marcadores");
+    assert_eq!(spans.len(), 6, "a cápsula exige exatamente seis regiões");
+    let physical_keys: Vec<_> = spans.iter().map(|span| span.key.as_str()).collect();
+    assert_eq!(
+        physical_keys, expected_keys,
+        "ordem física das seis regiões"
+    );
+    for pair in spans.windows(2) {
+        assert!(pair[0].end < pair[1].start, "regiões não podem sobrepor");
+    }
+    assert_eq!(
+        spans[0].start, 8,
+        "docs e imports devem ficar fora das regiões"
+    );
+    assert!(lines[..7].iter().all(|line| !line.contains("@pinker-nav:")));
+
+    let stripped: String = source
+        .split_inclusive('\n')
+        .filter(|line| {
+            !line
+                .trim_start()
+                .strip_prefix("//")
+                .is_some_and(|rest| rest.trim_start().starts_with("@pinker-nav:"))
+        })
+        .collect();
+    assert_eq!(
+        sha256_hex(stripped.as_bytes()),
+        "9499fdd27a89d4c4c595d6ec0d15ed53424ecac3d9f503ca48f942673da03734",
+        "retirar marcadores deve reconstruir exatamente a fonte-base"
+    );
+
+    #[derive(Default, Debug, PartialEq, Eq)]
+    struct Owned {
+        constants: Vec<String>,
+        helpers: Vec<String>,
+        tests: Vec<String>,
+    }
+    let mut ownership = Vec::new();
+    for span in &spans {
+        let mut owned = Owned::default();
+        let mut test_attribute = false;
+        for line in &lines[span.start..span.end - 1] {
+            let trimmed = line.trim();
+            if trimmed == "#[test]" {
+                test_attribute = true;
+                continue;
+            }
+            if let Some(rest) = trimmed.strip_prefix("const ") {
+                owned
+                    .constants
+                    .push(rest.split(':').next().unwrap().to_string());
+                test_attribute = false;
+            } else if let Some(rest) = trimmed.strip_prefix("fn ") {
+                let name = rest.split('(').next().unwrap().to_string();
+                if test_attribute {
+                    owned.tests.push(name);
+                } else {
+                    owned.helpers.push(name);
+                }
+                test_attribute = false;
+            }
+        }
+        ownership.push((span.key.as_str(), owned));
+    }
+    let expected_ownership = [
+        (
+            expected_keys[0],
+            Owned {
+                constants: ["DOC_TOML", "SRC", "RUNTIME_LIB", "FALSO_TEST", "FALSO_PINK"]
+                    .map(str::to_string)
+                    .to_vec(),
+                ..Owned::default()
+            },
+        ),
+        (
+            expected_keys[1],
+            Owned {
+                helpers: ["temp_repo", "write", "fixture", "run"]
+                    .map(str::to_string)
+                    .to_vec(),
+                ..Owned::default()
+            },
+        ),
+        (
+            expected_keys[2],
+            Owned {
+                tests: ["sincronizar_e_verificar_do_codigo"]
+                    .map(str::to_string)
+                    .to_vec(),
+                ..Owned::default()
+            },
+        ),
+        (
+            expected_keys[3],
+            Owned {
+                tests: [
+                    "mostrar_extrai_a_regiao",
+                    "mostrar_extrai_regiao_do_runtime",
+                ]
+                .map(str::to_string)
+                .to_vec(),
+                ..Owned::default()
+            },
+        ),
+        (
+            expected_keys[4],
+            Owned {
+                tests: ["verificar_falha_quando_marcador_desbalanceado"]
+                    .map(str::to_string)
+                    .to_vec(),
+                ..Owned::default()
+            },
+        ),
+        (
+            expected_keys[5],
+            Owned {
+                tests: [
+                    "sincronizar_falha_quando_tests_raiz_obrigatoria_ausente",
+                    "sincronizar_falha_quando_raiz_obrigatoria_ausente",
+                ]
+                .map(str::to_string)
+                .to_vec(),
+                ..Owned::default()
+            },
+        ),
+    ];
+    assert_eq!(ownership, expected_ownership, "ownership exato da cápsula");
+    assert!(ownership[..2]
+        .iter()
+        .all(|(_, owned)| owned.tests.is_empty()));
+    assert!(ownership[2..]
+        .iter()
+        .all(|(_, owned)| !owned.tests.is_empty()));
+    let owned_constants: Vec<_> = ownership
+        .iter()
+        .flat_map(|(_, owned)| owned.constants.iter().map(String::as_str))
+        .collect();
+    let owned_helpers: Vec<_> = ownership
+        .iter()
+        .flat_map(|(_, owned)| owned.helpers.iter().map(String::as_str))
+        .collect();
+    let owned_tests: Vec<_> = ownership
+        .iter()
+        .flat_map(|(_, owned)| owned.tests.iter().map(String::as_str))
+        .collect();
+    assert_eq!(
+        owned_constants,
+        ["DOC_TOML", "SRC", "RUNTIME_LIB", "FALSO_TEST", "FALSO_PINK"]
+    );
+    assert_eq!(owned_helpers, ["temp_repo", "write", "fixture", "run"]);
+    assert_eq!(
+        owned_tests,
+        [
+            "sincronizar_e_verificar_do_codigo",
+            "mostrar_extrai_a_regiao",
+            "mostrar_extrai_regiao_do_runtime",
+            "verificar_falha_quando_marcador_desbalanceado",
+            "sincronizar_falha_quando_tests_raiz_obrigatoria_ausente",
+            "sincronizar_falha_quando_raiz_obrigatoria_ausente",
+        ]
+    );
+    for symbols in [&owned_constants, &owned_helpers, &owned_tests] {
+        let unique: HashSet<_> = symbols.iter().copied().collect();
+        assert_eq!(unique.len(), symbols.len(), "ownership duplicado");
+    }
+
+    let catalog_path = repository.join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    assert_eq!(catalog.regions.len(), 392);
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("evidencia"))
+            .count(),
+        209
+    );
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("runtime"))
+            .count(),
+        15
+    );
+    let mut target_regions: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| region.file == target_path)
+        .collect();
+    target_regions.sort_by_key(|region| region.start_marker);
+    assert_eq!(target_regions.len(), 6);
+    assert_eq!(
+        target_regions
+            .iter()
+            .map(|region| region.key.as_str())
+            .collect::<Vec<_>>(),
+        expected_keys
+    );
+    for region in &target_regions {
+        assert_eq!(region.domain.as_deref(), Some("trama"));
+        assert_eq!(region.layer.as_deref(), Some("evidencia"));
+        assert_eq!(region.file, target_path);
+        assert_eq!(region.kind, "region");
+    }
+    assert_eq!(
+        target_regions
+            .iter()
+            .filter(|region| support_keys.contains(&region.key.as_str()))
+            .count(),
+        2
+    );
+    assert_eq!(
+        target_regions
+            .iter()
+            .filter(|region| evidence_keys.contains(&region.key.as_str()))
+            .count(),
+        4
+    );
+
+    let historical: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| region.file != target_path)
+        .collect();
+    assert_eq!(historical.len(), 386, "conjunto histórico exato");
+    let historical_projection = stable_region_projection(historical.into_iter());
+    assert_eq!(
+        (
+            historical_projection.len(),
+            fnv1a64(historical_projection.as_bytes())
+        ),
+        (168_339, 1_634_706_628_046_951_093)
+    );
+    let full_projection = stable_region_projection(catalog.regions.iter());
+    assert_eq!(
+        (full_projection.len(), fnv1a64(full_projection.as_bytes())),
+        (170_076, 12_143_728_175_883_859_804)
+    );
+
+    let regenerated = CodeIndex::scan_repo(&repository).expect("scan canônico");
+    assert!(regenerated.verify().is_empty());
+    assert_eq!(
+        fs::read_to_string(catalog_path).expect("catálogo JSONL"),
+        regenerated.render_jsonl(),
+        "catálogo deve ser idêntico à regeneração canônica"
+    );
+
+    let gate_source = include_str!("nav_cartography_tests.rs");
+    assert_eq!(
+        gate_source
+            .lines()
+            .filter(|line| line.trim() == "fn onda_8_convergencia_fecha_cadeia_8a_8j() {")
+            .count(),
+        1,
+        "gate de fechamento da Onda 8 deve permanecer presente"
+    );
+    let inventory = include_str!("../docs/development/code-navigation-inventory.md");
+    let inventory_flat = inventory.split_whitespace().collect::<Vec<_>>().join(" ");
+    for statement in [
+        "primeira cápsula operacional/documental da Trama está completa",
+        "tests/nav_catalog_tests.rs: 6 regiões",
+        "2 suporte + 4 evidência",
+        "5 constantes + 4 helpers + 6 testes",
+        "catálogo atual = 392",
+        "evidencia atual = 209",
+        "runtime atual = 15",
+        "onda_8_complete = true",
+        "trama_complete = false",
+        "próximo alvo: tests/doc_catalog_tests.rs",
+        "alvo subsequente: tests/trama_query_tests.rs",
+        "`apps/` permanece reservada à Onda 9",
+        "repositórios sintéticos",
+        "processos filhos",
+        "asserções seletivas",
+        "limpeza explícita, não RAII",
+        "sobras após panic",
+        "não prova a correção semântica completa da CLI",
+        "não é validação exaustiva do catálogo",
+        "não prova comportamento de processos independente de plataforma",
+        "não conclui a Trama",
+        "não ativa a Onda 9",
+        "não oferece suporte a apps/",
+    ] {
+        assert!(
+            inventory_flat.contains(statement),
+            "contrato documental ausente: {statement}"
+        );
+    }
+}
+
 /// Fecha cumulativamente a convergência cartográfica da Onda 8 sem substituir
 /// os gates detalhados de 8A–8J. O congelamento cobre todos os campos estáveis
 /// das 386 regiões; assim, remoção, troca ou alteração de qualquer chave de
@@ -2638,15 +3077,19 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    let historical: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| region.file != "tests/nav_catalog_tests.rs")
+        .collect();
 
     assert_eq!(
-        catalog.regions.len(),
+        historical.len(),
         386,
         "a convergência da Onda 8 exige exatamente 386 regiões"
     );
     assert_eq!(
-        catalog
-            .regions
+        historical
             .iter()
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .count(),
@@ -2654,8 +3097,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
         "a convergência da Onda 8 exige exatamente 203 regiões de evidência"
     );
     assert_eq!(
-        catalog
-            .regions
+        historical
             .iter()
             .filter(|region| region.layer.as_deref() == Some("runtime"))
             .count(),
@@ -2663,7 +3105,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
         "a convergência da Onda 8 preserva as 15 regiões de runtime"
     );
 
-    let projection = stable_region_projection(catalog.regions.iter());
+    let projection = stable_region_projection(historical.into_iter());
     assert_eq!(
         (projection.len(), fnv1a64(projection.as_bytes())),
         (168_339, 1_634_706_628_046_951_093),
@@ -2854,6 +3296,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
     let historical_catalog_total = catalog
         .regions
         .iter()
+        .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
@@ -2865,6 +3308,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
         catalog
             .regions
             .iter()
+            .filter(|region| region.file != "tests/nav_catalog_tests.rs")
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
             .filter(|region| !region.key.starts_with("evidencia.runtime."))
@@ -3328,6 +3772,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
     let previous_regions: Vec<_> = catalog
         .regions
         .iter()
+        .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .filter(|region| !expected_keys.contains(region.key.as_str()))
         .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
@@ -3466,6 +3911,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         catalog
             .regions
             .iter()
+            .filter(|region| region.file != "tests/nav_catalog_tests.rs")
             .filter(|region| !region.key.starts_with("evidencia.runtime."))
             .count(),
         379,
@@ -3475,6 +3921,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         catalog
             .regions
             .iter()
+            .filter(|region| region.file != "tests/nav_catalog_tests.rs")
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .filter(|region| !region.key.starts_with("evidencia.runtime."))
             .count(),
@@ -3991,6 +4438,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     let previous_regions: Vec<_> = catalog
         .regions
         .iter()
+        .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .filter(|region| !expected_keys.contains(region.key.as_str()))
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .collect();
@@ -4080,7 +4528,11 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         );
     }
     assert_eq!(
-        catalog.regions.len(),
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.file != "tests/nav_catalog_tests.rs")
+            .count(),
         386,
         "a Onda 8J deve totalizar 386 regiões"
     );
@@ -4088,6 +4540,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         catalog
             .regions
             .iter()
+            .filter(|region| region.file != "tests/nav_catalog_tests.rs")
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .count(),
         203,
@@ -4097,6 +4550,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         catalog
             .regions
             .iter()
+            .filter(|region| region.file != "tests/nav_catalog_tests.rs")
             .filter(|region| region.layer.as_deref() == Some("runtime"))
             .count(),
         15,
@@ -4570,6 +5024,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     let previous_regions: Vec<_> = catalog
         .regions
         .iter()
+        .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .filter(|region| !expected_keys.contains(region.key.as_str()))
         .collect();
     assert_eq!(

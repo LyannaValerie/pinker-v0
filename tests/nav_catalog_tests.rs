@@ -5,6 +5,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// @pinker-nav:start evidencia.trama.nav-catalog.fixture-config
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Agrupa as constantes que configuram repositórios sintéticos e fontes marcadas usadas pela suíte de catálogo de código.
 const DOC_TOML: &str = r#"schema = 1
 
 [github]
@@ -25,7 +29,12 @@ const RUNTIME_LIB: &str = "// @pinker-nav:start runtime.exemplo.ficticio\n// @pi
 const FALSO_TEST: &str = "// @pinker-nav:start falso.teste.chave\n// @pinker-nav:domain falso\n// @pinker-nav:layer falso\nfn falso() {}\n// @pinker-nav:end falso.teste.chave\n";
 
 const FALSO_PINK: &str = "-- @pinker-nav:start falso.pink.chave\n-- @pinker-nav:domain falso\n-- @pinker-nav:layer falso\n";
+// @pinker-nav:end evidencia.trama.nav-catalog.fixture-config
 
+// @pinker-nav:start evidencia.trama.nav-catalog.process-support
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Fornece repositório temporário, escrita de fixtures, raízes controladas e execução do processo pink nav para os seis testes.
 fn temp_repo(name: &str) -> PathBuf {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -56,7 +65,12 @@ fn run(root: &Path, args: &[&str]) -> std::process::Output {
         .output()
         .expect("executar pink")
 }
+// @pinker-nav:end evidencia.trama.nav-catalog.process-support
 
+// @pinker-nav:start evidencia.trama.nav-catalog.sync-verify-roots
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita sincronização e verificação do catálogo, inclusão das raízes src/runtime/tests e exclusão de apps em repositório sintético.
 #[test]
 fn sincronizar_e_verificar_do_codigo() {
     let root = temp_repo("sync");
@@ -103,7 +117,12 @@ fn sincronizar_e_verificar_do_codigo() {
 
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.nav-catalog.sync-verify-roots
 
+// @pinker-nav:start evidencia.trama.nav-catalog.show-extraction
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Observa pink nav mostrar extraindo conteúdo de regiões sintéticas nas raízes src e runtime.
 #[test]
 fn mostrar_extrai_a_regiao() {
     let root = temp_repo("mostrar");
@@ -131,7 +150,12 @@ fn mostrar_extrai_regiao_do_runtime() {
     assert!(stdout.contains("pub fn exemplo"), "{stdout}");
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.nav-catalog.show-extraction
 
+// @pinker-nav:start evidencia.trama.nav-catalog.unbalanced-marker
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Observa pink nav verificar rejeitando catálogo derivado de marcador de código desbalanceado com E-NAV-VERIFY.
 #[test]
 fn verificar_falha_quando_marcador_desbalanceado() {
     let root = temp_repo("unbal");
@@ -147,7 +171,12 @@ fn verificar_falha_quando_marcador_desbalanceado() {
     assert!(String::from_utf8_lossy(&verify.stderr).contains("E-NAV-VERIFY"));
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.nav-catalog.unbalanced-marker
 
+// @pinker-nav:start evidencia.trama.nav-catalog.required-roots
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Observa sincronização rejeitando raízes obrigatórias tests ou runtime ausentes com E-NAV-SCAN e sem catálogo no caso controlado.
 #[test]
 fn sincronizar_falha_quando_tests_raiz_obrigatoria_ausente() {
     let root = temp_repo("missingtests");
@@ -177,3 +206,4 @@ fn sincronizar_falha_quando_raiz_obrigatoria_ausente() {
     );
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.nav-catalog.required-roots

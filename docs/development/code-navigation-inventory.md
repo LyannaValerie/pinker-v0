@@ -45,9 +45,11 @@ oficial e cartografaram as evidências do frontend, da semântica, do pipeline,
 da execução interpretada, dos backends textual e nativo, da toolchain externa
 e dos testes internos do runtime. A convergência cartográfica da Onda 8 foi
 aceita com **386 regiões**, das quais **203** estão na camada `evidencia` e
-**15** na camada `runtime`. Estado atual explícito: Onda 8A–8J; catálogo atual = 386;
-evidencia atual = 203; runtime atual = 15; `onda_8_complete = true`;
-`trama_complete = false`. `apps/` segue reservada à Onda 9.
+**15** na camada `runtime`. A primeira cápsula operacional/documental da Trama
+está completa e acrescenta seis regiões em `tests/nav_catalog_tests.rs`. Estado
+atual explícito: Onda 8A–8J; catálogo atual = 392; evidencia atual = 209;
+runtime atual = 15; `onda_8_complete = true`; `trama_complete = false`.
+`apps/` permanece reservada à Onda 9.
 
 ## Contrato do scanner
 
@@ -1703,8 +1705,8 @@ excluído).
 | cli | 15 | Onda 7: config-modelos, ajuda-usage, parsing (subcomandos, roteamento), execução (entrada, editor-repl), nav (consulta, sincronização-verificação), doc (consulta, sincronização, mudanças, verificação), análise-pipeline, build-nativo, módulos-importação |
 | editor | 4 | Onda 7: estado-modelo, sessão-comandos, render-saída, análise-checagem |
 | boot | 1 | Onda 7: geração-fronteira-freestanding (arquivo inteiro) |
-| evidencia | 203 | Onda 8B (19) + Onda 8C (34) + Onda 8D (58: ir 11, cfg 14, select 6, machine 27) + Onda 8E (46: interpreter) + Onda 8F (8: backend textual) + Onda 8G (7: backend `.s` textual) + Onda 8H (10: toolchain externa do backend `.s`) + Onda 8I (14: backend nativo — 4 de suporte, 10 de evidência) + Onda 8J (7: evidência interna do runtime) |
-| **total** | **386** | |
+| evidencia | 209 | Onda 8B (19) + Onda 8C (34) + Onda 8D (58: ir 11, cfg 14, select 6, machine 27) + Onda 8E (46: interpreter) + Onda 8F (8: backend textual) + Onda 8G (7: backend `.s` textual) + Onda 8H (10: toolchain externa do backend `.s`) + Onda 8I (14: backend nativo — 4 de suporte, 10 de evidência) + Onda 8J (7: evidência interna do runtime) + cápsula de `nav_catalog_tests` (6) |
+| **total** | **392** | |
 
 Pendentes de cartografia: as demais suítes `tests/*.rs` na Onda 8 e `apps/` na
 Onda 9. As três superfícies operacionais (cli/editor/boot) foram concluídas na
@@ -1717,6 +1719,8 @@ a cadeia cartográfica 8A–8J, mas exigiu um commit formal de fechamento. Token
 registro: `TRAMA_WAVE_8_CONVERGENCE_AUDIT_ACCEPTED_IMPLEMENTATION_REQUIRED`.
 Este commit realiza somente esse fechamento cumulativo, congela o estado
 386/203/15 e preserva os gates históricos; não inicia uma nova cápsula.
+No vocabulário daquele marco: catálogo atual = 386; evidencia atual = 203;
+runtime atual = 15.
 
 Estado canônico atual:
 
@@ -1750,13 +1754,30 @@ estado atual.
 - backend/runtime completos;
 - self-hosting.
 
+## Primeira cápsula operacional/documental da Trama
+
+A primeira cápsula operacional/documental da Trama está completa.
+`tests/nav_catalog_tests.rs: 6 regiões`, classificadas como
+**2 suporte + 4 evidência**, cobrem a estrutura exata de
+**5 constantes + 4 helpers + 6 testes**. O catálogo passa a 392/209/15 sem
+remover ou alterar semanticamente as 386 regiões do fechamento da Onda 8.
+
+O escopo continua deliberadamente limitado: a suíte usa repositórios
+sintéticos, executa `pink nav` em processos filhos, faz asserções seletivas e
+usa limpeza explícita, não RAII, portanto pode deixar sobras após panic. A
+cartografia não prova a correção semântica completa da CLI, não é validação
+exaustiva do catálogo e não prova comportamento de processos independente de
+plataforma. Também não conclui a Trama, não ativa a Onda 9 e não oferece
+suporte a apps/.
+
+Estado de continuidade: próximo alvo: tests/doc_catalog_tests.rs;
+alvo subsequente: tests/trama_query_tests.rs. `apps/` permanece reservada à Onda 9.
+
 ## Próximo ponto de retomada
 
-A tarefa singular seguinte é **cartografar `tests/nav_catalog_tests.rs` como a
-primeira cápsula operacional/documental da Trama**. O arquivo possui **6 testes**
-e esse trabalho não é implementado neste commit de fechamento. Ordem nominal
-subsequente esperada:
+A tarefa singular seguinte é **cartografar `tests/doc_catalog_tests.rs`**. A
+cápsula de `tests/nav_catalog_tests.rs` já está completa, a Onda 8 permanece
+completa e a Trama permanece incompleta. Ordem nominal subsequente esperada:
 
-1. `tests/nav_catalog_tests.rs`
-2. `tests/doc_catalog_tests.rs`
-3. `tests/trama_query_tests.rs`
+1. `tests/doc_catalog_tests.rs`
+2. `tests/trama_query_tests.rs`
