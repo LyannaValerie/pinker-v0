@@ -3,23 +3,39 @@
 Obrigado pelo interesse em contribuir. A Pinker v0 é a base factual da linguagem:
 um frontend Rust com interpretador, IRs auditáveis, backend e docs versionadas.
 
-Este guia orienta contribuições humanas externas. Ele reúne caminhos já usados
-pelo repositório, mas não substitui [o README](README.md), [o manual](MANUAL.md),
-[o Atlas](docs/atlas.md), [as regras de documentação](docs/doc_rules.md) nem os
-contratos específicos para agentes.
+Este guia é a porta de entrada para contribuições humanas externas. Comece pelo
+tipo de contribuição abaixo; você não precisa ler toda a arquitetura documental
+para corrigir algo pequeno. Agentes seguem os contratos próprios indicados em
+[Agentes de IA](#agentes-de-ia).
 
-## Antes de começar
+## Escolha o caminho
 
-Leia primeiro:
+| Quero... | Começo por... | Coordenação prévia |
+|---|---|---|
+| corrigir typo, gramática ou clareza local | [Issue de documentação](https://github.com/LyannaValerie/pinker-v0/issues/new?template=documentation.yml), identificando caminho, trecho exato e correção proposta | mantenha o recorte estritamente editorial |
+| corrigir comando, link ou afirmação factual | [Issue de documentação](https://github.com/LyannaValerie/pinker-v0/issues/new?template=documentation.yml) para relatar; ao preparar uma correção, preserve a fonte factual no PR | peça orientação se a fonte factual estiver ambígua |
+| relatar comportamento reproduzível | [Issue de bug](https://github.com/LyannaValerie/pinker-v0/issues/new?template=bug.yml) | não precisa preparar a correção |
+| implementar correção de código já delimitada | uma Issue aceita; comente nela a abordagem pretendida | confirmação da manutenção para escopo incerto ou ambicioso |
+| propor linguagem, tooling ou direção | [Discussions Ideas](https://github.com/LyannaValerie/pinker-v0/discussions/categories/ideas) | a Discussion explora a proposta; não autoriza implementação |
+| relatar vulnerabilidade | [relato privado](https://github.com/LyannaValerie/pinker-v0/security/advisories/new) | nunca use Issue pública |
 
-- [README.md](README.md), para o estado e os limites públicos atuais;
-- [docs/atlas.md](docs/atlas.md), para localizar o território documental;
-- [docs/roadmap.md](docs/roadmap.md), para a ordem ativa;
-- [docs/handoff_codex.md](docs/handoff_codex.md), para o estado operacional;
-- [docs/doc_rules.md](docs/doc_rules.md), se a mudança afetar documentação;
-- [Código de Conduta](CODE_OF_CONDUCT.md), [Segurança](SECURITY.md),
-  [Governança](GOVERNANCE.md) e [Suporte](SUPPORT.md), para escolher o canal e
-  compreender os limites de participação.
+Em qualquer caminho, siga o [Código de Conduta](CODE_OF_CONDUCT.md), mantenha o
+menor escopo auditável e relate somente evidências e validações reais. Consulte
+[SUPPORT.md](SUPPORT.md) se ainda houver dúvida sobre o canal.
+
+## Leitura conforme o recorte
+
+- **Sempre antes de alterar comportamento:** [README.md](README.md), para o
+  estado público, e a Issue aceita que delimita o trabalho.
+- **Somente para direção ou mudança funcional:** [docs/roadmap.md](docs/roadmap.md),
+  [docs/handoff_codex.md](docs/handoff_codex.md) e [GOVERNANCE.md](GOVERNANCE.md).
+- **Somente ao alterar documentação:** a seção aplicável de
+  [docs/doc_rules.md](docs/doc_rules.md); use [docs/atlas.md](docs/atlas.md) para
+  localizar a fonte canônica quando a correção não for apenas local.
+- **Somente para vulnerabilidade:** [SECURITY.md](SECURITY.md).
+- **Somente para agentes:** [AGENTS.md](AGENTS.md) e as instruções específicas da
+  integração. Pessoas contribuindo manualmente não precisam seguir o fluxo de
+  inspeção destinado a agentes.
 
 O código e os testes mergeados são a primeira fonte factual. O roadmap define a
 ordem ativa; o handoff registra o estado operacional; o histórico preserva a
@@ -176,8 +192,11 @@ make nav-check
 
 Pull requests posteriores ao marco #330 usam o único bloco estruturado
 `pinker-change`. [O template de pull request](.github/pull_request_template.md)
-é a fonte operacional para seus campos, enums e sentinelas. Mantenha o bloco
-separado da narrativa e, com o número real do PR, importe-o por:
+é a fonte operacional para seus campos, enums e sentinelas. O bloco permite que
+a automação valide e projete metadados sem interpretar a narrativa humana; ele
+não exige conhecer a arquitetura interna da Trama. Mantenha-o separado da
+narrativa e, se a classificação da mudança não estiver clara, peça decisão da
+manutenção. Com o número real do PR, importe-o por:
 
 ```bash
 ./ci_env.sh cargo run --bin pink -- doc importar-pr <n> --corpo <arquivo>

@@ -13,23 +13,15 @@ commits. Sincronizar catálogos e projeções é responsabilidade de quem abre o
 
 ## Resumo
 
-<!-- O que este PR faz, em linguagem humana. -->
+<!-- O que este PR faz e por que a mudança é necessária, em linguagem humana. -->
 
-## Motivação
+## Detalhes e limites
 
-<!-- Por que esta mudança é necessária agora. -->
-
-## Detalhes técnicos
-
-<!-- Como foi implementado; decisões relevantes. -->
-
-## Limites
-
-<!-- O que este PR NÃO faz; limitações honestas; nada declarado sem evidência. -->
+<!-- Como foi implementado, decisões relevantes, o que NÃO faz e limitações honestas. Para uma correção pequena, seja breve. -->
 
 ## Validação
 
-<!-- Consulte CONTRIBUTING.md e CODE_OF_CONDUCT.md. Registre comandos realmente executados. -->
+<!-- Consulte CONTRIBUTING.md e CODE_OF_CONDUCT.md. Marque somente comandos realmente executados; deixe os demais desmarcados e explique limitações. O CI executará make ci. -->
 
 - [ ] `make ci`
 - [ ] `./ci_env.sh cargo run --bin pink -- doc verificar`
@@ -41,6 +33,14 @@ commits. Sincronizar catálogos e projeções é responsabilidade de quem abre o
 Preencha o bloco abaixo apenas para mudanças posteriores ao marco #330.
 Mantenha-o separado da narrativa acima. Campos e enums seguem
 .pinker/schemas/change-v1.schema.json.
+
+Propósito: fornecer à automação metadados verificáveis sem tentar interpretar o
+resumo humano. Preencha `kind`, `title`, `status` e `area`; use `updates` somente
+para famílias de projeção configuradas em `.pinker/doc.toml` e marque `true`
+apenas quando a mudança declarar atualização daquela família. Não derive flags
+de nomes de arquivos comuns, como `README.md`. Se a classificação não estiver
+clara, peça orientação à manutenção antes de inventar uma fase, hotfix ou rodada
+documental.
 
 NÃO deixe comentários dentro do bloco ```pinker-change```: ele é lido pela
 automação, não pelo YAML padrão. Substitua TODAS as sentinelas <preencher-...>

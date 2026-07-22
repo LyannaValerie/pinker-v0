@@ -1,0 +1,17 @@
+schema: 1
+source:
+  type: github-pr
+  number: 378
+  repository: LyannaValerie/pinker-v0
+kind: documentation
+title: Simplifica o caminho de contribuição externa
+area:
+  - development.community
+status: completed
+updates:
+  state: false
+  history: false
+  roadmap: false
+validation:
+  required:
+    - make ci
