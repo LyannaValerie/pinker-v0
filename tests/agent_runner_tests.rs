@@ -1,5 +1,6 @@
 use pinker_v0::agent::{
-    executar, relatorio, sensibilidade, sha256_hex, status, verificar, EXIT_ACCEPTED, EXIT_BLOCKED,
+    classify_required_check_states, executar, relatorio, sensibilidade, sha256_hex, status,
+    verificar, CheckState, EXIT_ACCEPTED, EXIT_BLOCKED,
 };
 use std::fs;
 #[cfg(unix)]
@@ -503,5 +504,107 @@ fn falha_de_restauracao_bloqueia_e_interrompe_mutacoes_posteriores() {
     let events = fs::read_to_string(root.join("delegated/estado/mutation-events.jsonl")).unwrap();
     assert_eq!(events.lines().count(), 1);
     assert!(events.contains("HARNESS_ERROR"));
+}
+
+// Regressões da agregação de checks repetidos (Onda C). O mesmo SHA pode expor
+// múltiplas linhas `rust` quando `push` e `pull_request` disparam o job; a
+// multiplicidade, sozinha, nunca bloqueia. Precedência: BLOCKED > PENDING >
+// SUCCESS. A antiga asserção "qualquer duplicidade bloqueia" foi substituída.
+fn observed(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
+    pairs
+        .iter()
+        .map(|(name, state)| (name.to_string(), state.to_string()))
+        .collect()
+}
+
+#[test]
+fn duplicate_success_agrega_success() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(
+        &required,
+        &observed(&[("rust", "SUCCESS"), ("rust", "SUCCESS")]),
+    );
+    assert_eq!(result.aggregate, CheckState::Success);
+    assert_eq!(result.occurrences[0].states.len(), 2);
+    assert!(result.missing.is_empty());
+    assert!(result.blocking_reason.is_none());
+}
+
+#[test]
+fn duplicate_pending_permanece_pending() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(
+        &required,
+        &observed(&[("rust", "IN_PROGRESS"), ("rust", "IN_PROGRESS")]),
+    );
+    assert_eq!(result.aggregate, CheckState::Pending);
+}
+
+#[test]
+fn success_mais_pending_permanece_pending() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(
+        &required,
+        &observed(&[("rust", "SUCCESS"), ("rust", "IN_PROGRESS")]),
+    );
+    assert_eq!(result.aggregate, CheckState::Pending);
+}
+
+#[test]
+fn failure_domina_success() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(
+        &required,
+        &observed(&[("rust", "SUCCESS"), ("rust", "FAILURE")]),
+    );
+    assert_eq!(result.aggregate, CheckState::Blocked);
+    assert!(result.blocking_reason.unwrap().contains("FAILURE"));
+}
+
+#[test]
+fn failure_domina_pending() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(
+        &required,
+        &observed(&[("rust", "FAILURE"), ("rust", "IN_PROGRESS")]),
+    );
+    assert_eq!(result.aggregate, CheckState::Blocked);
+}
+
+#[test]
+fn missing_permanece_pending() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(&required, &observed(&[]));
+    assert_eq!(result.aggregate, CheckState::Pending);
+    assert_eq!(result.missing, vec!["rust".to_string()]);
+}
+
+#[test]
+fn estado_desconhecido_bloqueia() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(&required, &observed(&[("rust", "MISTERIO")]));
+    assert_eq!(result.aggregate, CheckState::Blocked);
+}
+
+#[test]
+fn extra_nao_substitui_required() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(
+        &required,
+        &observed(&[("Validação somente-leitura", "SUCCESS")]),
+    );
+    assert_eq!(result.aggregate, CheckState::Pending);
+    assert_eq!(result.missing, vec!["rust".to_string()]);
+    assert_eq!(result.extras, vec!["Validação somente-leitura".to_string()]);
+}
+
+#[test]
+fn candidate_identity_continua_obrigatoria() {
+    // Identidade exata do check: "Rust" não satisfaz o requerido "rust".
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(&required, &observed(&[("Rust", "SUCCESS")]));
+    assert_eq!(result.aggregate, CheckState::Pending);
+    assert_eq!(result.missing, vec!["rust".to_string()]);
+    assert_eq!(result.extras, vec!["Rust".to_string()]);
 }
 // @pinker-nav:end evidencia.agent.runner

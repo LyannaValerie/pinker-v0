@@ -368,6 +368,13 @@ fn build_publication(mut builder: PublicationBuilder) -> Result<PublicationSpec,
             "publication: campo incompatível, lista vazia ou intervalo inválido".to_string(),
         );
     }
+    for (index, name) in result.required_checks.iter().enumerate() {
+        if result.required_checks[..index].contains(name) {
+            return Err(format!(
+                "publication.required_check duplicado na spec: {name}"
+            ));
+        }
+    }
     Ok(result)
 }
 
@@ -2176,6 +2183,128 @@ enum ChecksResult {
 // @pinker-nav:domain development
 // @pinker-nav:layer agent
 // @pinker-nav:summary Consulta somente checks exatos do SHA candidato, persiste eventos e snapshots, aceita apenas SUCCESS e distingue pendência, ausência, duplicidade e conclusões bloqueantes sem rerun ou bypass.
+
+/// Categoria agregada de um check requerido após consolidar todas as ocorrências.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckState {
+    Success,
+    Pending,
+    Blocked,
+}
+
+/// Ocorrências e agregação de um único check requerido.
+#[derive(Debug, Clone)]
+pub struct RequiredCheckOccurrence {
+    pub name: String,
+    pub states: Vec<String>,
+    pub aggregate: CheckState,
+    pub blocking: Option<String>,
+}
+
+/// Resultado puro da classificação de todos os checks requeridos.
+#[derive(Debug, Clone)]
+pub struct CheckClassification {
+    pub occurrences: Vec<RequiredCheckOccurrence>,
+    pub aggregate: CheckState,
+    pub missing: Vec<String>,
+    pub extras: Vec<String>,
+    pub blocking_reason: Option<String>,
+}
+
+/// Categoriza um único estado bruto de check em SUCCESS, pendente, bloqueante
+/// ou desconhecido. Um mesmo SHA pode expor múltiplas linhas por check quando
+/// `push` e `pull_request` disparam o mesmo job; a multiplicidade, sozinha,
+/// nunca bloqueia.
+fn categorize_check_state(state: &str) -> CheckState {
+    match state.trim().to_ascii_uppercase().as_str() {
+        "SUCCESS" => CheckState::Success,
+        "PENDING" | "QUEUED" | "IN_PROGRESS" | "EXPECTED" => CheckState::Pending,
+        "FAILURE" | "CANCELLED" | "TIMED_OUT" | "ACTION_REQUIRED" | "SKIPPED" | "NEUTRAL"
+        | "STALE" | "STARTUP_FAILURE" => CheckState::Blocked,
+        _ => CheckState::Blocked,
+    }
+}
+
+/// Função pura: agrega todas as ocorrências observadas de cada check requerido
+/// e aplica a precedência `BLOCKED > PENDING > SUCCESS`. Zero ocorrências conta
+/// como pendente (ausente); qualquer estado desconhecido bloqueia. Registra
+/// ocorrências, agregação, ausentes, extras e o primeiro motivo bloqueante.
+pub fn classify_required_check_states(
+    required: &[String],
+    observed: &[(String, String)],
+) -> CheckClassification {
+    let mut occurrences = Vec::new();
+    let mut missing = Vec::new();
+    let mut aggregate = CheckState::Success;
+    let mut blocking_reason: Option<String> = None;
+    for name in required {
+        let states = observed
+            .iter()
+            .filter(|(candidate, _)| candidate == name)
+            .map(|(_, state)| state.clone())
+            .collect::<Vec<_>>();
+        if states.is_empty() {
+            missing.push(name.clone());
+        }
+        let mut occurrence_state = if states.is_empty() {
+            CheckState::Pending
+        } else {
+            CheckState::Success
+        };
+        let mut occurrence_blocking = None;
+        for state in &states {
+            match categorize_check_state(state) {
+                CheckState::Success => {}
+                CheckState::Pending => {
+                    if occurrence_state != CheckState::Blocked {
+                        occurrence_state = CheckState::Pending;
+                    }
+                }
+                CheckState::Blocked => {
+                    occurrence_state = CheckState::Blocked;
+                    if occurrence_blocking.is_none() {
+                        occurrence_blocking =
+                            Some(format!("check {name} bloqueante: {}", state.trim()));
+                    }
+                }
+            }
+        }
+        match occurrence_state {
+            CheckState::Blocked => {
+                aggregate = CheckState::Blocked;
+                if blocking_reason.is_none() {
+                    blocking_reason.clone_from(&occurrence_blocking);
+                }
+            }
+            CheckState::Pending => {
+                if aggregate != CheckState::Blocked {
+                    aggregate = CheckState::Pending;
+                }
+            }
+            CheckState::Success => {}
+        }
+        occurrences.push(RequiredCheckOccurrence {
+            name: name.clone(),
+            states,
+            aggregate: occurrence_state,
+            blocking: occurrence_blocking,
+        });
+    }
+    let mut extras = Vec::new();
+    for (name, _) in observed {
+        if !required.iter().any(|req| req == name) && !extras.contains(name) {
+            extras.push(name.clone());
+        }
+    }
+    CheckClassification {
+        occurrences,
+        aggregate,
+        missing,
+        extras,
+        blocking_reason,
+    }
+}
+
 fn read_required_checks(
     spec: &Spec,
     publication: &PublicationSpec,
@@ -2222,40 +2351,20 @@ fn read_required_checks(
         "OBSERVED",
         output.status.code(),
     )?;
-    let rows = text
+    let observed = text
         .lines()
         .filter_map(|line| line.split_once('\t'))
+        .map(|(name, state)| (name.to_string(), state.to_string()))
         .collect::<Vec<_>>();
-    let mut pending = false;
-    for required in &publication.required_checks {
-        let found = rows
-            .iter()
-            .filter(|(name, _)| *name == required)
-            .map(|(_, state)| *state)
-            .collect::<Vec<_>>();
-        if found.len() > 1 {
-            return Ok(ChecksResult::Blocked(format!(
-                "check duplicado: {required}"
-            )));
-        }
-        if found.is_empty() {
-            pending = true;
-            continue;
-        }
-        match found[0].to_ascii_uppercase().as_str() {
-            "SUCCESS" => {}
-            "PENDING" | "QUEUED" | "IN_PROGRESS" | "EXPECTED" => pending = true,
-            other => {
-                return Ok(ChecksResult::Blocked(format!(
-                    "check {required} bloqueante: {other}"
-                )))
-            }
-        }
-    }
-    Ok(if pending {
-        ChecksResult::Pending
-    } else {
-        ChecksResult::Success
+    let classification = classify_required_check_states(&publication.required_checks, &observed);
+    Ok(match classification.aggregate {
+        CheckState::Success => ChecksResult::Success,
+        CheckState::Pending => ChecksResult::Pending,
+        CheckState::Blocked => ChecksResult::Blocked(
+            classification
+                .blocking_reason
+                .unwrap_or_else(|| "check bloqueante".to_string()),
+        ),
     })
 }
 // @pinker-nav:end development.agent.remote-checks

@@ -147,6 +147,19 @@ checks`; não há edição remota, rerun, merge nem auto-merge. No dogfood real,
 `publicar` para em `CHECKS_PENDING` e `retomar` aguarda os checks exatos
 do SHA candidato.
 
+Como `ci.yml` dispara em `push` e `pull_request`, o mesmo SHA pode expor
+múltiplas ocorrências de um check requerido — várias linhas `rust`, por
+exemplo. A multiplicidade, sozinha, nunca bloqueia: `retomar` agrega todas as
+ocorrências de cada nome requerido pela função pura
+`classify_required_check_states` e aplica a precedência `BLOCKED > PENDING >
+SUCCESS`. Zero ocorrências conta como pendente, qualquer estado desconhecido
+bloqueia e checks extras não substituem um requerido ausente. A identidade
+exata do candidato continua obrigatória. A duplicidade permanece inválida
+apenas quando declarativa — a mesma linha `required_check` repetida na spec é
+rejeitada no parsing. O run histórico rejeitado por
+`LOCAL_CHECK_AGGREGATION_BUG` é preservado sem rerun nem bypass; a Onda D
+reexercita o fluxo corrigido em estado limpo.
+
 Com `trama_projection_tests.rs` e `trama_scale_tests.rs`, as seis suítes
 operacionais previstas nas Ondas A–C estão cartografadas. A Trama ainda não tem
 fechamento formal: `trama_complete = false`; a Onda D é próxima e separada, a

@@ -1923,3 +1923,15 @@ As seis suítes operacionais estão cartografadas, mas o fechamento formal
 continua reservado à Onda D. `trama_complete = false`; Onda 9 inativa;
 `apps/` reservada. Não se alega sandbox, atomicidade distribuída,
 disponibilidade do GitHub, correção remota automática ou cobertura exaustiva.
+
+A correção de agregação de checks repetidos permanece na região
+`development.agent.remote-checks`, sem nova região. Como `ci.yml` dispara em
+`push` e `pull_request`, o mesmo SHA pode expor múltiplas ocorrências `rust`;
+a função pura `classify_required_check_states` agrega todas as ocorrências com
+precedência `BLOCKED > PENDING > SUCCESS`, e a multiplicidade sozinha nunca
+bloqueia. A duplicidade declarativa da spec continua rejeitada no parsing. Os
+totais permanecem `452 / 256 / 15`; a projeção medida passa a
+`188231 / c9bbcf91746b3080`. O candidato anterior não canônico
+`452 / 256 / 15 / 188231 / 0b2368dcb80c6f23` fica registrado apenas como
+referência histórica do run rejeitado por `LOCAL_CHECK_AGGREGATION_BUG`, sem
+rerun nem bypass.

@@ -6848,7 +6848,7 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (188_231, 802_600_455_791_996_707),
+        (188_231, 14_536_440_445_898_797_184),
         "projeção atual medida da Onda C"
     );
     let mut wave_b = catalog.clone();

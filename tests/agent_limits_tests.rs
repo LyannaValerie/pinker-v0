@@ -288,4 +288,13 @@ fn publication_change_escape_e_rejeitado() {
         .unwrap_err()
         .contains("relativo inválido"));
 }
+
+#[test]
+fn required_check_duplicado_na_spec_e_rejeitado() {
+    // A multiplicidade em runtime nunca bloqueia, mas a mesma linha declarada
+    // duas vezes na spec continua sendo duplicidade declarativa inválida.
+    let fields = "publication.repository = LyannaValerie/pinker-v0\npublication.remote = origin\npublication.base_branch = main\npublication.expected_base = fixture\npublication.head_branch = agents/test\npublication.commit_message = test\npublication.change = allowed.txt\npublication.pr_title = test\npublication.pr_body = body.md\npublication.draft = false\npublication.required_check = rust\npublication.required_check = rust\npublication.defer_checks = true\npublication.poll_seconds = 1\npublication.timeout_seconds = 2\n";
+    let text = base("/repo", "/repo/worktree", "/repo/delegated", fields);
+    assert!(parse_spec_text(&text).unwrap_err().contains("duplicado"));
+}
 // @pinker-nav:end evidencia.agent.limits
