@@ -2629,6 +2629,138 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
     assert!(!trama_complete);
 }
 
+/// Fecha cumulativamente a convergência cartográfica da Onda 8 sem substituir
+/// os gates detalhados de 8A–8J. O congelamento cobre todos os campos estáveis
+/// das 386 regiões; assim, remoção, troca ou alteração de qualquer chave de
+/// evidência também altera a projeção.
+#[test]
+fn onda_8_convergencia_fecha_cadeia_8a_8j() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let path = repository.join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+
+    assert_eq!(
+        catalog.regions.len(),
+        386,
+        "a convergência da Onda 8 exige exatamente 386 regiões"
+    );
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("evidencia"))
+            .count(),
+        203,
+        "a convergência da Onda 8 exige exatamente 203 regiões de evidência"
+    );
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("runtime"))
+            .count(),
+        15,
+        "a convergência da Onda 8 preserva as 15 regiões de runtime"
+    );
+
+    let projection = stable_region_projection(catalog.regions.iter());
+    assert_eq!(
+        (projection.len(), fnv1a64(projection.as_bytes())),
+        (168_339, 1_634_706_628_046_951_093),
+        "a projeção estável das 386 regiões convergidas da Onda 8 mudou"
+    );
+
+    let regenerated = CodeIndex::scan_repo(&repository)
+        .expect("regeneração canônica do catálogo a partir das fontes");
+    assert!(
+        regenerated.verify().is_empty(),
+        "regeneração canônica inválida: {:?}",
+        regenerated.verify()
+    );
+    let versioned = fs::read_to_string(&path).expect("catálogo JSONL versionado");
+    assert_eq!(
+        versioned,
+        regenerated.render_jsonl(),
+        "src/navigation.jsonl diverge da regeneração canônica"
+    );
+
+    // Os gates históricos continuam sendo a autoridade detalhada de ownership
+    // e dos contratos locais. Esta lista apenas fecha a cadeia declarada.
+    let gate_source = include_str!("nav_cartography_tests.rs");
+    let stage_gates = [
+        "scanner_oficial_inclui_tests_sem_catalogar_fixtures_literais",
+        "camada_evidencia_frontend_cartografa_lexer_parser_common",
+        "onda_8c_cartografa_evidencias_semanticas",
+        "onda_8d_cartografa_evidencias_do_pipeline",
+        "onda_8e_cartografa_evidencias_da_execucao_interpretada",
+        "onda_8f_cartografa_evidencias_do_backend_textual",
+        "onda_8g_cartografa_evidencias_do_backend_s_textual",
+        "onda_8h_cartografa_evidencias_da_toolchain_externa",
+        "onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo",
+        "onda_8j_cartografa_evidencias_internas_do_runtime",
+    ];
+    assert_eq!(
+        stage_gates.len(),
+        10,
+        "a cadeia declarada deve cobrir 8A–8J"
+    );
+    for gate in stage_gates {
+        let declaration = format!("fn {gate}() {{");
+        assert_eq!(
+            gate_source.matches(&declaration).count(),
+            1,
+            "gate histórico ausente ou duplicado na cadeia 8A–8J: {gate}"
+        );
+    }
+
+    let inventory = include_str!("../docs/development/code-navigation-inventory.md");
+    for (statement, failure) in [
+        (
+            "Onda 8A–8J",
+            "o inventário deve declarar a cadeia Onda 8A–8J",
+        ),
+        (
+            "catálogo atual = 386",
+            "o inventário deve registrar o catálogo atual = 386",
+        ),
+        (
+            "evidencia atual = 203",
+            "o inventário deve registrar evidencia atual = 203",
+        ),
+        (
+            "runtime atual = 15",
+            "o inventário deve registrar runtime atual = 15",
+        ),
+        (
+            "onda_8_complete = true",
+            "o inventário deve registrar onda_8_complete = true",
+        ),
+        (
+            "trama_complete = false",
+            "o inventário deve registrar trama_complete = false",
+        ),
+        (
+            "tests/common/mod.rs helpers: 8",
+            "o inventário deve registrar 8 helpers em tests/common/mod.rs",
+        ),
+        (
+            "tests/nav_catalog_tests.rs",
+            "o inventário deve retomar em tests/nav_catalog_tests.rs",
+        ),
+        (
+            "TRAMA_WAVE_8_CONVERGENCE_AUDIT_ACCEPTED_IMPLEMENTATION_REQUIRED",
+            "o inventário deve preservar o veredito aceito da auditoria de convergência",
+        ),
+    ] {
+        assert!(inventory.contains(statement), "{failure}");
+    }
+
+    let onda_8_complete = true;
+    let trama_complete = false;
+    assert!(onda_8_complete);
+    assert!(!trama_complete);
+}
+
 #[test]
 fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

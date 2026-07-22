@@ -40,15 +40,14 @@ fica fora, por decisão explícita da onda). A **Onda 7** concluiu a cartografia
 da produção de `src/`: as três superfícies operacionais restantes —
 `src/main.rs` (CLI, camada `cli`), `src/editor_tui.rs` (editor TUI, camada
 `editor`) e `src/boot.rs` (fronteiras freestanding, camada `boot`) — receberam
-20 regiões novas. As **Ondas 8A–8G** ativaram `tests/` como terceira raiz
-oficial e cartografaram evidências: a 8A entregou o reconhecimento lexical e a
-ativação da raiz, a 8B adicionou 19 regiões de evidências léxicas e sintáticas,
-a 8C adicionou 34 regiões de evidências semânticas, a 8D cobriu as sete suítes
-de pipeline, a 8E cobriu a execução interpretada, a 8F acrescentou oito
-regiões do backend textual e a 8G acrescentou sete evidências do backend `.s`
-textual. O catálogo está em **355 regiões**. Estado explícito:
-`onda_8f_complete = true`, `onda_8g_complete = true`, `onda_8_complete = false` e
-`trama_complete = false`; `apps/` segue reservada à Onda 9.
+20 regiões novas. As **Ondas 8A–8J** ativaram `tests/` como terceira raiz
+oficial e cartografaram as evidências do frontend, da semântica, do pipeline,
+da execução interpretada, dos backends textual e nativo, da toolchain externa
+e dos testes internos do runtime. A convergência cartográfica da Onda 8 foi
+aceita com **386 regiões**, das quais **203** estão na camada `evidencia` e
+**15** na camada `runtime`. Estado atual explícito: Onda 8A–8J; catálogo atual = 386;
+evidencia atual = 203; runtime atual = 15; `onda_8_complete = true`;
+`trama_complete = false`. `apps/` segue reservada à Onda 9.
 
 ## Contrato do scanner
 
@@ -1602,8 +1601,8 @@ parecidos com marcadores são protegidas pelo reconhecedor lexical implementado
 na Onda 8A. `apps/` continua desativada até a Onda 9: reúne fontes `.pink`, que
 exigem uma convenção de marcador própria antes de entrar no scanner.
 
-Já estão cartografados como evidência `tests/common/mod.rs` (parcialmente, com
-7 helpers), `tests/lexer_tests.rs`, `tests/parser_tests.rs`,
+Já estão cartografados como evidência `tests/common/mod.rs` (parcialmente;
+tests/common/mod.rs helpers: 8), `tests/lexer_tests.rs`, `tests/parser_tests.rs`,
 `tests/semantic_tests.rs` e — desde a Onda 8D — as sete suítes de pipeline
 `tests/ir_tests.rs`, `tests/ir_validate_tests.rs`, `tests/cfg_ir_tests.rs`,
 `tests/cfg_ir_validate_tests.rs`, `tests/instr_select_tests.rs`,
@@ -1711,15 +1710,53 @@ Pendentes de cartografia: as demais suítes `tests/*.rs` na Onda 8 e `apps/` na
 Onda 9. As três superfícies operacionais (cli/editor/boot) foram concluídas na
 Onda 7.
 
+## Fechamento formal da Onda 8
+
+A auditoria de convergência encontrou **zero bloqueadores da Onda 8** e aceitou
+a cadeia cartográfica 8A–8J, mas exigiu um commit formal de fechamento. Token do
+registro: `TRAMA_WAVE_8_CONVERGENCE_AUDIT_ACCEPTED_IMPLEMENTATION_REQUIRED`.
+Este commit realiza somente esse fechamento cumulativo, congela o estado
+386/203/15 e preserva os gates históricos; não inicia uma nova cápsula.
+
+Estado canônico atual:
+
+- `onda_8_complete = true`
+- `trama_complete = false`
+
+### TRAMA_OPERATIONAL_REMAINDER
+
+- cápsulas operacionais/documentais;
+- suítes restantes de evidência de CLI;
+- raiz `apps/` da Onda 9 e política de marcadores `.pink`.
+
+`pink nav mapa` não é requisito do repositório: a auditoria não encontrou um
+requisito de fechamento de navegação orientada a arquivos respaldado pelo
+estado atual.
+
+### POST_TRAMA_TEST_INFRASTRUCTURE
+
+- exit tipado;
+- ledger de execução;
+- skips observáveis;
+- infraestrutura de execução para paridade nativa;
+- lacunas de testes internos do runtime.
+
+### FUTURE_COMPILER_OR_RUNTIME_WORK
+
+- segurança de memória;
+- vazamentos e RAII;
+- completude de ABI;
+- portabilidade;
+- backend/runtime completos;
+- self-hosting.
+
 ## Próximo ponto de retomada
 
-**Auditoria de convergência da Onda 8.** Concluída a subonda 8J (sete regiões
-`evidencia.runtime.*` cobrindo os 22 testes internos e o helper `verso_de` de
-`runtime/pinker_rt/src/lib.rs`), a **próxima etapa é a auditoria de convergência
-da Onda 8**. Depois dela, os candidatos remanescentes
-são, em ordem de proximidade ao já mapeado: as suítes de paridade restantes, as
-suítes da Trama operacional/documental (`nav_catalog`, `doc_catalog`,
-`trama_query`) e as suítes da CLI. Onda 9 continua
-reservada a `apps/`. A Onda 8 permanece **in-progress** — o inventário das suítes
-restantes ainda não prova ausência de pendências, portanto a Onda 8 não é
-declarada concluída e `trama_complete` continua `false`.
+A tarefa singular seguinte é **cartografar `tests/nav_catalog_tests.rs` como a
+primeira cápsula operacional/documental da Trama**. O arquivo possui **6 testes**
+e esse trabalho não é implementado neste commit de fechamento. Ordem nominal
+subsequente esperada:
+
+1. `tests/nav_catalog_tests.rs`
+2. `tests/doc_catalog_tests.rs`
+3. `tests/trama_query_tests.rs`
