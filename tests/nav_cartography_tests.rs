@@ -62,6 +62,8 @@ fn exclude_pink_agent_wave_a(catalog: &mut CodeCatalog) {
                 | "tests/agent_limits_tests.rs"
                 | "tests/trama_ci_tests.rs"
                 | "tests/trama_template_tests.rs"
+                | "tests/trama_manifest_tests.rs"
+                | "tests/trama_sync_tests.rs"
         )
     });
     for region in &mut catalog.regions {
@@ -74,6 +76,46 @@ fn exclude_pink_agent_wave_a(catalog: &mut CodeCatalog) {
             _ => None,
         };
         if let Some(hash) = predecessor_hash {
+            region.hash = hash.to_string();
+        }
+    }
+}
+
+fn project_pink_agent_wave_a(catalog: &mut CodeCatalog) {
+    catalog.regions.retain(|region| {
+        !matches!(
+            region.key.as_str(),
+            "development.agent.git-diff"
+                | "development.agent.marker-only"
+                | "development.agent.projection"
+                | "development.agent.sensitivity"
+                | "evidencia.trama.manifest.fixture-config"
+                | "evidencia.trama.manifest.process-support"
+                | "evidencia.trama.manifest.idempotence-immutability"
+                | "evidencia.trama.manifest.enum-validation"
+                | "evidencia.trama.manifest.unknown-field"
+                | "evidencia.trama.sync.fixture-config"
+                | "evidencia.trama.sync.process-support"
+                | "evidencia.trama.sync.invalid-source"
+                | "evidencia.trama.sync.preserve-last-valid"
+                | "evidencia.trama.sync.atomic-write"
+        )
+    });
+    for region in &mut catalog.regions {
+        let hash = match region.key.as_str() {
+            "cli.ajuda.usage" => Some("fnv1a64:0b83cc2867f57a67"),
+            "cli.config.modelos" => Some("fnv1a64:e9f2fa1d60a02231"),
+            "cli.execucao.entrada" => Some("fnv1a64:2bb1696e4bd2e0a8"),
+            "cli.parsing.subcomandos" => Some("fnv1a64:54b0515fa81ebb9e"),
+            "development.agent.lifecycle" => Some("fnv1a64:49f66af7f537b27d"),
+            "development.agent.paths" => Some("fnv1a64:b87b935704fb83be"),
+            "development.agent.spec" => Some("fnv1a64:77cf383bb9045c21"),
+            "evidencia.agent.cli-spec" => Some("fnv1a64:6f1fbe9b891aab9b"),
+            "evidencia.agent.limits" => Some("fnv1a64:9590a1ee3b6819e9"),
+            "evidencia.agent.runner" => Some("fnv1a64:8165e1937f5620fd"),
+            _ => None,
+        };
+        if let Some(hash) = hash {
             region.hash = hash.to_string();
         }
     }
@@ -6091,7 +6133,8 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
 fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let catalog_path = repository.join("src/navigation.jsonl");
-    let catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    project_pink_agent_wave_a(&mut catalog);
     assert_eq!(catalog.regions.len(), 425);
     assert_eq!(
         catalog
@@ -6340,4 +6383,265 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
         );
     }
     assert!(!inventory.contains("trama_complete = true"));
+}
+
+#[test]
+fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let catalog_path = repository.join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    assert_eq!(catalog.regions.len(), 439);
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.key.starts_with("evidencia."))
+            .count(),
+        247
+    );
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("runtime"))
+            .count(),
+        15
+    );
+
+    let agent_keys = [
+        "development.agent.git-diff",
+        "development.agent.marker-only",
+        "development.agent.projection",
+        "development.agent.sensitivity",
+    ];
+    let trama_keys = [
+        "evidencia.trama.manifest.fixture-config",
+        "evidencia.trama.manifest.process-support",
+        "evidencia.trama.manifest.idempotence-immutability",
+        "evidencia.trama.manifest.enum-validation",
+        "evidencia.trama.manifest.unknown-field",
+        "evidencia.trama.sync.fixture-config",
+        "evidencia.trama.sync.process-support",
+        "evidencia.trama.sync.invalid-source",
+        "evidencia.trama.sync.preserve-last-valid",
+        "evidencia.trama.sync.atomic-write",
+    ];
+    for key in agent_keys.iter().chain(trama_keys.iter()) {
+        assert_eq!(
+            catalog
+                .regions
+                .iter()
+                .filter(|region| region.key == *key)
+                .count(),
+            1,
+            "região ausente ou duplicada: {key}"
+        );
+    }
+    let trama: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|region| trama_keys.contains(&region.key.as_str()))
+        .collect();
+    assert_eq!(
+        trama
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("support"))
+            .count(),
+        4
+    );
+    assert_eq!(
+        trama
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("evidence"))
+            .count(),
+        6
+    );
+
+    let ownership = [
+        (
+            "tests/trama_manifest_tests.rs",
+            [
+                "const DOC_TOML",
+                "fn body",
+                "fn temp_repo",
+                "fn write",
+                "fn import",
+                "fn setup",
+                "fn manifesto_idempotente_com_conteudo_igual",
+                "fn manifesto_imutavel_com_conteudo_diferente",
+                "fn enum_de_kind_invalido_falha",
+                "fn enum_de_status_invalido_falha",
+                "fn campo_desconhecido_falha",
+            ]
+            .as_slice(),
+        ),
+        (
+            "tests/trama_sync_tests.rs",
+            [
+                "const DOC_TOML",
+                "const PORTAL",
+                "const CORE_OK",
+                "const CORE_BAD",
+                "fn temp_repo",
+                "fn write",
+                "fn doc",
+                "fn sincronizar_recusa_fonte_invalida",
+                "fn ultimo_catalogo_valido_preservado_apos_falha",
+                "fn escrita_e_atomica_sem_temporario_residual",
+            ]
+            .as_slice(),
+        ),
+    ];
+    for (file, symbols) in ownership {
+        let source = fs::read_to_string(repository.join(file)).expect("fonte");
+        let regions: Vec<_> = catalog
+            .regions
+            .iter()
+            .filter(|region| region.file == file)
+            .collect();
+        assert_eq!(regions.len(), 5);
+        assert_eq!(
+            source
+                .lines()
+                .filter(|line| line.trim_start().starts_with("// @pinker-nav:"))
+                .count(),
+            25
+        );
+        for symbol in symbols {
+            let line = source
+                .lines()
+                .position(|candidate| candidate.contains(symbol))
+                .map(|index| index + 1)
+                .unwrap();
+            assert_eq!(
+                regions
+                    .iter()
+                    .filter(|region| line >= region.content_start && line <= region.content_end)
+                    .count(),
+                1,
+                "ownership não exato: {symbol}"
+            );
+        }
+    }
+    for (file, expected_sha) in [
+        (
+            "tests/trama_manifest_tests.rs",
+            "eec8ef169393297ce9121a84cccc79e9bb425bde26ea90f4be67c8f625bc6833",
+        ),
+        (
+            "tests/trama_sync_tests.rs",
+            "b52a580436f8fd09724655b9f933454c1f330c7e7e6fc113e3aca3434f2fe0e4",
+        ),
+    ] {
+        let source = fs::read_to_string(repository.join(file)).unwrap();
+        let stripped = source
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("// @pinker-nav:"))
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n";
+        assert_eq!(
+            sha256_hex(stripped.as_bytes()),
+            expected_sha,
+            "marker-only: {file}"
+        );
+    }
+
+    let full = stable_region_projection(catalog.regions.iter());
+    assert_eq!(
+        (full.len(), fnv1a64(full.as_bytes())),
+        (184_310, 13_249_785_061_595_881_661),
+        "projeção atual medida da Onda B"
+    );
+    let mut wave_a = catalog.clone();
+    project_pink_agent_wave_a(&mut wave_a);
+    let projection_425 = stable_region_projection(wave_a.regions.iter());
+    assert_eq!(
+        (
+            wave_a.regions.len(),
+            projection_425.len(),
+            fnv1a64(projection_425.as_bytes())
+        ),
+        (425, 180_271, 9_431_070_192_305_473_617)
+    );
+    exclude_pink_agent_wave_a(&mut wave_a);
+    let projection_406 = stable_region_projection(wave_a.regions.iter());
+    assert_eq!(
+        (
+            wave_a.regions.len(),
+            projection_406.len(),
+            fnv1a64(projection_406.as_bytes())
+        ),
+        (406, 174_073, 6_978_817_443_380_137_045)
+    );
+    let q: Vec<_> = wave_a
+        .regions
+        .iter()
+        .filter(|region| region.file != "tests/trama_query_tests.rs")
+        .collect();
+    let d: Vec<_> = q
+        .iter()
+        .copied()
+        .filter(|region| region.file != "tests/doc_catalog_tests.rs")
+        .collect();
+    let n: Vec<_> = d
+        .iter()
+        .copied()
+        .filter(|region| region.file != "tests/nav_catalog_tests.rs")
+        .collect();
+    for (regions, expected) in [
+        (q.as_slice(), (398, 171_741, 7_038_069_266_194_794_117)),
+        (d.as_slice(), (392, 170_076, 12_143_728_175_883_859_804)),
+        (n.as_slice(), (386, 168_339, 1_634_706_628_046_951_093)),
+    ] {
+        let projection = stable_region_projection(regions.iter().copied());
+        assert_eq!(
+            (
+                regions.len(),
+                projection.len(),
+                fnv1a64(projection.as_bytes())
+            ),
+            expected
+        );
+    }
+
+    let regenerated = CodeIndex::scan_repo(&repository).expect("regeneração canônica");
+    assert!(regenerated.verify().is_empty());
+    assert_eq!(
+        fs::read_to_string(catalog_path).unwrap(),
+        regenerated.render_jsonl()
+    );
+    let core = include_str!("../src/agent.rs");
+    for contract in [
+        "run_git_check",
+        "run_marker_check",
+        "run_projection_check",
+        "pub fn sensibilidade",
+        "schema != 1",
+    ] {
+        assert!(core.contains(contract));
+    }
+    let docs = format!(
+        "{}\n{}\n{}",
+        include_str!("../docs/development/pink-agent.md"),
+        include_str!("../docs/development/pink-agent-roadmap.md"),
+        include_str!("../docs/development/code-navigation-inventory.md")
+    );
+    for statement in [
+        "Onda A completa",
+        "Onda B completa",
+        "Onda C",
+        "trama_projection_tests.rs",
+        "trama_scale_tests.rs",
+        "trama_complete = false",
+        "Onda 9 inativa",
+        "`apps/` reservada",
+    ] {
+        assert!(
+            docs.contains(statement),
+            "documentação ausente: {statement}"
+        );
+    }
+    assert!(!docs.contains("trama_complete = true"));
+    assert!(!docs.contains("Onda 9 ativa"));
 }

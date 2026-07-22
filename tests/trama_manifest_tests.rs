@@ -6,6 +6,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// @pinker-nav:start evidencia.trama.manifest.fixture-config
+// @pinker-nav:domain development
+// @pinker-nav:layer support
+// @pinker-nav:summary Configuração documental mínima usada pelas fixtures de manifesto.
 const DOC_TOML: &str = r#"schema = 1
 
 [github]
@@ -19,7 +23,12 @@ repository = "LyannaValerie/pinker-v0"
 docs_index = "docs/navigation.jsonl"
 code_index = "src/navigation.jsonl"
 "#;
+// @pinker-nav:end evidencia.trama.manifest.fixture-config
 
+// @pinker-nav:start evidencia.trama.manifest.process-support
+// @pinker-nav:domain development
+// @pinker-nav:layer support
+// @pinker-nav:summary Helpers que montam corpos, repositórios temporários, arquivos, importações e configuração dos testes.
 fn body(title: &str, kind: &str, status: &str) -> String {
     format!(
         "## Resumo\ntexto\n\n```pinker-change\nschema: 1\nkind: {kind}\ntitle: {title}\nstatus: {status}\narea:\n  - language.result\n```\n"
@@ -52,7 +61,12 @@ fn import(root: &Path, pr: &str, body_rel: &str) -> std::process::Output {
 fn setup(root: &Path) {
     write(root, ".pinker/doc.toml", DOC_TOML);
 }
+// @pinker-nav:end evidencia.trama.manifest.process-support
 
+// @pinker-nav:start evidencia.trama.manifest.idempotence-immutability
+// @pinker-nav:domain development
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidência de idempotência para conteúdo igual e imutabilidade para conteúdo divergente.
 #[test]
 fn manifesto_idempotente_com_conteudo_igual() {
     let root = temp_repo("idem");
@@ -88,7 +102,12 @@ fn manifesto_imutavel_com_conteudo_diferente() {
 
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.manifest.idempotence-immutability
 
+// @pinker-nav:start evidencia.trama.manifest.enum-validation
+// @pinker-nav:domain development
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidência de rejeição dos valores inválidos dos enums kind e status.
 #[test]
 fn enum_de_kind_invalido_falha() {
     let root = temp_repo("kind");
@@ -111,7 +130,12 @@ fn enum_de_status_invalido_falha() {
     assert!(String::from_utf8_lossy(&out.stderr).contains("E-CHANGE-SCHEMA"));
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.manifest.enum-validation
 
+// @pinker-nav:start evidencia.trama.manifest.unknown-field
+// @pinker-nav:domain development
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidência de rejeição de campo desconhecido no manifesto de mudança.
 #[test]
 fn campo_desconhecido_falha() {
     let root = temp_repo("unknown");
@@ -123,3 +147,4 @@ fn campo_desconhecido_falha() {
     assert!(String::from_utf8_lossy(&out.stderr).contains("E-CHANGE-SCHEMA"));
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.manifest.unknown-field

@@ -114,8 +114,25 @@ aceitação. A retomada executa novamente dogfood, sensibilidade e validação c
 `TMPDIR`, `TMP`, `TEMP` e `CARGO_TARGET_DIR` confinados à raiz delegada; apenas
 essa execução superveniente pode demonstrar respeito às limitações.
 
+## Onda B completa
+
+A Onda A completa entregou o núcleo V1-A. A Onda B completa preserva o schema
+1 e acrescenta `sensibilidade`, checks Git/diff, marker-only e projection. O
+check Git compara HEAD, branch, contagem de commits, porcelain ordenado e
+`git diff --check`; marker-only reconstrói os bytes sem linhas Pinker reais; e
+projection mede a visão estável do catálogo com exclusões e overrides
+explícitos. O mutation runner aplica snippets atomicamente, executa probes sem
+shell implícito, captura stdout/stderr e restaura os bytes e o SHA-256.
+
+O dogfood usa essas quatro capacidades sobre a própria mudança e cartografa
+`trama_manifest_tests.rs` e `trama_sync_tests.rs`. A Onda C é a próxima etapa,
+com `trama_projection_tests.rs` e `trama_scale_tests.rs`. `trama_complete =
+false`, a Onda 9 inativa e `apps/` reservada.
+
 ## Não-alegações
 
-Esta onda não conclui `pink agente`, não conclui a Trama, não ativa `apps/`, não
-ativa a Onda 9 e não transforma limites declarativos em isolamento do SO.
+Não há sandbox de SO. Marker-only não prova qualidade semântica; projection não
+prova significado de negócio; sensibilidade não é cobertura exaustiva; e a
+restauração não é uma transação crash-proof. A Onda B não publica pelo próprio
+runner, não conclui a Trama, não ativa a Onda 9 e mantém `apps/` reservada.
 <!-- @pinker-doc:end development.pink-agent.contract -->

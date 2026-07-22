@@ -156,6 +156,7 @@ enum AgentSub {
     Iniciar,
     Executar,
     Verificar,
+    Sensibilidade,
     Status { json: bool },
     Relatorio,
 }
@@ -216,6 +217,7 @@ fn agent_usage(binary: &str) -> String {
         "Uso: {binary} agente iniciar <spec>\n\
          Uso: {binary} agente executar <spec>\n\
          Uso: {binary} agente verificar <spec>\n\
+         Uso: {binary} agente sensibilidade <spec>\n\
          Uso: {binary} agente status <spec> [--json]\n\
          Uso: {binary} agente relatorio <spec>\n"
     )
@@ -734,6 +736,7 @@ fn parse_agent_args(binary: &str, args: &[String]) -> Result<AgentConfigCli, Str
         "iniciar" => AgentSub::Iniciar,
         "executar" => AgentSub::Executar,
         "verificar" => AgentSub::Verificar,
+        "sensibilidade" => AgentSub::Sensibilidade,
         "status" => AgentSub::Status { json },
         "relatorio" => AgentSub::Relatorio,
         _ => {
@@ -914,6 +917,7 @@ fn main() {
                 AgentSub::Iniciar => agent::iniciar(&config.spec),
                 AgentSub::Executar => agent::executar(&config.spec),
                 AgentSub::Verificar => agent::verificar(&config.spec),
+                AgentSub::Sensibilidade => agent::sensibilidade(&config.spec),
                 AgentSub::Status { json } => agent::status(&config.spec, json),
                 AgentSub::Relatorio => agent::relatorio(&config.spec),
             };

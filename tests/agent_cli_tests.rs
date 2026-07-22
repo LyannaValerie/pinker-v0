@@ -113,15 +113,70 @@ fn retomada_e_explicitamente_rejeitada_pelo_schema_a() {
 }
 
 #[test]
-fn cli_publica_cinco_subcomandos() {
+fn cli_publica_subcomandos_v1b() {
     let pink = env!("CARGO_BIN_EXE_pink");
     let output = Command::new(pink)
         .args(["agente", "--help"])
         .output()
         .expect("pink");
     let help = String::from_utf8_lossy(&output.stderr);
-    for name in ["iniciar", "executar", "verificar", "status", "relatorio"] {
+    for name in [
+        "iniciar",
+        "executar",
+        "verificar",
+        "sensibilidade",
+        "status",
+        "relatorio",
+    ] {
         assert!(help.contains(name), "{name}: {help}");
     }
+}
+
+#[test]
+fn spec_v1b_modela_checks_ordenados_e_mutacao() {
+    let extra = "check.g.kind = git\ncheck.g.expected_change = src/a.rs\ncheck.m.kind = marker-only\ncheck.m.path = tests/a.rs\ncheck.m.base_sha256 = abc\ncheck.m.expected_regions = 1\ncheck.m.expected_marker_lines = 5\ncheck.m.expected_key = evidencia.a\ncheck.p.kind = projection\ncheck.p.catalog = src/navigation.jsonl\ncheck.p.expected_total = 1\ncheck.p.expected_evidence = 0\ncheck.p.expected_runtime = 0\ncheck.p.expected_length = 1\ncheck.p.expected_fnv1a64 = 00\nmutation.x.target = src/a.rs\nmutation.x.search_file = entradas/mutations/x.before\nmutation.x.replacement_file = entradas/mutations/x.after\nmutation.x.expected_matches = 1\nmutation.x.probe_program = false\nmutation.x.probe_cwd = .\nmutation.x.probe_expected_exit = 1\n";
+    let spec = parse_spec_text(&valid_spec(extra)).expect("V1-B");
+    assert_eq!(spec.checks.len(), 3);
+    assert_eq!(spec.mutations.len(), 1);
+}
+
+#[test]
+fn check_com_id_invalido_e_rejeitado() {
+    assert!(parse_spec_text(&valid_spec("check.bad!.kind = git\n"))
+        .unwrap_err()
+        .contains("inválido"));
+}
+
+#[test]
+fn check_com_campo_duplicado_e_rejeitado() {
+    assert!(
+        parse_spec_text(&valid_spec("check.g.kind = git\ncheck.g.kind = git\n"))
+            .unwrap_err()
+            .contains("duplicado")
+    );
+}
+
+#[test]
+fn check_com_campo_desconhecido_e_rejeitado() {
+    assert!(
+        parse_spec_text(&valid_spec("check.g.kind = git\ncheck.g.banana = x\n"))
+            .unwrap_err()
+            .contains("desconhecido")
+    );
+}
+
+#[test]
+fn projection_sem_referencia_obrigatoria_e_rejeitada() {
+    assert!(parse_spec_text(&valid_spec("check.p.kind = projection\n"))
+        .unwrap_err()
+        .contains("ausente"));
+}
+
+#[test]
+fn override_duplicado_e_rejeitado() {
+    let extra = "check.p.kind = projection\ncheck.p.catalog = src/navigation.jsonl\ncheck.p.expected_total = 1\ncheck.p.expected_evidence = 0\ncheck.p.expected_runtime = 0\ncheck.p.expected_length = 1\ncheck.p.expected_fnv1a64 = 00\ncheck.p.override_hash.a = fnv1a64:1\ncheck.p.override_hash.a = fnv1a64:2\n";
+    assert!(parse_spec_text(&valid_spec(extra))
+        .unwrap_err()
+        .contains("duplicado"));
 }
 // @pinker-nav:end evidencia.agent.cli-spec
