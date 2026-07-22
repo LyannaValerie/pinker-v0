@@ -9,6 +9,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// @pinker-nav:start evidencia.trama.scale.fixture-config
+// @pinker-nav:domain development
+// @pinker-nav:layer support
+// @pinker-nav:summary A constante DOC_TOML configura os catálogos documentais usados pelas fixtures sintéticas de escala.
 const DOC_TOML: &str = r#"schema = 1
 
 [github]
@@ -21,7 +25,12 @@ baseline_commit = "abc"
 docs_index = "docs/navigation.jsonl"
 code_index = "src/navigation.jsonl"
 "#;
+// @pinker-nav:end evidencia.trama.scale.fixture-config
 
+// @pinker-nav:start evidencia.trama.scale.process-support
+// @pinker-nav:domain development
+// @pinker-nav:layer support
+// @pinker-nav:summary Quatro helpers criam repositórios temporários, escrevem fixtures, executam pink doc e produzem catálogos sintéticos extensos.
 fn temp_repo(name: &str) -> PathBuf {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -60,7 +69,12 @@ fn synthetic_catalog(entries: usize) -> String {
     }
     out
 }
+// @pinker-nav:end evidencia.trama.scale.process-support
 
+// @pinker-nav:start evidencia.trama.scale.large-catalog
+// @pinker-nav:domain development
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidência de consulta e localização em catálogo sintético com mais de cinco mil entradas sem limite estrutural indevido.
 #[test]
 fn catalogo_com_mais_de_5000_entradas_e_consultavel() {
     let root = temp_repo("scale");
@@ -91,7 +105,12 @@ fn catalogo_com_mais_de_5000_entradas_e_consultavel() {
 
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.scale.large-catalog
 
+// @pinker-nav:start evidencia.trama.scale.deterministic-order
+// @pinker-nav:domain development
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidência de ordenação determinística ao repetir consultas limitadas sobre um catálogo de grande escala.
 #[test]
 fn ordenacao_determinista_em_escala() {
     let root = temp_repo("order");
@@ -108,3 +127,4 @@ fn ordenacao_determinista_em_escala() {
 
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.scale.deterministic-order

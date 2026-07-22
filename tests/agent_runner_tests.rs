@@ -1,5 +1,6 @@
 use pinker_v0::agent::{
-    executar, relatorio, sensibilidade, sha256_hex, status, verificar, EXIT_ACCEPTED, EXIT_BLOCKED,
+    classify_required_check_states, executar, relatorio, sensibilidade, sha256_hex, status,
+    verificar, CheckState, EXIT_ACCEPTED, EXIT_BLOCKED,
 };
 use std::fs;
 #[cfg(unix)]
@@ -234,6 +235,72 @@ fn initialize_for_checks(path: &Path) {
     assert_eq!(executar(path).unwrap(), EXIT_ACCEPTED);
 }
 
+fn pr_body_spec(root: &Path, body: &str) -> PathBuf {
+    fs::create_dir_all(root.join("worktree/.pinker")).unwrap();
+    fs::write(
+        root.join("worktree/.pinker/doc.toml"),
+        "schema = 1\n[github]\nmode = \"forward-only\"\nbaseline_pr = 330\nbaseline_inclusive = false\nbaseline_commit = \"abc\"\nrepository = \"LyannaValerie/pinker-v0\"\n[generated]\ndocs_index = \"docs/navigation.jsonl\"\ncode_index = \"src/navigation.jsonl\"\n",
+    )
+    .unwrap();
+    git(&root.join("worktree"), &["add", ".pinker/doc.toml"]);
+    git(
+        &root.join("worktree"),
+        &[
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-qm",
+            "doc config",
+        ],
+    );
+    fs::write(root.join("delegated/body.md"), body).unwrap();
+    append_spec(
+        root,
+        "check.body.kind = pr-body\ncheck.body.path = body.md\ncheck.body.validation_pr_number = 999\ncheck.body.expected_kind = parallel-phase\ncheck.body.expected_title = Teste\ncheck.body.expected_area = development.agent\ncheck.body.expected_validation = make ci\ncheck.body.forbid_sentinel = true\n",
+    )
+}
+
+fn run_agent(root: &Path, subcommand: &str, spec: &Path) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_pink"))
+        .args(["agente", subcommand, spec.to_str().unwrap()])
+        .current_dir(root.join("worktree"))
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn pr_body_valido_persiste_sha() {
+    let root = root("pr-body-ok");
+    let body = "```pinker-change\nschema: 1\nkind: parallel-phase\ntitle: Teste\nstatus: completed\narea:\n  - development.agent\nupdates:\n  state: false\n  history: false\n  roadmap: false\nvalidation:\n  required:\n    - make ci\n```\n";
+    let path = pr_body_spec(&root, body);
+    assert!(run_agent(&root, "executar", &path).status.success());
+    assert!(run_agent(&root, "verificar", &path).status.success());
+    let artifact = fs::read_to_string(root.join("delegated/artefatos/pr-body.json")).unwrap();
+    assert!(artifact.contains(&sha256_hex(body.as_bytes())));
+}
+
+#[test]
+fn pr_body_rejeita_bloco_ausente_duplo_e_sentinel() {
+    for (label, body) in [
+        ("zero", "sem bloco\n"),
+        (
+            "duplo",
+            "```pinker-change\nkind: parallel-phase\n```\n```pinker-change\nkind: parallel-phase\n```\n",
+        ),
+        (
+            "sentinel",
+            "```pinker-change\nschema: 1\nkind: parallel-phase\ntitle: Teste\nstatus: completed\narea:\n  - development.agent\nvalidation:\n  required:\n    - make ci\nnota: <preencher-x>\n```\n",
+        ),
+    ] {
+        let root = root(label);
+        let path = pr_body_spec(&root, body);
+        assert!(run_agent(&root, "executar", &path).status.success());
+        assert_eq!(run_agent(&root, "verificar", &path).status.code(), Some(1));
+    }
+}
+
 #[test]
 fn git_check_valida_conjunto_exato_e_subconjunto() {
     let root = root("git-exact");
@@ -437,5 +504,107 @@ fn falha_de_restauracao_bloqueia_e_interrompe_mutacoes_posteriores() {
     let events = fs::read_to_string(root.join("delegated/estado/mutation-events.jsonl")).unwrap();
     assert_eq!(events.lines().count(), 1);
     assert!(events.contains("HARNESS_ERROR"));
+}
+
+// Regressões da agregação de checks repetidos (Onda C). O mesmo SHA pode expor
+// múltiplas linhas `rust` quando `push` e `pull_request` disparam o job; a
+// multiplicidade, sozinha, nunca bloqueia. Precedência: BLOCKED > PENDING >
+// SUCCESS. A antiga asserção "qualquer duplicidade bloqueia" foi substituída.
+fn observed(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
+    pairs
+        .iter()
+        .map(|(name, state)| (name.to_string(), state.to_string()))
+        .collect()
+}
+
+#[test]
+fn duplicate_success_agrega_success() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(
+        &required,
+        &observed(&[("rust", "SUCCESS"), ("rust", "SUCCESS")]),
+    );
+    assert_eq!(result.aggregate, CheckState::Success);
+    assert_eq!(result.occurrences[0].states.len(), 2);
+    assert!(result.missing.is_empty());
+    assert!(result.blocking_reason.is_none());
+}
+
+#[test]
+fn duplicate_pending_permanece_pending() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(
+        &required,
+        &observed(&[("rust", "IN_PROGRESS"), ("rust", "IN_PROGRESS")]),
+    );
+    assert_eq!(result.aggregate, CheckState::Pending);
+}
+
+#[test]
+fn success_mais_pending_permanece_pending() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(
+        &required,
+        &observed(&[("rust", "SUCCESS"), ("rust", "IN_PROGRESS")]),
+    );
+    assert_eq!(result.aggregate, CheckState::Pending);
+}
+
+#[test]
+fn failure_domina_success() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(
+        &required,
+        &observed(&[("rust", "SUCCESS"), ("rust", "FAILURE")]),
+    );
+    assert_eq!(result.aggregate, CheckState::Blocked);
+    assert!(result.blocking_reason.unwrap().contains("FAILURE"));
+}
+
+#[test]
+fn failure_domina_pending() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(
+        &required,
+        &observed(&[("rust", "FAILURE"), ("rust", "IN_PROGRESS")]),
+    );
+    assert_eq!(result.aggregate, CheckState::Blocked);
+}
+
+#[test]
+fn missing_permanece_pending() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(&required, &observed(&[]));
+    assert_eq!(result.aggregate, CheckState::Pending);
+    assert_eq!(result.missing, vec!["rust".to_string()]);
+}
+
+#[test]
+fn estado_desconhecido_bloqueia() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(&required, &observed(&[("rust", "MISTERIO")]));
+    assert_eq!(result.aggregate, CheckState::Blocked);
+}
+
+#[test]
+fn extra_nao_substitui_required() {
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(
+        &required,
+        &observed(&[("Validação somente-leitura", "SUCCESS")]),
+    );
+    assert_eq!(result.aggregate, CheckState::Pending);
+    assert_eq!(result.missing, vec!["rust".to_string()]);
+    assert_eq!(result.extras, vec!["Validação somente-leitura".to_string()]);
+}
+
+#[test]
+fn candidate_identity_continua_obrigatoria() {
+    // Identidade exata do check: "Rust" não satisfaz o requerido "rust".
+    let required = vec!["rust".to_string()];
+    let result = classify_required_check_states(&required, &observed(&[("Rust", "SUCCESS")]));
+    assert_eq!(result.aggregate, CheckState::Pending);
+    assert_eq!(result.missing, vec!["rust".to_string()]);
+    assert_eq!(result.extras, vec!["Rust".to_string()]);
 }
 // @pinker-nav:end evidencia.agent.runner

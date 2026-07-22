@@ -113,7 +113,7 @@ fn retomada_e_explicitamente_rejeitada_pelo_schema_a() {
 }
 
 #[test]
-fn cli_publica_subcomandos_v1b() {
+fn cli_publica_subcomandos_v1c() {
     let pink = env!("CARGO_BIN_EXE_pink");
     let output = Command::new(pink)
         .args(["agente", "--help"])
@@ -125,11 +125,71 @@ fn cli_publica_subcomandos_v1b() {
         "executar",
         "verificar",
         "sensibilidade",
+        "publicar",
+        "retomar",
         "status",
         "relatorio",
     ] {
         assert!(help.contains(name), "{name}: {help}");
     }
+}
+
+fn publication() -> &'static str {
+    "publication.repository = LyannaValerie/pinker-v0\n\
+     publication.remote = origin\n\
+     publication.base_branch = main\n\
+     publication.expected_base = abc\n\
+     publication.head_branch = agents/test\n\
+     publication.commit_message = feat: test\n\
+     publication.change = src/agent.rs\n\
+     publication.pr_title = feat: test\n\
+     publication.pr_body = entradas/pr-body.md\n\
+     publication.draft = false\n\
+     publication.required_check = rust\n\
+     publication.defer_checks = true\n\
+     publication.poll_seconds = 1\n\
+     publication.timeout_seconds = 10\n"
+}
+
+#[test]
+fn spec_v1c_modela_pr_body_e_publicacao() {
+    let extra = format!(
+        "check.body.kind = pr-body\n\
+         check.body.path = entradas/pr-body.md\n\
+         check.body.validation_pr_number = 999\n\
+         check.body.expected_kind = parallel-phase\n\
+         check.body.expected_title = T\n\
+         check.body.expected_area = development.agent\n\
+         check.body.expected_validation = make ci\n\
+         check.body.forbid_sentinel = true\n{}",
+        publication()
+    );
+    let spec = parse_spec_text(&valid_spec(&extra)).expect("V1-C");
+    assert!(spec.publication.is_some());
+    assert_eq!(spec.checks.len(), 1);
+}
+
+#[test]
+fn publication_rejeita_repository_e_draft() {
+    let bad_repo = publication().replace("LyannaValerie/pinker-v0", "outra/repo");
+    assert!(parse_spec_text(&valid_spec(&bad_repo)).is_err());
+    let draft = publication().replace("publication.draft = false", "publication.draft = true");
+    assert!(parse_spec_text(&valid_spec(&draft)).is_err());
+}
+
+#[test]
+fn publication_rejeita_campo_desconhecido_e_duplicado() {
+    assert!(parse_spec_text(&valid_spec(&format!(
+        "{}publication.banana = x\n",
+        publication()
+    )))
+    .is_err());
+    assert!(parse_spec_text(&valid_spec(&format!(
+        "{}publication.remote = upstream\n",
+        publication()
+    )))
+    .unwrap_err()
+    .contains("duplicado"));
 }
 
 #[test]

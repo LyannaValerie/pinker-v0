@@ -32,6 +32,9 @@ testes, inspeção Git, integridade e resultado. A Onda A mecaniza o núcleo loc
 pink agente iniciar <spec>
 pink agente executar <spec>
 pink agente verificar <spec>
+pink agente sensibilidade <spec>
+pink agente publicar <spec>
+pink agente retomar <spec>
 pink agente status <spec> [--json]
 pink agente relatorio <spec>
 ```
@@ -125,14 +128,49 @@ explícitos. O mutation runner aplica snippets atomicamente, executa probes sem
 shell implícito, captura stdout/stderr e restaura os bytes e o SHA-256.
 
 O dogfood usa essas quatro capacidades sobre a própria mudança e cartografa
-`trama_manifest_tests.rs` e `trama_sync_tests.rs`. A Onda C é a próxima etapa,
-com `trama_projection_tests.rs` e `trama_scale_tests.rs`. `trama_complete =
-false`, a Onda 9 inativa e `apps/` reservada.
+`trama_manifest_tests.rs` e `trama_sync_tests.rs`.
+
+## Onda C completa
+
+A Onda C completa preserva o schema 1 e a compatibilidade V1-A/V1-B. O check
+`pr-body` confina e valida o corpo local, exige um único bloco
+`pinker-change`, compara kind, title, area e validation e persiste SHA-256 e
+a execução canônica. `publicar` valida o estado local, faz staging por paths
+exatos, cria um commit, um push normal e uma única PR; `retomar` reconcilia
+spec, commit, branch, PR, body, candidato e checks sem repetir ações comprovadas.
+
+A máquina de estados persiste `LOCAL_ACCEPTED`, intenções antes de commit,
+push e PR, resultados reconciliados, `BODY_VERIFIED`, `CHECKS_PENDING`,
+`ACCEPTED`, `BLOCKED` ou `NEEDS_HUMAN_DECISION`. A allowlist GH limita a
+execução a equivalentes de `pr list`, `pr create`, `pr view` e `pr
+checks`; não há edição remota, rerun, merge nem auto-merge. No dogfood real,
+`publicar` para em `CHECKS_PENDING` e `retomar` aguarda os checks exatos
+do SHA candidato.
+
+Como `ci.yml` dispara em `push` e `pull_request`, o mesmo SHA pode expor
+múltiplas ocorrências de um check requerido — várias linhas `rust`, por
+exemplo. A multiplicidade, sozinha, nunca bloqueia: `retomar` agrega todas as
+ocorrências de cada nome requerido pela função pura
+`classify_required_check_states` e aplica a precedência `BLOCKED > PENDING >
+SUCCESS`. Zero ocorrências conta como pendente, qualquer estado desconhecido
+bloqueia e checks extras não substituem um requerido ausente. A identidade
+exata do candidato continua obrigatória. A duplicidade permanece inválida
+apenas quando declarativa — a mesma linha `required_check` repetida na spec é
+rejeitada no parsing. O run histórico rejeitado por
+`LOCAL_CHECK_AGGREGATION_BUG` é preservado sem rerun nem bypass; a Onda D
+reexercita o fluxo corrigido em estado limpo.
+
+Com `trama_projection_tests.rs` e `trama_scale_tests.rs`, as seis suítes
+operacionais previstas nas Ondas A–C estão cartografadas. A Trama ainda não tem
+fechamento formal: `trama_complete = false`; a Onda D é próxima e separada, a
+Onda 9 inativa e `apps/` reservada.
 
 ## Não-alegações
 
 Não há sandbox de SO. Marker-only não prova qualidade semântica; projection não
 prova significado de negócio; sensibilidade não é cobertura exaustiva; e a
-restauração não é uma transação crash-proof. A Onda B não publica pelo próprio
-runner, não conclui a Trama, não ativa a Onda 9 e mantém `apps/` reservada.
+restauração não é uma transação crash-proof nem atomicidade distribuída.
+Disponibilidade do GitHub não é garantida; divergências remotas não são
+corrigidas automaticamente e checks não recebem rerun. A Onda C não conclui a
+Trama, não ativa a Onda 9 e mantém `apps/` reservada.
 <!-- @pinker-doc:end development.pink-agent.contract -->
