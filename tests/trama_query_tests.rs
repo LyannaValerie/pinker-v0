@@ -10,6 +10,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// @pinker-nav:start evidencia.trama.query.fixture-config
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Agrupa a configuração documental, os documentos sintéticos e a fonte Rust marcada usados pelas consultas de documento e código.
 const DOC_TOML: &str = r#"schema = 1
 
 [github]
@@ -28,7 +32,12 @@ const PORTAL: &str = "---\npinker-doc: 1\nid: rosa\ndomain: rosa\nkind: portal\n
 const CORE: &str = "---\npinker-doc: 1\nid: rosa.core\ndomain: rosa\nkind: reference\nstatus: active\nparent: rosa\n---\n\n# Core\n\n<!-- @pinker-doc:start\nid: rosa.identity\ntags: [rosa, identidade]\naliases:\n  - quem e rosa\nsummary: Identidade de Rosa.\n-->\n## Identidade\n\nRosa e a guia estetica.\n<!-- @pinker-doc:end rosa.identity -->\n";
 
 const SRC: &str = "// @pinker-nav:start rosa.identidade.core\n// @pinker-nav:domain rosa\n// @pinker-nav:layer core\n// @pinker-nav:summary Identidade de Rosa no codigo.\nfn identidade() {\n    let _x = 1;\n}\n// @pinker-nav:end rosa.identidade.core\n";
+// @pinker-nav:end evidencia.trama.query.fixture-config
 
+// @pinker-nav:start evidencia.trama.query.process-support
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Fornece repositório temporário, escrita de arquivos, montagem da fixture, execução de pink doc e pink nav e extração de códigos de saída.
 fn temp_repo(name: &str) -> PathBuf {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -75,7 +84,12 @@ fn nav(root: &Path, args: &[&str]) -> std::process::Output {
 fn code(out: &std::process::Output) -> i32 {
     out.status.code().unwrap_or(-1)
 }
+// @pinker-nav:end evidencia.trama.query.process-support
 
+// @pinker-nav:start evidencia.trama.query.catalog-only
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Observa consultas documentais e de código continuando a localizar resultados pelo JSONL após a remoção das fontes Markdown e Rust usadas na fixture.
 #[test]
 fn consulta_documental_le_catalogo_sem_revarrer_markdown() {
     let root = temp_repo("doc_catalog_only");
@@ -108,7 +122,12 @@ fn consulta_de_codigo_le_catalogo_sem_revarrer_rust() {
 
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.query.catalog-only
 
+// @pinker-nav:start evidencia.trama.query.source-drift
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Observa pink doc mostrar detectando deriva de âncora e pink nav mostrar detectando divergência de hash com código de saída de fonte.
 #[test]
 fn mostrar_detecta_ancora_divergente() {
     let root = temp_repo("doc_drift");
@@ -143,7 +162,12 @@ fn nav_mostrar_detecta_hash_divergente() {
 
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.query.source-drift
 
+// @pinker-nav:start evidencia.trama.query.json-stability
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Observa a rota documental em JSON produzindo saída repetível com os campos consultados pela suíte e o resultado rosa.identity.
 #[test]
 fn saida_json_e_valida_e_estavel() {
     let root = temp_repo("json");
@@ -165,7 +189,12 @@ fn saida_json_e_valida_e_estavel() {
 
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.query.json-stability
 
+// @pinker-nav:start evidencia.trama.query.result-limit
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Observa pink doc buscar respeitando limite explícito de dois resultados e aceitando limite acima do máximo por clamp.
 #[test]
 fn limite_de_resultados_respeita_contornos() {
     let root = temp_repo("limite");
@@ -193,7 +222,12 @@ fn limite_de_resultados_respeita_contornos() {
 
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.query.result-limit
 
+// @pinker-nav:start evidencia.trama.query.catalog-errors
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Observa consultas documentais rejeitando catálogo ausente e catálogo JSONL inválido com código de saída 3 e diagnóstico E-DOC-CATALOG.
 #[test]
 fn catalogo_ausente_falha_com_codigo_3() {
     let root = temp_repo("missing_catalog");
@@ -215,7 +249,12 @@ fn catalogo_invalido_falha_com_codigo_3() {
     assert!(String::from_utf8_lossy(&out.stderr).contains("E-DOC-CATALOG"));
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.query.catalog-errors
 
+// @pinker-nav:start evidencia.trama.query.query-exit-codes
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Observa consulta sem resultado retornando código 4 e uso de subcomando inválido retornando código 2.
 #[test]
 fn ausencia_de_resultados_nao_e_sucesso_silencioso() {
     let root = temp_repo("noresult");
@@ -235,3 +274,4 @@ fn uso_invalido_sai_com_codigo_2() {
     assert_eq!(code(&out), 2);
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.query.query-exit-codes
