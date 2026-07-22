@@ -5,6 +5,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// @pinker-nav:start evidencia.trama.doc-catalog.fixture-config
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Agrupa a configuração documental e os dois documentos sintéticos usados pela suíte de catálogo documental.
 const DOC_TOML: &str = r#"schema = 1
 
 [github]
@@ -21,7 +25,12 @@ code_index = "src/navigation.jsonl"
 const PORTAL: &str = "---\npinker-doc: 1\nid: rosa\ndomain: rosa\nkind: portal\nstatus: active\nparent: atlas\ncanonical_for:\n  - rosa.territory\n---\n\n# Rosa\n\nPortal.\n";
 
 const CORE: &str = "---\npinker-doc: 1\nid: rosa.core\ndomain: rosa\nkind: reference\nstatus: active\nparent: rosa\n---\n\n# Core\n\n<!-- @pinker-doc:start\nid: rosa.identity\ntags: [rosa, identidade]\nsummary: Identidade de Rosa.\n-->\n## Identidade\n\nRosa e guia.\n<!-- @pinker-doc:end rosa.identity -->\n";
+// @pinker-nav:end evidencia.trama.doc-catalog.fixture-config
 
+// @pinker-nav:start evidencia.trama.doc-catalog.process-support
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Fornece repositório temporário, escrita de arquivos, montagem da fixture e execução de pink doc para os quatro testes.
 fn temp_repo(name: &str) -> PathBuf {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -51,7 +60,12 @@ fn run(root: &Path, args: &[&str]) -> std::process::Output {
         .output()
         .expect("executar pink")
 }
+// @pinker-nav:end evidencia.trama.doc-catalog.process-support
 
+// @pinker-nav:start evidencia.trama.doc-catalog.sync-verify
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Observa sincronização gerando o catálogo documental e verificação aprovando a fixture válida com a seção rosa.identity.
 #[test]
 fn sincronizar_gera_catalogo_e_verificar_aprova() {
     let root = temp_repo("sync");
@@ -73,7 +87,12 @@ fn sincronizar_gera_catalogo_e_verificar_aprova() {
 
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.doc-catalog.sync-verify
 
+// @pinker-nav:start evidencia.trama.doc-catalog.stale-catalog
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Observa pink doc verificar rejeitando catálogo documental ausente ou desatualizado com E-DOC-VERIFY.
 #[test]
 fn verificar_falha_quando_catalogo_desatualizado() {
     let root = temp_repo("drift");
@@ -84,7 +103,12 @@ fn verificar_falha_quando_catalogo_desatualizado() {
     assert!(String::from_utf8_lossy(&verify.stderr).contains("E-DOC-VERIFY"));
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.doc-catalog.stale-catalog
 
+// @pinker-nav:start evidencia.trama.doc-catalog.show-extraction
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Observa pink doc mostrar extraindo somente a seção rosa.identity sem vazar conteúdo do documento portal.
 #[test]
 fn mostrar_extrai_apenas_a_secao() {
     let root = temp_repo("mostrar");
@@ -101,7 +125,12 @@ fn mostrar_extrai_apenas_a_secao() {
     );
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.doc-catalog.show-extraction
 
+// @pinker-nav:start evidencia.trama.doc-catalog.unbalanced-anchor
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Observa verificação rejeitando documento sintético com âncora @pinker-doc aberta sem fechamento.
 #[test]
 fn verificar_detecta_ancora_desbalanceada() {
     let root = temp_repo("unbal");
@@ -117,3 +146,4 @@ fn verificar_detecta_ancora_desbalanceada() {
     assert!(!verify.status.success());
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.doc-catalog.unbalanced-anchor
