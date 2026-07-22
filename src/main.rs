@@ -1,5 +1,6 @@
 use pinker_v0::abstract_machine;
 use pinker_v0::abstract_machine_validate;
+use pinker_v0::agent;
 use pinker_v0::backend_s;
 use pinker_v0::backend_text;
 use pinker_v0::backend_text_validate;
@@ -151,6 +152,19 @@ struct NavConfigCli {
     sub: NavSub,
 }
 
+enum AgentSub {
+    Iniciar,
+    Executar,
+    Verificar,
+    Status { json: bool },
+    Relatorio,
+}
+
+struct AgentConfigCli {
+    spec: PathBuf,
+    sub: AgentSub,
+}
+
 enum CliCommand {
     Analyze(Config),
     Build(BuildConfig),
@@ -158,6 +172,7 @@ enum CliCommand {
     Repl(ReplConfig),
     Doc(DocConfigCli),
     Nav(NavConfigCli),
+    Agent(AgentConfigCli),
 }
 // @pinker-nav:end cli.config.modelos
 
@@ -191,7 +206,18 @@ fn usage(binary: &str) -> String {
           editor      abre a TUI oficial mínima da Pinker (Fase 136)\n\
           repl        abre o REPL mínimo auditável (Fase 167)\n\
           doc         ferramenta documental da Trama Pinker (marco / importação)\n\
-          nav         navegação semântica do código da Trama Pinker\n"
+          nav         navegação semântica do código da Trama Pinker\n\
+          agente      runner local auditável para tarefas operacionais\n"
+    )
+}
+
+fn agent_usage(binary: &str) -> String {
+    format!(
+        "Uso: {binary} agente iniciar <spec>\n\
+         Uso: {binary} agente executar <spec>\n\
+         Uso: {binary} agente verificar <spec>\n\
+         Uso: {binary} agente status <spec> [--json]\n\
+         Uso: {binary} agente relatorio <spec>\n"
     )
 }
 
@@ -687,6 +713,41 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
         sub,
     })
 }
+
+fn parse_agent_args(binary: &str, args: &[String]) -> Result<AgentConfigCli, String> {
+    let Some(subcommand) = args.first() else {
+        return Err(agent_usage(binary));
+    };
+    if matches!(subcommand.as_str(), "--help" | "-h") {
+        return Err(agent_usage(binary));
+    }
+    let json = args.iter().skip(1).any(|arg| arg == "--json");
+    let positional: Vec<&String> = args
+        .iter()
+        .skip(1)
+        .filter(|arg| arg.as_str() != "--json")
+        .collect();
+    if positional.len() != 1 || (json && subcommand != "status") {
+        return Err(agent_usage(binary));
+    }
+    let sub = match subcommand.as_str() {
+        "iniciar" => AgentSub::Iniciar,
+        "executar" => AgentSub::Executar,
+        "verificar" => AgentSub::Verificar,
+        "status" => AgentSub::Status { json },
+        "relatorio" => AgentSub::Relatorio,
+        _ => {
+            return Err(format!(
+                "Subcomando agente desconhecido: '{subcommand}'\n\n{}",
+                agent_usage(binary)
+            ))
+        }
+    };
+    Ok(AgentConfigCli {
+        spec: PathBuf::from(positional[0]),
+        sub,
+    })
+}
 // @pinker-nav:end cli.parsing.subcomandos
 
 // @pinker-nav:start cli.parsing.roteamento
@@ -742,6 +803,9 @@ fn parse_args() -> Result<CliCommand, String> {
         }
         if cmd == "nav" {
             return parse_nav_args(&binary, &flag_args[1..]).map(CliCommand::Nav);
+        }
+        if cmd == "agente" {
+            return parse_agent_args(&binary, &flag_args[1..]).map(CliCommand::Agent);
         }
     }
 
@@ -830,7 +894,10 @@ fn main() {
             eprintln!("{}", msg);
             // Uso inválido de `doc`/`nav` sai com 2 (§7.4); demais mantêm 1.
             let raw: Vec<String> = env::args().collect();
-            let is_trama = matches!(raw.get(1).map(String::as_str), Some("doc") | Some("nav"));
+            let is_trama = matches!(
+                raw.get(1).map(String::as_str),
+                Some("doc") | Some("nav") | Some("agente")
+            );
             std::process::exit(if is_trama { EXIT_USAGE } else { 1 });
         }
     };
@@ -842,6 +909,22 @@ fn main() {
         CliCommand::Repl(config) => run_repl(config),
         CliCommand::Doc(config) => std::process::exit(run_doc(config)),
         CliCommand::Nav(config) => std::process::exit(run_nav(config)),
+        CliCommand::Agent(config) => {
+            let result = match config.sub {
+                AgentSub::Iniciar => agent::iniciar(&config.spec),
+                AgentSub::Executar => agent::executar(&config.spec),
+                AgentSub::Verificar => agent::verificar(&config.spec),
+                AgentSub::Status { json } => agent::status(&config.spec, json),
+                AgentSub::Relatorio => agent::relatorio(&config.spec),
+            };
+            match result {
+                Ok(code) => std::process::exit(code),
+                Err(err) => {
+                    eprintln!("E-AGENT: {err}");
+                    std::process::exit(agent::EXIT_BLOCKED);
+                }
+            }
+        }
     }
 }
 
