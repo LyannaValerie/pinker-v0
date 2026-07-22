@@ -14,7 +14,7 @@
 | Campo | Valor |
 |---|---|
 | Fase funcional mais recente | **240** — Eixo A: leque genérico explícito para `Resultado<T,E>` |
-| Rodada documental mais recente | **Doc-48** — presença de Rosa no GitHub Copilot |
+| Rodada documental mais recente | **Doc-49** — fundação comunitária para contribuições externas |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
@@ -146,6 +146,9 @@ Histórico completo por fase: `docs/history/phases/`.
 - Após merge da Doc-48, selecionar Rosa manualmente no Copilot e executar os casos de `docs/rosa/voice-tests.md` antes de tratá-la como presença operacional estável.
 
 ## 6. Arquitetura documental ativa
+- A superfície comunitária está ativa em `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `GOVERNANCE.md`, `SUPPORT.md` e nos formulários de `.github/`.
+- Discussions permanece ativa; private vulnerability reporting está ativo; o ruleset `Protect main` protege `main` com bypass explícito do Founder, checks de CI e Trama, merge manual e bloqueio de exclusão/force-push.
+- A exceção estreita para manutenção de arquivos de saúde comunitária está definida em `doc_rules.md`; Discussions não autoriza roadmap nem implementação.
 - `roadmap.md` = ordem ativa.
 - `roadmap/indice.md` = hub de navegação por blocos.
 - `roadmap/blocos/*.md` = detalhe estrutural por bloco.

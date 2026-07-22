@@ -5,7 +5,7 @@ O corpo narrativo abaixo é voltado a HUMANOS. O bloco ```pinker-change``` no
 final é voltado à AUTOMAÇÃO e deve permanecer separado da narrativa. Para PRs
 posteriores ao marco #330, importe o bloco com:
 
-    pink doc importar-pr <n> --corpo <arquivo>
+    ./ci_env.sh cargo run --bin pink -- doc importar-pr <n> --corpo <arquivo>
 
 O CI valida em modo somente leitura (`--check`); ele não sincroniza nem cria
 commits. Sincronizar catálogos e projeções é responsabilidade de quem abre o PR.
@@ -29,11 +29,11 @@ commits. Sincronizar catálogos e projeções é responsabilidade de quem abre o
 
 ## Validação
 
-<!-- Como foi validado. Ex.: make ci, pink doc verificar, pink nav verificar. -->
+<!-- Consulte CONTRIBUTING.md e CODE_OF_CONDUCT.md. Registre comandos realmente executados. -->
 
 - [ ] `make ci`
-- [ ] `pink doc verificar`
-- [ ] `pink nav verificar`
+- [ ] `./ci_env.sh cargo run --bin pink -- doc verificar`
+- [ ] `./ci_env.sh cargo run --bin pink -- nav verificar`
 
 ## Bloco estruturado
 

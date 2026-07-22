@@ -74,6 +74,17 @@ Apoio Engine:
 - `.github/copilot-instructions.md` — contrato geral do GitHub Copilot no repositório.
 - `AGENTS.md` — contrato operacional curto para agentes.
 
+Navegação comunitária operacional — não constitui território técnico novo:
+
+- `CONTRIBUTING.md` — fluxo de contribuição externa;
+- `CODE_OF_CONDUCT.md` — conduta e relato;
+- `SECURITY.md` — relato privado de vulnerabilidades;
+- `GOVERNANCE.md` — autoridade e processo decisório;
+- `SUPPORT.md` — roteamento de dúvidas, ideias e defeitos;
+- `.github/ISSUE_TEMPLATE/` — formulários estruturados;
+- `.github/DISCUSSION_TEMPLATE/` — formulários de Ideas e Q&A;
+- [GitHub Discussions](https://github.com/LyannaValerie/pinker-v0/discussions) — exploração comunitária sem autorização automática de roadmap.
+
 ## 2) Hemisfério Rosa (identitário / lexical / visão)
 
 Território migrado — portal: `rosa/README.md` (conhece os documentos internos).

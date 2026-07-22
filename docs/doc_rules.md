@@ -114,3 +114,24 @@ Documentos novos (ou antigos com papel estrutural novo) devem declarar no topo, 
 ### Regra geral
 
 Toda fase que altera a superfície pública da linguagem (nova keyword, novo tipo, nova intrínseca, novo construto sintático) deve atualizar também `MANUAL.md` e `README.md` quando a mudança afetar a apresentação pública do projeto.
+
+## 9. Arquivos de saúde comunitária
+
+Arquivos de saúde comunitária são superfícies operacionais de colaboração externa. Esta classe inclui somente:
+
+- `CONTRIBUTING.md`;
+- `CODE_OF_CONDUCT.md`;
+- `SECURITY.md`;
+- `GOVERNANCE.md`;
+- `SUPPORT.md`;
+- `.github/ISSUE_TEMPLATE/**`;
+- `.github/DISCUSSION_TEMPLATE/**`;
+- `.github/pull_request_template.md`.
+
+Uma mudança limitada a essa classe não exige automaticamente fase documental, shard histórico, atualização de handoff, roadmap ou Atlas. A exceção só vale quando a mudança não altera comportamento da linguagem, roadmap técnico, estado de implementação, precedência factual, ownership, autoridade de merge, obrigações de segurança, direção do projeto ou fronteiras Engine/Rosa.
+
+A exceção não vale quando a mudança altera materialmente autoridade de governança, política de segurança, elegibilidade de contribuição, política de merge, direção do projeto, estado técnico canônico ou estrutura de um território documental. Nesses casos, a mudança permanece estrutural e deve atualizar os registros canônicos correspondentes ao seu escopo real.
+
+### Transição única autorizada
+
+A fundação comunitária registrada na Doc-49 é uma exceção única autorizada pelo Founder sob a regra anterior: ela cria estas superfícies e institui a exceção permanente estreita. Para tornar a transição auditável, atualiza `docs/doc_rules.md`, `docs/atlas.md`, `docs/handoff_codex.md`, um shard histórico documental e seu índice, sem mudar roadmap, linguagem, precedência factual ou autoridade final do Founder.

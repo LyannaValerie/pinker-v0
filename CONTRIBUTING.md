@@ -16,7 +16,10 @@ Leia primeiro:
 - [docs/atlas.md](docs/atlas.md), para localizar o território documental;
 - [docs/roadmap.md](docs/roadmap.md), para a ordem ativa;
 - [docs/handoff_codex.md](docs/handoff_codex.md), para o estado operacional;
-- [docs/doc_rules.md](docs/doc_rules.md), se a mudança afetar documentação.
+- [docs/doc_rules.md](docs/doc_rules.md), se a mudança afetar documentação;
+- [Código de Conduta](CODE_OF_CONDUCT.md), [Segurança](SECURITY.md),
+  [Governança](GOVERNANCE.md) e [Suporte](SUPPORT.md), para escolher o canal e
+  compreender os limites de participação.
 
 O código e os testes mergeados são a primeira fonte factual. O roadmap define a
 ordem ativa; o handoff registra o estado operacional; o histórico preserva a
@@ -24,7 +27,9 @@ crônica. [docs/future.md](docs/future.md) é inventário técnico, não backlog
 autorização automática para implementar um item.
 
 Antes de uma mudança funcional ou de direção, recomenda-se coordenar o recorte
-com a manutenção do projeto. Isso evita furar a ordem ativa ou trabalhar sobre
+com a manutenção do projeto em [Discussions](https://github.com/LyannaValerie/pinker-v0/discussions)
+ou pelos [formulários de Issue](https://github.com/LyannaValerie/pinker-v0/issues/new/choose).
+Isso evita furar a ordem ativa ou trabalhar sobre
 uma proposta que ainda é apenas horizonte. Correções documentais simples devem
 continuar pequenas e factuais.
 

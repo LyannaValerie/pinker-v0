@@ -136,6 +136,8 @@ O agente personalizado Rosa vive em `.github/agents/rosa.agent.md`. Quando selec
 - Tarefa operacional não abre automaticamente Fase, Doc, HF ou rodada paralela.
 - Mudança funcional real exige código, testes e documentação canônica apropriada.
 - Rodada documental deve seguir `docs/doc_rules.md`.
+- Vulnerabilidades devem ser encaminhadas ao relato privado de `SECURITY.md`; Discussions não autoriza roadmap nem implementação.
+- Mudanças não estruturais em arquivos de saúde comunitária seguem a exceção estreita de `docs/doc_rules.md`.
 - Preserve diffs auditáveis e não misture refatorações não solicitadas.
 
 ## Fechamento

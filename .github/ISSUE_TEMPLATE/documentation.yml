@@ -1,0 +1,53 @@
+name: Relatar problema de documentação
+description: Registre uma correção factual, de clareza ou navegação.
+title: "[Documentação]: "
+labels:
+  - documentation
+  - needs triage
+body:
+  - type: input
+    id: affected_location
+    attributes:
+      label: Caminho ou URL afetado
+    validations:
+      required: true
+  - type: dropdown
+    id: defect_type
+    attributes:
+      label: Tipo de problema
+      options:
+        - broken link
+        - incorrect command
+        - stale factual statement
+        - historical/current-state confusion
+        - unclear explanation
+        - typo/language
+        - navigation problem
+    validations:
+      required: true
+  - type: textarea
+    id: observed_text
+    attributes:
+      label: Texto ou comportamento observado
+    validations:
+      required: true
+  - type: textarea
+    id: proposed_correction
+    attributes:
+      label: Correção proposta
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidência
+      description: Aponte código, teste, documento canônico ou comando que sustenta a correção.
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope_confirmation
+    attributes:
+      label: Confirmação de escopo
+      options:
+        - label: A correção não altera linguagem, roadmap ou estado técnico sem evidência correspondente.
+          required: true
