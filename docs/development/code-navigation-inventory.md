@@ -1895,3 +1895,20 @@ esperada:
    `tests/trama_template_tests.rs`
 2. fechamento operacional formal — tarefa separada; a Onda 9 não começa
    automaticamente e `apps/` permanece reservada à Onda 9
+
+## Cápsula `pink agente` — Onda B
+
+A Onda A completa permanece projetável. A Onda B completa acrescenta quatro
+regiões de produção (`development.agent.git-diff`,
+`development.agent.marker-only`, `development.agent.projection` e
+`development.agent.sensitivity`) e dez regiões marker-only em
+`tests/trama_manifest_tests.rs` e `tests/trama_sync_tests.rs`: quatro support e
+seis evidence. O catálogo passa a 439 regiões, 247 chaves `evidencia.*` e 15
+regiões runtime.
+
+Onda C é a próxima cápsula, com `tests/trama_projection_tests.rs` e
+`tests/trama_scale_tests.rs`. `trama_complete = false`; Onda 9 inativa;
+`apps/` reservada. Git/diff, marker-only, projection e sensibilidade são provas
+operacionais delimitadas: não fornecem sandbox de SO, semântica de negócio,
+cobertura exaustiva nem restauração crash-proof. A Onda B não publica pelo
+próprio runner e não conclui a Trama.

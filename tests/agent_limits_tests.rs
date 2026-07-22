@@ -197,8 +197,6 @@ fn absoluto_dentro_da_raiz_e_aceito() {
     );
     assert!(parse_spec_text(&text).is_ok());
 }
-// @pinker-nav:end evidencia.agent.limits
-
 #[test]
 fn git_status_first_line_is_preserved_and_rejects_out_of_scope() {
     let root = fixture("first-line");
@@ -218,3 +216,54 @@ fn git_status_first_line_is_preserved_and_rejects_out_of_scope() {
     );
     assert_eq!(executar(&path).unwrap(), EXIT_BLOCKED);
 }
+
+#[test]
+fn git_check_rejeita_path_absoluto() {
+    let text = base(
+        "/repo",
+        "/repo/worktree",
+        "/repo/delegated",
+        "check.g.kind = git\ncheck.g.expected_change = /etc/passwd\n",
+    );
+    assert!(parse_spec_text(&text)
+        .unwrap_err()
+        .contains("relativo inválido"));
+}
+
+#[test]
+fn marker_check_rejeita_escape() {
+    let text = base(
+        "/repo",
+        "/repo/worktree",
+        "/repo/delegated",
+        "check.m.kind = marker-only\ncheck.m.path = ../x\ncheck.m.base_sha256 = x\ncheck.m.expected_regions = 1\ncheck.m.expected_marker_lines = 5\n",
+    );
+    assert!(parse_spec_text(&text)
+        .unwrap_err()
+        .contains("relativo inválido"));
+}
+
+#[test]
+fn mutation_target_escape_e_rejeitado() {
+    let text = base(
+        "/repo",
+        "/repo/worktree",
+        "/repo/delegated",
+        "mutation.x.target = ../delegated/x\nmutation.x.search_file = before\nmutation.x.replacement_file = after\nmutation.x.expected_matches = 1\nmutation.x.probe_program = false\nmutation.x.probe_expected_exit = 1\n",
+    );
+    assert!(parse_spec_text(&text)
+        .unwrap_err()
+        .contains("relativo inválido"));
+}
+
+#[test]
+fn mutation_snippet_escape_e_rejeitado() {
+    let text = base(
+        "/repo",
+        "/repo/worktree",
+        "/repo/delegated",
+        "mutation.x.target = src/x\nmutation.x.search_file = ../outside\nmutation.x.replacement_file = after\nmutation.x.expected_matches = 1\nmutation.x.probe_program = false\nmutation.x.probe_expected_exit = 1\n",
+    );
+    assert!(parse_spec_text(&text).unwrap_err().contains("fuga"));
+}
+// @pinker-nav:end evidencia.agent.limits

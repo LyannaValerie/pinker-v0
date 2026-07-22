@@ -46,9 +46,68 @@ pub struct Spec {
     pub allowed_writes: Vec<String>,
     pub allowed_changes: Vec<String>,
     pub commands: Vec<CommandSpec>,
+    pub checks: Vec<CheckSpec>,
+    pub mutations: Vec<MutationSpec>,
     pub accepted_verdict: String,
     pub blocked_verdict: String,
     pub human_verdict: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CheckSpec {
+    Git(GitCheck),
+    MarkerOnly(MarkerOnlyCheck),
+    Projection(ProjectionCheck),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GitCheck {
+    pub id: String,
+    pub expected_head: Option<String>,
+    pub expected_branch: Option<String>,
+    pub require_clean: bool,
+    pub diff_check: bool,
+    pub expected_changes: Vec<String>,
+    pub allowed_changes: Vec<String>,
+    pub commit_count_after_base: Option<u64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MarkerOnlyCheck {
+    pub id: String,
+    pub path: String,
+    pub base_sha256: String,
+    pub expected_regions: usize,
+    pub expected_marker_lines: usize,
+    pub expected_keys: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProjectionCheck {
+    pub id: String,
+    pub catalog: String,
+    pub expected_total: usize,
+    pub expected_evidence: usize,
+    pub expected_runtime: usize,
+    pub expected_length: usize,
+    pub expected_fnv1a64: String,
+    pub exclude_files: Vec<String>,
+    pub exclude_keys: Vec<String>,
+    pub override_hashes: BTreeMap<String, String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MutationSpec {
+    pub id: String,
+    pub target: String,
+    pub search_file: String,
+    pub replacement_file: String,
+    pub expected_matches: usize,
+    pub probe_program: String,
+    pub probe_argv: Vec<String>,
+    pub probe_cwd: String,
+    pub probe_expected_exit: i32,
+    pub probe_stderr_contains: Option<String>,
 }
 
 #[derive(Default)]
@@ -60,6 +119,20 @@ struct CommandBuilder {
     expected_exit: Option<i32>,
     shell: Option<bool>,
     env: BTreeMap<String, String>,
+}
+
+#[derive(Default)]
+struct CheckBuilder {
+    kind: Option<String>,
+    values: BTreeMap<String, String>,
+    repeated: BTreeMap<String, Vec<String>>,
+    overrides: BTreeMap<String, String>,
+}
+
+#[derive(Default)]
+struct MutationBuilder {
+    values: BTreeMap<String, String>,
+    argv: Vec<String>,
 }
 
 fn parse_bool(value: &str, line: usize) -> Result<bool, String> {
@@ -78,6 +151,150 @@ fn assign_once<T>(slot: &mut Option<T>, value: T, name: &str, line: usize) -> Re
     Ok(())
 }
 
+fn validate_id(id: &str, kind: &str, line: usize) -> Result<(), String> {
+    if id.is_empty()
+        || !id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+    {
+        return Err(format!("linha {line}: id de {kind} inválido: {id}"));
+    }
+    Ok(())
+}
+
+fn required(map: &mut BTreeMap<String, String>, field: &str, id: &str) -> Result<String, String> {
+    map.remove(field)
+        .ok_or_else(|| format!("{id}.{field} ausente"))
+}
+
+fn number<T: std::str::FromStr>(value: String, field: &str) -> Result<T, String> {
+    value
+        .parse()
+        .map_err(|_| format!("valor numérico inválido em {field}"))
+}
+
+fn build_check(id: &str, mut builder: CheckBuilder) -> Result<CheckSpec, String> {
+    let kind = builder
+        .kind
+        .ok_or_else(|| format!("check.{id}.kind ausente"))?;
+    if builder.overrides.values().any(|value| {
+        value.strip_prefix("fnv1a64:").map_or(true, |hex| {
+            hex.len() != 16 || !hex.chars().all(|ch| ch.is_ascii_hexdigit())
+        })
+    }) {
+        return Err(format!("check.{id}: override hash inválido"));
+    }
+    let result = match kind.as_str() {
+        "git" => CheckSpec::Git(GitCheck {
+            id: id.to_string(),
+            expected_head: builder.values.remove("expected_head"),
+            expected_branch: builder.values.remove("expected_branch"),
+            require_clean: builder
+                .values
+                .remove("require_clean")
+                .map(|v| parse_bool(&v, 0))
+                .transpose()?
+                .unwrap_or(false),
+            diff_check: builder
+                .values
+                .remove("diff_check")
+                .map(|v| parse_bool(&v, 0))
+                .transpose()?
+                .unwrap_or(false),
+            expected_changes: builder
+                .repeated
+                .remove("expected_change")
+                .unwrap_or_default(),
+            allowed_changes: builder
+                .repeated
+                .remove("allowed_change")
+                .unwrap_or_default(),
+            commit_count_after_base: builder
+                .values
+                .remove("commit_count_after_base")
+                .map(|v| number(v, "commit_count_after_base"))
+                .transpose()?,
+        }),
+        "marker-only" => CheckSpec::MarkerOnly(MarkerOnlyCheck {
+            id: id.to_string(),
+            path: required(&mut builder.values, "path", id)?,
+            base_sha256: required(&mut builder.values, "base_sha256", id)?,
+            expected_regions: number(
+                required(&mut builder.values, "expected_regions", id)?,
+                "expected_regions",
+            )?,
+            expected_marker_lines: number(
+                required(&mut builder.values, "expected_marker_lines", id)?,
+                "expected_marker_lines",
+            )?,
+            expected_keys: builder.repeated.remove("expected_key").unwrap_or_default(),
+        }),
+        "projection" => CheckSpec::Projection(ProjectionCheck {
+            id: id.to_string(),
+            catalog: required(&mut builder.values, "catalog", id)?,
+            expected_total: number(
+                required(&mut builder.values, "expected_total", id)?,
+                "expected_total",
+            )?,
+            expected_evidence: number(
+                required(&mut builder.values, "expected_evidence", id)?,
+                "expected_evidence",
+            )?,
+            expected_runtime: number(
+                required(&mut builder.values, "expected_runtime", id)?,
+                "expected_runtime",
+            )?,
+            expected_length: number(
+                required(&mut builder.values, "expected_length", id)?,
+                "expected_length",
+            )?,
+            expected_fnv1a64: required(&mut builder.values, "expected_fnv1a64", id)?,
+            exclude_files: builder.repeated.remove("exclude_file").unwrap_or_default(),
+            exclude_keys: builder.repeated.remove("exclude_key").unwrap_or_default(),
+            override_hashes: std::mem::take(&mut builder.overrides),
+        }),
+        _ => return Err(format!("check.{id}.kind inválido: {kind}")),
+    };
+    if !builder.values.is_empty() || !builder.repeated.is_empty() || !builder.overrides.is_empty() {
+        return Err(format!("check.{id}: campo incompatível com kind"));
+    }
+    Ok(result)
+}
+
+fn build_mutation(id: &str, mut builder: MutationBuilder) -> Result<MutationSpec, String> {
+    let result = MutationSpec {
+        id: id.to_string(),
+        target: required(&mut builder.values, "target", id)?,
+        search_file: required(&mut builder.values, "search_file", id)?,
+        replacement_file: required(&mut builder.values, "replacement_file", id)?,
+        expected_matches: number(
+            required(&mut builder.values, "expected_matches", id)?,
+            "expected_matches",
+        )?,
+        probe_program: required(&mut builder.values, "probe_program", id)?,
+        probe_argv: builder.argv,
+        probe_cwd: builder
+            .values
+            .remove("probe_cwd")
+            .unwrap_or_else(|| ".".to_string()),
+        probe_expected_exit: number(
+            required(&mut builder.values, "probe_expected_exit", id)?,
+            "probe_expected_exit",
+        )?,
+        probe_stderr_contains: builder.values.remove("probe_stderr_contains"),
+    };
+    if !builder.values.is_empty() {
+        return Err(format!("mutation.{id}: campo incompatível"));
+    }
+    if matches!(
+        result.probe_program.as_str(),
+        "sh" | "bash" | "/bin/sh" | "/bin/bash"
+    ) {
+        return Err(format!("mutation.{id}: shell implícito rejeitado"));
+    }
+    Ok(result)
+}
+
 pub fn parse_spec_text(text: &str) -> Result<Spec, String> {
     let mut schema = None;
     let mut task_id = None;
@@ -92,6 +309,10 @@ pub fn parse_spec_text(text: &str) -> Result<Spec, String> {
     let mut allowed_changes = Vec::new();
     let mut command_order = Vec::new();
     let mut commands: BTreeMap<String, CommandBuilder> = BTreeMap::new();
+    let mut check_order = Vec::new();
+    let mut checks: BTreeMap<String, CheckBuilder> = BTreeMap::new();
+    let mut mutation_order = Vec::new();
+    let mut mutations: BTreeMap<String, MutationBuilder> = BTreeMap::new();
 
     for (index, raw) in text.lines().enumerate() {
         let line_no = index + 1;
@@ -199,6 +420,109 @@ pub fn parse_spec_text(text: &str) -> Result<Spec, String> {
                     _ => return Err(format!("linha {line_no}: campo desconhecido: {key}")),
                 }
             }
+            _ if key.starts_with("check.") => {
+                let rest = &key[6..];
+                let Some((id, field)) = rest.split_once('.') else {
+                    return Err(format!("linha {line_no}: campo de check inválido: {key}"));
+                };
+                validate_id(id, "check", line_no)?;
+                if !checks.contains_key(id) {
+                    check_order.push(id.to_string());
+                    checks.insert(id.to_string(), CheckBuilder::default());
+                }
+                let check = checks.get_mut(id).expect("check inserido");
+                if field == "kind" {
+                    assign_once(&mut check.kind, value.to_string(), key, line_no)?;
+                } else if matches!(
+                    field,
+                    "expected_change"
+                        | "allowed_change"
+                        | "expected_key"
+                        | "exclude_file"
+                        | "exclude_key"
+                ) {
+                    check
+                        .repeated
+                        .entry(field.to_string())
+                        .or_default()
+                        .push(value.to_string());
+                } else if let Some(override_key) = field.strip_prefix("override_hash.") {
+                    if override_key.is_empty() {
+                        return Err(format!("linha {line_no}: override vazio"));
+                    }
+                    if check
+                        .overrides
+                        .insert(override_key.to_string(), value.to_string())
+                        .is_some()
+                    {
+                        return Err(format!("linha {line_no}: campo duplicado: {key}"));
+                    }
+                } else if matches!(
+                    field,
+                    "expected_head"
+                        | "expected_branch"
+                        | "require_clean"
+                        | "diff_check"
+                        | "commit_count_after_base"
+                        | "path"
+                        | "base_sha256"
+                        | "expected_regions"
+                        | "expected_marker_lines"
+                        | "catalog"
+                        | "expected_total"
+                        | "expected_evidence"
+                        | "expected_runtime"
+                        | "expected_length"
+                        | "expected_fnv1a64"
+                ) {
+                    if check
+                        .values
+                        .insert(field.to_string(), value.to_string())
+                        .is_some()
+                    {
+                        return Err(format!("linha {line_no}: campo duplicado: {key}"));
+                    }
+                } else {
+                    return Err(format!("linha {line_no}: campo desconhecido: {key}"));
+                }
+            }
+            _ if key.starts_with("mutation.") => {
+                let rest = &key[9..];
+                let Some((id, field)) = rest.split_once('.') else {
+                    return Err(format!(
+                        "linha {line_no}: campo de mutation inválido: {key}"
+                    ));
+                };
+                validate_id(id, "mutation", line_no)?;
+                if !mutations.contains_key(id) {
+                    mutation_order.push(id.to_string());
+                    mutations.insert(id.to_string(), MutationBuilder::default());
+                }
+                let mutation = mutations.get_mut(id).expect("mutation inserida");
+                if field == "probe_arg" {
+                    mutation.argv.push(value.to_string());
+                } else if matches!(
+                    field,
+                    "target"
+                        | "search_file"
+                        | "replacement_file"
+                        | "expected_matches"
+                        | "probe_program"
+                        | "probe_cwd"
+                        | "probe_expected_exit"
+                        | "probe_stderr_contains"
+                ) {
+                    if mutation
+                        .values
+                        .insert(field.to_string(), value.to_string())
+                        .is_some()
+                    {
+                        return Err(format!("linha {line_no}: campo duplicado: {key}"));
+                    }
+                } else {
+                    return Err(format!("linha {line_no}: campo desconhecido: {key}"));
+                }
+            }
             _ => return Err(format!("linha {line_no}: campo desconhecido: {key}")),
         }
     }
@@ -236,6 +560,20 @@ pub fn parse_spec_text(text: &str) -> Result<Spec, String> {
             env: command.env,
         });
     }
+    let mut built_checks = Vec::new();
+    for id in check_order {
+        built_checks.push(build_check(
+            &id,
+            checks.remove(&id).expect("ordem consistente"),
+        )?);
+    }
+    let mut built_mutations = Vec::new();
+    for id in mutation_order {
+        built_mutations.push(build_mutation(
+            &id,
+            mutations.remove(&id).expect("ordem consistente"),
+        )?);
+    }
     let spec = Spec {
         schema,
         task_id: task_id.ok_or("campo obrigatório ausente: task_id")?,
@@ -246,6 +584,8 @@ pub fn parse_spec_text(text: &str) -> Result<Spec, String> {
         allowed_writes,
         allowed_changes,
         commands: built,
+        checks: built_checks,
+        mutations: built_mutations,
         accepted_verdict: accepted_verdict.ok_or("campo obrigatório ausente: verdict.accepted")?,
         blocked_verdict: blocked_verdict.ok_or("campo obrigatório ausente: verdict.blocked")?,
         human_verdict: human_verdict.ok_or("campo obrigatório ausente: verdict.human")?,
@@ -320,6 +660,48 @@ pub fn validate_paths(spec: &Spec) -> Result<(), String> {
     }
     for command in &spec.commands {
         resolve_under(&worktree, Path::new(&command.cwd))?;
+    }
+    for check in &spec.checks {
+        match check {
+            CheckSpec::Git(check) => {
+                for value in check.expected_changes.iter().chain(&check.allowed_changes) {
+                    validate_relative_path(value)?;
+                }
+            }
+            CheckSpec::MarkerOnly(check) => {
+                validate_relative_path(&check.path)?;
+                resolve_under(&worktree, Path::new(&check.path))?;
+            }
+            CheckSpec::Projection(check) => {
+                validate_relative_path(&check.catalog)?;
+                resolve_under(&worktree, Path::new(&check.catalog))?;
+                for value in &check.exclude_files {
+                    validate_relative_path(value)?;
+                }
+                if check.exclude_keys.iter().any(|value| value.is_empty()) {
+                    return Err("exclude_key vazio".to_string());
+                }
+            }
+        }
+    }
+    for mutation in &spec.mutations {
+        validate_relative_path(&mutation.target)?;
+        resolve_under(&worktree, Path::new(&mutation.target))?;
+        resolve_under(&delegated, Path::new(&mutation.search_file))?;
+        resolve_under(&delegated, Path::new(&mutation.replacement_file))?;
+        resolve_under(&worktree, Path::new(&mutation.probe_cwd))?;
+    }
+    Ok(())
+}
+
+fn validate_relative_path(value: &str) -> Result<(), String> {
+    let path = Path::new(value);
+    if path.is_absolute()
+        || path
+            .components()
+            .any(|part| matches!(part, Component::ParentDir))
+    {
+        return Err(format!("path relativo inválido: {value}"));
     }
     Ok(())
 }
@@ -575,6 +957,519 @@ fn execute_one(spec: &Spec, command: &CommandSpec) -> Result<(CommandResult, Out
 
 // @pinker-nav:end development.agent.runner
 
+// @pinker-nav:start development.agent.git-diff
+// @pinker-nav:domain development
+// @pinker-nav:layer agent
+// @pinker-nav:summary Verifica Git de modo somente leitura: HEAD, branch, limpeza, contagem desde a base, conjunto exato e ordenado do porcelain v1, subconjunto permitido e git diff --check, preservando inclusive a primeira linha.
+fn run_git_check(spec: &Spec, check: &GitCheck) -> Result<String, String> {
+    let changed = changed_paths(spec)?;
+    let changed_set: BTreeSet<_> = changed.iter().cloned().collect();
+    let expected: BTreeSet<_> = check.expected_changes.iter().cloned().collect();
+    let allowed: BTreeSet<_> = check.allowed_changes.iter().cloned().collect();
+    let head = git_output(&spec.worktree, &["rev-parse", "HEAD"])?;
+    let branch = git_output(&spec.worktree, &["branch", "--show-current"])?;
+    let count = check
+        .commit_count_after_base
+        .map(|_| {
+            git_output(
+                &spec.worktree,
+                &[
+                    "rev-list",
+                    "--count",
+                    &format!("{}..HEAD", spec.expected_base),
+                ],
+            )?
+            .parse::<u64>()
+            .map_err(|_| "contagem Git inválida".to_string())
+        })
+        .transpose()?;
+    let diff = Command::new("git")
+        .arg("-C")
+        .arg(&spec.worktree)
+        .args(["diff", "--check"])
+        .output()
+        .map_err(|err| err.to_string())?;
+    let exact = check.expected_changes.is_empty() || changed_set == expected;
+    let allowed_subset = allowed.is_subset(&changed_set);
+    let clean_ok = !check.require_clean || changed.is_empty();
+    let head_ok = check
+        .expected_head
+        .as_ref()
+        .map_or(true, |value| value == &head);
+    let branch_ok = check
+        .expected_branch
+        .as_ref()
+        .map_or(true, |value| value == &branch);
+    let count_ok = check.commit_count_after_base == count;
+    let diff_ok = !check.diff_check || diff.status.success();
+    let passed = exact && allowed_subset && clean_ok && head_ok && branch_ok && count_ok && diff_ok;
+    let paths = changed
+        .iter()
+        .map(|value| json_escape(value))
+        .collect::<Vec<_>>()
+        .join(",");
+    Ok(format!("{{\"id\":{},\"kind\":\"git\",\"passed\":{passed},\"head\":{},\"branch\":{},\"clean\":{},\"commit_count_after_base\":{},\"exact\":{exact},\"allowed_subset\":{allowed_subset},\"diff_check\":{diff_ok},\"paths\":[{paths}]}}", json_escape(&check.id), json_escape(&head), json_escape(&branch), changed.is_empty(), count.map_or("null".to_string(), |value| value.to_string())))
+}
+// @pinker-nav:end development.agent.git-diff
+
+// @pinker-nav:start development.agent.marker-only
+// @pinker-nav:domain development
+// @pinker-nav:layer agent
+// @pinker-nav:summary Reconstrói fontes removendo somente linhas de comentários Pinker reais, com estado léxico alinhado à política canônica, e prova SHA-256 base, quantidade, cinco linhas por região, balanceamento e ordem exata das chaves sem modificar o arquivo.
+#[derive(Clone, Copy)]
+enum MarkerLex {
+    Code,
+    String,
+    ByteString,
+    Raw(usize),
+    RawByte(usize),
+    Block(usize),
+}
+
+fn raw_start(bytes: &[u8]) -> Option<(usize, usize, bool)> {
+    let (prefix, byte) = if bytes.starts_with(b"br") {
+        (2, true)
+    } else if bytes.starts_with(b"r") {
+        (1, false)
+    } else {
+        return None;
+    };
+    let mut pos = prefix;
+    while bytes.get(pos) == Some(&b'#') {
+        pos += 1;
+    }
+    (bytes.get(pos) == Some(&b'\"')).then_some((pos + 1, pos - prefix, byte))
+}
+
+fn char_len(bytes: &[u8]) -> Option<usize> {
+    if bytes.first() != Some(&b'\'') {
+        return None;
+    }
+    if bytes.get(1) == Some(&b'\\') {
+        return (bytes.get(3) == Some(&b'\'')).then_some(4);
+    }
+    let ch = std::str::from_utf8(bytes.get(1..)?).ok()?.chars().next()?;
+    let close = 1 + ch.len_utf8();
+    (bytes.get(close) == Some(&b'\'')).then_some(close + 1)
+}
+
+fn real_comment<'a>(line: &'a str, state: &mut MarkerLex) -> Option<&'a str> {
+    let bytes = line.as_bytes();
+    let first = bytes.iter().position(|byte| !byte.is_ascii_whitespace());
+    let mut i = 0;
+    while i < bytes.len() {
+        match *state {
+            MarkerLex::Code => {
+                if bytes[i..].starts_with(b"//") {
+                    return (Some(i) == first).then_some(&line[i..]);
+                }
+                if bytes[i..].starts_with(b"/*") {
+                    *state = MarkerLex::Block(1);
+                    i += 2;
+                } else if let Some((len, hashes, byte)) = raw_start(&bytes[i..]) {
+                    *state = if byte {
+                        MarkerLex::RawByte(hashes)
+                    } else {
+                        MarkerLex::Raw(hashes)
+                    };
+                    i += len;
+                } else if bytes[i..].starts_with(b"b\"") {
+                    *state = MarkerLex::ByteString;
+                    i += 2;
+                } else if let Some(len) = char_len(&bytes[i..]) {
+                    i += len;
+                } else if bytes[i] == b'\"' {
+                    *state = MarkerLex::String;
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            }
+            MarkerLex::String | MarkerLex::ByteString => {
+                if bytes[i] == b'\\' {
+                    i = (i + 2).min(bytes.len());
+                } else if bytes[i] == b'\"' {
+                    *state = MarkerLex::Code;
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            }
+            MarkerLex::Raw(hashes) | MarkerLex::RawByte(hashes) => {
+                if bytes[i] == b'\"' && bytes[i + 1..].starts_with(&vec![b'#'; hashes]) {
+                    *state = MarkerLex::Code;
+                    i += hashes + 1;
+                } else {
+                    i += 1;
+                }
+            }
+            MarkerLex::Block(depth) => {
+                if bytes[i..].starts_with(b"/*") {
+                    *state = MarkerLex::Block(depth + 1);
+                    i += 2;
+                } else if bytes[i..].starts_with(b"*/") {
+                    *state = if depth == 1 {
+                        MarkerLex::Code
+                    } else {
+                        MarkerLex::Block(depth - 1)
+                    };
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+    }
+    None
+}
+
+fn marker_key(comment: &str, marker: &str) -> Option<String> {
+    let body = comment.strip_prefix("//")?;
+    if body.starts_with('/') || body.starts_with('!') {
+        return None;
+    }
+    let rest = body.trim_start().strip_prefix(marker)?;
+    if !rest.is_empty() && !rest.starts_with(char::is_whitespace) {
+        return None;
+    }
+    let key = rest.trim();
+    (!key.is_empty()).then(|| key.to_string())
+}
+
+fn is_pinker_marker(comment: &str) -> bool {
+    let Some(body) = comment.strip_prefix("//") else {
+        return false;
+    };
+    if body.starts_with('/') || body.starts_with('!') {
+        return false;
+    }
+    matches!(
+        body.split_whitespace().next(),
+        Some(
+            "@pinker-nav:domain"
+                | "@pinker-nav:layer"
+                | "@pinker-nav:summary"
+                | "@pinker-nav:kind"
+                | "@pinker-nav:status"
+                | "@pinker-nav:phase"
+        )
+    ) || marker_key(comment, "@pinker-nav:start").is_some()
+        || marker_key(comment, "@pinker-nav:end").is_some()
+}
+
+fn run_marker_check(spec: &Spec, check: &MarkerOnlyCheck) -> Result<String, String> {
+    let path = resolve_under(&spec.worktree, Path::new(&check.path))?;
+    let bytes = fs::read(path).map_err(|err| err.to_string())?;
+    let text = std::str::from_utf8(&bytes).map_err(|err| err.to_string())?;
+    let mut state = MarkerLex::Code;
+    let mut rebuilt = Vec::new();
+    let mut open: Option<(String, usize)> = None;
+    let mut keys = Vec::new();
+    let mut marker_lines = 0usize;
+    let mut valid = true;
+    for line in text.split_inclusive('\n') {
+        let raw = line
+            .strip_suffix('\n')
+            .unwrap_or(line)
+            .strip_suffix('\r')
+            .unwrap_or(line.strip_suffix('\n').unwrap_or(line));
+        let comment = real_comment(raw, &mut state);
+        if let Some(comment) = comment.filter(|value| is_pinker_marker(value)) {
+            marker_lines += 1;
+            if let Some(key) = marker_key(comment, "@pinker-nav:start") {
+                if open.is_some() {
+                    valid = false;
+                }
+                open = Some((key.clone(), marker_lines));
+                keys.push(key);
+            } else if let Some(key) = marker_key(comment, "@pinker-nav:end") {
+                match open.take() {
+                    Some((start, first)) if start == key && marker_lines - first + 1 == 5 => {}
+                    _ => valid = false,
+                }
+            } else if open.is_none() {
+                valid = false;
+            }
+        } else {
+            rebuilt.extend_from_slice(line.as_bytes());
+        }
+    }
+    valid &= open.is_none();
+    let reconstructed = sha256_hex(&rebuilt);
+    valid &= reconstructed == check.base_sha256;
+    valid &= keys.len() == check.expected_regions;
+    valid &= marker_lines == check.expected_marker_lines;
+    valid &= keys == check.expected_keys;
+    let key_json = keys
+        .iter()
+        .map(|value| json_escape(value))
+        .collect::<Vec<_>>()
+        .join(",");
+    Ok(format!("{{\"id\":{},\"kind\":\"marker-only\",\"passed\":{valid},\"path\":{},\"regions\":{},\"marker_lines\":{marker_lines},\"reconstructed_sha256\":{},\"keys\":[{key_json}]}}", json_escape(&check.id), json_escape(&check.path), keys.len(), json_escape(&reconstructed)))
+}
+// @pinker-nav:end development.agent.marker-only
+
+// @pinker-nav:start development.agent.projection
+// @pinker-nav:domain development
+// @pinker-nav:layer agent
+// @pinker-nav:summary Carrega catálogo JSONL validado, rejeita chaves duplicadas, aplica exclusões exatas e overrides consumidos, ordena a projeção estável de nove campos e mede total, evidence/runtime, bytes e FNV-1a64 sem escrever nas fontes.
+fn fnv1a64_number(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf29ce484222325u64, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+    })
+}
+
+fn run_projection_check(spec: &Spec, check: &ProjectionCheck) -> Result<String, String> {
+    let path = resolve_under(&spec.worktree, Path::new(&check.catalog))?;
+    let mut catalog = crate::nav::CodeCatalog::load(&path).map_err(|err| err.to_string())?;
+    let mut all_keys = BTreeSet::new();
+    if catalog
+        .regions
+        .iter()
+        .any(|region| !all_keys.insert(region.key.clone()))
+    {
+        return Err("catálogo contém chave duplicada".to_string());
+    }
+    catalog.regions.retain(|region| {
+        !check.exclude_files.iter().any(|file| file == &region.file)
+            && !check.exclude_keys.iter().any(|key| key == &region.key)
+    });
+    let mut used = BTreeSet::new();
+    for region in &mut catalog.regions {
+        if let Some(hash) = check.override_hashes.get(&region.key) {
+            region.hash.clone_from(hash);
+            used.insert(region.key.clone());
+        }
+    }
+    if used.len() != check.override_hashes.len() {
+        return Err("override de hash não usado".to_string());
+    }
+    let mut records = catalog
+        .regions
+        .iter()
+        .map(|region| {
+            format!(
+                "{:?}\n",
+                (
+                    1,
+                    region.key.as_str(),
+                    region.kind.as_str(),
+                    region.domain.as_deref(),
+                    region.layer.as_deref(),
+                    region.file.as_str(),
+                    region.summary.as_str(),
+                    region.hash.as_str(),
+                    region.status.as_str()
+                )
+            )
+        })
+        .collect::<Vec<_>>();
+    records.sort_unstable();
+    let projection = records.concat();
+    let total = catalog.regions.len();
+    let evidence = catalog
+        .regions
+        .iter()
+        .filter(|region| region.key.starts_with("evidencia."))
+        .count();
+    let runtime = catalog
+        .regions
+        .iter()
+        .filter(|region| region.layer.as_deref() == Some("runtime"))
+        .count();
+    let length = projection.len();
+    let hash = format!("{:016x}", fnv1a64_number(projection.as_bytes()));
+    let passed = total == check.expected_total
+        && evidence == check.expected_evidence
+        && runtime == check.expected_runtime
+        && length == check.expected_length
+        && hash == check.expected_fnv1a64;
+    Ok(format!("{{\"id\":{},\"kind\":\"projection\",\"passed\":{passed},\"total\":{total},\"evidence\":{evidence},\"runtime\":{runtime},\"length\":{length},\"fnv1a64\":{},\"overrides_used\":{}}}", json_escape(&check.id), json_escape(&hash), used.len()))
+}
+// @pinker-nav:end development.agent.projection
+
+fn run_checks(spec: &Spec) -> Result<(bool, Vec<String>), String> {
+    let mut results = Vec::new();
+    for check in &spec.checks {
+        let (id, kind, outcome) = match check {
+            CheckSpec::Git(check) => (&check.id, "git", run_git_check(spec, check)),
+            CheckSpec::MarkerOnly(check) => {
+                (&check.id, "marker-only", run_marker_check(spec, check))
+            }
+            CheckSpec::Projection(check) => {
+                (&check.id, "projection", run_projection_check(spec, check))
+            }
+        };
+        let result = match outcome {
+            Ok(result) => result,
+            Err(error) => format!(
+                "{{\"id\":{},\"kind\":{},\"passed\":false,\"error\":{}}}",
+                json_escape(id),
+                json_escape(kind),
+                json_escape(&error)
+            ),
+        };
+        results.push(result);
+    }
+    let passed = results
+        .iter()
+        .all(|result| result.contains("\"passed\":true"));
+    Ok((passed, results))
+}
+
+// @pinker-nav:start development.agent.sensitivity
+// @pinker-nav:domain development
+// @pinker-nav:layer agent
+// @pinker-nav:summary Executa mutações reversíveis confinadas: snapshot e SHA-256, match exato, substituição atômica, probe sem shell, captura de saída/duração/exit, restauração obrigatória dos bytes e detecção de efeitos laterais, parando diante de falha de restauração.
+pub fn sensibilidade(spec_path: &Path) -> Result<i32, String> {
+    let spec = load_spec(spec_path)?;
+    ensure_layout(&spec)?;
+    let event_path = spec.delegated_root.join("estado/mutation-events.jsonl");
+    atomic_write(&event_path, b"")?;
+    let before_paths = changed_paths(&spec)?;
+    let mut results = Vec::new();
+    let mut blocked = false;
+    let mut restoration_verified = true;
+    for (index, mutation) in spec.mutations.iter().enumerate() {
+        if blocked && !restoration_verified {
+            break;
+        }
+        let target = resolve_under(&spec.worktree, Path::new(&mutation.target))?;
+        let search_path = resolve_under(&spec.delegated_root, Path::new(&mutation.search_file))?;
+        let replacement_path =
+            resolve_under(&spec.delegated_root, Path::new(&mutation.replacement_file))?;
+        let original = fs::read(&target).map_err(|err| err.to_string())?;
+        let original_hash = sha256_hex(&original);
+        let search = fs::read(&search_path).map_err(|err| err.to_string())?;
+        let replacement = fs::read(&replacement_path).map_err(|err| err.to_string())?;
+        let matches = if search.is_empty() {
+            0
+        } else {
+            original
+                .windows(search.len())
+                .filter(|window| *window == search.as_slice())
+                .count()
+        };
+        let mut status = "HARNESS_ERROR";
+        let mut exit = None;
+        let mut duration = 0;
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        if !search.is_empty() && matches == mutation.expected_matches {
+            let changed = replace_bytes(&original, &search, &replacement);
+            atomic_write(&target, &changed)?;
+            let cwd = resolve_under(&spec.worktree, Path::new(&mutation.probe_cwd))?;
+            let executable = if mutation.probe_program == "pink" {
+                resolve_pinker_executable(&env::current_exe().map_err(|err| err.to_string())?)?
+            } else {
+                PathBuf::from(&mutation.probe_program)
+            };
+            let started = Instant::now();
+            match Command::new(executable)
+                .args(&mutation.probe_argv)
+                .current_dir(cwd)
+                .output()
+            {
+                Ok(output) => {
+                    duration = started.elapsed().as_millis();
+                    exit = output.status.code();
+                    stdout = output.stdout;
+                    stderr = output.stderr;
+                    let stderr_ok = mutation
+                        .probe_stderr_contains
+                        .as_ref()
+                        .map_or(true, |needle| {
+                            String::from_utf8_lossy(&stderr).contains(needle)
+                        });
+                    status = if exit == Some(mutation.probe_expected_exit) && stderr_ok {
+                        "DETECTED"
+                    } else {
+                        "UNDETECTED"
+                    };
+                }
+                Err(err) => stderr = err.to_string().into_bytes(),
+            }
+            if atomic_write(&target, &original).is_err()
+                || fs::read(&target)
+                    .map(|bytes| sha256_hex(&bytes))
+                    .ok()
+                    .as_deref()
+                    != Some(original_hash.as_str())
+            {
+                restoration_verified = false;
+                status = "HARNESS_ERROR";
+            }
+        }
+        atomic_write(
+            &spec
+                .delegated_root
+                .join(format!("logs/mutation-{}.stdout.txt", mutation.id)),
+            &stdout,
+        )?;
+        atomic_write(
+            &spec
+                .delegated_root
+                .join(format!("logs/mutation-{}.stderr.txt", mutation.id)),
+            &stderr,
+        )?;
+        let after_paths = changed_paths(&spec)?;
+        if after_paths != before_paths {
+            status = "HARNESS_ERROR";
+        }
+        blocked |= status != "DETECTED";
+        append_event(&event_path, (index + 1) as u64, &mutation.id, status, exit)?;
+        results.push(format!("{{\"id\":{},\"status\":{},\"matches\":{matches},\"exit_code\":{},\"duration_ms\":{duration}}}", json_escape(&mutation.id), json_escape(status), exit.map_or("null".to_string(), |value| value.to_string())));
+    }
+    let body = results.join(",\n    ");
+    let detected = results
+        .iter()
+        .filter(|item| item.contains("\"status\":\"DETECTED\""))
+        .count();
+    let undetected = results
+        .iter()
+        .filter(|item| item.contains("\"status\":\"UNDETECTED\""))
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(",");
+    let harness_errors = results
+        .iter()
+        .filter(|item| item.contains("\"status\":\"HARNESS_ERROR\""))
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(",");
+    let report = format!("{{\n  \"schema\":1,\n  \"passed\":{},\n  \"detected\":{detected},\n  \"undetected\":[{undetected}],\n  \"harness_errors\":[{harness_errors}],\n  \"restoration_verified\":{restoration_verified},\n  \"mutations\":[\n    {body}\n  ]\n}}\n", !blocked);
+    atomic_write(
+        &spec.delegated_root.join("artefatos/sensitivity.json"),
+        report.as_bytes(),
+    )?;
+    atomic_write(
+        &spec.delegated_root.join("artefatos/restoration.json"),
+        format!("{{\"restoration_verified\":{restoration_verified}}}\n").as_bytes(),
+    )?;
+    let manifest = artifact_manifest(&spec.delegated_root)?;
+    atomic_write(
+        &spec.delegated_root.join("artefatos/artifact-manifest.json"),
+        manifest.as_bytes(),
+    )?;
+    Ok(if blocked { EXIT_BLOCKED } else { EXIT_ACCEPTED })
+}
+
+fn replace_bytes(input: &[u8], search: &[u8], replacement: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut pos = 0;
+    while pos < input.len() {
+        if input[pos..].starts_with(search) {
+            out.extend_from_slice(replacement);
+            pos += search.len();
+        } else {
+            out.push(input[pos]);
+            pos += 1;
+        }
+    }
+    out
+}
+// @pinker-nav:end development.agent.sensitivity
+
 // @pinker-nav:start development.agent.lifecycle
 // @pinker-nav:domain development
 // @pinker-nav:layer agent
@@ -763,14 +1658,43 @@ pub fn verificar(spec_path: &Path) -> Result<i32, String> {
     if !scope_ok(&spec, &changed) {
         return Ok(EXIT_BLOCKED);
     }
-    let expected = artifact_manifest(&spec.delegated_root)?;
-    let actual = fs::read_to_string(spec.delegated_root.join("artefatos/artifact-manifest.json"))
-        .map_err(|err| err.to_string())?;
-    Ok(if expected == actual {
-        EXIT_ACCEPTED
-    } else {
-        EXIT_BLOCKED
-    })
+    let expected_manifest = artifact_manifest(&spec.delegated_root)?;
+    let actual_manifest =
+        fs::read_to_string(spec.delegated_root.join("artefatos/artifact-manifest.json"))
+            .map_err(|err| err.to_string())?;
+    if expected_manifest != actual_manifest {
+        return Ok(EXIT_BLOCKED);
+    }
+    if spec.checks.is_empty() {
+        return Ok(EXIT_ACCEPTED);
+    }
+    let (passed, results) = run_checks(&spec)?;
+    let select = |kind: &str| {
+        results
+            .iter()
+            .filter(|result| result.contains(&format!("\"kind\":\"{kind}\"")))
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(",\n  ")
+    };
+    atomic_write(
+        &spec.delegated_root.join("artefatos/git-checks.json"),
+        format!("[\n  {}\n]\n", select("git")).as_bytes(),
+    )?;
+    atomic_write(
+        &spec.delegated_root.join("artefatos/marker-only.json"),
+        format!("[\n  {}\n]\n", select("marker-only")).as_bytes(),
+    )?;
+    atomic_write(
+        &spec.delegated_root.join("artefatos/projections.json"),
+        format!("[\n  {}\n]\n", select("projection")).as_bytes(),
+    )?;
+    let manifest = artifact_manifest(&spec.delegated_root)?;
+    atomic_write(
+        &spec.delegated_root.join("artefatos/artifact-manifest.json"),
+        manifest.as_bytes(),
+    )?;
+    Ok(if passed { EXIT_ACCEPTED } else { EXIT_BLOCKED })
 }
 
 pub fn status(spec_path: &Path, json: bool) -> Result<i32, String> {
