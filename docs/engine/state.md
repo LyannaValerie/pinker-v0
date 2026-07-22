@@ -66,7 +66,7 @@ Conteúdo abaixo é **propriedade da ferramenta** (projeção `state`); não edi
 mão. Regenere com `pink doc sincronizar`.
 
 <!-- @pinker-generated:start engine.state.generated -->
-- Manifestos processados: 1
-- Última mudança: PR #378 — Simplifica o caminho de contribuição externa (fase —, bloco —)
+- Manifestos processados: 2
+- Última mudança: PR #382 — Adiciona mapa agrupado do catálogo de código (fase —, bloco —)
 - Seções implementadas: —
 <!-- @pinker-generated:end engine.state.generated -->
