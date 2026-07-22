@@ -1,0 +1,43 @@
+title: "[Ideia] "
+labels:
+  - discussion-needed
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema ou oportunidade
+    validations:
+      required: true
+  - type: textarea
+    id: concept
+    attributes:
+      label: Conceito proposto
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impacto em sintaxe, semântica, runtime ou tooling
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibilidade e migração
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Limites da discussão
+      options:
+        - label: Reconheço que esta discussão não integra o roadmap.
+          required: true
+        - label: Reconheço que esta discussão não autoriza implementação.
+          required: true

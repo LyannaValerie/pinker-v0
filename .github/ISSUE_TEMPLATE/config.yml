@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Dúvidas e ajuda
+    url: https://github.com/LyannaValerie/pinker-v0/discussions/categories/q-a
+    about: Use a categoria Q&A para dúvidas de uso.
+  - name: Ideias e propostas de linguagem
+    url: https://github.com/LyannaValerie/pinker-v0/discussions/categories/ideas
+    about: Explore ideias sem tratá-las como roadmap ou autorização.
+  - name: Vulnerabilidade de segurança
+    url: https://github.com/LyannaValerie/pinker-v0/security/advisories/new
+    about: Relate vulnerabilidades de forma privada; não abra uma Issue pública.

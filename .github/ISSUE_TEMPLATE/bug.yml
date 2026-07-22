@@ -1,0 +1,116 @@
+name: Relatar um bug
+description: Registre um defeito reproduzível na implementação ou nas ferramentas da Pinker.
+title: "[Bug]: "
+labels:
+  - bug
+  - needs triage
+body:
+  - type: markdown
+    attributes:
+      value: Obrigado pelo relato. Não inclua segredos, dados pessoais ou vulnerabilidades de segurança.
+  - type: input
+    id: affected_commit
+    attributes:
+      label: Commit ou versão afetada
+      description: Informe o SHA do commit ou a versão observada.
+    validations:
+      required: true
+  - type: input
+    id: operating_system
+    attributes:
+      label: Sistema operacional
+      placeholder: Fedora 42, Ubuntu 26.04, Windows 11
+    validations:
+      required: true
+  - type: input
+    id: architecture
+    attributes:
+      label: Arquitetura
+      placeholder: x86_64, aarch64
+    validations:
+      required: true
+  - type: textarea
+    id: rust_toolchain
+    attributes:
+      label: Rust e toolchain
+      description: Cole a saída relevante do preflight e das ferramentas externas usadas.
+    validations:
+      required: true
+  - type: textarea
+    id: exact_command
+    attributes:
+      label: Comando exato
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: minimal_reproduction
+    attributes:
+      label: Reprodução mínima em .pink
+      description: Forneça o menor programa que reproduz o defeito.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected_result
+    attributes:
+      label: Resultado esperado
+    validations:
+      required: true
+  - type: textarea
+    id: observed_result
+    attributes:
+      label: Resultado observado
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Saída diagnóstica completa
+      description: Cole stdout, stderr e códigos de saída relevantes.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: suspected_layer
+    attributes:
+      label: Camada suspeita
+      options:
+        - lexer/tokens
+        - parser/AST
+        - semantic/layout
+        - IR/CFG/selection/machine
+        - interpreter
+        - backend textual
+        - backend .s/toolchain
+        - runtime
+        - CLI/build
+        - documentation/Trama
+        - unknown
+    validations:
+      required: true
+  - type: dropdown
+    id: regression
+    attributes:
+      label: É uma regressão?
+      options:
+        - Sim, funcionava antes
+        - Não
+        - Não sei
+    validations:
+      required: true
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Contexto adicional
+  - type: checkboxes
+    id: agreements
+    attributes:
+      label: Confirmações
+      options:
+        - label: Pesquisei Issues existentes e não encontrei duplicata.
+          required: true
+        - label: Removi segredos e dados pessoais.
+          required: true
+        - label: Os resultados informados vieram de comandos realmente executados.
+          required: true

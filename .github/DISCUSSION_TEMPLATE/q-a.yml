@@ -1,0 +1,43 @@
+title: "[Pergunta] "
+labels: []
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objetivo
+    validations:
+      required: true
+  - type: textarea
+    id: attempted_commands
+    attributes:
+      label: Comandos tentados
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: pink_snippet
+    attributes:
+      label: Trecho .pink relevante
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Ambiente
+    validations:
+      required: true
+  - type: textarea
+    id: observed_output
+    attributes:
+      label: Saída observada
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: consulted_docs
+    attributes:
+      label: Documentação consultada
+      description: Inclua links ou caminhos relevantes.
+    validations:
+      required: true

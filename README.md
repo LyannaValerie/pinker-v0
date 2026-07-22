@@ -118,6 +118,10 @@ pipeline. O README só mantém o mapa de leitura.
 | Documento | Papel |
 |---|---|
 | [Como contribuir](CONTRIBUTING.md) | Guia para contribuições humanas externas |
+| [Código de Conduta](CODE_OF_CONDUCT.md) | Convivência, crítica técnica e relato de conduta |
+| [Segurança](SECURITY.md) | Relato privado de vulnerabilidades |
+| [Governança](GOVERNANCE.md) | Autoridade, decisões e merge manual |
+| [Suporte](SUPPORT.md) | Encaminhamento para Issues e Discussions |
 | `MANUAL.md` | Manual prático da linguagem implementada |
 | `docs/atlas.md` | Mapa mestre da documentação |
 | `docs/handoff_codex.md` | Estado operacional corrente |

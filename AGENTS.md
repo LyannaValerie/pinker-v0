@@ -83,6 +83,9 @@ Mapa curto por feature: `docs/code_map.md`.
 - Não tocar docs canônicos por inércia: `docs/history.md`, `docs/handoff_codex.md`, `docs/roadmap.md`, `docs/future.md`, `docs/phases.md`.
 - Mudança funcional real exige evidência em código, testes e docs canônicos apropriados.
 - Não reverter mudanças do usuário sem pedido explícito.
+- Vulnerabilidades devem usar o relato privado descrito em `SECURITY.md`, nunca Issues públicas.
+- Discussions é espaço exploratório e não autoriza roadmap ou implementação.
+- A exceção estreita para arquivos de saúde comunitária está em `docs/doc_rules.md`.
 - Validar com `build`, `test`, `fmt-check` e `clippy` antes de encerrar.
 
 ## O que sempre checar em mudança funcional
