@@ -24,12 +24,14 @@ body:
     id: impact
     attributes:
       label: Impacto em sintaxe, semântica, runtime ou tooling
+      description: Indique as áreas afetadas; se não houver impacto em alguma delas, diga “nenhum”.
     validations:
       required: true
   - type: textarea
     id: compatibility
     attributes:
       label: Compatibilidade e migração
+      description: Explique a transição necessária ou diga “não se aplica” quando a proposta for apenas editorial.
     validations:
       required: true
   - type: checkboxes

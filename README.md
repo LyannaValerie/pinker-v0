@@ -117,7 +117,7 @@ pipeline. O README só mantém o mapa de leitura.
 
 | Documento | Papel |
 |---|---|
-| [Como contribuir](CONTRIBUTING.md) | Guia para contribuições humanas externas |
+| [Começar a contribuir](CONTRIBUTING.md) | Porta de entrada por tipo de contribuição |
 | [Onde contribuir](https://github.com/LyannaValerie/pinker-v0/discussions/372) | Painel dinâmico de trabalho comunitário |
 | [Código de Conduta](CODE_OF_CONDUCT.md) | Convivência, crítica técnica e relato de conduta |
 | [Segurança](SECURITY.md) | Relato privado de vulnerabilidades |
