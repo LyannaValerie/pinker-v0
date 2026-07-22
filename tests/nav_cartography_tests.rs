@@ -2406,7 +2406,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (145_064, 18_356_396_870_315_270_997),
+        (144_884, 4_496_156_996_282_057_547),
         "a projeção estável das 340 entradas anteriores mudou"
     );
 }
@@ -2817,7 +2817,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (148_009, 1_387_240_491_465_620_435),
+        (147_829, 5_645_578_743_119_882_865),
         "a projeção estável das 348 regiões anteriores mudou"
     );
 
@@ -3119,12 +3119,12 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (168_339, 1_634_706_628_046_951_093)
+        (168_159, 11_419_973_254_330_089_419)
     );
     let full_projection = stable_region_projection(capsule_scope.iter().copied());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (170_076, 12_143_728_175_883_859_804)
+        (169_896, 15_037_406_100_575_433_934)
     );
 
     let regenerated = CodeIndex::scan_repo(&repository).expect("scan canônico");
@@ -3519,7 +3519,7 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (168_339, 1_634_706_628_046_951_093),
+        (168_159, 11_419_973_254_330_089_419),
         "a projeção estável das 386 regiões da Onda 8 mudou"
     );
     let merged_base_projection = stable_region_projection(merged_base.into_iter());
@@ -3528,14 +3528,14 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
             merged_base_projection.len(),
             fnv1a64(merged_base_projection.as_bytes())
         ),
-        (170_076, 12_143_728_175_883_859_804),
+        (169_896, 15_037_406_100_575_433_934),
         "a projeção estável das 392 regiões da base mergeada mudou"
     );
     // K. Projeção completa desta cápsula, medida — não predita.
     let full_projection = stable_region_projection(capsule_scope.iter().copied());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (171_741, 7_038_069_266_194_794_117),
+        (171_561, 8_797_032_270_743_622_683),
         "a projeção estável das 398 regiões mudou"
     );
 
@@ -3652,7 +3652,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
     let projection = stable_region_projection(historical.into_iter());
     assert_eq!(
         (projection.len(), fnv1a64(projection.as_bytes())),
-        (168_339, 1_634_706_628_046_951_093),
+        (168_159, 11_419_973_254_330_089_419),
         "a projeção estável das 386 regiões convergidas da Onda 8 mudou"
     );
 
@@ -4343,7 +4343,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (150_870, 15_749_653_826_456_761_089),
+        (150_690, 6_012_196_155_872_447_823),
         "a projeção estável das 355 regiões anteriores mudou"
     );
 
@@ -5017,7 +5017,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (157_379, 14_667_879_393_081_127_943),
+        (157_199, 14_194_232_363_362_072_525),
         "a projeção estável das 365 regiões anteriores mudou"
     );
 
@@ -5613,7 +5613,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (165_434, 12_395_117_943_166_741_653),
+        (165_254, 11_833_888_560_250_993_627),
         "a projeção estável das 379 regiões anteriores mudou"
     );
 
@@ -5626,12 +5626,12 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
 }
 
 /// Terceira cápsula operacional/documental da Trama: `tests/trama_query_tests.rs`.
-/// Congela as oito regiões marker-only (2 de suporte + 6 de evidência), o
-/// ownership exato de 4 constantes + 6 helpers + 10 testes, a prova de que
-/// retirar os marcadores reconstrói a fonte-base, os totais 406/223/15 e a
+/// Congela as nove regiões marker-only (2 de suporte + 7 de evidência), o
+/// ownership exato de 5 constantes + 15 helpers + 28 testes, a prova de que
+/// retirar os marcadores reconstrói a fonte-base, os totais 407/224/15 e a
 /// preservação integral das 398 regiões predecessoras, das 392 pós-nav-catalog
 /// e das 386 da Onda 8. O texto semelhante a marcador dentro do literal Rust
-/// `SRC` permanece conteúdo de fixture e não é contado como marcador real.
+/// `SRC`/`TEST_SRC` permanece conteúdo de fixture e não é contado como marcador real.
 #[test]
 fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -5641,6 +5641,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
     let expected_keys = [
         "evidencia.trama.query.fixture-config",
         "evidencia.trama.query.process-support",
+        "evidencia.trama.query.nav-map",
         "evidencia.trama.query.catalog-only",
         "evidencia.trama.query.source-drift",
         "evidencia.trama.query.json-stability",
@@ -5651,7 +5652,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
     let support_keys = &expected_keys[..2];
     let evidence_keys = &expected_keys[2..];
 
-    // A. e F. Estrutura física: oito regiões balanceadas, contíguas, sem
+    // A. e F. Estrutura física: nove regiões balanceadas, contíguas, sem
     // aninhamento nem sobreposição, na ordem exata declarada.
     #[derive(Debug)]
     struct Span {
@@ -5682,22 +5683,23 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         }
     }
     assert!(active.is_none(), "região sem marcador final");
-    assert_eq!(marker_lines, 40, "a cápsula exige exatamente 40 marcadores");
+    assert_eq!(marker_lines, 45, "a cápsula exige exatamente 45 marcadores");
     // Distinção literal-de-string: o texto `@pinker-nav:` embutido no literal
-    // Rust `SRC` aparece em uma linha física adicional que NÃO é marcador real.
+    // Rust `SRC`/`TEST_SRC` aparece em duas linhas físicas adicionais que NÃO
+    // são marcadores reais.
     let text_occurrences = lines
         .iter()
         .filter(|line| line.contains("@pinker-nav:"))
         .count();
     assert_eq!(
-        text_occurrences, 41,
-        "40 marcadores reais + 1 linha de fixture SRC com texto semelhante a marcador"
+        text_occurrences, 47,
+        "45 marcadores reais + 2 linhas de fixture com texto semelhante a marcador"
     );
-    assert_eq!(spans.len(), 8, "a cápsula exige exatamente oito regiões");
+    assert_eq!(spans.len(), 9, "a cápsula exige exatamente nove regiões");
     let physical_keys: Vec<_> = spans.iter().map(|span| span.key.as_str()).collect();
     assert_eq!(
         physical_keys, expected_keys,
-        "ordem física das oito regiões"
+        "ordem física das nove regiões"
     );
     for pair in spans.windows(2) {
         assert!(pair[0].end < pair[1].start, "regiões não podem sobrepor");
@@ -5713,7 +5715,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         "docs e imports devem ficar fora das regiões"
     );
     assert_eq!(
-        spans[7].end,
+        spans[8].end,
         lines.len(),
         "a última região deve terminar no fim do arquivo"
     );
@@ -5733,11 +5735,11 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         .collect();
     assert_eq!(
         sha256_hex(stripped.as_bytes()),
-        "65ba7f360174b1ef15ab5b9e246e3a0fce8e888359798898986969ff9c016f3f",
+        "e306cab78a4ff931d03a06cd76000243f1e45963754e78dc90b22bf7e2d3a9c2",
         "retirar marcadores deve reconstruir exatamente a fonte-base"
     );
 
-    // E. Ownership exato: 4 constantes, 6 helpers, 10 testes, sem órfãos,
+    // E. Ownership exato: 5 constantes, 15 helpers, 28 testes, sem órfãos,
     // duplicatas ou sobreposição de propriedade.
     #[derive(Default, Debug, PartialEq, Eq)]
     struct Owned {
@@ -5776,7 +5778,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         (
             expected_keys[0],
             Owned {
-                constants: ["DOC_TOML", "PORTAL", "CORE", "SRC"]
+                constants: ["DOC_TOML", "PORTAL", "CORE", "SRC", "TEST_SRC"]
                     .map(str::to_string)
                     .to_vec(),
                 ..Owned::default()
@@ -5794,6 +5796,47 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         (
             expected_keys[2],
             Owned {
+                helpers: [
+                    "stdout",
+                    "stderr",
+                    "sync_nav",
+                    "json_is_valid",
+                    "ws",
+                    "string",
+                    "value",
+                    "array",
+                    "object",
+                ]
+                .map(str::to_string)
+                .to_vec(),
+                tests: [
+                    "nav_mapa_completo_e_agrupado",
+                    "nav_mapa_seleciona_caminho_repo_relativo_exato",
+                    "nav_mapa_faz_fallback_para_consulta_textual",
+                    "nav_mapa_preserva_multiplos_resultados_textuais",
+                    "nav_mapa_sem_resultado_retorna_quatro",
+                    "nav_mapa_ordena_arquivos_por_caminho",
+                    "nav_mapa_ordena_regioes_pelo_intervalo_fisico",
+                    "nav_mapa_json_schema_um_e_valido",
+                    "nav_mapa_json_e_byte_identical",
+                    "nav_mapa_resume_multiplos_dominios",
+                    "nav_mapa_resume_multiplas_camadas",
+                    "nav_mapa_catalogo_ausente_retorna_tres",
+                    "nav_mapa_catalogo_invalido_retorna_tres",
+                    "nav_help_inclui_mapa",
+                    "nav_mapa_flag_desconhecida_retorna_dois",
+                    "nav_mapa_le_somente_catalogo_sem_fontes",
+                    "nav_mapa_deriva_caminho_absoluto_do_root",
+                    "nav_mapa_nao_modifica_arquivos",
+                ]
+                .map(str::to_string)
+                .to_vec(),
+                ..Owned::default()
+            },
+        ),
+        (
+            expected_keys[3],
+            Owned {
                 tests: [
                     "consulta_documental_le_catalogo_sem_revarrer_markdown",
                     "consulta_de_codigo_le_catalogo_sem_revarrer_rust",
@@ -5804,7 +5847,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             },
         ),
         (
-            expected_keys[3],
+            expected_keys[4],
             Owned {
                 tests: [
                     "mostrar_detecta_ancora_divergente",
@@ -5816,7 +5859,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             },
         ),
         (
-            expected_keys[4],
+            expected_keys[5],
             Owned {
                 tests: ["saida_json_e_valida_e_estavel"]
                     .map(str::to_string)
@@ -5825,7 +5868,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             },
         ),
         (
-            expected_keys[5],
+            expected_keys[6],
             Owned {
                 tests: ["limite_de_resultados_respeita_contornos"]
                     .map(str::to_string)
@@ -5834,7 +5877,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             },
         ),
         (
-            expected_keys[6],
+            expected_keys[7],
             Owned {
                 tests: [
                     "catalogo_ausente_falha_com_codigo_3",
@@ -5846,7 +5889,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             },
         ),
         (
-            expected_keys[7],
+            expected_keys[8],
             Owned {
                 tests: [
                     "ausencia_de_resultados_nao_e_sucesso_silencioso",
@@ -5878,14 +5921,51 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         .iter()
         .flat_map(|(_, owned)| owned.tests.iter().map(String::as_str))
         .collect();
-    assert_eq!(owned_constants, ["DOC_TOML", "PORTAL", "CORE", "SRC"]);
+    assert_eq!(
+        owned_constants,
+        ["DOC_TOML", "PORTAL", "CORE", "SRC", "TEST_SRC"]
+    );
     assert_eq!(
         owned_helpers,
-        ["temp_repo", "write", "fixture", "doc", "nav", "code"]
+        [
+            "temp_repo",
+            "write",
+            "fixture",
+            "doc",
+            "nav",
+            "code",
+            "stdout",
+            "stderr",
+            "sync_nav",
+            "json_is_valid",
+            "ws",
+            "string",
+            "value",
+            "array",
+            "object",
+        ]
     );
     assert_eq!(
         owned_tests,
         [
+            "nav_mapa_completo_e_agrupado",
+            "nav_mapa_seleciona_caminho_repo_relativo_exato",
+            "nav_mapa_faz_fallback_para_consulta_textual",
+            "nav_mapa_preserva_multiplos_resultados_textuais",
+            "nav_mapa_sem_resultado_retorna_quatro",
+            "nav_mapa_ordena_arquivos_por_caminho",
+            "nav_mapa_ordena_regioes_pelo_intervalo_fisico",
+            "nav_mapa_json_schema_um_e_valido",
+            "nav_mapa_json_e_byte_identical",
+            "nav_mapa_resume_multiplos_dominios",
+            "nav_mapa_resume_multiplas_camadas",
+            "nav_mapa_catalogo_ausente_retorna_tres",
+            "nav_mapa_catalogo_invalido_retorna_tres",
+            "nav_help_inclui_mapa",
+            "nav_mapa_flag_desconhecida_retorna_dois",
+            "nav_mapa_le_somente_catalogo_sem_fontes",
+            "nav_mapa_deriva_caminho_absoluto_do_root",
+            "nav_mapa_nao_modifica_arquivos",
             "consulta_documental_le_catalogo_sem_revarrer_markdown",
             "consulta_de_codigo_le_catalogo_sem_revarrer_rust",
             "mostrar_detecta_ancora_divergente",
@@ -5898,14 +5978,14 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             "uso_invalido_sai_com_codigo_2",
         ]
     );
-    assert_eq!(owned_constants.len(), 4);
-    assert_eq!(owned_helpers.len(), 6);
-    assert_eq!(owned_tests.len(), 10);
+    assert_eq!(owned_constants.len(), 5);
+    assert_eq!(owned_helpers.len(), 15);
+    assert_eq!(owned_tests.len(), 28);
     for symbols in [&owned_constants, &owned_helpers, &owned_tests] {
         let unique: HashSet<_> = symbols.iter().copied().collect();
         assert_eq!(unique.len(), symbols.len(), "ownership duplicado");
     }
-    // Nenhum símbolo do arquivo pode ficar órfão fora das oito regiões.
+    // Nenhum símbolo do arquivo pode ficar órfão fora das nove regiões.
     for (index, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         if !(trimmed.starts_with("const ") || trimmed.starts_with("fn ")) {
@@ -5920,18 +6000,18 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         );
     }
 
-    // D. e H. Catálogo versionado: metadados exatos e totais 406/223/15.
+    // D. e H. Catálogo versionado: metadados exatos e totais 407/224/15.
     let catalog_path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
     exclude_pink_agent_wave_a(&mut catalog);
-    assert_eq!(catalog.regions.len(), 406);
+    assert_eq!(catalog.regions.len(), 407);
     assert_eq!(
         catalog
             .regions
             .iter()
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .count(),
-        223
+        224
     );
     assert_eq!(
         catalog
@@ -5952,7 +6032,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         .filter(|region| region.file == target_path)
         .collect();
     target_regions.sort_by_key(|region| region.start_marker);
-    assert_eq!(target_regions.len(), 8);
+    assert_eq!(target_regions.len(), 9);
     assert_eq!(
         target_regions
             .iter()
@@ -5967,7 +6047,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         assert_eq!(region.kind, "region");
         assert_eq!(region.status, "active");
     }
-    // C. Classificação exata: duas de suporte e seis de evidência.
+    // C. Classificação exata: duas de suporte e sete de evidência.
     assert_eq!(
         target_regions
             .iter()
@@ -5980,7 +6060,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             .iter()
             .filter(|region| evidence_keys.contains(&region.key.as_str()))
             .count(),
-        6
+        7
     );
 
     // I. Preservação integral das 398 regiões da base predecessora.
@@ -6010,7 +6090,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             predecessor_projection.len(),
             fnv1a64(predecessor_projection.as_bytes())
         ),
-        (171_741, 7_038_069_266_194_794_117),
+        (171_561, 8_797_032_270_743_622_683),
         "a projeção estável das 398 regiões predecessoras mudou"
     );
     // Preservação das 392 regiões pós-nav-catalog.
@@ -6026,7 +6106,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             post_nav_projection.len(),
             fnv1a64(post_nav_projection.as_bytes())
         ),
-        (170_076, 12_143_728_175_883_859_804),
+        (169_896, 15_037_406_100_575_433_934),
         "a projeção estável das 392 regiões pós-nav-catalog mudou"
     );
     // J. Preservação do conjunto histórico de 386 regiões da Onda 8.
@@ -6042,15 +6122,15 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (168_339, 1_634_706_628_046_951_093),
+        (168_159, 11_419_973_254_330_089_419),
         "a projeção estável das 386 regiões da Onda 8 mudou"
     );
     // K. Projeção completa desta cápsula, medida — não predita.
     let full_projection = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (174_073, 6_978_817_443_380_137_045),
-        "a projeção estável das 406 regiões mudou"
+        (174_227, 15_007_047_626_274_044_971),
+        "a projeção estável das 407 regiões mudou"
     );
 
     // L. Igualdade com a regeneração canônica do CodeIndex.
@@ -6135,14 +6215,14 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let catalog_path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
     project_pink_agent_wave_a(&mut catalog);
-    assert_eq!(catalog.regions.len(), 425);
+    assert_eq!(catalog.regions.len(), 426);
     assert_eq!(
         catalog
             .regions
             .iter()
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .count(),
-        237
+        238
     );
     assert_eq!(
         catalog
@@ -6290,14 +6370,14 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let mut predecessor_catalog = catalog.clone();
     exclude_pink_agent_wave_a(&mut predecessor_catalog);
     let predecessor: Vec<_> = predecessor_catalog.regions.iter().collect();
-    assert_eq!(predecessor.len(), 406);
+    assert_eq!(predecessor.len(), 407);
     let predecessor_projection = stable_region_projection(predecessor.iter().copied());
     assert_eq!(
         (
             predecessor_projection.len(),
             fnv1a64(predecessor_projection.as_bytes())
         ),
-        (174_073, 6_978_817_443_380_137_045)
+        (174_227, 15_007_047_626_274_044_971)
     );
     let post_query: Vec<_> = predecessor
         .iter()
@@ -6317,13 +6397,16 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     for (regions, expected) in [
         (
             post_query.as_slice(),
-            (398, 171_741, 7_038_069_266_194_794_117),
+            (398, 171_561, 8_797_032_270_743_622_683),
         ),
         (
             post_nav.as_slice(),
-            (392, 170_076, 12_143_728_175_883_859_804),
+            (392, 169_896, 15_037_406_100_575_433_934),
         ),
-        (wave_8.as_slice(), (386, 168_339, 1_634_706_628_046_951_093)),
+        (
+            wave_8.as_slice(),
+            (386, 168_159, 11_419_973_254_330_089_419),
+        ),
     ] {
         let projection = stable_region_projection(regions.iter().copied());
         assert_eq!(
@@ -6338,7 +6421,7 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let full_projection = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (180_271, 9_431_070_192_305_473_617),
+        (180_425, 736_778_772_466_841),
         "projeção final medida da Onda A"
     );
 
@@ -6390,14 +6473,14 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let catalog_path = repository.join("src/navigation.jsonl");
     let catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
-    assert_eq!(catalog.regions.len(), 439);
+    assert_eq!(catalog.regions.len(), 440);
     assert_eq!(
         catalog
             .regions
             .iter()
             .filter(|region| region.key.starts_with("evidencia."))
             .count(),
-        247
+        248
     );
     assert_eq!(
         catalog
@@ -6550,29 +6633,29 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (184_310, 13_249_785_061_595_881_661),
+        (184_464, 13_518_361_488_596_956_878),
         "projeção atual medida da Onda B"
     );
     let mut wave_a = catalog.clone();
     project_pink_agent_wave_a(&mut wave_a);
-    let projection_425 = stable_region_projection(wave_a.regions.iter());
+    let projection_426 = stable_region_projection(wave_a.regions.iter());
     assert_eq!(
         (
             wave_a.regions.len(),
-            projection_425.len(),
-            fnv1a64(projection_425.as_bytes())
+            projection_426.len(),
+            fnv1a64(projection_426.as_bytes())
         ),
-        (425, 180_271, 9_431_070_192_305_473_617)
+        (426, 180_425, 736_778_772_466_841)
     );
     exclude_pink_agent_wave_a(&mut wave_a);
-    let projection_406 = stable_region_projection(wave_a.regions.iter());
+    let projection_407 = stable_region_projection(wave_a.regions.iter());
     assert_eq!(
         (
             wave_a.regions.len(),
-            projection_406.len(),
-            fnv1a64(projection_406.as_bytes())
+            projection_407.len(),
+            fnv1a64(projection_407.as_bytes())
         ),
-        (406, 174_073, 6_978_817_443_380_137_045)
+        (407, 174_227, 15_007_047_626_274_044_971)
     );
     let q: Vec<_> = wave_a
         .regions
@@ -6590,9 +6673,9 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
         .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .collect();
     for (regions, expected) in [
-        (q.as_slice(), (398, 171_741, 7_038_069_266_194_794_117)),
-        (d.as_slice(), (392, 170_076, 12_143_728_175_883_859_804)),
-        (n.as_slice(), (386, 168_339, 1_634_706_628_046_951_093)),
+        (q.as_slice(), (398, 171_561, 8_797_032_270_743_622_683)),
+        (d.as_slice(), (392, 169_896, 15_037_406_100_575_433_934)),
+        (n.as_slice(), (386, 168_159, 11_419_973_254_330_089_419)),
     ] {
         let projection = stable_region_projection(regions.iter().copied());
         assert_eq!(
