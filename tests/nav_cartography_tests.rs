@@ -6295,7 +6295,7 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let full_projection = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (180_156, 15_767_841_551_180_292_729),
+        (180_271, 9_431_070_192_305_473_617),
         "projeção final medida da Onda A"
     );
 

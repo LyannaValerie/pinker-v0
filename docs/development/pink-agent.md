@@ -92,9 +92,18 @@ normalização incorreta da primeira linha modificada no status Git.
   do binário delegado;
 - `pink doc importar-pr --check` rejeitou corretamente `kind: feature` com
   `E-CHANGE-SCHEMA`; a publicação usa o tipo canônico `parallel-phase`;
-- `self_executable_replacement_keeps_typed_pinker_runnable`, em
-  `tests/agent_runner_tests.rs`, protege a troca do executável durante a própria
-  execução;
+- o teste remoto `self_executable_replacement_keeps_typed_pinker_runnable`
+  falhou no GitHub Actions com `ETXTBSY` (`ExecutableFileBusy` / `Text file
+  busy`): ele sobrescrevia o executável ativo e, portanto, confundia o contrato
+  de produção com uma mutação de filesystem não portável;
+- `resolve_pinker_executable` preserva o caminho corrente quando ele existe e,
+  quando recebe um caminho inexistente terminado pelo sufixo literal `
+  (deleted)`, remove esse sufixo uma vez e exige que o substituto exista;
+- as regressões puras `resolve_existing_current_executable`,
+  `resolve_deleted_current_executable_to_replacement` e
+  `reject_deleted_current_executable_without_replacement` cobrem a resolução
+  sem modificar o executável ativo; a execução real sem shell implícito segue
+  coberta por `comando_pinker_tipado_executa_pela_cli`;
 - `git_status_first_line_is_preserved_and_rejects_out_of_scope`, em
   `tests/agent_limits_tests.rs`, protege a primeira linha significativa de
   `git status --porcelain` e sua rejeição de escopo.

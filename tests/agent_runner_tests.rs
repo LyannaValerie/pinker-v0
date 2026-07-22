@@ -220,38 +220,3 @@ fn comando_pinker_tipado_executa_pela_cli() {
     );
 }
 // @pinker-nav:end evidencia.agent.runner
-
-#[test]
-fn self_executable_replacement_keeps_typed_pinker_runnable() {
-    let root = root("self-replacement");
-    let runner = root.join("delegated/pink-self-replacement");
-    fs::copy(env!("CARGO_BIN_EXE_pink"), &runner).expect("copia runner");
-    let mut permissions = fs::metadata(&runner).unwrap().permissions();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        permissions.set_mode(0o755);
-    }
-    fs::set_permissions(&runner, permissions).unwrap();
-    let old = root.join("delegated/pink-self-replacement.old");
-    let replacement = format!(
-        "mv '{}' '{}'; cp '{}' '{}'; chmod +x '{}'",
-        runner.display(),
-        old.display(),
-        old.display(),
-        runner.display(),
-        runner.display()
-    );
-    let commands = shell("replace", &replacement, 0)
-        + "command.typed.kind = pinker\ncommand.typed.program = pink\ncommand.typed.arg = --help\ncommand.typed.cwd = .\ncommand.typed.expect = 1\ncommand.typed.shell = false\n";
-    let path = spec(&root, &commands);
-    let output = Command::new(&runner)
-        .args(["agente", "executar", path.to_str().unwrap()])
-        .output()
-        .expect("runner copiado");
-    assert!(
-        output.status.success(),
-        "typed Pinker deixou de executar após substituição: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}

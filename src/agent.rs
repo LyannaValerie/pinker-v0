@@ -492,7 +492,7 @@ fn artifact_manifest(root: &Path) -> Result<String, String> {
 // @pinker-nav:start development.agent.runner
 // @pinker-nav:domain development
 // @pinker-nav:layer agent
-// @pinker-nav:summary Executor de processos estruturados ou Pinker tipado: cwd e env confinados, shell somente quando declarado, captura simultânea de stdout/stderr, persistência por comando, eco terminal, duração e comparação do código observado com o esperado.
+// @pinker-nav:summary Executor de processos estruturados ou Pinker tipado: resolve deterministicamente o executável corrente e o substituto indicado pelo sufixo Linux ` (deleted)`, mantém cwd e env confinados, shell somente quando declarado, captura simultânea de stdout/stderr, persistência por comando, eco terminal, duração e comparação do código observado com o esperado.
 #[derive(Clone, Debug)]
 struct CommandResult {
     id: String,
@@ -501,6 +501,26 @@ struct CommandResult {
     expected_exit: i32,
     duration_ms: u128,
     shell: bool,
+}
+
+fn resolve_pinker_executable(current: &Path) -> Result<PathBuf, String> {
+    if current.exists() {
+        return Ok(current.to_path_buf());
+    }
+
+    let display = current.to_string_lossy();
+    let replacement = display
+        .strip_suffix(" (deleted)")
+        .map(PathBuf::from)
+        .ok_or_else(|| format!("executável Pinker corrente indisponível: {display}"))?;
+    if replacement.exists() {
+        Ok(replacement)
+    } else {
+        Err(format!(
+            "executável Pinker corrente indisponível: {display}; substituto ausente: {}",
+            replacement.display()
+        ))
+    }
 }
 
 fn execute_one(spec: &Spec, command: &CommandSpec) -> Result<(CommandResult, Output), String> {
@@ -512,16 +532,7 @@ fn execute_one(spec: &Spec, command: &CommandSpec) -> Result<(CommandResult, Out
         shell
     } else if matches!(command.kind, CommandKind::Pinker) {
         let current = env::current_exe().map_err(|err| err.to_string())?;
-        let executable = if current.exists() {
-            current
-        } else {
-            let display = current.to_string_lossy();
-            display
-                .strip_suffix(" (deleted)")
-                .map(PathBuf::from)
-                .filter(|path| path.exists())
-                .ok_or_else(|| format!("executável Pinker corrente indisponível: {display}"))?
-        };
+        let executable = resolve_pinker_executable(&current)?;
         let mut pink = Command::new(executable);
         pink.args(&command.argv);
         pink
@@ -561,6 +572,7 @@ fn execute_one(spec: &Spec, command: &CommandSpec) -> Result<(CommandResult, Out
         output,
     ))
 }
+
 // @pinker-nav:end development.agent.runner
 
 // @pinker-nav:start development.agent.lifecycle
@@ -802,3 +814,55 @@ pub fn timestamp_metadata() -> u64 {
         .as_secs()
 }
 // @pinker-nav:end development.agent.lifecycle
+
+#[cfg(test)]
+mod executable_resolution_tests {
+    use super::resolve_pinker_executable;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+
+    fn test_root(label: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "pink-agent-resolver-{label}-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&root).expect("diretório temporário do resolver");
+        root
+    }
+
+    #[test]
+    fn resolve_existing_current_executable() {
+        let root = test_root("existing");
+        let current = root.join("pink");
+        fs::write(&current, b"replacement").expect("executável corrente sintético");
+
+        assert_eq!(resolve_pinker_executable(&current).unwrap(), current);
+        fs::remove_dir_all(root).expect("limpeza do resolver");
+    }
+
+    #[test]
+    fn resolve_deleted_current_executable_to_replacement() {
+        let root = test_root("deleted");
+        let replacement = root.join("pink");
+        fs::write(&replacement, b"replacement").expect("substituto sintético");
+        let deleted = PathBuf::from(format!("{} (deleted)", replacement.display()));
+
+        assert_eq!(resolve_pinker_executable(&deleted).unwrap(), replacement);
+        fs::remove_dir_all(root).expect("limpeza do resolver");
+    }
+
+    #[test]
+    fn reject_deleted_current_executable_without_replacement() {
+        let root = test_root("missing");
+        let replacement = root.join("pink");
+        let deleted = PathBuf::from(format!("{} (deleted)", replacement.display()));
+
+        let error = resolve_pinker_executable(&deleted).unwrap_err();
+        assert!(error.contains("substituto ausente"), "{error}");
+        fs::remove_dir_all(root).expect("limpeza do resolver");
+    }
+}
