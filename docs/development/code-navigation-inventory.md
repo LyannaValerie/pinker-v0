@@ -48,8 +48,10 @@ aceita com **386 regiões**, das quais **203** estão na camada `evidencia` e
 **15** na camada `runtime`. A primeira cápsula operacional/documental da Trama
 está completa e acrescenta seis regiões em `tests/nav_catalog_tests.rs`; a
 segunda cápsula operacional/documental da Trama está completa e acrescenta seis
-regiões em `tests/doc_catalog_tests.rs`. Estado atual explícito: Onda 8A–8J;
-catálogo atual = 398; evidencia atual = 215; runtime atual = 15;
+regiões em `tests/doc_catalog_tests.rs`; a terceira cápsula
+operacional/documental da Trama está completa e acrescenta oito regiões em
+`tests/trama_query_tests.rs`. Estado atual explícito: Onda 8A–8J;
+catálogo atual = 406; evidencia atual = 223; runtime atual = 15;
 `onda_8_complete = true`; `trama_complete = false`.
 `apps/` permanece reservada à Onda 9.
 
@@ -1812,12 +1814,69 @@ não oferece suporte a apps/.
 Estado de continuidade: próximo alvo: tests/trama_query_tests.rs.
 `apps/` permanece reservada à Onda 9.
 
+## Terceira cápsula operacional/documental da Trama
+
+A terceira cápsula operacional/documental da Trama está completa.
+`tests/trama_query_tests.rs: 8 regiões`, classificadas como
+**2 suporte + 6 evidência**, cobrem a estrutura exata de
+**4 constantes + 6 helpers + 10 testes**. As duas regiões de suporte agrupam a
+configuração de fixture (`DOC_TOML`, `PORTAL`, `CORE`, `SRC`) e o maquinário de
+processo (`temp_repo`, `write`, `fixture`, `doc`, `nav`, `code`); as seis
+regiões de evidência cobrem consulta somente-catálogo, deriva de fonte,
+estabilidade de JSON, limite de resultados, erros de catálogo e códigos de
+saída de consulta.
+
+A cartografia é **somente por linhas de marcador**: retirar as 40 linhas
+`@pinker-nav:` reconstrói byte a byte a fonte-base
+`65ba7f360174b1ef15ab5b9e246e3a0fce8e888359798898986969ff9c016f3f`. O texto
+semelhante a marcador dentro do literal Rust `SRC`
+(`// @pinker-nav:start rosa.identidade.core`) permanece conteúdo de fixture e
+**não** é contado como marcador real. Nenhuma linha original foi alterada,
+nenhum teste foi reordenado, nenhum helper foi movido e nenhuma fixture foi
+reescrita. O catálogo passa a 406/223/15 sem remover ou alterar semanticamente
+as 398 regiões da base predecessora — projeção estável preservada em 171741
+bytes / `61ac3eb554228685` —, as 392 regiões pós-nav-catalog — 170076 bytes /
+`a887306f8c75b75c` — nem as 386 regiões históricas da Onda 8 — 168339 bytes /
+`16afa50464b712b5`. A projeção completa das 406 regiões mede 174073 bytes /
+`60d9bd7d48f90c55`. Estado atual explícito desta cápsula: catálogo atual = 406;
+evidencia atual = 223; runtime atual = 15; `onda_8_complete = true`;
+`trama_complete = false`.
+
+O escopo continua deliberadamente limitado: a suíte usa repositórios
+sintéticos, executa `pink doc` e `pink nav` em processos filhos, faz asserções
+seletivas e usa limpeza explícita, não RAII, portanto pode deixar sobras após
+panic. A presença de campos JSON não é validação de schema completa; a
+igualdade repetida não prova toda a semântica de ranking; a remoção observada
+de fontes não prova toda independência possível de fonte; os casos de erro de
+catálogo não são validação exaustiva do parser; a cobertura de códigos de saída
+não é exaustiva. A cartografia não prova a correção semântica completa da CLI,
+não é validação exaustiva do catálogo e não prova comportamento de processos
+independente de plataforma. Também não conclui a Trama, não ativa a Onda 9 e
+não oferece suporte a apps/.
+
+Prontidão para fechamento: `ADDITIONAL_CAPSULES_REQUIRED`. A consulta é a última
+cápsula individualmente nomeada, mas **não** é a última cápsula operacional:
+antes de um fechamento formal resta uma tranche operacional consolidada
+cobrindo exatamente `tests/trama_ci_tests.rs`, `tests/trama_manifest_tests.rs`,
+`tests/trama_projection_tests.rs`, `tests/trama_scale_tests.rs`,
+`tests/trama_sync_tests.rs` e `tests/trama_template_tests.rs`. O fechamento
+formal não é autorizado por esta cápsula e a Onda 9 não começa automaticamente.
+`apps/` permanece reservada à Onda 9.
+
 ## Próximo ponto de retomada
 
-A tarefa singular seguinte é **cartografar `tests/trama_query_tests.rs`**. As
-cápsulas de `tests/nav_catalog_tests.rs` e `tests/doc_catalog_tests.rs` já estão
-completas, a Onda 8 permanece completa e a Trama permanece incompleta. Ordem
-nominal subsequente esperada:
+A tarefa singular seguinte é **cartografar a tranche operacional consolidada das
+demais suítes operacionais de `tests/`**. As cápsulas de
+`tests/nav_catalog_tests.rs`, `tests/doc_catalog_tests.rs` e
+`tests/trama_query_tests.rs` já estão completas, a Onda 8 permanece completa e a
+Trama permanece incompleta. A prontidão para fechamento é
+`ADDITIONAL_CAPSULES_REQUIRED`: a consulta é a última cápsula individualmente
+nomeada, mas não a última cápsula operacional. Ordem nominal subsequente
+esperada:
 
-1. `tests/trama_query_tests.rs`
-2. demais suítes operacionais de `tests/`
+1. tranche consolidada cobrindo `tests/trama_ci_tests.rs`,
+   `tests/trama_manifest_tests.rs`, `tests/trama_projection_tests.rs`,
+   `tests/trama_scale_tests.rs`, `tests/trama_sync_tests.rs` e
+   `tests/trama_template_tests.rs`
+2. fechamento operacional formal — tarefa separada; a Onda 9 não começa
+   automaticamente e `apps/` permanece reservada à Onda 9
