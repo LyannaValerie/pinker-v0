@@ -1880,21 +1880,11 @@ formal não é autorizado por esta cápsula e a Onda 9 não começa automaticame
 
 ## Próximo ponto de retomada
 
-A tarefa singular seguinte é **cartografar a tranche operacional consolidada das
-demais suítes operacionais de `tests/`**. As cápsulas de
-`tests/nav_catalog_tests.rs`, `tests/doc_catalog_tests.rs` e
-`tests/trama_query_tests.rs` já estão completas, a Onda 8 permanece completa e a
-Trama permanece incompleta. A prontidão para fechamento é
-`ADDITIONAL_CAPSULES_REQUIRED`: a consulta é a última cápsula individualmente
-nomeada, mas não a última cápsula operacional. Ordem nominal subsequente
-esperada:
-
-1. tranche consolidada cobrindo `tests/trama_ci_tests.rs`,
-   `tests/trama_manifest_tests.rs`, `tests/trama_projection_tests.rs`,
-   `tests/trama_scale_tests.rs`, `tests/trama_sync_tests.rs` e
-   `tests/trama_template_tests.rs`
-2. fechamento operacional formal — tarefa separada; a Onda 9 não começa
-   automaticamente e `apps/` permanece reservada à Onda 9
+As seis suítes operacionais — antes descritas como as demais suítes operacionais de `tests/`
+da tranche consolidada — estão cartografadas pelas
+Ondas A–C. A tarefa singular seguinte é o fechamento operacional formal da Onda
+D, em trabalho separado. A Onda 9 não começa automaticamente e `apps/`
+permanece reservada à Onda 9; `trama_complete = false`.
 
 ## Cápsula `pink agente` — Onda B
 
@@ -1912,3 +1902,24 @@ Onda C é a próxima cápsula, com `tests/trama_projection_tests.rs` e
 operacionais delimitadas: não fornecem sandbox de SO, semântica de negócio,
 cobertura exaustiva nem restauração crash-proof. A Onda B não publica pelo
 próprio runner e não conclui a Trama.
+
+## Cápsula `pink agente` — Onda C
+
+A Onda C completa acrescenta quatro regiões de produção
+(`development.agent.pr-body`, `development.agent.publication`,
+`development.agent.remote-checks` e `development.agent.resume`) e nove
+regiões marker-only em `tests/trama_projection_tests.rs` e
+`tests/trama_scale_tests.rs`: quatro support e cinco evidence. O catálogo
+passa a 452 regiões, 256 chaves `evidencia.*` e 15 regiões runtime.
+
+O runner valida o corpo de PR, cria commit por conjunto exato, faz um push
+normal, cria ou reconcilia uma única PR, verifica o corpo remoto e observa
+somente os checks do SHA candidato. O dogfood divide publicação e retomada:
+`publicar` deixa `CHECKS_PENDING`; `retomar` reconcilia identidades e só
+aceita após todos os checks obrigatórios em `SUCCESS`. A allowlist GH exclui
+edição, comentário, review, rerun, merge e auto-merge.
+
+As seis suítes operacionais estão cartografadas, mas o fechamento formal
+continua reservado à Onda D. `trama_complete = false`; Onda 9 inativa;
+`apps/` reservada. Não se alega sandbox, atomicidade distribuída,
+disponibilidade do GitHub, correção remota automática ou cobertura exaustiva.

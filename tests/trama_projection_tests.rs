@@ -6,6 +6,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// @pinker-nav:start evidencia.trama.projection.fixture-config
+// @pinker-nav:domain development
+// @pinker-nav:layer support
+// @pinker-nav:summary Quatro constantes definem configurações documentais completas ou sem state e corpos de PR para projeções integrais e isoladas.
 const DOC_TOML_FULL: &str = r#"schema = 1
 
 [github]
@@ -54,7 +58,12 @@ region = "change.history"
 const BODY: &str = "## Resumo\ntexto\n\n```pinker-change\nschema: 1\nkind: phase\nphase: 241\nblock: 20\ntitle: Biblioteca de Resultado\narea:\n  - language.result\nstatus: completed\nupdates:\n  state: true\n  history: true\n  roadmap: true\nsections:\n  implemented:\n    - result.predeclared\n```\n";
 
 const BODY_STATE_ONLY: &str = "## Resumo\ntexto\n\n```pinker-change\nschema: 1\nkind: phase\ntitle: X\nstatus: completed\nupdates:\n  state: true\n```\n";
+// @pinker-nav:end evidencia.trama.projection.fixture-config
 
+// @pinker-nav:start evidencia.trama.projection.process-support
+// @pinker-nav:domain development
+// @pinker-nav:layer support
+// @pinker-nav:summary Sete helpers constroem portais, destinos, repositórios temporários, arquivos, processos doc, importação e a fixture documental completa.
 fn portal(id: &str, domain: &str) -> String {
     format!("---\npinker-doc: 1\nid: {id}\ndomain: {domain}\nkind: portal\nstatus: active\nparent: atlas\n---\n\n# {id}\n\nPortal.\n")
 }
@@ -139,7 +148,12 @@ fn full_fixture(root: &Path, body: &str) {
         ),
     );
 }
+// @pinker-nav:end evidencia.trama.projection.process-support
 
+// @pinker-nav:start evidencia.trama.projection.families-human-preservation
+// @pinker-nav:domain development
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidência de projeção conjunta de history, state e roadmap com preservação das regiões humanas dos documentos.
 #[test]
 fn projecoes_history_state_roadmap_e_regioes_humanas() {
     let root = temp_repo("full");
@@ -172,7 +186,12 @@ fn projecoes_history_state_roadmap_e_regioes_humanas() {
 
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.projection.families-human-preservation
 
+// @pinker-nav:start evidencia.trama.projection.idempotence
+// @pinker-nav:domain development
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidência de que sincronizações documentais repetidas são idempotentes e permanecem aprovadas por verificar.
 #[test]
 fn projecoes_sao_idempotentes() {
     let root = temp_repo("idem");
@@ -194,7 +213,12 @@ fn projecoes_sao_idempotentes() {
 
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.projection.idempotence
 
+// @pinker-nav:start evidencia.trama.projection.missing-consumer
+// @pinker-nav:domain development
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidência de erro quando uma atualização state não possui consumidor de projeção configurado.
 #[test]
 fn flag_updates_sem_consumidor_causa_erro() {
     let root = temp_repo("no_consumer");
@@ -219,3 +243,4 @@ fn flag_updates_sem_consumidor_causa_erro() {
 
     fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.projection.missing-consumer

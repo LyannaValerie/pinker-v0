@@ -63,6 +63,8 @@ fn exclude_pink_agent_wave_a(catalog: &mut CodeCatalog) {
                 | "tests/trama_ci_tests.rs"
                 | "tests/trama_template_tests.rs"
                 | "tests/trama_manifest_tests.rs"
+                | "tests/trama_projection_tests.rs"
+                | "tests/trama_scale_tests.rs"
                 | "tests/trama_sync_tests.rs"
         )
     });
@@ -113,6 +115,38 @@ fn project_pink_agent_wave_a(catalog: &mut CodeCatalog) {
             "evidencia.agent.cli-spec" => Some("fnv1a64:6f1fbe9b891aab9b"),
             "evidencia.agent.limits" => Some("fnv1a64:9590a1ee3b6819e9"),
             "evidencia.agent.runner" => Some("fnv1a64:8165e1937f5620fd"),
+            _ => None,
+        };
+        if let Some(hash) = hash {
+            region.hash = hash.to_string();
+        }
+    }
+}
+
+fn exclude_pink_agent_wave_c(catalog: &mut CodeCatalog) {
+    catalog.regions.retain(|region| {
+        !matches!(
+            region.key.as_str(),
+            "development.agent.pr-body"
+                | "development.agent.publication"
+                | "development.agent.remote-checks"
+                | "development.agent.resume"
+        ) && !matches!(
+            region.file.as_str(),
+            "tests/trama_projection_tests.rs" | "tests/trama_scale_tests.rs"
+        )
+    });
+    for region in &mut catalog.regions {
+        let hash = match region.key.as_str() {
+            "cli.ajuda.usage" => Some("fnv1a64:fe90d283bfb17400"),
+            "cli.config.modelos" => Some("fnv1a64:279c348850bae6ef"),
+            "cli.execucao.entrada" => Some("fnv1a64:af0ecbd3d9ab714b"),
+            "cli.parsing.subcomandos" => Some("fnv1a64:119fe4d0c208d5f0"),
+            "development.agent.paths" => Some("fnv1a64:aff4b96491482ffa"),
+            "development.agent.spec" => Some("fnv1a64:3ed685ed0e8f60e9"),
+            "evidencia.agent.cli-spec" => Some("fnv1a64:07a26a5415117243"),
+            "evidencia.agent.limits" => Some("fnv1a64:f7c43d286e2773d8"),
+            "evidencia.agent.runner" => Some("fnv1a64:0cad49e5ebaf479e"),
             _ => None,
         };
         if let Some(hash) = hash {
@@ -6134,6 +6168,7 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let catalog_path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    exclude_pink_agent_wave_c(&mut catalog);
     project_pink_agent_wave_a(&mut catalog);
     assert_eq!(catalog.regions.len(), 425);
     assert_eq!(
@@ -6389,7 +6424,9 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
 fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let catalog_path = repository.join("src/navigation.jsonl");
-    let catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    let current = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    let mut catalog = current.clone();
+    exclude_pink_agent_wave_c(&mut catalog);
     assert_eq!(catalog.regions.len(), 439);
     assert_eq!(
         catalog
@@ -6644,4 +6681,232 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
     }
     assert!(!docs.contains("trama_complete = true"));
     assert!(!docs.contains("Onda 9 ativa"));
+}
+
+#[test]
+fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let catalog_path = repository.join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    assert_eq!(catalog.regions.len(), 452);
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.key.starts_with("evidencia."))
+            .count(),
+        256
+    );
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("runtime"))
+            .count(),
+        15
+    );
+
+    let agent_keys = [
+        "development.agent.pr-body",
+        "development.agent.publication",
+        "development.agent.remote-checks",
+        "development.agent.resume",
+    ];
+    let trama_keys = [
+        "evidencia.trama.projection.fixture-config",
+        "evidencia.trama.projection.process-support",
+        "evidencia.trama.projection.families-human-preservation",
+        "evidencia.trama.projection.idempotence",
+        "evidencia.trama.projection.missing-consumer",
+        "evidencia.trama.scale.fixture-config",
+        "evidencia.trama.scale.process-support",
+        "evidencia.trama.scale.large-catalog",
+        "evidencia.trama.scale.deterministic-order",
+    ];
+    for key in agent_keys.iter().chain(trama_keys.iter()) {
+        assert_eq!(
+            catalog
+                .regions
+                .iter()
+                .filter(|region| region.key == *key)
+                .count(),
+            1,
+            "região ausente ou duplicada: {key}"
+        );
+    }
+    let trama = catalog
+        .regions
+        .iter()
+        .filter(|region| trama_keys.contains(&region.key.as_str()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        trama
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("support"))
+            .count(),
+        4
+    );
+    assert_eq!(
+        trama
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("evidence"))
+            .count(),
+        5
+    );
+    let ownership = [
+        (
+            "tests/trama_projection_tests.rs",
+            [
+                "const DOC_TOML_FULL",
+                "const DOC_TOML_NO_STATE",
+                "const BODY",
+                "const BODY_STATE_ONLY",
+                "fn portal",
+                "fn target",
+                "fn temp_repo",
+                "fn write",
+                "fn doc",
+                "fn import",
+                "fn full_fixture",
+                "fn projecoes_history_state_roadmap_e_regioes_humanas",
+                "fn projecoes_sao_idempotentes",
+                "fn flag_updates_sem_consumidor_causa_erro",
+            ]
+            .as_slice(),
+        ),
+        (
+            "tests/trama_scale_tests.rs",
+            [
+                "const DOC_TOML",
+                "fn temp_repo",
+                "fn write",
+                "fn doc",
+                "fn synthetic_catalog",
+                "fn catalogo_com_mais_de_5000_entradas_e_consultavel",
+                "fn ordenacao_determinista_em_escala",
+            ]
+            .as_slice(),
+        ),
+    ];
+    for (file, symbols) in ownership {
+        let source = fs::read_to_string(repository.join(file)).expect("fonte");
+        let regions = catalog
+            .regions
+            .iter()
+            .filter(|region| region.file == file)
+            .collect::<Vec<_>>();
+        for symbol in symbols {
+            let line = source
+                .lines()
+                .position(|candidate| candidate.contains(symbol))
+                .map(|index| index + 1)
+                .unwrap();
+            assert_eq!(
+                regions
+                    .iter()
+                    .filter(|region| line >= region.content_start && line <= region.content_end)
+                    .count(),
+                1,
+                "ownership não exato: {symbol}"
+            );
+        }
+    }
+    assert_eq!(
+        [
+            "tests/trama_projection_tests.rs",
+            "tests/trama_scale_tests.rs"
+        ]
+        .iter()
+        .map(|file| fs::read_to_string(repository.join(file))
+            .unwrap()
+            .lines()
+            .filter(|line| line.trim_start().starts_with("// @pinker-nav:"))
+            .count())
+        .sum::<usize>(),
+        45
+    );
+    for (file, expected_sha) in [
+        (
+            "tests/trama_projection_tests.rs",
+            "0b4af6240fc8e106ebc1b00bcbecb8f6884c8d12cd9ee5148028105bc3f567a3",
+        ),
+        (
+            "tests/trama_scale_tests.rs",
+            "f79be70554969da5d8499a2e20b1cb46881a3e5575ee2da8569d53d46f933e8c",
+        ),
+    ] {
+        let source = fs::read_to_string(repository.join(file)).unwrap();
+        let stripped = source
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("// @pinker-nav:"))
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n";
+        assert_eq!(sha256_hex(stripped.as_bytes()), expected_sha);
+    }
+
+    let full = stable_region_projection(catalog.regions.iter());
+    assert_eq!(
+        (full.len(), fnv1a64(full.as_bytes())),
+        (188_231, 802_600_455_791_996_707),
+        "projeção atual medida da Onda C"
+    );
+    let mut wave_b = catalog.clone();
+    exclude_pink_agent_wave_c(&mut wave_b);
+    let projection_439 = stable_region_projection(wave_b.regions.iter());
+    assert_eq!(
+        (
+            wave_b.regions.len(),
+            projection_439.len(),
+            fnv1a64(projection_439.as_bytes())
+        ),
+        (439, 184_310, 13_249_785_061_595_881_661)
+    );
+    let core = include_str!("../src/agent.rs");
+    for contract in [
+        "run_pr_body_check",
+        "pub fn publicar",
+        "read_required_checks",
+        "pub fn retomar",
+        "comando GH não autorizado",
+    ] {
+        assert!(core.contains(contract));
+    }
+    for forbidden in [
+        "gh pr merge",
+        "gh pr edit",
+        "gh run rerun",
+        "\"--auto-merge\"",
+    ] {
+        assert!(!core.contains(forbidden));
+    }
+    let docs = format!(
+        "{}\n{}\n{}",
+        include_str!("../docs/development/pink-agent.md"),
+        include_str!("../docs/development/pink-agent-roadmap.md"),
+        include_str!("../docs/development/code-navigation-inventory.md")
+    );
+    for statement in [
+        "Onda A completa",
+        "Onda B completa",
+        "Onda C completa",
+        "Onda D",
+        "seis suítes operacionais",
+        "trama_complete = false",
+        "Onda 9 inativa",
+        "`apps/` reservada",
+    ] {
+        assert!(
+            docs.contains(statement),
+            "documentação ausente: {statement}"
+        );
+    }
+    assert!(!docs.contains("trama_complete = true"));
+    assert!(!docs.contains("Onda 9 ativa"));
+    let regenerated = CodeIndex::scan_repo(&repository).expect("regeneração canônica");
+    assert!(regenerated.verify().is_empty());
+    assert_eq!(
+        fs::read_to_string(catalog_path).unwrap(),
+        regenerated.render_jsonl()
+    );
 }

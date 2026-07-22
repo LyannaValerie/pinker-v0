@@ -266,4 +266,26 @@ fn mutation_snippet_escape_e_rejeitado() {
     );
     assert!(parse_spec_text(&text).unwrap_err().contains("fuga"));
 }
+
+#[test]
+fn pr_body_path_escape_e_rejeitado() {
+    let text = base(
+        "/repo",
+        "/repo/worktree",
+        "/repo/delegated",
+        "check.body.kind = pr-body\ncheck.body.path = ../body.md\ncheck.body.validation_pr_number = 1\ncheck.body.expected_kind = parallel-phase\ncheck.body.expected_title = T\ncheck.body.forbid_sentinel = true\n",
+    );
+    assert!(parse_spec_text(&text)
+        .unwrap_err()
+        .contains("relativo inválido"));
+}
+
+#[test]
+fn publication_change_escape_e_rejeitado() {
+    let fields = "publication.repository = LyannaValerie/pinker-v0\npublication.remote = origin\npublication.base_branch = main\npublication.expected_base = fixture\npublication.head_branch = agents/test\npublication.commit_message = test\npublication.change = ../fora\npublication.pr_title = test\npublication.pr_body = body.md\npublication.draft = false\npublication.required_check = rust\npublication.defer_checks = true\npublication.poll_seconds = 1\npublication.timeout_seconds = 2\n";
+    let text = base("/repo", "/repo/worktree", "/repo/delegated", fields);
+    assert!(parse_spec_text(&text)
+        .unwrap_err()
+        .contains("relativo inválido"));
+}
 // @pinker-nav:end evidencia.agent.limits
