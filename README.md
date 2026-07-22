@@ -117,6 +117,7 @@ pipeline. O README só mantém o mapa de leitura.
 
 | Documento | Papel |
 |---|---|
+| [Como contribuir](CONTRIBUTING.md) | Guia para contribuições humanas externas |
 | `MANUAL.md` | Manual prático da linguagem implementada |
 | `docs/atlas.md` | Mapa mestre da documentação |
 | `docs/handoff_codex.md` | Estado operacional corrente |
