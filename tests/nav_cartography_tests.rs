@@ -52,6 +52,33 @@ fn stable_region_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -
     records.concat()
 }
 
+fn exclude_pink_agent_wave_a(catalog: &mut CodeCatalog) {
+    catalog.regions.retain(|region| {
+        !matches!(
+            region.file.as_str(),
+            "src/agent.rs"
+                | "tests/agent_cli_tests.rs"
+                | "tests/agent_runner_tests.rs"
+                | "tests/agent_limits_tests.rs"
+                | "tests/trama_ci_tests.rs"
+                | "tests/trama_template_tests.rs"
+        )
+    });
+    for region in &mut catalog.regions {
+        let predecessor_hash = match region.key.as_str() {
+            "cli.ajuda.usage" => Some("fnv1a64:e113d106c5deb0fb"),
+            "cli.config.modelos" => Some("fnv1a64:2283afca0ebd2802"),
+            "cli.execucao.entrada" => Some("fnv1a64:35d79f4547ac200b"),
+            "cli.parsing.roteamento" => Some("fnv1a64:7dfa8a6f46dbe881"),
+            "cli.parsing.subcomandos" => Some("fnv1a64:c4ac5c32759f34c7"),
+            _ => None,
+        };
+        if let Some(hash) = predecessor_hash {
+            region.hash = hash.to_string();
+        }
+    }
+}
+
 fn fnv1a64(bytes: &[u8]) -> u64 {
     bytes.iter().fold(0xcbf29ce484222325u64, |hash, byte| {
         (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
@@ -1748,7 +1775,8 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
 #[test]
 fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
-    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    exclude_pink_agent_wave_a(&mut catalog);
 
     // A Onda 8E cartografa 534 testes de tests/interpreter_tests.rs (evidências
     // da execução interpretada da Pinker) em 46 regiões no domínio `interpreter`.
@@ -2089,7 +2117,8 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
 fn onda_8f_cartografa_evidencias_do_backend_textual() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
-    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    exclude_pink_agent_wave_a(&mut catalog);
 
     let expected_regions: [(&str, &str, &[&str], usize); 8] = [
         (
@@ -2344,7 +2373,8 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
 fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
-    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    exclude_pink_agent_wave_a(&mut catalog);
 
     let expected_regions: [(&str, &str, &[&str], usize, &str); 7] = [
         (
@@ -2970,7 +3000,8 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
     }
 
     let catalog_path = repository.join("src/navigation.jsonl");
-    let catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    exclude_pink_agent_wave_a(&mut catalog);
     // Escopo desta cápsula: o catálogo tal como fechado por ela. As cápsulas
     // seguintes acrescentam arquivos próprios, excluídos aqui para que os
     // literais congelados 392/209/15 continuem valendo sem enfraquecimento.
@@ -3341,7 +3372,8 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
 
     // D. e H. Catálogo versionado: metadados exatos e totais 398/215/15.
     let catalog_path = repository.join("src/navigation.jsonl");
-    let catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    exclude_pink_agent_wave_a(&mut catalog);
     // Extensão de seletor: `tests/trama_query_tests.rs` (cápsula posterior) é
     // excluído para que o instantâneo congelado 398/215/15 e as projeções
     // pinadas desta cápsula permaneçam exatos, sem enfraquecimento.
@@ -3538,7 +3570,8 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
 fn onda_8_convergencia_fecha_cadeia_8a_8j() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
-    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    exclude_pink_agent_wave_a(&mut catalog);
     // As cápsulas operacionais/documentais posteriores ao fechamento acrescentam
     // regiões novas em arquivos próprios; o conjunto congelado da Onda 8 é o
     // complemento exato desses arquivos e permanece com os mesmos literais.
@@ -3676,7 +3709,8 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
 fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
-    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    exclude_pink_agent_wave_a(&mut catalog);
 
     let central = "tests/backend_s_external_toolchain_tests.rs";
     let helper_file = "tests/common/mod.rs";
@@ -4283,7 +4317,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
 fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
-    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    exclude_pink_agent_wave_a(&mut catalog);
 
     let central = "tests/backend_nativo_tests.rs";
 
@@ -4975,7 +5010,8 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
 fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
-    let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    exclude_pink_agent_wave_a(&mut catalog);
 
     let central = "runtime/pinker_rt/src/lib.rs";
 
@@ -5844,7 +5880,8 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
 
     // D. e H. Catálogo versionado: metadados exatos e totais 406/223/15.
     let catalog_path = repository.join("src/navigation.jsonl");
-    let catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    exclude_pink_agent_wave_a(&mut catalog);
     assert_eq!(catalog.regions.len(), 406);
     assert_eq!(
         catalog
@@ -6048,4 +6085,259 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         !inventory_flat.contains("trama_complete = true"),
         "a Trama permanece incompleta até um fechamento formal separado"
     );
+}
+
+#[test]
+fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let catalog_path = repository.join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    assert_eq!(catalog.regions.len(), 425);
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("evidencia"))
+            .count(),
+        237
+    );
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.layer.as_deref() == Some("runtime"))
+            .count(),
+        15
+    );
+
+    let ci_keys = [
+        "evidencia.trama.ci.workflow-path",
+        "evidencia.trama.ci.b64-scan",
+        "evidencia.trama.ci.temporary-runner",
+        "evidencia.trama.ci.readonly-workflow",
+        "evidencia.trama.ci.change-validation",
+        "evidencia.trama.ci.temporary-artifacts",
+        "evidencia.trama.ci.all-workflows-readonly",
+    ];
+    let template_keys = [
+        "evidencia.trama.template.parse-support",
+        "evidencia.trama.template.block-structure",
+        "evidencia.trama.template.placeholder-safety",
+        "evidencia.trama.template.filled-valid",
+    ];
+    let agent_keys = [
+        "development.agent.spec",
+        "development.agent.paths",
+        "development.agent.artifacts",
+        "development.agent.runner",
+        "development.agent.lifecycle",
+        "evidencia.agent.cli-spec",
+        "evidencia.agent.runner",
+        "evidencia.agent.limits",
+    ];
+    for key in ci_keys
+        .iter()
+        .chain(template_keys.iter())
+        .chain(agent_keys.iter())
+    {
+        assert_eq!(
+            catalog
+                .regions
+                .iter()
+                .filter(|region| region.key == *key)
+                .count(),
+            1,
+            "região ausente ou duplicada: {key}"
+        );
+    }
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.file == "tests/trama_ci_tests.rs")
+            .count(),
+        7
+    );
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|region| region.file == "tests/trama_template_tests.rs")
+            .count(),
+        4
+    );
+
+    let ownership = [
+        (
+            "tests/trama_ci_tests.rs",
+            [
+                "fn workflow_dir",
+                "fn has_b64",
+                "fn runner_temporario_foi_removido",
+                "fn workflow_permanente_e_somente_leitura",
+                "fn workflow_valida_bloco_incondicionalmente_e_reage_a_edicao",
+                "fn artefatos_temporarios_nao_existem",
+                "fn nenhum_workflow_permanente_escreve_na_branch",
+            ]
+            .as_slice(),
+        ),
+        (
+            "tests/trama_template_tests.rs",
+            [
+                "fn template()",
+                "fn fence_count",
+                "fn extract_block",
+                "fn template_tem_exatamente_um_bloco_pinker_change",
+                "fn bloco_do_template_nao_tem_comentario_inline",
+                "fn template_cru_falha_com_placeholder",
+                "fn template_nao_traz_valores_padrao_enganosos",
+                "fn template_preenchido_passa_parse_e_validate",
+            ]
+            .as_slice(),
+        ),
+    ];
+    for (file, symbols) in ownership {
+        let source = fs::read_to_string(repository.join(file)).expect("fonte de ownership");
+        let regions: Vec<_> = catalog
+            .regions
+            .iter()
+            .filter(|region| region.file == file)
+            .collect();
+        for symbol in symbols {
+            let line = source
+                .lines()
+                .position(|candidate| candidate.contains(symbol))
+                .map(|index| index + 1)
+                .unwrap_or_else(|| panic!("símbolo ausente: {symbol}"));
+            assert_eq!(
+                regions
+                    .iter()
+                    .filter(|region| line >= region.content_start && line <= region.content_end)
+                    .count(),
+                1,
+                "ownership não exato para {symbol}"
+            );
+        }
+    }
+
+    for (file, expected_sha) in [
+        (
+            "tests/trama_ci_tests.rs",
+            "2663b31038da950b6810690a5b7581ed88f65f1dd502d9a46259be1ee98f054e",
+        ),
+        (
+            "tests/trama_template_tests.rs",
+            "c3502d06773bee26918ad1d412d083768b7be9eca353259ee3d8440520fa6388",
+        ),
+    ] {
+        let source = fs::read_to_string(repository.join(file)).expect("fonte marker-only");
+        let stripped = source
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("// @pinker-nav:"))
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n";
+        assert_eq!(
+            sha256_hex(stripped.as_bytes()),
+            expected_sha,
+            "marker-only: {file}"
+        );
+    }
+
+    let mut predecessor_catalog = catalog.clone();
+    exclude_pink_agent_wave_a(&mut predecessor_catalog);
+    let predecessor: Vec<_> = predecessor_catalog.regions.iter().collect();
+    assert_eq!(predecessor.len(), 406);
+    let predecessor_projection = stable_region_projection(predecessor.iter().copied());
+    assert_eq!(
+        (
+            predecessor_projection.len(),
+            fnv1a64(predecessor_projection.as_bytes())
+        ),
+        (174_073, 6_978_817_443_380_137_045)
+    );
+    let post_query: Vec<_> = predecessor
+        .iter()
+        .copied()
+        .filter(|region| region.file != "tests/trama_query_tests.rs")
+        .collect();
+    let post_nav: Vec<_> = post_query
+        .iter()
+        .copied()
+        .filter(|region| region.file != "tests/doc_catalog_tests.rs")
+        .collect();
+    let wave_8: Vec<_> = post_nav
+        .iter()
+        .copied()
+        .filter(|region| region.file != "tests/nav_catalog_tests.rs")
+        .collect();
+    for (regions, expected) in [
+        (
+            post_query.as_slice(),
+            (398, 171_741, 7_038_069_266_194_794_117),
+        ),
+        (
+            post_nav.as_slice(),
+            (392, 170_076, 12_143_728_175_883_859_804),
+        ),
+        (wave_8.as_slice(), (386, 168_339, 1_634_706_628_046_951_093)),
+    ] {
+        let projection = stable_region_projection(regions.iter().copied());
+        assert_eq!(
+            (
+                regions.len(),
+                projection.len(),
+                fnv1a64(projection.as_bytes())
+            ),
+            expected
+        );
+    }
+    let full_projection = stable_region_projection(catalog.regions.iter());
+    assert_eq!(
+        (full_projection.len(), fnv1a64(full_projection.as_bytes())),
+        (180_271, 9_431_070_192_305_473_617),
+        "projeção final medida da Onda A"
+    );
+
+    let regenerated = CodeIndex::scan_repo(&repository).expect("regeneração canônica");
+    assert!(regenerated.verify().is_empty());
+    assert_eq!(
+        fs::read_to_string(catalog_path).expect("catálogo"),
+        regenerated.render_jsonl()
+    );
+    let core = include_str!("../src/agent.rs");
+    for contract in [
+        "parse_spec_text",
+        "execute_one",
+        "artifact_manifest",
+        "NOT_RUN",
+    ] {
+        assert!(core.contains(contract));
+    }
+    for test_file in [
+        "agent_cli_tests.rs",
+        "agent_runner_tests.rs",
+        "agent_limits_tests.rs",
+    ] {
+        assert!(repository.join("tests").join(test_file).is_file());
+    }
+    let contract = include_str!("../docs/development/pink-agent.md");
+    let roadmap = include_str!("../docs/development/pink-agent-roadmap.md");
+    let inventory = include_str!("../docs/development/code-navigation-inventory.md");
+    for statement in [
+        "A Onda A não conclui a ferramenta",
+        "não conclui a Trama",
+        "trama_manifest_tests",
+        "trama_sync_tests",
+        "Onda 9",
+        "`apps/` continua reservada",
+    ] {
+        assert!(
+            contract.contains(statement)
+                || roadmap.contains(statement)
+                || inventory.contains(statement),
+            "contrato documental ausente: {statement}"
+        );
+    }
+    assert!(!inventory.contains("trama_complete = true"));
 }

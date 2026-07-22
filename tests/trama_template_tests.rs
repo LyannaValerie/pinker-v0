@@ -11,6 +11,10 @@ use std::path::PathBuf;
 
 use pinker_v0::change::{Change, ChangeError};
 
+// @pinker-nav:start evidencia.trama.template.parse-support
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Helpers que carregam o template real, contam cercas pinker-change exatas e extraem deterministicamente o conteúdo do bloco até sua cerca final.
 fn template() -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".github/pull_request_template.md");
     std::fs::read_to_string(path).expect("template de PR presente")
@@ -43,7 +47,12 @@ fn extract_block(body: &str) -> String {
     }
     panic!("cerca de fechamento ausente");
 }
+// @pinker-nav:end evidencia.trama.template.parse-support
 
+// @pinker-nav:start evidencia.trama.template.block-structure
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Evidências estruturais de bloco único pinker-change e ausência de comentários inline incompatíveis com o parser operacional.
 #[test]
 fn template_tem_exatamente_um_bloco_pinker_change() {
     let n = fence_count(&template());
@@ -60,7 +69,12 @@ fn bloco_do_template_nao_tem_comentario_inline() {
         "o bloco pinker-change não pode conter '#': {block:?}"
     );
 }
+// @pinker-nav:end evidencia.trama.template.block-structure
 
+// @pinker-nav:start evidencia.trama.template.placeholder-safety
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Evidências de que o template cru falha por sentinela explícita e não contém valores padrão válidos capazes de gerar manifesto enganoso.
 #[test]
 fn template_cru_falha_com_placeholder() {
     // O template não preenchido deve ser rejeitado com diagnóstico de sentinela,
@@ -91,7 +105,12 @@ fn template_nao_traz_valores_padrao_enganosos() {
         "area deve conter apenas sentinelas"
     );
 }
+// @pinker-nav:end evidencia.trama.template.placeholder-safety
 
+// @pinker-nav:start evidencia.trama.template.filled-valid
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Evidência positiva de que a substituição completa das sentinelas produz bloco parseável e semanticamente válido.
 #[test]
 fn template_preenchido_passa_parse_e_validate() {
     // Substituindo as sentinelas por valores reais, o bloco deve ser válido.
@@ -108,3 +127,4 @@ fn template_preenchido_passa_parse_e_validate() {
     assert_eq!(change.status, "completed");
     assert_eq!(change.area, vec!["development.trama"]);
 }
+// @pinker-nav:end evidencia.trama.template.filled-valid

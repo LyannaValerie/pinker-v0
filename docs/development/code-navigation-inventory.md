@@ -55,6 +55,12 @@ catálogo atual = 406; evidencia atual = 223; runtime atual = 15;
 `onda_8_complete = true`; `trama_complete = false`.
 `apps/` permanece reservada à Onda 9.
 
+A cápsula `pink agente` Onda A acrescenta o núcleo local sob
+`development.agent.*`, três regiões de evidência da ferramenta e onze regiões
+marker-only nas suítes `trama_ci_tests` e `trama_template_tests`. A Trama
+permanece incompleta; os próximos alvos são `trama_manifest_tests` e
+`trama_sync_tests`.
+
 ## Contrato do scanner
 
 O scanner de `pink nav` indexa hoje um **conjunto explícito de raízes
@@ -102,6 +108,15 @@ catálogo seguia com 183 regiões, e o próximo ponto era a Onda 8B.
 `<camada>.<domínio>.<responsabilidade>` — ver `docs/development/README.md` e o
 contrato em `src/nav.rs`. Chaves estáveis a movimentos de linha/arquivo; sem
 `phase` quando não há proveniência canônica confirmada.
+
+## Cápsula `pink agente` — Onda A
+
+O núcleo em `src/agent.rs` separa spec, confinamento de caminhos, artefatos,
+execução de processos e ciclo de vida. Os testes `agent_cli_tests`,
+`agent_runner_tests` e `agent_limits_tests` constituem três regiões de evidência.
+Nas suítes Trama, a divisão física confirmou sete regiões de CI — inclusive
+`has_b64` como suporte próprio sem mover o helper — e quatro regiões do template.
+Somente linhas `@pinker-nav` foram adicionadas às duas suítes.
 
 ## Legenda
 
