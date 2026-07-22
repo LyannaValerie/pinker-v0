@@ -46,5 +46,7 @@ Conteúdo abaixo é **propriedade da ferramenta** (projeção `history`); não e
 mão. Regenere com `pink doc sincronizar`.
 
 <!-- @pinker-generated:start change.history -->
-_Nenhuma mudança registrada após o marco #330._
+| PR | Tipo | Fase | Bloco | Título | Status |
+|---|---|---|---|---|---|
+| #378 | documentation | — | — | Simplifica o caminho de contribuição externa | completed |
 <!-- @pinker-generated:end change.history -->

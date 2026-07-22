@@ -29,5 +29,7 @@ Conteúdo abaixo é **propriedade da ferramenta** (projeção `roadmap`); não e
 mão. Regenere com `pink doc sincronizar`.
 
 <!-- @pinker-generated:start roadmap.generated -->
-_Sem entregas registradas após o marco #330._
+| PR | Fase | Bloco | Título | Status |
+|---|---|---|---|---|
+| #378 | — | — | Simplifica o caminho de contribuição externa | completed |
 <!-- @pinker-generated:end roadmap.generated -->

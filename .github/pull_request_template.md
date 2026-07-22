@@ -35,10 +35,12 @@ Mantenha-o separado da narrativa acima. Campos e enums seguem
 .pinker/schemas/change-v1.schema.json.
 
 Propósito: fornecer à automação metadados verificáveis sem tentar interpretar o
-resumo humano. Preencha `kind`, `title`, `status` e `area`; mantenha os valores de
-`updates` coerentes com os documentos realmente alterados. Se a classificação
-não estiver clara, peça orientação à manutenção antes de inventar uma fase,
-hotfix ou rodada documental.
+resumo humano. Preencha `kind`, `title`, `status` e `area`; use `updates` somente
+para famílias de projeção configuradas em `.pinker/doc.toml` e marque `true`
+apenas quando a mudança declarar atualização daquela família. Não derive flags
+de nomes de arquivos comuns, como `README.md`. Se a classificação não estiver
+clara, peça orientação à manutenção antes de inventar uma fase, hotfix ou rodada
+documental.
 
 NÃO deixe comentários dentro do bloco ```pinker-change```: ele é lido pela
 automação, não pelo YAML padrão. Substitua TODAS as sentinelas <preencher-...>
