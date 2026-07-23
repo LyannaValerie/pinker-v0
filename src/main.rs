@@ -24,7 +24,7 @@ use pinker_v0::repl;
 use pinker_v0::semantic;
 use pinker_v0::token::Span;
 use pinker_v0::{ast, error::PinkerError};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -141,6 +141,7 @@ enum NavSub {
     Mostrar { key: String },
     Buscar { consulta: String },
     Listar { seletor: String },
+    Mapa { filtro: Option<String> },
     Sincronizar,
     Verificar,
 }
@@ -238,12 +239,13 @@ fn nav_usage(binary: &str) -> String {
            mostrar <key>       extrai a região de código pela chave\n\
            buscar <consulta>   busca regiões por chave, domínio, camada, resumo\n\
            listar <seletor>    lista regiões de uma camada (layer) ou domínio\n\
+           mapa [filtro]       agrupa regiões por arquivo\n\
            sincronizar         regenera o catálogo src/navigation.jsonl\n\
            verificar           valida os marcadores e o catálogo (não corrige)\n\
          \n\
          Opções:\n\
            --repo      raiz do repositório (padrão: .)\n\
-           --json      saída estável em JSON (mostrar/buscar/listar)\n\
+           --json      saída estável em JSON (mostrar/buscar/listar/mapa)\n\
            --limite N  máximo de resultados (1..20; buscar=10)\n\
          \n\
          Códigos de saída: 0 sucesso · 2 uso inválido · 3 catálogo ausente/inválido\n\
@@ -695,6 +697,13 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                 consulta: positionals.join(" "),
             }
         }
+        "mapa" => NavSub::Mapa {
+            filtro: if positionals.is_empty() {
+                None
+            } else {
+                Some(positionals.join(" "))
+            },
+        },
         "sincronizar" => {
             require_none("sincronizar")?;
             NavSub::Sincronizar
@@ -882,7 +891,7 @@ fn parse_args() -> Result<CliCommand, String> {
 // @pinker-nav:start cli.execucao.entrada
 // @pinker-nav:domain execucao
 // @pinker-nav:layer cli
-// @pinker-nav:summary try_or_exit! extrai um Result::Ok ou imprime o erro renderizado com a fonte e chama std::process::exit(1); main() chama parse_args, e em Err imprime a mensagem e sai com EXIT_USAGE (para doc/nav) ou 1 (demais), senão despacha CliCommand para run_analyze/run_build/run_editor/run_repl/run_doc/run_nav; scan_code chama nav::CodeIndex::scan_repo e sai com 1 em Err; run_nav roteia NavSub para run_nav_mostrar/buscar/listar/sincronizar/verificar.
+// @pinker-nav:summary try_or_exit! extrai um Result::Ok ou imprime o erro renderizado com a fonte e chama std::process::exit(1); main() chama parse_args, e em Err imprime a mensagem e sai com EXIT_USAGE (para doc/nav) ou 1 (demais), senão despacha CliCommand para run_analyze/run_build/run_editor/run_repl/run_doc/run_nav; scan_code chama nav::CodeIndex::scan_repo e sai com 1 em Err; run_nav roteia NavSub para run_nav_mostrar/buscar/listar/mapa/sincronizar/verificar.
 /// Macro para encurtar o padrão "try or exit(1)" repetido no pipeline.
 macro_rules! try_or_exit {
     ($result:expr, $source:expr) => {
@@ -958,6 +967,7 @@ fn run_nav(config: NavConfigCli) -> i32 {
             run_nav_buscar(repo_root, &consulta, config.json, config.limite)
         }
         NavSub::Listar { seletor } => run_nav_listar(repo_root, &seletor, config.json),
+        NavSub::Mapa { filtro } => run_nav_mapa(repo_root, filtro.as_deref(), config.json),
         NavSub::Sincronizar => run_nav_sincronizar(repo_root),
         NavSub::Verificar => run_nav_verificar(repo_root),
     }
@@ -967,7 +977,7 @@ fn run_nav(config: NavConfigCli) -> i32 {
 // @pinker-nav:start cli.nav.consulta
 // @pinker-nav:domain nav
 // @pinker-nav:layer cli
-// @pinker-nav:summary load_code_catalog lê o catálogo gerado (nav::CodeCatalog::load) sem escrever; run_nav_mostrar extrai uma região por chave e, via nav::validate_region, verifica se o marcador/hash da fonte ainda bate com o catálogo antes de imprimir o conteúdo (texto ou JSON), retornando EXIT_SOURCE em divergência; run_nav_buscar e run_nav_listar apenas consultam o catálogo em memória (busca textual e filtro por camada/domínio) e imprimem os resultados — nenhuma das três funções grava em disco.
+// @pinker-nav:summary load_code_catalog lê o catálogo gerado (nav::CodeCatalog::load) sem escrever; run_nav_mostrar extrai e valida uma região pela fonte; run_nav_buscar/listar/mapa consultam somente o catálogo em memória. Mapa seleciona caminho exato ou reutiliza a busca textual integral, agrupa por arquivo e renderiza texto/JSON determinísticos sem ler fontes.
 /// Carrega o catálogo de código versionado (superfície de consulta — §5).
 fn load_code_catalog(repo_root: &Path) -> Result<nav::CodeCatalog, i32> {
     let doc_config = load_doc_config(repo_root);
@@ -1156,6 +1166,175 @@ fn run_nav_listar(repo_root: &Path, seletor: &str, json: bool) -> i32 {
                 region.content_start,
                 region.content_end
             );
+        }
+    }
+    EXIT_OK
+}
+
+fn run_nav_mapa(repo_root: &Path, filtro: Option<&str>, json: bool) -> i32 {
+    let catalog = match load_code_catalog(repo_root) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
+    let selected = catalog.map_regions(filtro);
+    if selected.is_empty() {
+        if json {
+            println!(
+                "{{\"schema\":1,\"filter\":{},\"files\":[]}}",
+                filtro
+                    .map(json_escape)
+                    .unwrap_or_else(|| "null".to_string())
+            );
+        } else if let Some(filtro) = filtro {
+            eprintln!("Nenhuma região encontrada para o mapa: {filtro}");
+        } else {
+            eprintln!("Nenhuma região disponível para o mapa.");
+        }
+        return EXIT_NORESULT;
+    }
+
+    let mut files: BTreeMap<&str, Vec<&nav::CodeRegion>> = BTreeMap::new();
+    for region in selected {
+        files.entry(&region.file).or_default().push(region);
+    }
+    for sections in files.values_mut() {
+        sections.sort_by(|a, b| {
+            a.content_start
+                .cmp(&b.content_start)
+                .then(a.content_end.cmp(&b.content_end))
+                .then(a.key.cmp(&b.key))
+        });
+    }
+
+    if json {
+        let rendered_files: Vec<String> = files
+            .iter()
+            .map(|(path, sections)| {
+                let domains: BTreeSet<&str> = sections
+                    .iter()
+                    .filter_map(|region| region.domain.as_deref())
+                    .collect();
+                let layers: BTreeSet<&str> = sections
+                    .iter()
+                    .filter_map(|region| region.layer.as_deref())
+                    .collect();
+                let start = sections
+                    .iter()
+                    .map(|region| region.content_start)
+                    .min()
+                    .unwrap_or(0);
+                let end = sections
+                    .iter()
+                    .map(|region| region.content_end)
+                    .max()
+                    .unwrap_or(0);
+                let rendered_sections: Vec<String> = sections
+                    .iter()
+                    .map(|region| {
+                        format!(
+                            "{{\"key\":{},\"summary\":{},\"domain\":{},\"layer\":{},\"range\":{{\"start\":{},\"end\":{}}}}}",
+                            json_escape(&region.key),
+                            if region.summary.is_empty() {
+                                "null".to_string()
+                            } else {
+                                json_escape(&region.summary)
+                            },
+                            region
+                                .domain
+                                .as_deref()
+                                .map(json_escape)
+                                .unwrap_or_else(|| "null".to_string()),
+                            region
+                                .layer
+                                .as_deref()
+                                .map(json_escape)
+                                .unwrap_or_else(|| "null".to_string()),
+                            region.content_start,
+                            region.content_end
+                        )
+                    })
+                    .collect();
+                let domain_values: Vec<String> = domains.iter().map(|v| json_escape(v)).collect();
+                let layer_values: Vec<String> = layers.iter().map(|v| json_escape(v)).collect();
+                format!(
+                    "{{\"path\":{},\"region_count\":{},\"domains\":[{}],\"layers\":[{}],\"range\":{{\"start\":{},\"end\":{}}},\"sections\":[{}]}}",
+                    json_escape(path),
+                    sections.len(),
+                    domain_values.join(","),
+                    layer_values.join(","),
+                    start,
+                    end,
+                    rendered_sections.join(",")
+                )
+            })
+            .collect();
+        println!(
+            "{{\"schema\":1,\"filter\":{},\"files\":[{}]}}",
+            filtro
+                .map(json_escape)
+                .unwrap_or_else(|| "null".to_string()),
+            rendered_files.join(",")
+        );
+    } else {
+        let absolute_root = repo_root
+            .canonicalize()
+            .unwrap_or_else(|_| repo_root.to_path_buf());
+        for (file_index, (path, sections)) in files.iter().enumerate() {
+            if file_index > 0 {
+                println!();
+            }
+            let domains: BTreeSet<&str> = sections
+                .iter()
+                .filter_map(|region| region.domain.as_deref())
+                .collect();
+            let layers: BTreeSet<&str> = sections
+                .iter()
+                .filter_map(|region| region.layer.as_deref())
+                .collect();
+            let start = sections
+                .iter()
+                .map(|region| region.content_start)
+                .min()
+                .unwrap_or(0);
+            let end = sections
+                .iter()
+                .map(|region| region.content_end)
+                .max()
+                .unwrap_or(0);
+            let domain_text = if domains.is_empty() {
+                "-".to_string()
+            } else {
+                domains.into_iter().collect::<Vec<_>>().join(", ")
+            };
+            let layer_text = if layers.is_empty() {
+                "-".to_string()
+            } else {
+                layers.into_iter().collect::<Vec<_>>().join(", ")
+            };
+            println!("{path}");
+            println!("  absoluto: {}", absolute_root.join(path).display());
+            println!("  regiões: {}", sections.len());
+            println!("  domínios: {domain_text}");
+            println!("  camadas: {layer_text}");
+            println!("  intervalo: {start}-{end}");
+            for region in sections {
+                println!();
+                println!("  {}", region.key);
+                println!(
+                    "    resumo: {}",
+                    if region.summary.is_empty() {
+                        "-"
+                    } else {
+                        &region.summary
+                    }
+                );
+                println!("    domínio: {}", region.domain.as_deref().unwrap_or("-"));
+                println!("    camada: {}", region.layer.as_deref().unwrap_or("-"));
+                println!(
+                    "    intervalo: {}-{}",
+                    region.content_start, region.content_end
+                );
+            }
         }
     }
     EXIT_OK

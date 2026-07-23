@@ -31,7 +31,9 @@ const PORTAL: &str = "---\npinker-doc: 1\nid: rosa\ndomain: rosa\nkind: portal\n
 
 const CORE: &str = "---\npinker-doc: 1\nid: rosa.core\ndomain: rosa\nkind: reference\nstatus: active\nparent: rosa\n---\n\n# Core\n\n<!-- @pinker-doc:start\nid: rosa.identity\ntags: [rosa, identidade]\naliases:\n  - quem e rosa\nsummary: Identidade de Rosa.\n-->\n## Identidade\n\nRosa e a guia estetica.\n<!-- @pinker-doc:end rosa.identity -->\n";
 
-const SRC: &str = "// @pinker-nav:start rosa.identidade.core\n// @pinker-nav:domain rosa\n// @pinker-nav:layer core\n// @pinker-nav:summary Identidade de Rosa no codigo.\nfn identidade() {\n    let _x = 1;\n}\n// @pinker-nav:end rosa.identidade.core\n";
+const SRC: &str = "// @pinker-nav:start rosa.identidade.core\n// @pinker-nav:domain rosa\n// @pinker-nav:layer core\n// @pinker-nav:summary Consulta compartilhada de identidade no codigo.\nfn identidade() {\n    let _x = 1;\n}\n// @pinker-nav:end rosa.identidade.core\n// @pinker-nav:start alfa.execucao.cli\n// @pinker-nav:domain engine\n// @pinker-nav:layer cli\n// @pinker-nav:summary Consulta compartilhada de execucao no codigo.\nfn executar() {\n    let _y = 2;\n}\n// @pinker-nav:end alfa.execucao.cli\n";
+
+const TEST_SRC: &str = "// @pinker-nav:start beta.consulta.evidencia\n// @pinker-nav:domain trama\n// @pinker-nav:layer evidencia\n// @pinker-nav:summary Consulta compartilhada como evidencia.\nfn observar() {\n    let _z = 3;\n}\n// @pinker-nav:end beta.consulta.evidencia\n";
 // @pinker-nav:end evidencia.trama.query.fixture-config
 
 // @pinker-nav:start evidencia.trama.query.process-support
@@ -58,7 +60,7 @@ fn fixture(root: &Path) {
     write(root, "docs/rosa/core.md", CORE);
     write(root, "src/rosa.rs", SRC);
     write(root, "runtime/pinker_rt/src/lib.rs", "pub fn _rt() {}\n");
-    fs::create_dir_all(root.join("tests")).unwrap();
+    write(root, "tests/mapa.rs", TEST_SRC);
 }
 
 fn doc(root: &Path, args: &[&str]) -> std::process::Output {
@@ -85,6 +87,411 @@ fn code(out: &std::process::Output) -> i32 {
     out.status.code().unwrap_or(-1)
 }
 // @pinker-nav:end evidencia.trama.query.process-support
+
+// @pinker-nav:start evidencia.trama.query.nav-map
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Observa pink nav mapa agrupando o catálogo por arquivo, preservando seleções ambíguas, ordem determinística, JSON schema 1, códigos de saída e leitura exclusiva do catálogo.
+fn stdout(out: &std::process::Output) -> String {
+    String::from_utf8(out.stdout.clone()).unwrap()
+}
+
+fn stderr(out: &std::process::Output) -> String {
+    String::from_utf8(out.stderr.clone()).unwrap()
+}
+
+fn sync_nav(root: &Path) {
+    let out = nav(root, &["sincronizar"]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+}
+
+fn json_is_valid(input: &str) -> bool {
+    fn ws(bytes: &[u8], pos: &mut usize) {
+        while bytes
+            .get(*pos)
+            .is_some_and(|c| matches!(c, b' ' | b'\n' | b'\r' | b'\t'))
+        {
+            *pos += 1;
+        }
+    }
+    fn string(bytes: &[u8], pos: &mut usize) -> bool {
+        if bytes.get(*pos) != Some(&b'"') {
+            return false;
+        }
+        *pos += 1;
+        while let Some(&ch) = bytes.get(*pos) {
+            *pos += 1;
+            match ch {
+                b'"' => return true,
+                b'\\' => {
+                    let Some(&escaped) = bytes.get(*pos) else {
+                        return false;
+                    };
+                    *pos += 1;
+                    if escaped == b'u' {
+                        for _ in 0..4 {
+                            let Some(hex) = bytes.get(*pos) else {
+                                return false;
+                            };
+                            if !hex.is_ascii_hexdigit() {
+                                return false;
+                            }
+                            *pos += 1;
+                        }
+                    } else if !matches!(
+                        escaped,
+                        b'"' | b'\\' | b'/' | b'b' | b'f' | b'n' | b'r' | b't'
+                    ) {
+                        return false;
+                    }
+                }
+                0..=0x1f => return false,
+                _ => {}
+            }
+        }
+        false
+    }
+    fn value(bytes: &[u8], pos: &mut usize) -> bool {
+        ws(bytes, pos);
+        match bytes.get(*pos) {
+            Some(b'"') => string(bytes, pos),
+            Some(b'{') => object(bytes, pos),
+            Some(b'[') => array(bytes, pos),
+            Some(b't') if bytes.get(*pos..*pos + 4) == Some(b"true") => {
+                *pos += 4;
+                true
+            }
+            Some(b'f') if bytes.get(*pos..*pos + 5) == Some(b"false") => {
+                *pos += 5;
+                true
+            }
+            Some(b'n') if bytes.get(*pos..*pos + 4) == Some(b"null") => {
+                *pos += 4;
+                true
+            }
+            Some(b'-' | b'0'..=b'9') => {
+                if bytes.get(*pos) == Some(&b'-') {
+                    *pos += 1;
+                }
+                let start = *pos;
+                while bytes.get(*pos).is_some_and(u8::is_ascii_digit) {
+                    *pos += 1;
+                }
+                *pos > start
+            }
+            _ => false,
+        }
+    }
+    fn array(bytes: &[u8], pos: &mut usize) -> bool {
+        *pos += 1;
+        ws(bytes, pos);
+        if bytes.get(*pos) == Some(&b']') {
+            *pos += 1;
+            return true;
+        }
+        loop {
+            if !value(bytes, pos) {
+                return false;
+            }
+            ws(bytes, pos);
+            match bytes.get(*pos) {
+                Some(b',') => *pos += 1,
+                Some(b']') => {
+                    *pos += 1;
+                    return true;
+                }
+                _ => return false,
+            }
+        }
+    }
+    fn object(bytes: &[u8], pos: &mut usize) -> bool {
+        *pos += 1;
+        ws(bytes, pos);
+        if bytes.get(*pos) == Some(&b'}') {
+            *pos += 1;
+            return true;
+        }
+        loop {
+            ws(bytes, pos);
+            if !string(bytes, pos) {
+                return false;
+            }
+            ws(bytes, pos);
+            if bytes.get(*pos) != Some(&b':') {
+                return false;
+            }
+            *pos += 1;
+            if !value(bytes, pos) {
+                return false;
+            }
+            ws(bytes, pos);
+            match bytes.get(*pos) {
+                Some(b',') => *pos += 1,
+                Some(b'}') => {
+                    *pos += 1;
+                    return true;
+                }
+                _ => return false,
+            }
+        }
+    }
+
+    let bytes = input.as_bytes();
+    let mut pos = 0;
+    let valid = value(bytes, &mut pos);
+    ws(bytes, &mut pos);
+    valid && pos == bytes.len()
+}
+
+#[test]
+fn nav_mapa_completo_e_agrupado() {
+    let root = temp_repo("mapa_completo");
+    fixture(&root);
+    sync_nav(&root);
+    let out = nav(&root, &["mapa"]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("src/rosa.rs\n"));
+    assert!(text.contains("tests/mapa.rs\n"));
+    assert!(text.contains("  regiões: 2"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_mapa_seleciona_caminho_repo_relativo_exato() {
+    let root = temp_repo("mapa_exato");
+    fixture(&root);
+    sync_nav(&root);
+    let out = nav(&root, &["mapa", "src/rosa.rs"]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("rosa.identidade.core"));
+    assert!(text.contains("alfa.execucao.cli"));
+    assert!(!text.contains("tests/mapa.rs"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_mapa_faz_fallback_para_consulta_textual() {
+    let root = temp_repo("mapa_texto");
+    fixture(&root);
+    sync_nav(&root);
+    let out = nav(&root, &["mapa", "execucao"]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("alfa.execucao.cli"));
+    assert!(!text.contains("rosa.identidade.core"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_mapa_preserva_multiplos_resultados_textuais() {
+    let root = temp_repo("mapa_ambiguo");
+    fixture(&root);
+    sync_nav(&root);
+    let out = nav(&root, &["mapa", "consulta", "compartilhada"]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("rosa.identidade.core"));
+    assert!(text.contains("alfa.execucao.cli"));
+    assert!(text.contains("beta.consulta.evidencia"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_mapa_sem_resultado_retorna_quatro() {
+    let root = temp_repo("mapa_vazio");
+    fixture(&root);
+    sync_nav(&root);
+    let out = nav(&root, &["mapa", "zzzznaoexistemesmo"]);
+    assert_eq!(code(&out), 4);
+    assert!(out.stdout.is_empty());
+    assert!(stderr(&out).contains("Nenhuma região"));
+    let json = nav(&root, &["mapa", "zzzznaoexistemesmo", "--json"]);
+    assert_eq!(code(&json), 4);
+    assert!(stderr(&json).is_empty());
+    assert_eq!(
+        stdout(&json),
+        "{\"schema\":1,\"filter\":\"zzzznaoexistemesmo\",\"files\":[]}\n"
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_mapa_ordena_arquivos_por_caminho() {
+    let root = temp_repo("mapa_ordem_arquivos");
+    fixture(&root);
+    sync_nav(&root);
+    let text = stdout(&nav(&root, &["mapa"]));
+    assert!(text.find("src/rosa.rs\n").unwrap() < text.find("tests/mapa.rs\n").unwrap());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_mapa_ordena_regioes_pelo_intervalo_fisico() {
+    let root = temp_repo("mapa_ordem_regioes");
+    fixture(&root);
+    sync_nav(&root);
+    let text = stdout(&nav(&root, &["mapa", "src/rosa.rs"]));
+    assert!(text.find("rosa.identidade.core").unwrap() < text.find("alfa.execucao.cli").unwrap());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_mapa_json_schema_um_e_valido() {
+    let root = temp_repo("mapa_json_valido");
+    fixture(&root);
+    sync_nav(&root);
+    let out = nav(&root, &["mapa", "--json"]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(json_is_valid(text.trim()));
+    assert!(text.starts_with("{\"schema\":1,\"filter\":null,\"files\":["));
+    assert!(text.contains("\"sections\":["));
+    assert!(text.contains("\"path\":\"src/rosa.rs\""));
+    assert!(text.contains("\"path\":\"tests/mapa.rs\""));
+    assert!(!text.contains("\"absolute_path\""));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_mapa_json_e_byte_identical() {
+    let first_root = temp_repo("mapa_json_estavel_primeiro_root");
+    let second_root = temp_repo("mapa_json_estavel_segundo_root");
+    fixture(&first_root);
+    fixture(&second_root);
+    sync_nav(&first_root);
+    sync_nav(&second_root);
+    let first = nav(
+        &first_root,
+        &["mapa", "consulta", "compartilhada", "--json"],
+    );
+    let second = nav(
+        &second_root,
+        &["mapa", "consulta", "compartilhada", "--json"],
+    );
+    assert_eq!(code(&first), 0);
+    assert_eq!(code(&second), 0);
+    assert_eq!(first.stdout, second.stdout);
+    let text = stdout(&first);
+    assert!(!text.contains(first_root.to_string_lossy().as_ref()));
+    assert!(!text.contains(second_root.to_string_lossy().as_ref()));
+    fs::remove_dir_all(first_root).unwrap();
+    fs::remove_dir_all(second_root).unwrap();
+}
+
+#[test]
+fn nav_mapa_resume_multiplos_dominios() {
+    let root = temp_repo("mapa_dominios");
+    fixture(&root);
+    sync_nav(&root);
+    let text = stdout(&nav(&root, &["mapa", "src/rosa.rs"]));
+    assert!(text.contains("  domínios: engine, rosa"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_mapa_resume_multiplas_camadas() {
+    let root = temp_repo("mapa_camadas");
+    fixture(&root);
+    sync_nav(&root);
+    let text = stdout(&nav(&root, &["mapa", "src/rosa.rs"]));
+    assert!(text.contains("  camadas: cli, core"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_mapa_catalogo_ausente_retorna_tres() {
+    let root = temp_repo("mapa_catalogo_ausente");
+    fixture(&root);
+    let out = nav(&root, &["mapa"]);
+    assert_eq!(code(&out), 3);
+    assert!(stderr(&out).contains("E-NAV-CATALOG"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_mapa_catalogo_invalido_retorna_tres() {
+    let root = temp_repo("mapa_catalogo_invalido");
+    fixture(&root);
+    write(&root, "src/navigation.jsonl", "{isto nao e json valido\n");
+    let out = nav(&root, &["mapa"]);
+    assert_eq!(code(&out), 3);
+    assert!(stderr(&out).contains("E-NAV-CATALOG"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_help_inclui_mapa() {
+    let root = temp_repo("mapa_help");
+    fixture(&root);
+    let out = nav(&root, &["--help"]);
+    assert_eq!(code(&out), 2);
+    assert!(stderr(&out).contains("mapa [filtro]"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_mapa_flag_desconhecida_retorna_dois() {
+    let root = temp_repo("mapa_flag");
+    fixture(&root);
+    let out = nav(&root, &["mapa", "--desconhecida"]);
+    assert_eq!(code(&out), 2);
+    assert!(stderr(&out).contains("Flag desconhecida"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_mapa_le_somente_catalogo_sem_fontes() {
+    let root = temp_repo("mapa_catalog_only");
+    fixture(&root);
+    sync_nav(&root);
+    fs::remove_file(root.join("src/rosa.rs")).unwrap();
+    fs::remove_file(root.join("tests/mapa.rs")).unwrap();
+    let out = nav(&root, &["mapa"]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    assert!(stdout(&out).contains("beta.consulta.evidencia"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_mapa_deriva_caminho_absoluto_do_root() {
+    let root = temp_repo("mapa_absoluto");
+    fixture(&root);
+    sync_nav(&root);
+    let text = stdout(&nav(&root, &["mapa", "src/rosa.rs"]));
+    assert!(text.contains(&format!(
+        "  absoluto: {}",
+        root.canonicalize().unwrap().join("src/rosa.rs").display()
+    )));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn nav_mapa_nao_modifica_arquivos() {
+    let root = temp_repo("mapa_read_only");
+    fixture(&root);
+    sync_nav(&root);
+    let watched = [
+        ".pinker/doc.toml",
+        "src/navigation.jsonl",
+        "src/rosa.rs",
+        "tests/mapa.rs",
+    ];
+    let before: Vec<Vec<u8>> = watched
+        .iter()
+        .map(|path| fs::read(root.join(path)).unwrap())
+        .collect();
+    let out = nav(&root, &["mapa", "--json"]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    let after: Vec<Vec<u8>> = watched
+        .iter()
+        .map(|path| fs::read(root.join(path)).unwrap())
+        .collect();
+    assert_eq!(before, after);
+    fs::remove_dir_all(root).unwrap();
+}
+// @pinker-nav:end evidencia.trama.query.nav-map
 
 // @pinker-nav:start evidencia.trama.query.catalog-only
 // @pinker-nav:domain trama

@@ -49,4 +49,5 @@ mão. Regenere com `pink doc sincronizar`.
 | PR | Tipo | Fase | Bloco | Título | Status |
 |---|---|---|---|---|---|
 | #378 | documentation | — | — | Simplifica o caminho de contribuição externa | completed |
+| #382 | parallel-phase | — | — | Adiciona mapa agrupado do catálogo de código | completed |
 <!-- @pinker-generated:end change.history -->

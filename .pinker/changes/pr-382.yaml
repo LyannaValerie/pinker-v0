@@ -1,0 +1,17 @@
+schema: 1
+source:
+  type: github-pr
+  number: 382
+  repository: LyannaValerie/pinker-v0
+kind: parallel-phase
+title: Adiciona mapa agrupado do catálogo de código
+area:
+  - development.trama
+status: completed
+updates:
+  state: false
+  history: false
+  roadmap: false
+validation:
+  required:
+    - make ci

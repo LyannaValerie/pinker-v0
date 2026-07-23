@@ -52,6 +52,44 @@ fn stable_region_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -
     records.concat()
 }
 
+fn project_pre_nav_map(catalog: &mut CodeCatalog) {
+    catalog
+        .regions
+        .retain(|region| region.key != "evidencia.trama.query.nav-map");
+    for region in &mut catalog.regions {
+        let (summary, hash) = match region.key.as_str() {
+            "cli.ajuda.usage" => (None, Some("fnv1a64:c55bd61fb44728d2")),
+            "cli.config.modelos" => (None, Some("fnv1a64:f70a03d4ea96fd15")),
+            "cli.execucao.entrada" => (
+                Some("try_or_exit! extrai um Result::Ok ou imprime o erro renderizado com a fonte e chama std::process::exit(1); main() chama parse_args, e em Err imprime a mensagem e sai com EXIT_USAGE (para doc/nav) ou 1 (demais), senão despacha CliCommand para run_analyze/run_build/run_editor/run_repl/run_doc/run_nav; scan_code chama nav::CodeIndex::scan_repo e sai com 1 em Err; run_nav roteia NavSub para run_nav_mostrar/buscar/listar/sincronizar/verificar."),
+                Some("fnv1a64:2474425966334a3d"),
+            ),
+            "cli.nav.consulta" => (
+                Some("load_code_catalog lê o catálogo gerado (nav::CodeCatalog::load) sem escrever; run_nav_mostrar extrai uma região por chave e, via nav::validate_region, verifica se o marcador/hash da fonte ainda bate com o catálogo antes de imprimir o conteúdo (texto ou JSON), retornando EXIT_SOURCE em divergência; run_nav_buscar e run_nav_listar apenas consultam o catálogo em memória (busca textual e filtro por camada/domínio) e imprimem os resultados — nenhuma das três funções grava em disco."),
+                Some("fnv1a64:b071ea7b358669f4"),
+            ),
+            "cli.parsing.subcomandos" => (None, Some("fnv1a64:66b8f69d2cc4fee0")),
+            "evidencia.trama.query.fixture-config" => {
+                (None, Some("fnv1a64:cd7fa2a89ad8c984"))
+            }
+            "evidencia.trama.query.process-support" => {
+                (None, Some("fnv1a64:8ef750a7eb9e8c17"))
+            }
+            "trama.codigo.consulta" => (
+                Some("Reconstrói o catálogo de código do JSONL versionado e serve as consultas (`mostrar`/`buscar`/`listar`) a partir das fontes já catalogadas, sem revarrer as raízes de código controladas; ao extrair uma região, valida que os marcadores ainda a delimitam e que o hash do conteúdo confere, recusando drift."),
+                Some("fnv1a64:a60459ec57aa77bb"),
+            ),
+            _ => (None, None),
+        };
+        if let Some(summary) = summary {
+            region.summary = summary.to_string();
+        }
+        if let Some(hash) = hash {
+            region.hash = hash.to_string();
+        }
+    }
+}
+
 fn exclude_pink_agent_wave_a(catalog: &mut CodeCatalog) {
     catalog.regions.retain(|region| {
         !matches!(
@@ -2194,6 +2232,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
     let expected_regions: [(&str, &str, &[&str], usize); 8] = [
@@ -2450,6 +2489,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
     let expected_regions: [(&str, &str, &[&str], usize, &str); 7] = [
@@ -3077,6 +3117,7 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
 
     let catalog_path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
     // Escopo desta cápsula: o catálogo tal como fechado por ela. As cápsulas
     // seguintes acrescentam arquivos próprios, excluídos aqui para que os
@@ -3449,6 +3490,7 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
     // D. e H. Catálogo versionado: metadados exatos e totais 398/215/15.
     let catalog_path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
     // Extensão de seletor: `tests/trama_query_tests.rs` (cápsula posterior) é
     // excluído para que o instantâneo congelado 398/215/15 e as projeções
@@ -3647,6 +3689,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
     // As cápsulas operacionais/documentais posteriores ao fechamento acrescentam
     // regiões novas em arquivos próprios; o conjunto congelado da Onda 8 é o
@@ -3786,6 +3829,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
     let central = "tests/backend_s_external_toolchain_tests.rs";
@@ -4394,6 +4438,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
     let central = "tests/backend_nativo_tests.rs";
@@ -5087,6 +5132,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
     let central = "runtime/pinker_rt/src/lib.rs";
@@ -5660,12 +5706,12 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
 }
 
 /// Terceira cápsula operacional/documental da Trama: `tests/trama_query_tests.rs`.
-/// Congela as oito regiões marker-only (2 de suporte + 6 de evidência), o
-/// ownership exato de 4 constantes + 6 helpers + 10 testes, a prova de que
-/// retirar os marcadores reconstrói a fonte-base, os totais 406/223/15 e a
+/// Congela as nove regiões marker-only (2 de suporte + 7 de evidência), o
+/// ownership exato de 5 constantes + 15 helpers + 28 testes, a prova de que
+/// retirar os marcadores reconstrói a fonte-base, os totais 407/224/15 e a
 /// preservação integral das 398 regiões predecessoras, das 392 pós-nav-catalog
 /// e das 386 da Onda 8. O texto semelhante a marcador dentro do literal Rust
-/// `SRC` permanece conteúdo de fixture e não é contado como marcador real.
+/// `SRC`/`TEST_SRC` permanece conteúdo de fixture e não é contado como marcador real.
 #[test]
 fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -5675,6 +5721,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
     let expected_keys = [
         "evidencia.trama.query.fixture-config",
         "evidencia.trama.query.process-support",
+        "evidencia.trama.query.nav-map",
         "evidencia.trama.query.catalog-only",
         "evidencia.trama.query.source-drift",
         "evidencia.trama.query.json-stability",
@@ -5685,7 +5732,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
     let support_keys = &expected_keys[..2];
     let evidence_keys = &expected_keys[2..];
 
-    // A. e F. Estrutura física: oito regiões balanceadas, contíguas, sem
+    // A. e F. Estrutura física: nove regiões balanceadas, contíguas, sem
     // aninhamento nem sobreposição, na ordem exata declarada.
     #[derive(Debug)]
     struct Span {
@@ -5716,22 +5763,23 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         }
     }
     assert!(active.is_none(), "região sem marcador final");
-    assert_eq!(marker_lines, 40, "a cápsula exige exatamente 40 marcadores");
+    assert_eq!(marker_lines, 45, "a cápsula exige exatamente 45 marcadores");
     // Distinção literal-de-string: o texto `@pinker-nav:` embutido no literal
-    // Rust `SRC` aparece em uma linha física adicional que NÃO é marcador real.
+    // Rust `SRC`/`TEST_SRC` aparece em duas linhas físicas adicionais que NÃO
+    // são marcadores reais.
     let text_occurrences = lines
         .iter()
         .filter(|line| line.contains("@pinker-nav:"))
         .count();
     assert_eq!(
-        text_occurrences, 41,
-        "40 marcadores reais + 1 linha de fixture SRC com texto semelhante a marcador"
+        text_occurrences, 47,
+        "45 marcadores reais + 2 linhas de fixture com texto semelhante a marcador"
     );
-    assert_eq!(spans.len(), 8, "a cápsula exige exatamente oito regiões");
+    assert_eq!(spans.len(), 9, "a cápsula exige exatamente nove regiões");
     let physical_keys: Vec<_> = spans.iter().map(|span| span.key.as_str()).collect();
     assert_eq!(
         physical_keys, expected_keys,
-        "ordem física das oito regiões"
+        "ordem física das nove regiões"
     );
     for pair in spans.windows(2) {
         assert!(pair[0].end < pair[1].start, "regiões não podem sobrepor");
@@ -5747,7 +5795,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         "docs e imports devem ficar fora das regiões"
     );
     assert_eq!(
-        spans[7].end,
+        spans[8].end,
         lines.len(),
         "a última região deve terminar no fim do arquivo"
     );
@@ -5767,11 +5815,11 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         .collect();
     assert_eq!(
         sha256_hex(stripped.as_bytes()),
-        "65ba7f360174b1ef15ab5b9e246e3a0fce8e888359798898986969ff9c016f3f",
+        "c81f1a1db83af33fd515879a8fff7e2959933b66930575b4728694454f391e5c",
         "retirar marcadores deve reconstruir exatamente a fonte-base"
     );
 
-    // E. Ownership exato: 4 constantes, 6 helpers, 10 testes, sem órfãos,
+    // E. Ownership exato: 5 constantes, 15 helpers, 28 testes, sem órfãos,
     // duplicatas ou sobreposição de propriedade.
     #[derive(Default, Debug, PartialEq, Eq)]
     struct Owned {
@@ -5810,7 +5858,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         (
             expected_keys[0],
             Owned {
-                constants: ["DOC_TOML", "PORTAL", "CORE", "SRC"]
+                constants: ["DOC_TOML", "PORTAL", "CORE", "SRC", "TEST_SRC"]
                     .map(str::to_string)
                     .to_vec(),
                 ..Owned::default()
@@ -5828,6 +5876,47 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         (
             expected_keys[2],
             Owned {
+                helpers: [
+                    "stdout",
+                    "stderr",
+                    "sync_nav",
+                    "json_is_valid",
+                    "ws",
+                    "string",
+                    "value",
+                    "array",
+                    "object",
+                ]
+                .map(str::to_string)
+                .to_vec(),
+                tests: [
+                    "nav_mapa_completo_e_agrupado",
+                    "nav_mapa_seleciona_caminho_repo_relativo_exato",
+                    "nav_mapa_faz_fallback_para_consulta_textual",
+                    "nav_mapa_preserva_multiplos_resultados_textuais",
+                    "nav_mapa_sem_resultado_retorna_quatro",
+                    "nav_mapa_ordena_arquivos_por_caminho",
+                    "nav_mapa_ordena_regioes_pelo_intervalo_fisico",
+                    "nav_mapa_json_schema_um_e_valido",
+                    "nav_mapa_json_e_byte_identical",
+                    "nav_mapa_resume_multiplos_dominios",
+                    "nav_mapa_resume_multiplas_camadas",
+                    "nav_mapa_catalogo_ausente_retorna_tres",
+                    "nav_mapa_catalogo_invalido_retorna_tres",
+                    "nav_help_inclui_mapa",
+                    "nav_mapa_flag_desconhecida_retorna_dois",
+                    "nav_mapa_le_somente_catalogo_sem_fontes",
+                    "nav_mapa_deriva_caminho_absoluto_do_root",
+                    "nav_mapa_nao_modifica_arquivos",
+                ]
+                .map(str::to_string)
+                .to_vec(),
+                ..Owned::default()
+            },
+        ),
+        (
+            expected_keys[3],
+            Owned {
                 tests: [
                     "consulta_documental_le_catalogo_sem_revarrer_markdown",
                     "consulta_de_codigo_le_catalogo_sem_revarrer_rust",
@@ -5838,7 +5927,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             },
         ),
         (
-            expected_keys[3],
+            expected_keys[4],
             Owned {
                 tests: [
                     "mostrar_detecta_ancora_divergente",
@@ -5850,7 +5939,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             },
         ),
         (
-            expected_keys[4],
+            expected_keys[5],
             Owned {
                 tests: ["saida_json_e_valida_e_estavel"]
                     .map(str::to_string)
@@ -5859,7 +5948,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             },
         ),
         (
-            expected_keys[5],
+            expected_keys[6],
             Owned {
                 tests: ["limite_de_resultados_respeita_contornos"]
                     .map(str::to_string)
@@ -5868,7 +5957,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             },
         ),
         (
-            expected_keys[6],
+            expected_keys[7],
             Owned {
                 tests: [
                     "catalogo_ausente_falha_com_codigo_3",
@@ -5880,7 +5969,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             },
         ),
         (
-            expected_keys[7],
+            expected_keys[8],
             Owned {
                 tests: [
                     "ausencia_de_resultados_nao_e_sucesso_silencioso",
@@ -5912,14 +6001,51 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         .iter()
         .flat_map(|(_, owned)| owned.tests.iter().map(String::as_str))
         .collect();
-    assert_eq!(owned_constants, ["DOC_TOML", "PORTAL", "CORE", "SRC"]);
+    assert_eq!(
+        owned_constants,
+        ["DOC_TOML", "PORTAL", "CORE", "SRC", "TEST_SRC"]
+    );
     assert_eq!(
         owned_helpers,
-        ["temp_repo", "write", "fixture", "doc", "nav", "code"]
+        [
+            "temp_repo",
+            "write",
+            "fixture",
+            "doc",
+            "nav",
+            "code",
+            "stdout",
+            "stderr",
+            "sync_nav",
+            "json_is_valid",
+            "ws",
+            "string",
+            "value",
+            "array",
+            "object",
+        ]
     );
     assert_eq!(
         owned_tests,
         [
+            "nav_mapa_completo_e_agrupado",
+            "nav_mapa_seleciona_caminho_repo_relativo_exato",
+            "nav_mapa_faz_fallback_para_consulta_textual",
+            "nav_mapa_preserva_multiplos_resultados_textuais",
+            "nav_mapa_sem_resultado_retorna_quatro",
+            "nav_mapa_ordena_arquivos_por_caminho",
+            "nav_mapa_ordena_regioes_pelo_intervalo_fisico",
+            "nav_mapa_json_schema_um_e_valido",
+            "nav_mapa_json_e_byte_identical",
+            "nav_mapa_resume_multiplos_dominios",
+            "nav_mapa_resume_multiplas_camadas",
+            "nav_mapa_catalogo_ausente_retorna_tres",
+            "nav_mapa_catalogo_invalido_retorna_tres",
+            "nav_help_inclui_mapa",
+            "nav_mapa_flag_desconhecida_retorna_dois",
+            "nav_mapa_le_somente_catalogo_sem_fontes",
+            "nav_mapa_deriva_caminho_absoluto_do_root",
+            "nav_mapa_nao_modifica_arquivos",
             "consulta_documental_le_catalogo_sem_revarrer_markdown",
             "consulta_de_codigo_le_catalogo_sem_revarrer_rust",
             "mostrar_detecta_ancora_divergente",
@@ -5932,14 +6058,14 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             "uso_invalido_sai_com_codigo_2",
         ]
     );
-    assert_eq!(owned_constants.len(), 4);
-    assert_eq!(owned_helpers.len(), 6);
-    assert_eq!(owned_tests.len(), 10);
+    assert_eq!(owned_constants.len(), 5);
+    assert_eq!(owned_helpers.len(), 15);
+    assert_eq!(owned_tests.len(), 28);
     for symbols in [&owned_constants, &owned_helpers, &owned_tests] {
         let unique: HashSet<_> = symbols.iter().copied().collect();
         assert_eq!(unique.len(), symbols.len(), "ownership duplicado");
     }
-    // Nenhum símbolo do arquivo pode ficar órfão fora das oito regiões.
+    // Nenhum símbolo do arquivo pode ficar órfão fora das nove regiões.
     for (index, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         if !(trimmed.starts_with("const ") || trimmed.starts_with("fn ")) {
@@ -5954,18 +6080,18 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         );
     }
 
-    // D. e H. Catálogo versionado: metadados exatos e totais 406/223/15.
+    // D. e H. Catálogo versionado: metadados exatos e totais 407/224/15.
     let catalog_path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
     exclude_pink_agent_wave_a(&mut catalog);
-    assert_eq!(catalog.regions.len(), 406);
+    assert_eq!(catalog.regions.len(), 407);
     assert_eq!(
         catalog
             .regions
             .iter()
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .count(),
-        223
+        224
     );
     assert_eq!(
         catalog
@@ -5986,7 +6112,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         .filter(|region| region.file == target_path)
         .collect();
     target_regions.sort_by_key(|region| region.start_marker);
-    assert_eq!(target_regions.len(), 8);
+    assert_eq!(target_regions.len(), 9);
     assert_eq!(
         target_regions
             .iter()
@@ -6001,7 +6127,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         assert_eq!(region.kind, "region");
         assert_eq!(region.status, "active");
     }
-    // C. Classificação exata: duas de suporte e seis de evidência.
+    // C. Classificação exata: duas de suporte e sete de evidência.
     assert_eq!(
         target_regions
             .iter()
@@ -6014,11 +6140,14 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             .iter()
             .filter(|region| evidence_keys.contains(&region.key.as_str()))
             .count(),
-        6
+        7
     );
 
     // I. Preservação integral das 398 regiões da base predecessora.
-    let predecessor: Vec<_> = catalog
+    let mut predecessor_catalog = catalog.clone();
+    project_pre_nav_map(&mut predecessor_catalog);
+    exclude_pink_agent_wave_a(&mut predecessor_catalog);
+    let predecessor: Vec<_> = predecessor_catalog
         .regions
         .iter()
         .filter(|region| region.file != target_path)
@@ -6083,8 +6212,8 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
     let full_projection = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (174_073, 6_978_817_443_380_137_045),
-        "a projeção estável das 406 regiões mudou"
+        (174_227, 17_107_834_260_215_441_963),
+        "a projeção estável das 407 regiões mudou"
     );
 
     // L. Igualdade com a regeneração canônica do CodeIndex.
@@ -6170,14 +6299,14 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
     exclude_pink_agent_wave_c(&mut catalog);
     project_pink_agent_wave_a(&mut catalog);
-    assert_eq!(catalog.regions.len(), 425);
+    assert_eq!(catalog.regions.len(), 426);
     assert_eq!(
         catalog
             .regions
             .iter()
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .count(),
-        237
+        238
     );
     assert_eq!(
         catalog
@@ -6325,18 +6454,21 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let mut predecessor_catalog = catalog.clone();
     exclude_pink_agent_wave_a(&mut predecessor_catalog);
     let predecessor: Vec<_> = predecessor_catalog.regions.iter().collect();
-    assert_eq!(predecessor.len(), 406);
+    assert_eq!(predecessor.len(), 407);
     let predecessor_projection = stable_region_projection(predecessor.iter().copied());
     assert_eq!(
         (
             predecessor_projection.len(),
             fnv1a64(predecessor_projection.as_bytes())
         ),
-        (174_073, 6_978_817_443_380_137_045)
+        (174_227, 17_107_834_260_215_441_963)
     );
-    let post_query: Vec<_> = predecessor
+    let mut historical_catalog = predecessor_catalog.clone();
+    project_pre_nav_map(&mut historical_catalog);
+    exclude_pink_agent_wave_a(&mut historical_catalog);
+    let post_query: Vec<_> = historical_catalog
+        .regions
         .iter()
-        .copied()
         .filter(|region| region.file != "tests/trama_query_tests.rs")
         .collect();
     let post_nav: Vec<_> = post_query
@@ -6373,7 +6505,7 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let full_projection = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (180_271, 9_431_070_192_305_473_617),
+        (180_425, 9_104_345_708_868_358_725),
         "projeção final medida da Onda A"
     );
 
@@ -6427,14 +6559,14 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
     let current = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
     let mut catalog = current.clone();
     exclude_pink_agent_wave_c(&mut catalog);
-    assert_eq!(catalog.regions.len(), 439);
+    assert_eq!(catalog.regions.len(), 440);
     assert_eq!(
         catalog
             .regions
             .iter()
             .filter(|region| region.key.starts_with("evidencia."))
             .count(),
-        247
+        248
     );
     assert_eq!(
         catalog
@@ -6587,31 +6719,34 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (184_310, 13_249_785_061_595_881_661),
+        (184_464, 13_008_767_194_055_272_569),
         "projeção atual medida da Onda B"
     );
     let mut wave_a = catalog.clone();
     project_pink_agent_wave_a(&mut wave_a);
-    let projection_425 = stable_region_projection(wave_a.regions.iter());
+    let projection_426 = stable_region_projection(wave_a.regions.iter());
     assert_eq!(
         (
             wave_a.regions.len(),
-            projection_425.len(),
-            fnv1a64(projection_425.as_bytes())
+            projection_426.len(),
+            fnv1a64(projection_426.as_bytes())
         ),
-        (425, 180_271, 9_431_070_192_305_473_617)
+        (426, 180_425, 9_104_345_708_868_358_725)
     );
     exclude_pink_agent_wave_a(&mut wave_a);
-    let projection_406 = stable_region_projection(wave_a.regions.iter());
+    let projection_407 = stable_region_projection(wave_a.regions.iter());
     assert_eq!(
         (
             wave_a.regions.len(),
-            projection_406.len(),
-            fnv1a64(projection_406.as_bytes())
+            projection_407.len(),
+            fnv1a64(projection_407.as_bytes())
         ),
-        (406, 174_073, 6_978_817_443_380_137_045)
+        (407, 174_227, 17_107_834_260_215_441_963)
     );
-    let q: Vec<_> = wave_a
+    let mut historical_wave_a = wave_a.clone();
+    project_pre_nav_map(&mut historical_wave_a);
+    exclude_pink_agent_wave_a(&mut historical_wave_a);
+    let q: Vec<_> = historical_wave_a
         .regions
         .iter()
         .filter(|region| region.file != "tests/trama_query_tests.rs")
@@ -6688,14 +6823,14 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let catalog_path = repository.join("src/navigation.jsonl");
     let catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
-    assert_eq!(catalog.regions.len(), 452);
+    assert_eq!(catalog.regions.len(), 453);
     assert_eq!(
         catalog
             .regions
             .iter()
             .filter(|region| region.key.starts_with("evidencia."))
             .count(),
-        256
+        257
     );
     assert_eq!(
         catalog
@@ -6848,7 +6983,7 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (188_231, 14_536_440_445_898_797_184),
+        (188_385, 10_928_292_054_661_415_715),
         "projeção atual medida da Onda C"
     );
     let mut wave_b = catalog.clone();
@@ -6860,7 +6995,7 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
             projection_439.len(),
             fnv1a64(projection_439.as_bytes())
         ),
-        (439, 184_310, 13_249_785_061_595_881_661)
+        (440, 184_464, 13_008_767_194_055_272_569)
     );
     let core = include_str!("../src/agent.rs");
     for contract in [

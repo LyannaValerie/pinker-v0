@@ -982,7 +982,7 @@ fn json_string(value: &str) -> String {
 // @pinker-nav:start trama.codigo.consulta
 // @pinker-nav:domain navegacao
 // @pinker-nav:layer trama
-// @pinker-nav:summary Reconstrói o catálogo de código do JSONL versionado e serve as consultas (`mostrar`/`buscar`/`listar`) a partir das fontes já catalogadas, sem revarrer as raízes de código controladas; ao extrair uma região, valida que os marcadores ainda a delimitam e que o hash do conteúdo confere, recusando drift.
+// @pinker-nav:summary Reconstrói o catálogo de código do JSONL versionado e serve as consultas (`mostrar`/`buscar`/`listar`/`mapa`) sem revarrer raízes; `mapa` prioriza caminho literal e reutiliza a busca textual integral. Ao extrair uma região, valida marcadores e hash, recusando drift.
 /// Falha ao carregar o catálogo de código versionado.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogError {
@@ -1027,7 +1027,7 @@ pub enum RegionCheck {
 }
 
 /// Catálogo de código em memória, reconstruído do JSONL versionado. As
-/// consultas (`mostrar`, `listar`, `buscar`) usam esta superfície e não
+/// consultas (`mostrar`, `listar`, `buscar`, `mapa`) usam esta superfície e não
 /// revarrem as raízes de código controladas (§5).
 #[derive(Debug, Clone, Default)]
 pub struct CodeCatalog {
@@ -1089,6 +1089,25 @@ impl CodeCatalog {
                 r.layer.as_deref() == Some(selector) || r.domain.as_deref() == Some(selector)
             })
             .collect()
+    }
+
+    /// Seleciona regiões para o mapa sem consultar as fontes. Um caminho de
+    /// arquivo literal tem precedência; caso contrário, reutiliza a busca
+    /// textual existente sem truncar ou escolher uma única ambiguidade.
+    pub fn map_regions(&self, filter: Option<&str>) -> Vec<&CodeRegion> {
+        let Some(filter) = filter else {
+            return self.regions.iter().collect();
+        };
+        let exact: Vec<&CodeRegion> = self
+            .regions
+            .iter()
+            .filter(|region| region.file == filter)
+            .collect();
+        if exact.is_empty() {
+            self.search(filter)
+        } else {
+            exact
+        }
     }
 }
 

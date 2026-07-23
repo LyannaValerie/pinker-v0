@@ -32,4 +32,5 @@ mão. Regenere com `pink doc sincronizar`.
 | PR | Fase | Bloco | Título | Status |
 |---|---|---|---|---|
 | #378 | — | — | Simplifica o caminho de contribuição externa | completed |
+| #382 | — | — | Adiciona mapa agrupado do catálogo de código | completed |
 <!-- @pinker-generated:end roadmap.generated -->
