@@ -165,7 +165,9 @@ fn exclude_pink_agent_wave_c(catalog: &mut CodeCatalog) {
     catalog.regions.retain(|region| {
         !matches!(
             region.key.as_str(),
-            "development.agent.pr-body"
+            // A Onda D acrescentou contract-v1; removê-la para reconstruir eras anteriores.
+            "development.agent.contract-v1"
+                | "development.agent.pr-body"
                 | "development.agent.publication"
                 | "development.agent.remote-checks"
                 | "development.agent.resume"
@@ -180,6 +182,8 @@ fn exclude_pink_agent_wave_c(catalog: &mut CodeCatalog) {
             "cli.config.modelos" => Some("fnv1a64:279c348850bae6ef"),
             "cli.execucao.entrada" => Some("fnv1a64:af0ecbd3d9ab714b"),
             "cli.parsing.subcomandos" => Some("fnv1a64:119fe4d0c208d5f0"),
+            // A Onda D altera a lifecycle (iniciar/executar); restaura o hash predecessor.
+            "development.agent.lifecycle" => Some("fnv1a64:6b167f957b7e4fae"),
             "development.agent.paths" => Some("fnv1a64:aff4b96491482ffa"),
             "development.agent.spec" => Some("fnv1a64:3ed685ed0e8f60e9"),
             "evidencia.agent.cli-spec" => Some("fnv1a64:07a26a5415117243"),
@@ -189,6 +193,27 @@ fn exclude_pink_agent_wave_c(catalog: &mut CodeCatalog) {
         };
         if let Some(hash) = hash {
             region.hash = hash.to_string();
+        }
+    }
+}
+
+/// Reconstrói o catálogo 453 da base c6478 a partir do catálogo vivo 454 da Onda D:
+/// remove `development.agent.contract-v1` e restaura o hash pré-D das regiões que a
+/// Onda D alterou (lifecycle, pr-body, cli-spec, runner).
+fn reconstruct_pre_contract_v1(catalog: &mut CodeCatalog) {
+    catalog
+        .regions
+        .retain(|region| region.key != "development.agent.contract-v1");
+    for region in &mut catalog.regions {
+        let base = match region.key.as_str() {
+            "development.agent.lifecycle" => Some("fnv1a64:6b167f957b7e4fae"),
+            "development.agent.pr-body" => Some("fnv1a64:f8e7afd3d267c91a"),
+            "evidencia.agent.cli-spec" => Some("fnv1a64:49ad4168f39edac3"),
+            "evidencia.agent.runner" => Some("fnv1a64:f787347d37732812"),
+            _ => None,
+        };
+        if let Some(base) = base {
+            region.hash = base.to_string();
         }
     }
 }
@@ -6822,7 +6847,9 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
 fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let catalog_path = repository.join("src/navigation.jsonl");
-    let catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    // A Onda D acrescentou contract-v1 (454) e alterou 4 regiões; reconstrói o 453 da Onda C.
+    reconstruct_pre_contract_v1(&mut catalog);
     assert_eq!(catalog.regions.len(), 453);
     assert_eq!(
         catalog
@@ -7044,4 +7071,250 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
         fs::read_to_string(catalog_path).unwrap(),
         regenerated.render_jsonl()
     );
+}
+
+#[test]
+fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let catalog_path = repository.join("src/navigation.jsonl");
+    let catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+
+    // CATALOG — totais exatos da Onda D.
+    assert_eq!(catalog.regions.len(), 454);
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|r| r.key.starts_with("evidencia."))
+            .count(),
+        257
+    );
+    assert_eq!(
+        catalog
+            .regions
+            .iter()
+            .filter(|r| r.layer.as_deref() == Some("runtime"))
+            .count(),
+        15
+    );
+
+    // TOOL — nova região única contract-v1 com metadata exata.
+    let contract_regions: Vec<_> = catalog
+        .regions
+        .iter()
+        .filter(|r| r.key == "development.agent.contract-v1")
+        .collect();
+    assert_eq!(contract_regions.len(), 1, "exatamente uma nova região");
+    assert_eq!(contract_regions[0].domain.as_deref(), Some("development"));
+    assert_eq!(contract_regions[0].layer.as_deref(), Some("agent"));
+
+    // Regiões A/B/C preservadas (as tocadas seguem presentes uma única vez).
+    for key in [
+        "development.agent.spec",
+        "development.agent.paths",
+        "development.agent.artifacts",
+        "development.agent.runner",
+        "development.agent.git-diff",
+        "development.agent.marker-only",
+        "development.agent.projection",
+        "development.agent.pr-body",
+        "development.agent.publication",
+        "development.agent.remote-checks",
+        "development.agent.resume",
+        "development.agent.sensitivity",
+        "development.agent.lifecycle",
+        "evidencia.agent.cli-spec",
+        "evidencia.agent.runner",
+        "evidencia.agent.limits",
+    ] {
+        assert_eq!(
+            catalog.regions.iter().filter(|r| r.key == key).count(),
+            1,
+            "região A/B/C ausente ou duplicada: {key}"
+        );
+    }
+
+    // Contrato congelado — superfície exata via constantes canônicas.
+    assert_eq!(pinker_v0::agent::CONTRACT_ID, "pink-agent-v1");
+    assert_eq!(pinker_v0::agent::CONTRACT_VERSION, 1);
+    assert_eq!(pinker_v0::agent::CONTRACT_SPEC_SCHEMA, 1);
+    assert_eq!(
+        pinker_v0::agent::CONTRACT_SUBCOMMANDS,
+        [
+            "iniciar",
+            "executar",
+            "verificar",
+            "sensibilidade",
+            "publicar",
+            "retomar",
+            "status",
+            "relatorio"
+        ]
+    );
+    assert_eq!(
+        pinker_v0::agent::CONTRACT_CHECK_KINDS,
+        ["git", "marker-only", "projection", "pr-body"]
+    );
+    assert_eq!(
+        pinker_v0::agent::CONTRACT_TERMINAL_STATES,
+        ["ACCEPTED", "BLOCKED", "NEEDS_HUMAN_DECISION"]
+    );
+    assert_eq!(pinker_v0::agent::CONTRACT_PUBLICATION_STATES.len(), 12);
+    assert_eq!(
+        pinker_v0::agent::CONTRACT_REQUIRED_BODY_SECTIONS,
+        [
+            "Resumo",
+            "Problema",
+            "Implementação",
+            "Validação",
+            "Limitações",
+            "Próximo passo"
+        ]
+    );
+    assert_eq!(pinker_v0::agent::CONTRACT_MIN_SECTION_CHARS, 40);
+    assert_eq!(pinker_v0::agent::CONTRACT_MIN_HUMAN_CHARS, 400);
+    assert_eq!(
+        (
+            pinker_v0::agent::EXIT_ACCEPTED,
+            pinker_v0::agent::EXIT_BLOCKED,
+            pinker_v0::agent::EXIT_NEEDS_HUMAN
+        ),
+        (0, 1, 2)
+    );
+    let json = pinker_v0::agent::contract_v1_json();
+    for prohibition in [
+        "\"merge\": false",
+        "\"auto_merge\": false",
+        "\"force_push\": false",
+        "\"workflow_rerun\": false",
+        "\"remote_body_edit\": false",
+    ] {
+        assert!(
+            json.contains(prohibition),
+            "proibição ausente: {prohibition}"
+        );
+    }
+    assert!(!json.contains("true"), "nenhuma capacidade pode ser true");
+    // Artefato contract-v1 estável (dígito congelado).
+    assert_eq!(
+        pinker_v0::agent::contract_digest(),
+        "c0115ffd65820e0e0afd04ec7d1642db3fdb0e0bf93b8186540d5cb7ade798f4"
+    );
+
+    // status/report referenciam o dígito; nenhuma capacidade proibida no runner.
+    let core = include_str!("../src/agent.rs");
+    assert!(core.contains("contract_digest"));
+    assert!(core.contains("contract_id"));
+    for forbidden in [
+        "gh pr merge",
+        "gh pr edit",
+        "gh run rerun",
+        "\"--auto-merge\"",
+        "verify-before-sync",
+    ] {
+        assert!(
+            !core.contains(forbidden),
+            "capacidade proibida presente: {forbidden}"
+        );
+    }
+
+    // CATALOG — projeção integral 454 medida e predecessor 453 canônico da base c6478.
+    let full = stable_region_projection(catalog.regions.iter());
+    assert_eq!(
+        (full.len(), fnv1a64(full.as_bytes())),
+        (188_837, 1_406_364_448_553_025_586),
+        "projeção integral 454 medida da Onda D"
+    );
+    let mut prev = catalog.clone();
+    reconstruct_pre_contract_v1(&mut prev);
+    let p453 = stable_region_projection(prev.regions.iter());
+    assert_eq!(
+        (prev.regions.len(), p453.len(), fnv1a64(p453.as_bytes())),
+        (453, 188_385, 10_928_292_054_661_415_715),
+        "predecessor 453 integral medido na base c6478"
+    );
+    // Cadeia histórica preservada: 439 a partir do 453 reconstruído.
+    let mut wave_b = prev.clone();
+    exclude_pink_agent_wave_c(&mut wave_b);
+    let p439 = stable_region_projection(wave_b.regions.iter());
+    assert_eq!(
+        (wave_b.regions.len(), p439.len(), fnv1a64(p439.as_bytes())),
+        (440, 184_464, 13_008_767_194_055_272_569),
+        "era 439/440 preservada"
+    );
+    // Nenhuma key removida: 453 é subconjunto exato de 454 com delta 1.
+    let keys454: std::collections::BTreeSet<_> =
+        catalog.regions.iter().map(|r| r.key.as_str()).collect();
+    let keys453: std::collections::BTreeSet<_> =
+        prev.regions.iter().map(|r| r.key.as_str()).collect();
+    assert!(keys453.is_subset(&keys454));
+    assert_eq!(keys454.len() - keys453.len(), 1);
+
+    // TRAMA — seis suítes operacionais e cápsulas anteriores presentes.
+    for suite in [
+        "tests/trama_ci_tests.rs",
+        "tests/trama_template_tests.rs",
+        "tests/trama_manifest_tests.rs",
+        "tests/trama_sync_tests.rs",
+        "tests/trama_projection_tests.rs",
+        "tests/trama_scale_tests.rs",
+        "tests/nav_catalog_tests.rs",
+        "tests/doc_catalog_tests.rs",
+        "tests/trama_query_tests.rs",
+    ] {
+        assert!(repository.join(suite).is_file(), "suíte ausente: {suite}");
+    }
+
+    // Regeneração canônica idêntica.
+    let regenerated = CodeIndex::scan_repo(&repository).expect("regeneração canônica");
+    assert!(regenerated.verify().is_empty());
+    assert_eq!(
+        fs::read_to_string(&catalog_path).unwrap(),
+        regenerated.render_jsonl()
+    );
+
+    // DOCUMENTATION — A/B/C/D completas do agente, V1 congelado, Trama incompleta.
+    let contract_doc = include_str!("../docs/development/pink-agent-v1-contract.md");
+    let closure_doc = include_str!("../docs/development/pink-agent-v1-closure.md");
+    let roadmap = include_str!("../docs/development/pink-agent-roadmap.md");
+    let inventory = include_str!("../docs/development/code-navigation-inventory.md");
+    let docs = format!("{contract_doc}\n{closure_doc}\n{roadmap}\n{inventory}");
+    for statement in [
+        "Onda A completa",
+        "Onda B completa",
+        "Onda C completa",
+        "Onda D completa",
+        "pink_agent_v1_frozen = true",
+        "pink_agent_series_a_d_complete = true",
+        "trama_complete = false",
+        "Onda 9 inativa",
+        "`apps/` reservada",
+        "seis suítes operacionais",
+        "merge manual",
+        "checks repetidos",
+    ] {
+        assert!(
+            docs.contains(statement),
+            "documentação ausente: {statement}"
+        );
+    }
+    // A Onda D NÃO fecha a Trama.
+    assert!(!docs.contains("trama_complete = true"));
+    assert!(!docs.contains("Onda 9 ativa"));
+    for nonclaim in [
+        "não é sandbox",
+        "não prova",
+        "cobertura exaustiva",
+        "não faz merge",
+        "não conclui a Trama",
+        "não implementa a Onda 9",
+        "não altera `apps/`",
+        "verify-before-sync",
+    ] {
+        assert!(
+            closure_doc.contains(nonclaim),
+            "non-claim ausente: {nonclaim}"
+        );
+    }
+    assert!(contract_doc.contains("pink-agent-v1"));
 }

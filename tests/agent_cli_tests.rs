@@ -1,4 +1,9 @@
-use pinker_v0::agent::{parse_spec_text, CommandKind};
+use pinker_v0::agent::{
+    contract_digest, contract_v1_json, parse_spec_text, CommandKind, CONTRACT_CHECK_KINDS,
+    CONTRACT_ID, CONTRACT_MIN_HUMAN_CHARS, CONTRACT_MIN_SECTION_CHARS, CONTRACT_PUBLICATION_STATES,
+    CONTRACT_REQUIRED_BODY_SECTIONS, CONTRACT_SPEC_SCHEMA, CONTRACT_SUBCOMMANDS,
+    CONTRACT_TERMINAL_STATES, CONTRACT_VERSION,
+};
 use std::process::Command;
 
 // @pinker-nav:start evidencia.agent.cli-spec
@@ -236,6 +241,145 @@ fn projection_sem_referencia_obrigatoria_e_rejeitada() {
 fn override_duplicado_e_rejeitado() {
     let extra = "check.p.kind = projection\ncheck.p.catalog = src/navigation.jsonl\ncheck.p.expected_total = 1\ncheck.p.expected_evidence = 0\ncheck.p.expected_runtime = 0\ncheck.p.expected_length = 1\ncheck.p.expected_fnv1a64 = 00\ncheck.p.override_hash.a = fnv1a64:1\ncheck.p.override_hash.a = fnv1a64:2\n";
     assert!(parse_spec_text(&valid_spec(extra))
+        .unwrap_err()
+        .contains("duplicado"));
+}
+#[test]
+fn contrato_v1_serializacao_e_byte_estavel() {
+    let a = contract_v1_json();
+    let b = contract_v1_json();
+    assert_eq!(a, b, "contrato deve ser byte a byte estável");
+    assert_eq!(contract_digest(), contract_digest());
+    assert_eq!(contract_digest().len(), 64);
+    assert!(a.starts_with("{\n  \"schema\": 1,\n"));
+    assert!(a.ends_with("}\n"));
+}
+
+#[test]
+fn contrato_identidade_e_schema_exatos() {
+    assert_eq!(CONTRACT_ID, "pink-agent-v1");
+    assert_eq!(CONTRACT_VERSION, 1);
+    assert_eq!(CONTRACT_SPEC_SCHEMA, 1);
+    let json = contract_v1_json();
+    assert!(json.contains("\"contract_id\": \"pink-agent-v1\""));
+    assert!(json.contains("\"contract_version\": 1,"));
+    assert!(json.contains("\"spec_schema\": 1,"));
+}
+
+#[test]
+fn contrato_subcomandos_exatos_e_ordenados() {
+    assert_eq!(
+        CONTRACT_SUBCOMMANDS,
+        [
+            "iniciar",
+            "executar",
+            "verificar",
+            "sensibilidade",
+            "publicar",
+            "retomar",
+            "status",
+            "relatorio"
+        ]
+    );
+}
+
+#[test]
+fn contrato_check_kinds_exatos_e_ordenados() {
+    assert_eq!(
+        CONTRACT_CHECK_KINDS,
+        ["git", "marker-only", "projection", "pr-body"]
+    );
+}
+
+#[test]
+fn contrato_estados_terminais_exatos() {
+    assert_eq!(
+        CONTRACT_TERMINAL_STATES,
+        ["ACCEPTED", "BLOCKED", "NEEDS_HUMAN_DECISION"]
+    );
+}
+
+#[test]
+fn contrato_estados_publicacao_exatos_e_ordenados() {
+    assert_eq!(
+        CONTRACT_PUBLICATION_STATES,
+        [
+            "LOCAL_ACCEPTED",
+            "COMMIT_INTENT",
+            "COMMITTED",
+            "PUSH_INTENT",
+            "PUSHED",
+            "PR_INTENT",
+            "PR_CREATED",
+            "BODY_VERIFIED",
+            "CHECKS_PENDING",
+            "ACCEPTED",
+            "BLOCKED",
+            "NEEDS_HUMAN_DECISION"
+        ]
+    );
+}
+
+#[test]
+fn contrato_codigos_de_saida_exatos() {
+    let json = contract_v1_json();
+    assert!(json.contains(
+        "\"exit_codes\": {\"ACCEPTED\": 0, \"BLOCKED\": 1, \"NEEDS_HUMAN_DECISION\": 2}"
+    ));
+}
+
+#[test]
+fn contrato_proibicoes_sao_todas_declaracoes_false() {
+    let json = contract_v1_json();
+    for prohibition in [
+        "\"merge\": false",
+        "\"auto_merge\": false",
+        "\"force_push\": false",
+        "\"workflow_rerun\": false",
+        "\"remote_body_edit\": false",
+    ] {
+        assert!(
+            json.contains(prohibition),
+            "proibição ausente: {prohibition}"
+        );
+    }
+    assert!(!json.contains("true"), "nenhuma capacidade pode ser true");
+}
+
+#[test]
+fn contrato_secoes_humanas_e_limites_exatos() {
+    assert_eq!(
+        CONTRACT_REQUIRED_BODY_SECTIONS,
+        [
+            "Resumo",
+            "Problema",
+            "Implementação",
+            "Validação",
+            "Limitações",
+            "Próximo passo"
+        ]
+    );
+    assert_eq!(CONTRACT_MIN_SECTION_CHARS, 40);
+    assert_eq!(CONTRACT_MIN_HUMAN_CHARS, 400);
+    let json = contract_v1_json();
+    assert!(json.contains("\"minimum_section_characters\": 40,"));
+    assert!(json.contains("\"minimum_human_characters\": 400,"));
+}
+
+#[test]
+fn contrato_schema_zero_e_dois_sao_rejeitados() {
+    let zero = valid_spec("").replacen("schema = 1", "schema = 0", 1);
+    assert!(parse_spec_text(&zero).is_err());
+    let dois = valid_spec("").replacen("schema = 1", "schema = 2", 1);
+    assert!(parse_spec_text(&dois)
+        .unwrap_err()
+        .contains("schema não suportado"));
+}
+
+#[test]
+fn contrato_required_check_duplicado_e_rejeitado() {
+    let extra = format!("{}publication.required_check = rust\n", publication());
+    assert!(parse_spec_text(&valid_spec(&extra))
         .unwrap_err()
         .contains("duplicado"));
 }

@@ -1465,10 +1465,253 @@ fn run_projection_check(spec: &Spec, check: &ProjectionCheck) -> Result<String, 
 // @pinker-nav:domain development
 // @pinker-nav:layer agent
 // @pinker-nav:summary Valida um único bloco pinker-change UTF-8 confinado ao delegado, sem sentinel ou comentário interno, compara kind, title, áreas e validações e registra execução canônica e SHA-256.
+/// Análise determinística do corpo humano exigido pelo contrato V1.
+/// Idêntica para corpo local e remoto (mesma função, mesmo resultado).
+#[derive(Debug, Clone)]
+pub struct HumanBodyAnalysis {
+    pub per_section_characters: Vec<(String, usize)>,
+    pub human_characters: usize,
+    pub structured_block_count: usize,
+    pub human_text: String,
+}
+
+fn strip_accents_upper(text: &str) -> String {
+    text.chars()
+        .map(|ch| match ch {
+            'á' | 'à' | 'â' | 'ã' | 'ä' | 'Á' | 'À' | 'Â' | 'Ã' | 'Ä' => 'A',
+            'é' | 'è' | 'ê' | 'ë' | 'É' | 'È' | 'Ê' | 'Ë' => 'E',
+            'í' | 'ì' | 'î' | 'ï' | 'Í' | 'Ì' | 'Î' | 'Ï' => 'I',
+            'ó' | 'ò' | 'ô' | 'õ' | 'ö' | 'Ó' | 'Ò' | 'Ô' | 'Õ' | 'Ö' => 'O',
+            'ú' | 'ù' | 'û' | 'ü' | 'Ú' | 'Ù' | 'Û' | 'Ü' => 'U',
+            'ç' | 'Ç' => 'C',
+            other => other.to_ascii_uppercase(),
+        })
+        .collect()
+}
+
+fn is_placeholder(remainder: &str) -> bool {
+    let normalized = strip_accents_upper(remainder);
+    let trimmed = normalized
+        .trim()
+        .trim_end_matches([':', '.', ';', ',', ' '])
+        .trim();
+    if trimmed.starts_with("<PREENCHER") {
+        return true;
+    }
+    matches!(
+        trimmed,
+        "TODO" | "TBD" | "TBA" | "N/A" | "NA" | "N.A" | "SEM DESCRICAO" | "PENDENTE"
+    ) || normalized.trim_start().starts_with("TODO:")
+        || normalized.trim_start().starts_with("TBD:")
+        || normalized.trim_start().starts_with("N/A:")
+}
+
+/// Extrai o conteúdo substantivo de uma linha: remove marcador de lista/checkbox,
+/// heading, comentário HTML e linhas só de pontuação. Retorna None se não substantiva.
+fn substantive_line(line: &str) -> Option<String> {
+    let mut trimmed = line.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed.starts_with('#') {
+        return None;
+    }
+    // Remove marcadores de checkbox e de lista.
+    for marker in ["- [ ]", "- [x]", "- [X]"] {
+        if let Some(rest) = trimmed.strip_prefix(marker) {
+            trimmed = rest.trim();
+        }
+    }
+    for marker in ["- ", "* ", "+ ", "> "] {
+        if let Some(rest) = trimmed.strip_prefix(marker) {
+            trimmed = rest.trim();
+        }
+    }
+    if trimmed.is_empty() {
+        return None;
+    }
+    let only_punct = trimmed
+        .chars()
+        .all(|ch| ch.is_whitespace() || ch.is_ascii_punctuation() || "—–…·•".contains(ch));
+    if only_punct {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
+pub fn analyze_human_body(raw: &str) -> Result<HumanBodyAnalysis, (String, String)> {
+    let text = raw.replace("\r\n", "\n").replace('\r', "\n");
+    let structured_block_count = text.matches("```pinker-change").count();
+    // Região humana = tudo antes do bloco estruturado; após o bloco só whitespace.
+    let (human_region, after_block) = match text.find("```pinker-change") {
+        Some(open) => {
+            let tail = &text[open + "```pinker-change".len()..];
+            let end = tail.find("```").ok_or_else(|| {
+                (
+                    "E-AGENT-PR-BODY-SECTIONS".to_string(),
+                    "bloco pinker-change sem fechamento".to_string(),
+                )
+            })?;
+            (&text[..open], &tail[end + 3..])
+        }
+        None => (text.as_str(), ""),
+    };
+    if !after_block.trim().is_empty() {
+        return Err((
+            "E-AGENT-PR-BODY-TRAILING".to_string(),
+            "conteúdo após o bloco estruturado".to_string(),
+        ));
+    }
+    let required: [&str; 6] = CONTRACT_REQUIRED_BODY_SECTIONS;
+    // Varre a região humana rastreando fenced code e comentários HTML.
+    let mut in_code = false;
+    let mut in_comment = false;
+    let mut headings: Vec<(String, usize)> = Vec::new();
+    let mut first_structural: Option<String> = None;
+    let mut section_lines: Vec<Vec<String>> = Vec::new(); // conteúdo substantivo por heading encontrado
+    let lines: Vec<&str> = human_region.lines().collect();
+    for line in &lines {
+        let trimmed = line.trim();
+        if in_comment {
+            if trimmed.contains("-->") {
+                in_comment = false;
+            }
+            continue;
+        }
+        if trimmed.starts_with("<!--") {
+            if !trimmed.contains("-->") {
+                in_comment = true;
+            }
+            continue;
+        }
+        if trimmed.starts_with("```") {
+            in_code = !in_code;
+            continue;
+        }
+        if in_code {
+            continue;
+        }
+        // Heading H2 exato?
+        if let Some(name) = trimmed.strip_prefix("## ") {
+            let name = name.trim();
+            if required.contains(&name) {
+                if first_structural.is_none() {
+                    first_structural = Some(trimmed.to_string());
+                }
+                headings.push((name.to_string(), section_lines.len()));
+                section_lines.push(Vec::new());
+                continue;
+            }
+        }
+        if first_structural.is_none() && !trimmed.is_empty() {
+            first_structural = Some(trimmed.to_string());
+        }
+        if let Some(content) = substantive_line(line) {
+            if let Some(current) = section_lines.last_mut() {
+                current.push(content);
+            }
+        }
+    }
+    // Regra 1: primeiro conteúdo estrutural deve ser `## Resumo`.
+    if first_structural.as_deref() != Some("## Resumo") {
+        return Err((
+            "E-AGENT-PR-BODY-ORDER".to_string(),
+            "primeiro conteúdo não é `## Resumo`".to_string(),
+        ));
+    }
+    // Contagem e duplicidade.
+    for name in required {
+        let count = headings.iter().filter(|(n, _)| n == name).count();
+        if count == 0 {
+            return Err((
+                "E-AGENT-PR-BODY-SECTIONS".to_string(),
+                format!("seção obrigatória ausente: {name}"),
+            ));
+        }
+        if count > 1 {
+            return Err((
+                "E-AGENT-PR-BODY-DUPLICATE".to_string(),
+                format!("seção obrigatória duplicada: {name}"),
+            ));
+        }
+    }
+    // Ordem exata.
+    let order: Vec<&str> = headings.iter().map(|(n, _)| n.as_str()).collect();
+    if order != required {
+        return Err((
+            "E-AGENT-PR-BODY-ORDER".to_string(),
+            "ordem das seções obrigatórias divergente".to_string(),
+        ));
+    }
+    // Substância por seção.
+    let mut per_section_characters = Vec::new();
+    let mut human_characters = 0usize;
+    for (name, index) in &headings {
+        let mut count = 0usize;
+        for content in &section_lines[*index] {
+            if is_placeholder(content) {
+                return Err((
+                    "E-AGENT-PR-BODY-PLACEHOLDER".to_string(),
+                    format!("placeholder proibido na seção {name}"),
+                ));
+            }
+            count += content.chars().count();
+        }
+        if count == 0 {
+            return Err((
+                "E-AGENT-PR-BODY-EMPTY".to_string(),
+                format!("seção obrigatória vazia: {name}"),
+            ));
+        }
+        if count < CONTRACT_MIN_SECTION_CHARS {
+            return Err((
+                "E-AGENT-PR-BODY-SHORT".to_string(),
+                format!("seção {name} com menos de {CONTRACT_MIN_SECTION_CHARS} caracteres substantivos"),
+            ));
+        }
+        human_characters += count;
+        per_section_characters.push((name.clone(), count));
+    }
+    if human_characters < CONTRACT_MIN_HUMAN_CHARS {
+        return Err((
+            "E-AGENT-PR-BODY-SHORT".to_string(),
+            format!("corpo humano com menos de {CONTRACT_MIN_HUMAN_CHARS} caracteres substantivos"),
+        ));
+    }
+    Ok(HumanBodyAnalysis {
+        per_section_characters,
+        human_characters,
+        structured_block_count,
+        human_text: human_region.to_string(),
+    })
+}
+
+/// Origem do corpo validado: define quais artefatos são gravados sem sobrescrever.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BodyOrigin {
+    Local,
+    Remote,
+}
+
 fn run_pr_body_check(spec: &Spec, check: &PrBodyCheck) -> Result<String, String> {
+    run_pr_body_check_origin(spec, check, BodyOrigin::Local)
+}
+
+fn run_pr_body_check_origin(
+    spec: &Spec,
+    check: &PrBodyCheck,
+    origin: BodyOrigin,
+) -> Result<String, String> {
     let path = resolve_under(&spec.delegated_root, Path::new(&check.path))?;
     let bytes = fs::read(&path).map_err(|err| format!("falha ao ler body: {err}"))?;
     let text = std::str::from_utf8(&bytes).map_err(|_| "body não é UTF-8".to_string())?;
+    let human = analyze_human_body(text).map_err(|(code, msg)| format!("{code}: {msg}"))?;
+    if human.structured_block_count != 1 {
+        return Err(format!(
+            "E-AGENT-PR-BODY-SECTIONS: bloco pinker-change deve ser único; observado {}",
+            human.structured_block_count
+        ));
+    }
     let opens = text.match_indices("```pinker-change").collect::<Vec<_>>();
     if opens.len() != 1 {
         return Err(format!(
@@ -1568,23 +1811,181 @@ fn run_pr_body_check(spec: &Spec, check: &PrBodyCheck) -> Result<String, String>
         ));
     }
     let digest = sha256_hex(&bytes);
-    atomic_write(
-        &spec.delegated_root.join("artefatos/pr-body.json"),
-        format!(
-            "{{\n  \"path\": {},\n  \"sha256\": {},\n  \"program\": {},\n  \"argv\": [{}],\n  \"exit_code\": 0\n}}\n",
-            json_escape(&check.path),
-            json_escape(&digest),
-            json_escape(&pink.display().to_string()),
-            argv.iter().map(|arg| json_escape(arg)).collect::<Vec<_>>().join(",")
-        ).as_bytes(),
-    )?;
+    if origin == BodyOrigin::Local {
+        atomic_write(
+            &spec.delegated_root.join("artefatos/pr-body.json"),
+            format!(
+                "{{\n  \"path\": {},\n  \"sha256\": {},\n  \"program\": {},\n  \"argv\": [{}],\n  \"exit_code\": 0\n}}\n",
+                json_escape(&check.path),
+                json_escape(&digest),
+                json_escape(&pink.display().to_string()),
+                argv.iter().map(|arg| json_escape(arg)).collect::<Vec<_>>().join(",")
+            ).as_bytes(),
+        )?;
+    }
+    // Relatório de corpo humano (mesma função para local e remoto; artefatos distintos).
+    let human_report = human_body_report_json(&digest, &human, "PASS");
+    match origin {
+        BodyOrigin::Local => {
+            atomic_write(
+                &spec.delegated_root.join("artefatos/pr-body-local.json"),
+                human_report.as_bytes(),
+            )?;
+            atomic_write(
+                &spec.delegated_root.join("artefatos/pr-body-human.json"),
+                human_report.as_bytes(),
+            )?;
+        }
+        BodyOrigin::Remote => {
+            atomic_write(
+                &spec.delegated_root.join("artefatos/pr-body-remote.json"),
+                human_report.as_bytes(),
+            )?;
+        }
+    }
     Ok(format!(
         "{{\"id\":{},\"kind\":\"pr-body\",\"passed\":true,\"sha256\":{}}}",
         json_escape(&check.id),
         json_escape(&digest)
     ))
 }
+
+/// Serialização estável do relatório de corpo humano (local e remoto compartilham).
+pub fn human_body_report_json(
+    body_sha256: &str,
+    analysis: &HumanBodyAnalysis,
+    canonical_validation: &str,
+) -> String {
+    let human_sha256 = sha256_hex(analysis.human_text.as_bytes());
+    let per_section = analysis
+        .per_section_characters
+        .iter()
+        .map(|(name, count)| {
+            format!(
+                "{{\"section\": {}, \"characters\": {}}}",
+                json_escape(name),
+                count
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        concat!(
+            "{{\n",
+            "  \"body_sha256\": {},\n",
+            "  \"human_sha256\": {},\n",
+            "  \"human_characters\": {},\n",
+            "  \"required_sections\": {},\n",
+            "  \"per_section_characters\": [{}],\n",
+            "  \"structured_block_count\": {},\n",
+            "  \"canonical_validation\": {}\n",
+            "}}\n"
+        ),
+        json_escape(body_sha256),
+        json_escape(&human_sha256),
+        analysis.human_characters,
+        contract_json_str_array(&CONTRACT_REQUIRED_BODY_SECTIONS),
+        per_section,
+        analysis.structured_block_count,
+        json_escape(canonical_validation),
+    )
+}
 // @pinker-nav:end development.agent.pr-body
+
+// @pinker-nav:start development.agent.contract-v1
+// @pinker-nav:domain development
+// @pinker-nav:layer agent
+// @pinker-nav:summary Congela o contrato pink-agent-v1 em constantes canônicas e serializa um artefato contract-v1.json byte-estável: schema, superfície CLI, tipos de check, estados terminais e de publicação, códigos de saída, requisitos de corpo humano e proibições de merge/auto-merge, com dígito SHA-256 determinístico.
+pub const CONTRACT_ID: &str = "pink-agent-v1";
+pub const CONTRACT_VERSION: u32 = 1;
+pub const CONTRACT_SPEC_SCHEMA: u32 = 1;
+pub const CONTRACT_SUBCOMMANDS: [&str; 8] = [
+    "iniciar",
+    "executar",
+    "verificar",
+    "sensibilidade",
+    "publicar",
+    "retomar",
+    "status",
+    "relatorio",
+];
+pub const CONTRACT_CHECK_KINDS: [&str; 4] = ["git", "marker-only", "projection", "pr-body"];
+pub const CONTRACT_TERMINAL_STATES: [&str; 3] = ["ACCEPTED", "BLOCKED", "NEEDS_HUMAN_DECISION"];
+pub const CONTRACT_PUBLICATION_STATES: [&str; 12] = [
+    "LOCAL_ACCEPTED",
+    "COMMIT_INTENT",
+    "COMMITTED",
+    "PUSH_INTENT",
+    "PUSHED",
+    "PR_INTENT",
+    "PR_CREATED",
+    "BODY_VERIFIED",
+    "CHECKS_PENDING",
+    "ACCEPTED",
+    "BLOCKED",
+    "NEEDS_HUMAN_DECISION",
+];
+pub const CONTRACT_REQUIRED_BODY_SECTIONS: [&str; 6] = [
+    "Resumo",
+    "Problema",
+    "Implementação",
+    "Validação",
+    "Limitações",
+    "Próximo passo",
+];
+pub const CONTRACT_MIN_SECTION_CHARS: usize = 40;
+pub const CONTRACT_MIN_HUMAN_CHARS: usize = 400;
+
+fn contract_json_str_array(items: &[&str]) -> String {
+    let inner = items
+        .iter()
+        .map(|item| json_escape(item))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{inner}]")
+}
+
+/// Serialização byte a byte estável do contrato congelado pink-agent-v1.
+pub fn contract_v1_json() -> String {
+    format!(
+        concat!(
+            "{{\n",
+            "  \"schema\": 1,\n",
+            "  \"contract_id\": {},\n",
+            "  \"contract_version\": {},\n",
+            "  \"spec_schema\": {},\n",
+            "  \"subcommands\": {},\n",
+            "  \"check_kinds\": {},\n",
+            "  \"terminal_states\": {},\n",
+            "  \"publication_states\": {},\n",
+            "  \"exit_codes\": {{\"ACCEPTED\": {}, \"BLOCKED\": {}, \"NEEDS_HUMAN_DECISION\": {}}},\n",
+            "  \"required_body_sections\": {},\n",
+            "  \"minimum_section_characters\": {},\n",
+            "  \"minimum_human_characters\": {},\n",
+            "  \"prohibitions\": {{\"merge\": false, \"auto_merge\": false, \"force_push\": false, \"workflow_rerun\": false, \"remote_body_edit\": false}}\n",
+            "}}\n"
+        ),
+        json_escape(CONTRACT_ID),
+        CONTRACT_VERSION,
+        CONTRACT_SPEC_SCHEMA,
+        contract_json_str_array(&CONTRACT_SUBCOMMANDS),
+        contract_json_str_array(&CONTRACT_CHECK_KINDS),
+        contract_json_str_array(&CONTRACT_TERMINAL_STATES),
+        contract_json_str_array(&CONTRACT_PUBLICATION_STATES),
+        EXIT_ACCEPTED,
+        EXIT_BLOCKED,
+        EXIT_NEEDS_HUMAN,
+        contract_json_str_array(&CONTRACT_REQUIRED_BODY_SECTIONS),
+        CONTRACT_MIN_SECTION_CHARS,
+        CONTRACT_MIN_HUMAN_CHARS,
+    )
+}
+
+/// SHA-256 determinístico do artefato contract-v1.json congelado.
+pub fn contract_digest() -> String {
+    sha256_hex(contract_v1_json().as_bytes())
+}
+// @pinker-nav:end development.agent.contract-v1
 
 fn run_checks(spec: &Spec) -> Result<(bool, Vec<String>), String> {
     let mut results = Vec::new();
@@ -1970,9 +2371,12 @@ fn verify_remote_body(
             _ => None,
         })
         .ok_or("check pr-body ausente")?;
+    // Valida o corpo remoto real diretamente (mesma função analyze_human_body),
+    // sem reler o local; artefatos remotos são distintos dos locais.
     let mut real = check;
     real.validation_pr_number = pr.number;
-    run_pr_body_check(spec, &real)?;
+    real.path = "artefatos/pr-body-remote.md".to_string();
+    run_pr_body_check_origin(spec, &real, BodyOrigin::Remote)?;
     Ok(sha256_hex(pr.body.as_bytes()))
 }
 
@@ -2754,6 +3158,10 @@ pub fn iniciar(spec_path: &Path) -> Result<i32, String> {
         before.as_bytes(),
     )?;
     atomic_write(&spec.delegated_root.join("estado/run-state.json"), format!("{{\n  \"schema\": 1,\n  \"status\": \"READY\",\n  \"task_id\": {},\n  \"last_sequence\": 0\n}}\n", json_escape(&spec.task_id)).as_bytes())?;
+    atomic_write(
+        &spec.delegated_root.join("artefatos/contract-v1.json"),
+        contract_v1_json().as_bytes(),
+    )?;
     Ok(EXIT_ACCEPTED)
 }
 
@@ -2870,12 +3278,12 @@ pub fn executar(spec_path: &Path) -> Result<i32, String> {
         )
         .as_bytes(),
     )?;
-    let result = format!("{{\n  \"status\": {},\n  \"verdict\": {},\n  \"task_id\": {},\n  \"scope_valid\": {scope},\n  \"commands\": [\n{}\n  ]\n}}\n", json_escape(status), json_escape(verdict), json_escape(&spec.task_id), results_json(&results));
+    let result = format!("{{\n  \"status\": {},\n  \"verdict\": {},\n  \"task_id\": {},\n  \"scope_valid\": {scope},\n  \"contract_id\": {},\n  \"contract_version\": {},\n  \"contract_digest\": {},\n  \"commands\": [\n{}\n  ]\n}}\n", json_escape(status), json_escape(verdict), json_escape(&spec.task_id), json_escape(CONTRACT_ID), CONTRACT_VERSION, json_escape(&contract_digest()), results_json(&results));
     atomic_write(
         &spec.delegated_root.join("artefatos/resultado.json"),
         result.as_bytes(),
     )?;
-    let report = format!("# Relatório pink agente\n\n- task: `{}`\n- status: **{}**\n- verdict: `{}`\n- comandos: {}\n- escopo válido: {}\n", spec.task_id, status, verdict, results.len(), scope);
+    let report = format!("# Relatório pink agente\n\n- task: `{}`\n- status: **{}**\n- verdict: `{}`\n- comandos: {}\n- escopo válido: {}\n- contract_id: `{}`\n- contract_version: {}\n- contract_digest: `{}`\n", spec.task_id, status, verdict, results.len(), scope, CONTRACT_ID, CONTRACT_VERSION, contract_digest());
     atomic_write(
         &spec.delegated_root.join("artefatos/RELATORIO.md"),
         report.as_bytes(),
