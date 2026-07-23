@@ -348,19 +348,36 @@ fn nav_mapa_json_schema_um_e_valido() {
     assert!(json_is_valid(text.trim()));
     assert!(text.starts_with("{\"schema\":1,\"filter\":null,\"files\":["));
     assert!(text.contains("\"sections\":["));
+    assert!(text.contains("\"path\":\"src/rosa.rs\""));
+    assert!(text.contains("\"path\":\"tests/mapa.rs\""));
+    assert!(!text.contains("\"absolute_path\""));
     fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
 fn nav_mapa_json_e_byte_identical() {
-    let root = temp_repo("mapa_json_estavel");
-    fixture(&root);
-    sync_nav(&root);
-    let first = nav(&root, &["mapa", "consulta", "compartilhada", "--json"]);
-    let second = nav(&root, &["mapa", "consulta", "compartilhada", "--json"]);
+    let first_root = temp_repo("mapa_json_estavel_primeiro_root");
+    let second_root = temp_repo("mapa_json_estavel_segundo_root");
+    fixture(&first_root);
+    fixture(&second_root);
+    sync_nav(&first_root);
+    sync_nav(&second_root);
+    let first = nav(
+        &first_root,
+        &["mapa", "consulta", "compartilhada", "--json"],
+    );
+    let second = nav(
+        &second_root,
+        &["mapa", "consulta", "compartilhada", "--json"],
+    );
     assert_eq!(code(&first), 0);
+    assert_eq!(code(&second), 0);
     assert_eq!(first.stdout, second.stdout);
-    fs::remove_dir_all(root).unwrap();
+    let text = stdout(&first);
+    assert!(!text.contains(first_root.to_string_lossy().as_ref()));
+    assert!(!text.contains(second_root.to_string_lossy().as_ref()));
+    fs::remove_dir_all(first_root).unwrap();
+    fs::remove_dir_all(second_root).unwrap();
 }
 
 #[test]

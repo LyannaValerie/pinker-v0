@@ -52,6 +52,44 @@ fn stable_region_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -
     records.concat()
 }
 
+fn project_pre_nav_map(catalog: &mut CodeCatalog) {
+    catalog
+        .regions
+        .retain(|region| region.key != "evidencia.trama.query.nav-map");
+    for region in &mut catalog.regions {
+        let (summary, hash) = match region.key.as_str() {
+            "cli.ajuda.usage" => (None, Some("fnv1a64:c55bd61fb44728d2")),
+            "cli.config.modelos" => (None, Some("fnv1a64:f70a03d4ea96fd15")),
+            "cli.execucao.entrada" => (
+                Some("try_or_exit! extrai um Result::Ok ou imprime o erro renderizado com a fonte e chama std::process::exit(1); main() chama parse_args, e em Err imprime a mensagem e sai com EXIT_USAGE (para doc/nav) ou 1 (demais), senão despacha CliCommand para run_analyze/run_build/run_editor/run_repl/run_doc/run_nav; scan_code chama nav::CodeIndex::scan_repo e sai com 1 em Err; run_nav roteia NavSub para run_nav_mostrar/buscar/listar/sincronizar/verificar."),
+                Some("fnv1a64:2474425966334a3d"),
+            ),
+            "cli.nav.consulta" => (
+                Some("load_code_catalog lê o catálogo gerado (nav::CodeCatalog::load) sem escrever; run_nav_mostrar extrai uma região por chave e, via nav::validate_region, verifica se o marcador/hash da fonte ainda bate com o catálogo antes de imprimir o conteúdo (texto ou JSON), retornando EXIT_SOURCE em divergência; run_nav_buscar e run_nav_listar apenas consultam o catálogo em memória (busca textual e filtro por camada/domínio) e imprimem os resultados — nenhuma das três funções grava em disco."),
+                Some("fnv1a64:b071ea7b358669f4"),
+            ),
+            "cli.parsing.subcomandos" => (None, Some("fnv1a64:66b8f69d2cc4fee0")),
+            "evidencia.trama.query.fixture-config" => {
+                (None, Some("fnv1a64:cd7fa2a89ad8c984"))
+            }
+            "evidencia.trama.query.process-support" => {
+                (None, Some("fnv1a64:8ef750a7eb9e8c17"))
+            }
+            "trama.codigo.consulta" => (
+                Some("Reconstrói o catálogo de código do JSONL versionado e serve as consultas (`mostrar`/`buscar`/`listar`) a partir das fontes já catalogadas, sem revarrer as raízes de código controladas; ao extrair uma região, valida que os marcadores ainda a delimitam e que o hash do conteúdo confere, recusando drift."),
+                Some("fnv1a64:a60459ec57aa77bb"),
+            ),
+            _ => (None, None),
+        };
+        if let Some(summary) = summary {
+            region.summary = summary.to_string();
+        }
+        if let Some(hash) = hash {
+            region.hash = hash.to_string();
+        }
+    }
+}
+
 fn exclude_pink_agent_wave_a(catalog: &mut CodeCatalog) {
     catalog.regions.retain(|region| {
         !matches!(
@@ -2194,6 +2232,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
     let expected_regions: [(&str, &str, &[&str], usize); 8] = [
@@ -2440,7 +2479,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (144_884, 4_496_156_996_282_057_547),
+        (145_064, 18_356_396_870_315_270_997),
         "a projeção estável das 340 entradas anteriores mudou"
     );
 }
@@ -2450,6 +2489,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
     let expected_regions: [(&str, &str, &[&str], usize, &str); 7] = [
@@ -2851,7 +2891,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (147_829, 5_645_578_743_119_882_865),
+        (148_009, 1_387_240_491_465_620_435),
         "a projeção estável das 348 regiões anteriores mudou"
     );
 
@@ -3077,6 +3117,7 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
 
     let catalog_path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
     // Escopo desta cápsula: o catálogo tal como fechado por ela. As cápsulas
     // seguintes acrescentam arquivos próprios, excluídos aqui para que os
@@ -3153,12 +3194,12 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (168_159, 11_419_973_254_330_089_419)
+        (168_339, 1_634_706_628_046_951_093)
     );
     let full_projection = stable_region_projection(capsule_scope.iter().copied());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (169_896, 15_037_406_100_575_433_934)
+        (170_076, 12_143_728_175_883_859_804)
     );
 
     let regenerated = CodeIndex::scan_repo(&repository).expect("scan canônico");
@@ -3449,6 +3490,7 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
     // D. e H. Catálogo versionado: metadados exatos e totais 398/215/15.
     let catalog_path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
     // Extensão de seletor: `tests/trama_query_tests.rs` (cápsula posterior) é
     // excluído para que o instantâneo congelado 398/215/15 e as projeções
@@ -3553,7 +3595,7 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (168_159, 11_419_973_254_330_089_419),
+        (168_339, 1_634_706_628_046_951_093),
         "a projeção estável das 386 regiões da Onda 8 mudou"
     );
     let merged_base_projection = stable_region_projection(merged_base.into_iter());
@@ -3562,14 +3604,14 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
             merged_base_projection.len(),
             fnv1a64(merged_base_projection.as_bytes())
         ),
-        (169_896, 15_037_406_100_575_433_934),
+        (170_076, 12_143_728_175_883_859_804),
         "a projeção estável das 392 regiões da base mergeada mudou"
     );
     // K. Projeção completa desta cápsula, medida — não predita.
     let full_projection = stable_region_projection(capsule_scope.iter().copied());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (171_561, 8_797_032_270_743_622_683),
+        (171_741, 7_038_069_266_194_794_117),
         "a projeção estável das 398 regiões mudou"
     );
 
@@ -3647,6 +3689,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
     // As cápsulas operacionais/documentais posteriores ao fechamento acrescentam
     // regiões novas em arquivos próprios; o conjunto congelado da Onda 8 é o
@@ -3686,7 +3729,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
     let projection = stable_region_projection(historical.into_iter());
     assert_eq!(
         (projection.len(), fnv1a64(projection.as_bytes())),
-        (168_159, 11_419_973_254_330_089_419),
+        (168_339, 1_634_706_628_046_951_093),
         "a projeção estável das 386 regiões convergidas da Onda 8 mudou"
     );
 
@@ -3786,6 +3829,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
     let central = "tests/backend_s_external_toolchain_tests.rs";
@@ -4377,7 +4421,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (150_690, 6_012_196_155_872_447_823),
+        (150_870, 15_749_653_826_456_761_089),
         "a projeção estável das 355 regiões anteriores mudou"
     );
 
@@ -4394,6 +4438,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
     let central = "tests/backend_nativo_tests.rs";
@@ -5051,7 +5096,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (157_199, 14_194_232_363_362_072_525),
+        (157_379, 14_667_879_393_081_127_943),
         "a projeção estável das 365 regiões anteriores mudou"
     );
 
@@ -5087,6 +5132,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
     let central = "runtime/pinker_rt/src/lib.rs";
@@ -5647,7 +5693,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (165_254, 11_833_888_560_250_993_627),
+        (165_434, 12_395_117_943_166_741_653),
         "a projeção estável das 379 regiões anteriores mudou"
     );
 
@@ -5769,7 +5815,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         .collect();
     assert_eq!(
         sha256_hex(stripped.as_bytes()),
-        "e306cab78a4ff931d03a06cd76000243f1e45963754e78dc90b22bf7e2d3a9c2",
+        "c81f1a1db83af33fd515879a8fff7e2959933b66930575b4728694454f391e5c",
         "retirar marcadores deve reconstruir exatamente a fonte-base"
     );
 
@@ -6098,7 +6144,10 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
     );
 
     // I. Preservação integral das 398 regiões da base predecessora.
-    let predecessor: Vec<_> = catalog
+    let mut predecessor_catalog = catalog.clone();
+    project_pre_nav_map(&mut predecessor_catalog);
+    exclude_pink_agent_wave_a(&mut predecessor_catalog);
+    let predecessor: Vec<_> = predecessor_catalog
         .regions
         .iter()
         .filter(|region| region.file != target_path)
@@ -6124,7 +6173,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             predecessor_projection.len(),
             fnv1a64(predecessor_projection.as_bytes())
         ),
-        (171_561, 8_797_032_270_743_622_683),
+        (171_741, 7_038_069_266_194_794_117),
         "a projeção estável das 398 regiões predecessoras mudou"
     );
     // Preservação das 392 regiões pós-nav-catalog.
@@ -6140,7 +6189,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             post_nav_projection.len(),
             fnv1a64(post_nav_projection.as_bytes())
         ),
-        (169_896, 15_037_406_100_575_433_934),
+        (170_076, 12_143_728_175_883_859_804),
         "a projeção estável das 392 regiões pós-nav-catalog mudou"
     );
     // J. Preservação do conjunto histórico de 386 regiões da Onda 8.
@@ -6156,14 +6205,14 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (168_159, 11_419_973_254_330_089_419),
+        (168_339, 1_634_706_628_046_951_093),
         "a projeção estável das 386 regiões da Onda 8 mudou"
     );
     // K. Projeção completa desta cápsula, medida — não predita.
     let full_projection = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (174_227, 15_007_047_626_274_044_971),
+        (174_227, 17_107_834_260_215_441_963),
         "a projeção estável das 407 regiões mudou"
     );
 
@@ -6412,11 +6461,14 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
             predecessor_projection.len(),
             fnv1a64(predecessor_projection.as_bytes())
         ),
-        (174_227, 15_007_047_626_274_044_971)
+        (174_227, 17_107_834_260_215_441_963)
     );
-    let post_query: Vec<_> = predecessor
+    let mut historical_catalog = predecessor_catalog.clone();
+    project_pre_nav_map(&mut historical_catalog);
+    exclude_pink_agent_wave_a(&mut historical_catalog);
+    let post_query: Vec<_> = historical_catalog
+        .regions
         .iter()
-        .copied()
         .filter(|region| region.file != "tests/trama_query_tests.rs")
         .collect();
     let post_nav: Vec<_> = post_query
@@ -6432,16 +6484,13 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     for (regions, expected) in [
         (
             post_query.as_slice(),
-            (398, 171_561, 8_797_032_270_743_622_683),
+            (398, 171_741, 7_038_069_266_194_794_117),
         ),
         (
             post_nav.as_slice(),
-            (392, 169_896, 15_037_406_100_575_433_934),
+            (392, 170_076, 12_143_728_175_883_859_804),
         ),
-        (
-            wave_8.as_slice(),
-            (386, 168_159, 11_419_973_254_330_089_419),
-        ),
+        (wave_8.as_slice(), (386, 168_339, 1_634_706_628_046_951_093)),
     ] {
         let projection = stable_region_projection(regions.iter().copied());
         assert_eq!(
@@ -6456,7 +6505,7 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let full_projection = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (180_425, 736_778_772_466_841),
+        (180_425, 9_104_345_708_868_358_725),
         "projeção final medida da Onda A"
     );
 
@@ -6670,7 +6719,7 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (184_464, 18_181_978_937_292_188_135),
+        (184_464, 13_008_767_194_055_272_569),
         "projeção atual medida da Onda B"
     );
     let mut wave_a = catalog.clone();
@@ -6682,7 +6731,7 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
             projection_426.len(),
             fnv1a64(projection_426.as_bytes())
         ),
-        (426, 180_425, 736_778_772_466_841)
+        (426, 180_425, 9_104_345_708_868_358_725)
     );
     exclude_pink_agent_wave_a(&mut wave_a);
     let projection_407 = stable_region_projection(wave_a.regions.iter());
@@ -6692,9 +6741,12 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
             projection_407.len(),
             fnv1a64(projection_407.as_bytes())
         ),
-        (407, 174_227, 15_007_047_626_274_044_971)
+        (407, 174_227, 17_107_834_260_215_441_963)
     );
-    let q: Vec<_> = wave_a
+    let mut historical_wave_a = wave_a.clone();
+    project_pre_nav_map(&mut historical_wave_a);
+    exclude_pink_agent_wave_a(&mut historical_wave_a);
+    let q: Vec<_> = historical_wave_a
         .regions
         .iter()
         .filter(|region| region.file != "tests/trama_query_tests.rs")
@@ -6710,9 +6762,9 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
         .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .collect();
     for (regions, expected) in [
-        (q.as_slice(), (398, 171_561, 8_797_032_270_743_622_683)),
-        (d.as_slice(), (392, 169_896, 15_037_406_100_575_433_934)),
-        (n.as_slice(), (386, 168_159, 11_419_973_254_330_089_419)),
+        (q.as_slice(), (398, 171_741, 7_038_069_266_194_794_117)),
+        (d.as_slice(), (392, 170_076, 12_143_728_175_883_859_804)),
+        (n.as_slice(), (386, 168_339, 1_634_706_628_046_951_093)),
     ] {
         let projection = stable_region_projection(regions.iter().copied());
         assert_eq!(
@@ -6931,7 +6983,7 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (188_385, 7_405_519_496_235_486_717),
+        (188_385, 10_928_292_054_661_415_715),
         "projeção atual medida da Onda C"
     );
     let mut wave_b = catalog.clone();
@@ -6943,7 +6995,7 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
             projection_439.len(),
             fnv1a64(projection_439.as_bytes())
         ),
-        (440, 184_464, 18_181_978_937_292_188_135)
+        (440, 184_464, 13_008_767_194_055_272_569)
     );
     let core = include_str!("../src/agent.rs");
     for contract in [

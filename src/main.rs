@@ -1206,9 +1206,6 @@ fn run_nav_mapa(repo_root: &Path, filtro: Option<&str>, json: bool) -> i32 {
         });
     }
 
-    let absolute_root = repo_root
-        .canonicalize()
-        .unwrap_or_else(|_| repo_root.to_path_buf());
     if json {
         let rendered_files: Vec<String> = files
             .iter()
@@ -1259,11 +1256,9 @@ fn run_nav_mapa(repo_root: &Path, filtro: Option<&str>, json: bool) -> i32 {
                     .collect();
                 let domain_values: Vec<String> = domains.iter().map(|v| json_escape(v)).collect();
                 let layer_values: Vec<String> = layers.iter().map(|v| json_escape(v)).collect();
-                let absolute_path = absolute_root.join(path);
                 format!(
-                    "{{\"path\":{},\"absolute_path\":{},\"region_count\":{},\"domains\":[{}],\"layers\":[{}],\"range\":{{\"start\":{},\"end\":{}}},\"sections\":[{}]}}",
+                    "{{\"path\":{},\"region_count\":{},\"domains\":[{}],\"layers\":[{}],\"range\":{{\"start\":{},\"end\":{}}},\"sections\":[{}]}}",
                     json_escape(path),
-                    json_escape(&absolute_path.to_string_lossy()),
                     sections.len(),
                     domain_values.join(","),
                     layer_values.join(","),
@@ -1281,6 +1276,9 @@ fn run_nav_mapa(repo_root: &Path, filtro: Option<&str>, json: bool) -> i32 {
             rendered_files.join(",")
         );
     } else {
+        let absolute_root = repo_root
+            .canonicalize()
+            .unwrap_or_else(|_| repo_root.to_path_buf());
         for (file_index, (path, sections)) in files.iter().enumerate() {
             if file_index > 0 {
                 println!();
