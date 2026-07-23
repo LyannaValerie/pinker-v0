@@ -48,6 +48,7 @@ pub struct Spec {
     pub commands: Vec<CommandSpec>,
     pub checks: Vec<CheckSpec>,
     pub mutations: Vec<MutationSpec>,
+    pub publication: Option<PublicationSpec>,
     pub accepted_verdict: String,
     pub blocked_verdict: String,
     pub human_verdict: String,
@@ -58,6 +59,37 @@ pub enum CheckSpec {
     Git(GitCheck),
     MarkerOnly(MarkerOnlyCheck),
     Projection(ProjectionCheck),
+    PrBody(PrBodyCheck),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PrBodyCheck {
+    pub id: String,
+    pub path: String,
+    pub validation_pr_number: u64,
+    pub expected_kind: String,
+    pub expected_title: String,
+    pub expected_areas: Vec<String>,
+    pub expected_validations: Vec<String>,
+    pub forbid_sentinel: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PublicationSpec {
+    pub repository: String,
+    pub remote: String,
+    pub base_branch: String,
+    pub expected_base: String,
+    pub head_branch: String,
+    pub commit_message: String,
+    pub changes: Vec<String>,
+    pub pr_title: String,
+    pub pr_body: String,
+    pub draft: bool,
+    pub required_checks: Vec<String>,
+    pub defer_checks: bool,
+    pub poll_seconds: u64,
+    pub timeout_seconds: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -133,6 +165,13 @@ struct CheckBuilder {
 struct MutationBuilder {
     values: BTreeMap<String, String>,
     argv: Vec<String>,
+}
+
+#[derive(Default)]
+struct PublicationBuilder {
+    values: BTreeMap<String, String>,
+    changes: Vec<String>,
+    required_checks: Vec<String>,
 }
 
 fn parse_bool(value: &str, line: usize) -> Result<bool, String> {
@@ -253,10 +292,88 @@ fn build_check(id: &str, mut builder: CheckBuilder) -> Result<CheckSpec, String>
             exclude_keys: builder.repeated.remove("exclude_key").unwrap_or_default(),
             override_hashes: std::mem::take(&mut builder.overrides),
         }),
+        "pr-body" => CheckSpec::PrBody(PrBodyCheck {
+            id: id.to_string(),
+            path: required(&mut builder.values, "path", id)?,
+            validation_pr_number: number(
+                required(&mut builder.values, "validation_pr_number", id)?,
+                "validation_pr_number",
+            )?,
+            expected_kind: required(&mut builder.values, "expected_kind", id)?,
+            expected_title: required(&mut builder.values, "expected_title", id)?,
+            expected_areas: builder.repeated.remove("expected_area").unwrap_or_default(),
+            expected_validations: builder
+                .repeated
+                .remove("expected_validation")
+                .unwrap_or_default(),
+            forbid_sentinel: parse_bool(&required(&mut builder.values, "forbid_sentinel", id)?, 0)?,
+        }),
         _ => return Err(format!("check.{id}.kind inválido: {kind}")),
     };
     if !builder.values.is_empty() || !builder.repeated.is_empty() || !builder.overrides.is_empty() {
         return Err(format!("check.{id}: campo incompatível com kind"));
+    }
+    Ok(result)
+}
+
+fn build_publication(mut builder: PublicationBuilder) -> Result<PublicationSpec, String> {
+    let repository = required(&mut builder.values, "repository", "publication")?;
+    let remote = required(&mut builder.values, "remote", "publication")?;
+    let base_branch = required(&mut builder.values, "base_branch", "publication")?;
+    let expected_base = required(&mut builder.values, "expected_base", "publication")?;
+    let head_branch = required(&mut builder.values, "head_branch", "publication")?;
+    if repository != "LyannaValerie/pinker-v0"
+        || remote != "origin"
+        || base_branch != "main"
+        || !head_branch.starts_with("agents/")
+    {
+        return Err("publication: repository/remote/base/head fora da allowlist".to_string());
+    }
+    let draft = parse_bool(&required(&mut builder.values, "draft", "publication")?, 0)?;
+    if draft {
+        return Err("publication.draft só aceita false".to_string());
+    }
+    let result = PublicationSpec {
+        repository,
+        remote,
+        base_branch,
+        expected_base,
+        head_branch,
+        commit_message: required(&mut builder.values, "commit_message", "publication")?,
+        changes: builder.changes,
+        pr_title: required(&mut builder.values, "pr_title", "publication")?,
+        pr_body: required(&mut builder.values, "pr_body", "publication")?,
+        draft,
+        required_checks: builder.required_checks,
+        defer_checks: parse_bool(
+            &required(&mut builder.values, "defer_checks", "publication")?,
+            0,
+        )?,
+        poll_seconds: number(
+            required(&mut builder.values, "poll_seconds", "publication")?,
+            "publication.poll_seconds",
+        )?,
+        timeout_seconds: number(
+            required(&mut builder.values, "timeout_seconds", "publication")?,
+            "publication.timeout_seconds",
+        )?,
+    };
+    if !builder.values.is_empty()
+        || result.changes.is_empty()
+        || result.required_checks.is_empty()
+        || result.poll_seconds == 0
+        || result.timeout_seconds == 0
+    {
+        return Err(
+            "publication: campo incompatível, lista vazia ou intervalo inválido".to_string(),
+        );
+    }
+    for (index, name) in result.required_checks.iter().enumerate() {
+        if result.required_checks[..index].contains(name) {
+            return Err(format!(
+                "publication.required_check duplicado na spec: {name}"
+            ));
+        }
     }
     Ok(result)
 }
@@ -313,6 +430,7 @@ pub fn parse_spec_text(text: &str) -> Result<Spec, String> {
     let mut checks: BTreeMap<String, CheckBuilder> = BTreeMap::new();
     let mut mutation_order = Vec::new();
     let mut mutations: BTreeMap<String, MutationBuilder> = BTreeMap::new();
+    let mut publication: Option<PublicationBuilder> = None;
 
     for (index, raw) in text.lines().enumerate() {
         let line_no = index + 1;
@@ -440,6 +558,8 @@ pub fn parse_spec_text(text: &str) -> Result<Spec, String> {
                         | "expected_key"
                         | "exclude_file"
                         | "exclude_key"
+                        | "expected_area"
+                        | "expected_validation"
                 ) {
                     check
                         .repeated
@@ -474,8 +594,45 @@ pub fn parse_spec_text(text: &str) -> Result<Spec, String> {
                         | "expected_runtime"
                         | "expected_length"
                         | "expected_fnv1a64"
+                        | "validation_pr_number"
+                        | "expected_kind"
+                        | "expected_title"
+                        | "forbid_sentinel"
                 ) {
                     if check
+                        .values
+                        .insert(field.to_string(), value.to_string())
+                        .is_some()
+                    {
+                        return Err(format!("linha {line_no}: campo duplicado: {key}"));
+                    }
+                } else {
+                    return Err(format!("linha {line_no}: campo desconhecido: {key}"));
+                }
+            }
+            _ if key.starts_with("publication.") => {
+                let field = &key[12..];
+                let publication = publication.get_or_insert_with(PublicationBuilder::default);
+                if field == "change" {
+                    publication.changes.push(value.to_string());
+                } else if field == "required_check" {
+                    publication.required_checks.push(value.to_string());
+                } else if matches!(
+                    field,
+                    "repository"
+                        | "remote"
+                        | "base_branch"
+                        | "expected_base"
+                        | "head_branch"
+                        | "commit_message"
+                        | "pr_title"
+                        | "pr_body"
+                        | "draft"
+                        | "defer_checks"
+                        | "poll_seconds"
+                        | "timeout_seconds"
+                ) {
+                    if publication
                         .values
                         .insert(field.to_string(), value.to_string())
                         .is_some()
@@ -586,6 +743,7 @@ pub fn parse_spec_text(text: &str) -> Result<Spec, String> {
         commands: built,
         checks: built_checks,
         mutations: built_mutations,
+        publication: publication.map(build_publication).transpose()?,
         accepted_verdict: accepted_verdict.ok_or("campo obrigatório ausente: verdict.accepted")?,
         blocked_verdict: blocked_verdict.ok_or("campo obrigatório ausente: verdict.blocked")?,
         human_verdict: human_verdict.ok_or("campo obrigatório ausente: verdict.human")?,
@@ -682,6 +840,10 @@ pub fn validate_paths(spec: &Spec) -> Result<(), String> {
                     return Err("exclude_key vazio".to_string());
                 }
             }
+            CheckSpec::PrBody(check) => {
+                validate_relative_path(&check.path)?;
+                resolve_under(&delegated, Path::new(&check.path))?;
+            }
         }
     }
     for mutation in &spec.mutations {
@@ -690,6 +852,17 @@ pub fn validate_paths(spec: &Spec) -> Result<(), String> {
         resolve_under(&delegated, Path::new(&mutation.search_file))?;
         resolve_under(&delegated, Path::new(&mutation.replacement_file))?;
         resolve_under(&worktree, Path::new(&mutation.probe_cwd))?;
+    }
+    if let Some(publication) = &spec.publication {
+        validate_relative_path(&publication.pr_body)?;
+        resolve_under(&delegated, Path::new(&publication.pr_body))?;
+        for change in &publication.changes {
+            validate_relative_path(change)?;
+            resolve_under(&worktree, Path::new(change))?;
+        }
+        if publication.expected_base != spec.expected_base {
+            return Err("publication.expected_base diverge de expected_base".to_string());
+        }
     }
     Ok(())
 }
@@ -1288,6 +1461,131 @@ fn run_projection_check(spec: &Spec, check: &ProjectionCheck) -> Result<String, 
 }
 // @pinker-nav:end development.agent.projection
 
+// @pinker-nav:start development.agent.pr-body
+// @pinker-nav:domain development
+// @pinker-nav:layer agent
+// @pinker-nav:summary Valida um único bloco pinker-change UTF-8 confinado ao delegado, sem sentinel ou comentário interno, compara kind, title, áreas e validações e registra execução canônica e SHA-256.
+fn run_pr_body_check(spec: &Spec, check: &PrBodyCheck) -> Result<String, String> {
+    let path = resolve_under(&spec.delegated_root, Path::new(&check.path))?;
+    let bytes = fs::read(&path).map_err(|err| format!("falha ao ler body: {err}"))?;
+    let text = std::str::from_utf8(&bytes).map_err(|_| "body não é UTF-8".to_string())?;
+    let opens = text.match_indices("```pinker-change").collect::<Vec<_>>();
+    if opens.len() != 1 {
+        return Err(format!(
+            "body exige exatamente um bloco pinker-change; observado {}",
+            opens.len()
+        ));
+    }
+    let tail = &text[opens[0].0 + "```pinker-change".len()..];
+    let end = tail
+        .find("```")
+        .ok_or("bloco pinker-change sem fechamento")?;
+    let block = &tail[..end];
+    if block.lines().any(|line| line.trim_start().starts_with('#')) {
+        return Err("comentário dentro do bloco pinker-change".to_string());
+    }
+    if check.forbid_sentinel && block.contains("<preencher-") {
+        return Err("sentinel proibido no body".to_string());
+    }
+    let scalar = |name: &str| -> Option<String> {
+        block.lines().find_map(|line| {
+            line.trim()
+                .strip_prefix(&format!("{name}:"))
+                .map(|value| value.trim().to_string())
+        })
+    };
+    let list = |name: &str| -> Vec<String> {
+        let mut active = false;
+        let mut values = Vec::new();
+        for line in block.lines() {
+            let trimmed = line.trim();
+            if trimmed == format!("{name}:") {
+                active = true;
+                continue;
+            }
+            if active {
+                if let Some(value) = trimmed.strip_prefix("- ") {
+                    values.push(value.trim().to_string());
+                } else if !trimmed.is_empty() && !line.starts_with(' ') {
+                    break;
+                }
+            }
+        }
+        values
+    };
+    let kind = scalar("kind").ok_or("kind ausente no body")?;
+    let title = scalar("title").ok_or("title ausente no body")?;
+    let areas = list("area");
+    let required = block
+        .find("  required:")
+        .map(|start| &block[start..])
+        .unwrap_or("");
+    let validations = required
+        .lines()
+        .skip(1)
+        .take_while(|line| line.trim().starts_with("- ") || line.trim().is_empty())
+        .filter_map(|line| line.trim().strip_prefix("- ").map(str::to_string))
+        .collect::<Vec<_>>();
+    if kind != check.expected_kind
+        || title != check.expected_title
+        || areas != check.expected_areas
+        || validations != check.expected_validations
+    {
+        return Err("kind/title/area/validation divergente no body".to_string());
+    }
+    let current = env::current_exe().map_err(|err| err.to_string())?;
+    let pink = resolve_pinker_executable(&current)?;
+    let argv = [
+        "doc".to_string(),
+        "importar-pr".to_string(),
+        check.validation_pr_number.to_string(),
+        "--corpo".to_string(),
+        path.display().to_string(),
+        "--check".to_string(),
+        "--repo".to_string(),
+        spec.worktree.display().to_string(),
+    ];
+    let output = Command::new(&pink)
+        .args(&argv)
+        .output()
+        .map_err(|err| err.to_string())?;
+    atomic_write(
+        &spec
+            .delegated_root
+            .join(format!("logs/{}.stdout.txt", check.id)),
+        &output.stdout,
+    )?;
+    atomic_write(
+        &spec
+            .delegated_root
+            .join(format!("logs/{}.stderr.txt", check.id)),
+        &output.stderr,
+    )?;
+    if !output.status.success() {
+        return Err(format!(
+            "validação canônica do body falhou: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let digest = sha256_hex(&bytes);
+    atomic_write(
+        &spec.delegated_root.join("artefatos/pr-body.json"),
+        format!(
+            "{{\n  \"path\": {},\n  \"sha256\": {},\n  \"program\": {},\n  \"argv\": [{}],\n  \"exit_code\": 0\n}}\n",
+            json_escape(&check.path),
+            json_escape(&digest),
+            json_escape(&pink.display().to_string()),
+            argv.iter().map(|arg| json_escape(arg)).collect::<Vec<_>>().join(",")
+        ).as_bytes(),
+    )?;
+    Ok(format!(
+        "{{\"id\":{},\"kind\":\"pr-body\",\"passed\":true,\"sha256\":{}}}",
+        json_escape(&check.id),
+        json_escape(&digest)
+    ))
+}
+// @pinker-nav:end development.agent.pr-body
+
 fn run_checks(spec: &Spec) -> Result<(bool, Vec<String>), String> {
     let mut results = Vec::new();
     for check in &spec.checks {
@@ -1299,6 +1597,7 @@ fn run_checks(spec: &Spec) -> Result<(bool, Vec<String>), String> {
             CheckSpec::Projection(check) => {
                 (&check.id, "projection", run_projection_check(spec, check))
             }
+            CheckSpec::PrBody(check) => (&check.id, "pr-body", run_pr_body_check(spec, check)),
         };
         let result = match outcome {
             Ok(result) => result,
@@ -1316,6 +1615,944 @@ fn run_checks(spec: &Spec) -> Result<(bool, Vec<String>), String> {
         .all(|result| result.contains("\"passed\":true"));
     Ok((passed, results))
 }
+
+#[derive(Clone, Debug)]
+struct PublicationState {
+    status: String,
+    spec_hash: String,
+    candidate: String,
+    parent: String,
+    tree: String,
+    pr_number: Option<u64>,
+    pr_url: Option<String>,
+    body_digest: String,
+}
+
+fn json_text_field(text: &str, field: &str) -> Option<String> {
+    let needle = format!("\"{field}\":");
+    let tail = text.split_once(&needle)?.1.trim_start();
+    if !tail.starts_with('"') {
+        return None;
+    }
+    let mut out = String::new();
+    let mut escaped = false;
+    for ch in tail[1..].chars() {
+        if escaped {
+            out.push(match ch {
+                'n' => '\n',
+                'r' => '\r',
+                't' => '\t',
+                other => other,
+            });
+            escaped = false;
+        } else if ch == '\\' {
+            escaped = true;
+        } else if ch == '"' {
+            return Some(out);
+        } else {
+            out.push(ch);
+        }
+    }
+    None
+}
+
+fn json_u64_field(text: &str, field: &str) -> Option<u64> {
+    let needle = format!("\"{field}\":");
+    let tail = text.split_once(&needle)?.1.trim_start();
+    tail.chars()
+        .take_while(char::is_ascii_digit)
+        .collect::<String>()
+        .parse()
+        .ok()
+}
+
+fn publication_state_path(spec: &Spec) -> PathBuf {
+    spec.delegated_root.join("estado/publication-state.json")
+}
+
+fn save_publication_state(spec: &Spec, state: &PublicationState) -> Result<(), String> {
+    atomic_write(
+        &publication_state_path(spec),
+        format!(
+            "{{\n  \"schema\": 1,\n  \"status\": {},\n  \"spec_hash\": {},\n  \"candidate\": {},\n  \"parent\": {},\n  \"tree\": {},\n  \"pr_number\": {},\n  \"pr_url\": {},\n  \"body_digest\": {}\n}}\n",
+            json_escape(&state.status),
+            json_escape(&state.spec_hash),
+            json_escape(&state.candidate),
+            json_escape(&state.parent),
+            json_escape(&state.tree),
+            state.pr_number.map_or("null".to_string(), |n| n.to_string()),
+            state.pr_url.as_ref().map_or("null".to_string(), |v| json_escape(v)),
+            json_escape(&state.body_digest)
+        ).as_bytes(),
+    )
+}
+
+fn load_publication_state(spec: &Spec) -> Result<PublicationState, String> {
+    let text = fs::read_to_string(publication_state_path(spec)).map_err(|err| err.to_string())?;
+    Ok(PublicationState {
+        status: json_text_field(&text, "status").ok_or("publication status ausente")?,
+        spec_hash: json_text_field(&text, "spec_hash").ok_or("publication spec_hash ausente")?,
+        candidate: json_text_field(&text, "candidate").unwrap_or_default(),
+        parent: json_text_field(&text, "parent").unwrap_or_default(),
+        tree: json_text_field(&text, "tree").unwrap_or_default(),
+        pr_number: json_u64_field(&text, "pr_number"),
+        pr_url: json_text_field(&text, "pr_url"),
+        body_digest: json_text_field(&text, "body_digest").unwrap_or_default(),
+    })
+}
+
+fn publication_event(spec: &Spec, status: &str) -> Result<(), String> {
+    let path = spec.delegated_root.join("estado/publication-events.jsonl");
+    let sequence = fs::read_to_string(&path)
+        .unwrap_or_default()
+        .lines()
+        .count() as u64
+        + 1;
+    append_event(&path, sequence, "publication", status, None)
+}
+
+fn set_publication_status(
+    spec: &Spec,
+    state: &mut PublicationState,
+    status: &str,
+) -> Result<(), String> {
+    state.status = status.to_string();
+    save_publication_state(spec, state)?;
+    publication_event(spec, status)
+}
+
+fn run_captured(
+    spec: &Spec,
+    prefix: &str,
+    program: &str,
+    args: &[String],
+) -> Result<Output, String> {
+    let count = fs::read_dir(spec.delegated_root.join("logs"))
+        .map(|entries| {
+            entries
+                .filter_map(Result::ok)
+                .filter(|e| e.file_name().to_string_lossy().starts_with(prefix))
+                .count()
+                + 1
+        })
+        .unwrap_or(1);
+    let output = Command::new(program)
+        .args(args)
+        .output()
+        .map_err(|err| err.to_string())?;
+    atomic_write(
+        &spec
+            .delegated_root
+            .join(format!("logs/{prefix}-{count}.stdout.txt")),
+        &output.stdout,
+    )?;
+    atomic_write(
+        &spec
+            .delegated_root
+            .join(format!("logs/{prefix}-{count}.stderr.txt")),
+        &output.stderr,
+    )?;
+    Ok(output)
+}
+
+fn run_gh(spec: &Spec, operation: &str, args: &[String]) -> Result<Output, String> {
+    let allowed = matches!(
+        args.get(0..2).map(|v| (v[0].as_str(), v[1].as_str())),
+        Some(("pr", "list" | "create" | "view" | "checks"))
+    );
+    if !allowed {
+        return Err("comando GH não autorizado".to_string());
+    }
+    run_captured(spec, &format!("gh-{operation}"), "gh", args)
+}
+
+fn output_text(output: &Output, label: &str) -> Result<String, String> {
+    if !output.status.success() {
+        return Err(format!(
+            "{label} falhou: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    String::from_utf8(output.stdout.clone())
+        .map(|value| value.trim().to_string())
+        .map_err(|_| format!("{label}: stdout não UTF-8"))
+}
+
+fn publication(spec: &Spec) -> Result<&PublicationSpec, String> {
+    spec.publication
+        .as_ref()
+        .ok_or("publication ausente".to_string())
+}
+
+fn exact_changed(spec: &Spec, publication: &PublicationSpec) -> Result<(), String> {
+    let changed = changed_paths(spec)?;
+    let mut expected = publication.changes.clone();
+    expected.sort();
+    expected.dedup();
+    if changed != expected {
+        return Err(format!(
+            "changed set divergente: esperado {expected:?}, observado {changed:?}"
+        ));
+    }
+    let cached = git_output(&spec.worktree, &["diff", "--cached", "--name-only"])?;
+    if !cached.is_empty() {
+        return Err("index pré-staged".to_string());
+    }
+    if publication
+        .changes
+        .iter()
+        .any(|path| matches!(path.as_str(), "Cargo.toml" | "Cargo.lock"))
+    {
+        return Err("Cargo não pode integrar publication.change".to_string());
+    }
+    let diff = Command::new("git")
+        .arg("-C")
+        .arg(&spec.worktree)
+        .args(["diff", "--check"])
+        .output()
+        .map_err(|err| err.to_string())?;
+    if !diff.status.success() {
+        return Err("git diff --check falhou".to_string());
+    }
+    Ok(())
+}
+
+fn remote_head(spec: &Spec, publication: &PublicationSpec) -> Result<Option<String>, String> {
+    let output = run_captured(
+        spec,
+        "git-ls-remote",
+        "git",
+        &[
+            "-C".to_string(),
+            spec.worktree.display().to_string(),
+            "ls-remote".to_string(),
+            "--heads".to_string(),
+            publication.remote.clone(),
+            format!("refs/heads/{}", publication.head_branch),
+        ],
+    )?;
+    let text = output_text(&output, "git ls-remote")?;
+    Ok(text.split_whitespace().next().map(str::to_string))
+}
+
+fn list_pr_numbers(spec: &Spec, publication: &PublicationSpec) -> Result<Vec<u64>, String> {
+    let output = run_gh(
+        spec,
+        "pr-list",
+        &[
+            "pr".into(),
+            "list".into(),
+            "--repo".into(),
+            publication.repository.clone(),
+            "--state".into(),
+            "all".into(),
+            "--head".into(),
+            publication.head_branch.clone(),
+            "--base".into(),
+            publication.base_branch.clone(),
+            "--limit".into(),
+            "10".into(),
+            "--json".into(),
+            "number".into(),
+            "--jq".into(),
+            ".[].number".into(),
+        ],
+    )?;
+    let text = output_text(&output, "gh pr list")?;
+    text.lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            line.trim()
+                .parse::<u64>()
+                .map_err(|_| "número de PR inválido".to_string())
+        })
+        .collect()
+}
+
+struct RemotePr {
+    number: u64,
+    state: String,
+    draft: bool,
+    merged: bool,
+    base: String,
+    head: String,
+    sha: String,
+    title: String,
+    url: String,
+    auto_merge: bool,
+    body: String,
+}
+
+fn read_pr(spec: &Spec, publication: &PublicationSpec, number: u64) -> Result<RemotePr, String> {
+    let fields = run_gh(spec, "pr-view", &[
+        "pr".into(), "view".into(), number.to_string(), "--repo".into(), publication.repository.clone(),
+        "--json".into(), "state,isDraft,mergedAt,baseRefName,headRefName,headRefOid,title,url,autoMergeRequest".into(),
+        "--jq".into(), "[.state,.isDraft,(.mergedAt != null),.baseRefName,.headRefName,.headRefOid,.title,.url,(.autoMergeRequest != null)] | @tsv".into(),
+    ])?;
+    let fields = output_text(&fields, "gh pr view")?;
+    let values = fields.split('\t').collect::<Vec<_>>();
+    if values.len() != 9 {
+        return Err("gh pr view retornou campos incompatíveis".to_string());
+    }
+    let body = run_gh(
+        spec,
+        "pr-view-body",
+        &[
+            "pr".into(),
+            "view".into(),
+            number.to_string(),
+            "--repo".into(),
+            publication.repository.clone(),
+            "--json".into(),
+            "body".into(),
+            "--jq".into(),
+            ".body".into(),
+        ],
+    )?;
+    let body = String::from_utf8(body.stdout).map_err(|_| "body remoto não UTF-8".to_string())?;
+    atomic_write(
+        &spec.delegated_root.join("artefatos/pr-body-remote.md"),
+        body.as_bytes(),
+    )?;
+    Ok(RemotePr {
+        number,
+        state: values[0].to_string(),
+        draft: values[1] == "true",
+        merged: values[2] == "true",
+        base: values[3].to_string(),
+        head: values[4].to_string(),
+        sha: values[5].to_string(),
+        title: values[6].to_string(),
+        url: values[7].to_string(),
+        auto_merge: values[8] == "true",
+        body,
+    })
+}
+
+fn require_compatible_pr(
+    pr: &RemotePr,
+    publication: &PublicationSpec,
+    candidate: &str,
+) -> Result<(), String> {
+    if pr.state != "OPEN"
+        || pr.draft
+        || pr.merged
+        || pr.base != publication.base_branch
+        || pr.head != publication.head_branch
+        || pr.sha != candidate
+        || pr.title != publication.pr_title
+        || pr.auto_merge
+    {
+        return Err("PR remota incompatível".to_string());
+    }
+    Ok(())
+}
+
+fn semantic_body(value: &str) -> String {
+    value.replace("\r\n", "\n").trim_end().to_string()
+}
+
+fn verify_remote_body(
+    spec: &Spec,
+    publication: &PublicationSpec,
+    pr: &RemotePr,
+) -> Result<String, String> {
+    let local_path = resolve_under(&spec.delegated_root, Path::new(&publication.pr_body))?;
+    let local = fs::read_to_string(local_path).map_err(|err| err.to_string())?;
+    if semantic_body(&local) != semantic_body(&pr.body) {
+        return Err("body remoto diverge semanticamente do local".to_string());
+    }
+    let check = spec
+        .checks
+        .iter()
+        .find_map(|check| match check {
+            CheckSpec::PrBody(check) => Some(check.clone()),
+            _ => None,
+        })
+        .ok_or("check pr-body ausente")?;
+    let mut real = check;
+    real.validation_pr_number = pr.number;
+    run_pr_body_check(spec, &real)?;
+    Ok(sha256_hex(pr.body.as_bytes()))
+}
+
+// @pinker-nav:start development.agent.publication
+// @pinker-nav:domain development
+// @pinker-nav:layer agent
+// @pinker-nav:summary Publica com precondições estritas, intenções duráveis, staging por paths exatos, commit único, push normal e criação ou reconciliação de uma única PR sem edição, merge ou auto-merge.
+pub fn publicar(spec_path: &Path) -> Result<i32, String> {
+    let spec_bytes = fs::read(spec_path).map_err(|err| err.to_string())?;
+    let spec = load_spec(spec_path)?;
+    ensure_layout(&spec)?;
+    let publication = publication(&spec)?.clone();
+    if publication.draft {
+        return Err("draft true rejeitado".to_string());
+    }
+    let spec_hash = sha256_hex(&spec_bytes);
+    let local_result = fs::read_to_string(spec.delegated_root.join("artefatos/resultado.json"))
+        .map_err(|_| "executar não comprovado para o spec".to_string())?;
+    let sensitivity = fs::read_to_string(spec.delegated_root.join("artefatos/sensitivity.json"))
+        .map_err(|_| "sensibilidade não comprovada para o spec".to_string())?;
+    if !local_result.contains("\"status\": \"ACCEPTED\"")
+        || !sensitivity.contains("\"passed\":true")
+        || !sensitivity.contains("\"undetected\":[]")
+        || !sensitivity.contains("\"harness_errors\":[]")
+        || !sensitivity.contains("\"restoration_verified\":true")
+    {
+        return Err("execução local ou sensibilidade não aceita".to_string());
+    }
+    let actual_manifest =
+        fs::read_to_string(spec.delegated_root.join("artefatos/artifact-manifest.json"))
+            .map_err(|_| "manifesto de artefatos ausente".to_string())?;
+    if actual_manifest != artifact_manifest(&spec.delegated_root)? {
+        return Err("manifesto de artefatos divergente".to_string());
+    }
+    atomic_write(
+        &spec
+            .delegated_root
+            .join("artefatos/publication-spec.sha256"),
+        format!("{spec_hash}\n").as_bytes(),
+    )?;
+    let mut state = PublicationState {
+        status: "LOCAL_ACCEPTED".into(),
+        spec_hash,
+        candidate: String::new(),
+        parent: publication.expected_base.clone(),
+        tree: String::new(),
+        pr_number: None,
+        pr_url: None,
+        body_digest: String::new(),
+    };
+    save_publication_state(&spec, &state)?;
+    publication_event(&spec, "LOCAL_ACCEPTED")?;
+    let current = env::current_exe().map_err(|err| err.to_string())?;
+    let pink = resolve_pinker_executable(&current)?;
+    for surface in ["nav", "doc"] {
+        let output = run_captured(
+            &spec,
+            &format!("pink-{surface}-verify"),
+            &pink.display().to_string(),
+            &[surface.to_string(), "verificar".to_string()],
+        )?;
+        if !output.status.success() {
+            return Err(format!("pink {surface} verificar falhou"));
+        }
+    }
+    let head = git_output(&spec.worktree, &["rev-parse", "HEAD"])?;
+    let branch = git_output(&spec.worktree, &["branch", "--show-current"])?;
+    let count = git_output(
+        &spec.worktree,
+        &[
+            "rev-list",
+            "--count",
+            &format!("{}..HEAD", publication.expected_base),
+        ],
+    )?;
+    if head != publication.expected_base || branch != publication.head_branch || count != "0" {
+        return Err("base/branch/commit count de publicação divergente".to_string());
+    }
+    exact_changed(&spec, &publication)?;
+    let (checks_passed, _) = run_checks(&spec)?;
+    if !checks_passed {
+        return Err("checks locais não aceitos".to_string());
+    }
+    if remote_head(&spec, &publication)?.is_some()
+        || !list_pr_numbers(&spec, &publication)?.is_empty()
+    {
+        return Err("branch remota ou PR preexistente".to_string());
+    }
+    set_publication_status(&spec, &mut state, "COMMIT_INTENT")?;
+    for path in &publication.changes {
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(&spec.worktree)
+            .args(["add", "--", path])
+            .output()
+            .map_err(|err| err.to_string())?;
+        if !output.status.success() {
+            return Err("git add por path falhou".to_string());
+        }
+    }
+    let mut indexed = git_output(&spec.worktree, &["diff", "--cached", "--name-only"])?
+        .lines()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    indexed.sort();
+    let mut expected = publication.changes.clone();
+    expected.sort();
+    if indexed != expected {
+        return Err("index não corresponde ao conjunto exato".to_string());
+    }
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(&spec.worktree)
+        .args(["commit", "-m", &publication.commit_message])
+        .output()
+        .map_err(|err| err.to_string())?;
+    if !output.status.success() {
+        return Err(format!(
+            "commit falhou: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    state.candidate = git_output(&spec.worktree, &["rev-parse", "HEAD"])?;
+    state.parent = git_output(&spec.worktree, &["rev-parse", "HEAD^"])?;
+    state.tree = git_output(&spec.worktree, &["rev-parse", "HEAD^{tree}"])?;
+    if state.parent != publication.expected_base
+        || git_output(&spec.worktree, &["show", "-s", "--format=%s", "HEAD"])?
+            != publication.commit_message
+        || !changed_paths(&spec)?.is_empty()
+    {
+        return Err("commit candidato incompatível".to_string());
+    }
+    set_publication_status(&spec, &mut state, "COMMITTED")?;
+    set_publication_status(&spec, &mut state, "PUSH_INTENT")?;
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(&spec.worktree)
+        .args([
+            "push",
+            "--set-upstream",
+            &publication.remote,
+            &publication.head_branch,
+        ])
+        .output()
+        .map_err(|err| err.to_string())?;
+    if !output.status.success() {
+        return Err(format!(
+            "push falhou: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    if remote_head(&spec, &publication)?.as_deref() != Some(state.candidate.as_str()) {
+        return Err("remote SHA diverge do candidate".to_string());
+    }
+    set_publication_status(&spec, &mut state, "PUSHED")?;
+    set_publication_status(&spec, &mut state, "PR_INTENT")?;
+    let numbers = list_pr_numbers(&spec, &publication)?;
+    if numbers.is_empty() {
+        let body = resolve_under(&spec.delegated_root, Path::new(&publication.pr_body))?;
+        let output = run_gh(
+            &spec,
+            "pr-create",
+            &[
+                "pr".into(),
+                "create".into(),
+                "--repo".into(),
+                publication.repository.clone(),
+                "--base".into(),
+                publication.base_branch.clone(),
+                "--head".into(),
+                publication.head_branch.clone(),
+                "--title".into(),
+                publication.pr_title.clone(),
+                "--body-file".into(),
+                body.display().to_string(),
+            ],
+        )?;
+        let _ = output_text(&output, "gh pr create")?;
+    }
+    let numbers = list_pr_numbers(&spec, &publication)?;
+    if numbers.len() != 1 {
+        return Err("quantidade de PRs incompatível".to_string());
+    }
+    let pr = read_pr(&spec, &publication, numbers[0])?;
+    require_compatible_pr(&pr, &publication, &state.candidate)?;
+    state.pr_number = Some(pr.number);
+    state.pr_url = Some(pr.url.clone());
+    set_publication_status(&spec, &mut state, "PR_CREATED")?;
+    state.body_digest = verify_remote_body(&spec, &publication, &pr)?;
+    set_publication_status(&spec, &mut state, "BODY_VERIFIED")?;
+    set_publication_status(&spec, &mut state, "CHECKS_PENDING")?;
+    atomic_write(&spec.delegated_root.join("artefatos/publication.json"), format!(
+        "{{\n  \"status\": \"CHECKS_PENDING\",\n  \"candidate\": {},\n  \"commit\": {},\n  \"parent\": {},\n  \"tree\": {},\n  \"pr_number\": {},\n  \"pr_url\": {}\n}}\n",
+        json_escape(&state.candidate), json_escape(&state.candidate), json_escape(&state.parent),
+        json_escape(&state.tree), pr.number, json_escape(&pr.url)
+    ).as_bytes())?;
+    Ok(EXIT_ACCEPTED)
+}
+// @pinker-nav:end development.agent.publication
+
+enum ChecksResult {
+    Success,
+    Pending,
+    Blocked(String),
+}
+
+// @pinker-nav:start development.agent.remote-checks
+// @pinker-nav:domain development
+// @pinker-nav:layer agent
+// @pinker-nav:summary Consulta somente checks exatos do SHA candidato, persiste eventos e snapshots, aceita apenas SUCCESS e distingue pendência, ausência, duplicidade e conclusões bloqueantes sem rerun ou bypass.
+
+/// Categoria agregada de um check requerido após consolidar todas as ocorrências.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckState {
+    Success,
+    Pending,
+    Blocked,
+}
+
+/// Ocorrências e agregação de um único check requerido.
+#[derive(Debug, Clone)]
+pub struct RequiredCheckOccurrence {
+    pub name: String,
+    pub states: Vec<String>,
+    pub aggregate: CheckState,
+    pub blocking: Option<String>,
+}
+
+/// Resultado puro da classificação de todos os checks requeridos.
+#[derive(Debug, Clone)]
+pub struct CheckClassification {
+    pub occurrences: Vec<RequiredCheckOccurrence>,
+    pub aggregate: CheckState,
+    pub missing: Vec<String>,
+    pub extras: Vec<String>,
+    pub blocking_reason: Option<String>,
+}
+
+/// Categoriza um único estado bruto de check em SUCCESS, pendente, bloqueante
+/// ou desconhecido. Um mesmo SHA pode expor múltiplas linhas por check quando
+/// `push` e `pull_request` disparam o mesmo job; a multiplicidade, sozinha,
+/// nunca bloqueia.
+fn categorize_check_state(state: &str) -> CheckState {
+    match state.trim().to_ascii_uppercase().as_str() {
+        "SUCCESS" => CheckState::Success,
+        "PENDING" | "QUEUED" | "IN_PROGRESS" | "EXPECTED" => CheckState::Pending,
+        "FAILURE" | "CANCELLED" | "TIMED_OUT" | "ACTION_REQUIRED" | "SKIPPED" | "NEUTRAL"
+        | "STALE" | "STARTUP_FAILURE" => CheckState::Blocked,
+        _ => CheckState::Blocked,
+    }
+}
+
+/// Função pura: agrega todas as ocorrências observadas de cada check requerido
+/// e aplica a precedência `BLOCKED > PENDING > SUCCESS`. Zero ocorrências conta
+/// como pendente (ausente); qualquer estado desconhecido bloqueia. Registra
+/// ocorrências, agregação, ausentes, extras e o primeiro motivo bloqueante.
+pub fn classify_required_check_states(
+    required: &[String],
+    observed: &[(String, String)],
+) -> CheckClassification {
+    let mut occurrences = Vec::new();
+    let mut missing = Vec::new();
+    let mut aggregate = CheckState::Success;
+    let mut blocking_reason: Option<String> = None;
+    for name in required {
+        let states = observed
+            .iter()
+            .filter(|(candidate, _)| candidate == name)
+            .map(|(_, state)| state.clone())
+            .collect::<Vec<_>>();
+        if states.is_empty() {
+            missing.push(name.clone());
+        }
+        let mut occurrence_state = if states.is_empty() {
+            CheckState::Pending
+        } else {
+            CheckState::Success
+        };
+        let mut occurrence_blocking = None;
+        for state in &states {
+            match categorize_check_state(state) {
+                CheckState::Success => {}
+                CheckState::Pending => {
+                    if occurrence_state != CheckState::Blocked {
+                        occurrence_state = CheckState::Pending;
+                    }
+                }
+                CheckState::Blocked => {
+                    occurrence_state = CheckState::Blocked;
+                    if occurrence_blocking.is_none() {
+                        occurrence_blocking =
+                            Some(format!("check {name} bloqueante: {}", state.trim()));
+                    }
+                }
+            }
+        }
+        match occurrence_state {
+            CheckState::Blocked => {
+                aggregate = CheckState::Blocked;
+                if blocking_reason.is_none() {
+                    blocking_reason.clone_from(&occurrence_blocking);
+                }
+            }
+            CheckState::Pending => {
+                if aggregate != CheckState::Blocked {
+                    aggregate = CheckState::Pending;
+                }
+            }
+            CheckState::Success => {}
+        }
+        occurrences.push(RequiredCheckOccurrence {
+            name: name.clone(),
+            states,
+            aggregate: occurrence_state,
+            blocking: occurrence_blocking,
+        });
+    }
+    let mut extras = Vec::new();
+    for (name, _) in observed {
+        if !required.iter().any(|req| req == name) && !extras.contains(name) {
+            extras.push(name.clone());
+        }
+    }
+    CheckClassification {
+        occurrences,
+        aggregate,
+        missing,
+        extras,
+        blocking_reason,
+    }
+}
+
+fn read_required_checks(
+    spec: &Spec,
+    publication: &PublicationSpec,
+    pr: &RemotePr,
+) -> Result<ChecksResult, String> {
+    if pr.sha.is_empty() {
+        return Err("candidate remoto vazio".to_string());
+    }
+    let output = run_gh(
+        spec,
+        "checks",
+        &[
+            "pr".into(),
+            "checks".into(),
+            pr.number.to_string(),
+            "--repo".into(),
+            publication.repository.clone(),
+            "--json".into(),
+            "name,state".into(),
+            "--jq".into(),
+            ".[] | [.name,.state] | @tsv".into(),
+        ],
+    )?;
+    let text = String::from_utf8(output.stdout).map_err(|_| "checks não UTF-8".to_string())?;
+    atomic_write(
+        &spec.delegated_root.join("artefatos/checks.json"),
+        format!(
+            "{{\"candidate\":{},\"raw\":{}}}\n",
+            json_escape(&pr.sha),
+            json_escape(&text)
+        )
+        .as_bytes(),
+    )?;
+    let event_path = spec.delegated_root.join("estado/check-events.jsonl");
+    let sequence = fs::read_to_string(&event_path)
+        .unwrap_or_default()
+        .lines()
+        .count() as u64
+        + 1;
+    append_event(
+        &event_path,
+        sequence,
+        "checks",
+        "OBSERVED",
+        output.status.code(),
+    )?;
+    let observed = text
+        .lines()
+        .filter_map(|line| line.split_once('\t'))
+        .map(|(name, state)| (name.to_string(), state.to_string()))
+        .collect::<Vec<_>>();
+    let classification = classify_required_check_states(&publication.required_checks, &observed);
+    Ok(match classification.aggregate {
+        CheckState::Success => ChecksResult::Success,
+        CheckState::Pending => ChecksResult::Pending,
+        CheckState::Blocked => ChecksResult::Blocked(
+            classification
+                .blocking_reason
+                .unwrap_or_else(|| "check bloqueante".to_string()),
+        ),
+    })
+}
+// @pinker-nav:end development.agent.remote-checks
+
+fn verify_commit_identity(
+    spec: &Spec,
+    publication: &PublicationSpec,
+    state: &PublicationState,
+) -> Result<(), String> {
+    let head = git_output(&spec.worktree, &["rev-parse", "HEAD"])?;
+    let parent = git_output(&spec.worktree, &["rev-parse", "HEAD^"])?;
+    let tree = git_output(&spec.worktree, &["rev-parse", "HEAD^{tree}"])?;
+    let message = git_output(&spec.worktree, &["show", "-s", "--format=%s", "HEAD"])?;
+    let mut changed = git_output(
+        &spec.worktree,
+        &["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
+    )?
+    .lines()
+    .map(str::to_string)
+    .collect::<Vec<_>>();
+    changed.sort();
+    let mut expected = publication.changes.clone();
+    expected.sort();
+    if head != state.candidate
+        || parent != state.parent
+        || tree != state.tree
+        || parent != publication.expected_base
+        || message != publication.commit_message
+        || changed != expected
+    {
+        return Err("identidade do commit candidato diverge".to_string());
+    }
+    Ok(())
+}
+
+// @pinker-nav:start development.agent.resume
+// @pinker-nav:domain development
+// @pinker-nav:layer agent
+// @pinker-nav:summary Retoma de forma idempotente reconciliando spec, commit, branch remota, PR, body e SHA dos checks; estados ACCEPTED e BLOCKED são somente leitura e timeout permanece retomável.
+pub fn retomar(spec_path: &Path) -> Result<i32, String> {
+    let spec_bytes = fs::read(spec_path).map_err(|err| err.to_string())?;
+    let spec = load_spec(spec_path)?;
+    let publication = publication(&spec)?.clone();
+    let mut state = load_publication_state(&spec)?;
+    if state.status == "ACCEPTED" {
+        return Ok(EXIT_ACCEPTED);
+    }
+    if state.status == "BLOCKED" {
+        return Ok(EXIT_BLOCKED);
+    }
+    if state.spec_hash != sha256_hex(&spec_bytes) {
+        return Err("spec hash divergente".to_string());
+    }
+    if state.candidate.is_empty() {
+        let head = git_output(&spec.worktree, &["rev-parse", "HEAD"])?;
+        if head == publication.expected_base {
+            if state.status != "COMMIT_INTENT" {
+                return Err("commit ausente sem intenção reconciliável".to_string());
+            }
+            exact_changed(&spec, &publication)?;
+            for path in &publication.changes {
+                let output = Command::new("git")
+                    .arg("-C")
+                    .arg(&spec.worktree)
+                    .args(["add", "--", path])
+                    .output()
+                    .map_err(|err| err.to_string())?;
+                if !output.status.success() {
+                    return Err("git add de retomada falhou".to_string());
+                }
+            }
+            let output = Command::new("git")
+                .arg("-C")
+                .arg(&spec.worktree)
+                .args(["commit", "-m", &publication.commit_message])
+                .output()
+                .map_err(|err| err.to_string())?;
+            if !output.status.success() {
+                return Err("commit de retomada falhou".to_string());
+            }
+        }
+        state.candidate = git_output(&spec.worktree, &["rev-parse", "HEAD"])?;
+        state.parent = git_output(&spec.worktree, &["rev-parse", "HEAD^"])?;
+        state.tree = git_output(&spec.worktree, &["rev-parse", "HEAD^{tree}"])?;
+        set_publication_status(&spec, &mut state, "COMMITTED")?;
+    }
+    verify_commit_identity(&spec, &publication, &state)?;
+    match remote_head(&spec, &publication)? {
+        Some(remote) if remote == state.candidate => {
+            if matches!(state.status.as_str(), "COMMITTED" | "PUSH_INTENT") {
+                set_publication_status(&spec, &mut state, "PUSHED")?;
+            }
+        }
+        Some(_) => return Err("remote head divergente".to_string()),
+        None => {
+            set_publication_status(&spec, &mut state, "PUSH_INTENT")?;
+            let output = Command::new("git")
+                .arg("-C")
+                .arg(&spec.worktree)
+                .args([
+                    "push",
+                    "--set-upstream",
+                    &publication.remote,
+                    &publication.head_branch,
+                ])
+                .output()
+                .map_err(|err| err.to_string())?;
+            if !output.status.success() {
+                return Err("push de retomada falhou".to_string());
+            }
+            if remote_head(&spec, &publication)?.as_deref() != Some(state.candidate.as_str()) {
+                return Err("remote head divergente após push".to_string());
+            }
+            set_publication_status(&spec, &mut state, "PUSHED")?;
+        }
+    }
+    let mut numbers = list_pr_numbers(&spec, &publication)?;
+    if numbers.is_empty() {
+        set_publication_status(&spec, &mut state, "PR_INTENT")?;
+        let body = resolve_under(&spec.delegated_root, Path::new(&publication.pr_body))?;
+        let output = run_gh(
+            &spec,
+            "pr-create",
+            &[
+                "pr".into(),
+                "create".into(),
+                "--repo".into(),
+                publication.repository.clone(),
+                "--base".into(),
+                publication.base_branch.clone(),
+                "--head".into(),
+                publication.head_branch.clone(),
+                "--title".into(),
+                publication.pr_title.clone(),
+                "--body-file".into(),
+                body.display().to_string(),
+            ],
+        )?;
+        let _ = output_text(&output, "gh pr create")?;
+        numbers = list_pr_numbers(&spec, &publication)?;
+    }
+    if numbers.len() != 1 || state.pr_number.is_some_and(|number| number != numbers[0]) {
+        return Err("identidade da PR diverge".to_string());
+    }
+    let pr = read_pr(&spec, &publication, numbers[0])?;
+    require_compatible_pr(&pr, &publication, &state.candidate)?;
+    state.pr_number = Some(pr.number);
+    state.pr_url = Some(pr.url.clone());
+    if matches!(state.status.as_str(), "PUSHED" | "PR_INTENT") {
+        set_publication_status(&spec, &mut state, "PR_CREATED")?;
+    }
+    let digest = verify_remote_body(&spec, &publication, &pr)?;
+    if !state.body_digest.is_empty() && digest != state.body_digest {
+        return Err("body digest divergente".to_string());
+    }
+    state.body_digest = digest;
+    if state.status == "PR_CREATED" {
+        set_publication_status(&spec, &mut state, "BODY_VERIFIED")?;
+    }
+    let started = Instant::now();
+    loop {
+        let current = read_pr(&spec, &publication, pr.number)?;
+        require_compatible_pr(&current, &publication, &state.candidate)?;
+        match read_required_checks(&spec, &publication, &current)? {
+            ChecksResult::Success => {
+                set_publication_status(&spec, &mut state, "ACCEPTED")?;
+                atomic_write(&spec.delegated_root.join("artefatos/publication.json"), format!(
+                    "{{\"status\":\"ACCEPTED\",\"candidate\":{},\"pr_number\":{},\"all_required\":\"SUCCESS\"}}\n",
+                    json_escape(&state.candidate), current.number
+                ).as_bytes())?;
+                return Ok(EXIT_ACCEPTED);
+            }
+            ChecksResult::Blocked(reason) => {
+                set_publication_status(&spec, &mut state, "BLOCKED")?;
+                return Err(reason);
+            }
+            ChecksResult::Pending => {
+                set_publication_status(&spec, &mut state, "CHECKS_PENDING")?;
+            }
+        }
+        if started.elapsed().as_secs() >= publication.timeout_seconds {
+            set_publication_status(&spec, &mut state, "NEEDS_HUMAN_DECISION")?;
+            return Ok(EXIT_NEEDS_HUMAN);
+        }
+        std::thread::sleep(std::time::Duration::from_secs(publication.poll_seconds));
+    }
+}
+// @pinker-nav:end development.agent.resume
 
 // @pinker-nav:start development.agent.sensitivity
 // @pinker-nav:domain development
