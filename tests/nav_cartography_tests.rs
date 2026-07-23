@@ -105,6 +105,9 @@ fn exclude_pink_agent_wave_a(catalog: &mut CodeCatalog) {
                 | "tests/trama_scale_tests.rs"
                 | "tests/trama_sync_tests.rs"
         )
+        // Onda 9 ativou a raiz `apps/`: nenhuma era anterior à onda continha
+        // regiões enraizadas em `apps/`; removê-las reconstrói o estado prévio.
+        && !region.file.starts_with("apps/")
     });
     for region in &mut catalog.regions {
         let predecessor_hash = match region.key.as_str() {
@@ -113,6 +116,15 @@ fn exclude_pink_agent_wave_a(catalog: &mut CodeCatalog) {
             "cli.execucao.entrada" => Some("fnv1a64:35d79f4547ac200b"),
             "cli.parsing.roteamento" => Some("fnv1a64:7dfa8a6f46dbe881"),
             "cli.parsing.subcomandos" => Some("fnv1a64:c4ac5c32759f34c7"),
+            // Onda 9 (posterior) alterou trama.codigo.raizes ao adicionar o
+            // dialeto Pinker; restaura o hash predecessor.
+            "trama.codigo.raizes" => Some("fnv1a64:32ea588c126f700b"),
+            // Onda 9 tornou `apps/` raiz obrigatória: as fixtures de
+            // nav_catalog_tests passaram a criar `apps/`; restaura os hashes
+            // pré-Onda-9 das regiões cuja fixture mudou.
+            "evidencia.trama.nav-catalog.process-support" => Some("fnv1a64:2b39fc9e06f64423"),
+            "evidencia.trama.nav-catalog.unbalanced-marker" => Some("fnv1a64:ba425a1a3a31b921"),
+            "evidencia.trama.query.process-support" => Some("fnv1a64:c81fea660ddac6c2"),
             _ => None,
         };
         if let Some(hash) = predecessor_hash {
@@ -175,6 +187,8 @@ fn exclude_pink_agent_wave_c(catalog: &mut CodeCatalog) {
             region.file.as_str(),
             "tests/trama_projection_tests.rs" | "tests/trama_scale_tests.rs"
         )
+        // Onda 9 (posterior a esta era) ativou a raiz `apps/`; removê-la.
+        && !region.file.starts_with("apps/")
     });
     for region in &mut catalog.regions {
         let hash = match region.key.as_str() {
@@ -189,6 +203,14 @@ fn exclude_pink_agent_wave_c(catalog: &mut CodeCatalog) {
             "evidencia.agent.cli-spec" => Some("fnv1a64:07a26a5415117243"),
             "evidencia.agent.limits" => Some("fnv1a64:f7c43d286e2773d8"),
             "evidencia.agent.runner" => Some("fnv1a64:0cad49e5ebaf479e"),
+            // Onda 9 (posterior) alterou trama.codigo.raizes; restaura o hash.
+            "trama.codigo.raizes" => Some("fnv1a64:32ea588c126f700b"),
+            // Onda 9 tornou `apps/` raiz obrigatória: as fixtures de
+            // nav_catalog_tests passaram a criar `apps/`; restaura os hashes
+            // pré-Onda-9 das regiões cuja fixture mudou.
+            "evidencia.trama.nav-catalog.process-support" => Some("fnv1a64:2b39fc9e06f64423"),
+            "evidencia.trama.nav-catalog.unbalanced-marker" => Some("fnv1a64:ba425a1a3a31b921"),
+            "evidencia.trama.query.process-support" => Some("fnv1a64:c81fea660ddac6c2"),
             _ => None,
         };
         if let Some(hash) = hash {
@@ -201,15 +223,26 @@ fn exclude_pink_agent_wave_c(catalog: &mut CodeCatalog) {
 /// remove `development.agent.contract-v1` e restaura o hash pré-D das regiões que a
 /// Onda D alterou (lifecycle, pr-body, cli-spec, runner).
 fn reconstruct_pre_contract_v1(catalog: &mut CodeCatalog) {
-    catalog
-        .regions
-        .retain(|region| region.key != "development.agent.contract-v1");
+    catalog.regions.retain(|region| {
+        region.key != "development.agent.contract-v1"
+            // Onda 9 (posterior) ativou a raiz `apps/`; removê-la.
+            && !region.file.starts_with("apps/")
+    });
     for region in &mut catalog.regions {
         let base = match region.key.as_str() {
             "development.agent.lifecycle" => Some("fnv1a64:6b167f957b7e4fae"),
             "development.agent.pr-body" => Some("fnv1a64:f8e7afd3d267c91a"),
             "evidencia.agent.cli-spec" => Some("fnv1a64:49ad4168f39edac3"),
             "evidencia.agent.runner" => Some("fnv1a64:f787347d37732812"),
+            // Onda 9 acrescentou o dialeto Pinker ao scanner: restaura o hash
+            // pré-Onda-9 da região que a implementação alterou.
+            "trama.codigo.raizes" => Some("fnv1a64:32ea588c126f700b"),
+            // Onda 9 tornou `apps/` raiz obrigatória: as fixtures de
+            // nav_catalog_tests passaram a criar `apps/`; restaura os hashes
+            // pré-Onda-9 das regiões cuja fixture mudou.
+            "evidencia.trama.nav-catalog.process-support" => Some("fnv1a64:2b39fc9e06f64423"),
+            "evidencia.trama.nav-catalog.unbalanced-marker" => Some("fnv1a64:ba425a1a3a31b921"),
+            "evidencia.trama.query.process-support" => Some("fnv1a64:c81fea660ddac6c2"),
             _ => None,
         };
         if let Some(base) = base {
@@ -518,9 +551,18 @@ fn scanner_oficial_inclui_tests_sem_catalogar_fixtures_literais() {
         "tests/exemplo.rs",
         "// @pinker-nav:start tests.exemplo.real\n// @pinker-nav:domain teste\n// @pinker-nav:layer teste\n// @pinker-nav:summary Região real de fixture.\nfn exemplo() {}\n// @pinker-nav:end tests.exemplo.real\n",
     );
+    // Onda 9: a raiz `apps/` é oficial e obrigatória, varrida no dialeto Pinker.
+    write(
+        &dir,
+        "apps/exemplo.pink",
+        "// @pinker-nav:start apps.exemplo.real\n// @pinker-nav:domain teste\n// @pinker-nav:layer apps\n// @pinker-nav:summary Região real de fixture Pinker.\ncarinho exemplo() -> bombom { mimo 0; }\n// @pinker-nav:end apps.exemplo.real\n",
+    );
     let index = CodeIndex::scan_repo(&dir).unwrap();
     let region = index.region("tests.exemplo.real").unwrap();
     assert_eq!(region.file, "tests/exemplo.rs");
+    let pink_region = index.region("apps.exemplo.real").unwrap();
+    assert_eq!(pink_region.file, "apps/exemplo.pink");
+    assert_eq!(pink_region.layer.as_deref(), Some("apps"));
     fs::remove_dir_all(dir).unwrap();
 }
 
@@ -551,6 +593,44 @@ fn scanner_do_repo_real_ignora_textos_de_fixture_nas_suites() {
             region.file == "tests/nav_catalog_tests.rs" && region.key == fixture_key
         }));
     }
+}
+
+/// Onda 9: a raiz `apps/` passa a ser oficial e varrida no dialeto Pinker. O
+/// catálogo real deve conter exatamente uma região do Guardião, com metadados
+/// congelados, e preservar as contagens históricas por camada (454 → 455).
+#[test]
+fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let index = CodeIndex::scan_repo(&root).unwrap();
+    assert!(index.verify().is_empty(), "{:?}", index.verify());
+
+    // Total de regiões: 455 (454 históricas + 1 do Guardião).
+    assert_eq!(index.regions.len(), 455);
+
+    // Exatamente uma região Pinker, a do Guardião, com metadados congelados.
+    let guardiao: Vec<_> = index
+        .regions
+        .iter()
+        .filter(|r| r.file == "apps/guardiao_pinker/principal.pink")
+        .collect();
+    assert_eq!(guardiao.len(), 1);
+    let g = guardiao[0];
+    assert_eq!(g.key, "apps.guardiao.auditoria");
+    assert_eq!(g.domain.as_deref(), Some("guardiao"));
+    assert_eq!(g.layer.as_deref(), Some("apps"));
+    assert!(g.content_end > g.content_start);
+
+    // Contagens históricas por camada preservadas.
+    let by_layer = |layer: &str| {
+        index
+            .regions
+            .iter()
+            .filter(|r| r.layer.as_deref() == Some(layer))
+            .count()
+    };
+    assert_eq!(by_layer("evidencia"), 238);
+    assert_eq!(by_layer("runtime"), 15);
+    assert_eq!(by_layer("apps"), 1);
 }
 
 /// O catálogo real versionado contém as chaves essenciais do frontend (Onda 4),
@@ -3001,7 +3081,9 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
         .collect();
     assert_eq!(
         sha256_hex(stripped.as_bytes()),
-        "9499fdd27a89d4c4c595d6ec0d15ed53424ecac3d9f503ca48f942673da03734",
+        // Onda 9: as fixtures da cápsula passaram a criar a raiz obrigatória
+        // `apps/`; a fonte-base foi regenerada com essa mudança.
+        "7179db716f3a56dd59d8b3ec0c170d803f3a297d8fc11ab85f533871c7197d93",
         "retirar marcadores deve reconstruir exatamente a fonte-base"
     );
 
@@ -5840,7 +5922,9 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         .collect();
     assert_eq!(
         sha256_hex(stripped.as_bytes()),
-        "c81f1a1db83af33fd515879a8fff7e2959933b66930575b4728694454f391e5c",
+        // Onda 9: a fixture da cápsula passou a criar a raiz obrigatória `apps/`;
+        // a fonte-base foi regenerada com essa mudança.
+        "3774f46e0d8c449cfd3dfe65d3a4062bc79f077a62dba92ad2bcfcbaf8e4928a",
         "retirar marcadores deve reconstruir exatamente a fonte-base"
     );
 
@@ -7077,7 +7161,24 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
 fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let catalog_path = repository.join("src/navigation.jsonl");
-    let catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    // Onda 9 (posterior) ativou a raiz `apps/` e alterou trama.codigo.raizes ao
+    // adicionar o dialeto Pinker; removê-la e restaurar o hash reconstrói a Onda D.
+    catalog
+        .regions
+        .retain(|region| !region.file.starts_with("apps/"));
+    for region in &mut catalog.regions {
+        let pre_wave_9 = match region.key.as_str() {
+            "trama.codigo.raizes" => Some("fnv1a64:32ea588c126f700b"),
+            "evidencia.trama.nav-catalog.process-support" => Some("fnv1a64:2b39fc9e06f64423"),
+            "evidencia.trama.nav-catalog.unbalanced-marker" => Some("fnv1a64:ba425a1a3a31b921"),
+            "evidencia.trama.query.process-support" => Some("fnv1a64:c81fea660ddac6c2"),
+            _ => None,
+        };
+        if let Some(hash) = pre_wave_9 {
+            region.hash = hash.to_string();
+        }
+    }
 
     // CATALOG — totais exatos da Onda D.
     assert_eq!(catalog.regions.len(), 454);
