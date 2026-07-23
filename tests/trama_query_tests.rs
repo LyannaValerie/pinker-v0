@@ -61,6 +61,8 @@ fn fixture(root: &Path) {
     write(root, "src/rosa.rs", SRC);
     write(root, "runtime/pinker_rt/src/lib.rs", "pub fn _rt() {}\n");
     write(root, "tests/mapa.rs", TEST_SRC);
+    // Onda 9: `apps/` é raiz oficial obrigatória (dialeto Pinker).
+    fs::create_dir_all(root.join("apps")).unwrap();
 }
 
 fn doc(root: &Path, args: &[&str]) -> std::process::Output {

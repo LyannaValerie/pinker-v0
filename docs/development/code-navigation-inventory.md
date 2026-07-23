@@ -61,6 +61,29 @@ marker-only nas suítes `trama_ci_tests` e `trama_template_tests`. A Trama
 permanece incompleta; os próximos alvos são `trama_manifest_tests` e
 `trama_sync_tests`.
 
+## Onda 9 — `apps/` como raiz oficial (concluída)
+
+A **Onda 9** habilita `apps/` como a quarta raiz oficial e obrigatória do
+scanner, varrida no **dialeto léxico Pinker** (`MarkerDialect::Pinker`): fontes
+`.pink` reconhecem o marcador `@pinker-nav` apenas quando `//` é o primeiro
+token não branco de uma linha em código, ignorando marcadores dentro de strings
+normais, triplas (`"""`), interpoladas (`$"`) e comentários de bloco aninhados
+(`/* */`). O reconhecedor Rust das três raízes `.rs` permanece inalterado — o
+despacho é por dialeto, sem regressão — e a chave de região continua global
+(nenhuma raiz vira namespace; chave repetida entre `.rs` e `.pink` é reportada
+como `DuplicateKey`). O aplicativo `apps/guardiao_pinker/principal.pink` recebe
+exatamente uma região marker-only, `apps.guardiao.auditoria` (domínio
+`guardiao`, camada `apps`), sem qualquer mudança semântica no código do
+guardião.
+
+Estado atual explícito: `onda_8_complete = true`; `onda_9_complete = true`;
+`trama_complete = false`; `apps_reserved_for_wave_9 = false`; `apps/` passou a
+ser raiz oficial obrigatória. Métricas atuais: catálogo = 455 regiões;
+evidencia = 238; runtime = 15; `apps` = 1. As Ondas 10, 11 e 12 permanecem
+**UNRESOLVED**: seu escopo não está definido e a Onda 9 não implementa nenhuma
+delas nem conclui a Trama. Esta cartografia não prova a correção semântica do
+guardião nem cobertura exaustiva de `apps/`.
+
 ## Contrato do scanner
 
 O scanner de `pink nav` indexa hoje um **conjunto explícito de raízes
@@ -73,11 +96,11 @@ gerar índice parcial. Os caminhos registrados em `file` são **repo-relativos**
 (`src/nav.rs`, `runtime/pinker_rt/src/lib.rs`), com `/` como separador, nunca
 absolutos e nunca contendo `..`. Links simbólicos não são seguidos — nem de
 diretório (evita ciclos e fuga da raiz) nem de arquivo — e uma raiz oficial que
-seja, ela mesma, um link simbólico é recusada. A extensão indexada nas três
-raízes é `.rs`. Apenas `apps/` permanece **desativada**: reúne fontes `.pink`,
-que exigem uma política de marcadores própria antes de entrar no scanner, e
-fica para a Onda 9. A segurança das fixtures em `tests/` vem do reconhecimento
-lexical de comentários reais, não da desativação dessa raiz.
+seja, ela mesma, um link simbólico é recusada. A extensão indexada nas raízes
+`src/`, `runtime/pinker_rt/src/` e `tests/` é `.rs`; a partir da Onda 9, `apps/`
+é a quarta raiz oficial obrigatória, indexando fontes `.pink` no dialeto léxico
+Pinker (ver a seção _Onda 9_). A segurança das fixtures em `tests/` vem do
+reconhecimento lexical de comentários reais, não da desativação de nenhuma raiz.
 
 **Estratégia escolhida: B** — `CodeIndex::scan` permanece como wrapper fino de
 raiz única para fixtures/testes (sem prefixo fabricado; o caminho é relativo à

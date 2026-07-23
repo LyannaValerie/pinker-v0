@@ -346,6 +346,18 @@ fn covers(haystack_norm: &str, terms: &[String]) -> bool {
 // @pinker-nav:domain navegacao
 // @pinker-nav:layer trama
 // @pinker-nav:summary Define as raízes de código controladas do repositório (`src/`, `runtime/pinker_rt/src/` e `tests/`, todas obrigatórias), valida cada raiz antes de varrer — ausência, caminho que não é diretório ou link simbólico falham com `E-NAV-SCAN` antes de qualquer escrita —, coleta arquivos `.rs` sem seguir links simbólicos e normaliza cada caminho para a forma repo-relativa com `/`, sem prefixo fabricado, garantindo que cada arquivo seja varrido no máximo uma vez, independente da ordem das raízes.
+/// Dialeto léxico usado para distinguir um marcador real do texto que apenas se
+/// parece com um (§ Onda 9). Cada raiz declara o seu; o reconhecimento do
+/// marcador `//` é idêntico entre dialetos — só muda o rastreamento dos
+/// delimitadores (strings, comentários de bloco) que podem esconder um `//`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarkerDialect {
+    /// Fontes `.rs`: strings normais/byte, raw strings, literais de caractere.
+    Rust,
+    /// Fontes `.pink`: strings normais, triplas (`"""`) e interpoladas (`$"`).
+    Pinker,
+}
+
 /// Uma raiz de código controlada, relativa à raiz do repositório (§12).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScanRoot {
@@ -356,13 +368,27 @@ pub struct ScanRoot {
     pub relative_path: String,
     /// Extensões aceitas nesta raiz, sem ponto (ex.: `"rs"`).
     pub extensions: Vec<String>,
+    /// Dialeto léxico aplicado a cada arquivo desta raiz.
+    pub dialect: MarkerDialect,
 }
 
 impl ScanRoot {
+    /// Cria uma raiz com o dialeto padrão [`MarkerDialect::Rust`]. Preserva a
+    /// assinatura usada por todos os chamadores existentes.
     pub fn new(relative_path: impl Into<String>, extensions: &[&str]) -> ScanRoot {
+        ScanRoot::with_dialect(relative_path, extensions, MarkerDialect::Rust)
+    }
+
+    /// Cria uma raiz declarando explicitamente o dialeto léxico.
+    pub fn with_dialect(
+        relative_path: impl Into<String>,
+        extensions: &[&str],
+        dialect: MarkerDialect,
+    ) -> ScanRoot {
         ScanRoot {
             relative_path: relative_path.into(),
             extensions: extensions.iter().map(|e| e.to_string()).collect(),
+            dialect,
         }
     }
 }
@@ -377,6 +403,7 @@ pub fn official_scan_roots() -> Vec<ScanRoot> {
         ScanRoot::new("src", &["rs"]),
         ScanRoot::new("runtime/pinker_rt/src", &["rs"]),
         ScanRoot::new("tests", &["rs"]),
+        ScanRoot::with_dialect("apps", &["pink"], MarkerDialect::Pinker),
     ]
 }
 
@@ -397,26 +424,26 @@ fn scan_roots(repo_root: &Path, roots: &[ScanRoot]) -> Result<CodeIndex, ScanErr
 
     // Fase 2: apenas raízes já validadas são percorridas.
     let mut seen: BTreeSet<String> = BTreeSet::new();
-    let mut files: Vec<(String, PathBuf)> = Vec::new();
+    let mut files: Vec<(String, PathBuf, MarkerDialect)> = Vec::new();
     for (root, abs_root) in &validated {
         let mut collected = Vec::new();
         collect_source_files(abs_root, abs_root, &root.extensions, &mut collected)?;
         for rel in collected {
             let display = compose_display_path(&root.relative_path, &rel);
             if seen.insert(display.clone()) {
-                files.push((display, abs_root.join(&rel)));
+                files.push((display, abs_root.join(&rel), root.dialect));
             }
         }
     }
     files.sort_by(|a, b| a.0.cmp(&b.0));
 
     let mut index = CodeIndex::default();
-    for (display, abs_path) in files {
+    for (display, abs_path, dialect) in files {
         let text = fs::read_to_string(&abs_path).map_err(|err| ScanError::Io {
             path: abs_path.display().to_string(),
             msg: err.to_string(),
         })?;
-        scan_file(&display, &text, &mut index);
+        scan_file(&display, &text, dialect, &mut index);
     }
     index
         .regions
@@ -561,15 +588,15 @@ struct OpenRegion {
     in_meta: bool,
 }
 
-fn scan_file(rel_path: &str, text: &str, index: &mut CodeIndex) {
+fn scan_file(rel_path: &str, text: &str, dialect: MarkerDialect, index: &mut CodeIndex) {
     let lines: Vec<&str> = text.lines().collect();
     let mut stack: Vec<OpenRegion> = Vec::new();
-    let mut lexical_state = LexicalState::Code;
+    let mut lexical_state = DialectState::new(dialect);
 
     for (i, raw) in lines.iter().enumerate() {
         let line_no = i + 1;
         let trimmed = raw.trim();
-        let marker_line = marker_comment(raw, &mut lexical_state);
+        let marker_line = lexical_state.next_marker(raw);
 
         if let Some(key) = marker_line.and_then(|comment| parse_marker(comment, START)) {
             if let Some(outer) = stack.last() {
@@ -642,6 +669,34 @@ fn scan_file(rel_path: &str, text: &str, index: &mut CodeIndex) {
             file: rel_path.to_string(),
             line: leftover.start_marker,
         });
+    }
+}
+
+/// Estado léxico ativo de um arquivo, escolhido pelo dialeto da raiz. O laço de
+/// varredura é único e independente do dialeto: apenas o reconhecedor de
+/// marcador (`next_marker`) difere, pois cada linguagem esconde `//` atrás de
+/// delimitadores próprios. A chave de região permanece global — o dialeto só
+/// afeta o reconhecimento léxico, nunca o namespace.
+enum DialectState {
+    Rust(LexicalState),
+    Pinker(PinkerState),
+}
+
+impl DialectState {
+    fn new(dialect: MarkerDialect) -> DialectState {
+        match dialect {
+            MarkerDialect::Rust => DialectState::Rust(LexicalState::Code),
+            MarkerDialect::Pinker => DialectState::Pinker(PinkerState::Code),
+        }
+    }
+
+    /// Devolve o comentário candidato desta linha e avança o estado léxico para
+    /// a próxima, delegando ao reconhecedor do dialeto ativo.
+    fn next_marker<'a>(&mut self, line: &'a str) -> Option<&'a str> {
+        match self {
+            DialectState::Rust(state) => marker_comment(line, state),
+            DialectState::Pinker(state) => marker_comment_pinker(line, state),
+        }
     }
 }
 
@@ -767,6 +822,104 @@ fn char_literal_len(bytes: &[u8]) -> Option<usize> {
     let character = std::str::from_utf8(bytes.get(1..)?).ok()?.chars().next()?;
     let closing_quote = 1 + character.len_utf8();
     (bytes.get(closing_quote) == Some(&b'\'')).then_some(closing_quote + 1)
+}
+
+/// Estado léxico mínimo do dialeto Pinker (§ Onda 9). Como no rastreador Rust,
+/// só acompanha os delimitadores capazes de esconder um `//`: strings normais,
+/// strings triplas (`"""`, atravessam linhas) e strings interpoladas (`$"`),
+/// além de comentários de bloco aninhados (`/* */`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PinkerState {
+    Code,
+    NormalString,
+    InterpolatedString,
+    TripleString,
+    BlockComment(usize),
+}
+
+/// Reconhecedor de marcador do dialeto Pinker. Devolve o comentário candidato
+/// somente quando `//` é o primeiro token não branco de uma linha iniciada em
+/// código (`PinkerState::Code`); avança o estado léxico para a linha seguinte.
+/// Ignora `//` dentro de string normal, tripla, interpolada ou comentário de
+/// bloco, e ignora `//` que venha após código executável na mesma linha.
+/// Strings normais e interpoladas não atravessam linhas (voltam a `Code` no fim
+/// da linha); strings triplas e comentários de bloco atravessam.
+fn marker_comment_pinker<'a>(line: &'a str, state: &mut PinkerState) -> Option<&'a str> {
+    let bytes = line.as_bytes();
+    let first_non_whitespace = bytes.iter().position(|byte| !byte.is_ascii_whitespace());
+    let mut i = 0;
+
+    while i < bytes.len() {
+        match *state {
+            PinkerState::Code => {
+                if bytes[i..].starts_with(b"//") {
+                    // O comentário de linha consome o resto da linha; o estado da
+                    // próxima linha permanece `Code`.
+                    return (Some(i) == first_non_whitespace).then_some(&line[i..]);
+                }
+                if bytes[i..].starts_with(b"/*") {
+                    *state = PinkerState::BlockComment(1);
+                    i += 2;
+                } else if bytes[i..].starts_with(b"\"\"\"") {
+                    *state = PinkerState::TripleString;
+                    i += 3;
+                } else if bytes[i..].starts_with(b"$\"") {
+                    *state = PinkerState::InterpolatedString;
+                    i += 2;
+                } else if bytes[i] == b'\"' {
+                    *state = PinkerState::NormalString;
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            }
+            PinkerState::NormalString | PinkerState::InterpolatedString => {
+                if bytes[i] == b'\\' {
+                    i += 2;
+                } else if bytes[i] == b'\"' {
+                    *state = PinkerState::Code;
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            }
+            PinkerState::TripleString => {
+                if bytes[i..].starts_with(b"\"\"\"") {
+                    *state = PinkerState::Code;
+                    i += 3;
+                } else {
+                    i += 1;
+                }
+            }
+            PinkerState::BlockComment(depth) => {
+                if bytes[i..].starts_with(b"/*") {
+                    *state = PinkerState::BlockComment(depth + 1);
+                    i += 2;
+                } else if bytes[i..].starts_with(b"*/") {
+                    *state = if depth == 1 {
+                        PinkerState::Code
+                    } else {
+                        PinkerState::BlockComment(depth - 1)
+                    };
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+    }
+
+    // Strings normais e interpoladas não atravessam linhas: uma que fique aberta
+    // no fim da linha é encerrada aqui, para não engolir um `//` da linha
+    // seguinte. Strings triplas e comentários de bloco permanecem abertos.
+    if matches!(
+        *state,
+        PinkerState::NormalString | PinkerState::InterpolatedString
+    ) {
+        *state = PinkerState::Code;
+    }
+
+    None
 }
 
 fn finish_region(
@@ -1502,5 +1655,328 @@ mod tests {
         assert_eq!(index.regions[0].key, "symlink.real.chave");
         assert_eq!(index.regions[0].file, "src/real.rs");
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    // -----------------------------------------------------------------
+    // Dialeto léxico Pinker e despacho por raiz (Onda 9).
+    // -----------------------------------------------------------------
+
+    /// Varre uma raiz única no dialeto Pinker (fixtures `.pink`).
+    fn scan_pink(dir: &Path) -> CodeIndex {
+        let root = ScanRoot::with_dialect("", &["pink"], MarkerDialect::Pinker);
+        scan_roots(dir, &[root]).unwrap()
+    }
+
+    fn pink_region(key: &str, body: &str) -> String {
+        format!(
+            "// @pinker-nav:start {key}\n// @pinker-nav:domain d\n// @pinker-nav:layer apps\n{body}\n// @pinker-nav:end {key}\n"
+        )
+    }
+
+    #[test]
+    fn raizes_oficiais_incluem_apps_com_dialeto_pinker() {
+        let roots = official_scan_roots();
+        assert_eq!(roots.len(), 4);
+        let apps = roots
+            .iter()
+            .find(|r| r.relative_path == "apps")
+            .expect("raiz apps é obrigatória");
+        assert_eq!(apps.extensions, vec!["pink".to_string()]);
+        assert_eq!(apps.dialect, MarkerDialect::Pinker);
+        // As demais raízes permanecem Rust/`.rs`.
+        for r in roots.iter().filter(|r| r.relative_path != "apps") {
+            assert_eq!(r.dialect, MarkerDialect::Rust);
+            assert_eq!(r.extensions, vec!["rs".to_string()]);
+        }
+    }
+
+    #[test]
+    fn raiz_apps_ausente_e_fatal_no_fluxo_oficial() {
+        let dir = temp_src("noapps");
+        write(&dir, "src/a.rs", &region_src("presente.no.src"));
+        write(
+            &dir,
+            "runtime/pinker_rt/src/lib.rs",
+            &region_src("presente.no.runtime"),
+        );
+        write(&dir, "tests/t.rs", &region_src("presente.nos.testes"));
+        // `apps/` não existe: o fluxo oficial deve falhar sem índice parcial.
+        let err = CodeIndex::scan_repo(&dir).unwrap_err();
+        assert!(matches!(err, ScanError::RootMissing { .. }));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn dialeto_pinker_reconhece_regiao_valida() {
+        let dir = temp_src("pinkvalid");
+        write(
+            &dir,
+            "guardiao.pink",
+            &pink_region("apps.guardiao.exemplo", "carinho f() -> bombom { mimo 0; }"),
+        );
+        let index = scan_pink(&dir);
+        assert_eq!(index.regions.len(), 1);
+        assert_eq!(index.regions[0].key, "apps.guardiao.exemplo");
+        assert_eq!(index.regions[0].layer.as_deref(), Some("apps"));
+        assert!(index.verify().is_empty(), "{:?}", index.verify());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn raiz_apps_aceita_apenas_pink_e_ignora_rs() {
+        let dir = temp_src("appsonlypink");
+        write(
+            &dir,
+            "guardiao.pink",
+            &pink_region("apps.real.chave", "carinho f() -> bombom { mimo 0; }"),
+        );
+        // Um `.rs` dentro da raiz Pinker não deve ser catalogado.
+        write(&dir, "intruso.rs", &region_src("apps.intruso.rs"));
+        let index = scan_pink(&dir);
+        assert_eq!(index.regions.len(), 1);
+        assert_eq!(index.regions[0].key, "apps.real.chave");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn raiz_rust_ignora_arquivos_pink() {
+        let dir = temp_src("rustignorespink");
+        write(&dir, "a.rs", &region_src("rust.real.chave"));
+        write(
+            &dir,
+            "b.pink",
+            &pink_region("pink.ignorada.chave", "carinho f() -> bombom { mimo 0; }"),
+        );
+        let root = ScanRoot::new("", &["rs"]);
+        let index = scan_roots(&dir, &[root]).unwrap();
+        assert_eq!(index.regions.len(), 1);
+        assert_eq!(index.regions[0].key, "rust.real.chave");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn chave_duplicada_entre_rs_e_pink_e_reportada() {
+        let dir = temp_src("dupacrossdialects");
+        write(&dir, "src/a.rs", &region_src("mesma.chave.global"));
+        write(
+            &dir,
+            "apps/b.pink",
+            &pink_region("mesma.chave.global", "carinho f() -> bombom { mimo 0; }"),
+        );
+        let roots = vec![
+            ScanRoot::new("src", &["rs"]),
+            ScanRoot::with_dialect("apps", &["pink"], MarkerDialect::Pinker),
+        ];
+        let index = scan_roots(&dir, &roots).unwrap();
+        let dup = index.verify().into_iter().find_map(|e| match e {
+            NavVerifyError::DuplicateKey { key, files } if key == "mesma.chave.global" => {
+                Some(files)
+            }
+            _ => None,
+        });
+        let files = dup.expect("chave global duplicada entre `.rs` e `.pink`");
+        assert!(files.contains(&"src/a.rs".to_string()));
+        assert!(files.contains(&"apps/b.pink".to_string()));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn ordem_das_raizes_pink_e_rust_nao_altera_o_jsonl() {
+        let dir = temp_src("orderpink");
+        write(&dir, "src/a.rs", &region_src("ordem.rs.chave"));
+        write(
+            &dir,
+            "apps/b.pink",
+            &pink_region("ordem.pink.chave", "carinho f() -> bombom { mimo 0; }"),
+        );
+        let a = ScanRoot::new("src", &["rs"]);
+        let b = ScanRoot::with_dialect("apps", &["pink"], MarkerDialect::Pinker);
+        let forward = scan_roots(&dir, &[a.clone(), b.clone()]).unwrap();
+        let backward = scan_roots(&dir, &[b, a]).unwrap();
+        assert_eq!(forward.render_jsonl(), backward.render_jsonl());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn marcador_dentro_de_string_normal_pink_e_ignorado() {
+        let dir = temp_src("pinknormstr");
+        let body = "nova s: verso = \"// @pinker-nav:start fake.normal.chave\";";
+        write(&dir, "a.pink", &pink_region("apps.strnormal.chave", body));
+        let index = scan_pink(&dir);
+        assert_eq!(index.regions.len(), 1);
+        assert_eq!(index.regions[0].key, "apps.strnormal.chave");
+        assert!(index.verify().is_empty());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn marcador_dentro_de_string_tripla_pink_e_ignorado() {
+        let dir = temp_src("pinktriplestr");
+        let body = "nova s: verso = \"\"\"\n// @pinker-nav:start fake.tripla.chave\n\"\"\";";
+        write(&dir, "a.pink", &pink_region("apps.strtripla.chave", body));
+        let index = scan_pink(&dir);
+        assert_eq!(index.regions.len(), 1);
+        assert_eq!(index.regions[0].key, "apps.strtripla.chave");
+        assert!(index.verify().is_empty(), "{:?}", index.verify());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn marcador_dentro_de_comentario_de_bloco_pink_e_ignorado() {
+        let dir = temp_src("pinkblock");
+        let body = "/* /* aninhado\n// @pinker-nav:start fake.bloco.chave\n*/ */\ncarinho f() -> bombom { mimo 0; }";
+        write(&dir, "a.pink", &pink_region("apps.bloco.chave", body));
+        let index = scan_pink(&dir);
+        assert_eq!(index.regions.len(), 1);
+        assert_eq!(index.regions[0].key, "apps.bloco.chave");
+        assert!(index.verify().is_empty(), "{:?}", index.verify());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn erros_estruturais_pink_sao_reportados() {
+        // Start sem end.
+        let dir = temp_src("pinknoend");
+        write(
+            &dir,
+            "a.pink",
+            "// @pinker-nav:start apps.x.y\ncarinho f() {}\n",
+        );
+        assert!(scan_pink(&dir)
+            .verify()
+            .iter()
+            .any(|e| matches!(e, NavVerifyError::StartWithoutEnd { .. })));
+        fs::remove_dir_all(dir).unwrap();
+
+        // End sem start.
+        let dir = temp_src("pinknostart");
+        write(
+            &dir,
+            "a.pink",
+            "carinho f() {}\n// @pinker-nav:end apps.x.y\n",
+        );
+        assert!(scan_pink(&dir)
+            .verify()
+            .iter()
+            .any(|e| matches!(e, NavVerifyError::EndWithoutStart { .. })));
+        fs::remove_dir_all(dir).unwrap();
+
+        // Chave/marcador incoerente.
+        let dir = temp_src("pinkmismatch");
+        write(
+            &dir,
+            "a.pink",
+            "// @pinker-nav:start apps.x.y\ncarinho f() {}\n// @pinker-nav:end apps.x.z\n",
+        );
+        assert!(scan_pink(&dir)
+            .verify()
+            .iter()
+            .any(|e| matches!(e, NavVerifyError::KeyMismatch { .. })));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    // Reconhecimento léxico puro do dialeto Pinker (`marker_comment_pinker`).
+
+    #[test]
+    fn pink_marcador_valido_e_reconhecido() {
+        let mut st = PinkerState::Code;
+        assert_eq!(
+            marker_comment_pinker("// @pinker-nav:start a.b", &mut st),
+            Some("// @pinker-nav:start a.b")
+        );
+        assert_eq!(st, PinkerState::Code);
+    }
+
+    #[test]
+    fn pink_espacos_antes_do_marcador_sao_permitidos() {
+        let mut st = PinkerState::Code;
+        assert_eq!(
+            marker_comment_pinker("    // @pinker-nav:end a.b", &mut st),
+            Some("// @pinker-nav:end a.b")
+        );
+    }
+
+    #[test]
+    fn pink_marcador_apos_codigo_e_ignorado() {
+        let mut st = PinkerState::Code;
+        assert_eq!(
+            marker_comment_pinker("carinho f() {} // @pinker-nav:start a.b", &mut st),
+            None
+        );
+    }
+
+    #[test]
+    fn pink_string_normal_nao_atravessa_linha() {
+        let mut st = PinkerState::Code;
+        // String normal aberta e não fechada no fim da linha volta a `Code`.
+        assert_eq!(
+            marker_comment_pinker("nova s: verso = \"aberta", &mut st),
+            None
+        );
+        assert_eq!(st, PinkerState::Code);
+        // Logo, um marcador na linha seguinte é reconhecido normalmente.
+        assert_eq!(
+            marker_comment_pinker("// @pinker-nav:start a.b", &mut st),
+            Some("// @pinker-nav:start a.b")
+        );
+    }
+
+    #[test]
+    fn pink_marcador_dentro_de_string_normal_fechada_e_ignorado() {
+        let mut st = PinkerState::Code;
+        assert_eq!(
+            marker_comment_pinker("\"// @pinker-nav:start a.b\"", &mut st),
+            None
+        );
+        assert_eq!(st, PinkerState::Code);
+    }
+
+    #[test]
+    fn pink_string_interpolada_ignora_marcador() {
+        let mut st = PinkerState::Code;
+        assert_eq!(
+            marker_comment_pinker("$\"// @pinker-nav:start a.b\"", &mut st),
+            None
+        );
+        assert_eq!(st, PinkerState::Code);
+    }
+
+    #[test]
+    fn pink_string_tripla_atravessa_linhas_e_ignora_marcador() {
+        let mut st = PinkerState::Code;
+        assert_eq!(marker_comment_pinker("txt = \"\"\"", &mut st), None);
+        assert_eq!(st, PinkerState::TripleString);
+        assert_eq!(
+            marker_comment_pinker("// @pinker-nav:start a.b", &mut st),
+            None
+        );
+        assert_eq!(st, PinkerState::TripleString);
+        assert_eq!(marker_comment_pinker("\"\"\";", &mut st), None);
+        assert_eq!(st, PinkerState::Code);
+    }
+
+    #[test]
+    fn pink_comentario_de_bloco_aninhado_ignora_marcador() {
+        let mut st = PinkerState::Code;
+        assert_eq!(marker_comment_pinker("/* /* aninhado", &mut st), None);
+        assert_eq!(st, PinkerState::BlockComment(2));
+        assert_eq!(
+            marker_comment_pinker("// @pinker-nav:start a.b", &mut st),
+            None
+        );
+        assert_eq!(st, PinkerState::BlockComment(2));
+        assert_eq!(marker_comment_pinker("*/", &mut st), None);
+        assert_eq!(st, PinkerState::BlockComment(1));
+        assert_eq!(marker_comment_pinker("*/", &mut st), None);
+        assert_eq!(st, PinkerState::Code);
+    }
+
+    #[test]
+    fn pink_variante_doc_comment_nao_e_marcador() {
+        // `///` é comentário candidato, mas `parse_marker` rejeita a variante.
+        let mut st = PinkerState::Code;
+        let candidate = marker_comment_pinker("/// @pinker-nav:start a.b", &mut st);
+        assert_eq!(candidate, Some("/// @pinker-nav:start a.b"));
+        assert_eq!(parse_marker(candidate.unwrap(), START), None);
     }
 }

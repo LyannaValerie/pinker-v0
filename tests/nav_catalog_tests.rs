@@ -54,6 +54,8 @@ fn fixture(root: &Path) {
     write(root, "src/cfg_ir.rs", SRC);
     write(root, "runtime/pinker_rt/src/lib.rs", RUNTIME_LIB);
     fs::create_dir_all(root.join("tests")).unwrap();
+    // Onda 9: `apps/` é raiz oficial obrigatória (dialeto Pinker).
+    fs::create_dir_all(root.join("apps")).unwrap();
 }
 
 fn run(root: &Path, args: &[&str]) -> std::process::Output {
@@ -161,10 +163,12 @@ fn verificar_falha_quando_marcador_desbalanceado() {
     let root = temp_repo("unbal");
     write(&root, ".pinker/doc.toml", DOC_TOML);
     write(&root, "src/a.rs", "// @pinker-nav:start x.y\nfn a() {}\n");
-    // Raiz obrigatória precisa existir para que o desbalanceamento em `src/`
+    // Raízes obrigatórias precisam existir para que o desbalanceamento em `src/`
     // seja o único problema detectado (senão a raiz ausente falharia antes).
     fs::create_dir_all(root.join("runtime/pinker_rt/src")).unwrap();
     fs::create_dir_all(root.join("tests")).unwrap();
+    // Onda 9: `apps/` é raiz oficial obrigatória.
+    fs::create_dir_all(root.join("apps")).unwrap();
     run(&root, &["sincronizar"]);
     let verify = run(&root, &["verificar"]);
     assert!(!verify.status.success());
