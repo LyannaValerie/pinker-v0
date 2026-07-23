@@ -1,6 +1,6 @@
 use pinker_v0::agent::{
-    classify_required_check_states, executar, relatorio, sensibilidade, sha256_hex, status,
-    verificar, CheckState, EXIT_ACCEPTED, EXIT_BLOCKED,
+    analyze_human_body, classify_required_check_states, executar, relatorio, sensibilidade,
+    sha256_hex, status, verificar, CheckState, EXIT_ACCEPTED, EXIT_BLOCKED,
 };
 use std::fs;
 #[cfg(unix)]
@@ -273,7 +273,7 @@ fn run_agent(root: &Path, subcommand: &str, spec: &Path) -> std::process::Output
 #[test]
 fn pr_body_valido_persiste_sha() {
     let root = root("pr-body-ok");
-    let body = "```pinker-change\nschema: 1\nkind: parallel-phase\ntitle: Teste\nstatus: completed\narea:\n  - development.agent\nupdates:\n  state: false\n  history: false\n  roadmap: false\nvalidation:\n  required:\n    - make ci\n```\n";
+    let body = "## Resumo\nDescricao substantiva humana da secao resumo com detalhe suficiente e claro aqui.\n\n## Problema\nDescricao substantiva humana da secao problema com detalhe suficiente e claro.\n\n## Implementação\nDescricao substantiva humana da secao implementacao com detalhe suficiente aqui.\n\n## Validação\nDescricao substantiva humana da secao validacao com detalhe suficiente e claro.\n\n## Limitações\nDescricao substantiva humana da secao limitacoes com detalhe suficiente e claro.\n\n## Próximo passo\nDescricao substantiva da secao proximo passo com detalhe suficiente e claro aqui.\n\n```pinker-change\nschema: 1\nkind: parallel-phase\ntitle: Teste\nstatus: completed\narea:\n  - development.agent\nupdates:\n  state: false\n  history: false\n  roadmap: false\nvalidation:\n  required:\n    - make ci\n```\n";
     let path = pr_body_spec(&root, body);
     assert!(run_agent(&root, "executar", &path).status.success());
     assert!(run_agent(&root, "verificar", &path).status.success());
@@ -606,5 +606,249 @@ fn candidate_identity_continua_obrigatoria() {
     assert_eq!(result.aggregate, CheckState::Pending);
     assert_eq!(result.missing, vec!["rust".to_string()]);
     assert_eq!(result.extras, vec!["Rust".to_string()]);
+}
+// Contrato de corpo humano V1: seis seções H2 substantivas antes do bloco.
+fn body_with(sections: [String; 6]) -> String {
+    let names = [
+        "Resumo",
+        "Problema",
+        "Implementação",
+        "Validação",
+        "Limitações",
+        "Próximo passo",
+    ];
+    let mut out = String::new();
+    for (name, content) in names.iter().zip(sections.iter()) {
+        out.push_str(&format!("## {name}\n{content}\n\n"));
+    }
+    out.push_str("```pinker-change\nschema: 1\nkind: parallel-phase\n```\n");
+    out
+}
+
+fn long(marker: &str) -> String {
+    format!("Descrição substantiva humana da seção {marker} com detalhe suficiente e claro.")
+}
+
+fn valid_body() -> String {
+    body_with([
+        long("resumo"),
+        long("problema"),
+        long("implementacao"),
+        long("validacao"),
+        long("limitacoes"),
+        long("proximo"),
+    ])
+}
+
+#[test]
+fn corpo_humano_completo_passa() {
+    let analysis = analyze_human_body(&valid_body()).expect("corpo válido");
+    assert_eq!(analysis.per_section_characters.len(), 6);
+    assert_eq!(analysis.structured_block_count, 1);
+    assert!(analysis.human_characters >= 400);
+}
+
+#[test]
+fn corpo_so_bloco_falha() {
+    let body = "```pinker-change\nschema: 1\n```\n";
+    assert!(analyze_human_body(body).is_err());
+}
+
+#[test]
+fn corpo_secao_ausente_falha() {
+    let body = valid_body().replace("## Limitações\n", "");
+    let err = analyze_human_body(&body).unwrap_err();
+    assert!(
+        err.0.contains("SECTIONS") || err.0.contains("ORDER"),
+        "{err:?}"
+    );
+}
+
+#[test]
+fn corpo_secao_duplicada_falha() {
+    let body = valid_body().replace(
+        "## Problema\n",
+        "## Problema\nlinha extra substantiva o suficiente para a duplicata contar.\n\n## Problema\n",
+    );
+    assert_eq!(
+        analyze_human_body(&body).unwrap_err().0,
+        "E-AGENT-PR-BODY-DUPLICATE"
+    );
+}
+
+#[test]
+fn corpo_ordem_incorreta_falha() {
+    let body = valid_body()
+        .replace("## Implementação\n", "@@IMPL@@")
+        .replace("## Validação\n", "## Implementação\n")
+        .replace("@@IMPL@@", "## Validação\n");
+    assert_eq!(
+        analyze_human_body(&body).unwrap_err().0,
+        "E-AGENT-PR-BODY-ORDER"
+    );
+}
+
+#[test]
+fn corpo_h1_no_lugar_de_h2_falha() {
+    let body = valid_body().replace("## Resumo\n", "# Resumo\n");
+    assert_eq!(
+        analyze_human_body(&body).unwrap_err().0,
+        "E-AGENT-PR-BODY-ORDER"
+    );
+}
+
+#[test]
+fn corpo_secao_vazia_falha() {
+    let mut sections = [
+        long("r"),
+        long("p"),
+        long("i"),
+        long("v"),
+        long("l"),
+        long("n"),
+    ];
+    sections[4] = String::new();
+    assert_eq!(
+        analyze_human_body(&body_with(sections)).unwrap_err().0,
+        "E-AGENT-PR-BODY-EMPTY"
+    );
+}
+
+#[test]
+fn corpo_secao_curta_falha() {
+    let mut sections = [
+        long("r"),
+        long("p"),
+        long("i"),
+        long("v"),
+        long("l"),
+        long("n"),
+    ];
+    sections[0] = "curto".to_string();
+    assert_eq!(
+        analyze_human_body(&body_with(sections)).unwrap_err().0,
+        "E-AGENT-PR-BODY-SHORT"
+    );
+}
+
+#[test]
+fn corpo_total_humano_curto_falha() {
+    let sections = std::array::from_fn(|_| "a".repeat(45));
+    assert_eq!(
+        analyze_human_body(&body_with(sections)).unwrap_err().0,
+        "E-AGENT-PR-BODY-SHORT"
+    );
+}
+
+#[test]
+fn corpo_so_fenced_code_falha() {
+    let mut sections = [
+        long("r"),
+        long("p"),
+        long("i"),
+        long("v"),
+        long("l"),
+        long("n"),
+    ];
+    sections[0] = "```\ncodigo que nao conta como substancia humana\n```".to_string();
+    assert_eq!(
+        analyze_human_body(&body_with(sections)).unwrap_err().0,
+        "E-AGENT-PR-BODY-EMPTY"
+    );
+}
+
+#[test]
+fn corpo_so_comentario_html_falha() {
+    let mut sections = [
+        long("r"),
+        long("p"),
+        long("i"),
+        long("v"),
+        long("l"),
+        long("n"),
+    ];
+    sections[0] = "<!-- comentario que nao conta como conteudo humano -->".to_string();
+    assert_eq!(
+        analyze_human_body(&body_with(sections)).unwrap_err().0,
+        "E-AGENT-PR-BODY-EMPTY"
+    );
+}
+
+#[test]
+fn corpo_so_checkbox_falha() {
+    let mut sections = [
+        long("r"),
+        long("p"),
+        long("i"),
+        long("v"),
+        long("l"),
+        long("n"),
+    ];
+    sections[0] = "- [ ]".to_string();
+    assert_eq!(
+        analyze_human_body(&body_with(sections)).unwrap_err().0,
+        "E-AGENT-PR-BODY-EMPTY"
+    );
+}
+
+#[test]
+fn corpo_placeholder_falha() {
+    for placeholder in ["TODO", "TBD", "N/A", "<preencher-secao>"] {
+        let mut sections = [
+            long("r"),
+            long("p"),
+            long("i"),
+            long("v"),
+            long("l"),
+            long("n"),
+        ];
+        sections[0] = placeholder.to_string();
+        assert_eq!(
+            analyze_human_body(&body_with(sections)).unwrap_err().0,
+            "E-AGENT-PR-BODY-PLACEHOLDER",
+            "placeholder {placeholder}"
+        );
+    }
+}
+
+#[test]
+fn corpo_bloco_antes_das_secoes_falha() {
+    let body = format!("```pinker-change\nschema: 1\n```\n\n{}", valid_body());
+    assert!(analyze_human_body(&body).is_err());
+}
+
+#[test]
+fn corpo_conteudo_apos_bloco_falha() {
+    let body = format!("{}texto proibido apos o bloco\n", valid_body());
+    assert_eq!(
+        analyze_human_body(&body).unwrap_err().0,
+        "E-AGENT-PR-BODY-TRAILING"
+    );
+}
+
+#[test]
+fn corpo_crlf_normaliza_sem_mudar_semantica() {
+    let lf = analyze_human_body(&valid_body()).expect("lf");
+    let crlf = analyze_human_body(&valid_body().replace('\n', "\r\n")).expect("crlf");
+    assert_eq!(lf.human_characters, crlf.human_characters);
+    assert_eq!(lf.per_section_characters, crlf.per_section_characters);
+}
+
+#[test]
+fn corpo_local_e_remoto_compartilham_resultado() {
+    let a = analyze_human_body(&valid_body()).expect("a");
+    let b = analyze_human_body(&valid_body()).expect("b");
+    assert_eq!(a.human_characters, b.human_characters);
+    assert_eq!(a.per_section_characters, b.per_section_characters);
+}
+
+#[test]
+fn corpo_digest_humano_exclui_bloco_estruturado() {
+    let analysis = analyze_human_body(&valid_body()).expect("válido");
+    assert!(!analysis.human_text.contains("pinker-change"));
+    assert!(!analysis.human_text.contains("schema: 1"));
+    let human_digest = sha256_hex(analysis.human_text.as_bytes());
+    let body_digest = sha256_hex(valid_body().as_bytes());
+    assert_ne!(human_digest, body_digest);
 }
 // @pinker-nav:end evidencia.agent.runner
