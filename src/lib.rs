@@ -26,6 +26,7 @@ pub mod palette;
 pub mod parser;
 pub mod printer;
 pub mod projection;
+pub mod projection_snapshot;
 pub mod repl;
 pub mod semantic;
 pub mod text_norm;
