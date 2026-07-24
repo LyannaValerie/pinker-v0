@@ -4278,6 +4278,185 @@ fn carinho_anonimo_nao_captura_escopo_externo() {
         err
     );
 }
+
+// --- Fase 241: leque padrão `Resultado<T, E>` predeclarado ---
+
+#[test]
+fn fase241_resultado_predeclarado_aceita() {
+    let code = include_str!("../examples/fase241_resultado_predeclarado_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase241_resultado_predeclarado_constroi_decompoe_sem_leque() {
+    let code = r#"
+        pacote main;
+        apelido RBV = Resultado<bombom, verso>;
+        carinho principal() -> bombom {
+            nova ok: RBV = RBV.Ok(42);
+            nova erro: RBV = RBV.Erro("x");
+            nova muda total: bombom = 0;
+            encaixe ok {
+                caso RBV.Ok(v) { total += v; }
+                caso RBV.Erro(m) { falar(m); }
+            }
+            encaixe erro {
+                caso RBV.Ok(v) { total += v; }
+                caso RBV.Erro(m) { falar(m); }
+            }
+            mimo total;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase241_predeclarado_rejeita_carga_incompativel() {
+    let code = r#"
+        pacote main;
+        apelido RBV = Resultado<bombom, verso>;
+        carinho usa() -> RBV { mimo RBV.Ok("texto"); }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("esperado 'bombom'") && err.contains("encontrado 'verso'"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn fase241_predeclarado_rejeita_aridade_de_tipo_invalida() {
+    let code = r#"
+        pacote main;
+        apelido Ruim = Resultado<bombom>;
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("leque genérico 'Resultado' exige 2 argumento(s) de tipo"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn fase241_usuario_resultado_nao_generico_suprime_predeclarado() {
+    // Regressão crítica: programas da Fase 223 (leque Resultado NÃO-genérico do
+    // usuário) continuam válidos; o predeclarado é suprimido, não materializado.
+    let code = include_str!("../examples/fase223_error_handling_tentar_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase241_usuario_resultado_generico_substitui_predeclarado() {
+    // Regressão: a declaração genérica do usuário (Fase 240) substitui o
+    // predeclarado sem erro de duplicata.
+    let code = include_str!("../examples/fase240_leque_generico_resultado_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase241_duas_declaracoes_usuario_resultado_falham() {
+    let code = r#"
+        pacote main;
+        leque Resultado<T, E> { Ok(T), Erro(E) }
+        leque Resultado<T, E> { Ok(T), Erro(E) }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("leque genérico 'Resultado' já declarado"),
+        "{}",
+        err
+    );
+}
+
+#[test]
+fn fase241_usuario_resultado_nao_herda_variantes_predeclaradas() {
+    // O usuário redefine Resultado como leque não-genérico sem `Ok`; usar
+    // `Resultado.Ok` deve falhar — nada é herdado do predeclarado.
+    let code = r#"
+        pacote main;
+        leque Resultado { Falha(verso) }
+        carinho principal() -> bombom {
+            nova r: Resultado = Resultado.Ok(1);
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_err());
+}
+
+#[test]
+fn fase241_ninho_resultado_suprime_predeclarado() {
+    // `ninho Resultado` redefine o nome; o uso aplicado `Resultado<...>` deixa de
+    // resolver contra o template predeclarado (suprimido) e é inválido.
+    let code = r#"
+        pacote main;
+        ninho Resultado { campo: bombom }
+        apelido X = Resultado<bombom, verso>;
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    assert!(parse_and_check(code).is_err());
+}
+
+#[test]
+fn fase241_propagar_curto_sobre_predeclarado_aceito() {
+    let code = r#"
+        pacote main;
+        apelido RBV = Resultado<bombom, verso>;
+        carinho etapa(v: bombom, ok: logica) -> RBV {
+            talvez ok { mimo RBV.Ok(v); }
+            mimo RBV.Erro("e");
+        }
+        carinho dobro(a: bombom, ok: logica) -> RBV {
+            propagar? etapa(a, ok) como RBV.Ok(x);
+            mimo RBV.Ok(x + x);
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase241_exemplo_nao_declara_leque_resultado_manualmente() {
+    // O valor da Fase 241 é usar `Resultado<T,E>` SEM declará-lo; o exemplo não
+    // pode esconder uma declaração manual do leque (nenhuma linha de código, fora
+    // de comentário, pode começar por `leque Resultado`).
+    let code = include_str!("../examples/fase241_resultado_predeclarado_valido.pink");
+    let declara_manual = code.lines().any(|line| {
+        let trimmed = line.trim();
+        !trimmed.starts_with("//") && trimmed.starts_with("leque Resultado")
+    });
+    assert!(
+        !declara_manual,
+        "o exemplo da Fase 241 não pode declarar `leque Resultado` manualmente"
+    );
+}
+
+#[test]
+fn fase241_exemplo_exercita_superficie_completa() {
+    // Trava a fatia vertical do exemplo: mantém a prova de tentar, propagar,
+    // propagar? e encaixe e das DUAS especializações distintas. Impede que uma
+    // mutação enfraqueça silenciosamente a prova (ex.: remover `propagar?`).
+    let code = include_str!("../examples/fase241_resultado_predeclarado_valido.pink");
+    for marca in [
+        "Resultado<bombom, verso>",
+        "Resultado<verso, bombom>",
+        "tentar ",
+        "propagar ",
+        "propagar? ",
+        "encaixe ",
+        ".Ok(",
+        ".Erro(",
+    ] {
+        assert!(
+            code.contains(marca),
+            "o exemplo da Fase 241 deveria exercitar `{marca}`"
+        );
+    }
+}
 // @pinker-nav:end evidencia.semantica.funcoes-locais-e-carinho
 
 // @pinker-nav:start evidencia.semantica.tratos-e-impls

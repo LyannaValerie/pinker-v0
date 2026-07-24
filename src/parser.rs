@@ -77,6 +77,11 @@ pub struct Parser {
     /// Aliases locais estáticos de função: `nova f: carinho(...) -> T = carinho(...) -> T { ... };`.
     /// Nesta fase, servem apenas para reescrever `f(...)` como chamada direta.
     function_value_scopes: Vec<HashMap<String, String>>,
+    /// Nomes de leques genéricos predeclarados pelo parser (Fase 241, ex.: `Resultado`).
+    /// Um nome permanece aqui enquanto ainda for o template sintético; qualquer
+    /// declaração do usuário com o mesmo nome o remove daqui e suprime/substitui o
+    /// template, garantindo que jamais coexistam dois `Resultado` para o mesmo uso.
+    predeclared_generic_enums: HashSet<String>,
 }
 
 #[derive(Clone)]
@@ -128,6 +133,7 @@ impl Parser {
             function_param_templates: HashMap::new(),
             function_param_instantiations: Vec::new(),
             function_value_scopes: Vec::new(),
+            predeclared_generic_enums: HashSet::new(),
         }
     }
 
@@ -230,7 +236,7 @@ impl Parser {
     // @pinker-nav:start parser.programa.estrutura
     // @pinker-nav:domain programa
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo (funções, structs, leques, tratos, impl, aliases, constantes) via `parse_item`.
+    // @pinker-nav:summary Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo (funções, structs, leques, tratos, impl, aliases, constantes) via `parse_item`. Predeclara os leques genéricos da biblioteca padrão (Fase 241, `Resultado<T,E>`) antes do laço de itens e suprime o predeclarado quando o usuário declara o mesmo nome.
     pub fn parse(&mut self) -> Result<Program, PinkerError> {
         let package = if self.match_token(TokenKind::KwPacote) {
             let start_span = self.previous().span;
@@ -281,6 +287,12 @@ impl Parser {
             });
         }
 
+        // Fase 241: predeclara o leque padrão `Resultado<T, E> { Ok(T), Erro(E) }`
+        // como template sintético antes de parsear os itens de topo, para que
+        // `apelido X = Resultado<A, B>;` funcione sem declaração manual. Cede a
+        // qualquer declaração do usuário chamada `Resultado` (ver a supressão abaixo).
+        self.register_predeclared_generic_enums();
+
         let mut items = Vec::new();
         while self.peek().is_some() {
             if self.match_token(TokenKind::KwImpl) {
@@ -296,6 +308,19 @@ impl Parser {
                 }
             } else {
                 let item = self.parse_item()?;
+                // Fase 241: qualquer declaração do usuário chamada como um leque
+                // genérico predeclarado (ex.: `Resultado`) suprime o template
+                // sintético — o usuário vence. O caso de um leque genérico do
+                // usuário de mesmo nome é tratado adiante (substituição sem erro
+                // de duplicata); aqui cobrimos as demais formas (leque não-genérico,
+                // `ninho`, `apelido`, `carinho`, `eterno`), removendo o predeclarado.
+                if let Some(item_name) = Self::item_name(&item) {
+                    let is_generic_enum =
+                        matches!(&item, Item::Enum(enum_decl) if !enum_decl.type_params.is_empty());
+                    if !is_generic_enum && self.predeclared_generic_enums.remove(item_name) {
+                        self.enum_generic_templates.remove(item_name);
+                    }
+                }
                 if let Item::Function(function) = &item {
                     if !function.type_params.is_empty() {
                         if self.generic_templates.contains_key(&function.name) {
@@ -325,7 +350,15 @@ impl Parser {
                 }
                 if let Item::Enum(enum_decl) = &item {
                     if !enum_decl.type_params.is_empty() {
-                        if self.enum_generic_templates.contains_key(&enum_decl.name) {
+                        // Fase 241: se o nome ainda é o template predeclarado, a
+                        // declaração genérica do usuário o substitui sem erro de
+                        // duplicata. Uma segunda declaração do usuário (nome não
+                        // mais predeclarado) continua sendo duplicata inválida.
+                        let was_predeclared =
+                            self.predeclared_generic_enums.remove(&enum_decl.name);
+                        if self.enum_generic_templates.contains_key(&enum_decl.name)
+                            && !was_predeclared
+                        {
                             return Err(PinkerError::Parse {
                                 msg: format!("leque genérico '{}' já declarado", enum_decl.name),
                                 span: enum_decl.span,
@@ -2195,7 +2228,7 @@ impl Parser {
     // @pinker-nav:start parser.genericos.leques-template
     // @pinker-nav:domain genericos
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Materializa um `EnumDecl` concreto a partir de um template de leque genérico e seus argumentos de tipo: confere a aridade (erro `Parse` se divergir), monta a tabela parâmetro-de-tipo → tipo concreto, substitui as cargas das variantes, remove os parâmetros de tipo e nomeia a instância pelo nome monomórfico. Não valida os tipos resultantes nem os anexa ao `Program`.
+    // @pinker-nav:summary Materializa um `EnumDecl` concreto a partir de um template de leque genérico e seus argumentos de tipo: confere a aridade (erro `Parse` se divergir), monta a tabela parâmetro-de-tipo → tipo concreto, substitui as cargas das variantes, remove os parâmetros de tipo e nomeia a instância pelo nome monomórfico. Não valida os tipos resultantes nem os anexa ao `Program`. Inclui também a predeclaração da biblioteca padrão (Fase 241): `register_predeclared_generic_enums`/`predeclared_generic_enum_templates` constroem o template sintético `Resultado<T,E> { Ok(T), Erro(E) }` e `item_name` apoia a supressão por declaração do usuário.
     fn instantiate_generic_enum_decl(
         template: &EnumDecl,
         type_args: &[Type],
@@ -2236,6 +2269,59 @@ impl Parser {
                 .collect(),
             span: template.span,
         })
+    }
+
+    /// Fase 241: registra os leques genéricos predeclarados pela biblioteca padrão.
+    /// Hoje: `Resultado<T, E> { Ok(T), Erro(E) }`. Construído diretamente como
+    /// `EnumDecl` sintético (sem parsing de string, sem I/O, determinístico) e
+    /// inserido em `enum_generic_templates`, participando da mesma tabela e do
+    /// mesmo caminho de monomorfização dos leques genéricos do usuário (Fase 240).
+    fn register_predeclared_generic_enums(&mut self) {
+        for template in Self::predeclared_generic_enum_templates() {
+            self.predeclared_generic_enums.insert(template.name.clone());
+            self.enum_generic_templates
+                .insert(template.name.clone(), template);
+        }
+    }
+
+    /// Constrói os templates sintéticos predeclarados. O span usa a posição 0:0
+    /// (inexistente em fonte de usuário) para nunca fingir uma localização real —
+    /// diagnósticos de uso apontam sempre para a fonte do usuário.
+    fn predeclared_generic_enum_templates() -> Vec<EnumDecl> {
+        let synthetic = Span::single(crate::token::Position::new(0, 0));
+        let param = |name: &str| Type::Alias {
+            name: name.to_string(),
+            span: synthetic,
+        };
+        vec![EnumDecl {
+            name: "Resultado".to_string(),
+            type_params: vec!["T".to_string(), "E".to_string()],
+            variants: vec![
+                EnumVariant {
+                    name: "Ok".to_string(),
+                    payloads: vec![param("T")],
+                    span: synthetic,
+                },
+                EnumVariant {
+                    name: "Erro".to_string(),
+                    payloads: vec![param("E")],
+                    span: synthetic,
+                },
+            ],
+            span: synthetic,
+        }]
+    }
+
+    /// Nome de topo de um item, para a supressão de predeclarados da Fase 241.
+    fn item_name(item: &Item) -> Option<&str> {
+        match item {
+            Item::Function(function) => Some(&function.name),
+            Item::Const(constant) => Some(&constant.name),
+            Item::TypeAlias(alias) => Some(&alias.name),
+            Item::Struct(struct_decl) => Some(&struct_decl.name),
+            Item::Enum(enum_decl) => Some(&enum_decl.name),
+            Item::Trait(trait_decl) => Some(&trait_decl.name),
+        }
     }
     // @pinker-nav:end parser.genericos.leques-template
 

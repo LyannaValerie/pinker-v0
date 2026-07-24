@@ -1276,4 +1276,13 @@ fn fase236_funcao_generica_usuario_tem_paridade_nativa() {
         23_600,
     );
 }
+
+#[test]
+fn fase241_resultado_predeclarado_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase241_resultado_predeclarado_valido.pink",
+        "fase241_resultado_predeclarado_valido",
+        24_100,
+    );
+}
 // @pinker-nav:end evidencia.backend-nativo.paridade-stdout-fases-avancadas

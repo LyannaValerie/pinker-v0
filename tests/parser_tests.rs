@@ -405,6 +405,89 @@ fn parser_aceita_tipo_verso_e_literal_string() {
     };
     assert!(matches!(let_stmt.init.kind, ExprKind::StringLit(_)));
 }
+
+// --- Fase 241: leque padrão `Resultado<T, E>` predeclarado ---
+
+fn nomes_de_leques_monomorfizados(program: &pinker_v0::ast::Program) -> Vec<String> {
+    program
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Enum(enum_decl) if enum_decl.name.starts_with("__gen_leque_") => {
+                Some(enum_decl.name.clone())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn fase241_predeclarado_materializa_sem_declaracao_de_leque() {
+    let source = r#"
+        pacote main;
+        apelido X = Resultado<bombom, verso>;
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let program = parse(source).expect("Resultado predeclarado deve parsear sem `leque`");
+    let monos = nomes_de_leques_monomorfizados(&program);
+    assert_eq!(
+        monos,
+        vec!["__gen_leque_Resultado_bombom_verso".to_string()]
+    );
+}
+
+#[test]
+fn fase241_predeclarado_duas_especializacoes_distintas_com_dedup() {
+    let source = r#"
+        pacote main;
+        apelido A = Resultado<bombom, verso>;
+        apelido B = Resultado<verso, bombom>;
+        apelido C = Resultado<bombom, verso>;
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let program = parse(source).expect("duas especializações válidas");
+    let monos = nomes_de_leques_monomorfizados(&program);
+    // A e C colapsam na mesma instância (dedup); B é distinta.
+    assert_eq!(
+        monos,
+        vec![
+            "__gen_leque_Resultado_bombom_verso".to_string(),
+            "__gen_leque_Resultado_verso_bombom".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn fase241_predeclarado_ordem_de_especializacoes_e_deterministica() {
+    let source = r#"
+        pacote main;
+        apelido A = Resultado<bombom, verso>;
+        apelido B = Resultado<verso, bombom>;
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let primeira = nomes_de_leques_monomorfizados(&parse(source).unwrap());
+    let segunda = nomes_de_leques_monomorfizados(&parse(source).unwrap());
+    assert_eq!(primeira, segunda);
+    assert_eq!(
+        primeira,
+        vec![
+            "__gen_leque_Resultado_bombom_verso".to_string(),
+            "__gen_leque_Resultado_verso_bombom".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn fase241_predeclarado_nao_materializa_sem_uso() {
+    // Sem nenhum uso aplicado `Resultado<...>`, o template sintético não vira
+    // um leque concreto no programa.
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let program = parse(source).unwrap();
+    assert!(nomes_de_leques_monomorfizados(&program).is_empty());
+}
 // @pinker-nav:end evidencia.parser.tipos-qualificados-e-verso
 
 // @pinker-nav:start evidencia.parser.expressoes-e-precedencia
