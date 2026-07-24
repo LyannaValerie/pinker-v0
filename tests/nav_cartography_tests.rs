@@ -6395,9 +6395,58 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         !inventory_flat.contains("próximo alvo: apps/"),
         "`apps/` permanece reservada à Onda 9 e não pode ser o próximo alvo"
     );
+    // Gate de fechamento formal. O checkpoint histórico desta cápsula ainda
+    // registra a Trama incompleta; o fechamento formal separado já ocorreu e o
+    // estado corrente registra a conclusão. Histórico e corrente coexistem.
+    let (historico, corrente) = inventory
+        .split_once("## Fechamento formal da Trama Pinker V1 (estado corrente)")
+        .expect("seção de estado corrente do fechamento formal ausente");
     assert!(
-        !inventory_flat.contains("trama_complete = true"),
-        "a Trama permanece incompleta até um fechamento formal separado"
+        historico.contains("trama_complete = false"),
+        "checkpoint histórico da cápsula deve preservar trama_complete = false"
+    );
+    assert!(
+        corrente.contains("onda_8_complete = true")
+            && corrente.contains("onda_9_complete = true")
+            && corrente.contains("trama_complete = true"),
+        "o fechamento formal separado registra a Trama concluída no estado corrente"
+    );
+    assert!(
+        corrente.contains("waves_10_12 = NOT_DEFINED")
+            && corrente.contains("waves_10_12_required_for_closure = false"),
+        "Ondas 10–12 permanecem sem definição canônica e não necessárias ao fechamento"
+    );
+    assert!(
+        corrente.contains("total_regions = 455")
+            && corrente.contains("source_regions_added = 0")
+            && corrente.contains("functional_changes = false"),
+        "o fechamento é apenas formal: 455 regiões, nenhuma adicionada, sem mudança funcional"
+    );
+
+    // Contrato de política das Tramas: o gate lê os documentos canônicos reais
+    // (contrato V1 e portal) e falha se a política de ordem futura for adulterada.
+    let tramas = include_str!("../docs/development/tramas-v1.md");
+    let portal = include_str!("../docs/development/README.md");
+    assert!(
+        tramas.contains("Eixo A — linguagem: COMPLETE"),
+        "o gate canônico das futuras Tramas é `Eixo A — linguagem: COMPLETE`"
+    );
+    assert!(
+        tramas.contains("start_before_Eixo_A_complete: false"),
+        "futuras Tramas não podem começar antes de `Eixo A — linguagem: COMPLETE`"
+    );
+    assert!(
+        tramas.contains("new_functional_waves_required: false")
+            && tramas.contains("waves_10_12: NOT_DEFINED"),
+        "nenhuma onda funcional nova é exigida e as Ondas 10–12 seguem sem definição"
+    );
+    assert!(
+        tramas.contains("relationship: POST_CLOSURE") && tramas.contains("mutate_now: false"),
+        "a PR #397 é pós-fechamento e não deve ser mutada agora"
+    );
+    assert!(
+        portal.contains("Política das Tramas") && portal.contains("tramas-v1.md"),
+        "o portal de desenvolvimento deve referenciar o contrato das Tramas"
     );
 }
 
@@ -6658,7 +6707,20 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
             "contrato documental ausente: {statement}"
         );
     }
-    assert!(!inventory.contains("trama_complete = true"));
+    // Fechamento formal (VALIDATION_ONLY_CONFLICT autorizado pela Founder): o
+    // documento vivo passa a coexistir histórico e estado corrente. A Onda A
+    // continua sem fechar a Trama; a responsabilidade histórica é preservada.
+    let (historico, corrente) = inventory
+        .split_once("## Fechamento formal da Trama Pinker V1 (estado corrente)")
+        .expect("seção de estado corrente do fechamento formal ausente");
+    assert!(
+        historico.contains("trama_complete = false"),
+        "histórico da Onda A deve preservar trama_complete = false"
+    );
+    assert!(
+        corrente.contains("trama_complete = true"),
+        "estado corrente registra trama_complete = true; a Onda A não fechou a Trama"
+    );
 }
 
 #[test]
@@ -6923,7 +6985,20 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
             "documentação ausente: {statement}"
         );
     }
-    assert!(!docs.contains("trama_complete = true"));
+    // Fechamento formal (VALIDATION_ONLY_CONFLICT autorizado pela Founder): o
+    // inventário vivo passa a coexistir histórico e estado corrente. Esta onda
+    // continua sem fechar a Trama; a responsabilidade histórica é preservada.
+    let (docs_historico, docs_corrente) = docs
+        .split_once("## Fechamento formal da Trama Pinker V1 (estado corrente)")
+        .expect("seção de estado corrente do fechamento formal ausente no inventário vivo");
+    assert!(
+        docs_historico.contains("trama_complete = false"),
+        "histórico da onda deve preservar trama_complete = false"
+    );
+    assert!(
+        docs_corrente.contains("trama_complete = true"),
+        "estado corrente registra trama_complete = true; esta onda não fechou a Trama"
+    );
     assert!(!docs.contains("Onda 9 ativa"));
 }
 
@@ -7147,7 +7222,20 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
             "documentação ausente: {statement}"
         );
     }
-    assert!(!docs.contains("trama_complete = true"));
+    // Fechamento formal (VALIDATION_ONLY_CONFLICT autorizado pela Founder): o
+    // inventário vivo passa a coexistir histórico e estado corrente. Esta onda
+    // continua sem fechar a Trama; a responsabilidade histórica é preservada.
+    let (docs_historico, docs_corrente) = docs
+        .split_once("## Fechamento formal da Trama Pinker V1 (estado corrente)")
+        .expect("seção de estado corrente do fechamento formal ausente no inventário vivo");
+    assert!(
+        docs_historico.contains("trama_complete = false"),
+        "histórico da onda deve preservar trama_complete = false"
+    );
+    assert!(
+        docs_corrente.contains("trama_complete = true"),
+        "estado corrente registra trama_complete = true; esta onda não fechou a Trama"
+    );
     assert!(!docs.contains("Onda 9 ativa"));
     let regenerated = CodeIndex::scan_repo(&repository).expect("regeneração canônica");
     assert!(regenerated.verify().is_empty());
@@ -7400,7 +7488,20 @@ fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
         );
     }
     // A Onda D NÃO fecha a Trama.
-    assert!(!docs.contains("trama_complete = true"));
+    // Fechamento formal (VALIDATION_ONLY_CONFLICT autorizado pela Founder): o
+    // inventário vivo passa a coexistir histórico e estado corrente. Esta onda
+    // continua sem fechar a Trama; a responsabilidade histórica é preservada.
+    let (docs_historico, docs_corrente) = docs
+        .split_once("## Fechamento formal da Trama Pinker V1 (estado corrente)")
+        .expect("seção de estado corrente do fechamento formal ausente no inventário vivo");
+    assert!(
+        docs_historico.contains("trama_complete = false"),
+        "histórico da onda deve preservar trama_complete = false"
+    );
+    assert!(
+        docs_corrente.contains("trama_complete = true"),
+        "estado corrente registra trama_complete = true; esta onda não fechou a Trama"
+    );
     assert!(!docs.contains("Onda 9 ativa"));
     for nonclaim in [
         "não é sandbox",
