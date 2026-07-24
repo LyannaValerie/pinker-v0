@@ -158,6 +158,11 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                                 args: args.clone(),
                                 ret_type: *ret_type,
                             }),
+                            InstructionCfgIR::CallIndirect { .. } => Err(PinkerError::Ir {
+                                msg: "backend textual ainda não lowera chamada indireta (fase 242)"
+                                    .to_string(),
+                                span: crate::token::Span::single(crate::token::Position::new(1, 1)),
+                            }),
                             InstructionCfgIR::Falar { args } => Ok(BackendTextInstruction::Falar {
                                 args: map_falar_args_from_cfg(args),
                             }),
@@ -406,6 +411,11 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
             args: args.clone(),
             ret_type: TypeIR::Nulo,
         }),
+        SelectedInstr::CallIndirect { .. } => Err(PinkerError::Ir {
+            msg: "backend textual ainda não lowera chamada indireta selecionada (fase 242)"
+                .to_string(),
+            span: crate::token::Span::single(crate::token::Position::new(1, 1)),
+        }),
         SelectedInstr::Falar { args } => Ok(BackendTextInstruction::Falar {
             args: map_falar_args_from_selected(args),
         }),
@@ -643,6 +653,7 @@ fn render_operand(operand: &OperandIR) -> String {
         }
         OperandIR::Str(s) => format!("\"{}\"", s),
         OperandIR::Temp(temp) => render_temp(*temp),
+        OperandIR::FunctionRef(name) => format!("fnref({})", name),
     }
 }
 

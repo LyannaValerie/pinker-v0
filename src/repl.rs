@@ -105,6 +105,7 @@ fn render_value(value: &RuntimeValue) -> String {
         RuntimeValue::MapVersoVerso(handle) => format!("<mapa:verso,verso:{handle}>"),
         RuntimeValue::MapBombomBombom(handle) => format!("<mapa:bombom,bombom:{handle}>"),
         RuntimeValue::MapBombomVerso(handle) => format!("<mapa:bombom,verso:{handle}>"),
+        RuntimeValue::Callable(handle) => format!("<carinho:{handle}>"),
     }
 }
 // @pinker-nav:end repl.ciclo.leitura-avaliacao

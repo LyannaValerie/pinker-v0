@@ -164,6 +164,14 @@ pub enum SelectedInstr {
         callee: String,
         args: Vec<OperandIR>,
     },
+    // Fase 242: chamada indireta selecionada — `callee` é um operando
+    // (valor callable), não um símbolo. Sempre produz valor.
+    CallIndirect {
+        dest: crate::cfg_ir::TempIR,
+        callee: OperandIR,
+        args: Vec<OperandIR>,
+        ret_type: TypeIR,
+    },
     Falar {
         args: Vec<FalarArgSelected>,
     },
@@ -433,6 +441,17 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
                 span: crate::token::Span::single(crate::token::Position::new(1, 1)),
             }),
         },
+        InstructionCfgIR::CallIndirect {
+            dest,
+            callee,
+            args,
+            ret_type,
+        } => Ok(SelectedInstr::CallIndirect {
+            dest: *dest,
+            callee: callee.clone(),
+            args: args.clone(),
+            ret_type: *ret_type,
+        }),
         InstructionCfgIR::Falar { args } => Ok(SelectedInstr::Falar {
             args: lower_falar_args(args),
         }),
@@ -698,6 +717,21 @@ fn render_instr(inst: &SelectedInstr) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
+        SelectedInstr::CallIndirect {
+            dest,
+            callee,
+            args,
+            ret_type,
+        } => format!(
+            "call_indirect {}, {}({}), {}",
+            render_temp(*dest),
+            render_operand(callee),
+            args.iter()
+                .map(render_operand)
+                .collect::<Vec<_>>()
+                .join(", "),
+            ret_type.name()
+        ),
         SelectedInstr::Falar { args } => format!(
             "falar {}",
             args.iter()
@@ -740,6 +774,7 @@ fn render_operand(op: &OperandIR) -> String {
         }
         OperandIR::Str(s) => format!("\"{}\"", s),
         OperandIR::Temp(t) => render_temp(*t),
+        OperandIR::FunctionRef(name) => format!("fnref({})", name),
     }
 }
 

@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **241** — Eixo A: `Resultado<T,E>` predeclarado (biblioteca padrão) |
+| Fase funcional mais recente | **242** — Eixo A: valores de função materializados e chamada indireta |
 | Rodada documental mais recente | **Doc-49** — fundação comunitária para contribuições externas |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -77,6 +77,7 @@
 | 239 | Bloco 20, Eixo A: passagem estática de função como parâmetro — funções com parâmetro `carinho(...) -> tipo` especializam chamadas por callback local concreto e mantêm chamada direta com paridade nativa |
 | 240 | Bloco 20, Eixo A: leque genérico explícito — `leque Resultado<T,E>` monomorfiza usos `Resultado<bombom,verso>` via alias concreto, com construção/`encaixe` pelo alias e paridade nativa |
 | 241 | Bloco 20, Eixo A: `Resultado<T,E>` predeclarado — template sintético no parser torna `Resultado<T,E> { Ok(T), Erro(E) }` disponível sem `leque` manual, reusando a monomorfização da Fase 240 e cedendo a declarações do usuário; paridade nativa |
+| 242 | Bloco 20, Eixo A: valores de função materializados e chamada indireta — callable handle de 1 palavra (`{code_ptr, env_ptr}`, descritor estático não-capturante); função top-level/literal `carinho` como valor, variável tipada (imutável/`muda`), passagem/retorno de callable e chamada indireta real no interpretador e no backend nativo (`call *reg`); especialização estática da Fase 239 preservada intocada |
 
 Histórico completo por fase: `docs/history/phases/`.
 
@@ -93,6 +94,8 @@ Histórico completo por fase: `docs/history/phases/`.
 - A trilha foi organizada em quatro frentes adultas: BM-A (toolchain freestanding), BM-B (bootstrap/runtime autônomo), BM-C (boot/fronteira de hardware) e BM-D (produto de build, QEMU e gate de qualidade).
 - O padrão anti-mínimo de `docs/expandir.md` passa a ser explícito também para SO: cada fase deve fechar uma fatia vertical utilizável com superfície, semântica, backend/runtime, diagnósticos, testes positivos/negativos, exemplo, documentação e evidência executável; stubs e provas de conceito isoladas não contam como entrega.
 - A documentação preserva o backend atual como ELF Linux x86-64 System V + `pinker_rt`; a trilha freestanding continua totalmente pendente de fases funcionais.
+- **Fase 242 — Eixo A, item 6 da Faixa 1: valores de função materializados e chamada indireta**.
+- A Fase 242 escolhe representação de callable de 1 palavra (handle para descritor `{code_ptr, env_ptr}`; env_ptr nulo/estático nesta fase, sem captura), com descritores estáticos em `.rodata` para funções não-capturantes; permite referenciar função top-level ou literal `carinho` como valor, armazenar em variável tipada (`nova`/`nova muda`), passar como parâmetro, retornar de função, reatribuir e chamar por expressão — com chamada indireta real (`call *reg`) tanto no interpretador quanto no backend nativo; a especialização estática da Fase 239 permanece como caminho separado e intocado para o caso que já cobria.
 - **Fase 241 — Eixo A, item 5 da Faixa 1: `Resultado<T,E>` predeclarado (biblioteca padrão)**.
 - A Fase 241 injeta um template sintético de `leque Resultado<T, E> { Ok(T), Erro(E) }` em `enum_generic_templates` na construção do parser, tornando-o utilizável por alias concreto sem declaração manual e reusando integralmente a monomorfização, o `encaixe`, o `tentar`, o `propagar` e o `propagar?` da Fase 240; qualquer declaração de `Resultado` pelo usuário suprime o predeclarado, sem mudança de runtime e com paridade nativa.
 - **Fase 240 — Eixo A, itens 3 e 5 da Faixa 1: leques genéricos explícitos para base de `Resultado<T,E>`**.
@@ -142,7 +145,7 @@ Histórico completo por fase: `docs/history/phases/`.
 
 ## 5. Próximo passo
 - Estrutura do Bloco 20 formalizada em dois eixos (Doc-41), padrão pós-Eixo B registrado na Doc-42 e convergência bare-metal formalizada na Doc-46: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado; a trilha BM permanece documental e não implementada.
-- Próxima fase: com a biblioteca padrão predeclarada de `Resultado<T,E>` entregue na Fase 241, o item 5 pode avançar para diagnósticos enriquecidos ou métodos utilitários (derivados do roadmap, não presumidos aqui), continuar o item 6 com chamada indireta real/ponteiro de função materializado, ou iniciar a Faixa 3 se a direção imediata for SO. Em qualquer caso, sem recorte mínimo automático, com lowering nativo obrigatório e com fatia vertical utilizável.
+- Próxima fase: com valores de função materializados e chamada indireta entregues na Fase 242 (checkpoint local, publicação separada pendente de revisão humana), o item 6 pode avançar para closures com captura imutável por valor (candidata a Fase 243, mesma representação de callable, sem trocar o formato público), o item 5 pode avançar para diagnósticos enriquecidos ou métodos utilitários (derivados do roadmap, não presumidos aqui), ou a trilha pode iniciar a Faixa 3 se a direção imediata for SO. Em qualquer caso, sem recorte mínimo automático, com lowering nativo obrigatório e com fatia vertical utilizável.
 - Ao iniciar a direção SO, a execução deve seguir `docs/roadmap/bare_metal_bootstrap.md`: não basta gerar um artefato isolado; a fase precisa fechar superfície, semântica, backend/runtime, diagnósticos, testes, exemplo e documentação do subproblema escolhido.
 - Escada completa do eixo encerrado (B1 ✓ ... B11 ✓) em `docs/roadmap/blocos/bloco_20.md`.
 - Depois do item 5: itens 6 (**closures**) e 4 (**traits**) do Eixo A, mantendo a regra de que toda fase de linguagem entrega o lowering nativo junto.

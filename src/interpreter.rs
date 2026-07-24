@@ -58,6 +58,51 @@ struct RuntimeListState {
     next_list_handle: u64,
 }
 
+// Fase 242: registro de valores callable — handle de 1 palavra para um
+// descritor {nome da função, capturas}. `captured` é sempre vazio nesta
+// fase (sem closures); reservado para a Fase 243 preencher no momento da
+// criação da closure (snapshot por valor).
+struct CallableDescriptor {
+    function_name: String,
+    captured: Vec<RuntimeValue>,
+}
+
+struct CallableState {
+    table: HashMap<u64, CallableDescriptor>,
+    next_handle: u64,
+    // Memoiza o handle de cada função top-level não capturante referenciada
+    // como valor, para não recriar descritor a cada `PushFunctionRef`.
+    static_by_name: HashMap<String, u64>,
+}
+
+impl CallableState {
+    fn new() -> Self {
+        CallableState {
+            table: HashMap::new(),
+            next_handle: 1,
+            static_by_name: HashMap::new(),
+        }
+    }
+
+    fn get_or_create_static(&mut self, function_name: &str) -> u64 {
+        if let Some(&handle) = self.static_by_name.get(function_name) {
+            return handle;
+        }
+        let handle = self.next_handle;
+        self.next_handle += 1;
+        self.table.insert(
+            handle,
+            CallableDescriptor {
+                function_name: function_name.to_string(),
+                captured: Vec::new(),
+            },
+        );
+        self.static_by_name
+            .insert(function_name.to_string(), handle);
+        handle
+    }
+}
+
 struct RuntimeMapState {
     maps_verso_bombom: HashMap<u64, HashMap<String, u64>>,
     maps_verso_verso: HashMap<u64, HashMap<String, String>>,
@@ -135,6 +180,9 @@ pub enum RuntimeValue {
     MapVersoVerso(u64),
     MapBombomBombom(u64),
     MapBombomVerso(u64),
+    // Fase 242: handle callable — índice em `CallableState.table`, mesmo
+    // padrão de handle já usado por `ListBombom`/`enum_values`.
+    Callable(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -189,6 +237,7 @@ pub fn run_program_with_args(
         generators: HashMap::new(),
         next_generator_handle: 1,
     };
+    let mut callable_state = CallableState::new();
     let mut call_stack = Vec::new();
     let return_value = call_function(
         "principal",
@@ -200,6 +249,7 @@ pub fn run_program_with_args(
         &mut list_state,
         &mut map_state,
         &mut random_state,
+        &mut callable_state,
         &mut call_stack,
     )?;
     Ok(RunOutcome {
@@ -281,6 +331,7 @@ fn call_function(
     list_state: &mut RuntimeListState,
     map_state: &mut RuntimeMapState,
     random_state: &mut RuntimeRandomState,
+    callable_state: &mut CallableState,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<Option<RuntimeValue>, PinkerError> {
     if call_stack.len() >= MAX_CALL_DEPTH {
@@ -350,6 +401,7 @@ fn call_function(
                     list_state,
                     map_state,
                     random_state,
+                    callable_state,
                     call_stack,
                 )?;
                 set_current_instr(call_stack, None);
@@ -418,6 +470,7 @@ fn exec_instr(
     list_state: &mut RuntimeListState,
     map_state: &mut RuntimeMapState,
     random_state: &mut RuntimeRandomState,
+    callable_state: &mut CallableState,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<(), PinkerError> {
     match instr {
@@ -460,6 +513,7 @@ fn exec_instr(
                 RuntimeValue::MapVersoVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapBombomBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapBombomVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::Callable(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(out);
         }
@@ -481,6 +535,7 @@ fn exec_instr(
                 RuntimeValue::MapVersoVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapBombomBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapBombomVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::Callable(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(out);
         }
@@ -664,6 +719,7 @@ fn exec_instr(
                     list_state,
                     map_state,
                     random_state,
+                    callable_state,
                     call_stack,
                 )?,
             };
@@ -693,12 +749,51 @@ fn exec_instr(
                     list_state,
                     map_state,
                     random_state,
+                    callable_state,
                     call_stack,
                 )?,
             };
             if result.is_some() {
                 return Err(runtime_err("call_void exige função sem retorno"));
             }
+        }
+        MachineInstr::PushFunctionRef(name) => {
+            let handle = callable_state.get_or_create_static(name);
+            stack.push(RuntimeValue::Callable(handle));
+        }
+        MachineInstr::CallIndirect { argc } => {
+            let Some(callee_value) = stack.pop() else {
+                return Err(runtime_err("call_indirect exige handle callable no topo"));
+            };
+            let RuntimeValue::Callable(handle) = callee_value else {
+                return Err(runtime_err("call_indirect exige valor callable no topo"));
+            };
+            let user_args = pop_args(stack, *argc)?;
+            let Some(descriptor) = callable_state.table.get(&handle) else {
+                return Err(runtime_err("call_indirect com handle callable inválido"));
+            };
+            let function_name = descriptor.function_name.clone();
+            let mut combined_args = descriptor.captured.clone();
+            combined_args.extend(user_args);
+            let result = call_function(
+                &function_name,
+                combined_args,
+                program,
+                globals,
+                memory,
+                io_state,
+                list_state,
+                map_state,
+                random_state,
+                callable_state,
+                call_stack,
+            )?;
+            let Some(value) = result else {
+                return Err(runtime_err(
+                    "call_indirect exige callable com retorno (tipo função público nunca é nulo)",
+                ));
+            };
+            stack.push(value);
         }
         MachineInstr::PrintIntInline => {
             match pop_numeric(stack, "print_int_inline exige inteiro no topo")? {
@@ -713,6 +808,7 @@ fn exec_instr(
                 RuntimeValue::MapVersoVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapBombomBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapBombomVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::Callable(_) => unreachable!("pop_numeric só retorna inteiro"),
             }
         }
         MachineInstr::PrintBoolInline => {
@@ -4217,6 +4313,7 @@ fn pop_numeric(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<RuntimeValue,
         RuntimeValue::MapVersoVerso(_) => Err(runtime_err(msg)),
         RuntimeValue::MapBombomBombom(_) => Err(runtime_err(msg)),
         RuntimeValue::MapBombomVerso(_) => Err(runtime_err(msg)),
+        RuntimeValue::Callable(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -4233,6 +4330,7 @@ fn pop_bool(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<bool, PinkerErro
         RuntimeValue::MapVersoVerso(_) => Err(runtime_err(msg)),
         RuntimeValue::MapBombomBombom(_) => Err(runtime_err(msg)),
         RuntimeValue::MapBombomVerso(_) => Err(runtime_err(msg)),
+        RuntimeValue::Callable(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -4316,6 +4414,9 @@ fn coerce_runtime_value_to_type(
                 "ponteiro em runtime requer valor inteiro de endereço",
             )),
             RuntimeValue::MapBombomVerso(_) => Err(runtime_err(
+                "ponteiro em runtime requer valor inteiro de endereço",
+            )),
+            RuntimeValue::Callable(_) => Err(runtime_err(
                 "ponteiro em runtime requer valor inteiro de endereço",
             )),
         };
@@ -4696,6 +4797,8 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::CmpGe => "cmp_ge",
         MachineInstr::Call { .. } => "call",
         MachineInstr::CallVoid { .. } => "call_void",
+        MachineInstr::PushFunctionRef(_) => "push_function_ref",
+        MachineInstr::CallIndirect { .. } => "call_indirect",
         MachineInstr::PrintIntInline => "print_int_inline",
         MachineInstr::PrintBoolInline => "print_bool_inline",
         MachineInstr::PrintStrValueInline => "print_str_value_inline",

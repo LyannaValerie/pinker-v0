@@ -1630,6 +1630,36 @@ fn validate_block(
                     }
                 }
             }
+            InstructionCfgIR::CallIndirect {
+                dest,
+                callee,
+                args,
+                ret_type,
+            } => {
+                let callee_ty = infer_operand_type(
+                    callee,
+                    slot_types,
+                    &temp_types,
+                    global_consts,
+                    function.span,
+                )?;
+                if !operand_matches_expected(callee, callee_ty, TypeIR::Function) {
+                    return Err(cfg_error(
+                        "call_indirect exige operando de tipo função",
+                        function.span,
+                    ));
+                }
+                for arg in args {
+                    infer_operand_type(arg, slot_types, &temp_types, global_consts, function.span)?;
+                }
+                if *ret_type == TypeIR::Nulo {
+                    return Err(cfg_error(
+                        "call_indirect não pode ter retorno nulo",
+                        function.span,
+                    ));
+                }
+                temp_types.insert(*dest, *ret_type);
+            }
             InstructionCfgIR::Falar { args: _ } => {}
         }
     }
@@ -1744,6 +1774,7 @@ fn infer_operand_type(
             .get(temp)
             .copied()
             .ok_or_else(|| cfg_error(&format!("temporário não definido '%t{}'", temp.0), span)),
+        OperandIR::FunctionRef(_) => Ok(TypeIR::Function),
     }
 }
 

@@ -499,4 +499,45 @@ carinho principal() -> bombom { mimo 0; }
     assert!(ir.contains("func id -> fragil seta<?>"), "{}", ir);
     assert!(ir.contains("%p#0: fragil seta<?>"), "{}", ir);
 }
+
+#[test]
+fn fase242_referencia_de_funcao_top_level_vira_fnref() {
+    let code = r#"
+pacote main;
+carinho dobrar(x: bombom) -> bombom { mimo x * 2; }
+carinho principal() -> bombom {
+    nova operacao: carinho(bombom) -> bombom = dobrar;
+    mimo 0;
+}
+"#;
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("fnref(dobrar)"), "{}", ir);
+}
+
+#[test]
+fn fase242_chamada_por_variavel_vira_call_indirect() {
+    let code = r#"
+pacote main;
+carinho dobrar(x: bombom) -> bombom { mimo x * 2; }
+carinho aplicar(operacao: carinho(bombom) -> bombom, valor: bombom) -> bombom {
+    mimo operacao(valor);
+}
+carinho principal() -> bombom { mimo aplicar(dobrar, 1); }
+"#;
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("call_indirect"), "{}", ir);
+    assert!(
+        !ir.contains("call operacao("),
+        "chamada por variável não pode virar call direta por nome: {}",
+        ir
+    );
+}
+
+#[test]
+fn fase242_chamada_direta_legada_continua_como_call_por_nome() {
+    let code = "pacote main; carinho dobrar(x: bombom) -> bombom { mimo x * 2; } carinho principal() -> bombom { mimo dobrar(21); }";
+    let ir = render_ir(code).unwrap();
+    assert!(ir.contains("call dobrar("), "{}", ir);
+    assert!(!ir.contains("call_indirect"), "{}", ir);
+}
 // @pinker-nav:end evidencia.ir.lowering-tipos-compostos

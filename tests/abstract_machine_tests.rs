@@ -538,4 +538,19 @@ carinho principal() -> bombom {
         "bloco de saída do loop deve ter anotação"
     );
 }
+
+#[test]
+fn fase242_chamada_indireta_vira_push_function_ref_e_call_indirect() {
+    let code = r#"
+        pacote main;
+        carinho dobrar(x: bombom) -> bombom { mimo x * 2; }
+        carinho aplicar(operacao: carinho(bombom) -> bombom, valor: bombom) -> bombom {
+            mimo operacao(valor);
+        }
+        carinho principal() -> bombom { mimo aplicar(dobrar, 1); }
+    "#;
+    let out = render_machine(code).unwrap();
+    assert!(out.contains("push_function_ref dobrar"), "{}", out);
+    assert!(out.contains("call_indirect"), "{}", out);
+}
 // @pinker-nav:end evidencia.machine.renderizacao-papeis-de-blocos

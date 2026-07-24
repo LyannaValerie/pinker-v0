@@ -9583,4 +9583,90 @@ fn fase241_resultado_predeclarado_executa_no_interpretador() {
     let result = run_code(code).unwrap();
     assert_eq!(result, Some(RuntimeValue::Int(0)));
 }
+
+#[test]
+fn fase242_funcao_indireta_executa_no_interpretador() {
+    let code = include_str!("../examples/fase242_funcao_indireta_valido.pink");
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn fase242_funcao_indireta_stdout_via_cli() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg("examples/fase242_funcao_indireta_valido.pink")
+        .output()
+        .expect("falha ao executar CLI --run");
+    assert!(output.status.success(), "status={:?}", output.status);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "42\n63\n0\n");
+}
+
+#[test]
+fn fase242_variavel_local_callable_precedencia_executa_no_interpretador() {
+    let code = r#"
+        pacote main;
+        carinho dobrar(x: bombom) -> bombom { mimo x * 2; }
+        carinho triplicar(x: bombom) -> bombom { mimo x * 3; }
+        carinho principal() -> bombom {
+            nova dobrar: carinho(bombom) -> bombom = triplicar;
+            mimo dobrar(10);
+        }
+    "#;
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(30)));
+}
+
+#[test]
+fn fase242_callable_zero_argumentos_executa_no_interpretador() {
+    let code = r#"
+        pacote main;
+        carinho constante() -> bombom { mimo 7; }
+        carinho aplicar_zero(f: carinho() -> bombom) -> bombom { mimo f(); }
+        carinho principal() -> bombom {
+            mimo aplicar_zero(constante);
+        }
+    "#;
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(7)));
+}
+
+#[test]
+fn fase242_callable_recebendo_callable_executa_no_interpretador() {
+    let code = r#"
+        pacote main;
+        carinho dobrar(x: bombom) -> bombom { mimo x * 2; }
+        carinho aplicar_duas_vezes(f: carinho(bombom) -> bombom, x: bombom) -> bombom {
+            mimo f(f(x));
+        }
+        carinho principal() -> bombom {
+            mimo aplicar_duas_vezes(dobrar, 5);
+        }
+    "#;
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(20)));
+}
+
+#[test]
+fn fase242_callable_com_oito_argumentos_cruza_pilha_no_interpretador() {
+    let code = include_str!("../examples/fase242_funcao_indireta_pilha_valido.pink");
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn fase242_funcao_anonima_nao_capturante_como_valor_executa() {
+    let code = r#"
+        pacote main;
+        carinho aplicar(f: carinho(bombom) -> bombom, x: bombom) -> bombom { mimo f(x); }
+        carinho principal() -> bombom {
+            nova quadruplicar: carinho(bombom) -> bombom = carinho(x: bombom) -> bombom {
+                mimo x * 4;
+            };
+            mimo aplicar(quadruplicar, 5);
+        }
+    "#;
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(20)));
+}
 // @pinker-nav:end evidencia.interpreter.execucao-funcoes-usuario-tratos-e-genericos

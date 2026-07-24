@@ -1615,6 +1615,35 @@ fn infer_value_type(
             }
             Ok(sig.ret_type)
         }
+        ValueIR::FunctionRef(name) => {
+            funcs
+                .get(name)
+                .ok_or_else(|| ir_validation_error("referência a função inexistente", span))?;
+            Ok(TypeIR::Function)
+        }
+        ValueIR::CallIndirect {
+            callee,
+            args,
+            ret_type,
+        } => {
+            let callee_ty = infer_value_type(callee, slots, consts, funcs, span)?;
+            if callee_ty != TypeIR::Function {
+                return Err(ir_validation_error(
+                    "chamada indireta exige valor de tipo função",
+                    span,
+                ));
+            }
+            for arg in args {
+                infer_value_type(arg, slots, consts, funcs, span)?;
+            }
+            if *ret_type == TypeIR::Nulo {
+                return Err(ir_validation_error(
+                    "chamada indireta não pode ter retorno nulo",
+                    span,
+                ));
+            }
+            Ok(*ret_type)
+        }
         ValueIR::FieldAccess {
             base,
             field: _,

@@ -96,6 +96,72 @@ fn parser_preserva_span_de_chamada() {
         _ => panic!("item esperado: função"),
     }
 }
+
+#[test]
+fn fase242_funcao_indireta_parseia_e_passa_check() {
+    let code = include_str!("../examples/fase242_funcao_indireta_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase242_muda_callable_parseia_como_stmt_let_real() {
+    // Diferente do caminho rápido da Fase 238 (literal anônimo -> alias de
+    // parser sem `Stmt::Let`), `nova muda` com tipo função sempre vira uma
+    // declaração real: o corpo tem 2 stmts (`nova muda` + `mimo`), não 1.
+    let code = r#"
+        pacote main;
+        carinho dobrar(x: bombom) -> bombom { mimo x * 2; }
+        carinho triplicar(x: bombom) -> bombom { mimo x * 3; }
+        carinho principal() -> bombom {
+            nova muda operacao: carinho(bombom) -> bombom = dobrar;
+            operacao = triplicar;
+            mimo operacao(1);
+        }
+    "#;
+    let program = parse(code).expect("parse deve aceitar nova muda callable");
+    let Item::Function(principal) = program
+        .items
+        .iter()
+        .find(|item| matches!(item, Item::Function(f) if f.name == "principal"))
+        .expect("função principal presente")
+    else {
+        unreachable!();
+    };
+    assert_eq!(principal.body.stmts.len(), 3, "nova + atribuição + mimo");
+    match &principal.body.stmts[0] {
+        Stmt::Let(let_stmt) => {
+            assert_eq!(let_stmt.name, "operacao");
+            assert!(let_stmt.is_mut);
+            assert!(matches!(let_stmt.ty, Some(Type::Function { .. })));
+            assert!(matches!(let_stmt.init.kind, ExprKind::Ident(ref name) if name == "dobrar"));
+        }
+        other => panic!("stmt esperado: nova muda callable, obtido {other:?}"),
+    }
+}
+
+#[test]
+fn fase242_literal_anonimo_imutavel_continua_como_alias_sem_stmt_let() {
+    // Regressão da Fase 238: caminho rápido (literal anônimo, sem `muda`)
+    // não muda de comportamento — nenhum `Stmt::Let` extra é emitido para a
+    // declaração `nova f: carinho(...) = <literal>;`, só o `mimo`.
+    let code = include_str!("../examples/fase238_funcao_local_valor_valido.pink");
+    let program = parse(code).expect("parse do exemplo da Fase 238");
+    let Item::Function(principal) = program
+        .items
+        .iter()
+        .find(|item| matches!(item, Item::Function(f) if f.name == "principal"))
+        .expect("função principal presente")
+    else {
+        unreachable!();
+    };
+    let has_let_for_function_value = principal.body.stmts.iter().any(|stmt| {
+        matches!(stmt, Stmt::Let(let_stmt) if matches!(let_stmt.ty, Some(Type::Function { .. })))
+    });
+    assert!(
+        !has_let_for_function_value,
+        "literal anônimo imutável deve permanecer alias de parser, sem Stmt::Let"
+    );
+}
 // @pinker-nav:end evidencia.parser.ast-basica-e-spans
 
 // @pinker-nav:start evidencia.parser.diagnostico-e-limites-literais
