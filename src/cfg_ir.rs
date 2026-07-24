@@ -116,6 +116,17 @@ pub enum InstructionCfgIR {
         args: Vec<OperandIR>,
         ret_type: TypeIR,
     },
+    // Fase 243: materializa uma closure — aloca em heap (via `pinker_alocar`,
+    // codegen em `backend_s`/`interpreter`) um ambiente com os valores de
+    // `captures` (snapshot por valor, ordem determinística) e produz o
+    // handle callable {code_ptr, env_ptr}. `captures` vazio ainda aloca um
+    // descritor dinâmico (env_ptr aponta para um ambiente de 0 palavras),
+    // distinto de `FunctionRef` (descritor estático deduplicado).
+    MakeClosure {
+        dest: TempIR,
+        function_name: String,
+        captures: Vec<OperandIR>,
+    },
     Falar {
         args: Vec<FalarArgCfgIR>,
     },
@@ -737,6 +748,28 @@ impl FunctionLowerer {
                 Ok((OperandIR::Temp(dest), lowered_args.1))
             }
             ValueIR::FunctionRef(name) => Ok((OperandIR::FunctionRef(name.clone()), current)),
+            ValueIR::MakeClosure {
+                function_name,
+                captures,
+            } => {
+                let lowered_captures = captures.iter().try_fold(
+                    (Vec::new(), current),
+                    |(mut acc, cur), capture| {
+                        let (lowered, next_cur) = self.lower_call_operand(capture, cur, span)?;
+                        acc.push(lowered);
+                        Ok::<_, PinkerError>((acc, next_cur))
+                    },
+                )?;
+                let dest = self.next_temp();
+                self.blocks[lowered_captures.1]
+                    .instructions
+                    .push(InstructionCfgIR::MakeClosure {
+                        dest,
+                        function_name: function_name.clone(),
+                        captures: lowered_captures.0,
+                    });
+                Ok((OperandIR::Temp(dest), lowered_captures.1))
+            }
             ValueIR::CallIndirect {
                 callee,
                 args,
@@ -1336,6 +1369,20 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
                 .collect::<Vec<_>>()
                 .join(", "),
             ret_type.name()
+        ),
+        InstructionCfgIR::MakeClosure {
+            dest,
+            function_name,
+            captures,
+        } => format!(
+            "{} = make_closure {}[{}]",
+            render_temp(*dest),
+            function_name,
+            captures
+                .iter()
+                .map(render_operand)
+                .collect::<Vec<_>>()
+                .join(", ")
         ),
         InstructionCfgIR::Falar { args } => format!(
             "falar {}",

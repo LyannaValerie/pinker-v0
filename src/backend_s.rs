@@ -690,26 +690,61 @@ fn extract_external_callconv_program(
                                 &mut rodata_strings,
                             );
                         }
-                        let stack_args = args.len().saturating_sub(ARG_REGS.len());
+                        // Fase 243: `__env` é sempre o argumento real final
+                        // (trailing) — uniforme para toda função
+                        // indiretamente chamável, capturante ou não (ver
+                        // `ir.rs::lower_closure_function`/`ensure_fnref_wrapper`).
+                        // O índice virtual `args.len()` é sempre `__env`,
+                        // extraído do descritor (offset 8) em vez de vir de
+                        // um operando real.
+                        let total_args = args.len() + 1;
+                        let stack_args = total_args.saturating_sub(ARG_REGS.len());
                         let pad = stack_args % 2;
                         if pad == 1 {
                             body.push("subq $8, %rsp".to_string());
                         }
-                        for arg in args.iter().skip(ARG_REGS.len()).rev() {
-                            body.extend(load_operand("%r11", arg, &slot_offsets, &rodata_strings)?);
-                            body.push("pushq %r11".to_string());
+                        for index in (ARG_REGS.len()..total_args).rev() {
+                            if index == args.len() {
+                                body.extend(load_operand(
+                                    REG_TMP,
+                                    callee,
+                                    &slot_offsets,
+                                    &rodata_strings,
+                                )?);
+                                body.push(format!("movq 8({0}), {0}", REG_TMP));
+                                body.push(format!("pushq {}", REG_TMP));
+                            } else {
+                                body.extend(load_operand(
+                                    "%r11",
+                                    &args[index],
+                                    &slot_offsets,
+                                    &rodata_strings,
+                                )?);
+                                body.push("pushq %r11".to_string());
+                            }
                         }
-                        for (idx, arg) in args.iter().take(ARG_REGS.len()).enumerate() {
-                            body.extend(load_operand(
-                                ARG_REGS[idx],
-                                arg,
-                                &slot_offsets,
-                                &rodata_strings,
-                            )?);
+                        for index in 0..total_args.min(ARG_REGS.len()) {
+                            if index == args.len() {
+                                body.extend(load_operand(
+                                    REG_TMP,
+                                    callee,
+                                    &slot_offsets,
+                                    &rodata_strings,
+                                )?);
+                                body.push(format!("movq 8({}), {}", REG_TMP, ARG_REGS[index]));
+                            } else {
+                                body.extend(load_operand(
+                                    ARG_REGS[index],
+                                    &args[index],
+                                    &slot_offsets,
+                                    &rodata_strings,
+                                )?);
+                            }
                         }
-                        // Handle callable carregado por último (não conflita
-                        // com ARG_REGS): dereferencia o descritor para obter
-                        // o code_ptr (offset 0) e chama indiretamente.
+                        // code_ptr por último: recarrega o handle (slot
+                        // estável, seguro reler) — não conflita com o uso
+                        // anterior de REG_TMP para extrair env_ptr, já
+                        // consumido acima nos ramos de pilha/registrador.
                         body.extend(load_operand(
                             REG_TMP,
                             callee,
@@ -726,6 +761,59 @@ fn extract_external_callconv_program(
                             REG_RET,
                             slot_offsets[&temp_key(*dest)]
                         ));
+                    }
+                    // Fase 243: materializa uma closure — aloca em heap
+                    // (`pinker_alocar`) o ambiente (1 palavra por captura,
+                    // ou nenhuma alocação quando `captures` é vazio: o
+                    // corpo nunca dereferencia `__env` nesse caso) e um
+                    // descritor dinâmico {code_ptr, env_ptr}, distinto do
+                    // descritor ESTÁTICO em `.rodata` de `FunctionRef`.
+                    SelectedInstr::MakeClosure {
+                        dest,
+                        function_name,
+                        captures,
+                    } => {
+                        if !selected.functions.iter().any(|f| &f.name == function_name) {
+                            return Err(err(
+                                "subset externo montável (Fase 243) encontrou make_closure para função inexistente",
+                            ));
+                        }
+                        for capture in captures.iter() {
+                            register_rodata_strings_for_operand(
+                                capture,
+                                &mut rodata_string_labels,
+                                &mut rodata_strings,
+                            );
+                        }
+                        let dest_offset = slot_offsets[&temp_key(*dest)];
+                        if captures.is_empty() {
+                            body.push("movq $0, %rax".to_string());
+                        } else {
+                            body.push(format!("movabsq ${}, %rdi", captures.len() * 8));
+                            body.push("call pinker_alocar".to_string());
+                        }
+                        // Guarda temporariamente env_ptr no próprio slot de
+                        // destino (será sobrescrito com o endereço final do
+                        // descritor ao final).
+                        body.push(format!("movq %rax, -{}(%rbp)", dest_offset));
+                        for (index, capture) in captures.iter().enumerate() {
+                            body.push(format!("movq -{}(%rbp), %r10", dest_offset));
+                            body.extend(load_operand(
+                                "%r11",
+                                capture,
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                            body.push(format!("movq %r11, {}(%r10)", index * 8));
+                        }
+                        body.push("movabsq $16, %rdi".to_string());
+                        body.push("call pinker_alocar".to_string());
+                        body.push("movq %rax, %r11".to_string());
+                        body.push(format!("leaq {}(%rip), %r10", function_name));
+                        body.push("movq %r10, (%r11)".to_string());
+                        body.push(format!("movq -{}(%rbp), %r10", dest_offset));
+                        body.push("movq %r10, 8(%r11)".to_string());
+                        body.push(format!("movq %r11, -{}(%rbp)", dest_offset));
                     }
                     // Call sem destino (intrínsecas de efeito, Fase 216/B5):
                     // mesma ABI do call comum, sem o movq de retorno.
@@ -903,6 +991,11 @@ fn collect_function_refs_in_function(
                     note(callee, out);
                     for a in args {
                         note(a, out);
+                    }
+                }
+                SelectedInstr::MakeClosure { captures, .. } => {
+                    for capture in captures {
+                        note(capture, out);
                     }
                 }
                 SelectedInstr::Falar { args } => {
@@ -1320,7 +1413,8 @@ fn collect_temp_ids(function: &crate::instr_select::SelectedFunction) -> BTreeSe
                 | SelectedInstr::CmpGt { dest, .. }
                 | SelectedInstr::CmpGe { dest, .. }
                 | SelectedInstr::Call { dest, .. }
-                | SelectedInstr::CallIndirect { dest, .. } => {
+                | SelectedInstr::CallIndirect { dest, .. }
+                | SelectedInstr::MakeClosure { dest, .. } => {
                     ids.insert(temp_key(*dest));
                 }
                 _ => {}

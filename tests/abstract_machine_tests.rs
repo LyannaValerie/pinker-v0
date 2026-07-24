@@ -550,7 +550,31 @@ fn fase242_chamada_indireta_vira_push_function_ref_e_call_indirect() {
         carinho principal() -> bombom { mimo aplicar(dobrar, 1); }
     "#;
     let out = render_machine(code).unwrap();
-    assert!(out.contains("push_function_ref dobrar"), "{}", out);
+    // Fase 243: `push_function_ref` aponta para o wrapper sintético
+    // `__fnref_env_dobrar` (aceita e ignora `__env`, mesma convenção
+    // uniforme das closures) — `dobrar` em si nunca muda de assinatura, e
+    // sua chamada direta dentro do wrapper prova isso.
+    assert!(
+        out.contains("push_function_ref __fnref_env_dobrar"),
+        "{}",
+        out
+    );
+    assert!(out.contains("call dobrar, 1"), "{}", out);
     assert!(out.contains("call_indirect"), "{}", out);
+}
+
+#[test]
+fn fase243_closure_com_captura_vira_make_closure_na_maquina() {
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom) -> carinho() -> bombom {
+            mimo carinho() -> bombom {
+                mimo base;
+            };
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let out = render_machine(code).unwrap();
+    assert!(out.contains("make_closure"), "{}", out);
 }
 // @pinker-nav:end evidencia.machine.renderizacao-papeis-de-blocos

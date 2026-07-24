@@ -337,6 +337,19 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                             return Err(err("selected call_void exige função nulo"));
                         }
                     }
+                    SelectedInstr::MakeClosure {
+                        dest,
+                        function_name,
+                        captures,
+                    } => {
+                        if !sigs.contains_key(function_name) {
+                            return Err(err("selected make_closure para função inexistente"));
+                        }
+                        for capture in captures {
+                            check_operand(capture, &slots, &temps, &globals)?;
+                        }
+                        temps.insert(*dest);
+                    }
                     SelectedInstr::Falar { args: _ } => {}
                 }
             }

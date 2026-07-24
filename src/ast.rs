@@ -1,4 +1,5 @@
 use crate::token::{Span, TokenKind};
+use std::collections::HashSet;
 
 // @pinker-nav:start ast.programa.estrutura
 // @pinker-nav:domain programa
@@ -1392,3 +1393,191 @@ impl<'a> JsonWriter<'a> {
 }
 
 // @pinker-nav:end ast.serializacao.json
+
+// @pinker-nav:start ast.closures.identificadores-livres
+// @pinker-nav:domain closures
+// @pinker-nav:layer ast
+// @pinker-nav:summary Fase 243: varredura sintática pura (sem informação de tipo) que lista, em ordem determinística de primeira referência, os identificadores usados em posição de valor no corpo de uma função que não são parâmetros nem locais `nova` declarados antes do uso no mesmo escopo léxico (block-scoped). Nome de callee direto em `Call(Ident(nome), args)` não conta (resolvido por `self.funcs`, não por valor). Usada tanto pelo parser (aproximação conservadora para decidir elegibilidade do caminho rápido da Fase 238/239) quanto pelo semantic (resolução real contra escopo léxico vigente na Fase 243) — a lista pode conter nomes que na resolução real não são captura alguma (função top-level, constante, variante de leque); cabe ao chamador filtrar.
+pub fn free_identifiers_in_function(function: &FunctionDecl) -> Vec<String> {
+    let mut bound: Vec<HashSet<String>> =
+        vec![function.params.iter().map(|p| p.name.clone()).collect()];
+    let mut free = Vec::new();
+    let mut seen = HashSet::new();
+    scan_block_free_idents(&function.body, &mut bound, &mut free, &mut seen);
+    free
+}
+
+// Fase 243: closure aninhada (uma closure cria outra em seu corpo) precisa
+// que a captura se propague pelos níveis intermediários — se `C` (aninhada
+// dentro de `B`, aninhada dentro de `A`) usa `base` do escopo de `A`, então
+// `B` também precisa capturar `base` mesmo sem usá-la textualmente, só para
+// que `C` consiga capturá-la de `B` em tempo de execução. `lookup` resolve o
+// nome sintético `__anon_carinho_*` de uma closure aninhada até seu próprio
+// `FunctionDecl`, permitindo expandir a varredura recursivamente. Nomes de
+// closure aninhada nunca aparecem no resultado (não são captura, são só
+// pontos de expansão); `visiting` evita reprocessar a mesma closure aninhada
+// duas vezes na mesma cadeia.
+pub fn transitive_free_identifiers_in_function<F>(function: &FunctionDecl, lookup: F) -> Vec<String>
+where
+    F: Fn(&str) -> Option<FunctionDecl>,
+{
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    let mut visiting = HashSet::new();
+    expand_transitive_free_idents(function, &lookup, &mut visiting, &mut out, &mut seen);
+    out
+}
+
+fn expand_transitive_free_idents<F>(
+    function: &FunctionDecl,
+    lookup: &F,
+    visiting: &mut HashSet<String>,
+    out: &mut Vec<String>,
+    seen: &mut HashSet<String>,
+) where
+    F: Fn(&str) -> Option<FunctionDecl>,
+{
+    for candidate in free_identifiers_in_function(function) {
+        if candidate.starts_with("__anon_carinho_") {
+            if visiting.insert(candidate.clone()) {
+                if let Some(nested) = lookup(&candidate) {
+                    expand_transitive_free_idents(&nested, lookup, visiting, out, seen);
+                }
+            }
+            continue;
+        }
+        if seen.insert(candidate.clone()) {
+            out.push(candidate);
+        }
+    }
+}
+
+fn is_bound_free_idents(bound: &[HashSet<String>], name: &str) -> bool {
+    bound.iter().rev().any(|scope| scope.contains(name))
+}
+
+fn note_free_ident(
+    name: &str,
+    bound: &[HashSet<String>],
+    free: &mut Vec<String>,
+    seen: &mut HashSet<String>,
+) {
+    if !is_bound_free_idents(bound, name) && seen.insert(name.to_string()) {
+        free.push(name.to_string());
+    }
+}
+
+fn scan_block_free_idents(
+    block: &Block,
+    bound: &mut Vec<HashSet<String>>,
+    free: &mut Vec<String>,
+    seen: &mut HashSet<String>,
+) {
+    bound.push(HashSet::new());
+    for stmt in &block.stmts {
+        scan_stmt_free_idents(stmt, bound, free, seen);
+    }
+    bound.pop();
+}
+
+fn scan_if_free_idents(
+    if_stmt: &IfStmt,
+    bound: &mut Vec<HashSet<String>>,
+    free: &mut Vec<String>,
+    seen: &mut HashSet<String>,
+) {
+    scan_expr_free_idents(&if_stmt.condition, bound, free, seen);
+    scan_block_free_idents(&if_stmt.then_branch, bound, free, seen);
+    match &if_stmt.else_branch {
+        Some(ElseBlock::Block(block)) => scan_block_free_idents(block, bound, free, seen),
+        Some(ElseBlock::If(inner)) => scan_if_free_idents(inner, bound, free, seen),
+        None => {}
+    }
+}
+
+fn scan_stmt_free_idents(
+    stmt: &Stmt,
+    bound: &mut Vec<HashSet<String>>,
+    free: &mut Vec<String>,
+    seen: &mut HashSet<String>,
+) {
+    match stmt {
+        Stmt::Let(let_stmt) => {
+            scan_expr_free_idents(&let_stmt.init, bound, free, seen);
+            bound
+                .last_mut()
+                .expect("escopo ativo")
+                .insert(let_stmt.name.clone());
+        }
+        Stmt::Return(return_stmt) => {
+            if let Some(expr) = &return_stmt.expr {
+                scan_expr_free_idents(expr, bound, free, seen);
+            }
+        }
+        Stmt::Assign(assign_stmt) => {
+            match &assign_stmt.target {
+                AssignTarget::Ident(name) => note_free_ident(name, bound, free, seen),
+                AssignTarget::Deref(ptr) => scan_expr_free_idents(ptr, bound, free, seen),
+                AssignTarget::FieldDeref { base, .. } => {
+                    scan_expr_free_idents(base, bound, free, seen)
+                }
+                AssignTarget::Index { base, index } => {
+                    scan_expr_free_idents(base, bound, free, seen);
+                    scan_expr_free_idents(index, bound, free, seen);
+                }
+            }
+            scan_expr_free_idents(&assign_stmt.expr, bound, free, seen);
+        }
+        Stmt::If(if_stmt) => scan_if_free_idents(if_stmt, bound, free, seen),
+        Stmt::While(while_stmt) => {
+            scan_expr_free_idents(&while_stmt.condition, bound, free, seen);
+            scan_block_free_idents(&while_stmt.body, bound, free, seen);
+        }
+        Stmt::Break(_) | Stmt::Continue(_) | Stmt::InlineAsm(_) => {}
+        Stmt::Falar(falar_stmt) => {
+            for arg in &falar_stmt.args {
+                scan_expr_free_idents(arg, bound, free, seen);
+            }
+        }
+        Stmt::Expr(expr) => scan_expr_free_idents(expr, bound, free, seen),
+    }
+}
+
+fn scan_expr_free_idents(
+    expr: &Expr,
+    bound: &mut Vec<HashSet<String>>,
+    free: &mut Vec<String>,
+    seen: &mut HashSet<String>,
+) {
+    match &expr.kind {
+        ExprKind::Ident(name) => note_free_ident(name, bound, free, seen),
+        ExprKind::Binary(lhs, _, rhs) => {
+            scan_expr_free_idents(lhs, bound, free, seen);
+            scan_expr_free_idents(rhs, bound, free, seen);
+        }
+        ExprKind::Unary(_, operand) => scan_expr_free_idents(operand, bound, free, seen),
+        ExprKind::Call(callee, args) => {
+            if !matches!(callee.kind, ExprKind::Ident(_)) {
+                scan_expr_free_idents(callee, bound, free, seen);
+            }
+            for arg in args {
+                scan_expr_free_idents(arg, bound, free, seen);
+            }
+        }
+        ExprKind::InternalMapIterCreate(inner) | ExprKind::InternalMapIterNextKey(inner) => {
+            scan_expr_free_idents(inner, bound, free, seen);
+        }
+        ExprKind::FieldAccess { base, .. } => scan_expr_free_idents(base, bound, free, seen),
+        ExprKind::Index { base, index } => {
+            scan_expr_free_idents(base, bound, free, seen);
+            scan_expr_free_idents(index, bound, free, seen);
+        }
+        ExprKind::Cast { expr, .. } => scan_expr_free_idents(expr, bound, free, seen),
+        ExprKind::SizeOfType { .. }
+        | ExprKind::AlignOfType { .. }
+        | ExprKind::IntLit(_)
+        | ExprKind::BoolLit(_)
+        | ExprKind::StringLit(_) => {}
+    }
+}
+// @pinker-nav:end ast.closures.identificadores-livres

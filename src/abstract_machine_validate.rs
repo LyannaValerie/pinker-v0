@@ -1422,6 +1422,17 @@ fn apply_instr_effect(
             )?;
             stack.push(StackValueType::Unknown);
         }
+        MachineInstr::MakeClosure { capture_count, .. } => {
+            pop_typed(
+                f,
+                label,
+                stack,
+                *capture_count,
+                "underflow em make_closure (capturas)",
+                Some(&format!("instr='make_closure {}'", capture_count)),
+            )?;
+            stack.push(StackValueType::Unknown);
+        }
         MachineInstr::PrintIntInline => {
             pop_typed(
                 f,
@@ -1603,6 +1614,7 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::CallVoid { .. } => "call_void",
         MachineInstr::PushFunctionRef(_) => "push_function_ref",
         MachineInstr::CallIndirect { .. } => "call_indirect",
+        MachineInstr::MakeClosure { .. } => "make_closure",
         MachineInstr::PrintIntInline => "print_int_inline",
         MachineInstr::PrintBoolInline => "print_bool_inline",
         MachineInstr::PrintStrValueInline => "print_str_value_inline",

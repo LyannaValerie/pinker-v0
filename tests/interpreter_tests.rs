@@ -9670,3 +9670,197 @@ fn fase242_funcao_anonima_nao_capturante_como_valor_executa() {
     assert_eq!(result, Some(RuntimeValue::Int(20)));
 }
 // @pinker-nav:end evidencia.interpreter.execucao-funcoes-usuario-tratos-e-genericos
+
+// @pinker-nav:start evidencia.interpreter.closures-captura-imutavel
+// @pinker-nav:domain interpreter
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Fase 243: executa closures com captura imutável por valor no interpretador — exemplo canônico com duas instâncias distintas (ambientes independentes, execução após o retorno do escopo criador), captura múltipla de tipos distintos e os dois exemplos de fronteira de ABI (pilha par/ímpar) com env cruzando para a pilha —, nos casos presentes.
+#[test]
+fn fase243_closure_captura_imutavel_executa_no_interpretador() {
+    let code = include_str!("../examples/fase243_closure_captura_imutavel_valido.pink");
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(84)));
+}
+
+#[test]
+fn fase243_closure_captura_imutavel_stdout_via_cli() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg("examples/fase243_closure_captura_imutavel_valido.pink")
+        .output()
+        .expect("falha ao executar CLI --run");
+    assert!(output.status.success(), "status={:?}", output.status);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "42\n42\n84\n");
+}
+
+#[test]
+fn fase243_closure_ambientes_distintos_nao_interferem_no_interpretador() {
+    // Duas instâncias de `fabricar_somador` (2 e 10) devem manter ambientes
+    // heap independentes: se compartilhassem endereço, o resultado divergiria
+    // de 84 (42 + 42).
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom) -> carinho() -> bombom {
+            mimo carinho() -> bombom {
+                mimo base;
+            };
+        }
+        carinho principal() -> bombom {
+            nova a: carinho() -> bombom = fabricar(3);
+            nova b: carinho() -> bombom = fabricar(9);
+            nova c: carinho() -> bombom = fabricar(27);
+            mimo a() + b() + c();
+        }
+    "#;
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(39)));
+}
+
+#[test]
+fn fase243_closure_executa_apos_retorno_do_escopo_criador_no_interpretador() {
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom) -> carinho() -> bombom {
+            nova resultado: carinho() -> bombom = carinho() -> bombom {
+                mimo base * 2;
+            };
+            mimo resultado;
+        }
+        carinho principal() -> bombom {
+            nova f: carinho() -> bombom = fabricar(21);
+            mimo f();
+        }
+    "#;
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(42)));
+}
+
+#[test]
+fn fase243_closure_captura_multipla_de_tipos_distintos_executa_no_interpretador() {
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom, ligado: logica, rotulo: verso) -> carinho() -> bombom {
+            mimo carinho() -> bombom {
+                talvez ligado {
+                    mimo base + tamanho_verso(rotulo);
+                } senao {
+                    mimo base;
+                }
+            };
+        }
+        carinho principal() -> bombom {
+            nova f: carinho() -> bombom = fabricar(10, verdade, "abc");
+            mimo f();
+        }
+    "#;
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(13)));
+}
+
+#[test]
+fn fase243_closure_aninhada_captura_transitiva_executa_no_interpretador() {
+    // A closure intermediária (0 params, sem uso textual de `base`) precisa
+    // capturar `base` só para repassá-la à closure mais interna — sem
+    // propagação transitiva do free-var scan pelos níveis intermediários,
+    // isso falha na resolução da IR (`identificador não resolvido`).
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom) -> carinho() -> carinho() -> bombom {
+            mimo carinho() -> carinho() -> bombom {
+                mimo carinho() -> bombom {
+                    mimo base;
+                };
+            };
+        }
+        carinho principal() -> bombom {
+            nova externa: carinho() -> carinho() -> bombom = fabricar(55);
+            nova interna: carinho() -> bombom = externa();
+            mimo interna();
+        }
+    "#;
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(55)));
+}
+
+#[test]
+fn fase243_closure_captura_e_snapshot_por_valor_nao_por_referencia() {
+    // A closure guarda o VALOR de `x` no instante da criação (1); a
+    // reatribuição de `x` no escopo criador logo em seguida (99, permitida
+    // porque `x` é `muda` — só a CAPTURA dentro da closure é imutável) não
+    // pode ser observada pela closure já criada.
+    let code = r#"
+        pacote main;
+        carinho fabricar() -> carinho() -> bombom {
+            nova muda x: bombom = 1;
+            nova f: carinho() -> bombom = carinho() -> bombom {
+                mimo x;
+            };
+            x = 99;
+            mimo f;
+        }
+        carinho principal() -> bombom {
+            nova f: carinho() -> bombom = fabricar();
+            mimo f();
+        }
+    "#;
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(1)));
+}
+
+#[test]
+fn fase243_closure_parametro_sombreia_captura_usa_valor_do_parametro() {
+    // Companheiro comportamental de fase243_closure_parametro_sombreia_
+    // captura_aceita (semantic_tests.rs, só type-check): aqui o resultado
+    // real prova que o parâmetro (5) vence a captura homônima (18), não o
+    // contrário.
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom) -> carinho(bombom) -> bombom {
+            mimo carinho(base: bombom) -> bombom {
+                mimo base;
+            };
+        }
+        carinho principal() -> bombom {
+            nova f: carinho(bombom) -> bombom = fabricar(18);
+            mimo f(5);
+        }
+    "#;
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(5)));
+}
+
+#[test]
+fn fase243_closure_local_sombreia_captura_usa_valor_do_local() {
+    // Companheiro comportamental de fase243_closure_local_sombreia_captura_
+    // aceita (semantic_tests.rs, só type-check).
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom) -> carinho() -> bombom {
+            mimo carinho() -> bombom {
+                nova base: bombom = base + 1000;
+                mimo base;
+            };
+        }
+        carinho principal() -> bombom {
+            nova f: carinho() -> bombom = fabricar(1);
+            mimo f();
+        }
+    "#;
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(1001)));
+}
+
+#[test]
+fn fase243_closure_pilha_par_cruza_registrador_e_pilha_no_interpretador() {
+    let code = include_str!("../examples/fase243_closure_pilha_valido.pink");
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn fase243_closure_pilha_impar_aplica_padding_no_interpretador() {
+    let code = include_str!("../examples/fase243_closure_pilha_impar_valido.pink");
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(0)));
+}
+// @pinker-nav:end evidencia.interpreter.closures-captura-imutavel

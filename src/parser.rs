@@ -82,6 +82,10 @@ pub struct Parser {
     /// declaração do usuário com o mesmo nome o remove daqui e suprime/substitui o
     /// template, garantindo que jamais coexistam dois `Resultado` para o mesmo uso.
     predeclared_generic_enums: HashSet<String>,
+    /// Fase 243: nomes sintéticos `__anon_carinho_N` cujo corpo referencia
+    /// (pela aproximação sintática conservadora) algum identificador livre
+    /// — excluídos dos caminhos rápidos estáticos das Fases 238/239.
+    capturing_anon_functions: HashSet<String>,
 }
 
 #[derive(Clone)]
@@ -134,6 +138,7 @@ impl Parser {
             function_param_instantiations: Vec::new(),
             function_value_scopes: Vec::new(),
             predeclared_generic_enums: HashSet::new(),
+            capturing_anon_functions: HashSet::new(),
         }
     }
 
@@ -1910,14 +1915,25 @@ impl Parser {
         let body = self.parse_block()?;
         self.collection_types = saved_collection_types;
         let span = merge_span(start_span, body.span);
-        self.pending_functions.push(FunctionDecl {
+        let function = FunctionDecl {
             name: name.clone(),
             type_params: Vec::new(),
             params,
             ret_type,
             body,
             span,
-        });
+        };
+        // Fase 243: aproximação conservadora e sintática (sem resolução real
+        // de escopo) — qualquer identificador livre no corpo marca o literal
+        // como "potencialmente capturante", excluindo-o dos caminhos rápidos
+        // estáticos das Fases 238/239 (alias de parser / especialização por
+        // callback), que assumem corpo sem referência a escopo externo. A
+        // resolução real (quais nomes são de fato captura) acontece no
+        // semantic, em `resolve_var`/`check_call_expr`.
+        if !crate::ast::free_identifiers_in_function(&function).is_empty() {
+            self.capturing_anon_functions.insert(name.clone());
+        }
+        self.pending_functions.push(function);
         Ok(Expr {
             kind: ExprKind::Ident(name),
             span,
@@ -1991,7 +2007,9 @@ impl Parser {
 
         if !is_mut {
             if let ExprKind::Ident(function_name) = &init.kind {
-                if function_name.starts_with("__anon_carinho_") {
+                if function_name.starts_with("__anon_carinho_")
+                    && !self.capturing_anon_functions.contains(function_name)
+                {
                     let function_name = function_name.clone();
                     let Some(function) = self
                         .pending_functions
@@ -4734,9 +4752,9 @@ impl Parser {
                         let static_function = match &arg.kind {
                             ExprKind::Ident(arg_name) => {
                                 self.resolve_function_value_alias(arg_name).or_else(|| {
-                                    arg_name
-                                        .starts_with("__anon_carinho_")
-                                        .then(|| arg_name.clone())
+                                    (arg_name.starts_with("__anon_carinho_")
+                                        && !self.capturing_anon_functions.contains(arg_name))
+                                    .then(|| arg_name.clone())
                                 })
                             }
                             _ => None,

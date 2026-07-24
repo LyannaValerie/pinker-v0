@@ -481,4 +481,19 @@ fn fase242_chamada_por_variavel_vira_call_indirect_na_cfg() {
     let cfg = render_cfg_ir(code).unwrap();
     assert!(cfg.contains("call_indirect"), "{}", cfg);
 }
+
+#[test]
+fn fase243_closure_com_captura_vira_make_closure_na_cfg() {
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom) -> carinho() -> bombom {
+            mimo carinho() -> bombom {
+                mimo base;
+            };
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("make_closure"), "{}", cfg);
+}
 // @pinker-nav:end evidencia.cfg.lowering-curto-circuito

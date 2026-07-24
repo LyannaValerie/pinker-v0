@@ -1,0 +1,22 @@
+pacote main;
+
+carinho fabricar_somador(
+    incremento: bombom
+) -> carinho(bombom) -> bombom {
+    mimo carinho(valor: bombom) -> bombom {
+        mimo valor + incremento;
+    };
+}
+
+carinho principal() -> bombom {
+    nova somar_2: carinho(bombom) -> bombom = fabricar_somador(2);
+    nova somar_10: carinho(bombom) -> bombom = fabricar_somador(10);
+
+    nova a: bombom = somar_2(40);
+    nova b: bombom = somar_10(32);
+
+    falar(a);
+    falar(b);
+
+    mimo a + b;
+}
