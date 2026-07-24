@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **240** — Eixo A: leque genérico explícito para `Resultado<T,E>` |
+| Fase funcional mais recente | **241** — Eixo A: `Resultado<T,E>` predeclarado (biblioteca padrão) |
 | Rodada documental mais recente | **Doc-49** — fundação comunitária para contribuições externas |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -76,6 +76,7 @@
 | 238 | Bloco 20, Eixo A: funções locais tipadas — `nova f: carinho(...) -> tipo = carinho(...) -> tipo { ... };` cria alias estático chamável por nome local com paridade nativa |
 | 239 | Bloco 20, Eixo A: passagem estática de função como parâmetro — funções com parâmetro `carinho(...) -> tipo` especializam chamadas por callback local concreto e mantêm chamada direta com paridade nativa |
 | 240 | Bloco 20, Eixo A: leque genérico explícito — `leque Resultado<T,E>` monomorfiza usos `Resultado<bombom,verso>` via alias concreto, com construção/`encaixe` pelo alias e paridade nativa |
+| 241 | Bloco 20, Eixo A: `Resultado<T,E>` predeclarado — template sintético no parser torna `Resultado<T,E> { Ok(T), Erro(E) }` disponível sem `leque` manual, reusando a monomorfização da Fase 240 e cedendo a declarações do usuário; paridade nativa |
 
 Histórico completo por fase: `docs/history/phases/`.
 
@@ -92,6 +93,8 @@ Histórico completo por fase: `docs/history/phases/`.
 - A trilha foi organizada em quatro frentes adultas: BM-A (toolchain freestanding), BM-B (bootstrap/runtime autônomo), BM-C (boot/fronteira de hardware) e BM-D (produto de build, QEMU e gate de qualidade).
 - O padrão anti-mínimo de `docs/expandir.md` passa a ser explícito também para SO: cada fase deve fechar uma fatia vertical utilizável com superfície, semântica, backend/runtime, diagnósticos, testes positivos/negativos, exemplo, documentação e evidência executável; stubs e provas de conceito isoladas não contam como entrega.
 - A documentação preserva o backend atual como ELF Linux x86-64 System V + `pinker_rt`; a trilha freestanding continua totalmente pendente de fases funcionais.
+- **Fase 241 — Eixo A, item 5 da Faixa 1: `Resultado<T,E>` predeclarado (biblioteca padrão)**.
+- A Fase 241 injeta um template sintético de `leque Resultado<T, E> { Ok(T), Erro(E) }` em `enum_generic_templates` na construção do parser, tornando-o utilizável por alias concreto sem declaração manual e reusando integralmente a monomorfização, o `encaixe`, o `tentar`, o `propagar` e o `propagar?` da Fase 240; qualquer declaração de `Resultado` pelo usuário suprime o predeclarado, sem mudança de runtime e com paridade nativa.
 - **Fase 240 — Eixo A, itens 3 e 5 da Faixa 1: leques genéricos explícitos para base de `Resultado<T,E>`**.
 - A Fase 240 permite declarar `leque Nome<T,...>` e instanciar usos concretos por alias (`apelido ResultadoBombomVerso = Resultado<bombom, verso>;`); o parser emite leques monomorfizados internos, enquanto construtores e `encaixe` usam o alias público.
 - **Fase 239 — Eixo A, item 6 da Faixa 1: passagem estática de função como parâmetro**.
@@ -128,7 +131,7 @@ Histórico completo por fase: `docs/history/phases/`.
 | Fases 190–206 | Sem generics (`lista<T>`, `mapa<K,V>` amplos); cada combinação monomorphizada; sem coleções heterogêneas |
 | Fases 208–210 (`leque`/`encaixe`) | Cargas: `bombom`, `verso` ou leque declarado (sem `ninho`/coleções como carga); sem guards, padrões aninhados ou encaixe-expressão; igualdade direta e `virar` rejeitados para leque com carga; sem discriminante customizado; sem `bombom -> leque`; handles sem liberação (consistente com coleções); nome de leque tem precedência sobre variável homônima em posição de base `X.Y` |
 | Fases 211, 233, 235, 236 e 240 (`lista<T>`, `mapa<K,V>`, funções/leques genéricos) | `lista<T>` com T = leque declarado (além de `bombom`/`verso` legados); `mapa<K,V>` nas quatro combinações públicas `verso`/`bombom`, com operações genéricas sobre variável/parâmetro e expressão tipada; funções genéricas de usuário com chamada explícita e monomorfização; `leque Nome<T,...>` com instanciação explícita por alias; inferência de tipo fora; generics em `ninho` fora; `lista_criar()`/`mapa_criar()` só como init de `nova` anotada |
-| Fases 223–224, 231, 237 e 240 (`tentar`/`propagar`/`Resultado`) | Error handling estruturado sobre leques de resultado declarados pelo usuário; `tentar`, `propagar` explícito, ligação nomeada do sucesso, `propagar?` com inferência local de falha única com uma carga e base genérica declarável para `Resultado<T,E>` via alias concreto; biblioteca padrão predeclarada de `Resultado<T,E>`, integração automática com erros de runtime e diagnósticos enriquecidos fora |
+| Fases 223–224, 231, 237, 240 e 241 (`tentar`/`propagar`/`Resultado`) | Error handling estruturado sobre leques de resultado; `tentar`, `propagar` explícito, ligação nomeada do sucesso, `propagar?` com inferência local de falha única com uma carga, base genérica declarável para `Resultado<T,E>` via alias concreto e (Fase 241) `Resultado<T,E>` predeclarado disponível sem `leque` manual, cedendo a declarações do usuário; integração automática com erros de runtime, conversões implícitas, operador universal `?`, métodos utilitários e diagnósticos enriquecidos fora |
 | Fases 225, 238 e 239 (`carinho` anônimo) | Literais `carinho` não capturantes, chamada direta imediata, função local tipada como alias estático chamável por nome e passagem estática como parâmetro por especialização direta; captura de ambiente, retorno de função, armazenamento amplo, ponteiro de função materializado e chamada indireta fora |
 | Fases 226–230, 232 e 234 (`trato`/`impl`) | Tratos estáticos, chamada por método, `impl` nominal para escalares e `ninho`, cobertura completa do contrato, múltiplos contratos por tipo e desambiguação explícita de métodos homônimos com `Trato.metodo(valor, ...)`; objetos de trait, vtables, dynamic dispatch, default methods, coerções e overloading amplo fora |
 | Doc-46 (`bare-metal`/bootstrap) | Trilha e critérios formalizados; target freestanding, objeto relocável, runtime autônomo, protocolo de boot, imagem de kernel, QEMU e CI bare-metal continuam não implementados |
@@ -139,7 +142,7 @@ Histórico completo por fase: `docs/history/phases/`.
 
 ## 5. Próximo passo
 - Estrutura do Bloco 20 formalizada em dois eixos (Doc-41), padrão pós-Eixo B registrado na Doc-42 e convergência bare-metal formalizada na Doc-46: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado; a trilha BM permanece documental e não implementada.
-- Próxima fase: continuar o item 5 com biblioteca padrão predeclarada de `Resultado<T,E>` sobre a base genérica da Fase 240, continuar o item 6 com chamada indireta real/ponteiro de função materializado, ou iniciar a Faixa 3 se a direção imediata for SO. Em qualquer caso, sem recorte mínimo automático, com lowering nativo obrigatório e com fatia vertical utilizável.
+- Próxima fase: com a biblioteca padrão predeclarada de `Resultado<T,E>` entregue na Fase 241, o item 5 pode avançar para diagnósticos enriquecidos ou métodos utilitários (derivados do roadmap, não presumidos aqui), continuar o item 6 com chamada indireta real/ponteiro de função materializado, ou iniciar a Faixa 3 se a direção imediata for SO. Em qualquer caso, sem recorte mínimo automático, com lowering nativo obrigatório e com fatia vertical utilizável.
 - Ao iniciar a direção SO, a execução deve seguir `docs/roadmap/bare_metal_bootstrap.md`: não basta gerar um artefato isolado; a fase precisa fechar superfície, semântica, backend/runtime, diagnósticos, testes, exemplo e documentação do subproblema escolhido.
 - Escada completa do eixo encerrado (B1 ✓ ... B11 ✓) em `docs/roadmap/blocos/bloco_20.md`.
 - Depois do item 5: itens 6 (**closures**) e 4 (**traits**) do Eixo A, mantendo a regra de que toda fase de linguagem entrega o lowering nativo junto.

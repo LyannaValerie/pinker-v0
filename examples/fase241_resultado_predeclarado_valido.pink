@@ -1,0 +1,77 @@
+pacote main;
+
+// Fase 241: o leque padrão `Resultado<T, E> { Ok(T), Erro(E) }` é predeclarado
+// pelo parser. Este programa o usa por alias concreto (Fase 240) SEM nenhuma
+// declaração manual desse leque, com duas especializações distintas.
+
+apelido ResultadoBombomVerso = Resultado<bombom, verso>;
+apelido ResultadoVersoBombom = Resultado<verso, bombom>;
+
+carinho etapa(v: bombom, ok: logica) -> ResultadoBombomVerso {
+    talvez ok {
+        mimo ResultadoBombomVerso.Ok(v);
+    }
+    mimo ResultadoBombomVerso.Erro("falha etapa");
+}
+
+carinho soma_propagando(a: bombom, b: bombom, ok_a: logica, ok_b: logica) -> ResultadoBombomVerso {
+    propagar etapa(a, ok_a) como ResultadoBombomVerso.Ok(va) senao ResultadoBombomVerso.Erro(msg);
+    propagar? etapa(b, ok_b) como ResultadoBombomVerso.Ok(vb);
+    mimo ResultadoBombomVerso.Ok(va + vb);
+}
+
+carinho rotular(v: verso, ok: logica) -> ResultadoVersoBombom {
+    talvez ok {
+        mimo ResultadoVersoBombom.Ok(v);
+    }
+    mimo ResultadoVersoBombom.Erro(7);
+}
+
+carinho principal() -> bombom {
+    nova muda total: bombom = 0;
+
+    nova bom: ResultadoBombomVerso = soma_propagando(20, 22, verdade, verdade);
+    tentar bom {
+        sucesso ResultadoBombomVerso.Ok(valor) {
+            total += valor;
+            falar(valor);
+        }
+        falha ResultadoBombomVerso.Erro(msg) {
+            falar(msg);
+        }
+    }
+
+    nova ruim: ResultadoBombomVerso = soma_propagando(1, 2, verdade, falso);
+    tentar ruim {
+        sucesso ResultadoBombomVerso.Ok(valor) {
+            total += valor;
+        }
+        falha ResultadoBombomVerso.Erro(msg) {
+            falar(msg);
+            total += 1;
+        }
+    }
+
+    nova etiqueta: ResultadoVersoBombom = rotular("ola", verdade);
+    encaixe etiqueta {
+        caso ResultadoVersoBombom.Ok(texto) {
+            falar(texto);
+        }
+        caso ResultadoVersoBombom.Erro(codigo) {
+            total += codigo;
+        }
+    }
+
+    nova falho: ResultadoVersoBombom = rotular("x", falso);
+    encaixe falho {
+        caso ResultadoVersoBombom.Ok(texto) {
+            falar(texto);
+        }
+        caso ResultadoVersoBombom.Erro(codigo) {
+            total += codigo;
+        }
+    }
+
+    falar(total);
+    mimo 0;
+}

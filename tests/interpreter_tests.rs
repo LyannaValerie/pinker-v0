@@ -9576,4 +9576,11 @@ fn fase236_funcao_generica_usuario_executa_no_interpretador() {
     let result = run_code(code).unwrap();
     assert_eq!(result, Some(RuntimeValue::Int(0)));
 }
+
+#[test]
+fn fase241_resultado_predeclarado_executa_no_interpretador() {
+    let code = include_str!("../examples/fase241_resultado_predeclarado_valido.pink");
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(0)));
+}
 // @pinker-nav:end evidencia.interpreter.execucao-funcoes-usuario-tratos-e-genericos
