@@ -269,6 +269,27 @@ impl SemanticChecker {
                 lhs_volatile == rhs_volatile
                     && Self::check_type_match(lhs_base.as_ref(), rhs_base.as_ref())
             }
+            // Fase 242: tipo função é comparado estruturalmente por assinatura
+            // (aridade + tipo de cada parâmetro + tipo de retorno).
+            (
+                Type::Function {
+                    params: lhs_params,
+                    ret: lhs_ret,
+                    ..
+                },
+                Type::Function {
+                    params: rhs_params,
+                    ret: rhs_ret,
+                    ..
+                },
+            ) => {
+                lhs_params.len() == rhs_params.len()
+                    && lhs_params
+                        .iter()
+                        .zip(rhs_params.iter())
+                        .all(|(l, r)| Self::check_type_match(l, r))
+                    && Self::check_type_match(lhs_ret.as_ref(), rhs_ret.as_ref())
+            }
             _ => false,
         }
     }
@@ -635,11 +656,50 @@ impl SemanticChecker {
             }
         }
 
-        self.consts.get(name).map(|constant| VarMeta {
+        if let Some(meta) = self.consts.get(name).map(|constant| VarMeta {
             ty: self
                 .resolve_type_or_error(&constant.ty)
                 .unwrap_or_else(|_| constant.ty.clone()),
             is_mut: false,
+        }) {
+            return Some(meta);
+        }
+
+        // Fase 242: nome solto de função top-level materializa um valor
+        // callable — precedência mais baixa (só depois de escopos locais e
+        // constantes), sem alterar shadowing existente. Função genérica não
+        // concretizada (type_params não vazio) não pode virar valor.
+        self.function_value_type(name)
+            .map(|ty| VarMeta { ty, is_mut: false })
+    }
+
+    // Fase 242: busca só em `self.scopes` (parâmetros/`nova` locais), sem
+    // cair para `consts` ou funções top-level — usada em posição de chamada
+    // para decidir precedência de sombreamento local sobre função global.
+    fn resolve_local_var_type(&self, name: &str) -> Option<Type> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(meta) = scope.vars.get(name) {
+                return Some(meta.ty.clone());
+            }
+        }
+        None
+    }
+
+    fn function_value_type(&self, name: &str) -> Option<Type> {
+        let function = self.funcs.get(name)?;
+        if !function.type_params.is_empty() {
+            return None;
+        }
+        let span = function.span;
+        let params = function.params.iter().map(|p| p.ty.clone()).collect();
+        let ret = function
+            .ret_type
+            .clone()
+            .unwrap_or_else(|| Type::Nulo(span));
+        Some(Type::Function {
+            params,
+            ret: Box::new(ret),
+            span,
         })
     }
     // @pinker-nav:end semantic.escopos.variaveis
@@ -2356,6 +2416,53 @@ impl SemanticChecker {
                 span: callee.span,
             });
         };
+
+        // Fase 242: variável local (parâmetro ou `nova`) tem precedência
+        // sobre função top-level homônima em posição de chamada — chamada
+        // indireta real, sem depender de resolução estática do nome
+        // concreto no parse (ao contrário da especialização da Fase 239).
+        if let Some(local_ty) = self.resolve_local_var_type(name) {
+            let Type::Function { params, ret, .. } = &local_ty else {
+                return Err(PinkerError::Semantic {
+                    msg: format!("'{}' não é chamável (tipo '{}')", name, local_ty.name()),
+                    span: callee.span,
+                });
+            };
+            if args.len() != params.len() {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada indireta de '{}' com aridade inválida: esperado {}, recebido {}",
+                        name,
+                        params.len(),
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let params = params.clone();
+            let ret = ret.as_ref().clone();
+            for (index, (arg, expected)) in args.iter().zip(params.iter()).enumerate() {
+                let arg_ty = self.check_value_expr(
+                    arg,
+                    "resultado de função sem retorno não pode ser usado como argumento",
+                )?;
+                let expected_resolved = self.resolve_type_or_error(expected)?;
+                if !Self::check_expected_type_for_expr(&expected_resolved, &arg_ty, arg) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "tipo inválido no argumento {} da chamada indireta de '{}': esperado '{}', encontrado '{}'",
+                            index + 1,
+                            name,
+                            Self::type_key(&expected_resolved),
+                            Self::type_key(&arg_ty)
+                        ),
+                        span: arg.span,
+                    });
+                }
+                Self::validate_int_literal_range(&expected_resolved, arg)?;
+            }
+            return self.resolve_type_or_error(&ret);
+        }
 
         if matches!(
             name.as_str(),

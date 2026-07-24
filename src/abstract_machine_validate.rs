@@ -1400,6 +1400,28 @@ fn apply_instr_effect(
                 }
             }
         }
+        MachineInstr::PushFunctionRef(_) => {
+            stack.push(StackValueType::Unknown);
+        }
+        MachineInstr::CallIndirect { argc } => {
+            pop_typed(
+                f,
+                label,
+                stack,
+                1,
+                "underflow em call_indirect (callee)",
+                Some(&format!("instr='call_indirect {}'", argc)),
+            )?;
+            pop_typed(
+                f,
+                label,
+                stack,
+                *argc,
+                "underflow em call_indirect (argumentos)",
+                Some(&format!("instr='call_indirect {}'", argc)),
+            )?;
+            stack.push(StackValueType::Unknown);
+        }
         MachineInstr::PrintIntInline => {
             pop_typed(
                 f,
@@ -1579,6 +1601,8 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::CmpGe => "cmp_ge",
         MachineInstr::Call { .. } => "call",
         MachineInstr::CallVoid { .. } => "call_void",
+        MachineInstr::PushFunctionRef(_) => "push_function_ref",
+        MachineInstr::CallIndirect { .. } => "call_indirect",
         MachineInstr::PrintIntInline => "print_int_inline",
         MachineInstr::PrintBoolInline => "print_bool_inline",
         MachineInstr::PrintStrValueInline => "print_str_value_inline",
@@ -1621,6 +1645,7 @@ fn type_to_stack(ty: TypeIR) -> StackValueType {
         TypeIR::FixedArray { .. } => StackValueType::Unknown,
         TypeIR::Struct => StackValueType::Unknown,
         TypeIR::Pointer { .. } => StackValueType::Unknown,
+        TypeIR::Function => StackValueType::Unknown,
         TypeIR::Nulo => StackValueType::Unknown,
     }
 }

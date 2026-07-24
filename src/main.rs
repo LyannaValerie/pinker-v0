@@ -2248,6 +2248,7 @@ fn run_analyze(config: Config) {
                 interpreter::RuntimeValue::MapVersoVerso(_) => {}
                 interpreter::RuntimeValue::MapBombomBombom(_) => {}
                 interpreter::RuntimeValue::MapBombomVerso(_) => {}
+                interpreter::RuntimeValue::Callable(_) => {}
             }
         }
         if let Some(code) = result.exit_status {

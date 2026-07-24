@@ -263,6 +263,7 @@ fn infer_operand(
             .get(t)
             .copied()
             .ok_or_else(|| err(&format!("temporário textual não definido %t{}", t.0))),
+        OperandIR::FunctionRef(_) => Ok(TypeIR::Function),
     }
 }
 
@@ -271,9 +272,10 @@ fn infer_literal_operand(op: &OperandIR) -> Result<TypeIR, PinkerError> {
         OperandIR::Int(_) => Ok(TypeIR::Bombom),
         OperandIR::Bool(_) => Ok(TypeIR::Logica),
         OperandIR::Str(_) => Ok(TypeIR::Verso),
-        OperandIR::GlobalConst(_) | OperandIR::Local(_) | OperandIR::Temp(_) => {
-            Err(err("global textual com valor não-literal"))
-        }
+        OperandIR::GlobalConst(_)
+        | OperandIR::Local(_)
+        | OperandIR::Temp(_)
+        | OperandIR::FunctionRef(_) => Err(err("global textual com valor não-literal")),
     }
 }
 

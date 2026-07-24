@@ -98,6 +98,12 @@ pub enum MachineInstr {
     CmpGe,
     Call { callee: String, argc: usize },
     CallVoid { callee: String, argc: usize },
+    // Fase 242: empilha o handle callable (descritor estático) da função
+    // top-level nomeada.
+    PushFunctionRef(String),
+    // Fase 242: consome do topo o handle callable e, abaixo dele, `argc`
+    // argumentos; sempre produz valor (tipo função público nunca é `nulo`).
+    CallIndirect { argc: usize },
     PrintIntInline,
     PrintBoolInline,
     PrintStrValueInline,
@@ -352,6 +358,16 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) {
                 argc: args.len(),
             });
         }
+        SelectedInstr::CallIndirect {
+            dest, callee, args, ..
+        } => {
+            for arg in args {
+                emit_load(arg, code);
+            }
+            emit_load(callee, code);
+            code.push(MachineInstr::CallIndirect { argc: args.len() });
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
         SelectedInstr::Falar { args } => {
             for (idx, arg) in args.iter().enumerate() {
                 if idx > 0 {
@@ -424,6 +440,7 @@ fn emit_load(op: &OperandIR, code: &mut Vec<MachineInstr>) {
         OperandIR::Local(s) => code.push(MachineInstr::LoadSlot(s.clone())),
         OperandIR::GlobalConst(g) => code.push(MachineInstr::LoadGlobal(g.clone())),
         OperandIR::Temp(t) => code.push(MachineInstr::LoadSlot(temp_name(*t))),
+        OperandIR::FunctionRef(name) => code.push(MachineInstr::PushFunctionRef(name.clone())),
     }
 }
 
@@ -709,6 +726,17 @@ fn render_instr(i: &MachineInstr) -> String {
             format!("call_void {}, {}", callee, argc),
             &format!("chama {} com {} argumento(s) sem retorno", callee, argc),
         ),
+        MachineInstr::PushFunctionRef(name) => with_comment(
+            format!("push_function_ref {}", name),
+            "empilha handle callable (descritor estático) da função",
+        ),
+        MachineInstr::CallIndirect { argc } => with_comment(
+            format!("call_indirect {}", argc),
+            &format!(
+                "consome handle callable no topo e {} argumento(s) abaixo, empilha o retorno",
+                argc
+            ),
+        ),
         MachineInstr::PrintIntInline => {
             with_comment("print_int_inline".to_string(), "imprime inteiro sem quebra")
         }
@@ -823,6 +851,7 @@ fn render_operand(op: &OperandIR) -> String {
         OperandIR::Local(s) => s.clone(),
         OperandIR::GlobalConst(g) => format!("@{}", g),
         OperandIR::Temp(t) => format!("%t{}", t.0),
+        OperandIR::FunctionRef(name) => format!("fnref({})", name),
     }
 }
 

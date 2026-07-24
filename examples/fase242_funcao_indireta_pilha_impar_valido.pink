@@ -1,0 +1,18 @@
+pacote main;
+
+carinho soma9(a: bombom, b: bombom, c: bombom, d: bombom, e: bombom, f: bombom, g: bombom, h: bombom, i: bombom) -> bombom {
+    mimo a + b + c + d + e + f + g + h + i;
+}
+
+carinho aplicar9(
+    operacao: carinho(bombom, bombom, bombom, bombom, bombom, bombom, bombom, bombom, bombom) -> bombom,
+    a: bombom, b: bombom, c: bombom, d: bombom, e: bombom, f: bombom, g: bombom, h: bombom, i: bombom
+) -> bombom {
+    mimo operacao(a, b, c, d, e, f, g, h, i);
+}
+
+carinho principal() -> bombom {
+    nova resultado: bombom = aplicar9(soma9, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+    falar(resultado);
+    mimo 0;
+}

@@ -4457,6 +4457,149 @@ fn fase241_exemplo_exercita_superficie_completa() {
         );
     }
 }
+
+#[test]
+fn fase242_funcao_indireta_aceita() {
+    let code = include_str!("../examples/fase242_funcao_indireta_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase242_chamada_indireta_rejeita_aridade_invalida() {
+    let code = r#"
+        pacote main;
+        carinho dobrar(x: bombom) -> bombom { mimo x * 2; }
+        carinho aplicar(operacao: carinho(bombom) -> bombom, valor: bombom) -> bombom {
+            mimo operacao(valor, valor);
+        }
+        carinho principal() -> bombom { mimo aplicar(dobrar, 1); }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("chamada indireta de 'operacao' com aridade inválida"),
+        "erro inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase242_chamada_indireta_rejeita_tipo_de_argumento_invalido() {
+    let code = r#"
+        pacote main;
+        carinho dobrar(x: bombom) -> bombom { mimo x * 2; }
+        carinho aplicar(operacao: carinho(bombom) -> bombom, valor: verso) -> bombom {
+            mimo operacao(valor);
+        }
+        carinho principal() -> bombom { mimo aplicar(dobrar, "x"); }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("tipo inválido no argumento 1 da chamada indireta de 'operacao'"),
+        "erro inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase242_rejeita_chamar_valor_nao_callable() {
+    let code = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova x: bombom = 1;
+            mimo x(1);
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(err.contains("'x' não é chamável"), "erro inesperado: {err}");
+}
+
+#[test]
+fn fase242_binding_rejeita_assinatura_incompativel() {
+    let code = r#"
+        pacote main;
+        carinho tamanho(s: verso) -> bombom { mimo 0; }
+        carinho principal() -> bombom {
+            nova operacao: carinho(bombom) -> bombom = tamanho;
+            mimo operacao(1);
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("tipo de inicialização incompatível"),
+        "erro inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase242_binding_rejeita_retorno_incompativel() {
+    let code = r#"
+        pacote main;
+        carinho verifica(x: bombom) -> logica { mimo verdade; }
+        carinho principal() -> bombom {
+            nova operacao: carinho(bombom) -> bombom = verifica;
+            mimo operacao(1);
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("tipo de inicialização incompatível"),
+        "erro inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase242_retorno_de_callable_aceita_e_verifica_assinatura() {
+    let code = r#"
+        pacote main;
+        carinho dobrar(x: bombom) -> bombom { mimo x * 2; }
+        carinho fabricar() -> carinho(bombom) -> bombom {
+            mimo dobrar;
+        }
+        carinho principal() -> bombom {
+            nova f: carinho(bombom) -> bombom = fabricar();
+            mimo f(21);
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase242_variavel_local_callable_tem_precedencia_sobre_funcao_top_level() {
+    let code = r#"
+        pacote main;
+        carinho dobrar(x: bombom) -> bombom { mimo x * 2; }
+        carinho triplicar(x: bombom) -> bombom { mimo x * 3; }
+        carinho principal() -> bombom {
+            nova dobrar: carinho(bombom) -> bombom = triplicar;
+            mimo dobrar(10);
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase242_regressao_fase239_ainda_aceita_e_rejeita_igual() {
+    let code = include_str!("../examples/fase239_funcao_parametro_estatica_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+
+    let code_incompativel = r#"
+        pacote main;
+
+        carinho aplicar(f: carinho(bombom) -> bombom, x: bombom) -> bombom {
+            mimo f(x);
+        }
+
+        carinho principal() -> bombom {
+            nova tamanho: carinho(verso) -> bombom = carinho(s: verso) -> bombom {
+                mimo tamanho(s);
+            };
+            mimo aplicar(tamanho, 1);
+        }
+    "#;
+    let err = parse_and_check(code_incompativel).unwrap_err().to_string();
+    assert!(
+        err.contains("callback") && err.contains("incompatível"),
+        "erro inesperado: {err}"
+    );
+}
 // @pinker-nav:end evidencia.semantica.funcoes-locais-e-carinho
 
 // @pinker-nav:start evidencia.semantica.tratos-e-impls

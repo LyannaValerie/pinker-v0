@@ -467,4 +467,18 @@ fn cfg_ir_logico_com_chamada_pode_ser_usado_como_valor() {
     assert!(cfg.contains("logic_join_"), "{}", cfg);
     assert!(cfg.contains("call aceita("), "{}", cfg);
 }
+
+#[test]
+fn fase242_chamada_por_variavel_vira_call_indirect_na_cfg() {
+    let code = r#"
+        pacote main;
+        carinho dobrar(x: bombom) -> bombom { mimo x * 2; }
+        carinho aplicar(operacao: carinho(bombom) -> bombom, valor: bombom) -> bombom {
+            mimo operacao(valor);
+        }
+        carinho principal() -> bombom { mimo aplicar(dobrar, 1); }
+    "#;
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("call_indirect"), "{}", cfg);
+}
 // @pinker-nav:end evidencia.cfg.lowering-curto-circuito

@@ -115,6 +115,10 @@ fn validate_supported_subset(selected: &SelectedProgram) -> Result<(), PinkerErr
 struct ExternalCallConvProgram {
     rodata_globals: Vec<ExternalCallConvGlobal>,
     rodata_strings: Vec<ExternalCallConvString>,
+    // Fase 242: nomes de função referenciados como valor callable em algum
+    // ponto do programa; cada um recebe um descritor estático
+    // {code_ptr, env_ptr} em `.rodata` (env_ptr nulo — não capturante).
+    rodata_function_refs: Vec<String>,
     functions: Vec<ExternalCallConvFunction>,
 }
 
@@ -656,6 +660,73 @@ fn extract_external_callconv_program(
                             slot_offsets[&temp_key(*dest)]
                         ));
                     }
+                    // Fase 242: chamada indireta real. `callee` é um operando
+                    // (handle callable: endereço do descritor estático ou
+                    // heap {code_ptr, env_ptr}), não um símbolo. Mesma ABI de
+                    // argumentos do usuário do `call` direto; o código é lido
+                    // do descritor em tempo de execução e chamado via
+                    // registrador (`call *reg`). `env_ptr` (offset 8) é
+                    // reservado/ignorado nesta fase (sem captura).
+                    SelectedInstr::CallIndirect {
+                        dest,
+                        callee,
+                        args,
+                        ret_type,
+                    } => {
+                        if !is_external_call_ret_type(ret_type) {
+                            return Err(err(
+                                "subset externo montável (Fase 242) só aceita call_indirect com retorno `bombom`, `verso`, `logica`, lista ou carinho",
+                            ));
+                        }
+                        register_rodata_strings_for_operand(
+                            callee,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        );
+                        for arg in args.iter() {
+                            register_rodata_strings_for_operand(
+                                arg,
+                                &mut rodata_string_labels,
+                                &mut rodata_strings,
+                            );
+                        }
+                        let stack_args = args.len().saturating_sub(ARG_REGS.len());
+                        let pad = stack_args % 2;
+                        if pad == 1 {
+                            body.push("subq $8, %rsp".to_string());
+                        }
+                        for arg in args.iter().skip(ARG_REGS.len()).rev() {
+                            body.extend(load_operand("%r11", arg, &slot_offsets, &rodata_strings)?);
+                            body.push("pushq %r11".to_string());
+                        }
+                        for (idx, arg) in args.iter().take(ARG_REGS.len()).enumerate() {
+                            body.extend(load_operand(
+                                ARG_REGS[idx],
+                                arg,
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                        }
+                        // Handle callable carregado por último (não conflita
+                        // com ARG_REGS): dereferencia o descritor para obter
+                        // o code_ptr (offset 0) e chama indiretamente.
+                        body.extend(load_operand(
+                            REG_TMP,
+                            callee,
+                            &slot_offsets,
+                            &rodata_strings,
+                        )?);
+                        body.push(format!("movq ({}), {}", REG_TMP, REG_TMP));
+                        body.push(format!("call *{}", REG_TMP));
+                        if stack_args > 0 {
+                            body.push(format!("addq ${}, %rsp", 8 * (stack_args + pad)));
+                        }
+                        body.push(format!(
+                            "movq {}, -{}(%rbp)",
+                            REG_RET,
+                            slot_offsets[&temp_key(*dest)]
+                        ));
+                    }
                     // Call sem destino (intrínsecas de efeito, Fase 216/B5):
                     // mesma ABI do call comum, sem o movq de retorno.
                     SelectedInstr::CallVoid { callee, args } => {
@@ -759,11 +830,94 @@ fn extract_external_callconv_program(
         });
     }
 
+    let mut function_refs = std::collections::BTreeSet::new();
+    for function in &selected.functions {
+        collect_function_refs_in_function(function, &mut function_refs);
+    }
+    for name in &function_refs {
+        if !selected.functions.iter().any(|f| &f.name == name) {
+            return Err(err(
+                "subset externo montável (Fase 242) encontrou referência a função inexistente como valor",
+            ));
+        }
+    }
+
     Ok(ExternalCallConvProgram {
         rodata_globals,
         rodata_strings,
+        rodata_function_refs: function_refs.into_iter().collect(),
         functions,
     })
+}
+
+// Fase 242: varre uma função selecionada coletando todo nome de função
+// referenciado como valor callable (`OperandIR::FunctionRef`) em qualquer
+// posição de operando — inclusive dentro de `call_indirect`/`call`/`falar`.
+fn collect_function_refs_in_function(
+    function: &crate::instr_select::SelectedFunction,
+    out: &mut std::collections::BTreeSet<String>,
+) {
+    fn note(op: &OperandIR, out: &mut std::collections::BTreeSet<String>) {
+        if let OperandIR::FunctionRef(name) = op {
+            out.insert(name.clone());
+        }
+    }
+    for block in &function.blocks {
+        for inst in &block.instructions {
+            match inst {
+                SelectedInstr::Mov { src, .. } => note(src, out),
+                SelectedInstr::Neg { operand, .. }
+                | SelectedInstr::Not { operand, .. }
+                | SelectedInstr::BitNot { operand, .. } => note(operand, out),
+                SelectedInstr::DerefLoad { ptr, .. } => note(ptr, out),
+                SelectedInstr::DerefStore { ptr, value, .. } => {
+                    note(ptr, out);
+                    note(value, out);
+                }
+                SelectedInstr::Cast { value, .. } => note(value, out),
+                SelectedInstr::BitAnd { lhs, rhs, .. }
+                | SelectedInstr::BitOr { lhs, rhs, .. }
+                | SelectedInstr::BitXor { lhs, rhs, .. }
+                | SelectedInstr::Shl { lhs, rhs, .. }
+                | SelectedInstr::Shr { lhs, rhs, .. }
+                | SelectedInstr::Add { lhs, rhs, .. }
+                | SelectedInstr::Sub { lhs, rhs, .. }
+                | SelectedInstr::Mul { lhs, rhs, .. }
+                | SelectedInstr::Div { lhs, rhs, .. }
+                | SelectedInstr::Mod { lhs, rhs, .. }
+                | SelectedInstr::CmpEq { lhs, rhs, .. }
+                | SelectedInstr::CmpNe { lhs, rhs, .. }
+                | SelectedInstr::CmpLt { lhs, rhs, .. }
+                | SelectedInstr::CmpLe { lhs, rhs, .. }
+                | SelectedInstr::CmpGt { lhs, rhs, .. }
+                | SelectedInstr::CmpGe { lhs, rhs, .. } => {
+                    note(lhs, out);
+                    note(rhs, out);
+                }
+                SelectedInstr::Call { args, .. } | SelectedInstr::CallVoid { args, .. } => {
+                    for a in args {
+                        note(a, out);
+                    }
+                }
+                SelectedInstr::CallIndirect { callee, args, .. } => {
+                    note(callee, out);
+                    for a in args {
+                        note(a, out);
+                    }
+                }
+                SelectedInstr::Falar { args } => {
+                    for a in args {
+                        note(&a.value, out);
+                    }
+                }
+            }
+        }
+        match &block.terminator {
+            SelectedTerminator::Ret(Some(v)) => note(v, out),
+            SelectedTerminator::Br { cond, .. } => note(cond, out),
+            _ => {}
+        }
+    }
 }
 
 // @pinker-nav:start backend-s.renderizacao.callconv-programa
@@ -780,7 +934,10 @@ fn render_external_x86_64_linux_callconv_impl(
         0,
         "# pinker v0 external toolchain subset (fase 135, linux x86_64, frame/reg + memoria minima + multiplos blocos/labels + jmp/br + loop minimo + quebrar/continuar camada 3 conservadora (composicao minima ate tres niveis de laço) + globais estaticas minimas em .rodata + composto minimo com deref_store/deref_load heterogeneo camada 4 (composicao `u32`+`u64` no mesmo ninho por offset) + u32/u64 minimos em params/locals + comparacao `>=` minima (camada 4 conservadora de 10.2) + `virar` minimo bidirecional por slot (`u32->u64` e `u64->u32`) + `verso` minimo condicional (literal estatico em .rodata, carga de endereco e trafego opaco em slot/parametro) + abi sysv completa fase 213/B2 (6 regs + args de pilha com padding de alinhamento, N parametros, recursao e chamadas aninhadas))",
     );
-    if !program.rodata_globals.is_empty() || !program.rodata_strings.is_empty() {
+    if !program.rodata_globals.is_empty()
+        || !program.rodata_strings.is_empty()
+        || !program.rodata_function_refs.is_empty()
+    {
         line(&mut out, 0, ".section .rodata");
         for global in &program.rodata_globals {
             line(&mut out, 0, &format!(".globl {}", global.name));
@@ -800,6 +957,24 @@ fn render_external_x86_64_linux_callconv_impl(
                     &format!(".ascii \"{}\"", escape_gas_string(&text.value)),
                 );
             }
+        }
+        for name in &program.rodata_function_refs {
+            // Fase 242: descritor callable estático {code_ptr, env_ptr} de
+            // função não-capturante. `principal` vira `main` na ABI C, então
+            // o descritor aponta para o símbolo renomeado.
+            let symbol = if name == "principal" {
+                "main".to_string()
+            } else {
+                name.clone()
+            };
+            line(&mut out, 0, ".align 16");
+            line(
+                &mut out,
+                0,
+                &format!("{}:", function_ref_descriptor_label(name)),
+            );
+            line(&mut out, 1, &format!(".quad {}", symbol));
+            line(&mut out, 1, ".quad 0");
         }
     }
     line(&mut out, 0, ".text");
@@ -1144,7 +1319,8 @@ fn collect_temp_ids(function: &crate::instr_select::SelectedFunction) -> BTreeSe
                 | SelectedInstr::CmpLe { dest, .. }
                 | SelectedInstr::CmpGt { dest, .. }
                 | SelectedInstr::CmpGe { dest, .. }
-                | SelectedInstr::Call { dest, .. } => {
+                | SelectedInstr::Call { dest, .. }
+                | SelectedInstr::CallIndirect { dest, .. } => {
                     ids.insert(temp_key(*dest));
                 }
                 _ => {}
@@ -1198,8 +1374,23 @@ fn load_operand(
             };
             lines.push(format!("leaq {}(%rip), {}", string_meta.label, reg));
         }
+        OperandIR::FunctionRef(name) => {
+            lines.push(format!(
+                "leaq {}(%rip), {}",
+                function_ref_descriptor_label(name),
+                reg
+            ));
+        }
     }
     Ok(lines)
+}
+
+// Fase 242: label determinístico do descritor estático {code_ptr, env_ptr}
+// de uma função referenciada como valor callable. Não exige tabela de
+// deduplicação (o nome da função já é único), ao contrário dos literais
+// `verso` em .rodata.
+fn function_ref_descriptor_label(name: &str) -> String {
+    format!(".Lpinker_fnref_{}", name)
 }
 
 fn temp_key(temp: crate::cfg_ir::TempIR) -> String {
@@ -1313,6 +1504,7 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
         || *ty == TypeIR::MapBombomVerso
         || *ty == TypeIR::Struct
         || *ty == TypeIR::Pointer { is_volatile: false }
+        || *ty == TypeIR::Function
 }
 
 fn is_external_local_type(ty: &TypeIR) -> bool {
@@ -1331,6 +1523,7 @@ fn is_external_ret_type(ty: &TypeIR) -> bool {
             | TypeIR::MapVersoVerso
             | TypeIR::MapBombomBombom
             | TypeIR::MapBombomVerso
+            | TypeIR::Function
     )
 }
 
@@ -1829,6 +2022,7 @@ fn render_operand(op: &crate::cfg_ir::OperandIR) -> String {
         }
         crate::cfg_ir::OperandIR::Str(s) => format!("\"{}\"", s),
         crate::cfg_ir::OperandIR::Temp(temp) => render_temp(*temp),
+        crate::cfg_ir::OperandIR::FunctionRef(name) => format!("fnref({})", name),
     }
 }
 

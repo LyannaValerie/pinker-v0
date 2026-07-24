@@ -311,6 +311,21 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         }
                         temps.insert(*dest);
                     }
+                    SelectedInstr::CallIndirect {
+                        dest,
+                        callee,
+                        args,
+                        ret_type,
+                    } => {
+                        check_operand(callee, &slots, &temps, &globals)?;
+                        for a in args {
+                            check_operand(a, &slots, &temps, &globals)?;
+                        }
+                        if *ret_type == TypeIR::Nulo {
+                            return Err(err("selected call_indirect nulo não pode ter destino"));
+                        }
+                        temps.insert(*dest);
+                    }
                     SelectedInstr::CallVoid { callee, args } => {
                         for a in args {
                             check_operand(a, &slots, &temps, &globals)?;

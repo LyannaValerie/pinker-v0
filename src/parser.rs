@@ -345,7 +345,11 @@ impl Parser {
                         }
                         self.function_param_templates
                             .insert(function.name.clone(), function.clone());
-                        continue;
+                        // Fase 242: ao contrário da Fase 239 isolada, a função
+                        // também é materializada normalmente (sem `continue`)
+                        // — permite chamada indireta geral quando o call site
+                        // não resolve um callback estático (parser.rs:4708+
+                        // continua cobrindo o caminho estático como otimização).
                     }
                 }
                 if let Item::Enum(enum_decl) = &item {
@@ -1949,14 +1953,25 @@ impl Parser {
             .find_map(|scope| scope.get(name).cloned())
     }
 
-    fn parse_function_value_let(&mut self) -> Result<(), PinkerError> {
+    // Decide entre dois caminhos para `nova [muda] nome: carinho(...) -> T = <expr>;`:
+    //
+    // - Caminho rápido (Fase 238, otimização): inicialização é exatamente o
+    //   literal `carinho` anônimo recém-parseado (`__anon_carinho_N`), sem
+    //   `muda`. Vira um alias de parser (`function_value_scopes`) — toda
+    //   chamada `nome(...)` é reescrita em tempo de parse para chamada
+    //   direta à função sintética; nenhum `Stmt::Let` é emitido (não existe
+    //   slot em runtime). Comportamento idêntico ao de antes da Fase 242.
+    //
+    // - Caminho geral (Fase 242): qualquer outra inicialização (nome de
+    //   função top-level, retorno de chamada, outra variável, `muda`
+    //   callable) vira uma declaração `nova` real — o valor é materializado
+    //   (handle callable) e a chamada correspondente, quando existir, é
+    //   resolvida como chamada indireta pelo semantic/IR. Sem isso, a
+    //   Fase 242 não conseguiria expressar `nova op: carinho(...) -> T =
+    //   escolher(verdade);` (Ret expr não é Ident).
+    fn parse_function_value_let(&mut self) -> Result<Option<Stmt>, PinkerError> {
         let start_span = self.consume(TokenKind::KwNova, "nova")?.span;
-        if self.match_token(TokenKind::KwMuda) {
-            return Err(PinkerError::Parse {
-                msg: "função local como valor não pode ser 'muda' nesta fase".to_string(),
-                span: self.previous().span,
-            });
-        }
+        let is_mut = self.match_token(TokenKind::KwMuda);
         let local_name = self
             .consume(TokenKind::Ident, "nome da função local")?
             .lexeme
@@ -1972,56 +1987,57 @@ impl Parser {
         self.consume(TokenKind::Eq, "=")?;
         let init = self.parse_expr()?;
         self.consume(TokenKind::Semi, ";")?;
-        let ExprKind::Ident(function_name) = init.kind else {
-            return Err(PinkerError::Parse {
-                msg:
-                    "função local exige literal 'carinho (...) -> tipo { ... }' como inicialização"
-                        .to_string(),
-                span: init.span,
-            });
-        };
-        if !function_name.starts_with("__anon_carinho_") {
-            return Err(PinkerError::Parse {
-                msg: "função local exige literal anônimo nesta fase".to_string(),
-                span: init.span,
-            });
+        let end_span = merge_span(start_span, self.previous().span);
+
+        if !is_mut {
+            if let ExprKind::Ident(function_name) = &init.kind {
+                if function_name.starts_with("__anon_carinho_") {
+                    let function_name = function_name.clone();
+                    let Some(function) = self
+                        .pending_functions
+                        .iter()
+                        .find(|function| function.name == function_name)
+                    else {
+                        return Err(PinkerError::Parse {
+                            msg: "função sintética não encontrada para função local".to_string(),
+                            span: end_span,
+                        });
+                    };
+                    let actual_ty = Type::Function {
+                        params: function
+                            .params
+                            .iter()
+                            .map(|param| param.ty.clone())
+                            .collect(),
+                        ret: Box::new(function.ret_type.clone().ok_or_else(|| {
+                            PinkerError::Parse {
+                                msg: "função local exige retorno declarado nesta fase".to_string(),
+                                span: function.span,
+                            }
+                        })?),
+                        span: init.span,
+                    };
+                    if declared_ty != actual_ty {
+                        return Err(PinkerError::Parse {
+                            msg: "tipo da função local é incompatível com o literal informado"
+                                .to_string(),
+                            span: init.span,
+                        });
+                    }
+                    self.current_function_value_scope_mut()
+                        .insert(local_name, function_name);
+                    return Ok(None);
+                }
+            }
         }
-        let Some(function) = self
-            .pending_functions
-            .iter()
-            .find(|function| function.name == function_name)
-        else {
-            return Err(PinkerError::Parse {
-                msg: "função sintética não encontrada para função local".to_string(),
-                span: merge_span(start_span, self.previous().span),
-            });
-        };
-        let actual_ty = Type::Function {
-            params: function
-                .params
-                .iter()
-                .map(|param| param.ty.clone())
-                .collect(),
-            ret: Box::new(
-                function
-                    .ret_type
-                    .clone()
-                    .ok_or_else(|| PinkerError::Parse {
-                        msg: "função local exige retorno declarado nesta fase".to_string(),
-                        span: function.span,
-                    })?,
-            ),
-            span: init.span,
-        };
-        if declared_ty != actual_ty {
-            return Err(PinkerError::Parse {
-                msg: "tipo da função local é incompatível com o literal informado".to_string(),
-                span: init.span,
-            });
-        }
-        self.current_function_value_scope_mut()
-            .insert(local_name, function_name);
-        Ok(())
+
+        Ok(Some(Stmt::Let(LetStmt {
+            name: local_name,
+            is_mut,
+            ty: Some(declared_ty),
+            init,
+            span: end_span,
+        })))
     }
 
     // @pinker-nav:end parser.closures.expressao
@@ -3026,7 +3042,13 @@ impl Parser {
             } else if self.check(TokenKind::KwPropagar) {
                 stmts.extend(self.parse_propagar_desugared()?);
             } else if self.starts_function_value_let() {
-                self.parse_function_value_let()?;
+                if let Some(stmt) = self.parse_function_value_let()? {
+                    if let Stmt::Let(let_stmt) = &stmt {
+                        self.current_function_value_scope_mut()
+                            .remove(&let_stmt.name);
+                    }
+                    stmts.push(stmt);
+                }
             } else {
                 let stmt = self.parse_stmt()?;
                 if let Stmt::Let(let_stmt) = &stmt {

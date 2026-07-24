@@ -187,6 +187,18 @@ pub enum ValueIR {
         args: Vec<ValueIR>,
         ret_type: TypeIR,
     },
+    // Fase 242: referência a função top-level como valor (materializa o
+    // descritor callable {code_ptr, env_ptr}; env_ptr nulo/estático aqui).
+    FunctionRef(String),
+    // Fase 242: chamada indireta — `callee` é um valor (variável/parâmetro
+    // de tipo função), não um nome resolvido em tempo de parse. O tipo
+    // função público sempre declara retorno não-nulo (semantic.rs), então
+    // `ret_type` nunca é `Nulo` aqui.
+    CallIndirect {
+        callee: Box<ValueIR>,
+        args: Vec<ValueIR>,
+        ret_type: TypeIR,
+    },
     FieldAccess {
         base: Box<ValueIR>,
         field: String,
@@ -228,6 +240,9 @@ pub enum TypeIR {
     FixedArray { element: ScalarTypeIR, size: u64 },
     Struct,
     Pointer { is_volatile: bool },
+    // Fase 242: callable materializado — handle de 1 palavra para descritor
+    // {code_ptr, env_ptr}. Mesma categoria de valor que Pointer/ListBombom.
+    Function,
     Nulo,
 }
 
@@ -303,6 +318,14 @@ struct LoweringContext {
     struct_fields: HashMap<String, HashMap<String, TypeIR>>,
     struct_field_offsets: HashMap<String, HashMap<String, u64>>,
     enum_variants: HashMap<String, EnumInfoIR>,
+    // Fase 242: nome de função -> tipo de retorno DA FUNÇÃO REFERENCIADA
+    // COMO VALOR CALLABLE, quando a própria função retorna um valor
+    // callable (`carinho(...) -> carinho(...) -> T`). Usado só para
+    // resolver o `ret_type` de uma chamada indireta cujo callee vem de um
+    // `nova x = alguma_funcao(...)` sem anotação explícita; um nível de
+    // encadeamento (callable retornando callable retornando callable não é
+    // rastreado — limite honesto desta fase).
+    callable_ret_types: HashMap<String, TypeIR>,
 }
 
 // Leques na IR: sem carga, o valor é o próprio discriminante imediato; com
@@ -392,6 +415,11 @@ struct FunctionLowerer<'a> {
     block_counter: usize,
     loop_exit_stack: Vec<String>,
     loop_continue_stack: Vec<String>,
+    // Fase 242: slot de binding callable -> tipo de retorno da chamada
+    // indireta através dele. Só populado quando estaticamente derivável (ver
+    // `LoweringContext.callable_ret_types`); ausência = erro claro no
+    // lowering da chamada, não pânico.
+    callable_ret_types: HashMap<String, TypeIR>,
 }
 
 struct TypedValueIR {
@@ -561,6 +589,7 @@ impl LoweringContext {
 
         let mut function_sigs = HashMap::new();
         let mut global_consts = HashMap::new();
+        let mut callable_ret_types = HashMap::new();
 
         for item in &program.items {
             match item {
@@ -578,6 +607,14 @@ impl LoweringContext {
                             }),
                         },
                     );
+                    // Fase 242: quando a função retorna um valor callable,
+                    // registra o ret_type DESSE callable (um nível), para
+                    // permitir chamada indireta imediata sobre o resultado.
+                    if let Some(Type::Function { ret, .. }) = function.ret_type.as_ref() {
+                        let inner_ret =
+                            TypeIR::from_ast_with_context(ret, &type_aliases, &struct_names)?;
+                        callable_ret_types.insert(function.name.clone(), inner_ret);
+                    }
                 }
                 Item::Const(const_decl) => {
                     global_consts.insert(
@@ -1509,6 +1546,7 @@ impl LoweringContext {
             struct_fields,
             struct_field_offsets,
             enum_variants,
+            callable_ret_types,
         })
     }
     // @pinker-nav:end ir.lowering.assinaturas-intrinsecos
@@ -1533,6 +1571,7 @@ impl<'a> FunctionLowerer<'a> {
             block_counter: 0,
             loop_exit_stack: Vec::new(),
             loop_continue_stack: Vec::new(),
+            callable_ret_types: HashMap::new(),
         }
     }
 
@@ -1589,6 +1628,10 @@ impl<'a> FunctionLowerer<'a> {
                 pointer_to_bombom_array_size(&param.ty, &self.context.type_aliases),
                 None,
             );
+            if let Type::Function { ret, .. } = &param.ty {
+                let ret_ty = self.context.resolve_type(ret)?;
+                self.callable_ret_types.insert(binding.slot.clone(), ret_ty);
+            }
             self.params.push(binding);
         }
 
@@ -1881,6 +1924,28 @@ impl<'a> FunctionLowerer<'a> {
                 pointer_to_bombom_array_size(annotated_ty, &self.context.type_aliases)
             })
             .or(value.ptr_array_bombom_size);
+        // Fase 242: quando a variável é callable, registra o ret_type da
+        // chamada indireta através dela — via anotação explícita, ou
+        // derivado da origem do valor (referência de função, cópia de outra
+        // variável callable, ou retorno de uma função que devolve callable).
+        let callable_ret_ty = if ty == TypeIR::Function {
+            if let Some(Type::Function { ret, .. }) = let_stmt.ty.as_ref() {
+                Some(self.context.resolve_type(ret)?)
+            } else {
+                match &value.value {
+                    ValueIR::FunctionRef(name) => {
+                        self.context.function_sigs.get(name).map(|sig| sig.ret_type)
+                    }
+                    ValueIR::Local(slot) => self.callable_ret_types.get(slot).copied(),
+                    ValueIR::Call { callee, .. } => {
+                        self.context.callable_ret_types.get(callee).copied()
+                    }
+                    _ => None,
+                }
+            }
+        } else {
+            None
+        };
         let binding = self.allocate_binding(
             &let_stmt.name,
             ty,
@@ -1888,6 +1953,9 @@ impl<'a> FunctionLowerer<'a> {
             ptr_array_bombom_size,
             Some(let_stmt.is_mut),
         );
+        if let Some(ret_ty) = callable_ret_ty {
+            self.callable_ret_types.insert(binding.slot.clone(), ret_ty);
+        }
         Ok(InstructionIR::Let {
             slot: binding.slot,
             value: value.value,
@@ -2052,6 +2120,17 @@ impl<'a> FunctionLowerer<'a> {
                     return Ok(TypedValueIR {
                         value: ValueIR::GlobalConst(name.clone()),
                         ty: *ty,
+                        struct_name: None,
+                        ptr_array_bombom_size: None,
+                    });
+                }
+
+                // Fase 242: nome solto de função top-level materializa um
+                // valor callable (handle para descritor estático).
+                if self.context.function_sigs.contains_key(name) {
+                    return Ok(TypedValueIR {
+                        value: ValueIR::FunctionRef(name.clone()),
+                        ty: TypeIR::Function,
                         struct_name: None,
                         ptr_array_bombom_size: None,
                     });
@@ -2301,6 +2380,40 @@ impl<'a> FunctionLowerer<'a> {
                         span: expr.span,
                     });
                 };
+
+                // Fase 242: variável local (parâmetro/`nova`) de tipo função
+                // tem precedência sobre função top-level homônima — chamada
+                // indireta real, callee é um valor (slot), não um símbolo.
+                if let Some(binding) = self.resolve_existing_binding(name) {
+                    if binding.ty == TypeIR::Function {
+                        let Some(ret_type) = self.callable_ret_types.get(&binding.slot).copied()
+                        else {
+                            return Err(PinkerError::Ir {
+                                msg: format!(
+                                    "lowering falhou ao inferir retorno da chamada indireta de '{}' (encadeamento de callable retornando callable além de um nível não é suportado nesta fase)",
+                                    name
+                                ),
+                                span: expr.span,
+                            });
+                        };
+                        let typed_args: Vec<TypedValueIR> = args
+                            .iter()
+                            .map(|arg| self.lower_value(arg))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        let ir_args: Vec<ValueIR> =
+                            typed_args.into_iter().map(|typed| typed.value).collect();
+                        return Ok(TypedValueIR {
+                            value: ValueIR::CallIndirect {
+                                callee: Box::new(ValueIR::Local(binding.slot)),
+                                args: ir_args,
+                                ret_type,
+                            },
+                            ty: ret_type,
+                            struct_name: None,
+                            ptr_array_bombom_size: None,
+                        });
+                    }
+                }
 
                 // Intrínsecas genéricas de lista (Fase 211): abaixam para a
                 // forma monomorphizada conforme o tipo da lista no argumento 1.
@@ -2970,6 +3083,17 @@ fn render_value(value: &ValueIR) -> String {
             args.iter().map(render_value).collect::<Vec<_>>().join(", "),
             ret_type.render_name()
         ),
+        ValueIR::FunctionRef(name) => format!("fnref({})", name),
+        ValueIR::CallIndirect {
+            callee,
+            args,
+            ret_type,
+        } => format!(
+            "call_indirect {}({}) -> {}",
+            render_value(callee),
+            args.iter().map(render_value).collect::<Vec<_>>().join(", "),
+            ret_type.render_name()
+        ),
         ValueIR::FieldAccess {
             base,
             field,
@@ -3096,10 +3220,9 @@ impl TypeIR {
                     is_volatile: *is_volatile,
                 })
             }
-            Type::Function { span, .. } => Err(PinkerError::Ir {
-                msg: "tipo função não é materializável na IR nesta fase; use apenas função local chamada diretamente".to_string(),
-                span: *span,
-            }),
+            // Fase 242: tipo função materializado como handle callable de 1
+            // palavra (mesma categoria de Pointer/handle).
+            Type::Function { .. } => Ok(TypeIR::Function),
             Type::Applied { span, .. } => Err(PinkerError::Ir {
                 msg: "tipo genérico aplicado não monomorfizado antes da IR".to_string(),
                 span: *span,
@@ -3171,6 +3294,7 @@ impl TypeIR {
             TypeIR::FixedArray { .. } => "array",
             TypeIR::Struct => "struct",
             TypeIR::Pointer { .. } => "seta",
+            TypeIR::Function => "carinho",
             TypeIR::Nulo => "nulo",
         }
     }
@@ -3222,6 +3346,7 @@ impl ScalarTypeIR {
             | TypeIR::FixedArray { .. }
             | TypeIR::Struct
             | TypeIR::Pointer { .. }
+            | TypeIR::Function
             | TypeIR::Nulo => None,
         }
     }

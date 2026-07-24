@@ -107,6 +107,15 @@ pub enum InstructionCfgIR {
         args: Vec<OperandIR>,
         ret_type: TypeIR,
     },
+    // Fase 242: chamada indireta — `callee` é um operando (valor callable),
+    // não um nome de símbolo. `ret_type` nunca é `Nulo` (tipo função público
+    // sempre exige retorno declarado), então `dest` não é opcional aqui.
+    CallIndirect {
+        dest: TempIR,
+        callee: OperandIR,
+        args: Vec<OperandIR>,
+        ret_type: TypeIR,
+    },
     Falar {
         args: Vec<FalarArgCfgIR>,
     },
@@ -145,6 +154,9 @@ pub enum OperandIR {
     Bool(bool),
     Str(String),
     Temp(TempIR),
+    // Fase 242: referência a função top-level como valor callable (endereço
+    // do descritor estático {code_ptr, env_ptr}).
+    FunctionRef(String),
 }
 
 pub type ValueCfgIR = OperandIR;
@@ -724,6 +736,32 @@ impl FunctionLowerer {
                     });
                 Ok((OperandIR::Temp(dest), lowered_args.1))
             }
+            ValueIR::FunctionRef(name) => Ok((OperandIR::FunctionRef(name.clone()), current)),
+            ValueIR::CallIndirect {
+                callee,
+                args,
+                ret_type,
+            } => {
+                let (callee_operand, callee_current) =
+                    self.lower_value_operand(callee, current, span)?;
+                let lowered_args =
+                    args.iter()
+                        .try_fold((Vec::new(), callee_current), |(mut acc, cur), arg| {
+                            let (lowered, next_cur) = self.lower_call_operand(arg, cur, span)?;
+                            acc.push(lowered);
+                            Ok::<_, PinkerError>((acc, next_cur))
+                        })?;
+                let dest = self.next_temp();
+                self.blocks[lowered_args.1]
+                    .instructions
+                    .push(InstructionCfgIR::CallIndirect {
+                        dest,
+                        callee: callee_operand,
+                        args: lowered_args.0,
+                        ret_type: *ret_type,
+                    });
+                Ok((OperandIR::Temp(dest), lowered_args.1))
+            }
             ValueIR::FieldAccess {
                 base,
                 field,
@@ -1284,6 +1322,21 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
                 None => call,
             }
         }
+        InstructionCfgIR::CallIndirect {
+            dest,
+            callee,
+            args,
+            ret_type,
+        } => format!(
+            "{} = call_indirect {}({}) -> {}",
+            render_temp(*dest),
+            render_operand(callee),
+            args.iter()
+                .map(render_operand)
+                .collect::<Vec<_>>()
+                .join(", "),
+            ret_type.name()
+        ),
         InstructionCfgIR::Falar { args } => format!(
             "falar {}",
             args.iter()
@@ -1352,6 +1405,7 @@ fn render_operand(op: &OperandIR) -> String {
         OperandIR::Bool(v) => format!("{}:logica", if *v { "verdade" } else { "falso" }),
         OperandIR::Str(s) => format!("\"{}\":verso", s),
         OperandIR::Temp(t) => render_temp(*t),
+        OperandIR::FunctionRef(name) => format!("fnref({})", name),
     }
 }
 

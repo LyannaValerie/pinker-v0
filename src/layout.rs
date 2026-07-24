@@ -75,9 +75,12 @@ fn layout_of_type_inner(
         Type::MapBombomVerso(_) => {
             Err("tipo 'mapa<bombom,verso>' ainda não possui layout estático nesta fase".to_string())
         }
-        Type::Function { .. } => {
-            Err("tipo função ainda não possui layout de memória nesta fase".to_string())
-        }
+        // Fase 242: callable materializado é um handle de 1 palavra (ponteiro
+        // para descritor {code_ptr, env_ptr}), mesmo layout de ponteiro/handle.
+        Type::Function { .. } => Ok(TypeLayout {
+            size: POINTER_SIZE,
+            align: POINTER_ALIGN,
+        }),
         Type::Applied { .. } => {
             Err("tipo genérico aplicado não monomorfizado antes do layout".to_string())
         }

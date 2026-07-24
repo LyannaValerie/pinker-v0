@@ -138,6 +138,71 @@ fn controle_fluxo_geral_emite_todos_os_construtos() {
     assert!(asm.contains("call pontua"), "{}", asm);
     assert!(!asm.contains("__ternario"), "{}", asm);
 }
+
+#[test]
+fn fase242_chamada_indireta_emite_call_estrela_registrador_real() {
+    let code = include_str!("../examples/fase242_funcao_indireta_valido.pink");
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    // Prova de chamada indireta real: `call *%r10` (registrador, não
+    // símbolo), precedida por `movq (%r10), %r10` (dereferencia o
+    // descritor {code_ptr, env_ptr} para obter o code_ptr).
+    assert!(
+        asm.contains("call *%r10"),
+        "esperava call indireta por registrador em:\n{}",
+        asm
+    );
+    assert!(
+        asm.contains("movq (%r10), %r10"),
+        "esperava dereferência do descritor callable em:\n{}",
+        asm
+    );
+    // Descritores estáticos {code_ptr, env_ptr} das funções referenciadas
+    // como valor, em .rodata: env_ptr nulo (não-capturante nesta fase).
+    for name in ["dobrar", "triplicar"] {
+        let label = format!(".Lpinker_fnref_{}", name);
+        assert!(asm.contains(&label), "faltou label {} em:\n{}", label, asm);
+        assert!(
+            asm.contains(&format!("{}:\n  .quad {}\n  .quad 0", label, name))
+                || asm.contains(&format!(".quad {}", name)),
+            "descritor de {} sem .quad para o código:\n{}",
+            name,
+            asm
+        );
+    }
+    // Chamada direta legada continua emitindo `call <símbolo>` sem indireção.
+    assert!(asm.contains("call escolher"), "{}", asm);
+}
+
+#[test]
+fn fase242_chamada_indireta_com_oito_argumentos_usa_pilha_no_call_indirect() {
+    let code = include_str!("../examples/fase242_funcao_indireta_pilha_valido.pink");
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    // call_indirect com 8 argumentos: os 2 últimos viajam pela pilha
+    // (pushq) antes do `call *%r10`, igual à ABI B2 do call direto.
+    assert!(asm.contains("call *%r10"), "{}", asm);
+    assert!(
+        asm.matches("pushq %r11").count() >= 2,
+        "esperava ao menos 2 pushq %r11 (7º e 8º arg da chamada indireta) em:\n{}",
+        asm
+    );
+}
+
+#[test]
+fn fase242_funcao_indireta_pilha_impar_aplica_padding_de_alinhamento() {
+    let code = include_str!("../examples/fase242_funcao_indireta_pilha_impar_valido.pink");
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    // 9 argumentos na chamada indireta: 3 na pilha (ímpar) exigem padding de
+    // 8 bytes para manter o alinhamento de 16 no `call *%r10`.
+    assert!(asm.contains("call *%r10"), "{}", asm);
+    assert!(
+        asm.matches("subq $8, %rsp").count() >= 1,
+        "esperava padding de alinhamento antes da chamada indireta em:\n{}",
+        asm
+    );
+}
 // @pinker-nav:end evidencia.backend-nativo.emissao-abi-e-fluxo-textual
 
 // @pinker-nav:start evidencia.backend-nativo.emissao-simbolos-runtime-textual
@@ -1283,6 +1348,33 @@ fn fase241_resultado_predeclarado_tem_paridade_nativa() {
         "examples/fase241_resultado_predeclarado_valido.pink",
         "fase241_resultado_predeclarado_valido",
         24_100,
+    );
+}
+
+#[test]
+fn fase242_funcao_indireta_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase242_funcao_indireta_valido.pink",
+        "fase242_funcao_indireta_valido",
+        24_200,
+    );
+}
+
+#[test]
+fn fase242_funcao_indireta_pilha_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase242_funcao_indireta_pilha_valido.pink",
+        "fase242_funcao_indireta_pilha_valido",
+        24_210,
+    );
+}
+
+#[test]
+fn fase242_funcao_indireta_pilha_impar_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase242_funcao_indireta_pilha_impar_valido.pink",
+        "fase242_funcao_indireta_pilha_impar_valido",
+        24_211,
     );
 }
 // @pinker-nav:end evidencia.backend-nativo.paridade-stdout-fases-avancadas

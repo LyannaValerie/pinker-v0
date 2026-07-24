@@ -1580,10 +1580,10 @@ fn camada_evidencia_frontend_cartografa_lexer_parser_common() {
     };
 
     let lexer_test_count = coverage_for("tests/lexer_tests.rs", &expected_lexer_keys, 25);
-    let parser_test_count = coverage_for("tests/parser_tests.rs", &expected_parser_keys, 40);
+    let parser_test_count = coverage_for("tests/parser_tests.rs", &expected_parser_keys, 43);
     assert_eq!(lexer_test_count, 25);
-    assert_eq!(parser_test_count, 40);
-    assert_eq!(lexer_test_count + parser_test_count, 65);
+    assert_eq!(parser_test_count, 43);
+    assert_eq!(lexer_test_count + parser_test_count, 68);
 
     let previous_sample = catalog
         .region("lexer.fluxo.tokenizacao")
@@ -1711,7 +1711,7 @@ fn onda_8c_cartografa_evidencias_semanticas() {
         }
         test_count += 1;
     }
-    assert_eq!(test_count, 352, "contagem de #[test] inesperada em {file}");
+    assert_eq!(test_count, 361, "contagem de #[test] inesperada em {file}");
     for (key, count) in expected_semantic_keys.iter().zip(owned_test_counts) {
         assert!(
             count >= 1,
@@ -1816,14 +1816,14 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
     // Cada arquivo recebe a fatia física correspondente de sua trilha/domínio, com a
     // contagem de #[test] congelada no plano.
     let per_file: [(&[&str], &str, &str, usize); 7] = [
-        (&expected_ir_keys[..7], "tests/ir_tests.rs", "ir", 25),
+        (&expected_ir_keys[..7], "tests/ir_tests.rs", "ir", 28),
         (
             &expected_ir_keys[7..],
             "tests/ir_validate_tests.rs",
             "ir",
             7,
         ),
-        (&expected_cfg_keys[..8], "tests/cfg_ir_tests.rs", "cfg", 23),
+        (&expected_cfg_keys[..8], "tests/cfg_ir_tests.rs", "cfg", 24),
         (
             &expected_cfg_keys[8..],
             "tests/cfg_ir_validate_tests.rs",
@@ -1840,7 +1840,7 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
             &expected_machine_keys[..11],
             "tests/abstract_machine_tests.rs",
             "machine",
-            23,
+            24,
         ),
         (
             &expected_machine_keys[11..],
@@ -1956,8 +1956,8 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
         "o plano da Onda 8D perdeu uma chave"
     );
     assert_eq!(
-        total_test_count, 134,
-        "a Onda 8D deveria cobrir exatamente 134 testes (M_TOTAL)"
+        total_test_count, 139,
+        "a Onda 8D deveria cobrir exatamente 139 testes (M_TOTAL)"
     );
 
     // As 53 regiões de evidência anteriores devem permanecer: total de evidência = 53 + 58.
@@ -2059,7 +2059,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         ("evidencia.interpreter.execucao-cli-exemplos-basicos", 2),
         (
             "evidencia.interpreter.execucao-funcoes-usuario-tratos-e-genericos",
-            19,
+            26,
         ),
         (
             "evidencia.interpreter.execucao-nucleo-estado-aritmetica-fluxo",
@@ -2258,11 +2258,11 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     }
 
     assert_eq!(
-        total_test_count, 539,
+        total_test_count, 546,
         "a suíte interpreter deveria manter exatamente 539 testes"
     );
     assert_eq!(
-        mapped_test_count, 535,
+        mapped_test_count, 542,
         "a Onda 8E deveria cartografar exatamente 535 testes da suíte interpreter"
     );
     assert_eq!(
@@ -2584,7 +2584,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (145_508, 4_235_193_204_163_578_870),
+        (145_508, 15_370_467_590_684_624_021),
         "a projeção estável das 340 entradas anteriores mudou"
     );
 }
@@ -2924,8 +2924,8 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        48,
-        "{backend_nativo} deve manter exatamente 48 #[test]"
+        54,
+        "{backend_nativo} deve manter exatamente 54 #[test]"
     );
 
     for future_without_owner in [
@@ -2996,7 +2996,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (148_453, 17_771_162_395_395_185_272),
+        (148_453, 15_225_289_156_093_886_873),
         "a projeção estável das 348 regiões anteriores mudou"
     );
 
@@ -3301,12 +3301,12 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (168_783, 5_856_782_031_983_731_629)
+        (168_783, 9_661_437_327_773_461_981)
     );
     let full_projection = stable_region_projection(capsule_scope.iter().copied());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (170_520, 10_520_387_047_126_949_170)
+        (170_520, 350_757_985_772_048_572)
     );
 
     let regenerated = CodeIndex::scan_repo(&repository).expect("scan canônico");
@@ -3702,7 +3702,7 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (168_783, 5_856_782_031_983_731_629),
+        (168_783, 9_661_437_327_773_461_981),
         "a projeção estável das 386 regiões da Onda 8 mudou"
     );
     let merged_base_projection = stable_region_projection(merged_base.into_iter());
@@ -3711,14 +3711,14 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
             merged_base_projection.len(),
             fnv1a64(merged_base_projection.as_bytes())
         ),
-        (170_520, 10_520_387_047_126_949_170),
+        (170_520, 350_757_985_772_048_572),
         "a projeção estável das 392 regiões da base mergeada mudou"
     );
     // K. Projeção completa desta cápsula, medida — não predita.
     let full_projection = stable_region_projection(capsule_scope.iter().copied());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (172_185, 18_245_240_534_845_644_333),
+        (172_185, 15_036_265_613_772_917_937),
         "a projeção estável das 398 regiões mudou"
     );
 
@@ -3836,7 +3836,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
     let projection = stable_region_projection(historical.into_iter());
     assert_eq!(
         (projection.len(), fnv1a64(projection.as_bytes())),
-        (168_783, 5_856_782_031_983_731_629),
+        (168_783, 9_661_437_327_773_461_981),
         "a projeção estável das 386 regiões convergidas da Onda 8 mudou"
     );
 
@@ -4469,8 +4469,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        48,
-        "{nativo} deve manter exatamente 48 testes"
+        54,
+        "{nativo} deve manter exatamente 54 testes"
     );
     assert_eq!(
         catalog
@@ -4528,7 +4528,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (151_314, 18_257_963_792_808_524_322),
+        (151_314, 14_947_764_166_696_534_345),
         "a projeção estável das 355 regiões anteriores mudou"
     );
 
@@ -4558,7 +4558,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         (
             "evidencia.backend-nativo.emissao-abi-e-fluxo-textual",
             false,
-            5,
+            8,
         ),
         (
             "evidencia.backend-nativo.emissao-simbolos-runtime-textual",
@@ -4597,7 +4597,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         (
             "evidencia.backend-nativo.paridade-stdout-fases-avancadas",
             false,
-            19,
+            22,
         ),
     ];
 
@@ -4631,13 +4631,13 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     let expected_ownership: Vec<usize> = evidence_regions.iter().map(|entry| entry.1).collect();
     assert_eq!(
         expected_ownership,
-        vec![2usize, 5, 7, 2, 3, 1, 7, 1, 1, 19],
-        "o ownership aprovado da Onda 8I é [2,5,7,2,3,1,7,1,1,19]"
+        vec![2usize, 8, 7, 2, 3, 1, 7, 1, 1, 22],
+        "o ownership aprovado da Onda 8I é [2,8,7,2,3,1,7,1,1,22]"
     );
     assert_eq!(
         expected_ownership.iter().sum::<usize>(),
-        48,
-        "a soma do ownership 8I deve ser 48"
+        54,
+        "a soma do ownership 8I deve ser 54"
     );
 
     // Catálogo: total absoluto novo, sem chaves duplicadas.
@@ -4798,7 +4798,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         .collect();
     assert_eq!(
         test_lines.len(),
-        48,
+        54,
         "{central} deve manter exatamente 48 testes"
     );
 
@@ -4944,18 +4944,18 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
 
     assert_eq!(
         count(&|text| !processual(text)),
-        14,
-        "devem existir 14 testes exclusivamente em memória"
+        17,
+        "devem existir 17 testes exclusivamente em memória"
     );
     assert_eq!(
         count(&processual),
-        34,
-        "devem existir 34 testes processuais"
+        37,
+        "devem existir 37 testes processuais"
     );
     assert_eq!(
         count(&|text| !processual(text)) + count(&processual),
-        48,
-        "as duas classes devem particionar os 48 testes"
+        54,
+        "as duas classes devem particionar os 54 testes"
     );
 
     // Classificação das catorze regiões: 3 de evidência exclusivamente textual,
@@ -5029,8 +5029,8 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         "deve existir exatamente uma chamada direta ao emissor nativo"
     );
     assert_eq!(
-        chamadas_hospedadas, 13,
-        "devem existir exatamente 13 chamadas diretas ao emissor hospedado"
+        chamadas_hospedadas, 16,
+        "devem existir exatamente 14 chamadas diretas ao emissor hospedado"
     );
 
     // Os sete testes de símbolos do runtime percorrem o caminho HOSPEDADO.
@@ -5072,8 +5072,8 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     // arquivo declara, não que a comparação tenha sido semanticamente exercida.
     assert_eq!(
         count(&|text| processual(text) && compara_stdout(text)),
-        31,
-        "devem existir 31 caminhos inventariados de comparação de stdout"
+        34,
+        "devem existir 32 caminhos inventariados de comparação de stdout"
     );
     assert_eq!(
         count(&|text| processual(text) && !compara_stdout(text)),
@@ -5087,8 +5087,8 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     );
     assert_eq!(
         count(&|text| text.contains("paridade_stdout(")),
-        26,
-        "devem existir 26 call sites de paridade_stdout"
+        29,
+        "devem existir 27 call sites de paridade_stdout"
     );
     assert_eq!(
         count(&|text| text.contains("argv") || text.contains("CASOS_PARIDADE_B11")),
@@ -5203,7 +5203,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (157_823, 8_400_428_329_107_817_756),
+        (157_823, 4_197_873_757_707_825_769),
         "a projeção estável das 365 regiões anteriores mudou"
     );
 
@@ -5800,7 +5800,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (165_878, 12_094_602_890_660_304_901),
+        (165_878, 3_465_870_740_817_287_605),
         "a projeção estável das 379 regiões anteriores mudou"
     );
 
@@ -6282,7 +6282,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             predecessor_projection.len(),
             fnv1a64(predecessor_projection.as_bytes())
         ),
-        (172_185, 18_245_240_534_845_644_333),
+        (172_185, 15_036_265_613_772_917_937),
         "a projeção estável das 398 regiões predecessoras mudou"
     );
     // Preservação das 392 regiões pós-nav-catalog.
@@ -6298,7 +6298,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             post_nav_projection.len(),
             fnv1a64(post_nav_projection.as_bytes())
         ),
-        (170_520, 10_520_387_047_126_949_170),
+        (170_520, 350_757_985_772_048_572),
         "a projeção estável das 392 regiões pós-nav-catalog mudou"
     );
     // J. Preservação do conjunto histórico de 386 regiões da Onda 8.
@@ -6314,14 +6314,14 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (168_783, 5_856_782_031_983_731_629),
+        (168_783, 9_661_437_327_773_461_981),
         "a projeção estável das 386 regiões da Onda 8 mudou"
     );
     // K. Projeção completa desta cápsula, medida — não predita.
     let full_projection = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (174_671, 4_447_365_825_026_179_903),
+        (174_671, 9_702_426_427_575_715_367),
         "a projeção estável das 407 regiões mudou"
     );
 
@@ -6619,7 +6619,7 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
             predecessor_projection.len(),
             fnv1a64(predecessor_projection.as_bytes())
         ),
-        (174_671, 4_447_365_825_026_179_903)
+        (174_671, 9_702_426_427_575_715_367)
     );
     let mut historical_catalog = predecessor_catalog.clone();
     project_pre_nav_map(&mut historical_catalog);
@@ -6642,13 +6642,10 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     for (regions, expected) in [
         (
             post_query.as_slice(),
-            (398, 172_185, 18_245_240_534_845_644_333),
+            (398, 172_185, 15_036_265_613_772_917_937),
         ),
-        (
-            post_nav.as_slice(),
-            (392, 170_520, 10_520_387_047_126_949_170),
-        ),
-        (wave_8.as_slice(), (386, 168_783, 5_856_782_031_983_731_629)),
+        (post_nav.as_slice(), (392, 170_520, 350_757_985_772_048_572)),
+        (wave_8.as_slice(), (386, 168_783, 9_661_437_327_773_461_981)),
     ] {
         let projection = stable_region_projection(regions.iter().copied());
         assert_eq!(
@@ -6663,7 +6660,7 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let full_projection = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (180_869, 14_362_142_549_825_658_221),
+        (180_869, 14_040_485_832_639_147_101),
         "projeção final medida da Onda A"
     );
 
@@ -6890,7 +6887,7 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (184_908, 17_236_961_341_569_150_753),
+        (184_908, 13_725_139_578_592_731_751),
         "projeção atual medida da Onda B"
     );
     let mut wave_a = catalog.clone();
@@ -6902,7 +6899,7 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
             projection_426.len(),
             fnv1a64(projection_426.as_bytes())
         ),
-        (426, 180_869, 14_362_142_549_825_658_221)
+        (426, 180_869, 14_040_485_832_639_147_101)
     );
     exclude_pink_agent_wave_a(&mut wave_a);
     let projection_407 = stable_region_projection(wave_a.regions.iter());
@@ -6912,7 +6909,7 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
             projection_407.len(),
             fnv1a64(projection_407.as_bytes())
         ),
-        (407, 174_671, 4_447_365_825_026_179_903)
+        (407, 174_671, 9_702_426_427_575_715_367)
     );
     let mut historical_wave_a = wave_a.clone();
     project_pre_nav_map(&mut historical_wave_a);
@@ -6933,9 +6930,9 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
         .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .collect();
     for (regions, expected) in [
-        (q.as_slice(), (398, 172_185, 18_245_240_534_845_644_333)),
-        (d.as_slice(), (392, 170_520, 10_520_387_047_126_949_170)),
-        (n.as_slice(), (386, 168_783, 5_856_782_031_983_731_629)),
+        (q.as_slice(), (398, 172_185, 15_036_265_613_772_917_937)),
+        (d.as_slice(), (392, 170_520, 350_757_985_772_048_572)),
+        (n.as_slice(), (386, 168_783, 9_661_437_327_773_461_981)),
     ] {
         let projection = stable_region_projection(regions.iter().copied());
         assert_eq!(
@@ -7169,7 +7166,7 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (188_829, 3_752_516_709_587_633_203),
+        (188_829, 359_813_580_427_637_743),
         "projeção atual medida da Onda C"
     );
     let mut wave_b = catalog.clone();
@@ -7181,7 +7178,7 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
             projection_439.len(),
             fnv1a64(projection_439.as_bytes())
         ),
-        (440, 184_908, 17_236_961_341_569_150_753)
+        (440, 184_908, 13_725_139_578_592_731_751)
     );
     let core = include_str!("../src/agent.rs");
     for contract in [
@@ -7411,7 +7408,7 @@ fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (189_281, 18_329_981_953_378_251_922),
+        (189_281, 1_032_331_984_822_889_718),
         "projeção integral 454 medida da Onda D"
     );
     let mut prev = catalog.clone();
@@ -7419,7 +7416,7 @@ fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
     let p453 = stable_region_projection(prev.regions.iter());
     assert_eq!(
         (prev.regions.len(), p453.len(), fnv1a64(p453.as_bytes())),
-        (453, 188_829, 3_752_516_709_587_633_203),
+        (453, 188_829, 359_813_580_427_637_743),
         "predecessor 453 integral medido na base c6478"
     );
     // Cadeia histórica preservada: 439 a partir do 453 reconstruído.
@@ -7428,7 +7425,7 @@ fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
     let p439 = stable_region_projection(wave_b.regions.iter());
     assert_eq!(
         (wave_b.regions.len(), p439.len(), fnv1a64(p439.as_bytes())),
-        (440, 184_908, 17_236_961_341_569_150_753),
+        (440, 184_908, 13_725_139_578_592_731_751),
         "era 439/440 preservada"
     );
     // Nenhuma key removida: 453 é subconjunto exato de 454 com delta 1.
