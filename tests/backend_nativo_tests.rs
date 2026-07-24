@@ -159,14 +159,18 @@ fn fase242_chamada_indireta_emite_call_estrela_registrador_real() {
     );
     // Descritores estáticos {code_ptr, env_ptr} das funções referenciadas
     // como valor, em .rodata: env_ptr nulo (não-capturante nesta fase).
+    // Fase 243: code_ptr aponta para o wrapper sintético
+    // `__fnref_env_<nome>` (aceita e ignora `__env`, convenção uniforme de
+    // toda chamada indireta), não para o símbolo original.
     for name in ["dobrar", "triplicar"] {
-        let label = format!(".Lpinker_fnref_{}", name);
+        let wrapper = format!("__fnref_env_{}", name);
+        let label = format!(".Lpinker_fnref_{}", wrapper);
         assert!(asm.contains(&label), "faltou label {} em:\n{}", label, asm);
         assert!(
-            asm.contains(&format!("{}:\n  .quad {}\n  .quad 0", label, name))
-                || asm.contains(&format!(".quad {}", name)),
+            asm.contains(&format!("{}:\n  .quad {}\n  .quad 0", label, wrapper))
+                || asm.contains(&format!(".quad {}", wrapper)),
             "descritor de {} sem .quad para o código:\n{}",
-            name,
+            wrapper,
             asm
         );
     }
@@ -199,6 +203,66 @@ fn fase242_funcao_indireta_pilha_impar_aplica_padding_de_alinhamento() {
     assert!(asm.contains("call *%r10"), "{}", asm);
     assert!(
         asm.matches("subq $8, %rsp").count() >= 1,
+        "esperava padding de alinhamento antes da chamada indireta em:\n{}",
+        asm
+    );
+}
+
+#[test]
+fn fase243_closure_com_captura_emite_pinker_alocar_para_ambiente_e_descritor() {
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom) -> carinho() -> bombom {
+            mimo carinho() -> bombom {
+                mimo base;
+            };
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    // Duas chamadas a pinker_alocar por instância: bloco de capturas (1
+    // palavra) e descritor {code_ptr, env_ptr} (2 palavras).
+    assert!(
+        asm.matches("call pinker_alocar").count() >= 2,
+        "esperava ao menos 2 chamadas a pinker_alocar (ambiente + descritor) em:\n{}",
+        asm
+    );
+}
+
+#[test]
+fn fase243_closure_pilha_par_call_indirect_com_env_na_pilha() {
+    let code = include_str!("../examples/fase243_closure_pilha_valido.pink");
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    // 7 args de usuário + 1 `__env` = 8 no total: 2 na pilha (par, sem
+    // padding), igual à ABI B2 do call direto. O `__env` empurrado é
+    // recarregado direto do descritor via %r10 (não %r11, usado pelo
+    // argumento de usuário comum que também cruza para a pilha).
+    assert!(asm.contains("call *%r10"), "{}", asm);
+    let empilhados = asm.matches("pushq %r10").count() + asm.matches("pushq %r11").count();
+    assert!(
+        empilhados >= 2,
+        "esperava ao menos 2 valores empilhados (arg de usuário + env) em:\n{}",
+        asm
+    );
+}
+
+#[test]
+fn fase243_closure_pilha_impar_aplica_padding_com_env_na_pilha() {
+    let code = include_str!("../examples/fase243_closure_pilha_impar_valido.pink");
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    // 8 args de usuário + 1 `__env` = 9 no total: 3 na pilha (ímpar), exige
+    // padding de alinhamento antes do call indireto. Escopo restrito ao
+    // corpo de `aplicar8` (label até o `call *%r10`): um `subq $8, %rsp` de
+    // prólogo de OUTRA função (frame de 8 bytes) daria falso positivo se a
+    // busca fosse no `asm` inteiro.
+    let start = asm.find("aplicar8:").expect("função aplicar8 no asm");
+    let call_pos = asm.find("call *%r10").expect("call indireto no asm");
+    let corpo = &asm[start..call_pos];
+    assert!(
+        corpo.contains("subq $8, %rsp"),
         "esperava padding de alinhamento antes da chamada indireta em:\n{}",
         asm
     );
@@ -968,6 +1032,78 @@ fn paridade_stdout(exemplo: &str, bin_nome: &str, marcador: u128) {
 
     let _ = fs::remove_dir_all(&out_dir);
 }
+
+// Fase 243: variante de `paridade_stdout` para exemplos cujo `principal` não
+// retorna 0 — compara o exit code completo (não apenas stdout) entre
+// interpretador e nativo, usando `separar_stdout_e_retorno_interpretador`
+// (helper B11) para extrair o retorno real da última linha do interpretador.
+fn paridade_stdout_exit_completo(exemplo: &str, bin_nome: &str, marcador: u128) {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return;
+    }
+    if detect_cc_driver().is_none() {
+        return;
+    }
+    let pink = env!("CARGO_BIN_EXE_pink");
+    let runtime_lib = std::path::Path::new(pink)
+        .parent()
+        .expect("diretório do pink")
+        .join("libpinker_rt.a");
+    if !runtime_lib.is_file() {
+        eprintln!("libpinker_rt.a ausente; pulando teste de paridade");
+        return;
+    }
+
+    let interp = Command::new(pink)
+        .arg("--run")
+        .arg(exemplo)
+        .output()
+        .expect("falha ao rodar interpretador");
+    assert!(interp.status.success());
+    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
+    let (programa_interp, retorno_interp) = separar_stdout_e_retorno_interpretador(&interp_stdout);
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("tempo do sistema")
+        .as_nanos()
+        + marcador;
+    let out_dir = std::env::temp_dir().join(format!("pinker_paridade_{}", nanos));
+    let build = Command::new(pink)
+        .arg("build")
+        .arg("--nativo")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .arg(exemplo)
+        .env("PINKER_RT_LIB", &runtime_lib)
+        .output()
+        .expect("falha ao invocar pink build");
+    assert!(
+        build.status.success(),
+        "build nativo falhou: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let bin_path = out_dir.join(bin_nome);
+    let run = Command::new(bin_path)
+        .output()
+        .expect("falha ao executar binário nativo");
+    assert_eq!(
+        run.status.code(),
+        Some(retorno_interp),
+        "exit deve ser idêntico ao retorno de principal para {}",
+        exemplo
+    );
+    let nativo_stdout = String::from_utf8_lossy(&run.stdout);
+
+    assert_eq!(
+        programa_interp, nativo_stdout,
+        "stdout deve ser idêntico entre interpretador e nativo para {}",
+        exemplo
+    );
+
+    let _ = fs::remove_dir_all(&out_dir);
+}
 // @pinker-nav:end evidencia.backend-nativo.suporte-paridade-stdout
 
 // @pinker-nav:start evidencia.backend-nativo.paridade-stdout-programas-maiores
@@ -1366,6 +1502,98 @@ fn fase242_funcao_indireta_pilha_tem_paridade_nativa() {
         "examples/fase242_funcao_indireta_pilha_valido.pink",
         "fase242_funcao_indireta_pilha_valido",
         24_210,
+    );
+}
+
+#[test]
+fn fase243_closure_captura_imutavel_tem_paridade_nativa() {
+    // `principal` retorna 84 (não 0), então usa comparação de exit code
+    // completa em vez de `paridade_stdout` (que assume retorno 0).
+    paridade_stdout_exit_completo(
+        "examples/fase243_closure_captura_imutavel_valido.pink",
+        "fase243_closure_captura_imutavel_valido",
+        24_300,
+    );
+}
+
+#[test]
+fn fase243_closure_captura_multipla_tem_paridade_nativa() {
+    // Diferente dos demais exemplos (captura única, onde o offset 0 mascara
+    // um passo de escrita/leitura errado), 3 capturas de valores distintos
+    // provam o layout real {offset 0, 8, 16} tanto no nativo quanto no
+    // interpretador — pega regressões de passo/alinhamento que só aparecem
+    // com 2+ capturas.
+    let code = r#"
+        pacote main;
+        carinho fabricar(a: bombom, b: bombom, c: bombom) -> carinho() -> bombom {
+            mimo carinho() -> bombom {
+                mimo a + b * 10 + c * 100;
+            };
+        }
+        carinho principal() -> bombom {
+            nova f: carinho() -> bombom = fabricar(1, 2, 3);
+            falar(f());
+            mimo 0;
+        }
+    "#;
+    let stem = format!(
+        "pinker_fase243_captura_multipla_{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("tempo do sistema")
+            .as_nanos()
+    );
+    let path = std::env::temp_dir().join(format!("{stem}.pink"));
+    fs::write(&path, code).expect("escrever exemplo temporário");
+    paridade_stdout(path.to_str().expect("caminho utf-8"), &stem, 24_315);
+    let _ = fs::remove_file(&path);
+}
+
+#[test]
+fn fase243_closure_pilha_par_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase243_closure_pilha_valido.pink",
+        "fase243_closure_pilha_valido",
+        24_310,
+    );
+}
+
+#[test]
+fn fase243_closure_aninhada_captura_transitiva_tem_paridade_nativa() {
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom) -> carinho() -> carinho() -> bombom {
+            mimo carinho() -> carinho() -> bombom {
+                mimo carinho() -> bombom {
+                    mimo base;
+                };
+            };
+        }
+        carinho principal() -> bombom {
+            nova externa: carinho() -> carinho() -> bombom = fabricar(55);
+            nova interna: carinho() -> bombom = externa();
+            mimo interna();
+        }
+    "#;
+    let stem = format!(
+        "pinker_fase243_aninhada_{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("tempo do sistema")
+            .as_nanos()
+    );
+    let path = std::env::temp_dir().join(format!("{stem}.pink"));
+    fs::write(&path, code).expect("escrever exemplo temporário");
+    paridade_stdout_exit_completo(path.to_str().expect("caminho utf-8"), &stem, 24_320);
+    let _ = fs::remove_file(&path);
+}
+
+#[test]
+fn fase243_closure_pilha_impar_tem_paridade_nativa() {
+    paridade_stdout(
+        "examples/fase243_closure_pilha_impar_valido.pink",
+        "fase243_closure_pilha_impar_valido",
+        24_311,
     );
 }
 

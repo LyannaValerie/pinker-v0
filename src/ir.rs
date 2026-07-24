@@ -11,9 +11,9 @@
 //!   `semantic` → **`ir`** → `ir_validate` → `cfg_ir`
 
 use crate::ast::{
-    AssignTarget, BinaryOp, Block, BreakStmt, ConstDecl, ContinueStmt, ElseBlock, Expr, ExprKind,
-    FalarStmt, FunctionDecl, IfStmt, InlineAsmStmt, Item, LetStmt, Program, ReturnStmt, Stmt,
-    StructDecl, Type, UnaryOp, WhileStmt,
+    transitive_free_identifiers_in_function, AssignTarget, BinaryOp, Block, BreakStmt, ConstDecl,
+    ContinueStmt, ElseBlock, Expr, ExprKind, FalarStmt, FunctionDecl, IfStmt, InlineAsmStmt, Item,
+    LetStmt, Program, ReturnStmt, Stmt, StructDecl, Type, UnaryOp, WhileStmt,
 };
 use crate::error::PinkerError;
 use crate::layout;
@@ -190,6 +190,14 @@ pub enum ValueIR {
     // Fase 242: referência a função top-level como valor (materializa o
     // descritor callable {code_ptr, env_ptr}; env_ptr nulo/estático aqui).
     FunctionRef(String),
+    // Fase 243: cria uma closure — aloca em heap (via `pinker_alocar`) um
+    // ambiente com os valores de `captures` (snapshot por valor, na ordem
+    // dada) e materializa o descritor callable {code_ptr, env_ptr} apontando
+    // para ele. `captures` vazio equivale a `FunctionRef` (env_ptr nulo).
+    MakeClosure {
+        function_name: String,
+        captures: Vec<ValueIR>,
+    },
     // Fase 242: chamada indireta — `callee` é um valor (variável/parâmetro
     // de tipo função), não um nome resolvido em tempo de parse. O tipo
     // função público sempre declara retorno não-nulo (semantic.rs), então
@@ -326,6 +334,31 @@ struct LoweringContext {
     // encadeamento (callable retornando callable retornando callable não é
     // rastreado — limite honesto desta fase).
     callable_ret_types: HashMap<String, TypeIR>,
+    // Fase 243: FunctionDecl de toda função do programa (inclusive
+    // closures sintéticas `__anon_carinho_*`), para permitir a resolução
+    // lazy de closures no ponto de criação (`FunctionLowerer::resolve_closure`)
+    // abaixar o corpo da closure sob demanda, com o ambiente correto.
+    all_functions: HashMap<String, FunctionDecl>,
+    // Estado mutável compartilhado entre todos os `FunctionLowerer` da
+    // mesma `lower_program`: capturas já resolvidas e corpos de closure já
+    // abaixados. `RefCell` porque `FunctionLowerer` só empresta `context`
+    // imutavelmente (mesmo padrão de `LoweringContext` imutável entre
+    // lowerings independentes, só o registro de closures precisa mutar).
+    closure_state: std::cell::RefCell<ClosureLoweringState>,
+}
+
+#[derive(Default)]
+struct ClosureLoweringState {
+    captures: HashMap<String, Vec<(String, TypeIR)>>,
+    // Vec (não HashMap) para preservar ordem determinística de resolução
+    // (DFS na ordem de criação) na lista final de funções do programa.
+    lowered: Vec<(String, FunctionIR)>,
+    // Fase 243: nome do wrapper `__fnref_env_<nome>` -> tipo de retorno da
+    // função original — permite que a inferência de `callable_ret_type`
+    // (Fase 242, caso sem anotação explícita) continue funcionando quando
+    // `ValueIR::FunctionRef` passa a apontar para o wrapper em vez do nome
+    // original (`function_sigs` não conhece o wrapper).
+    wrapper_ret_types: HashMap<String, TypeIR>,
 }
 
 // Leques na IR: sem carga, o valor é o próprio discriminante imediato; com
@@ -443,6 +476,10 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
     for item in &program.items {
         match item {
             Item::Const(const_decl) => consts.push(lower_const(const_decl, &context)?),
+            // Fase 243: closures (`__anon_carinho_*`) são abaixadas lazily
+            // no ponto de criação (`FunctionLowerer::resolve_closure`), com
+            // o ambiente correto — não aqui, isoladas.
+            Item::Function(function_decl) if function_decl.name.starts_with("__anon_carinho_") => {}
             Item::Function(function_decl) => {
                 functions.push(FunctionLowerer::new(&context).lower_function(function_decl)?)
             }
@@ -452,6 +489,31 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
             Item::Trait(_) => {}
         }
     }
+
+    // Fase 243: closure sintética nunca resolvida como valor (idioma de
+    // chamada imediata `carinho(...) {...}(x)`, Fase 225) nunca passa por
+    // `resolve_closure` — permanece função comum, sem `__env`, igual ao
+    // comportamento anterior à Fase 243. Só closures genuinamente usadas
+    // como valor recebem a convenção uniforme de ambiente.
+    for item in &program.items {
+        if let Item::Function(function_decl) = item {
+            if function_decl.name.starts_with("__anon_carinho_") {
+                let already = context
+                    .closure_state
+                    .borrow()
+                    .captures
+                    .contains_key(&function_decl.name);
+                if !already {
+                    let lowered = FunctionLowerer::new(&context).lower_function(function_decl)?;
+                    let mut state = context.closure_state.borrow_mut();
+                    state.lowered.push((function_decl.name.clone(), lowered));
+                }
+            }
+        }
+    }
+
+    let ClosureLoweringState { lowered, .. } = context.closure_state.into_inner();
+    functions.extend(lowered.into_iter().map(|(_, f)| f));
 
     Ok(ProgramIR {
         module_name: context.module_name,
@@ -590,10 +652,12 @@ impl LoweringContext {
         let mut function_sigs = HashMap::new();
         let mut global_consts = HashMap::new();
         let mut callable_ret_types = HashMap::new();
+        let mut all_functions = HashMap::new();
 
         for item in &program.items {
             match item {
                 Item::Function(function) => {
+                    all_functions.insert(function.name.clone(), function.clone());
                     function_sigs.insert(
                         function.name.clone(),
                         FunctionSigIR {
@@ -1547,6 +1611,8 @@ impl LoweringContext {
             struct_field_offsets,
             enum_variants,
             callable_ret_types,
+            all_functions,
+            closure_state: std::cell::RefCell::new(ClosureLoweringState::default()),
         })
     }
     // @pinker-nav:end ir.lowering.assinaturas-intrinsecos
@@ -1636,6 +1702,267 @@ impl<'a> FunctionLowerer<'a> {
         }
 
         let entry = self.lower_block(&function.body, "entry".to_string(), false)?;
+
+        self.pop_scope();
+
+        Ok(FunctionIR {
+            name: function.name.clone(),
+            params: self.params,
+            locals: self.locals,
+            ret_type: TypeIR::from_ast_option_with_context(
+                function.ret_type.as_ref(),
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )?,
+            entry,
+            span: function.span,
+        })
+    }
+
+    // Fase 243: resolve um literal `carinho` no ponto de criação. Espelha
+    // `semantic.rs::resolve_closure_value` — mesma varredura sintática
+    // (`ast::free_identifiers_in_function`), mesma regra de captura (nome
+    // livre que resolve como binding LOCAL nesta função, via
+    // `resolve_existing_binding`; os demais não são captura, resolvidos
+    // normalmente dentro do próprio corpo da closure). Cada literal tem
+    // exatamente um ponto de criação (desaçucaramento da Fase 225 o
+    // substitui por um único `Ident`), então esta função nunca é chamada
+    // duas vezes para o mesmo nome em um programa válido.
+    // Fase 243: gera (memoizado) um wrapper sintético `__fnref_env_<nome>`
+    // para uma função top-level usada como valor callable. O wrapper tem a
+    // MESMA assinatura pública de `nome`, mais um parâmetro oculto final
+    // `__env` (ignorado), e o corpo é só `mimo nome(params...)`. Isso torna
+    // a convenção de chamada indireta uniforme (todo callable — closure ou
+    // referência a função top-level — aceita `__env` por último) sem tocar
+    // em nenhuma chamada direta existente a `nome` (que continua chamando
+    // `nome` de verdade, não o wrapper).
+    fn ensure_fnref_wrapper(&mut self, name: &str, span: Span) -> Result<String, PinkerError> {
+        let wrapper_name = format!("__fnref_env_{}", name);
+        if self
+            .context
+            .closure_state
+            .borrow()
+            .wrapper_ret_types
+            .contains_key(&wrapper_name)
+        {
+            return Ok(wrapper_name);
+        }
+
+        let function = self
+            .context
+            .all_functions
+            .get(name)
+            .cloned()
+            .ok_or_else(|| PinkerError::Ir {
+                msg: format!(
+                    "lowering falhou ao materializar wrapper de '{}' (função sem corpo AST — provável intrínseca; referenciar intrínsecas como valor não é suportado)",
+                    name
+                ),
+                span,
+            })?;
+
+        let mut wrapper = FunctionLowerer::new(self.context);
+        wrapper.push_scope();
+        let mut call_args = Vec::new();
+        let mut wrapper_params = Vec::new();
+        for param in &function.params {
+            let binding = wrapper.allocate_binding(
+                &param.name,
+                wrapper.context.resolve_type(&param.ty)?,
+                resolve_struct_name_from_type(
+                    &param.ty,
+                    &wrapper.context.type_aliases,
+                    &wrapper.context.struct_names,
+                ),
+                pointer_to_bombom_array_size(&param.ty, &wrapper.context.type_aliases),
+                None,
+            );
+            call_args.push(ValueIR::Local(binding.slot.clone()));
+            wrapper_params.push(binding);
+        }
+        let ret_type = TypeIR::from_ast_option_with_context(
+            function.ret_type.as_ref(),
+            &wrapper.context.type_aliases,
+            &wrapper.context.struct_names,
+        )?;
+        let env_binding = wrapper.allocate_binding(
+            "__env",
+            TypeIR::Pointer { is_volatile: false },
+            None,
+            None,
+            None,
+        );
+        wrapper_params.push(env_binding);
+        wrapper.pop_scope();
+
+        let wrapper_fn = FunctionIR {
+            name: wrapper_name.clone(),
+            params: wrapper_params,
+            locals: Vec::new(),
+            ret_type,
+            entry: BlockIR {
+                label: "entry".to_string(),
+                instructions: vec![InstructionIR::Return {
+                    value: Some(ValueIR::Call {
+                        callee: name.to_string(),
+                        args: call_args,
+                        ret_type,
+                    }),
+                    span,
+                }],
+                span,
+            },
+            span,
+        };
+
+        let mut state = self.context.closure_state.borrow_mut();
+        state
+            .wrapper_ret_types
+            .insert(wrapper_name.clone(), ret_type);
+        state.lowered.push((wrapper_name.clone(), wrapper_fn));
+        Ok(wrapper_name)
+    }
+
+    fn resolve_closure(&mut self, name: &str, span: Span) -> Result<TypedValueIR, PinkerError> {
+        if self
+            .context
+            .closure_state
+            .borrow()
+            .captures
+            .contains_key(name)
+        {
+            return Err(PinkerError::Ir {
+                msg: format!(
+                    "closure '{}' referenciada mais de uma vez (não suportado nesta fase)",
+                    name
+                ),
+                span,
+            });
+        }
+        let function = self
+            .context
+            .all_functions
+            .get(name)
+            .cloned()
+            .ok_or_else(|| PinkerError::Ir {
+                msg: format!("lowering falhou ao resolver closure '{}'", name),
+                span,
+            })?;
+        let param_names: HashSet<String> = function.params.iter().map(|p| p.name.clone()).collect();
+        let free = transitive_free_identifiers_in_function(&function, |name| {
+            self.context.all_functions.get(name).cloned()
+        });
+        let mut captures: Vec<(String, TypeIR)> = Vec::new();
+        let mut capture_values: Vec<ValueIR> = Vec::new();
+        for candidate in &free {
+            if param_names.contains(candidate) {
+                continue;
+            }
+            let Some(binding) = self.resolve_existing_binding(candidate) else {
+                continue;
+            };
+            captures.push((candidate.clone(), binding.ty));
+            capture_values.push(ValueIR::Local(binding.slot));
+        }
+        self.context
+            .closure_state
+            .borrow_mut()
+            .captures
+            .insert(name.to_string(), captures.clone());
+        let lowered =
+            FunctionLowerer::new(self.context).lower_closure_function(&function, &captures)?;
+        self.context
+            .closure_state
+            .borrow_mut()
+            .lowered
+            .push((name.to_string(), lowered));
+        Ok(TypedValueIR {
+            value: ValueIR::MakeClosure {
+                function_name: name.to_string(),
+                captures: capture_values,
+            },
+            ty: TypeIR::Function,
+            struct_name: None,
+            ptr_array_bombom_size: None,
+        })
+    }
+
+    // Fase 243: abaixa o corpo de uma closure com o ambiente já resolvido.
+    // Quando há capturas, injeta um parâmetro oculto final `__env` (ponteiro)
+    // e, antes do corpo real, uma sequência de `Let` sintéticos que
+    // dereferenciam `__env + i*8` para cada captura (ordem determinística
+    // de primeira referência) — mesma disciplina de 1 palavra por valor da
+    // Fase 242. Sem chamada de usuário alcança este parâmetro: só a própria
+    // chamada indireta o preenche (ver `cfg_ir`/`backend_s`).
+    fn lower_closure_function(
+        mut self,
+        function: &FunctionDecl,
+        captures: &[(String, TypeIR)],
+    ) -> Result<FunctionIR, PinkerError> {
+        self.push_scope();
+
+        // Fase 243: `__env` é SEMPRE o parâmetro real final (trailing) —
+        // uniforme para toda função indiretamente chamável, capturante ou
+        // não (closures sem captura E wrappers de função top-level, ver
+        // `ensure_fnref_wrapper`). Isso é o que permite ao call site de
+        // `call_indirect` emitir sempre N+1 argumentos sem ramificação:
+        // quem não usa `__env` simplesmente o ignora. O slot é alocado
+        // primeiro (para as expressões de desempacotamento abaixo), mas só
+        // entra em `self.params` (posição final) depois dos parâmetros
+        // reais.
+        let env_binding = self.allocate_binding(
+            "__env",
+            TypeIR::Pointer { is_volatile: false },
+            None,
+            None,
+            None,
+        );
+
+        let mut prelude = Vec::new();
+        for (index, (capture_name, capture_ty)) in captures.iter().enumerate() {
+            // Capturas entram no escopo ANTES dos parâmetros para que um
+            // parâmetro homônimo possa sombreá-las (§14.3) — a inserção
+            // posterior do parâmetro no mesmo mapa de escopo sobrescreve.
+            let capture_binding =
+                self.allocate_binding(capture_name, *capture_ty, None, None, Some(false));
+            let ptr_expr = ValueIR::Binary {
+                op: BinaryOpIR::Add,
+                lhs: Box::new(ValueIR::Local(env_binding.slot.clone())),
+                rhs: Box::new(ValueIR::Int((index as u64) * 8)),
+            };
+            prelude.push(InstructionIR::Let {
+                slot: capture_binding.slot,
+                value: ValueIR::Deref {
+                    ptr: Box::new(ptr_expr),
+                    result_type: *capture_ty,
+                    is_volatile: false,
+                },
+                span: function.span,
+            });
+        }
+
+        for param in &function.params {
+            let binding = self.allocate_binding(
+                &param.name,
+                self.context.resolve_type(&param.ty)?,
+                resolve_struct_name_from_type(
+                    &param.ty,
+                    &self.context.type_aliases,
+                    &self.context.struct_names,
+                ),
+                pointer_to_bombom_array_size(&param.ty, &self.context.type_aliases),
+                None,
+            );
+            if let Type::Function { ret, .. } = &param.ty {
+                let ret_ty = self.context.resolve_type(ret)?;
+                self.callable_ret_types.insert(binding.slot.clone(), ret_ty);
+            }
+            self.params.push(binding);
+        }
+        self.params.push(env_binding);
+
+        let mut entry = self.lower_block(&function.body, "entry".to_string(), false)?;
+        entry.instructions.splice(0..0, prelude);
 
         self.pop_scope();
 
@@ -1933,9 +2260,24 @@ impl<'a> FunctionLowerer<'a> {
                 Some(self.context.resolve_type(ret)?)
             } else {
                 match &value.value {
-                    ValueIR::FunctionRef(name) => {
-                        self.context.function_sigs.get(name).map(|sig| sig.ret_type)
-                    }
+                    ValueIR::FunctionRef(name) => self
+                        .context
+                        .function_sigs
+                        .get(name)
+                        .map(|sig| sig.ret_type)
+                        .or_else(|| {
+                            self.context
+                                .closure_state
+                                .borrow()
+                                .wrapper_ret_types
+                                .get(name)
+                                .copied()
+                        }),
+                    ValueIR::MakeClosure { function_name, .. } => self
+                        .context
+                        .function_sigs
+                        .get(function_name)
+                        .map(|sig| sig.ret_type),
                     ValueIR::Local(slot) => self.callable_ret_types.get(slot).copied(),
                     ValueIR::Call { callee, .. } => {
                         self.context.callable_ret_types.get(callee).copied()
@@ -2107,6 +2449,12 @@ impl<'a> FunctionLowerer<'a> {
                 })
             }
             ExprKind::Ident(name) => {
+                // Fase 243: nome sintético de literal `carinho` — resolve
+                // como criação de closure (com ou sem capturas), no ponto
+                // exato onde `self.scopes` reflete o escopo léxico vigente.
+                if name.starts_with("__anon_carinho_") {
+                    return self.resolve_closure(name, expr.span);
+                }
                 if let Some(binding) = self.resolve_existing_binding(name) {
                     return Ok(TypedValueIR {
                         value: ValueIR::Local(binding.slot),
@@ -2125,11 +2473,16 @@ impl<'a> FunctionLowerer<'a> {
                     });
                 }
 
-                // Fase 242: nome solto de função top-level materializa um
-                // valor callable (handle para descritor estático).
+                // Fase 242/243: nome solto de função top-level materializa
+                // um valor callable. Desde a Fase 243, `FunctionRef` aponta
+                // para um wrapper sintético (`__fnref_env_<nome>`) que
+                // aceita e ignora o parâmetro oculto `__env` — a mesma
+                // convenção uniforme das closures — sem alterar em nada a
+                // função real nem suas chamadas diretas existentes.
                 if self.context.function_sigs.contains_key(name) {
+                    let wrapper_name = self.ensure_fnref_wrapper(name, expr.span)?;
                     return Ok(TypedValueIR {
-                        value: ValueIR::FunctionRef(name.clone()),
+                        value: ValueIR::FunctionRef(wrapper_name),
                         ty: TypeIR::Function,
                         struct_name: None,
                         ptr_array_bombom_size: None,
@@ -3084,6 +3437,18 @@ fn render_value(value: &ValueIR) -> String {
             ret_type.render_name()
         ),
         ValueIR::FunctionRef(name) => format!("fnref({})", name),
+        ValueIR::MakeClosure {
+            function_name,
+            captures,
+        } => format!(
+            "make_closure {}[{}]",
+            function_name,
+            captures
+                .iter()
+                .map(render_value)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
         ValueIR::CallIndirect {
             callee,
             args,

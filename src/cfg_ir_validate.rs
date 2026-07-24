@@ -1660,6 +1660,28 @@ fn validate_block(
                 }
                 temp_types.insert(*dest, *ret_type);
             }
+            InstructionCfgIR::MakeClosure {
+                dest,
+                function_name,
+                captures,
+            } => {
+                if !function_sigs.contains_key(function_name) {
+                    return Err(cfg_error(
+                        &format!("make_closure para função inexistente '{}'", function_name),
+                        function.span,
+                    ));
+                }
+                for capture in captures {
+                    infer_operand_type(
+                        capture,
+                        slot_types,
+                        &temp_types,
+                        global_consts,
+                        function.span,
+                    )?;
+                }
+                temp_types.insert(*dest, TypeIR::Function);
+            }
             InstructionCfgIR::Falar { args: _ } => {}
         }
     }

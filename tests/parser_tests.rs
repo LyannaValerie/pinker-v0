@@ -162,6 +162,46 @@ fn fase242_literal_anonimo_imutavel_continua_como_alias_sem_stmt_let() {
         "literal anônimo imutável deve permanecer alias de parser, sem Stmt::Let"
     );
 }
+#[test]
+fn fase243_closure_captura_imutavel_parseia_e_passa_check() {
+    let code = include_str!("../examples/fase243_closure_captura_imutavel_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase243_closure_capturante_forca_stmt_let_mesmo_sem_muda() {
+    // Diferente do literal NÃO capturante (fase242_literal_anonimo_imutavel_
+    // continua_como_alias_sem_stmt_let acima), uma closure que referencia
+    // escopo externo precisa do caminho geral (Stmt::Let real) mesmo em
+    // `nova` sem `muda`, pois o guard conservador do parser
+    // (`capturing_anon_functions`) detecta a captura e desativa o atalho da
+    // Fase 238/239.
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom) -> carinho() -> bombom {
+            nova f: carinho() -> bombom = carinho() -> bombom {
+                mimo base;
+            };
+            mimo f;
+        }
+    "#;
+    let program = parse(code).expect("parse deve aceitar closure capturante em nova simples");
+    let Item::Function(fabricar) = program
+        .items
+        .iter()
+        .find(|item| matches!(item, Item::Function(f) if f.name == "fabricar"))
+        .expect("função fabricar presente")
+    else {
+        unreachable!();
+    };
+    let has_let_for_function_value = fabricar.body.stmts.iter().any(|stmt| {
+        matches!(stmt, Stmt::Let(let_stmt) if matches!(let_stmt.ty, Some(Type::Function { .. })))
+    });
+    assert!(
+        has_let_for_function_value,
+        "closure capturante deveria forçar Stmt::Let real, não o atalho de alias"
+    );
+}
 // @pinker-nav:end evidencia.parser.ast-basica-e-spans
 
 // @pinker-nav:start evidencia.parser.diagnostico-e-limites-literais

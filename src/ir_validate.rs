@@ -1621,6 +1621,18 @@ fn infer_value_type(
                 .ok_or_else(|| ir_validation_error("referência a função inexistente", span))?;
             Ok(TypeIR::Function)
         }
+        ValueIR::MakeClosure {
+            function_name,
+            captures,
+        } => {
+            funcs
+                .get(function_name)
+                .ok_or_else(|| ir_validation_error("closure para função inexistente", span))?;
+            for capture in captures {
+                infer_value_type(capture, slots, consts, funcs, span)?;
+            }
+            Ok(TypeIR::Function)
+        }
         ValueIR::CallIndirect {
             callee,
             args,

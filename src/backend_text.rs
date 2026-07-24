@@ -163,6 +163,12 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                                     .to_string(),
                                 span: crate::token::Span::single(crate::token::Position::new(1, 1)),
                             }),
+                            InstructionCfgIR::MakeClosure { .. } => Err(PinkerError::Ir {
+                                msg:
+                                    "backend textual ainda não lowera criação de closure (fase 243)"
+                                        .to_string(),
+                                span: crate::token::Span::single(crate::token::Position::new(1, 1)),
+                            }),
                             InstructionCfgIR::Falar { args } => Ok(BackendTextInstruction::Falar {
                                 args: map_falar_args_from_cfg(args),
                             }),
@@ -414,6 +420,10 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
         SelectedInstr::CallIndirect { .. } => Err(PinkerError::Ir {
             msg: "backend textual ainda não lowera chamada indireta selecionada (fase 242)"
                 .to_string(),
+            span: crate::token::Span::single(crate::token::Position::new(1, 1)),
+        }),
+        SelectedInstr::MakeClosure { .. } => Err(PinkerError::Ir {
+            msg: "backend textual ainda não lowera criação de closure (fase 243)".to_string(),
             span: crate::token::Span::single(crate::token::Position::new(1, 1)),
         }),
         SelectedInstr::Falar { args } => Ok(BackendTextInstruction::Falar {

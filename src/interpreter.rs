@@ -58,13 +58,14 @@ struct RuntimeListState {
     next_list_handle: u64,
 }
 
-// Fase 242: registro de valores callable — handle de 1 palavra para um
-// descritor {nome da função, capturas}. `captured` é sempre vazio nesta
-// fase (sem closures); reservado para a Fase 243 preencher no momento da
-// criação da closure (snapshot por valor).
+// Fase 242/243: registro de valores callable — handle de 1 palavra para um
+// descritor {nome da função (na Fase 243, o wrapper `__fnref_env_*` para
+// referências a função top-level), endereço do ambiente em `memory` quando
+// capturante}. `env_addr: None` == `env_ptr` nulo (não-capturante) — mesmo
+// sentinela do backend nativo.
 struct CallableDescriptor {
     function_name: String,
-    captured: Vec<RuntimeValue>,
+    env_addr: Option<usize>,
 }
 
 struct CallableState {
@@ -73,6 +74,10 @@ struct CallableState {
     // Memoiza o handle de cada função top-level não capturante referenciada
     // como valor, para não recriar descritor a cada `PushFunctionRef`.
     static_by_name: HashMap<String, u64>,
+    // Fase 243: contador de endereços simulados para ambientes de closure em
+    // heap. Base bem acima de qualquer endereço estático (`build_memory`
+    // começa em 1) para nunca colidir.
+    next_heap_addr: usize,
 }
 
 impl CallableState {
@@ -81,6 +86,7 @@ impl CallableState {
             table: HashMap::new(),
             next_handle: 1,
             static_by_name: HashMap::new(),
+            next_heap_addr: 0x1000_0000,
         }
     }
 
@@ -94,12 +100,39 @@ impl CallableState {
             handle,
             CallableDescriptor {
                 function_name: function_name.to_string(),
-                captured: Vec::new(),
+                env_addr: None,
             },
         );
         self.static_by_name
             .insert(function_name.to_string(), handle);
         handle
+    }
+
+    // Fase 243: cria uma NOVA instância de closure — nunca memoizada, ao
+    // contrário de `get_or_create_static` — pois cada criação (cada execução
+    // do literal `carinho`) tem seu próprio ambiente, mesmo para o mesmo
+    // `function_name` (duas chamadas de `fabricar_somador` produzem duas
+    // closures com o mesmo código e ambientes distintos).
+    fn create_closure_instance(&mut self, function_name: &str, env_addr: Option<usize>) -> u64 {
+        let handle = self.next_handle;
+        self.next_handle += 1;
+        self.table.insert(
+            handle,
+            CallableDescriptor {
+                function_name: function_name.to_string(),
+                env_addr,
+            },
+        );
+        handle
+    }
+
+    // Fase 243: reserva `count` endereços contíguos em `memory` para um novo
+    // ambiente de closure; devolve o endereço base (offset 0 == captura 0),
+    // igual ao layout `env_ptr + i*8` do IR/backend nativo.
+    fn allocate_env(&mut self, count: usize) -> usize {
+        let base = self.next_heap_addr;
+        self.next_heap_addr += count.max(1) * 8;
+        base
     }
 }
 
@@ -761,6 +794,23 @@ fn exec_instr(
             let handle = callable_state.get_or_create_static(name);
             stack.push(RuntimeValue::Callable(handle));
         }
+        MachineInstr::MakeClosure {
+            function_name,
+            capture_count,
+        } => {
+            let captured = pop_args(stack, *capture_count)?;
+            let env_addr = if captured.is_empty() {
+                None
+            } else {
+                let base = callable_state.allocate_env(captured.len());
+                for (index, value) in captured.into_iter().enumerate() {
+                    memory.insert(base + index * 8, value);
+                }
+                Some(base)
+            };
+            let handle = callable_state.create_closure_instance(function_name, env_addr);
+            stack.push(RuntimeValue::Callable(handle));
+        }
         MachineInstr::CallIndirect { argc } => {
             let Some(callee_value) = stack.pop() else {
                 return Err(runtime_err("call_indirect exige handle callable no topo"));
@@ -773,8 +823,12 @@ fn exec_instr(
                 return Err(runtime_err("call_indirect com handle callable inválido"));
             };
             let function_name = descriptor.function_name.clone();
-            let mut combined_args = descriptor.captured.clone();
-            combined_args.extend(user_args);
+            // Fase 243: `__env` é sempre o argumento real final (trailing),
+            // uniforme para toda função indiretamente chamável — closure ou
+            // wrapper de função top-level (`__fnref_env_*`, que o ignora).
+            let env_value = RuntimeValue::Ptr(descriptor.env_addr.unwrap_or(0));
+            let mut combined_args = user_args;
+            combined_args.push(env_value);
             let result = call_function(
                 &function_name,
                 combined_args,
@@ -4799,6 +4853,7 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::CallVoid { .. } => "call_void",
         MachineInstr::PushFunctionRef(_) => "push_function_ref",
         MachineInstr::CallIndirect { .. } => "call_indirect",
+        MachineInstr::MakeClosure { .. } => "make_closure",
         MachineInstr::PrintIntInline => "print_int_inline",
         MachineInstr::PrintBoolInline => "print_bool_inline",
         MachineInstr::PrintStrValueInline => "print_str_value_inline",

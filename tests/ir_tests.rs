@@ -511,7 +511,10 @@ carinho principal() -> bombom {
 }
 "#;
     let ir = render_ir(code).unwrap();
-    assert!(ir.contains("fnref(dobrar)"), "{}", ir);
+    // Fase 243: fnref aponta para o wrapper sintético `__fnref_env_dobrar`
+    // (aceita e ignora `__env`, convenção uniforme de toda chamada
+    // indireta); `dobrar` em si nunca muda de assinatura.
+    assert!(ir.contains("fnref(__fnref_env_dobrar)"), "{}", ir);
 }
 
 #[test]
@@ -539,5 +542,102 @@ fn fase242_chamada_direta_legada_continua_como_call_por_nome() {
     let ir = render_ir(code).unwrap();
     assert!(ir.contains("call dobrar("), "{}", ir);
     assert!(!ir.contains("call_indirect"), "{}", ir);
+}
+
+#[test]
+fn fase243_closure_com_captura_vira_make_closure() {
+    let code = r#"
+pacote main;
+carinho fabricar(base: bombom) -> carinho() -> bombom {
+    mimo carinho() -> bombom {
+        mimo base;
+    };
+}
+carinho principal() -> bombom { mimo 0; }
+"#;
+    let ir = render_ir(code).unwrap();
+    assert!(
+        ir.contains("make_closure __anon_carinho_"),
+        "closure referenciada como valor deveria virar make_closure: {}",
+        ir
+    );
+    assert!(
+        ir.contains("%__env#0: seta<?>"),
+        "corpo da closure deveria ganhar parâmetro __env: {}",
+        ir
+    );
+    assert!(
+        ir.contains("deref(add(%__env#0, 0:bombom))"),
+        "corpo deveria carregar a captura a partir de __env: {}",
+        ir
+    );
+}
+
+#[test]
+fn fase243_closure_sem_captura_com_nova_muda_ainda_usa_make_closure() {
+    // Regressão de interação: `nova` (sem `muda`) com literal não capturante
+    // continua tomando o caminho rápido pré-existente da Fase 238/239 (vira
+    // `call` direta, sem `make_closure` — ver teste companheiro abaixo). Com
+    // `nova muda`, o caminho geral é obrigatório e, mesmo sem capturas reais,
+    // a closure passa por `resolve_closure`/`make_closure` (lista vazia) e
+    // ganha `__env` (ignorado em runtime), mantendo a convenção uniforme.
+    let code = r#"
+pacote main;
+carinho principal() -> bombom {
+    nova muda f: carinho() -> bombom = carinho() -> bombom {
+        mimo 7;
+    };
+    mimo f();
+}
+"#;
+    let ir = render_ir(code).unwrap();
+    assert!(
+        ir.contains("make_closure __anon_carinho_1[]"),
+        "closure sem captura com nova muda deveria usar make_closure com lista vazia: {}",
+        ir
+    );
+    assert!(ir.contains("%__env#0: seta<?>"), "{}", ir);
+}
+
+#[test]
+fn fase243_closure_sem_captura_com_nova_simples_usa_caminho_rapido_pre_existente() {
+    // Companheiro do teste acima: sem `muda`, a otimização da Fase 238/239
+    // permanece intacta — `f` nunca vira variável real, `f()` vira chamada
+    // direta ao nome sintético, sem `call_indirect` nem `make_closure`.
+    let code = r#"
+pacote main;
+carinho principal() -> bombom {
+    nova f: carinho() -> bombom = carinho() -> bombom {
+        mimo 7;
+    };
+    mimo f();
+}
+"#;
+    let ir = render_ir(code).unwrap();
+    assert!(!ir.contains("make_closure"), "{}", ir);
+    assert!(!ir.contains("call_indirect"), "{}", ir);
+    assert!(ir.contains("call __anon_carinho_1("), "{}", ir);
+}
+
+#[test]
+fn fase243_closure_aninhada_gera_duas_make_closure() {
+    let code = r#"
+pacote main;
+carinho fabricar(base: bombom) -> carinho() -> carinho() -> bombom {
+    mimo carinho() -> carinho() -> bombom {
+        mimo carinho() -> bombom {
+            mimo base;
+        };
+    };
+}
+carinho principal() -> bombom { mimo 0; }
+"#;
+    let ir = render_ir(code).unwrap();
+    assert_eq!(
+        ir.matches("make_closure").count(),
+        2,
+        "closure aninhada deveria produzir duas ocorrências de make_closure: {}",
+        ir
+    );
 }
 // @pinker-nav:end evidencia.ir.lowering-tipos-compostos

@@ -4602,6 +4602,183 @@ fn fase242_regressao_fase239_ainda_aceita_e_rejeita_igual() {
 }
 // @pinker-nav:end evidencia.semantica.funcoes-locais-e-carinho
 
+// @pinker-nav:start evidencia.semantica.closures-captura-imutavel
+// @pinker-nav:domain semantica
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Fase 243: exercita, via parse_and_check, closures com captura imutável por valor (`carinho(...) {...}` referenciado como valor, nunca chamado imediatamente): aceita captura simples e múltipla, sombreamento por parâmetro e por local, closure aninhada capturando do avô léxico e closure passada como argumento; rejeita atribuição a captura e captura de tipo maior que uma palavra (ninho por valor), nos casos presentes. O idioma de chamada imediata (`carinho(...) {...}(x)`, Fase 225) permanece não capturante mesmo referenciando escopo externo — regressão coberta em `carinho_anonimo_nao_captura_escopo_externo`.
+#[test]
+fn fase243_closure_captura_imutavel_aceita() {
+    let code = include_str!("../examples/fase243_closure_captura_imutavel_valido.pink");
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase243_exemplo_canonico_prova_escape_do_escopo_criador() {
+    // `fabricar_somador` só constrói e retorna a closure — nunca a chama —
+    // provando que a evidência de "executa depois do retorno do criador"
+    // não vem de uma chamada escondida dentro do próprio criador.
+    // `principal` é quem chama `somar_2`/`somar_10`, e só depois de
+    // `fabricar_somador` já ter retornado (a chamada `fabricar_somador(2)`
+    // completa antes de `somar_2` existir).
+    let code = include_str!("../examples/fase243_closure_captura_imutavel_valido.pink");
+    let start = code
+        .find("carinho fabricar_somador")
+        .expect("fabricar_somador presente");
+    let end = code[start..]
+        .find("\ncarinho principal")
+        .map(|offset| start + offset)
+        .expect("função principal após fabricar_somador");
+    let corpo_fabricar_somador = &code[start..end];
+    assert!(
+        !corpo_fabricar_somador.contains("}("),
+        "fabricar_somador não pode chamar a closure imediatamente após criá-la (idioma de chamada imediata da Fase 225) — só construir e retornar: {corpo_fabricar_somador}"
+    );
+    let corpo_principal = &code[end..];
+    assert!(
+        corpo_principal.contains("somar_2(40)") && corpo_principal.contains("somar_10(32)"),
+        "principal deve chamar as duas closures já retornadas por fabricar_somador"
+    );
+}
+
+#[test]
+fn fase243_closure_captura_multipla_de_tipos_distintos_aceita() {
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom, ligado: logica, rotulo: verso) -> carinho() -> bombom {
+            mimo carinho() -> bombom {
+                talvez ligado {
+                    mimo base + tamanho_verso(rotulo);
+                } senao {
+                    mimo base;
+                }
+            };
+        }
+        carinho principal() -> bombom {
+            nova f: carinho() -> bombom = fabricar(10, verdade, "ab");
+            mimo f();
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase243_closure_rejeita_atribuicao_a_captura() {
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom) -> carinho() -> bombom {
+            mimo carinho() -> bombom {
+                base = base + 1;
+                mimo base;
+            };
+        }
+        carinho principal() -> bombom {
+            nova f: carinho() -> bombom = fabricar(1);
+            mimo f();
+        }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("reatribuição inválida") && err.contains("'base'"),
+        "erro inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase243_closure_rejeita_captura_de_tipo_maior_que_uma_palavra() {
+    let code = r#"
+        pacote main;
+        ninho Par { a: bombom; }
+        carinho fabricar(p: Par) -> carinho() -> bombom {
+            mimo carinho() -> bombom {
+                mimo p.a;
+            };
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = parse_and_check(code).unwrap_err().to_string();
+    assert!(
+        err.contains("captura de 'p'") && err.contains("não suportada nesta fase"),
+        "erro inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase243_closure_parametro_sombreia_captura_aceita() {
+    // `base` é parâmetro da closure, não captura: a closure não depende do
+    // `base` externo (18) — usa exclusivamente o próprio parâmetro (5).
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom) -> carinho(bombom) -> bombom {
+            mimo carinho(base: bombom) -> bombom {
+                mimo base;
+            };
+        }
+        carinho principal() -> bombom {
+            nova f: carinho(bombom) -> bombom = fabricar(18);
+            mimo f(5);
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase243_closure_local_sombreia_captura_aceita() {
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom) -> carinho() -> bombom {
+            mimo carinho() -> bombom {
+                nova base: bombom = base + 1000;
+                mimo base;
+            };
+        }
+        carinho principal() -> bombom {
+            nova f: carinho() -> bombom = fabricar(1);
+            mimo f();
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase243_closure_aninhada_captura_do_escopo_avo() {
+    let code = r#"
+        pacote main;
+        carinho fabricar(base: bombom) -> carinho() -> carinho() -> bombom {
+            mimo carinho() -> carinho() -> bombom {
+                mimo carinho() -> bombom {
+                    mimo base;
+                };
+            };
+        }
+        carinho principal() -> bombom {
+            nova externa: carinho() -> carinho() -> bombom = fabricar(7);
+            nova interna: carinho() -> bombom = externa();
+            mimo interna();
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+
+#[test]
+fn fase243_closure_passada_como_argumento_aceita() {
+    let code = r#"
+        pacote main;
+        carinho aplicar(f: carinho() -> bombom) -> bombom {
+            mimo f();
+        }
+        carinho fabricar(base: bombom) -> carinho() -> bombom {
+            mimo carinho() -> bombom {
+                mimo base;
+            };
+        }
+        carinho principal() -> bombom {
+            mimo aplicar(fabricar(9));
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
+}
+// @pinker-nav:end evidencia.semantica.closures-captura-imutavel
+
 // @pinker-nav:start evidencia.semantica.tratos-e-impls
 // @pinker-nav:domain semantica
 // @pinker-nav:layer evidencia

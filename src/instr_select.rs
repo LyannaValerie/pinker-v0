@@ -172,6 +172,13 @@ pub enum SelectedInstr {
         args: Vec<OperandIR>,
         ret_type: TypeIR,
     },
+    // Fase 243: materialização de closure selecionada — mesmos campos do
+    // `InstructionCfgIR::MakeClosure`.
+    MakeClosure {
+        dest: crate::cfg_ir::TempIR,
+        function_name: String,
+        captures: Vec<OperandIR>,
+    },
     Falar {
         args: Vec<FalarArgSelected>,
     },
@@ -452,6 +459,15 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             args: args.clone(),
             ret_type: *ret_type,
         }),
+        InstructionCfgIR::MakeClosure {
+            dest,
+            function_name,
+            captures,
+        } => Ok(SelectedInstr::MakeClosure {
+            dest: *dest,
+            function_name: function_name.clone(),
+            captures: captures.clone(),
+        }),
         InstructionCfgIR::Falar { args } => Ok(SelectedInstr::Falar {
             args: lower_falar_args(args),
         }),
@@ -731,6 +747,20 @@ fn render_instr(inst: &SelectedInstr) -> String {
                 .collect::<Vec<_>>()
                 .join(", "),
             ret_type.name()
+        ),
+        SelectedInstr::MakeClosure {
+            dest,
+            function_name,
+            captures,
+        } => format!(
+            "{} = make_closure {}[{}]",
+            render_temp(*dest),
+            function_name,
+            captures
+                .iter()
+                .map(render_operand)
+                .collect::<Vec<_>>()
+                .join(", ")
         ),
         SelectedInstr::Falar { args } => format!(
             "falar {}",

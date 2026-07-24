@@ -103,6 +103,13 @@ pub struct SemanticChecker {
     current_func_name: Option<String>,
     current_func_ret: Option<Type>,
     loop_depth: usize,
+    // Fase 243: closures (`__anon_carinho_*`) já resolvidas (corpo checado
+    // com o ambiente correto) e suas capturas — nome da closure -> lista
+    // (nome capturado, tipo), em ordem determinística de primeira
+    // referência no corpo. Uma closure é resolvida exatamente uma vez, no
+    // ponto de criação (onde seu `Ident` sintético aparece como valor).
+    checked_closures: HashSet<String>,
+    closure_captures: HashMap<String, Vec<(String, Type)>>,
 }
 
 impl Default for SemanticChecker {
@@ -126,6 +133,8 @@ impl SemanticChecker {
             current_func_name: None,
             current_func_ret: None,
             loop_depth: 0,
+            checked_closures: HashSet::new(),
+            closure_captures: HashMap::new(),
         }
     }
 
@@ -980,9 +989,29 @@ impl SemanticChecker {
 
         for item in &program.items {
             match item {
+                // Fase 243: closures (`__anon_carinho_*`) são checadas
+                // lazily no ponto de criação (`resolve_closure_value`), com
+                // o ambiente léxico correto — não aqui, isoladas.
+                Item::Function(function) if function.name.starts_with("__anon_carinho_") => {}
                 Item::Function(function) => self.check_function(function)?,
                 Item::Const(constant) => self.check_const_body(constant)?,
                 Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) | Item::Trait(_) => {}
+            }
+        }
+
+        // Fase 243: closure sintética nunca resolvida como valor (idioma de
+        // chamada imediata `carinho(...) {...}(x)`, Fase 225) nunca passa
+        // por `resolve_closure_value` — permanece uma função comum, sem
+        // `__env`, igual ao comportamento anterior à Fase 243. Só closures
+        // genuinamente usadas como valor recebem a convenção uniforme.
+        for item in &program.items {
+            if let Item::Function(function) = item {
+                if function.name.starts_with("__anon_carinho_")
+                    && !self.checked_closures.contains(&function.name)
+                {
+                    self.checked_closures.insert(function.name.clone());
+                    self.check_function(function)?;
+                }
             }
         }
 
@@ -1283,6 +1312,150 @@ impl SemanticChecker {
         self.current_func_name = None;
         self.current_func_ret = None;
         self.loop_depth = 0;
+        Ok(())
+    }
+
+    // Fase 243: resolve um literal `carinho` (Fase 225) no ponto exato onde
+    // seu `Ident` sintético aparece como valor — momento em que `self.scopes`
+    // reflete o escopo léxico realmente vigente na criação. Cada identificador
+    // livre do corpo (varredura sintática de `ast::free_identifiers_in_function`)
+    // que resolve para uma variável local (`resolve_local_var_type`, não
+    // `self.funcs`/`self.consts`) é uma captura por valor; os demais resolvem
+    // normalmente dentro do próprio corpo (função top-level, constante,
+    // variante de leque) e não geram captura alguma. Resolvida uma única vez
+    // por closure — chamadas repetidas devolvem o tipo já calculado sem
+    // recomputar nem re-checar o corpo.
+    fn resolve_closure_value(&mut self, name: &str, span: Span) -> Result<Type, PinkerError> {
+        if self.checked_closures.contains(name) {
+            return self
+                .function_value_type(name)
+                .ok_or_else(|| PinkerError::Semantic {
+                    msg: format!("closure '{}' não encontrada após resolução", name),
+                    span,
+                });
+        }
+        let function = self
+            .funcs
+            .get(name)
+            .cloned()
+            .ok_or_else(|| PinkerError::Semantic {
+                msg: format!("closure '{}' não declarada", name),
+                span,
+            })?;
+        let param_names: HashSet<String> = function.params.iter().map(|p| p.name.clone()).collect();
+        let free = transitive_free_identifiers_in_function(&function, |name| {
+            self.funcs.get(name).cloned()
+        });
+        let mut captures = Vec::new();
+        for candidate in &free {
+            if param_names.contains(candidate) {
+                continue;
+            }
+            let Some(meta) = self.resolve_local_var_type(candidate) else {
+                continue;
+            };
+            // Tipos de valor único (1 palavra na ABI: escalar, handle de
+            // leque/lista/mapa, seta ou callable). `ninho`/array fixo são
+            // agregados multi-palavra — não suportados como captura nesta
+            // fase (fora de escopo, §14.8: sem células internas/GC para
+            // sustentar um layout mais complexo no ambiente).
+            let capture_size_ok = matches!(
+                meta,
+                Type::Bombom(_)
+                    | Type::U8(_)
+                    | Type::U16(_)
+                    | Type::U32(_)
+                    | Type::U64(_)
+                    | Type::I8(_)
+                    | Type::I16(_)
+                    | Type::I32(_)
+                    | Type::I64(_)
+                    | Type::Logica(_)
+                    | Type::Verso(_)
+                    | Type::Enum { .. }
+                    | Type::ListBombom(_)
+                    | Type::ListVerso(_)
+                    | Type::MapVersoBombom(_)
+                    | Type::MapVersoVerso(_)
+                    | Type::MapBombomBombom(_)
+                    | Type::MapBombomVerso(_)
+                    | Type::Pointer { .. }
+                    | Type::Function { .. }
+            );
+            if !capture_size_ok {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "captura de '{}' com tipo '{}' não suportada nesta fase (apenas tipos de 1 palavra)",
+                        candidate,
+                        meta.name()
+                    ),
+                    span,
+                });
+            }
+            captures.push((candidate.clone(), meta));
+        }
+        self.closure_captures
+            .insert(name.to_string(), captures.clone());
+        self.checked_closures.insert(name.to_string());
+        self.check_closure_function(&function, &captures)?;
+        self.function_value_type(name)
+            .ok_or_else(|| PinkerError::Semantic {
+                msg: format!("closure '{}' sem tipo função válido", name),
+                span,
+            })
+    }
+
+    // Checa o corpo de uma closure com duas camadas de escopo: capturas
+    // (imutáveis, resolvidas no momento da criação) por baixo, parâmetros da
+    // própria closure por cima — permitindo que um parâmetro sombreie uma
+    // captura homônima (§14.3) sem violar a proibição de sombreamento no
+    // mesmo escopo. Atribuir a uma captura já é rejeitado pela checagem de
+    // mutabilidade existente (`declare_var(..., is_mut=false, ...)`), sem
+    // diagnóstico dedicado.
+    fn check_closure_function(
+        &mut self,
+        function: &FunctionDecl,
+        captures: &[(String, Type)],
+    ) -> Result<(), PinkerError> {
+        let saved_func_name = self.current_func_name.take();
+        let saved_func_ret = self.current_func_ret.take();
+        let saved_loop_depth = self.loop_depth;
+
+        self.current_func_name = Some(function.name.clone());
+        self.current_func_ret = function
+            .ret_type
+            .as_ref()
+            .map(|ty| self.resolve_type_or_error(ty))
+            .transpose()?;
+        self.loop_depth = 0;
+
+        self.push_scope();
+        for (capture_name, capture_ty) in captures {
+            self.declare_var(capture_name, capture_ty.clone(), false, function.span)?;
+        }
+        self.push_scope();
+        for param in &function.params {
+            let resolved_param_ty = self.resolve_type_or_error(&param.ty)?;
+            self.declare_var(&param.name, resolved_param_ty, false, param.span)?;
+        }
+
+        self.check_block(&function.body, true)?;
+
+        if self.current_func_ret.is_some() && !self.block_returns(&function.body) {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "função '{}' com retorno declarado não retorna em todos os caminhos simples",
+                    function.name
+                ),
+                span: function.body.span,
+            });
+        }
+
+        self.pop_scope();
+        self.pop_scope();
+        self.current_func_name = saved_func_name;
+        self.current_func_ret = saved_func_ret;
+        self.loop_depth = saved_loop_depth;
         Ok(())
     }
     // @pinker-nav:end semantic.funcoes.verificacao
@@ -1779,6 +1952,13 @@ impl SemanticChecker {
             ExprKind::BoolLit(_) => Ok(Type::Logica(expr.span)),
             ExprKind::StringLit(_) => Ok(Type::Verso(expr.span)),
             ExprKind::Ident(name) => {
+                // Fase 243: nome sintético de literal `carinho` (Fase 225) —
+                // resolve como criação de closure (materializa captura por
+                // valor e checa o corpo com o ambiente correto), não como
+                // resolução genérica de variável/função da Fase 242.
+                if name.starts_with("__anon_carinho_") {
+                    return self.resolve_closure_value(name, expr.span);
+                }
                 self.resolve_var(name)
                     .map(|meta| meta.ty)
                     .ok_or_else(|| PinkerError::Semantic {

@@ -77,9 +77,17 @@ pub enum MachineInstr {
     Neg,
     Not,
     BitNot,
-    DerefLoad { ty: TypeIR, is_volatile: bool },
-    DerefStore { ty: TypeIR, is_volatile: bool },
-    Cast { ty: TypeIR },
+    DerefLoad {
+        ty: TypeIR,
+        is_volatile: bool,
+    },
+    DerefStore {
+        ty: TypeIR,
+        is_volatile: bool,
+    },
+    Cast {
+        ty: TypeIR,
+    },
     BitAnd,
     BitOr,
     BitXor,
@@ -96,14 +104,31 @@ pub enum MachineInstr {
     CmpLe,
     CmpGt,
     CmpGe,
-    Call { callee: String, argc: usize },
-    CallVoid { callee: String, argc: usize },
+    Call {
+        callee: String,
+        argc: usize,
+    },
+    CallVoid {
+        callee: String,
+        argc: usize,
+    },
     // Fase 242: empilha o handle callable (descritor estático) da função
     // top-level nomeada.
     PushFunctionRef(String),
     // Fase 242: consome do topo o handle callable e, abaixo dele, `argc`
     // argumentos; sempre produz valor (tipo função público nunca é `nulo`).
-    CallIndirect { argc: usize },
+    CallIndirect {
+        argc: usize,
+    },
+    // Fase 243: consome do topo `capture_count` valores (snapshot por
+    // valor, já empilhados na ordem de primeira referência), aloca o
+    // ambiente em heap quando `capture_count > 0` e empilha o handle
+    // callable da nova instância de closure (nunca memoizado — cada
+    // criação do literal produz um ambiente próprio).
+    MakeClosure {
+        function_name: String,
+        capture_count: usize,
+    },
     PrintIntInline,
     PrintBoolInline,
     PrintStrValueInline,
@@ -366,6 +391,20 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) {
             }
             emit_load(callee, code);
             code.push(MachineInstr::CallIndirect { argc: args.len() });
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
+        SelectedInstr::MakeClosure {
+            dest,
+            function_name,
+            captures,
+        } => {
+            for capture in captures {
+                emit_load(capture, code);
+            }
+            code.push(MachineInstr::MakeClosure {
+                function_name: function_name.clone(),
+                capture_count: captures.len(),
+            });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
         SelectedInstr::Falar { args } => {
@@ -735,6 +774,16 @@ fn render_instr(i: &MachineInstr) -> String {
             &format!(
                 "consome handle callable no topo e {} argumento(s) abaixo, empilha o retorno",
                 argc
+            ),
+        ),
+        MachineInstr::MakeClosure {
+            function_name,
+            capture_count,
+        } => with_comment(
+            format!("make_closure {}, {}", function_name, capture_count),
+            &format!(
+                "consome {} valor(es) capturado(s), aloca ambiente e empilha novo handle callable de {}",
+                capture_count, function_name
             ),
         ),
         MachineInstr::PrintIntInline => {
