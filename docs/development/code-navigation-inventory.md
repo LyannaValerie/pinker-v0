@@ -77,12 +77,56 @@ exatamente uma região marker-only, `apps.guardiao.auditoria` (domínio
 guardião.
 
 Estado atual explícito: `onda_8_complete = true`; `onda_9_complete = true`;
-`trama_complete = false`; `apps_reserved_for_wave_9 = false`; `apps/` passou a
+`trama_complete = true`; `apps_reserved_for_wave_9 = false`; `apps/` passou a
 ser raiz oficial obrigatória. Métricas atuais: catálogo = 455 regiões;
 evidencia = 238; runtime = 15; `apps` = 1. As Ondas 10, 11 e 12 permanecem
-**UNRESOLVED**: seu escopo não está definido e a Onda 9 não implementa nenhuma
-delas nem conclui a Trama. Esta cartografia não prova a correção semântica do
-guardião nem cobertura exaustiva de `apps/`.
+**NOT_DEFINED**: seu escopo nunca recebeu definição canônica e nenhuma delas é
+necessária para o fechamento. A própria Onda 9 não conclui a Trama; o
+fechamento formal separado está registrado na seção *Fechamento formal da
+Trama Pinker V1 (estado corrente)*. Esta cartografia não prova a correção
+semântica do guardião nem cobertura exaustiva de `apps/`.
+
+## Fechamento formal da Trama Pinker V1 (estado corrente)
+
+Esta seção registra o **estado corrente** do fechamento formal, autorizado pela
+Founder, e é distinta de toda a narrativa histórica acima. As seções das ondas
+anteriores preservam intactos os checkpoints em que a Trama ainda estava
+incompleta.
+
+```
+histórico:
+  estados antigos com trama_complete = false
+estado corrente:
+  trama_complete = true
+```
+
+Estado corrente do fechamento formal:
+
+```
+onda_8_complete = true
+onda_9_complete = true
+trama_complete = true
+waves_10_12 = NOT_DEFINED
+waves_10_12_required_for_closure = false
+total_regions = 455
+evidencia_regions = 238
+runtime_regions = 15
+apps_regions = 1
+source_regions_added = 0
+functional_changes = false
+```
+
+O fechamento é apenas formal: nenhuma região foi adicionada; nenhuma
+funcionalidade do scanner foi alterada; nenhuma mudança de linguagem, compilador
+ou runtime ocorreu. As Ondas 10, 11 e 12 nunca receberam definição canônica e
+nenhuma delas é necessária para o fechamento.
+
+A PR #397 é **pós-fechamento**: não é necessária para fechar a Trama, permanece
+inalterada e não pode ser rebaseada, atualizada ou mergeada antes de o roadmap
+declarar `Eixo A — linguagem: COMPLETE`. As futuras Tramas ficam adiadas até
+depois do Eixo A e não entram no caminho crítico. O próximo trabalho funcional
+retorna ao Eixo A do Bloco 20. A Trama pode evoluir futuramente sem permanecer
+aberta; o contrato completo está em `tramas-v1.md`.
 
 ## Contrato do scanner
 

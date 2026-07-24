@@ -96,3 +96,9 @@ junto com a feature, e os marcadores `@pinker-nav` acompanham o código.
 
 - **Engine:** `../engine/README.md`
 - **Linguagem:** `../language/README.md`
+
+## Política das Tramas
+
+O contrato de conclusão da Trama Pinker V1 e a ordem das futuras Tramas
+estão em `tramas-v1.md`. Nenhuma Trama posterior entra antes de o roadmap
+declarar `Eixo A — linguagem: COMPLETE`.

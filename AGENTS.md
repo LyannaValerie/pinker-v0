@@ -86,6 +86,10 @@ Mapa curto por feature: `docs/code_map.md`.
 - Vulnerabilidades devem usar o relato privado descrito em `SECURITY.md`, nunca Issues públicas.
 - Discussions é espaço exploratório e não autoriza roadmap ou implementação.
 - A exceção estreita para arquivos de saúde comunitária está em `docs/doc_rules.md`.
+- A Trama Pinker V1 está formalmente concluída. Trama Nova, pós-Trama,
+  snapshots e expansões de orquestração permanecem adiados até o roadmap
+  declarar `Eixo A — linguagem: COMPLETE`; consulte
+  `docs/development/tramas-v1.md`.
 - Validar com `build`, `test`, `fmt-check` e `clippy` antes de encerrar.
 
 ## O que sempre checar em mudança funcional
