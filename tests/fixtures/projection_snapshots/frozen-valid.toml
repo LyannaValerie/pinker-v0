@@ -1,0 +1,15 @@
+schema = 1
+id = "synthetic.base.2"
+status = "FROZEN"
+description = "Base sintética congelada."
+region_count = 2
+projection_length = 100
+fnv1a64 = "fnv1a64:0123456789abcdef"
+justification = "Fixture sintética para o contrato somente leitura."
+
+[[reconstruction]]
+operation = "REQUIRE_REGION"
+selector_type = "key"
+selector = "synthetic.alpha"
+required = true
+consumption = "EXACTLY_ONCE"

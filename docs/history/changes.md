@@ -50,4 +50,5 @@ mão. Regenere com `pink doc sincronizar`.
 |---|---|---|---|---|---|
 | #378 | documentation | — | — | Simplifica o caminho de contribuição externa | completed |
 | #382 | parallel-phase | — | — | Adiciona mapa agrupado do catálogo de código | completed |
+| #397 | parallel-phase | — | — | Adiciona núcleo somente leitura de snapshots da Trama | completed |
 <!-- @pinker-generated:end change.history -->

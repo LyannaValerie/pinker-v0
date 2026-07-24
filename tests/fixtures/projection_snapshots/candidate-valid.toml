@@ -1,0 +1,16 @@
+schema = 1
+id = "synthetic.next.3"
+status = "CANDIDATE"
+description = "Candidato sintético."
+region_count = 2
+projection_length = 100
+fnv1a64 = "fnv1a64:fedcba9876543210"
+predecessor = "synthetic.base.2"
+justification = "Fixture sintética sem lifecycle mutável."
+
+[[reconstruction]]
+operation = "EXCLUDE_REGION"
+selector_type = "key"
+selector = "synthetic.gamma"
+required = true
+consumption = "EXACTLY_ONCE"
