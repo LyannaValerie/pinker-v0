@@ -354,6 +354,20 @@ struct TraitMetaIR {
     methods: Vec<TraitMethodMetaIR>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CallableMetadata {
+    ret_type: TypeIR,
+    ret_trait_name: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CaptureMetadata {
+    source_name: String,
+    ty: TypeIR,
+    trait_object_name: Option<String>,
+    callable: Option<CallableMetadata>,
+}
+
 #[derive(Clone)]
 struct BindingState {
     slot: String,
@@ -386,7 +400,7 @@ struct LoweringContext {
     // `nova x = alguma_funcao(...)` sem anotação explícita; um nível de
     // encadeamento (callable retornando callable retornando callable não é
     // rastreado — limite honesto desta fase).
-    callable_ret_types: HashMap<String, TypeIR>,
+    callable_metadata: HashMap<String, CallableMetadata>,
     // Fase 243: FunctionDecl de toda função do programa (inclusive
     // closures sintéticas `__anon_carinho_*`), para permitir a resolução
     // lazy de closures no ponto de criação (`FunctionLowerer::resolve_closure`)
@@ -402,7 +416,7 @@ struct LoweringContext {
 
 #[derive(Default)]
 struct ClosureLoweringState {
-    captures: HashMap<String, Vec<(String, TypeIR)>>,
+    captures: HashMap<String, Vec<CaptureMetadata>>,
     // Vec (não HashMap) para preservar ordem determinística de resolução
     // (DFS na ordem de criação) na lista final de funções do programa.
     lowered: Vec<(String, FunctionIR)>,
@@ -411,7 +425,7 @@ struct ClosureLoweringState {
     // (Fase 242, caso sem anotação explícita) continue funcionando quando
     // `ValueIR::FunctionRef` passa a apontar para o wrapper em vez do nome
     // original (`function_sigs` não conhece o wrapper).
-    wrapper_ret_types: HashMap<String, TypeIR>,
+    wrapper_metadata: HashMap<String, CallableMetadata>,
 }
 
 // Leques na IR: sem carga, o valor é o próprio discriminante imediato; com
@@ -536,9 +550,9 @@ struct FunctionLowerer<'a> {
     loop_continue_stack: Vec<String>,
     // Fase 242: slot de binding callable -> tipo de retorno da chamada
     // indireta através dele. Só populado quando estaticamente derivável (ver
-    // `LoweringContext.callable_ret_types`); ausência = erro claro no
+    // `LoweringContext.callable_metadata`); ausência = erro claro no
     // lowering da chamada, não pânico.
-    callable_ret_types: HashMap<String, TypeIR>,
+    callable_metadata: HashMap<String, CallableMetadata>,
     // Slot local/parâmetro -> nome nominal de `trato<Nome>`.
     trait_object_names: HashMap<String, String>,
 }
@@ -788,7 +802,7 @@ impl LoweringContext {
 
         let mut function_sigs = HashMap::new();
         let mut global_consts = HashMap::new();
-        let mut callable_ret_types = HashMap::new();
+        let mut callable_metadata = HashMap::new();
         let mut function_ret_trait_names = HashMap::new();
         let mut all_functions = HashMap::new();
 
@@ -822,9 +836,21 @@ impl LoweringContext {
                     // registra o ret_type DESSE callable (um nível), para
                     // permitir chamada indireta imediata sobre o resultado.
                     if let Some(Type::Function { ret, .. }) = function.ret_type.as_ref() {
-                        let inner_ret =
-                            TypeIR::from_ast_with_context(ret, &type_aliases, &struct_names)?;
-                        callable_ret_types.insert(function.name.clone(), inner_ret);
+                        callable_metadata.insert(
+                            function.name.clone(),
+                            CallableMetadata {
+                                ret_type: TypeIR::from_ast_with_context(
+                                    ret,
+                                    &type_aliases,
+                                    &struct_names,
+                                )?,
+                                ret_trait_name: trait_object_name_from_type(
+                                    ret,
+                                    &type_aliases,
+                                    &struct_names,
+                                )?,
+                            },
+                        );
                     }
                 }
                 Item::Const(const_decl) => {
@@ -1759,7 +1785,7 @@ impl LoweringContext {
             enum_variants,
             traits,
             function_ret_trait_names,
-            callable_ret_types,
+            callable_metadata,
             all_functions,
             closure_state: std::cell::RefCell::new(ClosureLoweringState::default()),
         })
@@ -1786,7 +1812,7 @@ impl<'a> FunctionLowerer<'a> {
             block_counter: 0,
             loop_exit_stack: Vec::new(),
             loop_continue_stack: Vec::new(),
-            callable_ret_types: HashMap::new(),
+            callable_metadata: HashMap::new(),
             trait_object_names: HashMap::new(),
         }
     }
@@ -1796,6 +1822,47 @@ impl<'a> FunctionLowerer<'a> {
             return typed.struct_name.clone();
         }
         Some(typed.ty.name().to_string())
+    }
+
+    fn callable_metadata_from_return_type(
+        &self,
+        ret: &Type,
+    ) -> Result<CallableMetadata, PinkerError> {
+        Ok(CallableMetadata {
+            ret_type: self.context.resolve_type(ret)?,
+            ret_trait_name: trait_object_name_from_type(
+                ret,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )?,
+        })
+    }
+
+    fn callable_metadata_for_value(&self, value: &ValueIR) -> Option<CallableMetadata> {
+        match value {
+            ValueIR::FunctionRef(name) => self
+                .context
+                .closure_state
+                .borrow()
+                .wrapper_metadata
+                .get(name)
+                .cloned(),
+            ValueIR::MakeClosure { function_name, .. } => self
+                .context
+                .function_sigs
+                .get(function_name)
+                .map(|sig| CallableMetadata {
+                    ret_type: sig.ret_type,
+                    ret_trait_name: self
+                        .context
+                        .function_ret_trait_names
+                        .get(function_name)
+                        .cloned(),
+                }),
+            ValueIR::Local(slot) => self.callable_metadata.get(slot).cloned(),
+            ValueIR::Call { callee, .. } => self.context.callable_metadata.get(callee).cloned(),
+            _ => None,
+        }
     }
 
     fn resolve_impl_method(&self, receiver: &TypedValueIR, method_name: &str) -> Option<String> {
@@ -1893,11 +1960,41 @@ impl<'a> FunctionLowerer<'a> {
                         }
                     }
                 }
-                ExprKind::Ident(function_name) => self
-                    .context
-                    .function_ret_trait_names
-                    .get(function_name)
-                    .cloned(),
+                ExprKind::Ident(function_name) => {
+                    if let Some(binding) = self.resolve_existing_binding(function_name) {
+                        if binding.ty == TypeIR::Function {
+                            let metadata =
+                                self.callable_metadata.get(&binding.slot).ok_or_else(|| {
+                                    PinkerError::Ir {
+                                        msg: format!(
+                                            "lowering perdeu os metadados do callable '{}'",
+                                            function_name
+                                        ),
+                                        span: expr.span,
+                                    }
+                                })?;
+                            if metadata.ret_type == TypeIR::TraitObject
+                                && metadata.ret_trait_name.is_none()
+                            {
+                                return Err(PinkerError::Ir {
+                                    msg: format!(
+                                        "lowering perdeu a identidade nominal do trato retornado pelo callable '{}'",
+                                        function_name
+                                    ),
+                                    span: expr.span,
+                                });
+                            }
+                            metadata.ret_trait_name.clone()
+                        } else {
+                            None
+                        }
+                    } else {
+                        self.context
+                            .function_ret_trait_names
+                            .get(function_name)
+                            .cloned()
+                    }
+                }
                 ExprKind::FieldAccess { base, field } => {
                     let trait_name = match &base.kind {
                         ExprKind::Ident(name) if self.context.traits.contains_key(name) => {
@@ -2111,7 +2208,17 @@ impl<'a> FunctionLowerer<'a> {
 
             if let Type::Function { ret, .. } = &param.ty {
                 let ret_ty = self.context.resolve_type(ret)?;
-                self.callable_ret_types.insert(binding.slot.clone(), ret_ty);
+                self.callable_metadata.insert(
+                    binding.slot.clone(),
+                    CallableMetadata {
+                        ret_type: ret_ty,
+                        ret_trait_name: trait_object_name_from_type(
+                            ret,
+                            &self.context.type_aliases,
+                            &self.context.struct_names,
+                        )?,
+                    },
+                );
             }
             self.params.push(binding);
         }
@@ -2157,7 +2264,7 @@ impl<'a> FunctionLowerer<'a> {
             .context
             .closure_state
             .borrow()
-            .wrapper_ret_types
+            .wrapper_metadata
             .contains_key(&wrapper_name)
         {
             return Ok(wrapper_name);
@@ -2231,9 +2338,24 @@ impl<'a> FunctionLowerer<'a> {
         };
 
         let mut state = self.context.closure_state.borrow_mut();
-        state
-            .wrapper_ret_types
-            .insert(wrapper_name.clone(), ret_type);
+        state.wrapper_metadata.insert(
+            wrapper_name.clone(),
+            CallableMetadata {
+                ret_type,
+                ret_trait_name: function
+                    .ret_type
+                    .as_ref()
+                    .map(|ty| {
+                        trait_object_name_from_type(
+                            ty,
+                            &self.context.type_aliases,
+                            &self.context.struct_names,
+                        )
+                    })
+                    .transpose()?
+                    .flatten(),
+            },
+        );
         state.lowered.push((wrapper_name.clone(), wrapper_fn));
         Ok(wrapper_name)
     }
@@ -2267,7 +2389,7 @@ impl<'a> FunctionLowerer<'a> {
         let free = transitive_free_identifiers_in_function(&function, |name| {
             self.context.all_functions.get(name).cloned()
         });
-        let mut captures: Vec<(String, TypeIR)> = Vec::new();
+        let mut captures: Vec<CaptureMetadata> = Vec::new();
         let mut capture_values: Vec<ValueIR> = Vec::new();
         for candidate in &free {
             if param_names.contains(candidate) {
@@ -2276,7 +2398,12 @@ impl<'a> FunctionLowerer<'a> {
             let Some(binding) = self.resolve_existing_binding(candidate) else {
                 continue;
             };
-            captures.push((candidate.clone(), binding.ty));
+            captures.push(CaptureMetadata {
+                source_name: candidate.clone(),
+                ty: binding.ty,
+                trait_object_name: self.trait_object_names.get(&binding.slot).cloned(),
+                callable: self.callable_metadata.get(&binding.slot).cloned(),
+            });
             capture_values.push(ValueIR::Local(binding.slot));
         }
         self.context
@@ -2312,7 +2439,7 @@ impl<'a> FunctionLowerer<'a> {
     fn lower_closure_function(
         mut self,
         function: &FunctionDecl,
-        captures: &[(String, TypeIR)],
+        captures: &[CaptureMetadata],
     ) -> Result<FunctionIR, PinkerError> {
         self.push_scope();
 
@@ -2334,12 +2461,20 @@ impl<'a> FunctionLowerer<'a> {
         );
 
         let mut prelude = Vec::new();
-        for (index, (capture_name, capture_ty)) in captures.iter().enumerate() {
+        for (index, capture) in captures.iter().enumerate() {
             // Capturas entram no escopo ANTES dos parâmetros para que um
             // parâmetro homônimo possa sombreá-las (§14.3) — a inserção
             // posterior do parâmetro no mesmo mapa de escopo sobrescreve.
             let capture_binding =
-                self.allocate_binding(capture_name, *capture_ty, None, None, Some(false));
+                self.allocate_binding(&capture.source_name, capture.ty, None, None, Some(false));
+            if let Some(trait_name) = &capture.trait_object_name {
+                self.trait_object_names
+                    .insert(capture_binding.slot.clone(), trait_name.clone());
+            }
+            if let Some(callable) = &capture.callable {
+                self.callable_metadata
+                    .insert(capture_binding.slot.clone(), callable.clone());
+            }
             let ptr_expr = ValueIR::Binary {
                 op: BinaryOpIR::Add,
                 lhs: Box::new(ValueIR::Local(env_binding.slot.clone())),
@@ -2349,7 +2484,7 @@ impl<'a> FunctionLowerer<'a> {
                 slot: capture_binding.slot,
                 value: ValueIR::Deref {
                     ptr: Box::new(ptr_expr),
-                    result_type: *capture_ty,
+                    result_type: capture.ty,
                     is_volatile: false,
                 },
                 span: function.span,
@@ -2380,7 +2515,17 @@ impl<'a> FunctionLowerer<'a> {
 
             if let Type::Function { ret, .. } = &param.ty {
                 let ret_ty = self.context.resolve_type(ret)?;
-                self.callable_ret_types.insert(binding.slot.clone(), ret_ty);
+                self.callable_metadata.insert(
+                    binding.slot.clone(),
+                    CallableMetadata {
+                        ret_type: ret_ty,
+                        ret_trait_name: trait_object_name_from_type(
+                            ret,
+                            &self.context.type_aliases,
+                            &self.context.struct_names,
+                        )?,
+                    },
+                );
             }
             self.params.push(binding);
         }
@@ -2444,6 +2589,20 @@ impl<'a> FunctionLowerer<'a> {
                 match &assign_stmt.target {
                     AssignTarget::Ident(name) => {
                         let binding = self.resolve_binding(name, assign_stmt.span)?;
+                        if binding.ty == TypeIR::Function {
+                            let metadata =
+                                self.callable_metadata_for_value(&value.value).ok_or_else(|| {
+                                    PinkerError::Ir {
+                                        msg: format!(
+                                            "lowering perdeu os metadados na reatribuição do callable '{}'",
+                                            name
+                                        ),
+                                        span: assign_stmt.span,
+                                    }
+                                })?;
+                            self.callable_metadata
+                                .insert(binding.slot.clone(), metadata);
+                        }
                         Ok(InstructionIR::Assign {
                             slot: binding.slot,
                             value: value.value,
@@ -2690,35 +2849,11 @@ impl<'a> FunctionLowerer<'a> {
         // chamada indireta através dela — via anotação explícita, ou
         // derivado da origem do valor (referência de função, cópia de outra
         // variável callable, ou retorno de uma função que devolve callable).
-        let callable_ret_ty = if ty == TypeIR::Function {
+        let callable_metadata = if ty == TypeIR::Function {
             if let Some(Type::Function { ret, .. }) = let_stmt.ty.as_ref() {
-                Some(self.context.resolve_type(ret)?)
+                Some(self.callable_metadata_from_return_type(ret)?)
             } else {
-                match &value.value {
-                    ValueIR::FunctionRef(name) => self
-                        .context
-                        .function_sigs
-                        .get(name)
-                        .map(|sig| sig.ret_type)
-                        .or_else(|| {
-                            self.context
-                                .closure_state
-                                .borrow()
-                                .wrapper_ret_types
-                                .get(name)
-                                .copied()
-                        }),
-                    ValueIR::MakeClosure { function_name, .. } => self
-                        .context
-                        .function_sigs
-                        .get(function_name)
-                        .map(|sig| sig.ret_type),
-                    ValueIR::Local(slot) => self.callable_ret_types.get(slot).copied(),
-                    ValueIR::Call { callee, .. } => {
-                        self.context.callable_ret_types.get(callee).copied()
-                    }
-                    _ => None,
-                }
+                self.callable_metadata_for_value(&value.value)
             }
         } else {
             None
@@ -2730,8 +2865,9 @@ impl<'a> FunctionLowerer<'a> {
             ptr_array_bombom_size,
             Some(let_stmt.is_mut),
         );
-        if let Some(ret_ty) = callable_ret_ty {
-            self.callable_ret_types.insert(binding.slot.clone(), ret_ty);
+        if let Some(metadata) = callable_metadata {
+            self.callable_metadata
+                .insert(binding.slot.clone(), metadata);
         }
 
         if ty == TypeIR::TraitObject {
@@ -3221,7 +3357,7 @@ impl<'a> FunctionLowerer<'a> {
                 // indireta real, callee é um valor (slot), não um símbolo.
                 if let Some(binding) = self.resolve_existing_binding(name) {
                     if binding.ty == TypeIR::Function {
-                        let Some(ret_type) = self.callable_ret_types.get(&binding.slot).copied()
+                        let Some(metadata) = self.callable_metadata.get(&binding.slot).cloned()
                         else {
                             return Err(PinkerError::Ir {
                                 msg: format!(
@@ -3231,6 +3367,17 @@ impl<'a> FunctionLowerer<'a> {
                                 span: expr.span,
                             });
                         };
+                        if metadata.ret_type == TypeIR::TraitObject
+                            && metadata.ret_trait_name.is_none()
+                        {
+                            return Err(PinkerError::Ir {
+                                msg: format!(
+                                    "lowering perdeu a identidade nominal do trato retornado pela chamada indireta de '{}'",
+                                    name
+                                ),
+                                span: expr.span,
+                            });
+                        }
                         let typed_args: Vec<TypedValueIR> = args
                             .iter()
                             .map(|arg| self.lower_value(arg))
@@ -3241,9 +3388,9 @@ impl<'a> FunctionLowerer<'a> {
                             value: ValueIR::CallIndirect {
                                 callee: Box::new(ValueIR::Local(binding.slot)),
                                 args: ir_args,
-                                ret_type,
+                                ret_type: metadata.ret_type,
                             },
-                            ty: ret_type,
+                            ty: metadata.ret_type,
                             struct_name: None,
                             ptr_array_bombom_size: None,
                         });
@@ -4061,6 +4208,13 @@ impl TypeIR {
 
     pub fn is_native_abi_word(&self) -> bool {
         self.native_abi_words() == Some(1)
+    }
+
+    /// Valores que podem ser copiados diretamente para uma palavra do
+    /// ambiente de closure. `Struct` continua sendo valor agregado por
+    /// valor, ainda que alguns limites da ABI o transportem por endereço.
+    pub fn is_closure_environment_word(&self) -> bool {
+        self.is_native_abi_word() && !matches!(self, TypeIR::Struct)
     }
 
     pub fn is_unsigned(&self) -> bool {

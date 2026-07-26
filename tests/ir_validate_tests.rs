@@ -381,6 +381,46 @@ fn fase244_ir_valida_chamada_dinamica_nula_como_comando() {
 }
 
 #[test]
+fn fase244_followup_ir_rejeita_identidade_nominal_obrigatoria_ausente() {
+    let function = base_function(
+        TypeIR::Bombom,
+        vec![InstructionIR::Return {
+            value: Some(ValueIR::TraitCall {
+                object: Box::new(ValueIR::MakeTraitObject {
+                    value: Box::new(ValueIR::Int(42)),
+                    trait_name: "Medivel".to_string(),
+                    concrete_type: TypeIR::Bombom,
+                    concrete_type_name: "bombom".to_string(),
+                    concrete_size: 8,
+                    vtable_methods: vec!["__impl_7_Medivel_6_bombom_medir".to_string()],
+                }),
+                trait_name: String::new(),
+                method_name: "medir".to_string(),
+                method_slot: 0,
+                method_count: 1,
+                args: vec![],
+                param_types: vec![],
+                ret_type: TypeIR::Bombom,
+            }),
+            span: sp(),
+        }],
+    );
+
+    let err = ir_validate::validate_program(&fase244_programa_com_funcao(function))
+        .expect_err("identidade nominal vazia deve ser recusada");
+    match err {
+        PinkerError::IrValidation { msg, span } => {
+            assert!(
+                msg.contains("chamada dinâmica sem identidade nominal completa"),
+                "diagnóstico inesperado: {msg}"
+            );
+            assert_eq!(span, sp(), "diagnóstico deve preservar o span da instrução");
+        }
+        other => panic!("esperado erro estruturado de IR, obtido {other:?}"),
+    }
+}
+
+#[test]
 fn fase244_ir_rejeita_tipo_concreto_incompatível_na_materializacao() {
     let function = FunctionIR {
         name: "principal".to_string(),

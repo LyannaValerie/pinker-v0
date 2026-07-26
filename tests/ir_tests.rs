@@ -645,7 +645,7 @@ carinho principal() -> bombom { mimo 0; }
 // @pinker-nav:start evidencia.ir.lowering-objetos-trato-fase244
 // @pinker-nav:domain ir
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita o lowering completo da superfície da Fase 244 para a IR estruturada: materialização explícita, ordem de vtable, tamanho do snapshot, despacho dinâmico direto e qualificado e método sem retorno.
+// @pinker-nav:summary Exercita o lowering completo da superfície da Fase 244 para a IR estruturada: materialização explícita, ordem de vtable, tamanho do snapshot, despacho dinâmico direto e qualificado, método sem retorno, propagação nominal por callables indiretos e restauração de objetos de trato e callables capturados por closures.
 
 #[test]
 fn fase244_lowering_materializa_objeto_e_preserva_ordem_da_vtable() {
@@ -1025,6 +1025,9 @@ fn fase244_type_ir_classifica_todas_as_representacoes_nativas_de_uma_palavra() {
         TypeIR::TraitObject,
     ];
     assert!(word_types.iter().all(TypeIR::is_native_abi_word));
+    assert!(TypeIR::Function.is_closure_environment_word());
+    assert!(TypeIR::TraitObject.is_closure_environment_word());
+    assert!(!TypeIR::Struct.is_closure_environment_word());
     assert_eq!(
         TypeIR::FixedArray {
             element: ScalarTypeIR::Bombom,
@@ -1036,4 +1039,99 @@ fn fase244_type_ir_classifica_todas_as_representacoes_nativas_de_uma_palavra() {
     assert_eq!(TypeIR::Nulo.native_abi_words(), Some(0));
 }
 
+#[test]
+fn fase244_followup_callable_preserva_retorno_nominal_em_todas_as_origens() {
+    let code = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho criar(valor: bombom) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+carinho aplicar(
+    fabrica: carinho(bombom) -> trato<Medivel>,
+    valor: bombom
+) -> bombom {
+    mimo fabrica(valor).medir();
+}
+carinho escolher() -> carinho(bombom) -> trato<Medivel> { mimo criar; }
+carinho principal() -> bombom {
+    nova direto: carinho(bombom) -> trato<Medivel> = criar;
+    nova alias = direto;
+    nova alias2 = alias;
+    nova copia = alias2;
+    nova retornado = escolher();
+    nova muda mutavel: carinho(bombom) -> trato<Medivel> = criar;
+    mutavel = copia;
+    nova muda anonimo: carinho(bombom) -> trato<Medivel> =
+        carinho(valor: bombom) -> trato<Medivel> {
+            mimo valor virar trato<Medivel>;
+        };
+    mimo direto(1).medir()
+        + alias2(2).medir()
+        + copia(3).medir()
+        + aplicar(copia, 4)
+        + retornado(5).medir()
+        + mutavel(6).medir()
+        + anonimo(7).medir();
+}
+"#;
+
+    let rendered = render_ir(code).expect("callables devem preservar trato<Medivel>");
+    assert!(rendered.matches("call_indirect").count() >= 7, "{rendered}");
+    assert_eq!(
+        rendered.matches("trait_call trato<Medivel>.medir").count(),
+        7,
+        "{rendered}"
+    );
+}
+
+#[test]
+fn fase244_followup_closure_restaura_metadados_nominais_do_ambiente() {
+    let code = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho criar(valor: bombom) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+carinho combinar(
+    objeto: trato<Medivel>,
+    fabrica: carinho(bombom) -> trato<Medivel>
+) -> carinho() -> bombom {
+    nova copia = objeto;
+    mimo carinho() -> bombom {
+        mimo copia.medir() + fabrica(3).medir();
+    };
+}
+carinho aninhar(objeto: trato<Medivel>)
+    -> carinho() -> carinho() -> bombom {
+    mimo carinho() -> carinho() -> bombom {
+        mimo carinho() -> bombom { mimo objeto.medir(); };
+    };
+}
+carinho principal() -> bombom {
+    nova objeto: trato<Medivel> = 5 virar trato<Medivel>;
+    nova executar: carinho() -> bombom = combinar(objeto, criar);
+    nova externa: carinho() -> carinho() -> bombom = aninhar(objeto);
+    nova interna: carinho() -> bombom = externa();
+    mimo executar() + interna();
+}
+"#;
+
+    let rendered = render_ir(code).expect("closures devem restaurar metadados nominais");
+    assert!(
+        rendered.contains("make_closure") && rendered.contains("deref(add(%__env#0"),
+        "{rendered}"
+    );
+    assert_eq!(
+        rendered.matches("trait_call trato<Medivel>.medir").count(),
+        3,
+        "{rendered}"
+    );
+}
 // @pinker-nav:end evidencia.ir.lowering-objetos-trato-fase244
