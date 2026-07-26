@@ -52,7 +52,61 @@ fn stable_region_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -
     records.concat()
 }
 
+fn project_pre_terminal_phase244_fixes(catalog: &mut CodeCatalog) {
+    // Os dois commits funcionais terminais da Fase 244 alteraram regiões já
+    // existentes. As projeções históricas continuam ancoradas no head 5870b05;
+    // restaura seus metadados antes de reconstruir cada onda predecessora.
+    for region in &mut catalog.regions {
+        let (summary, hash) = match region.key.as_str() {
+            "backend-s.lowering.chamadas-sysv" => (
+                Some("Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino — trata `__ternario` como seleção por `cmpq`+`cmoveq` (sem `call` real, ambos os lados avaliados eager), resolve intrínsecas por aridade (`runtime_intrinsic_symbol_por_aridade`) e por nome (`runtime_intrinsic_symbol`) ou chama função Pinker por símbolo direto, passa os 6 primeiros argumentos em `ARG_REGS`, empilha o 7º+ do último ao primeiro com padding de alinhamento e limpa a pilha após o `call`, guardando `%rax` no slot de destino — e `CallVoid` (mesma ABI, sem store de retorno). Símbolo desconhecido de função inexistente é recusado."),
+                Some("fnv1a64:41573bf652654758"),
+            ),
+            "backend-s.lowering.funcoes-frames" => {
+                (None, Some("fnv1a64:94058367ddbfa839"))
+            }
+            "backend-s.lowering.objetos-trato-nativos" => {
+                (None, Some("fnv1a64:3595cae009d68176"))
+            }
+            "cfg.logica.slot-logico" => (None, Some("fnv1a64:51ae0f06d8c5c23a")),
+            "cfg.lowering.constantes" => (None, Some("fnv1a64:0bb4340bac011227")),
+            "cfg.lowering.funcoes-blocos" => (None, Some("fnv1a64:de71c3894ecbb008")),
+            "cfg.lowering.valores-temporarios" => (
+                Some("Lineariza `ValueIR` em operandos e instruções CFG no bloco corrente: literais, locais (`%nome#N`) e globais viram operandos diretos; unários, dereferência, binários não lógicos, chamadas e casts emitem instruções cujo resultado recebe um `TempIR` (`%tN`); `lower_expr_stmt` descarta o retorno de chamadas `nulo` e rejeita chamada `nulo` usada como valor. Pode avançar para outro bloco quando uma subexpressão lógica altera o fluxo (delega o curto-circuito). Temporários têm escopo de função — não são registradores físicos nem SSA de slots."),
+                Some("fnv1a64:9ec5fc669b00e856"),
+            ),
+            "evidencia.backend-nativo.emissao-abi-e-fluxo-textual" => (
+                Some("Cinco testes que chamam emit_external_toolchain_subset — caminho HOSPEDADO, runtime_init=false — e verificam apenas o texto emitido para a ABI SysV (seis registradores de argumento e passagem por pilha), o padding de alinhamento de pilha, a recursão direta, o `cmov` do ternário e os saltos dos construtos de controle de fluxo. Nenhuma toolchain externa é invocada, nenhum runtime é ligado e nada é executado."),
+                Some("fnv1a64:f9435a27f680cb46"),
+            ),
+            "evidencia.backend-nativo.objetos-trato-fase244" => {
+                (None, Some("fnv1a64:4c76a4011152dac8"))
+            }
+            "evidencia.ir.lowering-objetos-trato-fase244" => {
+                (None, Some("fnv1a64:eaed01132f59b1d2"))
+            }
+            "evidencia.semantica.objetos-trato-fase244" => {
+                (None, Some("fnv1a64:868416133d04798f"))
+            }
+            "ir.lowering.expressoes-valores" => {
+                (None, Some("fnv1a64:f347d5176975946c"))
+            }
+            "ir.lowering.funcoes-blocos" => (None, Some("fnv1a64:ed99b78d29215860")),
+            "semantic.tratos.contratos" => (None, Some("fnv1a64:04142f6406259a5d")),
+            _ => (None, None),
+        };
+
+        if let Some(summary) = summary {
+            region.summary = summary.to_string();
+        }
+        if let Some(hash) = hash {
+            region.hash = hash.to_string();
+        }
+    }
+}
+
 fn exclude_phase244_post_semantic(catalog: &mut CodeCatalog) {
+    project_pre_terminal_phase244_fixes(catalog);
     const KEYS: [&str; 10] = [
         "backend-s.lowering.objetos-trato-nativos",
         "evidencia.cfg.objetos-trato-fase244",
@@ -1829,7 +1883,7 @@ fn onda_8c_cartografa_evidencias_semanticas() {
         }
         test_count += 1;
     }
-    assert_eq!(test_count, 386, "contagem de #[test] inesperada em {file}");
+    assert_eq!(test_count, 388, "contagem de #[test] inesperada em {file}");
     for (key, count) in expected_semantic_keys.iter().zip(owned_test_counts) {
         assert!(
             count >= 1,
@@ -1959,7 +2013,7 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
             &expected_ir_keys[..ir_validate_start],
             "tests/ir_tests.rs",
             "ir",
-            39,
+            41,
         ),
         (
             &expected_ir_keys[ir_validate_start..],
@@ -2105,8 +2159,8 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
         "o plano da Onda 8D perdeu uma chave"
     );
     assert_eq!(
-        total_test_count, 179,
-        "a Onda 8D deveria cobrir exatamente 179 testes"
+        total_test_count, 181,
+        "a Onda 8D deveria cobrir exatamente 181 testes"
     );
 
     // As 53 regiões de evidência anteriores devem permanecer: total de evidência = 53 + 58.
@@ -3078,8 +3132,8 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        70,
-        "{backend_nativo} deve manter exatamente 70 #[test]"
+        72,
+        "{backend_nativo} deve manter exatamente 72 #[test]"
     );
 
     for future_without_owner in [
@@ -4632,8 +4686,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        70,
-        "{nativo} deve manter exatamente 70 testes"
+        72,
+        "{nativo} deve manter exatamente 72 testes"
     );
     assert_eq!(
         catalog
