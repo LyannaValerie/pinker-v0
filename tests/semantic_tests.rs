@@ -4940,6 +4940,13 @@ fn fase244_semantica_aceita_objetos_do_mesmo_trato_para_tipos_distintos() {
             mimo 1;
         }
 
+        apelido ObjetoBase = trato<Medivel>;
+        apelido Objeto = ObjetoBase;
+
+        carinho criar(valor: bombom) -> Objeto {
+            mimo valor virar trato<Medivel>;
+        }
+
         carinho principal() -> bombom {
             nova a: bombom = 21;
             nova b: u64 = 42;
@@ -4949,8 +4956,10 @@ fn fase244_semantica_aceita_objetos_do_mesmo_trato_para_tipos_distintos() {
 
             nova objeto_b: trato<Medivel> =
                 b virar trato<Medivel>;
+            nova aliasado: Objeto = criar(a);
+            nova copia: Objeto = aliasado;
 
-            mimo consumir(objeto_a) + consumir(objeto_b);
+            mimo consumir(objeto_a) + consumir(objeto_b) + consumir(copia);
         }
     "#;
 
@@ -4958,6 +4967,60 @@ fn fase244_semantica_aceita_objetos_do_mesmo_trato_para_tipos_distintos() {
         parse_and_check(code).is_ok(),
         "dois tipos concretos devem formar o mesmo tipo nominal de objeto"
     );
+}
+
+#[test]
+fn fase244_semantica_rejeita_todas_as_comparacoes_de_objetos_de_trato_por_alias() {
+    for operador in ["==", "!=", "<", "<=", ">", ">="] {
+        let code = format!(
+            r#"
+                pacote main;
+
+                trato Medivel {{
+                    carinho medir(valor: si) -> bombom;
+                }}
+
+                impl Medivel para bombom {{
+                    carinho medir(valor: bombom) -> bombom {{
+                        mimo valor;
+                    }}
+                }}
+
+                apelido ObjetoBase = trato<Medivel>;
+                apelido Objeto = ObjetoBase;
+
+                carinho criar(valor: bombom) -> Objeto {{
+                    mimo valor virar trato<Medivel>;
+                }}
+
+                carinho principal() -> bombom {{
+                    nova original: Objeto = criar(7);
+                    nova duplicado: Objeto = original;
+                    nova comparou: logica = criar(9) {operador} duplicado;
+                    talvez comparou {{
+                        mimo 1;
+                    }}
+                    mimo 0;
+                }}
+            "#
+        );
+
+        let err = parse_and_check(&code)
+            .expect_err("comparação de objeto de trato deve parar na semântica");
+        match err {
+            pinker_v0::error::PinkerError::Semantic { msg, span } => {
+                assert!(
+                    msg.contains("comparação entre objetos de trato não é suportada"),
+                    "diagnóstico inesperado para '{operador}': {msg}"
+                );
+                assert_eq!(
+                    span.start.line, 24,
+                    "span deve apontar a expressão comparada para '{operador}'"
+                );
+            }
+            other => panic!("estágio inesperado para '{operador}': {other}"),
+        }
+    }
 }
 
 #[test]

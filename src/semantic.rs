@@ -2456,6 +2456,28 @@ impl SemanticChecker {
                     }
                 }
 
+                if matches!(
+                    op,
+                    BinaryOp::Eq
+                        | BinaryOp::Neq
+                        | BinaryOp::Lt
+                        | BinaryOp::Lte
+                        | BinaryOp::Gt
+                        | BinaryOp::Gte
+                ) {
+                    let lhs_resolved = self.resolve_type_or_error(&lhs_ty)?;
+                    let rhs_resolved = self.resolve_type_or_error(&rhs_ty)?;
+                    if Self::trait_object_name(&lhs_resolved).is_some()
+                        || Self::trait_object_name(&rhs_resolved).is_some()
+                    {
+                        return Err(PinkerError::Semantic {
+                            msg: "comparação entre objetos de trato não é suportada: igualdade, ordem e identidade observável ainda não possuem contrato"
+                                .to_string(),
+                            span: expr.span,
+                        });
+                    }
+                }
+
                 let binary_types_compatible = Self::check_type_match(&lhs_ty, &rhs_ty)
                     || (Self::expr_is_int_literal(lhs) && Self::is_integer_type(&rhs_ty))
                     || (Self::expr_is_int_literal(rhs) && Self::is_integer_type(&lhs_ty));
