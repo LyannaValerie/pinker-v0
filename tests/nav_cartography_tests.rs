@@ -52,7 +52,60 @@ fn stable_region_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -
     records.concat()
 }
 
+fn project_pre_conditional_callable_reassignment(catalog: &mut CodeCatalog) {
+    // Continuação pós-revisão da PR #407: reconstrói o head 9964325 antes de
+    // aplicar qualquer projeção histórica. Somente regiões alteradas pelo
+    // blocker de reatribuição condicional são restauradas.
+    for region in &mut catalog.regions {
+        let current_hash = match region.key.as_str() {
+            "ir.lowering.funcoes-blocos" => "fnv1a64:791de6b34b5bc033",
+            "ir.lowering.comandos-controle" => "fnv1a64:e924105887664ddc",
+            "evidencia.semantica.objetos-trato-fase244" => "fnv1a64:8904d84840011ff3",
+            "evidencia.ir.lowering-objetos-trato-fase244" => "fnv1a64:11685eb665a79fd1",
+            "evidencia.interpreter.objetos-trato-fase244" => "fnv1a64:cd26f3bbd536cf97",
+            "evidencia.backend-nativo.objetos-trato-fase244" => "fnv1a64:c972e182525e3b46",
+            _ => continue,
+        };
+        if region.hash != current_hash {
+            continue;
+        }
+        let (summary, hash) = match region.key.as_str() {
+            "ir.lowering.funcoes-blocos" => (
+                Some("Configuração do `FunctionLowerer` e lowering de funções e blocos estruturados: constrói o lowerer, aloca os parâmetros como bindings, abaixa o bloco de entrada, coleta locais e tipo de retorno em `FunctionIR`, e percorre `BlockIR` abrindo/fechando escopo opcional. Inclui os resolvedores de método de `impl` (direto e qualificado por trato) consultados pelo lowering de expressões. Preserva a estrutura aninhada; não divide o fluxo em blocos básicos de CFG."),
+                Some("fnv1a64:b884a74a8133399b"),
+            ),
+            "ir.lowering.comandos-controle" => {
+                (None, Some("fnv1a64:6c4b1a55092fcf41"))
+            }
+            "evidencia.semantica.objetos-trato-fase244" => (
+                Some("Exercita a semântica nominal inicial dos objetos de trato da Fase 244: receiver contextual `si`, tipo `trato<Nome>`, materialização explícita por `virar`, múltiplos tipos concretos, object safety, trato inexistente, impl ausente e recusa de coerção implícita."),
+                Some("fnv1a64:c65e3007e1fbda6c"),
+            ),
+            "evidencia.ir.lowering-objetos-trato-fase244" => (
+                Some("Exercita o lowering completo da superfície da Fase 244 para a IR estruturada: materialização explícita, ordem de vtable, tamanho do snapshot, despacho dinâmico direto e qualificado, método sem retorno, propagação nominal por callables indiretos e restauração de objetos de trato e callables capturados por closures."),
+                Some("fnv1a64:df2632d3bba25df3"),
+            ),
+            "evidencia.interpreter.objetos-trato-fase244" => (
+                Some("Executa objetos de trato no interpretador hospedado: snapshot, alias de handle, despacho direto e qualificado por slot, retorno de objeto, método nulo e diagnósticos de handle, slot e trato incompatíveis."),
+                Some("fnv1a64:04c20d03ac26e2bf"),
+            ),
+            "evidencia.backend-nativo.objetos-trato-fase244" => (
+                Some("Evidência executável da Fase 244 para objetos de trato: helper cria fonte temporária fora do repositório, executa interpretador, faz build ELF com `pink build --nativo`, executa o binário e compara stdout byte a byte e exit code. Os testes cobrem snapshot/alias/objetos independentes, retorno e passagem de handle, despacho direto/qualificado/aninhado, métodos com e sem retorno, slots na ordem do trato apesar da ordem do impl, dois tipos no mesmo trato, dois tratos no mesmo tipo, matriz SysV de 0/1/5/6/7/8/9 argumentos do usuário, regressões 242/243 e estrutura `.rodata`/`.quad`/`call *reg` sem `__env`."),
+                Some("fnv1a64:85709579c5f9b184"),
+            ),
+            _ => (None, None),
+        };
+        if let Some(summary) = summary {
+            region.summary = summary.to_string();
+        }
+        if let Some(hash) = hash {
+            region.hash = hash.to_string();
+        }
+    }
+}
+
 fn project_pre_phase244_followups(catalog: &mut CodeCatalog) {
+    project_pre_conditional_callable_reassignment(catalog);
     // Hotfix pós-merge da Fase 244: as projeções históricas continuam
     // ancoradas no merge a735186. Restaura somente os metadados das regiões
     // tocadas pelo hotfix antes de reconstruir os marcos predecessores.
@@ -341,6 +394,7 @@ fn exclude_pink_agent_wave_a(catalog: &mut CodeCatalog) {
 }
 
 fn project_pre_phase244_frontend(catalog: &mut CodeCatalog) {
+    project_pre_conditional_callable_reassignment(catalog);
     // Fase 244: os gates de ondas anteriores continuam descrevendo seus
     // próprios estados históricos. Remove a região nova e restaura os hashes
     // anteriores das regiões cujo conteúdo mudou nesta fase.
@@ -1947,7 +2001,7 @@ fn onda_8c_cartografa_evidencias_semanticas() {
         }
         test_count += 1;
     }
-    assert_eq!(test_count, 391, "contagem de #[test] inesperada em {file}");
+    assert_eq!(test_count, 392, "contagem de #[test] inesperada em {file}");
     for (key, count) in expected_semantic_keys.iter().zip(owned_test_counts) {
         assert!(
             count >= 1,
@@ -2077,7 +2131,7 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
             &expected_ir_keys[..ir_validate_start],
             "tests/ir_tests.rs",
             "ir",
-            43,
+            46,
         ),
         (
             &expected_ir_keys[ir_validate_start..],
@@ -2223,8 +2277,8 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
         "o plano da Onda 8D perdeu uma chave"
     );
     assert_eq!(
-        total_test_count, 184,
-        "a Onda 8D deveria cobrir exatamente 184 testes"
+        total_test_count, 187,
+        "a Onda 8D deveria cobrir exatamente 187 testes"
     );
 
     // As 53 regiões de evidência anteriores devem permanecer: total de evidência = 53 + 58.
@@ -2351,7 +2405,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
             "evidencia.interpreter.leques-trazer-recursos-e-programas-brinquedo",
             20,
         ),
-        ("evidencia.interpreter.objetos-trato-fase244", 12),
+        ("evidencia.interpreter.objetos-trato-fase244", 13),
         (
             "evidencia.interpreter.ponteiros-boot-freestanding-e-subset-nativo",
             21,
@@ -2458,7 +2512,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         "src/navigation.jsonl diverge da regeneração canônica (summary, faixa ou hash)"
     );
 
-    // Cobertura estrutural: 565 testes pertencem a exatamente uma região 8E e
+    // Cobertura estrutural: 566 testes pertencem a exatamente uma região 8E e
     // somente as quatro exclusões fechadas acima permanecem fora dessas regiões.
     let source_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(file);
     let source = fs::read_to_string(&source_path)
@@ -2527,12 +2581,12 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     }
 
     assert_eq!(
-        total_test_count, 569,
-        "a suíte interpreter deveria manter exatamente 569 testes"
+        total_test_count, 570,
+        "a suíte interpreter deveria manter exatamente 570 testes"
     );
     assert_eq!(
-        mapped_test_count, 565,
-        "a Onda 8E deveria cartografar exatamente 565 testes da suíte interpreter"
+        mapped_test_count, 566,
+        "a Onda 8E deveria cartografar exatamente 566 testes da suíte interpreter"
     );
     assert_eq!(
         found_excluded_from_8e, expected_excluded_from_8e,
@@ -3196,8 +3250,8 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        73,
-        "{backend_nativo} deve manter exatamente 73 #[test]"
+        74,
+        "{backend_nativo} deve manter exatamente 74 #[test]"
     );
 
     for future_without_owner in [
@@ -4750,8 +4804,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        73,
-        "{nativo} deve manter exatamente 73 testes"
+        74,
+        "{nativo} deve manter exatamente 74 testes"
     );
     assert_eq!(
         catalog

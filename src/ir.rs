@@ -1801,7 +1801,7 @@ impl<'a> FunctionLowerer<'a> {
     // @pinker-nav:start ir.lowering.funcoes-blocos
     // @pinker-nav:domain lowering
     // @pinker-nav:layer ir
-    // @pinker-nav:summary Configuração do `FunctionLowerer` e lowering de funções e blocos estruturados: constrói o lowerer, aloca os parâmetros como bindings, abaixa o bloco de entrada, coleta locais e tipo de retorno em `FunctionIR`, e percorre `BlockIR` abrindo/fechando escopo opcional. Inclui os resolvedores de método de `impl` (direto e qualificado por trato) consultados pelo lowering de expressões. Preserva a estrutura aninhada; não divide o fluxo em blocos básicos de CFG.
+    // @pinker-nav:summary Configuração do `FunctionLowerer` e lowering de funções e blocos estruturados: constrói o lowerer, aloca parâmetros, abaixa blocos e preserva metadados estruturais e nominais de callables, inclusive ao combinar os dois braços de um ternário sem avaliar expressões. Inclui resolvedores de método de `impl` direto e qualificado por trato. Preserva a estrutura aninhada; não divide o fluxo em blocos básicos de CFG.
     fn new(context: &'a LoweringContext) -> Self {
         Self {
             context,
@@ -1862,6 +1862,73 @@ impl<'a> FunctionLowerer<'a> {
             ValueIR::Local(slot) => self.callable_metadata.get(slot).cloned(),
             ValueIR::Call { callee, .. } => self.context.callable_metadata.get(callee).cloned(),
             _ => None,
+        }
+    }
+
+    fn callable_metadata_for_expr(
+        &self,
+        expr: &Expr,
+    ) -> Result<Option<CallableMetadata>, PinkerError> {
+        match &expr.kind {
+            ExprKind::Ident(name) => {
+                if let Some(binding) = self.resolve_existing_binding(name) {
+                    return Ok((binding.ty == TypeIR::Function)
+                        .then(|| self.callable_metadata.get(&binding.slot).cloned())
+                        .flatten());
+                }
+
+                Ok(self
+                    .context
+                    .function_sigs
+                    .get(name)
+                    .map(|sig| CallableMetadata {
+                        ret_type: sig.ret_type,
+                        ret_trait_name: self.context.function_ret_trait_names.get(name).cloned(),
+                    }))
+            }
+            ExprKind::Call(callee, args) => {
+                let ExprKind::Ident(name) = &callee.kind else {
+                    return Ok(None);
+                };
+                if name != "__ternario" {
+                    return Ok(self.context.callable_metadata.get(name).cloned());
+                }
+
+                let [_, true_value, false_value] = args.as_slice() else {
+                    return Err(PinkerError::Ir {
+                        msg: "lowering encontrou ternário callable sem três argumentos".to_string(),
+                        span: expr.span,
+                    });
+                };
+                let true_metadata = self.callable_metadata_for_expr(true_value)?;
+                let false_metadata = self.callable_metadata_for_expr(false_value)?;
+                let (Some(true_metadata), Some(false_metadata)) = (true_metadata, false_metadata)
+                else {
+                    return Err(PinkerError::Ir {
+                        msg: "ternário callable exige metadados nos dois braços".to_string(),
+                        span: expr.span,
+                    });
+                };
+                if true_metadata.ret_type != false_metadata.ret_type {
+                    return Err(PinkerError::Ir {
+                        msg: format!(
+                            "ternário callable possui retornos estruturais incompatíveis: {} e {}",
+                            true_metadata.ret_type.name(),
+                            false_metadata.ret_type.name()
+                        ),
+                        span: expr.span,
+                    });
+                }
+                if true_metadata.ret_trait_name != false_metadata.ret_trait_name {
+                    return Err(PinkerError::Ir {
+                        msg: "ternário callable possui retornos nominais incompatíveis".to_string(),
+                        span: expr.span,
+                    });
+                }
+
+                Ok(Some(true_metadata))
+            }
+            _ => Ok(None),
         }
     }
 
@@ -2590,8 +2657,10 @@ impl<'a> FunctionLowerer<'a> {
                     AssignTarget::Ident(name) => {
                         let binding = self.resolve_binding(name, assign_stmt.span)?;
                         if binding.ty == TypeIR::Function {
-                            let metadata =
-                                self.callable_metadata_for_value(&value.value).ok_or_else(|| {
+                            let metadata = self
+                                .callable_metadata_for_expr(&assign_stmt.expr)?
+                                .or_else(|| self.callable_metadata_for_value(&value.value))
+                                .ok_or_else(|| {
                                     PinkerError::Ir {
                                         msg: format!(
                                             "lowering perdeu os metadados na reatribuição do callable '{}'",

@@ -4992,7 +4992,7 @@ fn impl_trato_exige_trato_declarado_antes() {
 // @pinker-nav:start evidencia.semantica.objetos-trato-fase244
 // @pinker-nav:domain semantica
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita a semântica nominal inicial dos objetos de trato da Fase 244: receiver contextual `si`, tipo `trato<Nome>`, materialização explícita por `virar`, múltiplos tipos concretos, object safety, trato inexistente, impl ausente e recusa de coerção implícita.
+// @pinker-nav:summary Exercita a semântica nominal dos objetos de trato da Fase 244: receiver contextual `si`, materialização por `virar`, object safety, impls e coerções; preserva callables compatíveis em reatribuições condicionais e rejeita braços não-callable, retornos incompatíveis, tratos distintos e igualdade pública.
 
 #[test]
 fn fase244_semantica_aceita_objetos_do_mesmo_trato_para_tipos_distintos() {
@@ -5619,6 +5619,120 @@ fn fase244_ternario_rejeita_tratos_nominais_diferentes_na_semantica() {
     assert!(
         err.contains("ramos da expressão ternária devem ter o mesmo tipo"),
         "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_reatribuicao_condicional_de_callable_valida_bracos_e_preserva_regressoes() {
+    let valido = r#"
+        pacote main;
+
+        trato Medivel { carinho medir(valor: si) -> bombom; }
+        impl Medivel para bombom {
+            carinho medir(valor: bombom) -> bombom { mimo valor; }
+        }
+
+        carinho um() -> trato<Medivel> { mimo 1 virar trato<Medivel>; }
+        carinho dois() -> trato<Medivel> { mimo 2 virar trato<Medivel>; }
+        carinho numero_um() -> bombom { mimo 10; }
+        carinho numero_dois() -> bombom { mimo 20; }
+
+        carinho principal() -> bombom {
+            nova inferido_um = um;
+            nova inferido_dois = dois;
+            nova copia_um = inferido_um;
+            nova copia_dois = inferido_dois;
+            nova muda f = um;
+            f = verdade ? inferido_um : inferido_dois;
+            f = falso ? copia_um : copia_dois;
+            f = verdade ? (falso ? um : dois) : um;
+            nova muda comum: carinho() -> bombom = numero_um;
+            comum = falso ? numero_um : numero_dois;
+            mimo f().medir() + comum();
+        }
+    "#;
+    parse_and_check(valido).expect("casos válidos devem passar pela semântica");
+
+    let nominal_diferente = r#"
+        pacote main;
+        trato A { carinho medir(valor: si) -> bombom; }
+        trato B { carinho medir(valor: si) -> bombom; }
+        impl A para bombom {
+            carinho medir(valor: bombom) -> bombom { mimo valor; }
+        }
+        impl B para bombom {
+            carinho medir(valor: bombom) -> bombom { mimo valor; }
+        }
+        carinho a() -> trato<A> { mimo 1 virar trato<A>; }
+        carinho b() -> trato<B> { mimo 2 virar trato<B>; }
+        carinho principal() -> bombom {
+            nova muda f: carinho() -> trato<A> = a;
+            f = verdade ? a : b;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(nominal_diferente)
+        .expect_err("callables com tratos nominais diferentes devem falhar")
+        .to_string();
+    assert!(
+        err.contains("ramos da expressão ternária devem ter o mesmo tipo"),
+        "{err}"
+    );
+
+    let nao_callable = r#"
+        pacote main;
+        carinho um() -> bombom { mimo 1; }
+        carinho principal() -> bombom {
+            nova muda f: carinho() -> bombom = um;
+            f = verdade ? um : 2;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(nao_callable)
+        .expect_err("um braço não-callable deve falhar")
+        .to_string();
+    assert!(
+        err.contains("ramos da expressão ternária devem ter o mesmo tipo"),
+        "{err}"
+    );
+
+    let retornos_diferentes = r#"
+        pacote main;
+        carinho numero() -> bombom { mimo 1; }
+        carinho texto() -> verso { mimo "um"; }
+        carinho principal() -> bombom {
+            nova muda f: carinho() -> bombom = numero;
+            f = verdade ? numero : texto;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(retornos_diferentes)
+        .expect_err("callables com retornos estruturais diferentes devem falhar")
+        .to_string();
+    assert!(
+        err.contains("ramos da expressão ternária devem ter o mesmo tipo"),
+        "{err}"
+    );
+
+    let comparacao = r#"
+        pacote main;
+        trato Medivel { carinho medir(valor: si) -> bombom; }
+        impl Medivel para bombom {
+            carinho medir(valor: bombom) -> bombom { mimo valor; }
+        }
+        carinho principal() -> bombom {
+            nova a: trato<Medivel> = 1 virar trato<Medivel>;
+            nova b: trato<Medivel> = 2 virar trato<Medivel>;
+            nova igual = a == b;
+            mimo 0;
+        }
+    "#;
+    let err = parse_and_check(comparacao)
+        .expect_err("igualdade pública de objetos de trato deve continuar rejeitada")
+        .to_string();
+    assert!(
+        err.contains("comparação entre objetos de trato não é suportada"),
+        "{err}"
     );
 }
 

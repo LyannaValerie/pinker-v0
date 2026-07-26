@@ -645,7 +645,7 @@ carinho principal() -> bombom { mimo 0; }
 // @pinker-nav:start evidencia.ir.lowering-objetos-trato-fase244
 // @pinker-nav:domain ir
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita o lowering completo da superfície da Fase 244 para a IR estruturada: materialização explícita, ordem de vtable, tamanho do snapshot, despacho dinâmico direto e qualificado, método sem retorno, propagação nominal por callables indiretos e restauração de objetos de trato e callables capturados por closures.
+// @pinker-nav:summary Exercita o lowering da Fase 244: materialização, vtables, despacho dinâmico, metadados nominais de callables e closures e merge de CallableMetadata em reatribuições condicionais, incluindo aliases, cópias, aninhamento e diagnósticos estruturados para braços incompatíveis ou sem metadado.
 
 #[test]
 fn fase244_lowering_materializa_objeto_e_preserva_ordem_da_vtable() {
@@ -1132,6 +1132,156 @@ carinho principal() -> bombom {
         rendered.matches("trait_call trato<Medivel>.medir").count(),
         3,
         "{rendered}"
+    );
+}
+
+#[test]
+fn fase244_reatribuicao_condicional_combina_metadados_dos_bracos() {
+    let code = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho um() -> trato<Medivel> { mimo 1 virar trato<Medivel>; }
+carinho dois() -> trato<Medivel> { mimo 2 virar trato<Medivel>; }
+carinho numero_um() -> bombom { mimo 10; }
+carinho numero_dois() -> bombom { mimo 20; }
+carinho principal() -> bombom {
+    nova inferido_um = um;
+    nova inferido_dois = dois;
+    nova copia_um = inferido_um;
+    nova copia_dois = inferido_dois;
+    nova muda f = um;
+    f = verdade ? inferido_um : inferido_dois;
+    nova r1 = f().medir();
+    f = falso ? copia_um : copia_dois;
+    nova r2 = f().medir();
+    f = verdade ? (falso ? um : dois) : um;
+    nova r3 = f().medir();
+    f = falso ? um : dois;
+    f = verdade ? um : dois;
+    nova r4 = f().medir();
+    nova muda comum: carinho() -> bombom = numero_um;
+    comum = falso ? numero_um : numero_dois;
+    mimo r1 + r2 + r3 + r4 + comum();
+}
+"#;
+
+    let rendered = render_ir(code).expect("o ternário deve combinar metadados callables");
+    assert_eq!(rendered.matches("call_indirect").count(), 5, "{rendered}");
+    assert_eq!(
+        rendered.matches("trait_call trato<Medivel>.medir").count(),
+        4,
+        "{rendered}"
+    );
+    assert!(
+        rendered.matches("call __ternario").count() >= 7,
+        "{rendered}"
+    );
+
+    let alias_program = parse(
+        r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+apelido Base = trato<Medivel>;
+apelido Objeto = Base;
+carinho um() -> Objeto { mimo 1 virar trato<Medivel>; }
+carinho dois() -> Objeto { mimo 2 virar trato<Medivel>; }
+carinho principal() -> bombom {
+    nova muda f: carinho() -> Objeto = um;
+    f = verdade ? um : dois;
+    mimo f().medir();
+}
+"#,
+    )
+    .unwrap();
+    let alias_ir = ir::lower_program(&alias_program)
+        .expect("lowering deve resolver aliases de retorno direta e encadeadamente");
+    let alias_rendered = ir::render_program(&alias_ir);
+    assert!(
+        alias_rendered.contains("trait_call trato<Medivel>.medir"),
+        "{alias_rendered}"
+    );
+}
+
+#[test]
+fn fase244_reatribuicao_condicional_sem_metadado_falha_estruturadamente() {
+    let program = parse(
+        r#"
+pacote main;
+carinho um() -> bombom { mimo 1; }
+carinho principal() -> bombom {
+    nova muda f: carinho() -> bombom = um;
+    f = verdade ? um : "não-callable";
+    mimo 0;
+}
+"#,
+    )
+    .unwrap();
+
+    let err = ir::lower_program(&program)
+        .expect_err("a ausência de metadado em um braço não pode virar None silencioso")
+        .to_string();
+    assert!(
+        err.contains("ternário callable exige metadados nos dois braços"),
+        "{err}"
+    );
+}
+
+#[test]
+fn fase244_reatribuicao_condicional_rejeita_metadados_incompativeis_na_ir() {
+    let nominal = parse(
+        r#"
+pacote main;
+trato A { carinho medir(valor: si) -> bombom; }
+trato B { carinho medir(valor: si) -> bombom; }
+impl A para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+impl B para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho a() -> trato<A> { mimo 1 virar trato<A>; }
+carinho b() -> trato<B> { mimo 2 virar trato<B>; }
+carinho principal() -> bombom {
+    nova muda f: carinho() -> trato<A> = a;
+    f = verdade ? a : b;
+    mimo 0;
+}
+"#,
+    )
+    .unwrap();
+    let err = ir::lower_program(&nominal)
+        .expect_err("identidades nominais diferentes devem falhar na IR")
+        .to_string();
+    assert!(
+        err.contains("ternário callable possui retornos nominais incompatíveis"),
+        "{err}"
+    );
+
+    let estrutural = parse(
+        r#"
+pacote main;
+carinho numero() -> bombom { mimo 1; }
+carinho texto() -> verso { mimo "um"; }
+carinho principal() -> bombom {
+    nova muda f: carinho() -> bombom = numero;
+    f = verdade ? numero : texto;
+    mimo 0;
+}
+"#,
+    )
+    .unwrap();
+    let err = ir::lower_program(&estrutural)
+        .expect_err("retornos estruturais diferentes devem falhar na IR")
+        .to_string();
+    assert!(
+        err.contains("ternário callable possui retornos estruturais incompatíveis"),
+        "{err}"
     );
 }
 // @pinker-nav:end evidencia.ir.lowering-objetos-trato-fase244

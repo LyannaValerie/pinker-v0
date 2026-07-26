@@ -9896,7 +9896,7 @@ fn fase243_closure_pilha_impar_aplica_padding_no_interpretador() {
 // @pinker-nav:start evidencia.interpreter.objetos-trato-fase244
 // @pinker-nav:domain interpreter
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa objetos de trato no interpretador hospedado: snapshot, alias de handle, despacho direto e qualificado por slot, retorno de objeto, método nulo e diagnósticos de handle, slot e trato incompatíveis.
+// @pinker-nav:summary Executa objetos de trato no interpretador hospedado: snapshot, aliases, despacho dinâmico, callables e closures, diagnósticos de handles e reatribuições condicionais verdadeiras, falsas, aninhadas e repetidas com bindings inferidos e cópias.
 
 #[test]
 fn fase244_interpreter_materializa_despacha_e_preserva_snapshot() {
@@ -10359,6 +10359,43 @@ carinho principal() -> bombom {
 "#;
     let result = run_code(code).unwrap();
     assert_eq!(result, Some(RuntimeValue::Int(31)));
+}
+
+#[test]
+fn fase244_reatribuicao_condicional_de_callable_executa_todos_os_casos_validos() {
+    let code = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho um() -> trato<Medivel> { mimo 1 virar trato<Medivel>; }
+carinho dois() -> trato<Medivel> { mimo 2 virar trato<Medivel>; }
+carinho numero_um() -> bombom { mimo 10; }
+carinho numero_dois() -> bombom { mimo 20; }
+carinho principal() -> bombom {
+    nova inferido_um = um;
+    nova inferido_dois = dois;
+    nova copia_um = inferido_um;
+    nova copia_dois = inferido_dois;
+    nova muda f = um;
+    f = verdade ? inferido_um : inferido_dois;
+    nova r1 = f().medir();
+    f = falso ? copia_um : copia_dois;
+    nova r2 = f().medir();
+    f = verdade ? (falso ? um : dois) : um;
+    nova r3 = f().medir();
+    f = falso ? um : dois;
+    f = verdade ? um : dois;
+    nova r4 = f().medir();
+    nova muda comum: carinho() -> bombom = numero_um;
+    comum = falso ? numero_um : numero_dois;
+    mimo r1 + r2 + r3 + r4 + comum();
+}
+"#;
+
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(26)));
 }
 
 // @pinker-nav:end evidencia.interpreter.objetos-trato-fase244

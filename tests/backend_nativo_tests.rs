@@ -1611,7 +1611,7 @@ fn fase242_funcao_indireta_pilha_impar_tem_paridade_nativa() {
 // @pinker-nav:start evidencia.backend-nativo.objetos-trato-fase244
 // @pinker-nav:domain backend-s
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência executável da Fase 244 para objetos de trato: helper cria fonte temporária fora do repositório, executa interpretador, faz build ELF com `pink build --nativo`, executa o binário e compara stdout byte a byte e exit code. Os testes cobrem snapshot/alias/objetos independentes, retorno e passagem de handle, despacho direto/qualificado/aninhado, métodos com e sem retorno, slots na ordem do trato apesar da ordem do impl, dois tipos no mesmo trato, dois tratos no mesmo tipo, matriz SysV de 0/1/5/6/7/8/9 argumentos do usuário, regressões 242/243 e estrutura `.rodata`/`.quad`/`call *reg` sem `__env`.
+// @pinker-nav:summary Evidência executável da Fase 244 para objetos de trato: compara interpretador e ELF nativo em stdout e exit code. Cobre handles, vtables, ABI SysV, callables, closures e reatribuição condicional de callable com efeitos observáveis, comprovando condição e braço selecionado únicos, braço não selecionado lazy, uma invocação e uma materialização.
 const FONTE_FASE244_CICLO: &str = r#"
 pacote main;
 
@@ -2335,6 +2335,51 @@ carinho principal() -> bombom {
         "followup_combinado_avaliacao_unica",
         244_503,
         b"c1\nc2\n11\n",
+    );
+}
+
+#[test]
+fn fase244_reatribuicao_condicional_de_callable_preserva_paridade_e_avaliacao_unica() {
+    let fonte = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho um() -> trato<Medivel> {
+    falar("callable");
+    mimo 1 virar trato<Medivel>;
+}
+carinho dois() -> trato<Medivel> {
+    falar("unselected-callable");
+    mimo 2 virar trato<Medivel>;
+}
+carinho condicao() -> logica {
+    falar("condition");
+    mimo falso;
+}
+carinho selecionar_um() -> carinho() -> trato<Medivel> {
+    falar("selected");
+    mimo um;
+}
+carinho selecionar_dois() -> carinho() -> trato<Medivel> {
+    falar("unselected");
+    mimo dois;
+}
+carinho principal() -> bombom {
+    nova muda f: carinho() -> trato<Medivel> = dois;
+    f = condicao() ? selecionar_dois() : selecionar_um();
+    nova objeto = f();
+    falar(objeto.medir());
+    mimo 0;
+}
+"#;
+
+    fase244_paridade_fonte(
+        fonte,
+        "reatribuicao_condicional_callable_lazy",
+        244_504,
+        b"condition\nselected\ncallable\n1\n",
     );
 }
 // @pinker-nav:end evidencia.backend-nativo.objetos-trato-fase244
