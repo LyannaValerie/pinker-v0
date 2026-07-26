@@ -1129,10 +1129,14 @@ fn exec_instr(
             trait_name,
             method_name,
             method_slot,
+            method_count,
             argc,
             param_types: _,
             ret_type,
         } => {
+            if *method_count == 0 || *method_slot >= *method_count {
+                return Err(runtime_err("trait_call referencia slot fora da vtable"));
+            }
             let object = pop(stack, "trait_call exige handle de objeto no topo")?;
 
             let RuntimeValue::Int(handle) = object else {

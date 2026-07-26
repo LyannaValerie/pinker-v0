@@ -10056,6 +10056,39 @@ carinho principal() -> bombom {
     assert_eq!(result, Some(RuntimeValue::Int(13)));
 }
 
+#[test]
+fn fase244_interpreter_encadeia_retorno_dinamico_de_objeto_de_trato() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+
+trato Fabrica {
+    carinho criar(valor: si) -> trato<Medivel>;
+}
+
+impl Fabrica para bombom {
+    carinho criar(valor: bombom) -> trato<Medivel> {
+        mimo valor virar trato<Medivel>;
+    }
+}
+
+carinho principal() -> bombom {
+    nova fabrica: trato<Fabrica> = 42 virar trato<Fabrica>;
+    mimo fabrica.criar().medir();
+}
+"#;
+
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(42)));
+}
+
 fn fase244_manual_trait_program(code: Vec<MachineInstr>) -> MachineProgram {
     MachineProgram {
         module_name: "main".to_string(),
@@ -10085,6 +10118,7 @@ fn fase244_interpreter_rejeita_handle_de_objeto_invalido() {
             trait_name: "Medivel".to_string(),
             method_name: "medir".to_string(),
             method_slot: 0,
+            method_count: 2,
             argc: 0,
             param_types: vec![],
             ret_type: ir::TypeIR::Bombom,
@@ -10118,6 +10152,7 @@ fn fase244_interpreter_rejeita_slot_de_vtable_invalido() {
             trait_name: "Medivel".to_string(),
             method_name: "medir".to_string(),
             method_slot: 1,
+            method_count: 2,
             argc: 0,
             param_types: vec![],
             ret_type: ir::TypeIR::Bombom,
@@ -10151,6 +10186,7 @@ fn fase244_interpreter_rejeita_trato_nominal_divergente() {
             trait_name: "Outro".to_string(),
             method_name: "medir".to_string(),
             method_slot: 0,
+            method_count: 2,
             argc: 0,
             param_types: vec![],
             ret_type: ir::TypeIR::Bombom,

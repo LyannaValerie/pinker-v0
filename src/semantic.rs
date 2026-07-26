@@ -2346,6 +2346,31 @@ impl SemanticChecker {
                 )?;
                 let target_ty = self.resolve_type_or_error(target)?.with_span(expr.span);
                 if let Some(trait_name) = Self::trait_object_name(&target_ty).map(str::to_string) {
+                    let supported_concrete = matches!(
+                        &source_ty,
+                        Type::Bombom(_)
+                            | Type::U8(_)
+                            | Type::U16(_)
+                            | Type::U32(_)
+                            | Type::U64(_)
+                            | Type::I8(_)
+                            | Type::I16(_)
+                            | Type::I32(_)
+                            | Type::I64(_)
+                            | Type::Logica(_)
+                            | Type::Verso(_)
+                            | Type::Struct { .. }
+                    );
+                    if !supported_concrete {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "objeto de trato nesta fase aceita tipo concreto escalar ou ninho; encontrado '{}'",
+                                Self::type_key(&source_ty)
+                            ),
+                            span: source_expr.span,
+                        });
+                    }
+
                     let source_direct = Self::type_key(&source_ty);
                     let source_resolved = Self::type_key(&self.resolve_type_or_error(&source_ty)?);
 

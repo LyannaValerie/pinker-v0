@@ -622,7 +622,7 @@ carinho principal() -> bombom {
     );
 
     assert!(
-        machine.contains("trait_call trato<Medivel>.medir#0, argc=1, ret=bombom"),
+        machine.contains("trait_call trato<Medivel>.medir#0/1, argc=1, ret=bombom"),
         "máquina inesperada:\n{machine}"
     );
 }
@@ -656,7 +656,7 @@ carinho principal() -> bombom {
     let machine = render_machine(code).unwrap();
 
     assert!(
-        machine.contains("trait_call trato<Observavel>.observar#0, argc=1, ret=nulo"),
+        machine.contains("trait_call trato<Observavel>.observar#0/1, argc=1, ret=nulo"),
         "máquina inesperada:\n{machine}"
     );
 }

@@ -1065,7 +1065,8 @@ fn validate_function(
                 MachineInstr::TraitCall {
                     trait_name,
                     method_name,
-                    method_slot: _,
+                    method_slot,
+                    method_count,
                     argc,
                     param_types,
                     ret_type: _,
@@ -1075,6 +1076,13 @@ fn validate_function(
                             f,
                             Some(&b.label),
                             "trait_call sem identidade nominal completa",
+                        ));
+                    }
+                    if *method_count == 0 || *method_slot >= *method_count {
+                        return Err(err_ctx(
+                            f,
+                            Some(&b.label),
+                            "trait_call referencia slot fora da vtable",
                         ));
                     }
 

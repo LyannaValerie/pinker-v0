@@ -1692,7 +1692,8 @@ fn infer_value_type(
             object,
             trait_name,
             method_name,
-            method_slot: _,
+            method_slot,
+            method_count,
             args,
             param_types,
             ret_type,
@@ -1700,6 +1701,12 @@ fn infer_value_type(
             if trait_name.trim().is_empty() || method_name.trim().is_empty() {
                 return Err(ir_validation_error(
                     "chamada dinâmica sem identidade nominal completa",
+                    span,
+                ));
+            }
+            if *method_count == 0 || *method_slot >= *method_count {
+                return Err(ir_validation_error(
+                    "chamada dinâmica referencia slot fora da vtable",
                     span,
                 ));
             }

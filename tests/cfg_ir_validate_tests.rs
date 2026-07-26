@@ -447,6 +447,7 @@ fn fase244_cfg_validation_aceita_materializacao_e_despacho() {
                 trait_name: "Medivel".to_string(),
                 method_name: "medir".to_string(),
                 method_slot: 0,
+                method_count: 1,
                 args: vec![OperandIR::Int(2)],
                 param_types: vec![TypeIR::Bombom],
                 ret_type: TypeIR::Bombom,
@@ -481,6 +482,7 @@ fn fase244_cfg_validation_aceita_trait_call_nula_sem_destino() {
                 trait_name: "Observavel".to_string(),
                 method_name: "observar".to_string(),
                 method_slot: 0,
+                method_count: 1,
                 args: vec![OperandIR::Int(7)],
                 param_types: vec![TypeIR::Bombom],
                 ret_type: TypeIR::Nulo,
@@ -504,6 +506,7 @@ fn fase244_cfg_validation_rejeita_receiver_comum() {
                 trait_name: "Medivel".to_string(),
                 method_name: "medir".to_string(),
                 method_slot: 0,
+                method_count: 1,
                 args: vec![],
                 param_types: vec![],
                 ret_type: TypeIR::Bombom,
@@ -570,6 +573,7 @@ fn fase244_cfg_validation_rejeita_destino_em_metodo_nulo() {
                 trait_name: "Observavel".to_string(),
                 method_name: "observar".to_string(),
                 method_slot: 0,
+                method_count: 1,
                 args: vec![],
                 param_types: vec![],
                 ret_type: TypeIR::Nulo,
@@ -584,6 +588,32 @@ fn fase244_cfg_validation_rejeita_destino_em_metodo_nulo() {
 
     assert!(
         err.contains("trait_call nulo não pode definir temporário"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_cfg_validation_rejeita_slot_fora_da_vtable() {
+    let function = fase244_cfg_com_local_objeto(
+        vec![InstructionCfgIR::TraitCall {
+            dest: Some(TempIR(0)),
+            object: OperandIR::Local("%objeto#0".to_string()),
+            trait_name: "Medivel".to_string(),
+            method_name: "medir".to_string(),
+            method_slot: 2,
+            method_count: 1,
+            args: vec![],
+            param_types: vec![],
+            ret_type: TypeIR::Bombom,
+        }],
+        TerminatorIR::Return(Some(OperandIR::Temp(TempIR(0)))),
+    );
+
+    let err = cfg_ir_validate::validate_program(&base_program(function))
+        .expect_err("slot fora da vtable deve ser recusado")
+        .to_string();
+    assert!(
+        err.contains("slot fora da vtable"),
         "diagnóstico inesperado: {err}"
     );
 }

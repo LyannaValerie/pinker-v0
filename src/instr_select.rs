@@ -198,6 +198,7 @@ pub enum SelectedInstr {
         trait_name: String,
         method_name: String,
         method_slot: u64,
+        method_count: u64,
         args: Vec<OperandIR>,
         param_types: Vec<TypeIR>,
         ret_type: TypeIR,
@@ -494,6 +495,7 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             trait_name,
             method_name,
             method_slot,
+            method_count,
             args,
             param_types,
             ret_type,
@@ -503,6 +505,7 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             trait_name: trait_name.clone(),
             method_name: method_name.clone(),
             method_slot: *method_slot,
+            method_count: *method_count,
             args: args.clone(),
             param_types: param_types.clone(),
             ret_type: *ret_type,
@@ -845,15 +848,17 @@ fn render_instr(inst: &SelectedInstr) -> String {
             trait_name,
             method_name,
             method_slot,
+            method_count,
             args,
             param_types: _,
             ret_type,
         } => {
             let call = format!(
-                "trait_call trato<{}>.{}#{} {}({}) -> {}",
+                "trait_call trato<{}>.{}#{}/{} {}({}) -> {}",
                 trait_name,
                 method_name,
                 method_slot,
+                method_count,
                 render_operand(object),
                 args.iter()
                     .map(render_operand)

@@ -249,15 +249,18 @@ fn extract_external_callconv_program(
                 "subset externo montável (Fase 84) exige `principal()` sem parâmetros",
             ));
         }
-        for param in &function.params {
+        for (param_index, param) in function.params.iter().enumerate() {
             let Some(ty) = function.slot_types.get(param) else {
                 return Err(err(
                     "subset externo montável (Fase 84) encontrou parâmetro sem tipo",
                 ));
             };
-            if !is_external_param_type(ty) {
+            let is_trait_receiver = param_index == 0
+                && function.name.starts_with("__impl_")
+                && is_external_trait_receiver_type(ty);
+            if !is_external_param_type(ty) && !is_trait_receiver {
                 return Err(err(
-                "subset externo montável aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>` no recorte conservador",
+                    "subset externo montável aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>` no recorte conservador",
                 ));
             }
         }
@@ -267,7 +270,21 @@ fn extract_external_callconv_program(
                     "subset externo montável (Fase 84) encontrou local sem tipo",
                 ));
             };
-            if !is_external_local_type(ty) {
+            let is_trait_snapshot_source = function.blocks.iter().any(|block| {
+                block.instructions.iter().any(|instruction| {
+                    matches!(
+                        instruction,
+                        SelectedInstr::MakeTraitObject {
+                            value: OperandIR::Local(slot),
+                            concrete_type,
+                            ..
+                        } if slot == local && concrete_type == ty
+                    )
+                })
+            });
+            if !(is_external_local_type(ty)
+                || is_trait_snapshot_source && is_external_trait_receiver_type(ty))
+            {
                 return Err(err(&format!(
                     "subset externo montável só aceita local `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>`; '{}' é '{}'",
                     local,
@@ -931,10 +948,16 @@ fn extract_external_callconv_program(
                         trait_name: _,
                         method_name: _,
                         method_slot,
+                        method_count,
                         args,
                         param_types,
                         ret_type,
                     } => {
+                        if *method_count == 0 || *method_slot >= *method_count {
+                            return Err(err(
+                                "backend nativo encontrou slot de chamada dinâmica fora da vtable",
+                            ));
+                        }
                         if param_types.len() != args.len()
                             || param_types.iter().any(|ty| !is_external_param_type(ty))
                         {
@@ -1943,6 +1966,22 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
         || *ty == TypeIR::Pointer { is_volatile: false }
         || *ty == TypeIR::Function
         || *ty == TypeIR::TraitObject
+}
+
+fn is_external_trait_receiver_type(ty: &TypeIR) -> bool {
+    matches!(
+        ty,
+        TypeIR::Bombom
+            | TypeIR::U8
+            | TypeIR::U16
+            | TypeIR::U32
+            | TypeIR::U64
+            | TypeIR::I8
+            | TypeIR::I16
+            | TypeIR::I32
+            | TypeIR::I64
+            | TypeIR::Logica
+    ) || is_external_param_type(ty)
 }
 
 fn is_external_local_type(ty: &TypeIR) -> bool {

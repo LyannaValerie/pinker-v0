@@ -801,6 +801,7 @@ fn fase244_machine_stack_aceita_materializacao_e_chamada_com_retorno() {
                 trait_name: "Medivel".to_string(),
                 method_name: "medir".to_string(),
                 method_slot: 0,
+                method_count: 1,
                 argc: 1,
                 param_types: vec![TypeIR::Bombom],
                 ret_type: TypeIR::Bombom,
@@ -831,6 +832,7 @@ fn fase244_machine_stack_aceita_chamada_nula_sem_valor_residual() {
                 trait_name: "Observavel".to_string(),
                 method_name: "observar".to_string(),
                 method_slot: 0,
+                method_count: 1,
                 argc: 1,
                 param_types: vec![TypeIR::Bombom],
                 ret_type: TypeIR::Nulo,
@@ -852,6 +854,7 @@ fn fase244_machine_stack_rejeita_receiver_comum() {
                 trait_name: "Medivel".to_string(),
                 method_name: "medir".to_string(),
                 method_slot: 0,
+                method_count: 1,
                 argc: 0,
                 param_types: vec![],
                 ret_type: TypeIR::Bombom,
@@ -887,6 +890,32 @@ fn fase244_machine_stack_rejeita_vtable_vazia() {
 
     assert!(
         err.contains("make_trait_object exige vtable não vazia"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_machine_stack_rejeita_slot_fora_da_vtable() {
+    let err = validate(fn_bombom(vec![block(
+        "entry",
+        vec![
+            MachineInstr::PushInt(42),
+            MachineInstr::TraitCall {
+                trait_name: "Medivel".to_string(),
+                method_name: "medir".to_string(),
+                method_slot: 1,
+                method_count: 1,
+                argc: 0,
+                param_types: vec![],
+                ret_type: TypeIR::Bombom,
+            },
+        ],
+        MachineTerminator::Ret,
+    )]))
+    .expect_err("slot fora da vtable deve ser recusado");
+
+    assert!(
+        err.contains("slot fora da vtable"),
         "diagnóstico inesperado: {err}"
     );
 }

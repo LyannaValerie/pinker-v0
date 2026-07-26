@@ -209,18 +209,23 @@ fn validate_function(
                     if *concrete_size == 0 || vtable_methods.is_empty() {
                         return Err(err("materialização textual de trato inválida"));
                     }
-                    if !concrete_type.is_integer() && *concrete_type != TypeIR::TraitObject {
-                        return Err(err("snapshot textual de trato exige tipo escalar"));
+                    if matches!(*concrete_type, TypeIR::TraitObject | TypeIR::Nulo) {
+                        return Err(err("snapshot textual de trato exige tipo concreto válido"));
                     }
                     temps.insert(*dest, TypeIR::TraitObject);
                 }
                 BackendTextInstruction::TraitCall {
                     dest,
                     object,
+                    method_slot,
+                    method_count,
                     args,
                     ret_type,
                     ..
                 } => {
+                    if *method_count == 0 || *method_slot >= *method_count {
+                        return Err(err("trait_call textual referencia slot fora da vtable"));
+                    }
                     if infer_operand(object, &slots, &temps, globals)? != TypeIR::TraitObject {
                         return Err(err("trait_call textual exige objeto de trato"));
                     }

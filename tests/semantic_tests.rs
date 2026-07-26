@@ -5104,6 +5104,47 @@ fn fase244_semantica_rejeita_materializacao_sem_impl_correspondente() {
 }
 
 #[test]
+fn fase244_semantica_rejeita_familias_fora_de_escalar_e_ninho() {
+    let cases = [
+        r#"
+        pacote main;
+        trato Medivel { carinho medir(valor: si) -> bombom; }
+        impl Medivel para lista<bombom> {
+            carinho medir(valor: lista<bombom>) -> bombom { mimo 1; }
+        }
+        carinho principal() -> bombom {
+            nova origem: lista<bombom> = lista_criar();
+            nova objeto: trato<Medivel> = origem virar trato<Medivel>;
+            mimo 0;
+        }
+        "#,
+        r#"
+        pacote main;
+        leque Cor { Vermelho }
+        trato Medivel { carinho medir(valor: si) -> bombom; }
+        impl Medivel para Cor {
+            carinho medir(valor: Cor) -> bombom { mimo 1; }
+        }
+        carinho principal() -> bombom {
+            nova origem: Cor = Cor.Vermelho;
+            nova objeto: trato<Medivel> = origem virar trato<Medivel>;
+            mimo 0;
+        }
+        "#,
+    ];
+
+    for code in cases {
+        let err = parse_and_check(code)
+            .expect_err("materialização dinâmica deve rejeitar família fora do recorte")
+            .to_string();
+        assert!(
+            err.contains("aceita tipo concreto escalar ou ninho"),
+            "diagnóstico inesperado: {err}"
+        );
+    }
+}
+
+#[test]
 fn fase244_semantica_rejeita_coercao_implicita_para_objeto_de_trato() {
     let code = r#"
         pacote main;

@@ -570,7 +570,7 @@ carinho principal() -> bombom {
     let cfg = render_cfg_ir(code).unwrap();
 
     assert!(
-        cfg.contains("trait_call trato<Medivel>.medir#0 %objeto#0(2:bombom) -> bombom"),
+        cfg.contains("trait_call trato<Medivel>.medir#0/1 %objeto#0(2:bombom) -> bombom"),
         "CFG inesperada:\n{cfg}"
     );
 }
@@ -602,7 +602,7 @@ carinho principal() -> bombom {
     let cfg = render_cfg_ir(code).unwrap();
 
     assert!(
-        cfg.contains("trait_call trato<Medivel>.medir#0 %objeto#0() -> bombom"),
+        cfg.contains("trait_call trato<Medivel>.medir#0/1 %objeto#0() -> bombom"),
         "CFG inesperada:\n{cfg}"
     );
 }
@@ -636,12 +636,12 @@ carinho principal() -> bombom {
     let cfg = render_cfg_ir(code).unwrap();
 
     assert!(
-        cfg.contains("trait_call trato<Observavel>.observar#0 %objeto#0(7:bombom) -> nulo"),
+        cfg.contains("trait_call trato<Observavel>.observar#0/1 %objeto#0(7:bombom) -> nulo"),
         "CFG inesperada:\n{cfg}"
     );
 
     assert!(
-        !cfg.contains("= trait_call trato<Observavel>.observar#0"),
+        !cfg.contains("= trait_call trato<Observavel>.observar#0/1"),
         "método nulo não pode criar temporário:\n{cfg}"
     );
 }

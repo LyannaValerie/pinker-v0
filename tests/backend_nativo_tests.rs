@@ -7,6 +7,7 @@ use pinker_v0::{
 };
 use std::fs;
 use std::process::Command;
+use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // @pinker-nav:start evidencia.backend-nativo.suporte-lowering-memoria
@@ -1774,10 +1775,19 @@ fn fase244_paridade_fonte(
         .parent()
         .expect("diretório do pink")
         .join("libpinker_rt.a");
-    assert!(
-        runtime_lib.is_file(),
-        "Fase 244 exige libpinker_rt.a para execução nativa real"
-    );
+    static RUNTIME_BUILD: OnceLock<()> = OnceLock::new();
+    if !runtime_lib.is_file() {
+        RUNTIME_BUILD.get_or_init(|| {
+            let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+            let status = Command::new(cargo)
+                .current_dir(env!("CARGO_MANIFEST_DIR"))
+                .args(["build", "--locked", "-p", "pinker_rt"])
+                .status()
+                .expect("executar cargo build do runtime nativo");
+            assert!(status.success(), "cargo build do runtime nativo falhou");
+        });
+    }
+    assert!(runtime_lib.is_file(), "libpinker_rt.a não foi produzida");
 
     let selected = lower_to_selected(fonte);
     let asm = backend_s::emit_external_toolchain_subset_nativo(&selected)
@@ -1864,6 +1874,75 @@ fn fase244_objetos_trato_executam_matriz_sysv_com_receiver_primeiro() {
 }
 
 #[test]
+fn fase244_objetos_trato_suportam_escalar_pequeno_e_retorno_dinamico_encadeado() {
+    let fonte = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para u8 {
+    carinho medir(valor: u8) -> bombom {
+        talvez valor == 42 { mimo 42; }
+        mimo 0;
+    }
+}
+
+trato Fabrica {
+    carinho criar(valor: si) -> trato<Medivel>;
+}
+
+impl Fabrica para u8 {
+    carinho criar(valor: u8) -> trato<Medivel> {
+        mimo valor virar trato<Medivel>;
+    }
+}
+
+carinho principal() -> bombom {
+    nova valor: u8 = 42;
+    nova fabrica: trato<Fabrica> = valor virar trato<Fabrica>;
+    falar(fabrica.criar().medir());
+    mimo 0;
+}
+"#;
+    fase244_paridade_fonte(fonte, "escalar_retorno", 244_004, b"42\n");
+}
+
+#[test]
+fn fase244_objeto_e_argumento_com_efeito_sao_avaliados_uma_vez_em_ordem() {
+    let fonte = r#"
+pacote main;
+
+trato Somavel {
+    carinho somar(valor: si, parcela: bombom) -> bombom;
+}
+
+impl Somavel para bombom {
+    carinho somar(valor: bombom, parcela: bombom) -> bombom {
+        mimo valor + parcela;
+    }
+}
+
+carinho criar_objeto() -> trato<Somavel> {
+    falar(10);
+    mimo 5 virar trato<Somavel>;
+}
+
+carinho criar_argumento() -> bombom {
+    falar(20);
+    mimo 7;
+}
+
+carinho principal() -> bombom {
+    falar(criar_objeto().somar(criar_argumento()));
+    mimo 0;
+}
+"#;
+    fase244_paridade_fonte(fonte, "efeitos_unicos", 244_005, b"10\n20\n12\n");
+}
+
+#[test]
 fn fase244_assembly_emite_vtables_e_chamada_indireta_sem_env() {
     let asm = fase244_paridade_fonte(
         FONTE_FASE244_CICLO,
@@ -1884,6 +1963,33 @@ fn fase244_assembly_emite_vtables_e_chamada_indireta_sem_env() {
     assert!(!asm.contains("call __impl_"));
     assert!(!asm.contains("call .Lpinker_trait_vtable_"));
     assert!(!asm.contains("__env"));
+}
+
+#[test]
+fn fase244_assembly_e_vtables_sao_deterministas_em_compilacoes_independentes() {
+    let first_selected = lower_to_selected(FONTE_FASE244_CICLO);
+    let second_selected = lower_to_selected(FONTE_FASE244_CICLO);
+    let first = backend_s::emit_external_toolchain_subset_nativo(&first_selected)
+        .expect("primeira compilação nativa da Fase 244");
+    let second = backend_s::emit_external_toolchain_subset_nativo(&second_selected)
+        .expect("segunda compilação nativa da Fase 244");
+
+    assert_eq!(first, second);
+
+    let symbols = first
+        .lines()
+        .map(str::trim)
+        .filter(|line| {
+            line.starts_with(".Lpinker_trait_vtable_")
+                && line.ends_with(':')
+                && !line.contains("__slot_")
+        })
+        .collect::<Vec<_>>();
+    assert!(!symbols.is_empty());
+
+    let mut sorted = symbols.clone();
+    sorted.sort_unstable();
+    assert_eq!(symbols, sorted);
 }
 
 #[test]

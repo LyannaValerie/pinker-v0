@@ -1698,7 +1698,8 @@ fn validate_block(
                 object,
                 trait_name,
                 method_name,
-                method_slot: _,
+                method_slot,
+                method_count,
                 args,
                 param_types,
                 ret_type,
@@ -1706,6 +1707,12 @@ fn validate_block(
                 if trait_name.trim().is_empty() || method_name.trim().is_empty() {
                     return Err(cfg_error(
                         "trait_call sem identidade nominal completa",
+                        function.span,
+                    ));
+                }
+                if *method_count == 0 || *method_slot >= *method_count {
+                    return Err(cfg_error(
+                        "trait_call referencia slot fora da vtable",
                         function.span,
                     ));
                 }

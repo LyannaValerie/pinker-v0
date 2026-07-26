@@ -45,7 +45,7 @@ fn backend_text_valida_materializacao_e_chamada_de_trato() {
     let mut slot_types = std::collections::HashMap::new();
     slot_types.insert("%obj#0".to_string(), TypeIR::TraitObject);
     slot_types.insert("%x#0".to_string(), TypeIR::Bombom);
-    let p = BackendTextProgram {
+    let mut p = BackendTextProgram {
         is_freestanding: false,
         module_name: "main".to_string(),
         globals: vec![],
@@ -77,6 +77,7 @@ fn backend_text_valida_materializacao_e_chamada_de_trato() {
                         trait_name: "Medivel".to_string(),
                         method_name: "valor".to_string(),
                         method_slot: 0,
+                        method_count: 1,
                         args: vec![],
                         param_types: vec![],
                         ret_type: TypeIR::Bombom,
@@ -87,6 +88,20 @@ fn backend_text_valida_materializacao_e_chamada_de_trato() {
         }],
     };
     assert!(backend_text_validate::validate_program(&p).is_ok());
+    let BackendTextInstruction::TraitCall {
+        method_slot,
+        method_count,
+        ..
+    } = &mut p.functions[0].blocks[0].instructions[2]
+    else {
+        panic!("instrução esperada");
+    };
+    *method_slot = 1;
+    *method_count = 1;
+    let err = backend_text_validate::validate_program(&p)
+        .expect_err("slot fora da vtable deve ser recusado")
+        .to_string();
+    assert!(err.contains("slot fora da vtable"), "{err}");
 }
 
 #[test]

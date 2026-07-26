@@ -716,7 +716,7 @@ carinho principal() -> bombom {
     let rendered = render_ir(code).unwrap();
 
     assert!(
-        rendered.contains("trait_call trato<Medivel>.medir#0 %objeto#0(2:bombom) -> bombom"),
+        rendered.contains("trait_call trato<Medivel>.medir#0/1 %objeto#0(2:bombom) -> bombom"),
         "IR inesperada:\n{rendered}"
     );
 
@@ -755,7 +755,7 @@ carinho principal() -> bombom {
     let rendered = render_ir(code).unwrap();
 
     assert!(
-        rendered.contains("trait_call trato<Medivel>.medir#0 %objeto#0() -> bombom"),
+        rendered.contains("trait_call trato<Medivel>.medir#0/1 %objeto#0() -> bombom"),
         "IR inesperada:\n{rendered}"
     );
 }
@@ -791,7 +791,7 @@ carinho principal() -> bombom {
     let rendered = render_ir(code).unwrap();
 
     assert!(
-        rendered.contains("trait_call trato<Observavel>.observar#0 %objeto#0(7:bombom) -> nulo"),
+        rendered.contains("trait_call trato<Observavel>.observar#0/1 %objeto#0(7:bombom) -> nulo"),
         "IR inesperada:\n{rendered}"
     );
 }

@@ -77,6 +77,7 @@ pub enum BackendTextInstruction {
         trait_name: String,
         method_name: String,
         method_slot: u64,
+        method_count: u64,
         args: Vec<OperandIR>,
         param_types: Vec<TypeIR>,
         ret_type: TypeIR,
@@ -213,6 +214,7 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                                 trait_name,
                                 method_name,
                                 method_slot,
+                                method_count,
                                 args,
                                 param_types,
                                 ret_type,
@@ -222,6 +224,7 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                                 trait_name: trait_name.clone(),
                                 method_name: method_name.clone(),
                                 method_slot: *method_slot,
+                                method_count: *method_count,
                                 args: args.clone(),
                                 param_types: param_types.clone(),
                                 ret_type: *ret_type,
@@ -513,6 +516,7 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
             trait_name,
             method_name,
             method_slot,
+            method_count,
             args,
             param_types,
             ret_type,
@@ -522,6 +526,7 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
             trait_name: trait_name.clone(),
             method_name: method_name.clone(),
             method_slot: *method_slot,
+            method_count: *method_count,
             args: args.clone(),
             param_types: param_types.clone(),
             ret_type: *ret_type,
@@ -719,6 +724,7 @@ fn render_instruction(inst: &BackendTextInstruction) -> String {
             trait_name,
             method_name,
             method_slot,
+            method_count,
             args,
             ret_type,
             ..
@@ -729,11 +735,12 @@ fn render_instruction(inst: &BackendTextInstruction) -> String {
                 .collect::<Vec<_>>()
                 .join(", ");
             let call = format!(
-                "trait_call {} trato<{}>.{}[{}]({})",
+                "trait_call {} trato<{}>.{}[{}/{}]({})",
                 render_operand(object),
                 trait_name,
                 method_name,
                 method_slot,
+                method_count,
                 args
             );
             match (dest, ret_type) {

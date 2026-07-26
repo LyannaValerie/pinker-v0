@@ -353,7 +353,8 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         object,
                         trait_name,
                         method_name,
-                        method_slot: _,
+                        method_slot,
+                        method_count,
                         args,
                         param_types,
                         ret_type,
@@ -366,6 +367,9 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
 
                         if trait_name.trim().is_empty() || method_name.trim().is_empty() {
                             return Err(err("selected trait_call sem identidade nominal completa"));
+                        }
+                        if *method_count == 0 || *method_slot >= *method_count {
+                            return Err(err("selected trait_call referencia slot fora da vtable"));
                         }
 
                         if args.len() != param_types.len() {

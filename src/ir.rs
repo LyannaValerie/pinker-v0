@@ -220,6 +220,7 @@ pub enum ValueIR {
         trait_name: String,
         method_name: String,
         method_slot: u64,
+        method_count: u64,
         args: Vec<ValueIR>,
         param_types: Vec<TypeIR>,
         ret_type: TypeIR,
@@ -345,6 +346,7 @@ struct TraitMethodMetaIR {
     param_types: Vec<TypeIR>,
     ret_type: TypeIR,
     ret_struct_name: Option<String>,
+    ret_trait_name: Option<String>,
 }
 
 #[derive(Clone)]
@@ -746,12 +748,17 @@ impl LoweringContext {
                     let ret_struct_name = method.ret_type.as_ref().and_then(|ty| {
                         resolve_struct_name_from_type(ty, &type_aliases, &struct_names)
                     });
+                    let ret_trait_name = method
+                        .ret_type
+                        .as_ref()
+                        .and_then(trait_object_name_from_type);
 
                     Ok::<_, PinkerError>(TraitMethodMetaIR {
                         name: method.name.clone(),
                         param_types,
                         ret_type,
                         ret_struct_name,
+                        ret_trait_name,
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -1825,16 +1832,30 @@ impl<'a> FunctionLowerer<'a> {
                 self.trait_object_names.get(&binding.slot).cloned()
             }
             ExprKind::Cast { target, .. } => trait_object_name_from_type(target),
-            ExprKind::Call(callee, _) => {
-                let ExprKind::Ident(function_name) = &callee.kind else {
-                    return None;
-                };
-
-                self.context
+            ExprKind::Call(callee, _) => match &callee.kind {
+                ExprKind::Ident(function_name) => self
+                    .context
                     .function_ret_trait_names
                     .get(function_name)
-                    .cloned()
-            }
+                    .cloned(),
+                ExprKind::FieldAccess { base, field } => {
+                    let trait_name = match &base.kind {
+                        ExprKind::Ident(name) if self.context.traits.contains_key(name) => {
+                            name.clone()
+                        }
+                        _ => self.trait_object_name_for_expr(base)?,
+                    };
+                    self.context
+                        .traits
+                        .get(&trait_name)?
+                        .methods
+                        .iter()
+                        .find(|method| method.name == *field)?
+                        .ret_trait_name
+                        .clone()
+                }
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -1942,7 +1963,7 @@ impl<'a> FunctionLowerer<'a> {
         args: &[Expr],
         span: Span,
     ) -> Result<TypedValueIR, PinkerError> {
-        let (method_slot, method) = {
+        let (method_slot, method_count, method) = {
             let trait_meta =
                 self.context
                     .traits
@@ -1965,7 +1986,7 @@ impl<'a> FunctionLowerer<'a> {
                     span,
                 })?;
 
-            (slot as u64, method.clone())
+            (slot as u64, trait_meta.methods.len() as u64, method.clone())
         };
 
         if args.len() != method.param_types.len() {
@@ -1989,6 +2010,7 @@ impl<'a> FunctionLowerer<'a> {
                 trait_name: trait_name.to_string(),
                 method_name: method_name.to_string(),
                 method_slot,
+                method_count,
                 args: lowered_args,
                 param_types: method.param_types,
                 ret_type: method.ret_type,
@@ -3891,14 +3913,16 @@ fn render_value(value: &ValueIR) -> String {
             trait_name,
             method_name,
             method_slot,
+            method_count,
             args,
             param_types: _,
             ret_type,
         } => format!(
-            "trait_call trato<{}>.{}#{} {}({}) -> {}",
+            "trait_call trato<{}>.{}#{}/{} {}({}) -> {}",
             trait_name,
             method_name,
             method_slot,
+            method_count,
             render_value(object),
             args.iter().map(render_value).collect::<Vec<_>>().join(", "),
             ret_type.render_name()

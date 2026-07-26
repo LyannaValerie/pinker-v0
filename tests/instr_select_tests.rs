@@ -357,7 +357,7 @@ carinho principal() -> bombom {
     );
 
     assert!(
-        selected.contains("trait_call trato<Medivel>.medir#0 %objeto#0(2) -> bombom"),
+        selected.contains("trait_call trato<Medivel>.medir#0/1 %objeto#0(2) -> bombom"),
         "seleção inesperada:\n{selected}"
     );
 }
@@ -391,12 +391,12 @@ carinho principal() -> bombom {
     let selected = render_selected(code).unwrap();
 
     assert!(
-        selected.contains("trait_call trato<Observavel>.observar#0 %objeto#0(7) -> nulo"),
+        selected.contains("trait_call trato<Observavel>.observar#0/1 %objeto#0(7) -> nulo"),
         "seleção inesperada:\n{selected}"
     );
 
     assert!(
-        !selected.contains("= trait_call trato<Observavel>.observar#0"),
+        !selected.contains("= trait_call trato<Observavel>.observar#0/1"),
         "método nulo não pode possuir destino:\n{selected}"
     );
 }
@@ -468,6 +468,7 @@ fn fase244_select_validation_rejeita_destino_em_metodo_nulo() {
         trait_name: "Observavel".to_string(),
         method_name: "observar".to_string(),
         method_slot: 0,
+        method_count: 1,
         args: vec![],
         param_types: vec![],
         ret_type: TypeIR::Nulo,
@@ -479,6 +480,33 @@ fn fase244_select_validation_rejeita_destino_em_metodo_nulo() {
 
     assert!(
         err.contains("selected trait_call nulo não pode ter destino"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_select_validation_rejeita_slot_fora_da_vtable() {
+    use pinker_v0::cfg_ir::{OperandIR, TempIR};
+    use pinker_v0::instr_select::SelectedInstr;
+    use pinker_v0::ir::TypeIR;
+
+    let program = fase244_selected_program(vec![SelectedInstr::TraitCall {
+        dest: Some(TempIR(0)),
+        object: OperandIR::Local("%objeto#0".to_string()),
+        trait_name: "Medivel".to_string(),
+        method_name: "medir".to_string(),
+        method_slot: 1,
+        method_count: 1,
+        args: vec![],
+        param_types: vec![],
+        ret_type: TypeIR::Bombom,
+    }]);
+
+    let err = pinker_v0::instr_select_validate::validate_program(&program)
+        .expect_err("slot fora da vtable deve ser recusado")
+        .to_string();
+    assert!(
+        err.contains("slot fora da vtable"),
         "diagnóstico inesperado: {err}"
     );
 }

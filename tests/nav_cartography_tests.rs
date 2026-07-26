@@ -1823,7 +1823,7 @@ fn onda_8c_cartografa_evidencias_semanticas() {
         }
         test_count += 1;
     }
-    assert_eq!(test_count, 384, "contagem de #[test] inesperada em {file}");
+    assert_eq!(test_count, 385, "contagem de #[test] inesperada em {file}");
     for (key, count) in expected_semantic_keys.iter().zip(owned_test_counts) {
         assert!(
             count >= 1,
@@ -1959,7 +1959,7 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
             &expected_ir_keys[ir_validate_start..],
             "tests/ir_validate_tests.rs",
             "ir",
-            11,
+            12,
         ),
         (
             &expected_cfg_keys[..cfg_validate_start],
@@ -1971,13 +1971,13 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
             &expected_cfg_keys[cfg_validate_start..],
             "tests/cfg_ir_validate_tests.rs",
             "cfg",
-            20,
+            21,
         ),
         (
             &expected_select_keys[..],
             "tests/instr_select_tests.rs",
             "select",
-            16,
+            17,
         ),
         (
             &expected_machine_keys[..machine_stack_start],
@@ -1989,7 +1989,7 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
             &expected_machine_keys[machine_stack_start..],
             "tests/abstract_machine_stack_tests.rs",
             "machine",
-            33,
+            34,
         ),
     ];
 
@@ -2099,8 +2099,8 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
         "o plano da Onda 8D perdeu uma chave"
     );
     assert_eq!(
-        total_test_count, 173,
-        "a Onda 8D deveria cobrir exatamente 145 testes (M_TOTAL)"
+        total_test_count, 177,
+        "a Onda 8D deveria cobrir exatamente 177 testes"
     );
 
     // As 53 regiões de evidência anteriores devem permanecer: total de evidência = 53 + 58.
@@ -2140,7 +2140,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
     exclude_pink_agent_wave_a(&mut catalog);
 
-    // A Onda 8E cartografa 534 testes de tests/interpreter_tests.rs (evidências
+    // A Onda 8E cartografa 562 testes de tests/interpreter_tests.rs (evidências
     // da execução interpretada da Pinker) em 46 regiões no domínio `interpreter`.
     // Quatro testes de build/backend ficam explicitamente adiados. As contagens
     // de #[test] por região estão congeladas no plano e a ordem física da suíte
@@ -2227,7 +2227,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
             "evidencia.interpreter.leques-trazer-recursos-e-programas-brinquedo",
             20,
         ),
-        ("evidencia.interpreter.objetos-trato-fase244", 8),
+        ("evidencia.interpreter.objetos-trato-fase244", 9),
         (
             "evidencia.interpreter.ponteiros-boot-freestanding-e-subset-nativo",
             21,
@@ -2313,7 +2313,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     assert_eq!(
         planned_keys.len(),
         48,
-        "o plano da Onda 8E deveria ter exatamente 47 regiões"
+        "o plano da Onda 8E deveria ter exatamente 48 regiões"
     );
 
     // O catálogo versionado deve ser exatamente a projeção canônica da fonte.
@@ -2334,7 +2334,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         "src/navigation.jsonl diverge da regeneração canônica (summary, faixa ou hash)"
     );
 
-    // Cobertura estrutural: 534 testes pertencem a exatamente uma região 8E e
+    // Cobertura estrutural: 562 testes pertencem a exatamente uma região 8E e
     // somente as quatro exclusões fechadas acima permanecem fora dessas regiões.
     let source_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(file);
     let source = fs::read_to_string(&source_path)
@@ -2403,12 +2403,12 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     }
 
     assert_eq!(
-        total_test_count, 565,
-        "a suíte interpreter deveria manter exatamente 554 testes"
+        total_test_count, 566,
+        "a suíte interpreter deveria manter exatamente 566 testes"
     );
     assert_eq!(
-        mapped_test_count, 561,
-        "a Onda 8E deveria cartografar exatamente 550 testes da suíte interpreter"
+        mapped_test_count, 562,
+        "a Onda 8E deveria cartografar exatamente 562 testes da suíte interpreter"
     );
     assert_eq!(
         found_excluded_from_8e, expected_excluded_from_8e,
@@ -3072,8 +3072,8 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        66,
-        "{backend_nativo} deve manter exatamente 66 #[test]"
+        69,
+        "{backend_nativo} deve manter exatamente 69 #[test]"
     );
 
     for future_without_owner in [
@@ -4626,8 +4626,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        66,
-        "{nativo} deve manter exatamente 66 testes"
+        69,
+        "{nativo} deve manter exatamente 69 testes"
     );
     assert_eq!(
         catalog

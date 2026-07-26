@@ -311,6 +311,7 @@ fn fase244_ir_valida_materializacao_e_chamada_dinamica_com_retorno() {
                         trait_name: "Medivel".to_string(),
                         method_name: "medir".to_string(),
                         method_slot: 0,
+                        method_count: 1,
                         args: vec![ValueIR::Int(2)],
                         param_types: vec![TypeIR::Bombom],
                         ret_type: TypeIR::Bombom,
@@ -359,6 +360,7 @@ fn fase244_ir_valida_chamada_dinamica_nula_como_comando() {
                         trait_name: "Observavel".to_string(),
                         method_name: "observar".to_string(),
                         method_slot: 0,
+                        method_count: 1,
                         args: vec![ValueIR::Int(7)],
                         param_types: vec![TypeIR::Bombom],
                         ret_type: TypeIR::Nulo,
@@ -435,6 +437,7 @@ fn fase244_ir_rejeita_chamada_dinamica_sobre_valor_comum() {
                 trait_name: "Medivel".to_string(),
                 method_name: "medir".to_string(),
                 method_slot: 0,
+                method_count: 1,
                 args: vec![],
                 param_types: vec![],
                 ret_type: TypeIR::Bombom,
@@ -449,6 +452,41 @@ fn fase244_ir_rejeita_chamada_dinamica_sobre_valor_comum() {
 
     assert!(
         err.contains("chamada dinâmica exige objeto de trato"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_ir_rejeita_slot_fora_da_vtable() {
+    let function = base_function(
+        TypeIR::Bombom,
+        vec![InstructionIR::Return {
+            value: Some(ValueIR::TraitCall {
+                object: Box::new(ValueIR::MakeTraitObject {
+                    value: Box::new(ValueIR::Int(42)),
+                    trait_name: "Medivel".to_string(),
+                    concrete_type: TypeIR::Bombom,
+                    concrete_type_name: "bombom".to_string(),
+                    concrete_size: 8,
+                    vtable_methods: vec!["__impl_7_Medivel_6_bombom_medir".to_string()],
+                }),
+                trait_name: "Medivel".to_string(),
+                method_name: "medir".to_string(),
+                method_slot: 1,
+                method_count: 1,
+                args: vec![],
+                param_types: vec![],
+                ret_type: TypeIR::Bombom,
+            }),
+            span: sp(),
+        }],
+    );
+
+    let err = ir_validate::validate_program(&fase244_programa_com_funcao(function))
+        .expect_err("slot fora da vtable deve ser recusado")
+        .to_string();
+    assert!(
+        err.contains("slot fora da vtable"),
         "diagnóstico inesperado: {err}"
     );
 }
