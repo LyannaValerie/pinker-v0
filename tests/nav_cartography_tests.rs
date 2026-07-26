@@ -52,6 +52,122 @@ fn stable_region_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -
     records.concat()
 }
 
+fn project_pre_conditional_callable_reassignment(catalog: &mut CodeCatalog) {
+    // Continuação pós-revisão da PR #407: reconstrói o head 9964325 antes de
+    // aplicar qualquer projeção histórica. Somente regiões alteradas pelo
+    // blocker de reatribuição condicional são restauradas.
+    for region in &mut catalog.regions {
+        let current_hash = match region.key.as_str() {
+            "ir.lowering.funcoes-blocos" => "fnv1a64:791de6b34b5bc033",
+            "ir.lowering.comandos-controle" => "fnv1a64:e924105887664ddc",
+            "evidencia.semantica.objetos-trato-fase244" => "fnv1a64:8904d84840011ff3",
+            "evidencia.ir.lowering-objetos-trato-fase244" => "fnv1a64:11685eb665a79fd1",
+            "evidencia.interpreter.objetos-trato-fase244" => "fnv1a64:cd26f3bbd536cf97",
+            "evidencia.backend-nativo.objetos-trato-fase244" => "fnv1a64:c972e182525e3b46",
+            _ => continue,
+        };
+        if region.hash != current_hash {
+            continue;
+        }
+        let (summary, hash) = match region.key.as_str() {
+            "ir.lowering.funcoes-blocos" => (
+                Some("Configuração do `FunctionLowerer` e lowering de funções e blocos estruturados: constrói o lowerer, aloca os parâmetros como bindings, abaixa o bloco de entrada, coleta locais e tipo de retorno em `FunctionIR`, e percorre `BlockIR` abrindo/fechando escopo opcional. Inclui os resolvedores de método de `impl` (direto e qualificado por trato) consultados pelo lowering de expressões. Preserva a estrutura aninhada; não divide o fluxo em blocos básicos de CFG."),
+                Some("fnv1a64:b884a74a8133399b"),
+            ),
+            "ir.lowering.comandos-controle" => {
+                (None, Some("fnv1a64:6c4b1a55092fcf41"))
+            }
+            "evidencia.semantica.objetos-trato-fase244" => (
+                Some("Exercita a semântica nominal inicial dos objetos de trato da Fase 244: receiver contextual `si`, tipo `trato<Nome>`, materialização explícita por `virar`, múltiplos tipos concretos, object safety, trato inexistente, impl ausente e recusa de coerção implícita."),
+                Some("fnv1a64:c65e3007e1fbda6c"),
+            ),
+            "evidencia.ir.lowering-objetos-trato-fase244" => (
+                Some("Exercita o lowering completo da superfície da Fase 244 para a IR estruturada: materialização explícita, ordem de vtable, tamanho do snapshot, despacho dinâmico direto e qualificado, método sem retorno, propagação nominal por callables indiretos e restauração de objetos de trato e callables capturados por closures."),
+                Some("fnv1a64:df2632d3bba25df3"),
+            ),
+            "evidencia.interpreter.objetos-trato-fase244" => (
+                Some("Executa objetos de trato no interpretador hospedado: snapshot, alias de handle, despacho direto e qualificado por slot, retorno de objeto, método nulo e diagnósticos de handle, slot e trato incompatíveis."),
+                Some("fnv1a64:04c20d03ac26e2bf"),
+            ),
+            "evidencia.backend-nativo.objetos-trato-fase244" => (
+                Some("Evidência executável da Fase 244 para objetos de trato: helper cria fonte temporária fora do repositório, executa interpretador, faz build ELF com `pink build --nativo`, executa o binário e compara stdout byte a byte e exit code. Os testes cobrem snapshot/alias/objetos independentes, retorno e passagem de handle, despacho direto/qualificado/aninhado, métodos com e sem retorno, slots na ordem do trato apesar da ordem do impl, dois tipos no mesmo trato, dois tratos no mesmo tipo, matriz SysV de 0/1/5/6/7/8/9 argumentos do usuário, regressões 242/243 e estrutura `.rodata`/`.quad`/`call *reg` sem `__env`."),
+                Some("fnv1a64:85709579c5f9b184"),
+            ),
+            _ => (None, None),
+        };
+        if let Some(summary) = summary {
+            region.summary = summary.to_string();
+        }
+        if let Some(hash) = hash {
+            region.hash = hash.to_string();
+        }
+    }
+}
+
+fn project_pre_phase244_followups(catalog: &mut CodeCatalog) {
+    project_pre_conditional_callable_reassignment(catalog);
+    // Hotfix pós-merge da Fase 244: as projeções históricas continuam
+    // ancoradas no merge a735186. Restaura somente os metadados das regiões
+    // tocadas pelo hotfix antes de reconstruir os marcos predecessores.
+    for region in &mut catalog.regions {
+        let (summary, hash) = match region.key.as_str() {
+            "ast.closures.identificadores-livres" => (
+                Some("Fase 243: varredura sintática pura (sem informação de tipo) que lista, em ordem determinística de primeira referência, os identificadores usados em posição de valor no corpo de uma função que não são parâmetros nem locais `nova` declarados antes do uso no mesmo escopo léxico (block-scoped). Nome de callee direto em `Call(Ident(nome), args)` não conta (resolvido por `self.funcs`, não por valor). Usada tanto pelo parser (aproximação conservadora para decidir elegibilidade do caminho rápido da Fase 238/239) quanto pelo semantic (resolução real contra escopo léxico vigente na Fase 243) — a lista pode conter nomes que na resolução real não são captura alguma (função top-level, constante, variante de leque); cabe ao chamador filtrar."),
+                Some("fnv1a64:9f42348c66b7ddab"),
+            ),
+            "backend-s.lowering.operacoes-memoria" => {
+                (None, Some("fnv1a64:c62f2129802b2958"))
+            }
+            "backend-s.validacao.labels-tipos" => {
+                (None, Some("fnv1a64:f6525e469e0ef15f"))
+            }
+            "evidencia.backend-nativo.objetos-trato-fase244" => {
+                (None, Some("fnv1a64:8c040132b36f360f"))
+            }
+            "evidencia.interpreter.objetos-trato-fase244" => {
+                (None, Some("fnv1a64:5fc9055488ca9af1"))
+            }
+            "evidencia.ir.lowering-objetos-trato-fase244" => (
+                Some("Exercita o lowering completo da superfície da Fase 244 para a IR estruturada: materialização explícita, ordem de vtable, tamanho do snapshot, despacho dinâmico direto e qualificado e método sem retorno."),
+                Some("fnv1a64:ad901e367b30138c"),
+            ),
+            "evidencia.ir.validacao-objetos-trato-fase244" => {
+                (None, Some("fnv1a64:403576ff435ca8c1"))
+            }
+            "evidencia.parser.ast-basica-e-spans" => {
+                (None, Some("fnv1a64:67195ba2ebcb4c86"))
+            }
+            "evidencia.semantica.closures-captura-imutavel" => {
+                (None, Some("fnv1a64:487606b2a8dd6d0f"))
+            }
+            "ir.lowering.assinaturas-intrinsecos" => {
+                (None, Some("fnv1a64:72e740ffb6853132"))
+            }
+            "ir.lowering.comandos-controle" => (None, Some("fnv1a64:68b04188337a5ead")),
+            "ir.lowering.contexto-declaracoes" => {
+                (None, Some("fnv1a64:625c83e8c8dce2d0"))
+            }
+            "ir.lowering.expressoes-valores" => {
+                (None, Some("fnv1a64:70a2fb38046c0bdc"))
+            }
+            "ir.lowering.funcoes-blocos" => (None, Some("fnv1a64:b96a37c173dca523")),
+            "parser.closures.expressao" => (None, Some("fnv1a64:b23071555a8ec5de")),
+            "parser.comandos.bloco" => (None, Some("fnv1a64:a8a93efbb629a17c")),
+            "parser.expressoes.postfix" => (None, Some("fnv1a64:c310971ad11474f6")),
+            "parser.funcoes.declaracao" => (None, Some("fnv1a64:2bc2f428ad08d030")),
+            "semantic.funcoes.verificacao" => (None, Some("fnv1a64:d7e6803745b059aa")),
+            _ => (None, None),
+        };
+
+        if let Some(summary) = summary {
+            region.summary = summary.to_string();
+        }
+        if let Some(hash) = hash {
+            region.hash = hash.to_string();
+        }
+    }
+}
+
 fn project_pre_terminal_phase244_fixes(catalog: &mut CodeCatalog) {
     // Os dois commits funcionais terminais da Fase 244 alteraram regiões já
     // existentes. As projeções históricas continuam ancoradas no head 5870b05;
@@ -106,6 +222,7 @@ fn project_pre_terminal_phase244_fixes(catalog: &mut CodeCatalog) {
 }
 
 fn exclude_phase244_post_semantic(catalog: &mut CodeCatalog) {
+    project_pre_phase244_followups(catalog);
     project_pre_terminal_phase244_fixes(catalog);
     const KEYS: [&str; 10] = [
         "backend-s.lowering.objetos-trato-nativos",
@@ -277,6 +394,7 @@ fn exclude_pink_agent_wave_a(catalog: &mut CodeCatalog) {
 }
 
 fn project_pre_phase244_frontend(catalog: &mut CodeCatalog) {
+    project_pre_conditional_callable_reassignment(catalog);
     // Fase 244: os gates de ondas anteriores continuam descrevendo seus
     // próprios estados históricos. Remove a região nova e restaura os hashes
     // anteriores das regiões cujo conteúdo mudou nesta fase.
@@ -1750,10 +1868,10 @@ fn camada_evidencia_frontend_cartografa_lexer_parser_common() {
     };
 
     let lexer_test_count = coverage_for("tests/lexer_tests.rs", &expected_lexer_keys, 25);
-    let parser_test_count = coverage_for("tests/parser_tests.rs", &expected_parser_keys, 47);
+    let parser_test_count = coverage_for("tests/parser_tests.rs", &expected_parser_keys, 48);
     assert_eq!(lexer_test_count, 25);
-    assert_eq!(parser_test_count, 47);
-    assert_eq!(lexer_test_count + parser_test_count, 72);
+    assert_eq!(parser_test_count, 48);
+    assert_eq!(lexer_test_count + parser_test_count, 73);
 
     let previous_sample = catalog
         .region("lexer.fluxo.tokenizacao")
@@ -1883,7 +2001,7 @@ fn onda_8c_cartografa_evidencias_semanticas() {
         }
         test_count += 1;
     }
-    assert_eq!(test_count, 388, "contagem de #[test] inesperada em {file}");
+    assert_eq!(test_count, 392, "contagem de #[test] inesperada em {file}");
     for (key, count) in expected_semantic_keys.iter().zip(owned_test_counts) {
         assert!(
             count >= 1,
@@ -2013,13 +2131,13 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
             &expected_ir_keys[..ir_validate_start],
             "tests/ir_tests.rs",
             "ir",
-            41,
+            46,
         ),
         (
             &expected_ir_keys[ir_validate_start..],
             "tests/ir_validate_tests.rs",
             "ir",
-            12,
+            13,
         ),
         (
             &expected_cfg_keys[..cfg_validate_start],
@@ -2159,8 +2277,8 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
         "o plano da Onda 8D perdeu uma chave"
     );
     assert_eq!(
-        total_test_count, 181,
-        "a Onda 8D deveria cobrir exatamente 181 testes"
+        total_test_count, 187,
+        "a Onda 8D deveria cobrir exatamente 187 testes"
     );
 
     // As 53 regiões de evidência anteriores devem permanecer: total de evidência = 53 + 58.
@@ -2200,7 +2318,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
     exclude_pink_agent_wave_a(&mut catalog);
 
-    // A Onda 8E cartografa 563 testes de tests/interpreter_tests.rs (evidências
+    // A Onda 8E cartografa 565 testes de tests/interpreter_tests.rs (evidências
     // da execução interpretada da Pinker) em 46 regiões no domínio `interpreter`.
     // Quatro testes de build/backend ficam explicitamente adiados. As contagens
     // de #[test] por região estão congeladas no plano e a ordem física da suíte
@@ -2287,7 +2405,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
             "evidencia.interpreter.leques-trazer-recursos-e-programas-brinquedo",
             20,
         ),
-        ("evidencia.interpreter.objetos-trato-fase244", 10),
+        ("evidencia.interpreter.objetos-trato-fase244", 13),
         (
             "evidencia.interpreter.ponteiros-boot-freestanding-e-subset-nativo",
             21,
@@ -2394,7 +2512,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         "src/navigation.jsonl diverge da regeneração canônica (summary, faixa ou hash)"
     );
 
-    // Cobertura estrutural: 563 testes pertencem a exatamente uma região 8E e
+    // Cobertura estrutural: 566 testes pertencem a exatamente uma região 8E e
     // somente as quatro exclusões fechadas acima permanecem fora dessas regiões.
     let source_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(file);
     let source = fs::read_to_string(&source_path)
@@ -2463,12 +2581,12 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     }
 
     assert_eq!(
-        total_test_count, 567,
-        "a suíte interpreter deveria manter exatamente 567 testes"
+        total_test_count, 570,
+        "a suíte interpreter deveria manter exatamente 570 testes"
     );
     assert_eq!(
-        mapped_test_count, 563,
-        "a Onda 8E deveria cartografar exatamente 563 testes da suíte interpreter"
+        mapped_test_count, 566,
+        "a Onda 8E deveria cartografar exatamente 566 testes da suíte interpreter"
     );
     assert_eq!(
         found_excluded_from_8e, expected_excluded_from_8e,
@@ -3132,8 +3250,8 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        72,
-        "{backend_nativo} deve manter exatamente 72 #[test]"
+        74,
+        "{backend_nativo} deve manter exatamente 74 #[test]"
     );
 
     for future_without_owner in [
@@ -4686,8 +4804,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        72,
-        "{nativo} deve manter exatamente 72 testes"
+        74,
+        "{nativo} deve manter exatamente 74 testes"
     );
     assert_eq!(
         catalog

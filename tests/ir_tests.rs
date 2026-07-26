@@ -645,7 +645,7 @@ carinho principal() -> bombom { mimo 0; }
 // @pinker-nav:start evidencia.ir.lowering-objetos-trato-fase244
 // @pinker-nav:domain ir
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita o lowering completo da superfície da Fase 244 para a IR estruturada: materialização explícita, ordem de vtable, tamanho do snapshot, despacho dinâmico direto e qualificado e método sem retorno.
+// @pinker-nav:summary Exercita o lowering da Fase 244: materialização, vtables, despacho dinâmico, metadados nominais de callables e closures e merge de CallableMetadata em reatribuições condicionais, incluindo aliases, cópias, aninhamento e diagnósticos estruturados para braços incompatíveis ou sem metadado.
 
 #[test]
 fn fase244_lowering_materializa_objeto_e_preserva_ordem_da_vtable() {
@@ -1025,6 +1025,9 @@ fn fase244_type_ir_classifica_todas_as_representacoes_nativas_de_uma_palavra() {
         TypeIR::TraitObject,
     ];
     assert!(word_types.iter().all(TypeIR::is_native_abi_word));
+    assert!(TypeIR::Function.is_closure_environment_word());
+    assert!(TypeIR::TraitObject.is_closure_environment_word());
+    assert!(!TypeIR::Struct.is_closure_environment_word());
     assert_eq!(
         TypeIR::FixedArray {
             element: ScalarTypeIR::Bombom,
@@ -1036,4 +1039,249 @@ fn fase244_type_ir_classifica_todas_as_representacoes_nativas_de_uma_palavra() {
     assert_eq!(TypeIR::Nulo.native_abi_words(), Some(0));
 }
 
+#[test]
+fn fase244_followup_callable_preserva_retorno_nominal_em_todas_as_origens() {
+    let code = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho criar(valor: bombom) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+carinho aplicar(
+    fabrica: carinho(bombom) -> trato<Medivel>,
+    valor: bombom
+) -> bombom {
+    mimo fabrica(valor).medir();
+}
+carinho escolher() -> carinho(bombom) -> trato<Medivel> { mimo criar; }
+carinho principal() -> bombom {
+    nova direto: carinho(bombom) -> trato<Medivel> = criar;
+    nova alias = direto;
+    nova alias2 = alias;
+    nova copia = alias2;
+    nova retornado = escolher();
+    nova muda mutavel: carinho(bombom) -> trato<Medivel> = criar;
+    mutavel = copia;
+    nova muda anonimo: carinho(bombom) -> trato<Medivel> =
+        carinho(valor: bombom) -> trato<Medivel> {
+            mimo valor virar trato<Medivel>;
+        };
+    mimo direto(1).medir()
+        + alias2(2).medir()
+        + copia(3).medir()
+        + aplicar(copia, 4)
+        + retornado(5).medir()
+        + mutavel(6).medir()
+        + anonimo(7).medir();
+}
+"#;
+
+    let rendered = render_ir(code).expect("callables devem preservar trato<Medivel>");
+    assert!(rendered.matches("call_indirect").count() >= 7, "{rendered}");
+    assert_eq!(
+        rendered.matches("trait_call trato<Medivel>.medir").count(),
+        7,
+        "{rendered}"
+    );
+}
+
+#[test]
+fn fase244_followup_closure_restaura_metadados_nominais_do_ambiente() {
+    let code = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho criar(valor: bombom) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+carinho combinar(
+    objeto: trato<Medivel>,
+    fabrica: carinho(bombom) -> trato<Medivel>
+) -> carinho() -> bombom {
+    nova copia = objeto;
+    mimo carinho() -> bombom {
+        mimo copia.medir() + fabrica(3).medir();
+    };
+}
+carinho aninhar(objeto: trato<Medivel>)
+    -> carinho() -> carinho() -> bombom {
+    mimo carinho() -> carinho() -> bombom {
+        mimo carinho() -> bombom { mimo objeto.medir(); };
+    };
+}
+carinho principal() -> bombom {
+    nova objeto: trato<Medivel> = 5 virar trato<Medivel>;
+    nova executar: carinho() -> bombom = combinar(objeto, criar);
+    nova externa: carinho() -> carinho() -> bombom = aninhar(objeto);
+    nova interna: carinho() -> bombom = externa();
+    mimo executar() + interna();
+}
+"#;
+
+    let rendered = render_ir(code).expect("closures devem restaurar metadados nominais");
+    assert!(
+        rendered.contains("make_closure") && rendered.contains("deref(add(%__env#0"),
+        "{rendered}"
+    );
+    assert_eq!(
+        rendered.matches("trait_call trato<Medivel>.medir").count(),
+        3,
+        "{rendered}"
+    );
+}
+
+#[test]
+fn fase244_reatribuicao_condicional_combina_metadados_dos_bracos() {
+    let code = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho um() -> trato<Medivel> { mimo 1 virar trato<Medivel>; }
+carinho dois() -> trato<Medivel> { mimo 2 virar trato<Medivel>; }
+carinho numero_um() -> bombom { mimo 10; }
+carinho numero_dois() -> bombom { mimo 20; }
+carinho principal() -> bombom {
+    nova inferido_um = um;
+    nova inferido_dois = dois;
+    nova copia_um = inferido_um;
+    nova copia_dois = inferido_dois;
+    nova muda f = um;
+    f = verdade ? inferido_um : inferido_dois;
+    nova r1 = f().medir();
+    f = falso ? copia_um : copia_dois;
+    nova r2 = f().medir();
+    f = verdade ? (falso ? um : dois) : um;
+    nova r3 = f().medir();
+    f = falso ? um : dois;
+    f = verdade ? um : dois;
+    nova r4 = f().medir();
+    nova muda comum: carinho() -> bombom = numero_um;
+    comum = falso ? numero_um : numero_dois;
+    mimo r1 + r2 + r3 + r4 + comum();
+}
+"#;
+
+    let rendered = render_ir(code).expect("o ternário deve combinar metadados callables");
+    assert_eq!(rendered.matches("call_indirect").count(), 5, "{rendered}");
+    assert_eq!(
+        rendered.matches("trait_call trato<Medivel>.medir").count(),
+        4,
+        "{rendered}"
+    );
+    assert!(
+        rendered.matches("call __ternario").count() >= 7,
+        "{rendered}"
+    );
+
+    let alias_program = parse(
+        r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+apelido Base = trato<Medivel>;
+apelido Objeto = Base;
+carinho um() -> Objeto { mimo 1 virar trato<Medivel>; }
+carinho dois() -> Objeto { mimo 2 virar trato<Medivel>; }
+carinho principal() -> bombom {
+    nova muda f: carinho() -> Objeto = um;
+    f = verdade ? um : dois;
+    mimo f().medir();
+}
+"#,
+    )
+    .unwrap();
+    let alias_ir = ir::lower_program(&alias_program)
+        .expect("lowering deve resolver aliases de retorno direta e encadeadamente");
+    let alias_rendered = ir::render_program(&alias_ir);
+    assert!(
+        alias_rendered.contains("trait_call trato<Medivel>.medir"),
+        "{alias_rendered}"
+    );
+}
+
+#[test]
+fn fase244_reatribuicao_condicional_sem_metadado_falha_estruturadamente() {
+    let program = parse(
+        r#"
+pacote main;
+carinho um() -> bombom { mimo 1; }
+carinho principal() -> bombom {
+    nova muda f: carinho() -> bombom = um;
+    f = verdade ? um : "não-callable";
+    mimo 0;
+}
+"#,
+    )
+    .unwrap();
+
+    let err = ir::lower_program(&program)
+        .expect_err("a ausência de metadado em um braço não pode virar None silencioso")
+        .to_string();
+    assert!(
+        err.contains("ternário callable exige metadados nos dois braços"),
+        "{err}"
+    );
+}
+
+#[test]
+fn fase244_reatribuicao_condicional_rejeita_metadados_incompativeis_na_ir() {
+    let nominal = parse(
+        r#"
+pacote main;
+trato A { carinho medir(valor: si) -> bombom; }
+trato B { carinho medir(valor: si) -> bombom; }
+impl A para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+impl B para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho a() -> trato<A> { mimo 1 virar trato<A>; }
+carinho b() -> trato<B> { mimo 2 virar trato<B>; }
+carinho principal() -> bombom {
+    nova muda f: carinho() -> trato<A> = a;
+    f = verdade ? a : b;
+    mimo 0;
+}
+"#,
+    )
+    .unwrap();
+    let err = ir::lower_program(&nominal)
+        .expect_err("identidades nominais diferentes devem falhar na IR")
+        .to_string();
+    assert!(
+        err.contains("ternário callable possui retornos nominais incompatíveis"),
+        "{err}"
+    );
+
+    let estrutural = parse(
+        r#"
+pacote main;
+carinho numero() -> bombom { mimo 1; }
+carinho texto() -> verso { mimo "um"; }
+carinho principal() -> bombom {
+    nova muda f: carinho() -> bombom = numero;
+    f = verdade ? numero : texto;
+    mimo 0;
+}
+"#,
+    )
+    .unwrap();
+    let err = ir::lower_program(&estrutural)
+        .expect_err("retornos estruturais diferentes devem falhar na IR")
+        .to_string();
+    assert!(
+        err.contains("ternário callable possui retornos estruturais incompatíveis"),
+        "{err}"
+    );
+}
 // @pinker-nav:end evidencia.ir.lowering-objetos-trato-fase244

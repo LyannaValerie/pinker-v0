@@ -202,6 +202,38 @@ fn fase243_closure_capturante_forca_stmt_let_mesmo_sem_muda() {
         "closure capturante deveria forçar Stmt::Let real, não o atalho de alias"
     );
 }
+
+#[test]
+fn fase244_followup_closure_reconhece_callable_local_usado_so_como_callee() {
+    let code = r#"
+        pacote main;
+        carinho criar(valor: bombom) -> bombom { mimo valor; }
+        carinho fabricar() -> carinho() -> bombom {
+            nova fabrica: carinho(bombom) -> bombom = criar;
+            mimo carinho() -> bombom {
+                mimo fabrica(7);
+            };
+        }
+    "#;
+    let program = parse(code).expect("callable local deve tornar o literal capturante");
+    let Item::Function(fabricar) = program
+        .items
+        .iter()
+        .find(|item| matches!(item, Item::Function(f) if f.name == "fabricar"))
+        .expect("função fabricar presente")
+    else {
+        unreachable!();
+    };
+    assert!(
+        fabricar
+            .body
+            .stmts
+            .iter()
+            .any(|stmt| matches!(stmt, Stmt::Return(_))),
+        "closure deve permanecer no caminho de valor em runtime"
+    );
+}
+
 #[test]
 fn fase244_parser_reconhece_si_tipo_objeto_e_materializacao_explicita() {
     fn assert_tipo_objeto_trato(ty: &Type, expected_trait: &str) {

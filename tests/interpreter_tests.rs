@@ -9896,7 +9896,7 @@ fn fase243_closure_pilha_impar_aplica_padding_no_interpretador() {
 // @pinker-nav:start evidencia.interpreter.objetos-trato-fase244
 // @pinker-nav:domain interpreter
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa objetos de trato no interpretador hospedado: snapshot, alias de handle, despacho direto e qualificado por slot, retorno de objeto, método nulo e diagnósticos de handle, slot e trato incompatíveis.
+// @pinker-nav:summary Executa objetos de trato no interpretador hospedado: snapshot, aliases, despacho dinâmico, callables e closures, diagnósticos de handles e reatribuições condicionais verdadeiras, falsas, aninhadas e repetidas com bindings inferidos e cópias.
 
 #[test]
 fn fase244_interpreter_materializa_despacha_e_preserva_snapshot() {
@@ -10259,6 +10259,143 @@ fn fase244_interpreter_rejeita_trato_nominal_divergente() {
         err.contains("trait_call de trato incompatível"),
         "diagnóstico inesperado: {err}"
     );
+}
+
+#[test]
+fn fase244_followup_callable_retorna_objeto_de_trato_no_interpretador() {
+    let code = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho criar(valor: bombom) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+carinho aplicar(
+    fabrica: carinho(bombom) -> trato<Medivel>,
+    valor: bombom
+) -> bombom {
+    mimo fabrica(valor).medir();
+}
+carinho escolher() -> carinho(bombom) -> trato<Medivel> { mimo criar; }
+carinho principal() -> bombom {
+    nova direto: carinho(bombom) -> trato<Medivel> = criar;
+    nova alias = direto;
+    nova alias2 = alias;
+    nova copia = alias2;
+    nova retornado = escolher();
+    nova muda mutavel: carinho(bombom) -> trato<Medivel> = criar;
+    mutavel = copia;
+    nova muda anonimo: carinho(bombom) -> trato<Medivel> =
+        carinho(valor: bombom) -> trato<Medivel> {
+            mimo valor virar trato<Medivel>;
+        };
+    mimo direto(1).medir()
+        + alias2(2).medir()
+        + copia(3).medir()
+        + aplicar(copia, 4)
+        + retornado(5).medir()
+        + mutavel(6).medir()
+        + anonimo(7).medir();
+}
+"#;
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(28)));
+}
+
+#[test]
+fn fase244_followup_closure_restaura_trato_e_callable_no_interpretador() {
+    let code = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho criar(valor: bombom) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+carinho combinar(
+    objeto: trato<Medivel>,
+    delta: bombom,
+    fabrica: carinho(bombom) -> trato<Medivel>
+) -> carinho() -> bombom {
+    nova alias = objeto;
+    nova alias2 = alias;
+    nova copia = alias2;
+    mimo carinho() -> bombom {
+        mimo copia.medir() + delta + fabrica(3).medir();
+    };
+}
+carinho aninhar(objeto: trato<Medivel>)
+    -> carinho() -> carinho() -> bombom {
+    mimo carinho() -> carinho() -> bombom {
+        mimo carinho() -> bombom { mimo objeto.medir(); };
+    };
+}
+carinho devolver(objeto: trato<Medivel>)
+    -> carinho() -> trato<Medivel> {
+    mimo carinho() -> trato<Medivel> { mimo objeto; };
+}
+carinho sombrear(objeto: trato<Medivel>)
+    -> carinho(trato<Medivel>) -> bombom {
+    mimo carinho(objeto: trato<Medivel>) -> bombom {
+        mimo objeto.medir();
+    };
+}
+carinho principal() -> bombom {
+    nova muda origem: bombom = 5;
+    nova objeto: trato<Medivel> = origem virar trato<Medivel>;
+    nova copia = objeto;
+    nova executar: carinho() -> bombom = combinar(copia, 2, criar);
+    origem = 99;
+    nova externa: carinho() -> carinho() -> bombom = aninhar(copia);
+    nova interna: carinho() -> bombom = externa();
+    nova retorno: carinho() -> trato<Medivel> = devolver(copia);
+    nova sombra: carinho(trato<Medivel>) -> bombom = sombrear(copia);
+    nova outro: trato<Medivel> = 11 virar trato<Medivel>;
+    mimo executar() + interna() + retorno().medir() + sombra(outro);
+}
+"#;
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(31)));
+}
+
+#[test]
+fn fase244_reatribuicao_condicional_de_callable_executa_todos_os_casos_validos() {
+    let code = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho um() -> trato<Medivel> { mimo 1 virar trato<Medivel>; }
+carinho dois() -> trato<Medivel> { mimo 2 virar trato<Medivel>; }
+carinho numero_um() -> bombom { mimo 10; }
+carinho numero_dois() -> bombom { mimo 20; }
+carinho principal() -> bombom {
+    nova inferido_um = um;
+    nova inferido_dois = dois;
+    nova copia_um = inferido_um;
+    nova copia_dois = inferido_dois;
+    nova muda f = um;
+    f = verdade ? inferido_um : inferido_dois;
+    nova r1 = f().medir();
+    f = falso ? copia_um : copia_dois;
+    nova r2 = f().medir();
+    f = verdade ? (falso ? um : dois) : um;
+    nova r3 = f().medir();
+    f = falso ? um : dois;
+    f = verdade ? um : dois;
+    nova r4 = f().medir();
+    nova muda comum: carinho() -> bombom = numero_um;
+    comum = falso ? numero_um : numero_dois;
+    mimo r1 + r2 + r3 + r4 + comum();
+}
+"#;
+
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(26)));
 }
 
 // @pinker-nav:end evidencia.interpreter.objetos-trato-fase244

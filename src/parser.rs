@@ -1936,7 +1936,10 @@ impl Parser {
         for param in &params {
             self.register_collection_type(&param.name, &param.ty);
         }
-        let body = self.parse_block()?;
+        self.push_callable_param_scope(&params);
+        let body_result = self.parse_block();
+        self.function_value_scopes.pop();
+        let body = body_result?;
         self.collection_types = saved_collection_types;
         let span = merge_span(start_span, body.span);
         let function = FunctionDecl {
@@ -1954,7 +1957,14 @@ impl Parser {
         // callback), que assumem corpo sem referência a escopo externo. A
         // resolução real (quais nomes são de fato captura) acontece no
         // semantic, em `resolve_var`/`check_call_expr`.
-        if !crate::ast::free_identifiers_in_function(&function).is_empty() {
+        let has_free_value = !crate::ast::free_identifiers_in_function(&function).is_empty();
+        let captures_runtime_callable = crate::ast::capture_candidates_in_function(&function)
+            .iter()
+            .any(|candidate| {
+                self.resolve_function_value_alias(candidate)
+                    .is_some_and(|resolved| resolved == *candidate)
+            });
+        if has_free_value || captures_runtime_callable {
             self.capturing_anon_functions.insert(name.clone());
         }
         self.pending_functions.push(function);
@@ -1991,6 +2001,16 @@ impl Parser {
             .iter()
             .rev()
             .find_map(|scope| scope.get(name).cloned())
+    }
+
+    fn push_callable_param_scope(&mut self, params: &[Param]) {
+        self.function_value_scopes.push(
+            params
+                .iter()
+                .filter(|param| matches!(param.ty, Type::Function { .. }))
+                .map(|param| (param.name.clone(), param.name.clone()))
+                .collect(),
+        );
     }
 
     // Decide entre dois caminhos para `nova [muda] nome: carinho(...) -> T = <expr>;`:
@@ -2072,6 +2092,9 @@ impl Parser {
                 }
             }
         }
+
+        self.current_function_value_scope_mut()
+            .insert(local_name.clone(), local_name.clone());
 
         Ok(Some(Stmt::Let(LetStmt {
             name: local_name,
@@ -2163,7 +2186,10 @@ impl Parser {
             }
         }
 
-        let mut body = self.parse_block()?;
+        self.push_callable_param_scope(&params);
+        let body_result = self.parse_block();
+        self.function_value_scopes.pop();
+        let mut body = body_result?;
 
         if ret_type.is_some() {
             if let Some(Stmt::Expr(expr)) = body.stmts.last() {
@@ -3085,10 +3111,6 @@ impl Parser {
                 stmts.extend(self.parse_propagar_desugared()?);
             } else if self.starts_function_value_let() {
                 if let Some(stmt) = self.parse_function_value_let()? {
-                    if let Stmt::Let(let_stmt) = &stmt {
-                        self.current_function_value_scope_mut()
-                            .remove(&let_stmt.name);
-                    }
                     stmts.push(stmt);
                 }
             } else {
@@ -4774,13 +4796,14 @@ impl Parser {
                     let mut runtime_args = Vec::new();
                     for (index, arg) in args.into_iter().enumerate() {
                         let static_function = match &arg.kind {
-                            ExprKind::Ident(arg_name) => {
-                                self.resolve_function_value_alias(arg_name).or_else(|| {
+                            ExprKind::Ident(arg_name) => self
+                                .resolve_function_value_alias(arg_name)
+                                .filter(|resolved| resolved != arg_name)
+                                .or_else(|| {
                                     (arg_name.starts_with("__anon_carinho_")
                                         && !self.capturing_anon_functions.contains(arg_name))
                                     .then(|| arg_name.clone())
-                                })
-                            }
+                                }),
                             _ => None,
                         };
                         if let Some(function_name) = static_function {

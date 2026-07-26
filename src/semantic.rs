@@ -1660,35 +1660,22 @@ impl SemanticChecker {
             let Some(meta) = self.resolve_local_var_type(candidate) else {
                 continue;
             };
-            // Tipos de valor único (1 palavra na ABI: escalar, handle de
-            // leque/lista/mapa, seta ou callable). `ninho`/array fixo são
-            // agregados multi-palavra — não suportados como captura nesta
-            // fase (fora de escopo, §14.8: sem células internas/GC para
-            // sustentar um layout mais complexo no ambiente).
-            let capture_size_ok = matches!(
-                meta,
-                Type::Bombom(_)
-                    | Type::U8(_)
-                    | Type::U16(_)
-                    | Type::U32(_)
-                    | Type::U64(_)
-                    | Type::I8(_)
-                    | Type::I16(_)
-                    | Type::I32(_)
-                    | Type::I64(_)
-                    | Type::Logica(_)
-                    | Type::Verso(_)
-                    | Type::Enum { .. }
-                    | Type::ListBombom(_)
-                    | Type::ListVerso(_)
-                    | Type::MapVersoBombom(_)
-                    | Type::MapVersoVerso(_)
-                    | Type::MapBombomBombom(_)
-                    | Type::MapBombomVerso(_)
-                    | Type::Pointer { .. }
-                    | Type::Function { .. }
-            );
-            if !capture_size_ok {
+            // A admissibilidade da captura segue a representação canônica
+            // já transportável pela ABI. Isso inclui handles opacos de uma
+            // palavra como callables e objetos de trato, sem aceitar por
+            // acidente todo `Type::Applied`.
+            let struct_names = self.structs.keys().cloned().collect::<HashSet<_>>();
+            let capture_ir =
+                TypeIR::from_ast_with_context(&meta, &self.type_aliases, &struct_names).map_err(
+                    |error| PinkerError::Semantic {
+                        msg: format!(
+                            "captura de '{}' não possui representação nativa válida: {}",
+                            candidate, error
+                        ),
+                        span,
+                    },
+                )?;
+            if !capture_ir.is_closure_environment_word() {
                 return Err(PinkerError::Semantic {
                     msg: format!(
                         "captura de '{}' com tipo '{}' não suportada nesta fase (apenas tipos de 1 palavra)",

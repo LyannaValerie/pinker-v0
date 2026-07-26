@@ -1397,13 +1397,22 @@ impl<'a> JsonWriter<'a> {
 // @pinker-nav:start ast.closures.identificadores-livres
 // @pinker-nav:domain closures
 // @pinker-nav:layer ast
-// @pinker-nav:summary Fase 243: varredura sintática pura (sem informação de tipo) que lista, em ordem determinística de primeira referência, os identificadores usados em posição de valor no corpo de uma função que não são parâmetros nem locais `nova` declarados antes do uso no mesmo escopo léxico (block-scoped). Nome de callee direto em `Call(Ident(nome), args)` não conta (resolvido por `self.funcs`, não por valor). Usada tanto pelo parser (aproximação conservadora para decidir elegibilidade do caminho rápido da Fase 238/239) quanto pelo semantic (resolução real contra escopo léxico vigente na Fase 243) — a lista pode conter nomes que na resolução real não são captura alguma (função top-level, constante, variante de leque); cabe ao chamador filtrar.
+// @pinker-nav:summary Fase 243: varredura sintática pura (sem informação de tipo) que lista, em ordem determinística de primeira referência, os identificadores usados em posição de valor no corpo de uma função que não são parâmetros nem locais `nova` declarados antes do uso no mesmo escopo léxico (block-scoped). A consulta simples usada pelo parser mantém nomes de callee direto fora; a consulta transitiva usada por semantic/IR inclui esses nomes como candidatos para distinguir callables locais capturados de funções top-level. Cabe ao chamador filtrar candidatos que não resolvem para binding local.
 pub fn free_identifiers_in_function(function: &FunctionDecl) -> Vec<String> {
     let mut bound: Vec<HashSet<String>> =
         vec![function.params.iter().map(|p| p.name.clone()).collect()];
     let mut free = Vec::new();
     let mut seen = HashSet::new();
-    scan_block_free_idents(&function.body, &mut bound, &mut free, &mut seen);
+    scan_block_free_idents(&function.body, &mut bound, &mut free, &mut seen, false);
+    free
+}
+
+pub fn capture_candidates_in_function(function: &FunctionDecl) -> Vec<String> {
+    let mut bound: Vec<HashSet<String>> =
+        vec![function.params.iter().map(|p| p.name.clone()).collect()];
+    let mut free = Vec::new();
+    let mut seen = HashSet::new();
+    scan_block_free_idents(&function.body, &mut bound, &mut free, &mut seen, true);
     free
 }
 
@@ -1437,7 +1446,7 @@ fn expand_transitive_free_idents<F>(
 ) where
     F: Fn(&str) -> Option<FunctionDecl>,
 {
-    for candidate in free_identifiers_in_function(function) {
+    for candidate in capture_candidates_in_function(function) {
         if candidate.starts_with("__anon_carinho_") {
             if visiting.insert(candidate.clone()) {
                 if let Some(nested) = lookup(&candidate) {
@@ -1472,10 +1481,11 @@ fn scan_block_free_idents(
     bound: &mut Vec<HashSet<String>>,
     free: &mut Vec<String>,
     seen: &mut HashSet<String>,
+    include_direct_callees: bool,
 ) {
     bound.push(HashSet::new());
     for stmt in &block.stmts {
-        scan_stmt_free_idents(stmt, bound, free, seen);
+        scan_stmt_free_idents(stmt, bound, free, seen, include_direct_callees);
     }
     bound.pop();
 }
@@ -1485,12 +1495,29 @@ fn scan_if_free_idents(
     bound: &mut Vec<HashSet<String>>,
     free: &mut Vec<String>,
     seen: &mut HashSet<String>,
+    include_direct_callees: bool,
 ) {
-    scan_expr_free_idents(&if_stmt.condition, bound, free, seen);
-    scan_block_free_idents(&if_stmt.then_branch, bound, free, seen);
+    scan_expr_free_idents(
+        &if_stmt.condition,
+        bound,
+        free,
+        seen,
+        include_direct_callees,
+    );
+    scan_block_free_idents(
+        &if_stmt.then_branch,
+        bound,
+        free,
+        seen,
+        include_direct_callees,
+    );
     match &if_stmt.else_branch {
-        Some(ElseBlock::Block(block)) => scan_block_free_idents(block, bound, free, seen),
-        Some(ElseBlock::If(inner)) => scan_if_free_idents(inner, bound, free, seen),
+        Some(ElseBlock::Block(block)) => {
+            scan_block_free_idents(block, bound, free, seen, include_direct_callees)
+        }
+        Some(ElseBlock::If(inner)) => {
+            scan_if_free_idents(inner, bound, free, seen, include_direct_callees)
+        }
         None => {}
     }
 }
@@ -1500,10 +1527,11 @@ fn scan_stmt_free_idents(
     bound: &mut Vec<HashSet<String>>,
     free: &mut Vec<String>,
     seen: &mut HashSet<String>,
+    include_direct_callees: bool,
 ) {
     match stmt {
         Stmt::Let(let_stmt) => {
-            scan_expr_free_idents(&let_stmt.init, bound, free, seen);
+            scan_expr_free_idents(&let_stmt.init, bound, free, seen, include_direct_callees);
             bound
                 .last_mut()
                 .expect("escopo ativo")
@@ -1511,35 +1539,45 @@ fn scan_stmt_free_idents(
         }
         Stmt::Return(return_stmt) => {
             if let Some(expr) = &return_stmt.expr {
-                scan_expr_free_idents(expr, bound, free, seen);
+                scan_expr_free_idents(expr, bound, free, seen, include_direct_callees);
             }
         }
         Stmt::Assign(assign_stmt) => {
             match &assign_stmt.target {
                 AssignTarget::Ident(name) => note_free_ident(name, bound, free, seen),
-                AssignTarget::Deref(ptr) => scan_expr_free_idents(ptr, bound, free, seen),
+                AssignTarget::Deref(ptr) => {
+                    scan_expr_free_idents(ptr, bound, free, seen, include_direct_callees)
+                }
                 AssignTarget::FieldDeref { base, .. } => {
-                    scan_expr_free_idents(base, bound, free, seen)
+                    scan_expr_free_idents(base, bound, free, seen, include_direct_callees)
                 }
                 AssignTarget::Index { base, index } => {
-                    scan_expr_free_idents(base, bound, free, seen);
-                    scan_expr_free_idents(index, bound, free, seen);
+                    scan_expr_free_idents(base, bound, free, seen, include_direct_callees);
+                    scan_expr_free_idents(index, bound, free, seen, include_direct_callees);
                 }
             }
-            scan_expr_free_idents(&assign_stmt.expr, bound, free, seen);
+            scan_expr_free_idents(&assign_stmt.expr, bound, free, seen, include_direct_callees);
         }
-        Stmt::If(if_stmt) => scan_if_free_idents(if_stmt, bound, free, seen),
+        Stmt::If(if_stmt) => {
+            scan_if_free_idents(if_stmt, bound, free, seen, include_direct_callees)
+        }
         Stmt::While(while_stmt) => {
-            scan_expr_free_idents(&while_stmt.condition, bound, free, seen);
-            scan_block_free_idents(&while_stmt.body, bound, free, seen);
+            scan_expr_free_idents(
+                &while_stmt.condition,
+                bound,
+                free,
+                seen,
+                include_direct_callees,
+            );
+            scan_block_free_idents(&while_stmt.body, bound, free, seen, include_direct_callees);
         }
         Stmt::Break(_) | Stmt::Continue(_) | Stmt::InlineAsm(_) => {}
         Stmt::Falar(falar_stmt) => {
             for arg in &falar_stmt.args {
-                scan_expr_free_idents(arg, bound, free, seen);
+                scan_expr_free_idents(arg, bound, free, seen, include_direct_callees);
             }
         }
-        Stmt::Expr(expr) => scan_expr_free_idents(expr, bound, free, seen),
+        Stmt::Expr(expr) => scan_expr_free_idents(expr, bound, free, seen, include_direct_callees),
     }
 }
 
@@ -1548,31 +1586,38 @@ fn scan_expr_free_idents(
     bound: &mut Vec<HashSet<String>>,
     free: &mut Vec<String>,
     seen: &mut HashSet<String>,
+    include_direct_callees: bool,
 ) {
     match &expr.kind {
         ExprKind::Ident(name) => note_free_ident(name, bound, free, seen),
         ExprKind::Binary(lhs, _, rhs) => {
-            scan_expr_free_idents(lhs, bound, free, seen);
-            scan_expr_free_idents(rhs, bound, free, seen);
+            scan_expr_free_idents(lhs, bound, free, seen, include_direct_callees);
+            scan_expr_free_idents(rhs, bound, free, seen, include_direct_callees);
         }
-        ExprKind::Unary(_, operand) => scan_expr_free_idents(operand, bound, free, seen),
+        ExprKind::Unary(_, operand) => {
+            scan_expr_free_idents(operand, bound, free, seen, include_direct_callees)
+        }
         ExprKind::Call(callee, args) => {
-            if !matches!(callee.kind, ExprKind::Ident(_)) {
-                scan_expr_free_idents(callee, bound, free, seen);
+            if include_direct_callees || !matches!(callee.kind, ExprKind::Ident(_)) {
+                scan_expr_free_idents(callee, bound, free, seen, include_direct_callees);
             }
             for arg in args {
-                scan_expr_free_idents(arg, bound, free, seen);
+                scan_expr_free_idents(arg, bound, free, seen, include_direct_callees);
             }
         }
         ExprKind::InternalMapIterCreate(inner) | ExprKind::InternalMapIterNextKey(inner) => {
-            scan_expr_free_idents(inner, bound, free, seen);
+            scan_expr_free_idents(inner, bound, free, seen, include_direct_callees);
         }
-        ExprKind::FieldAccess { base, .. } => scan_expr_free_idents(base, bound, free, seen),
+        ExprKind::FieldAccess { base, .. } => {
+            scan_expr_free_idents(base, bound, free, seen, include_direct_callees)
+        }
         ExprKind::Index { base, index } => {
-            scan_expr_free_idents(base, bound, free, seen);
-            scan_expr_free_idents(index, bound, free, seen);
+            scan_expr_free_idents(base, bound, free, seen, include_direct_callees);
+            scan_expr_free_idents(index, bound, free, seen, include_direct_callees);
         }
-        ExprKind::Cast { expr, .. } => scan_expr_free_idents(expr, bound, free, seen),
+        ExprKind::Cast { expr, .. } => {
+            scan_expr_free_idents(expr, bound, free, seen, include_direct_callees)
+        }
         ExprKind::SizeOfType { .. }
         | ExprKind::AlignOfType { .. }
         | ExprKind::IntLit(_)
