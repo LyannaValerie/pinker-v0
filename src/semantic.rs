@@ -14,6 +14,7 @@
 
 use crate::ast::*;
 use crate::error::PinkerError;
+use crate::ir::TypeIR;
 use crate::layout;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet};
@@ -1215,6 +1216,29 @@ impl SemanticChecker {
                         msg: format!(
                             "método '{}' do trato '{}' só pode usar 'si' como primeiro parâmetro receiver",
                             method.name, trait_decl.name
+                        ),
+                        span: param.span,
+                    });
+                }
+
+                let struct_names = self.structs.keys().cloned().collect::<HashSet<_>>();
+                let ir_type = TypeIR::from_ast_with_context(
+                    &param.ty,
+                    &self.type_aliases,
+                    &struct_names,
+                )
+                .map_err(|error| PinkerError::Semantic {
+                    msg: format!(
+                        "parâmetro '{}' do método '{}' no trato '{}' não possui representação nativa válida: {}",
+                        param.name, method.name, trait_decl.name, error
+                    ),
+                    span: param.span,
+                })?;
+                if !ir_type.is_native_abi_word() {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "parâmetro '{}' do método '{}' no trato '{}' exige representação multi-palavra sem transporte nativo nesta fase",
+                            param.name, method.name, trait_decl.name
                         ),
                         span: param.span,
                     });

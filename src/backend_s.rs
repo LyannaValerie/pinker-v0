@@ -258,9 +258,9 @@ fn extract_external_callconv_program(
             let is_trait_receiver = param_index == 0
                 && function.name.starts_with("__impl_")
                 && is_external_trait_receiver_type(ty);
-            let is_trait_method_scalar =
-                function.name.starts_with("__impl_") && is_external_scalar_param_type(ty);
-            if !is_external_param_type(ty) && !is_trait_receiver && !is_trait_method_scalar {
+            let is_trait_method_word =
+                function.name.starts_with("__impl_") && ty.is_native_abi_word();
+            if !is_external_param_type(ty) && !is_trait_receiver && !is_trait_method_word {
                 return Err(err(
                     "subset externo montável aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>` no recorte conservador",
                 ));
@@ -284,10 +284,10 @@ fn extract_external_callconv_program(
                     )
                 })
             });
-            let is_trait_method_scalar =
-                function.name.starts_with("__impl_") && is_external_scalar_param_type(ty);
+            let is_trait_method_word =
+                function.name.starts_with("__impl_") && ty.is_native_abi_word();
             if !(is_external_local_type(ty)
-                || is_trait_method_scalar
+                || is_trait_method_word
                 || is_trait_snapshot_source && is_external_trait_receiver_type(ty))
             {
                 return Err(err(&format!(
@@ -964,9 +964,7 @@ fn extract_external_callconv_program(
                             ));
                         }
                         if param_types.len() != args.len()
-                            || param_types
-                                .iter()
-                                .any(|ty| !is_external_scalar_param_type(ty))
+                            || param_types.iter().any(|ty| !ty.is_native_abi_word())
                         {
                             return Err(err(
                                 "backend nativo encontrou assinatura de chamada dinâmica fora do subset SysV",

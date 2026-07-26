@@ -3055,7 +3055,7 @@ impl<'a> FunctionLowerer<'a> {
                 }
                 if let ExprKind::FieldAccess { base, field } = &callee.kind {
                     if let ExprKind::Ident(trait_name) = &base.kind {
-                        if !args.is_empty() {
+                        if self.context.traits.contains_key(trait_name) && !args.is_empty() {
                             let receiver = self.lower_value(&args[0])?;
 
                             if receiver.ty == TypeIR::TraitObject {
@@ -4015,6 +4015,22 @@ fn line(out: &mut String, indent: usize, text: &str) {
 // @pinker-nav:end ir.renderizacao.textual
 
 impl TypeIR {
+    /// Quantidade de palavras da representação já transportável pela ABI
+    /// nativa atual. Arrays fixos permanecem valores inline multi-palavra;
+    /// `nulo` não é valor. Todas as demais categorias são escalares ou
+    /// handles/ponteiros opacos de uma palavra.
+    pub fn native_abi_words(&self) -> Option<usize> {
+        match self {
+            TypeIR::FixedArray { .. } => None,
+            TypeIR::Nulo => Some(0),
+            _ => Some(1),
+        }
+    }
+
+    pub fn is_native_abi_word(&self) -> bool {
+        self.native_abi_words() == Some(1)
+    }
+
     pub fn is_unsigned(&self) -> bool {
         matches!(
             self,
