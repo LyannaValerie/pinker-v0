@@ -2195,4 +2195,146 @@ carinho principal() -> bombom {
         b"condicao-a\ncondicao-b\nb\n",
     );
 }
+
+#[test]
+fn fase244_followups_callables_e_closures_preservam_trato_com_paridade_nativa() {
+    let callable = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho criar(valor: bombom) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+carinho aplicar(
+    fabrica: carinho(bombom) -> trato<Medivel>,
+    valor: bombom
+) -> bombom {
+    mimo fabrica(valor).medir();
+}
+carinho escolher() -> carinho(bombom) -> trato<Medivel> { mimo criar; }
+carinho principal() -> bombom {
+    nova direto: carinho(bombom) -> trato<Medivel> = criar;
+    nova alias = direto;
+    nova alias2 = alias;
+    nova copia = alias2;
+    nova retornado = escolher();
+    nova muda mutavel: carinho(bombom) -> trato<Medivel> = criar;
+    mutavel = copia;
+    nova muda anonimo: carinho(bombom) -> trato<Medivel> =
+        carinho(valor: bombom) -> trato<Medivel> {
+            mimo valor virar trato<Medivel>;
+        };
+    nova resultado = direto(1).medir()
+        + alias2(2).medir()
+        + copia(3).medir()
+        + aplicar(copia, 4)
+        + retornado(5).medir()
+        + mutavel(6).medir()
+        + anonimo(7).medir();
+    falar(resultado);
+    mimo 0;
+}
+"#;
+    fase244_paridade_fonte(
+        callable,
+        "followup_callable_retorno_trato",
+        244_501,
+        b"28\n",
+    );
+
+    let closure = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho criar(valor: bombom) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+carinho combinar(
+    objeto: trato<Medivel>,
+    delta: bombom,
+    fabrica: carinho(bombom) -> trato<Medivel>
+) -> carinho() -> bombom {
+    nova alias = objeto;
+    nova alias2 = alias;
+    nova copia = alias2;
+    mimo carinho() -> bombom {
+        mimo copia.medir() + delta + fabrica(3).medir();
+    };
+}
+carinho aninhar(objeto: trato<Medivel>)
+    -> carinho() -> carinho() -> bombom {
+    mimo carinho() -> carinho() -> bombom {
+        mimo carinho() -> bombom { mimo objeto.medir(); };
+    };
+}
+carinho devolver(objeto: trato<Medivel>)
+    -> carinho() -> trato<Medivel> {
+    mimo carinho() -> trato<Medivel> { mimo objeto; };
+}
+carinho sombrear(objeto: trato<Medivel>)
+    -> carinho(trato<Medivel>) -> bombom {
+    mimo carinho(objeto: trato<Medivel>) -> bombom {
+        mimo objeto.medir();
+    };
+}
+carinho principal() -> bombom {
+    nova muda origem: bombom = 5;
+    nova objeto: trato<Medivel> = origem virar trato<Medivel>;
+    nova copia = objeto;
+    nova executar: carinho() -> bombom = combinar(copia, 2, criar);
+    origem = 99;
+    nova externa: carinho() -> carinho() -> bombom = aninhar(copia);
+    nova interna: carinho() -> bombom = externa();
+    nova retorno: carinho() -> trato<Medivel> = devolver(copia);
+    nova sombra: carinho(trato<Medivel>) -> bombom = sombrear(copia);
+    nova outro: trato<Medivel> = 11 virar trato<Medivel>;
+    nova resultado = executar()
+        + interna()
+        + retorno().medir()
+        + sombra(outro);
+    falar(resultado);
+    mimo 0;
+}
+"#;
+    fase244_paridade_fonte(closure, "followup_closure_captura_trato", 244_502, b"31\n");
+
+    let combinado = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho criar_c1(valor: bombom) -> trato<Medivel> {
+    falar("c1");
+    mimo valor virar trato<Medivel>;
+}
+carinho criar_c2(valor: bombom) -> trato<Medivel> {
+    falar("c2");
+    mimo valor virar trato<Medivel>;
+}
+carinho principal() -> bombom {
+    nova fabrica_c1: carinho(bombom) -> trato<Medivel> = criar_c1;
+    nova objeto = fabrica_c1(5);
+    nova executar_c1: carinho() -> bombom =
+        carinho() -> bombom { mimo objeto.medir(); };
+
+    nova fabrica_c2: carinho(bombom) -> trato<Medivel> = criar_c2;
+    nova executar_c2: carinho() -> bombom =
+        carinho() -> bombom { mimo fabrica_c2(6).medir(); };
+
+    falar(executar_c1() + executar_c2());
+    mimo 0;
+}
+"#;
+    fase244_paridade_fonte(
+        combinado,
+        "followup_combinado_avaliacao_unica",
+        244_503,
+        b"c1\nc2\n11\n",
+    );
+}
 // @pinker-nav:end evidencia.backend-nativo.objetos-trato-fase244

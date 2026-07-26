@@ -1998,7 +1998,10 @@ fn is_supported_type(ty: TypeIR) -> bool {
 }
 
 fn is_external_deref_load_type(ty: &TypeIR) -> bool {
-    *ty == TypeIR::Bombom || *ty == TypeIR::U32 || *ty == TypeIR::U64
+    matches!(
+        ty,
+        TypeIR::Bombom | TypeIR::U32 | TypeIR::U64 | TypeIR::Function | TypeIR::TraitObject
+    )
 }
 
 fn is_external_deref_store_type(ty: &TypeIR) -> bool {

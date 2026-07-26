@@ -10261,4 +10261,104 @@ fn fase244_interpreter_rejeita_trato_nominal_divergente() {
     );
 }
 
+#[test]
+fn fase244_followup_callable_retorna_objeto_de_trato_no_interpretador() {
+    let code = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho criar(valor: bombom) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+carinho aplicar(
+    fabrica: carinho(bombom) -> trato<Medivel>,
+    valor: bombom
+) -> bombom {
+    mimo fabrica(valor).medir();
+}
+carinho escolher() -> carinho(bombom) -> trato<Medivel> { mimo criar; }
+carinho principal() -> bombom {
+    nova direto: carinho(bombom) -> trato<Medivel> = criar;
+    nova alias = direto;
+    nova alias2 = alias;
+    nova copia = alias2;
+    nova retornado = escolher();
+    nova muda mutavel: carinho(bombom) -> trato<Medivel> = criar;
+    mutavel = copia;
+    nova muda anonimo: carinho(bombom) -> trato<Medivel> =
+        carinho(valor: bombom) -> trato<Medivel> {
+            mimo valor virar trato<Medivel>;
+        };
+    mimo direto(1).medir()
+        + alias2(2).medir()
+        + copia(3).medir()
+        + aplicar(copia, 4)
+        + retornado(5).medir()
+        + mutavel(6).medir()
+        + anonimo(7).medir();
+}
+"#;
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(28)));
+}
+
+#[test]
+fn fase244_followup_closure_restaura_trato_e_callable_no_interpretador() {
+    let code = r#"
+pacote main;
+trato Medivel { carinho medir(valor: si) -> bombom; }
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+carinho criar(valor: bombom) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+carinho combinar(
+    objeto: trato<Medivel>,
+    delta: bombom,
+    fabrica: carinho(bombom) -> trato<Medivel>
+) -> carinho() -> bombom {
+    nova alias = objeto;
+    nova alias2 = alias;
+    nova copia = alias2;
+    mimo carinho() -> bombom {
+        mimo copia.medir() + delta + fabrica(3).medir();
+    };
+}
+carinho aninhar(objeto: trato<Medivel>)
+    -> carinho() -> carinho() -> bombom {
+    mimo carinho() -> carinho() -> bombom {
+        mimo carinho() -> bombom { mimo objeto.medir(); };
+    };
+}
+carinho devolver(objeto: trato<Medivel>)
+    -> carinho() -> trato<Medivel> {
+    mimo carinho() -> trato<Medivel> { mimo objeto; };
+}
+carinho sombrear(objeto: trato<Medivel>)
+    -> carinho(trato<Medivel>) -> bombom {
+    mimo carinho(objeto: trato<Medivel>) -> bombom {
+        mimo objeto.medir();
+    };
+}
+carinho principal() -> bombom {
+    nova muda origem: bombom = 5;
+    nova objeto: trato<Medivel> = origem virar trato<Medivel>;
+    nova copia = objeto;
+    nova executar: carinho() -> bombom = combinar(copia, 2, criar);
+    origem = 99;
+    nova externa: carinho() -> carinho() -> bombom = aninhar(copia);
+    nova interna: carinho() -> bombom = externa();
+    nova retorno: carinho() -> trato<Medivel> = devolver(copia);
+    nova sombra: carinho(trato<Medivel>) -> bombom = sombrear(copia);
+    nova outro: trato<Medivel> = 11 virar trato<Medivel>;
+    mimo executar() + interna() + retorno().medir() + sombra(outro);
+}
+"#;
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(31)));
+}
+
 // @pinker-nav:end evidencia.interpreter.objetos-trato-fase244
