@@ -947,4 +947,93 @@ carinho principal() -> bombom { mimo 0; }
     );
 }
 
+#[test]
+fn fase244_lowering_preserva_identidade_nominal_em_ternarios_e_aliases() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+
+apelido Base = trato<Medivel>;
+apelido ObjetoA = Base;
+apelido ObjetoB = Base;
+
+carinho criar(valor: bombom) -> ObjetoA {
+    mimo valor virar trato<Medivel>;
+}
+
+carinho escolher(condicao: logica, a: ObjetoA, b: ObjetoB) -> Base {
+    mimo condicao ? a : b;
+}
+
+carinho usar(objeto: Base) -> bombom {
+    mimo objeto.medir();
+}
+
+carinho principal() -> bombom {
+    nova a: ObjetoA = criar(0);
+    nova b: ObjetoB = criar(1);
+    nova c: Base = criar(2);
+    nova inferido = falso ? a : (verdade ? criar(0) : c);
+    nova anotado: Base = verdade ? a : b;
+    nova muda atribuido: ObjetoA = a;
+    atribuido = falso ? b : a;
+    nova por_argumento: bombom = usar(
+        falso ? atribuido : escolher(verdade, a, b)
+    );
+    mimo (verdade ? inferido : anotado).medir() + por_argumento;
+}
+"#;
+
+    let ir = render_ir(code).expect("ternários devem preservar trato<Medivel>");
+    assert!(ir.contains("call __ternario"), "{ir}");
+    assert!(ir.contains("trait_call trato<Medivel>.medir"), "{ir}");
+}
+
+#[test]
+fn fase244_type_ir_classifica_todas_as_representacoes_nativas_de_uma_palavra() {
+    use pinker_v0::ir::{ScalarTypeIR, TypeIR};
+
+    let word_types = [
+        TypeIR::Bombom,
+        TypeIR::U8,
+        TypeIR::U16,
+        TypeIR::U32,
+        TypeIR::U64,
+        TypeIR::I8,
+        TypeIR::I16,
+        TypeIR::I32,
+        TypeIR::I64,
+        TypeIR::Logica,
+        TypeIR::Verso,
+        TypeIR::ListBombom,
+        TypeIR::ListVerso,
+        TypeIR::MapVersoBombom,
+        TypeIR::MapVersoVerso,
+        TypeIR::MapBombomBombom,
+        TypeIR::MapBombomVerso,
+        TypeIR::Struct,
+        TypeIR::Pointer { is_volatile: false },
+        TypeIR::Pointer { is_volatile: true },
+        TypeIR::Function,
+        TypeIR::TraitObject,
+    ];
+    assert!(word_types.iter().all(TypeIR::is_native_abi_word));
+    assert_eq!(
+        TypeIR::FixedArray {
+            element: ScalarTypeIR::Bombom,
+            size: 2,
+        }
+        .native_abi_words(),
+        None
+    );
+    assert_eq!(TypeIR::Nulo.native_abi_words(), Some(0));
+}
+
 // @pinker-nav:end evidencia.ir.lowering-objetos-trato-fase244

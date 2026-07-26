@@ -55,7 +55,7 @@ fn emissao_padrao_nao_inclui_init_do_runtime() {
 // @pinker-nav:start evidencia.backend-nativo.emissao-abi-e-fluxo-textual
 // @pinker-nav:domain backend-s
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Cinco testes que chamam emit_external_toolchain_subset — caminho HOSPEDADO, runtime_init=false — e verificam apenas o texto emitido para a ABI SysV (seis registradores de argumento e passagem por pilha), o padding de alinhamento de pilha, a recursão direta, o `cmov` do ternário e os saltos dos construtos de controle de fluxo. Nenhuma toolchain externa é invocada, nenhum runtime é ligado e nada é executado.
+// @pinker-nav:summary Cinco testes que chamam emit_external_toolchain_subset — caminho HOSPEDADO, runtime_init=false — e verificam apenas o texto emitido para a ABI SysV (seis registradores de argumento e passagem por pilha), o padding de alinhamento de pilha, a recursão direta, o `cmov` de ternário com braços puros e os saltos dos construtos de controle de fluxo. Nenhuma toolchain externa é invocada, nenhum runtime é ligado e nada é executado.
 #[test]
 fn abi_completa_oito_args_usa_seis_registradores_e_pilha() {
     let code = include_str!("../examples/fase213_abi_completa_valido.pink");
@@ -112,7 +112,7 @@ fn abi_completa_aceita_recursao_direta() {
 }
 
 #[test]
-fn controle_fluxo_geral_ternario_vira_cmov_sem_call() {
+fn controle_fluxo_geral_ternario_puro_vira_cmov_sem_call() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
@@ -133,7 +133,7 @@ fn controle_fluxo_geral_emite_todos_os_construtos() {
     let selected = lower_to_selected(code);
     let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
     // repetir/para/sempre que/escolha/encaixe/talvez viram blocos e saltos
-    // reais; ternário vira cmov; nenhuma pseudo-função sobra no texto.
+    // reais; o ternário puro vira cmov; nenhuma pseudo-função sobra no texto.
     assert!(asm.contains("cmoveq"), "{}", asm);
     assert!(asm.contains("call classifica"), "{}", asm);
     assert!(asm.contains("call pontua"), "{}", asm);
@@ -2056,6 +2056,143 @@ fn fase244_preserva_regressoes_executaveis_das_fases_242_e_243() {
         "examples/fase243_closure_captura_imutavel_valido.pink",
         "fase243_closure_captura_imutavel_valido",
         244_243,
+    );
+}
+
+#[test]
+fn fase244_parametros_dinamicos_por_handle_usam_registradores_e_spills_sysv() {
+    let fonte = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+    carinho registradores(
+        valor: si,
+        texto: verso,
+        direto: trato<Medivel>,
+        aliasado: Objeto,
+        ponteiro: seta<bombom>
+    ) -> bombom;
+    carinho spill_objeto(
+        valor: si,
+        a: bombom,
+        b: bombom,
+        c: bombom,
+        d: bombom,
+        e: bombom,
+        outro: ObjetoEncadeado,
+        ponteiro: seta<bombom>
+    ) -> bombom;
+}
+
+apelido Objeto = trato<Medivel>;
+apelido ObjetoEncadeado = Objeto;
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+
+    carinho registradores(
+        valor: bombom,
+        texto: verso,
+        direto: trato<Medivel>,
+        aliasado: Objeto,
+        _ponteiro: seta<bombom>
+    ) -> bombom {
+        falar(texto);
+        mimo valor + direto.medir() + aliasado.medir();
+    }
+
+    carinho spill_objeto(
+        valor: bombom,
+        a: bombom,
+        b: bombom,
+        c: bombom,
+        d: bombom,
+        e: bombom,
+        outro: ObjetoEncadeado,
+        _ponteiro: seta<bombom>
+    ) -> bombom {
+        mimo valor + a + b + c + d + e + outro.medir();
+    }
+}
+
+carinho principal() -> bombom {
+    nova receptor: Objeto = 1 virar trato<Medivel>;
+    nova dois: trato<Medivel> = 2 virar trato<Medivel>;
+    nova tres: ObjetoEncadeado = 3 virar trato<Medivel>;
+    nova ponteiro: seta<bombom> = 1;
+    nova em_regs: bombom = receptor.registradores(
+        "handles",
+        dois,
+        tres,
+        ponteiro
+    );
+    nova em_spill: bombom = receptor.spill_objeto(
+        1, 2, 3, 4, 5, tres, ponteiro
+    );
+    mimo (em_regs - 6) + (em_spill - 19);
+}
+"#;
+
+    let asm = fase244_paridade_fonte(fonte, "parametros_dinamicos_handle", 244_405, b"handles\n");
+    if !asm.is_empty() {
+        assert!(
+            asm.matches("pushq %r11").count() >= 2,
+            "argumentos por handle devem alcançar a pilha SysV: {asm}"
+        );
+    }
+}
+
+#[test]
+fn fase244_ternario_de_objetos_preserva_identidade_e_avaliacao_lazy() {
+    let fonte = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+
+apelido Base = trato<Medivel>;
+apelido Objeto = Base;
+
+carinho condicao_a() -> logica {
+    falar("condicao-a");
+    mimo falso;
+}
+carinho condicao_b() -> logica {
+    falar("condicao-b");
+    mimo verdade;
+}
+carinho criar_a() -> Objeto {
+    falar("a");
+    mimo 1 virar trato<Medivel>;
+}
+carinho criar_b() -> Base {
+    falar("b");
+    mimo 0 virar trato<Medivel>;
+}
+carinho criar_c() -> Objeto {
+    falar("c");
+    mimo 2 virar trato<Medivel>;
+}
+
+carinho principal() -> bombom {
+    nova escolhido = condicao_a()
+        ? criar_a()
+        : (condicao_b() ? criar_b() : criar_c());
+    mimo (verdade ? escolhido : criar_c()).medir();
+}
+"#;
+
+    fase244_paridade_fonte(
+        fonte,
+        "ternario_trato_lazy",
+        244_406,
+        b"condicao-a\ncondicao-b\nb\n",
     );
 }
 // @pinker-nav:end evidencia.backend-nativo.objetos-trato-fase244

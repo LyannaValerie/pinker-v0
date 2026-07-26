@@ -5482,4 +5482,65 @@ fn fase244_despacho_semantico_rejeita_retorno_nulo_usado_como_valor() {
     );
 }
 
+#[test]
+fn fase244_metodo_objetificavel_rejeita_parametro_multi_palavra_antes_da_ir() {
+    let code = r#"
+        pacote main;
+
+        trato Invalido {
+            carinho usar(valor: si, dados: [bombom; 2]) -> bombom;
+        }
+
+        impl Invalido para bombom {
+            carinho usar(valor: bombom, dados: [bombom; 2]) -> bombom {
+                mimo valor + dados[0];
+            }
+        }
+
+        carinho principal() -> bombom {
+            mimo 0;
+        }
+    "#;
+
+    let err = parse_and_check(code)
+        .expect_err("array multi-palavra deve ser rejeitado pela semântica")
+        .to_string();
+    assert!(
+        err.contains("exige representação multi-palavra sem transporte nativo"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_ternario_rejeita_tratos_nominais_diferentes_na_semantica() {
+    let code = r#"
+        pacote main;
+
+        trato A { carinho medir(valor: si) -> bombom; }
+        trato B { carinho medir(valor: si) -> bombom; }
+
+        impl A para bombom {
+            carinho medir(valor: bombom) -> bombom { mimo valor; }
+        }
+        impl B para bombom {
+            carinho medir(valor: bombom) -> bombom { mimo valor; }
+        }
+
+        carinho principal() -> bombom {
+            nova a: trato<A> = 0 virar trato<A>;
+            nova b: trato<B> = 0 virar trato<B>;
+            nova invalido = verdade ? a : b;
+            mimo 0;
+        }
+    "#;
+
+    let err = parse_and_check(code)
+        .expect_err("ternário de tratos nominais diferentes deve falhar")
+        .to_string();
+    assert!(
+        err.contains("ramos da expressão ternária devem ter o mesmo tipo"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
 // @pinker-nav:end evidencia.semantica.objetos-trato-fase244
