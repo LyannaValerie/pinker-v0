@@ -127,6 +127,31 @@ pub enum InstructionCfgIR {
         function_name: String,
         captures: Vec<OperandIR>,
     },
+    // Fase 244: materialização de um handle de objeto de trato.
+    //
+    // A cópia física ainda será definida nas camadas executáveis, mas a CFG
+    // preserva integralmente o tamanho do snapshot e a vtable ordenada.
+    MakeTraitObject {
+        dest: TempIR,
+        value: OperandIR,
+        trait_name: String,
+        concrete_type: TypeIR,
+        concrete_type_name: String,
+        concrete_size: u64,
+        vtable_methods: Vec<String>,
+    },
+    // Fase 244: despacho por slot da vtable. `dest: None` representa método
+    // de retorno `nulo`; chamadas com valor possuem `Some(TempIR)`.
+    TraitCall {
+        dest: Option<TempIR>,
+        object: OperandIR,
+        trait_name: String,
+        method_name: String,
+        method_slot: u64,
+        args: Vec<OperandIR>,
+        param_types: Vec<TypeIR>,
+        ret_type: TypeIR,
+    },
     Falar {
         args: Vec<FalarArgCfgIR>,
     },
@@ -651,6 +676,40 @@ impl FunctionLowerer {
                     });
                 Ok(lowered_args.1)
             }
+            ValueIR::TraitCall {
+                object,
+                trait_name,
+                method_name,
+                method_slot,
+                args,
+                param_types,
+                ret_type,
+            } if *ret_type == TypeIR::Nulo => {
+                let (object, object_current) = self.lower_value_operand(object, current, span)?;
+
+                let lowered_args =
+                    args.iter()
+                        .try_fold((Vec::new(), object_current), |(mut acc, cur), arg| {
+                            let (lowered, next_cur) = self.lower_call_operand(arg, cur, span)?;
+                            acc.push(lowered);
+                            Ok::<_, PinkerError>((acc, next_cur))
+                        })?;
+
+                self.blocks[lowered_args.1]
+                    .instructions
+                    .push(InstructionCfgIR::TraitCall {
+                        dest: None,
+                        object,
+                        trait_name: trait_name.clone(),
+                        method_name: method_name.clone(),
+                        method_slot: *method_slot,
+                        args: lowered_args.0,
+                        param_types: param_types.clone(),
+                        ret_type: *ret_type,
+                    });
+
+                Ok(lowered_args.1)
+            }
             _ => {
                 let (_, next_current) = self.lower_value_operand(value, current, span)?;
                 Ok(next_current)
@@ -769,6 +828,74 @@ impl FunctionLowerer {
                         captures: lowered_captures.0,
                     });
                 Ok((OperandIR::Temp(dest), lowered_captures.1))
+            }
+            ValueIR::MakeTraitObject {
+                value,
+                trait_name,
+                concrete_type,
+                concrete_type_name,
+                concrete_size,
+                vtable_methods,
+            } => {
+                let (value, next_current) = self.lower_call_operand(value, current, span)?;
+                let dest = self.next_temp();
+
+                self.blocks[next_current]
+                    .instructions
+                    .push(InstructionCfgIR::MakeTraitObject {
+                        dest,
+                        value,
+                        trait_name: trait_name.clone(),
+                        concrete_type: *concrete_type,
+                        concrete_type_name: concrete_type_name.clone(),
+                        concrete_size: *concrete_size,
+                        vtable_methods: vtable_methods.clone(),
+                    });
+
+                Ok((OperandIR::Temp(dest), next_current))
+            }
+            ValueIR::TraitCall {
+                object,
+                trait_name,
+                method_name,
+                method_slot,
+                args,
+                param_types,
+                ret_type,
+            } => {
+                let (object, object_current) = self.lower_value_operand(object, current, span)?;
+
+                let lowered_args =
+                    args.iter()
+                        .try_fold((Vec::new(), object_current), |(mut acc, cur), arg| {
+                            let (lowered, next_cur) = self.lower_call_operand(arg, cur, span)?;
+                            acc.push(lowered);
+                            Ok::<_, PinkerError>((acc, next_cur))
+                        })?;
+
+                if *ret_type == TypeIR::Nulo {
+                    return Err(PinkerError::Ir {
+                        msg: "chamada dinâmica nulo usada como valor na CFG IR".to_string(),
+                        span,
+                    });
+                }
+
+                let dest = self.next_temp();
+
+                self.blocks[lowered_args.1]
+                    .instructions
+                    .push(InstructionCfgIR::TraitCall {
+                        dest: Some(dest),
+                        object,
+                        trait_name: trait_name.clone(),
+                        method_name: method_name.clone(),
+                        method_slot: *method_slot,
+                        args: lowered_args.0,
+                        param_types: param_types.clone(),
+                        ret_type: *ret_type,
+                    });
+
+                Ok((OperandIR::Temp(dest), lowered_args.1))
             }
             ValueIR::CallIndirect {
                 callee,
@@ -1384,6 +1511,52 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
+        InstructionCfgIR::MakeTraitObject {
+            dest,
+            value,
+            trait_name,
+            concrete_type,
+            concrete_type_name,
+            concrete_size,
+            vtable_methods,
+        } => format!(
+            "{} = make_trait_object trato<{}> from {} as {}:{} size={} vtable=[{}]",
+            render_temp(*dest),
+            trait_name,
+            render_operand(value),
+            concrete_type_name,
+            concrete_type.name(),
+            concrete_size,
+            vtable_methods.join(", ")
+        ),
+        InstructionCfgIR::TraitCall {
+            dest,
+            object,
+            trait_name,
+            method_name,
+            method_slot,
+            args,
+            param_types: _,
+            ret_type,
+        } => {
+            let call = format!(
+                "trait_call trato<{}>.{}#{} {}({}) -> {}",
+                trait_name,
+                method_name,
+                method_slot,
+                render_operand(object),
+                args.iter()
+                    .map(render_operand)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                ret_type.name()
+            );
+
+            match dest {
+                Some(dest) => format!("{} = {}", render_temp(*dest), call),
+                None => call,
+            }
+        }
         InstructionCfgIR::Falar { args } => format!(
             "falar {}",
             args.iter()

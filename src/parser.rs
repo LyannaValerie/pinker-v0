@@ -525,6 +525,30 @@ impl Parser {
             });
         }
 
+        // Fase 244: tipo explícito de objeto de trato.
+        //
+        // Internamente, a AST reutiliza `Type::Applied` para preservar o
+        // nome nominal do trato sem introduzir representação física nesta
+        // camada. Semântica, IR e backend definem o significado nas etapas
+        // posteriores da fase.
+        if self.match_token(TokenKind::KwTrato) {
+            let start_span = self.previous().span;
+            self.consume(TokenKind::Less, "< em tipo de objeto de trato")?;
+            let trait_token = self.consume(TokenKind::Ident, "nome do trato em tipo de objeto")?;
+            let trait_name = trait_token.lexeme.clone();
+            let trait_span = trait_token.span;
+            self.consume(TokenKind::Greater, "> em tipo de objeto de trato")?;
+
+            return Ok(Type::Applied {
+                name: "trato".to_string(),
+                args: vec![Type::Alias {
+                    name: trait_name,
+                    span: trait_span,
+                }],
+                span: merge_span(start_span, self.previous().span),
+            });
+        }
+
         if self.match_token(TokenKind::KwBombom) {
             Ok(Type::Bombom(span))
         } else if self.match_token(TokenKind::KwU8) {

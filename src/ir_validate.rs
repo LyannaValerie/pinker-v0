@@ -1273,7 +1273,7 @@ fn validate_block(
                 })?;
                 if ty == TypeIR::Nulo {
                     match value {
-                        ValueIR::Call { .. } => {}
+                        ValueIR::Call { .. } | ValueIR::TraitCall { .. } => {}
                         _ => {
                             return Err(ir_validation_error_ctx(
                                 function,
@@ -1632,6 +1632,106 @@ fn infer_value_type(
                 infer_value_type(capture, slots, consts, funcs, span)?;
             }
             Ok(TypeIR::Function)
+        }
+        ValueIR::MakeTraitObject {
+            value,
+            trait_name,
+            concrete_type,
+            concrete_type_name,
+            concrete_size,
+            vtable_methods,
+        } => {
+            if trait_name.trim().is_empty() {
+                return Err(ir_validation_error(
+                    "objeto de trato sem nome nominal",
+                    span,
+                ));
+            }
+
+            if concrete_type_name.trim().is_empty() {
+                return Err(ir_validation_error(
+                    "objeto de trato sem nome do tipo concreto",
+                    span,
+                ));
+            }
+
+            if *concrete_size == 0 {
+                return Err(ir_validation_error(
+                    "objeto de trato com snapshot de tamanho zero",
+                    span,
+                ));
+            }
+
+            if vtable_methods.is_empty() || vtable_methods.iter().any(|name| name.trim().is_empty())
+            {
+                return Err(ir_validation_error(
+                    "objeto de trato exige vtable não vazia",
+                    span,
+                ));
+            }
+
+            if matches!(concrete_type, TypeIR::Nulo | TypeIR::TraitObject) {
+                return Err(ir_validation_error(
+                    "tipo concreto inválido em objeto de trato",
+                    span,
+                ));
+            }
+
+            let actual = infer_value_type(value, slots, consts, funcs, span)?;
+
+            if !value_matches_expected(value, actual, *concrete_type) {
+                return Err(ir_validation_error(
+                    "valor concreto incompatível na materialização de objeto de trato",
+                    span,
+                ));
+            }
+
+            Ok(TypeIR::TraitObject)
+        }
+        ValueIR::TraitCall {
+            object,
+            trait_name,
+            method_name,
+            method_slot: _,
+            args,
+            param_types,
+            ret_type,
+        } => {
+            if trait_name.trim().is_empty() || method_name.trim().is_empty() {
+                return Err(ir_validation_error(
+                    "chamada dinâmica sem identidade nominal completa",
+                    span,
+                ));
+            }
+
+            let object_type = infer_value_type(object, slots, consts, funcs, span)?;
+
+            if object_type != TypeIR::TraitObject {
+                return Err(ir_validation_error(
+                    "chamada dinâmica exige objeto de trato",
+                    span,
+                ));
+            }
+
+            if args.len() != param_types.len() {
+                return Err(ir_validation_error(
+                    "chamada dinâmica com aridade inconsistente na IR",
+                    span,
+                ));
+            }
+
+            for (arg, expected) in args.iter().zip(param_types.iter()) {
+                let actual = infer_value_type(arg, slots, consts, funcs, span)?;
+
+                if !value_matches_expected(arg, actual, *expected) {
+                    return Err(ir_validation_error(
+                        "chamada dinâmica com tipo de argumento incompatível",
+                        span,
+                    ));
+                }
+            }
+
+            Ok(*ret_type)
         }
         ValueIR::CallIndirect {
             callee,

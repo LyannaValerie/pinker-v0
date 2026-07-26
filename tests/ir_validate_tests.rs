@@ -263,3 +263,194 @@ fn erro_ir_tem_contexto_padronizado() {
     assert!(err.contains("esperado=Bombom, recebido=Logica"));
 }
 // @pinker-nav:end evidencia.ir.validacao-estrutura-e-diagnostico
+
+// @pinker-nav:start evidencia.ir.validacao-objetos-trato-fase244
+// @pinker-nav:domain ir
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Valida manualmente a representação estrutural inicial da Fase 244 na IR: materialização explícita, snapshot concreto, vtable ordenada, chamada dinâmica com retorno ou nulo e diagnósticos para receiver e tipo concreto incompatíveis.
+
+fn fase244_programa_com_funcao(function: FunctionIR) -> ProgramIR {
+    ProgramIR {
+        is_freestanding: false,
+        module_name: "main".to_string(),
+        consts: vec![],
+        functions: vec![function],
+    }
+}
+
+#[test]
+fn fase244_ir_valida_materializacao_e_chamada_dinamica_com_retorno() {
+    let function = FunctionIR {
+        name: "principal".to_string(),
+        params: vec![],
+        locals: vec![LocalIR {
+            source_name: "objeto".to_string(),
+            slot: "%objeto#0".to_string(),
+            ty: TypeIR::TraitObject,
+            is_mut: false,
+        }],
+        ret_type: TypeIR::Bombom,
+        entry: BlockIR {
+            label: "entry".to_string(),
+            instructions: vec![
+                InstructionIR::Let {
+                    slot: "%objeto#0".to_string(),
+                    value: ValueIR::MakeTraitObject {
+                        value: Box::new(ValueIR::Int(21)),
+                        trait_name: "Medivel".to_string(),
+                        concrete_type: TypeIR::Bombom,
+                        concrete_type_name: "bombom".to_string(),
+                        concrete_size: 8,
+                        vtable_methods: vec!["__impl_7_Medivel_6_bombom_medir".to_string()],
+                    },
+                    span: sp(),
+                },
+                InstructionIR::Return {
+                    value: Some(ValueIR::TraitCall {
+                        object: Box::new(ValueIR::Local("%objeto#0".to_string())),
+                        trait_name: "Medivel".to_string(),
+                        method_name: "medir".to_string(),
+                        method_slot: 0,
+                        args: vec![ValueIR::Int(2)],
+                        param_types: vec![TypeIR::Bombom],
+                        ret_type: TypeIR::Bombom,
+                    }),
+                    span: sp(),
+                },
+            ],
+            span: sp(),
+        },
+        span: sp(),
+    };
+
+    assert!(ir_validate::validate_program(&fase244_programa_com_funcao(function)).is_ok());
+}
+
+#[test]
+fn fase244_ir_valida_chamada_dinamica_nula_como_comando() {
+    let function = FunctionIR {
+        name: "principal".to_string(),
+        params: vec![],
+        locals: vec![LocalIR {
+            source_name: "objeto".to_string(),
+            slot: "%objeto#0".to_string(),
+            ty: TypeIR::TraitObject,
+            is_mut: false,
+        }],
+        ret_type: TypeIR::Bombom,
+        entry: BlockIR {
+            label: "entry".to_string(),
+            instructions: vec![
+                InstructionIR::Let {
+                    slot: "%objeto#0".to_string(),
+                    value: ValueIR::MakeTraitObject {
+                        value: Box::new(ValueIR::Int(35)),
+                        trait_name: "Observavel".to_string(),
+                        concrete_type: TypeIR::Bombom,
+                        concrete_type_name: "bombom".to_string(),
+                        concrete_size: 8,
+                        vtable_methods: vec!["__impl_10_Observavel_6_bombom_observar".to_string()],
+                    },
+                    span: sp(),
+                },
+                InstructionIR::Expr {
+                    value: ValueIR::TraitCall {
+                        object: Box::new(ValueIR::Local("%objeto#0".to_string())),
+                        trait_name: "Observavel".to_string(),
+                        method_name: "observar".to_string(),
+                        method_slot: 0,
+                        args: vec![ValueIR::Int(7)],
+                        param_types: vec![TypeIR::Bombom],
+                        ret_type: TypeIR::Nulo,
+                    },
+                    span: sp(),
+                },
+                InstructionIR::Return {
+                    value: Some(ValueIR::Int(0)),
+                    span: sp(),
+                },
+            ],
+            span: sp(),
+        },
+        span: sp(),
+    };
+
+    assert!(ir_validate::validate_program(&fase244_programa_com_funcao(function)).is_ok());
+}
+
+#[test]
+fn fase244_ir_rejeita_tipo_concreto_incompatível_na_materializacao() {
+    let function = FunctionIR {
+        name: "principal".to_string(),
+        params: vec![],
+        locals: vec![LocalIR {
+            source_name: "objeto".to_string(),
+            slot: "%objeto#0".to_string(),
+            ty: TypeIR::TraitObject,
+            is_mut: false,
+        }],
+        ret_type: TypeIR::Bombom,
+        entry: BlockIR {
+            label: "entry".to_string(),
+            instructions: vec![
+                InstructionIR::Let {
+                    slot: "%objeto#0".to_string(),
+                    value: ValueIR::MakeTraitObject {
+                        value: Box::new(ValueIR::Bool(true)),
+                        trait_name: "Medivel".to_string(),
+                        concrete_type: TypeIR::Bombom,
+                        concrete_type_name: "bombom".to_string(),
+                        concrete_size: 8,
+                        vtable_methods: vec!["__impl_7_Medivel_6_bombom_medir".to_string()],
+                    },
+                    span: sp(),
+                },
+                InstructionIR::Return {
+                    value: Some(ValueIR::Int(0)),
+                    span: sp(),
+                },
+            ],
+            span: sp(),
+        },
+        span: sp(),
+    };
+
+    let err = ir_validate::validate_program(&fase244_programa_com_funcao(function))
+        .expect_err("tipo concreto divergente deve ser recusado")
+        .to_string();
+
+    assert!(
+        err.contains("valor concreto incompatível na materialização de objeto de trato"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_ir_rejeita_chamada_dinamica_sobre_valor_comum() {
+    let function = base_function(
+        TypeIR::Bombom,
+        vec![InstructionIR::Return {
+            value: Some(ValueIR::TraitCall {
+                object: Box::new(ValueIR::Int(42)),
+                trait_name: "Medivel".to_string(),
+                method_name: "medir".to_string(),
+                method_slot: 0,
+                args: vec![],
+                param_types: vec![],
+                ret_type: TypeIR::Bombom,
+            }),
+            span: sp(),
+        }],
+    );
+
+    let err = ir_validate::validate_program(&fase244_programa_com_funcao(function))
+        .expect_err("receiver comum deve ser recusado")
+        .to_string();
+
+    assert!(
+        err.contains("chamada dinâmica exige objeto de trato"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+// @pinker-nav:end evidencia.ir.validacao-objetos-trato-fase244

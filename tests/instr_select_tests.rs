@@ -315,3 +315,172 @@ fn seleciona_modulo_basico() {
     assert!(out.contains("isel mod %t0, 10, 4"), "{}", out);
 }
 // @pinker-nav:end evidencia.select.operadores-bitwise-e-modulo
+
+// @pinker-nav:start evidencia.select.objetos-trato-fase244
+// @pinker-nav:domain select
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita a seleção da Fase 244 para materialização e chamadas dinâmicas com e sem retorno, além das invariantes estruturais de snapshot, vtable e destino.
+
+#[test]
+fn fase244_select_materializa_e_despacha_com_retorno() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si, fator: bombom) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom, fator: bombom) -> bombom {
+        mimo valor * fator;
+    }
+}
+
+carinho empacotar(valor: bombom) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+
+carinho consultar(objeto: trato<Medivel>) -> bombom {
+    mimo objeto.medir(2);
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let selected = render_selected(code).unwrap();
+
+    assert!(
+        selected.contains("make_trait_object trato<Medivel> from %valor#0 as bombom:bombom size=8"),
+        "seleção inesperada:\n{selected}"
+    );
+
+    assert!(
+        selected.contains("trait_call trato<Medivel>.medir#0 %objeto#0(2) -> bombom"),
+        "seleção inesperada:\n{selected}"
+    );
+}
+
+#[test]
+fn fase244_select_preserva_trait_call_nula_sem_destino() {
+    let code = r#"
+pacote main;
+
+trato Observavel {
+    carinho observar(valor: si, codigo: bombom);
+}
+
+impl Observavel para bombom {
+    carinho observar(valor: bombom, codigo: bombom) {
+        falar(valor, codigo);
+        mimo;
+    }
+}
+
+carinho usar(objeto: trato<Observavel>) {
+    objeto.observar(7);
+    mimo;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let selected = render_selected(code).unwrap();
+
+    assert!(
+        selected.contains("trait_call trato<Observavel>.observar#0 %objeto#0(7) -> nulo"),
+        "seleção inesperada:\n{selected}"
+    );
+
+    assert!(
+        !selected.contains("= trait_call trato<Observavel>.observar#0"),
+        "método nulo não pode possuir destino:\n{selected}"
+    );
+}
+
+fn fase244_selected_program(
+    instructions: Vec<pinker_v0::instr_select::SelectedInstr>,
+) -> pinker_v0::instr_select::SelectedProgram {
+    use pinker_v0::cfg_ir::OperandIR;
+    use pinker_v0::instr_select::{
+        SelectedBlock, SelectedFunction, SelectedProgram, SelectedTerminator,
+    };
+    use pinker_v0::ir::TypeIR;
+    use std::collections::HashMap;
+
+    SelectedProgram {
+        module_name: "main".to_string(),
+        is_freestanding: false,
+        globals: vec![],
+        functions: vec![SelectedFunction {
+            name: "principal".to_string(),
+            ret_type: TypeIR::Bombom,
+            params: vec![],
+            locals: vec!["%objeto#0".to_string()],
+            slot_types: HashMap::from([("%objeto#0".to_string(), TypeIR::TraitObject)]),
+            blocks: vec![SelectedBlock {
+                label: "entry".to_string(),
+                instructions,
+                terminator: SelectedTerminator::Ret(Some(OperandIR::Int(0))),
+            }],
+        }],
+    }
+}
+
+#[test]
+fn fase244_select_validation_rejeita_vtable_vazia() {
+    use pinker_v0::cfg_ir::{OperandIR, TempIR};
+    use pinker_v0::instr_select::SelectedInstr;
+    use pinker_v0::ir::TypeIR;
+
+    let program = fase244_selected_program(vec![SelectedInstr::MakeTraitObject {
+        dest: TempIR(0),
+        value: OperandIR::Int(1),
+        trait_name: "Medivel".to_string(),
+        concrete_type: TypeIR::Bombom,
+        concrete_type_name: "bombom".to_string(),
+        concrete_size: 8,
+        vtable_methods: vec![],
+    }]);
+
+    let err = pinker_v0::instr_select_validate::validate_program(&program)
+        .expect_err("vtable vazia deve ser recusada")
+        .to_string();
+
+    assert!(
+        err.contains("selected make_trait_object exige vtable não vazia"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_select_validation_rejeita_destino_em_metodo_nulo() {
+    use pinker_v0::cfg_ir::{OperandIR, TempIR};
+    use pinker_v0::instr_select::SelectedInstr;
+    use pinker_v0::ir::TypeIR;
+
+    let program = fase244_selected_program(vec![SelectedInstr::TraitCall {
+        dest: Some(TempIR(0)),
+        object: OperandIR::Local("%objeto#0".to_string()),
+        trait_name: "Observavel".to_string(),
+        method_name: "observar".to_string(),
+        method_slot: 0,
+        args: vec![],
+        param_types: vec![],
+        ret_type: TypeIR::Nulo,
+    }]);
+
+    let err = pinker_v0::instr_select_validate::validate_program(&program)
+        .expect_err("método nulo com destino deve ser recusado")
+        .to_string();
+
+    assert!(
+        err.contains("selected trait_call nulo não pode ter destino"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+// @pinker-nav:end evidencia.select.objetos-trato-fase244

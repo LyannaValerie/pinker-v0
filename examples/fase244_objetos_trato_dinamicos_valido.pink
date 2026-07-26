@@ -1,0 +1,68 @@
+pacote main;
+
+trato Medivel {
+    carinho base(valor: si) -> bombom;
+    carinho somar(valor: si, adicional: bombom) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho somar(valor: bombom, adicional: bombom) -> bombom {
+        mimo valor + adicional;
+    }
+
+    carinho base(valor: bombom) -> bombom {
+        mimo valor;
+    }
+}
+
+impl Medivel para u64 {
+    carinho somar(valor: u64, adicional: bombom) -> bombom {
+        mimo adicional + 64;
+    }
+
+    carinho base(valor: u64) -> bombom {
+        mimo 64;
+    }
+}
+
+trato Observavel {
+    carinho observar(valor: si, adicional: bombom);
+}
+
+impl Observavel para bombom {
+    carinho observar(valor: bombom, adicional: bombom) {
+        falar(valor + adicional);
+        mimo;
+    }
+}
+
+carinho empacotar(valor: bombom) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+
+carinho consultar(objeto: trato<Medivel>) -> bombom {
+    mimo objeto.base();
+}
+
+carinho principal() -> bombom {
+    nova muda origem: bombom = 10;
+    nova primeiro: trato<Medivel> = origem virar trato<Medivel>;
+    nova copia: trato<Medivel> = primeiro;
+
+    origem = 20;
+    nova segundo: trato<Medivel> = origem virar trato<Medivel>;
+
+    nova amplo: u64 = 64;
+    nova outro_tipo: trato<Medivel> = amplo virar trato<Medivel>;
+    nova retornado: trato<Medivel> = empacotar(13);
+    nova observavel: trato<Observavel> = 7 virar trato<Observavel>;
+
+    falar(copia.base());
+    falar(segundo.base());
+    falar(Medivel.somar(primeiro, 5));
+    falar(outro_tipo.base());
+    falar(consultar(retornado));
+    observavel.observar(8);
+
+    mimo 0;
+}

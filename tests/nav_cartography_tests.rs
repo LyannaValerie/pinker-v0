@@ -52,6 +52,88 @@ fn stable_region_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -
     records.concat()
 }
 
+fn exclude_phase244_post_semantic(catalog: &mut CodeCatalog) {
+    const KEYS: [&str; 10] = [
+        "backend-s.lowering.objetos-trato-nativos",
+        "evidencia.cfg.objetos-trato-fase244",
+        "evidencia.cfg.validacao-objetos-trato-fase244",
+        "evidencia.backend-nativo.objetos-trato-fase244",
+        "evidencia.interpreter.objetos-trato-fase244",
+        "evidencia.ir.lowering-objetos-trato-fase244",
+        "evidencia.ir.validacao-objetos-trato-fase244",
+        "evidencia.machine.objetos-trato-fase244",
+        "evidencia.machine.validacao-objetos-trato-fase244",
+        "evidencia.select.objetos-trato-fase244",
+    ];
+
+    catalog
+        .regions
+        .retain(|region| !KEYS.contains(&region.key.as_str()));
+
+    // Fase 244: além de remover suas regiões novas das projeções
+    // históricas, restaura também os hashes das camadas posteriores
+    // que receberam suporte estrutural ou executável nesta fase.
+    for region in &mut catalog.regions {
+        let predecessor_hash = match region.key.as_str() {
+            "backend-s.lowering.operandos-slots" => Some("fnv1a64:6af7fbe9063cb0c8"),
+            "backend-s.abi.blocos-terminadores" => Some("fnv1a64:a8d2372351ec4e50"),
+            "backend-s.lowering.blocos-terminadores" => Some("fnv1a64:58a3f30cf870076a"),
+            "backend-s.lowering.funcoes-frames" => Some("fnv1a64:632d2467ea61bc42"),
+            "backend-s.modelo.callconv-externa" => Some("fnv1a64:29486a656eecfca9"),
+            "backend-s.renderizacao.callconv-programa" => Some("fnv1a64:3d5385e439951278"),
+            "backend-s.validacao.labels-tipos" => Some("fnv1a64:579f72d433484a3a"),
+            "backend-s.renderizacao.abi-textual-instrucoes" => Some("fnv1a64:0a590b2e77dbfb15"),
+            "backend-text.lowering.cfg-programa" => Some("fnv1a64:93528cc54e763546"),
+            "backend-text.modelo.representacao" => Some("fnv1a64:e055818d614b62fc"),
+            "backend-text.lowering.selecao-programa" => Some("fnv1a64:298221f680ddacb3"),
+            "backend-text.lowering.instrucoes-selecionadas" => Some("fnv1a64:c04a574bce4cc7cc"),
+            "backend-text.renderizacao.instrucoes" => Some("fnv1a64:eb347ee5260997af"),
+            "backend-text.validacao.invariantes" => Some("fnv1a64:ff3e3a203666620c"),
+            "cfg.lowering.valores-temporarios" => Some("fnv1a64:5e03d7774c5821b2"),
+            "cfg.modelo.representacao" => Some("fnv1a64:56c9542a9a52f8d7"),
+            "cfg.renderizacao.componentes" => Some("fnv1a64:0902a548373992c6"),
+            "cfg.validacao.invariantes" => Some("fnv1a64:99c4dd1a5a26a992"),
+            "evidencia.interpreter.diagnostico-runtime-avaliacao-e-chamadas" => {
+                Some("fnv1a64:80f44c45d93c8f6a")
+            }
+            "evidencia.interpreter.diagnostico-stack-trace-truncamento" => {
+                Some("fnv1a64:2b15cb72928bce61")
+            }
+            "interpreter.diagnostico.stack-trace" => Some("fnv1a64:718dfb2f20e334be"),
+            "interpreter.execucao.funcoes-fluxo" => Some("fnv1a64:bfb81897ca967281"),
+            "interpreter.execucao.instrucoes-pilha" => Some("fnv1a64:487e50b84b8db0f4"),
+            "interpreter.execucao.programa-globais" => Some("fnv1a64:28b88d44ef113b99"),
+            "interpreter.modelo.valores-estado" => Some("fnv1a64:bb92bae9203294f9"),
+            "ir.lowering.assinaturas-intrinsecos" => Some("fnv1a64:5cef6cdde8f448ef"),
+            "ir.lowering.comandos-controle" => Some("fnv1a64:e1f45118551394f9"),
+            "ir.lowering.contexto-declaracoes" => Some("fnv1a64:5a3886a51d4f003d"),
+            "ir.lowering.expressoes-valores" => Some("fnv1a64:cbc18bbf5f284b49"),
+            "ir.lowering.funcoes-blocos" => Some("fnv1a64:3c8fad9752bbbcaa"),
+            "ir.modelo.representacao" => Some("fnv1a64:3f0baf9240f11083"),
+            "ir.renderizacao.textual" => Some("fnv1a64:e5231b7b852a2209"),
+            "ir.tipos.conversao-ast" => Some("fnv1a64:289552cef54a1dda"),
+            "ir.validacao.invariantes" => Some("fnv1a64:76ea7cbc067e8c75"),
+            "machine.lowering.instrucoes-pilha" => Some("fnv1a64:741e193beb59992f"),
+            "machine.lowering.programa-blocos" => Some("fnv1a64:e5113599ca1426da"),
+            "machine.modelo.representacao" => Some("fnv1a64:97ea7ac31c79d0e2"),
+            "machine.renderizacao.componentes" => Some("fnv1a64:4845b2e2d566f268"),
+            "machine.validacao.invariantes" => Some("fnv1a64:eacb3338038c6c30"),
+            "select.lowering.instrucoes" => Some("fnv1a64:3df58f5e0c562311"),
+            "select.modelo.representacao" => Some("fnv1a64:487b2bf52a4dff45"),
+            "select.renderizacao.componentes" => Some("fnv1a64:abf3c2011ece1f0e"),
+            "select.validacao.invariantes" => Some("fnv1a64:ba018d7d399cc9c6"),
+            _ => None,
+        };
+
+        if let Some(hash) = predecessor_hash {
+            region.hash = hash.to_string();
+        }
+        if region.key == "backend-s.lowering.blocos-terminadores" {
+            region.summary = "Abertura do laço de blocos e seleção do terminador de cada bloco: `SelectedTerminator::Jmp` → `ExternalCallConvTerminator::Jmp`; `Ret(Some(value))` materializa literais `verso` de retorno em `.rodata` (`register_rodata_strings_for_operand`) e vira `Ret`; `Br` copia condição e rótulos; demais terminadores são recusados. Constrói o `terminator` antes do corpo do bloco.".to_string();
+        }
+    }
+}
+
 fn project_pre_nav_map(catalog: &mut CodeCatalog) {
     catalog
         .regions
@@ -91,6 +173,7 @@ fn project_pre_nav_map(catalog: &mut CodeCatalog) {
 }
 
 fn exclude_pink_agent_wave_a(catalog: &mut CodeCatalog) {
+    project_pre_phase244_frontend(catalog);
     catalog.regions.retain(|region| {
         !matches!(
             region.file.as_str(),
@@ -127,6 +210,31 @@ fn exclude_pink_agent_wave_a(catalog: &mut CodeCatalog) {
             "evidencia.trama.query.process-support" => Some("fnv1a64:c81fea660ddac6c2"),
             _ => None,
         };
+        if let Some(hash) = predecessor_hash {
+            region.hash = hash.to_string();
+        }
+    }
+}
+
+fn project_pre_phase244_frontend(catalog: &mut CodeCatalog) {
+    // Fase 244: os gates de ondas anteriores continuam descrevendo seus
+    // próprios estados históricos. Remove a região nova e restaura os hashes
+    // anteriores das regiões cujo conteúdo mudou nesta fase.
+    catalog
+        .regions
+        .retain(|region| region.key != "evidencia.semantica.objetos-trato-fase244");
+
+    for region in &mut catalog.regions {
+        let predecessor_hash = match region.key.as_str() {
+            "evidencia.parser.ast-basica-e-spans" => Some("fnv1a64:d608cd9dada7f65b"),
+            "parser.tipos.gramatica" => Some("fnv1a64:231ef95c4c5c6b7b"),
+            "semantic.chamadas.despacho" => Some("fnv1a64:33724c5cb6062770"),
+            "semantic.expressoes.verificacao" => Some("fnv1a64:688a7ca21a133d44"),
+            "semantic.tipos.sistema" => Some("fnv1a64:31bf36c76a8b0b05"),
+            "semantic.tratos.contratos" => Some("fnv1a64:7c7152cbb24b7891"),
+            _ => None,
+        };
+
         if let Some(hash) = predecessor_hash {
             region.hash = hash.to_string();
         }
@@ -174,6 +282,7 @@ fn project_pink_agent_wave_a(catalog: &mut CodeCatalog) {
 }
 
 fn exclude_pink_agent_wave_c(catalog: &mut CodeCatalog) {
+    project_pre_phase244_frontend(catalog);
     catalog.regions.retain(|region| {
         !matches!(
             region.key.as_str(),
@@ -223,6 +332,7 @@ fn exclude_pink_agent_wave_c(catalog: &mut CodeCatalog) {
 /// remove `development.agent.contract-v1` e restaura o hash pré-D das regiões que a
 /// Onda D alterou (lifecycle, pr-body, cli-spec, runner).
 fn reconstruct_pre_contract_v1(catalog: &mut CodeCatalog) {
+    project_pre_phase244_frontend(catalog);
     catalog.regions.retain(|region| {
         region.key != "development.agent.contract-v1"
             // Onda 9 (posterior) ativou a raiz `apps/`; removê-la.
@@ -604,8 +714,8 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     let index = CodeIndex::scan_repo(&root).unwrap();
     assert!(index.verify().is_empty(), "{:?}", index.verify());
 
-    // Total de regiões: 456 (455 históricas + 1 do Guardião).
-    assert_eq!(index.regions.len(), 458);
+    // Total vivo após a Etapa 6B da Fase 244: 469 regiões.
+    assert_eq!(index.regions.len(), 469);
 
     // Exatamente uma região Pinker, a do Guardião, com metadados congelados.
     let guardiao: Vec<_> = index
@@ -628,7 +738,7 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
             .filter(|r| r.layer.as_deref() == Some(layer))
             .count()
     };
-    assert_eq!(by_layer("evidencia"), 240);
+    assert_eq!(by_layer("evidencia"), 250);
     assert_eq!(by_layer("runtime"), 15);
     assert_eq!(by_layer("apps"), 1);
 }
@@ -1580,10 +1690,10 @@ fn camada_evidencia_frontend_cartografa_lexer_parser_common() {
     };
 
     let lexer_test_count = coverage_for("tests/lexer_tests.rs", &expected_lexer_keys, 25);
-    let parser_test_count = coverage_for("tests/parser_tests.rs", &expected_parser_keys, 45);
+    let parser_test_count = coverage_for("tests/parser_tests.rs", &expected_parser_keys, 47);
     assert_eq!(lexer_test_count, 25);
-    assert_eq!(parser_test_count, 45);
-    assert_eq!(lexer_test_count + parser_test_count, 70);
+    assert_eq!(parser_test_count, 47);
+    assert_eq!(lexer_test_count + parser_test_count, 72);
 
     let previous_sample = catalog
         .region("lexer.fluxo.tokenizacao")
@@ -1640,8 +1750,9 @@ fn onda_8c_cartografa_evidencias_semanticas() {
         "evidencia.semantica.funcoes-locais-e-carinho",
         "evidencia.semantica.closures-captura-imutavel",
         "evidencia.semantica.tratos-e-impls",
+        "evidencia.semantica.objetos-trato-fase244",
     ];
-    assert_eq!(expected_semantic_keys.len(), 35);
+    assert_eq!(expected_semantic_keys.len(), 36);
     let mut planned_keys = HashSet::new();
     for key in expected_semantic_keys {
         assert!(
@@ -1712,7 +1823,7 @@ fn onda_8c_cartografa_evidencias_semanticas() {
         }
         test_count += 1;
     }
-    assert_eq!(test_count, 370, "contagem de #[test] inesperada em {file}");
+    assert_eq!(test_count, 384, "contagem de #[test] inesperada em {file}");
     for (key, count) in expected_semantic_keys.iter().zip(owned_test_counts) {
         assert!(
             count >= 1,
@@ -1739,10 +1850,12 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
         "evidencia.ir.lowering-operacoes-textuais",
         "evidencia.ir.lowering-tipos-numericos",
         "evidencia.ir.lowering-tipos-compostos",
+        "evidencia.ir.lowering-objetos-trato-fase244",
         "evidencia.ir.validacao-aceitacao-basica",
         "evidencia.ir.validacao-retorno-e-condicao",
         "evidencia.ir.validacao-chamadas-e-nulo",
         "evidencia.ir.validacao-estrutura-e-diagnostico",
+        "evidencia.ir.validacao-objetos-trato-fase244",
     ];
     // Ordem física: primeiro tests/cfg_ir_tests.rs, depois tests/cfg_ir_validate_tests.rs.
     let expected_cfg_keys = [
@@ -1754,12 +1867,14 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
         "evidencia.cfg.lowering-limite-asm",
         "evidencia.cfg.lowering-verso",
         "evidencia.cfg.lowering-curto-circuito",
+        "evidencia.cfg.objetos-trato-fase244",
         "evidencia.cfg.validacao-aceitacao-basica",
         "evidencia.cfg.validacao-blocos-e-alvos",
         "evidencia.cfg.validacao-condicao-e-retorno",
         "evidencia.cfg.validacao-chamada-e-referencias",
         "evidencia.cfg.validacao-alcancabilidade-e-renderizacao",
         "evidencia.cfg.validacao-diagnostico",
+        "evidencia.cfg.validacao-objetos-trato-fase244",
     ];
     let expected_select_keys = [
         "evidencia.select.blocos-e-terminadores",
@@ -1768,6 +1883,7 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
         "evidencia.select.rejeicao-call-sem-destino",
         "evidencia.select.fluxos-de-laco",
         "evidencia.select.operadores-bitwise-e-modulo",
+        "evidencia.select.objetos-trato-fase244",
     ];
     // Ordem física: primeiro tests/abstract_machine_tests.rs, depois
     // tests/abstract_machine_stack_tests.rs.
@@ -1783,6 +1899,7 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
         "evidencia.machine.renderizacao-chamadas",
         "evidencia.machine.renderizacao-terminadores-e-fluxos",
         "evidencia.machine.renderizacao-papeis-de-blocos",
+        "evidencia.machine.objetos-trato-fase244",
         "evidencia.machine.renderizacao-programa-valido",
         "evidencia.machine.validacao-underflow-operadores",
         "evidencia.machine.validacao-chamadas-aridade-e-underflow",
@@ -1799,55 +1916,80 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
         "evidencia.machine.renderizacao-casos-validos",
         "evidencia.machine.validacao-programa-invalido",
         "evidencia.machine.renderizacao-cli-golden",
+        "evidencia.machine.validacao-objetos-trato-fase244",
     ];
 
-    assert_eq!(expected_ir_keys.len(), 11);
-    assert_eq!(expected_cfg_keys.len(), 14);
-    assert_eq!(expected_select_keys.len(), 6);
-    assert_eq!(expected_machine_keys.len(), 27);
+    assert_eq!(expected_ir_keys.len(), 13);
+    assert_eq!(expected_cfg_keys.len(), 16);
+    assert_eq!(expected_select_keys.len(), 7);
+    assert_eq!(expected_machine_keys.len(), 29);
     assert_eq!(
         expected_ir_keys.len()
             + expected_cfg_keys.len()
             + expected_select_keys.len()
             + expected_machine_keys.len(),
-        58,
+        65,
         "a Onda 8D deveria planejar exatamente 58 regiões novas"
     );
 
-    // Cada arquivo recebe a fatia física correspondente de sua trilha/domínio, com a
-    // contagem de #[test] congelada no plano.
+    // Cada arquivo recebe sua fatia física após a Fase 244.
+    let ir_validate_start = expected_ir_keys
+        .iter()
+        .position(|key| *key == "evidencia.ir.validacao-aceitacao-basica")
+        .expect("fronteira de validação IR ausente");
+
+    let cfg_validate_start = expected_cfg_keys
+        .iter()
+        .position(|key| *key == "evidencia.cfg.validacao-aceitacao-basica")
+        .expect("fronteira de validação CFG ausente");
+
+    let machine_stack_start = expected_machine_keys
+        .iter()
+        .position(|key| *key == "evidencia.machine.renderizacao-programa-valido")
+        .expect("fronteira da pilha machine ausente");
+
     let per_file: [(&[&str], &str, &str, usize); 7] = [
-        (&expected_ir_keys[..7], "tests/ir_tests.rs", "ir", 32),
         (
-            &expected_ir_keys[7..],
+            &expected_ir_keys[..ir_validate_start],
+            "tests/ir_tests.rs",
+            "ir",
+            37,
+        ),
+        (
+            &expected_ir_keys[ir_validate_start..],
             "tests/ir_validate_tests.rs",
             "ir",
-            7,
+            11,
         ),
-        (&expected_cfg_keys[..8], "tests/cfg_ir_tests.rs", "cfg", 25),
         (
-            &expected_cfg_keys[8..],
+            &expected_cfg_keys[..cfg_validate_start],
+            "tests/cfg_ir_tests.rs",
+            "cfg",
+            29,
+        ),
+        (
+            &expected_cfg_keys[cfg_validate_start..],
             "tests/cfg_ir_validate_tests.rs",
             "cfg",
-            15,
+            20,
         ),
         (
             &expected_select_keys[..],
             "tests/instr_select_tests.rs",
             "select",
-            12,
+            16,
         ),
         (
-            &expected_machine_keys[..11],
+            &expected_machine_keys[..machine_stack_start],
             "tests/abstract_machine_tests.rs",
             "machine",
-            25,
+            27,
         ),
         (
-            &expected_machine_keys[11..],
+            &expected_machine_keys[machine_stack_start..],
             "tests/abstract_machine_stack_tests.rs",
             "machine",
-            29,
+            33,
         ),
     ];
 
@@ -1953,11 +2095,11 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
 
     assert_eq!(
         planned_keys.len(),
-        58,
+        65,
         "o plano da Onda 8D perdeu uma chave"
     );
     assert_eq!(
-        total_test_count, 145,
+        total_test_count, 173,
         "a Onda 8D deveria cobrir exatamente 145 testes (M_TOTAL)"
     );
 
@@ -2003,7 +2145,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     // Quatro testes de build/backend ficam explicitamente adiados. As contagens
     // de #[test] por região estão congeladas no plano e a ordem física da suíte
     // é preservada. Chaves em ordem alfabética para diff estável.
-    let expected_interpreter_keys: [(&str, usize); 47] = [
+    let expected_interpreter_keys: [(&str, usize); 48] = [
         ("evidencia.interpreter.aleatoriedade-semente", 8),
         ("evidencia.interpreter.arquivos-csv-json-cli-exemplos", 7),
         ("evidencia.interpreter.arquivos-csv-serializacao", 6),
@@ -2085,6 +2227,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
             "evidencia.interpreter.leques-trazer-recursos-e-programas-brinquedo",
             20,
         ),
+        ("evidencia.interpreter.objetos-trato-fase244", 8),
         (
             "evidencia.interpreter.ponteiros-boot-freestanding-e-subset-nativo",
             21,
@@ -2169,7 +2312,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     }
     assert_eq!(
         planned_keys.len(),
-        47,
+        48,
         "o plano da Onda 8E deveria ter exatamente 47 regiões"
     );
 
@@ -2260,11 +2403,11 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     }
 
     assert_eq!(
-        total_test_count, 557,
+        total_test_count, 565,
         "a suíte interpreter deveria manter exatamente 554 testes"
     );
     assert_eq!(
-        mapped_test_count, 553,
+        mapped_test_count, 561,
         "a Onda 8E deveria cartografar exatamente 550 testes da suíte interpreter"
     );
     assert_eq!(
@@ -2296,7 +2439,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
-        historical_evidence_total, 159,
+        historical_evidence_total, 167,
         "o estado histórico da Onda 8E deve conter 159 regiões de evidência (111 anteriores + 47 da Onda 8E + 1 da Fase 243 em tests/semantic_tests.rs)"
     );
     for previous in [
@@ -2327,9 +2470,10 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
         .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
+        .filter(|region| region.key != "backend-s.lowering.objetos-trato-nativos")
         .count();
     assert_eq!(
-        historical_catalog_total, 343,
+        historical_catalog_total, 351,
         "o estado histórico da Onda 8E deve totalizar 341 regiões (340 + 1 região nova de Fase 243 em src/ast.rs)"
     );
 }
@@ -2339,6 +2483,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    exclude_phase244_post_semantic(&mut catalog);
     project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
@@ -2596,6 +2741,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    exclude_phase244_post_semantic(&mut catalog);
     project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
@@ -2926,8 +3072,8 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        62,
-        "{backend_nativo} deve manter exatamente 54 #[test]"
+        66,
+        "{backend_nativo} deve manter exatamente 66 #[test]"
     );
 
     for future_without_owner in [
@@ -3226,6 +3372,7 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
 
     let catalog_path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    exclude_phase244_post_semantic(&mut catalog);
     project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
     // Escopo desta cápsula: o catálogo tal como fechado por ela. As cápsulas
@@ -3602,6 +3749,7 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
     // (399 = 398 + 1 região nova de Fase 243 em src/ast.rs, layer `ast`).
     let catalog_path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    exclude_phase244_post_semantic(&mut catalog);
     project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
     // Extensão de seletor: `tests/trama_query_tests.rs` (cápsula posterior) é
@@ -3803,6 +3951,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    exclude_phase244_post_semantic(&mut catalog);
     project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
     // As cápsulas operacionais/documentais posteriores ao fechamento acrescentam
@@ -3943,6 +4092,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    exclude_phase244_post_semantic(&mut catalog);
     project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
@@ -4476,8 +4626,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        62,
-        "{nativo} deve manter exatamente 54 testes"
+        66,
+        "{nativo} deve manter exatamente 66 testes"
     );
     assert_eq!(
         catalog
@@ -4552,6 +4702,11 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    let etapa6b_range = catalog
+        .region("evidencia.backend-nativo.objetos-trato-fase244")
+        .map(|region| region.start_marker..=region.end_marker)
+        .expect("região executável da Etapa 6B");
+    exclude_phase244_post_semantic(&mut catalog);
     project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
@@ -4770,19 +4925,29 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     }
 
     // O arquivo não contém referência a marcadores fora das catorze regiões esperadas.
-    assert_eq!(
-        central_source.matches("@pinker-nav:start ").count(),
-        14,
-        "{central} deve conter exatamente catorze marcadores de início"
-    );
-    assert_eq!(
-        central_source.matches("@pinker-nav:end ").count(),
-        14,
-        "{central} deve conter exatamente catorze marcadores de fim"
-    );
-    assert_eq!(
+    let historical_lines = || {
         central_lines
             .iter()
+            .enumerate()
+            .filter(|(index, _)| !etapa6b_range.contains(&(*index + 1)))
+            .map(|(_, line)| line)
+    };
+    assert_eq!(
+        historical_lines()
+            .filter(|line| line.contains("@pinker-nav:start "))
+            .count(),
+        14,
+        "{central} deve conter exatamente catorze marcadores históricos de início"
+    );
+    assert_eq!(
+        historical_lines()
+            .filter(|line| line.contains("@pinker-nav:end "))
+            .count(),
+        14,
+        "{central} deve conter exatamente catorze marcadores históricos de fim"
+    );
+    assert_eq!(
+        historical_lines()
             .filter(|line| line.contains("@pinker-nav"))
             .count(),
         70,
@@ -4800,7 +4965,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     let test_lines: Vec<usize> = central_lines
         .iter()
         .enumerate()
-        .filter(|(_, line)| line.trim() == "#[test]")
+        .filter(|(index, line)| line.trim() == "#[test]" && !etapa6b_range.contains(&(*index + 1)))
         .map(|(index, _)| index + 1)
         .collect();
     assert_eq!(
@@ -5019,8 +5184,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     );
 
     // Emissão textual: caminho hospedado versus caminho nativo.
-    let central_code = central_lines
-        .iter()
+    let central_code = historical_lines()
         .filter(|line| !line.starts_with("// @pinker-nav:"))
         .fold(String::new(), |mut code, line| {
             code.push_str(line);
@@ -5248,6 +5412,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    exclude_phase244_post_semantic(&mut catalog);
     project_pre_nav_map(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
@@ -6202,6 +6367,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
     // (408 = 407 + 1 região nova de Fase 243 em src/ast.rs, layer `ast`).
     let catalog_path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    exclude_phase244_post_semantic(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
     assert_eq!(catalog.regions.len(), 410);
     assert_eq!(
@@ -6465,6 +6631,7 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let catalog_path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    exclude_phase244_post_semantic(&mut catalog);
     exclude_pink_agent_wave_c(&mut catalog);
     project_pink_agent_wave_a(&mut catalog);
     // 427 = 426 histórico + 1 região nova de Fase 243 em src/ast.rs.
@@ -6743,6 +6910,7 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
     let catalog_path = repository.join("src/navigation.jsonl");
     let current = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
     let mut catalog = current.clone();
+    exclude_phase244_post_semantic(&mut catalog);
     exclude_pink_agent_wave_c(&mut catalog);
     // 441 = 440 histórico + 1 região nova de Fase 243 em src/ast.rs.
     assert_eq!(catalog.regions.len(), 443);
@@ -7022,6 +7190,7 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let catalog_path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    exclude_phase244_post_semantic(&mut catalog);
     // A Onda D acrescentou contract-v1 (455) e alterou 4 regiões; reconstrói o 454 da Onda C
     // (454/455 = 453/454 históricos + 1 região nova de Fase 243 em src/ast.rs).
     reconstruct_pre_contract_v1(&mut catalog);
@@ -7266,6 +7435,8 @@ fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let catalog_path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
+    exclude_phase244_post_semantic(&mut catalog);
+    project_pre_phase244_frontend(&mut catalog);
     // Onda 9 (posterior) ativou a raiz `apps/` e alterou trama.codigo.raizes ao
     // adicionar o dialeto Pinker; removê-la e restaurar o hash reconstrói a Onda D.
     catalog

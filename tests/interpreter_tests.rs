@@ -1776,10 +1776,22 @@ fn run_falha_runtime_em_recursao_tem_stack_trace() {
 
 #[test]
 fn run_falha_limite_recursao_excedido_tem_categoria_e_trace() {
-    let err = run_code(
-        "pacote main; carinho loop() -> bombom { mimo loop(); } carinho principal() -> bombom { mimo loop(); }",
-    )
-    .unwrap_err();
+    // As threads criadas pelo harness de testes possuem uma pilha menor que
+    // a thread principal de um processo Pinker. A ampliação do estado do
+    // interpretador na Fase 244 aumentou o frame hospedado, mas o contrato
+    // preventivo continua sendo exatamente 64 chamadas.
+    let err = std::thread::Builder::new()
+        .name("pinker-recursion-limit-test".to_string())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| {
+            run_code(
+                "pacote main; carinho loop() -> bombom { mimo loop(); } carinho principal() -> bombom { mimo loop(); }",
+            )
+            .unwrap_err()
+        })
+        .expect("falha ao criar thread do teste de recursão")
+        .join()
+        .expect("thread do teste de recursão entrou em pânico");
 
     assert!(
         err.contains("[runtime::limite_recursao_excedido]"),
@@ -2680,10 +2692,18 @@ fn run_trace_curto_sem_truncamento() {
 fn run_trace_longo_e_truncado() {
     // Recursão infinita atinge MAX_CALL_DEPTH e produz trace com dezenas de frames.
     // O trace deve ser resumido com linha de omissão.
-    let err = run_code(
-        "pacote main; carinho loop() -> bombom { mimo loop(); } carinho principal() -> bombom { mimo loop(); }",
-    )
-    .unwrap_err();
+    let err = std::thread::Builder::new()
+        .name("pinker-trace-long-truncated-test".to_string())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| {
+            run_code(
+                "pacote main; carinho loop() -> bombom { mimo loop(); } carinho principal() -> bombom { mimo loop(); }",
+            )
+            .unwrap_err()
+        })
+        .expect("falha ao criar thread do teste de trace longo")
+        .join()
+        .expect("thread do teste de trace longo entrou em pânico");
 
     assert!(err.contains("stack trace:"), "mensagem: {}", err);
     assert!(
@@ -2703,10 +2723,18 @@ fn run_trace_longo_e_truncado() {
 #[test]
 fn run_trace_longo_preserva_frames_iniciais_e_finais() {
     // Verifica que o trace resumido contém frames do início e do final.
-    let err = run_code(
-        "pacote main; carinho loop() -> bombom { mimo loop(); } carinho principal() -> bombom { mimo loop(); }",
-    )
-    .unwrap_err();
+    let err = std::thread::Builder::new()
+        .name("pinker-trace-long-boundaries-test".to_string())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| {
+            run_code(
+                "pacote main; carinho loop() -> bombom { mimo loop(); } carinho principal() -> bombom { mimo loop(); }",
+            )
+            .unwrap_err()
+        })
+        .expect("falha ao criar thread do teste de trace longo")
+        .join()
+        .expect("thread do teste de trace longo entrou em pânico");
 
     // Frames iniciais: principal (frame 0) e loop (frame 1+) devem aparecer
     assert!(
@@ -9864,3 +9892,279 @@ fn fase243_closure_pilha_impar_aplica_padding_no_interpretador() {
     assert_eq!(result, Some(RuntimeValue::Int(0)));
 }
 // @pinker-nav:end evidencia.interpreter.closures-captura-imutavel
+
+// @pinker-nav:start evidencia.interpreter.objetos-trato-fase244
+// @pinker-nav:domain interpreter
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Executa objetos de trato no interpretador hospedado: snapshot, alias de handle, despacho direto e qualificado por slot, retorno de objeto, método nulo e diagnósticos de handle, slot e trato incompatíveis.
+
+#[test]
+fn fase244_interpreter_materializa_despacha_e_preserva_snapshot() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom {
+        mimo valor;
+    }
+}
+
+carinho consultar(objeto: trato<Medivel>) -> bombom {
+    mimo objeto.medir();
+}
+
+carinho principal() -> bombom {
+    nova muda fonte: bombom = 21;
+    nova objeto: trato<Medivel> =
+        fonte virar trato<Medivel>;
+
+    fonte = 99;
+
+    mimo consultar(objeto);
+}
+"#;
+
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(21)));
+}
+
+#[test]
+fn fase244_interpreter_copia_handle_e_mantem_objetos_independentes() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom {
+        mimo valor;
+    }
+}
+
+carinho principal() -> bombom {
+    nova primeiro: trato<Medivel> =
+        10 virar trato<Medivel>;
+    nova copia: trato<Medivel> = primeiro;
+    nova segundo: trato<Medivel> =
+        20 virar trato<Medivel>;
+
+    mimo copia.medir() + segundo.medir();
+}
+"#;
+
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(30)));
+}
+
+#[test]
+fn fase244_interpreter_despacha_slot_ordenado_com_argumento_qualificado() {
+    let code = r#"
+pacote main;
+
+trato Operavel {
+    carinho base(valor: si) -> bombom;
+    carinho somar(valor: si, adicional: bombom) -> bombom;
+}
+
+impl Operavel para bombom {
+    carinho base(valor: bombom) -> bombom {
+        mimo valor;
+    }
+
+    carinho somar(
+        valor: bombom,
+        adicional: bombom
+    ) -> bombom {
+        mimo valor + adicional;
+    }
+}
+
+carinho principal() -> bombom {
+    nova objeto: trato<Operavel> =
+        10 virar trato<Operavel>;
+
+    mimo Operavel.somar(objeto, 7);
+}
+"#;
+
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(17)));
+}
+
+#[test]
+fn fase244_interpreter_trait_call_nula_nao_deixa_valor_na_pilha() {
+    let code = r#"
+pacote main;
+
+trato Observavel {
+    carinho observar(valor: si, codigo: bombom);
+}
+
+impl Observavel para bombom {
+    carinho observar(valor: bombom, codigo: bombom) {
+        nova total: bombom = valor + codigo;
+        mimo;
+    }
+}
+
+carinho principal() -> bombom {
+    nova objeto: trato<Observavel> =
+        35 virar trato<Observavel>;
+
+    objeto.observar(7);
+
+    mimo 0;
+}
+"#;
+
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(0)));
+}
+
+#[test]
+fn fase244_interpreter_objeto_de_trato_cruza_retorno_de_funcao() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom {
+        mimo valor;
+    }
+}
+
+carinho empacotar(valor: bombom) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+
+carinho principal() -> bombom {
+    nova objeto: trato<Medivel> = empacotar(13);
+    mimo objeto.medir();
+}
+"#;
+
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(13)));
+}
+
+fn fase244_manual_trait_program(code: Vec<MachineInstr>) -> MachineProgram {
+    MachineProgram {
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![MachineFunction {
+            name: "principal".to_string(),
+            ret_type: ir::TypeIR::Bombom,
+            params: vec![],
+            locals: vec!["%objeto#0".to_string()],
+            slot_types: HashMap::from([("%objeto#0".to_string(), ir::TypeIR::TraitObject)]),
+            blocks: vec![MachineBlock {
+                label: "entry".to_string(),
+                code,
+                terminator: MachineTerminator::Ret,
+            }],
+        }],
+    }
+}
+
+#[test]
+fn fase244_interpreter_rejeita_handle_de_objeto_invalido() {
+    let program = fase244_manual_trait_program(vec![
+        MachineInstr::PushInt(999),
+        MachineInstr::StoreSlot("%objeto#0".to_string()),
+        MachineInstr::LoadSlot("%objeto#0".to_string()),
+        MachineInstr::TraitCall {
+            trait_name: "Medivel".to_string(),
+            method_name: "medir".to_string(),
+            method_slot: 0,
+            argc: 0,
+            param_types: vec![],
+            ret_type: ir::TypeIR::Bombom,
+        },
+    ]);
+
+    let err = interpreter::run_program(&program)
+        .expect_err("handle inválido deve ser recusado")
+        .to_string();
+
+    assert!(
+        err.contains("trait_call com handle de objeto de trato inválido"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_interpreter_rejeita_slot_de_vtable_invalido() {
+    let program = fase244_manual_trait_program(vec![
+        MachineInstr::PushInt(10),
+        MachineInstr::MakeTraitObject {
+            trait_name: "Medivel".to_string(),
+            concrete_type: ir::TypeIR::Bombom,
+            concrete_type_name: "bombom".to_string(),
+            concrete_size: 8,
+            vtable_methods: vec!["__impl_7_Medivel_6_bombom_medir".to_string()],
+        },
+        MachineInstr::StoreSlot("%objeto#0".to_string()),
+        MachineInstr::LoadSlot("%objeto#0".to_string()),
+        MachineInstr::TraitCall {
+            trait_name: "Medivel".to_string(),
+            method_name: "medir".to_string(),
+            method_slot: 1,
+            argc: 0,
+            param_types: vec![],
+            ret_type: ir::TypeIR::Bombom,
+        },
+    ]);
+
+    let err = interpreter::run_program(&program)
+        .expect_err("slot inválido deve ser recusado")
+        .to_string();
+
+    assert!(
+        err.contains("trait_call com slot de vtable inválido"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_interpreter_rejeita_trato_nominal_divergente() {
+    let program = fase244_manual_trait_program(vec![
+        MachineInstr::PushInt(10),
+        MachineInstr::MakeTraitObject {
+            trait_name: "Medivel".to_string(),
+            concrete_type: ir::TypeIR::Bombom,
+            concrete_type_name: "bombom".to_string(),
+            concrete_size: 8,
+            vtable_methods: vec!["__impl_7_Medivel_6_bombom_medir".to_string()],
+        },
+        MachineInstr::StoreSlot("%objeto#0".to_string()),
+        MachineInstr::LoadSlot("%objeto#0".to_string()),
+        MachineInstr::TraitCall {
+            trait_name: "Outro".to_string(),
+            method_name: "medir".to_string(),
+            method_slot: 0,
+            argc: 0,
+            param_types: vec![],
+            ret_type: ir::TypeIR::Bombom,
+        },
+    ]);
+
+    let err = interpreter::run_program(&program)
+        .expect_err("trato divergente deve ser recusado")
+        .to_string();
+
+    assert!(
+        err.contains("trait_call de trato incompatível"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+// @pinker-nav:end evidencia.interpreter.objetos-trato-fase244

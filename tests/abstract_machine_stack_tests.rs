@@ -757,3 +757,138 @@ carinho principal() -> bombom {
     assert!(out.contains("Análise semântica concluída sem erros."));
 }
 // @pinker-nav:end evidencia.machine.renderizacao-cli-golden
+
+// @pinker-nav:start evidencia.machine.validacao-objetos-trato-fase244
+// @pinker-nav:domain machine
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Valida manualmente os efeitos de pilha da materialização e do despacho dinâmico da Fase 244, incluindo receiver nominal, argumentos, retorno nulo e invariantes da vtable.
+
+fn fase244_fn_com_objeto(code: Vec<MachineInstr>, ret_type: TypeIR) -> MachineFunction {
+    MachineFunction {
+        name: "principal".to_string(),
+        ret_type,
+        params: vec![],
+        locals: vec!["%objeto#0".to_string()],
+        slot_types: HashMap::from([("%objeto#0".to_string(), TypeIR::TraitObject)]),
+        blocks: vec![block(
+            "entry",
+            code,
+            if ret_type == TypeIR::Nulo {
+                MachineTerminator::RetVoid
+            } else {
+                MachineTerminator::Ret
+            },
+        )],
+    }
+}
+
+#[test]
+fn fase244_machine_stack_aceita_materializacao_e_chamada_com_retorno() {
+    let function = fase244_fn_com_objeto(
+        vec![
+            MachineInstr::PushInt(21),
+            MachineInstr::MakeTraitObject {
+                trait_name: "Medivel".to_string(),
+                concrete_type: TypeIR::Bombom,
+                concrete_type_name: "bombom".to_string(),
+                concrete_size: 8,
+                vtable_methods: vec!["__impl_7_Medivel_6_bombom_medir".to_string()],
+            },
+            MachineInstr::StoreSlot("%objeto#0".to_string()),
+            MachineInstr::PushInt(2),
+            MachineInstr::LoadSlot("%objeto#0".to_string()),
+            MachineInstr::TraitCall {
+                trait_name: "Medivel".to_string(),
+                method_name: "medir".to_string(),
+                method_slot: 0,
+                argc: 1,
+                param_types: vec![TypeIR::Bombom],
+                ret_type: TypeIR::Bombom,
+            },
+        ],
+        TypeIR::Bombom,
+    );
+
+    assert!(validate(function).is_ok());
+}
+
+#[test]
+fn fase244_machine_stack_aceita_chamada_nula_sem_valor_residual() {
+    let function = fase244_fn_com_objeto(
+        vec![
+            MachineInstr::PushInt(35),
+            MachineInstr::MakeTraitObject {
+                trait_name: "Observavel".to_string(),
+                concrete_type: TypeIR::Bombom,
+                concrete_type_name: "bombom".to_string(),
+                concrete_size: 8,
+                vtable_methods: vec!["__impl_10_Observavel_6_bombom_observar".to_string()],
+            },
+            MachineInstr::StoreSlot("%objeto#0".to_string()),
+            MachineInstr::PushInt(7),
+            MachineInstr::LoadSlot("%objeto#0".to_string()),
+            MachineInstr::TraitCall {
+                trait_name: "Observavel".to_string(),
+                method_name: "observar".to_string(),
+                method_slot: 0,
+                argc: 1,
+                param_types: vec![TypeIR::Bombom],
+                ret_type: TypeIR::Nulo,
+            },
+        ],
+        TypeIR::Nulo,
+    );
+
+    assert!(validate(function).is_ok());
+}
+
+#[test]
+fn fase244_machine_stack_rejeita_receiver_comum() {
+    let err = validate(fn_bombom(vec![block(
+        "entry",
+        vec![
+            MachineInstr::PushInt(42),
+            MachineInstr::TraitCall {
+                trait_name: "Medivel".to_string(),
+                method_name: "medir".to_string(),
+                method_slot: 0,
+                argc: 0,
+                param_types: vec![],
+                ret_type: TypeIR::Bombom,
+            },
+        ],
+        MachineTerminator::Ret,
+    )]))
+    .expect_err("receiver comum deve ser recusado");
+
+    assert!(
+        err.contains("trait_call exige objeto de trato no topo"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_machine_stack_rejeita_vtable_vazia() {
+    let err = validate(fn_bombom(vec![block(
+        "entry",
+        vec![
+            MachineInstr::PushInt(1),
+            MachineInstr::MakeTraitObject {
+                trait_name: "Medivel".to_string(),
+                concrete_type: TypeIR::Bombom,
+                concrete_type_name: "bombom".to_string(),
+                concrete_size: 8,
+                vtable_methods: vec![],
+            },
+        ],
+        MachineTerminator::Ret,
+    )]))
+    .expect_err("vtable vazia deve ser recusada");
+
+    assert!(
+        err.contains("make_trait_object exige vtable não vazia"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+// @pinker-nav:end evidencia.machine.validacao-objetos-trato-fase244

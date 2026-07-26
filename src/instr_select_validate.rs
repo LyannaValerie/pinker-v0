@@ -311,6 +311,80 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         }
                         temps.insert(*dest);
                     }
+                    SelectedInstr::MakeTraitObject {
+                        dest,
+                        value,
+                        trait_name,
+                        concrete_type,
+                        concrete_type_name,
+                        concrete_size,
+                        vtable_methods,
+                    } => {
+                        check_operand(value, &slots, &temps, &globals)?;
+
+                        if trait_name.trim().is_empty() {
+                            return Err(err("selected make_trait_object sem nome de trato"));
+                        }
+
+                        if concrete_type_name.trim().is_empty() {
+                            return Err(err("selected make_trait_object sem nome concreto"));
+                        }
+
+                        if *concrete_size == 0 {
+                            return Err(err("selected make_trait_object com snapshot zero"));
+                        }
+
+                        if vtable_methods.is_empty()
+                            || vtable_methods.iter().any(|method| method.trim().is_empty())
+                        {
+                            return Err(err("selected make_trait_object exige vtable não vazia"));
+                        }
+
+                        if matches!(*concrete_type, TypeIR::TraitObject | TypeIR::Nulo) {
+                            return Err(err(
+                                "selected make_trait_object com tipo concreto inválido",
+                            ));
+                        }
+
+                        temps.insert(*dest);
+                    }
+                    SelectedInstr::TraitCall {
+                        dest,
+                        object,
+                        trait_name,
+                        method_name,
+                        method_slot: _,
+                        args,
+                        param_types,
+                        ret_type,
+                    } => {
+                        check_operand(object, &slots, &temps, &globals)?;
+
+                        for arg in args {
+                            check_operand(arg, &slots, &temps, &globals)?;
+                        }
+
+                        if trait_name.trim().is_empty() || method_name.trim().is_empty() {
+                            return Err(err("selected trait_call sem identidade nominal completa"));
+                        }
+
+                        if args.len() != param_types.len() {
+                            return Err(err("selected trait_call com aridade inconsistente"));
+                        }
+
+                        match (*dest, *ret_type) {
+                            (Some(_), TypeIR::Nulo) => {
+                                return Err(err("selected trait_call nulo não pode ter destino"));
+                            }
+                            (None, TypeIR::Nulo) => {}
+                            (Some(dest), _) => {
+                                temps.insert(dest);
+                            }
+                            (None, _) => {
+                                return Err(err("selected trait_call com retorno exige destino"));
+                            }
+                        }
+                    }
                     SelectedInstr::CallIndirect {
                         dest,
                         callee,

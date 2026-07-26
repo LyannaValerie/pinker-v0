@@ -641,3 +641,199 @@ carinho principal() -> bombom { mimo 0; }
     );
 }
 // @pinker-nav:end evidencia.ir.lowering-tipos-compostos
+
+// @pinker-nav:start evidencia.ir.lowering-objetos-trato-fase244
+// @pinker-nav:domain ir
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita o lowering completo da superfície da Fase 244 para a IR estruturada: materialização explícita, ordem de vtable, tamanho do snapshot, despacho dinâmico direto e qualificado e método sem retorno.
+
+#[test]
+fn fase244_lowering_materializa_objeto_e_preserva_ordem_da_vtable() {
+    let code = r#"
+pacote main;
+
+trato Duplo {
+    carinho primeiro(valor: si) -> bombom;
+    carinho segundo(valor: si) -> bombom;
+}
+
+impl Duplo para bombom {
+    carinho primeiro(valor: bombom) -> bombom {
+        mimo valor;
+    }
+
+    carinho segundo(valor: bombom) -> bombom {
+        mimo valor + 1;
+    }
+}
+
+carinho empacotar(valor: bombom) -> trato<Duplo> {
+    mimo valor virar trato<Duplo>;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let rendered = render_ir(code).unwrap();
+
+    assert!(
+        rendered.contains(
+            "make_trait_object trato<Duplo> from %valor#0 as bombom:bombom size=8 \
+vtable=[__impl_5_Duplo_6_bombom_primeiro, __impl_5_Duplo_6_bombom_segundo]"
+        ),
+        "IR inesperada:\n{rendered}"
+    );
+}
+
+#[test]
+fn fase244_lowering_despacha_metodo_dinamico_por_receiver() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si, fator: bombom) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom, fator: bombom) -> bombom {
+        mimo valor * fator;
+    }
+}
+
+carinho consultar(
+    objeto: trato<Medivel>
+) -> bombom {
+    mimo objeto.medir(2);
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let rendered = render_ir(code).unwrap();
+
+    assert!(
+        rendered.contains("trait_call trato<Medivel>.medir#0 %objeto#0(2:bombom) -> bombom"),
+        "IR inesperada:\n{rendered}"
+    );
+
+    assert!(
+        !rendered.contains("call __impl_7_Medivel"),
+        "objeto de trato não pode voltar ao despacho estático:\n{rendered}"
+    );
+}
+
+#[test]
+fn fase244_lowering_despacha_forma_qualificada_dinamicamente() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom {
+        mimo valor;
+    }
+}
+
+carinho consultar(
+    objeto: trato<Medivel>
+) -> bombom {
+    mimo Medivel.medir(objeto);
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let rendered = render_ir(code).unwrap();
+
+    assert!(
+        rendered.contains("trait_call trato<Medivel>.medir#0 %objeto#0() -> bombom"),
+        "IR inesperada:\n{rendered}"
+    );
+}
+
+#[test]
+fn fase244_lowering_preserva_chamada_dinamica_sem_retorno() {
+    let code = r#"
+pacote main;
+
+trato Observavel {
+    carinho observar(valor: si, codigo: bombom);
+}
+
+impl Observavel para bombom {
+    carinho observar(valor: bombom, codigo: bombom) {
+        falar(valor, codigo);
+        mimo;
+    }
+}
+
+carinho usar(
+    objeto: trato<Observavel>
+) {
+    objeto.observar(7);
+    mimo;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let rendered = render_ir(code).unwrap();
+
+    assert!(
+        rendered.contains("trait_call trato<Observavel>.observar#0 %objeto#0(7:bombom) -> nulo"),
+        "IR inesperada:\n{rendered}"
+    );
+}
+
+#[test]
+fn fase244_lowering_calcula_snapshot_de_ninho_com_layout_real() {
+    let code = r#"
+pacote main;
+
+ninho Ponto {
+    x: u32;
+    y: u64;
+}
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para Ponto {
+    carinho medir(valor: Ponto) -> bombom {
+        mimo valor.y;
+    }
+}
+
+carinho empacotar(valor: Ponto) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let rendered = render_ir(code).unwrap();
+
+    assert!(
+        rendered.contains(
+            "make_trait_object trato<Medivel> from %valor#0 as Ponto:struct size=16 \
+vtable=[__impl_7_Medivel_5_Ponto_medir]"
+        ),
+        "IR inesperada:\n{rendered}"
+    );
+}
+
+// @pinker-nav:end evidencia.ir.lowering-objetos-trato-fase244

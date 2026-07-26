@@ -179,6 +179,29 @@ pub enum SelectedInstr {
         function_name: String,
         captures: Vec<OperandIR>,
     },
+    // Fase 244: materialização selecionada de objeto de trato.
+    // Mantém o snapshot concreto e a vtable na ordem declarada.
+    MakeTraitObject {
+        dest: crate::cfg_ir::TempIR,
+        value: OperandIR,
+        trait_name: String,
+        concrete_type: TypeIR,
+        concrete_type_name: String,
+        concrete_size: u64,
+        vtable_methods: Vec<String>,
+    },
+    // Fase 244: despacho selecionado por slot da vtable.
+    // `dest: None` representa método com retorno `nulo`.
+    TraitCall {
+        dest: Option<crate::cfg_ir::TempIR>,
+        object: OperandIR,
+        trait_name: String,
+        method_name: String,
+        method_slot: u64,
+        args: Vec<OperandIR>,
+        param_types: Vec<TypeIR>,
+        ret_type: TypeIR,
+    },
     Falar {
         args: Vec<FalarArgSelected>,
     },
@@ -448,6 +471,42 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
                 span: crate::token::Span::single(crate::token::Position::new(1, 1)),
             }),
         },
+        InstructionCfgIR::MakeTraitObject {
+            dest,
+            value,
+            trait_name,
+            concrete_type,
+            concrete_type_name,
+            concrete_size,
+            vtable_methods,
+        } => Ok(SelectedInstr::MakeTraitObject {
+            dest: *dest,
+            value: value.clone(),
+            trait_name: trait_name.clone(),
+            concrete_type: *concrete_type,
+            concrete_type_name: concrete_type_name.clone(),
+            concrete_size: *concrete_size,
+            vtable_methods: vtable_methods.clone(),
+        }),
+        InstructionCfgIR::TraitCall {
+            dest,
+            object,
+            trait_name,
+            method_name,
+            method_slot,
+            args,
+            param_types,
+            ret_type,
+        } => Ok(SelectedInstr::TraitCall {
+            dest: *dest,
+            object: object.clone(),
+            trait_name: trait_name.clone(),
+            method_name: method_name.clone(),
+            method_slot: *method_slot,
+            args: args.clone(),
+            param_types: param_types.clone(),
+            ret_type: *ret_type,
+        }),
         InstructionCfgIR::CallIndirect {
             dest,
             callee,
@@ -762,6 +821,54 @@ fn render_instr(inst: &SelectedInstr) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
+        SelectedInstr::MakeTraitObject {
+            dest,
+            value,
+            trait_name,
+            concrete_type,
+            concrete_type_name,
+            concrete_size,
+            vtable_methods,
+        } => format!(
+            "{} = make_trait_object trato<{}> from {} as {}:{} size={} vtable=[{}]",
+            render_temp(*dest),
+            trait_name,
+            render_operand(value),
+            concrete_type_name,
+            concrete_type.name(),
+            concrete_size,
+            vtable_methods.join(", ")
+        ),
+        SelectedInstr::TraitCall {
+            dest,
+            object,
+            trait_name,
+            method_name,
+            method_slot,
+            args,
+            param_types: _,
+            ret_type,
+        } => {
+            let call = format!(
+                "trait_call trato<{}>.{}#{} {}({}) -> {}",
+                trait_name,
+                method_name,
+                method_slot,
+                render_operand(object),
+                args.iter()
+                    .map(render_operand)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                ret_type.name()
+            );
+
+            match dest {
+                Some(dest) => {
+                    format!("{} = {}", render_temp(*dest), call)
+                }
+                None => call,
+            }
+        }
         SelectedInstr::Falar { args } => format!(
             "falar {}",
             args.iter()
