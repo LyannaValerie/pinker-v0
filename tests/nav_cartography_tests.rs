@@ -52,6 +52,69 @@ fn stable_region_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -
     records.concat()
 }
 
+fn project_pre_phase244_followups(catalog: &mut CodeCatalog) {
+    // Hotfix pós-merge da Fase 244: as projeções históricas continuam
+    // ancoradas no merge a735186. Restaura somente os metadados das regiões
+    // tocadas pelo hotfix antes de reconstruir os marcos predecessores.
+    for region in &mut catalog.regions {
+        let (summary, hash) = match region.key.as_str() {
+            "ast.closures.identificadores-livres" => (
+                Some("Fase 243: varredura sintática pura (sem informação de tipo) que lista, em ordem determinística de primeira referência, os identificadores usados em posição de valor no corpo de uma função que não são parâmetros nem locais `nova` declarados antes do uso no mesmo escopo léxico (block-scoped). Nome de callee direto em `Call(Ident(nome), args)` não conta (resolvido por `self.funcs`, não por valor). Usada tanto pelo parser (aproximação conservadora para decidir elegibilidade do caminho rápido da Fase 238/239) quanto pelo semantic (resolução real contra escopo léxico vigente na Fase 243) — a lista pode conter nomes que na resolução real não são captura alguma (função top-level, constante, variante de leque); cabe ao chamador filtrar."),
+                Some("fnv1a64:9f42348c66b7ddab"),
+            ),
+            "backend-s.lowering.operacoes-memoria" => {
+                (None, Some("fnv1a64:c62f2129802b2958"))
+            }
+            "backend-s.validacao.labels-tipos" => {
+                (None, Some("fnv1a64:f6525e469e0ef15f"))
+            }
+            "evidencia.backend-nativo.objetos-trato-fase244" => {
+                (None, Some("fnv1a64:8c040132b36f360f"))
+            }
+            "evidencia.interpreter.objetos-trato-fase244" => {
+                (None, Some("fnv1a64:5fc9055488ca9af1"))
+            }
+            "evidencia.ir.lowering-objetos-trato-fase244" => (
+                Some("Exercita o lowering completo da superfície da Fase 244 para a IR estruturada: materialização explícita, ordem de vtable, tamanho do snapshot, despacho dinâmico direto e qualificado e método sem retorno."),
+                Some("fnv1a64:ad901e367b30138c"),
+            ),
+            "evidencia.ir.validacao-objetos-trato-fase244" => {
+                (None, Some("fnv1a64:403576ff435ca8c1"))
+            }
+            "evidencia.parser.ast-basica-e-spans" => {
+                (None, Some("fnv1a64:67195ba2ebcb4c86"))
+            }
+            "evidencia.semantica.closures-captura-imutavel" => {
+                (None, Some("fnv1a64:487606b2a8dd6d0f"))
+            }
+            "ir.lowering.assinaturas-intrinsecos" => {
+                (None, Some("fnv1a64:72e740ffb6853132"))
+            }
+            "ir.lowering.comandos-controle" => (None, Some("fnv1a64:68b04188337a5ead")),
+            "ir.lowering.contexto-declaracoes" => {
+                (None, Some("fnv1a64:625c83e8c8dce2d0"))
+            }
+            "ir.lowering.expressoes-valores" => {
+                (None, Some("fnv1a64:70a2fb38046c0bdc"))
+            }
+            "ir.lowering.funcoes-blocos" => (None, Some("fnv1a64:b96a37c173dca523")),
+            "parser.closures.expressao" => (None, Some("fnv1a64:b23071555a8ec5de")),
+            "parser.comandos.bloco" => (None, Some("fnv1a64:a8a93efbb629a17c")),
+            "parser.expressoes.postfix" => (None, Some("fnv1a64:c310971ad11474f6")),
+            "parser.funcoes.declaracao" => (None, Some("fnv1a64:2bc2f428ad08d030")),
+            "semantic.funcoes.verificacao" => (None, Some("fnv1a64:d7e6803745b059aa")),
+            _ => (None, None),
+        };
+
+        if let Some(summary) = summary {
+            region.summary = summary.to_string();
+        }
+        if let Some(hash) = hash {
+            region.hash = hash.to_string();
+        }
+    }
+}
+
 fn project_pre_terminal_phase244_fixes(catalog: &mut CodeCatalog) {
     // Os dois commits funcionais terminais da Fase 244 alteraram regiões já
     // existentes. As projeções históricas continuam ancoradas no head 5870b05;
@@ -106,6 +169,7 @@ fn project_pre_terminal_phase244_fixes(catalog: &mut CodeCatalog) {
 }
 
 fn exclude_phase244_post_semantic(catalog: &mut CodeCatalog) {
+    project_pre_phase244_followups(catalog);
     project_pre_terminal_phase244_fixes(catalog);
     const KEYS: [&str; 10] = [
         "backend-s.lowering.objetos-trato-nativos",
@@ -1750,10 +1814,10 @@ fn camada_evidencia_frontend_cartografa_lexer_parser_common() {
     };
 
     let lexer_test_count = coverage_for("tests/lexer_tests.rs", &expected_lexer_keys, 25);
-    let parser_test_count = coverage_for("tests/parser_tests.rs", &expected_parser_keys, 47);
+    let parser_test_count = coverage_for("tests/parser_tests.rs", &expected_parser_keys, 48);
     assert_eq!(lexer_test_count, 25);
-    assert_eq!(parser_test_count, 47);
-    assert_eq!(lexer_test_count + parser_test_count, 72);
+    assert_eq!(parser_test_count, 48);
+    assert_eq!(lexer_test_count + parser_test_count, 73);
 
     let previous_sample = catalog
         .region("lexer.fluxo.tokenizacao")
@@ -1883,7 +1947,7 @@ fn onda_8c_cartografa_evidencias_semanticas() {
         }
         test_count += 1;
     }
-    assert_eq!(test_count, 388, "contagem de #[test] inesperada em {file}");
+    assert_eq!(test_count, 391, "contagem de #[test] inesperada em {file}");
     for (key, count) in expected_semantic_keys.iter().zip(owned_test_counts) {
         assert!(
             count >= 1,
@@ -2013,13 +2077,13 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
             &expected_ir_keys[..ir_validate_start],
             "tests/ir_tests.rs",
             "ir",
-            41,
+            43,
         ),
         (
             &expected_ir_keys[ir_validate_start..],
             "tests/ir_validate_tests.rs",
             "ir",
-            12,
+            13,
         ),
         (
             &expected_cfg_keys[..cfg_validate_start],
@@ -2159,8 +2223,8 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
         "o plano da Onda 8D perdeu uma chave"
     );
     assert_eq!(
-        total_test_count, 181,
-        "a Onda 8D deveria cobrir exatamente 181 testes"
+        total_test_count, 184,
+        "a Onda 8D deveria cobrir exatamente 184 testes"
     );
 
     // As 53 regiões de evidência anteriores devem permanecer: total de evidência = 53 + 58.
@@ -2200,7 +2264,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
     exclude_pink_agent_wave_a(&mut catalog);
 
-    // A Onda 8E cartografa 563 testes de tests/interpreter_tests.rs (evidências
+    // A Onda 8E cartografa 565 testes de tests/interpreter_tests.rs (evidências
     // da execução interpretada da Pinker) em 46 regiões no domínio `interpreter`.
     // Quatro testes de build/backend ficam explicitamente adiados. As contagens
     // de #[test] por região estão congeladas no plano e a ordem física da suíte
@@ -2287,7 +2351,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
             "evidencia.interpreter.leques-trazer-recursos-e-programas-brinquedo",
             20,
         ),
-        ("evidencia.interpreter.objetos-trato-fase244", 10),
+        ("evidencia.interpreter.objetos-trato-fase244", 12),
         (
             "evidencia.interpreter.ponteiros-boot-freestanding-e-subset-nativo",
             21,
@@ -2394,7 +2458,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         "src/navigation.jsonl diverge da regeneração canônica (summary, faixa ou hash)"
     );
 
-    // Cobertura estrutural: 563 testes pertencem a exatamente uma região 8E e
+    // Cobertura estrutural: 565 testes pertencem a exatamente uma região 8E e
     // somente as quatro exclusões fechadas acima permanecem fora dessas regiões.
     let source_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(file);
     let source = fs::read_to_string(&source_path)
@@ -2463,12 +2527,12 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     }
 
     assert_eq!(
-        total_test_count, 567,
-        "a suíte interpreter deveria manter exatamente 567 testes"
+        total_test_count, 569,
+        "a suíte interpreter deveria manter exatamente 569 testes"
     );
     assert_eq!(
-        mapped_test_count, 563,
-        "a Onda 8E deveria cartografar exatamente 563 testes da suíte interpreter"
+        mapped_test_count, 565,
+        "a Onda 8E deveria cartografar exatamente 565 testes da suíte interpreter"
     );
     assert_eq!(
         found_excluded_from_8e, expected_excluded_from_8e,
@@ -3132,8 +3196,8 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        72,
-        "{backend_nativo} deve manter exatamente 72 #[test]"
+        73,
+        "{backend_nativo} deve manter exatamente 73 #[test]"
     );
 
     for future_without_owner in [
@@ -4686,8 +4750,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        72,
-        "{nativo} deve manter exatamente 72 testes"
+        73,
+        "{nativo} deve manter exatamente 73 testes"
     );
     assert_eq!(
         catalog
