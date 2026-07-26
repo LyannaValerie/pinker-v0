@@ -4972,8 +4972,9 @@ fn fase244_semantica_aceita_objetos_do_mesmo_trato_para_tipos_distintos() {
 #[test]
 fn fase244_semantica_rejeita_todas_as_comparacoes_de_objetos_de_trato_por_alias() {
     for operador in ["==", "!=", "<", "<=", ">", ">="] {
-        let code = format!(
-            r#"
+        for (esquerda, direita) in [("original", "duplicado"), ("criar(9)", "criar(8)")] {
+            let code = format!(
+                r#"
                 pacote main;
 
                 trato Medivel {{
@@ -4996,29 +4997,30 @@ fn fase244_semantica_rejeita_todas_as_comparacoes_de_objetos_de_trato_por_alias(
                 carinho principal() -> bombom {{
                     nova original: Objeto = criar(7);
                     nova duplicado: Objeto = original;
-                    nova comparou: logica = criar(9) {operador} duplicado;
+                    nova comparou: logica = {esquerda} {operador} {direita};
                     talvez comparou {{
                         mimo 1;
                     }}
                     mimo 0;
                 }}
-            "#
-        );
+                "#
+            );
 
-        let err = parse_and_check(&code)
-            .expect_err("comparação de objeto de trato deve parar na semântica");
-        match err {
-            pinker_v0::error::PinkerError::Semantic { msg, span } => {
-                assert!(
-                    msg.contains("comparação entre objetos de trato não é suportada"),
-                    "diagnóstico inesperado para '{operador}': {msg}"
-                );
-                assert_eq!(
-                    span.start.line, 24,
-                    "span deve apontar a expressão comparada para '{operador}'"
-                );
+            let err = parse_and_check(&code)
+                .expect_err("comparação de objeto de trato deve parar na semântica");
+            match err {
+                pinker_v0::error::PinkerError::Semantic { msg, span } => {
+                    assert!(
+                        msg.contains("comparação entre objetos de trato não é suportada"),
+                        "diagnóstico inesperado para '{operador}': {msg}"
+                    );
+                    assert_eq!(
+                        span.start.line, 24,
+                        "span deve apontar a expressão comparada para '{operador}'"
+                    );
+                }
+                other => panic!("estágio inesperado para '{operador}': {other}"),
             }
-            other => panic!("estágio inesperado para '{operador}': {other}"),
         }
     }
 }

@@ -80,9 +80,15 @@ fn exclude_phase244_post_semantic(catalog: &mut CodeCatalog) {
             "backend-s.lowering.blocos-terminadores" => Some("fnv1a64:58a3f30cf870076a"),
             "backend-s.lowering.funcoes-frames" => Some("fnv1a64:632d2467ea61bc42"),
             "backend-s.modelo.callconv-externa" => Some("fnv1a64:29486a656eecfca9"),
+            "backend-s.pipeline.toolchain-externa" => Some("fnv1a64:1eb060fae788eaa4"),
             "backend-s.renderizacao.callconv-programa" => Some("fnv1a64:3d5385e439951278"),
             "backend-s.validacao.labels-tipos" => Some("fnv1a64:579f72d433484a3a"),
             "backend-s.renderizacao.abi-textual-instrucoes" => Some("fnv1a64:0a590b2e77dbfb15"),
+            // As correções pós-revisão alteraram regiões já existentes depois
+            // do marco semântico da Fase 244. A reconstrução desse marco
+            // preserva os hashes publicados no head 812adf3.
+            "semantic.expressoes.verificacao" => Some("fnv1a64:700a5211b4d8b3ec"),
+            "evidencia.semantica.objetos-trato-fase244" => Some("fnv1a64:4d25ee99ffce1614"),
             "backend-text.lowering.cfg-programa" => Some("fnv1a64:93528cc54e763546"),
             "backend-text.modelo.representacao" => Some("fnv1a64:e055818d614b62fc"),
             "backend-text.lowering.selecao-programa" => Some("fnv1a64:298221f680ddacb3"),
@@ -1823,7 +1829,7 @@ fn onda_8c_cartografa_evidencias_semanticas() {
         }
         test_count += 1;
     }
-    assert_eq!(test_count, 385, "contagem de #[test] inesperada em {file}");
+    assert_eq!(test_count, 386, "contagem de #[test] inesperada em {file}");
     for (key, count) in expected_semantic_keys.iter().zip(owned_test_counts) {
         assert!(
             count >= 1,
