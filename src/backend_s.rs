@@ -39,7 +39,7 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 /// - composto mínimo conservador: base homogênea `seta<bombom>` com `deref_store`/`deref_load` mínimo e abertura heterogênea em quatro camadas para `ninho`, incluindo composição mínima auditável no mesmo registro (`u32` + `u64`) via offset explícito;
 /// - escalares inteiros e lógicos aceitos pela semântica em parâmetros dinâmicos, com normalização SysV explícita em registradores e pilha;
 /// - `quebrar`/`continuar` (Fase 128, camada 3 conservadora) no recorte de `sempre que` já materializado em `selected`, com composição mínima auditável de três níveis de laço (`sempre que` externo/meio/interno) sem abrir subsistema geral de controle de fluxo;
-/// - `virar` (Fase 134, camada 2 conservadora) entre `u32`/`u64` e de escalares SysV para `bombom`, quando a origem é slot local/parâmetro tipado;
+/// - `virar` (Fase 134, camada 2 conservadora) no recorte mínimo explícito `u32 -> u64` e `u64 -> u32` quando a origem é slot local/parâmetro tipado;
 /// - `verso` (Fase 135, camada 1 conservadora e condicional) apenas no recorte mínimo opaco: literal estático em `.rodata` + carga de endereço + tráfego por slot/parâmetro, sem operações textuais gerais.
 ///
 /// O resultado mapeia `principal` para o símbolo `main`, para permitir linkedição
@@ -258,9 +258,11 @@ fn extract_external_callconv_program(
             let is_trait_receiver = param_index == 0
                 && function.name.starts_with("__impl_")
                 && is_external_trait_receiver_type(ty);
-            if !is_external_param_type(ty) && !is_trait_receiver {
+            let is_trait_method_scalar =
+                function.name.starts_with("__impl_") && is_external_scalar_param_type(ty);
+            if !is_external_param_type(ty) && !is_trait_receiver && !is_trait_method_scalar {
                 return Err(err(
-                    "subset externo montável aceita parâmetros escalares SysV, `verso` opaco mínimo, `ninho` opaco ou `seta<T>` no recorte conservador",
+                    "subset externo montável aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>` no recorte conservador",
                 ));
             }
         }
@@ -282,7 +284,10 @@ fn extract_external_callconv_program(
                     )
                 })
             });
+            let is_trait_method_scalar =
+                function.name.starts_with("__impl_") && is_external_scalar_param_type(ty);
             if !(is_external_local_type(ty)
+                || is_trait_method_scalar
                 || is_trait_snapshot_source && is_external_trait_receiver_type(ty))
             {
                 return Err(err(&format!(
@@ -532,6 +537,11 @@ fn extract_external_callconv_program(
                         value,
                         target_type,
                     } => {
+                        if *target_type != TypeIR::U64 && *target_type != TypeIR::U32 {
+                            return Err(err(
+                                "subset externo montável (Fase 134) aceita `virar` apenas no recorte mínimo `u32 -> u64` e `u64 -> u32`",
+                            ));
+                        }
                         let OperandIR::Local(source_slot) = value else {
                             return Err(err(
                                 "subset externo montável (Fase 134) exige origem em slot local/parâmetro tipado para `virar` mínimo",
@@ -544,12 +554,10 @@ fn extract_external_callconv_program(
                         };
                         let cast_supported = (*source_ty == TypeIR::U32
                             && *target_type == TypeIR::U64)
-                            || (*source_ty == TypeIR::U64 && *target_type == TypeIR::U32)
-                            || (*target_type == TypeIR::Bombom
-                                && is_external_scalar_param_type(source_ty));
+                            || (*source_ty == TypeIR::U64 && *target_type == TypeIR::U32);
                         if !cast_supported {
                             return Err(err(
-                                "subset externo montável aceita `virar` de escalar SysV para `bombom` e preserva o recorte `u32 <-> u64`",
+                                "subset externo montável (Fase 134) aceita `virar` mínimo apenas de slot `u32 -> u64` ou `u64 -> u32`",
                             ));
                         }
                         register_rodata_strings_for_operand(
@@ -563,11 +571,7 @@ fn extract_external_callconv_program(
                             &slot_offsets,
                             &rodata_strings,
                         )?);
-                        if *target_type == TypeIR::U32 {
-                            body.push("movl %eax, %eax".to_string());
-                        } else {
-                            body.extend(normalize_sysv_scalar_argument(REG_RET, *source_ty)?);
-                        }
+                        body.push("movl %eax, %eax".to_string());
                         body.push(format!(
                             "movq {}, -{}(%rbp)",
                             REG_RET,
@@ -960,7 +964,9 @@ fn extract_external_callconv_program(
                             ));
                         }
                         if param_types.len() != args.len()
-                            || param_types.iter().any(|ty| !is_external_param_type(ty))
+                            || param_types
+                                .iter()
+                                .any(|ty| !is_external_scalar_param_type(ty))
                         {
                             return Err(err(
                                 "backend nativo encontrou assinatura de chamada dinâmica fora do subset SysV",
@@ -2002,7 +2008,9 @@ fn is_external_deref_store_type(ty: &TypeIR) -> bool {
 }
 
 fn is_external_param_type(ty: &TypeIR) -> bool {
-    is_external_scalar_param_type(ty)
+    *ty == TypeIR::Bombom
+        || *ty == TypeIR::U32
+        || *ty == TypeIR::U64
         || *ty == TypeIR::Verso
         || *ty == TypeIR::Logica
         || *ty == TypeIR::ListBombom
@@ -2050,7 +2058,7 @@ fn is_external_trait_receiver_type(ty: &TypeIR) -> bool {
 }
 
 fn is_external_local_type(ty: &TypeIR) -> bool {
-    is_external_param_type(ty)
+    is_external_param_type(ty) || is_external_scalar_param_type(ty)
 }
 
 fn is_external_ret_type(ty: &TypeIR) -> bool {
