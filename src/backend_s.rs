@@ -583,7 +583,7 @@ fn extract_external_callconv_program(
                     // @pinker-nav:start backend-s.lowering.chamadas-sysv
                     // @pinker-nav:domain lowering
                     // @pinker-nav:layer backend-s
-                    // @pinker-nav:summary Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino — trata `__ternario` como seleção por `cmpq`+`cmoveq` (sem `call` real, ambos os lados avaliados eager), resolve intrínsecas por aridade (`runtime_intrinsic_symbol_por_aridade`) e por nome (`runtime_intrinsic_symbol`) ou chama função Pinker por símbolo direto, passa os 6 primeiros argumentos em `ARG_REGS`, empilha o 7º+ do último ao primeiro com padding de alinhamento e limpa a pilha após o `call`, guardando `%rax` no slot de destino — e `CallVoid` (mesma ABI, sem store de retorno). Símbolo desconhecido de função inexistente é recusado.
+                    // @pinker-nav:summary Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino trata `__ternario` de braços trivialmente puros como seleção por `cmpq`+`cmoveq`; ternários com efeitos já chegam como ramos CFG lazy. Demais chamadas resolvem intrínsecas por aridade (`runtime_intrinsic_symbol_por_aridade`) e por nome (`runtime_intrinsic_symbol`) ou chamam função Pinker por símbolo direto, passam os 6 primeiros argumentos em `ARG_REGS`, empilham o 7º+ do último ao primeiro com padding de alinhamento e limpam a pilha após o `call`, guardando `%rax` no slot de destino. Símbolo desconhecido é recusado.
                     SelectedInstr::Call {
                         dest,
                         callee,
@@ -595,17 +595,17 @@ fn extract_external_callconv_program(
                                 "subset externo montável (Fase 216) só aceita call com retorno `bombom`, `verso`, `logica`, lista ou `nulo`",
                             ));
                         }
-                        // Ternário (Fase 214/B3): `__ternario(cond, a, b)` é
-                        // pseudo-função do pipeline; nativo vira seleção por
-                        // cmov, sem call real (ambos os lados já avaliados,
-                        // mesma semântica eager do interpretador).
+                        // A CFG conserva a pseudo-chamada somente quando os
+                        // dois braços são valores trivialmente puros. Braços
+                        // com chamadas, alocações ou outros efeitos já foram
+                        // separados em blocos lazy antes da seleção.
                         if callee == "__ternario" {
                             if args.len() != 3 {
                                 return Err(err(
                                     "subset externo montável (Fase 214) exige `__ternario` com 3 argumentos",
                                 ));
                             }
-                            for arg in args.iter() {
+                            for arg in args {
                                 register_rodata_strings_for_operand(
                                     arg,
                                     &mut rodata_string_labels,

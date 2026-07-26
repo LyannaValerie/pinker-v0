@@ -209,6 +209,8 @@ struct FunctionLowerer {
     next_temp: u32,
     next_logical_slot: u32,
     logical_locals: Vec<crate::ir::LocalIR>,
+    next_ternary_slot: u32,
+    ternary_locals: Vec<crate::ir::LocalIR>,
     loop_exit_stack: Vec<String>,
     loop_continue_stack: Vec<String>,
 }
@@ -344,6 +346,8 @@ fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
         next_temp: 0,
         next_logical_slot: 0,
         logical_locals: Vec::new(),
+        next_ternary_slot: 0,
+        ternary_locals: Vec::new(),
         loop_exit_stack: Vec::new(),
         loop_continue_stack: Vec::new(),
     };
@@ -380,6 +384,7 @@ fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
 
     let mut locals = function.locals.clone();
     locals.extend(lowerer.logical_locals);
+    locals.extend(lowerer.ternary_locals);
 
     Ok(FunctionCfgIR {
         name: function.name.clone(),
@@ -647,7 +652,7 @@ impl FunctionLowerer {
     // @pinker-nav:start cfg.lowering.valores-temporarios
     // @pinker-nav:domain lowering
     // @pinker-nav:layer cfg
-    // @pinker-nav:summary Lineariza `ValueIR` em operandos e instruções CFG no bloco corrente: literais, locais (`%nome#N`) e globais viram operandos diretos; unários, dereferência, binários não lógicos, chamadas e casts emitem instruções cujo resultado recebe um `TempIR` (`%tN`); `lower_expr_stmt` descarta o retorno de chamadas `nulo` e rejeita chamada `nulo` usada como valor. Pode avançar para outro bloco quando uma subexpressão lógica altera o fluxo (delega o curto-circuito). Temporários têm escopo de função — não são registradores físicos nem SSA de slots.
+    // @pinker-nav:summary Lineariza `ValueIR` em operandos e instruções CFG no bloco corrente: literais, locais (`%nome#N`) e globais viram operandos diretos; unários, dereferência, binários não lógicos, chamadas e casts emitem instruções cujo resultado recebe um `TempIR` (`%tN`); `lower_expr_stmt` descarta o retorno de chamadas `nulo` e rejeita chamada `nulo` usada como valor. Pode avançar para outro bloco quando curto-circuito ou ternário lazy altera o fluxo. Temporários têm escopo de função — não são registradores físicos nem SSA de slots.
     fn lower_expr_stmt(
         &mut self,
         value: &ValueIR,
@@ -785,6 +790,26 @@ impl FunctionLowerer {
                 args,
                 ret_type,
             } => {
+                if callee == "__ternario"
+                    && (args.len() != 3
+                        || !(is_trivially_pure_ternary_arm(&args[1])
+                            && is_trivially_pure_ternary_arm(&args[2])))
+                {
+                    let [condition, true_value, false_value] = args.as_slice() else {
+                        return Err(PinkerError::Ir {
+                            msg: "CFG encontrou ternário sem três argumentos".to_string(),
+                            span,
+                        });
+                    };
+                    return self.lower_ternary_value(
+                        condition,
+                        true_value,
+                        false_value,
+                        *ret_type,
+                        current,
+                        span,
+                    );
+                }
                 let lowered_args =
                     args.iter()
                         .try_fold((Vec::new(), current), |(mut acc, cur), arg| {
@@ -1323,6 +1348,57 @@ impl FunctionLowerer {
     }
     // @pinker-nav:end cfg.logica.curto-circuito
 
+    fn lower_ternary_value(
+        &mut self,
+        condition: &ValueIR,
+        true_value: &ValueIR,
+        false_value: &ValueIR,
+        result_type: TypeIR,
+        current: usize,
+        span: Span,
+    ) -> Result<(OperandIR, usize), PinkerError> {
+        if result_type == TypeIR::Nulo {
+            return Err(PinkerError::Ir {
+                msg: "ternário nulo usado como valor na CFG IR".to_string(),
+                span,
+            });
+        }
+
+        let (condition, condition_current) = self.lower_value_operand(condition, current, span)?;
+        let true_label = self.next_label("ternary_true");
+        let false_label = self.next_label("ternary_false");
+        let join_label = self.next_label("ternary_join");
+        let true_idx = self.fresh_block(true_label.clone());
+        let false_idx = self.fresh_block(false_label.clone());
+        let join_idx = self.fresh_block(join_label.clone());
+        self.blocks[condition_current].terminator = Some(TerminatorIR::Branch {
+            cond: condition,
+            then_label: true_label,
+            else_label: false_label,
+        });
+
+        let result_slot = self.next_ternary_slot(result_type);
+        let (true_value, true_end) = self.lower_value_operand(true_value, true_idx, span)?;
+        self.blocks[true_end]
+            .instructions
+            .push(InstructionCfgIR::Let {
+                slot: result_slot.clone(),
+                value: true_value,
+            });
+        self.blocks[true_end].terminator = Some(TerminatorIR::Jump(join_label.clone()));
+
+        let (false_value, false_end) = self.lower_value_operand(false_value, false_idx, span)?;
+        self.blocks[false_end]
+            .instructions
+            .push(InstructionCfgIR::Let {
+                slot: result_slot.clone(),
+                value: false_value,
+            });
+        self.blocks[false_end].terminator = Some(TerminatorIR::Jump(join_label));
+
+        Ok((OperandIR::Local(result_slot), join_idx))
+    }
+
     // @pinker-nav:start cfg.logica.slot-logico
     // @pinker-nav:domain logica
     // @pinker-nav:layer cfg
@@ -1335,6 +1411,19 @@ impl FunctionLowerer {
             source_name: format!("$logic_{}", index),
             slot: slot.clone(),
             ty: TypeIR::Logica,
+            is_mut: true,
+        });
+        slot
+    }
+
+    fn next_ternary_slot(&mut self, ty: TypeIR) -> String {
+        let index = self.next_ternary_slot;
+        self.next_ternary_slot += 1;
+        let slot = format!("%ternary#{}", index);
+        self.ternary_locals.push(crate::ir::LocalIR {
+            source_name: format!("$ternary_{}", index),
+            slot: slot.clone(),
+            ty,
             is_mut: true,
         });
         slot
@@ -1395,6 +1484,18 @@ fn lower_constant_value(value: &ValueIR, span: Span) -> Result<ValueCfgIR, Pinke
             span,
         }),
     }
+}
+
+fn is_trivially_pure_ternary_arm(value: &ValueIR) -> bool {
+    matches!(
+        value,
+        ValueIR::Local(_)
+            | ValueIR::GlobalConst(_)
+            | ValueIR::Int(_)
+            | ValueIR::Bool(_)
+            | ValueIR::String(_)
+            | ValueIR::FunctionRef(_)
+    )
 }
 // @pinker-nav:end cfg.lowering.constantes
 

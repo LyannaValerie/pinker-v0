@@ -1860,7 +1860,39 @@ impl<'a> FunctionLowerer<'a> {
                 &self.context.type_aliases,
                 &self.context.struct_names,
             )?,
-            ExprKind::Call(callee, _) => match &callee.kind {
+            ExprKind::Call(callee, args) => match &callee.kind {
+                ExprKind::Ident(function_name) if function_name == "__ternario" => {
+                    let [_, true_value, false_value] = args.as_slice() else {
+                        return Err(PinkerError::Ir {
+                            msg: "lowering encontrou ternário sem três argumentos".to_string(),
+                            span: expr.span,
+                        });
+                    };
+                    let true_trait = self.trait_object_name_for_expr(true_value)?;
+                    let false_trait = self.trait_object_name_for_expr(false_value)?;
+                    match (true_trait, false_trait) {
+                        (Some(true_trait), Some(false_trait)) if true_trait == false_trait => {
+                            Some(true_trait)
+                        }
+                        (None, None) => None,
+                        (Some(true_trait), Some(false_trait)) => {
+                            return Err(PinkerError::Ir {
+                                msg: format!(
+                                    "ternário perdeu compatibilidade nominal entre trato<{}> e trato<{}>",
+                                    true_trait, false_trait
+                                ),
+                                span: expr.span,
+                            });
+                        }
+                        _ => {
+                            return Err(PinkerError::Ir {
+                                msg: "ternário de objeto de trato exige identidade nominal nos dois braços"
+                                    .to_string(),
+                                span: expr.span,
+                            });
+                        }
+                    }
+                }
                 ExprKind::Ident(function_name) => self
                     .context
                     .function_ret_trait_names
