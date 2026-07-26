@@ -497,3 +497,153 @@ fn fase243_closure_com_captura_vira_make_closure_na_cfg() {
     assert!(cfg.contains("make_closure"), "{}", cfg);
 }
 // @pinker-nav:end evidencia.cfg.lowering-curto-circuito
+
+// @pinker-nav:start evidencia.cfg.objetos-trato-fase244
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita a representação da Fase 244 na CFG: materialização com snapshot e vtable ordenada, despacho direto e qualificado, chamada dinâmica com retorno e chamada nula sem destino.
+
+#[test]
+fn fase244_cfg_lowering_materializa_objeto_com_vtable_ordenada() {
+    let code = r#"
+pacote main;
+
+trato Duplo {
+    carinho primeiro(valor: si) -> bombom;
+    carinho segundo(valor: si) -> bombom;
+}
+
+impl Duplo para bombom {
+    carinho primeiro(valor: bombom) -> bombom {
+        mimo valor;
+    }
+
+    carinho segundo(valor: bombom) -> bombom {
+        mimo valor + 1;
+    }
+}
+
+carinho empacotar(valor: bombom) -> trato<Duplo> {
+    mimo valor virar trato<Duplo>;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let cfg = render_cfg_ir(code).unwrap();
+
+    assert!(
+        cfg.contains(
+            "make_trait_object trato<Duplo> from %valor#0 as bombom:bombom size=8 \
+vtable=[__impl_5_Duplo_6_bombom_primeiro, __impl_5_Duplo_6_bombom_segundo]"
+        ),
+        "CFG inesperada:\n{cfg}"
+    );
+}
+
+#[test]
+fn fase244_cfg_lowering_despacha_metodo_com_retorno() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si, fator: bombom) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom, fator: bombom) -> bombom {
+        mimo valor * fator;
+    }
+}
+
+carinho consultar(objeto: trato<Medivel>) -> bombom {
+    mimo objeto.medir(2);
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let cfg = render_cfg_ir(code).unwrap();
+
+    assert!(
+        cfg.contains("trait_call trato<Medivel>.medir#0/1 %objeto#0(2:bombom) -> bombom"),
+        "CFG inesperada:\n{cfg}"
+    );
+}
+
+#[test]
+fn fase244_cfg_lowering_preserva_forma_qualificada_dinamica() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom {
+        mimo valor;
+    }
+}
+
+carinho consultar(objeto: trato<Medivel>) -> bombom {
+    mimo Medivel.medir(objeto);
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let cfg = render_cfg_ir(code).unwrap();
+
+    assert!(
+        cfg.contains("trait_call trato<Medivel>.medir#0/1 %objeto#0() -> bombom"),
+        "CFG inesperada:\n{cfg}"
+    );
+}
+
+#[test]
+fn fase244_cfg_lowering_metodo_nulo_nao_cria_destino() {
+    let code = r#"
+pacote main;
+
+trato Observavel {
+    carinho observar(valor: si, codigo: bombom);
+}
+
+impl Observavel para bombom {
+    carinho observar(valor: bombom, codigo: bombom) {
+        falar(valor, codigo);
+        mimo;
+    }
+}
+
+carinho usar(objeto: trato<Observavel>) {
+    objeto.observar(7);
+    mimo;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let cfg = render_cfg_ir(code).unwrap();
+
+    assert!(
+        cfg.contains("trait_call trato<Observavel>.observar#0/1 %objeto#0(7:bombom) -> nulo"),
+        "CFG inesperada:\n{cfg}"
+    );
+
+    assert!(
+        !cfg.contains("= trait_call trato<Observavel>.observar#0/1"),
+        "método nulo não pode criar temporário:\n{cfg}"
+    );
+}
+
+// @pinker-nav:end evidencia.cfg.objetos-trato-fase244

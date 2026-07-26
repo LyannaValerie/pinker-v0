@@ -136,6 +136,250 @@ impl CallableState {
     }
 }
 
+// Fase 244: o objeto público continua sendo apenas um handle de uma palavra.
+// O handle indexa `TraitObjectState.table`; o descritor contém o endereço
+// simulado do snapshot e um handle separado para uma vtable imutável.
+#[derive(Debug, Clone)]
+struct TraitObjectDescriptor {
+    data_addr: usize,
+    vtable_handle: u64,
+    concrete_type: crate::ir::TypeIR,
+}
+
+#[derive(Debug, Clone)]
+struct TraitVtableDescriptor {
+    trait_name: String,
+    concrete_type_name: String,
+    methods: Vec<String>,
+}
+
+struct TraitObjectState {
+    table: HashMap<u64, TraitObjectDescriptor>,
+    vtables: HashMap<u64, TraitVtableDescriptor>,
+    vtable_by_key: HashMap<String, u64>,
+    next_handle: u64,
+    next_vtable_handle: u64,
+    next_data_addr: usize,
+}
+
+impl TraitObjectState {
+    fn new() -> Self {
+        TraitObjectState {
+            table: HashMap::new(),
+            vtables: HashMap::new(),
+            vtable_by_key: HashMap::new(),
+            next_handle: 1,
+            next_vtable_handle: 1,
+            // Região distinta dos ambientes de closure, iniciados em
+            // 0x1000_0000. Objetos e snapshots vivem por todo o processo.
+            next_data_addr: 0x2000_0000,
+        }
+    }
+
+    fn intern_vtable(
+        &mut self,
+        trait_name: &str,
+        concrete_type_name: &str,
+        methods: &[String],
+    ) -> u64 {
+        let key = format!(
+            "{}\u{1f}{}\u{1f}{}",
+            trait_name,
+            concrete_type_name,
+            methods.join("\u{1e}")
+        );
+
+        if let Some(handle) = self.vtable_by_key.get(&key) {
+            return *handle;
+        }
+
+        let handle = self.next_vtable_handle;
+        self.next_vtable_handle = self
+            .next_vtable_handle
+            .checked_add(1)
+            .expect("overflow de handles de vtable");
+
+        self.vtables.insert(
+            handle,
+            TraitVtableDescriptor {
+                trait_name: trait_name.to_string(),
+                concrete_type_name: concrete_type_name.to_string(),
+                methods: methods.to_vec(),
+            },
+        );
+        self.vtable_by_key.insert(key, handle);
+
+        handle
+    }
+
+    fn allocate_snapshot(
+        &mut self,
+        value: RuntimeValue,
+        concrete_type: crate::ir::TypeIR,
+        concrete_size: u64,
+        memory: &mut HashMap<usize, RuntimeValue>,
+    ) -> Result<usize, PinkerError> {
+        let snapshot_size = usize::try_from(concrete_size)
+            .map_err(|_| runtime_err("snapshot de objeto de trato excede o espaço de endereços"))?;
+
+        if snapshot_size == 0 {
+            return Err(runtime_err(
+                "snapshot de objeto de trato não pode ter tamanho zero",
+            ));
+        }
+
+        let aligned_size = snapshot_size
+            .checked_add(7)
+            .map(|size| size & !7usize)
+            .ok_or_else(|| runtime_err("overflow ao alinhar snapshot de objeto de trato"))?;
+
+        let base = self.next_data_addr;
+        self.next_data_addr = self
+            .next_data_addr
+            .checked_add(aligned_size.max(8))
+            .ok_or_else(|| runtime_err("espaço de snapshots de objetos de trato esgotado"))?;
+
+        if matches!(
+            concrete_type,
+            crate::ir::TypeIR::Struct | crate::ir::TypeIR::FixedArray { .. }
+        ) {
+            let RuntimeValue::Ptr(source_addr) = value else {
+                return Err(runtime_err(
+                    "snapshot composto de objeto de trato exige endereço de origem",
+                ));
+            };
+
+            let source_end = source_addr
+                .checked_add(snapshot_size)
+                .ok_or_else(|| runtime_err("overflow ao delimitar snapshot composto"))?;
+
+            // Copia todas as células existentes no intervalo real do valor,
+            // preservando offsets e padding. Ponteiros internos continuam
+            // sendo valores de ponteiro, como numa cópia byte a byte.
+            let cells = memory
+                .iter()
+                .filter_map(|(addr, cell)| {
+                    if *addr >= source_addr && *addr < source_end {
+                        Some((*addr - source_addr, cell.clone()))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            if cells.is_empty() {
+                return Err(runtime_err(
+                    "snapshot composto parte de endereço inválido ou não inicializado",
+                ));
+            }
+
+            for (offset, cell) in cells {
+                memory.insert(base + offset, cell);
+            }
+        } else {
+            // Primitivos, versos, ponteiros, handles hospedados e callables
+            // ocupam uma célula lógica. `clone` congela o valor no momento da
+            // materialização e elimina dependência do slot de origem.
+            memory.insert(base, value);
+        }
+
+        Ok(base)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn create_object(
+        &mut self,
+        value: RuntimeValue,
+        trait_name: &str,
+        concrete_type: crate::ir::TypeIR,
+        concrete_type_name: &str,
+        concrete_size: u64,
+        vtable_methods: &[String],
+        memory: &mut HashMap<usize, RuntimeValue>,
+    ) -> Result<u64, PinkerError> {
+        let vtable_handle = self.intern_vtable(trait_name, concrete_type_name, vtable_methods);
+
+        let data_addr = self.allocate_snapshot(value, concrete_type, concrete_size, memory)?;
+
+        let handle = self.next_handle;
+        self.next_handle = self
+            .next_handle
+            .checked_add(1)
+            .ok_or_else(|| runtime_err("espaço de handles de objetos de trato esgotado"))?;
+
+        self.table.insert(
+            handle,
+            TraitObjectDescriptor {
+                data_addr,
+                vtable_handle,
+                concrete_type,
+            },
+        );
+
+        Ok(handle)
+    }
+
+    fn resolve_call(
+        &self,
+        handle: u64,
+        trait_name: &str,
+        method_name: &str,
+        method_slot: u64,
+        memory: &HashMap<usize, RuntimeValue>,
+    ) -> Result<(String, RuntimeValue), PinkerError> {
+        let descriptor = self
+            .table
+            .get(&handle)
+            .cloned()
+            .ok_or_else(|| runtime_err("trait_call com handle de objeto de trato inválido"))?;
+
+        let vtable = self
+            .vtables
+            .get(&descriptor.vtable_handle)
+            .cloned()
+            .ok_or_else(|| runtime_err("trait_call com vtable inexistente"))?;
+
+        if vtable.trait_name != trait_name {
+            return Err(runtime_err(&format!(
+                "trait_call de trato incompatível: objeto é trato<{}>, chamada exige trato<{}>",
+                vtable.trait_name, trait_name
+            )));
+        }
+
+        let slot = usize::try_from(method_slot)
+            .map_err(|_| runtime_err("trait_call com slot de vtable fora da faixa"))?;
+
+        let function_name = vtable.methods.get(slot).cloned().ok_or_else(|| {
+            runtime_err(&format!(
+                "trait_call com slot de vtable inválido para {}",
+                vtable.concrete_type_name
+            ))
+        })?;
+
+        let expected_suffix = format!("_{}", method_name);
+
+        if !function_name.ends_with(&expected_suffix) {
+            return Err(runtime_err(
+                "trait_call encontrou método divergente no slot da vtable",
+            ));
+        }
+
+        let receiver = if matches!(
+            descriptor.concrete_type,
+            crate::ir::TypeIR::Struct | crate::ir::TypeIR::FixedArray { .. }
+        ) {
+            RuntimeValue::Ptr(descriptor.data_addr)
+        } else {
+            memory
+                .get(&descriptor.data_addr)
+                .cloned()
+                .ok_or_else(|| runtime_err("snapshot de objeto de trato ausente"))?
+        };
+
+        Ok((function_name, receiver))
+    }
+}
+
 struct RuntimeMapState {
     maps_verso_bombom: HashMap<u64, HashMap<String, u64>>,
     maps_verso_verso: HashMap<u64, HashMap<String, String>>,
@@ -271,6 +515,7 @@ pub fn run_program_with_args(
         next_generator_handle: 1,
     };
     let mut callable_state = CallableState::new();
+    let mut trait_object_state = TraitObjectState::new();
     let mut call_stack = Vec::new();
     let return_value = call_function(
         "principal",
@@ -283,6 +528,7 @@ pub fn run_program_with_args(
         &mut map_state,
         &mut random_state,
         &mut callable_state,
+        &mut trait_object_state,
         &mut call_stack,
     )?;
     Ok(RunOutcome {
@@ -365,6 +611,7 @@ fn call_function(
     map_state: &mut RuntimeMapState,
     random_state: &mut RuntimeRandomState,
     callable_state: &mut CallableState,
+    trait_object_state: &mut TraitObjectState,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<Option<RuntimeValue>, PinkerError> {
     if call_stack.len() >= MAX_CALL_DEPTH {
@@ -435,6 +682,7 @@ fn call_function(
                     map_state,
                     random_state,
                     callable_state,
+                    trait_object_state,
                     call_stack,
                 )?;
                 set_current_instr(call_stack, None);
@@ -504,6 +752,7 @@ fn exec_instr(
     map_state: &mut RuntimeMapState,
     random_state: &mut RuntimeRandomState,
     callable_state: &mut CallableState,
+    trait_object_state: &mut TraitObjectState,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<(), PinkerError> {
     match instr {
@@ -753,6 +1002,7 @@ fn exec_instr(
                     map_state,
                     random_state,
                     callable_state,
+                    trait_object_state,
                     call_stack,
                 )?,
             };
@@ -783,6 +1033,7 @@ fn exec_instr(
                     map_state,
                     random_state,
                     callable_state,
+                    trait_object_state,
                     call_stack,
                 )?,
             };
@@ -840,6 +1091,7 @@ fn exec_instr(
                 map_state,
                 random_state,
                 callable_state,
+                trait_object_state,
                 call_stack,
             )?;
             let Some(value) = result else {
@@ -848,6 +1100,90 @@ fn exec_instr(
                 ));
             };
             stack.push(value);
+        }
+        MachineInstr::MakeTraitObject {
+            trait_name,
+            concrete_type,
+            concrete_type_name,
+            concrete_size,
+            vtable_methods,
+        } => {
+            let value = pop(stack, "make_trait_object exige valor concreto no topo")?;
+
+            let handle = trait_object_state.create_object(
+                value,
+                trait_name,
+                *concrete_type,
+                concrete_type_name,
+                *concrete_size,
+                vtable_methods,
+                memory,
+            )?;
+
+            // A representação pública é uma palavra de 64 bits. O tipo
+            // estático `TraitObject` impede que esse inteiro seja utilizado
+            // como número no programa Pinker.
+            stack.push(RuntimeValue::Int(handle));
+        }
+        MachineInstr::TraitCall {
+            trait_name,
+            method_name,
+            method_slot,
+            method_count,
+            argc,
+            param_types: _,
+            ret_type,
+        } => {
+            if *method_count == 0 || *method_slot >= *method_count {
+                return Err(runtime_err("trait_call referencia slot fora da vtable"));
+            }
+            let object = pop(stack, "trait_call exige handle de objeto no topo")?;
+
+            let RuntimeValue::Int(handle) = object else {
+                return Err(runtime_err("trait_call exige handle de objeto de trato"));
+            };
+
+            let user_args = pop_args(stack, *argc)?;
+
+            let (function_name, receiver) = trait_object_state.resolve_call(
+                handle,
+                trait_name,
+                method_name,
+                *method_slot,
+                memory,
+            )?;
+
+            // ABI própria: receiver concreto primeiro, seguido somente pelos
+            // argumentos públicos. Não existe `__env` e não há CallIndirect.
+            let mut combined_args = Vec::with_capacity(user_args.len() + 1);
+            combined_args.push(receiver);
+            combined_args.extend(user_args);
+
+            let result = call_function(
+                &function_name,
+                combined_args,
+                program,
+                globals,
+                memory,
+                io_state,
+                list_state,
+                map_state,
+                random_state,
+                callable_state,
+                trait_object_state,
+                call_stack,
+            )?;
+
+            if *ret_type == crate::ir::TypeIR::Nulo {
+                if result.is_some() {
+                    return Err(runtime_err("trait_call nulo recebeu retorno inesperado"));
+                }
+            } else {
+                let Some(value) = result else {
+                    return Err(runtime_err("trait_call com retorno recebeu função nulo"));
+                };
+                stack.push(value);
+            }
         }
         MachineInstr::PrintIntInline => {
             match pop_numeric(stack, "print_int_inline exige inteiro no topo")? {
@@ -4854,6 +5190,8 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::PushFunctionRef(_) => "push_function_ref",
         MachineInstr::CallIndirect { .. } => "call_indirect",
         MachineInstr::MakeClosure { .. } => "make_closure",
+        MachineInstr::MakeTraitObject { .. } => "make_trait_object",
+        MachineInstr::TraitCall { .. } => "trait_call",
         MachineInstr::PrintIntInline => "print_int_inline",
         MachineInstr::PrintBoolInline => "print_bool_inline",
         MachineInstr::PrintStrValueInline => "print_str_value_inline",
@@ -4863,3 +5201,102 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
     }
 }
 // @pinker-nav:end interpreter.diagnostico.stack-trace
+
+#[cfg(test)]
+mod fase244_trait_runtime_tests {
+    use super::*;
+
+    #[test]
+    fn fase244_trait_runtime_snapshot_composto_independe_da_origem() {
+        let mut state = TraitObjectState::new();
+        let mut memory = HashMap::new();
+
+        let source_addr = 0x4000usize;
+        memory.insert(source_addr, RuntimeValue::Int(11));
+        memory.insert(source_addr + 8, RuntimeValue::Int(22));
+
+        let methods = vec!["__impl_7_Medivel_5_Ponto_medir".to_string()];
+
+        let handle = state
+            .create_object(
+                RuntimeValue::Ptr(source_addr),
+                "Medivel",
+                crate::ir::TypeIR::Struct,
+                "Ponto",
+                16,
+                &methods,
+                &mut memory,
+            )
+            .unwrap();
+
+        let (_, receiver) = state
+            .resolve_call(handle, "Medivel", "medir", 0, &memory)
+            .unwrap();
+
+        let RuntimeValue::Ptr(snapshot_addr) = receiver else {
+            panic!("receiver composto deveria ser ponteiro");
+        };
+
+        assert_ne!(snapshot_addr, source_addr);
+        assert_eq!(memory.get(&snapshot_addr), Some(&RuntimeValue::Int(11)));
+        assert_eq!(
+            memory.get(&(snapshot_addr + 8)),
+            Some(&RuntimeValue::Int(22))
+        );
+
+        memory.insert(source_addr, RuntimeValue::Int(99));
+        memory.insert(source_addr + 8, RuntimeValue::Int(100));
+
+        assert_eq!(memory.get(&snapshot_addr), Some(&RuntimeValue::Int(11)));
+        assert_eq!(
+            memory.get(&(snapshot_addr + 8)),
+            Some(&RuntimeValue::Int(22))
+        );
+    }
+
+    #[test]
+    fn fase244_trait_runtime_vtable_e_internada_handles_sao_distintos() {
+        let mut state = TraitObjectState::new();
+        let mut memory = HashMap::new();
+        let methods = vec!["__impl_7_Medivel_6_bombom_medir".to_string()];
+
+        let first = state
+            .create_object(
+                RuntimeValue::Int(10),
+                "Medivel",
+                crate::ir::TypeIR::Bombom,
+                "bombom",
+                8,
+                &methods,
+                &mut memory,
+            )
+            .unwrap();
+
+        let second = state
+            .create_object(
+                RuntimeValue::Int(20),
+                "Medivel",
+                crate::ir::TypeIR::Bombom,
+                "bombom",
+                8,
+                &methods,
+                &mut memory,
+            )
+            .unwrap();
+
+        assert_ne!(first, second);
+
+        let first_vtable = state.table.get(&first).unwrap().vtable_handle;
+        let second_vtable = state.table.get(&second).unwrap().vtable_handle;
+
+        assert_eq!(first_vtable, second_vtable);
+
+        // Copiar o valor público copia apenas o handle e, portanto,
+        // continua apontando para o mesmo descritor.
+        let alias = first;
+        assert_eq!(
+            state.table.get(&alias).unwrap().data_addr,
+            state.table.get(&first).unwrap().data_addr
+        );
+    }
+}

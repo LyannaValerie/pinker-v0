@@ -81,12 +81,12 @@ fn validate_function(
         )));
     }
 
-    let mut slots = HashMap::new();
+    let mut slots = function.slot_types.clone();
     for p in &function.params {
-        slots.insert(p.clone(), TypeIR::Bombom);
+        slots.entry(p.clone()).or_insert(TypeIR::Bombom);
     }
     for l in &function.locals {
-        slots.insert(l.clone(), TypeIR::Bombom);
+        slots.entry(l.clone()).or_insert(TypeIR::Bombom);
     }
 
     for b in &function.blocks {
@@ -194,6 +194,54 @@ fn validate_function(
                         }
                         (None, _) => {
                             return Err(err("call textual com retorno exige destino"));
+                        }
+                    }
+                }
+                BackendTextInstruction::MakeTraitObject {
+                    dest,
+                    value,
+                    concrete_type,
+                    concrete_size,
+                    vtable_methods,
+                    ..
+                } => {
+                    let _ = infer_operand(value, &slots, &temps, globals)?;
+                    if *concrete_size == 0 || vtable_methods.is_empty() {
+                        return Err(err("materialização textual de trato inválida"));
+                    }
+                    if matches!(*concrete_type, TypeIR::TraitObject | TypeIR::Nulo) {
+                        return Err(err("snapshot textual de trato exige tipo concreto válido"));
+                    }
+                    temps.insert(*dest, TypeIR::TraitObject);
+                }
+                BackendTextInstruction::TraitCall {
+                    dest,
+                    object,
+                    method_slot,
+                    method_count,
+                    args,
+                    ret_type,
+                    ..
+                } => {
+                    if *method_count == 0 || *method_slot >= *method_count {
+                        return Err(err("trait_call textual referencia slot fora da vtable"));
+                    }
+                    if infer_operand(object, &slots, &temps, globals)? != TypeIR::TraitObject {
+                        return Err(err("trait_call textual exige objeto de trato"));
+                    }
+                    for arg in args {
+                        let _ = infer_operand(arg, &slots, &temps, globals)?;
+                    }
+                    match (dest, ret_type) {
+                        (Some(_), TypeIR::Nulo) => {
+                            return Err(err("trait_call nulo textual não pode ter destino"));
+                        }
+                        (None, TypeIR::Nulo) => {}
+                        (Some(t), _) => {
+                            temps.insert(*t, *ret_type);
+                        }
+                        (None, _) => {
+                            return Err(err("trait_call textual com retorno exige destino"))
                         }
                     }
                 }

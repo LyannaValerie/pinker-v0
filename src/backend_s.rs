@@ -9,7 +9,8 @@ use crate::error::PinkerError;
 use crate::instr_select::{SelectedInstr, SelectedProgram, SelectedTerminator};
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
 use crate::token::{Position, Span};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::fmt::Write as _;
 
 // @pinker-nav:start backend-s.pipeline.textual-selecionado
 // @pinker-nav:domain pipeline
@@ -36,7 +37,7 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 /// - branch condicional mínimo via teste contra zero (`cmpq $0` + `jne`) e sem ABI completa.
 /// - globais estáticas mínimas somente-leitura em `.rodata`: `eterno` de valor literal inteiro/lógico com leitura por símbolo `@nome(%rip)`.
 /// - composto mínimo conservador: base homogênea `seta<bombom>` com `deref_store`/`deref_load` mínimo e abertura heterogênea em quatro camadas para `ninho`, incluindo composição mínima auditável no mesmo registro (`u32` + `u64`) via offset explícito;
-/// - inteiros fixos adicionais no recorte externo: `u32` (Fase 120) e `u64` (Fase 121) em parâmetros e locais, reaproveitando movimentação/call no mesmo frame/ABI mínima existente;
+/// - escalares inteiros e lógicos aceitos pela semântica em parâmetros dinâmicos, com normalização SysV explícita em registradores e pilha;
 /// - `quebrar`/`continuar` (Fase 128, camada 3 conservadora) no recorte de `sempre que` já materializado em `selected`, com composição mínima auditável de três níveis de laço (`sempre que` externo/meio/interno) sem abrir subsistema geral de controle de fluxo;
 /// - `virar` (Fase 134, camada 2 conservadora) no recorte mínimo explícito `u32 -> u64` e `u64 -> u32` quando a origem é slot local/parâmetro tipado;
 /// - `verso` (Fase 135, camada 1 conservadora e condicional) apenas no recorte mínimo opaco: literal estático em `.rodata` + carga de endereço + tráfego por slot/parâmetro, sem operações textuais gerais.
@@ -119,6 +120,8 @@ struct ExternalCallConvProgram {
     // ponto do programa; cada um recebe um descritor estático
     // {code_ptr, env_ptr} em `.rodata` (env_ptr nulo — não capturante).
     rodata_function_refs: Vec<String>,
+    trait_vtables: Vec<ExternalTraitVtable>,
+    trait_adapters: Vec<ExternalTraitAdapter>,
     functions: Vec<ExternalCallConvFunction>,
 }
 
@@ -130,6 +133,19 @@ struct ExternalCallConvGlobal {
 struct ExternalCallConvString {
     label: String,
     value: String,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct ExternalTraitVtable {
+    symbol: String,
+    entries: Vec<String>,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct ExternalTraitAdapter {
+    symbol: String,
+    target: String,
+    concrete_type: TypeIR,
 }
 
 struct ExternalCallConvFunction {
@@ -154,6 +170,7 @@ enum ExternalCallConvTerminator {
         else_label: String,
     },
     Ret(OperandIR),
+    RetVoid,
 }
 // @pinker-nav:end backend-s.modelo.callconv-externa
 
@@ -219,6 +236,8 @@ fn extract_external_callconv_program(
     let mut functions = Vec::new();
     let mut rodata_string_labels = HashMap::new();
     let mut rodata_strings = Vec::new();
+    let mut trait_vtables = BTreeMap::<String, ExternalTraitVtable>::new();
+    let mut trait_adapters = BTreeMap::<String, ExternalTraitAdapter>::new();
     for function in &selected.functions {
         if !is_external_ret_type(&function.ret_type) {
             return Err(err(
@@ -230,15 +249,20 @@ fn extract_external_callconv_program(
                 "subset externo montável (Fase 84) exige `principal()` sem parâmetros",
             ));
         }
-        for param in &function.params {
+        for (param_index, param) in function.params.iter().enumerate() {
             let Some(ty) = function.slot_types.get(param) else {
                 return Err(err(
                     "subset externo montável (Fase 84) encontrou parâmetro sem tipo",
                 ));
             };
-            if !is_external_param_type(ty) {
+            let is_trait_receiver = param_index == 0
+                && function.name.starts_with("__impl_")
+                && is_external_trait_receiver_type(ty);
+            let is_trait_method_word =
+                function.name.starts_with("__impl_") && ty.is_native_abi_word();
+            if !is_external_param_type(ty) && !is_trait_receiver && !is_trait_method_word {
                 return Err(err(
-                "subset externo montável aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>` no recorte conservador",
+                    "subset externo montável aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>` no recorte conservador",
                 ));
             }
         }
@@ -248,7 +272,24 @@ fn extract_external_callconv_program(
                     "subset externo montável (Fase 84) encontrou local sem tipo",
                 ));
             };
-            if !is_external_local_type(ty) {
+            let is_trait_snapshot_source = function.blocks.iter().any(|block| {
+                block.instructions.iter().any(|instruction| {
+                    matches!(
+                        instruction,
+                        SelectedInstr::MakeTraitObject {
+                            value: OperandIR::Local(slot),
+                            concrete_type,
+                            ..
+                        } if slot == local && concrete_type == ty
+                    )
+                })
+            });
+            let is_trait_method_word =
+                function.name.starts_with("__impl_") && ty.is_native_abi_word();
+            if !(is_external_local_type(ty)
+                || is_trait_method_word
+                || is_trait_snapshot_source && is_external_trait_receiver_type(ty))
+            {
                 return Err(err(&format!(
                     "subset externo montável só aceita local `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>`; '{}' é '{}'",
                     local,
@@ -289,7 +330,7 @@ fn extract_external_callconv_program(
         // @pinker-nav:start backend-s.lowering.blocos-terminadores
         // @pinker-nav:domain lowering
         // @pinker-nav:layer backend-s
-        // @pinker-nav:summary Abertura do laço de blocos e seleção do terminador de cada bloco: `SelectedTerminator::Jmp` → `ExternalCallConvTerminator::Jmp`; `Ret(Some(value))` materializa literais `verso` de retorno em `.rodata` (`register_rodata_strings_for_operand`) e vira `Ret`; `Br` copia condição e rótulos; demais terminadores são recusados. Constrói o `terminator` antes do corpo do bloco.
+        // @pinker-nav:summary Abertura do laço de blocos e seleção do terminador de cada bloco: `SelectedTerminator::Jmp` → `ExternalCallConvTerminator::Jmp`; `Ret(Some(value))` materializa literais `verso` de retorno em `.rodata` (`register_rodata_strings_for_operand`) e vira `Ret`; `Ret(None)` vira `RetVoid` para funções/métodos `nulo`; `Br` copia condição e rótulos. Constrói o `terminator` antes do corpo do bloco.
         let mut blocks = Vec::new();
         for block in &function.blocks {
             let terminator = match &block.terminator {
@@ -304,6 +345,7 @@ fn extract_external_callconv_program(
                     );
                     ExternalCallConvTerminator::Ret(value.clone())
                 }
+                SelectedTerminator::Ret(None) => ExternalCallConvTerminator::RetVoid,
                 SelectedTerminator::Br {
                     cond,
                     then_label,
@@ -313,11 +355,6 @@ fn extract_external_callconv_program(
                     then_label: then_label.clone(),
                     else_label: else_label.clone(),
                 },
-                _ => {
-                    return Err(err(
-                        "subset externo montável (Fase 113) exige terminador `jmp`, `br` ou `ret <valor>` em cada bloco",
-                    ));
-                }
             };
             // @pinker-nav:end backend-s.lowering.blocos-terminadores
 
@@ -546,7 +583,7 @@ fn extract_external_callconv_program(
                     // @pinker-nav:start backend-s.lowering.chamadas-sysv
                     // @pinker-nav:domain lowering
                     // @pinker-nav:layer backend-s
-                    // @pinker-nav:summary Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino — trata `__ternario` como seleção por `cmpq`+`cmoveq` (sem `call` real, ambos os lados avaliados eager), resolve intrínsecas por aridade (`runtime_intrinsic_symbol_por_aridade`) e por nome (`runtime_intrinsic_symbol`) ou chama função Pinker por símbolo direto, passa os 6 primeiros argumentos em `ARG_REGS`, empilha o 7º+ do último ao primeiro com padding de alinhamento e limpa a pilha após o `call`, guardando `%rax` no slot de destino — e `CallVoid` (mesma ABI, sem store de retorno). Símbolo desconhecido de função inexistente é recusado.
+                    // @pinker-nav:summary Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino trata `__ternario` de braços trivialmente puros como seleção por `cmpq`+`cmoveq`; ternários com efeitos já chegam como ramos CFG lazy. Demais chamadas resolvem intrínsecas por aridade (`runtime_intrinsic_symbol_por_aridade`) e por nome (`runtime_intrinsic_symbol`) ou chamam função Pinker por símbolo direto, passam os 6 primeiros argumentos em `ARG_REGS`, empilham o 7º+ do último ao primeiro com padding de alinhamento e limpam a pilha após o `call`, guardando `%rax` no slot de destino. Símbolo desconhecido é recusado.
                     SelectedInstr::Call {
                         dest,
                         callee,
@@ -558,17 +595,17 @@ fn extract_external_callconv_program(
                                 "subset externo montável (Fase 216) só aceita call com retorno `bombom`, `verso`, `logica`, lista ou `nulo`",
                             ));
                         }
-                        // Ternário (Fase 214/B3): `__ternario(cond, a, b)` é
-                        // pseudo-função do pipeline; nativo vira seleção por
-                        // cmov, sem call real (ambos os lados já avaliados,
-                        // mesma semântica eager do interpretador).
+                        // A CFG conserva a pseudo-chamada somente quando os
+                        // dois braços são valores trivialmente puros. Braços
+                        // com chamadas, alocações ou outros efeitos já foram
+                        // separados em blocos lazy antes da seleção.
                         if callee == "__ternario" {
                             if args.len() != 3 {
                                 return Err(err(
                                     "subset externo montável (Fase 214) exige `__ternario` com 3 argumentos",
                                 ));
                             }
-                            for arg in args.iter() {
+                            for arg in args {
                                 register_rodata_strings_for_operand(
                                     arg,
                                     &mut rodata_string_labels,
@@ -860,6 +897,155 @@ fn extract_external_callconv_program(
                         }
                     }
                     // @pinker-nav:end backend-s.lowering.chamadas-sysv
+                    // @pinker-nav:start backend-s.lowering.objetos-trato-nativos
+                    // @pinker-nav:domain lowering
+                    // @pinker-nav:layer backend-s
+                    // @pinker-nav:summary Materialização nativa de `trato<T>` e despacho por vtable: `MakeTraitObject` avalia o operando uma vez, aloca/copia o snapshot pelo tamanho concreto exato, aloca o descritor `{data_ptr,vtable_ptr}` de 16 bytes e guarda seu endereço no destino. `TraitCall` carrega descritor, snapshot, vtable e slot, posiciona receiver + argumentos pela ABI SysV (incluindo spill/padding) e executa `call *%r11`, sem `__env`; retorno `nulo` não grava destino.
+                    SelectedInstr::MakeTraitObject {
+                        dest,
+                        value,
+                        trait_name,
+                        concrete_type,
+                        concrete_type_name,
+                        concrete_size,
+                        vtable_methods,
+                    } => {
+                        let vtable_symbol = register_trait_vtable(
+                            selected,
+                            trait_name,
+                            concrete_type_name,
+                            *concrete_type,
+                            vtable_methods,
+                            &mut trait_vtables,
+                            &mut trait_adapters,
+                        )?;
+                        body.extend(load_operand(
+                            REG_RET,
+                            value,
+                            &slot_offsets,
+                            &rodata_strings,
+                        )?);
+
+                        // Preserva o operando através da primeira alocação sem
+                        // depender de registrador caller-saved e mantém %rsp
+                        // alinhado a 16 bytes antes do call.
+                        body.push("pushq %rax".to_string());
+                        body.push("subq $8, %rsp".to_string());
+                        body.push(format!("movabsq ${}, %rdi", concrete_size));
+                        body.push("call pinker_alocar".to_string());
+                        body.push("addq $8, %rsp".to_string());
+                        body.push("popq %r10".to_string());
+                        body.extend(lower_trait_snapshot_copy(*concrete_type, *concrete_size)?);
+
+                        let dest_offset = slot_offsets[&temp_key(*dest)];
+                        body.push(format!("movq %rax, -{}(%rbp)", dest_offset));
+                        body.push("movabsq $16, %rdi".to_string());
+                        body.push("call pinker_alocar".to_string());
+                        body.push(format!("movq -{}(%rbp), %r10", dest_offset));
+                        body.push("movq %r10, 0(%rax)".to_string());
+                        body.push(format!("leaq {}(%rip), %r10", vtable_symbol));
+                        body.push("movq %r10, 8(%rax)".to_string());
+                        body.push(format!("movq %rax, -{}(%rbp)", dest_offset));
+                    }
+                    SelectedInstr::TraitCall {
+                        dest,
+                        object,
+                        trait_name: _,
+                        method_name: _,
+                        method_slot,
+                        method_count,
+                        args,
+                        param_types,
+                        ret_type,
+                    } => {
+                        if *method_count == 0 || *method_slot >= *method_count {
+                            return Err(err(
+                                "backend nativo encontrou slot de chamada dinâmica fora da vtable",
+                            ));
+                        }
+                        if param_types.len() != args.len()
+                            || param_types.iter().any(|ty| !ty.is_native_abi_word())
+                        {
+                            return Err(err(
+                                "backend nativo encontrou assinatura de chamada dinâmica fora do subset SysV",
+                            ));
+                        }
+                        if *ret_type != TypeIR::Nulo && !is_external_call_ret_type(ret_type) {
+                            return Err(err(
+                                "backend nativo encontrou retorno de chamada dinâmica fora do subset SysV",
+                            ));
+                        }
+                        register_rodata_strings_for_operand(
+                            object,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        );
+                        for arg in args {
+                            register_rodata_strings_for_operand(
+                                arg,
+                                &mut rodata_string_labels,
+                                &mut rodata_strings,
+                            );
+                        }
+
+                        // O handle é carregado exatamente uma vez. Método e
+                        // data_ptr ficam em dois spills internos, abaixo dos
+                        // argumentos SysV escritos pelo usuário.
+                        body.extend(load_operand(
+                            "%r10",
+                            object,
+                            &slot_offsets,
+                            &rodata_strings,
+                        )?);
+                        body.push("movq 0(%r10), %r11".to_string());
+                        body.push("movq 8(%r10), %r10".to_string());
+                        body.push(format!("movq {}(%r10), %r10", method_slot * 8));
+                        body.push("pushq %r10".to_string());
+                        body.push("pushq %r11".to_string());
+
+                        let total_args = args.len() + 1;
+                        let (stack_args, pad) = sysv_stack_layout(total_args);
+                        if pad == 1 {
+                            body.push("subq $8, %rsp".to_string());
+                        }
+                        for virtual_index in (ARG_REGS.len()..total_args).rev() {
+                            let param_type = param_types[virtual_index - 1];
+                            body.extend(load_operand(
+                                "%r11",
+                                &args[virtual_index - 1],
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                            body.extend(normalize_sysv_scalar_argument("%r11", param_type)?);
+                            body.push("pushq %r11".to_string());
+                        }
+
+                        let data_offset = 8 * (stack_args + pad);
+                        body.push(format!("movq {}(%rsp), %rdi", data_offset));
+                        for virtual_index in 1..total_args.min(ARG_REGS.len()) {
+                            let param_type = param_types[virtual_index - 1];
+                            body.extend(load_operand(
+                                ARG_REGS[virtual_index],
+                                &args[virtual_index - 1],
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                            body.extend(normalize_sysv_scalar_argument(
+                                ARG_REGS[virtual_index],
+                                param_type,
+                            )?);
+                        }
+                        body.push(format!("movq {}(%rsp), %r11", data_offset + 8));
+                        body.push("call *%r11".to_string());
+                        body.push(format!("addq ${}, %rsp", 8 * (stack_args + pad + 2)));
+                        if let Some(dest) = dest {
+                            body.push(format!(
+                                "movq %rax, -{}(%rbp)",
+                                slot_offsets[&temp_key(*dest)]
+                            ));
+                        }
+                    }
+                    // @pinker-nav:end backend-s.lowering.objetos-trato-nativos
 
                     // @pinker-nav:start backend-s.lowering.falar-runtime
                     // @pinker-nav:domain lowering
@@ -934,6 +1120,8 @@ fn extract_external_callconv_program(
         rodata_globals,
         rodata_strings,
         rodata_function_refs: function_refs.into_iter().collect(),
+        trait_vtables: trait_vtables.into_values().collect(),
+        trait_adapters: trait_adapters.into_values().collect(),
         functions,
     })
 }
@@ -998,6 +1186,16 @@ fn collect_function_refs_in_function(
                         note(capture, out);
                     }
                 }
+                SelectedInstr::MakeTraitObject { value, .. } => {
+                    note(value, out);
+                }
+                SelectedInstr::TraitCall { object, args, .. } => {
+                    note(object, out);
+
+                    for arg in args {
+                        note(arg, out);
+                    }
+                }
                 SelectedInstr::Falar { args } => {
                     for a in args {
                         note(&a.value, out);
@@ -1030,6 +1228,7 @@ fn render_external_x86_64_linux_callconv_impl(
     if !program.rodata_globals.is_empty()
         || !program.rodata_strings.is_empty()
         || !program.rodata_function_refs.is_empty()
+        || !program.trait_vtables.is_empty()
     {
         line(&mut out, 0, ".section .rodata");
         for global in &program.rodata_globals {
@@ -1069,8 +1268,30 @@ fn render_external_x86_64_linux_callconv_impl(
             line(&mut out, 1, &format!(".quad {}", symbol));
             line(&mut out, 1, ".quad 0");
         }
+        for vtable in &program.trait_vtables {
+            line(&mut out, 0, ".align 8");
+            line(&mut out, 0, &format!("{}:", vtable.symbol));
+            for entry in &vtable.entries {
+                line(&mut out, 1, &format!(".quad {}", entry));
+            }
+        }
     }
     line(&mut out, 0, ".text");
+    for adapter in &program.trait_adapters {
+        line(&mut out, 0, &format!(".type {}, @function", adapter.symbol));
+        line(&mut out, 0, &format!("{}:", adapter.symbol));
+        line(
+            &mut out,
+            1,
+            trait_adapter_receiver_load(adapter.concrete_type),
+        );
+        line(&mut out, 1, &format!("jmp {}", adapter.target));
+        line(
+            &mut out,
+            0,
+            &format!(".size {}, .-{}", adapter.symbol, adapter.symbol),
+        );
+    }
     // @pinker-nav:end backend-s.renderizacao.callconv-programa
 
     // @pinker-nav:start backend-s.abi.prologo-parametros
@@ -1185,6 +1406,10 @@ fn render_external_x86_64_linux_callconv_impl(
                     {
                         line(&mut out, 1, &stmt);
                     }
+                    line(&mut out, 1, "leave");
+                    line(&mut out, 1, "ret");
+                }
+                ExternalCallConvTerminator::RetVoid => {
                     line(&mut out, 1, "leave");
                     line(&mut out, 1, "ret");
                 }
@@ -1414,7 +1639,13 @@ fn collect_temp_ids(function: &crate::instr_select::SelectedFunction) -> BTreeSe
                 | SelectedInstr::CmpGe { dest, .. }
                 | SelectedInstr::Call { dest, .. }
                 | SelectedInstr::CallIndirect { dest, .. }
-                | SelectedInstr::MakeClosure { dest, .. } => {
+                | SelectedInstr::MakeClosure { dest, .. }
+                | SelectedInstr::MakeTraitObject { dest, .. } => {
+                    ids.insert(temp_key(*dest));
+                }
+                SelectedInstr::TraitCall {
+                    dest: Some(dest), ..
+                } => {
                     ids.insert(temp_key(*dest));
                 }
                 _ => {}
@@ -1485,6 +1716,195 @@ fn load_operand(
 // `verso` em .rodata.
 fn function_ref_descriptor_label(name: &str) -> String {
     format!(".Lpinker_fnref_{}", name)
+}
+
+fn trait_symbol_component(name: &str) -> String {
+    let mut component = String::with_capacity(name.len() * 2);
+    for byte in name.as_bytes() {
+        write!(&mut component, "{byte:02x}").expect("escrita em String não falha");
+    }
+    component
+}
+
+fn trait_vtable_symbol(trait_name: &str, concrete_type_name: &str) -> String {
+    format!(
+        ".Lpinker_trait_vtable_{}__{}",
+        trait_symbol_component(trait_name),
+        trait_symbol_component(concrete_type_name)
+    )
+}
+
+fn register_trait_vtable(
+    selected: &SelectedProgram,
+    trait_name: &str,
+    concrete_type_name: &str,
+    concrete_type: TypeIR,
+    methods: &[String],
+    vtables: &mut BTreeMap<String, ExternalTraitVtable>,
+    adapters: &mut BTreeMap<String, ExternalTraitAdapter>,
+) -> Result<String, PinkerError> {
+    if methods.is_empty() {
+        return Err(err("backend nativo encontrou vtable de trato vazia"));
+    }
+
+    let symbol = trait_vtable_symbol(trait_name, concrete_type_name);
+    let mut entries = Vec::with_capacity(methods.len());
+    for (slot, target) in methods.iter().enumerate() {
+        if !selected
+            .functions
+            .iter()
+            .any(|function| &function.name == target)
+        {
+            return Err(err(
+                "backend nativo encontrou método de vtable sem função sintética",
+            ));
+        }
+
+        if trait_snapshot_uses_address(concrete_type) {
+            entries.push(target.clone());
+        } else {
+            let adapter_symbol = format!("{}__slot_{}", symbol, slot);
+            let adapter = ExternalTraitAdapter {
+                symbol: adapter_symbol.clone(),
+                target: target.clone(),
+                concrete_type,
+            };
+            if let Some(previous) = adapters.insert(adapter_symbol.clone(), adapter.clone()) {
+                if previous != adapter {
+                    return Err(err(
+                        "backend nativo encontrou colisão de adaptador de objeto de trato",
+                    ));
+                }
+            }
+            entries.push(adapter_symbol);
+        }
+    }
+
+    let vtable = ExternalTraitVtable {
+        symbol: symbol.clone(),
+        entries,
+    };
+    if let Some(previous) = vtables.insert(symbol.clone(), vtable.clone()) {
+        if previous != vtable {
+            return Err(err(
+                "backend nativo encontrou vtables divergentes para o mesmo trato e tipo concreto",
+            ));
+        }
+    }
+    Ok(symbol)
+}
+
+fn trait_snapshot_uses_address(concrete_type: TypeIR) -> bool {
+    matches!(concrete_type, TypeIR::Struct | TypeIR::FixedArray { .. })
+}
+
+fn lower_trait_snapshot_copy(
+    concrete_type: TypeIR,
+    concrete_size: u64,
+) -> Result<Vec<String>, PinkerError> {
+    if concrete_size == 0 {
+        return Err(err(
+            "backend nativo recusou snapshot vazio de objeto de trato",
+        ));
+    }
+
+    if !trait_snapshot_uses_address(concrete_type) {
+        let instruction = match concrete_size {
+            1 => "movb %r10b, 0(%rax)",
+            2 => "movw %r10w, 0(%rax)",
+            4 => "movl %r10d, 0(%rax)",
+            8 => "movq %r10, 0(%rax)",
+            _ => {
+                return Err(err(
+                    "backend nativo encontrou tamanho escalar inválido para snapshot",
+                ));
+            }
+        };
+        return Ok(vec![instruction.to_string()]);
+    }
+
+    let mut lines = Vec::new();
+    let mut offset = 0_u64;
+    while concrete_size - offset >= 8 {
+        lines.push(format!("movq {}(%r10), %r11", offset));
+        lines.push(format!("movq %r11, {}(%rax)", offset));
+        offset += 8;
+    }
+    if concrete_size - offset >= 4 {
+        lines.push(format!("movl {}(%r10), %r11d", offset));
+        lines.push(format!("movl %r11d, {}(%rax)", offset));
+        offset += 4;
+    }
+    if concrete_size - offset >= 2 {
+        lines.push(format!("movw {}(%r10), %r11w", offset));
+        lines.push(format!("movw %r11w, {}(%rax)", offset));
+        offset += 2;
+    }
+    if concrete_size - offset == 1 {
+        lines.push(format!("movb {}(%r10), %r11b", offset));
+        lines.push(format!("movb %r11b, {}(%rax)", offset));
+    }
+    Ok(lines)
+}
+
+fn trait_adapter_receiver_load(concrete_type: TypeIR) -> &'static str {
+    match concrete_type {
+        TypeIR::U8 | TypeIR::Logica => "movzbq 0(%rdi), %rdi",
+        TypeIR::I8 => "movsbq 0(%rdi), %rdi",
+        TypeIR::U16 => "movzwq 0(%rdi), %rdi",
+        TypeIR::I16 => "movswq 0(%rdi), %rdi",
+        TypeIR::U32 => "movl 0(%rdi), %edi",
+        TypeIR::I32 => "movslq 0(%rdi), %rdi",
+        _ => "movq 0(%rdi), %rdi",
+    }
+}
+
+fn normalize_sysv_scalar_argument(register: &str, ty: TypeIR) -> Result<Vec<String>, PinkerError> {
+    let Some((reg8, reg16, reg32)) = (match register {
+        "%rax" => Some(("%al", "%ax", "%eax")),
+        "%rdi" => Some(("%dil", "%di", "%edi")),
+        "%rsi" => Some(("%sil", "%si", "%esi")),
+        "%rdx" => Some(("%dl", "%dx", "%edx")),
+        "%rcx" => Some(("%cl", "%cx", "%ecx")),
+        "%r8" => Some(("%r8b", "%r8w", "%r8d")),
+        "%r9" => Some(("%r9b", "%r9w", "%r9d")),
+        "%r10" => Some(("%r10b", "%r10w", "%r10d")),
+        "%r11" => Some(("%r11b", "%r11w", "%r11d")),
+        _ => None,
+    }) else {
+        return if matches!(
+            ty,
+            TypeIR::U8
+                | TypeIR::I8
+                | TypeIR::U16
+                | TypeIR::I16
+                | TypeIR::U32
+                | TypeIR::I32
+                | TypeIR::Logica
+        ) {
+            Err(err(
+                "backend nativo não conhece subregistrador SysV para normalizar escalar",
+            ))
+        } else {
+            Ok(Vec::new())
+        };
+    };
+
+    let instruction = match ty {
+        TypeIR::U8 | TypeIR::Logica => Some(format!("movzbq {}, {}", reg8, register)),
+        TypeIR::I8 => Some(format!("movsbq {}, {}", reg8, register)),
+        TypeIR::U16 => Some(format!("movzwq {}, {}", reg16, register)),
+        TypeIR::I16 => Some(format!("movswq {}, {}", reg16, register)),
+        TypeIR::U32 => Some(format!("movl {}, {}", reg32, reg32)),
+        TypeIR::I32 => Some(format!("movslq {}, {}", reg32, register)),
+        _ => None,
+    };
+    Ok(instruction.into_iter().collect())
+}
+
+fn sysv_stack_layout(total_args: usize) -> (usize, usize) {
+    let stack_args = total_args.saturating_sub(ARG_REGS.len());
+    (stack_args, stack_args % 2)
 }
 
 fn temp_key(temp: crate::cfg_ir::TempIR) -> String {
@@ -1572,6 +1992,7 @@ fn is_supported_type(ty: TypeIR) -> bool {
             | TypeIR::I32
             | TypeIR::I64
             | TypeIR::Logica
+            | TypeIR::TraitObject
             | TypeIR::Nulo
     )
 }
@@ -1599,10 +2020,43 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
         || *ty == TypeIR::Struct
         || *ty == TypeIR::Pointer { is_volatile: false }
         || *ty == TypeIR::Function
+        || *ty == TypeIR::TraitObject
+}
+
+fn is_external_scalar_param_type(ty: &TypeIR) -> bool {
+    matches!(
+        ty,
+        TypeIR::Bombom
+            | TypeIR::U8
+            | TypeIR::U16
+            | TypeIR::U32
+            | TypeIR::U64
+            | TypeIR::I8
+            | TypeIR::I16
+            | TypeIR::I32
+            | TypeIR::I64
+            | TypeIR::Logica
+    )
+}
+
+fn is_external_trait_receiver_type(ty: &TypeIR) -> bool {
+    matches!(
+        ty,
+        TypeIR::Bombom
+            | TypeIR::U8
+            | TypeIR::U16
+            | TypeIR::U32
+            | TypeIR::U64
+            | TypeIR::I8
+            | TypeIR::I16
+            | TypeIR::I32
+            | TypeIR::I64
+            | TypeIR::Logica
+    ) || is_external_param_type(ty)
 }
 
 fn is_external_local_type(ty: &TypeIR) -> bool {
-    is_external_param_type(ty)
+    is_external_param_type(ty) || is_external_scalar_param_type(ty)
 }
 
 fn is_external_ret_type(ty: &TypeIR) -> bool {
@@ -1618,6 +2072,8 @@ fn is_external_ret_type(ty: &TypeIR) -> bool {
             | TypeIR::MapBombomBombom
             | TypeIR::MapBombomVerso
             | TypeIR::Function
+            | TypeIR::TraitObject
+            | TypeIR::Nulo
     )
 }
 
@@ -2026,6 +2482,59 @@ fn render_instruction(inst: &crate::backend_text::BackendTextInstruction) -> Str
                 ),
                 (None, TypeIR::Nulo) => format!("{} ; abi.call {} -> void", call_site, abi_args),
                 (None, _) => format!("; call inválida: {} {}", callee, abi_args),
+            }
+        }
+        crate::backend_text::BackendTextInstruction::MakeTraitObject {
+            dest,
+            value,
+            trait_name,
+            concrete_type_name,
+            concrete_size,
+            vtable_methods,
+            ..
+        } => format!(
+            "make_trait_object {} <- {} as trato<{}> snapshot={}({}) vtable=[{}]",
+            render_temp(*dest),
+            render_operand(value),
+            trait_name,
+            concrete_size,
+            concrete_type_name,
+            vtable_methods.join(", ")
+        ),
+        crate::backend_text::BackendTextInstruction::TraitCall {
+            dest,
+            object,
+            trait_name,
+            method_name,
+            method_slot,
+            args,
+            ret_type,
+            ..
+        } => {
+            let call_site = format!(
+                "trait_call trato<{}>.{}[{}]({})",
+                trait_name,
+                method_name,
+                method_slot,
+                args.iter()
+                    .map(render_operand)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+            match (dest, ret_type) {
+                (Some(dest), _) => format!(
+                    "{} {} ; abi.trait_call object={} -> {}",
+                    call_site,
+                    ret_type.name(),
+                    render_operand(object),
+                    render_temp(*dest)
+                ),
+                (None, TypeIR::Nulo) => format!(
+                    "{} void ; abi.trait_call object={}",
+                    call_site,
+                    render_operand(object)
+                ),
+                (None, _) => format!("; trait_call inválida: {}", call_site),
             }
         }
         crate::backend_text::BackendTextInstruction::Falar { args } => format!(

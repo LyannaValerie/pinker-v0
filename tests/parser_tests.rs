@@ -202,6 +202,114 @@ fn fase243_closure_capturante_forca_stmt_let_mesmo_sem_muda() {
         "closure capturante deveria forçar Stmt::Let real, não o atalho de alias"
     );
 }
+#[test]
+fn fase244_parser_reconhece_si_tipo_objeto_e_materializacao_explicita() {
+    fn assert_tipo_objeto_trato(ty: &Type, expected_trait: &str) {
+        match ty {
+            Type::Applied { name, args, .. } => {
+                assert_eq!(name, "trato");
+                assert_eq!(args.len(), 1);
+                match &args[0] {
+                    Type::Alias { name, .. } => assert_eq!(name, expected_trait),
+                    other => {
+                        panic!("argumento de trato deveria ser nome nominal, obtido {other:?}")
+                    }
+                }
+            }
+            other => panic!("tipo esperado: trato<{expected_trait}>, obtido {other:?}"),
+        }
+    }
+
+    let code = r#"
+        pacote main;
+
+        trato Medivel {
+            carinho medir(valor: si) -> bombom;
+        }
+
+        carinho consultar(valor: trato<Medivel>) -> bombom {
+            mimo 0;
+        }
+
+        carinho principal() -> bombom {
+            nova origem: bombom = 42;
+            nova objeto: trato<Medivel> =
+                origem virar trato<Medivel>;
+            mimo 0;
+        }
+    "#;
+
+    let program = parse(code).expect("parser deve reconhecer a superfície da Fase 244");
+
+    let trait_decl = program
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Trait(decl) if decl.name == "Medivel" => Some(decl),
+            _ => None,
+        })
+        .expect("declaração do trato Medivel");
+
+    assert_eq!(trait_decl.methods.len(), 1);
+    assert_eq!(trait_decl.methods[0].params.len(), 1);
+
+    match &trait_decl.methods[0].params[0].ty {
+        Type::Alias { name, .. } => assert_eq!(name, "si"),
+        other => panic!("receiver contextual deveria ser `si`, obtido {other:?}"),
+    }
+
+    let consultar = program
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "consultar" => Some(function),
+            _ => None,
+        })
+        .expect("função consultar");
+
+    assert_tipo_objeto_trato(&consultar.params[0].ty, "Medivel");
+
+    let principal = program
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "principal" => Some(function),
+            _ => None,
+        })
+        .expect("função principal");
+
+    let Stmt::Let(objeto) = &principal.body.stmts[1] else {
+        panic!("segunda instrução deveria declarar o objeto de trato");
+    };
+
+    assert_tipo_objeto_trato(
+        objeto
+            .ty
+            .as_ref()
+            .expect("objeto deve preservar anotação de tipo"),
+        "Medivel",
+    );
+
+    match &objeto.init.kind {
+        ExprKind::Cast { target, .. } => {
+            assert_tipo_objeto_trato(target, "Medivel");
+        }
+        other => panic!("inicialização deveria ser `virar trato<Medivel>`, obtido {other:?}"),
+    }
+}
+
+#[test]
+fn fase244_parser_rejeita_tipo_objeto_sem_nome_de_trato() {
+    let err = parse("pacote main; carinho usar(valor: trato<>) -> bombom { mimo 0; }")
+        .expect_err("trato<> deve ser recusado")
+        .to_string();
+
+    assert!(
+        err.contains("nome do trato em tipo de objeto"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
 // @pinker-nav:end evidencia.parser.ast-basica-e-spans
 
 // @pinker-nav:start evidencia.parser.diagnostico-e-limites-literais

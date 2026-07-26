@@ -4909,3 +4909,638 @@ fn impl_trato_exige_trato_declarado_antes() {
     );
 }
 // @pinker-nav:end evidencia.semantica.tratos-e-impls
+
+// @pinker-nav:start evidencia.semantica.objetos-trato-fase244
+// @pinker-nav:domain semantica
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita a semântica nominal inicial dos objetos de trato da Fase 244: receiver contextual `si`, tipo `trato<Nome>`, materialização explícita por `virar`, múltiplos tipos concretos, object safety, trato inexistente, impl ausente e recusa de coerção implícita.
+
+#[test]
+fn fase244_semantica_aceita_objetos_do_mesmo_trato_para_tipos_distintos() {
+    let code = r#"
+        pacote main;
+
+        trato Medivel {
+            carinho medir(valor: si) -> bombom;
+        }
+
+        impl Medivel para bombom {
+            carinho medir(valor: bombom) -> bombom {
+                mimo valor;
+            }
+        }
+
+        impl Medivel para u64 {
+            carinho medir(valor: u64) -> bombom {
+                mimo 64;
+            }
+        }
+
+        carinho consumir(valor: trato<Medivel>) -> bombom {
+            mimo 1;
+        }
+
+        apelido ObjetoBase = trato<Medivel>;
+        apelido Objeto = ObjetoBase;
+
+        carinho criar(valor: bombom) -> Objeto {
+            mimo valor virar trato<Medivel>;
+        }
+
+        carinho principal() -> bombom {
+            nova a: bombom = 21;
+            nova b: u64 = 42;
+
+            nova objeto_a: trato<Medivel> =
+                a virar trato<Medivel>;
+
+            nova objeto_b: trato<Medivel> =
+                b virar trato<Medivel>;
+            nova aliasado: Objeto = criar(a);
+            nova copia: Objeto = aliasado;
+
+            mimo consumir(objeto_a) + consumir(objeto_b) + consumir(copia);
+        }
+    "#;
+
+    assert!(
+        parse_and_check(code).is_ok(),
+        "dois tipos concretos devem formar o mesmo tipo nominal de objeto"
+    );
+}
+
+#[test]
+fn fase244_semantica_rejeita_todas_as_comparacoes_de_objetos_de_trato_por_alias() {
+    for operador in ["==", "!=", "<", "<=", ">", ">="] {
+        for (esquerda, direita) in [("original", "duplicado"), ("criar(9)", "criar(8)")] {
+            let code = format!(
+                r#"
+                pacote main;
+
+                trato Medivel {{
+                    carinho medir(valor: si) -> bombom;
+                }}
+
+                impl Medivel para bombom {{
+                    carinho medir(valor: bombom) -> bombom {{
+                        mimo valor;
+                    }}
+                }}
+
+                apelido ObjetoBase = trato<Medivel>;
+                apelido Objeto = ObjetoBase;
+
+                carinho criar(valor: bombom) -> Objeto {{
+                    mimo valor virar trato<Medivel>;
+                }}
+
+                carinho principal() -> bombom {{
+                    nova original: Objeto = criar(7);
+                    nova duplicado: Objeto = original;
+                    nova comparou: logica = {esquerda} {operador} {direita};
+                    talvez comparou {{
+                        mimo 1;
+                    }}
+                    mimo 0;
+                }}
+                "#
+            );
+
+            let err = parse_and_check(&code)
+                .expect_err("comparação de objeto de trato deve parar na semântica");
+            match err {
+                pinker_v0::error::PinkerError::Semantic { msg, span } => {
+                    assert!(
+                        msg.contains("comparação entre objetos de trato não é suportada"),
+                        "diagnóstico inesperado para '{operador}': {msg}"
+                    );
+                    assert_eq!(
+                        span.start.line, 24,
+                        "span deve apontar a expressão comparada para '{operador}'"
+                    );
+                }
+                other => panic!("estágio inesperado para '{operador}': {other}"),
+            }
+        }
+    }
+}
+
+#[test]
+fn fase244_semantica_rejeita_trato_inexistente_como_tipo_de_objeto() {
+    let code = r#"
+        pacote main;
+
+        carinho usar(valor: trato<Fantasma>) -> bombom {
+            mimo 0;
+        }
+
+        carinho principal() -> bombom {
+            mimo 0;
+        }
+    "#;
+
+    let err = parse_and_check(code)
+        .expect_err("trato inexistente deve ser recusado")
+        .to_string();
+
+    assert!(
+        err.contains("trato 'Fantasma' não declarado"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_semantica_rejeita_objetificacao_de_trato_estatico_legado() {
+    let code = r#"
+        pacote main;
+
+        trato Dobravel {
+            carinho dobrar(valor: bombom) -> bombom;
+        }
+
+        carinho dobrar(valor: bombom) -> bombom {
+            mimo valor * 2;
+        }
+
+        carinho usar(valor: trato<Dobravel>) -> bombom {
+            mimo 0;
+        }
+
+        carinho principal() -> bombom {
+            mimo 0;
+        }
+    "#;
+
+    let err = parse_and_check(code)
+        .expect_err("trato estático sem receiver `si` não deve ser objetificável")
+        .to_string();
+
+    assert!(
+        err.contains("não é objetificável"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_semantica_rejeita_si_fora_da_posicao_de_receiver() {
+    let code = r#"
+        pacote main;
+
+        trato Invalido {
+            carinho combinar(valor: si, outro: si) -> bombom;
+        }
+
+        impl Invalido para bombom {
+            carinho combinar(valor: bombom, outro: bombom) -> bombom {
+                mimo valor + outro;
+            }
+        }
+
+        carinho principal() -> bombom {
+            mimo 0;
+        }
+    "#;
+
+    let err = parse_and_check(code)
+        .expect_err("`si` adicional deve violar object safety")
+        .to_string();
+
+    assert!(
+        err.contains("só pode usar 'si' como primeiro parâmetro receiver"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_semantica_rejeita_si_fora_de_trato() {
+    let code = r#"
+        pacote main;
+
+        carinho usar(valor: si) -> bombom {
+            mimo 0;
+        }
+
+        carinho principal() -> bombom {
+            mimo 0;
+        }
+    "#;
+
+    let err = parse_and_check(code)
+        .expect_err("`si` não é tipo nominal fora de assinatura de trato")
+        .to_string();
+
+    assert!(
+        err.contains("tipo 'si' não existe"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_semantica_rejeita_materializacao_sem_impl_correspondente() {
+    let code = r#"
+        pacote main;
+
+        trato Medivel {
+            carinho medir(valor: si) -> bombom;
+        }
+
+        impl Medivel para u64 {
+            carinho medir(valor: u64) -> bombom {
+                mimo 64;
+            }
+        }
+
+        carinho principal() -> bombom {
+            nova origem: bombom = 1;
+            nova objeto: trato<Medivel> =
+                origem virar trato<Medivel>;
+            mimo 0;
+        }
+    "#;
+
+    let err = parse_and_check(code)
+        .expect_err("tipo concreto sem impl não deve formar objeto")
+        .to_string();
+
+    assert!(
+        err.contains("não implementa o trato 'Medivel'"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_semantica_rejeita_familias_fora_de_escalar_e_ninho() {
+    let cases = [
+        r#"
+        pacote main;
+        trato Medivel { carinho medir(valor: si) -> bombom; }
+        impl Medivel para lista<bombom> {
+            carinho medir(valor: lista<bombom>) -> bombom { mimo 1; }
+        }
+        carinho principal() -> bombom {
+            nova origem: lista<bombom> = lista_criar();
+            nova objeto: trato<Medivel> = origem virar trato<Medivel>;
+            mimo 0;
+        }
+        "#,
+        r#"
+        pacote main;
+        leque Cor { Vermelho }
+        trato Medivel { carinho medir(valor: si) -> bombom; }
+        impl Medivel para Cor {
+            carinho medir(valor: Cor) -> bombom { mimo 1; }
+        }
+        carinho principal() -> bombom {
+            nova origem: Cor = Cor.Vermelho;
+            nova objeto: trato<Medivel> = origem virar trato<Medivel>;
+            mimo 0;
+        }
+        "#,
+    ];
+
+    for code in cases {
+        let err = parse_and_check(code)
+            .expect_err("materialização dinâmica deve rejeitar família fora do recorte")
+            .to_string();
+        assert!(
+            err.contains("aceita tipo concreto escalar ou ninho"),
+            "diagnóstico inesperado: {err}"
+        );
+    }
+}
+
+#[test]
+fn fase244_semantica_rejeita_coercao_implicita_para_objeto_de_trato() {
+    let code = r#"
+        pacote main;
+
+        trato Medivel {
+            carinho medir(valor: si) -> bombom;
+        }
+
+        impl Medivel para bombom {
+            carinho medir(valor: bombom) -> bombom {
+                mimo valor;
+            }
+        }
+
+        carinho principal() -> bombom {
+            nova origem: bombom = 1;
+            nova objeto: trato<Medivel> = origem;
+            mimo 0;
+        }
+    "#;
+
+    let err = parse_and_check(code)
+        .expect_err("materialização deve exigir `virar trato<...>`")
+        .to_string();
+
+    assert!(
+        err.contains("tipo de inicialização incompatível"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_despacho_semantico_aceita_metodo_com_retorno() {
+    let code = r#"
+        pacote main;
+
+        trato Medivel {
+            carinho medir(valor: si, fator: bombom) -> bombom;
+        }
+
+        impl Medivel para bombom {
+            carinho medir(valor: bombom, fator: bombom) -> bombom {
+                mimo valor * fator;
+            }
+        }
+
+        carinho consultar(objeto: trato<Medivel>) -> bombom {
+            mimo objeto.medir(2);
+        }
+
+        carinho principal() -> bombom {
+            nova origem: bombom = 21;
+            nova objeto: trato<Medivel> =
+                origem virar trato<Medivel>;
+
+            mimo consultar(objeto);
+        }
+    "#;
+
+    assert!(
+        parse_and_check(code).is_ok(),
+        "método dinâmico com retorno deveria ser semanticamente válido"
+    );
+}
+
+#[test]
+fn fase244_despacho_semantico_aceita_metodo_sem_retorno() {
+    let code = r#"
+        pacote main;
+
+        trato Observavel {
+            carinho observar(valor: si, codigo: bombom);
+        }
+
+        impl Observavel para bombom {
+            carinho observar(valor: bombom, codigo: bombom) {
+                falar(valor, codigo);
+                mimo;
+            }
+        }
+
+        carinho usar(objeto: trato<Observavel>) {
+            objeto.observar(7);
+            mimo;
+        }
+
+        carinho principal() -> bombom {
+            nova origem: bombom = 35;
+            nova objeto: trato<Observavel> =
+                origem virar trato<Observavel>;
+
+            usar(objeto);
+            mimo 0;
+        }
+    "#;
+
+    assert!(
+        parse_and_check(code).is_ok(),
+        "método dinâmico sem retorno deveria ser válido como comando"
+    );
+}
+
+#[test]
+fn fase244_despacho_semantico_aceita_forma_qualificada_sobre_objeto() {
+    let code = r#"
+        pacote main;
+
+        trato Medivel {
+            carinho medir(valor: si) -> bombom;
+        }
+
+        impl Medivel para bombom {
+            carinho medir(valor: bombom) -> bombom {
+                mimo valor;
+            }
+        }
+
+        carinho consultar(objeto: trato<Medivel>) -> bombom {
+            mimo Medivel.medir(objeto);
+        }
+
+        carinho principal() -> bombom {
+            nova origem: bombom = 42;
+            nova objeto: trato<Medivel> =
+                origem virar trato<Medivel>;
+
+            mimo consultar(objeto);
+        }
+    "#;
+
+    assert!(
+        parse_and_check(code).is_ok(),
+        "forma qualificada deve preservar despacho dinâmico quando o receiver já é objeto"
+    );
+}
+
+#[test]
+fn fase244_despacho_semantico_rejeita_metodo_ausente() {
+    let code = r#"
+        pacote main;
+
+        trato Medivel {
+            carinho medir(valor: si) -> bombom;
+        }
+
+        impl Medivel para bombom {
+            carinho medir(valor: bombom) -> bombom {
+                mimo valor;
+            }
+        }
+
+        carinho consultar(objeto: trato<Medivel>) -> bombom {
+            mimo objeto.inexistente();
+        }
+
+        carinho principal() -> bombom {
+            mimo 0;
+        }
+    "#;
+
+    let err = parse_and_check(code)
+        .expect_err("método ausente deve ser recusado")
+        .to_string();
+
+    assert!(
+        err.contains("não existe no trato objetificável 'Medivel'"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_despacho_semantico_rejeita_aridade_invalida() {
+    let code = r#"
+        pacote main;
+
+        trato Medivel {
+            carinho medir(valor: si, fator: bombom) -> bombom;
+        }
+
+        impl Medivel para bombom {
+            carinho medir(valor: bombom, fator: bombom) -> bombom {
+                mimo valor * fator;
+            }
+        }
+
+        carinho consultar(objeto: trato<Medivel>) -> bombom {
+            mimo objeto.medir();
+        }
+
+        carinho principal() -> bombom {
+            mimo 0;
+        }
+    "#;
+
+    let err = parse_and_check(code)
+        .expect_err("aridade dinâmica inválida deve ser recusada")
+        .to_string();
+
+    assert!(
+        err.contains("chamada dinâmica de 'Medivel.medir' com aridade inválida"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_despacho_semantico_rejeita_tipo_de_argumento() {
+    let code = r#"
+        pacote main;
+
+        trato Medivel {
+            carinho medir(valor: si, fator: bombom) -> bombom;
+        }
+
+        impl Medivel para bombom {
+            carinho medir(valor: bombom, fator: bombom) -> bombom {
+                mimo valor * fator;
+            }
+        }
+
+        carinho consultar(objeto: trato<Medivel>) -> bombom {
+            mimo objeto.medir("dois");
+        }
+
+        carinho principal() -> bombom {
+            mimo 0;
+        }
+    "#;
+
+    let err = parse_and_check(code)
+        .expect_err("tipo de argumento dinâmico inválido deve ser recusado")
+        .to_string();
+
+    assert!(
+        err.contains("tipo inválido no argumento 1 da chamada dinâmica 'Medivel.medir'"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_despacho_semantico_rejeita_retorno_nulo_usado_como_valor() {
+    let code = r#"
+        pacote main;
+
+        trato Observavel {
+            carinho observar(valor: si);
+        }
+
+        impl Observavel para bombom {
+            carinho observar(valor: bombom) {
+                mimo;
+            }
+        }
+
+        carinho consultar(objeto: trato<Observavel>) -> bombom {
+            mimo objeto.observar();
+        }
+
+        carinho principal() -> bombom {
+            mimo 0;
+        }
+    "#;
+
+    let err = parse_and_check(code)
+        .expect_err("método nulo não pode ser usado como valor")
+        .to_string();
+
+    assert!(
+        err.contains("resultado de função sem retorno não pode ser retornado como valor"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_metodo_objetificavel_rejeita_parametro_multi_palavra_antes_da_ir() {
+    let code = r#"
+        pacote main;
+
+        trato Invalido {
+            carinho usar(valor: si, dados: [bombom; 2]) -> bombom;
+        }
+
+        impl Invalido para bombom {
+            carinho usar(valor: bombom, dados: [bombom; 2]) -> bombom {
+                mimo valor + dados[0];
+            }
+        }
+
+        carinho principal() -> bombom {
+            mimo 0;
+        }
+    "#;
+
+    let err = parse_and_check(code)
+        .expect_err("array multi-palavra deve ser rejeitado pela semântica")
+        .to_string();
+    assert!(
+        err.contains("exige representação multi-palavra sem transporte nativo"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_ternario_rejeita_tratos_nominais_diferentes_na_semantica() {
+    let code = r#"
+        pacote main;
+
+        trato A { carinho medir(valor: si) -> bombom; }
+        trato B { carinho medir(valor: si) -> bombom; }
+
+        impl A para bombom {
+            carinho medir(valor: bombom) -> bombom { mimo valor; }
+        }
+        impl B para bombom {
+            carinho medir(valor: bombom) -> bombom { mimo valor; }
+        }
+
+        carinho principal() -> bombom {
+            nova a: trato<A> = 0 virar trato<A>;
+            nova b: trato<B> = 0 virar trato<B>;
+            nova invalido = verdade ? a : b;
+            mimo 0;
+        }
+    "#;
+
+    let err = parse_and_check(code)
+        .expect_err("ternário de tratos nominais diferentes deve falhar")
+        .to_string();
+    assert!(
+        err.contains("ramos da expressão ternária devem ter o mesmo tipo"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+// @pinker-nav:end evidencia.semantica.objetos-trato-fase244

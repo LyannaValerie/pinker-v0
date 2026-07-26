@@ -395,3 +395,227 @@ fn erro_cfg_tem_contexto_padronizado() {
     assert!(err.contains("esperado=Bombom, recebido=Logica"));
 }
 // @pinker-nav:end evidencia.cfg.validacao-diagnostico
+
+// @pinker-nav:start evidencia.cfg.validacao-objetos-trato-fase244
+// @pinker-nav:domain cfg
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Valida manualmente materialização e despacho dinâmico na CFG e rejeita receiver comum, valor concreto divergente e destino em método nulo.
+
+fn fase244_cfg_com_local_objeto(
+    instructions: Vec<InstructionCfgIR>,
+    terminator: TerminatorIR,
+) -> FunctionCfgIR {
+    let mut function = base_function(
+        TypeIR::Bombom,
+        vec![BasicBlockIR {
+            label: "entry".to_string(),
+            instructions,
+            terminator,
+        }],
+    );
+
+    function.locals.push(LocalIR {
+        source_name: "objeto".to_string(),
+        slot: "%objeto#0".to_string(),
+        ty: TypeIR::TraitObject,
+        is_mut: false,
+    });
+
+    function
+}
+
+#[test]
+fn fase244_cfg_validation_aceita_materializacao_e_despacho() {
+    let function = fase244_cfg_com_local_objeto(
+        vec![
+            InstructionCfgIR::MakeTraitObject {
+                dest: TempIR(0),
+                value: OperandIR::Int(21),
+                trait_name: "Medivel".to_string(),
+                concrete_type: TypeIR::Bombom,
+                concrete_type_name: "bombom".to_string(),
+                concrete_size: 8,
+                vtable_methods: vec!["__impl_7_Medivel_6_bombom_medir".to_string()],
+            },
+            InstructionCfgIR::Let {
+                slot: "%objeto#0".to_string(),
+                value: OperandIR::Temp(TempIR(0)),
+            },
+            InstructionCfgIR::TraitCall {
+                dest: Some(TempIR(1)),
+                object: OperandIR::Local("%objeto#0".to_string()),
+                trait_name: "Medivel".to_string(),
+                method_name: "medir".to_string(),
+                method_slot: 0,
+                method_count: 1,
+                args: vec![OperandIR::Int(2)],
+                param_types: vec![TypeIR::Bombom],
+                ret_type: TypeIR::Bombom,
+            },
+        ],
+        TerminatorIR::Return(Some(OperandIR::Temp(TempIR(1)))),
+    );
+
+    assert!(cfg_ir_validate::validate_program(&base_program(function)).is_ok());
+}
+
+#[test]
+fn fase244_cfg_validation_aceita_trait_call_nula_sem_destino() {
+    let function = fase244_cfg_com_local_objeto(
+        vec![
+            InstructionCfgIR::MakeTraitObject {
+                dest: TempIR(0),
+                value: OperandIR::Int(35),
+                trait_name: "Observavel".to_string(),
+                concrete_type: TypeIR::Bombom,
+                concrete_type_name: "bombom".to_string(),
+                concrete_size: 8,
+                vtable_methods: vec!["__impl_10_Observavel_6_bombom_observar".to_string()],
+            },
+            InstructionCfgIR::Let {
+                slot: "%objeto#0".to_string(),
+                value: OperandIR::Temp(TempIR(0)),
+            },
+            InstructionCfgIR::TraitCall {
+                dest: None,
+                object: OperandIR::Local("%objeto#0".to_string()),
+                trait_name: "Observavel".to_string(),
+                method_name: "observar".to_string(),
+                method_slot: 0,
+                method_count: 1,
+                args: vec![OperandIR::Int(7)],
+                param_types: vec![TypeIR::Bombom],
+                ret_type: TypeIR::Nulo,
+            },
+        ],
+        TerminatorIR::Return(Some(OperandIR::Int(0))),
+    );
+
+    assert!(cfg_ir_validate::validate_program(&base_program(function)).is_ok());
+}
+
+#[test]
+fn fase244_cfg_validation_rejeita_receiver_comum() {
+    let function = base_function(
+        TypeIR::Bombom,
+        vec![BasicBlockIR {
+            label: "entry".to_string(),
+            instructions: vec![InstructionCfgIR::TraitCall {
+                dest: Some(TempIR(0)),
+                object: OperandIR::Int(42),
+                trait_name: "Medivel".to_string(),
+                method_name: "medir".to_string(),
+                method_slot: 0,
+                method_count: 1,
+                args: vec![],
+                param_types: vec![],
+                ret_type: TypeIR::Bombom,
+            }],
+            terminator: TerminatorIR::Return(Some(OperandIR::Temp(TempIR(0)))),
+        }],
+    );
+
+    let err = cfg_ir_validate::validate_program(&base_program(function))
+        .expect_err("receiver comum deve ser recusado")
+        .to_string();
+
+    assert!(
+        err.contains("trait_call exige operando de objeto de trato"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_cfg_validation_rejeita_concreto_incompativel() {
+    let function = fase244_cfg_com_local_objeto(
+        vec![InstructionCfgIR::MakeTraitObject {
+            dest: TempIR(0),
+            value: OperandIR::Bool(true),
+            trait_name: "Medivel".to_string(),
+            concrete_type: TypeIR::Bombom,
+            concrete_type_name: "bombom".to_string(),
+            concrete_size: 8,
+            vtable_methods: vec!["__impl_7_Medivel_6_bombom_medir".to_string()],
+        }],
+        TerminatorIR::Return(Some(OperandIR::Int(0))),
+    );
+
+    let err = cfg_ir_validate::validate_program(&base_program(function))
+        .expect_err("concreto divergente deve ser recusado")
+        .to_string();
+
+    assert!(
+        err.contains("make_trait_object com valor concreto incompatível"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_cfg_validation_rejeita_destino_em_metodo_nulo() {
+    let function = fase244_cfg_com_local_objeto(
+        vec![
+            InstructionCfgIR::MakeTraitObject {
+                dest: TempIR(0),
+                value: OperandIR::Int(35),
+                trait_name: "Observavel".to_string(),
+                concrete_type: TypeIR::Bombom,
+                concrete_type_name: "bombom".to_string(),
+                concrete_size: 8,
+                vtable_methods: vec!["__impl_10_Observavel_6_bombom_observar".to_string()],
+            },
+            InstructionCfgIR::Let {
+                slot: "%objeto#0".to_string(),
+                value: OperandIR::Temp(TempIR(0)),
+            },
+            InstructionCfgIR::TraitCall {
+                dest: Some(TempIR(1)),
+                object: OperandIR::Local("%objeto#0".to_string()),
+                trait_name: "Observavel".to_string(),
+                method_name: "observar".to_string(),
+                method_slot: 0,
+                method_count: 1,
+                args: vec![],
+                param_types: vec![],
+                ret_type: TypeIR::Nulo,
+            },
+        ],
+        TerminatorIR::Return(Some(OperandIR::Int(0))),
+    );
+
+    let err = cfg_ir_validate::validate_program(&base_program(function))
+        .expect_err("método nulo com destino deve ser recusado")
+        .to_string();
+
+    assert!(
+        err.contains("trait_call nulo não pode definir temporário"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_cfg_validation_rejeita_slot_fora_da_vtable() {
+    let function = fase244_cfg_com_local_objeto(
+        vec![InstructionCfgIR::TraitCall {
+            dest: Some(TempIR(0)),
+            object: OperandIR::Local("%objeto#0".to_string()),
+            trait_name: "Medivel".to_string(),
+            method_name: "medir".to_string(),
+            method_slot: 2,
+            method_count: 1,
+            args: vec![],
+            param_types: vec![],
+            ret_type: TypeIR::Bombom,
+        }],
+        TerminatorIR::Return(Some(OperandIR::Temp(TempIR(0)))),
+    );
+
+    let err = cfg_ir_validate::validate_program(&base_program(function))
+        .expect_err("slot fora da vtable deve ser recusado")
+        .to_string();
+    assert!(
+        err.contains("slot fora da vtable"),
+        "diagnóstico inesperado: {err}"
+    );
+}
+
+// @pinker-nav:end evidencia.cfg.validacao-objetos-trato-fase244

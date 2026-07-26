@@ -641,3 +641,399 @@ carinho principal() -> bombom { mimo 0; }
     );
 }
 // @pinker-nav:end evidencia.ir.lowering-tipos-compostos
+
+// @pinker-nav:start evidencia.ir.lowering-objetos-trato-fase244
+// @pinker-nav:domain ir
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita o lowering completo da superfície da Fase 244 para a IR estruturada: materialização explícita, ordem de vtable, tamanho do snapshot, despacho dinâmico direto e qualificado e método sem retorno.
+
+#[test]
+fn fase244_lowering_materializa_objeto_e_preserva_ordem_da_vtable() {
+    let code = r#"
+pacote main;
+
+trato Duplo {
+    carinho primeiro(valor: si) -> bombom;
+    carinho segundo(valor: si) -> bombom;
+}
+
+impl Duplo para bombom {
+    carinho primeiro(valor: bombom) -> bombom {
+        mimo valor;
+    }
+
+    carinho segundo(valor: bombom) -> bombom {
+        mimo valor + 1;
+    }
+}
+
+carinho empacotar(valor: bombom) -> trato<Duplo> {
+    mimo valor virar trato<Duplo>;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let rendered = render_ir(code).unwrap();
+
+    assert!(
+        rendered.contains(
+            "make_trait_object trato<Duplo> from %valor#0 as bombom:bombom size=8 \
+vtable=[__impl_5_Duplo_6_bombom_primeiro, __impl_5_Duplo_6_bombom_segundo]"
+        ),
+        "IR inesperada:\n{rendered}"
+    );
+}
+
+#[test]
+fn fase244_lowering_despacha_metodo_dinamico_por_receiver() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si, fator: bombom) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom, fator: bombom) -> bombom {
+        mimo valor * fator;
+    }
+}
+
+carinho consultar(
+    objeto: trato<Medivel>
+) -> bombom {
+    mimo objeto.medir(2);
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let rendered = render_ir(code).unwrap();
+
+    assert!(
+        rendered.contains("trait_call trato<Medivel>.medir#0/1 %objeto#0(2:bombom) -> bombom"),
+        "IR inesperada:\n{rendered}"
+    );
+
+    assert!(
+        !rendered.contains("call __impl_7_Medivel"),
+        "objeto de trato não pode voltar ao despacho estático:\n{rendered}"
+    );
+}
+
+#[test]
+fn fase244_lowering_despacha_forma_qualificada_dinamicamente() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom {
+        mimo valor;
+    }
+}
+
+carinho consultar(
+    objeto: trato<Medivel>
+) -> bombom {
+    mimo Medivel.medir(objeto);
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let rendered = render_ir(code).unwrap();
+
+    assert!(
+        rendered.contains("trait_call trato<Medivel>.medir#0/1 %objeto#0() -> bombom"),
+        "IR inesperada:\n{rendered}"
+    );
+}
+
+#[test]
+fn fase244_lowering_preserva_chamada_dinamica_sem_retorno() {
+    let code = r#"
+pacote main;
+
+trato Observavel {
+    carinho observar(valor: si, codigo: bombom);
+}
+
+impl Observavel para bombom {
+    carinho observar(valor: bombom, codigo: bombom) {
+        falar(valor, codigo);
+        mimo;
+    }
+}
+
+carinho usar(
+    objeto: trato<Observavel>
+) {
+    objeto.observar(7);
+    mimo;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let rendered = render_ir(code).unwrap();
+
+    assert!(
+        rendered.contains("trait_call trato<Observavel>.observar#0/1 %objeto#0(7:bombom) -> nulo"),
+        "IR inesperada:\n{rendered}"
+    );
+}
+
+#[test]
+fn fase244_lowering_calcula_snapshot_de_ninho_com_layout_real() {
+    let code = r#"
+pacote main;
+
+ninho Ponto {
+    x: u32;
+    y: u64;
+}
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para Ponto {
+    carinho medir(valor: Ponto) -> bombom {
+        mimo valor.y;
+    }
+}
+
+carinho empacotar(valor: Ponto) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let rendered = render_ir(code).unwrap();
+
+    assert!(
+        rendered.contains(
+            "make_trait_object trato<Medivel> from %valor#0 as Ponto:struct size=16 \
+vtable=[__impl_7_Medivel_5_Ponto_medir]"
+        ),
+        "IR inesperada:\n{rendered}"
+    );
+}
+
+#[test]
+fn fase244_lowering_preserva_identidade_de_trato_por_aliases_em_todos_os_fluxos() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+
+apelido ObjetoBase = trato<Medivel>;
+apelido ObjetoPublico = ObjetoBase;
+apelido Numero = bombom;
+
+carinho usar_base(objeto: ObjetoBase) -> bombom {
+    mimo objeto.medir();
+}
+
+carinho usar_publico(objeto: ObjetoPublico) -> bombom {
+    mimo objeto.medir();
+}
+
+carinho criar_base(valor: bombom) -> ObjetoBase {
+    mimo valor virar trato<Medivel>;
+}
+
+carinho criar_publico(valor: bombom) -> ObjetoPublico {
+    mimo valor virar trato<Medivel>;
+}
+
+trato Fabrica {
+    carinho criar(valor: si) -> ObjetoPublico;
+}
+
+impl Fabrica para bombom {
+    carinho criar(valor: bombom) -> ObjetoPublico {
+        mimo valor virar trato<Medivel>;
+    }
+}
+
+carinho principal() -> bombom {
+    nova direto: trato<Medivel> = 7 virar trato<Medivel>;
+    nova base: ObjetoBase = 11 virar trato<Medivel>;
+    nova publico: ObjetoPublico = 13 virar trato<Medivel>;
+    nova copia = publico;
+    nova numero: Numero = 5;
+    nova fabrica: trato<Fabrica> = 41 virar trato<Fabrica>;
+    falar(direto.medir());
+    falar(usar_base(base));
+    falar(usar_publico(copia));
+    falar(copia.medir());
+    falar(criar_base(17).medir());
+    falar(criar_publico(19).medir());
+    falar(fabrica.criar().medir());
+    falar(numero);
+    mimo 0;
+}
+"#;
+
+    let rendered = render_ir(code).unwrap();
+    assert_eq!(
+        rendered.matches("trait_call trato<Medivel>.medir").count(),
+        7,
+        "parâmetros, retornos, local, cópia e encadeamento devem preservar Medivel:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("let %numero#0 = 5:bombom"),
+        "alias não-trato deve permanecer um bombom comum:\n{rendered}"
+    );
+}
+
+#[test]
+fn fase244_lowering_rejeita_ciclo_e_alias_inexistente_sem_fallback_silencioso() {
+    let ciclo = parse(
+        r#"
+pacote main;
+apelido A = B;
+apelido B = A;
+carinho usar(valor: A) -> bombom { mimo 0; }
+carinho principal() -> bombom { mimo 0; }
+"#,
+    )
+    .unwrap();
+    let err = ir::lower_program(&ciclo)
+        .expect_err("ciclo deve falhar antes de qualquer fallback nominal")
+        .to_string();
+    assert!(
+        err.contains("alias de tipo recursivo"),
+        "erro inesperado: {err}"
+    );
+
+    let ausente = parse(
+        r#"
+pacote main;
+carinho usar(valor: Ausente) -> bombom { mimo 0; }
+carinho principal() -> bombom { mimo 0; }
+"#,
+    )
+    .unwrap();
+    let err = ir::lower_program(&ausente)
+        .expect_err("alias inexistente deve falhar antes de qualquer fallback nominal")
+        .to_string();
+    assert!(
+        err.contains("tipo 'Ausente' não existe"),
+        "erro inesperado: {err}"
+    );
+}
+
+#[test]
+fn fase244_lowering_preserva_identidade_nominal_em_ternarios_e_aliases() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+
+apelido Base = trato<Medivel>;
+apelido ObjetoA = Base;
+apelido ObjetoB = Base;
+
+carinho criar(valor: bombom) -> ObjetoA {
+    mimo valor virar trato<Medivel>;
+}
+
+carinho escolher(condicao: logica, a: ObjetoA, b: ObjetoB) -> Base {
+    mimo condicao ? a : b;
+}
+
+carinho usar(objeto: Base) -> bombom {
+    mimo objeto.medir();
+}
+
+carinho principal() -> bombom {
+    nova a: ObjetoA = criar(0);
+    nova b: ObjetoB = criar(1);
+    nova c: Base = criar(2);
+    nova inferido = falso ? a : (verdade ? criar(0) : c);
+    nova anotado: Base = verdade ? a : b;
+    nova muda atribuido: ObjetoA = a;
+    atribuido = falso ? b : a;
+    nova por_argumento: bombom = usar(
+        falso ? atribuido : escolher(verdade, a, b)
+    );
+    mimo (verdade ? inferido : anotado).medir() + por_argumento;
+}
+"#;
+
+    let ir = render_ir(code).expect("ternários devem preservar trato<Medivel>");
+    assert!(ir.contains("call __ternario"), "{ir}");
+    assert!(ir.contains("trait_call trato<Medivel>.medir"), "{ir}");
+}
+
+#[test]
+fn fase244_type_ir_classifica_todas_as_representacoes_nativas_de_uma_palavra() {
+    use pinker_v0::ir::{ScalarTypeIR, TypeIR};
+
+    let word_types = [
+        TypeIR::Bombom,
+        TypeIR::U8,
+        TypeIR::U16,
+        TypeIR::U32,
+        TypeIR::U64,
+        TypeIR::I8,
+        TypeIR::I16,
+        TypeIR::I32,
+        TypeIR::I64,
+        TypeIR::Logica,
+        TypeIR::Verso,
+        TypeIR::ListBombom,
+        TypeIR::ListVerso,
+        TypeIR::MapVersoBombom,
+        TypeIR::MapVersoVerso,
+        TypeIR::MapBombomBombom,
+        TypeIR::MapBombomVerso,
+        TypeIR::Struct,
+        TypeIR::Pointer { is_volatile: false },
+        TypeIR::Pointer { is_volatile: true },
+        TypeIR::Function,
+        TypeIR::TraitObject,
+    ];
+    assert!(word_types.iter().all(TypeIR::is_native_abi_word));
+    assert_eq!(
+        TypeIR::FixedArray {
+            element: ScalarTypeIR::Bombom,
+            size: 2,
+        }
+        .native_abi_words(),
+        None
+    );
+    assert_eq!(TypeIR::Nulo.native_abi_words(), Some(0));
+}
+
+// @pinker-nav:end evidencia.ir.lowering-objetos-trato-fase244

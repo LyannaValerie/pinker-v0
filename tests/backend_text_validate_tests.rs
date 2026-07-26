@@ -20,6 +20,7 @@ fn valid_program() -> BackendTextProgram {
             ret_type: TypeIR::Bombom,
             params: vec![],
             locals: vec!["%x#0".to_string()],
+            slot_types: std::collections::HashMap::new(),
             blocks: vec![BackendTextBlock {
                 label: "entry".to_string(),
                 instructions: vec![BackendTextInstruction::Mov {
@@ -37,6 +38,70 @@ fn valid_program() -> BackendTextProgram {
 #[test]
 fn backend_text_valido_simples() {
     assert!(backend_text_validate::validate_program(&valid_program()).is_ok());
+}
+
+#[test]
+fn backend_text_valida_materializacao_e_chamada_de_trato() {
+    let mut slot_types = std::collections::HashMap::new();
+    slot_types.insert("%obj#0".to_string(), TypeIR::TraitObject);
+    slot_types.insert("%x#0".to_string(), TypeIR::Bombom);
+    let mut p = BackendTextProgram {
+        is_freestanding: false,
+        module_name: "main".to_string(),
+        globals: vec![],
+        functions: vec![BackendTextFunction {
+            name: "principal".to_string(),
+            ret_type: TypeIR::Bombom,
+            params: vec![],
+            locals: vec!["%obj#0".to_string(), "%x#0".to_string()],
+            slot_types,
+            blocks: vec![BackendTextBlock {
+                label: "entry".to_string(),
+                instructions: vec![
+                    BackendTextInstruction::MakeTraitObject {
+                        dest: TempIR(0),
+                        value: OperandIR::Local("%x#0".to_string()),
+                        trait_name: "Medivel".to_string(),
+                        concrete_type: TypeIR::Bombom,
+                        concrete_type_name: "bombom".to_string(),
+                        concrete_size: 8,
+                        vtable_methods: vec!["__impl_Medivel_bombom_valor".to_string()],
+                    },
+                    BackendTextInstruction::Mov {
+                        dest: "%obj#0".to_string(),
+                        src: OperandIR::Temp(TempIR(0)),
+                    },
+                    BackendTextInstruction::TraitCall {
+                        dest: Some(TempIR(1)),
+                        object: OperandIR::Local("%obj#0".to_string()),
+                        trait_name: "Medivel".to_string(),
+                        method_name: "valor".to_string(),
+                        method_slot: 0,
+                        method_count: 1,
+                        args: vec![],
+                        param_types: vec![],
+                        ret_type: TypeIR::Bombom,
+                    },
+                ],
+                terminator: BackendTextTerminator::Return(Some(OperandIR::Temp(TempIR(1)))),
+            }],
+        }],
+    };
+    assert!(backend_text_validate::validate_program(&p).is_ok());
+    let BackendTextInstruction::TraitCall {
+        method_slot,
+        method_count,
+        ..
+    } = &mut p.functions[0].blocks[0].instructions[2]
+    else {
+        panic!("instrução esperada");
+    };
+    *method_slot = 1;
+    *method_count = 1;
+    let err = backend_text_validate::validate_program(&p)
+        .expect_err("slot fora da vtable deve ser recusado")
+        .to_string();
+    assert!(err.contains("slot fora da vtable"), "{err}");
 }
 
 #[test]
@@ -103,6 +168,7 @@ fn falha_call_nulo_com_destino() {
         ret_type: TypeIR::Nulo,
         params: vec![],
         locals: vec![],
+        slot_types: std::collections::HashMap::new(),
         blocks: vec![BackendTextBlock {
             label: "entry".to_string(),
             instructions: vec![],
@@ -157,6 +223,7 @@ fn caso_call_binaria_temporario_if_else_valido() {
                 ret_type: TypeIR::Bombom,
                 params: vec!["%x#0".to_string(), "%y#0".to_string()],
                 locals: vec![],
+                slot_types: std::collections::HashMap::new(),
                 blocks: vec![BackendTextBlock {
                     label: "entry".to_string(),
                     instructions: vec![BackendTextInstruction::Binary {
@@ -173,6 +240,7 @@ fn caso_call_binaria_temporario_if_else_valido() {
                 ret_type: TypeIR::Bombom,
                 params: vec![],
                 locals: vec![],
+                slot_types: std::collections::HashMap::new(),
                 blocks: vec![
                     BackendTextBlock {
                         label: "entry".to_string(),

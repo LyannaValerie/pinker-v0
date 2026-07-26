@@ -26,6 +26,7 @@ enum StackValueType {
     Verso,
     ListBombom,
     ListVerso,
+    TraitObject,
     Unknown,
 }
 
@@ -1012,6 +1013,87 @@ fn validate_function(
                         ));
                     }
                 }
+                MachineInstr::MakeTraitObject {
+                    trait_name,
+                    concrete_type,
+                    concrete_type_name,
+                    concrete_size,
+                    vtable_methods,
+                } => {
+                    if trait_name.trim().is_empty() {
+                        return Err(err_ctx(
+                            f,
+                            Some(&b.label),
+                            "make_trait_object sem nome de trato",
+                        ));
+                    }
+
+                    if concrete_type_name.trim().is_empty() {
+                        return Err(err_ctx(
+                            f,
+                            Some(&b.label),
+                            "make_trait_object sem nome concreto",
+                        ));
+                    }
+
+                    if *concrete_size == 0 {
+                        return Err(err_ctx(
+                            f,
+                            Some(&b.label),
+                            "make_trait_object com snapshot de tamanho zero",
+                        ));
+                    }
+
+                    if vtable_methods.is_empty()
+                        || vtable_methods.iter().any(|method| method.trim().is_empty())
+                    {
+                        return Err(err_ctx(
+                            f,
+                            Some(&b.label),
+                            "make_trait_object exige vtable não vazia",
+                        ));
+                    }
+
+                    if matches!(*concrete_type, TypeIR::TraitObject | TypeIR::Nulo) {
+                        return Err(err_ctx(
+                            f,
+                            Some(&b.label),
+                            "make_trait_object com tipo concreto inválido",
+                        ));
+                    }
+                }
+                MachineInstr::TraitCall {
+                    trait_name,
+                    method_name,
+                    method_slot,
+                    method_count,
+                    argc,
+                    param_types,
+                    ret_type: _,
+                } => {
+                    if trait_name.trim().is_empty() || method_name.trim().is_empty() {
+                        return Err(err_ctx(
+                            f,
+                            Some(&b.label),
+                            "trait_call sem identidade nominal completa",
+                        ));
+                    }
+                    if *method_count == 0 || *method_slot >= *method_count {
+                        return Err(err_ctx(
+                            f,
+                            Some(&b.label),
+                            "trait_call referencia slot fora da vtable",
+                        ));
+                    }
+
+                    if *argc != param_types.len() {
+                        return Err(err_ctx(
+                            f,
+                            Some(&b.label),
+                            "trait_call com aridade inconsistente",
+                        ));
+                    }
+                }
                 _ => {}
             }
         }
@@ -1433,6 +1515,75 @@ fn apply_instr_effect(
             )?;
             stack.push(StackValueType::Unknown);
         }
+        MachineInstr::MakeTraitObject { concrete_type, .. } => {
+            let value = pop_typed(
+                f,
+                label,
+                stack,
+                1,
+                "underflow em make_trait_object",
+                Some("instr='make_trait_object'"),
+            )?;
+
+            ensure_compatible(
+                f,
+                label,
+                value[0],
+                type_to_stack(*concrete_type),
+                "make_trait_object com valor concreto incompatível",
+                Some("instr='make_trait_object'"),
+            )?;
+
+            stack.push(StackValueType::TraitObject);
+        }
+        MachineInstr::TraitCall {
+            argc,
+            param_types,
+            ret_type,
+            ..
+        } => {
+            let object = pop_typed(
+                f,
+                label,
+                stack,
+                1,
+                "underflow em trait_call (objeto)",
+                Some("instr='trait_call'"),
+            )?;
+
+            ensure_compatible(
+                f,
+                label,
+                object[0],
+                StackValueType::TraitObject,
+                "trait_call exige objeto de trato no topo",
+                Some("instr='trait_call'"),
+            )?;
+
+            let args = pop_typed(
+                f,
+                label,
+                stack,
+                *argc,
+                "underflow em trait_call (argumentos)",
+                Some("instr='trait_call'"),
+            )?;
+
+            for (arg, expected) in args.iter().zip(param_types.iter().rev()) {
+                ensure_compatible(
+                    f,
+                    label,
+                    *arg,
+                    type_to_stack(*expected),
+                    "trait_call com tipo de argumento incompatível",
+                    Some("instr='trait_call'"),
+                )?;
+            }
+
+            if *ret_type != TypeIR::Nulo {
+                stack.push(type_to_stack(*ret_type));
+            }
+        }
         MachineInstr::PrintIntInline => {
             pop_typed(
                 f,
@@ -1615,6 +1766,8 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::PushFunctionRef(_) => "push_function_ref",
         MachineInstr::CallIndirect { .. } => "call_indirect",
         MachineInstr::MakeClosure { .. } => "make_closure",
+        MachineInstr::MakeTraitObject { .. } => "make_trait_object",
+        MachineInstr::TraitCall { .. } => "trait_call",
         MachineInstr::PrintIntInline => "print_int_inline",
         MachineInstr::PrintBoolInline => "print_bool_inline",
         MachineInstr::PrintStrValueInline => "print_str_value_inline",
@@ -1631,6 +1784,7 @@ fn render_stack_type(ty: StackValueType) -> &'static str {
         StackValueType::Verso => "verso",
         StackValueType::ListBombom => "lista<bombom>",
         StackValueType::ListVerso => "lista<verso>",
+        StackValueType::TraitObject => "objeto de trato",
         StackValueType::Unknown => "unknown",
     }
 }
@@ -1658,6 +1812,7 @@ fn type_to_stack(ty: TypeIR) -> StackValueType {
         TypeIR::Struct => StackValueType::Unknown,
         TypeIR::Pointer { .. } => StackValueType::Unknown,
         TypeIR::Function => StackValueType::Unknown,
+        TypeIR::TraitObject => StackValueType::TraitObject,
         TypeIR::Nulo => StackValueType::Unknown,
     }
 }

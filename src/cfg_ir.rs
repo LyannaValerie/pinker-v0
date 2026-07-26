@@ -127,6 +127,32 @@ pub enum InstructionCfgIR {
         function_name: String,
         captures: Vec<OperandIR>,
     },
+    // Fase 244: materialização de um handle de objeto de trato.
+    //
+    // A cópia física ainda será definida nas camadas executáveis, mas a CFG
+    // preserva integralmente o tamanho do snapshot e a vtable ordenada.
+    MakeTraitObject {
+        dest: TempIR,
+        value: OperandIR,
+        trait_name: String,
+        concrete_type: TypeIR,
+        concrete_type_name: String,
+        concrete_size: u64,
+        vtable_methods: Vec<String>,
+    },
+    // Fase 244: despacho por slot da vtable. `dest: None` representa método
+    // de retorno `nulo`; chamadas com valor possuem `Some(TempIR)`.
+    TraitCall {
+        dest: Option<TempIR>,
+        object: OperandIR,
+        trait_name: String,
+        method_name: String,
+        method_slot: u64,
+        method_count: u64,
+        args: Vec<OperandIR>,
+        param_types: Vec<TypeIR>,
+        ret_type: TypeIR,
+    },
     Falar {
         args: Vec<FalarArgCfgIR>,
     },
@@ -183,6 +209,8 @@ struct FunctionLowerer {
     next_temp: u32,
     next_logical_slot: u32,
     logical_locals: Vec<crate::ir::LocalIR>,
+    next_ternary_slot: u32,
+    ternary_locals: Vec<crate::ir::LocalIR>,
     loop_exit_stack: Vec<String>,
     loop_continue_stack: Vec<String>,
 }
@@ -318,6 +346,8 @@ fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
         next_temp: 0,
         next_logical_slot: 0,
         logical_locals: Vec::new(),
+        next_ternary_slot: 0,
+        ternary_locals: Vec::new(),
         loop_exit_stack: Vec::new(),
         loop_continue_stack: Vec::new(),
     };
@@ -354,6 +384,7 @@ fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
 
     let mut locals = function.locals.clone();
     locals.extend(lowerer.logical_locals);
+    locals.extend(lowerer.ternary_locals);
 
     Ok(FunctionCfgIR {
         name: function.name.clone(),
@@ -621,7 +652,7 @@ impl FunctionLowerer {
     // @pinker-nav:start cfg.lowering.valores-temporarios
     // @pinker-nav:domain lowering
     // @pinker-nav:layer cfg
-    // @pinker-nav:summary Lineariza `ValueIR` em operandos e instruções CFG no bloco corrente: literais, locais (`%nome#N`) e globais viram operandos diretos; unários, dereferência, binários não lógicos, chamadas e casts emitem instruções cujo resultado recebe um `TempIR` (`%tN`); `lower_expr_stmt` descarta o retorno de chamadas `nulo` e rejeita chamada `nulo` usada como valor. Pode avançar para outro bloco quando uma subexpressão lógica altera o fluxo (delega o curto-circuito). Temporários têm escopo de função — não são registradores físicos nem SSA de slots.
+    // @pinker-nav:summary Lineariza `ValueIR` em operandos e instruções CFG no bloco corrente: literais, locais (`%nome#N`) e globais viram operandos diretos; unários, dereferência, binários não lógicos, chamadas e casts emitem instruções cujo resultado recebe um `TempIR` (`%tN`); `lower_expr_stmt` descarta o retorno de chamadas `nulo` e rejeita chamada `nulo` usada como valor. Pode avançar para outro bloco quando curto-circuito ou ternário lazy altera o fluxo. Temporários têm escopo de função — não são registradores físicos nem SSA de slots.
     fn lower_expr_stmt(
         &mut self,
         value: &ValueIR,
@@ -649,6 +680,42 @@ impl FunctionLowerer {
                         args: lowered_args.0,
                         ret_type: *ret_type,
                     });
+                Ok(lowered_args.1)
+            }
+            ValueIR::TraitCall {
+                object,
+                trait_name,
+                method_name,
+                method_slot,
+                method_count,
+                args,
+                param_types,
+                ret_type,
+            } if *ret_type == TypeIR::Nulo => {
+                let (object, object_current) = self.lower_value_operand(object, current, span)?;
+
+                let lowered_args =
+                    args.iter()
+                        .try_fold((Vec::new(), object_current), |(mut acc, cur), arg| {
+                            let (lowered, next_cur) = self.lower_call_operand(arg, cur, span)?;
+                            acc.push(lowered);
+                            Ok::<_, PinkerError>((acc, next_cur))
+                        })?;
+
+                self.blocks[lowered_args.1]
+                    .instructions
+                    .push(InstructionCfgIR::TraitCall {
+                        dest: None,
+                        object,
+                        trait_name: trait_name.clone(),
+                        method_name: method_name.clone(),
+                        method_slot: *method_slot,
+                        method_count: *method_count,
+                        args: lowered_args.0,
+                        param_types: param_types.clone(),
+                        ret_type: *ret_type,
+                    });
+
                 Ok(lowered_args.1)
             }
             _ => {
@@ -723,6 +790,26 @@ impl FunctionLowerer {
                 args,
                 ret_type,
             } => {
+                if callee == "__ternario"
+                    && (args.len() != 3
+                        || !(is_trivially_pure_ternary_arm(&args[1])
+                            && is_trivially_pure_ternary_arm(&args[2])))
+                {
+                    let [condition, true_value, false_value] = args.as_slice() else {
+                        return Err(PinkerError::Ir {
+                            msg: "CFG encontrou ternário sem três argumentos".to_string(),
+                            span,
+                        });
+                    };
+                    return self.lower_ternary_value(
+                        condition,
+                        true_value,
+                        false_value,
+                        *ret_type,
+                        current,
+                        span,
+                    );
+                }
                 let lowered_args =
                     args.iter()
                         .try_fold((Vec::new(), current), |(mut acc, cur), arg| {
@@ -769,6 +856,76 @@ impl FunctionLowerer {
                         captures: lowered_captures.0,
                     });
                 Ok((OperandIR::Temp(dest), lowered_captures.1))
+            }
+            ValueIR::MakeTraitObject {
+                value,
+                trait_name,
+                concrete_type,
+                concrete_type_name,
+                concrete_size,
+                vtable_methods,
+            } => {
+                let (value, next_current) = self.lower_call_operand(value, current, span)?;
+                let dest = self.next_temp();
+
+                self.blocks[next_current]
+                    .instructions
+                    .push(InstructionCfgIR::MakeTraitObject {
+                        dest,
+                        value,
+                        trait_name: trait_name.clone(),
+                        concrete_type: *concrete_type,
+                        concrete_type_name: concrete_type_name.clone(),
+                        concrete_size: *concrete_size,
+                        vtable_methods: vtable_methods.clone(),
+                    });
+
+                Ok((OperandIR::Temp(dest), next_current))
+            }
+            ValueIR::TraitCall {
+                object,
+                trait_name,
+                method_name,
+                method_slot,
+                method_count,
+                args,
+                param_types,
+                ret_type,
+            } => {
+                let (object, object_current) = self.lower_value_operand(object, current, span)?;
+
+                let lowered_args =
+                    args.iter()
+                        .try_fold((Vec::new(), object_current), |(mut acc, cur), arg| {
+                            let (lowered, next_cur) = self.lower_call_operand(arg, cur, span)?;
+                            acc.push(lowered);
+                            Ok::<_, PinkerError>((acc, next_cur))
+                        })?;
+
+                if *ret_type == TypeIR::Nulo {
+                    return Err(PinkerError::Ir {
+                        msg: "chamada dinâmica nulo usada como valor na CFG IR".to_string(),
+                        span,
+                    });
+                }
+
+                let dest = self.next_temp();
+
+                self.blocks[lowered_args.1]
+                    .instructions
+                    .push(InstructionCfgIR::TraitCall {
+                        dest: Some(dest),
+                        object,
+                        trait_name: trait_name.clone(),
+                        method_name: method_name.clone(),
+                        method_slot: *method_slot,
+                        method_count: *method_count,
+                        args: lowered_args.0,
+                        param_types: param_types.clone(),
+                        ret_type: *ret_type,
+                    });
+
+                Ok((OperandIR::Temp(dest), lowered_args.1))
             }
             ValueIR::CallIndirect {
                 callee,
@@ -1191,6 +1348,57 @@ impl FunctionLowerer {
     }
     // @pinker-nav:end cfg.logica.curto-circuito
 
+    fn lower_ternary_value(
+        &mut self,
+        condition: &ValueIR,
+        true_value: &ValueIR,
+        false_value: &ValueIR,
+        result_type: TypeIR,
+        current: usize,
+        span: Span,
+    ) -> Result<(OperandIR, usize), PinkerError> {
+        if result_type == TypeIR::Nulo {
+            return Err(PinkerError::Ir {
+                msg: "ternário nulo usado como valor na CFG IR".to_string(),
+                span,
+            });
+        }
+
+        let (condition, condition_current) = self.lower_value_operand(condition, current, span)?;
+        let true_label = self.next_label("ternary_true");
+        let false_label = self.next_label("ternary_false");
+        let join_label = self.next_label("ternary_join");
+        let true_idx = self.fresh_block(true_label.clone());
+        let false_idx = self.fresh_block(false_label.clone());
+        let join_idx = self.fresh_block(join_label.clone());
+        self.blocks[condition_current].terminator = Some(TerminatorIR::Branch {
+            cond: condition,
+            then_label: true_label,
+            else_label: false_label,
+        });
+
+        let result_slot = self.next_ternary_slot(result_type);
+        let (true_value, true_end) = self.lower_value_operand(true_value, true_idx, span)?;
+        self.blocks[true_end]
+            .instructions
+            .push(InstructionCfgIR::Let {
+                slot: result_slot.clone(),
+                value: true_value,
+            });
+        self.blocks[true_end].terminator = Some(TerminatorIR::Jump(join_label.clone()));
+
+        let (false_value, false_end) = self.lower_value_operand(false_value, false_idx, span)?;
+        self.blocks[false_end]
+            .instructions
+            .push(InstructionCfgIR::Let {
+                slot: result_slot.clone(),
+                value: false_value,
+            });
+        self.blocks[false_end].terminator = Some(TerminatorIR::Jump(join_label));
+
+        Ok((OperandIR::Local(result_slot), join_idx))
+    }
+
     // @pinker-nav:start cfg.logica.slot-logico
     // @pinker-nav:domain logica
     // @pinker-nav:layer cfg
@@ -1203,6 +1411,19 @@ impl FunctionLowerer {
             source_name: format!("$logic_{}", index),
             slot: slot.clone(),
             ty: TypeIR::Logica,
+            is_mut: true,
+        });
+        slot
+    }
+
+    fn next_ternary_slot(&mut self, ty: TypeIR) -> String {
+        let index = self.next_ternary_slot;
+        self.next_ternary_slot += 1;
+        let slot = format!("%ternary#{}", index);
+        self.ternary_locals.push(crate::ir::LocalIR {
+            source_name: format!("$ternary_{}", index),
+            slot: slot.clone(),
+            ty,
             is_mut: true,
         });
         slot
@@ -1263,6 +1484,18 @@ fn lower_constant_value(value: &ValueIR, span: Span) -> Result<ValueCfgIR, Pinke
             span,
         }),
     }
+}
+
+fn is_trivially_pure_ternary_arm(value: &ValueIR) -> bool {
+    matches!(
+        value,
+        ValueIR::Local(_)
+            | ValueIR::GlobalConst(_)
+            | ValueIR::Int(_)
+            | ValueIR::Bool(_)
+            | ValueIR::String(_)
+            | ValueIR::FunctionRef(_)
+    )
 }
 // @pinker-nav:end cfg.lowering.constantes
 
@@ -1384,6 +1617,54 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
+        InstructionCfgIR::MakeTraitObject {
+            dest,
+            value,
+            trait_name,
+            concrete_type,
+            concrete_type_name,
+            concrete_size,
+            vtable_methods,
+        } => format!(
+            "{} = make_trait_object trato<{}> from {} as {}:{} size={} vtable=[{}]",
+            render_temp(*dest),
+            trait_name,
+            render_operand(value),
+            concrete_type_name,
+            concrete_type.name(),
+            concrete_size,
+            vtable_methods.join(", ")
+        ),
+        InstructionCfgIR::TraitCall {
+            dest,
+            object,
+            trait_name,
+            method_name,
+            method_slot,
+            method_count,
+            args,
+            param_types: _,
+            ret_type,
+        } => {
+            let call = format!(
+                "trait_call trato<{}>.{}#{}/{} {}({}) -> {}",
+                trait_name,
+                method_name,
+                method_slot,
+                method_count,
+                render_operand(object),
+                args.iter()
+                    .map(render_operand)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                ret_type.name()
+            );
+
+            match dest {
+                Some(dest) => format!("{} = {}", render_temp(*dest), call),
+                None => call,
+            }
+        }
         InstructionCfgIR::Falar { args } => format!(
             "falar {}",
             args.iter()

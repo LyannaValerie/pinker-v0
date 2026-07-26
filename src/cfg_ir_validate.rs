@@ -1630,6 +1630,151 @@ fn validate_block(
                     }
                 }
             }
+            InstructionCfgIR::MakeTraitObject {
+                dest,
+                value,
+                trait_name,
+                concrete_type,
+                concrete_type_name,
+                concrete_size,
+                vtable_methods,
+            } => {
+                if trait_name.trim().is_empty() {
+                    return Err(cfg_error(
+                        "make_trait_object sem nome nominal do trato",
+                        function.span,
+                    ));
+                }
+
+                if concrete_type_name.trim().is_empty() {
+                    return Err(cfg_error(
+                        "make_trait_object sem nome do tipo concreto",
+                        function.span,
+                    ));
+                }
+
+                if *concrete_size == 0 {
+                    return Err(cfg_error(
+                        "make_trait_object com snapshot de tamanho zero",
+                        function.span,
+                    ));
+                }
+
+                if vtable_methods.is_empty()
+                    || vtable_methods.iter().any(|method| method.trim().is_empty())
+                {
+                    return Err(cfg_error(
+                        "make_trait_object exige vtable não vazia",
+                        function.span,
+                    ));
+                }
+
+                if matches!(*concrete_type, TypeIR::TraitObject | TypeIR::Nulo) {
+                    return Err(cfg_error(
+                        "make_trait_object com tipo concreto inválido",
+                        function.span,
+                    ));
+                }
+
+                let actual = infer_operand_type(
+                    value,
+                    slot_types,
+                    &temp_types,
+                    global_consts,
+                    function.span,
+                )?;
+
+                if !operand_matches_expected(value, actual, *concrete_type) {
+                    return Err(cfg_error(
+                        "make_trait_object com valor concreto incompatível",
+                        function.span,
+                    ));
+                }
+
+                temp_types.insert(*dest, TypeIR::TraitObject);
+            }
+            InstructionCfgIR::TraitCall {
+                dest,
+                object,
+                trait_name,
+                method_name,
+                method_slot,
+                method_count,
+                args,
+                param_types,
+                ret_type,
+            } => {
+                if trait_name.trim().is_empty() || method_name.trim().is_empty() {
+                    return Err(cfg_error(
+                        "trait_call sem identidade nominal completa",
+                        function.span,
+                    ));
+                }
+                if *method_count == 0 || *method_slot >= *method_count {
+                    return Err(cfg_error(
+                        "trait_call referencia slot fora da vtable",
+                        function.span,
+                    ));
+                }
+
+                let object_type = infer_operand_type(
+                    object,
+                    slot_types,
+                    &temp_types,
+                    global_consts,
+                    function.span,
+                )?;
+
+                if object_type != TypeIR::TraitObject {
+                    return Err(cfg_error(
+                        "trait_call exige operando de objeto de trato",
+                        function.span,
+                    ));
+                }
+
+                if args.len() != param_types.len() {
+                    return Err(cfg_error(
+                        "trait_call com aridade inconsistente",
+                        function.span,
+                    ));
+                }
+
+                for (arg, expected) in args.iter().zip(param_types.iter()) {
+                    let actual = infer_operand_type(
+                        arg,
+                        slot_types,
+                        &temp_types,
+                        global_consts,
+                        function.span,
+                    )?;
+
+                    if !operand_matches_expected(arg, actual, *expected) {
+                        return Err(cfg_error(
+                            "trait_call com tipo de argumento incompatível",
+                            function.span,
+                        ));
+                    }
+                }
+
+                match (*dest, *ret_type) {
+                    (Some(_), TypeIR::Nulo) => {
+                        return Err(cfg_error(
+                            "trait_call nulo não pode definir temporário",
+                            function.span,
+                        ));
+                    }
+                    (None, TypeIR::Nulo) => {}
+                    (Some(dest), ty) => {
+                        temp_types.insert(dest, ty);
+                    }
+                    (None, _) => {
+                        return Err(cfg_error(
+                            "trait_call com retorno exige temporário",
+                            function.span,
+                        ));
+                    }
+                }
+            }
             InstructionCfgIR::CallIndirect {
                 dest,
                 callee,

@@ -129,6 +129,29 @@ pub enum MachineInstr {
         function_name: String,
         capture_count: usize,
     },
+    // Fase 244: consome um valor concreto e produz o handle público
+    // de uma palavra. O descritor e o snapshot serão materializados
+    // pelo runtime executável da etapa seguinte.
+    MakeTraitObject {
+        trait_name: String,
+        concrete_type: TypeIR,
+        concrete_type_name: String,
+        concrete_size: u64,
+        vtable_methods: Vec<String>,
+    },
+    // Fase 244: os argumentos de usuário são empilhados primeiro e o
+    // handle do objeto por último. A instrução consome o objeto do topo,
+    // depois `argc` argumentos, e produz valor somente quando o retorno
+    // não é `nulo`.
+    TraitCall {
+        trait_name: String,
+        method_name: String,
+        method_slot: u64,
+        method_count: u64,
+        argc: usize,
+        param_types: Vec<TypeIR>,
+        ret_type: TypeIR,
+    },
     PrintIntInline,
     PrintBoolInline,
     PrintStrValueInline,
@@ -169,34 +192,37 @@ pub fn lower_program(selected: &SelectedProgram) -> Result<MachineProgram, Pinke
     let functions = selected
         .functions
         .iter()
-        .map(|f| {
+        .map(|f| -> Result<MachineFunction, PinkerError> {
             let blocks = f
                 .blocks
                 .iter()
-                .map(|b| {
+                .map(|b| -> Result<MachineBlock, PinkerError> {
                     let mut code = Vec::new();
-                    for i in &b.instructions {
-                        lower_instr(i, &mut code);
+
+                    for instruction in &b.instructions {
+                        lower_instr(instruction, &mut code)?;
                     }
+
                     let terminator = lower_term(&b.terminator, &mut code);
-                    MachineBlock {
+
+                    Ok(MachineBlock {
                         label: b.label.clone(),
                         code,
                         terminator,
-                    }
+                    })
                 })
-                .collect();
+                .collect::<Result<Vec<_>, PinkerError>>()?;
 
-            MachineFunction {
+            Ok(MachineFunction {
                 name: f.name.clone(),
                 ret_type: f.ret_type,
                 params: f.params.clone(),
                 locals: f.locals.clone(),
                 slot_types: f.slot_types.clone(),
                 blocks,
-            }
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, PinkerError>>()?;
 
     Ok(MachineProgram {
         module_name: selected.module_name.clone(),
@@ -210,7 +236,7 @@ pub fn lower_program(selected: &SelectedProgram) -> Result<MachineProgram, Pinke
 // @pinker-nav:domain lowering
 // @pinker-nav:layer machine
 // @pinker-nav:summary Dispatcher `lower_instr` que converte cada `SelectedInstr` em operações da máquina de pilha seguindo o padrão carregar operandos → emitir a operação → armazenar o resultado em `StoreSlot("%tN")` quando há destino: `Mov`, unários, `DerefLoad`/`DerefStore`, `Cast`, bitwise, aritmética, comparações, chamadas (`Call`/`CallVoid` empilham os argumentos) e a emissão de `falar` (via `lower_falar_arg`, distinguindo string literal, `verso`, `lógica` e inteiro). Os `%tN` são slots nomeados de resultado — não são registradores físicos; não há SSA nem ABI de hardware.
-fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) {
+fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) -> Result<(), PinkerError> {
     match inst {
         SelectedInstr::Mov { dest, src } => {
             emit_load(src, code);
@@ -407,6 +433,59 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) {
             });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
+        SelectedInstr::MakeTraitObject {
+            dest,
+            value,
+            trait_name,
+            concrete_type,
+            concrete_type_name,
+            concrete_size,
+            vtable_methods,
+        } => {
+            emit_load(value, code);
+            code.push(MachineInstr::MakeTraitObject {
+                trait_name: trait_name.clone(),
+                concrete_type: *concrete_type,
+                concrete_type_name: concrete_type_name.clone(),
+                concrete_size: *concrete_size,
+                vtable_methods: vtable_methods.clone(),
+            });
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
+        SelectedInstr::TraitCall {
+            dest,
+            object,
+            trait_name,
+            method_name,
+            method_slot,
+            method_count,
+            args,
+            param_types,
+            ret_type,
+        } => {
+            for arg in args {
+                emit_load(arg, code);
+            }
+
+            // O objeto fica no topo. A operação o consome antes dos
+            // argumentos e acrescentará o snapshot como primeiro receiver
+            // somente no runtime, sem reutilizar `CallIndirect`.
+            emit_load(object, code);
+
+            code.push(MachineInstr::TraitCall {
+                trait_name: trait_name.clone(),
+                method_name: method_name.clone(),
+                method_slot: *method_slot,
+                method_count: *method_count,
+                argc: args.len(),
+                param_types: param_types.clone(),
+                ret_type: *ret_type,
+            });
+
+            if let Some(dest) = dest {
+                code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+            }
+        }
         SelectedInstr::Falar { args } => {
             for (idx, arg) in args.iter().enumerate() {
                 if idx > 0 {
@@ -417,6 +496,8 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) {
             code.push(MachineInstr::PrintNewline);
         }
     }
+
+    Ok(())
 }
 
 fn lower_falar_arg(arg: &FalarArgSelected, code: &mut Vec<MachineInstr>) {
@@ -785,6 +866,47 @@ fn render_instr(i: &MachineInstr) -> String {
                 "consome {} valor(es) capturado(s), aloca ambiente e empilha novo handle callable de {}",
                 capture_count, function_name
             ),
+        ),
+        MachineInstr::MakeTraitObject {
+            trait_name,
+            concrete_type,
+            concrete_type_name,
+            concrete_size,
+            vtable_methods,
+        } => with_comment(
+            format!(
+                "make_trait_object trato<{}>, concrete={}:{}, size={}, vtable=[{}]",
+                trait_name,
+                concrete_type_name,
+                concrete_type.name(),
+                concrete_size,
+                vtable_methods.join(", ")
+            ),
+            "consome valor concreto e empilha handle de objeto de trato",
+        ),
+        MachineInstr::TraitCall {
+            trait_name,
+            method_name,
+            method_slot,
+            method_count,
+            argc,
+            param_types: _,
+            ret_type,
+        } => with_comment(
+            format!(
+                "trait_call trato<{}>.{}#{}/{}, argc={}, ret={}",
+                trait_name,
+                method_name,
+                method_slot,
+                method_count,
+                argc,
+                ret_type.name()
+            ),
+            if *ret_type == TypeIR::Nulo {
+                "consome objeto e argumentos, despacha pela vtable sem retorno"
+            } else {
+                "consome objeto e argumentos, despacha pela vtable e empilha o retorno"
+            },
         ),
         MachineInstr::PrintIntInline => {
             with_comment("print_int_inline".to_string(), "imprime inteiro sem quebra")

@@ -7,6 +7,7 @@ use pinker_v0::{
 };
 use std::fs;
 use std::process::Command;
+use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // @pinker-nav:start evidencia.backend-nativo.suporte-lowering-memoria
@@ -54,7 +55,7 @@ fn emissao_padrao_nao_inclui_init_do_runtime() {
 // @pinker-nav:start evidencia.backend-nativo.emissao-abi-e-fluxo-textual
 // @pinker-nav:domain backend-s
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Cinco testes que chamam emit_external_toolchain_subset — caminho HOSPEDADO, runtime_init=false — e verificam apenas o texto emitido para a ABI SysV (seis registradores de argumento e passagem por pilha), o padding de alinhamento de pilha, a recursão direta, o `cmov` do ternário e os saltos dos construtos de controle de fluxo. Nenhuma toolchain externa é invocada, nenhum runtime é ligado e nada é executado.
+// @pinker-nav:summary Cinco testes que chamam emit_external_toolchain_subset — caminho HOSPEDADO, runtime_init=false — e verificam apenas o texto emitido para a ABI SysV (seis registradores de argumento e passagem por pilha), o padding de alinhamento de pilha, a recursão direta, o `cmov` de ternário com braços puros e os saltos dos construtos de controle de fluxo. Nenhuma toolchain externa é invocada, nenhum runtime é ligado e nada é executado.
 #[test]
 fn abi_completa_oito_args_usa_seis_registradores_e_pilha() {
     let code = include_str!("../examples/fase213_abi_completa_valido.pink");
@@ -111,7 +112,7 @@ fn abi_completa_aceita_recursao_direta() {
 }
 
 #[test]
-fn controle_fluxo_geral_ternario_vira_cmov_sem_call() {
+fn controle_fluxo_geral_ternario_puro_vira_cmov_sem_call() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
@@ -132,7 +133,7 @@ fn controle_fluxo_geral_emite_todos_os_construtos() {
     let selected = lower_to_selected(code);
     let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
     // repetir/para/sempre que/escolha/encaixe/talvez viram blocos e saltos
-    // reais; ternário vira cmov; nenhuma pseudo-função sobra no texto.
+    // reais; o ternário puro vira cmov; nenhuma pseudo-função sobra no texto.
     assert!(asm.contains("cmoveq"), "{}", asm);
     assert!(asm.contains("call classifica"), "{}", asm);
     assert!(asm.contains("call pontua"), "{}", asm);
@@ -1606,3 +1607,592 @@ fn fase242_funcao_indireta_pilha_impar_tem_paridade_nativa() {
     );
 }
 // @pinker-nav:end evidencia.backend-nativo.paridade-stdout-fases-avancadas
+
+// @pinker-nav:start evidencia.backend-nativo.objetos-trato-fase244
+// @pinker-nav:domain backend-s
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Evidência executável da Fase 244 para objetos de trato: helper cria fonte temporária fora do repositório, executa interpretador, faz build ELF com `pink build --nativo`, executa o binário e compara stdout byte a byte e exit code. Os testes cobrem snapshot/alias/objetos independentes, retorno e passagem de handle, despacho direto/qualificado/aninhado, métodos com e sem retorno, slots na ordem do trato apesar da ordem do impl, dois tipos no mesmo trato, dois tratos no mesmo tipo, matriz SysV de 0/1/5/6/7/8/9 argumentos do usuário, regressões 242/243 e estrutura `.rodata`/`.quad`/`call *reg` sem `__env`.
+const FONTE_FASE244_CICLO: &str = r#"
+pacote main;
+
+trato Medivel {
+    carinho base(valor: si) -> bombom;
+    carinho somar(valor: si, adicional: bombom) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho somar(valor: bombom, adicional: bombom) -> bombom {
+        mimo valor + adicional;
+    }
+
+    carinho base(valor: bombom) -> bombom {
+        mimo valor;
+    }
+}
+
+impl Medivel para u64 {
+    carinho somar(valor: u64, adicional: bombom) -> bombom {
+        mimo adicional + 64;
+    }
+
+    carinho base(valor: u64) -> bombom {
+        mimo 64;
+    }
+}
+
+trato Duplicavel {
+    carinho duplicar(valor: si) -> bombom;
+}
+
+impl Duplicavel para bombom {
+    carinho duplicar(valor: bombom) -> bombom {
+        mimo valor + valor;
+    }
+}
+
+trato Observavel {
+    carinho observar(valor: si, adicional: bombom);
+}
+
+impl Observavel para bombom {
+    carinho observar(valor: bombom, adicional: bombom) {
+        falar(valor + adicional);
+        mimo;
+    }
+}
+
+carinho empacotar(valor: bombom) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+
+carinho consultar(objeto: trato<Medivel>) -> bombom {
+    mimo objeto.base();
+}
+
+carinho combinar(
+    primeiro: trato<Medivel>,
+    segundo: trato<Medivel>
+) -> bombom {
+    mimo primeiro.somar(segundo.base());
+}
+
+carinho principal() -> bombom {
+    nova muda origem: bombom = 10;
+    nova primeiro: trato<Medivel> =
+        origem virar trato<Medivel>;
+    nova copia: trato<Medivel> = primeiro;
+
+    origem = 20;
+    nova segundo: trato<Medivel> =
+        origem virar trato<Medivel>;
+    origem = 99;
+
+    nova amplo: u64 = 64;
+    nova outro_tipo: trato<Medivel> =
+        amplo virar trato<Medivel>;
+    nova retornado: trato<Medivel> = empacotar(13);
+    nova observavel: trato<Observavel> =
+        7 virar trato<Observavel>;
+    nova duplicavel: trato<Duplicavel> =
+        9 virar trato<Duplicavel>;
+
+    falar(copia.base());
+    falar(segundo.base());
+    falar(Medivel.somar(primeiro, 5));
+    falar(outro_tipo.base());
+    falar(combinar(copia, segundo));
+    falar(consultar(retornado));
+    observavel.observar(8);
+    falar(duplicavel.duplicar());
+
+    mimo 0;
+}
+"#;
+
+const FONTE_FASE244_ABI: &str = r#"
+pacote main;
+
+trato Matriz {
+    carinho a0(v: si) -> bombom;
+    carinho a1(v: si, a: bombom) -> bombom;
+    carinho a5(v: si, a: bombom, b: bombom, c: bombom, d: bombom, e: bombom) -> bombom;
+    carinho a6(v: si, a: bombom, b: bombom, c: bombom, d: bombom, e: bombom, f: bombom) -> bombom;
+    carinho a7(v: si, a: bombom, b: bombom, c: bombom, d: bombom, e: bombom, f: bombom, g: bombom) -> bombom;
+    carinho a8(v: si, a: bombom, b: bombom, c: bombom, d: bombom, e: bombom, f: bombom, g: bombom, h: bombom) -> bombom;
+    carinho a9(v: si, a: bombom, b: bombom, c: bombom, d: bombom, e: bombom, f: bombom, g: bombom, h: bombom, i: bombom) -> bombom;
+}
+
+impl Matriz para bombom {
+    carinho a9(v: bombom, a: bombom, b: bombom, c: bombom, d: bombom, e: bombom, f: bombom, g: bombom, h: bombom, i: bombom) -> bombom {
+        mimo v + a + b + c + d + e + f + g + h + i;
+    }
+    carinho a8(v: bombom, a: bombom, b: bombom, c: bombom, d: bombom, e: bombom, f: bombom, g: bombom, h: bombom) -> bombom {
+        mimo v + a + b + c + d + e + f + g + h;
+    }
+    carinho a7(v: bombom, a: bombom, b: bombom, c: bombom, d: bombom, e: bombom, f: bombom, g: bombom) -> bombom {
+        mimo v + a + b + c + d + e + f + g;
+    }
+    carinho a6(v: bombom, a: bombom, b: bombom, c: bombom, d: bombom, e: bombom, f: bombom) -> bombom {
+        mimo v + a + b + c + d + e + f;
+    }
+    carinho a5(v: bombom, a: bombom, b: bombom, c: bombom, d: bombom, e: bombom) -> bombom {
+        mimo v + a + b + c + d + e;
+    }
+    carinho a1(v: bombom, a: bombom) -> bombom {
+        mimo v + a;
+    }
+    carinho a0(v: bombom) -> bombom {
+        mimo v;
+    }
+}
+
+carinho principal() -> bombom {
+    nova objeto: trato<Matriz> =
+        10 virar trato<Matriz>;
+    falar(objeto.a0());
+    falar(objeto.a1(1));
+    falar(objeto.a5(1, 2, 3, 4, 5));
+    falar(Matriz.a6(objeto, 1, 2, 3, 4, 5, 6));
+    falar(objeto.a7(1, 2, 3, 4, 5, 6, 7));
+    falar(objeto.a8(1, 2, 3, 4, 5, 6, 7, 8));
+    falar(objeto.a9(1, 2, 3, 4, 5, 6, 7, 8, 9));
+    mimo 0;
+}
+"#;
+
+fn fase244_paridade_fonte(
+    fonte: &str,
+    nome: &str,
+    marcador: u128,
+    stdout_esperado: &[u8],
+) -> String {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return String::new();
+    }
+    let _driver = detect_cc_driver().expect("Fase 244 exige driver C para executar ELF real");
+    let pink = env!("CARGO_BIN_EXE_pink");
+    let runtime_lib = std::path::Path::new(pink)
+        .parent()
+        .expect("diretório do pink")
+        .join("libpinker_rt.a");
+    static RUNTIME_BUILD: OnceLock<()> = OnceLock::new();
+    if !runtime_lib.is_file() {
+        RUNTIME_BUILD.get_or_init(|| {
+            let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+            let status = Command::new(cargo)
+                .current_dir(env!("CARGO_MANIFEST_DIR"))
+                .args(["build", "--locked", "-p", "pinker_rt"])
+                .status()
+                .expect("executar cargo build do runtime nativo");
+            assert!(status.success(), "cargo build do runtime nativo falhou");
+        });
+    }
+    assert!(runtime_lib.is_file(), "libpinker_rt.a não foi produzida");
+
+    let selected = lower_to_selected(fonte);
+    let asm = backend_s::emit_external_toolchain_subset_nativo(&selected)
+        .expect("lowering nativo da Fase 244");
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("tempo do sistema")
+        .as_nanos()
+        + marcador;
+    let out_dir = std::env::temp_dir().join(format!("pinker_fase244_{}_{}", nome, nanos));
+    fs::create_dir_all(&out_dir).expect("criar diretório temporário da Fase 244");
+    let source_path = out_dir.join(format!("{}.pink", nome));
+    fs::write(&source_path, fonte).expect("gravar fonte temporária da Fase 244");
+
+    let interp = Command::new(pink)
+        .arg("--run")
+        .arg(&source_path)
+        .output()
+        .expect("executar interpretador da Fase 244");
+    assert!(
+        interp.status.success(),
+        "interpretador falhou: {}",
+        String::from_utf8_lossy(&interp.stderr)
+    );
+    assert!(
+        interp.stdout.ends_with(b"0\n"),
+        "interpretador deveria encerrar com retorno 0"
+    );
+    let programa_interp = &interp.stdout[..interp.stdout.len() - 2];
+    assert_eq!(programa_interp, stdout_esperado);
+
+    let build = Command::new(pink)
+        .arg("build")
+        .arg("--nativo")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .arg(&source_path)
+        .env("PINKER_RT_LIB", &runtime_lib)
+        .output()
+        .expect("build nativo da Fase 244");
+    assert!(
+        build.status.success(),
+        "build nativo falhou: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let run = Command::new(out_dir.join(nome))
+        .output()
+        .expect("executar ELF da Fase 244");
+    assert_eq!(run.status.code(), Some(0), "exit nativo deve equivaler a 0");
+    assert_eq!(
+        programa_interp, run.stdout,
+        "stdout deve coincidir byte a byte entre interpretador e ELF"
+    );
+    assert_eq!(run.stdout, stdout_esperado);
+    fs::remove_dir_all(&out_dir).expect("remover diretório temporário da Fase 244");
+    asm
+}
+
+#[test]
+fn fase244_objetos_trato_executam_elf_com_paridade_de_ciclo_de_vida_e_despacho() {
+    fase244_paridade_fonte(
+        FONTE_FASE244_CICLO,
+        "fase244_ciclo",
+        244_001,
+        b"10\n20\n15\n64\n30\n13\n15\n18\n",
+    );
+}
+
+#[test]
+fn fase244_objetos_trato_executam_matriz_sysv_com_receiver_primeiro() {
+    let asm = fase244_paridade_fonte(
+        FONTE_FASE244_ABI,
+        "fase244_abi",
+        244_002,
+        b"10\n11\n25\n31\n38\n46\n55\n",
+    );
+    if !asm.is_empty() {
+        assert!(
+            asm.matches("subq $8, %rsp").count() >= 3,
+            "snapshot + chamadas de spill ímpar devem preservar padding SysV"
+        );
+    }
+}
+
+#[test]
+fn fase244_objetos_trato_suportam_matriz_escalar_em_registradores_e_pilha() {
+    let fonte = include_str!("fixtures/fase244_parametros_escalares_dinamicos.pink");
+    let asm = fase244_paridade_fonte(fonte, "parametros_escalares", 244_004, b"101\n202\n303\n");
+    if asm.is_empty() {
+        return;
+    }
+
+    for instruction in [
+        "movzbq %sil, %rsi",
+        "movsbq %dl, %rdx",
+        "movzwq %cx, %rcx",
+        "movswq %r8w, %r8",
+        "movl %r9d, %r9d",
+        "movslq %r11d, %r11",
+        "movzbq %r11b, %r11",
+        "movsbq %r11b, %r11",
+        "movzwq %r11w, %r11",
+        "movswq %r11w, %r11",
+    ] {
+        assert!(
+            asm.contains(instruction),
+            "normalização SysV ausente para '{instruction}':\n{asm}"
+        );
+    }
+}
+
+#[test]
+fn fase244_aliases_de_objeto_preservam_paridade_nativa_em_todos_os_fluxos() {
+    let fonte = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+
+apelido ObjetoBase = trato<Medivel>;
+apelido ObjetoPublico = ObjetoBase;
+apelido Numero = bombom;
+
+carinho usar_base(objeto: ObjetoBase) -> bombom { mimo objeto.medir(); }
+carinho usar_publico(objeto: ObjetoPublico) -> bombom { mimo objeto.medir(); }
+carinho criar_base(valor: bombom) -> ObjetoBase {
+    mimo valor virar trato<Medivel>;
+}
+carinho criar_publico(valor: bombom) -> ObjetoPublico {
+    mimo valor virar trato<Medivel>;
+}
+
+trato Fabrica {
+    carinho criar(valor: si) -> ObjetoPublico;
+}
+
+impl Fabrica para bombom {
+    carinho criar(valor: bombom) -> ObjetoPublico {
+        mimo valor virar trato<Medivel>;
+    }
+}
+
+carinho principal() -> bombom {
+    nova direto: trato<Medivel> = 7 virar trato<Medivel>;
+    nova base: ObjetoBase = 11 virar trato<Medivel>;
+    nova publico: ObjetoPublico = 13 virar trato<Medivel>;
+    nova copia = publico;
+    nova numero: Numero = 5;
+    nova fabrica: trato<Fabrica> = 41 virar trato<Fabrica>;
+    falar(direto.medir());
+    falar(usar_base(base));
+    falar(usar_publico(copia));
+    falar(copia.medir());
+    falar(criar_base(17).medir());
+    falar(criar_publico(19).medir());
+    falar(fabrica.criar().medir());
+    falar(numero);
+    mimo 0;
+}
+"#;
+    fase244_paridade_fonte(
+        fonte,
+        "aliases_objeto",
+        244_006,
+        b"7\n11\n13\n13\n17\n19\n41\n5\n",
+    );
+}
+
+#[test]
+fn fase244_objeto_e_argumento_com_efeito_sao_avaliados_uma_vez_em_ordem() {
+    let fonte = r#"
+pacote main;
+
+trato Somavel {
+    carinho somar(valor: si, parcela: bombom) -> bombom;
+}
+
+impl Somavel para bombom {
+    carinho somar(valor: bombom, parcela: bombom) -> bombom {
+        mimo valor + parcela;
+    }
+}
+
+carinho criar_objeto() -> trato<Somavel> {
+    falar(10);
+    mimo 5 virar trato<Somavel>;
+}
+
+carinho criar_argumento() -> bombom {
+    falar(20);
+    mimo 7;
+}
+
+carinho principal() -> bombom {
+    falar(criar_objeto().somar(criar_argumento()));
+    mimo 0;
+}
+"#;
+    fase244_paridade_fonte(fonte, "efeitos_unicos", 244_005, b"10\n20\n12\n");
+}
+
+#[test]
+fn fase244_assembly_emite_vtables_e_chamada_indireta_sem_env() {
+    let asm = fase244_paridade_fonte(
+        FONTE_FASE244_CICLO,
+        "fase244_assembly",
+        244_003,
+        b"10\n20\n15\n64\n30\n13\n15\n18\n",
+    );
+    if asm.is_empty() {
+        return;
+    }
+    assert!(asm.contains(".section .rodata"));
+    assert!(asm.contains(".Lpinker_trait_vtable_"));
+    assert!(asm.contains(".quad .Lpinker_trait_vtable_"));
+    assert!(asm.contains("movabsq $16, %rdi"));
+    assert!(asm.contains("movabsq $8, %rdi"));
+    assert!(asm.contains("movq 8(%r10), %r10"));
+    assert!(asm.contains("call *%r11"));
+    assert!(!asm.contains("call __impl_"));
+    assert!(!asm.contains("call .Lpinker_trait_vtable_"));
+    assert!(!asm.contains("__env"));
+}
+
+#[test]
+fn fase244_assembly_e_vtables_sao_deterministas_em_compilacoes_independentes() {
+    let first_selected = lower_to_selected(FONTE_FASE244_CICLO);
+    let second_selected = lower_to_selected(FONTE_FASE244_CICLO);
+    let first = backend_s::emit_external_toolchain_subset_nativo(&first_selected)
+        .expect("primeira compilação nativa da Fase 244");
+    let second = backend_s::emit_external_toolchain_subset_nativo(&second_selected)
+        .expect("segunda compilação nativa da Fase 244");
+
+    assert_eq!(first, second);
+
+    let symbols = first
+        .lines()
+        .map(str::trim)
+        .filter(|line| {
+            line.starts_with(".Lpinker_trait_vtable_")
+                && line.ends_with(':')
+                && !line.contains("__slot_")
+        })
+        .collect::<Vec<_>>();
+    assert!(!symbols.is_empty());
+
+    let mut sorted = symbols.clone();
+    sorted.sort_unstable();
+    assert_eq!(symbols, sorted);
+}
+
+#[test]
+fn fase244_preserva_regressoes_executaveis_das_fases_242_e_243() {
+    paridade_stdout_exit_completo(
+        "examples/fase242_funcao_indireta_valido.pink",
+        "fase242_funcao_indireta_valido",
+        244_242,
+    );
+    paridade_stdout_exit_completo(
+        "examples/fase243_closure_captura_imutavel_valido.pink",
+        "fase243_closure_captura_imutavel_valido",
+        244_243,
+    );
+}
+
+#[test]
+fn fase244_parametros_dinamicos_por_handle_usam_registradores_e_spills_sysv() {
+    let fonte = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+    carinho registradores(
+        valor: si,
+        texto: verso,
+        direto: trato<Medivel>,
+        aliasado: Objeto,
+        ponteiro: seta<bombom>
+    ) -> bombom;
+    carinho spill_objeto(
+        valor: si,
+        a: bombom,
+        b: bombom,
+        c: bombom,
+        d: bombom,
+        e: bombom,
+        outro: ObjetoEncadeado,
+        ponteiro: seta<bombom>
+    ) -> bombom;
+}
+
+apelido Objeto = trato<Medivel>;
+apelido ObjetoEncadeado = Objeto;
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+
+    carinho registradores(
+        valor: bombom,
+        texto: verso,
+        direto: trato<Medivel>,
+        aliasado: Objeto,
+        _ponteiro: seta<bombom>
+    ) -> bombom {
+        falar(texto);
+        mimo valor + direto.medir() + aliasado.medir();
+    }
+
+    carinho spill_objeto(
+        valor: bombom,
+        a: bombom,
+        b: bombom,
+        c: bombom,
+        d: bombom,
+        e: bombom,
+        outro: ObjetoEncadeado,
+        _ponteiro: seta<bombom>
+    ) -> bombom {
+        mimo valor + a + b + c + d + e + outro.medir();
+    }
+}
+
+carinho principal() -> bombom {
+    nova receptor: Objeto = 1 virar trato<Medivel>;
+    nova dois: trato<Medivel> = 2 virar trato<Medivel>;
+    nova tres: ObjetoEncadeado = 3 virar trato<Medivel>;
+    nova ponteiro: seta<bombom> = 1;
+    nova em_regs: bombom = receptor.registradores(
+        "handles",
+        dois,
+        tres,
+        ponteiro
+    );
+    nova em_spill: bombom = receptor.spill_objeto(
+        1, 2, 3, 4, 5, tres, ponteiro
+    );
+    mimo (em_regs - 6) + (em_spill - 19);
+}
+"#;
+
+    let asm = fase244_paridade_fonte(fonte, "parametros_dinamicos_handle", 244_405, b"handles\n");
+    if !asm.is_empty() {
+        assert!(
+            asm.matches("pushq %r11").count() >= 2,
+            "argumentos por handle devem alcançar a pilha SysV: {asm}"
+        );
+    }
+}
+
+#[test]
+fn fase244_ternario_de_objetos_preserva_identidade_e_avaliacao_lazy() {
+    let fonte = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+
+apelido Base = trato<Medivel>;
+apelido Objeto = Base;
+
+carinho condicao_a() -> logica {
+    falar("condicao-a");
+    mimo falso;
+}
+carinho condicao_b() -> logica {
+    falar("condicao-b");
+    mimo verdade;
+}
+carinho criar_a() -> Objeto {
+    falar("a");
+    mimo 1 virar trato<Medivel>;
+}
+carinho criar_b() -> Base {
+    falar("b");
+    mimo 0 virar trato<Medivel>;
+}
+carinho criar_c() -> Objeto {
+    falar("c");
+    mimo 2 virar trato<Medivel>;
+}
+
+carinho principal() -> bombom {
+    nova escolhido = condicao_a()
+        ? criar_a()
+        : (condicao_b() ? criar_b() : criar_c());
+    mimo (verdade ? escolhido : criar_c()).medir();
+}
+"#;
+
+    fase244_paridade_fonte(
+        fonte,
+        "ternario_trato_lazy",
+        244_406,
+        b"condicao-a\ncondicao-b\nb\n",
+    );
+}
+// @pinker-nav:end evidencia.backend-nativo.objetos-trato-fase244

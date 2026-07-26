@@ -2,6 +2,7 @@ use crate::cfg_ir::{FalarArgCfgIR, InstructionCfgIR, OperandIR, ProgramCfgIR, Te
 use crate::error::PinkerError;
 use crate::instr_select::{FalarArgSelected, SelectedInstr, SelectedProgram, SelectedTerminator};
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
+use std::collections::HashMap;
 
 // @pinker-nav:start backend-text.modelo.representacao
 // @pinker-nav:domain modelo
@@ -27,6 +28,7 @@ pub struct BackendTextFunction {
     pub ret_type: TypeIR,
     pub params: Vec<String>,
     pub locals: Vec<String>,
+    pub slot_types: HashMap<String, TypeIR>,
     pub blocks: Vec<BackendTextBlock>,
 }
 
@@ -58,6 +60,26 @@ pub enum BackendTextInstruction {
         dest: Option<crate::cfg_ir::TempIR>,
         callee: String,
         args: Vec<OperandIR>,
+        ret_type: TypeIR,
+    },
+    MakeTraitObject {
+        dest: crate::cfg_ir::TempIR,
+        value: OperandIR,
+        trait_name: String,
+        concrete_type: TypeIR,
+        concrete_type_name: String,
+        concrete_size: u64,
+        vtable_methods: Vec<String>,
+    },
+    TraitCall {
+        dest: Option<crate::cfg_ir::TempIR>,
+        object: OperandIR,
+        trait_name: String,
+        method_name: String,
+        method_slot: u64,
+        method_count: u64,
+        args: Vec<OperandIR>,
+        param_types: Vec<TypeIR>,
         ret_type: TypeIR,
     },
     Falar {
@@ -169,6 +191,44 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                                         .to_string(),
                                 span: crate::token::Span::single(crate::token::Position::new(1, 1)),
                             }),
+                            InstructionCfgIR::MakeTraitObject {
+                                dest,
+                                value,
+                                trait_name,
+                                concrete_type,
+                                concrete_type_name,
+                                concrete_size,
+                                vtable_methods,
+                            } => Ok(BackendTextInstruction::MakeTraitObject {
+                                dest: *dest,
+                                value: value.clone(),
+                                trait_name: trait_name.clone(),
+                                concrete_type: *concrete_type,
+                                concrete_type_name: concrete_type_name.clone(),
+                                concrete_size: *concrete_size,
+                                vtable_methods: vtable_methods.clone(),
+                            }),
+                            InstructionCfgIR::TraitCall {
+                                dest,
+                                object,
+                                trait_name,
+                                method_name,
+                                method_slot,
+                                method_count,
+                                args,
+                                param_types,
+                                ret_type,
+                            } => Ok(BackendTextInstruction::TraitCall {
+                                dest: *dest,
+                                object: object.clone(),
+                                trait_name: trait_name.clone(),
+                                method_name: method_name.clone(),
+                                method_slot: *method_slot,
+                                method_count: *method_count,
+                                args: args.clone(),
+                                param_types: param_types.clone(),
+                                ret_type: *ret_type,
+                            }),
                             InstructionCfgIR::Falar { args } => Ok(BackendTextInstruction::Falar {
                                 args: map_falar_args_from_cfg(args),
                             }),
@@ -198,6 +258,12 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                 ret_type: f.ret_type,
                 params: f.params.iter().map(|p| p.slot.clone()).collect(),
                 locals: f.locals.iter().map(|l| l.slot.clone()).collect(),
+                slot_types: f
+                    .params
+                    .iter()
+                    .map(|p| (p.slot.clone(), p.ty))
+                    .chain(f.locals.iter().map(|l| (l.slot.clone(), l.ty)))
+                    .collect(),
                 blocks,
             })
         })
@@ -252,6 +318,7 @@ pub fn lower_selected_program(
                 ret_type: f.ret_type,
                 params: f.params.clone(),
                 locals: f.locals.clone(),
+                slot_types: f.slot_types.clone(),
                 blocks,
             })
         })
@@ -426,6 +493,44 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
             msg: "backend textual ainda não lowera criação de closure (fase 243)".to_string(),
             span: crate::token::Span::single(crate::token::Position::new(1, 1)),
         }),
+        SelectedInstr::MakeTraitObject {
+            dest,
+            value,
+            trait_name,
+            concrete_type,
+            concrete_type_name,
+            concrete_size,
+            vtable_methods,
+        } => Ok(BackendTextInstruction::MakeTraitObject {
+            dest: *dest,
+            value: value.clone(),
+            trait_name: trait_name.clone(),
+            concrete_type: *concrete_type,
+            concrete_type_name: concrete_type_name.clone(),
+            concrete_size: *concrete_size,
+            vtable_methods: vtable_methods.clone(),
+        }),
+        SelectedInstr::TraitCall {
+            dest,
+            object,
+            trait_name,
+            method_name,
+            method_slot,
+            method_count,
+            args,
+            param_types,
+            ret_type,
+        } => Ok(BackendTextInstruction::TraitCall {
+            dest: *dest,
+            object: object.clone(),
+            trait_name: trait_name.clone(),
+            method_name: method_name.clone(),
+            method_slot: *method_slot,
+            method_count: *method_count,
+            args: args.clone(),
+            param_types: param_types.clone(),
+            ret_type: *ret_type,
+        }),
         SelectedInstr::Falar { args } => Ok(BackendTextInstruction::Falar {
             args: map_falar_args_from_selected(args),
         }),
@@ -594,6 +699,54 @@ fn render_instruction(inst: &BackendTextInstruction) -> String {
                 }
                 (None, TypeIR::Nulo) => format!("call_void {}({})", callee, args),
                 (None, _) => format!("call {}, {}({}), {}", "_", callee, args, ret_type.name()),
+            }
+        }
+        BackendTextInstruction::MakeTraitObject {
+            dest,
+            value,
+            trait_name,
+            concrete_type_name,
+            concrete_size,
+            vtable_methods,
+            ..
+        } => format!(
+            "make_trait_object %{}, {} as trato<{}> snapshot={}({}) vtable=[{}]",
+            dest.0,
+            render_operand(value),
+            trait_name,
+            concrete_size,
+            concrete_type_name,
+            vtable_methods.join(", ")
+        ),
+        BackendTextInstruction::TraitCall {
+            dest,
+            object,
+            trait_name,
+            method_name,
+            method_slot,
+            method_count,
+            args,
+            ret_type,
+            ..
+        } => {
+            let args = args
+                .iter()
+                .map(render_operand)
+                .collect::<Vec<_>>()
+                .join(", ");
+            let call = format!(
+                "trait_call {} trato<{}>.{}[{}/{}]({})",
+                render_operand(object),
+                trait_name,
+                method_name,
+                method_slot,
+                method_count,
+                args
+            );
+            match (dest, ret_type) {
+                (Some(dest), _) => format!("%{} = {} -> {}", dest.0, call, ret_type.name()),
+                (None, TypeIR::Nulo) => call,
+                (None, _) => format!("_ = {} -> {}", call, ret_type.name()),
             }
         }
         BackendTextInstruction::Falar { args } => format!(

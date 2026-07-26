@@ -198,6 +198,33 @@ pub enum ValueIR {
         function_name: String,
         captures: Vec<ValueIR>,
     },
+    // Fase 244: materialização explícita de um objeto de trato.
+    //
+    // `value` é o receiver concreto antes da cópia. `concrete_size` informa
+    // quantos bytes formam o snapshot. `vtable_methods` preserva, em ordem de
+    // declaração do trato, os símbolos dos métodos do impl correspondente.
+    MakeTraitObject {
+        value: Box<ValueIR>,
+        trait_name: String,
+        concrete_type: TypeIR,
+        concrete_type_name: String,
+        concrete_size: u64,
+        vtable_methods: Vec<String>,
+    },
+    // Fase 244: chamada por slot em objeto de trato.
+    //
+    // `param_types` exclui o receiver contextual `si`; o receiver é o próprio
+    // `object`. O retorno pode ser `Nulo`, ao contrário de `CallIndirect`.
+    TraitCall {
+        object: Box<ValueIR>,
+        trait_name: String,
+        method_name: String,
+        method_slot: u64,
+        method_count: u64,
+        args: Vec<ValueIR>,
+        param_types: Vec<TypeIR>,
+        ret_type: TypeIR,
+    },
     // Fase 242: chamada indireta — `callee` é um valor (variável/parâmetro
     // de tipo função), não um nome resolvido em tempo de parse. O tipo
     // função público sempre declara retorno não-nulo (semantic.rs), então
@@ -251,6 +278,12 @@ pub enum TypeIR {
     // Fase 242: callable materializado — handle de 1 palavra para descritor
     // {code_ptr, env_ptr}. Mesma categoria de valor que Pointer/ListBombom.
     Function,
+    // Fase 244: handle de uma palavra para um descritor
+    // `{data_ptr, vtable_ptr}` de objeto de trato.
+    //
+    // A identidade nominal do trato permanece nos nós `MakeTraitObject` e
+    // `TraitCall`, pois `TypeIR` continua pequeno e `Copy`.
+    TraitObject,
     Nulo,
 }
 
@@ -305,6 +338,22 @@ struct FunctionSigIR {
     ret_struct_name: Option<String>,
 }
 
+// Fase 244: assinatura operacional de um método de trato objetificável.
+// `param_types` não inclui o receiver contextual `si`.
+#[derive(Clone)]
+struct TraitMethodMetaIR {
+    name: String,
+    param_types: Vec<TypeIR>,
+    ret_type: TypeIR,
+    ret_struct_name: Option<String>,
+    ret_trait_name: Option<String>,
+}
+
+#[derive(Clone)]
+struct TraitMetaIR {
+    methods: Vec<TraitMethodMetaIR>,
+}
+
 #[derive(Clone)]
 struct BindingState {
     slot: String,
@@ -326,6 +375,10 @@ struct LoweringContext {
     struct_fields: HashMap<String, HashMap<String, TypeIR>>,
     struct_field_offsets: HashMap<String, HashMap<String, u64>>,
     enum_variants: HashMap<String, EnumInfoIR>,
+    // Fase 244: método e slot seguem a ordem declarada no `trato`.
+    traits: HashMap<String, TraitMetaIR>,
+    // Nome da função -> identidade nominal do objeto de trato retornado.
+    function_ret_trait_names: HashMap<String, String>,
     // Fase 242: nome de função -> tipo de retorno DA FUNÇÃO REFERENCIADA
     // COMO VALOR CALLABLE, quando a própria função retorna um valor
     // callable (`carinho(...) -> carinho(...) -> T`). Usado só para
@@ -435,6 +488,39 @@ fn parse_impl_function_name(name: &str) -> Option<(String, String, String)> {
     Some((trait_name, target_type, method_name))
 }
 
+fn trait_object_name_from_type(
+    ty: &Type,
+    aliases: &HashMap<String, Type>,
+    struct_names: &HashSet<String>,
+) -> Result<Option<String>, PinkerError> {
+    if TypeIR::from_ast_with_context(ty, aliases, struct_names)? != TypeIR::TraitObject {
+        return Ok(None);
+    }
+
+    let mut resolved = ty;
+    let mut resolving = HashSet::new();
+    while let Type::Alias { name, span } = resolved {
+        if !resolving.insert(name) {
+            return Err(PinkerError::Ir {
+                msg: format!("alias de tipo recursivo detectado em '{}'", name),
+                span: *span,
+            });
+        }
+        resolved = aliases.get(name).ok_or_else(|| PinkerError::Ir {
+            msg: format!("tipo '{}' não existe", name),
+            span: *span,
+        })?;
+    }
+
+    match resolved {
+        Type::Applied { name, args, .. } if name == "trato" => match args.as_slice() {
+            [Type::Alias { name, .. }] => Ok(Some(name.clone())),
+            _ => Ok(None),
+        },
+        _ => Ok(None),
+    }
+}
+
 // `FunctionLowerer` mantém estado mutable por função durante o lowering:
 // - `scopes`: pilha de escopos léxicos (topo = escopo atual).
 // - `slot_counters`: contador por nome-fonte para gerar slots únicos (`%nome#N`).
@@ -453,6 +539,8 @@ struct FunctionLowerer<'a> {
     // `LoweringContext.callable_ret_types`); ausência = erro claro no
     // lowering da chamada, não pânico.
     callable_ret_types: HashMap<String, TypeIR>,
+    // Slot local/parâmetro -> nome nominal de `trato<Nome>`.
+    trait_object_names: HashMap<String, String>,
 }
 
 struct TypedValueIR {
@@ -649,15 +737,74 @@ impl LoweringContext {
             }
         }
 
+        let mut traits = HashMap::new();
+
+        for item in &program.items {
+            let Item::Trait(trait_decl) = item else {
+                continue;
+            };
+
+            let methods = trait_decl
+                .methods
+                .iter()
+                .map(|method| {
+                    let param_types = method
+                        .params
+                        .iter()
+                        .skip(1)
+                        .map(|param| {
+                            TypeIR::from_ast_with_context(&param.ty, &type_aliases, &struct_names)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+
+                    let ret_type = TypeIR::from_ast_option_with_context(
+                        method.ret_type.as_ref(),
+                        &type_aliases,
+                        &struct_names,
+                    )?;
+
+                    let ret_struct_name = method.ret_type.as_ref().and_then(|ty| {
+                        resolve_struct_name_from_type(ty, &type_aliases, &struct_names)
+                    });
+                    let ret_trait_name = method
+                        .ret_type
+                        .as_ref()
+                        .map(|ty| trait_object_name_from_type(ty, &type_aliases, &struct_names))
+                        .transpose()?
+                        .flatten();
+
+                    Ok::<_, PinkerError>(TraitMethodMetaIR {
+                        name: method.name.clone(),
+                        param_types,
+                        ret_type,
+                        ret_struct_name,
+                        ret_trait_name,
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            traits.insert(trait_decl.name.clone(), TraitMetaIR { methods });
+        }
+
         let mut function_sigs = HashMap::new();
         let mut global_consts = HashMap::new();
         let mut callable_ret_types = HashMap::new();
+        let mut function_ret_trait_names = HashMap::new();
         let mut all_functions = HashMap::new();
 
         for item in &program.items {
             match item {
                 Item::Function(function) => {
                     all_functions.insert(function.name.clone(), function.clone());
+
+                    if let Some(ret_type) = function.ret_type.as_ref() {
+                        if let Some(trait_name) =
+                            trait_object_name_from_type(ret_type, &type_aliases, &struct_names)?
+                        {
+                            function_ret_trait_names.insert(function.name.clone(), trait_name);
+                        }
+                    }
+
                     function_sigs.insert(
                         function.name.clone(),
                         FunctionSigIR {
@@ -1610,6 +1757,8 @@ impl LoweringContext {
             struct_fields,
             struct_field_offsets,
             enum_variants,
+            traits,
+            function_ret_trait_names,
             callable_ret_types,
             all_functions,
             closure_state: std::cell::RefCell::new(ClosureLoweringState::default()),
@@ -1638,6 +1787,7 @@ impl<'a> FunctionLowerer<'a> {
             loop_exit_stack: Vec::new(),
             loop_continue_stack: Vec::new(),
             callable_ret_types: HashMap::new(),
+            trait_object_names: HashMap::new(),
         }
     }
 
@@ -1679,6 +1829,261 @@ impl<'a> FunctionLowerer<'a> {
         })
     }
 
+    fn resolve_trait_impl_symbol(
+        &self,
+        trait_name: &str,
+        target_type: &str,
+        method_name: &str,
+    ) -> Option<String> {
+        self.context.function_sigs.keys().find_map(|name| {
+            let (candidate_trait, candidate_target, candidate_method) =
+                parse_impl_function_name(name)?;
+
+            (candidate_trait == trait_name
+                && candidate_target == target_type
+                && candidate_method == method_name)
+                .then(|| name.clone())
+        })
+    }
+
+    fn trait_object_name_for_expr(&self, expr: &Expr) -> Result<Option<String>, PinkerError> {
+        let trait_name = match &expr.kind {
+            ExprKind::Ident(name) => {
+                let Some(binding) = self.resolve_existing_binding(name) else {
+                    return Ok(None);
+                };
+
+                self.trait_object_names.get(&binding.slot).cloned()
+            }
+            ExprKind::Cast { target, .. } => trait_object_name_from_type(
+                target,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )?,
+            ExprKind::Call(callee, args) => match &callee.kind {
+                ExprKind::Ident(function_name) if function_name == "__ternario" => {
+                    let [_, true_value, false_value] = args.as_slice() else {
+                        return Err(PinkerError::Ir {
+                            msg: "lowering encontrou ternário sem três argumentos".to_string(),
+                            span: expr.span,
+                        });
+                    };
+                    let true_trait = self.trait_object_name_for_expr(true_value)?;
+                    let false_trait = self.trait_object_name_for_expr(false_value)?;
+                    match (true_trait, false_trait) {
+                        (Some(true_trait), Some(false_trait)) if true_trait == false_trait => {
+                            Some(true_trait)
+                        }
+                        (None, None) => None,
+                        (Some(true_trait), Some(false_trait)) => {
+                            return Err(PinkerError::Ir {
+                                msg: format!(
+                                    "ternário perdeu compatibilidade nominal entre trato<{}> e trato<{}>",
+                                    true_trait, false_trait
+                                ),
+                                span: expr.span,
+                            });
+                        }
+                        _ => {
+                            return Err(PinkerError::Ir {
+                                msg: "ternário de objeto de trato exige identidade nominal nos dois braços"
+                                    .to_string(),
+                                span: expr.span,
+                            });
+                        }
+                    }
+                }
+                ExprKind::Ident(function_name) => self
+                    .context
+                    .function_ret_trait_names
+                    .get(function_name)
+                    .cloned(),
+                ExprKind::FieldAccess { base, field } => {
+                    let trait_name = match &base.kind {
+                        ExprKind::Ident(name) if self.context.traits.contains_key(name) => {
+                            name.clone()
+                        }
+                        _ => {
+                            let Some(name) = self.trait_object_name_for_expr(base)? else {
+                                return Ok(None);
+                            };
+                            name
+                        }
+                    };
+                    self.context
+                        .traits
+                        .get(&trait_name)
+                        .and_then(|meta| meta.methods.iter().find(|method| method.name == *field))
+                        .and_then(|method| method.ret_trait_name.clone())
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+        Ok(trait_name)
+    }
+
+    fn concrete_snapshot_size(&self, value: &TypedValueIR, span: Span) -> Result<u64, PinkerError> {
+        match value.ty {
+            TypeIR::Bombom | TypeIR::U64 | TypeIR::I64 => Ok(8),
+            TypeIR::U32 | TypeIR::I32 => Ok(4),
+            TypeIR::U16 | TypeIR::I16 => Ok(2),
+            TypeIR::U8 | TypeIR::I8 | TypeIR::Logica => Ok(1),
+
+            // Categorias representadas por handle ou ponteiro de uma palavra.
+            TypeIR::Verso
+            | TypeIR::ListBombom
+            | TypeIR::ListVerso
+            | TypeIR::MapVersoBombom
+            | TypeIR::MapVersoVerso
+            | TypeIR::MapBombomBombom
+            | TypeIR::MapBombomVerso
+            | TypeIR::Pointer { .. }
+            | TypeIR::Function => Ok(layout::POINTER_SIZE),
+
+            TypeIR::FixedArray { element, size } => {
+                let element_size: u64 = match element {
+                    ScalarTypeIR::Bombom | ScalarTypeIR::U64 | ScalarTypeIR::I64 => 8,
+                    ScalarTypeIR::U32 | ScalarTypeIR::I32 => 4,
+                    ScalarTypeIR::U16 | ScalarTypeIR::I16 => 2,
+                    ScalarTypeIR::U8 | ScalarTypeIR::I8 | ScalarTypeIR::Logica => 1,
+                };
+
+                element_size
+                    .checked_mul(size)
+                    .ok_or_else(|| PinkerError::Ir {
+                        msg: "overflow ao calcular snapshot de array".to_string(),
+                        span,
+                    })
+            }
+
+            TypeIR::Struct => {
+                let struct_name = value.struct_name.as_ref().ok_or_else(|| PinkerError::Ir {
+                    msg: "snapshot de ninho sem identidade nominal".to_string(),
+                    span,
+                })?;
+
+                let ast_type = Type::Struct {
+                    name: struct_name.clone(),
+                    span,
+                };
+
+                layout::layout_of_type(
+                    &ast_type,
+                    &self.context.type_aliases,
+                    &self.context.struct_decls,
+                )
+                .map(|layout| layout.size)
+                .map_err(|msg| PinkerError::Ir {
+                    msg: format!("layout inválido para snapshot do objeto de trato: {}", msg),
+                    span,
+                })
+            }
+
+            TypeIR::TraitObject | TypeIR::Nulo => Err(PinkerError::Ir {
+                msg: "tipo concreto inválido para materialização de objeto de trato".to_string(),
+                span,
+            }),
+        }
+    }
+
+    fn trait_vtable(
+        &self,
+        trait_name: &str,
+        target_type: &str,
+        span: Span,
+    ) -> Result<Vec<String>, PinkerError> {
+        let trait_meta = self
+            .context
+            .traits
+            .get(trait_name)
+            .ok_or_else(|| PinkerError::Ir {
+                msg: format!("lowering não encontrou metadados do trato '{}'", trait_name),
+                span,
+            })?;
+
+        trait_meta
+            .methods
+            .iter()
+            .map(|method| {
+                self.resolve_trait_impl_symbol(trait_name, target_type, &method.name)
+                    .ok_or_else(|| PinkerError::Ir {
+                        msg: format!(
+                            "lowering não encontrou impl de '{}.{}' para '{}'",
+                            trait_name, method.name, target_type
+                        ),
+                        span,
+                    })
+            })
+            .collect()
+    }
+
+    fn lower_trait_call(
+        &mut self,
+        object: TypedValueIR,
+        trait_name: &str,
+        method_name: &str,
+        args: &[Expr],
+        span: Span,
+    ) -> Result<TypedValueIR, PinkerError> {
+        let (method_slot, method_count, method) = {
+            let trait_meta =
+                self.context
+                    .traits
+                    .get(trait_name)
+                    .ok_or_else(|| PinkerError::Ir {
+                        msg: format!("lowering não encontrou metadados do trato '{}'", trait_name),
+                        span,
+                    })?;
+
+            let (slot, method) = trait_meta
+                .methods
+                .iter()
+                .enumerate()
+                .find(|(_, method)| method.name == method_name)
+                .ok_or_else(|| PinkerError::Ir {
+                    msg: format!(
+                        "lowering não encontrou método '{}.{}'",
+                        trait_name, method_name
+                    ),
+                    span,
+                })?;
+
+            (slot as u64, trait_meta.methods.len() as u64, method.clone())
+        };
+
+        if args.len() != method.param_types.len() {
+            return Err(PinkerError::Ir {
+                msg: format!(
+                    "lowering recebeu aridade inconsistente em '{}.{}'",
+                    trait_name, method_name
+                ),
+                span,
+            });
+        }
+
+        let lowered_args = args
+            .iter()
+            .map(|arg| self.lower_value(arg).map(|typed| typed.value))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(TypedValueIR {
+            value: ValueIR::TraitCall {
+                object: Box::new(object.value),
+                trait_name: trait_name.to_string(),
+                method_name: method_name.to_string(),
+                method_slot,
+                method_count,
+                args: lowered_args,
+                param_types: method.param_types,
+                ret_type: method.ret_type,
+            },
+            ty: method.ret_type,
+            struct_name: method.ret_struct_name,
+            ptr_array_bombom_size: None,
+        })
+    }
+
     fn lower_function(mut self, function: &FunctionDecl) -> Result<FunctionIR, PinkerError> {
         self.push_scope();
 
@@ -1694,6 +2099,16 @@ impl<'a> FunctionLowerer<'a> {
                 pointer_to_bombom_array_size(&param.ty, &self.context.type_aliases),
                 None,
             );
+
+            if let Some(trait_name) = trait_object_name_from_type(
+                &param.ty,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )? {
+                self.trait_object_names
+                    .insert(binding.slot.clone(), trait_name);
+            }
+
             if let Type::Function { ret, .. } = &param.ty {
                 let ret_ty = self.context.resolve_type(ret)?;
                 self.callable_ret_types.insert(binding.slot.clone(), ret_ty);
@@ -1953,6 +2368,16 @@ impl<'a> FunctionLowerer<'a> {
                 pointer_to_bombom_array_size(&param.ty, &self.context.type_aliases),
                 None,
             );
+
+            if let Some(trait_name) = trait_object_name_from_type(
+                &param.ty,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )? {
+                self.trait_object_names
+                    .insert(binding.slot.clone(), trait_name);
+            }
+
             if let Type::Function { ret, .. } = &param.ty {
                 let ret_ty = self.context.resolve_type(ret)?;
                 self.callable_ret_types.insert(binding.slot.clone(), ret_ty);
@@ -2227,6 +2652,16 @@ impl<'a> FunctionLowerer<'a> {
                 });
             }
         }
+        let trait_object_name = match let_stmt.ty.as_ref() {
+            Some(ty) => trait_object_name_from_type(
+                ty,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )?,
+            None => None,
+        }
+        .or(self.trait_object_name_for_expr(&let_stmt.init)?);
+
         let value = self.lower_value(&let_stmt.init)?;
         let ty = if let Some(annotated_ty) = let_stmt.ty.as_ref() {
             self.context.resolve_type(annotated_ty)?
@@ -2298,6 +2733,20 @@ impl<'a> FunctionLowerer<'a> {
         if let Some(ret_ty) = callable_ret_ty {
             self.callable_ret_types.insert(binding.slot.clone(), ret_ty);
         }
+
+        if ty == TypeIR::TraitObject {
+            let trait_name = trait_object_name.ok_or_else(|| PinkerError::Ir {
+                msg: format!(
+                    "lowering perdeu a identidade nominal do objeto de trato '{}'",
+                    let_stmt.name
+                ),
+                span: let_stmt.span,
+            })?;
+
+            self.trait_object_names
+                .insert(binding.slot.clone(), trait_name);
+        }
+
         Ok(InstructionIR::Let {
             slot: binding.slot,
             value: value.value,
@@ -2638,8 +3087,19 @@ impl<'a> FunctionLowerer<'a> {
                 }
                 if let ExprKind::FieldAccess { base, field } = &callee.kind {
                     if let ExprKind::Ident(trait_name) = &base.kind {
-                        if !args.is_empty() {
+                        if self.context.traits.contains_key(trait_name) && !args.is_empty() {
                             let receiver = self.lower_value(&args[0])?;
+
+                            if receiver.ty == TypeIR::TraitObject {
+                                return self.lower_trait_call(
+                                    receiver,
+                                    trait_name,
+                                    field,
+                                    &args[1..],
+                                    expr.span,
+                                );
+                            }
+
                             if let Some(function_name) =
                                 self.resolve_qualified_impl_method(&receiver, trait_name, field)
                             {
@@ -2678,6 +3138,28 @@ impl<'a> FunctionLowerer<'a> {
                         }
                     }
                     let receiver = self.lower_value(base)?;
+
+                    if receiver.ty == TypeIR::TraitObject {
+                        let trait_name =
+                            self.trait_object_name_for_expr(base)?.ok_or_else(|| {
+                                PinkerError::Ir {
+                                    msg: format!(
+                                        "lowering perdeu a identidade nominal do receiver de '{}'",
+                                        field
+                                    ),
+                                    span: expr.span,
+                                }
+                            })?;
+
+                        return self.lower_trait_call(
+                            receiver,
+                            &trait_name,
+                            field,
+                            args,
+                            expr.span,
+                        );
+                    }
+
                     let function_name =
                         if let Some(function_name) = self.resolve_impl_method(&receiver, field) {
                             function_name
@@ -3053,6 +3535,46 @@ impl<'a> FunctionLowerer<'a> {
             } => {
                 let lowered_source = self.lower_value(source)?;
                 let target_type = self.context.resolve_type(target)?;
+
+                if target_type == TypeIR::TraitObject {
+                    let trait_name = trait_object_name_from_type(
+                        target,
+                        &self.context.type_aliases,
+                        &self.context.struct_names,
+                    )?
+                    .ok_or_else(|| PinkerError::Ir {
+                        msg: "materialização sem nome nominal de trato".to_string(),
+                        span: expr.span,
+                    })?;
+
+                    let concrete_type_name =
+                        Self::impl_receiver_key(&lowered_source).ok_or_else(|| {
+                            PinkerError::Ir {
+                                msg: "materialização sem identidade do tipo concreto".to_string(),
+                                span: expr.span,
+                            }
+                        })?;
+
+                    let concrete_size = self.concrete_snapshot_size(&lowered_source, expr.span)?;
+
+                    let vtable_methods =
+                        self.trait_vtable(&trait_name, &concrete_type_name, expr.span)?;
+
+                    return Ok(TypedValueIR {
+                        value: ValueIR::MakeTraitObject {
+                            value: Box::new(lowered_source.value),
+                            trait_name,
+                            concrete_type: lowered_source.ty,
+                            concrete_type_name,
+                            concrete_size,
+                            vtable_methods,
+                        },
+                        ty: TypeIR::TraitObject,
+                        struct_name: None,
+                        ptr_array_bombom_size: None,
+                    });
+                }
+
                 Ok(TypedValueIR {
                     value: ValueIR::Cast {
                         value: Box::new(lowered_source.value),
@@ -3449,6 +3971,41 @@ fn render_value(value: &ValueIR) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
+        ValueIR::MakeTraitObject {
+            value,
+            trait_name,
+            concrete_type,
+            concrete_type_name,
+            concrete_size,
+            vtable_methods,
+        } => format!(
+            "make_trait_object trato<{}> from {} as {}:{} size={} vtable=[{}]",
+            trait_name,
+            render_value(value),
+            concrete_type_name,
+            concrete_type.render_name(),
+            concrete_size,
+            vtable_methods.join(", ")
+        ),
+        ValueIR::TraitCall {
+            object,
+            trait_name,
+            method_name,
+            method_slot,
+            method_count,
+            args,
+            param_types: _,
+            ret_type,
+        } => format!(
+            "trait_call trato<{}>.{}#{}/{} {}({}) -> {}",
+            trait_name,
+            method_name,
+            method_slot,
+            method_count,
+            render_value(object),
+            args.iter().map(render_value).collect::<Vec<_>>().join(", "),
+            ret_type.render_name()
+        ),
         ValueIR::CallIndirect {
             callee,
             args,
@@ -3490,6 +4047,22 @@ fn line(out: &mut String, indent: usize, text: &str) {
 // @pinker-nav:end ir.renderizacao.textual
 
 impl TypeIR {
+    /// Quantidade de palavras da representação já transportável pela ABI
+    /// nativa atual. Arrays fixos permanecem valores inline multi-palavra;
+    /// `nulo` não é valor. Todas as demais categorias são escalares ou
+    /// handles/ponteiros opacos de uma palavra.
+    pub fn native_abi_words(&self) -> Option<usize> {
+        match self {
+            TypeIR::FixedArray { .. } => None,
+            TypeIR::Nulo => Some(0),
+            _ => Some(1),
+        }
+    }
+
+    pub fn is_native_abi_word(&self) -> bool {
+        self.native_abi_words() == Some(1)
+    }
+
     pub fn is_unsigned(&self) -> bool {
         matches!(
             self,
@@ -3588,6 +4161,13 @@ impl TypeIR {
             // Fase 242: tipo função materializado como handle callable de 1
             // palavra (mesma categoria de Pointer/handle).
             Type::Function { .. } => Ok(TypeIR::Function),
+            Type::Applied { name, args, span } if name == "trato" => match args.as_slice() {
+                [Type::Alias { .. }] => Ok(TypeIR::TraitObject),
+                _ => Err(PinkerError::Ir {
+                    msg: "tipo de objeto de trato inválido antes da IR".to_string(),
+                    span: *span,
+                }),
+            },
             Type::Applied { span, .. } => Err(PinkerError::Ir {
                 msg: "tipo genérico aplicado não monomorfizado antes da IR".to_string(),
                 span: *span,
@@ -3660,6 +4240,7 @@ impl TypeIR {
             TypeIR::Struct => "struct",
             TypeIR::Pointer { .. } => "seta",
             TypeIR::Function => "carinho",
+            TypeIR::TraitObject => "trato",
             TypeIR::Nulo => "nulo",
         }
     }
@@ -3677,6 +4258,7 @@ impl TypeIR {
                 }
             }
             TypeIR::Struct => "struct".to_string(),
+            TypeIR::TraitObject => "trato<?>".to_string(),
             TypeIR::ListBombom => "lista<bombom>".to_string(),
             TypeIR::ListVerso => "lista<verso>".to_string(),
             TypeIR::MapVersoBombom => "mapa<verso,bombom>".to_string(),
@@ -3712,6 +4294,7 @@ impl ScalarTypeIR {
             | TypeIR::Struct
             | TypeIR::Pointer { .. }
             | TypeIR::Function
+            | TypeIR::TraitObject
             | TypeIR::Nulo => None,
         }
     }
@@ -3797,5 +4380,73 @@ impl BinaryOpIR {
             BinaryOpIR::Gt => "gt",
             BinaryOpIR::Gte => "gte",
         }
+    }
+}
+
+#[cfg(test)]
+mod trait_object_alias_tests {
+    use super::*;
+    use crate::token::Position;
+
+    fn span() -> Span {
+        Span::new(Position::new(1, 1), Position::new(1, 1))
+    }
+
+    fn alias(name: &str) -> Type {
+        Type::Alias {
+            name: name.to_string(),
+            span: span(),
+        }
+    }
+
+    fn trait_object(name: &str) -> Type {
+        Type::Applied {
+            name: "trato".to_string(),
+            args: vec![alias(name)],
+            span: span(),
+        }
+    }
+
+    #[test]
+    fn trait_object_name_resolve_aliases_externos_sem_resolver_nome_interno() {
+        let aliases = HashMap::from([
+            ("ObjetoBase".to_string(), trait_object("Medivel")),
+            ("ObjetoPublico".to_string(), alias("ObjetoBase")),
+            ("Numero".to_string(), Type::Bombom(span())),
+        ]);
+        let structs = HashSet::new();
+
+        assert_eq!(
+            trait_object_name_from_type(&trait_object("Medivel"), &aliases, &structs).unwrap(),
+            Some("Medivel".to_string())
+        );
+        assert_eq!(
+            trait_object_name_from_type(&alias("ObjetoBase"), &aliases, &structs).unwrap(),
+            Some("Medivel".to_string())
+        );
+        assert_eq!(
+            trait_object_name_from_type(&alias("ObjetoPublico"), &aliases, &structs).unwrap(),
+            Some("Medivel".to_string())
+        );
+        assert_eq!(
+            trait_object_name_from_type(&alias("Numero"), &aliases, &structs).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn trait_object_name_rejeita_alias_ciclico_e_inexistente() {
+        let aliases = HashMap::from([("A".to_string(), alias("B")), ("B".to_string(), alias("A"))]);
+        let structs = HashSet::new();
+
+        let ciclo = trait_object_name_from_type(&alias("A"), &aliases, &structs)
+            .expect_err("ciclo não pode virar ausência silenciosa")
+            .to_string();
+        assert!(ciclo.contains("alias de tipo recursivo"));
+
+        let ausente = trait_object_name_from_type(&alias("Ausente"), &aliases, &structs)
+            .expect_err("alias ausente não pode virar ausência silenciosa")
+            .to_string();
+        assert!(ausente.contains("tipo 'Ausente' não existe"));
     }
 }

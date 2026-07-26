@@ -15,7 +15,7 @@ fases; para isso, use os documentos apontados em [Navegação](#navegacao).
 | Backend nativo | `pink build --nativo` gera ELF Linux via `.s` x86-64 System V + `pinker_rt` |
 | Paridade | Fases compatíveis do Eixo B verificam interpretador x nativo |
 | Bloco ativo | Bloco 20: expansão rumo a SO e self-hosting |
-| Fase funcional mais recente | Fase 243: closures com captura imutável por valor |
+| Fase funcional mais recente | Fase 244: objetos de trato e despacho dinâmico |
 
 ## Superficie Implementada
 
@@ -26,7 +26,7 @@ fases; para isso, use os documentos apontados em [Navegação](#navegacao).
 | Dados compostos | `ninho`, arrays fixos, `leque<T...>`, `lista<T>` versionada e `mapa<K,V>` nas combinações públicas |
 | Resultado | `leque` com carga, `encaixe`, `tentar`, `propagar`, `propagar?` e `Resultado<T,E>` predeclarado (`Ok(T)`/`Erro(E)`) usável sem declaração manual |
 | Generics | `lista<T>`, `mapa<K,V>`, `leque<T...>` via alias explícito e funções genéricas explícitas `nome<T>(...)` com monomorfização |
-| Contratos | `trato`/`impl` estáticos, múltiplos contratos por tipo e desambiguação nominal |
+| Contratos | `trato`/`impl` estáticos, `trato<Nome>` explícito, materialização por `virar`, vtables e despacho dinâmico nativo |
 | Funções | `carinho`, literais não capturantes, função local tipada, passagem estática como parâmetro, valores de função materializados, chamada indireta real (interpretador e nativo) e closures com captura imutável por valor |
 | Sistema | argv, ambiente, arquivos, processos, caminhos e texto no recorte versionado |
 | Ponteiros | `seta<T>`, `fragil`, deref/escrita indireta e aritmética mínima no subset atual |
@@ -41,8 +41,8 @@ Pinker v0 ainda não é uma linguagem geral, nem um compilador de produção.
 | LLVM, Cranelift, JIT e otimizações globais | O backend atual é próprio, simples e auditável |
 | Multi-plataforma, múltiplas ABIs e bare-metal real | O alvo nativo atual é ELF Linux x86-64 System V |
 | Runtime em Pinker | `pinker_rt` ainda vive no workspace Rust/C ABI |
-| Dynamic dispatch, vtables e objetos de trait | Os contratos atuais são estáticos |
-| Closures capturantes e chamada indireta ampla | Função local tipada existe como alias estático não capturante |
+| Ownership/lifetime de objetos de trato | Handles, snapshots e descritores não são liberados nem coletados neste recorte |
+| Default methods, downcasting/upcasting, herança e objetos de múltiplos tratos | Fora do contrato da Fase 244 |
 | Generics amplos em `ninho`/`leque` e inferência genérica | O recorte atual exige chamada genérica explícita |
 | Ponteiros e layout físico completos | Há operações úteis, mas ainda conservadoras |
 | Biblioteca padrão rica | APIs existem por fases e recortes objetivos |

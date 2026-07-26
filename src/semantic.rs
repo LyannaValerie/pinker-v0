@@ -14,6 +14,7 @@
 
 use crate::ast::*;
 use crate::error::PinkerError;
+use crate::ir::TypeIR;
 use crate::layout;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet};
@@ -161,7 +162,47 @@ impl SemanticChecker {
                     .join(",");
                 format!("carinho({})->{}", params, Self::type_key(ret))
             }
+            Type::Applied { .. } => Self::trait_object_name(ty)
+                .map(|trait_name| format!("trato<{}>", trait_name))
+                .unwrap_or_else(|| ty.name().to_string()),
             _ => ty.name().to_string(),
+        }
+    }
+
+    fn trait_object_name(ty: &Type) -> Option<&str> {
+        match ty {
+            Type::Applied {
+                name,
+                args,
+                span: _,
+            } if name == "trato" => match args.as_slice() {
+                [Type::Alias {
+                    name: trait_name, ..
+                }] => Some(trait_name.as_str()),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn is_contextual_self_type(ty: &Type) -> bool {
+        matches!(ty, Type::Alias { name, .. } if name == "si")
+    }
+
+    fn type_contains_contextual_self(ty: &Type) -> bool {
+        match ty {
+            Type::Alias { name, .. } => name == "si",
+            Type::ListEnum { element, .. } => element == "si",
+            Type::FixedArray { element, .. } => {
+                Self::type_contains_contextual_self(element.as_ref())
+            }
+            Type::Pointer { base, .. } => Self::type_contains_contextual_self(base.as_ref()),
+            Type::Function { params, ret, .. } => {
+                params.iter().any(Self::type_contains_contextual_self)
+                    || Self::type_contains_contextual_self(ret.as_ref())
+            }
+            Type::Applied { args, .. } => args.iter().any(Self::type_contains_contextual_self),
+            _ => false,
         }
     }
 
@@ -277,6 +318,10 @@ impl SemanticChecker {
             ) => {
                 lhs_volatile == rhs_volatile
                     && Self::check_type_match(lhs_base.as_ref(), rhs_base.as_ref())
+            }
+            (Type::Applied { .. }, Type::Applied { .. }) => {
+                let expected_trait = Self::trait_object_name(expected);
+                expected_trait.is_some() && expected_trait == Self::trait_object_name(actual)
             }
             // Fase 242: tipo função é comparado estruturalmente por assinatura
             // (aridade + tipo de cada parâmetro + tipo de retorno).
@@ -410,6 +455,37 @@ impl SemanticChecker {
                 Ok(Type::Function {
                     params: resolved_params,
                     ret: Box::new(resolved_ret),
+                    span: *span,
+                })
+            }
+            Type::Applied { name, args, span } if name == "trato" => {
+                let Some(trait_name) = Self::trait_object_name(ty) else {
+                    return Err(PinkerError::Semantic {
+                        msg: "tipo de objeto de trato exige exatamente um nome nominal".to_string(),
+                        span: *span,
+                    });
+                };
+
+                let Some(trait_decl) = self.traits.get(trait_name) else {
+                    return Err(PinkerError::Semantic {
+                        msg: format!("trato '{}' não declarado", trait_name),
+                        span: *span,
+                    });
+                };
+
+                if !self.validate_object_trait_shape(trait_decl)? {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "trato '{}' não é objetificável: declare 'si' como receiver contextual de todos os métodos",
+                            trait_name
+                        ),
+                        span: *span,
+                    });
+                }
+
+                Ok(Type::Applied {
+                    name: name.clone(),
+                    args: args.clone(),
                     span: *span,
                 })
             }
@@ -1096,6 +1172,193 @@ impl SemanticChecker {
         Ok(())
     }
 
+    fn validate_object_trait_shape(&self, trait_decl: &TraitDecl) -> Result<bool, PinkerError> {
+        let uses_contextual_self = trait_decl.methods.iter().any(|method| {
+            method
+                .params
+                .iter()
+                .any(|param| Self::type_contains_contextual_self(&param.ty))
+                || method
+                    .ret_type
+                    .as_ref()
+                    .map(Self::type_contains_contextual_self)
+                    .unwrap_or(false)
+        });
+
+        if !uses_contextual_self {
+            return Ok(false);
+        }
+
+        for method in &trait_decl.methods {
+            let Some(receiver) = method.params.first() else {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "trato '{}' usa receiver contextual 'si'; método '{}' deve declarar 'si' como primeiro parâmetro",
+                        trait_decl.name, method.name
+                    ),
+                    span: method.span,
+                });
+            };
+
+            if !Self::is_contextual_self_type(&receiver.ty) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "trato '{}' usa receiver contextual 'si'; método '{}' deve declarar 'si' como primeiro parâmetro",
+                        trait_decl.name, method.name
+                    ),
+                    span: receiver.span,
+                });
+            }
+
+            for param in method.params.iter().skip(1) {
+                if Self::type_contains_contextual_self(&param.ty) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "método '{}' do trato '{}' só pode usar 'si' como primeiro parâmetro receiver",
+                            method.name, trait_decl.name
+                        ),
+                        span: param.span,
+                    });
+                }
+
+                let struct_names = self.structs.keys().cloned().collect::<HashSet<_>>();
+                let ir_type = TypeIR::from_ast_with_context(
+                    &param.ty,
+                    &self.type_aliases,
+                    &struct_names,
+                )
+                .map_err(|error| PinkerError::Semantic {
+                    msg: format!(
+                        "parâmetro '{}' do método '{}' no trato '{}' não possui representação nativa válida: {}",
+                        param.name, method.name, trait_decl.name, error
+                    ),
+                    span: param.span,
+                })?;
+                if !ir_type.is_native_abi_word() {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "parâmetro '{}' do método '{}' no trato '{}' exige representação multi-palavra sem transporte nativo nesta fase",
+                            param.name, method.name, trait_decl.name
+                        ),
+                        span: param.span,
+                    });
+                }
+            }
+
+            if let Some(ret_type) = &method.ret_type {
+                if Self::type_contains_contextual_self(ret_type) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "método '{}' do trato '{}' não pode retornar 'si' em objeto de trato nesta fase",
+                            method.name, trait_decl.name
+                        ),
+                        span: ret_type.span(),
+                    });
+                }
+            }
+        }
+
+        Ok(true)
+    }
+
+    fn validate_object_trait_method_function(
+        &self,
+        trait_decl: &TraitDecl,
+        method: &TraitMethodSig,
+        meta: &ImplMethodMeta,
+        function: &FunctionDecl,
+    ) -> Result<(), PinkerError> {
+        if function.params.len() != method.params.len() {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "método '{}' do trato '{}' espera {} parâmetro(s), mas impl para '{}' tem {}",
+                    method.name,
+                    trait_decl.name,
+                    method.params.len(),
+                    meta.target_type,
+                    function.params.len()
+                ),
+                span: function.span,
+            });
+        }
+
+        let receiver = function
+            .params
+            .first()
+            .expect("trato objetificável sempre possui receiver");
+
+        let receiver_direct = Self::type_key(&receiver.ty);
+        let receiver_resolved = Self::type_key(&self.resolve_type_or_error(&receiver.ty)?);
+
+        if meta.target_type != receiver_direct && meta.target_type != receiver_resolved {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "receiver do método '{}' no impl '{}' para '{}' usa '{}'",
+                    method.name, trait_decl.name, meta.target_type, receiver_direct
+                ),
+                span: receiver.span,
+            });
+        }
+
+        for (expected, found) in method
+            .params
+            .iter()
+            .skip(1)
+            .zip(function.params.iter().skip(1))
+        {
+            let expected_ty = self.resolve_type_or_error(&expected.ty)?;
+            let found_ty = self.resolve_type_or_error(&found.ty)?;
+
+            if Self::type_key(&expected_ty) != Self::type_key(&found_ty) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "parâmetro '{}' do método '{}' no trato '{}' espera '{}', mas impl para '{}' usa '{}'",
+                        expected.name,
+                        method.name,
+                        trait_decl.name,
+                        Self::type_key(&expected_ty),
+                        meta.target_type,
+                        Self::type_key(&found_ty)
+                    ),
+                    span: found.span,
+                });
+            }
+        }
+
+        match (&method.ret_type, &function.ret_type) {
+            (None, None) => {}
+            (Some(expected), Some(found)) => {
+                let expected_ty = self.resolve_type_or_error(expected)?;
+                let found_ty = self.resolve_type_or_error(found)?;
+
+                if Self::type_key(&expected_ty) != Self::type_key(&found_ty) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "retorno do método '{}' no trato '{}' espera '{}', mas impl para '{}' usa '{}'",
+                            method.name,
+                            trait_decl.name,
+                            Self::type_key(&expected_ty),
+                            meta.target_type,
+                            Self::type_key(&found_ty)
+                        ),
+                        span: found.span(),
+                    });
+                }
+            }
+            _ => {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "retorno do método '{}' no trato '{}' é incompatível no impl para '{}'",
+                        method.name, trait_decl.name, meta.target_type
+                    ),
+                    span: function.span,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
     fn validate_trait_contracts(&self) -> Result<(), PinkerError> {
         for trait_decl in self.traits.values() {
             if trait_decl.methods.is_empty() {
@@ -1107,11 +1370,49 @@ impl SemanticChecker {
                     span: trait_decl.span,
                 });
             }
+
+            let objectifiable = self.validate_object_trait_shape(trait_decl)?;
+
             for method in &trait_decl.methods {
+                if objectifiable {
+                    let candidates: Vec<(&ImplMethodMeta, &FunctionDecl)> = self
+                        .impl_methods
+                        .iter()
+                        .filter(|meta| {
+                            meta.trait_name == trait_decl.name && meta.method_name == method.name
+                        })
+                        .filter_map(|meta| {
+                            self.funcs
+                                .get(&meta.function_name)
+                                .map(|function| (meta, function))
+                        })
+                        .collect();
+
+                    if candidates.is_empty() {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "trato objetificável '{}' exige ao menos um impl completo para o método '{}'",
+                                trait_decl.name, method.name
+                            ),
+                            span: method.span,
+                        });
+                    }
+
+                    for (meta, function) in candidates {
+                        self.validate_object_trait_method_function(
+                            trait_decl, method, meta, function,
+                        )?;
+                    }
+
+                    continue;
+                }
+
                 let mut candidates = Vec::new();
+
                 if let Some(function) = self.funcs.get(&method.name) {
                     candidates.push(function);
                 }
+
                 for meta in &self.impl_methods {
                     if meta.trait_name == trait_decl.name && meta.method_name == method.name {
                         if let Some(function) = self.funcs.get(&meta.function_name) {
@@ -1119,6 +1420,7 @@ impl SemanticChecker {
                         }
                     }
                 }
+
                 if candidates.is_empty() {
                     return Err(PinkerError::Semantic {
                         msg: format!(
@@ -1127,8 +1429,10 @@ impl SemanticChecker {
                         ),
                         span: method.span,
                     });
-                };
+                }
+
                 let mut first_error = None;
+
                 for function in candidates {
                     match self.validate_trait_method_function(trait_decl, method, function) {
                         Ok(()) => {
@@ -1139,11 +1443,13 @@ impl SemanticChecker {
                         Err(_) => {}
                     }
                 }
+
                 if let Some(err) = first_error {
                     return Err(err);
                 }
             }
         }
+
         Ok(())
     }
 
@@ -2063,6 +2369,56 @@ impl SemanticChecker {
                     "resultado de função sem retorno não pode ser convertido com 'virar'",
                 )?;
                 let target_ty = self.resolve_type_or_error(target)?.with_span(expr.span);
+                if let Some(trait_name) = Self::trait_object_name(&target_ty).map(str::to_string) {
+                    let supported_concrete = matches!(
+                        &source_ty,
+                        Type::Bombom(_)
+                            | Type::U8(_)
+                            | Type::U16(_)
+                            | Type::U32(_)
+                            | Type::U64(_)
+                            | Type::I8(_)
+                            | Type::I16(_)
+                            | Type::I32(_)
+                            | Type::I64(_)
+                            | Type::Logica(_)
+                            | Type::Verso(_)
+                            | Type::Struct { .. }
+                    );
+                    if !supported_concrete {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "objeto de trato nesta fase aceita tipo concreto escalar ou ninho; encontrado '{}'",
+                                Self::type_key(&source_ty)
+                            ),
+                            span: source_expr.span,
+                        });
+                    }
+
+                    let source_direct = Self::type_key(&source_ty);
+                    let source_resolved = Self::type_key(&self.resolve_type_or_error(&source_ty)?);
+
+                    let has_impl = self.impl_methods.iter().any(|meta| {
+                        meta.trait_name == trait_name
+                            && (meta.target_type == source_direct
+                                || meta.target_type == source_resolved)
+                    });
+
+                    if !has_impl {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "tipo '{}' não implementa o trato '{}' e não pode formar '{}'",
+                                source_direct,
+                                trait_name,
+                                Self::type_key(&target_ty)
+                            ),
+                            span: source_expr.span,
+                        });
+                    }
+
+                    return Ok(target_ty);
+                }
+
                 if let Type::Enum { name, .. } = &source_ty {
                     if self.enum_has_payload(name) {
                         return Err(PinkerError::Semantic {
@@ -2121,6 +2477,28 @@ impl SemanticChecker {
                         Self::check_pointer_arithmetic(expr.span, *op, &lhs_ty, &rhs_ty)
                     {
                         return pointer_result;
+                    }
+                }
+
+                if matches!(
+                    op,
+                    BinaryOp::Eq
+                        | BinaryOp::Neq
+                        | BinaryOp::Lt
+                        | BinaryOp::Lte
+                        | BinaryOp::Gt
+                        | BinaryOp::Gte
+                ) {
+                    let lhs_resolved = self.resolve_type_or_error(&lhs_ty)?;
+                    let rhs_resolved = self.resolve_type_or_error(&rhs_ty)?;
+                    if Self::trait_object_name(&lhs_resolved).is_some()
+                        || Self::trait_object_name(&rhs_resolved).is_some()
+                    {
+                        return Err(PinkerError::Semantic {
+                            msg: "comparação entre objetos de trato não é suportada: igualdade, ordem e identidade observável ainda não possuem contrato"
+                                .to_string(),
+                            span: expr.span,
+                        });
                     }
                 }
 
@@ -2320,6 +2698,86 @@ impl SemanticChecker {
     // @pinker-nav:domain chamadas
     // @pinker-nav:layer semantic
     // @pinker-nav:summary Despacho de chamadas: resolução de método de impl (direta e qualificada por trato, com detecção de ambiguidade), seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o grande despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, intrínsecas genéricas de lista/mapa, texto/verso, CSV/JSON, tempo e processo, caindo para a chamada de função declarada.
+    fn check_trait_object_method_call(
+        &mut self,
+        expr_span: Span,
+        callee_span: Span,
+        trait_name: &str,
+        method_name: &str,
+        args: &[Expr],
+    ) -> Result<Type, PinkerError> {
+        let (method_params, method_ret_type) = {
+            let trait_decl = self
+                .traits
+                .get(trait_name)
+                .ok_or_else(|| PinkerError::Semantic {
+                    msg: format!("trato '{}' não declarado", trait_name),
+                    span: callee_span,
+                })?;
+
+            let method = trait_decl
+                .methods
+                .iter()
+                .find(|method| method.name == method_name)
+                .ok_or_else(|| PinkerError::Semantic {
+                    msg: format!(
+                        "método '{}' não existe no trato objetificável '{}'",
+                        method_name, trait_name
+                    ),
+                    span: callee_span,
+                })?;
+
+            (
+                method.params.iter().skip(1).cloned().collect::<Vec<_>>(),
+                method.ret_type.clone(),
+            )
+        };
+
+        if args.len() != method_params.len() {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "chamada dinâmica de '{}.{}' com aridade inválida: esperado {}, recebido {}",
+                    trait_name,
+                    method_name,
+                    method_params.len(),
+                    args.len()
+                ),
+                span: expr_span,
+            });
+        }
+
+        for (index, (arg, expected)) in args.iter().zip(method_params.iter()).enumerate() {
+            let arg_ty = self.check_value_expr(
+                arg,
+                "resultado de função sem retorno não pode ser usado como argumento de método dinâmico",
+            )?;
+            let expected_ty = self.resolve_type_or_error(&expected.ty)?;
+
+            if !Self::check_expected_type_for_expr(&expected_ty, &arg_ty, arg) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento {} da chamada dinâmica '{}.{}': esperado '{}', encontrado '{}'",
+                        index + 1,
+                        trait_name,
+                        method_name,
+                        Self::type_key(&expected_ty),
+                        Self::type_key(&arg_ty)
+                    ),
+                    span: arg.span,
+                });
+            }
+
+            Self::validate_int_literal_range(&expected_ty, arg)?;
+        }
+
+        match method_ret_type {
+            Some(ret_type) => self
+                .resolve_type_or_error(&ret_type)
+                .map(|resolved| resolved.with_span(expr_span)),
+            None => Ok(Type::Nulo(expr_span)),
+        }
+    }
+
     fn resolve_impl_method(
         &self,
         receiver_ty: &Type,
@@ -2555,6 +3013,16 @@ impl SemanticChecker {
                         &args[0],
                         "resultado de função sem retorno não pode ser receiver de método",
                     )?;
+                    if Self::trait_object_name(&receiver_ty) == Some(base_name.as_str()) {
+                        return self.check_trait_object_method_call(
+                            expr_span,
+                            callee.span,
+                            base_name,
+                            field,
+                            &args[1..],
+                        );
+                    }
+
                     let function_name = self.resolve_qualified_impl_method(
                         base_name,
                         &receiver_ty,
@@ -2574,6 +3042,16 @@ impl SemanticChecker {
                 base,
                 "resultado de função sem retorno não pode ser receiver de método",
             )?;
+            if let Some(trait_name) = Self::trait_object_name(&receiver_ty).map(str::to_string) {
+                return self.check_trait_object_method_call(
+                    expr_span,
+                    callee.span,
+                    &trait_name,
+                    field,
+                    args,
+                );
+            }
+
             let function_name = match self.resolve_impl_method(&receiver_ty, field, callee.span) {
                 Ok(function_name) => function_name,
                 Err(_) if self.funcs.contains_key(field) => field.clone(),

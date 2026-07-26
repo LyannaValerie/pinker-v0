@@ -233,7 +233,31 @@ impl Dobravel para bombom {
 }
 ```
 
-O método do `impl` recebe nome interno e não colide com função top-level homônima; se não houver `impl` compatível, a forma antiga por função global ainda é aceita como fallback. O tipo alvo pode ser escalar ou um `ninho` nominal no recorte atual; no backend nativo, `ninho` trafega como parâmetro/local opaco, sem abrir construção por valor nem acesso `p.campo` operacional por valor. Cada `impl` precisa implementar todos os métodos do `trato` e não pode declarar métodos extras. Desde a Fase 232, um mesmo tipo pode implementar múltiplos tratos. Desde a Fase 234, quando tratos diferentes implementados pelo mesmo tipo expõem o mesmo nome de método, `valor.metodo()` é ambíguo e a chamada deve escolher o contrato explicitamente com `Trato.metodo(valor, ...)`. Objetos de trait, vtables, dynamic dispatch, coerções, default methods e overloading amplo continuam fora.
+O método do `impl` recebe nome interno e não colide com função top-level homônima; se não houver `impl` compatível, a forma antiga por função global ainda é aceita como fallback. O tipo alvo pode ser escalar ou um `ninho` nominal no recorte atual; no backend nativo, `ninho` trafega como parâmetro/local opaco, sem abrir construção por valor nem acesso `p.campo` operacional por valor. Cada `impl` precisa implementar todos os métodos do `trato` e não pode declarar métodos extras. Desde a Fase 232, um mesmo tipo pode implementar múltiplos tratos. Desde a Fase 234, quando tratos diferentes implementados pelo mesmo tipo expõem o mesmo nome de método, `valor.metodo()` é ambíguo e a chamada deve escolher o contrato explicitamente com `Trato.metodo(valor, ...)`.
+
+### Objetos de trato e despacho dinâmico
+
+Desde a Fase 244, um trato objetificável pode ser usado como tipo nominal explícito:
+
+```pink
+trato Medivel {
+    carinho valor(x: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho valor(x: bombom) -> bombom { mimo x; }
+}
+
+carinho usar(objeto: trato<Medivel>) -> bombom {
+    mimo objeto.valor();
+}
+
+nova objeto: trato<Medivel> = 42 virar trato<Medivel>;
+```
+
+O receiver `si` aparece apenas na assinatura do trato e é substituído pelo tipo concreto no `impl`. A conversão é sempre explícita com `virar`; não há coerção implícita. Nesta fase, a materialização dinâmica aceita tipos concretos escalares e `ninho`; coleções, mapas, arrays, ponteiros, callables, leques e outros tipos aplicados são rejeitados explicitamente, ainda que o sistema estático de `impl` reconheça alguma dessas formas. A materialização copia o valor concreto para um snapshot e produz um handle de uma palavra. O handle aponta para um descritor de duas palavras (`data_ptr`, `vtable_ptr`), e cópias do handle compartilham o descritor. A implementação nativa emite vtables estáticas em `.rodata`, com slots na ordem declarada do trato, e faz chamada indireta pela ABI Linux x86-64 System V com o receiver como primeiro argumento. Métodos que não retornam valor também são suportados.
+
+O interpretador e o backend nativo têm a mesma semântica observável e o exemplo completo está em `examples/fase244_objetos_trato_dinamicos_valido.pink`. O lifetime atual é monotônico: snapshots e descritores não são liberados, coletados nem contados. Coerções, default methods, downcasting/upcasting, herança, igualdade/serialização e objetos de múltiplos tratos continuam fora.
 
 ## 5) Fluxo de controle
 
@@ -532,7 +556,7 @@ das fases B2–B11 do Eixo B.
 
 No estado atual, ainda há limites importantes para uso geral:
 - o backend nativo alcançou paridade para a superfície versionada compatível do Eixo B, mas ainda há limites fora desse manifesto, como `ouvir` interativo e futuras features de linguagem ainda não abertas;
-- error handling estruturado existe via `tentar`, propagação explícita `propagar` e forma curta `propagar?` sobre leques de resultado declarados pelo usuário; tratos estáticos, chamada por método e `impl` nominal com cobertura completa existem no recorte das Fases 226–230; funções locais tipadas não capturantes existem como alias estático de chamada; closures capturantes e dynamic dispatch seguem fora;
+- error handling estruturado existe via `tentar`, propagação explícita `propagar` e forma curta `propagar?` sobre leques de resultado declarados pelo usuário; tratos estáticos e objetos de trato com despacho dinâmico existem no recorte das Fases 226–230, 232, 234 e 244; funções locais tipadas, valores de função e closures com captura imutável também existem nos recortes versionados; ownership/lifetime de ambientes e objetos continua monotônico e sem desalocação;
 - generics cobrem `lista<T>` com `T` = leque e `mapa<K,V>` nas quatro combinações públicas `verso`/`bombom`; funções genéricas de usuário seguem fora;
 - API de arquivo segue sem modos avançados de streaming.
 

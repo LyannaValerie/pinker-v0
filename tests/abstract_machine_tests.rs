@@ -578,3 +578,87 @@ fn fase243_closure_com_captura_vira_make_closure_na_maquina() {
     assert!(out.contains("make_closure"), "{}", out);
 }
 // @pinker-nav:end evidencia.machine.renderizacao-papeis-de-blocos
+
+// @pinker-nav:start evidencia.machine.objetos-trato-fase244
+// @pinker-nav:domain machine
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita o lowering da seleção da Fase 244 para operações próprias da máquina de pilha, preservando snapshot, vtable, slot de método, aridade e chamadas com ou sem retorno.
+
+#[test]
+fn fase244_machine_materializa_e_despacha_com_retorno() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si, fator: bombom) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom, fator: bombom) -> bombom {
+        mimo valor * fator;
+    }
+}
+
+carinho empacotar(valor: bombom) -> trato<Medivel> {
+    mimo valor virar trato<Medivel>;
+}
+
+carinho consultar(objeto: trato<Medivel>) -> bombom {
+    mimo objeto.medir(2);
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let machine = render_machine(code).unwrap();
+
+    assert!(
+        machine.contains(
+            "make_trait_object trato<Medivel>, concrete=bombom:bombom, size=8, vtable=[__impl_7_Medivel_6_bombom_medir]"
+        ),
+        "máquina inesperada:\n{machine}"
+    );
+
+    assert!(
+        machine.contains("trait_call trato<Medivel>.medir#0/1, argc=1, ret=bombom"),
+        "máquina inesperada:\n{machine}"
+    );
+}
+
+#[test]
+fn fase244_machine_preserva_trait_call_nula_sem_store_de_retorno() {
+    let code = r#"
+pacote main;
+
+trato Observavel {
+    carinho observar(valor: si, codigo: bombom);
+}
+
+impl Observavel para bombom {
+    carinho observar(valor: bombom, codigo: bombom) {
+        falar(valor, codigo);
+        mimo;
+    }
+}
+
+carinho usar(objeto: trato<Observavel>) {
+    objeto.observar(7);
+    mimo;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}
+"#;
+
+    let machine = render_machine(code).unwrap();
+
+    assert!(
+        machine.contains("trait_call trato<Observavel>.observar#0/1, argc=1, ret=nulo"),
+        "máquina inesperada:\n{machine}"
+    );
+}
+
+// @pinker-nav:end evidencia.machine.objetos-trato-fase244
