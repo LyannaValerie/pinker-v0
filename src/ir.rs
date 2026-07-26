@@ -488,18 +488,36 @@ fn parse_impl_function_name(name: &str) -> Option<(String, String, String)> {
     Some((trait_name, target_type, method_name))
 }
 
-fn trait_object_name_from_type(ty: &Type) -> Option<String> {
-    let Type::Applied { name, args, .. } = ty else {
-        return None;
-    };
-
-    if name != "trato" {
-        return None;
+fn trait_object_name_from_type(
+    ty: &Type,
+    aliases: &HashMap<String, Type>,
+    struct_names: &HashSet<String>,
+) -> Result<Option<String>, PinkerError> {
+    if TypeIR::from_ast_with_context(ty, aliases, struct_names)? != TypeIR::TraitObject {
+        return Ok(None);
     }
 
-    match args.as_slice() {
-        [Type::Alias { name, .. }] => Some(name.clone()),
-        _ => None,
+    let mut resolved = ty;
+    let mut resolving = HashSet::new();
+    while let Type::Alias { name, span } = resolved {
+        if !resolving.insert(name) {
+            return Err(PinkerError::Ir {
+                msg: format!("alias de tipo recursivo detectado em '{}'", name),
+                span: *span,
+            });
+        }
+        resolved = aliases.get(name).ok_or_else(|| PinkerError::Ir {
+            msg: format!("tipo '{}' não existe", name),
+            span: *span,
+        })?;
+    }
+
+    match resolved {
+        Type::Applied { name, args, .. } if name == "trato" => match args.as_slice() {
+            [Type::Alias { name, .. }] => Ok(Some(name.clone())),
+            _ => Ok(None),
+        },
+        _ => Ok(None),
     }
 }
 
@@ -751,7 +769,9 @@ impl LoweringContext {
                     let ret_trait_name = method
                         .ret_type
                         .as_ref()
-                        .and_then(trait_object_name_from_type);
+                        .map(|ty| trait_object_name_from_type(ty, &type_aliases, &struct_names))
+                        .transpose()?
+                        .flatten();
 
                     Ok::<_, PinkerError>(TraitMethodMetaIR {
                         name: method.name.clone(),
@@ -778,7 +798,9 @@ impl LoweringContext {
                     all_functions.insert(function.name.clone(), function.clone());
 
                     if let Some(ret_type) = function.ret_type.as_ref() {
-                        if let Some(trait_name) = trait_object_name_from_type(ret_type) {
+                        if let Some(trait_name) =
+                            trait_object_name_from_type(ret_type, &type_aliases, &struct_names)?
+                        {
                             function_ret_trait_names.insert(function.name.clone(), trait_name);
                         }
                     }
@@ -1824,14 +1846,20 @@ impl<'a> FunctionLowerer<'a> {
         })
     }
 
-    fn trait_object_name_for_expr(&self, expr: &Expr) -> Option<String> {
-        match &expr.kind {
+    fn trait_object_name_for_expr(&self, expr: &Expr) -> Result<Option<String>, PinkerError> {
+        let trait_name = match &expr.kind {
             ExprKind::Ident(name) => {
-                let binding = self.resolve_existing_binding(name)?;
+                let Some(binding) = self.resolve_existing_binding(name) else {
+                    return Ok(None);
+                };
 
                 self.trait_object_names.get(&binding.slot).cloned()
             }
-            ExprKind::Cast { target, .. } => trait_object_name_from_type(target),
+            ExprKind::Cast { target, .. } => trait_object_name_from_type(
+                target,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )?,
             ExprKind::Call(callee, _) => match &callee.kind {
                 ExprKind::Ident(function_name) => self
                     .context
@@ -1843,21 +1871,24 @@ impl<'a> FunctionLowerer<'a> {
                         ExprKind::Ident(name) if self.context.traits.contains_key(name) => {
                             name.clone()
                         }
-                        _ => self.trait_object_name_for_expr(base)?,
+                        _ => {
+                            let Some(name) = self.trait_object_name_for_expr(base)? else {
+                                return Ok(None);
+                            };
+                            name
+                        }
                     };
                     self.context
                         .traits
-                        .get(&trait_name)?
-                        .methods
-                        .iter()
-                        .find(|method| method.name == *field)?
-                        .ret_trait_name
-                        .clone()
+                        .get(&trait_name)
+                        .and_then(|meta| meta.methods.iter().find(|method| method.name == *field))
+                        .and_then(|method| method.ret_trait_name.clone())
                 }
                 _ => None,
             },
             _ => None,
-        }
+        };
+        Ok(trait_name)
     }
 
     fn concrete_snapshot_size(&self, value: &TypedValueIR, span: Span) -> Result<u64, PinkerError> {
@@ -2037,7 +2068,11 @@ impl<'a> FunctionLowerer<'a> {
                 None,
             );
 
-            if let Some(trait_name) = trait_object_name_from_type(&param.ty) {
+            if let Some(trait_name) = trait_object_name_from_type(
+                &param.ty,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )? {
                 self.trait_object_names
                     .insert(binding.slot.clone(), trait_name);
             }
@@ -2302,7 +2337,11 @@ impl<'a> FunctionLowerer<'a> {
                 None,
             );
 
-            if let Some(trait_name) = trait_object_name_from_type(&param.ty) {
+            if let Some(trait_name) = trait_object_name_from_type(
+                &param.ty,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )? {
                 self.trait_object_names
                     .insert(binding.slot.clone(), trait_name);
             }
@@ -2581,11 +2620,15 @@ impl<'a> FunctionLowerer<'a> {
                 });
             }
         }
-        let trait_object_name = let_stmt
-            .ty
-            .as_ref()
-            .and_then(trait_object_name_from_type)
-            .or_else(|| self.trait_object_name_for_expr(&let_stmt.init));
+        let trait_object_name = match let_stmt.ty.as_ref() {
+            Some(ty) => trait_object_name_from_type(
+                ty,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )?,
+            None => None,
+        }
+        .or(self.trait_object_name_for_expr(&let_stmt.init)?);
 
         let value = self.lower_value(&let_stmt.init)?;
         let ty = if let Some(annotated_ty) = let_stmt.ty.as_ref() {
@@ -3066,7 +3109,7 @@ impl<'a> FunctionLowerer<'a> {
 
                     if receiver.ty == TypeIR::TraitObject {
                         let trait_name =
-                            self.trait_object_name_for_expr(base).ok_or_else(|| {
+                            self.trait_object_name_for_expr(base)?.ok_or_else(|| {
                                 PinkerError::Ir {
                                     msg: format!(
                                         "lowering perdeu a identidade nominal do receiver de '{}'",
@@ -3462,11 +3505,15 @@ impl<'a> FunctionLowerer<'a> {
                 let target_type = self.context.resolve_type(target)?;
 
                 if target_type == TypeIR::TraitObject {
-                    let trait_name =
-                        trait_object_name_from_type(target).ok_or_else(|| PinkerError::Ir {
-                            msg: "materialização sem nome nominal de trato".to_string(),
-                            span: expr.span,
-                        })?;
+                    let trait_name = trait_object_name_from_type(
+                        target,
+                        &self.context.type_aliases,
+                        &self.context.struct_names,
+                    )?
+                    .ok_or_else(|| PinkerError::Ir {
+                        msg: "materialização sem nome nominal de trato".to_string(),
+                        span: expr.span,
+                    })?;
 
                     let concrete_type_name =
                         Self::impl_receiver_key(&lowered_source).ok_or_else(|| {
@@ -4285,5 +4332,73 @@ impl BinaryOpIR {
             BinaryOpIR::Gt => "gt",
             BinaryOpIR::Gte => "gte",
         }
+    }
+}
+
+#[cfg(test)]
+mod trait_object_alias_tests {
+    use super::*;
+    use crate::token::Position;
+
+    fn span() -> Span {
+        Span::new(Position::new(1, 1), Position::new(1, 1))
+    }
+
+    fn alias(name: &str) -> Type {
+        Type::Alias {
+            name: name.to_string(),
+            span: span(),
+        }
+    }
+
+    fn trait_object(name: &str) -> Type {
+        Type::Applied {
+            name: "trato".to_string(),
+            args: vec![alias(name)],
+            span: span(),
+        }
+    }
+
+    #[test]
+    fn trait_object_name_resolve_aliases_externos_sem_resolver_nome_interno() {
+        let aliases = HashMap::from([
+            ("ObjetoBase".to_string(), trait_object("Medivel")),
+            ("ObjetoPublico".to_string(), alias("ObjetoBase")),
+            ("Numero".to_string(), Type::Bombom(span())),
+        ]);
+        let structs = HashSet::new();
+
+        assert_eq!(
+            trait_object_name_from_type(&trait_object("Medivel"), &aliases, &structs).unwrap(),
+            Some("Medivel".to_string())
+        );
+        assert_eq!(
+            trait_object_name_from_type(&alias("ObjetoBase"), &aliases, &structs).unwrap(),
+            Some("Medivel".to_string())
+        );
+        assert_eq!(
+            trait_object_name_from_type(&alias("ObjetoPublico"), &aliases, &structs).unwrap(),
+            Some("Medivel".to_string())
+        );
+        assert_eq!(
+            trait_object_name_from_type(&alias("Numero"), &aliases, &structs).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn trait_object_name_rejeita_alias_ciclico_e_inexistente() {
+        let aliases = HashMap::from([("A".to_string(), alias("B")), ("B".to_string(), alias("A"))]);
+        let structs = HashSet::new();
+
+        let ciclo = trait_object_name_from_type(&alias("A"), &aliases, &structs)
+            .expect_err("ciclo não pode virar ausência silenciosa")
+            .to_string();
+        assert!(ciclo.contains("alias de tipo recursivo"));
+
+        let ausente = trait_object_name_from_type(&alias("Ausente"), &aliases, &structs)
+            .expect_err("alias ausente não pode virar ausência silenciosa")
+            .to_string();
+        assert!(ausente.contains("tipo 'Ausente' não existe"));
     }
 }

@@ -836,4 +836,115 @@ vtable=[__impl_7_Medivel_5_Ponto_medir]"
     );
 }
 
+#[test]
+fn fase244_lowering_preserva_identidade_de_trato_por_aliases_em_todos_os_fluxos() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+
+apelido ObjetoBase = trato<Medivel>;
+apelido ObjetoPublico = ObjetoBase;
+apelido Numero = bombom;
+
+carinho usar_base(objeto: ObjetoBase) -> bombom {
+    mimo objeto.medir();
+}
+
+carinho usar_publico(objeto: ObjetoPublico) -> bombom {
+    mimo objeto.medir();
+}
+
+carinho criar_base(valor: bombom) -> ObjetoBase {
+    mimo valor virar trato<Medivel>;
+}
+
+carinho criar_publico(valor: bombom) -> ObjetoPublico {
+    mimo valor virar trato<Medivel>;
+}
+
+trato Fabrica {
+    carinho criar(valor: si) -> ObjetoPublico;
+}
+
+impl Fabrica para bombom {
+    carinho criar(valor: bombom) -> ObjetoPublico {
+        mimo valor virar trato<Medivel>;
+    }
+}
+
+carinho principal() -> bombom {
+    nova direto: trato<Medivel> = 7 virar trato<Medivel>;
+    nova base: ObjetoBase = 11 virar trato<Medivel>;
+    nova publico: ObjetoPublico = 13 virar trato<Medivel>;
+    nova copia = publico;
+    nova numero: Numero = 5;
+    nova fabrica: trato<Fabrica> = 41 virar trato<Fabrica>;
+    falar(direto.medir());
+    falar(usar_base(base));
+    falar(usar_publico(copia));
+    falar(copia.medir());
+    falar(criar_base(17).medir());
+    falar(criar_publico(19).medir());
+    falar(fabrica.criar().medir());
+    falar(numero);
+    mimo 0;
+}
+"#;
+
+    let rendered = render_ir(code).unwrap();
+    assert_eq!(
+        rendered.matches("trait_call trato<Medivel>.medir").count(),
+        7,
+        "parâmetros, retornos, local, cópia e encadeamento devem preservar Medivel:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("let %numero#0 = 5:bombom"),
+        "alias não-trato deve permanecer um bombom comum:\n{rendered}"
+    );
+}
+
+#[test]
+fn fase244_lowering_rejeita_ciclo_e_alias_inexistente_sem_fallback_silencioso() {
+    let ciclo = parse(
+        r#"
+pacote main;
+apelido A = B;
+apelido B = A;
+carinho usar(valor: A) -> bombom { mimo 0; }
+carinho principal() -> bombom { mimo 0; }
+"#,
+    )
+    .unwrap();
+    let err = ir::lower_program(&ciclo)
+        .expect_err("ciclo deve falhar antes de qualquer fallback nominal")
+        .to_string();
+    assert!(
+        err.contains("alias de tipo recursivo"),
+        "erro inesperado: {err}"
+    );
+
+    let ausente = parse(
+        r#"
+pacote main;
+carinho usar(valor: Ausente) -> bombom { mimo 0; }
+carinho principal() -> bombom { mimo 0; }
+"#,
+    )
+    .unwrap();
+    let err = ir::lower_program(&ausente)
+        .expect_err("alias inexistente deve falhar antes de qualquer fallback nominal")
+        .to_string();
+    assert!(
+        err.contains("tipo 'Ausente' não existe"),
+        "erro inesperado: {err}"
+    );
+}
+
 // @pinker-nav:end evidencia.ir.lowering-objetos-trato-fase244

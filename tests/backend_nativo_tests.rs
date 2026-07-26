@@ -1910,6 +1910,68 @@ carinho principal() -> bombom {
 }
 
 #[test]
+fn fase244_aliases_de_objeto_preservam_paridade_nativa_em_todos_os_fluxos() {
+    let fonte = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+
+apelido ObjetoBase = trato<Medivel>;
+apelido ObjetoPublico = ObjetoBase;
+apelido Numero = bombom;
+
+carinho usar_base(objeto: ObjetoBase) -> bombom { mimo objeto.medir(); }
+carinho usar_publico(objeto: ObjetoPublico) -> bombom { mimo objeto.medir(); }
+carinho criar_base(valor: bombom) -> ObjetoBase {
+    mimo valor virar trato<Medivel>;
+}
+carinho criar_publico(valor: bombom) -> ObjetoPublico {
+    mimo valor virar trato<Medivel>;
+}
+
+trato Fabrica {
+    carinho criar(valor: si) -> ObjetoPublico;
+}
+
+impl Fabrica para bombom {
+    carinho criar(valor: bombom) -> ObjetoPublico {
+        mimo valor virar trato<Medivel>;
+    }
+}
+
+carinho principal() -> bombom {
+    nova direto: trato<Medivel> = 7 virar trato<Medivel>;
+    nova base: ObjetoBase = 11 virar trato<Medivel>;
+    nova publico: ObjetoPublico = 13 virar trato<Medivel>;
+    nova copia = publico;
+    nova numero: Numero = 5;
+    nova fabrica: trato<Fabrica> = 41 virar trato<Fabrica>;
+    falar(direto.medir());
+    falar(usar_base(base));
+    falar(usar_publico(copia));
+    falar(copia.medir());
+    falar(criar_base(17).medir());
+    falar(criar_publico(19).medir());
+    falar(fabrica.criar().medir());
+    falar(numero);
+    mimo 0;
+}
+"#;
+    fase244_paridade_fonte(
+        fonte,
+        "aliases_objeto",
+        244_006,
+        b"7\n11\n13\n13\n17\n19\n41\n5\n",
+    );
+}
+
+#[test]
 fn fase244_objeto_e_argumento_com_efeito_sao_avaliados_uma_vez_em_ordem() {
     let fonte = r#"
 pacote main;

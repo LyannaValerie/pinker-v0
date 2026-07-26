@@ -10089,6 +10089,64 @@ carinho principal() -> bombom {
     assert_eq!(result, Some(RuntimeValue::Int(42)));
 }
 
+#[test]
+fn fase244_interpreter_preserva_aliases_de_objeto_em_parametros_retornos_metodos_e_copias() {
+    let code = r#"
+pacote main;
+
+trato Medivel {
+    carinho medir(valor: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho medir(valor: bombom) -> bombom { mimo valor; }
+}
+
+apelido ObjetoBase = trato<Medivel>;
+apelido ObjetoPublico = ObjetoBase;
+apelido Numero = bombom;
+
+carinho usar_base(objeto: ObjetoBase) -> bombom { mimo objeto.medir(); }
+carinho usar_publico(objeto: ObjetoPublico) -> bombom { mimo objeto.medir(); }
+carinho criar_base(valor: bombom) -> ObjetoBase {
+    mimo valor virar trato<Medivel>;
+}
+carinho criar_publico(valor: bombom) -> ObjetoPublico {
+    mimo valor virar trato<Medivel>;
+}
+
+trato Fabrica {
+    carinho criar(valor: si) -> ObjetoPublico;
+}
+
+impl Fabrica para bombom {
+    carinho criar(valor: bombom) -> ObjetoPublico {
+        mimo valor virar trato<Medivel>;
+    }
+}
+
+carinho principal() -> bombom {
+    nova direto: trato<Medivel> = 7 virar trato<Medivel>;
+    nova base: ObjetoBase = 11 virar trato<Medivel>;
+    nova publico: ObjetoPublico = 13 virar trato<Medivel>;
+    nova copia = publico;
+    nova numero: Numero = 5;
+    nova fabrica: trato<Fabrica> = 41 virar trato<Fabrica>;
+    mimo direto.medir()
+        + usar_base(base)
+        + usar_publico(copia)
+        + copia.medir()
+        + criar_base(17).medir()
+        + criar_publico(19).medir()
+        + fabrica.criar().medir()
+        + numero;
+}
+"#;
+
+    let result = run_code(code).unwrap();
+    assert_eq!(result, Some(RuntimeValue::Int(126)));
+}
+
 fn fase244_manual_trait_program(code: Vec<MachineInstr>) -> MachineProgram {
     MachineProgram {
         module_name: "main".to_string(),

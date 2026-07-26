@@ -1953,7 +1953,7 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
             &expected_ir_keys[..ir_validate_start],
             "tests/ir_tests.rs",
             "ir",
-            37,
+            39,
         ),
         (
             &expected_ir_keys[ir_validate_start..],
@@ -2099,8 +2099,8 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
         "o plano da Onda 8D perdeu uma chave"
     );
     assert_eq!(
-        total_test_count, 177,
-        "a Onda 8D deveria cobrir exatamente 177 testes"
+        total_test_count, 179,
+        "a Onda 8D deveria cobrir exatamente 179 testes"
     );
 
     // As 53 regiões de evidência anteriores devem permanecer: total de evidência = 53 + 58.
@@ -2140,7 +2140,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
     exclude_pink_agent_wave_a(&mut catalog);
 
-    // A Onda 8E cartografa 562 testes de tests/interpreter_tests.rs (evidências
+    // A Onda 8E cartografa 563 testes de tests/interpreter_tests.rs (evidências
     // da execução interpretada da Pinker) em 46 regiões no domínio `interpreter`.
     // Quatro testes de build/backend ficam explicitamente adiados. As contagens
     // de #[test] por região estão congeladas no plano e a ordem física da suíte
@@ -2227,7 +2227,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
             "evidencia.interpreter.leques-trazer-recursos-e-programas-brinquedo",
             20,
         ),
-        ("evidencia.interpreter.objetos-trato-fase244", 9),
+        ("evidencia.interpreter.objetos-trato-fase244", 10),
         (
             "evidencia.interpreter.ponteiros-boot-freestanding-e-subset-nativo",
             21,
@@ -2334,7 +2334,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         "src/navigation.jsonl diverge da regeneração canônica (summary, faixa ou hash)"
     );
 
-    // Cobertura estrutural: 562 testes pertencem a exatamente uma região 8E e
+    // Cobertura estrutural: 563 testes pertencem a exatamente uma região 8E e
     // somente as quatro exclusões fechadas acima permanecem fora dessas regiões.
     let source_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(file);
     let source = fs::read_to_string(&source_path)
@@ -2403,12 +2403,12 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     }
 
     assert_eq!(
-        total_test_count, 566,
-        "a suíte interpreter deveria manter exatamente 566 testes"
+        total_test_count, 567,
+        "a suíte interpreter deveria manter exatamente 567 testes"
     );
     assert_eq!(
-        mapped_test_count, 562,
-        "a Onda 8E deveria cartografar exatamente 562 testes da suíte interpreter"
+        mapped_test_count, 563,
+        "a Onda 8E deveria cartografar exatamente 563 testes da suíte interpreter"
     );
     assert_eq!(
         found_excluded_from_8e, expected_excluded_from_8e,
@@ -3072,8 +3072,8 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        69,
-        "{backend_nativo} deve manter exatamente 69 #[test]"
+        70,
+        "{backend_nativo} deve manter exatamente 70 #[test]"
     );
 
     for future_without_owner in [
@@ -4626,8 +4626,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        69,
-        "{nativo} deve manter exatamente 69 testes"
+        70,
+        "{nativo} deve manter exatamente 70 testes"
     );
     assert_eq!(
         catalog
