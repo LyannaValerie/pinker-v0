@@ -37,9 +37,9 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 /// - branch condicional mínimo via teste contra zero (`cmpq $0` + `jne`) e sem ABI completa.
 /// - globais estáticas mínimas somente-leitura em `.rodata`: `eterno` de valor literal inteiro/lógico com leitura por símbolo `@nome(%rip)`.
 /// - composto mínimo conservador: base homogênea `seta<bombom>` com `deref_store`/`deref_load` mínimo e abertura heterogênea em quatro camadas para `ninho`, incluindo composição mínima auditável no mesmo registro (`u32` + `u64`) via offset explícito;
-/// - inteiros fixos adicionais no recorte externo: `u32` (Fase 120) e `u64` (Fase 121) em parâmetros e locais, reaproveitando movimentação/call no mesmo frame/ABI mínima existente;
+/// - escalares inteiros e lógicos aceitos pela semântica em parâmetros dinâmicos, com normalização SysV explícita em registradores e pilha;
 /// - `quebrar`/`continuar` (Fase 128, camada 3 conservadora) no recorte de `sempre que` já materializado em `selected`, com composição mínima auditável de três níveis de laço (`sempre que` externo/meio/interno) sem abrir subsistema geral de controle de fluxo;
-/// - `virar` (Fase 134, camada 2 conservadora) no recorte mínimo explícito `u32 -> u64` e `u64 -> u32` quando a origem é slot local/parâmetro tipado;
+/// - `virar` (Fase 134, camada 2 conservadora) entre `u32`/`u64` e de escalares SysV para `bombom`, quando a origem é slot local/parâmetro tipado;
 /// - `verso` (Fase 135, camada 1 conservadora e condicional) apenas no recorte mínimo opaco: literal estático em `.rodata` + carga de endereço + tráfego por slot/parâmetro, sem operações textuais gerais.
 ///
 /// O resultado mapeia `principal` para o símbolo `main`, para permitir linkedição
@@ -260,7 +260,7 @@ fn extract_external_callconv_program(
                 && is_external_trait_receiver_type(ty);
             if !is_external_param_type(ty) && !is_trait_receiver {
                 return Err(err(
-                    "subset externo montável aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>` no recorte conservador",
+                    "subset externo montável aceita parâmetros escalares SysV, `verso` opaco mínimo, `ninho` opaco ou `seta<T>` no recorte conservador",
                 ));
             }
         }
@@ -532,11 +532,6 @@ fn extract_external_callconv_program(
                         value,
                         target_type,
                     } => {
-                        if *target_type != TypeIR::U64 && *target_type != TypeIR::U32 {
-                            return Err(err(
-                                "subset externo montável (Fase 134) aceita `virar` apenas no recorte mínimo `u32 -> u64` e `u64 -> u32`",
-                            ));
-                        }
                         let OperandIR::Local(source_slot) = value else {
                             return Err(err(
                                 "subset externo montável (Fase 134) exige origem em slot local/parâmetro tipado para `virar` mínimo",
@@ -549,10 +544,12 @@ fn extract_external_callconv_program(
                         };
                         let cast_supported = (*source_ty == TypeIR::U32
                             && *target_type == TypeIR::U64)
-                            || (*source_ty == TypeIR::U64 && *target_type == TypeIR::U32);
+                            || (*source_ty == TypeIR::U64 && *target_type == TypeIR::U32)
+                            || (*target_type == TypeIR::Bombom
+                                && is_external_scalar_param_type(source_ty));
                         if !cast_supported {
                             return Err(err(
-                                "subset externo montável (Fase 134) aceita `virar` mínimo apenas de slot `u32 -> u64` ou `u64 -> u32`",
+                                "subset externo montável aceita `virar` de escalar SysV para `bombom` e preserva o recorte `u32 <-> u64`",
                             ));
                         }
                         register_rodata_strings_for_operand(
@@ -566,7 +563,11 @@ fn extract_external_callconv_program(
                             &slot_offsets,
                             &rodata_strings,
                         )?);
-                        body.push("movl %eax, %eax".to_string());
+                        if *target_type == TypeIR::U32 {
+                            body.push("movl %eax, %eax".to_string());
+                        } else {
+                            body.extend(normalize_sysv_scalar_argument(REG_RET, *source_ty)?);
+                        }
                         body.push(format!(
                             "movq {}, -{}(%rbp)",
                             REG_RET,
@@ -1004,23 +1005,30 @@ fn extract_external_callconv_program(
                             body.push("subq $8, %rsp".to_string());
                         }
                         for virtual_index in (ARG_REGS.len()..total_args).rev() {
+                            let param_type = param_types[virtual_index - 1];
                             body.extend(load_operand(
                                 "%r11",
                                 &args[virtual_index - 1],
                                 &slot_offsets,
                                 &rodata_strings,
                             )?);
+                            body.extend(normalize_sysv_scalar_argument("%r11", param_type)?);
                             body.push("pushq %r11".to_string());
                         }
 
                         let data_offset = 8 * (stack_args + pad);
                         body.push(format!("movq {}(%rsp), %rdi", data_offset));
                         for virtual_index in 1..total_args.min(ARG_REGS.len()) {
+                            let param_type = param_types[virtual_index - 1];
                             body.extend(load_operand(
                                 ARG_REGS[virtual_index],
                                 &args[virtual_index - 1],
                                 &slot_offsets,
                                 &rodata_strings,
+                            )?);
+                            body.extend(normalize_sysv_scalar_argument(
+                                ARG_REGS[virtual_index],
+                                param_type,
                             )?);
                         }
                         body.push(format!("movq {}(%rsp), %r11", data_offset + 8));
@@ -1847,6 +1855,49 @@ fn trait_adapter_receiver_load(concrete_type: TypeIR) -> &'static str {
     }
 }
 
+fn normalize_sysv_scalar_argument(register: &str, ty: TypeIR) -> Result<Vec<String>, PinkerError> {
+    let Some((reg8, reg16, reg32)) = (match register {
+        "%rax" => Some(("%al", "%ax", "%eax")),
+        "%rdi" => Some(("%dil", "%di", "%edi")),
+        "%rsi" => Some(("%sil", "%si", "%esi")),
+        "%rdx" => Some(("%dl", "%dx", "%edx")),
+        "%rcx" => Some(("%cl", "%cx", "%ecx")),
+        "%r8" => Some(("%r8b", "%r8w", "%r8d")),
+        "%r9" => Some(("%r9b", "%r9w", "%r9d")),
+        "%r10" => Some(("%r10b", "%r10w", "%r10d")),
+        "%r11" => Some(("%r11b", "%r11w", "%r11d")),
+        _ => None,
+    }) else {
+        return if matches!(
+            ty,
+            TypeIR::U8
+                | TypeIR::I8
+                | TypeIR::U16
+                | TypeIR::I16
+                | TypeIR::U32
+                | TypeIR::I32
+                | TypeIR::Logica
+        ) {
+            Err(err(
+                "backend nativo não conhece subregistrador SysV para normalizar escalar",
+            ))
+        } else {
+            Ok(Vec::new())
+        };
+    };
+
+    let instruction = match ty {
+        TypeIR::U8 | TypeIR::Logica => Some(format!("movzbq {}, {}", reg8, register)),
+        TypeIR::I8 => Some(format!("movsbq {}, {}", reg8, register)),
+        TypeIR::U16 => Some(format!("movzwq {}, {}", reg16, register)),
+        TypeIR::I16 => Some(format!("movswq {}, {}", reg16, register)),
+        TypeIR::U32 => Some(format!("movl {}, {}", reg32, reg32)),
+        TypeIR::I32 => Some(format!("movslq {}, {}", reg32, register)),
+        _ => None,
+    };
+    Ok(instruction.into_iter().collect())
+}
+
 fn sysv_stack_layout(total_args: usize) -> (usize, usize) {
     let stack_args = total_args.saturating_sub(ARG_REGS.len());
     (stack_args, stack_args % 2)
@@ -1951,9 +2002,7 @@ fn is_external_deref_store_type(ty: &TypeIR) -> bool {
 }
 
 fn is_external_param_type(ty: &TypeIR) -> bool {
-    *ty == TypeIR::Bombom
-        || *ty == TypeIR::U32
-        || *ty == TypeIR::U64
+    is_external_scalar_param_type(ty)
         || *ty == TypeIR::Verso
         || *ty == TypeIR::Logica
         || *ty == TypeIR::ListBombom
@@ -1966,6 +2015,22 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
         || *ty == TypeIR::Pointer { is_volatile: false }
         || *ty == TypeIR::Function
         || *ty == TypeIR::TraitObject
+}
+
+fn is_external_scalar_param_type(ty: &TypeIR) -> bool {
+    matches!(
+        ty,
+        TypeIR::Bombom
+            | TypeIR::U8
+            | TypeIR::U16
+            | TypeIR::U32
+            | TypeIR::U64
+            | TypeIR::I8
+            | TypeIR::I16
+            | TypeIR::I32
+            | TypeIR::I64
+            | TypeIR::Logica
+    )
 }
 
 fn is_external_trait_receiver_type(ty: &TypeIR) -> bool {

@@ -1874,39 +1874,30 @@ fn fase244_objetos_trato_executam_matriz_sysv_com_receiver_primeiro() {
 }
 
 #[test]
-fn fase244_objetos_trato_suportam_escalar_pequeno_e_retorno_dinamico_encadeado() {
-    let fonte = r#"
-pacote main;
-
-trato Medivel {
-    carinho medir(valor: si) -> bombom;
-}
-
-impl Medivel para u8 {
-    carinho medir(valor: u8) -> bombom {
-        talvez valor == 42 { mimo 42; }
-        mimo 0;
+fn fase244_objetos_trato_suportam_matriz_escalar_em_registradores_e_pilha() {
+    let fonte = include_str!("fixtures/fase244_parametros_escalares_dinamicos.pink");
+    let asm = fase244_paridade_fonte(fonte, "parametros_escalares", 244_004, b"101\n202\n303\n");
+    if asm.is_empty() {
+        return;
     }
-}
 
-trato Fabrica {
-    carinho criar(valor: si) -> trato<Medivel>;
-}
-
-impl Fabrica para u8 {
-    carinho criar(valor: u8) -> trato<Medivel> {
-        mimo valor virar trato<Medivel>;
+    for instruction in [
+        "movzbq %sil, %rsi",
+        "movsbq %dl, %rdx",
+        "movzwq %cx, %rcx",
+        "movswq %r8w, %r8",
+        "movl %r9d, %r9d",
+        "movslq %r11d, %r11",
+        "movzbq %r11b, %r11",
+        "movsbq %r11b, %r11",
+        "movzwq %r11w, %r11",
+        "movswq %r11w, %r11",
+    ] {
+        assert!(
+            asm.contains(instruction),
+            "normalização SysV ausente para '{instruction}':\n{asm}"
+        );
     }
-}
-
-carinho principal() -> bombom {
-    nova valor: u8 = 42;
-    nova fabrica: trato<Fabrica> = valor virar trato<Fabrica>;
-    falar(fabrica.criar().medir());
-    mimo 0;
-}
-"#;
-    fase244_paridade_fonte(fonte, "escalar_retorno", 244_004, b"42\n");
 }
 
 #[test]

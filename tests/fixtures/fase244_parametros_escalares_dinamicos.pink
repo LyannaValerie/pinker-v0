@@ -1,0 +1,106 @@
+pacote main;
+
+trato Escalares {
+    carinho validar(valor: si, b: bombom, u64v: u64, i64v: i64,
+        u32v: u32, i32v: i32, u16v: u16, i16v: i16,
+        u8v: u8, i8v: i8, lv: logica) -> bombom;
+    carinho validar_reverso(valor: si, lv: logica, i8v: i8, u8v: u8,
+        i16v: i16, u16v: u16, i32v: i32, u32v: u32,
+        i64v: i64, u64v: u64, b: bombom) -> bombom;
+    carinho registrar(valor: si, u8v: u8, i8v: i8, u16v: u16,
+        i16v: i16, u32v: u32, i32v: i32);
+}
+
+impl Escalares para bombom {
+    carinho validar(valor: bombom, b: bombom, u64v: u64, i64v: i64,
+        u32v: u32, i32v: i32, u16v: u16, i16v: i16,
+        u8v: u8, i8v: i8, lv: logica) -> bombom {
+        nova u64b: bombom = u64v virar bombom;
+        nova i64b: bombom = i64v virar bombom;
+        nova u32b: bombom = u32v virar bombom;
+        nova i32b: bombom = i32v virar bombom;
+        nova u16b: bombom = u16v virar bombom;
+        nova i16b: bombom = i16v virar bombom;
+        nova u8b: bombom = u8v virar bombom;
+        nova i8b: bombom = i8v virar bombom;
+        talvez valor == 77 && b == 9
+            && u64b == 18446744073709551615
+            && i64b == 9223372036854775808
+            && u32b == 4294967295
+            && i32b == 18446744071562067968
+            && u16b == 65535
+            && i16b == 18446744073709518848
+            && u8b == 255
+            && i8b == 18446744073709551488
+            && lv {
+            mimo 101;
+        }
+        mimo 0;
+    }
+
+    carinho validar_reverso(valor: bombom, lv: logica, i8v: i8, u8v: u8,
+        i16v: i16, u16v: u16, i32v: i32, u32v: u32,
+        i64v: i64, u64v: u64, b: bombom) -> bombom {
+        nova i8b: bombom = i8v virar bombom;
+        nova u8b: bombom = u8v virar bombom;
+        nova i16b: bombom = i16v virar bombom;
+        nova u16b: bombom = u16v virar bombom;
+        nova i32b: bombom = i32v virar bombom;
+        nova u32b: bombom = u32v virar bombom;
+        nova i64b: bombom = i64v virar bombom;
+        nova u64b: bombom = u64v virar bombom;
+        talvez valor == 77 && lv
+            && i8b == 18446744073709551488
+            && u8b == 255
+            && i16b == 18446744073709518848
+            && u16b == 65535
+            && i32b == 18446744071562067968
+            && u32b == 4294967295
+            && i64b == 9223372036854775808
+            && u64b == 18446744073709551615
+            && b == 9 {
+            mimo 202;
+        }
+        mimo 0;
+    }
+
+    carinho registrar(valor: bombom, u8v: u8, i8v: i8, u16v: u16,
+        i16v: i16, u32v: u32, i32v: i32) {
+        nova u8b: bombom = u8v virar bombom;
+        nova i8b: bombom = i8v virar bombom;
+        nova u16b: bombom = u16v virar bombom;
+        nova i16b: bombom = i16v virar bombom;
+        nova u32b: bombom = u32v virar bombom;
+        nova i32b: bombom = i32v virar bombom;
+        talvez valor == 77
+            && u8b == 255
+            && i8b == 18446744073709551488
+            && u16b == 65535
+            && i16b == 18446744073709518848
+            && u32b == 4294967295
+            && i32b == 18446744071562067968 {
+            falar(303);
+            mimo;
+        }
+        falar(0);
+        mimo;
+    }
+}
+
+carinho principal() -> bombom {
+    nova zero_i64: i64 = 0;
+    nova zero_i32: i32 = 0;
+    nova zero_i16: i16 = 0;
+    nova zero_i8: i8 = 0;
+    nova min_i64: i64 = zero_i64 - 9223372036854775807 - 1;
+    nova min_i32: i32 = zero_i32 - 2147483647 - 1;
+    nova min_i16: i16 = zero_i16 - 32767 - 1;
+    nova min_i8: i8 = zero_i8 - 127 - 1;
+    nova objeto: trato<Escalares> = 77 virar trato<Escalares>;
+    falar(objeto.validar(9, 18446744073709551615, min_i64,
+        4294967295, min_i32, 65535, min_i16, 255, min_i8, verdade));
+    falar(objeto.validar_reverso(verdade, min_i8, 255, min_i16,
+        65535, min_i32, 4294967295, min_i64, 18446744073709551615, 9));
+    objeto.registrar(255, min_i8, 65535, min_i16, 4294967295, min_i32);
+    mimo 0;
+}
