@@ -1,8 +1,55 @@
+---
+pinker-doc: 1
+id: development.semana-estabilizacao-2026-07
+domain: development
+kind: state
+status: active
+parent: development
+audience:
+  - human
+  - agent
+canonical_for:
+  - development.stabilization-window
+related:
+  - development
+  - engine
+  - roadmap
+---
+
 # Semana de estabilização estrutural da Pinker
 
 - **Classe:** Engine
 - **Papel:** estado
 - **Status:** operacional
+
+<!-- @pinker-doc:start
+id: development.semana-estabilizacao-2026-07.estado
+tags: [desenvolvimento, estabilizacao, manutencao, eixo-a, congelamento]
+aliases:
+  - semana de estabilização
+  - congelamento do eixo a
+  - manutenção estrutural
+  - trabalho autorizado durante a estabilização
+summary: Estado operacional, período, trabalhos autorizados e critérios de retomada da semana de estabilização estrutural.
+-->
+## Estado operacional roteável
+
+De **27 de julho a 1º de agosto de 2026**, o Bloco 20 permanece
+estruturalmente ativo e a expansão funcional do Eixo A fica temporariamente
+suspensa.
+
+Durante a janela, estão autorizados:
+
+- refatoração estrutural sem mudança deliberada de comportamento;
+- reorganização documental;
+- bughunting;
+- correção de bugs reproduzidos;
+- testes, CI, sensibilidade, navegação e cartografia necessários.
+
+Novas fases funcionais do Eixo A permanecem suspensas. A retomada exige decisão
+humana explícita. As fontes operacionais superiores são `docs/roadmap.md` e
+`docs/handoff_codex.md`.
+<!-- @pinker-doc:end development.semana-estabilizacao-2026-07.estado -->
 
 ## Período e decisão
 
@@ -10,9 +57,10 @@ A Pinker entra em uma semana de estabilização estrutural entre **27 de julho e
 1º de agosto de 2026**.
 
 Durante essa janela, o **Eixo A fica temporariamente congelado**. O congelamento
-não o declara concluído, não altera o roadmap e não abre uma nova fase
-funcional. Ele apenas suspende a adição de funcionalidades enquanto a base
-existente é reorganizada, auditada e estabilizada.
+não o declara concluído nem abre uma nova fase funcional. Ele não altera a
+direção, a ordem de longo prazo ou o estado histórico do roadmap; registra
+somente uma suspensão operacional temporária enquanto a base existente é
+reorganizada, auditada e estabilizada.
 
 A operação parte da `main` posterior ao merge da PR #407.
 
