@@ -21,6 +21,19 @@
 | Última rodada paralela | **Paralela-1** — negação bitwise dual |
 | Último hotfix | **HF-6** — robustez de literal inteiro fora da faixa |
 
+### Estado operacional estruturado
+
+```yaml
+fase_funcional_mais_recente: 244
+bloco_estruturalmente_ativo: 20
+estado_operacional: semana_de_estabilizacao
+expansao_funcional_eixo_a: SUSPENSA
+janela:
+  inicio: 2026-07-27
+  fim: 2026-08-01
+retomada: decisao_humana_explicita
+```
+
 ### Blocos encerrados
 
 | Bloco | Nome | Encerramento |
@@ -84,6 +97,14 @@
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
+- **Semana de estabilização estrutural — 27 de julho a 1º de agosto de 2026**.
+- O Bloco 20 permanece estruturalmente ativo, enquanto novas fases funcionais
+  do Eixo A ficam suspensas até decisão humana explícita.
+- Trabalho autorizado: refatoração estrutural sem mudança comportamental
+  deliberada; reorganização documental; bughunting; correção de bugs
+  reproduzidos; testes, CI, sensibilidade, navegação e cartografia necessários.
+- Documento operacional:
+  `docs/development/semana-estabilizacao-2026-07.md`.
 - **Doc-48 — presença de Rosa no GitHub Copilot**.
 - `.github/copilot-instructions.md` estabelece o contrato geral do Copilot na Pinker: inspeção antes de afirmação, fontes canônicas, comandos oficiais, anti-mínimo, segurança operacional e princípios de Rosa sem encenação permanente.
 - `.github/agents/rosa.agent.md` define Rosa como agente personalizado selecionável manualmente, com `target: github-copilot`, ferramentas explícitas e ativação automática desabilitada.
@@ -152,6 +173,9 @@ Histórico completo por fase: `docs/history/phases/`.
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
+- Durante a semana de estabilização, a ordem abaixo permanece como direção de
+  longo prazo, mas novas fases funcionais do Eixo A não podem ser iniciadas até
+  decisão humana explícita encerrando a suspensão.
 - Estrutura do Bloco 20 formalizada em dois eixos (Doc-41), padrão pós-Eixo B registrado na Doc-42 e convergência bare-metal formalizada na Doc-46: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado; a trilha BM permanece documental e não implementada.
 - A Fase 244 está implementada localmente nesta rodada, pendente apenas de revisão humana e publicação separada. Qualquer avanço em ownership/lifetime ou desalocação de snapshots/descritores deve definir contrato próprio, incluindo cópia/passagem/retorno de handles, compartilhamento, momento de liberação e prevenção de double free/use-after-free.
 - O item 13 pode iniciar se a direção imediata for memória/SO, mas `alocar`/`liberar` deve ser tratado como mecanismo separado da política de lifetime dos valores que usam o heap. Uma fase de alocador não conclui automaticamente o débito de closures.
