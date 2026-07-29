@@ -1006,7 +1006,10 @@ impl ConfinedFs {
             .to_path_buf();
         while !root.exists() {
             if !root.pop() {
-                return Err(format!("nenhum ancestral existente: {}", absolute.display()));
+                return Err(format!(
+                    "nenhum ancestral existente: {}",
+                    absolute.display()
+                ));
             }
         }
         let confined = Self::new(&root)?;
@@ -1030,9 +1033,7 @@ impl ConfinedFs {
                 Path::new("."),
                 Self::O_RDONLY | Self::O_DIRECTORY | Self::O_CLOEXEC,
                 0,
-                Self::RESOLVE_BENEATH
-                    | Self::RESOLVE_NO_MAGICLINKS
-                    | Self::RESOLVE_NO_SYMLINKS,
+                Self::RESOLVE_BENEATH | Self::RESOLVE_NO_MAGICLINKS | Self::RESOLVE_NO_SYMLINKS,
             );
         }
         Self::openat2(
@@ -1068,9 +1069,7 @@ impl ConfinedFs {
                 name_path,
                 Self::O_PATH | Self::O_DIRECTORY | Self::O_CLOEXEC,
                 0,
-                Self::RESOLVE_BENEATH
-                    | Self::RESOLVE_NO_MAGICLINKS
-                    | Self::RESOLVE_NO_SYMLINKS,
+                Self::RESOLVE_BENEATH | Self::RESOLVE_NO_MAGICLINKS | Self::RESOLVE_NO_SYMLINKS,
             )?;
         }
         Ok(())
@@ -1088,7 +1087,8 @@ impl ConfinedFs {
             Self::RESOLVE_BENEATH | Self::RESOLVE_NO_MAGICLINKS | Self::RESOLVE_NO_SYMLINKS,
         )?;
         let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes).map_err(|err| err.to_string())?;
+        file.read_to_end(&mut bytes)
+            .map_err(|err| err.to_string())?;
         Ok(bytes)
     }
 
@@ -1134,11 +1134,7 @@ impl ConfinedFs {
         let mut file = Self::openat2(
             parent_file.as_raw_fd(),
             temporary_path,
-            Self::O_WRONLY
-                | Self::O_CREAT
-                | Self::O_EXCL
-                | Self::O_CLOEXEC
-                | Self::O_NOFOLLOW,
+            Self::O_WRONLY | Self::O_CREAT | Self::O_EXCL | Self::O_CLOEXEC | Self::O_NOFOLLOW,
             0o600,
             Self::RESOLVE_BENEATH | Self::RESOLVE_NO_MAGICLINKS | Self::RESOLVE_NO_SYMLINKS,
         )?;
@@ -1183,11 +1179,7 @@ impl ConfinedFs {
         let mut file = Self::openat2(
             self.root_file.as_raw_fd(),
             relative,
-            Self::O_WRONLY
-                | Self::O_CREAT
-                | Self::O_APPEND
-                | Self::O_CLOEXEC
-                | Self::O_NOFOLLOW,
+            Self::O_WRONLY | Self::O_CREAT | Self::O_APPEND | Self::O_CLOEXEC | Self::O_NOFOLLOW,
             0o600,
             Self::RESOLVE_BENEATH | Self::RESOLVE_NO_MAGICLINKS | Self::RESOLVE_NO_SYMLINKS,
         )?;
@@ -1353,7 +1345,7 @@ fn artifact_manifest(root: &Path) -> Result<String, String> {
 // @pinker-nav:start development.agent.runner
 // @pinker-nav:domain development
 // @pinker-nav:layer agent
-// @pinker-nav:summary Executor de processos estruturados ou Pinker tipado: resolve deterministicamente o executável corrente e o substituto indicado pelo sufixo Linux ` (deleted)`, mantém cwd e env confinados, shell somente quando declarado, captura simultânea de stdout/stderr, persistência por comando, eco terminal, duração e comparação do código observado com o esperado.
+// @pinker-nav:summary Executor com política externa: shell exige PINKER_AGENT_ALLOW_SHELL, programas exigem allowlist externa e viram caminhos absolutos observados com SHA-256 antes do spawn; Pinker tipado preserva resolução própria, cwd/env continuam confinados e o resultado registra identidade do executável.
 #[derive(Clone, Debug)]
 struct CommandResult {
     id: String,
@@ -1362,6 +1354,160 @@ struct CommandResult {
     expected_exit: i32,
     duration_ms: u128,
     shell: bool,
+    executable_path: Option<PathBuf>,
+    executable_sha256: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct ObservedExecutable {
+    path: PathBuf,
+    sha256: String,
+}
+
+impl ObservedExecutable {
+    fn observe(path: &Path) -> Result<Self, String> {
+        let absolute = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            return Err(format!("executável deve ser absoluto: {}", path.display()));
+        };
+        let canonical = fs::canonicalize(&absolute).map_err(|err| {
+            format!(
+                "falha ao resolver executável '{}': {err}",
+                absolute.display()
+            )
+        })?;
+        if !canonical.is_absolute() {
+            return Err(format!(
+                "resolução de executável não produziu caminho absoluto: {}",
+                canonical.display()
+            ));
+        }
+        let metadata = fs::metadata(&canonical).map_err(|err| err.to_string())?;
+        if !metadata.is_file() {
+            return Err(format!("executável não é arquivo: {}", canonical.display()));
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            if metadata.permissions().mode() & 0o111 == 0 {
+                return Err(format!(
+                    "arquivo sem permissão de execução: {}",
+                    canonical.display()
+                ));
+            }
+        }
+        let bytes = fs::read(&canonical).map_err(|err| err.to_string())?;
+        Ok(Self {
+            path: canonical,
+            sha256: sha256_hex(&bytes),
+        })
+    }
+
+    fn verify(&self) -> Result<(), String> {
+        let current = Self::observe(&self.path)?;
+        if current.path != self.path || current.sha256 != self.sha256 {
+            return Err(format!(
+                "executável mudou entre autorização e spawn: {}",
+                self.path.display()
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ExecutionPolicy {
+    allow_shell: bool,
+    programs: Vec<(String, ObservedExecutable)>,
+}
+
+impl ExecutionPolicy {
+    fn from_external() -> Result<Self, String> {
+        let allow_shell = env::var("PINKER_AGENT_ALLOW_SHELL")
+            .ok()
+            .is_some_and(|value| matches!(value.as_str(), "1" | "true"));
+        let mut programs = Vec::new();
+        if let Some(raw) = env::var_os("PINKER_AGENT_EXECUTABLE_ALLOWLIST") {
+            for declared in env::split_paths(&raw) {
+                if !declared.is_absolute() {
+                    return Err(format!(
+                        "allowlist contém caminho não absoluto: {}",
+                        declared.display()
+                    ));
+                }
+                let alias = declared
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .ok_or_else(|| {
+                        format!("executável sem basename UTF-8: {}", declared.display())
+                    })?
+                    .to_string();
+                programs.push((alias, ObservedExecutable::observe(&declared)?));
+            }
+        }
+        Ok(Self {
+            allow_shell,
+            programs,
+        })
+    }
+
+    fn shell(&self) -> Result<ObservedExecutable, String> {
+        if !self.allow_shell {
+            return Err(
+                "shell solicitado sem autorização externa PINKER_AGENT_ALLOW_SHELL".to_string(),
+            );
+        }
+        ObservedExecutable::observe(Path::new("/bin/sh"))
+    }
+
+    fn program(&self, cwd: &Path, program: &str) -> Result<ObservedExecutable, String> {
+        if matches!(program, "sh" | "bash" | "/bin/sh" | "/bin/bash") {
+            return Err("shell disfarçado como comando não-shell rejeitado".to_string());
+        }
+        let requested = Path::new(program);
+        if requested.components().count() > 1 || requested.is_absolute() {
+            let absolute = if requested.is_absolute() {
+                requested.to_path_buf()
+            } else {
+                cwd.join(requested)
+            };
+            let observed = ObservedExecutable::observe(&absolute)?;
+            return self
+                .programs
+                .iter()
+                .find(|(_, allowed)| allowed.path == observed.path)
+                .map(|_| observed)
+                .ok_or_else(|| {
+                    format!(
+                        "executável fora da allowlist externa: {}",
+                        absolute.display()
+                    )
+                });
+        }
+        self.programs
+            .iter()
+            .find(|(alias, _)| alias == program)
+            .map(|(_, observed)| observed.clone())
+            .ok_or_else(|| format!("programa sem registro externo: {program}"))
+    }
+}
+
+fn trusted_system_executable(name: &str) -> Result<PathBuf, String> {
+    if !matches!(name, "git" | "gh") {
+        return Err(format!("programa interno sem registro: {name}"));
+    }
+    for directory in ["/usr/local/bin", "/usr/bin", "/bin"] {
+        let candidate = Path::new(directory).join(name);
+        if candidate.exists() {
+            let observed = ObservedExecutable::observe(&candidate)?;
+            observed.verify()?;
+            return Ok(observed.path);
+        }
+    }
+    Err(format!(
+        "programa interno registrado não encontrado: {name}"
+    ))
 }
 
 fn resolve_pinker_executable(current: &Path) -> Result<PathBuf, String> {
@@ -1386,19 +1532,26 @@ fn resolve_pinker_executable(current: &Path) -> Result<PathBuf, String> {
 
 fn execute_one(spec: &Spec, command: &CommandSpec) -> Result<(CommandResult, Output), String> {
     let cwd = resolve_under(&spec.worktree, Path::new(&command.cwd))?;
+    let policy = ExecutionPolicy::from_external()?;
+    let observed = if command.shell {
+        policy.shell()?
+    } else if matches!(command.kind, CommandKind::Pinker) {
+        let current = env::current_exe().map_err(|err| err.to_string())?;
+        ObservedExecutable::observe(&resolve_pinker_executable(&current)?)?
+    } else {
+        policy.program(&cwd, &command.program)?
+    };
     let mut process = if command.shell {
-        let mut shell = Command::new("/bin/sh");
+        let mut shell = Command::new(&observed.path);
         shell.arg("-c").arg(&command.program);
         shell.args(&command.argv);
         shell
     } else if matches!(command.kind, CommandKind::Pinker) {
-        let current = env::current_exe().map_err(|err| err.to_string())?;
-        let executable = resolve_pinker_executable(&current)?;
-        let mut pink = Command::new(executable);
+        let mut pink = Command::new(&observed.path);
         pink.args(&command.argv);
         pink
     } else {
-        let mut program = Command::new(&command.program);
+        let mut program = Command::new(&observed.path);
         program.args(&command.argv);
         program
     };
@@ -1411,6 +1564,7 @@ fn execute_one(spec: &Spec, command: &CommandSpec) -> Result<(CommandResult, Out
     for (key, value) in &command.env {
         process.env(key, value);
     }
+    observed.verify()?;
     let started = Instant::now();
     let output = process
         .output()
@@ -1429,6 +1583,8 @@ fn execute_one(spec: &Spec, command: &CommandSpec) -> Result<(CommandResult, Out
             expected_exit: command.expected_exit,
             duration_ms: started.elapsed().as_millis(),
             shell: command.shell,
+            executable_path: Some(observed.path),
+            executable_sha256: Some(observed.sha256),
         },
         output,
     ))
@@ -1462,7 +1618,7 @@ fn run_git_check(spec: &Spec, check: &GitCheck) -> Result<String, String> {
             .map_err(|_| "contagem Git inválida".to_string())
         })
         .transpose()?;
-    let diff = Command::new("git")
+    let diff = Command::new(trusted_system_executable("git")?)
         .arg("-C")
         .arg(&spec.worktree)
         .args(["diff", "--check"])
@@ -2443,7 +2599,7 @@ fn run_captured(
                 + 1
         })
         .unwrap_or(1);
-    let output = Command::new(program)
+    let output = Command::new(trusted_system_executable(program)?)
         .args(args)
         .output()
         .map_err(|err| err.to_string())?;
@@ -2512,7 +2668,7 @@ fn exact_changed(spec: &Spec, publication: &PublicationSpec) -> Result<(), Strin
     {
         return Err("Cargo não pode integrar publication.change".to_string());
     }
-    let diff = Command::new("git")
+    let diff = Command::new(trusted_system_executable("git")?)
         .arg("-C")
         .arg(&spec.worktree)
         .args(["diff", "--check"])
@@ -2773,7 +2929,7 @@ pub fn publicar(spec_path: &Path) -> Result<i32, String> {
     }
     set_publication_status(&spec, &mut state, "COMMIT_INTENT")?;
     for path in &publication.changes {
-        let output = Command::new("git")
+        let output = Command::new(trusted_system_executable("git")?)
             .arg("-C")
             .arg(&spec.worktree)
             .args(["add", "--", path])
@@ -2793,7 +2949,7 @@ pub fn publicar(spec_path: &Path) -> Result<i32, String> {
     if indexed != expected {
         return Err("index não corresponde ao conjunto exato".to_string());
     }
-    let output = Command::new("git")
+    let output = Command::new(trusted_system_executable("git")?)
         .arg("-C")
         .arg(&spec.worktree)
         .args(["commit", "-m", &publication.commit_message])
@@ -2817,7 +2973,7 @@ pub fn publicar(spec_path: &Path) -> Result<i32, String> {
     }
     set_publication_status(&spec, &mut state, "COMMITTED")?;
     set_publication_status(&spec, &mut state, "PUSH_INTENT")?;
-    let output = Command::new("git")
+    let output = Command::new(trusted_system_executable("git")?)
         .arg("-C")
         .arg(&spec.worktree)
         .args([
@@ -3136,7 +3292,7 @@ pub fn retomar(spec_path: &Path) -> Result<i32, String> {
             }
             exact_changed(&spec, &publication)?;
             for path in &publication.changes {
-                let output = Command::new("git")
+                let output = Command::new(trusted_system_executable("git")?)
                     .arg("-C")
                     .arg(&spec.worktree)
                     .args(["add", "--", path])
@@ -3146,7 +3302,7 @@ pub fn retomar(spec_path: &Path) -> Result<i32, String> {
                     return Err("git add de retomada falhou".to_string());
                 }
             }
-            let output = Command::new("git")
+            let output = Command::new(trusted_system_executable("git")?)
                 .arg("-C")
                 .arg(&spec.worktree)
                 .args(["commit", "-m", &publication.commit_message])
@@ -3171,7 +3327,7 @@ pub fn retomar(spec_path: &Path) -> Result<i32, String> {
         Some(_) => return Err("remote head divergente".to_string()),
         None => {
             set_publication_status(&spec, &mut state, "PUSH_INTENT")?;
-            let output = Command::new("git")
+            let output = Command::new(trusted_system_executable("git")?)
                 .arg("-C")
                 .arg(&spec.worktree)
                 .args([
@@ -3306,17 +3462,23 @@ pub fn sensibilidade(spec_path: &Path) -> Result<i32, String> {
             let changed = replace_bytes(&original, &search, &replacement);
             atomic_write(&target, &changed)?;
             let cwd = resolve_under(&spec.worktree, Path::new(&mutation.probe_cwd))?;
-            let executable = if mutation.probe_program == "pink" {
-                resolve_pinker_executable(&env::current_exe().map_err(|err| err.to_string())?)?
-            } else {
-                PathBuf::from(&mutation.probe_program)
-            };
             let started = Instant::now();
-            match Command::new(executable)
-                .args(&mutation.probe_argv)
-                .current_dir(cwd)
-                .output()
-            {
+            let execution = (|| {
+                let observed = if mutation.probe_program == "pink" {
+                    ObservedExecutable::observe(&resolve_pinker_executable(
+                        &env::current_exe().map_err(|err| err.to_string())?,
+                    )?)?
+                } else {
+                    ExecutionPolicy::from_external()?.program(&cwd, &mutation.probe_program)?
+                };
+                observed.verify()?;
+                Command::new(&observed.path)
+                    .args(&mutation.probe_argv)
+                    .current_dir(cwd)
+                    .output()
+                    .map_err(|err| err.to_string())
+            })();
+            match execution {
                 Ok(output) => {
                     duration = started.elapsed().as_millis();
                     exit = output.status.code();
@@ -3334,7 +3496,7 @@ pub fn sensibilidade(spec_path: &Path) -> Result<i32, String> {
                         "UNDETECTED"
                     };
                 }
-                Err(err) => stderr = err.to_string().into_bytes(),
+                Err(err) => stderr = err.into_bytes(),
             }
             if atomic_write(&target, &original).is_err()
                 || confined_read(&target)
@@ -3422,7 +3584,7 @@ fn replace_bytes(input: &[u8], search: &[u8], replacement: &[u8]) -> Vec<u8> {
 // @pinker-nav:layer agent
 // @pinker-nav:summary Ciclo iniciar/executar/verificar/status/relatorio: snapshots Git, execução fail-fast com NOT_RUN, validação de escopo exato, estados ACCEPTED/BLOCKED, códigos de saída mecânicos e emissão dos artefatos terminais canônicos.
 fn git_output(worktree: &Path, args: &[&str]) -> Result<String, String> {
-    let output = Command::new("git")
+    let output = Command::new(trusted_system_executable("git")?)
         .arg("-C")
         .arg(worktree)
         .args(args)
@@ -3472,7 +3634,7 @@ pub fn iniciar(spec_path: &Path) -> Result<i32, String> {
 }
 
 fn changed_paths(spec: &Spec) -> Result<Vec<String>, String> {
-    let output = Command::new("git")
+    let output = Command::new(trusted_system_executable("git")?)
         .arg("-C")
         .arg(&spec.worktree)
         .args(["status", "--porcelain", "--untracked-files=all"])
@@ -3498,7 +3660,7 @@ fn scope_ok(spec: &Spec, changed: &[String]) -> bool {
 }
 
 fn results_json(results: &[CommandResult]) -> String {
-    results.iter().map(|result| format!("    {{\"id\":{},\"status\":{},\"exit_code\":{},\"expected_exit\":{},\"duration_ms\":{},\"shell\":{}}}", json_escape(&result.id), json_escape(result.status), result.exit_code.map_or("null".to_string(), |value| value.to_string()), result.expected_exit, result.duration_ms, result.shell)).collect::<Vec<_>>().join(",\n")
+    results.iter().map(|result| format!("    {{\"id\":{},\"status\":{},\"exit_code\":{},\"expected_exit\":{},\"duration_ms\":{},\"shell\":{},\"executable_path\":{},\"executable_sha256\":{}}}", json_escape(&result.id), json_escape(result.status), result.exit_code.map_or("null".to_string(), |value| value.to_string()), result.expected_exit, result.duration_ms, result.shell, result.executable_path.as_ref().map_or("null".to_string(), |value| json_escape(&value.to_string_lossy())), result.executable_sha256.as_ref().map_or("null".to_string(), |value| json_escape(value)))).collect::<Vec<_>>().join(",\n")
 }
 
 pub fn executar(spec_path: &Path) -> Result<i32, String> {
@@ -3520,6 +3682,8 @@ pub fn executar(spec_path: &Path) -> Result<i32, String> {
                 expected_exit: command.expected_exit,
                 duration_ms: 0,
                 shell: command.shell,
+                executable_path: None,
+                executable_sha256: None,
             });
             continue;
         }
@@ -3743,6 +3907,73 @@ mod executable_resolution_tests {
 }
 
 #[cfg(all(test, target_os = "linux", target_arch = "x86_64"))]
+mod executable_policy_tests {
+    use super::{ExecutionPolicy, ObservedExecutable};
+    use std::fs;
+    use std::os::unix::fs::{symlink, PermissionsExt};
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+
+    fn executable(label: &str) -> (PathBuf, ObservedExecutable) {
+        let root = std::env::temp_dir().join(format!(
+            "pink-agent-exec-{label}-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("official-tool");
+        fs::write(&path, b"#!/bin/sh\nexit 0\n").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+        let observed = ObservedExecutable::observe(&path).unwrap();
+        (root, observed)
+    }
+
+    #[test]
+    fn shell_exige_autorizacao_externa_e_nao_pode_ser_disfarcado() {
+        let denied = ExecutionPolicy {
+            allow_shell: false,
+            programs: Vec::new(),
+        };
+        assert!(denied.shell().unwrap_err().contains("autorização externa"));
+        assert!(denied
+            .program(PathBuf::from("/").as_path(), "/bin/sh")
+            .unwrap_err()
+            .contains("disfarçado"));
+
+        let allowed = ExecutionPolicy {
+            allow_shell: true,
+            programs: Vec::new(),
+        };
+        assert!(allowed.shell().unwrap().path.is_absolute());
+    }
+
+    #[test]
+    fn programas_usam_registro_absoluto_e_detectam_troca() {
+        let (root, observed) = executable("allowlist");
+        let policy = ExecutionPolicy {
+            allow_shell: false,
+            programs: vec![("official-tool".to_string(), observed.clone())],
+        };
+        assert_eq!(
+            policy.program(&root, "official-tool").unwrap().path,
+            observed.path
+        );
+        assert!(policy.program(&root, "./official-tool").is_ok());
+        assert!(policy.program(&root, "not-registered").is_err());
+
+        let replacement = root.join("replacement");
+        fs::write(&replacement, b"#!/bin/sh\nexit 1\n").unwrap();
+        fs::set_permissions(&replacement, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::remove_file(&observed.path).unwrap();
+        symlink(&replacement, &observed.path).unwrap();
+        assert!(observed.verify().unwrap_err().contains("mudou"));
+        fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[cfg(all(test, target_os = "linux", target_arch = "x86_64"))]
 mod confined_fs_tests {
     use super::{append_event, atomic_write, atomic_write_inner, ConfinedFs};
     use std::fs;
@@ -3798,7 +4029,9 @@ mod confined_fs_tests {
 
         fs::rename(&autorizado, &movido).unwrap();
         symlink(&externo, &autorizado).unwrap();
-        confined.replace(Path::new("resultado"), b"interno", true).unwrap();
+        confined
+            .replace(Path::new("resultado"), b"interno", true)
+            .unwrap();
 
         assert_eq!(fs::read(movido.join("resultado")).unwrap(), b"interno");
         assert_eq!(
@@ -3843,9 +4076,7 @@ mod confined_fs_tests {
         let externo = root.join("externo");
         fs::write(&externo, "preservado").unwrap();
         symlink(&externo, root.join("eventos.jsonl")).unwrap();
-        assert!(
-            append_event(&root.join("eventos.jsonl"), 1, "x", "PASS", Some(0)).is_err()
-        );
+        assert!(append_event(&root.join("eventos.jsonl"), 1, "x", "PASS", Some(0)).is_err());
         assert_eq!(fs::read_to_string(&externo).unwrap(), "preservado");
 
         let target = root.join("estado.json");

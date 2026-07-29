@@ -26,6 +26,11 @@ fn base(repo: &str, worktree: &str, delegated: &str, extra: &str) -> String {
 }
 
 fn fixture(label: &str) -> PathBuf {
+    std::env::set_var("PINKER_AGENT_ALLOW_SHELL", "1");
+    std::env::set_var(
+        "PINKER_AGENT_EXECUTABLE_ALLOWLIST",
+        "/usr/bin/false:/usr/bin/python3",
+    );
     let root = std::env::temp_dir().join(format!(
         "pink-agent-limits-{label}-{}-{}",
         std::process::id(),

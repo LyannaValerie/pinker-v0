@@ -14,6 +14,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 static NEXT: AtomicU64 = AtomicU64::new(1);
 
 fn root(label: &str) -> PathBuf {
+    std::env::set_var("PINKER_AGENT_ALLOW_SHELL", "1");
+    std::env::set_var(
+        "PINKER_AGENT_EXECUTABLE_ALLOWLIST",
+        "/usr/bin/false:/usr/bin/python3",
+    );
     let path = std::env::temp_dir().join(format!(
         "pink-agent-{label}-{}-{}",
         std::process::id(),
