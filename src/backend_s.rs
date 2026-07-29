@@ -603,10 +603,19 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         );
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
-                        body.push(format!("movq {}, %rdi", REG_RET));
-                        body.push(format!("movq ${}, %rsi", external_memory_width(*ty)));
-                        body.push(format!("movq ${}, %rdx", external_memory_alignment(*ty)));
-                        body.push("call pinker_publico_validar_acesso".to_string());
+                        let mut visiting_temps = HashSet::new();
+                        let mut visiting_slots = HashSet::new();
+                        if selected_operand_is_public_pointer(
+                            function,
+                            ptr,
+                            &mut visiting_temps,
+                            &mut visiting_slots,
+                        ) {
+                            body.push(format!("movq {}, %rdi", REG_RET));
+                            body.push(format!("movq ${}, %rsi", external_memory_width(*ty)));
+                            body.push(format!("movq ${}, %rdx", external_memory_alignment(*ty)));
+                            body.push("call pinker_publico_validar_acesso".to_string());
+                        }
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
                         body.push(if native_runtime {
                             match ty {
@@ -660,10 +669,19 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         );
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
-                        body.push(format!("movq {}, %rdi", REG_RET));
-                        body.push(format!("movq ${}, %rsi", external_memory_width(*ty)));
-                        body.push(format!("movq ${}, %rdx", external_memory_alignment(*ty)));
-                        body.push("call pinker_publico_validar_acesso".to_string());
+                        let mut visiting_temps = HashSet::new();
+                        let mut visiting_slots = HashSet::new();
+                        if selected_operand_is_public_pointer(
+                            function,
+                            ptr,
+                            &mut visiting_temps,
+                            &mut visiting_slots,
+                        ) {
+                            body.push(format!("movq {}, %rdi", REG_RET));
+                            body.push(format!("movq ${}, %rsi", external_memory_width(*ty)));
+                            body.push(format!("movq ${}, %rdx", external_memory_alignment(*ty)));
+                            body.push("call pinker_publico_validar_acesso".to_string());
+                        }
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
                         body.extend(load_operand(
                             REG_TMP,
@@ -1940,10 +1958,22 @@ fn lower_public_pointer_derivation(
     slot_offsets: &HashMap<String, u32>,
     rodata_strings: &[ExternalCallConvString],
 ) -> Result<Vec<String>, PinkerError> {
-    let mut visiting = HashSet::new();
-    let lhs_is_pointer = selected_operand_is_pointer(function, lhs, &mut visiting);
-    visiting.clear();
-    let rhs_is_pointer = selected_operand_is_pointer(function, rhs, &mut visiting);
+    let mut visiting_temps = HashSet::new();
+    let mut visiting_slots = HashSet::new();
+    let lhs_is_pointer = selected_operand_is_public_pointer(
+        function,
+        lhs,
+        &mut visiting_temps,
+        &mut visiting_slots,
+    );
+    visiting_temps.clear();
+    visiting_slots.clear();
+    let rhs_is_pointer = selected_operand_is_public_pointer(
+        function,
+        rhs,
+        &mut visiting_temps,
+        &mut visiting_slots,
+    );
     let origin = if is_subtraction {
         (lhs_is_pointer && !rhs_is_pointer).then_some(lhs)
     } else {
@@ -1965,68 +1995,121 @@ fn lower_public_pointer_derivation(
     Ok(body)
 }
 
-fn selected_operand_is_pointer(
+fn selected_operand_is_public_pointer(
     function: &crate::instr_select::SelectedFunction,
     operand: &OperandIR,
-    visiting: &mut HashSet<crate::cfg_ir::TempIR>,
+    visiting_temps: &mut HashSet<crate::cfg_ir::TempIR>,
+    visiting_slots: &mut HashSet<String>,
 ) -> bool {
     match operand {
-        OperandIR::Local(slot) => function
-            .slot_types
-            .get(slot)
-            .is_some_and(|ty| matches!(ty, TypeIR::Pointer { .. })),
-        OperandIR::Temp(temp) => selected_temp_is_pointer(function, *temp, visiting),
+        OperandIR::Local(slot) => {
+            let has_assignment = function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .any(|instruction| {
+                    matches!(instruction, SelectedInstr::Mov { dest, .. } if dest == slot)
+                });
+            if !has_assignment
+                && function
+                    .slot_types
+                    .get(slot)
+                    .is_some_and(|ty| matches!(ty, TypeIR::Pointer { .. }))
+            {
+                return true;
+            }
+            if !visiting_slots.insert(slot.clone()) {
+                return false;
+            }
+            let public = function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .filter_map(|instruction| match instruction {
+                    SelectedInstr::Mov { dest, src } if dest == slot => Some(src),
+                    _ => None,
+                })
+                .any(|src| {
+                    selected_operand_is_public_pointer(
+                        function,
+                        src,
+                        visiting_temps,
+                        visiting_slots,
+                    )
+                });
+            visiting_slots.remove(slot);
+            public
+        }
+        OperandIR::Temp(temp) => selected_temp_is_public_pointer(
+            function,
+            *temp,
+            visiting_temps,
+            visiting_slots,
+        ),
         _ => false,
     }
 }
 
-fn selected_temp_is_pointer(
+fn selected_temp_is_public_pointer(
     function: &crate::instr_select::SelectedFunction,
     temp: crate::cfg_ir::TempIR,
-    visiting: &mut HashSet<crate::cfg_ir::TempIR>,
+    visiting_temps: &mut HashSet<crate::cfg_ir::TempIR>,
+    visiting_slots: &mut HashSet<String>,
 ) -> bool {
-    if !visiting.insert(temp) {
+    if !visiting_temps.insert(temp) {
         return false;
     }
-    let is_pointer = function
+    let public = function
         .blocks
         .iter()
         .flat_map(|block| &block.instructions)
         .find_map(|instruction| match instruction {
+            SelectedInstr::Call {
+                dest,
+                callee,
+                ret_type,
+                ..
+            } if *dest == temp => {
+                Some(callee == "alocar" || matches!(ret_type, TypeIR::Pointer { .. }))
+            }
             SelectedInstr::Cast {
-                dest, target_type, ..
-            } if *dest == temp => Some(matches!(target_type, TypeIR::Pointer { .. })),
-            SelectedInstr::Add { dest, lhs, rhs, .. } if *dest == temp => {
-                let lhs_is_pointer = selected_operand_is_pointer(function, lhs, visiting);
-                let rhs_is_pointer = selected_operand_is_pointer(function, rhs, visiting);
-                Some(lhs_is_pointer ^ rhs_is_pointer)
+                dest,
+                value,
+                target_type,
+            } if *dest == temp && matches!(target_type, TypeIR::Pointer { .. }) => {
+                Some(selected_operand_is_public_pointer(
+                    function,
+                    value,
+                    visiting_temps,
+                    visiting_slots,
+                ))
             }
-            SelectedInstr::Sub { dest, lhs, rhs, .. } if *dest == temp => {
-                let lhs_is_pointer = selected_operand_is_pointer(function, lhs, visiting);
-                let rhs_is_pointer = selected_operand_is_pointer(function, rhs, visiting);
-                Some(lhs_is_pointer && !rhs_is_pointer)
+            SelectedInstr::Add { dest, lhs, rhs, .. } if *dest == temp => Some(
+                selected_operand_is_public_pointer(
+                    function,
+                    lhs,
+                    visiting_temps,
+                    visiting_slots,
+                ) || selected_operand_is_public_pointer(
+                    function,
+                    rhs,
+                    visiting_temps,
+                    visiting_slots,
+                ),
+            ),
+            SelectedInstr::Sub { dest, lhs, .. } if *dest == temp => {
+                Some(selected_operand_is_public_pointer(
+                    function,
+                    lhs,
+                    visiting_temps,
+                    visiting_slots,
+                ))
             }
-            SelectedInstr::Call { dest, ret_type, .. }
-            | SelectedInstr::CallIndirect { dest, ret_type, .. }
-                if *dest == temp =>
-            {
-                Some(matches!(ret_type, TypeIR::Pointer { .. }))
-            }
-            SelectedInstr::CallRaw {
-                dest: Some(dest),
-                ret_type,
-                ..
-            }
-            | SelectedInstr::TraitCall {
-                dest: Some(dest),
-                ret_type,
-                ..
-            } if *dest == temp => Some(matches!(ret_type, TypeIR::Pointer { .. })),
             _ => None,
         })
         .unwrap_or(false);
-    visiting.remove(&temp);
-    is_pointer
+    visiting_temps.remove(&temp);
+    public
 }
 
 fn selected_operand_is_signed(

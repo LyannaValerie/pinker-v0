@@ -1,8 +1,8 @@
 mod common;
 
 use common::{
-    parse_and_check, render_backend_s_external_subset, render_backend_text, render_cfg_ir,
-    render_ir, render_machine, render_selected,
+    parse_and_check, render_backend_s_external_subset, render_backend_s_external_subset_nativo,
+    render_backend_text, render_cfg_ir, render_ir, render_machine, render_selected,
 };
 use std::fs;
 use std::process::Command;
@@ -137,9 +137,14 @@ fn fase246_atravessa_pipeline_e_mapeia_runtime_publico() {
         assert!(rendered.contains("alocar"), "{rendered}");
         assert!(rendered.contains("liberar"), "{rendered}");
     }
-    let asm = render_backend_s_external_subset(code).expect("assembly");
+    let asm = render_backend_s_external_subset_nativo(code).expect("assembly");
     assert!(asm.contains("call pinker_publico_alocar"), "{asm}");
     assert!(asm.contains("call pinker_publico_liberar"), "{asm}");
+    assert!(asm.contains("call pinker_publico_validar_acesso"), "{asm}");
+    assert!(
+        asm.contains("call pinker_publico_validar_derivacao"),
+        "{asm}"
+    );
 }
 
 #[test]
