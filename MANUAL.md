@@ -653,6 +653,19 @@ No estado atual, ainda há limites importantes para uso geral:
 
 ## 12) Onde olhar depois
 
+### Assembly inline e uniões estruturais
+
+`sussurro("...");` aceita chunks literais GNU assembler Intel x86-64. O
+backend nativo os emite como barreira de efeitos; o interpretador termina com
+`E-RUNTIME-SUSSURRO-NATIVO`.
+
+`uniao<T1, T2, ...>` é estrutural e independente da ordem. A injeção usa
+`virar` explícito e a abertura usa `encaixe` com um braço por membro, sem
+`senao`. O handle ocupa uma palavra e tem lifetime monotônico nesta fase.
+
+O interpretador limita a execução a 64 chamadas Pinker simultâneas. O retorno
+de `principal` não é impresso: seus 8 bits baixos formam o exit status.
+
 - `docs/style.md` — Norma Visual Oficial Mínima (convenções de estilo e estética).
 - `README.md` — visão geral do projeto, modos de execução e comandos.
 - `docs/vocabulario.md` — catálogo de keywords da linguagem.

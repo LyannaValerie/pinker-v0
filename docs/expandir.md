@@ -6,6 +6,9 @@
 
 Este documento é a referência operacional para transformar implementações históricas **mínimas**, **pequenas**, **conservadoras** ou explicitamente limitadas por **recorte** em implementações adultas. Ele nasce no Bloco 20, após o encerramento do Eixo B, para apoiar a retomada do **Eixo A — linguagem** com um padrão novo: a próxima evolução da Pinker deve mirar recursos utilizáveis em profundidade, com lowering nativo desde o início, sem repetir automaticamente o padrão antigo de menor recorte auditável.
 
+Limite executável atual: o interpretador admite 64 chamadas Pinker simultâneas
+e diagnostica a tentativa de abrir a 65ª.
+
 ## 1. Papel deste documento
 
 `docs/expandir.md` não é histórico e não substitui o roadmap. Seu papel é:

@@ -27,7 +27,7 @@ Em 28 de julho de 2026, decisão humana explícita da Founder encerrou
 antecipadamente a janela de estabilização estrutural e reativou a expansão
 funcional do **Eixo A — linguagem**. O Bloco 20 permanece estruturalmente ativo;
 a Fase 244 foi a última fase anterior à retomada. As Fases 245 e 246 foram
-entregues consecutivamente; o item 14 permanece próximo e não iniciado.
+entregues consecutivamente; as Fases 247 e 248 entregaram os itens 14 e 15.
 
 Os objetivos estruturais da janela encerrada não são declarados concluídos.
 Modularização ampla, reorganização documental ampla e bughunting amplo foram
@@ -48,9 +48,9 @@ Expandir a linguagem na direção dos dois propósitos de longo prazo: gerar um 
 **Estado atual**
 O bloco executa em **dois eixos** (Doc-41): **Eixo A — linguagem** (11 faixas, 52 itens inventariados frente a C, C#, C++, Python, TypeScript e Shell) e **Eixo B — paridade real do backend nativo** (B1–B11, Fases 212–222, encerrado). Do Eixo A, os itens 1 (enums), 2 (pattern matching) e 3 (generics) da Faixa 1 foram entregues e depois expandidos em fases numeradas: item 3 inclui `lista<T>`, `mapa<K,V>`, funções genéricas explícitas até a Fase 236 e leques genéricos explícitos na Fase 240. A Faixa 2 nasceu concluída pelo fechamento do Bloco 18. O Eixo B foi executado nas Fases 212–222 e está encerrado; o item 5 (error handling) foi retomado nas Fases 223–224, 231, 237, 240 e 241 (esta última predeclarando a biblioteca padrão `Resultado<T,E>` sem declaração manual), o item 6 (closures) foi iniciado na Fase 225, expandido nas Fases 238–239, ganhou valores de função materializados e chamada indireta real na Fase 242 e captura imutável por valor na Fase 243, e o item 4 (traits/interfaces) foi iniciado nas Fases 226–234 e concluído na Fase 244 com objetos de trato, vtables e despacho dinâmico nativo, sempre com lowering nativo obrigatório e com o padrão de expansão registrado em `docs/expandir.md`.
 
-Os itens 12 e 13 da Faixa 3 foram entregues nas Fases 245 e 246 com ponteiros
-crus de função e memória explícita em paridade interpretador × nativo. O item
-14 não foi iniciado.
+Os itens 12–14 da Faixa 3 foram entregues nas Fases 245–247 com ponteiros crus
+de função, memória explícita e assembly inline. O item 15 da Faixa 4 foi
+entregue na Fase 248 com uniões estruturais tagged; o item 16 não foi iniciado.
 
 O contrato de ambientes da Fase 243 usa hoje uma palavra por captura (`quantidade * palavra`, com overflow verificado). Uma futura representação multi-palavra deverá alocar o tamanho final alinhado do layout, derivado do tamanho, alinhamento, offset e padding de cada captura e do alinhamento final, com overflow verificado em cada passo; soma simples de tamanhos e teste apenas funcional não atendem ao gate direto de underallocation.
 

@@ -56,6 +56,8 @@ são compartilhadas com Rosa via **Ponte**.
 | superfície futura por família | `../familias/superficie.md` |
 | resolução qualificada por família | `../familias/resolucao.md` |
 | família exemplar `tempo` | `../familias/tempo.md` |
+| assembly inline `sussurro` | `../inline_assembly.md` |
+| uniões estruturais tagged | `../union_types.md` |
 
 ## Rotas de leitura
 

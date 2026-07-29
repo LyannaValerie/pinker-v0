@@ -15,7 +15,7 @@ fases; para isso, use os documentos apontados em [Navegação](#navegacao).
 | Backend nativo | `pink build --nativo` gera ELF Linux via `.s` x86-64 System V + `pinker_rt` |
 | Paridade | Fases compatíveis do Eixo B verificam interpretador x nativo |
 | Bloco ativo | Bloco 20: expansão rumo a SO e self-hosting |
-| Fase funcional mais recente | Fase 246: alocação e liberação explícitas de memória |
+| Fase funcional mais recente | Fase 248: uniões estruturais tagged |
 
 ## Superficie Implementada
 
@@ -23,13 +23,14 @@ fases; para isso, use os documentos apontados em [Navegação](#navegacao).
 |---|---|
 | Base sintática | `pacote`, `trazer`, `carinho`, `mimo`, `nova`, `muda`, `talvez/senão`, laços e blocos |
 | Tipos escalares | `bombom`, inteiros com largura/sinal, `logica`, `verso` |
-| Dados compostos | `ninho`, arrays fixos, `leque<T...>`, `lista<T>` versionada e `mapa<K,V>` nas combinações públicas |
-| Resultado | `leque` com carga, `encaixe`, `tentar`, `propagar`, `propagar?` e `Resultado<T,E>` predeclarado (`Ok(T)`/`Erro(E)`) usável sem declaração manual |
+| Dados compostos | `ninho`, arrays fixos, `leque`, `uniao<T...>`, `lista<T>` versionada e `mapa<K,V>` nas combinações públicas |
+| Resultado | `leque` com carga, `encaixe`, `tentar`, `propagar` e `propagar?`; `Resultado<T,E>` é declarado pelo programa ou por módulo importado, não um tipo predeclarado mágico |
 | Generics | `lista<T>`, `mapa<K,V>`, `leque<T...>` via alias explícito e funções genéricas explícitas `nome<T>(...)` com monomorfização |
 | Contratos | `trato`/`impl` estáticos, `trato<Nome>` explícito, materialização por `virar`, vtables e despacho dinâmico nativo |
 | Funções | `carinho`, callables/closures de alto nível e ponteiros crus `seta<carinho(...) -> T>` com chamada indireta sem ambiente |
 | Sistema | argv, ambiente, arquivos, processos, caminhos e texto no recorte versionado |
 | Ponteiros e memória | `seta<T>`, `&funcao`/`&generica<T>`, deref/escrita indireta escalar, aritmética tipada e regiões públicas `alocar(u64)`/`liberar(seta<u8>)` com validação de vida, limites e alinhamento |
+| Baixo nível | `sussurro("...")` emite assembly GNU Intel x86-64 no backend nativo; o interpretador rejeita sua execução deterministicamente |
 | Ferramentas | CLI com check, run, IR textual, CFG, machine e build nativo |
 
 ## Limites Honestos
@@ -46,6 +47,8 @@ Pinker v0 ainda não é uma linguagem geral, nem um compilador de produção.
 | Default methods, downcasting/upcasting, herança e objetos de múltiplos tratos | Fora do contrato da Fase 244 |
 | Generics amplos em `ninho`/`leque` e inferência genérica | O recorte atual exige chamada genérica explícita |
 | Ponteiros e layout físico completos | Há operações úteis, mas ainda conservadoras |
+| Profundidade de chamadas | O interpretador limita a pilha Pinker a 64 chamadas simultâneas (`MAX_CALL_DEPTH = 64`) e diagnostica a 65ª |
+| Uniões estruturais | Valores são handles de uma palavra com lifetime monotônico; igualdade, hashing, serialização, `falar` direto e downcast fora de `encaixe` ficam fora desta fase |
 | Biblioteca padrão rica | APIs existem por fases e recortes objetivos |
 | SO em Pinker | A cadeia freestanding foi formalizada no roadmap, mas nenhuma capacidade bare-metal foi implementada por essa decisão documental |
 

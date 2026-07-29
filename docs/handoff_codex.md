@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **246** — Eixo A: alocação e liberação explícitas de memória |
+| Fase funcional mais recente | **248** — Eixo A: uniões estruturais tagged |
 | Rodada documental mais recente | **Doc-49** — fundação comunitária para contribuições externas |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -24,13 +24,13 @@
 ### Estado operacional estruturado
 
 ```yaml
-fase_funcional_mais_recente: 246
+fase_funcional_mais_recente: 248
 bloco_estruturalmente_ativo: 20
 estado_operacional: eixo_a_retomado
 expansao_funcional_eixo_a: ATIVA
 ultima_fase_antes_da_tarefa: 244
 proxima_progressao:
-  - fase_247_item_14_nao_iniciado
+  - fase_249_item_16_nao_iniciado
 retomada:
   decisao: humana_explicita_da_founder
   data: 2026-07-28
