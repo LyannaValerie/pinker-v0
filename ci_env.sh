@@ -4,8 +4,8 @@ set -euo pipefail
 usage() {
     cat <<'EOF'
 Uso:
-  ./scripts/ci_env.sh --preflight
-  ./scripts/ci_env.sh <comando> [args...]
+  ./ci_env.sh --preflight
+  ./ci_env.sh <comando> [args...]
 
 Executa a suite oficial da Pinker v0 em ambiente saneado:
 - remove RUSTFLAGS;
