@@ -26,12 +26,18 @@
 ```yaml
 fase_funcional_mais_recente: 244
 bloco_estruturalmente_ativo: 20
-estado_operacional: semana_de_estabilizacao
-expansao_funcional_eixo_a: SUSPENSA
-janela:
-  inicio: 2026-07-27
-  fim: 2026-08-01
-retomada: decisao_humana_explicita
+estado_operacional: eixo_a_retomado
+expansao_funcional_eixo_a: ATIVA
+ultima_fase_antes_da_tarefa: 244
+proxima_progressao:
+  - fase_245
+  - fase_246
+retomada:
+  decisao: humana_explicita_da_founder
+  data: 2026-07-28
+trabalho_estrutural:
+  concluido: false
+  estado: ADIADO
 ```
 
 ### Blocos encerrados
@@ -97,14 +103,18 @@ retomada: decisao_humana_explicita
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Semana de estabilização estrutural — 27 de julho a 1º de agosto de 2026**.
-- O Bloco 20 permanece estruturalmente ativo, enquanto novas fases funcionais
-  do Eixo A ficam suspensas até decisão humana explícita.
-- Trabalho autorizado: refatoração estrutural sem mudança comportamental
-  deliberada; reorganização documental; bughunting; correção de bugs
-  reproduzidos; testes, CI, sensibilidade, navegação e cartografia necessários.
-- Documento operacional:
-  `docs/development/semana-estabilizacao-2026-07.md`.
+- **Retomada funcional do Eixo A — 28 de julho de 2026**.
+- Decisão humana explícita da Founder encerrou antecipadamente a janela de
+  estabilização estrutural e reativou a expansão funcional do Eixo A.
+- O Bloco 20 permanece estruturalmente ativo; a Fase 244 é a última fase antes
+  desta tarefa, e as Fases 245 e 246 formam a progressão imediata autorizada.
+- Os objetivos estruturais não são declarados concluídos. Modularização ampla,
+  reorganização documental ampla e bughunting amplo foram adiados.
+- Os artefatos de auditoria local permanecem evidência histórica preservada
+  pelo Git e pela PR #408.
+- Uma futura modularização deve priorizar inicialmente arquivos com mais de
+  5.000 linhas sem tratar tamanho como critério único; arquivos menores exigem
+  justificativa arquitetural material.
 - **Doc-48 — presença de Rosa no GitHub Copilot**.
 - `.github/copilot-instructions.md` estabelece o contrato geral do Copilot na Pinker: inspeção antes de afirmação, fontes canônicas, comandos oficiais, anti-mínimo, segurança operacional e princípios de Rosa sem encenação permanente.
 - `.github/agents/rosa.agent.md` define Rosa como agente personalizado selecionável manualmente, com `target: github-copilot`, ferramentas explícitas e ativação automática desabilitada.
@@ -173,17 +183,14 @@ Histórico completo por fase: `docs/history/phases/`.
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- Durante a semana de estabilização, a ordem abaixo permanece como direção de
-  longo prazo, mas novas fases funcionais do Eixo A não podem ser iniciadas até
-  decisão humana explícita encerrando a suspensão.
 - Estrutura do Bloco 20 formalizada em dois eixos (Doc-41), padrão pós-Eixo B registrado na Doc-42 e convergência bare-metal formalizada na Doc-46: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado; a trilha BM permanece documental e não implementada.
-- A Fase 244 e os hotfixes posteriores foram publicados e integrados à `main` pelas PRs #406 e #407. Durante a semana de estabilização, nenhuma nova fase funcional do Eixo A pode ser iniciada até decisão humana explícita. Qualquer avanço em ownership/lifetime ou desalocação de snapshots/descritores deve definir contrato próprio, incluindo cópia/passagem/retorno de handles, compartilhamento, momento de liberação e prevenção de double free/use-after-free.
+- A Fase 244 e os hotfixes posteriores foram publicados e integrados à `main` pelas PRs #406 e #407. A progressão ativa segue pela Fase 245 (ponteiros crus de função e tipos de função) e pela Fase 246 (alocação e liberação explícitas), sem iniciar o item 14. Qualquer avanço em ownership/lifetime ou desalocação de snapshots/descritores deve definir contrato próprio, incluindo cópia/passagem/retorno de handles, compartilhamento, momento de liberação e prevenção de double free/use-after-free.
 - O item 13 pode iniciar se a direção imediata for memória/SO, mas `alocar`/`liberar` deve ser tratado como mecanismo separado da política de lifetime dos valores que usam o heap. Uma fase de alocador não conclui automaticamente o débito de closures.
 - Qualquer fase que toque o layout ou o tamanho do ambiente deve incluir gate de underallocation que observe diretamente os bytes solicitados por instrumentação, metadado, canário ou fronteira de arredondamento; resultado funcional isolado não é evidência suficiente. No recorte atual de uma palavra por captura, o tamanho exigido é `capturas * tamanho_da_palavra`, com overflow verificado. Para capturas futuras multi-palavra, deve ser o tamanho final alinhado do ambiente: tamanho e alinhamento de cada captura, offset alinhado, padding intermediário, alinhamento final e toda aritmética com detecção de overflow; soma simples dos tamanhos é insuficiente.
 - O item 5 pode avançar para diagnósticos enriquecidos ou métodos utilitários; o item 4 pode avançar apenas em extensões fora do contrato 244. Em qualquer caso, sem recorte mínimo automático, com lowering nativo obrigatório e com fatia vertical utilizável.
 - Ao iniciar a direção SO, a execução deve seguir `docs/roadmap/bare_metal_bootstrap.md`: não basta gerar um artefato isolado; a fase precisa fechar superfície, semântica, backend/runtime, diagnósticos, testes, exemplo e documentação do subproblema escolhido.
 - Escada completa do eixo encerrado (B1 ✓ ... B11 ✓) em `docs/roadmap/blocos/bloco_20.md`.
-- Depois do item 5: itens 6 (**closures**) e 4 (**traits**) do Eixo A, mantendo a regra de que toda fase de linguagem entrega o lowering nativo junto.
+- A retomada funcional não conclui os trabalhos estruturais adiados nem muda a regra de que toda fase de linguagem entrega o lowering nativo junto.
 - Após merge da Doc-48, selecionar Rosa manualmente no Copilot e executar os casos de `docs/rosa/voice-tests.md` antes de tratá-la como presença operacional estável.
 
 ## 6. Arquitetura documental ativa

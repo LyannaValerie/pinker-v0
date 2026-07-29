@@ -77,7 +77,6 @@ exemplos. O mapa de código aponta, mas não substitui, a navegação `pink nav`
 | índice de exemplos e testes | `../examples_index.md` |
 | mapa de código por feature | `../code_map.md` |
 | navegação semântica do código | `pink nav buscar "<conceito>"` |
-| semana de estabilização estrutural | `semana-estabilizacao-2026-07.md` |
 
 ## Rotas de leitura
 
@@ -88,11 +87,11 @@ exemplos. O mapa de código aponta, mas não substitui, a navegação `pink nav`
 ### Escolher um exemplo/teste próximo
 1. `../examples_index.md`
 
-### Entender o trabalho autorizado durante a estabilização
+### Entender a progressão funcional ativa
 
-1. `semana-estabilizacao-2026-07.md`
-2. `../roadmap.md`
-3. `../handoff_codex.md`
+1. `../roadmap.md`
+2. `../handoff_codex.md`
+3. `../roadmap/blocos/bloco_20.md`
 
 ## Ciclo de vida
 

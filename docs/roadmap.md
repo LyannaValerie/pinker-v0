@@ -21,25 +21,22 @@
 - O **Bloco 19 — superfície Pinker** permanece candidato futuro, não ativo; a ativação do Bloco 20 antes dele é decisão estratégica explícita, subordinada aos dois propósitos de longo prazo do projeto.
 - A frente pausada oficial permanece o **editor/TUI da Pinker**, aberta na **Fase 136** e não abandonada.
 
-## Suspensão operacional temporária
+## Retomada operacional do Eixo A
 
-Entre 27 de julho e 1º de agosto de 2026, a expansão funcional do
-**Eixo A — linguagem** está temporariamente suspensa para a semana de
-estabilização estrutural.
+Em 28 de julho de 2026, decisão humana explícita da Founder encerrou
+antecipadamente a janela de estabilização estrutural e reativou a expansão
+funcional do **Eixo A — linguagem**. O Bloco 20 permanece estruturalmente ativo;
+a Fase 244 é a última fase anterior à retomada e a progressão imediata autorizada
+é composta pelas Fases 245 e 246.
 
-Durante essa janela, a ordem autorizada de trabalho é:
+Os objetivos estruturais da janela encerrada não são declarados concluídos.
+Modularização ampla, reorganização documental ampla e bughunting amplo foram
+adiados. Os artefatos de auditoria local permanecem evidência histórica,
+preservada pelo Git e pela PR #408.
 
-1. modularização sem mudança comportamental deliberada;
-2. reorganização documental;
-3. bughunting;
-4. correção de bugs reproduzidos;
-5. fortalecimento de testes, CI, sensibilidade, navegação e cartografia.
-
-O Bloco 20 permanece estruturalmente ativo, mas nenhuma nova fase funcional do
-Eixo A pode ser iniciada até decisão humana explícita encerrando a suspensão.
-
-Documento operacional:
-`docs/development/semana-estabilizacao-2026-07.md`.
+Uma futura modularização deve priorizar inicialmente arquivos com mais de 5.000
+linhas, sem tratar tamanho como critério único. Arquivos menores só entram nesse
+trabalho quando houver justificativa arquitetural material.
 
 ## Bloco ativo atual
 
