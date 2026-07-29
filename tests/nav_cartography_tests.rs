@@ -52,7 +52,220 @@ fn stable_region_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -
     records.concat()
 }
 
+fn project_pre_pr410_terminal_review(catalog: &mut CodeCatalog) {
+    // A revisão terminal da PR #410 fortalece regiões já existentes sem
+    // reescrever os snapshots históricos. Reconstrói primeiro o head publicado
+    // a2db7d0; a projeção das Fases 245–246 pode então seguir normalmente.
+    for region in &mut catalog.regions {
+        let (current, predecessor) = match region.key.as_str() {
+            "backend-s.lowering.falar-runtime" => {
+                ("fnv1a64:3f52039a4b36ce2a", "fnv1a64:4ee76ebc416f403d")
+            }
+            "backend-s.lowering.operacoes-lineares" => {
+                ("fnv1a64:7d129e158e2480e8", "fnv1a64:6bc887f422e09c12")
+            }
+            "backend-s.lowering.operacoes-memoria" => {
+                ("fnv1a64:c3a14e751755312b", "fnv1a64:84eb8e5a46bc4cf1")
+            }
+            "backend-s.lowering.operandos-slots" => {
+                ("fnv1a64:d33d52ff00aadb87", "fnv1a64:2c9566cdc31ff564")
+            }
+            "cfg.validacao.invariantes" => ("fnv1a64:47314aaf7ef5d58a", "fnv1a64:f0f0a8be458646de"),
+            "evidencia.runtime.memoria-alocador" => {
+                ("fnv1a64:2e05a3fb74da5731", "fnv1a64:429ce2d2a36f96aa")
+            }
+            "interpreter.execucao.funcoes-fluxo" => {
+                ("fnv1a64:c7ecaf0063f818e8", "fnv1a64:66c89e61701f6fdd")
+            }
+            "interpreter.execucao.instrucoes-pilha" => {
+                ("fnv1a64:a99e74846039250a", "fnv1a64:5967728915dc7bc7")
+            }
+            "interpreter.execucao.programa-globais" => {
+                ("fnv1a64:574ece91b9cb185f", "fnv1a64:cdcd5410a9a600ef")
+            }
+            "interpreter.intrinsecos.acaso" => {
+                ("fnv1a64:2f753cf0d0ff6690", "fnv1a64:1ed36246a6aa7f8e")
+            }
+            "ir.lowering.assinaturas-intrinsecos" => {
+                ("fnv1a64:c3ab73bbd7391d60", "fnv1a64:54a139a83356777a")
+            }
+            "ir.lowering.contexto-declaracoes" => {
+                ("fnv1a64:3ebe2403df429a6c", "fnv1a64:067065b5abca606d")
+            }
+            "ir.lowering.funcoes-blocos" => {
+                ("fnv1a64:9b5592dbb2334dbe", "fnv1a64:81882e0f9e2212af")
+            }
+            "ir.validacao.invariantes" => ("fnv1a64:48bbd3b1fc673e28", "fnv1a64:58df76ce7a318b84"),
+            "runtime.io.saida" => ("fnv1a64:dcd0f28d19b32ffa", "fnv1a64:0d909c31ea9aa3dc"),
+            "runtime.memoria.alocador" => ("fnv1a64:257eff63c8de6478", "fnv1a64:d080db807b67c63f"),
+            "semantic.expressoes.verificacao" => {
+                ("fnv1a64:c3c807f559a5207b", "fnv1a64:88941f6bcf13d02d")
+            }
+            _ => continue,
+        };
+        if region.hash == current {
+            region.hash = predecessor.to_string();
+        }
+    }
+}
+
+fn project_pre_phase245_246(catalog: &mut CodeCatalog) {
+    project_pre_pr410_terminal_review(catalog);
+    // Fases 245–246: os snapshots históricos continuam congelados no head da
+    // Fase 244. Reconstrói somente os hashes das regiões tocadas pelas duas
+    // entregas antes de aplicar as projeções históricas anteriores.
+    for region in &mut catalog.regions {
+        let (current, predecessor) = match region.key.as_str() {
+            "ast.closures.identificadores-livres" => {
+                ("fnv1a64:9cfe0f0bd4104c29", "fnv1a64:733d96df8801da83")
+            }
+            "ast.expressoes.representacao" => {
+                ("fnv1a64:324ef29194ba8823", "fnv1a64:da804ed63d673f55")
+            }
+            "backend-s.lowering.chamadas-sysv" => {
+                ("fnv1a64:98b48668cbaea507", "fnv1a64:b9aa31f41fe013e3")
+            }
+            "backend-s.lowering.operacoes-memoria" => {
+                ("fnv1a64:f09d1a1dd2ee9238", "fnv1a64:c62f2129802b2958")
+            }
+            "backend-s.lowering.operandos-slots" => {
+                ("fnv1a64:2c9566cdc31ff564", "fnv1a64:b0c6a9baff2f57ee")
+            }
+            "backend-s.renderizacao.abi-textual-componentes" => {
+                ("fnv1a64:191ff8cc8233ad26", "fnv1a64:0464b9d795e0aa44")
+            }
+            "backend-s.renderizacao.abi-textual-instrucoes" => {
+                ("fnv1a64:ca05263cd79d8463", "fnv1a64:602147ee6f2b57eb")
+            }
+            "backend-s.runtime.simbolos-intrinsecas" => {
+                ("fnv1a64:b4f67ec04b8f9b17", "fnv1a64:2ef27c7df57d5103")
+            }
+            "backend-s.validacao.labels-tipos" => {
+                ("fnv1a64:5f509df0fc74c68e", "fnv1a64:f354ff714559cb4d")
+            }
+            "backend-text.lowering.cfg-programa" => {
+                ("fnv1a64:d369db06d2607cdf", "fnv1a64:44c79d206b1dc681")
+            }
+            "backend-text.lowering.instrucoes-selecionadas" => {
+                ("fnv1a64:418b9e420d630a7e", "fnv1a64:5d97496ff49cd8ec")
+            }
+            "backend-text.modelo.representacao" => {
+                ("fnv1a64:415b2aab1cfe895f", "fnv1a64:172ea789e670fb8e")
+            }
+            "backend-text.renderizacao.componentes" => {
+                ("fnv1a64:e9e9694b0cad0b44", "fnv1a64:e5f0c347d6d3239d")
+            }
+            "backend-text.renderizacao.instrucoes" => {
+                ("fnv1a64:6196cda7892b3bc9", "fnv1a64:9c677c3c3d9cbb58")
+            }
+            "backend-text.validacao.invariantes" => {
+                ("fnv1a64:f30e20015f7a142c", "fnv1a64:73aaca289c641d84")
+            }
+            "cfg.lowering.constantes" => ("fnv1a64:0f182f2cdb0bd440", "fnv1a64:d4351892a75e92ef"),
+            "cfg.lowering.valores-temporarios" => {
+                ("fnv1a64:9065fd2067334b69", "fnv1a64:e794250f56e54066")
+            }
+            "cfg.modelo.representacao" => ("fnv1a64:e1c51c02975e559b", "fnv1a64:b4cb768e5cbe6f82"),
+            "cfg.renderizacao.componentes" => {
+                ("fnv1a64:e3b1a3528c724b58", "fnv1a64:468dbdefa061f03e")
+            }
+            "cfg.validacao.invariantes" => ("fnv1a64:13662c29a7dcf04c", "fnv1a64:869c1a0919d98dfc"),
+            "evidencia.interpreter.ponteiros-array-fixo-e-cast-memoria-cli" => {
+                ("fnv1a64:6e3ea2ab08c58578", "fnv1a64:2a0c627cea9905da")
+            }
+            "evidencia.interpreter.ponteiros-boot-freestanding-e-subset-nativo" => {
+                ("fnv1a64:02da9bcb03aa00a3", "fnv1a64:3e9a52c45a703003")
+            }
+            "evidencia.semantica.ponteiros-e-aritmetica" => {
+                ("fnv1a64:c9a1d6e1bf8680bc", "fnv1a64:25a2a400718eb9fc")
+            }
+            "interpreter.diagnostico.stack-trace" => {
+                ("fnv1a64:797ffb49c1e8121f", "fnv1a64:8bcd97ece790c80b")
+            }
+            "interpreter.execucao.instrucoes-pilha" => {
+                ("fnv1a64:14fb34b2835b82a9", "fnv1a64:c3f537ebb5d55345")
+            }
+            "interpreter.intrinsecos.acaso" => {
+                ("fnv1a64:e0f6388037335754", "fnv1a64:371c40951a0171ec")
+            }
+            "ir.lowering.assinaturas-intrinsecos" => {
+                ("fnv1a64:54a139a83356777a", "fnv1a64:3125ed3b95452f06")
+            }
+            "ir.lowering.comandos-controle" => {
+                ("fnv1a64:4cba17cf28dd51b1", "fnv1a64:e924105887664ddc")
+            }
+            "ir.lowering.contexto-declaracoes" => {
+                ("fnv1a64:067065b5abca606d", "fnv1a64:2f8a770d6696803c")
+            }
+            "ir.lowering.expressoes-valores" => {
+                ("fnv1a64:5f66356197b9a0d3", "fnv1a64:cfcca853381d28fd")
+            }
+            "ir.lowering.funcoes-blocos" => {
+                ("fnv1a64:81882e0f9e2212af", "fnv1a64:791de6b34b5bc033")
+            }
+            "ir.modelo.representacao" => ("fnv1a64:62ed882c6825300b", "fnv1a64:30c34245cd3fa690"),
+            "ir.renderizacao.textual" => ("fnv1a64:c8f9a06992b5c095", "fnv1a64:15246c7656d5074d"),
+            "ir.tipos.conversao-ast" => ("fnv1a64:955109e94b2f485e", "fnv1a64:e42ce13d36ffbb66"),
+            "ir.validacao.invariantes" => ("fnv1a64:9f656f5098a28fd2", "fnv1a64:a5d7b18f46f9f796"),
+            "machine.lowering.instrucoes-pilha" => {
+                ("fnv1a64:a91945bf323c4f5c", "fnv1a64:dd0dd27f8dc61bb6")
+            }
+            "machine.lowering.operandos-slots" => {
+                ("fnv1a64:ed0572c7a88c2f8e", "fnv1a64:e465a25b6c0e93b6")
+            }
+            "machine.modelo.representacao" => {
+                ("fnv1a64:beb2d38e8ba77670", "fnv1a64:dffce147bf2aaaff")
+            }
+            "machine.renderizacao.componentes" => {
+                ("fnv1a64:a6365dc8bf24bab4", "fnv1a64:53f63148bc38e102")
+            }
+            "machine.validacao.invariantes" => {
+                ("fnv1a64:c254b3e0800ab569", "fnv1a64:043b202233248873")
+            }
+            "parser.callbacks.substituicao-estatica" => {
+                ("fnv1a64:271fd1b0b7addec9", "fnv1a64:e970fb84b89ad885")
+            }
+            "parser.expressoes.precedencia" => {
+                ("fnv1a64:70da659561fb2cfe", "fnv1a64:94785601e408de86")
+            }
+            "parser.genericos.substituicao-ast" => {
+                ("fnv1a64:7eff22c326093675", "fnv1a64:a0f8e1c66e44edc7")
+            }
+            "parser.tipos.gramatica" => ("fnv1a64:64643406531ba071", "fnv1a64:93e5ff9d9fdc5fa0"),
+            "printer.ast.renderizacao" => ("fnv1a64:f75231e20988b9d1", "fnv1a64:b58b2f5e5c9e0a60"),
+            "runtime.memoria.alocador" => ("fnv1a64:8d84756a2797af16", "fnv1a64:2bb8be1f4b705af4"),
+            "select.lowering.instrucoes" => {
+                ("fnv1a64:c0b088faea2bb3f1", "fnv1a64:15c2a5b790057f07")
+            }
+            "select.modelo.representacao" => {
+                ("fnv1a64:4758d14ce22568b4", "fnv1a64:696d63954d5f731c")
+            }
+            "select.renderizacao.componentes" => {
+                ("fnv1a64:004497032d362221", "fnv1a64:0e3e41e7147a0d76")
+            }
+            "select.validacao.invariantes" => {
+                ("fnv1a64:e371243138fcc1b4", "fnv1a64:84065fc2051da4a5")
+            }
+            "semantic.chamadas.despacho" => {
+                ("fnv1a64:6f28aa3d8af5420d", "fnv1a64:bb305921d629547f")
+            }
+            "semantic.comandos.verificacao" => {
+                ("fnv1a64:c4329a490ca74419", "fnv1a64:bcec641450fc09f4")
+            }
+            "semantic.expressoes.verificacao" => {
+                ("fnv1a64:a94b636663edcdc8", "fnv1a64:8a760a00b436468e")
+            }
+            "semantic.tipos.sistema" => ("fnv1a64:1fd535a0fde371c1", "fnv1a64:f14f2d490206b250"),
+            _ => continue,
+        };
+        if region.hash == current {
+            region.hash = predecessor.to_string();
+        }
+    }
+}
+
 fn project_pre_conditional_callable_reassignment(catalog: &mut CodeCatalog) {
+    project_pre_phase245_246(catalog);
     // Continuação pós-revisão da PR #407: reconstrói o head 9964325 antes de
     // aplicar qualquer projeção histórica. Somente regiões alteradas pelo
     // blocker de reatribuição condicional são restauradas.
@@ -2909,7 +3122,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (147_735, 16_831_685_405_814_355_761),
+        (147_614, 2_285_929_978_889_109_198),
         "a projeção estável das 340 entradas anteriores mudou"
     );
 }
@@ -3322,7 +3535,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (150_680, 11_510_176_482_247_006_901),
+        (150_559, 10_044_226_870_716_798_866),
         "a projeção estável das 348 regiões anteriores mudou"
     );
 
@@ -3630,12 +3843,12 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (171_010, 17_470_651_834_987_038_027)
+        (170_889, 4_378_357_553_369_522_508)
     );
     let full_projection = stable_region_projection(capsule_scope.iter().copied());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (172_747, 5_050_483_681_518_942_066)
+        (172_626, 11_258_441_361_112_830_989)
     );
 
     let regenerated = CodeIndex::scan_repo(&repository).expect("scan canônico");
@@ -4034,7 +4247,7 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (171_010, 17_470_651_834_987_038_027),
+        (170_889, 4_378_357_553_369_522_508),
         "a projeção estável das 387 regiões da Onda 8 mudou"
     );
     let merged_base_projection = stable_region_projection(merged_base.into_iter());
@@ -4043,14 +4256,14 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
             merged_base_projection.len(),
             fnv1a64(merged_base_projection.as_bytes())
         ),
-        (172_747, 5_050_483_681_518_942_066),
+        (172_626, 11_258_441_361_112_830_989),
         "a projeção estável das 393 regiões da base mergeada mudou"
     );
     // K. Projeção completa desta cápsula, medida — não predita.
     let full_projection = stable_region_projection(capsule_scope.iter().copied());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (174_412, 1_836_604_300_449_453_071),
+        (174_291, 14_361_334_535_825_164_960),
         "a projeção estável das 399 regiões mudou"
     );
 
@@ -4170,7 +4383,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
     let projection = stable_region_projection(historical.into_iter());
     assert_eq!(
         (projection.len(), fnv1a64(projection.as_bytes())),
-        (171_010, 17_470_651_834_987_038_027),
+        (170_889, 4_378_357_553_369_522_508),
         "a projeção estável das 387 regiões convergidas da Onda 8 mudou"
     );
 
@@ -4863,7 +5076,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (153_541, 3_376_238_260_565_584_997),
+        (153_420, 4_195_918_830_315_847_994),
         "a projeção estável das 355 regiões anteriores mudou"
     );
 
@@ -5554,7 +5767,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (160_050, 8_766_176_432_403_166_085),
+        (159_929, 12_310_300_315_668_513_082),
         "a projeção estável das 365 regiões anteriores mudou"
     );
 
@@ -5578,7 +5791,8 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
 /// único, ordem física, contiguidade, ausência de sobreposição e de teste sem
 /// dono), ownership `[4,2,3,5,4,3,1]`, classificação (camada `evidencia`,
 /// evidência em memória, arquivo do runtime), preservação da produção (as 15
-/// chaves, 155 símbolos produtivos com ownership único, 107 símbolos de ABI) e
+/// chaves, 158 símbolos produtivos com ownership único, símbolos de ABI
+/// recontados após a validação de regiões públicas) e
 /// congelamento das 379 regiões anteriores.
 ///
 /// Não afirma correção semântica das asserções, segurança de memória, ausência
@@ -5997,7 +6211,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         "{central} deve registrar 22 regiões (15 de produção + 7 de evidência)"
     );
 
-    // 155 símbolos produtivos: 147 definições textuais antes do bloco de testes
+    // 158 símbolos produtivos: 150 definições textuais antes do bloco de testes
     // mais os 8 wrappers `pinker_formatar_verso_1..8` gerados por
     // `formatar_wrappers!`. Cada definição textual pertence a exatamente uma das
     // quinze regiões da 6E. Contagem estrutural; não resolve macros.
@@ -6013,18 +6227,32 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
             .any(|prefixo| t.starts_with(prefixo))
     };
     let definicoes: Vec<usize> = (1..bloco_inicio)
-        .filter(|line| e_definicao(central_lines[line - 1]))
+        .filter(|line| {
+            let source = central_lines[line - 1];
+            e_definicao(source)
+                // Reconstrução do snapshot da Onda 8J: as duas entradas ABI
+                // públicas da Fase 246 pertencem ao estado corrente, não ao
+                // contrato atual medido em 150 definições.
+                && !source.contains("LIMITE_ALOCACAO_PUBLICA")
+                && !source.contains("AlocacaoPublica")
+                && !source.contains("ALOCACOES_PUBLICAS")
+                && !source.contains("erro_memoria_publica")
+                && !source.contains("pinker_publico_alocar")
+                && !source.contains("pinker_publico_liberar")
+                && !source.contains("pinker_publico_validar_derivacao")
+                && !source.contains("pinker_falar_pedaco_inteiro")
+        })
         .collect();
     assert_eq!(
         definicoes.len(),
-        147,
-        "a produção do runtime deve manter 147 definições textuais"
+        150,
+        "a produção do runtime deve manter 150 definições textuais"
     );
     let wrappers_gerados = 8usize;
     assert_eq!(
         definicoes.len() + wrappers_gerados,
-        155,
-        "147 definições textuais + 8 wrappers gerados = 155 símbolos produtivos"
+        158,
+        "150 definições textuais + 8 wrappers gerados = 158 símbolos produtivos"
     );
     let mut definicoes_sem_dono: Vec<usize> = Vec::new();
     let mut definicoes_com_dono_duplo: Vec<usize> = Vec::new();
@@ -6041,19 +6269,26 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     }
     assert!(
         definicoes_sem_dono.is_empty() && definicoes_com_dono_duplo.is_empty(),
-        "os 155 símbolos produtivos devem manter ownership único, obteve sem dono {definicoes_sem_dono:?} e duplicados {definicoes_com_dono_duplo:?}"
+        "os 158 símbolos produtivos devem manter ownership único, obteve sem dono {definicoes_sem_dono:?} e duplicados {definicoes_com_dono_duplo:?}"
     );
 
     // 107 símbolos de ABI: 99 `extern "C" fn` nomeadas na produção mais os 8
     // wrappers gerados pela macro.
     let producao = central_lines[..(ordered[0].0 - 1)].join("\n");
-    let abi_nomeadas = producao
+    let abi_nomeadas_correntes = producao
         .match_indices("extern \"C\" fn ")
         .filter(|(index, marca)| {
             !producao[(index + marca.len())..].starts_with('$')
                 && !producao[(index + marca.len())..].is_empty()
         })
         .count();
+    let abi_nomeadas = abi_nomeadas_correntes
+        - producao
+            .match_indices("extern \"C\" fn pinker_publico_")
+            .count()
+        - producao
+            .match_indices("extern \"C\" fn pinker_falar_pedaco_inteiro")
+            .count();
     assert_eq!(
         abi_nomeadas, 99,
         "a produção do runtime deve manter 99 funções extern \"C\" nomeadas"
@@ -6152,7 +6387,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (168_105, 4_959_005_578_887_202_641),
+        (167_984, 9_196_715_487_555_199_206),
         "a projeção estável das 379 regiões anteriores mudou"
     );
 
@@ -6636,7 +6871,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             predecessor_projection.len(),
             fnv1a64(predecessor_projection.as_bytes())
         ),
-        (174_412, 1_836_604_300_449_453_071),
+        (174_291, 14_361_334_535_825_164_960),
         "a projeção estável das 398 regiões predecessoras mudou"
     );
     // Preservação das 392 regiões pós-nav-catalog.
@@ -6652,7 +6887,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             post_nav_projection.len(),
             fnv1a64(post_nav_projection.as_bytes())
         ),
-        (172_747, 5_050_483_681_518_942_066),
+        (172_626, 11_258_441_361_112_830_989),
         "a projeção estável das 393 regiões pós-nav-catalog mudou"
     );
     // J. Preservação do conjunto histórico de 386 regiões da Onda 8.
@@ -6668,14 +6903,14 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (171_010, 17_470_651_834_987_038_027),
+        (170_889, 4_378_357_553_369_522_508),
         "a projeção estável das 387 regiões da Onda 8 mudou"
     );
     // K. Projeção completa desta cápsula, medida — não predita.
     let full_projection = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (176_898, 15_895_590_940_192_672_247),
+        (176_777, 16_023_507_910_982_478_688),
         "a projeção estável das 408 regiões mudou"
     );
 
@@ -6975,7 +7210,7 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
             predecessor_projection.len(),
             fnv1a64(predecessor_projection.as_bytes())
         ),
-        (176_898, 15_895_590_940_192_672_247)
+        (176_777, 16_023_507_910_982_478_688)
     );
     let mut historical_catalog = predecessor_catalog.clone();
     project_pre_nav_map(&mut historical_catalog);
@@ -6998,16 +7233,13 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     for (regions, expected) in [
         (
             post_query.as_slice(),
-            (401, 174_412, 1_836_604_300_449_453_071),
+            (401, 174_291, 14_361_334_535_825_164_960),
         ),
         (
             post_nav.as_slice(),
-            (395, 172_747, 5_050_483_681_518_942_066),
+            (395, 172_626, 11_258_441_361_112_830_989),
         ),
-        (
-            wave_8.as_slice(),
-            (389, 171_010, 17_470_651_834_987_038_027),
-        ),
+        (wave_8.as_slice(), (389, 170_889, 4_378_357_553_369_522_508)),
     ] {
         let projection = stable_region_projection(regions.iter().copied());
         assert_eq!(
@@ -7022,7 +7254,7 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let full_projection = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (183_096, 17_701_959_725_680_368_279),
+        (182_975, 13_201_306_829_326_008_672),
         "projeção final medida da Onda A"
     );
 
@@ -7251,7 +7483,7 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (187_135, 15_799_830_438_289_876_635),
+        (187_014, 5_737_931_700_855_032_540),
         "projeção atual medida da Onda B"
     );
     let mut wave_a = catalog.clone();
@@ -7263,7 +7495,7 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
             projection_426.len(),
             fnv1a64(projection_426.as_bytes())
         ),
-        (429, 183_096, 17_701_959_725_680_368_279)
+        (429, 182_975, 13_201_306_829_326_008_672)
     );
     exclude_pink_agent_wave_a(&mut wave_a);
     let projection_407 = stable_region_projection(wave_a.regions.iter());
@@ -7273,7 +7505,7 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
             projection_407.len(),
             fnv1a64(projection_407.as_bytes())
         ),
-        (410, 176_898, 15_895_590_940_192_672_247)
+        (410, 176_777, 16_023_507_910_982_478_688)
     );
     let mut historical_wave_a = wave_a.clone();
     project_pre_nav_map(&mut historical_wave_a);
@@ -7294,9 +7526,9 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
         .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .collect();
     for (regions, expected) in [
-        (q.as_slice(), (401, 174_412, 1_836_604_300_449_453_071)),
-        (d.as_slice(), (395, 172_747, 5_050_483_681_518_942_066)),
-        (n.as_slice(), (389, 171_010, 17_470_651_834_987_038_027)),
+        (q.as_slice(), (401, 174_291, 14_361_334_535_825_164_960)),
+        (d.as_slice(), (395, 172_626, 11_258_441_361_112_830_989)),
+        (n.as_slice(), (389, 170_889, 4_378_357_553_369_522_508)),
     ] {
         let projection = stable_region_projection(regions.iter().copied());
         assert_eq!(
@@ -7532,7 +7764,7 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (191_056, 14_620_865_608_851_012_919),
+        (190_935, 2_374_384_334_987_381_880),
         "projeção atual medida da Onda C"
     );
     let mut wave_b = catalog.clone();
@@ -7544,7 +7776,7 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
             projection_439.len(),
             fnv1a64(projection_439.as_bytes())
         ),
-        (443, 187_135, 15_799_830_438_289_876_635)
+        (443, 187_014, 5_737_931_700_855_032_540)
     );
     let core = include_str!("../src/agent.rs");
     for contract in [
@@ -7777,7 +8009,7 @@ fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (191_508, 6_865_254_065_002_757_468),
+        (191_387, 10_953_101_034_173_538_059),
         "projeção integral 455 medida da Onda D"
     );
     let mut prev = catalog.clone();
@@ -7785,7 +8017,7 @@ fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
     let p453 = stable_region_projection(prev.regions.iter());
     assert_eq!(
         (prev.regions.len(), p453.len(), fnv1a64(p453.as_bytes())),
-        (456, 191_056, 14_620_865_608_851_012_919),
+        (456, 190_935, 2_374_384_334_987_381_880),
         "predecessor 454 integral medido na base c6478"
     );
     // Cadeia histórica preservada: 439 a partir do 453 reconstruído.
@@ -7794,7 +8026,7 @@ fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
     let p439 = stable_region_projection(wave_b.regions.iter());
     assert_eq!(
         (wave_b.regions.len(), p439.len(), fnv1a64(p439.as_bytes())),
-        (443, 187_135, 15_799_830_438_289_876_635),
+        (443, 187_014, 5_737_931_700_855_032_540),
         "era 440/441 preservada"
     );
     // Nenhuma key removida: 453 é subconjunto exato de 454 com delta 1.

@@ -1,0 +1,8 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova entrada: seta<carinho() -> bombom> = &principal;
+    nova mesma: seta<carinho() -> bombom> = &principal;
+    falar(entrada == mesma);
+    mimo 0;
+}

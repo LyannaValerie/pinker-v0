@@ -1,0 +1,12 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova a: seta<u8> = alocar(1);
+    nova b: seta<u8> = alocar(1);
+    *a = 7;
+    *b = 9;
+    falar(*a + *b);
+    liberar(a);
+    liberar(b);
+    mimo 0;
+}

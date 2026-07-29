@@ -33,4 +33,5 @@ mão. Regenere com `pink doc sincronizar`.
 |---|---|---|---|---|
 | #378 | — | — | Simplifica o caminho de contribuição externa | completed |
 | #382 | — | — | Adiciona mapa agrupado do catálogo de código | completed |
+| #410 | 246 | 20 | Alocação e liberação explícitas de memória | completed |
 <!-- @pinker-generated:end roadmap.generated -->

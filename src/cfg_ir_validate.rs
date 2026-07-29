@@ -92,6 +92,20 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "alocar".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Pointer { is_volatile: false },
+            params: vec![TypeIR::U64],
+        },
+    );
+    function_sigs.insert(
+        "liberar".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Pointer { is_volatile: false }],
+        },
+    );
+    function_sigs.insert(
         "lista_bombom_anexar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
@@ -1413,6 +1427,10 @@ fn validate_block(
                             || (matches!(rhs, OperandIR::Int(_))
                                 && lhs_ty.is_integer()
                                 && lhs_ty != TypeIR::Nulo)
+                            || (matches!(lhs, OperandIR::Int(0))
+                                && rhs_ty == TypeIR::FunctionPointer)
+                            || (matches!(rhs, OperandIR::Int(0))
+                                && lhs_ty == TypeIR::FunctionPointer)
                         {
                             TypeIR::Logica
                         } else {
@@ -1805,6 +1823,66 @@ fn validate_block(
                 }
                 temp_types.insert(*dest, *ret_type);
             }
+            InstructionCfgIR::CallRaw {
+                dest,
+                callee,
+                args,
+                param_types,
+                ret_type,
+            } => {
+                let callee_ty = infer_operand_type(
+                    callee,
+                    slot_types,
+                    &temp_types,
+                    global_consts,
+                    function.span,
+                )?;
+                if !operand_matches_expected(callee, callee_ty, TypeIR::FunctionPointer) {
+                    return Err(cfg_error(
+                        "call_raw exige ponteiro cru de função",
+                        function.span,
+                    ));
+                }
+                if args.len() != param_types.len() {
+                    return Err(cfg_error(
+                        "call_raw com aridade inconsistente",
+                        function.span,
+                    ));
+                }
+                for (arg, expected) in args.iter().zip(param_types.iter()) {
+                    let actual = infer_operand_type(
+                        arg,
+                        slot_types,
+                        &temp_types,
+                        global_consts,
+                        function.span,
+                    )?;
+                    if !operand_matches_expected(arg, actual, *expected) {
+                        return Err(cfg_error(
+                            "call_raw com argumento incompatível",
+                            function.span,
+                        ));
+                    }
+                }
+                match (dest, *ret_type) {
+                    (Some(_), TypeIR::Nulo) => {
+                        return Err(cfg_error(
+                            "call_raw nulo não pode definir temporário",
+                            function.span,
+                        ));
+                    }
+                    (Some(dest), ty) => {
+                        temp_types.insert(*dest, ty);
+                    }
+                    (None, TypeIR::Nulo) => {}
+                    (None, _) => {
+                        return Err(cfg_error(
+                            "call_raw com retorno exige temporário",
+                            function.span,
+                        ));
+                    }
+                }
+            }
             InstructionCfgIR::MakeClosure {
                 dest,
                 function_name,
@@ -1914,7 +1992,9 @@ fn is_cfg_cast_allowed(source: TypeIR, target: TypeIR) -> bool {
     }
     matches!(
         (source, target),
-        (TypeIR::Bombom, TypeIR::Pointer { .. }) | (TypeIR::Pointer { .. }, TypeIR::Bombom)
+        (TypeIR::Bombom, TypeIR::Pointer { .. })
+            | (TypeIR::Pointer { .. }, TypeIR::Bombom)
+            | (TypeIR::Pointer { .. }, TypeIR::Pointer { .. })
     )
 }
 
@@ -1942,6 +2022,7 @@ fn infer_operand_type(
             .copied()
             .ok_or_else(|| cfg_error(&format!("temporário não definido '%t{}'", temp.0), span)),
         OperandIR::FunctionRef(_) => Ok(TypeIR::Function),
+        OperandIR::RawFunctionRef(_) => Ok(TypeIR::FunctionPointer),
     }
 }
 
@@ -1975,7 +2056,8 @@ fn cfg_error_ctx(
 fn operand_matches_expected(operand: &OperandIR, actual: TypeIR, expected: TypeIR) -> bool {
     actual.is_compatible_with(expected)
         || (matches!(operand, OperandIR::Int(_)) && expected.is_integer())
-        || (matches!(operand, OperandIR::Int(_)) && matches!(expected, TypeIR::Pointer { .. }))
+        || (matches!(operand, OperandIR::Int(_))
+            && matches!(expected, TypeIR::Pointer { .. } | TypeIR::FunctionPointer))
         || (actual.is_integer() && expected.is_integer())
 }
 

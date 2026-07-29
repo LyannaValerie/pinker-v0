@@ -105,6 +105,8 @@ Referência estrutural desta leitura: `docs/familias/dominios.md`.
 | 4 | `sair` | `(bombom) → nulo` | Bloco 8, Fase 92 | Controle fundamental de processo |
 | 108 | `dormir` | `(bombom) → nulo` | Fase 193 | Pausa de execução em milissegundos |
 | 109 | `afirmar` | `(logica, verso) → nulo` | Fase 193 | Asserção com mensagem de erro |
+| 120 | `alocar` | `(u64) → seta<u8>` | Fase 246 | Região pública zerada e alinhada, tamanho em bytes |
+| 121 | `liberar` | `(seta<u8>) → nulo` | Fase 246 | Liberação única do ponteiro-base de região pública |
 
 **Justificativa resumida:** estas intrínsecas são universais, indispensáveis para I/O básico e controle de processo, acopladas ao runtime e irredutíveis. Junto com `falar` (statement), `peso` e `alinhamento` (expressões compiletime), formam o núcleo mínimo da linguagem.
 

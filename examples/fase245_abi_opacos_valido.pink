@@ -1,0 +1,89 @@
+pacote main;
+
+leque Cor { Rosa, Azul }
+leque Caixa { Valor(bombom), Vazia }
+
+trato Medivel {
+    carinho valor(item: si) -> bombom;
+}
+
+impl Medivel para bombom {
+    carinho valor(item: bombom) -> bombom {
+        mimo item;
+    }
+}
+
+apelido Transformacao = carinho(bombom) -> bombom;
+
+carinho eco_lista_bombom(v: lista<bombom>) -> lista<bombom> { mimo v; }
+carinho eco_lista_verso(v: lista<verso>) -> lista<verso> { mimo v; }
+carinho eco_lista_cor(v: lista<Cor>) -> lista<Cor> { mimo v; }
+carinho eco_mapa_vb(v: mapa<verso,bombom>) -> mapa<verso,bombom> { mimo v; }
+carinho eco_mapa_vv(v: mapa<verso,verso>) -> mapa<verso,verso> { mimo v; }
+carinho eco_mapa_bb(v: mapa<bombom,bombom>) -> mapa<bombom,bombom> { mimo v; }
+carinho eco_mapa_bv(v: mapa<bombom,verso>) -> mapa<bombom,verso> { mimo v; }
+carinho eco_cor(v: Cor) -> Cor { mimo v; }
+carinho eco_caixa(v: Caixa) -> Caixa { mimo v; }
+carinho eco_funcao(v: Transformacao) -> Transformacao { mimo v; }
+carinho eco_trato(v: trato<Medivel>) -> trato<Medivel> { mimo v; }
+carinho aplicar(v: carinho(bombom) -> bombom, item: bombom) -> bombom { mimo v(item); }
+
+carinho principal() -> bombom {
+    nova f_lista_bombom: seta<carinho(lista<bombom>) -> lista<bombom> > = &eco_lista_bombom;
+    nova f_lista_verso: seta<carinho(lista<verso>) -> lista<verso> > = &eco_lista_verso;
+    nova f_lista_cor: seta<carinho(lista<Cor>) -> lista<Cor> > = &eco_lista_cor;
+    nova f_mapa_vb: seta<carinho(mapa<verso,bombom>) -> mapa<verso,bombom> > = &eco_mapa_vb;
+    nova f_mapa_vv: seta<carinho(mapa<verso,verso>) -> mapa<verso,verso> > = &eco_mapa_vv;
+    nova f_mapa_bb: seta<carinho(mapa<bombom,bombom>) -> mapa<bombom,bombom> > = &eco_mapa_bb;
+    nova f_mapa_bv: seta<carinho(mapa<bombom,verso>) -> mapa<bombom,verso> > = &eco_mapa_bv;
+    nova f_cor: seta<carinho(Cor) -> Cor> = &eco_cor;
+    nova f_caixa: seta<carinho(Caixa) -> Caixa> = &eco_caixa;
+    nova f_funcao: seta<carinho(Transformacao) -> Transformacao> = &eco_funcao;
+    nova f_trato: seta<carinho(trato<Medivel>) -> trato<Medivel> > = &eco_trato;
+
+    nova lb: lista<bombom> = lista_criar();
+    lista_anexar(lb, 1);
+    falar(lista_tamanho(f_lista_bombom(lb)));
+
+    nova lv: lista<verso> = lista_criar();
+    lista_anexar(lv, "rosa");
+    falar(lista_tamanho(f_lista_verso(lv)));
+
+    nova lc: lista<Cor> = lista_criar();
+    lista_anexar(lc, Cor.Rosa);
+    falar(lista_tamanho(f_lista_cor(lc)));
+
+    nova mvb: mapa<verso,bombom> = mapa_criar();
+    mapa_definir(mvb, "rosa", 1);
+    falar(mapa_tamanho(f_mapa_vb(mvb)));
+
+    nova mvv: mapa<verso,verso> = mapa_criar();
+    mapa_definir(mvv, "rosa", "pink");
+    falar(mapa_tamanho(f_mapa_vv(mvv)));
+
+    nova mbb: mapa<bombom,bombom> = mapa_criar();
+    mapa_definir(mbb, 1, 2);
+    falar(mapa_tamanho(f_mapa_bb(mbb)));
+
+    nova mbv: mapa<bombom,verso> = mapa_criar();
+    mapa_definir(mbv, 1, "rosa");
+    falar(mapa_tamanho(f_mapa_bv(mbv)));
+
+    falar(f_cor(Cor.Rosa) == Cor.Rosa);
+    nova caixa: Caixa = f_caixa(Caixa.Valor(7));
+    encaixe caixa {
+        caso Caixa.Valor(valor) { falar(valor); }
+        senao { falar(0); }
+    }
+
+    nova dobrar: Transformacao = carinho(v: bombom) -> bombom {
+        mimo v * 2;
+    };
+    nova retornada: Transformacao = f_funcao(dobrar);
+    falar(aplicar(retornada, 21));
+
+    nova objeto: trato<Medivel> = 10 virar trato<Medivel>;
+    nova objeto_retornado: trato<Medivel> = f_trato(objeto);
+    falar(objeto_retornado.valor());
+    mimo 0;
+}

@@ -1,0 +1,35 @@
+pacote main;
+
+apelido Bytes = seta<u8>;
+
+carinho criar() -> Bytes {
+    mimo alocar(32);
+}
+
+carinho gravar_e_ler(memoria: Bytes, valor: u8) -> u8 {
+    *memoria = valor;
+    mimo *memoria;
+}
+
+carinho destruir(memoria: Bytes) {
+    liberar(memoria);
+    mimo;
+}
+
+carinho principal() -> bombom {
+    nova primeira: Bytes = criar();
+    nova alias_primeira: Bytes = primeira;
+    falar(gravar_e_ler(alias_primeira, 1));
+    destruir(alias_primeira);
+
+    nova segunda: Bytes = criar();
+    nova alias_segunda: Bytes = segunda;
+    falar(gravar_e_ler(alias_segunda, 2));
+    destruir(alias_segunda);
+
+    nova terceira: Bytes = criar();
+    nova alias_terceira: Bytes = terceira;
+    falar(gravar_e_ler(alias_terceira, 3));
+    destruir(alias_terceira);
+    mimo 0;
+}

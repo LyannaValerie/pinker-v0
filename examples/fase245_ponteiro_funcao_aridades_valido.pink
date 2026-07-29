@@ -1,0 +1,50 @@
+pacote main;
+
+carinho soma0() -> bombom { mimo 0; }
+carinho soma1(a: bombom) -> bombom { mimo a; }
+carinho soma2(a: bombom, b: bombom) -> bombom { mimo a + b; }
+carinho soma5(a: bombom, b: bombom, c: bombom, d: bombom, e: bombom) -> bombom {
+    mimo a + b + c + d + e;
+}
+carinho soma6(
+    a: bombom, b: bombom, c: bombom, d: bombom, e: bombom, f: bombom
+) -> bombom {
+    mimo a + b + c + d + e + f;
+}
+carinho soma7(
+    a: bombom, b: bombom, c: bombom, d: bombom,
+    e: bombom, f: bombom, g: bombom
+) -> bombom {
+    mimo a + b + c + d + e + f + g;
+}
+carinho soma8(
+    a: bombom, b: bombom, c: bombom, d: bombom,
+    e: bombom, f: bombom, g: bombom, h: bombom
+) -> bombom {
+    mimo a + b + c + d + e + f + g + h;
+}
+
+carinho principal() -> bombom {
+    nova p0: seta<carinho() -> bombom> = &soma0;
+    nova p1: seta<carinho(bombom) -> bombom> = &soma1;
+    nova p2: seta<carinho(bombom, bombom) -> bombom> = &soma2;
+    nova p5: seta<carinho(bombom, bombom, bombom, bombom, bombom) -> bombom> = &soma5;
+    nova p6: seta<carinho(
+        bombom, bombom, bombom, bombom, bombom, bombom
+    ) -> bombom> = &soma6;
+    nova p7: seta<carinho(
+        bombom, bombom, bombom, bombom, bombom, bombom, bombom
+    ) -> bombom> = &soma7;
+    nova p8: seta<carinho(
+        bombom, bombom, bombom, bombom,
+        bombom, bombom, bombom, bombom
+    ) -> bombom> = &soma8;
+    falar(p0());
+    falar(p1(1));
+    falar(p2(1, 2));
+    falar(p5(1, 2, 3, 4, 5));
+    falar(p6(1, 2, 3, 4, 5, 6));
+    falar(p7(1, 2, 3, 4, 5, 6, 7));
+    falar(p8(1, 2, 3, 4, 5, 6, 7, 8));
+    mimo 0;
+}

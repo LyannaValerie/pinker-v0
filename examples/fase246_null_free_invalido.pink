@@ -1,0 +1,7 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova nulo: seta<u8> = 0;
+    liberar(nulo);
+    mimo 0;
+}

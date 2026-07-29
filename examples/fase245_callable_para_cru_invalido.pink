@@ -1,0 +1,6 @@
+pacote main;
+carinho dobrar(x: bombom) -> bombom { mimo x * 2; }
+carinho principal() -> bombom {
+    nova f: seta<carinho(bombom) -> bombom> = dobrar;
+    mimo 0;
+}

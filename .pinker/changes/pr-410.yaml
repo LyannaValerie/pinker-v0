@@ -1,0 +1,20 @@
+schema: 1
+source:
+  type: github-pr
+  number: 410
+  repository: LyannaValerie/pinker-v0
+kind: phase
+phase: 246
+block: 20
+title: Alocação e liberação explícitas de memória
+area:
+  - language.memory
+  - runtime.allocation
+status: completed
+updates:
+  state: true
+  history: true
+  roadmap: true
+validation:
+  required:
+    - make ci

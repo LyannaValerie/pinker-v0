@@ -1,0 +1,10 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova bytes: seta<u8> = alocar(8);
+    nova metadata: seta<bombom> =
+        18446744073709551615 virar seta<bombom>;
+    *metadata = 0;
+    liberar(bytes);
+    mimo 0;
+}

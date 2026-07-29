@@ -66,10 +66,9 @@ pub extern "C" fn pinker_rt_versao() -> u64 {
 // @pinker-nav:start runtime.memoria.alocador
 // @pinker-nav:domain memoria
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Alocador manual com cabeçalho de tamanho: pinker_alocar reserva um bloco alinhado a 16 bytes com o tamanho total gravado no cabeçalho e devolve ponteiro nulo — sem abortar — em overflow do tamanho (checked_add) ou em falha de alocação do sistema; pinker_liberar libera a partir do cabeçalho, confiando, sem validar, que o ponteiro tenha sido devolvido por pinker_alocar e ainda não liberado.
-fn layout_para(tamanho_total: usize) -> Layout {
-    Layout::from_size_align(tamanho_total, ALINHAMENTO)
-        .expect("layout de alocação inválido no runtime pinker_rt")
+// @pinker-nav:summary Alocador manual e regiões públicas: pinker_alocar reserva bloco alinhado a 16 bytes; a superfície pública rejeita zero/overflow/falha, zera bytes, registra identidade/base/tamanho/vida e mantém blocos liberados em quarentena. Acesso, liberação e derivação de ponteiro validam proveniência, domínio, alinhamento, limites, use-after-free, double free e escapes mesmo quando o endereço derivado já não cai dentro da região.
+fn layout_para(tamanho_total: usize) -> Option<Layout> {
+    Layout::from_size_align(tamanho_total, ALINHAMENTO).ok()
 }
 
 /// Aloca `tamanho` bytes e devolve ponteiro alinhado a 16 bytes.
@@ -82,7 +81,9 @@ pub extern "C" fn pinker_alocar(tamanho: u64) -> *mut u8 {
         Some(total) => total,
         None => return std::ptr::null_mut(),
     };
-    let layout = layout_para(total);
+    let Some(layout) = layout_para(total) else {
+        return std::ptr::null_mut();
+    };
     unsafe {
         let base = alloc(layout);
         if base.is_null() {
@@ -106,7 +107,195 @@ pub unsafe extern "C" fn pinker_liberar(ptr: *mut u8) {
     }
     let base = ptr.sub(CABECALHO);
     let total = (base as *const u64).read() as usize;
-    dealloc(base, layout_para(total));
+    if let Some(layout) = layout_para(total) {
+        dealloc(base, layout);
+    }
+}
+
+#[derive(Clone, Copy)]
+struct AlocacaoPublica {
+    identidade: u64,
+    base: usize,
+    tamanho: usize,
+    viva: bool,
+}
+
+static ALOCACOES_PUBLICAS: Mutex<Vec<AlocacaoPublica>> = Mutex::new(Vec::new());
+
+fn indice_base_publica_mais_recente(registro: &[AlocacaoPublica], base: usize) -> Option<usize> {
+    registro.iter().rposition(|alocacao| alocacao.base == base)
+}
+
+fn erro_memoria_publica(mensagem: &str) -> ! {
+    eprintln!("Erro Runtime: {mensagem}");
+    std::process::exit(1);
+}
+
+fn falha_publica_injetada() -> bool {
+    #[cfg(debug_assertions)]
+    {
+        std::env::var_os("PINKER_TESTE_FALHA_ALOCACAO_PUBLICA").is_some()
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        false
+    }
+}
+
+/// Fase 246: entrada pública de `alocar`. Diferentemente de
+/// `pinker_alocar`, rejeita zero, valida toda conversão, zera os bytes visíveis e
+/// registra ownership para que `liberar` possa validar a origem.
+#[no_mangle]
+pub extern "C" fn pinker_publico_alocar(tamanho: u64) -> *mut u8 {
+    if tamanho == 0 {
+        erro_memoria_publica("'alocar' rejeita tamanho zero");
+    }
+    let tamanho_usize = usize::try_from(tamanho)
+        .unwrap_or_else(|_| erro_memoria_publica("'alocar' excede a largura da plataforma"));
+    if tamanho_usize > (isize::MAX as usize).saturating_sub(CABECALHO) {
+        erro_memoria_publica("'alocar' excede o maior bloco representável pela plataforma");
+    }
+    if falha_publica_injetada() {
+        erro_memoria_publica("'alocar' falhou ao reservar memória");
+    }
+    let mut registro = ALOCACOES_PUBLICAS
+        .lock()
+        .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
+    registro
+        .try_reserve(1)
+        .unwrap_or_else(|_| erro_memoria_publica("metadata pública de alocações esgotada"));
+    let identidade = registro
+        .last()
+        .map_or(Some(1), |alocacao| alocacao.identidade.checked_add(1))
+        .unwrap_or_else(|| erro_memoria_publica("identidade pública de alocação esgotada"));
+    let ponteiro = pinker_alocar(tamanho);
+    if ponteiro.is_null() {
+        erro_memoria_publica("'alocar' falhou ao reservar memória");
+    }
+    unsafe {
+        ponteiro.write_bytes(0, tamanho_usize);
+    }
+    registro.push(AlocacaoPublica {
+        identidade,
+        base: ponteiro as usize,
+        tamanho: tamanho_usize,
+        viva: true,
+    });
+    ponteiro
+}
+
+/// Fase 246: entrada pública de `liberar`. Somente o ponteiro-base de uma
+/// alocação pública viva é aceito; ponteiros internos e double free falham
+/// deterministicamente sem tocar no allocator interno.
+///
+/// # Safety
+///
+/// `ponteiro` deve ser exatamente o endereço-base retornado por
+/// `pinker_publico_alocar`. O registro interno valida essa origem antes de
+/// marcar a geração como liberada; o bloco físico permanece em quarentena.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_publico_liberar(ponteiro: *mut u8) {
+    if ponteiro.is_null() {
+        erro_memoria_publica("'liberar' rejeita ponteiro nulo");
+    }
+    let mut registro = ALOCACOES_PUBLICAS
+        .lock()
+        .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
+    if let Some(indice) = indice_base_publica_mais_recente(&registro, ponteiro as usize) {
+        let alocacao = &mut registro[indice];
+        if !alocacao.viva {
+            erro_memoria_publica("'liberar' detectou double free");
+        }
+        debug_assert!(alocacao.identidade > 0);
+        debug_assert!(alocacao.tamanho > 0);
+        alocacao.viva = false;
+        // Quarentena física até o término do processo: um endereço nunca é
+        // reciclado para esconder double free ou revalidar alias obsoleto.
+        return;
+    }
+    let endereco = ponteiro as usize;
+    if registro.iter().any(|alocacao| {
+        endereco > alocacao.base && endereco <= alocacao.base.saturating_add(alocacao.tamanho)
+    }) {
+        erro_memoria_publica("'liberar' rejeita ponteiro interior; use o ponteiro-base");
+    }
+    erro_memoria_publica("'liberar' rejeita ponteiro estrangeiro ou de domínio interno");
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_publico_validar_acesso(
+    ponteiro: *const u8,
+    largura: u64,
+    alinhamento: u64,
+) {
+    let endereco = ponteiro as usize;
+    let largura = usize::try_from(largura)
+        .unwrap_or_else(|_| erro_memoria_publica("largura de acesso excede a plataforma"));
+    let alinhamento = usize::try_from(alinhamento)
+        .unwrap_or_else(|_| erro_memoria_publica("alinhamento de acesso excede a plataforma"));
+    if largura == 0 || alinhamento == 0 || !alinhamento.is_power_of_two() {
+        erro_memoria_publica("metadados inválidos de acesso à memória pública");
+    }
+    let fim_acesso = endereco
+        .checked_add(largura)
+        .unwrap_or_else(|| erro_memoria_publica("overflow no acesso à memória pública"));
+    let registro = ALOCACOES_PUBLICAS
+        .lock()
+        .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
+    let candidata = registro.iter().rev().find(|alocacao| {
+        let fim = alocacao.base.saturating_add(alocacao.tamanho);
+        (endereco >= alocacao.base && endereco <= fim)
+            || (endereco < alocacao.base && fim_acesso > alocacao.base)
+    });
+    let Some(alocacao) = candidata else {
+        return;
+    };
+    if !alocacao.viva {
+        erro_memoria_publica("uso após liberar detectado em memória pública");
+    }
+    if endereco % alinhamento != 0 {
+        erro_memoria_publica("acesso desalinhado à memória pública");
+    }
+    let fim_regiao = alocacao
+        .base
+        .checked_add(alocacao.tamanho)
+        .unwrap_or_else(|| erro_memoria_publica("metadados de região pública inválidos"));
+    if endereco < alocacao.base || fim_acesso > fim_regiao {
+        erro_memoria_publica("acesso fora dos limites da alocação pública");
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_publico_validar_derivacao(origem: *const u8, derivado: *const u8) {
+    let origem = origem as usize;
+    let derivado = derivado as usize;
+    let registro = ALOCACOES_PUBLICAS
+        .lock()
+        .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
+    let candidata = registro.iter().rev().find(|alocacao| {
+        let fim = alocacao.base.saturating_add(alocacao.tamanho);
+        origem >= alocacao.base && origem <= fim
+    });
+    let Some(alocacao) = candidata else {
+        return;
+    };
+    if !alocacao.viva {
+        erro_memoria_publica("uso após liberar detectado em memória pública");
+    }
+    let fim = alocacao
+        .base
+        .checked_add(alocacao.tamanho)
+        .unwrap_or_else(|| erro_memoria_publica("metadados de região pública inválidos"));
+    if derivado < alocacao.base || derivado > fim {
+        erro_memoria_publica("derivação fora dos limites da alocação pública");
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_publico_validar_ponteiro_funcao(endereco: usize) {
+    if endereco == 0 {
+        erro_memoria_publica("chamada nula por ponteiro cru de função");
+    }
 }
 // @pinker-nav:end runtime.memoria.alocador
 
@@ -489,6 +678,12 @@ formatar_wrappers!(
 /// Imprime um `bombom` decimal sem quebra de linha.
 #[no_mangle]
 pub extern "C" fn pinker_falar_pedaco_bombom(valor: u64) {
+    print!("{}", valor);
+}
+
+/// Imprime um inteiro com sinal decimal sem quebra de linha.
+#[no_mangle]
+pub extern "C" fn pinker_falar_pedaco_inteiro(valor: i64) {
     print!("{}", valor);
 }
 
@@ -1839,6 +2034,59 @@ mod tests {
             pinker_liberar(a);
             pinker_liberar(b);
         }
+
+        let mut registro = vec![
+            AlocacaoPublica {
+                identidade: 1,
+                base: 0x1000,
+                tamanho: 32,
+                viva: false,
+            },
+            AlocacaoPublica {
+                identidade: 2,
+                base: 0x1000,
+                tamanho: 32,
+                viva: true,
+            },
+        ];
+        let indice = indice_base_publica_mais_recente(&registro, 0x1000)
+            .expect("a geração viva mais recente deve ser encontrada");
+        assert_eq!(indice, 1);
+        assert_eq!(registro[indice].identidade, 2);
+        registro[indice].viva = false;
+        registro.push(AlocacaoPublica {
+            identidade: 3,
+            base: 0x1000,
+            tamanho: 32,
+            viva: true,
+        });
+        let indice = indice_base_publica_mais_recente(&registro, 0x1000)
+            .expect("a terceira geração deve substituir a metadata antiga");
+        assert_eq!(indice, 2);
+        assert_eq!(registro[indice].identidade, 3);
+        assert_eq!(registro.len(), 3, "a quarentena preserva todas as gerações");
+
+        let handles = (0..8)
+            .map(|byte| {
+                std::thread::spawn(move || {
+                    let ptr = pinker_publico_alocar(16);
+                    assert!(!ptr.is_null());
+                    unsafe {
+                        ptr.write(byte);
+                        assert_eq!(ptr.read(), byte);
+                        pinker_publico_liberar(ptr);
+                    }
+                    ptr as usize
+                })
+            })
+            .collect::<Vec<_>>();
+        let mut enderecos = handles
+            .into_iter()
+            .map(|handle| handle.join().expect("thread de alocação pública"))
+            .collect::<Vec<_>>();
+        enderecos.sort_unstable();
+        enderecos.dedup();
+        assert_eq!(enderecos.len(), 8);
     }
 
     #[test]
@@ -1852,6 +2100,7 @@ mod tests {
     fn liberar_nulo_e_seguro() {
         unsafe { pinker_liberar(std::ptr::null_mut()) };
     }
+
     // @pinker-nav:end evidencia.runtime.memoria-alocador
 
     // @pinker-nav:start evidencia.runtime.inicializacao-abi

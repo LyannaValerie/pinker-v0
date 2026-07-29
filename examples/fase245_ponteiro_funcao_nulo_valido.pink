@@ -1,0 +1,16 @@
+pacote main;
+
+carinho registrar(valor: bombom) {
+    falar(valor);
+}
+
+carinho principal() -> bombom {
+    nova operacao: seta<carinho(bombom)> = &registrar;
+    nova vazia: seta<carinho(bombom)> = 0;
+    falar(operacao != 0);
+    falar(0 != operacao);
+    falar(vazia == 0);
+    falar(0 == vazia);
+    operacao(245);
+    mimo 0;
+}

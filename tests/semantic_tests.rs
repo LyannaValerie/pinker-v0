@@ -2403,13 +2403,17 @@ fn dereferencia_seta_nao_bombom_falha_nesta_fase() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
-            nova p: seta<u8> = 1;
-            nova _x: u8 = *p;
+            nova p: seta<verso> = 1;
+            nova _x: verso = *p;
             mimo 0;
         }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("apenas 'seta<bombom>'"), "{}", err);
+    assert!(
+        err.contains("dereferência aceita ponteiro para escalar público, array suportado ou ninho"),
+        "{}",
+        err
+    );
 }
 
 #[test]
@@ -2443,13 +2447,17 @@ fn escrita_indireta_seta_nao_bombom_falha_nesta_fase() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
-            nova p: seta<u8> = 1;
-            *p = 7;
+            nova p: seta<verso> = 1;
+            *p = "fora";
             mimo 0;
         }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("apenas 'seta<bombom>'"), "{}", err);
+    assert!(
+        err.contains("escrita indireta aceita ponteiros para escalares públicos de uma palavra"),
+        "{}",
+        err
+    );
 }
 
 #[test]

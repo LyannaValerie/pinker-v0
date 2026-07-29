@@ -24,6 +24,8 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("ouvir_verso_ou".to_string(), TypeIR::Verso);
     sigs.insert("aleatorio_criar".to_string(), TypeIR::Bombom);
     sigs.insert("aleatorio_proximo".to_string(), TypeIR::Bombom);
+    sigs.insert("alocar".to_string(), TypeIR::Pointer { is_volatile: false });
+    sigs.insert("liberar".to_string(), TypeIR::Nulo);
     sigs.insert("lista_bombom_criar".to_string(), TypeIR::ListBombom);
     sigs.insert("lista_bombom_anexar".to_string(), TypeIR::Nulo);
     sigs.insert("lista_bombom_obter".to_string(), TypeIR::Bombom);
@@ -403,6 +405,33 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                             return Err(err("selected call_indirect nulo não pode ter destino"));
                         }
                         temps.insert(*dest);
+                    }
+                    SelectedInstr::CallRaw {
+                        dest,
+                        callee,
+                        args,
+                        param_types,
+                        ret_type,
+                    } => {
+                        check_operand(callee, &slots, &temps, &globals)?;
+                        if args.len() != param_types.len() {
+                            return Err(err("selected call_raw com aridade inconsistente"));
+                        }
+                        for arg in args {
+                            check_operand(arg, &slots, &temps, &globals)?;
+                        }
+                        match (dest, *ret_type) {
+                            (Some(_), TypeIR::Nulo) => {
+                                return Err(err("selected call_raw nulo não pode ter destino"));
+                            }
+                            (Some(dest), _) => {
+                                temps.insert(*dest);
+                            }
+                            (None, TypeIR::Nulo) => {}
+                            (None, _) => {
+                                return Err(err("selected call_raw com retorno exige destino"));
+                            }
+                        }
                     }
                     SelectedInstr::CallVoid { callee, args } => {
                         for a in args {

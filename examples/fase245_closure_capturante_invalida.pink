@@ -1,0 +1,9 @@
+pacote main;
+carinho principal() -> bombom {
+    nova base: bombom = 40;
+    nova closure: carinho(bombom) -> bombom = carinho(x: bombom) -> bombom {
+        mimo base + x;
+    };
+    nova f: seta<carinho(bombom) -> bombom> = &closure;
+    mimo 0;
+}

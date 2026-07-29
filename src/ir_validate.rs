@@ -87,6 +87,20 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         },
     );
     funcs.insert(
+        "alocar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Pointer { is_volatile: false },
+            params: vec![TypeIR::U64],
+        },
+    );
+    funcs.insert(
+        "liberar".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Nulo,
+            params: vec![TypeIR::Pointer { is_volatile: false }],
+        },
+    );
+    funcs.insert(
         "lista_bombom_anexar".to_string(),
         FunctionSig {
             ret_type: TypeIR::Nulo,
@@ -1273,7 +1287,9 @@ fn validate_block(
                 })?;
                 if ty == TypeIR::Nulo {
                     match value {
-                        ValueIR::Call { .. } | ValueIR::TraitCall { .. } => {}
+                        ValueIR::Call { .. }
+                        | ValueIR::CallRaw { .. }
+                        | ValueIR::TraitCall { .. } => {}
                         _ => {
                             return Err(ir_validation_error_ctx(
                                 function,
@@ -1510,6 +1526,10 @@ fn infer_value_type(
                         || (matches!(rhs.as_ref(), ValueIR::Int(_))
                             && lhs_ty.is_integer()
                             && lhs_ty != TypeIR::Nulo)
+                        || (matches!(lhs.as_ref(), ValueIR::Int(0))
+                            && rhs_ty == TypeIR::FunctionPointer)
+                        || (matches!(rhs.as_ref(), ValueIR::Int(0))
+                            && lhs_ty == TypeIR::FunctionPointer)
                     {
                         Ok(TypeIR::Logica)
                     } else {
@@ -1620,6 +1640,12 @@ fn infer_value_type(
                 .get(name)
                 .ok_or_else(|| ir_validation_error("referência a função inexistente", span))?;
             Ok(TypeIR::Function)
+        }
+        ValueIR::RawFunctionRef(name) => {
+            funcs
+                .get(name)
+                .ok_or_else(|| ir_validation_error("referência crua a função inexistente", span))?;
+            Ok(TypeIR::FunctionPointer)
         }
         ValueIR::MakeClosure {
             function_name,
@@ -1763,6 +1789,36 @@ fn infer_value_type(
             }
             Ok(*ret_type)
         }
+        ValueIR::CallRaw {
+            callee,
+            args,
+            param_types,
+            ret_type,
+        } => {
+            let callee_ty = infer_value_type(callee, slots, consts, funcs, span)?;
+            if callee_ty != TypeIR::FunctionPointer {
+                return Err(ir_validation_error(
+                    "chamada crua exige ponteiro de função",
+                    span,
+                ));
+            }
+            if args.len() != param_types.len() {
+                return Err(ir_validation_error(
+                    "chamada crua com aridade inconsistente na IR",
+                    span,
+                ));
+            }
+            for (arg, expected) in args.iter().zip(param_types.iter()) {
+                let actual = infer_value_type(arg, slots, consts, funcs, span)?;
+                if !value_matches_expected(arg, actual, *expected) {
+                    return Err(ir_validation_error(
+                        "chamada crua com tipo de argumento incompatível",
+                        span,
+                    ));
+                }
+            }
+            Ok(*ret_type)
+        }
         ValueIR::FieldAccess {
             base,
             field: _,
@@ -1797,13 +1853,15 @@ fn infer_value_type(
             let source_ty = infer_value_type(value, slots, consts, funcs, span)?;
             let pointer_cast_ok = matches!(
                 (source_ty, target_type),
-                (TypeIR::Bombom, TypeIR::Pointer { .. }) | (TypeIR::Pointer { .. }, TypeIR::Bombom)
+                (TypeIR::Bombom, TypeIR::Pointer { .. })
+                    | (TypeIR::Pointer { .. }, TypeIR::Bombom)
+                    | (TypeIR::Pointer { .. }, TypeIR::Pointer { .. })
             );
             if (source_ty.is_integer() && target_type.is_integer()) || pointer_cast_ok {
                 Ok(*target_type)
             } else {
                 Err(ir_validation_error(
-                    "cast IR inválido: fase aceita inteiro->inteiro e bombom<->seta",
+                    "cast IR inválido: aceita inteiro->inteiro, bombom<->seta e seta<T>->seta<U>",
                     span,
                 ))
             }
@@ -1830,7 +1888,8 @@ fn is_int_literal_value(value: &ValueIR) -> bool {
 fn value_matches_expected(value: &ValueIR, actual: TypeIR, expected: TypeIR) -> bool {
     actual.is_compatible_with(expected)
         || (is_int_literal_value(value) && expected.is_integer())
-        || (matches!(value, ValueIR::Int(_)) && matches!(expected, TypeIR::Pointer { .. }))
+        || (matches!(value, ValueIR::Int(_))
+            && matches!(expected, TypeIR::Pointer { .. } | TypeIR::FunctionPointer))
 }
 
 fn ir_validation_error_ctx(

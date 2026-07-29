@@ -1,0 +1,77 @@
+pacote main;
+
+apelido U8Direto = u8;
+apelido U8Alias = U8Direto;
+apelido U16Direto = u16;
+apelido U16Alias = U16Direto;
+apelido U32Direto = u32;
+apelido U32Alias = U32Direto;
+apelido U64Direto = u64;
+apelido U64Alias = U64Direto;
+apelido I8Direto = i8;
+apelido I8Alias = I8Direto;
+apelido I16Direto = i16;
+apelido I16Alias = I16Direto;
+apelido I32Direto = i32;
+apelido I32Alias = I32Direto;
+apelido I64Direto = i64;
+apelido I64Alias = I64Direto;
+apelido BombomDireto = bombom;
+apelido BombomAlias = BombomDireto;
+apelido LogicaDireta = logica;
+apelido LogicaAlias = LogicaDireta;
+carinho principal() -> bombom {
+    nova bytes: seta<u8> = alocar(128);
+
+    nova p_u8: seta<U8Alias> = bytes virar seta<U8Alias>;
+    nova p_u16: seta<U16Alias> = (bytes virar seta<bombom> + 2) virar seta<U16Alias>;
+    nova p_u32: seta<U32Alias> = (bytes virar seta<bombom> + 4) virar seta<U32Alias>;
+    nova p_u64: seta<U64Alias> = (bytes virar seta<bombom> + 8) virar seta<U64Alias>;
+    nova p_i8: seta<I8Alias> = (bytes virar seta<bombom> + 16) virar seta<I8Alias>;
+    nova p_i16: seta<I16Alias> = (bytes virar seta<bombom> + 18) virar seta<I16Alias>;
+    nova p_i32: seta<I32Alias> = (bytes virar seta<bombom> + 20) virar seta<I32Alias>;
+    nova p_i64: seta<I64Alias> = (bytes virar seta<bombom> + 24) virar seta<I64Alias>;
+    nova p_bombom: seta<BombomAlias> = (bytes virar seta<bombom> + 32) virar seta<BombomAlias>;
+    nova p_logica: seta<LogicaAlias> = (bytes virar seta<bombom> + 40) virar seta<LogicaAlias>;
+
+    *p_u8 = 255;
+    *p_u16 = 65535;
+    *p_u32 = 4294967295;
+    *p_u64 = 9223372036854775808;
+    *p_i8 = -128;
+    *p_i16 = -32768;
+    *p_i32 = -2147483648;
+    *p_i64 = -9223372036854775808;
+    *p_bombom = 18446744073709551615;
+    *p_logica = verdade;
+
+    falar(*p_u8);
+    falar(*p_u16);
+    falar(*p_u32);
+    falar(*p_u64);
+    falar(*p_i8);
+    falar(*p_i16);
+    falar(*p_i32);
+    falar(*p_i64);
+    falar(*p_bombom);
+    falar(*p_logica);
+    falar(*p_i8 < 0);
+    falar(*p_i16 <= 0);
+    falar(*p_i32 > 0);
+    falar(*p_i64 >= 0);
+
+    nova cruzado_u32: seta<U32Alias> = (bytes virar seta<bombom> + 48) virar seta<U32Alias>;
+    nova cruzado_u16: seta<U16Alias> = (bytes virar seta<bombom> + 48) virar seta<U16Alias>;
+    nova cruzado_u8: seta<U8Alias> = (bytes virar seta<bombom> + 48) virar seta<U8Alias>;
+    *cruzado_u32 = 305419896;
+    falar(*cruzado_u8);
+    falar(*cruzado_u16);
+
+    nova ultimo_u8: seta<U8Alias> =
+        (bytes virar seta<bombom> + 127) virar seta<U8Alias>;
+    *ultimo_u8 = 99;
+    falar(*ultimo_u8);
+
+    liberar(bytes);
+    mimo 0;
+}

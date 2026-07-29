@@ -161,7 +161,17 @@ A rodada estrutural deve registrar ao menos:
 - links, IDs, catálogos e referências afetados;
 - gates usados para provar ausência de regressão.
 
-A abertura operacional da semana atual está registrada em `docs/development/semana-estabilizacao-2026-07.md`. A reorganização efetiva deverá produzir o registro estrutural completo no momento de sua implementação.
+A janela de estabilização aberta em 27 de julho de 2026 foi encerrada
+antecipadamente por decisão humana explícita, sem declarar seus objetivos
+estruturais concluídos. Modularização ampla, reorganização documental ampla e
+bughunting amplo permanecem adiados; os artefatos de auditoria local são
+evidência histórica preservada pelo Git e pela PR #408.
+
+Quando a modularização for retomada, deve priorizar inicialmente arquivos com
+mais de 5.000 linhas sem usar tamanho como critério único. Arquivos menores só
+entram quando houver justificativa arquitetural material. A implementação
+efetiva continua obrigada a produzir o registro estrutural completo definido
+nesta seção.
 
 ## 11. Idioma dos diretórios
 

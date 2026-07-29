@@ -11,6 +11,7 @@ use crate::abstract_machine::{
 };
 use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
+use crate::ir::TypeIR;
 use crate::token::Span;
 use std::collections::HashMap;
 use std::env;
@@ -514,6 +515,7 @@ pub fn run_program_with_args(
         generators: HashMap::new(),
         next_generator_handle: 1,
     };
+    let mut public_memory_state = PublicMemoryState::default();
     let mut callable_state = CallableState::new();
     let mut trait_object_state = TraitObjectState::new();
     let mut call_stack = Vec::new();
@@ -523,6 +525,7 @@ pub fn run_program_with_args(
         program,
         &globals,
         &mut memory,
+        &mut public_memory_state,
         &mut io_state,
         &mut list_state,
         &mut map_state,
@@ -606,6 +609,7 @@ fn call_function(
     program: &MachineProgram,
     globals: &HashMap<String, RuntimeValue>,
     memory: &mut HashMap<usize, RuntimeValue>,
+    public_memory_state: &mut PublicMemoryState,
     io_state: &mut RuntimeIoState,
     list_state: &mut RuntimeListState,
     map_state: &mut RuntimeMapState,
@@ -677,6 +681,7 @@ fn call_function(
                     program,
                     globals,
                     memory,
+                    public_memory_state,
                     io_state,
                     list_state,
                     map_state,
@@ -740,6 +745,28 @@ fn call_function(
 // @pinker-nav:domain execucao
 // @pinker-nav:layer interpreter
 // @pinker-nav:summary Executa instruções da máquina de pilha lendo ou desempilhando operandos, mutando slots, pilha, globais e memória simulada, despachando intrínsecas antes de funções Pinker e materializando impressões de `falar`; mantém verificações defensivas de underflow e tipos sem substituir a validação estática.
+const RAW_FUNCTION_ADDRESS_BASE: usize = 0x7000_0000;
+
+fn raw_function_address(program: &MachineProgram, name: &str) -> Option<usize> {
+    program
+        .functions
+        .iter()
+        .position(|function| function.name == name)
+        .map(|index| RAW_FUNCTION_ADDRESS_BASE + index * 8)
+}
+
+fn raw_function_name(program: &MachineProgram, address: usize) -> Option<&str> {
+    let offset = address.checked_sub(RAW_FUNCTION_ADDRESS_BASE)?;
+    if offset % 8 != 0 {
+        return None;
+    }
+    program
+        .functions
+        .get(offset / 8)
+        .map(|function| function.name.as_str())
+}
+
+#[allow(clippy::too_many_arguments)]
 fn exec_instr(
     instr: &MachineInstr,
     slots: &mut HashMap<String, RuntimeValue>,
@@ -747,6 +774,7 @@ fn exec_instr(
     program: &MachineProgram,
     globals: &HashMap<String, RuntimeValue>,
     memory: &mut HashMap<usize, RuntimeValue>,
+    public_memory_state: &mut PublicMemoryState,
     io_state: &mut RuntimeIoState,
     list_state: &mut RuntimeListState,
     map_state: &mut RuntimeMapState,
@@ -832,7 +860,25 @@ fn exec_instr(
                 stack.push(RuntimeValue::Ptr(addr));
                 return Ok(());
             }
-            let loaded = if *is_volatile {
+            let public_region = public_memory_region(public_memory_state, addr);
+            if let Some((base, size, alive)) = public_region {
+                if !alive {
+                    return Err(runtime_err("uso após liberar detectado em memória pública"));
+                }
+                let width = runtime_type_width(*ty);
+                if addr % width != 0 {
+                    return Err(runtime_err("acesso desalinhado à memória pública"));
+                }
+                let end = addr
+                    .checked_add(width)
+                    .ok_or_else(|| runtime_err("overflow no acesso à memória pública"))?;
+                if end > base + size {
+                    return Err(runtime_err("acesso fora dos limites da alocação pública"));
+                }
+            }
+            let loaded = if public_region.is_some() {
+                Some(public_memory_load_bytes(memory, addr, *ty)?)
+            } else if *is_volatile {
                 deref_load_fragil(memory, addr)
             } else {
                 deref_load_normal(memory, addr)
@@ -852,6 +898,27 @@ fn exec_instr(
                     "deref_store exige ponteiro abaixo do valor no topo",
                 ));
             };
+            let public_region = public_memory_region(public_memory_state, addr);
+            if let Some((base, size, alive)) = public_region {
+                if !alive {
+                    return Err(runtime_err("uso após liberar detectado em memória pública"));
+                }
+                let width = runtime_type_width(*ty);
+                if addr % width != 0 {
+                    return Err(runtime_err("acesso desalinhado à memória pública"));
+                }
+                let end = addr
+                    .checked_add(width)
+                    .ok_or_else(|| runtime_err("overflow no acesso à memória pública"))?;
+                if end > base + size {
+                    return Err(runtime_err("acesso fora dos limites da alocação pública"));
+                }
+            }
+            if public_region.is_some() {
+                let coerced = coerce_runtime_value_to_type(value, *ty)?;
+                public_memory_store_bytes(memory, addr, *ty, coerced)?;
+                return Ok(());
+            }
             if !memory.contains_key(&addr) {
                 return Err(runtime_err(
                     "deref_store em endereço inválido ou não inicializado",
@@ -902,12 +969,24 @@ fn exec_instr(
         MachineInstr::Add => {
             let rhs = pop(stack, "underflow em add")?;
             let lhs = pop(stack, "underflow em add")?;
-            stack.push(eval_add(lhs, rhs)?);
+            let origem = match &lhs {
+                RuntimeValue::Ptr(base) => Some(*base),
+                _ => None,
+            };
+            let resultado = eval_add(lhs, rhs)?;
+            validar_derivacao_memoria_publica(public_memory_state, origem, &resultado)?;
+            stack.push(resultado);
         }
         MachineInstr::Sub => {
             let rhs = pop(stack, "underflow em sub")?;
             let lhs = pop(stack, "underflow em sub")?;
-            stack.push(eval_sub(lhs, rhs)?);
+            let origem = match &lhs {
+                RuntimeValue::Ptr(base) => Some(*base),
+                _ => None,
+            };
+            let resultado = eval_sub(lhs, rhs)?;
+            validar_derivacao_memoria_publica(public_memory_state, origem, &resultado)?;
+            stack.push(resultado);
         }
         MachineInstr::Mul => {
             let (lhs, rhs) = pop_bin_numeric(stack, "mul exige dois inteiros")?;
@@ -927,22 +1006,26 @@ fn exec_instr(
             stack.push(bin_int_checked_mod(lhs, rhs)?);
         }
         MachineInstr::CmpEq => {
-            let (lhs, rhs) = pop_bin_numeric(stack, "cmp_eq exige dois inteiros")?;
-            stack.push(RuntimeValue::Bool(cmp_int(
-                lhs,
-                rhs,
-                |a, b| a == b,
-                |a, b| a == b,
-            )?));
+            let rhs = pop(stack, "cmp_eq exige dois valores")?;
+            let lhs = pop(stack, "cmp_eq exige dois valores")?;
+            let equal = match (lhs, rhs) {
+                (RuntimeValue::Ptr(a), RuntimeValue::Ptr(b)) => a == b,
+                (RuntimeValue::Ptr(a), RuntimeValue::Int(0))
+                | (RuntimeValue::Int(0), RuntimeValue::Ptr(a)) => a == 0,
+                (lhs, rhs) => cmp_int(lhs, rhs, |a, b| a == b, |a, b| a == b)?,
+            };
+            stack.push(RuntimeValue::Bool(equal));
         }
         MachineInstr::CmpNe => {
-            let (lhs, rhs) = pop_bin_numeric(stack, "cmp_ne exige dois inteiros")?;
-            stack.push(RuntimeValue::Bool(cmp_int(
-                lhs,
-                rhs,
-                |a, b| a != b,
-                |a, b| a != b,
-            )?));
+            let rhs = pop(stack, "cmp_ne exige dois valores")?;
+            let lhs = pop(stack, "cmp_ne exige dois valores")?;
+            let different = match (lhs, rhs) {
+                (RuntimeValue::Ptr(a), RuntimeValue::Ptr(b)) => a != b,
+                (RuntimeValue::Ptr(a), RuntimeValue::Int(0))
+                | (RuntimeValue::Int(0), RuntimeValue::Ptr(a)) => a != 0,
+                (lhs, rhs) => cmp_int(lhs, rhs, |a, b| a != b, |a, b| a != b)?,
+            };
+            stack.push(RuntimeValue::Bool(different));
         }
         MachineInstr::CmpLt => {
             let (lhs, rhs) = pop_bin_numeric(stack, "cmp_lt exige dois inteiros")?;
@@ -985,6 +1068,7 @@ fn exec_instr(
             let result = match try_call_intrinsic(
                 callee,
                 &args,
+                public_memory_state,
                 io_state,
                 list_state,
                 map_state,
@@ -997,6 +1081,7 @@ fn exec_instr(
                     program,
                     globals,
                     memory,
+                    public_memory_state,
                     io_state,
                     list_state,
                     map_state,
@@ -1016,6 +1101,7 @@ fn exec_instr(
             let result = match try_call_intrinsic(
                 callee,
                 &args,
+                public_memory_state,
                 io_state,
                 list_state,
                 map_state,
@@ -1028,6 +1114,7 @@ fn exec_instr(
                     program,
                     globals,
                     memory,
+                    public_memory_state,
                     io_state,
                     list_state,
                     map_state,
@@ -1044,6 +1131,12 @@ fn exec_instr(
         MachineInstr::PushFunctionRef(name) => {
             let handle = callable_state.get_or_create_static(name);
             stack.push(RuntimeValue::Callable(handle));
+        }
+        MachineInstr::PushRawFunctionRef(name) => {
+            let address = raw_function_address(program, name).ok_or_else(|| {
+                runtime_err("push_raw_function_ref referencia função inexistente")
+            })?;
+            stack.push(RuntimeValue::Ptr(address));
         }
         MachineInstr::MakeClosure {
             function_name,
@@ -1086,6 +1179,7 @@ fn exec_instr(
                 program,
                 globals,
                 memory,
+                public_memory_state,
                 io_state,
                 list_state,
                 map_state,
@@ -1100,6 +1194,45 @@ fn exec_instr(
                 ));
             };
             stack.push(value);
+        }
+        MachineInstr::CallRaw { argc, has_return } => {
+            let Some(callee_value) = stack.pop() else {
+                return Err(runtime_err("call_raw exige endereço cru no topo"));
+            };
+            let RuntimeValue::Ptr(address) = callee_value else {
+                return Err(runtime_err("call_raw exige ponteiro cru de função"));
+            };
+            if address == 0 {
+                return Err(runtime_err("chamada nula por ponteiro cru de função"));
+            }
+            let function_name = raw_function_name(program, address)
+                .ok_or_else(|| runtime_err("call_raw com endereço de função inválido"))?;
+            let args = pop_args(stack, *argc)?;
+            let result = call_function(
+                function_name,
+                args,
+                program,
+                globals,
+                memory,
+                public_memory_state,
+                io_state,
+                list_state,
+                map_state,
+                random_state,
+                callable_state,
+                trait_object_state,
+                call_stack,
+            )?;
+            match (*has_return, result) {
+                (true, Some(value)) => stack.push(value),
+                (true, None) => {
+                    return Err(runtime_err("call_raw esperava retorno com valor"));
+                }
+                (false, None) => {}
+                (false, Some(_)) => {
+                    return Err(runtime_err("call_raw nulo recebeu retorno com valor"));
+                }
+            }
         }
         MachineInstr::MakeTraitObject {
             trait_name,
@@ -1165,6 +1298,7 @@ fn exec_instr(
                 program,
                 globals,
                 memory,
+                public_memory_state,
                 io_state,
                 list_state,
                 map_state,
@@ -1229,15 +1363,261 @@ fn exec_instr(
 // @pinker-nav:domain intrinsecos
 // @pinker-nav:layer interpreter
 // @pinker-nav:summary Implementa intrínsecas hospedadas de aleatoriedade inicial, validando aridade, semente e handle de gerador, mutando o estado pseudoaleatório do interpretador e retornando handles ou números; não representa geradores do runtime nativo.
+const PUBLIC_MEMORY_BASE: usize = 0x5000_0000;
+
+#[derive(Clone, Debug)]
+struct PublicMemoryRegion {
+    base: usize,
+    size: usize,
+    alive: bool,
+}
+
+#[derive(Clone, Debug)]
+struct PublicMemoryState {
+    next_address: usize,
+    regions: Vec<PublicMemoryRegion>,
+}
+
+impl Default for PublicMemoryState {
+    fn default() -> Self {
+        Self {
+            next_address: PUBLIC_MEMORY_BASE,
+            regions: Vec::new(),
+        }
+    }
+}
+
+fn runtime_type_width(ty: TypeIR) -> usize {
+    match ty {
+        TypeIR::U8 | TypeIR::I8 | TypeIR::Logica => 1,
+        TypeIR::U16 | TypeIR::I16 => 2,
+        TypeIR::U32 | TypeIR::I32 => 4,
+        TypeIR::FixedArray { element, size } => {
+            let element = match element {
+                crate::ir::ScalarTypeIR::U8
+                | crate::ir::ScalarTypeIR::I8
+                | crate::ir::ScalarTypeIR::Logica => 1,
+                crate::ir::ScalarTypeIR::U16 | crate::ir::ScalarTypeIR::I16 => 2,
+                crate::ir::ScalarTypeIR::U32 | crate::ir::ScalarTypeIR::I32 => 4,
+                _ => 8,
+            };
+            element * usize::try_from(size).unwrap_or(usize::MAX)
+        }
+        _ => 8,
+    }
+}
+
+fn public_memory_value_to_word(value: RuntimeValue, ty: TypeIR) -> Result<u64, PinkerError> {
+    match (value, ty) {
+        (RuntimeValue::Int(value), ty) if ty.is_integer() => Ok(value),
+        (RuntimeValue::IntSigned(value), ty) if ty.is_integer() => Ok(value as u64),
+        (RuntimeValue::Bool(value), TypeIR::Logica) => Ok(u64::from(value)),
+        (
+            RuntimeValue::Ptr(value),
+            TypeIR::Pointer { .. } | TypeIR::FunctionPointer | TypeIR::TraitObject,
+        ) => Ok(value as u64),
+        (RuntimeValue::Callable(value), TypeIR::Function) => Ok(value),
+        (_, ty) => Err(runtime_err(&format!(
+            "valor incompatível com escrita de memória pública do tipo '{ty:?}'"
+        ))),
+    }
+}
+
+fn public_memory_word_to_value(word: u64, ty: TypeIR) -> Result<RuntimeValue, PinkerError> {
+    let value = match ty {
+        TypeIR::Bombom | TypeIR::U64 => RuntimeValue::Int(word),
+        TypeIR::U8 => RuntimeValue::Int(word & u8::MAX as u64),
+        TypeIR::U16 => RuntimeValue::Int(word & u16::MAX as u64),
+        TypeIR::U32 => RuntimeValue::Int(word & u32::MAX as u64),
+        TypeIR::I8 => RuntimeValue::IntSigned((word as u8 as i8) as i64),
+        TypeIR::I16 => RuntimeValue::IntSigned((word as u16 as i16) as i64),
+        TypeIR::I32 => RuntimeValue::IntSigned((word as u32 as i32) as i64),
+        TypeIR::I64 => RuntimeValue::IntSigned(word as i64),
+        TypeIR::Logica => RuntimeValue::Bool((word & u8::MAX as u64) != 0),
+        TypeIR::Pointer { .. } | TypeIR::FunctionPointer | TypeIR::TraitObject => {
+            RuntimeValue::Ptr(word as usize)
+        }
+        TypeIR::Function => RuntimeValue::Callable(word),
+        _ => {
+            return Err(runtime_err(&format!(
+                "tipo '{ty:?}' não possui representação escalar em memória pública"
+            )));
+        }
+    };
+    Ok(value)
+}
+
+fn public_memory_store_bytes(
+    memory: &mut HashMap<usize, RuntimeValue>,
+    address: usize,
+    ty: TypeIR,
+    value: RuntimeValue,
+) -> Result<(), PinkerError> {
+    let width = runtime_type_width(ty);
+    let word = public_memory_value_to_word(value, ty)?;
+    for offset in 0..width {
+        let byte_address = address
+            .checked_add(offset)
+            .ok_or_else(|| runtime_err("overflow ao escrever memória pública"))?;
+        memory.insert(
+            byte_address,
+            RuntimeValue::Int((word >> (offset * 8)) & u8::MAX as u64),
+        );
+    }
+    Ok(())
+}
+
+fn public_memory_load_bytes(
+    memory: &HashMap<usize, RuntimeValue>,
+    address: usize,
+    ty: TypeIR,
+) -> Result<RuntimeValue, PinkerError> {
+    let width = runtime_type_width(ty);
+    let mut word = 0u64;
+    for offset in 0..width {
+        let byte_address = address
+            .checked_add(offset)
+            .ok_or_else(|| runtime_err("overflow ao ler memória pública"))?;
+        let byte = match memory.get(&byte_address) {
+            Some(RuntimeValue::Int(value)) => *value & u8::MAX as u64,
+            None => 0,
+            Some(_) => {
+                return Err(runtime_err(
+                    "representação interna inválida em byte de memória pública",
+                ));
+            }
+        };
+        word |= byte << (offset * 8);
+    }
+    public_memory_word_to_value(word, ty)
+}
+
+fn public_memory_region(state: &PublicMemoryState, address: usize) -> Option<(usize, usize, bool)> {
+    for region in state.regions.iter().rev() {
+        if address >= region.base && address < region.base.saturating_add(region.size) {
+            return Some((region.base, region.size, region.alive));
+        }
+    }
+    for region in state.regions.iter().rev() {
+        if address == region.base.saturating_add(region.size) {
+            return Some((region.base, region.size, region.alive));
+        }
+    }
+    None
+}
+
+fn validar_derivacao_memoria_publica(
+    state: &PublicMemoryState,
+    origem: Option<usize>,
+    resultado: &RuntimeValue,
+) -> Result<(), PinkerError> {
+    let (Some(origem), RuntimeValue::Ptr(derivado)) = (origem, resultado) else {
+        return Ok(());
+    };
+    let Some((base, size, alive)) = public_memory_region(state, origem) else {
+        return Ok(());
+    };
+    if !alive {
+        return Err(runtime_err("uso após liberar detectado em memória pública"));
+    }
+    let fim = base
+        .checked_add(size)
+        .ok_or_else(|| runtime_err("metadados de região pública inválidos"))?;
+    if *derivado < base || *derivado > fim {
+        return Err(runtime_err(
+            "derivação fora dos limites da alocação pública",
+        ));
+    }
+    Ok(())
+}
+
+fn public_memory_allocate(
+    args: &[RuntimeValue],
+    state: &mut PublicMemoryState,
+) -> Result<IntrinsicCall, PinkerError> {
+    let [RuntimeValue::Int(size)] = args else {
+        return Err(runtime_err("'alocar' exige um tamanho 'u64' em bytes"));
+    };
+    let size = usize::try_from(*size)
+        .map_err(|_| runtime_err("'alocar' recebeu tamanho que excede a plataforma"))?;
+    if size == 0 {
+        return Err(runtime_err("'alocar' rejeita tamanho zero"));
+    }
+    if size > (isize::MAX as usize).saturating_sub(16) {
+        return Err(runtime_err(
+            "'alocar' excede o maior bloco representável pela plataforma",
+        ));
+    }
+    if cfg!(debug_assertions) && std::env::var_os("PINKER_TESTE_FALHA_ALOCACAO_PUBLICA").is_some() {
+        return Err(runtime_err("'alocar' falhou ao reservar memória"));
+    }
+    let rounded = size
+        .checked_add(15)
+        .map(|value| value & !15)
+        .ok_or_else(|| runtime_err("overflow ao alinhar tamanho de 'alocar'"))?;
+    let base = state.next_address;
+    let next = base
+        .checked_add(rounded)
+        .ok_or_else(|| runtime_err("overflow de endereço em 'alocar'"))?;
+    state
+        .regions
+        .try_reserve(1)
+        .map_err(|_| runtime_err("registro de alocações públicas não pôde reservar metadata"))?;
+    state.next_address = next;
+    state.regions.push(PublicMemoryRegion {
+        base,
+        size,
+        alive: true,
+    });
+    Ok(IntrinsicCall::Done(Some(RuntimeValue::Ptr(base))))
+}
+
+fn public_memory_free(
+    args: &[RuntimeValue],
+    state: &mut PublicMemoryState,
+) -> Result<IntrinsicCall, PinkerError> {
+    let [RuntimeValue::Ptr(pointer)] = args else {
+        return Err(runtime_err("'liberar' exige um ponteiro-base 'seta<u8>'"));
+    };
+    if *pointer == 0 {
+        return Err(runtime_err("'liberar' rejeita ponteiro nulo"));
+    }
+    for region in state.regions.iter_mut().rev() {
+        if region.base != *pointer {
+            continue;
+        }
+        if !region.alive {
+            return Err(runtime_err("'liberar' detectou double free"));
+        }
+        region.alive = false;
+        return Ok(IntrinsicCall::Done(None));
+    }
+    if state
+        .regions
+        .iter()
+        .any(|region| *pointer > region.base && *pointer <= region.base.saturating_add(region.size))
+    {
+        return Err(runtime_err(
+            "'liberar' rejeita ponteiro interior; use o ponteiro-base",
+        ));
+    }
+    Err(runtime_err(
+        "'liberar' rejeita ponteiro estrangeiro ou de domínio interno",
+    ))
+}
+
 fn try_call_intrinsic(
     callee: &str,
     args: &[RuntimeValue],
+    public_memory_state: &mut PublicMemoryState,
     io_state: &mut RuntimeIoState,
     list_state: &mut RuntimeListState,
     map_state: &mut RuntimeMapState,
     random_state: &mut RuntimeRandomState,
 ) -> Result<IntrinsicCall, PinkerError> {
     match callee {
+        "alocar" => public_memory_allocate(args, public_memory_state),
+        "liberar" => public_memory_free(args, public_memory_state),
         "aleatorio_criar" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -4774,7 +5154,10 @@ fn coerce_runtime_value_to_type(
         };
     }
 
-    if matches!(ty, crate::ir::TypeIR::Pointer { .. }) {
+    if matches!(
+        ty,
+        crate::ir::TypeIR::Pointer { .. } | crate::ir::TypeIR::FunctionPointer
+    ) {
         return match value {
             RuntimeValue::Int(v) => Ok(RuntimeValue::Ptr(v as usize)),
             RuntimeValue::IntSigned(v) if v < 0 => Err(runtime_err(
@@ -5188,7 +5571,9 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::Call { .. } => "call",
         MachineInstr::CallVoid { .. } => "call_void",
         MachineInstr::PushFunctionRef(_) => "push_function_ref",
+        MachineInstr::PushRawFunctionRef(_) => "push_raw_function_ref",
         MachineInstr::CallIndirect { .. } => "call_indirect",
+        MachineInstr::CallRaw { .. } => "call_raw",
         MachineInstr::MakeClosure { .. } => "make_closure",
         MachineInstr::MakeTraitObject { .. } => "make_trait_object",
         MachineInstr::TraitCall { .. } => "trait_call",
@@ -5297,6 +5682,73 @@ mod fase244_trait_runtime_tests {
         assert_eq!(
             state.table.get(&alias).unwrap().data_addr,
             state.table.get(&first).unwrap().data_addr
+        );
+    }
+}
+
+#[cfg(test)]
+mod fase246_public_memory_tests {
+    use super::*;
+
+    fn registrar_regiao(state: &mut PublicMemoryState, base: usize, size: usize, alive: bool) {
+        state.regions.push(PublicMemoryRegion { base, size, alive });
+    }
+
+    #[test]
+    fn liberar_endereco_reutilizado_escolhe_a_geracao_viva_mais_recente() {
+        let mut state = PublicMemoryState::default();
+        let base = 0x6000_0000;
+        registrar_regiao(&mut state, base, 16, false);
+        registrar_regiao(&mut state, base, 16, false);
+        registrar_regiao(&mut state, base, 16, true);
+
+        public_memory_free(&[RuntimeValue::Ptr(base)], &mut state)
+            .expect("a terceira geração viva deve poder ser liberada");
+
+        assert!(!state.regions[0].alive);
+        assert!(!state.regions[1].alive);
+        assert!(!state.regions[2].alive);
+    }
+
+    #[test]
+    fn bytes_publicos_preservam_largura_aliasing_e_extensao() {
+        let mut memory = HashMap::new();
+        let base = 0x6000_1000;
+
+        public_memory_store_bytes(
+            &mut memory,
+            base,
+            TypeIR::U32,
+            RuntimeValue::Int(0x1234_5678),
+        )
+        .expect("store u32");
+        assert_eq!(
+            public_memory_load_bytes(&memory, base, TypeIR::U8).expect("load u8"),
+            RuntimeValue::Int(0x78)
+        );
+        assert_eq!(
+            public_memory_load_bytes(&memory, base, TypeIR::U16).expect("load u16"),
+            RuntimeValue::Int(0x5678)
+        );
+
+        public_memory_store_bytes(
+            &mut memory,
+            base + 4,
+            TypeIR::I8,
+            RuntimeValue::IntSigned(-128),
+        )
+        .expect("store i8");
+        assert_eq!(
+            public_memory_load_bytes(&memory, base + 4, TypeIR::I8).expect("load i8"),
+            RuntimeValue::IntSigned(-128)
+        );
+        assert_eq!(
+            public_memory_load_bytes(&memory, base + 4, TypeIR::U8).expect("load u8"),
+            RuntimeValue::Int(128)
+        );
+        assert_eq!(
+            public_memory_load_bytes(&memory, base + 8, TypeIR::U64).expect("zero u64"),
+            RuntimeValue::Int(0)
         );
     }
 }

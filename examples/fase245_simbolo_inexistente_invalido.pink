@@ -1,0 +1,5 @@
+pacote main;
+carinho principal() -> bombom {
+    nova f: seta<carinho(bombom) -> bombom> = &ausente;
+    mimo 0;
+}

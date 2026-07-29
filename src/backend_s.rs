@@ -45,7 +45,7 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 /// O resultado mapeia `principal` para o símbolo `main`, para permitir linkedição
 /// via driver C (`cc`/`gcc`/`clang`) sem runtime próprio.
 pub fn emit_external_toolchain_subset(selected: &SelectedProgram) -> Result<String, PinkerError> {
-    let program = extract_external_callconv_program(selected)?;
+    let program = extract_external_callconv_program(selected, false)?;
     Ok(render_external_x86_64_linux_callconv_impl(&program, false))
 }
 // @pinker-nav:end backend-s.pipeline.toolchain-externa
@@ -61,7 +61,7 @@ pub fn emit_external_toolchain_subset(selected: &SelectedProgram) -> Result<Stri
 pub fn emit_external_toolchain_subset_nativo(
     selected: &SelectedProgram,
 ) -> Result<String, PinkerError> {
-    let program = extract_external_callconv_program(selected)?;
+    let program = extract_external_callconv_program(selected, true)?;
     Ok(render_external_x86_64_linux_callconv_impl(&program, true))
 }
 // @pinker-nav:end backend-s.pipeline.nativo-runtime
@@ -192,6 +192,7 @@ const REG_TMP: &str = "%r10";
 // @pinker-nav:summary `extract_external_callconv_program` (início): deduplicação de símbolos globais (recusa duplicados), aceitação apenas de globais estáticas `bombom`/`logica` com inicializador literal inteiro/lógico (`OperandIR::Int`/`Bool`), montagem de `rodata_globals`, e a exigência de função `principal`. Primeira responsabilidade contígua da extração para `ExternalCallConvProgram`.
 fn extract_external_callconv_program(
     selected: &SelectedProgram,
+    native_runtime: bool,
 ) -> Result<ExternalCallConvProgram, PinkerError> {
     let mut seen_globals = HashSet::new();
     let mut rodata_globals = Vec::new();
@@ -260,7 +261,12 @@ fn extract_external_callconv_program(
                 && is_external_trait_receiver_type(ty);
             let is_trait_method_word =
                 function.name.starts_with("__impl_") && ty.is_native_abi_word();
-            if !is_external_param_type(ty) && !is_trait_receiver && !is_trait_method_word {
+            let supported_param = if native_runtime {
+                is_external_param_type(ty) || is_external_scalar_param_type(ty)
+            } else {
+                is_external_param_type(ty)
+            };
+            if !supported_param && !is_trait_receiver && !is_trait_method_word {
                 return Err(err(
                     "subset externo montável aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>` no recorte conservador",
                 ));
@@ -361,7 +367,7 @@ fn extract_external_callconv_program(
             // @pinker-nav:start backend-s.lowering.operacoes-memoria
             // @pinker-nav:domain lowering
             // @pinker-nav:layer backend-s
-            // @pinker-nav:summary Lowering das instruções de dados/memória do corpo de cada bloco: `Mov` (carga do operando + store em slot), aritmética linear `Add`/`Sub`/`Mul` (via `lower_linear_binop` → `addq`/`subq`/`imulq`), comparações `==`/`!=`/`<`/`>`/`<=`/`>=` (via `lower_cmp_*`), `DerefLoad`/`DerefStore` mínimos (`bombom`/`u32`/`u64`, recusam `is_volatile`, sempre `movq` de 8 bytes) e `Cast` (`virar` mínimo `u32↔u64` por slot, emitindo `movl %eax, %eax`). Não distingue signed/unsigned e não trata divisão/módulo/shift/bitwise (caem no catch-all).
+            // @pinker-nav:summary Lowering externo de dados/memória: `Mov`; aritmética `Add`/`Sub`/`Mul`, com validação nativa de derivação quando o resultado preserva tipo ponteiro; comparações, incluindo condições assinadas inferidas dos produtores; `DerefLoad`/`DerefStore` por largura e sinal para todos os escalares públicos, precedidos por validação de região; e casts de uma palavra. O caminho hospedado legado mantém seu subconjunto conservador.
             let mut body = Vec::new();
             for inst in &block.instructions {
                 match inst {
@@ -375,6 +381,25 @@ fn extract_external_callconv_program(
                         body.extend(load_operand(REG_RET, src, &slot_offsets, &rodata_strings)?);
                         body.push(format!("movq {}, -{}(%rbp)", REG_RET, slot_offsets[dest]));
                     }
+                    SelectedInstr::Neg { dest, operand } => {
+                        register_rodata_strings_for_operand(
+                            operand,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        );
+                        body.extend(load_operand(
+                            REG_RET,
+                            operand,
+                            &slot_offsets,
+                            &rodata_strings,
+                        )?);
+                        body.push(format!("negq {}", REG_RET));
+                        body.push(format!(
+                            "movq {}, -{}(%rbp)",
+                            REG_RET,
+                            slot_offsets[&temp_key(*dest)]
+                        ));
+                    }
                     SelectedInstr::Add { dest, lhs, rhs } => {
                         body.extend(lower_linear_binop(
                             "addq",
@@ -384,6 +409,15 @@ fn extract_external_callconv_program(
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
+                        )?);
+                        body.extend(lower_public_pointer_derivation(
+                            function,
+                            *dest,
+                            lhs,
+                            rhs,
+                            false,
+                            &slot_offsets,
+                            &rodata_strings,
                         )?);
                     }
                     SelectedInstr::Sub { dest, lhs, rhs } => {
@@ -395,6 +429,15 @@ fn extract_external_callconv_program(
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
+                        )?);
+                        body.extend(lower_public_pointer_derivation(
+                            function,
+                            *dest,
+                            lhs,
+                            rhs,
+                            true,
+                            &slot_offsets,
+                            &rodata_strings,
                         )?);
                     }
                     SelectedInstr::Mul { dest, lhs, rhs } => {
@@ -433,6 +476,7 @@ fn extract_external_callconv_program(
                             *dest,
                             lhs,
                             rhs,
+                            selected_comparison_is_signed(function, lhs, rhs),
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
@@ -443,6 +487,7 @@ fn extract_external_callconv_program(
                             *dest,
                             lhs,
                             rhs,
+                            selected_comparison_is_signed(function, lhs, rhs),
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
@@ -453,6 +498,7 @@ fn extract_external_callconv_program(
                             *dest,
                             lhs,
                             rhs,
+                            selected_comparison_is_signed(function, lhs, rhs),
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
@@ -463,6 +509,7 @@ fn extract_external_callconv_program(
                             *dest,
                             lhs,
                             rhs,
+                            selected_comparison_is_signed(function, lhs, rhs),
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
@@ -474,7 +521,11 @@ fn extract_external_callconv_program(
                         ty,
                         is_volatile,
                     } => {
-                        if !is_external_deref_load_type(ty) {
+                        if !(if native_runtime {
+                            is_external_deref_load_type(ty)
+                        } else {
+                            is_external_legacy_deref_load_type(ty)
+                        }) {
                             return Err(err(
                                 "subset externo montável (Fase 134) aceita `deref_load` apenas no recorte mínimo `bombom`/`u32`/`u64` (camada 4 conservadora de `ninho` heterogêneo + legado homogêneo)",
                             ));
@@ -490,7 +541,26 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         );
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
-                        body.push(format!("movq ({}), {}", REG_RET, REG_RET));
+                        body.push(format!("movq {}, %rdi", REG_RET));
+                        body.push(format!("movq ${}, %rsi", external_memory_width(*ty)));
+                        body.push(format!("movq ${}, %rdx", external_memory_alignment(*ty)));
+                        body.push("call pinker_publico_validar_acesso".to_string());
+                        body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
+                        body.push(if native_runtime {
+                            match ty {
+                                TypeIR::U8 | TypeIR::Logica => {
+                                    format!("movzbq ({}), {}", REG_RET, REG_RET)
+                                }
+                                TypeIR::I8 => format!("movsbq ({}), {}", REG_RET, REG_RET),
+                                TypeIR::U16 => format!("movzwq ({}), {}", REG_RET, REG_RET),
+                                TypeIR::I16 => format!("movswq ({}), {}", REG_RET, REG_RET),
+                                TypeIR::U32 => format!("movl ({}), %eax", REG_RET),
+                                TypeIR::I32 => format!("movslq ({}), {}", REG_RET, REG_RET),
+                                _ => format!("movq ({}), {}", REG_RET, REG_RET),
+                            }
+                        } else {
+                            format!("movq ({}), {}", REG_RET, REG_RET)
+                        });
                         body.push(format!(
                             "movq {}, -{}(%rbp)",
                             REG_RET,
@@ -503,7 +573,11 @@ fn extract_external_callconv_program(
                         ty,
                         is_volatile,
                     } => {
-                        if !is_external_deref_store_type(ty) {
+                        if !(if native_runtime {
+                            is_external_deref_store_type(ty)
+                        } else {
+                            is_external_legacy_deref_store_type(ty)
+                        }) {
                             return Err(err(
                                 "subset externo montável (Fase 134) aceita `deref_store` apenas no recorte mínimo `bombom`/`u32`/`u64` (camada 4 conservadora de `ninho` heterogêneo + legado homogêneo)",
                             ));
@@ -524,23 +598,57 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         );
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
+                        body.push(format!("movq {}, %rdi", REG_RET));
+                        body.push(format!("movq ${}, %rsi", external_memory_width(*ty)));
+                        body.push(format!("movq ${}, %rdx", external_memory_alignment(*ty)));
+                        body.push("call pinker_publico_validar_acesso".to_string());
+                        body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
                         body.extend(load_operand(
                             REG_TMP,
                             value,
                             &slot_offsets,
                             &rodata_strings,
                         )?);
-                        body.push(format!("movq {}, ({})", REG_TMP, REG_RET));
+                        body.push(if native_runtime {
+                            match ty {
+                                TypeIR::U8 | TypeIR::I8 | TypeIR::Logica => {
+                                    format!("movb %r10b, ({})", REG_RET)
+                                }
+                                TypeIR::U16 | TypeIR::I16 => {
+                                    format!("movw %r10w, ({})", REG_RET)
+                                }
+                                TypeIR::U32 | TypeIR::I32 => {
+                                    format!("movl %r10d, ({})", REG_RET)
+                                }
+                                _ => format!("movq {}, ({})", REG_TMP, REG_RET),
+                            }
+                        } else {
+                            format!("movq {}, ({})", REG_TMP, REG_RET)
+                        });
                     }
                     SelectedInstr::Cast {
                         dest,
                         value,
                         target_type,
                     } => {
-                        if *target_type != TypeIR::U64 && *target_type != TypeIR::U32 {
-                            return Err(err(
-                                "subset externo montável (Fase 134) aceita `virar` apenas no recorte mínimo `u32 -> u64` e `u64 -> u32`",
+                        if matches!(target_type, TypeIR::Pointer { .. }) {
+                            register_rodata_strings_for_operand(
+                                value,
+                                &mut rodata_string_labels,
+                                &mut rodata_strings,
+                            );
+                            body.extend(load_operand(
+                                REG_RET,
+                                value,
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                            body.push(format!(
+                                "movq {}, -{}(%rbp)",
+                                REG_RET,
+                                slot_offsets[&temp_key(*dest)]
                             ));
+                            continue;
                         }
                         let OperandIR::Local(source_slot) = value else {
                             return Err(err(
@@ -557,7 +665,7 @@ fn extract_external_callconv_program(
                             || (*source_ty == TypeIR::U64 && *target_type == TypeIR::U32);
                         if !cast_supported {
                             return Err(err(
-                                "subset externo montável (Fase 134) aceita `virar` mínimo apenas de slot `u32 -> u64` ou `u64 -> u32`",
+                                "subset externo montável (Fase 134/Fase 246) aceita `virar` de slot `u32 -> u64`, `u64 -> u32` ou `seta<T> -> seta<U>`",
                             ));
                         }
                         register_rodata_strings_for_operand(
@@ -571,7 +679,9 @@ fn extract_external_callconv_program(
                             &slot_offsets,
                             &rodata_strings,
                         )?);
-                        body.push("movl %eax, %eax".to_string());
+                        if !matches!(target_type, TypeIR::Pointer { .. }) {
+                            body.push("movl %eax, %eax".to_string());
+                        }
                         body.push(format!(
                             "movq {}, -{}(%rbp)",
                             REG_RET,
@@ -798,6 +908,85 @@ fn extract_external_callconv_program(
                             REG_RET,
                             slot_offsets[&temp_key(*dest)]
                         ));
+                    }
+                    // Fase 245: endereço cru de código em uma palavra. A ABI
+                    // contém apenas os argumentos declarados, sem descritor e
+                    // sem o argumento implícito `__env`.
+                    SelectedInstr::CallRaw {
+                        dest,
+                        callee,
+                        args,
+                        param_types,
+                        ret_type,
+                    } => {
+                        if args.len() != param_types.len()
+                            || !param_types.iter().all(is_external_raw_call_type)
+                            || !is_external_raw_call_ret_type(ret_type)
+                        {
+                            return Err(err(
+                                "subset externo montável encontrou assinatura ABI inválida em call_raw",
+                            ));
+                        }
+                        for arg in args {
+                            register_rodata_strings_for_operand(
+                                arg,
+                                &mut rodata_string_labels,
+                                &mut rodata_strings,
+                            );
+                        }
+                        body.extend(load_operand(
+                            "%rdi",
+                            callee,
+                            &slot_offsets,
+                            &rodata_strings,
+                        )?);
+                        body.push("call pinker_publico_validar_ponteiro_funcao".to_string());
+                        let stack_args = args.len().saturating_sub(ARG_REGS.len());
+                        let pad = stack_args % 2;
+                        if pad == 1 {
+                            body.push("subq $8, %rsp".to_string());
+                        }
+                        for arg in args.iter().skip(ARG_REGS.len()).rev() {
+                            body.extend(load_operand(
+                                REG_TMP,
+                                arg,
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                            body.push(format!("pushq {}", REG_TMP));
+                        }
+                        for (index, arg) in args.iter().take(ARG_REGS.len()).enumerate() {
+                            body.extend(load_operand(
+                                ARG_REGS[index],
+                                arg,
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                        }
+                        body.extend(load_operand(
+                            REG_TMP,
+                            callee,
+                            &slot_offsets,
+                            &rodata_strings,
+                        )?);
+                        body.push(format!("call *{}", REG_TMP));
+                        if stack_args > 0 || pad > 0 {
+                            body.push(format!("addq ${}, %rsp", 8 * (stack_args + pad)));
+                        }
+                        match (dest, ret_type) {
+                            (Some(_), TypeIR::Nulo) => {
+                                return Err(err("call_raw nulo não pode ter destino"));
+                            }
+                            (Some(dest), _) => body.push(format!(
+                                "movq {}, -{}(%rbp)",
+                                REG_RET,
+                                slot_offsets[&temp_key(*dest)]
+                            )),
+                            (None, TypeIR::Nulo) => {}
+                            (None, _) => {
+                                return Err(err("call_raw com retorno exige destino"));
+                            }
+                        }
                     }
                     // Fase 243: materializa uma closure — aloca em heap
                     // (`pinker_alocar`) o ambiente (1 palavra por captura,
@@ -1074,6 +1263,9 @@ fn extract_external_callconv_program(
                             let pedaco = match arg.ty {
                                 TypeIR::Verso => "pinker_falar_pedaco_verso",
                                 TypeIR::Logica => "pinker_falar_pedaco_logica",
+                                TypeIR::I8 | TypeIR::I16 | TypeIR::I32 | TypeIR::I64 => {
+                                    "pinker_falar_pedaco_inteiro"
+                                }
                                 _ => "pinker_falar_pedaco_bombom",
                             };
                             body.push(format!("call {}", pedaco));
@@ -1179,6 +1371,12 @@ fn collect_function_refs_in_function(
                     note(callee, out);
                     for a in args {
                         note(a, out);
+                    }
+                }
+                SelectedInstr::CallRaw { callee, args, .. } => {
+                    note(callee, out);
+                    for arg in args {
+                        note(arg, out);
                     }
                 }
                 SelectedInstr::MakeClosure { captures, .. } => {
@@ -1362,6 +1560,9 @@ fn render_external_x86_64_linux_callconv_impl(
                 &format!(".L{}_{}:", function.name, block.label),
             );
             for stmt in &block.body {
+                if !runtime_init && stmt.starts_with("call pinker_publico_validar_") {
+                    continue;
+                }
                 line(&mut out, 1, stmt);
             }
             match &block.terminator {
@@ -1510,10 +1711,194 @@ fn lower_cmp_ne(
     Ok(body)
 }
 
+fn selected_comparison_is_signed(
+    function: &crate::instr_select::SelectedFunction,
+    lhs: &OperandIR,
+    rhs: &OperandIR,
+) -> bool {
+    let mut visiting = HashSet::new();
+    if selected_operand_is_signed(function, lhs, &mut visiting) {
+        return true;
+    }
+    visiting.clear();
+    selected_operand_is_signed(function, rhs, &mut visiting)
+}
+
+fn lower_public_pointer_derivation(
+    function: &crate::instr_select::SelectedFunction,
+    dest: crate::cfg_ir::TempIR,
+    lhs: &OperandIR,
+    rhs: &OperandIR,
+    is_subtraction: bool,
+    slot_offsets: &HashMap<String, u32>,
+    rodata_strings: &[ExternalCallConvString],
+) -> Result<Vec<String>, PinkerError> {
+    let mut visiting = HashSet::new();
+    let lhs_is_pointer = selected_operand_is_pointer(function, lhs, &mut visiting);
+    visiting.clear();
+    let rhs_is_pointer = selected_operand_is_pointer(function, rhs, &mut visiting);
+    let origin = if is_subtraction {
+        (lhs_is_pointer && !rhs_is_pointer).then_some(lhs)
+    } else {
+        match (lhs_is_pointer, rhs_is_pointer) {
+            (true, false) => Some(lhs),
+            (false, true) => Some(rhs),
+            _ => None,
+        }
+    };
+    let Some(origin) = origin else {
+        return Ok(Vec::new());
+    };
+    let mut body = load_operand("%rdi", origin, slot_offsets, rodata_strings)?;
+    body.push(format!(
+        "movq -{}(%rbp), %rsi",
+        slot_offsets[&temp_key(dest)]
+    ));
+    body.push("call pinker_publico_validar_derivacao".to_string());
+    Ok(body)
+}
+
+fn selected_operand_is_pointer(
+    function: &crate::instr_select::SelectedFunction,
+    operand: &OperandIR,
+    visiting: &mut HashSet<crate::cfg_ir::TempIR>,
+) -> bool {
+    match operand {
+        OperandIR::Local(slot) => function
+            .slot_types
+            .get(slot)
+            .is_some_and(|ty| matches!(ty, TypeIR::Pointer { .. })),
+        OperandIR::Temp(temp) => selected_temp_is_pointer(function, *temp, visiting),
+        _ => false,
+    }
+}
+
+fn selected_temp_is_pointer(
+    function: &crate::instr_select::SelectedFunction,
+    temp: crate::cfg_ir::TempIR,
+    visiting: &mut HashSet<crate::cfg_ir::TempIR>,
+) -> bool {
+    if !visiting.insert(temp) {
+        return false;
+    }
+    let is_pointer = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find_map(|instruction| match instruction {
+            SelectedInstr::Cast {
+                dest, target_type, ..
+            } if *dest == temp => Some(matches!(target_type, TypeIR::Pointer { .. })),
+            SelectedInstr::Add { dest, lhs, rhs } if *dest == temp => {
+                let lhs_is_pointer = selected_operand_is_pointer(function, lhs, visiting);
+                let rhs_is_pointer = selected_operand_is_pointer(function, rhs, visiting);
+                Some(lhs_is_pointer ^ rhs_is_pointer)
+            }
+            SelectedInstr::Sub { dest, lhs, rhs } if *dest == temp => {
+                let lhs_is_pointer = selected_operand_is_pointer(function, lhs, visiting);
+                let rhs_is_pointer = selected_operand_is_pointer(function, rhs, visiting);
+                Some(lhs_is_pointer && !rhs_is_pointer)
+            }
+            SelectedInstr::Call { dest, ret_type, .. }
+            | SelectedInstr::CallIndirect { dest, ret_type, .. }
+                if *dest == temp =>
+            {
+                Some(matches!(ret_type, TypeIR::Pointer { .. }))
+            }
+            SelectedInstr::CallRaw {
+                dest: Some(dest),
+                ret_type,
+                ..
+            }
+            | SelectedInstr::TraitCall {
+                dest: Some(dest),
+                ret_type,
+                ..
+            } if *dest == temp => Some(matches!(ret_type, TypeIR::Pointer { .. })),
+            _ => None,
+        })
+        .unwrap_or(false);
+    visiting.remove(&temp);
+    is_pointer
+}
+
+fn selected_operand_is_signed(
+    function: &crate::instr_select::SelectedFunction,
+    operand: &OperandIR,
+    visiting: &mut HashSet<crate::cfg_ir::TempIR>,
+) -> bool {
+    match operand {
+        OperandIR::Local(slot) => function.slot_types.get(slot).is_some_and(TypeIR::is_signed),
+        OperandIR::Temp(temp) => selected_temp_is_signed(function, *temp, visiting),
+        _ => false,
+    }
+}
+
+fn selected_temp_is_signed(
+    function: &crate::instr_select::SelectedFunction,
+    temp: crate::cfg_ir::TempIR,
+    visiting: &mut HashSet<crate::cfg_ir::TempIR>,
+) -> bool {
+    if !visiting.insert(temp) {
+        return false;
+    }
+    let signed = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find_map(|instruction| match instruction {
+            SelectedInstr::Neg { dest, operand } if *dest == temp => {
+                Some(selected_operand_is_signed(function, operand, visiting))
+            }
+            SelectedInstr::DerefLoad { dest, ty, .. } if *dest == temp => Some(ty.is_signed()),
+            SelectedInstr::Cast {
+                dest, target_type, ..
+            } if *dest == temp => Some(target_type.is_signed()),
+            SelectedInstr::BitAnd { dest, lhs, rhs }
+            | SelectedInstr::BitOr { dest, lhs, rhs }
+            | SelectedInstr::BitXor { dest, lhs, rhs }
+            | SelectedInstr::Shl { dest, lhs, rhs }
+            | SelectedInstr::Shr { dest, lhs, rhs }
+            | SelectedInstr::Add { dest, lhs, rhs }
+            | SelectedInstr::Sub { dest, lhs, rhs }
+            | SelectedInstr::Mul { dest, lhs, rhs }
+            | SelectedInstr::Div { dest, lhs, rhs }
+            | SelectedInstr::Mod { dest, lhs, rhs }
+                if *dest == temp =>
+            {
+                Some(
+                    selected_operand_is_signed(function, lhs, visiting)
+                        || selected_operand_is_signed(function, rhs, visiting),
+                )
+            }
+            SelectedInstr::Call { dest, ret_type, .. }
+            | SelectedInstr::CallIndirect { dest, ret_type, .. }
+                if *dest == temp =>
+            {
+                Some(ret_type.is_signed())
+            }
+            SelectedInstr::CallRaw {
+                dest: Some(dest),
+                ret_type,
+                ..
+            }
+            | SelectedInstr::TraitCall {
+                dest: Some(dest),
+                ret_type,
+                ..
+            } if *dest == temp => Some(ret_type.is_signed()),
+            _ => None,
+        })
+        .unwrap_or(false);
+    visiting.remove(&temp);
+    signed
+}
+
 fn lower_cmp_lt(
     dest: crate::cfg_ir::TempIR,
     lhs: &OperandIR,
     rhs: &OperandIR,
+    signed: bool,
     slot_offsets: &HashMap<String, u32>,
     rodata_string_labels: &mut HashMap<String, String>,
     rodata_strings: &mut Vec<ExternalCallConvString>,
@@ -1524,7 +1909,7 @@ fn lower_cmp_lt(
     body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
     body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
-    body.push("setb %al".to_string());
+    body.push(format!("{} %al", if signed { "setl" } else { "setb" }));
     body.push("movzbq %al, %rax".to_string());
     body.push(format!(
         "movq {}, -{}(%rbp)",
@@ -1538,6 +1923,7 @@ fn lower_cmp_gt(
     dest: crate::cfg_ir::TempIR,
     lhs: &OperandIR,
     rhs: &OperandIR,
+    signed: bool,
     slot_offsets: &HashMap<String, u32>,
     rodata_string_labels: &mut HashMap<String, String>,
     rodata_strings: &mut Vec<ExternalCallConvString>,
@@ -1548,7 +1934,7 @@ fn lower_cmp_gt(
     body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
     body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
-    body.push("seta %al".to_string());
+    body.push(format!("{} %al", if signed { "setg" } else { "seta" }));
     body.push("movzbq %al, %rax".to_string());
     body.push(format!(
         "movq {}, -{}(%rbp)",
@@ -1562,6 +1948,7 @@ fn lower_cmp_le(
     dest: crate::cfg_ir::TempIR,
     lhs: &OperandIR,
     rhs: &OperandIR,
+    signed: bool,
     slot_offsets: &HashMap<String, u32>,
     rodata_string_labels: &mut HashMap<String, String>,
     rodata_strings: &mut Vec<ExternalCallConvString>,
@@ -1572,7 +1959,7 @@ fn lower_cmp_le(
     body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
     body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
-    body.push("setbe %al".to_string());
+    body.push(format!("{} %al", if signed { "setle" } else { "setbe" }));
     body.push("movzbq %al, %rax".to_string());
     body.push(format!(
         "movq {}, -{}(%rbp)",
@@ -1586,6 +1973,7 @@ fn lower_cmp_ge(
     dest: crate::cfg_ir::TempIR,
     lhs: &OperandIR,
     rhs: &OperandIR,
+    signed: bool,
     slot_offsets: &HashMap<String, u32>,
     rodata_string_labels: &mut HashMap<String, String>,
     rodata_strings: &mut Vec<ExternalCallConvString>,
@@ -1596,7 +1984,7 @@ fn lower_cmp_ge(
     body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
     body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
-    body.push("setae %al".to_string());
+    body.push(format!("{} %al", if signed { "setge" } else { "setae" }));
     body.push("movzbq %al, %rax".to_string());
     body.push(format!(
         "movq {}, -{}(%rbp)",
@@ -1644,6 +2032,11 @@ fn collect_temp_ids(function: &crate::instr_select::SelectedFunction) -> BTreeSe
                     ids.insert(temp_key(*dest));
                 }
                 SelectedInstr::TraitCall {
+                    dest: Some(dest), ..
+                } => {
+                    ids.insert(temp_key(*dest));
+                }
+                SelectedInstr::CallRaw {
                     dest: Some(dest), ..
                 } => {
                     ids.insert(temp_key(*dest));
@@ -1705,6 +2098,10 @@ fn load_operand(
                 function_ref_descriptor_label(name),
                 reg
             ));
+        }
+        OperandIR::RawFunctionRef(name) => {
+            let symbol = if name == "principal" { "main" } else { name };
+            lines.push(format!("leaq {}(%rip), {}", symbol, reg));
         }
     }
     Ok(lines)
@@ -1992,6 +2389,7 @@ fn is_supported_type(ty: TypeIR) -> bool {
             | TypeIR::I32
             | TypeIR::I64
             | TypeIR::Logica
+            | TypeIR::FunctionPointer
             | TypeIR::TraitObject
             | TypeIR::Nulo
     )
@@ -2000,12 +2398,54 @@ fn is_supported_type(ty: TypeIR) -> bool {
 fn is_external_deref_load_type(ty: &TypeIR) -> bool {
     matches!(
         ty,
-        TypeIR::Bombom | TypeIR::U32 | TypeIR::U64 | TypeIR::Function | TypeIR::TraitObject
+        TypeIR::Bombom
+            | TypeIR::U8
+            | TypeIR::U16
+            | TypeIR::U32
+            | TypeIR::U64
+            | TypeIR::I8
+            | TypeIR::I16
+            | TypeIR::I32
+            | TypeIR::I64
+            | TypeIR::Logica
+            | TypeIR::Function
+            | TypeIR::FunctionPointer
+            | TypeIR::Pointer { .. }
+            | TypeIR::TraitObject
     )
 }
 
 fn is_external_deref_store_type(ty: &TypeIR) -> bool {
-    *ty == TypeIR::Bombom || *ty == TypeIR::U32 || *ty == TypeIR::U64
+    is_external_deref_load_type(ty)
+}
+
+fn is_external_legacy_deref_load_type(ty: &TypeIR) -> bool {
+    matches!(
+        ty,
+        TypeIR::Bombom
+            | TypeIR::U8
+            | TypeIR::U32
+            | TypeIR::U64
+            | TypeIR::Function
+            | TypeIR::TraitObject
+    )
+}
+
+fn is_external_legacy_deref_store_type(ty: &TypeIR) -> bool {
+    matches!(ty, TypeIR::Bombom | TypeIR::U8 | TypeIR::U32 | TypeIR::U64)
+}
+
+fn external_memory_width(ty: TypeIR) -> u64 {
+    match ty {
+        TypeIR::U8 | TypeIR::I8 | TypeIR::Logica => 1,
+        TypeIR::U16 | TypeIR::I16 => 2,
+        TypeIR::U32 | TypeIR::I32 => 4,
+        _ => 8,
+    }
+}
+
+fn external_memory_alignment(ty: TypeIR) -> u64 {
+    external_memory_width(ty)
 }
 
 fn is_external_param_type(ty: &TypeIR) -> bool {
@@ -2023,6 +2463,7 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
         || *ty == TypeIR::Struct
         || *ty == TypeIR::Pointer { is_volatile: false }
         || *ty == TypeIR::Function
+        || *ty == TypeIR::FunctionPointer
         || *ty == TypeIR::TraitObject
 }
 
@@ -2040,6 +2481,28 @@ fn is_external_scalar_param_type(ty: &TypeIR) -> bool {
             | TypeIR::I64
             | TypeIR::Logica
     )
+}
+
+fn is_external_raw_call_type(ty: &TypeIR) -> bool {
+    is_external_scalar_param_type(ty)
+        || matches!(
+            ty,
+            TypeIR::Verso
+                | TypeIR::ListBombom
+                | TypeIR::ListVerso
+                | TypeIR::MapVersoBombom
+                | TypeIR::MapVersoVerso
+                | TypeIR::MapBombomBombom
+                | TypeIR::MapBombomVerso
+                | TypeIR::Pointer { .. }
+                | TypeIR::Function
+                | TypeIR::FunctionPointer
+                | TypeIR::TraitObject
+        )
+}
+
+fn is_external_raw_call_ret_type(ty: &TypeIR) -> bool {
+    *ty == TypeIR::Nulo || is_external_raw_call_type(ty)
 }
 
 fn is_external_trait_receiver_type(ty: &TypeIR) -> bool {
@@ -2063,21 +2526,23 @@ fn is_external_local_type(ty: &TypeIR) -> bool {
 }
 
 fn is_external_ret_type(ty: &TypeIR) -> bool {
-    matches!(
-        ty,
-        TypeIR::Bombom
-            | TypeIR::Verso
-            | TypeIR::Logica
-            | TypeIR::ListBombom
-            | TypeIR::ListVerso
-            | TypeIR::MapVersoBombom
-            | TypeIR::MapVersoVerso
-            | TypeIR::MapBombomBombom
-            | TypeIR::MapBombomVerso
-            | TypeIR::Function
-            | TypeIR::TraitObject
-            | TypeIR::Nulo
-    )
+    is_external_scalar_param_type(ty)
+        || matches!(
+            ty,
+            TypeIR::Verso
+                | TypeIR::Logica
+                | TypeIR::ListBombom
+                | TypeIR::ListVerso
+                | TypeIR::MapVersoBombom
+                | TypeIR::MapVersoVerso
+                | TypeIR::MapBombomBombom
+                | TypeIR::MapBombomVerso
+                | TypeIR::Pointer { .. }
+                | TypeIR::Function
+                | TypeIR::FunctionPointer
+                | TypeIR::TraitObject
+                | TypeIR::Nulo
+        )
 }
 
 /// Retornos aceitos em `call`: os de função mais `nulo` (intrínsecas de
@@ -2136,6 +2601,8 @@ fn is_arity_runtime_intrinsic(callee: &str) -> bool {
 /// já reescritas na IR — abaixam para as mesmas funções `pinker_lista_*`.
 fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
     match callee {
+        "alocar" => Some("pinker_publico_alocar"),
+        "liberar" => Some("pinker_publico_liberar"),
         "juntar_verso" => Some("pinker_verso_juntar"),
         "tamanho_verso" => Some("pinker_verso_tamanho"),
         "igual_verso" => Some("pinker_verso_igual"),
@@ -2487,6 +2954,32 @@ fn render_instruction(inst: &crate::backend_text::BackendTextInstruction) -> Str
                 (None, _) => format!("; call inválida: {} {}", callee, abi_args),
             }
         }
+        crate::backend_text::BackendTextInstruction::CallRaw {
+            dest,
+            callee,
+            args,
+            param_types,
+            ret_type,
+        } => {
+            let call = format!(
+                "call_raw {}({}) : ({}) -> {}",
+                render_operand(callee),
+                args.iter()
+                    .map(render_operand)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                param_types
+                    .iter()
+                    .map(TypeIR::render_name)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                ret_type.render_name()
+            );
+            match dest {
+                Some(dest) => format!("{} -> {}", call, render_temp(*dest)),
+                None => call,
+            }
+        }
         crate::backend_text::BackendTextInstruction::MakeTraitObject {
             dest,
             value,
@@ -2629,6 +3122,7 @@ fn render_operand(op: &crate::cfg_ir::OperandIR) -> String {
         crate::cfg_ir::OperandIR::Str(s) => format!("\"{}\"", s),
         crate::cfg_ir::OperandIR::Temp(temp) => render_temp(*temp),
         crate::cfg_ir::OperandIR::FunctionRef(name) => format!("fnref({})", name),
+        crate::cfg_ir::OperandIR::RawFunctionRef(name) => format!("raw_fnref({})", name),
     }
 }
 

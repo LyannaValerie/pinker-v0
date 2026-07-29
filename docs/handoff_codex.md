@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **244** — Eixo A: objetos de trato e despacho dinâmico |
+| Fase funcional mais recente | **246** — Eixo A: alocação e liberação explícitas de memória |
 | Rodada documental mais recente | **Doc-49** — fundação comunitária para contribuições externas |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -24,14 +24,19 @@
 ### Estado operacional estruturado
 
 ```yaml
-fase_funcional_mais_recente: 244
+fase_funcional_mais_recente: 246
 bloco_estruturalmente_ativo: 20
-estado_operacional: semana_de_estabilizacao
-expansao_funcional_eixo_a: SUSPENSA
-janela:
-  inicio: 2026-07-27
-  fim: 2026-08-01
-retomada: decisao_humana_explicita
+estado_operacional: eixo_a_retomado
+expansao_funcional_eixo_a: ATIVA
+ultima_fase_antes_da_tarefa: 244
+proxima_progressao:
+  - fase_247_item_14_nao_iniciado
+retomada:
+  decisao: humana_explicita_da_founder
+  data: 2026-07-28
+trabalho_estrutural:
+  concluido: false
+  estado: ADIADO
 ```
 
 ### Blocos encerrados
@@ -93,18 +98,25 @@ retomada: decisao_humana_explicita
 | 242 | Bloco 20, Eixo A: valores de função materializados e chamada indireta — callable handle de 1 palavra (`{code_ptr, env_ptr}`, descritor estático não-capturante); função top-level/literal `carinho` como valor, variável tipada (imutável/`muda`), passagem/retorno de callable e chamada indireta real no interpretador e no backend nativo (`call *reg`); especialização estática da Fase 239 preservada intocada |
 | 243 | Bloco 20, Eixo A: closures com captura imutável por valor — mesmo descritor `{code_ptr, env_ptr}` da Fase 242, agora com `env_ptr` apontando para bloco alocado em heap (`pinker_alocar`) com o snapshot das capturas; `__env` uniforme como argumento oculto final em toda chamada indireta (closure ou wrapper sintético `__fnref_env_<nome>`); resolução léxica preguiçosa no ponto de criação com propagação transitiva por closures aninhadas; sombreamento por parâmetro e por local sobre captura homônima; captura imutável (reatribuição rejeitada); idioma de chamada imediata da Fase 225 preservado sem captura |
 | 244 | Bloco 20, Eixo A: objetos de trato e despacho dinâmico — `trato<Nome>` explícito, materialização por `virar`, snapshot por valor, handle/descritor `{data_ptr,vtable_ptr}`, vtables `.rodata` deduplicadas por trato × tipo, slots na ordem do trato, chamada indireta SysV com receiver primeiro e sem `__env`, interpretador × ELF nativo em paridade |
+| 245 | Bloco 20, Eixo A, Faixa 3 item 12: ponteiro cru `seta<carinho(P...) -> R>` obtido por `&funcao`/`&generica<T>`, aliases e ciclo de valor completo, identidade/null, universo ABI de uma palavra e aridade geral; chamada indireta sem descritor e sem `__env`; interpretador determinístico × ELF nativo em paridade |
+| 246 | Bloco 20, Eixo A, Faixa 3 item 13: regiões públicas `alocar(u64)`/`liberar(seta<u8>)` zeradas e alinhadas, com identidade/tamanho/estado/domínio; vida, limites, alinhamento, base/interior, double free, estrangeiros e falha determinísticos no interpretador e runtime nativo |
 
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
-- **Semana de estabilização estrutural — 27 de julho a 1º de agosto de 2026**.
-- O Bloco 20 permanece estruturalmente ativo, enquanto novas fases funcionais
-  do Eixo A ficam suspensas até decisão humana explícita.
-- Trabalho autorizado: refatoração estrutural sem mudança comportamental
-  deliberada; reorganização documental; bughunting; correção de bugs
-  reproduzidos; testes, CI, sensibilidade, navegação e cartografia necessários.
-- Documento operacional:
-  `docs/development/semana-estabilizacao-2026-07.md`.
+- **Retomada funcional do Eixo A — 28 de julho de 2026**.
+- Decisão humana explícita da Founder encerrou antecipadamente a janela de
+  estabilização estrutural e reativou a expansão funcional do Eixo A.
+- O Bloco 20 permanece estruturalmente ativo; a Fase 244 foi a última fase
+  anterior à tarefa, e as Fases 245 e 246 foram concluídas. O item 14 não foi
+  iniciado.
+- Os objetivos estruturais não são declarados concluídos. Modularização ampla,
+  reorganização documental ampla e bughunting amplo foram adiados.
+- Os artefatos de auditoria local permanecem evidência histórica preservada
+  pelo Git e pela PR #408.
+- Uma futura modularização deve priorizar inicialmente arquivos com mais de
+  5.000 linhas sem tratar tamanho como critério único; arquivos menores exigem
+  justificativa arquitetural material.
 - **Doc-48 — presença de Rosa no GitHub Copilot**.
 - `.github/copilot-instructions.md` estabelece o contrato geral do Copilot na Pinker: inspeção antes de afirmação, fontes canônicas, comandos oficiais, anti-mínimo, segurança operacional e princípios de Rosa sem encenação permanente.
 - `.github/agents/rosa.agent.md` define Rosa como agente personalizado selecionável manualmente, com `target: github-copilot`, ferramentas explícitas e ativação automática desabilitada.
@@ -173,17 +185,14 @@ Histórico completo por fase: `docs/history/phases/`.
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- Durante a semana de estabilização, a ordem abaixo permanece como direção de
-  longo prazo, mas novas fases funcionais do Eixo A não podem ser iniciadas até
-  decisão humana explícita encerrando a suspensão.
 - Estrutura do Bloco 20 formalizada em dois eixos (Doc-41), padrão pós-Eixo B registrado na Doc-42 e convergência bare-metal formalizada na Doc-46: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado; a trilha BM permanece documental e não implementada.
-- A Fase 244 e os hotfixes posteriores foram publicados e integrados à `main` pelas PRs #406 e #407. Durante a semana de estabilização, nenhuma nova fase funcional do Eixo A pode ser iniciada até decisão humana explícita. Qualquer avanço em ownership/lifetime ou desalocação de snapshots/descritores deve definir contrato próprio, incluindo cópia/passagem/retorno de handles, compartilhamento, momento de liberação e prevenção de double free/use-after-free.
-- O item 13 pode iniciar se a direção imediata for memória/SO, mas `alocar`/`liberar` deve ser tratado como mecanismo separado da política de lifetime dos valores que usam o heap. Uma fase de alocador não conclui automaticamente o débito de closures.
+- As Fases 245 e 246 estão publicadas na PR #410 com seus contratos completos de ponteiros crus de função e regiões explícitas, sem iniciar o item 14. Qualquer avanço em ownership/lifetime ou desalocação de snapshots/descritores deve definir contrato próprio, incluindo cópia/passagem/retorno de handles, compartilhamento, momento de liberação e prevenção de double free/use-after-free.
+- `alocar`/`liberar` é mecanismo separado da política de lifetime dos valores internos que usam heap; a API pública não libera ambientes de closure, descritores de callable, snapshots de trato, coleções ou strings.
 - Qualquer fase que toque o layout ou o tamanho do ambiente deve incluir gate de underallocation que observe diretamente os bytes solicitados por instrumentação, metadado, canário ou fronteira de arredondamento; resultado funcional isolado não é evidência suficiente. No recorte atual de uma palavra por captura, o tamanho exigido é `capturas * tamanho_da_palavra`, com overflow verificado. Para capturas futuras multi-palavra, deve ser o tamanho final alinhado do ambiente: tamanho e alinhamento de cada captura, offset alinhado, padding intermediário, alinhamento final e toda aritmética com detecção de overflow; soma simples dos tamanhos é insuficiente.
 - O item 5 pode avançar para diagnósticos enriquecidos ou métodos utilitários; o item 4 pode avançar apenas em extensões fora do contrato 244. Em qualquer caso, sem recorte mínimo automático, com lowering nativo obrigatório e com fatia vertical utilizável.
 - Ao iniciar a direção SO, a execução deve seguir `docs/roadmap/bare_metal_bootstrap.md`: não basta gerar um artefato isolado; a fase precisa fechar superfície, semântica, backend/runtime, diagnósticos, testes, exemplo e documentação do subproblema escolhido.
 - Escada completa do eixo encerrado (B1 ✓ ... B11 ✓) em `docs/roadmap/blocos/bloco_20.md`.
-- Depois do item 5: itens 6 (**closures**) e 4 (**traits**) do Eixo A, mantendo a regra de que toda fase de linguagem entrega o lowering nativo junto.
+- A retomada funcional não conclui os trabalhos estruturais adiados nem muda a regra de que toda fase de linguagem entrega o lowering nativo junto.
 - Após merge da Doc-48, selecionar Rosa manualmente no Copilot e executar os casos de `docs/rosa/voice-tests.md` antes de tratá-la como presença operacional estável.
 
 ## 6. Arquitetura documental ativa

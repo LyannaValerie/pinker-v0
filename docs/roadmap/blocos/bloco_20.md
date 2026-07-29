@@ -54,7 +54,7 @@ Para o propósito de SO, esse conjunto ainda precisa convergir em uma cadeia fre
 - Capturas multi-palavra exigem calcular o layout final do ambiente, não somar tamanhos: para cada captura, obter tamanho e alinhamento, alinhar o offset corrente, contabilizar padding intermediário e avançar com soma verificada; ao final, arredondar para o alinhamento máximo/final também com verificação de overflow. Nesse recorte futuro, `bytes_solicitados = tamanho_final_alinhado_do_layout_do_ambiente`. A mesma representação deve ser validada no interpretador, no IR, na ABI SysV e no backend nativo antes de sua liberação como superfície pública.
 - O callable é um valor executável materializado, mas ainda não possui identidade observável definida pela linguagem. Igualdade, hashing, casts ou serialização exigem contrato próprio antes de qualquer afirmação pública de identidade.
 - A suíte de sensibilidade de ambientes deve detectar underallocation diretamente. O gate deve comprovar a fórmula aplicável ao recorte — quantidade por palavra hoje, layout final alinhado quando houver capturas multi-palavra — por alocador instrumentado, metadado de tamanho, canário ou caso que atravesse a classe de arredondamento; observar apenas o resultado funcional da closure não basta.
-- O callable tipado de alto nível das Fases 242–243 permanece distinto do ponteiro cru de função do item 12, que ainda precisa definir endereço, ABI, símbolos externos, calling convention e usos de baixo nível.
+- O callable tipado de alto nível das Fases 242–243 permanece distinto do ponteiro cru de função entregue na Fase 245: o primeiro usa descritor `{code_ptr, env_ptr}` e `__env`; o segundo é um único endereço de código tipado, sem ambiente.
 
 #### Obrigações derivadas da Fase 244 — objetos de trato
 
@@ -70,8 +70,8 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 
 | # | Item | Inspiração | Motivação SO/self-hosting |
 |---|---|---|---|
-| 12 | Ponteiros de função / tipos função | C, C++, TS | tabelas de interrupção, callbacks, vtables |
-| 13 | Alocador de memória (`alocar`/`liberar`) | C | inegociável para SO: heap próprio; mecanismo de memória distinto da política de ownership/lifetime dos valores que o utilizam |
+| 12 | Ponteiros de função / tipos função | C, C++, TS | **entregue na Fase 245**: `seta<carinho(P...) -> R>`, aliases, `&funcao`/`&generica<T>`, ciclo de valor completo, identidade/null e chamada indireta tipada de aridade geral sobre todo o universo ABI de uma palavra; endereço cru sem descritor nem `__env`, separado de callables, closures e vtables |
+| 13 | Alocador de memória (`alocar`/`liberar`) | C | **entregue na Fase 246**: regiões zeradas e alinhadas com identidade, tamanho, estado, proveniência e domínio; validação interpretada e nativa de base/interior, vida, limites, alinhamento, double free, ponteiro estrangeiro e falha de alocação; mecanismo explícito, não política de ownership |
 | 14 | Inline assembly real (lowering completo de `sussurro`) | C | `mov cr3`, `lgdt`, `iret` etc. |
 
 ### Trilha transversal — bare-metal e bootstrap (Doc-46)
