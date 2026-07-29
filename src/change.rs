@@ -388,7 +388,7 @@ impl Change {
             out.push_str(&format!("  type: {}\n", source.kind));
             out.push_str(&format!("  number: {}\n", source.number));
             if let Some(repo) = &source.repository {
-                out.push_str(&format!("  repository: {}\n", repo));
+                out.push_str(&format!("  repository: {}\n", json_string(repo)));
             }
         }
         out.push_str(&format!("kind: {}\n", self.kind));
@@ -398,7 +398,7 @@ impl Change {
         if let Some(block) = self.block {
             out.push_str(&format!("block: {}\n", block));
         }
-        out.push_str(&format!("title: {}\n", self.title));
+        out.push_str(&format!("title: {}\n", json_string(&self.title)));
         if !self.area.is_empty() {
             out.push_str("area:\n");
             for item in &self.area {
@@ -633,14 +633,53 @@ fn is_placeholder(value: &str) -> bool {
 
 fn unquote(value: &str) -> String {
     let value = value.trim();
-    if value.len() >= 2
-        && ((value.starts_with('"') && value.ends_with('"'))
-            || (value.starts_with('\'') && value.ends_with('\'')))
-    {
-        value[1..value.len() - 1].to_string()
-    } else {
-        value.to_string()
+    if value.len() < 2 {
+        return value.to_string();
     }
+    if value.starts_with('\'') && value.ends_with('\'') {
+        return value[1..value.len() - 1].replace("''", "'");
+    }
+    if !(value.starts_with('"') && value.ends_with('"')) {
+        return value.to_string();
+    }
+
+    let mut out = String::with_capacity(value.len() - 2);
+    let mut chars = value[1..value.len() - 1].chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            out.push(ch);
+            continue;
+        }
+        let Some(escaped) = chars.next() else {
+            out.push('\\');
+            break;
+        };
+        match escaped {
+            '"' => out.push('"'),
+            '\\' => out.push('\\'),
+            'n' => out.push('\n'),
+            'r' => out.push('\r'),
+            't' => out.push('\t'),
+            'u' => {
+                let digits = chars.by_ref().take(4).collect::<String>();
+                if digits.len() == 4 {
+                    if let Ok(code) = u32::from_str_radix(&digits, 16) {
+                        if let Some(decoded) = char::from_u32(code) {
+                            out.push(decoded);
+                            continue;
+                        }
+                    }
+                }
+                out.push_str("\\u");
+                out.push_str(&digits);
+            }
+            other => {
+                out.push('\\');
+                out.push(other);
+            }
+        }
+    }
+    out
 }
 
 fn json_string(value: &str) -> String {
@@ -745,7 +784,53 @@ mod tests {
         let twice = reparsed.render_yaml();
         assert_eq!(once, twice);
         assert!(once.contains("number: 341"));
-        assert!(once.contains("title: Biblioteca predeclarada"));
+        assert!(once.contains("title: \"Biblioteca predeclarada"));
+    }
+
+    #[test]
+    fn yaml_text_scalars_use_canonical_json_subset_quoting() {
+        let cases = [
+            "dois: pontos",
+            "hash # literal",
+            "aspas \"duplas\"",
+            "barra \\ invertida",
+            "linha\nseguinte",
+            "- leading dash",
+            "? leading question",
+            "null",
+            "true",
+            "1234",
+            "---",
+            "&anchor",
+            "*alias",
+            "!tag",
+            "controle\u{0001}",
+        ];
+
+        for title in cases {
+            let change = Change {
+                schema: 1,
+                source: Some(Source {
+                    kind: "github-pr".to_string(),
+                    number: 411,
+                    repository: Some(format!("repo:{title}")),
+                }),
+                kind: "phase".to_string(),
+                title: title.to_string(),
+                status: "completed".to_string(),
+                ..Default::default()
+            };
+            let yaml = change.render_yaml();
+            let reparsed = Change::parse_block(&yaml).unwrap();
+            assert_eq!(reparsed.title, title, "{yaml}");
+            assert_eq!(
+                reparsed.source.as_ref().and_then(|source| source.repository.as_deref()),
+                Some(format!("repo:{title}").as_str()),
+                "{yaml}"
+            );
+            assert_eq!(reparsed.render_yaml(), yaml);
+            assert_eq!(reparsed.ledger_json(), change.ledger_json());
+        }
     }
 
     #[test]
