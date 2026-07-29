@@ -87,7 +87,11 @@ fn importa_pr_posterior_gera_manifesto_e_historico() {
     assert!(manifest.contains("number: 341"), "{manifest}");
     assert!(manifest.contains("phase: 241"), "{manifest}");
     assert!(
-        manifest.contains("title: Biblioteca predeclarada de Resultado"),
+        manifest.contains("title: \"Biblioteca predeclarada de Resultado\""),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("repository: \"LyannaValerie/pinker-v0\""),
         "{manifest}"
     );
 
