@@ -118,10 +118,116 @@ struct AlocacaoPublica {
     identidade: u64,
     base: usize,
     tamanho: usize,
+    reservado: usize,
     viva: bool,
 }
 
-static ALOCACOES_PUBLICAS: Mutex<Vec<AlocacaoPublica>> = Mutex::new(Vec::new());
+const PAGINA_PUBLICA: usize = 4096;
+const MAX_IDENTIDADES_PUBLICAS: usize = 1_000_000;
+const MAX_METADATA_PUBLICA_BYTES: usize =
+    MAX_IDENTIDADES_PUBLICAS * std::mem::size_of::<AlocacaoPublica>();
+const MAX_QUARENTENA_FISICA_BYTES: usize = 0;
+const MAX_ESPACO_VIRTUAL_PUBLICO_BYTES: usize = 8 * 1024 * 1024 * 1024;
+
+struct MemoriaPublica {
+    arena_base: usize,
+    proximo_offset: usize,
+    proxima_identidade: u64,
+    alocacoes: Vec<AlocacaoPublica>,
+}
+
+#[cfg(target_os = "linux")]
+fn reservar_arena_publica() -> usize {
+    use std::ffi::c_void;
+
+    extern "C" {
+        fn mmap(
+            address: *mut c_void,
+            length: usize,
+            protection: i32,
+            flags: i32,
+            fd: i32,
+            offset: isize,
+        ) -> *mut c_void;
+    }
+    const PROT_NONE: i32 = 0;
+    const MAP_PRIVATE: i32 = 0x02;
+    const MAP_ANONYMOUS: i32 = 0x20;
+    const MAP_NORESERVE: i32 = 0x4000;
+    let base = unsafe {
+        mmap(
+            std::ptr::null_mut(),
+            MAX_ESPACO_VIRTUAL_PUBLICO_BYTES,
+            PROT_NONE,
+            MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+            -1,
+            0,
+        )
+    };
+    if base as usize == usize::MAX {
+        erro_memoria_publica("arena virtual pública indisponível");
+    }
+    base as usize
+}
+
+#[cfg(not(target_os = "linux"))]
+fn reservar_arena_publica() -> usize {
+    erro_memoria_publica("arena pública limitada indisponível neste target")
+}
+
+fn memoria_publica() -> &'static Mutex<MemoriaPublica> {
+    static MEMORIA: OnceLock<Mutex<MemoriaPublica>> = OnceLock::new();
+    MEMORIA.get_or_init(|| {
+        Mutex::new(MemoriaPublica {
+            arena_base: reservar_arena_publica(),
+            proximo_offset: 0,
+            proxima_identidade: 1,
+            alocacoes: Vec::new(),
+        })
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn comprometer_paginas_publicas(base: usize, tamanho: usize) -> Result<(), ()> {
+    use std::ffi::c_void;
+
+    extern "C" {
+        fn mprotect(address: *mut c_void, length: usize, protection: i32) -> i32;
+    }
+    const PROT_READ: i32 = 1;
+    const PROT_WRITE: i32 = 2;
+    (unsafe { mprotect(base as *mut c_void, tamanho, PROT_READ | PROT_WRITE) } == 0)
+        .then_some(())
+        .ok_or(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn comprometer_paginas_publicas(_base: usize, _tamanho: usize) -> Result<(), ()> {
+    Err(())
+}
+
+#[cfg(target_os = "linux")]
+fn descomprometer_paginas_publicas(base: usize, tamanho: usize) -> Result<(), ()> {
+    use std::ffi::c_void;
+
+    extern "C" {
+        fn madvise(address: *mut c_void, length: usize, advice: i32) -> i32;
+        fn mprotect(address: *mut c_void, length: usize, protection: i32) -> i32;
+    }
+    const MADV_DONTNEED: i32 = 4;
+    const PROT_NONE: i32 = 0;
+    if unsafe { madvise(base as *mut c_void, tamanho, MADV_DONTNEED) } != 0 {
+        return Err(());
+    }
+    (unsafe { mprotect(base as *mut c_void, tamanho, PROT_NONE) } == 0)
+        .then_some(())
+        .ok_or(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn descomprometer_paginas_publicas(_base: usize, _tamanho: usize) -> Result<(), ()> {
+    Err(())
+}
 
 fn indice_base_publica_mais_recente(registro: &[AlocacaoPublica], base: usize) -> Option<usize> {
     registro.iter().rposition(|alocacao| alocacao.base == base)
@@ -148,6 +254,11 @@ fn intervalo_publico_contido(
 /// registra ownership para que `liberar` possa validar a origem.
 #[no_mangle]
 pub extern "C" fn pinker_publico_alocar(tamanho: u64) -> *mut u8 {
+    debug_assert_eq!(
+        MAX_METADATA_PUBLICA_BYTES,
+        MAX_IDENTIDADES_PUBLICAS * std::mem::size_of::<AlocacaoPublica>()
+    );
+    debug_assert_eq!(MAX_QUARENTENA_FISICA_BYTES, 0);
     if tamanho == 0 {
         erro_memoria_publica("'alocar' rejeita tamanho zero");
     }
@@ -156,27 +267,45 @@ pub extern "C" fn pinker_publico_alocar(tamanho: u64) -> *mut u8 {
     if tamanho_usize > (isize::MAX as usize).saturating_sub(CABECALHO) {
         erro_memoria_publica("'alocar' excede o maior bloco representável pela plataforma");
     }
-    let mut registro = ALOCACOES_PUBLICAS
+    let reservado = tamanho_usize
+        .checked_add(PAGINA_PUBLICA - 1)
+        .map(|valor| valor & !(PAGINA_PUBLICA - 1))
+        .unwrap_or_else(|| erro_memoria_publica("overflow ao alinhar alocação pública"));
+    let mut memoria = memoria_publica()
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
-    registro
+    if memoria.alocacoes.len() >= MAX_IDENTIDADES_PUBLICAS {
+        erro_memoria_publica("limite de identidades públicas esgotado");
+    }
+    memoria
+        .alocacoes
         .try_reserve(1)
         .unwrap_or_else(|_| erro_memoria_publica("metadata pública de alocações esgotada"));
-    let identidade = registro
-        .last()
-        .map_or(Some(1), |alocacao| alocacao.identidade.checked_add(1))
+    let identidade = memoria.proxima_identidade;
+    memoria.proxima_identidade = identidade
+        .checked_add(1)
         .unwrap_or_else(|| erro_memoria_publica("identidade pública de alocação esgotada"));
-    let ponteiro = pinker_alocar(tamanho);
-    if ponteiro.is_null() {
-        erro_memoria_publica("'alocar' falhou ao reservar memória");
-    }
+    let fim = memoria
+        .proximo_offset
+        .checked_add(reservado)
+        .filter(|fim| *fim <= MAX_ESPACO_VIRTUAL_PUBLICO_BYTES)
+        .unwrap_or_else(|| erro_memoria_publica("espaço virtual público esgotado"));
+    let base = memoria
+        .arena_base
+        .checked_add(memoria.proximo_offset)
+        .unwrap_or_else(|| erro_memoria_publica("overflow na arena pública"));
+    comprometer_paginas_publicas(base, reservado)
+        .unwrap_or_else(|_| erro_memoria_publica("'alocar' falhou ao comprometer memória"));
+    let ponteiro = base as *mut u8;
     unsafe {
         ponteiro.write_bytes(0, tamanho_usize);
     }
-    registro.push(AlocacaoPublica {
+    memoria.proximo_offset = fim;
+    memoria.alocacoes.push(AlocacaoPublica {
         identidade,
-        base: ponteiro as usize,
+        base,
         tamanho: tamanho_usize,
+        reservado,
         viva: true,
     });
     ponteiro
@@ -196,23 +325,25 @@ pub unsafe extern "C" fn pinker_publico_liberar(ponteiro: *mut u8) {
     if ponteiro.is_null() {
         erro_memoria_publica("'liberar' rejeita ponteiro nulo");
     }
-    let mut registro = ALOCACOES_PUBLICAS
+    let mut memoria = memoria_publica()
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
-    if let Some(indice) = indice_base_publica_mais_recente(&registro, ponteiro as usize) {
-        let alocacao = &mut registro[indice];
+    if let Some(indice) =
+        indice_base_publica_mais_recente(&memoria.alocacoes, ponteiro as usize)
+    {
+        let alocacao = &mut memoria.alocacoes[indice];
         if !alocacao.viva {
             erro_memoria_publica("E-RUNTIME-MEM-DOUBLE-FREE: 'liberar' detectou double free");
         }
         debug_assert!(alocacao.identidade > 0);
         debug_assert!(alocacao.tamanho > 0);
+        descomprometer_paginas_publicas(alocacao.base, alocacao.reservado)
+            .unwrap_or_else(|_| erro_memoria_publica("falha ao descomprometer memória pública"));
         alocacao.viva = false;
-        // Quarentena física até o término do processo: um endereço nunca é
-        // reciclado para esconder double free ou revalidar alias obsoleto.
         return;
     }
     let endereco = ponteiro as usize;
-    if registro.iter().any(|alocacao| {
+    if memoria.alocacoes.iter().any(|alocacao| {
         alocacao
             .base
             .checked_add(alocacao.tamanho)
@@ -244,10 +375,10 @@ pub extern "C" fn pinker_publico_validar_acesso(
     let fim_acesso = endereco.checked_add(largura).unwrap_or_else(|| {
         erro_memoria_publica("E-RUNTIME-MEM-ADDRESS-OVERFLOW: overflow no acesso à memória pública")
     });
-    let registro = ALOCACOES_PUBLICAS
+    let memoria = memoria_publica()
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
-    let candidata = registro.iter().rev().find(|alocacao| {
+    let candidata = memoria.alocacoes.iter().rev().find(|alocacao| {
         let Some(fim) = alocacao.base.checked_add(alocacao.tamanho) else {
             return false;
         };
@@ -255,7 +386,9 @@ pub extern "C" fn pinker_publico_validar_acesso(
             || (endereco < alocacao.base && fim_acesso > alocacao.base)
     });
     let Some(alocacao) = candidata else {
-        return;
+        erro_memoria_publica(
+            "E-RUNTIME-MEM-UNKNOWN-ACCESS: acesso sem região pública registrada",
+        );
     };
     if !alocacao.viva {
         erro_memoria_publica(
@@ -287,15 +420,17 @@ pub extern "C" fn pinker_publico_validar_acesso(
 pub extern "C" fn pinker_publico_validar_derivacao(origem: *const u8, derivado: *const u8) {
     let origem = origem as usize;
     let derivado = derivado as usize;
-    let registro = ALOCACOES_PUBLICAS
+    let memoria = memoria_publica()
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
-    let candidata = registro.iter().rev().find(|alocacao| {
+    let candidata = memoria.alocacoes.iter().rev().find(|alocacao| {
         let fim = alocacao.base.saturating_add(alocacao.tamanho);
         origem >= alocacao.base && origem <= fim
     });
     let Some(alocacao) = candidata else {
-        return;
+        erro_memoria_publica(
+            "E-RUNTIME-MEM-UNKNOWN-DERIVATION: origem sem região pública registrada",
+        );
     };
     if !alocacao.viva {
         erro_memoria_publica(
@@ -2489,6 +2624,82 @@ mod tests {
         assert!(io.arquivos.is_empty());
     }
 
+    #[cfg(target_os = "linux")]
+    fn rss_atual_bytes() -> u64 {
+        let statm = std::fs::read_to_string("/proc/self/statm").expect("/proc/self/statm");
+        let residentes = statm
+            .split_whitespace()
+            .nth(1)
+            .expect("residentes")
+            .parse::<u64>()
+            .expect("rss numérico");
+        residentes * PAGINA_PUBLICA as u64
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn memoria_publica_descompromete_payload_com_metadata_limitada() {
+        let ciclos = std::env::var("PINKER_RT_TESTE_CICLOS_PUBLICOS")
+            .ok()
+            .and_then(|valor| valor.parse::<usize>().ok())
+            .unwrap_or(10_000);
+        assert!(ciclos <= MAX_IDENTIDADES_PUBLICAS);
+        let inicio_tempo = std::time::Instant::now();
+        let rss_inicial = rss_atual_bytes();
+        let mut rss_maximo = rss_inicial;
+        let metadata_inicial = memoria_publica()
+            .lock()
+            .expect("metadata inicial")
+            .alocacoes
+            .len();
+        for indice in 0..ciclos {
+            let ponteiro = pinker_publico_alocar(1);
+            unsafe {
+                ponteiro.write(0xA5);
+                pinker_publico_liberar(ponteiro);
+            }
+            if indice % 1_000 == 0 {
+                rss_maximo = rss_maximo.max(rss_atual_bytes());
+            }
+        }
+        let rss_final = rss_atual_bytes();
+        let memoria = memoria_publica().lock().expect("metadata pública");
+        assert!(memoria.alocacoes.len() >= metadata_inicial + ciclos);
+        let limite_rss = rss_inicial
+            .saturating_add(MAX_METADATA_PUBLICA_BYTES as u64)
+            .saturating_add(64 * 1024 * 1024);
+        assert!(rss_final <= limite_rss, "{rss_inicial} {rss_final}");
+        eprintln!(
+            "public-memory-profile ciclos={ciclos} rss_inicial={rss_inicial} rss_maximo={rss_maximo} rss_final={rss_final} metadata={} elapsed_ms={}",
+            memoria.alocacoes.len(),
+            inicio_tempo.elapsed().as_millis()
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn validacao_publica_desconhecida_falha_fechada() {
+        if std::env::var_os("PINKER_RT_TESTE_ACESSO_DESCONHECIDO").is_some() {
+            pinker_publico_validar_acesso(0x1234usize as *const u8, 1, 1);
+            return;
+        }
+        let output = std::process::Command::new(std::env::current_exe().expect("binário de teste"))
+            .args([
+                "--exact",
+                "tests::validacao_publica_desconhecida_falha_fechada",
+                "--nocapture",
+            ])
+            .env("PINKER_RT_TESTE_ACESSO_DESCONHECIDO", "1")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .expect("executar validação desconhecida");
+        assert_eq!(output.status.code(), Some(1));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("E-RUNTIME-MEM-UNKNOWN-ACCESS"), "{stderr}");
+        assert!(!stderr.contains("panicked at"), "{stderr}");
+    }
+
     #[test]
     fn alocar_devolve_bloco_alinhado_e_utilizavel() {
         let ptr = pinker_alocar(64);
@@ -2525,12 +2736,14 @@ mod tests {
                 identidade: 1,
                 base: 0x1000,
                 tamanho: 32,
+                reservado: 32,
                 viva: false,
             },
             AlocacaoPublica {
                 identidade: 2,
                 base: 0x1000,
                 tamanho: 32,
+                reservado: 32,
                 viva: true,
             },
         ];
@@ -2543,6 +2756,7 @@ mod tests {
             identidade: 3,
             base: 0x1000,
             tamanho: 32,
+            reservado: 32,
             viva: true,
         });
         let indice = indice_base_publica_mais_recente(&registro, 0x1000)

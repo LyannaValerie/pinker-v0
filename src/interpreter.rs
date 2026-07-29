@@ -924,7 +924,11 @@ fn exec_instr(
                 }
             }
             let loaded = if public_region.is_some() {
-                Some(public_memory_load_bytes(memory, addr, *ty)?)
+                Some(public_memory_load_bytes(
+                    &public_memory_state.payload,
+                    addr,
+                    *ty,
+                )?)
             } else if *is_volatile {
                 deref_load_fragil(memory, addr)
             } else {
@@ -969,7 +973,12 @@ fn exec_instr(
             }
             if public_region.is_some() {
                 let coerced = coerce_runtime_value_to_type(value, *ty)?;
-                public_memory_store_bytes(memory, addr, *ty, coerced)?;
+                public_memory_store_bytes(
+                    &mut public_memory_state.payload,
+                    addr,
+                    *ty,
+                    coerced,
+                )?;
                 return Ok(());
             }
             if !memory.contains_key(&addr) {
@@ -1481,6 +1490,11 @@ fn exec_instr(
 // @pinker-nav:layer interpreter
 // @pinker-nav:summary Implementa intrínsecas hospedadas de aleatoriedade inicial, validando aridade, semente e handle de gerador, mutando o estado pseudoaleatório do interpretador e retornando handles ou números; não representa geradores do runtime nativo.
 const PUBLIC_MEMORY_BASE: usize = 0x5000_0000;
+const PUBLIC_MEMORY_MAX_IDENTITIES: usize = 1_000_000;
+const PUBLIC_MEMORY_MAX_VIRTUAL_BYTES: usize = 8 * 1024 * 1024 * 1024;
+const PUBLIC_MEMORY_MAX_METADATA_BYTES: usize =
+    PUBLIC_MEMORY_MAX_IDENTITIES * std::mem::size_of::<PublicMemoryRegion>();
+const PUBLIC_MEMORY_MAX_QUARANTINE_BYTES: usize = 0;
 
 #[derive(Clone, Debug)]
 struct PublicMemoryRegion {
@@ -1493,6 +1507,7 @@ struct PublicMemoryRegion {
 struct PublicMemoryState {
     next_address: usize,
     regions: Vec<PublicMemoryRegion>,
+    payload: HashMap<usize, RuntimeValue>,
 }
 
 impl Default for PublicMemoryState {
@@ -1500,6 +1515,7 @@ impl Default for PublicMemoryState {
         Self {
             next_address: PUBLIC_MEMORY_BASE,
             regions: Vec::new(),
+            payload: HashMap::new(),
         }
     }
 }
@@ -1693,6 +1709,11 @@ fn public_memory_allocate(
     args: &[RuntimeValue],
     state: &mut PublicMemoryState,
 ) -> Result<IntrinsicCall, PinkerError> {
+    debug_assert_eq!(
+        PUBLIC_MEMORY_MAX_METADATA_BYTES,
+        PUBLIC_MEMORY_MAX_IDENTITIES * std::mem::size_of::<PublicMemoryRegion>()
+    );
+    debug_assert_eq!(PUBLIC_MEMORY_MAX_QUARANTINE_BYTES, 0);
     let [RuntimeValue::Int(size)] = args else {
         return Err(runtime_err("'alocar' exige um tamanho 'u64' em bytes"));
     };
@@ -1714,6 +1735,15 @@ fn public_memory_allocate(
     let next = base
         .checked_add(rounded)
         .ok_or_else(|| runtime_err("overflow de endereço em 'alocar'"))?;
+    let arena_end = PUBLIC_MEMORY_BASE
+        .checked_add(PUBLIC_MEMORY_MAX_VIRTUAL_BYTES)
+        .ok_or_else(|| runtime_err("overflow no limite virtual da memória pública"))?;
+    if state.regions.len() >= PUBLIC_MEMORY_MAX_IDENTITIES {
+        return Err(runtime_err("limite de identidades públicas esgotado"));
+    }
+    if next > arena_end {
+        return Err(runtime_err("espaço virtual público esgotado"));
+    }
     state
         .regions
         .try_reserve(1)
@@ -1747,6 +1777,13 @@ fn public_memory_free(
             ));
         }
         region.alive = false;
+        let base = region.base;
+        let end = base
+            .checked_add(region.size)
+            .ok_or_else(|| runtime_err("overflow em metadata de memória pública"))?;
+        state
+            .payload
+            .retain(|address, _| *address < base || *address >= end);
         return Ok(IntrinsicCall::Done(None));
     }
     if state.regions.iter().any(|region| {
