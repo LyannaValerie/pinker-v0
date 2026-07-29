@@ -328,9 +328,7 @@ pub unsafe extern "C" fn pinker_publico_liberar(ponteiro: *mut u8) {
     let mut memoria = memoria_publica()
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
-    if let Some(indice) =
-        indice_base_publica_mais_recente(&memoria.alocacoes, ponteiro as usize)
-    {
+    if let Some(indice) = indice_base_publica_mais_recente(&memoria.alocacoes, ponteiro as usize) {
         let alocacao = &mut memoria.alocacoes[indice];
         if !alocacao.viva {
             erro_memoria_publica("E-RUNTIME-MEM-DOUBLE-FREE: 'liberar' detectou double free");
@@ -386,9 +384,7 @@ pub extern "C" fn pinker_publico_validar_acesso(
             || (endereco < alocacao.base && fim_acesso > alocacao.base)
     });
     let Some(alocacao) = candidata else {
-        erro_memoria_publica(
-            "E-RUNTIME-MEM-UNKNOWN-ACCESS: acesso sem região pública registrada",
-        );
+        erro_memoria_publica("E-RUNTIME-MEM-UNKNOWN-ACCESS: acesso sem região pública registrada");
     };
     if !alocacao.viva {
         erro_memoria_publica(
@@ -1617,7 +1613,7 @@ fn com_arquivo<R>(handle: u64, nome: &str, f: impl FnOnce(&mut ArquivoAberto) ->
         return f(arquivo);
     }
     if handle_foi_fechado(&io, handle) {
-            erro_fatal(&format!("handle de arquivo já fechado em '{nome}'"));
+        erro_fatal(&format!("handle de arquivo já fechado em '{nome}'"));
     }
     erro_fatal(&format!("handle de arquivo inválido em '{nome}'"));
 }
@@ -1635,7 +1631,9 @@ fn ler_descritor(arq: &mut ArquivoAberto, nome: &str) -> Vec<u8> {
     }
     arq.arquivo
         .seek(std::io::SeekFrom::Start(0))
-        .unwrap_or_else(|err| erro_fatal(&format!("falha ao reposicionar arquivo em '{nome}': {err}")));
+        .unwrap_or_else(|err| {
+            erro_fatal(&format!("falha ao reposicionar arquivo em '{nome}': {err}"))
+        });
     let mut bytes = Vec::with_capacity(usize::try_from(tamanho).unwrap_or(0));
     let mut limitado = std::io::Read::take(&mut arq.arquivo, MAX_ARQUIVO_VERSO_BYTES + 1);
     limitado
@@ -2170,8 +2168,7 @@ fn comando_resolvido(nome: &str, comando: &str) -> Result<std::path::PathBuf, St
 
 fn novo_processo(nome: &str, comando: &str) -> std::process::Command {
     exigir_comando_nao_vazio(nome, comando);
-    let resolvido =
-        comando_resolvido(nome, comando).unwrap_or_else(|err| erro_fatal(err.as_str()));
+    let resolvido = comando_resolvido(nome, comando).unwrap_or_else(|err| erro_fatal(err.as_str()));
     let mut processo = std::process::Command::new(resolvido);
     processo.env("PATH", PATH_PROCESSOS);
     processo
@@ -2319,8 +2316,9 @@ fn processo_com_entrada_resultado(
     let codigo = status.code().ok_or_else(|| {
         "processo finalizado sem código de saída suportado em 'executar_com_entrada'".to_string()
     })?;
-    u64::try_from(codigo)
-        .map_err(|_| "código de saída inválido em 'executar_com_entrada': valor negativo".to_string())
+    u64::try_from(codigo).map_err(|_| {
+        "código de saída inválido em 'executar_com_entrada': valor negativo".to_string()
+    })
 }
 
 fn processo_com_entrada(comando: &str, entrada: &str, argv1: Option<&str>) -> u64 {
@@ -2364,25 +2362,21 @@ pub unsafe extern "C" fn pinker_processo_pipeline(
     let consumidor_nome = verso_str(consumidor);
     let mut produtor_comando = novo_processo("pipeline_minimo", produtor_nome);
     produtor_comando.stdout(std::process::Stdio::piped());
-    let mut produtor = produtor_comando
-        .spawn()
-        .unwrap_or_else(|err| {
-            erro_fatal(&format!(
-                "falha ao executar processo produtor em 'pipeline_minimo': {err}"
-            ))
-        });
+    let mut produtor = produtor_comando.spawn().unwrap_or_else(|err| {
+        erro_fatal(&format!(
+            "falha ao executar processo produtor em 'pipeline_minimo': {err}"
+        ))
+    });
     let Some(saida_produtor) = produtor.stdout.take() else {
         erro_fatal("stdout indisponível em 'pipeline_minimo': produtor sem pipe configurado");
     };
     let mut consumidor_comando = novo_processo("pipeline_minimo", consumidor_nome);
     consumidor_comando.stdin(std::process::Stdio::from(saida_produtor));
-    let mut consumidor = consumidor_comando
-        .spawn()
-        .unwrap_or_else(|err| {
-            erro_fatal(&format!(
-                "falha ao executar processo consumidor em 'pipeline_minimo': {err}"
-            ))
-        });
+    let mut consumidor = consumidor_comando.spawn().unwrap_or_else(|err| {
+        erro_fatal(&format!(
+            "falha ao executar processo consumidor em 'pipeline_minimo': {err}"
+        ))
+    });
     produtor.wait().unwrap_or_else(|err| {
         erro_fatal(&format!(
             "falha ao aguardar produtor em 'pipeline_minimo': {err}"
@@ -2477,10 +2471,8 @@ mod tests {
     fn script_processo(nome: &str, corpo: &str) -> std::path::PathBuf {
         use std::os::unix::fs::PermissionsExt as _;
 
-        let path = std::env::temp_dir().join(format!(
-            "pinker-rt-processo-{nome}-{}",
-            std::process::id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("pinker-rt-processo-{nome}-{}", std::process::id()));
         std::fs::write(&path, format!("#!/bin/sh\n{corpo}\n")).expect("gravar script");
         let mut permissions = std::fs::metadata(&path).expect("metadata").permissions();
         permissions.set_mode(0o700);
@@ -2525,8 +2517,8 @@ mod tests {
         );
 
         let nao_leitor = script_processo("nao-leitor", "exit 0");
-        let erro =
-            processo_com_entrada_resultado(nao_leitor.to_str().unwrap(), &entrada, None).unwrap_err();
+        let erro = processo_com_entrada_resultado(nao_leitor.to_str().unwrap(), &entrada, None)
+            .unwrap_err();
         assert!(erro.contains("falha ao escrever stdin"), "{erro}");
         assert!(
             processo_com_entrada_resultado("/caminho/ausente/pinker", "", None)
@@ -2543,10 +2535,8 @@ mod tests {
     fn handles_de_arquivo_preservam_identidade_do_descritor() {
         use std::os::unix::fs::symlink;
 
-        let raiz = std::env::temp_dir().join(format!(
-            "pinker-rt-descritores-{}",
-            std::process::id()
-        ));
+        let raiz =
+            std::env::temp_dir().join(format!("pinker-rt-descritores-{}", std::process::id()));
         std::fs::create_dir_all(&raiz).expect("raiz");
         let caminho = raiz.join("aberto.txt");
         let movido = raiz.join("movido.txt");
@@ -2582,10 +2572,8 @@ mod tests {
     fn criar_e_exclusivo_e_open_nao_materializa_arquivo_grande() {
         use std::os::unix::fs::symlink;
 
-        let raiz = std::env::temp_dir().join(format!(
-            "pinker-rt-create-new-{}",
-            std::process::id()
-        ));
+        let raiz =
+            std::env::temp_dir().join(format!("pinker-rt-create-new-{}", std::process::id()));
         std::fs::create_dir_all(&raiz).expect("raiz");
         let existente = raiz.join("existente.txt");
         let link = raiz.join("link.txt");

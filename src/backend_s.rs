@@ -1960,20 +1960,12 @@ fn lower_public_pointer_derivation(
 ) -> Result<Vec<String>, PinkerError> {
     let mut visiting_temps = HashSet::new();
     let mut visiting_slots = HashSet::new();
-    let lhs_is_pointer = selected_operand_is_public_pointer(
-        function,
-        lhs,
-        &mut visiting_temps,
-        &mut visiting_slots,
-    );
+    let lhs_is_pointer =
+        selected_operand_is_public_pointer(function, lhs, &mut visiting_temps, &mut visiting_slots);
     visiting_temps.clear();
     visiting_slots.clear();
-    let rhs_is_pointer = selected_operand_is_public_pointer(
-        function,
-        rhs,
-        &mut visiting_temps,
-        &mut visiting_slots,
-    );
+    let rhs_is_pointer =
+        selected_operand_is_public_pointer(function, rhs, &mut visiting_temps, &mut visiting_slots);
     let origin = if is_subtraction {
         (lhs_is_pointer && !rhs_is_pointer).then_some(lhs)
     } else {
@@ -2040,12 +2032,9 @@ fn selected_operand_is_public_pointer(
             visiting_slots.remove(slot);
             public
         }
-        OperandIR::Temp(temp) => selected_temp_is_public_pointer(
-            function,
-            *temp,
-            visiting_temps,
-            visiting_slots,
-        ),
+        OperandIR::Temp(temp) => {
+            selected_temp_is_public_pointer(function, *temp, visiting_temps, visiting_slots)
+        }
         _ => false,
     }
 }
@@ -2076,35 +2065,21 @@ fn selected_temp_is_public_pointer(
                 dest,
                 value,
                 target_type,
-            } if *dest == temp && matches!(target_type, TypeIR::Pointer { .. }) => {
-                Some(selected_operand_is_public_pointer(
-                    function,
-                    value,
-                    visiting_temps,
-                    visiting_slots,
-                ))
-            }
-            SelectedInstr::Add { dest, lhs, rhs, .. } if *dest == temp => Some(
-                selected_operand_is_public_pointer(
-                    function,
-                    lhs,
-                    visiting_temps,
-                    visiting_slots,
-                ) || selected_operand_is_public_pointer(
-                    function,
-                    rhs,
-                    visiting_temps,
-                    visiting_slots,
-                ),
+            } if *dest == temp && matches!(target_type, TypeIR::Pointer { .. }) => Some(
+                selected_operand_is_public_pointer(function, value, visiting_temps, visiting_slots),
             ),
-            SelectedInstr::Sub { dest, lhs, .. } if *dest == temp => {
-                Some(selected_operand_is_public_pointer(
-                    function,
-                    lhs,
-                    visiting_temps,
-                    visiting_slots,
-                ))
-            }
+            SelectedInstr::Add { dest, lhs, rhs, .. } if *dest == temp => Some(
+                selected_operand_is_public_pointer(function, lhs, visiting_temps, visiting_slots)
+                    || selected_operand_is_public_pointer(
+                        function,
+                        rhs,
+                        visiting_temps,
+                        visiting_slots,
+                    ),
+            ),
+            SelectedInstr::Sub { dest, lhs, .. } if *dest == temp => Some(
+                selected_operand_is_public_pointer(function, lhs, visiting_temps, visiting_slots),
+            ),
             _ => None,
         })
         .unwrap_or(false);

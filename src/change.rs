@@ -824,7 +824,10 @@ mod tests {
             let reparsed = Change::parse_block(&yaml).unwrap();
             assert_eq!(reparsed.title, title, "{yaml}");
             assert_eq!(
-                reparsed.source.as_ref().and_then(|source| source.repository.as_deref()),
+                reparsed
+                    .source
+                    .as_ref()
+                    .and_then(|source| source.repository.as_deref()),
                 Some(format!("repo:{title}").as_str()),
                 "{yaml}"
             );

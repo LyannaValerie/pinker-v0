@@ -973,12 +973,7 @@ fn exec_instr(
             }
             if public_region.is_some() {
                 let coerced = coerce_runtime_value_to_type(value, *ty)?;
-                public_memory_store_bytes(
-                    &mut public_memory_state.payload,
-                    addr,
-                    *ty,
-                    coerced,
-                )?;
+                public_memory_store_bytes(&mut public_memory_state.payload, addr, *ty, coerced)?;
                 return Ok(());
             }
             if !memory.contains_key(&addr) {
