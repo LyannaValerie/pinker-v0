@@ -321,6 +321,14 @@ fn render_expr(expr: &Expr, indent: usize, out: &mut String, label: &str) {
             );
             render_expr(operand, indent + 1, out, "operand");
         }
+        ExprKind::AddressOf(operand) => {
+            line(
+                out,
+                indent,
+                &format!("{} AddressOf {}", label, format_span(expr.span)),
+            );
+            render_expr(operand, indent + 1, out, "operand");
+        }
         ExprKind::Call(callee, args) => {
             line(
                 out,
@@ -465,6 +473,18 @@ fn format_type(ty: &Type) -> String {
                 pointer
             }
         }
+        Type::Function { params, ret, .. } => {
+            let params = params
+                .iter()
+                .map(format_type)
+                .collect::<Vec<_>>()
+                .join(", ");
+            if ret.is_nulo() {
+                format!("carinho({})", params)
+            } else {
+                format!("carinho({}) -> {}", params, format_type(ret))
+            }
+        }
         _ => ty.name().to_string(),
     }
 }
@@ -481,3 +501,52 @@ fn line(out: &mut String, indent: usize, text: &str) {
     out.push('\n');
 }
 // @pinker-nav:end printer.ast.renderizacao
+
+#[cfg(test)]
+mod phase245_tests {
+    use super::*;
+    use crate::lexer::Lexer;
+    use crate::parser::Parser;
+    use crate::token::{Position, Span};
+
+    #[test]
+    fn tipo_ponteiro_funcao_formata_e_reparseia_sem_ambiguidade() {
+        let span = Span::single(Position::new(1, 1));
+        let ty = Type::Pointer {
+            base: Box::new(Type::Function {
+                params: vec![Type::Bombom(span), Type::Logica(span)],
+                ret: Box::new(Type::U64(span)),
+                span,
+            }),
+            is_volatile: false,
+            span,
+        };
+        let printed = format_type(&ty);
+        assert_eq!(printed, "seta<carinho(bombom, logica) -> u64>");
+
+        let source = format!(
+            "pacote main; carinho principal() -> bombom {{ nova f: {} = 0; mimo 0; }}",
+            printed
+        );
+        let mut lexer = Lexer::new(&source);
+        let tokens = lexer.tokenize().expect("lex do round-trip");
+        let mut parser = Parser::new(tokens);
+        let program = parser.parse().expect("parse do round-trip");
+        assert!(render_program(&program).contains(&printed));
+    }
+
+    #[test]
+    fn tipo_ponteiro_funcao_nulo_formata_sem_seta_de_retorno() {
+        let span = Span::single(Position::new(1, 1));
+        let ty = Type::Pointer {
+            base: Box::new(Type::Function {
+                params: vec![Type::U8(span)],
+                ret: Box::new(Type::Nulo(span)),
+                span,
+            }),
+            is_volatile: false,
+            span,
+        };
+        assert_eq!(format_type(&ty), "seta<carinho(u8)>");
+    }
+}

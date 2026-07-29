@@ -116,6 +116,15 @@ pub enum InstructionCfgIR {
         args: Vec<OperandIR>,
         ret_type: TypeIR,
     },
+    // Fase 245: chamada por endereço cru de código. Não há descritor nem
+    // argumento implícito `__env`; `dest: None` representa retorno `nulo`.
+    CallRaw {
+        dest: Option<TempIR>,
+        callee: OperandIR,
+        args: Vec<OperandIR>,
+        param_types: Vec<TypeIR>,
+        ret_type: TypeIR,
+    },
     // Fase 243: materializa uma closure — aloca em heap (via `pinker_alocar`,
     // codegen em `backend_s`/`interpreter`) um ambiente com os valores de
     // `captures` (snapshot por valor, ordem determinística) e produz o
@@ -194,6 +203,8 @@ pub enum OperandIR {
     // Fase 242: referência a função top-level como valor callable (endereço
     // do descritor estático {code_ptr, env_ptr}).
     FunctionRef(String),
+    // Fase 245: endereço cru do símbolo de código, sem descritor/ambiente.
+    RawFunctionRef(String),
 }
 
 pub type ValueCfgIR = OperandIR;
@@ -682,6 +693,31 @@ impl FunctionLowerer {
                     });
                 Ok(lowered_args.1)
             }
+            ValueIR::CallRaw {
+                callee,
+                args,
+                param_types,
+                ret_type,
+            } if *ret_type == TypeIR::Nulo => {
+                let (callee, callee_current) = self.lower_value_operand(callee, current, span)?;
+                let lowered_args =
+                    args.iter()
+                        .try_fold((Vec::new(), callee_current), |(mut acc, cur), arg| {
+                            let (lowered, next_cur) = self.lower_call_operand(arg, cur, span)?;
+                            acc.push(lowered);
+                            Ok::<_, PinkerError>((acc, next_cur))
+                        })?;
+                self.blocks[lowered_args.1]
+                    .instructions
+                    .push(InstructionCfgIR::CallRaw {
+                        dest: None,
+                        callee,
+                        args: lowered_args.0,
+                        param_types: param_types.clone(),
+                        ret_type: *ret_type,
+                    });
+                Ok(lowered_args.1)
+            }
             ValueIR::TraitCall {
                 object,
                 trait_name,
@@ -835,6 +871,7 @@ impl FunctionLowerer {
                 Ok((OperandIR::Temp(dest), lowered_args.1))
             }
             ValueIR::FunctionRef(name) => Ok((OperandIR::FunctionRef(name.clone()), current)),
+            ValueIR::RawFunctionRef(name) => Ok((OperandIR::RawFunctionRef(name.clone()), current)),
             ValueIR::MakeClosure {
                 function_name,
                 captures,
@@ -948,6 +985,39 @@ impl FunctionLowerer {
                         dest,
                         callee: callee_operand,
                         args: lowered_args.0,
+                        ret_type: *ret_type,
+                    });
+                Ok((OperandIR::Temp(dest), lowered_args.1))
+            }
+            ValueIR::CallRaw {
+                callee,
+                args,
+                param_types,
+                ret_type,
+            } => {
+                let (callee_operand, callee_current) =
+                    self.lower_value_operand(callee, current, span)?;
+                let lowered_args =
+                    args.iter()
+                        .try_fold((Vec::new(), callee_current), |(mut acc, cur), arg| {
+                            let (lowered, next_cur) = self.lower_call_operand(arg, cur, span)?;
+                            acc.push(lowered);
+                            Ok::<_, PinkerError>((acc, next_cur))
+                        })?;
+                if *ret_type == TypeIR::Nulo {
+                    return Err(PinkerError::Ir {
+                        msg: "chamada crua nulo usada como valor na CFG IR".to_string(),
+                        span,
+                    });
+                }
+                let dest = self.next_temp();
+                self.blocks[lowered_args.1]
+                    .instructions
+                    .push(InstructionCfgIR::CallRaw {
+                        dest: Some(dest),
+                        callee: callee_operand,
+                        args: lowered_args.0,
+                        param_types: param_types.clone(),
                         ret_type: *ret_type,
                     });
                 Ok((OperandIR::Temp(dest), lowered_args.1))
@@ -1495,6 +1565,7 @@ fn is_trivially_pure_ternary_arm(value: &ValueIR) -> bool {
             | ValueIR::Bool(_)
             | ValueIR::String(_)
             | ValueIR::FunctionRef(_)
+            | ValueIR::RawFunctionRef(_)
     )
 }
 // @pinker-nav:end cfg.lowering.constantes
@@ -1603,6 +1674,32 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
                 .join(", "),
             ret_type.name()
         ),
+        InstructionCfgIR::CallRaw {
+            dest,
+            callee,
+            args,
+            param_types,
+            ret_type,
+        } => {
+            let call = format!(
+                "call_raw {}({}) : ({}) -> {}",
+                render_operand(callee),
+                args.iter()
+                    .map(render_operand)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                param_types
+                    .iter()
+                    .map(TypeIR::render_name)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                ret_type.render_name()
+            );
+            match dest {
+                Some(dest) => format!("{} = {}", render_temp(*dest), call),
+                None => call,
+            }
+        }
         InstructionCfgIR::MakeClosure {
             dest,
             function_name,
@@ -1734,6 +1831,7 @@ fn render_operand(op: &OperandIR) -> String {
         OperandIR::Str(s) => format!("\"{}\":verso", s),
         OperandIR::Temp(t) => render_temp(*t),
         OperandIR::FunctionRef(name) => format!("fnref({})", name),
+        OperandIR::RawFunctionRef(name) => format!("raw_fnref({})", name),
     }
 }
 

@@ -983,6 +983,13 @@ impl Expr {
                 writer.field_value("operand", |writer| operand.write_json(writer));
                 writer.end_object();
             }
+            ExprKind::AddressOf(operand) => {
+                writer.begin_object();
+                writer.field_str("node", "AddressOfExpr");
+                writer.field_span("span", self.span);
+                writer.field_value("operand", |writer| operand.write_json(writer));
+                writer.end_object();
+            }
             ExprKind::Call(callee, args) => {
                 writer.begin_object();
                 writer.field_str("node", "CallExpr");
@@ -1079,6 +1086,7 @@ impl Expr {
 pub enum ExprKind {
     Binary(Box<Expr>, BinaryOp, Box<Expr>),
     Unary(UnaryOp, Box<Expr>),
+    AddressOf(Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
     InternalMapIterCreate(Box<Expr>),
     InternalMapIterNextKey(Box<Expr>),
@@ -1594,7 +1602,7 @@ fn scan_expr_free_idents(
             scan_expr_free_idents(lhs, bound, free, seen, include_direct_callees);
             scan_expr_free_idents(rhs, bound, free, seen, include_direct_callees);
         }
-        ExprKind::Unary(_, operand) => {
+        ExprKind::Unary(_, operand) | ExprKind::AddressOf(operand) => {
             scan_expr_free_idents(operand, bound, free, seen, include_direct_callees)
         }
         ExprKind::Call(callee, args) => {

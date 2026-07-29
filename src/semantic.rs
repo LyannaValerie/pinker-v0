@@ -169,6 +169,66 @@ impl SemanticChecker {
         }
     }
 
+    fn raw_function_abi_type_supported(ty: &Type, allow_nulo: bool) -> bool {
+        match ty {
+            Type::Bombom(_)
+            | Type::U8(_)
+            | Type::U16(_)
+            | Type::U32(_)
+            | Type::U64(_)
+            | Type::I8(_)
+            | Type::I16(_)
+            | Type::I32(_)
+            | Type::I64(_)
+            | Type::Logica(_)
+            | Type::Verso(_)
+            | Type::ListBombom(_)
+            | Type::ListVerso(_)
+            | Type::ListEnum { .. }
+            | Type::MapVersoBombom(_)
+            | Type::MapVersoVerso(_)
+            | Type::MapBombomBombom(_)
+            | Type::MapBombomVerso(_)
+            | Type::Enum { .. }
+            | Type::Pointer { .. }
+            | Type::Function { .. } => true,
+            Type::Applied { .. } => Self::trait_object_name(ty).is_some(),
+            Type::Nulo(_) => allow_nulo,
+            Type::FixedArray { .. } | Type::Struct { .. } | Type::Alias { .. } => false,
+        }
+    }
+
+    fn validate_raw_function_signature(
+        params: &[Type],
+        ret: &Type,
+        span: Span,
+    ) -> Result<(), PinkerError> {
+        if let Some((index, ty)) = params
+            .iter()
+            .enumerate()
+            .find(|(_, ty)| !Self::raw_function_abi_type_supported(ty, false))
+        {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "assinatura de ponteiro cru de função usa tipo ABI não suportado no parâmetro {}: '{}'",
+                    index + 1,
+                    Self::type_key(ty)
+                ),
+                span,
+            });
+        }
+        if !Self::raw_function_abi_type_supported(ret, true) {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "assinatura de ponteiro cru de função usa tipo ABI de retorno não suportado: '{}'",
+                    Self::type_key(ret)
+                ),
+                span,
+            });
+        }
+        Ok(())
+    }
+
     fn trait_object_name(ty: &Type) -> Option<&str> {
         match ty {
             Type::Applied {
@@ -272,7 +332,8 @@ impl SemanticChecker {
             | (Type::MapVersoBombom(_), Type::MapVersoBombom(_))
             | (Type::MapVersoVerso(_), Type::MapVersoVerso(_))
             | (Type::MapBombomBombom(_), Type::MapBombomBombom(_))
-            | (Type::MapBombomVerso(_), Type::MapBombomVerso(_)) => true,
+            | (Type::MapBombomVerso(_), Type::MapBombomVerso(_))
+            | (Type::Nulo(_), Type::Nulo(_)) => true,
             (Type::Struct { name: lhs_name, .. }, Type::Struct { name: rhs_name, .. }) => {
                 lhs_name == rhs_name
             }
@@ -421,7 +482,30 @@ impl SemanticChecker {
                 is_volatile,
                 span,
             } => {
-                let resolved_base = self.resolve_type_named(base.as_ref(), resolving)?;
+                let resolved_base = if let Type::Function {
+                    params,
+                    ret,
+                    span: function_span,
+                } = base.as_ref()
+                {
+                    let resolved_params = params
+                        .iter()
+                        .map(|param| self.resolve_type_named(param, resolving))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let resolved_ret = self.resolve_type_named(ret.as_ref(), resolving)?;
+                    Self::validate_raw_function_signature(
+                        &resolved_params,
+                        &resolved_ret,
+                        *function_span,
+                    )?;
+                    Type::Function {
+                        params: resolved_params,
+                        ret: Box::new(resolved_ret),
+                        span: *function_span,
+                    }
+                } else {
+                    self.resolve_type_named(base.as_ref(), resolving)?
+                };
                 if matches!(resolved_base, Type::Nulo(_)) {
                     return Err(PinkerError::Semantic {
                         msg: "tipo base de 'seta' não pode ser 'nulo'".to_string(),
@@ -629,9 +713,17 @@ impl SemanticChecker {
                 } if matches!(base.as_ref(), Type::Bombom(_))
             )
         };
+        let is_data_ptr = |ty: &Type| {
+            matches!(
+                ty,
+                Type::Pointer { base, .. }
+                    if !matches!(base.as_ref(), Type::Function { .. })
+            )
+        };
 
         (matches!(source, Type::Bombom(_)) && is_bombom_ptr(target))
             || (is_bombom_ptr(source) && matches!(target, Type::Bombom(_)))
+            || (is_data_ptr(source) && is_data_ptr(target))
             // Leitura do discriminante de um leque; o caminho inverso continua fechado.
             || (matches!(source, Type::Enum { .. }) && matches!(target, Type::Bombom(_)))
     }
@@ -1892,13 +1984,25 @@ impl SemanticChecker {
                             )?;
                             let expected_value_ty = match ptr_ty {
                                 Type::Pointer { base, .. }
-                                    if matches!(base.as_ref(), Type::Bombom(_)) =>
+                                    if matches!(
+                                        base.as_ref(),
+                                        Type::Bombom(_)
+                                            | Type::U8(_)
+                                            | Type::U16(_)
+                                            | Type::U32(_)
+                                            | Type::U64(_)
+                                            | Type::I8(_)
+                                            | Type::I16(_)
+                                            | Type::I32(_)
+                                            | Type::I64(_)
+                                            | Type::Logica(_)
+                                    ) =>
                                 {
-                                    Type::Bombom(ptr_expr.span)
+                                    base.as_ref().clone()
                                 }
                                 Type::Pointer { .. } => {
                                     return Err(PinkerError::Semantic {
-                                        msg: "escrita indireta nesta fase aceita apenas 'seta<bombom>'".to_string(),
+                                        msg: "escrita indireta aceita ponteiros para escalares públicos de uma palavra".to_string(),
                                         span: ptr_expr.span,
                                     });
                                 }
@@ -2284,6 +2388,72 @@ impl SemanticChecker {
                 Ok(Type::Verso(expr.span))
             }
             ExprKind::Call(callee, args) => self.check_call_expr(expr.span, callee, args),
+            ExprKind::AddressOf(operand) => {
+                let ExprKind::Ident(name) = &operand.kind else {
+                    return Err(PinkerError::Semantic {
+                        msg: "obtenção de endereço cru exige nome de função top-level".to_string(),
+                        span: operand.span,
+                    });
+                };
+                if self.resolve_local_var_type(name).is_some() {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "obtenção de endereço cru de '{}' rejeita variável, callable ou closure; use uma função top-level",
+                            name
+                        ),
+                        span: operand.span,
+                    });
+                }
+                if name.starts_with("__anon_carinho_")
+                    || name.starts_with("__fnref_env_")
+                    || Self::parse_impl_function_name(name).is_some()
+                {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "obtenção de endereço cru de '{}' rejeita closure, wrapper de callable ou método",
+                            name
+                        ),
+                        span: operand.span,
+                    });
+                }
+                let Some(function) = self.funcs.get(name).cloned() else {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "símbolo de função '{}' não resolvido para obtenção de endereço cru",
+                            name
+                        ),
+                        span: operand.span,
+                    });
+                };
+                if !function.type_params.is_empty() {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "função genérica '{}' exige especialização concreta antes da obtenção de endereço cru",
+                            name
+                        ),
+                        span: operand.span,
+                    });
+                }
+                let signature = Type::Function {
+                    params: function
+                        .params
+                        .iter()
+                        .map(|param| param.ty.clone())
+                        .collect(),
+                    ret: Box::new(
+                        function
+                            .ret_type
+                            .clone()
+                            .unwrap_or_else(|| Type::Nulo(function.span)),
+                    ),
+                    span: function.span,
+                };
+                self.resolve_type_or_error(&Type::Pointer {
+                    base: Box::new(signature),
+                    is_volatile: false,
+                    span: expr.span,
+                })
+            }
             ExprKind::FieldAccess { base, field } => {
                 // `Leque.Variante` — o nome do leque em posição de base tem
                 // precedência sobre variáveis homônimas nesta fase.
@@ -2605,7 +2775,16 @@ impl SemanticChecker {
                     }
                     UnaryOp::Deref => match inner_ty {
                         Type::Pointer { base, .. } => match base.as_ref() {
-                            Type::Bombom(_) => Ok(Type::Bombom(expr.span)),
+                            Type::Bombom(_)
+                            | Type::U8(_)
+                            | Type::U16(_)
+                            | Type::U32(_)
+                            | Type::U64(_)
+                            | Type::I8(_)
+                            | Type::I16(_)
+                            | Type::I32(_)
+                            | Type::I64(_)
+                            | Type::Logica(_) => Ok(base.as_ref().clone().with_span(expr.span)),
                             Type::FixedArray { element, size, .. }
                                 if matches!(element.as_ref(), Type::Bombom(_)) =>
                             {
@@ -2620,7 +2799,7 @@ impl SemanticChecker {
                                 span: expr.span,
                             }),
                             _ => Err(PinkerError::Semantic {
-                                msg: "dereferência nesta fase aceita apenas 'seta<bombom>', 'seta<[bombom; N]>' ou 'seta<ninho>'".to_string(),
+                                msg: "dereferência aceita ponteiro para escalar público, array suportado ou ninho".to_string(),
                                 span: expr.span,
                             }),
                         },
@@ -3067,16 +3246,37 @@ impl SemanticChecker {
         // indireta real, sem depender de resolução estática do nome
         // concreto no parse (ao contrário da especialização da Fase 239).
         if let Some(local_ty) = self.resolve_local_var_type(name) {
-            let Type::Function { params, ret, .. } = &local_ty else {
-                return Err(PinkerError::Semantic {
-                    msg: format!("'{}' não é chamável (tipo '{}')", name, local_ty.name()),
-                    span: callee.span,
-                });
+            let (params, ret, raw) = match &local_ty {
+                Type::Function { params, ret, .. } => (params, ret.as_ref(), false),
+                Type::Pointer { base, .. } => match base.as_ref() {
+                    Type::Function { params, ret, .. } => (params, ret.as_ref(), true),
+                    _ => {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "'{}' não é ponteiro de função chamável (tipo '{}')",
+                                name,
+                                Self::type_key(&local_ty)
+                            ),
+                            span: callee.span,
+                        });
+                    }
+                },
+                _ => {
+                    return Err(PinkerError::Semantic {
+                        msg: format!("'{}' não é chamável (tipo '{}')", name, local_ty.name()),
+                        span: callee.span,
+                    });
+                }
             };
             if args.len() != params.len() {
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "chamada indireta de '{}' com aridade inválida: esperado {}, recebido {}",
+                        "{} de '{}' com aridade inválida: esperado {}, recebido {}",
+                        if raw {
+                            "chamada por ponteiro cru"
+                        } else {
+                            "chamada indireta"
+                        },
                         name,
                         params.len(),
                         args.len()
@@ -3085,7 +3285,7 @@ impl SemanticChecker {
                 });
             }
             let params = params.clone();
-            let ret = ret.as_ref().clone();
+            let ret = ret.clone();
             for (index, (arg, expected)) in args.iter().zip(params.iter()).enumerate() {
                 let arg_ty = self.check_value_expr(
                     arg,
@@ -3095,8 +3295,13 @@ impl SemanticChecker {
                 if !Self::check_expected_type_for_expr(&expected_resolved, &arg_ty, arg) {
                     return Err(PinkerError::Semantic {
                         msg: format!(
-                            "tipo inválido no argumento {} da chamada indireta de '{}': esperado '{}', encontrado '{}'",
+                            "tipo inválido no argumento {} da {} de '{}': esperado '{}', encontrado '{}'",
                             index + 1,
+                            if raw {
+                                "chamada por ponteiro cru"
+                            } else {
+                                "chamada indireta"
+                            },
                             name,
                             Self::type_key(&expected_resolved),
                             Self::type_key(&arg_ty)
@@ -3107,6 +3312,68 @@ impl SemanticChecker {
                 Self::validate_int_literal_range(&expected_resolved, arg)?;
             }
             return self.resolve_type_or_error(&ret);
+        }
+
+        // Fase 246: superfície pública de memória explícita. O tamanho é
+        // sempre expresso em bytes (`u64`) e o ponteiro devolvido é `seta<u8>`.
+        if name == "alocar" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "'alocar' exige exatamente 1 argumento de tamanho em bytes, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let expected = Type::U64(args[0].span);
+            let actual = self.check_value_expr(
+                &args[0],
+                "resultado sem retorno não pode ser tamanho de alocação",
+            )?;
+            if !Self::check_expected_type_for_expr(&expected, &actual, &args[0]) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "'alocar' exige tamanho 'u64' em bytes; encontrado '{}'",
+                        Self::type_key(&actual)
+                    ),
+                    span: args[0].span,
+                });
+            }
+            Self::validate_int_literal_range(&expected, &args[0])?;
+            return Ok(Type::Pointer {
+                base: Box::new(Type::U8(expr_span)),
+                is_volatile: false,
+                span: expr_span,
+            });
+        }
+        if name == "liberar" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "'liberar' exige exatamente 1 ponteiro-base, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let actual =
+                self.check_value_expr(&args[0], "resultado sem retorno não pode ser liberado")?;
+            let expected = Type::Pointer {
+                base: Box::new(Type::U8(args[0].span)),
+                is_volatile: false,
+                span: args[0].span,
+            };
+            if !Self::check_type_match(&expected, &actual) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "'liberar' exige ponteiro-base 'seta<u8>'; encontrado '{}'",
+                        Self::type_key(&actual)
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Nulo(expr_span));
         }
 
         if matches!(

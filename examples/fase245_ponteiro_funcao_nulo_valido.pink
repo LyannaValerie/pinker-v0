@@ -1,0 +1,11 @@
+pacote main;
+
+carinho registrar(valor: bombom) {
+    falar(valor);
+}
+
+carinho principal() -> bombom {
+    nova operacao: seta<carinho(bombom)> = &registrar;
+    operacao(245);
+    mimo 0;
+}

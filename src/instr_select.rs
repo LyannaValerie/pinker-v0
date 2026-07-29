@@ -172,6 +172,14 @@ pub enum SelectedInstr {
         args: Vec<OperandIR>,
         ret_type: TypeIR,
     },
+    // Fase 245: chamada selecionada por endereço cru de código, sem `__env`.
+    CallRaw {
+        dest: Option<crate::cfg_ir::TempIR>,
+        callee: OperandIR,
+        args: Vec<OperandIR>,
+        param_types: Vec<TypeIR>,
+        ret_type: TypeIR,
+    },
     // Fase 243: materialização de closure selecionada — mesmos campos do
     // `InstructionCfgIR::MakeClosure`.
     MakeClosure {
@@ -521,6 +529,19 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             args: args.clone(),
             ret_type: *ret_type,
         }),
+        InstructionCfgIR::CallRaw {
+            dest,
+            callee,
+            args,
+            param_types,
+            ret_type,
+        } => Ok(SelectedInstr::CallRaw {
+            dest: *dest,
+            callee: callee.clone(),
+            args: args.clone(),
+            param_types: param_types.clone(),
+            ret_type: *ret_type,
+        }),
         InstructionCfgIR::MakeClosure {
             dest,
             function_name,
@@ -810,6 +831,32 @@ fn render_instr(inst: &SelectedInstr) -> String {
                 .join(", "),
             ret_type.name()
         ),
+        SelectedInstr::CallRaw {
+            dest,
+            callee,
+            args,
+            param_types,
+            ret_type,
+        } => {
+            let call = format!(
+                "call_raw {}({}) : ({}) -> {}",
+                render_operand(callee),
+                args.iter()
+                    .map(render_operand)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                param_types
+                    .iter()
+                    .map(TypeIR::render_name)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                ret_type.render_name()
+            );
+            match dest {
+                Some(dest) => format!("{}, {}", render_temp(*dest), call),
+                None => call,
+            }
+        }
         SelectedInstr::MakeClosure {
             dest,
             function_name,
@@ -917,6 +964,7 @@ fn render_operand(op: &OperandIR) -> String {
         OperandIR::Str(s) => format!("\"{}\"", s),
         OperandIR::Temp(t) => render_temp(*t),
         OperandIR::FunctionRef(name) => format!("fnref({})", name),
+        OperandIR::RawFunctionRef(name) => format!("raw_fnref({})", name),
     }
 }
 

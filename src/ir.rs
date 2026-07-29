@@ -190,6 +190,9 @@ pub enum ValueIR {
     // Fase 242: referência a função top-level como valor (materializa o
     // descritor callable {code_ptr, env_ptr}; env_ptr nulo/estático aqui).
     FunctionRef(String),
+    // Fase 245: endereço cru de uma função top-level. É uma palavra contendo
+    // diretamente o endereço do código, sem descritor e sem `__env`.
+    RawFunctionRef(String),
     // Fase 243: cria uma closure — aloca em heap (via `pinker_alocar`) um
     // ambiente com os valores de `captures` (snapshot por valor, na ordem
     // dada) e materializa o descritor callable {code_ptr, env_ptr} apontando
@@ -234,6 +237,14 @@ pub enum ValueIR {
         args: Vec<ValueIR>,
         ret_type: TypeIR,
     },
+    // Fase 245: chamada por endereço cru. `param_types` preserva a assinatura
+    // concreta para validadores e ABI; `ret_type` pode ser `Nulo`.
+    CallRaw {
+        callee: Box<ValueIR>,
+        args: Vec<ValueIR>,
+        param_types: Vec<TypeIR>,
+        ret_type: TypeIR,
+    },
     FieldAccess {
         base: Box<ValueIR>,
         field: String,
@@ -275,6 +286,9 @@ pub enum TypeIR {
     FixedArray { element: ScalarTypeIR, size: u64 },
     Struct,
     Pointer { is_volatile: bool },
+    // Fase 245: endereço cru de código, uma palavra, distinto de Pointer de
+    // dados e do handle `Function` das closures/callables.
+    FunctionPointer,
     // Fase 242: callable materializado — handle de 1 palavra para descritor
     // {code_ptr, env_ptr}. Mesma categoria de valor que Pointer/ListBombom.
     Function,
@@ -361,11 +375,18 @@ struct CallableMetadata {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+struct RawFunctionMetadata {
+    param_types: Vec<TypeIR>,
+    ret_type: TypeIR,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct CaptureMetadata {
     source_name: String,
     ty: TypeIR,
     trait_object_name: Option<String>,
     callable: Option<CallableMetadata>,
+    raw_function: Option<RawFunctionMetadata>,
 }
 
 #[derive(Clone)]
@@ -401,6 +422,9 @@ struct LoweringContext {
     // encadeamento (callable retornando callable retornando callable não é
     // rastreado — limite honesto desta fase).
     callable_metadata: HashMap<String, CallableMetadata>,
+    // Fase 245: função que retorna `seta<carinho(...) -> R>` -> assinatura
+    // concreta do endereço cru retornado.
+    raw_function_return_metadata: HashMap<String, RawFunctionMetadata>,
     // Fase 243: FunctionDecl de toda função do programa (inclusive
     // closures sintéticas `__anon_carinho_*`), para permitir a resolução
     // lazy de closures no ponto de criação (`FunctionLowerer::resolve_closure`)
@@ -535,6 +559,91 @@ fn trait_object_name_from_type(
     }
 }
 
+fn raw_function_metadata_from_type(
+    ty: &Type,
+    aliases: &HashMap<String, Type>,
+    struct_names: &HashSet<String>,
+) -> Result<Option<RawFunctionMetadata>, PinkerError> {
+    let mut resolved = ty;
+    let mut resolving = HashSet::new();
+    while let Type::Alias { name, span } = resolved {
+        if !resolving.insert(name) {
+            return Err(PinkerError::Ir {
+                msg: format!("alias de tipo recursivo detectado em '{}'", name),
+                span: *span,
+            });
+        }
+        let Some(target) = aliases.get(name) else {
+            return Ok(None);
+        };
+        resolved = target;
+    }
+    let Type::Pointer { base, .. } = resolved else {
+        return Ok(None);
+    };
+    let Type::Function { params, ret, .. } = base.as_ref() else {
+        return Ok(None);
+    };
+    Ok(Some(RawFunctionMetadata {
+        param_types: params
+            .iter()
+            .map(|param| TypeIR::from_ast_with_context(param, aliases, struct_names))
+            .collect::<Result<Vec<_>, _>>()?,
+        ret_type: TypeIR::from_ast_with_context(ret, aliases, struct_names)?,
+    }))
+}
+
+fn pointer_pointee_from_type(
+    ty: &Type,
+    aliases: &HashMap<String, Type>,
+    struct_names: &HashSet<String>,
+) -> Result<Option<TypeIR>, PinkerError> {
+    let mut resolved = ty;
+    let mut resolving = HashSet::new();
+    while let Type::Alias { name, span } = resolved {
+        if !resolving.insert(name) {
+            return Err(PinkerError::Ir {
+                msg: format!("alias de tipo recursivo detectado em '{}'", name),
+                span: *span,
+            });
+        }
+        let Some(target) = aliases.get(name) else {
+            return Ok(None);
+        };
+        resolved = target;
+    }
+    let Type::Pointer { base, .. } = resolved else {
+        return Ok(None);
+    };
+    if matches!(base.as_ref(), Type::Function { .. }) {
+        return Ok(None);
+    }
+    Ok(Some(TypeIR::from_ast_with_context(
+        base,
+        aliases,
+        struct_names,
+    )?))
+}
+
+fn raw_function_metadata_from_decl(
+    function: &FunctionDecl,
+    aliases: &HashMap<String, Type>,
+    struct_names: &HashSet<String>,
+) -> Result<RawFunctionMetadata, PinkerError> {
+    Ok(RawFunctionMetadata {
+        param_types: function
+            .params
+            .iter()
+            .map(|param| TypeIR::from_ast_with_context(&param.ty, aliases, struct_names))
+            .collect::<Result<Vec<_>, _>>()?,
+        ret_type: TypeIR::from_ast_option_with_context(
+            function.ret_type.as_ref(),
+            aliases,
+            struct_names,
+        )?,
+    })
+}
+
 // `FunctionLowerer` mantém estado mutable por função durante o lowering:
 // - `scopes`: pilha de escopos léxicos (topo = escopo atual).
 // - `slot_counters`: contador por nome-fonte para gerar slots únicos (`%nome#N`).
@@ -553,6 +662,12 @@ struct FunctionLowerer<'a> {
     // `LoweringContext.callable_metadata`); ausência = erro claro no
     // lowering da chamada, não pânico.
     callable_metadata: HashMap<String, CallableMetadata>,
+    // Fase 245: slot de parâmetro/local `seta<carinho(...) -> R>` ->
+    // assinatura concreta usada por `CallRaw`.
+    raw_function_metadata: HashMap<String, RawFunctionMetadata>,
+    // Fase 246: preserva o elemento de `seta<T>` para acessos de memória;
+    // `TypeIR::Pointer` continua sendo a representação ABI de uma palavra.
+    pointer_pointee_types: HashMap<String, TypeIR>,
     // Slot local/parâmetro -> nome nominal de `trato<Nome>`.
     trait_object_names: HashMap<String, String>,
 }
@@ -803,6 +918,7 @@ impl LoweringContext {
         let mut function_sigs = HashMap::new();
         let mut global_consts = HashMap::new();
         let mut callable_metadata = HashMap::new();
+        let mut raw_function_return_metadata = HashMap::new();
         let mut function_ret_trait_names = HashMap::new();
         let mut all_functions = HashMap::new();
 
@@ -851,6 +967,13 @@ impl LoweringContext {
                                 )?,
                             },
                         );
+                    }
+                    if let Some(ret_type) = function.ret_type.as_ref() {
+                        if let Some(metadata) =
+                            raw_function_metadata_from_type(ret_type, &type_aliases, &struct_names)?
+                        {
+                            raw_function_return_metadata.insert(function.name.clone(), metadata);
+                        }
                     }
                 }
                 Item::Const(const_decl) => {
@@ -1772,6 +1895,20 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
+        function_sigs.insert(
+            "alocar".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Pointer { is_volatile: false },
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "liberar".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Nulo,
+                ret_struct_name: None,
+            },
+        );
 
         Ok(Self {
             module_name,
@@ -1786,6 +1923,7 @@ impl LoweringContext {
             traits,
             function_ret_trait_names,
             callable_metadata,
+            raw_function_return_metadata,
             all_functions,
             closure_state: std::cell::RefCell::new(ClosureLoweringState::default()),
         })
@@ -1813,6 +1951,8 @@ impl<'a> FunctionLowerer<'a> {
             loop_exit_stack: Vec::new(),
             loop_continue_stack: Vec::new(),
             callable_metadata: HashMap::new(),
+            raw_function_metadata: HashMap::new(),
+            pointer_pointee_types: HashMap::new(),
             trait_object_names: HashMap::new(),
         }
     }
@@ -1862,6 +2002,58 @@ impl<'a> FunctionLowerer<'a> {
             ValueIR::Local(slot) => self.callable_metadata.get(slot).cloned(),
             ValueIR::Call { callee, .. } => self.context.callable_metadata.get(callee).cloned(),
             _ => None,
+        }
+    }
+
+    fn raw_function_metadata_for_value(
+        &self,
+        value: &ValueIR,
+    ) -> Result<Option<RawFunctionMetadata>, PinkerError> {
+        match value {
+            ValueIR::RawFunctionRef(name) => self
+                .context
+                .all_functions
+                .get(name)
+                .map(|function| {
+                    raw_function_metadata_from_decl(
+                        function,
+                        &self.context.type_aliases,
+                        &self.context.struct_names,
+                    )
+                })
+                .transpose(),
+            ValueIR::Local(slot) => Ok(self.raw_function_metadata.get(slot).cloned()),
+            ValueIR::Call { callee, .. } => Ok(self
+                .context
+                .raw_function_return_metadata
+                .get(callee)
+                .cloned()),
+            _ => Ok(None),
+        }
+    }
+
+    fn pointer_pointee_for_expr(&self, expr: &Expr) -> Result<Option<TypeIR>, PinkerError> {
+        match &expr.kind {
+            ExprKind::Ident(name) => Ok(self
+                .resolve_existing_binding(name)
+                .and_then(|binding| self.pointer_pointee_types.get(&binding.slot).copied())),
+            ExprKind::Cast { target, .. } => pointer_pointee_from_type(
+                target,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            ),
+            ExprKind::Call(callee, _) if matches!(&callee.kind, ExprKind::Ident(name) if name == "alocar") => {
+                Ok(Some(TypeIR::U8))
+            }
+            ExprKind::Binary(lhs, BinaryOp::Add | BinaryOp::Sub, rhs) => {
+                let left = self.pointer_pointee_for_expr(lhs)?;
+                if left.is_some() {
+                    Ok(left)
+                } else {
+                    self.pointer_pointee_for_expr(rhs)
+                }
+            }
+            _ => Ok(None),
         }
     }
 
@@ -2103,7 +2295,8 @@ impl<'a> FunctionLowerer<'a> {
             | TypeIR::MapBombomBombom
             | TypeIR::MapBombomVerso
             | TypeIR::Pointer { .. }
-            | TypeIR::Function => Ok(layout::POINTER_SIZE),
+            | TypeIR::Function
+            | TypeIR::FunctionPointer => Ok(layout::POINTER_SIZE),
 
             TypeIR::FixedArray { element, size } => {
                 let element_size: u64 = match element {
@@ -2286,6 +2479,22 @@ impl<'a> FunctionLowerer<'a> {
                         )?,
                     },
                 );
+            }
+            if let Some(metadata) = raw_function_metadata_from_type(
+                &param.ty,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )? {
+                self.raw_function_metadata
+                    .insert(binding.slot.clone(), metadata);
+            }
+            if let Some(pointee) = pointer_pointee_from_type(
+                &param.ty,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )? {
+                self.pointer_pointee_types
+                    .insert(binding.slot.clone(), pointee);
             }
             self.params.push(binding);
         }
@@ -2470,6 +2679,7 @@ impl<'a> FunctionLowerer<'a> {
                 ty: binding.ty,
                 trait_object_name: self.trait_object_names.get(&binding.slot).cloned(),
                 callable: self.callable_metadata.get(&binding.slot).cloned(),
+                raw_function: self.raw_function_metadata.get(&binding.slot).cloned(),
             });
             capture_values.push(ValueIR::Local(binding.slot));
         }
@@ -2542,6 +2752,10 @@ impl<'a> FunctionLowerer<'a> {
                 self.callable_metadata
                     .insert(capture_binding.slot.clone(), callable.clone());
             }
+            if let Some(raw_function) = &capture.raw_function {
+                self.raw_function_metadata
+                    .insert(capture_binding.slot.clone(), raw_function.clone());
+            }
             let ptr_expr = ValueIR::Binary {
                 op: BinaryOpIR::Add,
                 lhs: Box::new(ValueIR::Local(env_binding.slot.clone())),
@@ -2593,6 +2807,22 @@ impl<'a> FunctionLowerer<'a> {
                         )?,
                     },
                 );
+            }
+            if let Some(metadata) = raw_function_metadata_from_type(
+                &param.ty,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )? {
+                self.raw_function_metadata
+                    .insert(binding.slot.clone(), metadata);
+            }
+            if let Some(pointee) = pointer_pointee_from_type(
+                &param.ty,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )? {
+                self.pointer_pointee_types
+                    .insert(binding.slot.clone(), pointee);
             }
             self.params.push(binding);
         }
@@ -2679,6 +2909,7 @@ impl<'a> FunctionLowerer<'a> {
                         })
                     }
                     AssignTarget::Deref(ptr_expr) => {
+                        let pointee_type = self.pointer_pointee_for_expr(ptr_expr)?;
                         let ptr = self.lower_value(ptr_expr)?;
                         let is_volatile = match ptr.ty {
                             TypeIR::Pointer { is_volatile } => is_volatile,
@@ -2693,7 +2924,7 @@ impl<'a> FunctionLowerer<'a> {
                         Ok(InstructionIR::StoreIndirect {
                             ptr: ptr.value,
                             value: value.value,
-                            value_type: value.ty,
+                            value_type: pointee_type.unwrap_or(value.ty),
                             is_volatile,
                             span: assign_stmt.span,
                         })
@@ -2927,6 +3158,28 @@ impl<'a> FunctionLowerer<'a> {
         } else {
             None
         };
+        let raw_function_metadata = if ty == TypeIR::FunctionPointer {
+            if let Some(annotated_ty) = let_stmt.ty.as_ref() {
+                raw_function_metadata_from_type(
+                    annotated_ty,
+                    &self.context.type_aliases,
+                    &self.context.struct_names,
+                )?
+            } else {
+                self.raw_function_metadata_for_value(&value.value)?
+            }
+        } else {
+            None
+        };
+        let pointer_pointee_type = if let Some(annotated_ty) = let_stmt.ty.as_ref() {
+            pointer_pointee_from_type(
+                annotated_ty,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )?
+        } else {
+            self.pointer_pointee_for_expr(&let_stmt.init)?
+        };
         let binding = self.allocate_binding(
             &let_stmt.name,
             ty,
@@ -2937,6 +3190,14 @@ impl<'a> FunctionLowerer<'a> {
         if let Some(metadata) = callable_metadata {
             self.callable_metadata
                 .insert(binding.slot.clone(), metadata);
+        }
+        if let Some(metadata) = raw_function_metadata {
+            self.raw_function_metadata
+                .insert(binding.slot.clone(), metadata);
+        }
+        if let Some(pointee) = pointer_pointee_type {
+            self.pointer_pointee_types
+                .insert(binding.slot.clone(), pointee);
         }
 
         if ty == TypeIR::TraitObject {
@@ -3148,7 +3409,36 @@ impl<'a> FunctionLowerer<'a> {
                     span: expr.span,
                 })
             }
+            ExprKind::AddressOf(operand) => {
+                let ExprKind::Ident(name) = &operand.kind else {
+                    return Err(PinkerError::Ir {
+                        msg: "lowering de endereço cru exige função top-level resolvida"
+                            .to_string(),
+                        span: operand.span,
+                    });
+                };
+                if !self.context.function_sigs.contains_key(name) {
+                    return Err(PinkerError::Ir {
+                        msg: format!(
+                            "lowering não encontrou símbolo '{}' para endereço cru",
+                            name
+                        ),
+                        span: operand.span,
+                    });
+                }
+                Ok(TypedValueIR {
+                    value: ValueIR::RawFunctionRef(name.clone()),
+                    ty: TypeIR::FunctionPointer,
+                    struct_name: None,
+                    ptr_array_bombom_size: None,
+                })
+            }
             ExprKind::Unary(op, operand) => {
+                let pointee_type = if *op == UnaryOp::Deref {
+                    self.pointer_pointee_for_expr(operand)?
+                } else {
+                    None
+                };
                 let operand = self.lower_value(operand)?;
                 if *op == UnaryOp::Deref {
                     let TypeIR::Pointer { is_volatile } = operand.ty else {
@@ -3169,6 +3459,8 @@ impl<'a> FunctionLowerer<'a> {
                                 },
                                 None,
                             )
+                        } else if let Some(pointee_type) = pointee_type {
+                            (pointee_type, None)
                         } else {
                             (TypeIR::Bombom, None)
                         };
@@ -3425,6 +3717,33 @@ impl<'a> FunctionLowerer<'a> {
                 // tem precedência sobre função top-level homônima — chamada
                 // indireta real, callee é um valor (slot), não um símbolo.
                 if let Some(binding) = self.resolve_existing_binding(name) {
+                    if binding.ty == TypeIR::FunctionPointer {
+                        let Some(metadata) = self.raw_function_metadata.get(&binding.slot).cloned()
+                        else {
+                            return Err(PinkerError::Ir {
+                                msg: format!(
+                                    "lowering perdeu a assinatura do ponteiro cru de função '{}'",
+                                    name
+                                ),
+                                span: expr.span,
+                            });
+                        };
+                        let ir_args = args
+                            .iter()
+                            .map(|arg| self.lower_value(arg).map(|typed| typed.value))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        return Ok(TypedValueIR {
+                            value: ValueIR::CallRaw {
+                                callee: Box::new(ValueIR::Local(binding.slot)),
+                                args: ir_args,
+                                param_types: metadata.param_types,
+                                ret_type: metadata.ret_type,
+                            },
+                            ty: metadata.ret_type,
+                            struct_name: None,
+                            ptr_array_bombom_size: None,
+                        });
+                    }
                     if binding.ty == TypeIR::Function {
                         let Some(metadata) = self.callable_metadata.get(&binding.slot).cloned()
                         else {
@@ -4175,6 +4494,7 @@ fn render_value(value: &ValueIR) -> String {
             ret_type.render_name()
         ),
         ValueIR::FunctionRef(name) => format!("fnref({})", name),
+        ValueIR::RawFunctionRef(name) => format!("raw_fnref({})", name),
         ValueIR::MakeClosure {
             function_name,
             captures,
@@ -4230,6 +4550,22 @@ fn render_value(value: &ValueIR) -> String {
             "call_indirect {}({}) -> {}",
             render_value(callee),
             args.iter().map(render_value).collect::<Vec<_>>().join(", "),
+            ret_type.render_name()
+        ),
+        ValueIR::CallRaw {
+            callee,
+            args,
+            param_types,
+            ret_type,
+        } => format!(
+            "call_raw {}({}) : ({}) -> {}",
+            render_value(callee),
+            args.iter().map(render_value).collect::<Vec<_>>().join(", "),
+            param_types
+                .iter()
+                .map(TypeIR::render_name)
+                .collect::<Vec<_>>()
+                .join(", "),
             ret_type.render_name()
         ),
         ValueIR::FieldAccess {
@@ -4377,6 +4713,9 @@ impl TypeIR {
                         span: *span,
                     });
                 }
+                if resolved_base == TypeIR::Function {
+                    return Ok(TypeIR::FunctionPointer);
+                }
                 Ok(TypeIR::Pointer {
                     is_volatile: *is_volatile,
                 })
@@ -4463,6 +4802,7 @@ impl TypeIR {
             TypeIR::Struct => "struct",
             TypeIR::Pointer { .. } => "seta",
             TypeIR::Function => "carinho",
+            TypeIR::FunctionPointer => "seta<carinho>",
             TypeIR::TraitObject => "trato",
             TypeIR::Nulo => "nulo",
         }
@@ -4517,6 +4857,7 @@ impl ScalarTypeIR {
             | TypeIR::Struct
             | TypeIR::Pointer { .. }
             | TypeIR::Function
+            | TypeIR::FunctionPointer
             | TypeIR::TraitObject
             | TypeIR::Nulo => None,
         }

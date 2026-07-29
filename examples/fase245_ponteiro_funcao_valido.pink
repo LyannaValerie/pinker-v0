@@ -1,0 +1,32 @@
+pacote main;
+
+carinho dobrar(x: bombom) -> bombom {
+    mimo x * 2;
+}
+
+carinho triplicar(x: bombom) -> bombom {
+    mimo x * 3;
+}
+
+carinho escolher(flag: logica) -> seta<carinho(bombom) -> bombom> {
+    talvez flag {
+        mimo &dobrar;
+    } senao {
+        mimo &triplicar;
+    }
+}
+
+carinho aplicar(
+    operacao: seta<carinho(bombom) -> bombom>,
+    valor: bombom
+) -> bombom {
+    mimo operacao(valor);
+}
+
+carinho principal() -> bombom {
+    nova muda operacao: seta<carinho(bombom) -> bombom> = escolher(verdade);
+    falar(aplicar(operacao, 21));
+    operacao = &triplicar;
+    falar(operacao(21));
+    mimo 0;
+}

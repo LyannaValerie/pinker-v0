@@ -73,6 +73,17 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         (TypeIR::Bombom, vec![StackValueType::Bombom]),
     );
     sigs.insert(
+        "alocar".to_string(),
+        (
+            TypeIR::Pointer { is_volatile: false },
+            vec![StackValueType::Bombom],
+        ),
+    );
+    sigs.insert(
+        "liberar".to_string(),
+        (TypeIR::Nulo, vec![StackValueType::Unknown]),
+    );
+    sigs.insert(
         "lista_bombom_criar".to_string(),
         (TypeIR::ListBombom, vec![]),
     );
@@ -1485,6 +1496,9 @@ fn apply_instr_effect(
         MachineInstr::PushFunctionRef(_) => {
             stack.push(StackValueType::Unknown);
         }
+        MachineInstr::PushRawFunctionRef(_) => {
+            stack.push(StackValueType::Unknown);
+        }
         MachineInstr::CallIndirect { argc } => {
             pop_typed(
                 f,
@@ -1503,6 +1517,27 @@ fn apply_instr_effect(
                 Some(&format!("instr='call_indirect {}'", argc)),
             )?;
             stack.push(StackValueType::Unknown);
+        }
+        MachineInstr::CallRaw { argc, has_return } => {
+            pop_typed(
+                f,
+                label,
+                stack,
+                1,
+                "underflow em call_raw (callee)",
+                Some(&format!("instr='call_raw {}, {}'", argc, has_return)),
+            )?;
+            pop_typed(
+                f,
+                label,
+                stack,
+                *argc,
+                "underflow em call_raw (argumentos)",
+                Some(&format!("instr='call_raw {}, {}'", argc, has_return)),
+            )?;
+            if *has_return {
+                stack.push(StackValueType::Unknown);
+            }
         }
         MachineInstr::MakeClosure { capture_count, .. } => {
             pop_typed(
@@ -1764,7 +1799,9 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::Call { .. } => "call",
         MachineInstr::CallVoid { .. } => "call_void",
         MachineInstr::PushFunctionRef(_) => "push_function_ref",
+        MachineInstr::PushRawFunctionRef(_) => "push_raw_function_ref",
         MachineInstr::CallIndirect { .. } => "call_indirect",
+        MachineInstr::CallRaw { .. } => "call_raw",
         MachineInstr::MakeClosure { .. } => "make_closure",
         MachineInstr::MakeTraitObject { .. } => "make_trait_object",
         MachineInstr::TraitCall { .. } => "trait_call",
@@ -1812,6 +1849,7 @@ fn type_to_stack(ty: TypeIR) -> StackValueType {
         TypeIR::Struct => StackValueType::Unknown,
         TypeIR::Pointer { .. } => StackValueType::Unknown,
         TypeIR::Function => StackValueType::Unknown,
+        TypeIR::FunctionPointer => StackValueType::Unknown,
         TypeIR::TraitObject => StackValueType::TraitObject,
         TypeIR::Nulo => StackValueType::Unknown,
     }

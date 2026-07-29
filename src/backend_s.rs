@@ -490,7 +490,10 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         );
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
-                        body.push(format!("movq ({}), {}", REG_RET, REG_RET));
+                        body.push(match ty {
+                            TypeIR::U8 => format!("movzbq ({}), {}", REG_RET, REG_RET),
+                            _ => format!("movq ({}), {}", REG_RET, REG_RET),
+                        });
                         body.push(format!(
                             "movq {}, -{}(%rbp)",
                             REG_RET,
@@ -530,18 +533,16 @@ fn extract_external_callconv_program(
                             &slot_offsets,
                             &rodata_strings,
                         )?);
-                        body.push(format!("movq {}, ({})", REG_TMP, REG_RET));
+                        body.push(match ty {
+                            TypeIR::U8 => format!("movb %r10b, ({})", REG_RET),
+                            _ => format!("movq {}, ({})", REG_TMP, REG_RET),
+                        });
                     }
                     SelectedInstr::Cast {
                         dest,
                         value,
                         target_type,
                     } => {
-                        if *target_type != TypeIR::U64 && *target_type != TypeIR::U32 {
-                            return Err(err(
-                                "subset externo montável (Fase 134) aceita `virar` apenas no recorte mínimo `u32 -> u64` e `u64 -> u32`",
-                            ));
-                        }
                         let OperandIR::Local(source_slot) = value else {
                             return Err(err(
                                 "subset externo montável (Fase 134) exige origem em slot local/parâmetro tipado para `virar` mínimo",
@@ -554,10 +555,12 @@ fn extract_external_callconv_program(
                         };
                         let cast_supported = (*source_ty == TypeIR::U32
                             && *target_type == TypeIR::U64)
-                            || (*source_ty == TypeIR::U64 && *target_type == TypeIR::U32);
+                            || (*source_ty == TypeIR::U64 && *target_type == TypeIR::U32)
+                            || (matches!(source_ty, TypeIR::Pointer { .. })
+                                && matches!(target_type, TypeIR::Pointer { .. }));
                         if !cast_supported {
                             return Err(err(
-                                "subset externo montável (Fase 134) aceita `virar` mínimo apenas de slot `u32 -> u64` ou `u64 -> u32`",
+                                "subset externo montável (Fase 134/Fase 246) aceita `virar` de slot `u32 -> u64`, `u64 -> u32` ou `seta<T> -> seta<U>`",
                             ));
                         }
                         register_rodata_strings_for_operand(
@@ -571,7 +574,9 @@ fn extract_external_callconv_program(
                             &slot_offsets,
                             &rodata_strings,
                         )?);
-                        body.push("movl %eax, %eax".to_string());
+                        if !matches!(target_type, TypeIR::Pointer { .. }) {
+                            body.push("movl %eax, %eax".to_string());
+                        }
                         body.push(format!(
                             "movq {}, -{}(%rbp)",
                             REG_RET,
@@ -798,6 +803,78 @@ fn extract_external_callconv_program(
                             REG_RET,
                             slot_offsets[&temp_key(*dest)]
                         ));
+                    }
+                    // Fase 245: endereço cru de código em uma palavra. A ABI
+                    // contém apenas os argumentos declarados, sem descritor e
+                    // sem o argumento implícito `__env`.
+                    SelectedInstr::CallRaw {
+                        dest,
+                        callee,
+                        args,
+                        param_types,
+                        ret_type,
+                    } => {
+                        if args.len() != param_types.len()
+                            || !param_types.iter().all(is_external_raw_call_type)
+                            || !is_external_raw_call_ret_type(ret_type)
+                        {
+                            return Err(err(
+                                "subset externo montável encontrou assinatura ABI inválida em call_raw",
+                            ));
+                        }
+                        for arg in args {
+                            register_rodata_strings_for_operand(
+                                arg,
+                                &mut rodata_string_labels,
+                                &mut rodata_strings,
+                            );
+                        }
+                        let stack_args = args.len().saturating_sub(ARG_REGS.len());
+                        let pad = stack_args % 2;
+                        if pad == 1 {
+                            body.push("subq $8, %rsp".to_string());
+                        }
+                        for arg in args.iter().skip(ARG_REGS.len()).rev() {
+                            body.extend(load_operand(
+                                REG_TMP,
+                                arg,
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                            body.push(format!("pushq {}", REG_TMP));
+                        }
+                        for (index, arg) in args.iter().take(ARG_REGS.len()).enumerate() {
+                            body.extend(load_operand(
+                                ARG_REGS[index],
+                                arg,
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                        }
+                        body.extend(load_operand(
+                            REG_TMP,
+                            callee,
+                            &slot_offsets,
+                            &rodata_strings,
+                        )?);
+                        body.push(format!("call *{}", REG_TMP));
+                        if stack_args > 0 || pad > 0 {
+                            body.push(format!("addq ${}, %rsp", 8 * (stack_args + pad)));
+                        }
+                        match (dest, ret_type) {
+                            (Some(_), TypeIR::Nulo) => {
+                                return Err(err("call_raw nulo não pode ter destino"));
+                            }
+                            (Some(dest), _) => body.push(format!(
+                                "movq {}, -{}(%rbp)",
+                                REG_RET,
+                                slot_offsets[&temp_key(*dest)]
+                            )),
+                            (None, TypeIR::Nulo) => {}
+                            (None, _) => {
+                                return Err(err("call_raw com retorno exige destino"));
+                            }
+                        }
                     }
                     // Fase 243: materializa uma closure — aloca em heap
                     // (`pinker_alocar`) o ambiente (1 palavra por captura,
@@ -1179,6 +1256,12 @@ fn collect_function_refs_in_function(
                     note(callee, out);
                     for a in args {
                         note(a, out);
+                    }
+                }
+                SelectedInstr::CallRaw { callee, args, .. } => {
+                    note(callee, out);
+                    for arg in args {
+                        note(arg, out);
                     }
                 }
                 SelectedInstr::MakeClosure { captures, .. } => {
@@ -1648,6 +1731,11 @@ fn collect_temp_ids(function: &crate::instr_select::SelectedFunction) -> BTreeSe
                 } => {
                     ids.insert(temp_key(*dest));
                 }
+                SelectedInstr::CallRaw {
+                    dest: Some(dest), ..
+                } => {
+                    ids.insert(temp_key(*dest));
+                }
                 _ => {}
             }
         }
@@ -1705,6 +1793,9 @@ fn load_operand(
                 function_ref_descriptor_label(name),
                 reg
             ));
+        }
+        OperandIR::RawFunctionRef(name) => {
+            lines.push(format!("leaq {}(%rip), {}", name, reg));
         }
     }
     Ok(lines)
@@ -1992,6 +2083,7 @@ fn is_supported_type(ty: TypeIR) -> bool {
             | TypeIR::I32
             | TypeIR::I64
             | TypeIR::Logica
+            | TypeIR::FunctionPointer
             | TypeIR::TraitObject
             | TypeIR::Nulo
     )
@@ -2000,12 +2092,17 @@ fn is_supported_type(ty: TypeIR) -> bool {
 fn is_external_deref_load_type(ty: &TypeIR) -> bool {
     matches!(
         ty,
-        TypeIR::Bombom | TypeIR::U32 | TypeIR::U64 | TypeIR::Function | TypeIR::TraitObject
+        TypeIR::Bombom
+            | TypeIR::U8
+            | TypeIR::U32
+            | TypeIR::U64
+            | TypeIR::Function
+            | TypeIR::TraitObject
     )
 }
 
 fn is_external_deref_store_type(ty: &TypeIR) -> bool {
-    *ty == TypeIR::Bombom || *ty == TypeIR::U32 || *ty == TypeIR::U64
+    matches!(ty, TypeIR::Bombom | TypeIR::U8 | TypeIR::U32 | TypeIR::U64)
 }
 
 fn is_external_param_type(ty: &TypeIR) -> bool {
@@ -2023,6 +2120,7 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
         || *ty == TypeIR::Struct
         || *ty == TypeIR::Pointer { is_volatile: false }
         || *ty == TypeIR::Function
+        || *ty == TypeIR::FunctionPointer
         || *ty == TypeIR::TraitObject
 }
 
@@ -2040,6 +2138,28 @@ fn is_external_scalar_param_type(ty: &TypeIR) -> bool {
             | TypeIR::I64
             | TypeIR::Logica
     )
+}
+
+fn is_external_raw_call_type(ty: &TypeIR) -> bool {
+    is_external_scalar_param_type(ty)
+        || matches!(
+            ty,
+            TypeIR::Verso
+                | TypeIR::ListBombom
+                | TypeIR::ListVerso
+                | TypeIR::MapVersoBombom
+                | TypeIR::MapVersoVerso
+                | TypeIR::MapBombomBombom
+                | TypeIR::MapBombomVerso
+                | TypeIR::Pointer { .. }
+                | TypeIR::Function
+                | TypeIR::FunctionPointer
+                | TypeIR::TraitObject
+        )
+}
+
+fn is_external_raw_call_ret_type(ty: &TypeIR) -> bool {
+    *ty == TypeIR::Nulo || is_external_raw_call_type(ty)
 }
 
 fn is_external_trait_receiver_type(ty: &TypeIR) -> bool {
@@ -2074,7 +2194,9 @@ fn is_external_ret_type(ty: &TypeIR) -> bool {
             | TypeIR::MapVersoVerso
             | TypeIR::MapBombomBombom
             | TypeIR::MapBombomVerso
+            | TypeIR::Pointer { .. }
             | TypeIR::Function
+            | TypeIR::FunctionPointer
             | TypeIR::TraitObject
             | TypeIR::Nulo
     )
@@ -2136,6 +2258,8 @@ fn is_arity_runtime_intrinsic(callee: &str) -> bool {
 /// já reescritas na IR — abaixam para as mesmas funções `pinker_lista_*`.
 fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
     match callee {
+        "alocar" => Some("pinker_publico_alocar"),
+        "liberar" => Some("pinker_publico_liberar"),
         "juntar_verso" => Some("pinker_verso_juntar"),
         "tamanho_verso" => Some("pinker_verso_tamanho"),
         "igual_verso" => Some("pinker_verso_igual"),
@@ -2487,6 +2611,32 @@ fn render_instruction(inst: &crate::backend_text::BackendTextInstruction) -> Str
                 (None, _) => format!("; call inválida: {} {}", callee, abi_args),
             }
         }
+        crate::backend_text::BackendTextInstruction::CallRaw {
+            dest,
+            callee,
+            args,
+            param_types,
+            ret_type,
+        } => {
+            let call = format!(
+                "call_raw {}({}) : ({}) -> {}",
+                render_operand(callee),
+                args.iter()
+                    .map(render_operand)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                param_types
+                    .iter()
+                    .map(TypeIR::render_name)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                ret_type.render_name()
+            );
+            match dest {
+                Some(dest) => format!("{} -> {}", call, render_temp(*dest)),
+                None => call,
+            }
+        }
         crate::backend_text::BackendTextInstruction::MakeTraitObject {
             dest,
             value,
@@ -2629,6 +2779,7 @@ fn render_operand(op: &crate::cfg_ir::OperandIR) -> String {
         crate::cfg_ir::OperandIR::Str(s) => format!("\"{}\"", s),
         crate::cfg_ir::OperandIR::Temp(temp) => render_temp(*temp),
         crate::cfg_ir::OperandIR::FunctionRef(name) => format!("fnref({})", name),
+        crate::cfg_ir::OperandIR::RawFunctionRef(name) => format!("raw_fnref({})", name),
     }
 }
 

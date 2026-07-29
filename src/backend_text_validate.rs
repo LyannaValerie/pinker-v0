@@ -197,6 +197,35 @@ fn validate_function(
                         }
                     }
                 }
+                BackendTextInstruction::CallRaw {
+                    dest,
+                    callee,
+                    args,
+                    param_types,
+                    ret_type,
+                } => {
+                    if infer_operand(callee, &slots, &temps, globals)? != TypeIR::FunctionPointer {
+                        return Err(err("call_raw textual exige ponteiro de função"));
+                    }
+                    if args.len() != param_types.len() {
+                        return Err(err("call_raw textual com aridade inconsistente"));
+                    }
+                    for arg in args {
+                        let _ = infer_operand(arg, &slots, &temps, globals)?;
+                    }
+                    match (dest, ret_type) {
+                        (Some(_), TypeIR::Nulo) => {
+                            return Err(err("call_raw textual nulo não pode ter destino"));
+                        }
+                        (None, TypeIR::Nulo) => {}
+                        (Some(temp), _) => {
+                            temps.insert(*temp, *ret_type);
+                        }
+                        (None, _) => {
+                            return Err(err("call_raw textual com retorno exige destino"));
+                        }
+                    }
+                }
                 BackendTextInstruction::MakeTraitObject {
                     dest,
                     value,
@@ -312,6 +341,7 @@ fn infer_operand(
             .copied()
             .ok_or_else(|| err(&format!("temporário textual não definido %t{}", t.0))),
         OperandIR::FunctionRef(_) => Ok(TypeIR::Function),
+        OperandIR::RawFunctionRef(_) => Ok(TypeIR::FunctionPointer),
     }
 }
 
@@ -323,7 +353,8 @@ fn infer_literal_operand(op: &OperandIR) -> Result<TypeIR, PinkerError> {
         OperandIR::GlobalConst(_)
         | OperandIR::Local(_)
         | OperandIR::Temp(_)
-        | OperandIR::FunctionRef(_) => Err(err("global textual com valor não-literal")),
+        | OperandIR::FunctionRef(_)
+        | OperandIR::RawFunctionRef(_) => Err(err("global textual com valor não-literal")),
     }
 }
 

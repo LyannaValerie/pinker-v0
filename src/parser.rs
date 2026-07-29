@@ -495,7 +495,11 @@ impl Parser {
         if self.match_token(TokenKind::KwSeta) {
             let start_span = self.previous().span;
             self.consume(TokenKind::Less, "<")?;
-            let base = self.parse_type()?;
+            let base = if self.match_token(TokenKind::KwCarinho) {
+                self.parse_function_type_after_keyword(self.previous().span, true)?
+            } else {
+                self.parse_type()?
+            };
             self.consume(TokenKind::Greater, ">")?;
             return Ok(Type::Pointer {
                 base: Box::new(base),
@@ -505,24 +509,7 @@ impl Parser {
         }
         if self.match_token(TokenKind::KwCarinho) {
             let start_span = self.previous().span;
-            self.consume(TokenKind::LParen, "(")?;
-            let mut params = Vec::new();
-            if !self.check(TokenKind::RParen) {
-                loop {
-                    params.push(self.parse_type()?);
-                    if !self.match_token(TokenKind::Comma) {
-                        break;
-                    }
-                }
-            }
-            self.consume(TokenKind::RParen, ")")?;
-            self.consume(TokenKind::Arrow, "-> em tipo função")?;
-            let ret = self.parse_type()?;
-            return Ok(Type::Function {
-                params,
-                ret: Box::new(ret),
-                span: merge_span(start_span, self.previous().span),
-            });
+            return self.parse_function_type_after_keyword(start_span, false);
         }
 
         // Fase 244: tipo explícito de objeto de trato.
@@ -685,6 +672,43 @@ impl Parser {
                 span,
             })
         }
+    }
+
+    fn parse_function_type_after_keyword(
+        &mut self,
+        start_span: Span,
+        allow_implicit_nulo: bool,
+    ) -> Result<Type, PinkerError> {
+        self.consume(TokenKind::LParen, "(")?;
+        let mut params = Vec::new();
+        if !self.check(TokenKind::RParen) {
+            loop {
+                params.push(self.parse_type()?);
+                if !self.match_token(TokenKind::Comma) {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenKind::RParen, ")")?;
+        let ret = if self.match_token(TokenKind::Arrow) {
+            self.parse_type()?
+        } else if allow_implicit_nulo {
+            Type::Nulo(self.previous().span)
+        } else {
+            return Err(PinkerError::Expected {
+                expected: "-> em tipo função".to_string(),
+                found: self
+                    .peek()
+                    .map(|token| token.lexeme.clone())
+                    .unwrap_or_else(|| "fim do arquivo".to_string()),
+                span: self.peek_span(),
+            });
+        };
+        Ok(Type::Function {
+            params,
+            ret: Box::new(ret),
+            span: merge_span(start_span, self.previous().span),
+        })
     }
 
     // @pinker-nav:end parser.tipos.gramatica
@@ -2520,6 +2544,9 @@ impl Parser {
             ExprKind::Unary(op, operand) => {
                 ExprKind::Unary(*op, Box::new(Self::substitute_expr(operand, substitutions)))
             }
+            ExprKind::AddressOf(operand) => {
+                ExprKind::AddressOf(Box::new(Self::substitute_expr(operand, substitutions)))
+            }
             ExprKind::Call(callee, args) => ExprKind::Call(
                 Box::new(Self::substitute_expr(callee, substitutions)),
                 args.iter()
@@ -2700,6 +2727,9 @@ impl Parser {
                 *op,
                 Box::new(Self::substitute_function_param_expr(operand, replacements)),
             ),
+            ExprKind::AddressOf(operand) => ExprKind::AddressOf(Box::new(
+                Self::substitute_function_param_expr(operand, replacements),
+            )),
             ExprKind::FieldAccess { base, field } => ExprKind::FieldAccess {
                 base: Box::new(Self::substitute_function_param_expr(base, replacements)),
                 field: field.clone(),
@@ -4647,6 +4677,7 @@ impl Parser {
             if token.kind == TokenKind::Minus
                 || token.kind == TokenKind::Bang
                 || token.kind == TokenKind::Star
+                || token.kind == TokenKind::Amp
                 || token.kind == TokenKind::Tilde
                 || token.kind == TokenKind::KwNope
             {
@@ -4654,6 +4685,12 @@ impl Parser {
                 let token_kind = token.kind;
                 self.advance();
                 let operand = self.parse_expr_unary()?;
+                if token_kind == TokenKind::Amp {
+                    return Ok(Expr {
+                        span: merge_span(op_span, operand.span),
+                        kind: ExprKind::AddressOf(Box::new(operand)),
+                    });
+                }
                 let unary_expr = Expr {
                     span: merge_span(op_span, operand.span),
                     kind: ExprKind::Unary(

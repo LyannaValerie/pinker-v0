@@ -62,6 +62,13 @@ pub enum BackendTextInstruction {
         args: Vec<OperandIR>,
         ret_type: TypeIR,
     },
+    CallRaw {
+        dest: Option<crate::cfg_ir::TempIR>,
+        callee: OperandIR,
+        args: Vec<OperandIR>,
+        param_types: Vec<TypeIR>,
+        ret_type: TypeIR,
+    },
     MakeTraitObject {
         dest: crate::cfg_ir::TempIR,
         value: OperandIR,
@@ -184,6 +191,19 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                                 msg: "backend textual ainda não lowera chamada indireta (fase 242)"
                                     .to_string(),
                                 span: crate::token::Span::single(crate::token::Position::new(1, 1)),
+                            }),
+                            InstructionCfgIR::CallRaw {
+                                dest,
+                                callee,
+                                args,
+                                param_types,
+                                ret_type,
+                            } => Ok(BackendTextInstruction::CallRaw {
+                                dest: *dest,
+                                callee: callee.clone(),
+                                args: args.clone(),
+                                param_types: param_types.clone(),
+                                ret_type: *ret_type,
                             }),
                             InstructionCfgIR::MakeClosure { .. } => Err(PinkerError::Ir {
                                 msg:
@@ -489,6 +509,19 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
                 .to_string(),
             span: crate::token::Span::single(crate::token::Position::new(1, 1)),
         }),
+        SelectedInstr::CallRaw {
+            dest,
+            callee,
+            args,
+            param_types,
+            ret_type,
+        } => Ok(BackendTextInstruction::CallRaw {
+            dest: *dest,
+            callee: callee.clone(),
+            args: args.clone(),
+            param_types: param_types.clone(),
+            ret_type: *ret_type,
+        }),
         SelectedInstr::MakeClosure { .. } => Err(PinkerError::Ir {
             msg: "backend textual ainda não lowera criação de closure (fase 243)".to_string(),
             span: crate::token::Span::single(crate::token::Position::new(1, 1)),
@@ -701,6 +734,32 @@ fn render_instruction(inst: &BackendTextInstruction) -> String {
                 (None, _) => format!("call {}, {}({}), {}", "_", callee, args, ret_type.name()),
             }
         }
+        BackendTextInstruction::CallRaw {
+            dest,
+            callee,
+            args,
+            param_types,
+            ret_type,
+        } => {
+            let call = format!(
+                "call_raw {}({}) : ({}) -> {}",
+                render_operand(callee),
+                args.iter()
+                    .map(render_operand)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                param_types
+                    .iter()
+                    .map(TypeIR::render_name)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                ret_type.render_name()
+            );
+            match dest {
+                Some(dest) => format!("{} = {}", render_temp(*dest), call),
+                None => call,
+            }
+        }
         BackendTextInstruction::MakeTraitObject {
             dest,
             value,
@@ -817,6 +876,7 @@ fn render_operand(operand: &OperandIR) -> String {
         OperandIR::Str(s) => format!("\"{}\"", s),
         OperandIR::Temp(temp) => render_temp(*temp),
         OperandIR::FunctionRef(name) => format!("fnref({})", name),
+        OperandIR::RawFunctionRef(name) => format!("raw_fnref({})", name),
     }
 }
 

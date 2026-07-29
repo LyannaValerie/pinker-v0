@@ -115,10 +115,17 @@ pub enum MachineInstr {
     // Fase 242: empilha o handle callable (descritor estático) da função
     // top-level nomeada.
     PushFunctionRef(String),
+    // Fase 245: empilha uma palavra com o endereço cru do símbolo de código.
+    PushRawFunctionRef(String),
     // Fase 242: consome do topo o handle callable e, abaixo dele, `argc`
     // argumentos; sempre produz valor (tipo função público nunca é `nulo`).
     CallIndirect {
         argc: usize,
+    },
+    // Fase 245: consome um endereço cru e argumentos, sem descritor/__env.
+    CallRaw {
+        argc: usize,
+        has_return: bool,
     },
     // Fase 243: consome do topo `capture_count` valores (snapshot por
     // valor, já empilhados na ordem de primeira referência), aloca o
@@ -419,6 +426,21 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) -> Result<(),
             code.push(MachineInstr::CallIndirect { argc: args.len() });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
+        SelectedInstr::CallRaw {
+            dest, callee, args, ..
+        } => {
+            for arg in args {
+                emit_load(arg, code);
+            }
+            emit_load(callee, code);
+            code.push(MachineInstr::CallRaw {
+                argc: args.len(),
+                has_return: dest.is_some(),
+            });
+            if let Some(dest) = dest {
+                code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+            }
+        }
         SelectedInstr::MakeClosure {
             dest,
             function_name,
@@ -561,6 +583,9 @@ fn emit_load(op: &OperandIR, code: &mut Vec<MachineInstr>) {
         OperandIR::GlobalConst(g) => code.push(MachineInstr::LoadGlobal(g.clone())),
         OperandIR::Temp(t) => code.push(MachineInstr::LoadSlot(temp_name(*t))),
         OperandIR::FunctionRef(name) => code.push(MachineInstr::PushFunctionRef(name.clone())),
+        OperandIR::RawFunctionRef(name) => {
+            code.push(MachineInstr::PushRawFunctionRef(name.clone()))
+        }
     }
 }
 
@@ -850,11 +875,22 @@ fn render_instr(i: &MachineInstr) -> String {
             format!("push_function_ref {}", name),
             "empilha handle callable (descritor estático) da função",
         ),
+        MachineInstr::PushRawFunctionRef(name) => with_comment(
+            format!("push_raw_function_ref {}", name),
+            "empilha endereço cru do símbolo de código",
+        ),
         MachineInstr::CallIndirect { argc } => with_comment(
             format!("call_indirect {}", argc),
             &format!(
                 "consome handle callable no topo e {} argumento(s) abaixo, empilha o retorno",
                 argc
+            ),
+        ),
+        MachineInstr::CallRaw { argc, has_return } => with_comment(
+            format!("call_raw {}, {}", argc, has_return),
+            &format!(
+                "consome endereço cru e {} argumento(s), retorno={}",
+                argc, has_return
             ),
         ),
         MachineInstr::MakeClosure {
@@ -1023,6 +1059,7 @@ fn render_operand(op: &OperandIR) -> String {
         OperandIR::GlobalConst(g) => format!("@{}", g),
         OperandIR::Temp(t) => format!("%t{}", t.0),
         OperandIR::FunctionRef(name) => format!("fnref({})", name),
+        OperandIR::RawFunctionRef(name) => format!("raw_fnref({})", name),
     }
 }
 

@@ -1,0 +1,7 @@
+pacote main;
+ninho Par { a: bombom; b: bombom; }
+carinho consumir(par: Par) -> bombom { mimo par.a + par.b; }
+carinho principal() -> bombom {
+    nova f: seta<carinho(Par) -> bombom> = &consumir;
+    mimo 0;
+}

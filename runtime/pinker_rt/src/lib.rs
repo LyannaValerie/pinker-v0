@@ -108,6 +108,81 @@ pub unsafe extern "C" fn pinker_liberar(ptr: *mut u8) {
     let total = (base as *const u64).read() as usize;
     dealloc(base, layout_para(total));
 }
+
+const LIMITE_ALOCACAO_PUBLICA: u64 = 16 * 1024 * 1024;
+
+#[derive(Clone, Copy)]
+struct AlocacaoPublica {
+    base: usize,
+    tamanho: usize,
+    viva: bool,
+}
+
+static ALOCACOES_PUBLICAS: Mutex<Vec<AlocacaoPublica>> = Mutex::new(Vec::new());
+
+fn erro_memoria_publica(mensagem: &str) -> ! {
+    eprintln!("Erro Runtime: {mensagem}");
+    std::process::exit(1);
+}
+
+/// Fase 246: entrada pública de `alocar`. Diferentemente de
+/// `pinker_alocar`, rejeita zero, limita o pedido, zera os bytes visíveis e
+/// registra ownership para que `liberar` possa validar a origem.
+#[no_mangle]
+pub extern "C" fn pinker_publico_alocar(tamanho: u64) -> *mut u8 {
+    if tamanho == 0 {
+        erro_memoria_publica("'alocar' rejeita tamanho zero");
+    }
+    if tamanho > LIMITE_ALOCACAO_PUBLICA {
+        erro_memoria_publica("'alocar' excede o limite público de 16777216 bytes");
+    }
+    let ponteiro = pinker_alocar(tamanho);
+    if ponteiro.is_null() {
+        erro_memoria_publica("'alocar' falhou ao reservar memória");
+    }
+    let tamanho_usize = usize::try_from(tamanho)
+        .unwrap_or_else(|_| erro_memoria_publica("'alocar' excede a largura da plataforma"));
+    unsafe {
+        ponteiro.write_bytes(0, tamanho_usize);
+    }
+    let mut registro = ALOCACOES_PUBLICAS
+        .lock()
+        .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
+    registro.push(AlocacaoPublica {
+        base: ponteiro as usize,
+        tamanho: tamanho_usize,
+        viva: true,
+    });
+    ponteiro
+}
+
+/// Fase 246: entrada pública de `liberar`. Somente o ponteiro-base de uma
+/// alocação pública viva é aceito; ponteiros internos e double free falham
+/// deterministicamente sem tocar no allocator interno.
+///
+/// # Safety
+///
+/// `ponteiro` deve ser exatamente o endereço-base retornado por
+/// `pinker_publico_alocar`. O registro interno valida essa origem antes de
+/// encaminhar a liberação ao allocator hospedeiro.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_publico_liberar(ponteiro: *mut u8) {
+    let mut registro = ALOCACOES_PUBLICAS
+        .lock()
+        .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
+    let Some(alocacao) = registro
+        .iter_mut()
+        .find(|alocacao| alocacao.base == ponteiro as usize)
+    else {
+        erro_memoria_publica("'liberar' rejeita ponteiro estrangeiro ou que não é ponteiro-base");
+    };
+    if !alocacao.viva {
+        erro_memoria_publica("'liberar' detectou double free");
+    }
+    debug_assert!(alocacao.tamanho > 0);
+    alocacao.viva = false;
+    pinker_liberar(ponteiro);
+}
 // @pinker-nav:end runtime.memoria.alocador
 
 // ---------------------------------------------------------------------------
