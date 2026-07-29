@@ -276,9 +276,10 @@ Aliases diretos e encadeados preservam a assinatura. O valor pode ser copiado,
 reatribuído, passado, retornado, escolhido por branch ou ternário, armazenado
 antes da chamada e chamado diretamente mesmo quando é resultado de outra
 expressão. Aridade, parâmetros e retorno são validados estruturalmente; a ABI
-SysV cobre todos os escalares, `logica`, `verso`, ponteiros de dados e de função
-já aceitos em chamada direta, com quantidade geral de argumentos, registradores,
-spills, alinhamento e extensões estreitas.
+SysV cobre todo o universo público de uma palavra já aceito em chamada direta:
+escalares, `logica`, `verso`, listas, mapas, leques, callables,
+objetos de trato e ponteiros de dados e de função. A quantidade de argumentos é
+geral, com registradores, spills, alinhamento e extensões estreitas.
 
 O ponteiro cru ocupa uma palavra e não possui descritor, ambiente ou argumento
 oculto `__env`. Ele é distinto do callable `carinho(...) -> R`, da closure
@@ -316,10 +317,12 @@ liberar(bytes);
 
 Cada alocação pública possui identidade lógica, base, tamanho, alinhamento,
 estado `LIVE`/`FREED`, domínio e proveniência. O interpretador modela regiões
-esparsas; o runtime nativo registra a mesma informação e valida cada load/store
+esparsas byte a byte, inclusive truncamento e extensão de sinal/zero por
+largura; o runtime nativo registra a mesma informação e valida cada load/store
 público quanto a vida, limites completos e alinhamento. A liberação física fica
 em quarentena até o fim do processo, impedindo que reutilização de endereço
-reative aliases antigos ou esconda double free.
+reative aliases antigos ou esconda double free. Metadados conservam todas as
+gerações e a busca sempre seleciona a mais recente.
 
 Somente um alias do ponteiro-base vivo pode liberar a região, uma vez.
 Ponteiro nulo, interior, estrangeiro, estático, de pilha ou pertencente aos

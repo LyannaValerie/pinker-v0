@@ -52,7 +52,39 @@ fn stable_region_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -
     records.concat()
 }
 
+fn project_pre_pr410_terminal_review(catalog: &mut CodeCatalog) {
+    // A revisão terminal da PR #410 fortalece regiões já existentes sem
+    // reescrever os snapshots históricos. Reconstrói primeiro o head publicado
+    // a2db7d0; a projeção das Fases 245–246 pode então seguir normalmente.
+    for region in &mut catalog.regions {
+        let (current, predecessor) = match region.key.as_str() {
+            "backend-s.lowering.falar-runtime" => {
+                ("fnv1a64:3f52039a4b36ce2a", "fnv1a64:4ee76ebc416f403d")
+            }
+            "backend-s.lowering.operacoes-memoria" => {
+                ("fnv1a64:30cbe1960dd1efe3", "fnv1a64:84eb8e5a46bc4cf1")
+            }
+            "evidencia.runtime.memoria-alocador" => {
+                ("fnv1a64:2e05a3fb74da5731", "fnv1a64:429ce2d2a36f96aa")
+            }
+            "interpreter.execucao.instrucoes-pilha" => {
+                ("fnv1a64:b05891be8e13e797", "fnv1a64:5967728915dc7bc7")
+            }
+            "interpreter.intrinsecos.acaso" => {
+                ("fnv1a64:b24058f0e14ecd13", "fnv1a64:1ed36246a6aa7f8e")
+            }
+            "runtime.io.saida" => ("fnv1a64:dcd0f28d19b32ffa", "fnv1a64:0d909c31ea9aa3dc"),
+            "runtime.memoria.alocador" => ("fnv1a64:257eff63c8de6478", "fnv1a64:d080db807b67c63f"),
+            _ => continue,
+        };
+        if region.hash == current {
+            region.hash = predecessor.to_string();
+        }
+    }
+}
+
 fn project_pre_phase245_246(catalog: &mut CodeCatalog) {
+    project_pre_pr410_terminal_review(catalog);
     // Fases 245–246: os snapshots históricos continuam congelados no head da
     // Fase 244. Reconstrói somente os hashes das regiões tocadas pelas duas
     // entregas antes de aplicar as projeções históricas anteriores.
@@ -6181,6 +6213,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
                 && !source.contains("erro_memoria_publica")
                 && !source.contains("pinker_publico_alocar")
                 && !source.contains("pinker_publico_liberar")
+                && !source.contains("pinker_falar_pedaco_inteiro")
         })
         .collect();
     assert_eq!(
@@ -6225,6 +6258,9 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     let abi_nomeadas = abi_nomeadas_correntes
         - producao
             .match_indices("extern \"C\" fn pinker_publico_")
+            .count()
+        - producao
+            .match_indices("extern \"C\" fn pinker_falar_pedaco_inteiro")
             .count();
     assert_eq!(
         abi_nomeadas, 99,

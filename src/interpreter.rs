@@ -855,7 +855,8 @@ fn exec_instr(
                 stack.push(RuntimeValue::Ptr(addr));
                 return Ok(());
             }
-            if let Some((base, size, alive)) = public_memory_region(memory, addr) {
+            let public_region = public_memory_region(memory, addr);
+            if let Some((base, size, alive)) = public_region {
                 if !alive {
                     return Err(runtime_err("uso após liberar detectado em memória pública"));
                 }
@@ -870,16 +871,13 @@ fn exec_instr(
                     return Err(runtime_err("acesso fora dos limites da alocação pública"));
                 }
             }
-            let loaded = if *is_volatile {
+            let loaded = if public_region.is_some() {
+                Some(public_memory_load_bytes(memory, addr, *ty)?)
+            } else if *is_volatile {
                 deref_load_fragil(memory, addr)
             } else {
                 deref_load_normal(memory, addr)
             };
-            let loaded = loaded.or_else(|| {
-                public_memory_region(memory, addr)
-                    .filter(|(_, _, alive)| *alive)
-                    .map(|_| zero_runtime_value_for_type(*ty))
-            });
             let Some(value) = loaded else {
                 return Err(runtime_err(
                     "deref_load em endereço inválido ou não inicializado",
@@ -895,7 +893,8 @@ fn exec_instr(
                     "deref_store exige ponteiro abaixo do valor no topo",
                 ));
             };
-            if let Some((base, size, alive)) = public_memory_region(memory, addr) {
+            let public_region = public_memory_region(memory, addr);
+            if let Some((base, size, alive)) = public_region {
                 if !alive {
                     return Err(runtime_err("uso após liberar detectado em memória pública"));
                 }
@@ -910,7 +909,12 @@ fn exec_instr(
                     return Err(runtime_err("acesso fora dos limites da alocação pública"));
                 }
             }
-            if !memory.contains_key(&addr) && public_memory_region(memory, addr).is_none() {
+            if public_region.is_some() {
+                let coerced = coerce_runtime_value_to_type(value, *ty)?;
+                public_memory_store_bytes(memory, addr, *ty, coerced)?;
+                return Ok(());
+            }
+            if !memory.contains_key(&addr) {
                 return Err(runtime_err(
                     "deref_store em endereço inválido ou não inicializado",
                 ));
@@ -1358,13 +1362,89 @@ fn runtime_type_width(ty: TypeIR) -> usize {
     }
 }
 
-fn zero_runtime_value_for_type(ty: TypeIR) -> RuntimeValue {
-    match ty {
-        TypeIR::I8 | TypeIR::I16 | TypeIR::I32 | TypeIR::I64 => RuntimeValue::IntSigned(0),
-        TypeIR::Logica => RuntimeValue::Bool(false),
-        TypeIR::Pointer { .. } | TypeIR::FunctionPointer => RuntimeValue::Ptr(0),
-        _ => RuntimeValue::Int(0),
+fn public_memory_value_to_word(value: RuntimeValue, ty: TypeIR) -> Result<u64, PinkerError> {
+    match (value, ty) {
+        (RuntimeValue::Int(value), ty) if ty.is_integer() => Ok(value),
+        (RuntimeValue::IntSigned(value), ty) if ty.is_integer() => Ok(value as u64),
+        (RuntimeValue::Bool(value), TypeIR::Logica) => Ok(u64::from(value)),
+        (
+            RuntimeValue::Ptr(value),
+            TypeIR::Pointer { .. } | TypeIR::FunctionPointer | TypeIR::TraitObject,
+        ) => Ok(value as u64),
+        (RuntimeValue::Callable(value), TypeIR::Function) => Ok(value),
+        (_, ty) => Err(runtime_err(&format!(
+            "valor incompatível com escrita de memória pública do tipo '{ty:?}'"
+        ))),
     }
+}
+
+fn public_memory_word_to_value(word: u64, ty: TypeIR) -> Result<RuntimeValue, PinkerError> {
+    let value = match ty {
+        TypeIR::Bombom | TypeIR::U64 => RuntimeValue::Int(word),
+        TypeIR::U8 => RuntimeValue::Int(word & u8::MAX as u64),
+        TypeIR::U16 => RuntimeValue::Int(word & u16::MAX as u64),
+        TypeIR::U32 => RuntimeValue::Int(word & u32::MAX as u64),
+        TypeIR::I8 => RuntimeValue::IntSigned((word as u8 as i8) as i64),
+        TypeIR::I16 => RuntimeValue::IntSigned((word as u16 as i16) as i64),
+        TypeIR::I32 => RuntimeValue::IntSigned((word as u32 as i32) as i64),
+        TypeIR::I64 => RuntimeValue::IntSigned(word as i64),
+        TypeIR::Logica => RuntimeValue::Bool((word & u8::MAX as u64) != 0),
+        TypeIR::Pointer { .. } | TypeIR::FunctionPointer | TypeIR::TraitObject => {
+            RuntimeValue::Ptr(word as usize)
+        }
+        TypeIR::Function => RuntimeValue::Callable(word),
+        _ => {
+            return Err(runtime_err(&format!(
+                "tipo '{ty:?}' não possui representação escalar em memória pública"
+            )));
+        }
+    };
+    Ok(value)
+}
+
+fn public_memory_store_bytes(
+    memory: &mut HashMap<usize, RuntimeValue>,
+    address: usize,
+    ty: TypeIR,
+    value: RuntimeValue,
+) -> Result<(), PinkerError> {
+    let width = runtime_type_width(ty);
+    let word = public_memory_value_to_word(value, ty)?;
+    for offset in 0..width {
+        let byte_address = address
+            .checked_add(offset)
+            .ok_or_else(|| runtime_err("overflow ao escrever memória pública"))?;
+        memory.insert(
+            byte_address,
+            RuntimeValue::Int((word >> (offset * 8)) & u8::MAX as u64),
+        );
+    }
+    Ok(())
+}
+
+fn public_memory_load_bytes(
+    memory: &HashMap<usize, RuntimeValue>,
+    address: usize,
+    ty: TypeIR,
+) -> Result<RuntimeValue, PinkerError> {
+    let width = runtime_type_width(ty);
+    let mut word = 0u64;
+    for offset in 0..width {
+        let byte_address = address
+            .checked_add(offset)
+            .ok_or_else(|| runtime_err("overflow ao ler memória pública"))?;
+        let byte = match memory.get(&byte_address) {
+            Some(RuntimeValue::Int(value)) => *value & u8::MAX as u64,
+            None => 0,
+            Some(_) => {
+                return Err(runtime_err(
+                    "representação interna inválida em byte de memória pública",
+                ));
+            }
+        };
+        word |= byte << (offset * 8);
+    }
+    public_memory_word_to_value(word, ty)
 }
 
 fn public_memory_meta_key(index: usize, field: usize) -> Option<usize> {
@@ -1484,7 +1564,7 @@ fn public_memory_free(
     if *pointer == 0 {
         return Err(runtime_err("'liberar' rejeita ponteiro nulo"));
     }
-    for index in 0..public_memory_count(memory) {
+    for index in (0..public_memory_count(memory)).rev() {
         let base_key = public_memory_meta_key(index, 0)
             .ok_or_else(|| runtime_err("registro de alocação pública inválido"))?;
         let size_key = public_memory_meta_key(index, 1)
@@ -5611,6 +5691,102 @@ mod fase244_trait_runtime_tests {
         assert_eq!(
             state.table.get(&alias).unwrap().data_addr,
             state.table.get(&first).unwrap().data_addr
+        );
+    }
+}
+
+#[cfg(test)]
+mod fase246_public_memory_tests {
+    use super::*;
+
+    fn registrar_regiao(
+        memory: &mut HashMap<usize, RuntimeValue>,
+        index: usize,
+        base: usize,
+        size: usize,
+        alive: bool,
+    ) {
+        memory.insert(
+            public_memory_meta_key(index, 0).expect("chave de base"),
+            RuntimeValue::Ptr(base),
+        );
+        memory.insert(
+            public_memory_meta_key(index, 1).expect("chave de tamanho"),
+            RuntimeValue::Int(size as u64),
+        );
+        memory.insert(
+            public_memory_meta_key(index, 2).expect("chave de vida"),
+            RuntimeValue::Bool(alive),
+        );
+    }
+
+    #[test]
+    fn liberar_endereco_reutilizado_escolhe_a_geracao_viva_mais_recente() {
+        let mut memory = HashMap::new();
+        let base = 0x6000_0000;
+        memory.insert(PUBLIC_MEMORY_COUNT_KEY, RuntimeValue::Int(3));
+        registrar_regiao(&mut memory, 0, base, 16, false);
+        registrar_regiao(&mut memory, 1, base, 16, false);
+        registrar_regiao(&mut memory, 2, base, 16, true);
+
+        public_memory_free(&[RuntimeValue::Ptr(base)], &mut memory)
+            .expect("a terceira geração viva deve poder ser liberada");
+
+        assert_eq!(
+            memory.get(&public_memory_meta_key(0, 2).expect("vida antiga")),
+            Some(&RuntimeValue::Bool(false))
+        );
+        assert_eq!(
+            memory.get(&public_memory_meta_key(1, 2).expect("vida intermediária")),
+            Some(&RuntimeValue::Bool(false))
+        );
+        assert_eq!(
+            memory.get(&public_memory_meta_key(2, 2).expect("vida recente")),
+            Some(&RuntimeValue::Bool(false))
+        );
+    }
+
+    #[test]
+    fn bytes_publicos_preservam_largura_aliasing_e_extensao() {
+        let mut memory = HashMap::new();
+        let base = 0x6000_1000;
+        memory.insert(PUBLIC_MEMORY_COUNT_KEY, RuntimeValue::Int(1));
+        registrar_regiao(&mut memory, 0, base, 16, true);
+
+        public_memory_store_bytes(
+            &mut memory,
+            base,
+            TypeIR::U32,
+            RuntimeValue::Int(0x1234_5678),
+        )
+        .expect("store u32");
+        assert_eq!(
+            public_memory_load_bytes(&memory, base, TypeIR::U8).expect("load u8"),
+            RuntimeValue::Int(0x78)
+        );
+        assert_eq!(
+            public_memory_load_bytes(&memory, base, TypeIR::U16).expect("load u16"),
+            RuntimeValue::Int(0x5678)
+        );
+
+        public_memory_store_bytes(
+            &mut memory,
+            base + 4,
+            TypeIR::I8,
+            RuntimeValue::IntSigned(-128),
+        )
+        .expect("store i8");
+        assert_eq!(
+            public_memory_load_bytes(&memory, base + 4, TypeIR::I8).expect("load i8"),
+            RuntimeValue::IntSigned(-128)
+        );
+        assert_eq!(
+            public_memory_load_bytes(&memory, base + 4, TypeIR::U8).expect("load u8"),
+            RuntimeValue::Int(128)
+        );
+        assert_eq!(
+            public_memory_load_bytes(&memory, base + 8, TypeIR::U64).expect("zero u64"),
+            RuntimeValue::Int(0)
         );
     }
 }

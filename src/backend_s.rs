@@ -381,6 +381,25 @@ fn extract_external_callconv_program(
                         body.extend(load_operand(REG_RET, src, &slot_offsets, &rodata_strings)?);
                         body.push(format!("movq {}, -{}(%rbp)", REG_RET, slot_offsets[dest]));
                     }
+                    SelectedInstr::Neg { dest, operand } => {
+                        register_rodata_strings_for_operand(
+                            operand,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        );
+                        body.extend(load_operand(
+                            REG_RET,
+                            operand,
+                            &slot_offsets,
+                            &rodata_strings,
+                        )?);
+                        body.push(format!("negq {}", REG_RET));
+                        body.push(format!(
+                            "movq {}, -{}(%rbp)",
+                            REG_RET,
+                            slot_offsets[&temp_key(*dest)]
+                        ));
+                    }
                     SelectedInstr::Add { dest, lhs, rhs } => {
                         body.extend(lower_linear_binop(
                             "addq",
@@ -1222,6 +1241,9 @@ fn extract_external_callconv_program(
                             let pedaco = match arg.ty {
                                 TypeIR::Verso => "pinker_falar_pedaco_verso",
                                 TypeIR::Logica => "pinker_falar_pedaco_logica",
+                                TypeIR::I8 | TypeIR::I16 | TypeIR::I32 | TypeIR::I64 => {
+                                    "pinker_falar_pedaco_inteiro"
+                                }
                                 _ => "pinker_falar_pedaco_bombom",
                             };
                             body.push(format!("call {}", pedaco));
