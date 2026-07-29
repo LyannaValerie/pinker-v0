@@ -4,7 +4,9 @@ use common::{
     parse_and_check, render_backend_s_external_subset, render_backend_text, render_cfg_ir,
     render_ir, render_machine, render_selected,
 };
+use std::fs;
 use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
 fn fase245_atravessa_pipeline_com_representacao_crua_distinta() {
@@ -173,5 +175,78 @@ fn fase246_tamanho_minimo_e_duas_regioes_independentes() {
             String::from_utf8_lossy(&output.stderr)
         );
         assert_eq!(String::from_utf8_lossy(&output.stdout), stdout);
+    }
+}
+
+fn native_output_dir(label: &str) -> std::path::PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("relógio do sistema")
+        .as_nanos();
+    std::env::temp_dir().join(format!("pinker_{label}_{nanos}"))
+}
+
+fn build_native(example: &str, output_dir: &std::path::Path) -> std::path::PathBuf {
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .args(["build", "--nativo", "--out-dir"])
+        .arg(output_dir)
+        .arg(example)
+        .output()
+        .expect("build nativo");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stem = std::path::Path::new(example)
+        .file_stem()
+        .expect("nome do exemplo");
+    output_dir.join(stem)
+}
+
+#[test]
+fn fases245_246_elf_real_tem_paridade_de_stdout_e_exit() {
+    for example in [
+        "examples/fase245_ponteiro_funcao_spill_valido.pink",
+        "examples/fase246_memoria_explicita_valido.pink",
+    ] {
+        let out_dir = native_output_dir("phase245_246_parity");
+        let executable = build_native(example, &out_dir);
+        let interpreted = Command::new(env!("CARGO_BIN_EXE_pink"))
+            .args(["--run", example])
+            .output()
+            .expect("interpretador");
+        let native = Command::new(&executable).output().expect("execução do ELF");
+        assert_eq!(interpreted.status.code(), Some(0));
+        assert_eq!(native.status.code(), Some(0));
+        let interpreted_stdout = String::from_utf8_lossy(&interpreted.stdout);
+        let program_stdout = interpreted_stdout
+            .strip_suffix("0\n")
+            .expect("retorno zero impresso pelo interpretador");
+        assert_eq!(program_stdout, String::from_utf8_lossy(&native.stdout));
+        fs::remove_dir_all(out_dir).expect("limpeza da fixture nativa");
+    }
+}
+
+#[test]
+fn fases245_246_build_nativo_e_deterministico() {
+    for example in [
+        "examples/fase245_ponteiro_funcao_valido.pink",
+        "examples/fase246_duas_alocacoes_valido.pink",
+    ] {
+        let out_a = native_output_dir("phase245_246_determinism_a");
+        let out_b = native_output_dir("phase245_246_determinism_b");
+        let exe_a = build_native(example, &out_a);
+        let exe_b = build_native(example, &out_b);
+        assert_eq!(
+            fs::read(&exe_a).expect("ELF A"),
+            fs::read(&exe_b).expect("ELF B")
+        );
+        assert_eq!(
+            fs::read(exe_a.with_extension("s")).expect("assembly A"),
+            fs::read(exe_b.with_extension("s")).expect("assembly B")
+        );
+        fs::remove_dir_all(out_a).expect("limpeza A");
+        fs::remove_dir_all(out_b).expect("limpeza B");
     }
 }
