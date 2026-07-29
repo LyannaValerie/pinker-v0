@@ -403,6 +403,10 @@ pub enum Type {
         name: String,
         span: Span,
     },
+    Union {
+        members: Vec<Type>,
+        span: Span,
+    },
     Applied {
         name: String,
         args: Vec<Type>,
@@ -462,6 +466,7 @@ impl PartialEq for Type {
             (Type::Alias { name: n1, .. }, Type::Alias { name: n2, .. }) => n1 == n2,
             (Type::Struct { name: n1, .. }, Type::Struct { name: n2, .. }) => n1 == n2,
             (Type::Enum { name: n1, .. }, Type::Enum { name: n2, .. }) => n1 == n2,
+            (Type::Union { members: m1, .. }, Type::Union { members: m2, .. }) => m1 == m2,
             (
                 Type::Applied {
                     name: n1, args: a1, ..
@@ -514,6 +519,7 @@ impl Type {
             Type::Alias { span, .. }
             | Type::Struct { span, .. }
             | Type::Enum { span, .. }
+            | Type::Union { span, .. }
             | Type::Applied { span, .. }
             | Type::ListEnum { span, .. }
             | Type::FixedArray { span, .. }
@@ -547,6 +553,7 @@ impl Type {
             Type::Alias { .. } => "alias",
             Type::Struct { .. } => "struct",
             Type::Enum { .. } => "leque",
+            Type::Union { .. } => "uniao",
             Type::Applied { .. } => "tipo aplicado",
             Type::ListEnum { .. } => "lista<leque>",
             Type::Nulo(_) => "nulo",
@@ -601,6 +608,10 @@ impl Type {
                 name: name.clone(),
                 span,
             },
+            Type::Union { members, .. } => Type::Union {
+                members: members.clone(),
+                span,
+            },
             Type::Applied { name, args, .. } => Type::Applied {
                 name: name.clone(),
                 args: args.clone(),
@@ -636,6 +647,11 @@ impl Type {
         if let Type::Function { params, ret, .. } = self {
             writer.field_array("params", params, |writer, param| param.write_json(writer));
             writer.field_value("ret", |writer| ret.write_json(writer));
+        }
+        if let Type::Union { members, .. } = self {
+            writer.field_array("members", members, |writer, member| {
+                member.write_json(writer)
+            });
         }
         writer.end_object();
     }

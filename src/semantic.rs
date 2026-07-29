@@ -162,6 +162,12 @@ impl SemanticChecker {
                     .join(",");
                 format!("carinho({})->{}", params, Self::type_key(ret))
             }
+            Type::Union { members, .. } => {
+                let mut keys = members.iter().map(Self::type_key).collect::<Vec<_>>();
+                keys.sort();
+                keys.dedup();
+                format!("uniao<{}>", keys.join(","))
+            }
             Type::Applied { .. } => Self::trait_object_name(ty)
                 .map(|trait_name| format!("trato<{}>", trait_name))
                 .unwrap_or_else(|| ty.name().to_string()),
@@ -190,6 +196,7 @@ impl SemanticChecker {
             | Type::MapBombomBombom(_)
             | Type::MapBombomVerso(_)
             | Type::Enum { .. }
+            | Type::Union { .. }
             | Type::Pointer { .. }
             | Type::Function { .. } => true,
             Type::Applied { .. } => Self::trait_object_name(ty).is_some(),
@@ -339,6 +346,22 @@ impl SemanticChecker {
             }
             (Type::Enum { name: lhs_name, .. }, Type::Enum { name: rhs_name, .. }) => {
                 lhs_name == rhs_name
+            }
+            (
+                Type::Union {
+                    members: lhs_members,
+                    ..
+                },
+                Type::Union {
+                    members: rhs_members,
+                    ..
+                },
+            ) => {
+                lhs_members.len() == rhs_members.len()
+                    && lhs_members
+                        .iter()
+                        .zip(rhs_members)
+                        .all(|(lhs, rhs)| Self::check_type_match(lhs, rhs))
             }
             (
                 Type::ListEnum {
@@ -570,6 +593,33 @@ impl SemanticChecker {
                 Ok(Type::Applied {
                     name: name.clone(),
                     args: args.clone(),
+                    span: *span,
+                })
+            }
+            Type::Union { members, span } => {
+                let mut canonical = std::collections::BTreeMap::<String, Type>::new();
+                for member in members {
+                    let resolved = self.resolve_type_named(member, resolving)?;
+                    if let Type::Union {
+                        members: nested, ..
+                    } = resolved
+                    {
+                        for nested_member in nested {
+                            canonical.insert(Self::type_key(&nested_member), nested_member);
+                        }
+                    } else {
+                        canonical.insert(Self::type_key(&resolved), resolved);
+                    }
+                }
+                if canonical.len() < 2 {
+                    return Err(PinkerError::Semantic {
+                        msg: "união estrutural exige ao menos dois membros distintos após canonicalização"
+                            .to_string(),
+                        span: *span,
+                    });
+                }
+                Ok(Type::Union {
+                    members: canonical.into_values().collect(),
                     span: *span,
                 })
             }
@@ -1925,6 +1975,16 @@ impl SemanticChecker {
                                 &init_ty,
                                 &let_stmt.init,
                             ) {
+                                if let_stmt.name.starts_with("__encaixe_uniao_")
+                                    && matches!(&resolved_declared_ty, Type::Union { .. })
+                                    && matches!(&init_ty, Type::Union { .. })
+                                {
+                                    return Err(PinkerError::Semantic {
+                                        msg: "encaixe de união deve ser exaustivo: os braços devem cobrir exatamente todos os membros canônicos"
+                                            .to_string(),
+                                        span: let_stmt.init.span,
+                                    });
+                                }
                                 return Err(PinkerError::Semantic {
                                     msg: format!(
                                         "tipo de inicialização incompatível para '{}': esperado '{}', encontrado '{}'",
@@ -2222,6 +2282,9 @@ impl SemanticChecker {
                             msg: "bloco de 'sussurro' não pode conter string vazia".to_string(),
                             span: inline_asm_stmt.span,
                         });
+                    }
+                    for chunk in &inline_asm_stmt.chunks {
+                        validate_inline_asm_chunk(chunk, inline_asm_stmt.span)?;
                     }
                 }
                 Stmt::Expr(expr) => {
@@ -2537,6 +2600,33 @@ impl SemanticChecker {
                     "resultado de função sem retorno não pode ser convertido com 'virar'",
                 )?;
                 let target_ty = self.resolve_type_or_error(target)?.with_span(expr.span);
+                if let Type::Union { members, .. } = &target_ty {
+                    let matching = members
+                        .iter()
+                        .filter(|member| Self::check_type_match(member, &source_ty))
+                        .count();
+                    return match matching {
+                        1 => Ok(target_ty),
+                        0 => Err(PinkerError::Semantic {
+                            msg: format!(
+                                "tipo '{}' não pertence à união estrutural alvo",
+                                Self::type_key(&source_ty)
+                            ),
+                            span: source_expr.span,
+                        }),
+                        _ => Err(PinkerError::Semantic {
+                            msg: "injeção em união estrutural é ambígua; aplique 'virar' explicitamente para o membro desejado antes da união"
+                                .to_string(),
+                            span: source_expr.span,
+                        }),
+                    };
+                }
+                if matches!(source_ty, Type::Union { .. }) {
+                    return Err(PinkerError::Semantic {
+                        msg: "downcast de união fora de 'encaixe' não é permitido".to_string(),
+                        span: source_expr.span,
+                    });
+                }
                 if let Some(trait_name) = Self::trait_object_name(&target_ty).map(str::to_string) {
                     let supported_concrete = matches!(
                         &source_ty,
@@ -2747,6 +2837,13 @@ impl SemanticChecker {
                         }
                     }
                     BinaryOp::Eq | BinaryOp::Neq => {
+                        if matches!(&lhs_ty, Type::Union { .. }) {
+                            return Err(PinkerError::Semantic {
+                                msg: "igualdade e desigualdade de união estrutural não são suportadas nesta fase; use 'encaixe'"
+                                    .to_string(),
+                                span: expr.span,
+                            });
+                        }
                         if let Type::Enum { name, .. } = &lhs_ty {
                             if self.enum_has_payload(name) {
                                 return Err(PinkerError::Semantic {
@@ -2761,6 +2858,13 @@ impl SemanticChecker {
                         Ok(Type::Logica(expr.span))
                     }
                     BinaryOp::Lt | BinaryOp::Lte | BinaryOp::Gt | BinaryOp::Gte => {
+                        if matches!(&lhs_ty, Type::Union { .. }) {
+                            return Err(PinkerError::Semantic {
+                                msg: "comparação de ordem não é suportada para união estrutural; use 'encaixe'"
+                                    .to_string(),
+                                span: expr.span,
+                            });
+                        }
                         if matches!(lhs_ty, Type::Enum { .. }) {
                             return Err(PinkerError::Semantic {
                                 msg: "comparação de ordem não é suportada entre valores de leque; use '==' ou '!='"
@@ -3493,6 +3597,66 @@ impl SemanticChecker {
                 ),
                 span: first_arg.span,
             });
+        }
+
+        if name == "__pinker_internal_uniao_tag" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: "intrínseca interna de tag de união exige um argumento".to_string(),
+                    span: expr_span,
+                });
+            }
+            let arg_ty = self.check_value_expr(
+                &args[0],
+                "resultado nulo não pode ser inspecionado por encaixe",
+            )?;
+            if !matches!(arg_ty, Type::Union { .. }) {
+                return Err(PinkerError::Semantic {
+                    msg: "tag de união exige valor de união estrutural".to_string(),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
+        if name == "__pinker_internal_uniao_payload_b"
+            || name == "__pinker_internal_uniao_payload_v"
+        {
+            if args.len() != 2 {
+                return Err(PinkerError::Semantic {
+                    msg: "intrínseca interna de payload de união exige união e tag".to_string(),
+                    span: expr_span,
+                });
+            }
+            let arg_ty =
+                self.check_value_expr(&args[0], "resultado nulo não pode ser aberto por encaixe")?;
+            let Type::Union { members, .. } = arg_ty else {
+                return Err(PinkerError::Semantic {
+                    msg: "payload de união exige valor de união estrutural".to_string(),
+                    span: args[0].span,
+                });
+            };
+            let ExprKind::IntLit(tag) = args[1].kind else {
+                return Err(PinkerError::Semantic {
+                    msg: "tag de payload de união deve ser literal interno".to_string(),
+                    span: args[1].span,
+                });
+            };
+            let member = members
+                .get(tag as usize)
+                .ok_or_else(|| PinkerError::Semantic {
+                    msg: "tag de payload não pertence à união".to_string(),
+                    span: args[1].span,
+                })?;
+            if name == "__pinker_internal_uniao_payload_v" {
+                if !matches!(member, Type::Verso(_)) {
+                    return Err(PinkerError::Semantic {
+                        msg: "payload verso solicitado para membro não-verso".to_string(),
+                        span: expr_span,
+                    });
+                }
+                return Ok(Type::Verso(expr_span));
+            }
+            return Ok(Type::Bombom(expr_span));
         }
 
         // Intrínsecas internas do desugaring de `encaixe` (Fases 209–210).
@@ -7438,6 +7602,50 @@ impl SemanticChecker {
         self.check_named_function_call(expr_span, callee.span, name, &arg_refs)
     }
     // @pinker-nav:end semantic.chamadas.despacho
+}
+
+fn validate_inline_asm_chunk(chunk: &str, span: Span) -> Result<(), PinkerError> {
+    if chunk.contains('\0') {
+        return Err(PinkerError::Semantic {
+            msg: "bloco de 'sussurro' não pode conter NUL".to_string(),
+            span,
+        });
+    }
+    const DIRECTIVES: [&str; 11] = [
+        ".intel_syntax",
+        ".att_syntax",
+        ".section",
+        ".text",
+        ".data",
+        ".bss",
+        ".globl",
+        ".global",
+        ".type",
+        ".size",
+        ".include",
+    ];
+    for line in chunk.lines() {
+        let line = line.trim_start();
+        let forbidden = DIRECTIVES.iter().copied().find(|directive| {
+            line == *directive
+                || line
+                    .strip_prefix(directive)
+                    .is_some_and(|tail| tail.starts_with(char::is_whitespace))
+        });
+        if let Some(directive) = forbidden {
+            return Err(PinkerError::Semantic {
+                msg: format!("diretiva '{directive}' não é permitida dentro de 'sussurro'"),
+                span,
+            });
+        }
+        if line.starts_with(".cfi_") || line.starts_with(".incbin") {
+            return Err(PinkerError::Semantic {
+                msg: "diretiva de controle não é permitida dentro de 'sussurro'".to_string(),
+                span,
+            });
+        }
+    }
+    Ok(())
 }
 
 pub fn check_program(program: &Program) -> Result<(), PinkerError> {

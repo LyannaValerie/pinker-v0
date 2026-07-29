@@ -559,6 +559,27 @@ impl Parser {
         } else if self.match_token(TokenKind::KwVerso) {
             Ok(Type::Verso(span))
         } else if self.match_token(TokenKind::Ident) {
+            if self.previous().lexeme == "uniao" && self.match_token(TokenKind::Less) {
+                let mut members = Vec::new();
+                loop {
+                    members.push(self.parse_type()?);
+                    if !self.match_token(TokenKind::Comma) {
+                        break;
+                    }
+                }
+                self.consume(TokenKind::Greater, ">")?;
+                if members.len() < 2 {
+                    return Err(PinkerError::Expected {
+                        expected: "ao menos dois membros em uniao<T1, T2, ...>".to_string(),
+                        found: format!("{} membro(s)", members.len()),
+                        span: merge_span(span, self.previous().span),
+                    });
+                }
+                return Ok(Type::Union {
+                    members,
+                    span: merge_span(span, self.previous().span),
+                });
+            }
             if self.previous().lexeme == "lista" && self.match_token(TokenKind::Less) {
                 let inner = self.parse_type()?;
                 self.consume(TokenKind::Greater, ">")?;
@@ -957,6 +978,9 @@ impl Parser {
         let start_span = self.previous().span;
         let scrutinee = self.parse_expr()?;
         self.consume(TokenKind::LBrace, "{")?;
+        if self.check(TokenKind::KwCaso) && !self.check_at(2, TokenKind::Dot) {
+            return self.parse_union_encaixe_after_header(start_span, scrutinee);
+        }
 
         struct EncaixeArm {
             variant: String,
@@ -1251,6 +1275,169 @@ impl Parser {
         };
 
         Ok(vec![target_stmt, Stmt::If(*root_if)])
+    }
+
+    fn parse_union_encaixe_after_header(
+        &mut self,
+        start_span: Span,
+        scrutinee: Expr,
+    ) -> Result<Vec<Stmt>, PinkerError> {
+        struct Arm {
+            ty: Type,
+            binding: String,
+            body: Block,
+            span: Span,
+        }
+
+        let mut arms = Vec::new();
+        while !self.check(TokenKind::RBrace) && self.peek().is_some() {
+            if self.match_token(TokenKind::KwSenao) {
+                return Err(PinkerError::Parse {
+                    msg: "'senao' não substitui cobertura exaustiva de união nesta fase"
+                        .to_string(),
+                    span: self.previous().span,
+                });
+            }
+            self.consume(TokenKind::KwCaso, "caso")?;
+            let arm_span = self.previous().span;
+            let ty = self.parse_type()?;
+            self.consume(TokenKind::LParen, "(")?;
+            let binding = self
+                .consume(TokenKind::Ident, "binding do membro da união")?
+                .lexeme
+                .clone();
+            self.consume(TokenKind::RParen, ")")?;
+            let body = self.parse_block()?;
+            arms.push(Arm {
+                ty,
+                binding,
+                body,
+                span: arm_span,
+            });
+        }
+        self.consume(TokenKind::RBrace, "}")?;
+        let helper_span = merge_span(start_span, self.previous().span);
+        if arms.len() < 2 {
+            return Err(PinkerError::Parse {
+                msg: "encaixe de união exige ao menos dois membros".to_string(),
+                span: helper_span,
+            });
+        }
+
+        let mut keyed = arms
+            .iter()
+            .enumerate()
+            .map(|(index, arm)| (Self::generic_type_key(&arm.ty), index))
+            .collect::<Vec<_>>();
+        keyed.sort_by(|lhs, rhs| lhs.0.as_bytes().cmp(rhs.0.as_bytes()));
+        for pair in keyed.windows(2) {
+            if pair[0].0 == pair[1].0 {
+                return Err(PinkerError::Parse {
+                    msg: format!("membro '{}' repetido no encaixe de união", pair[0].0),
+                    span: helper_span,
+                });
+            }
+        }
+        let mut tags = vec![0_u64; arms.len()];
+        for (tag, (_, original_index)) in keyed.into_iter().enumerate() {
+            tags[original_index] = tag as u64;
+        }
+
+        self.synthetic_counter += 1;
+        let target_name = format!("__encaixe_uniao_{}", self.synthetic_counter);
+        let members = arms.iter().map(|arm| arm.ty.clone()).collect::<Vec<_>>();
+        let target_stmt = Stmt::Let(LetStmt {
+            name: target_name.clone(),
+            is_mut: false,
+            ty: Some(Type::Union {
+                members,
+                span: helper_span,
+            }),
+            init: scrutinee,
+            span: helper_span,
+        });
+        let target_ident = |span: Span| Expr {
+            kind: ExprKind::Ident(target_name.clone()),
+            span,
+        };
+
+        let mut else_branch = None;
+        for (index, arm) in arms.into_iter().enumerate().rev() {
+            let tag = tags[index];
+            let condition = Expr {
+                kind: ExprKind::Binary(
+                    Box::new(Expr {
+                        kind: ExprKind::Call(
+                            Box::new(Expr {
+                                kind: ExprKind::Ident("__pinker_internal_uniao_tag".to_string()),
+                                span: arm.span,
+                            }),
+                            vec![target_ident(arm.span)],
+                        ),
+                        span: arm.span,
+                    }),
+                    BinaryOp::Eq,
+                    Box::new(Expr {
+                        kind: ExprKind::IntLit(tag),
+                        span: arm.span,
+                    }),
+                ),
+                span: arm.span,
+            };
+            let payload_fn = if matches!(arm.ty, Type::Verso(_)) {
+                "__pinker_internal_uniao_payload_v"
+            } else {
+                "__pinker_internal_uniao_payload_b"
+            };
+            let payload_call = Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Ident(payload_fn.to_string()),
+                        span: arm.span,
+                    }),
+                    vec![
+                        target_ident(arm.span),
+                        Expr {
+                            kind: ExprKind::IntLit(tag),
+                            span: arm.span,
+                        },
+                    ],
+                ),
+                span: arm.span,
+            };
+            let init = if matches!(arm.ty, Type::Bombom(_) | Type::Verso(_)) {
+                payload_call
+            } else {
+                Expr {
+                    kind: ExprKind::Cast {
+                        expr: Box::new(payload_call),
+                        target: arm.ty.clone(),
+                    },
+                    span: arm.span,
+                }
+            };
+            let mut statements = vec![Stmt::Let(LetStmt {
+                name: arm.binding,
+                is_mut: false,
+                ty: Some(arm.ty.clone()),
+                init,
+                span: arm.span,
+            })];
+            statements.extend(arm.body.stmts);
+            else_branch = Some(ElseBlock::If(Box::new(IfStmt {
+                condition,
+                then_branch: Block {
+                    stmts: statements,
+                    span: arm.body.span,
+                },
+                else_branch,
+                span: helper_span,
+            })));
+        }
+        let Some(ElseBlock::If(root)) = else_branch else {
+            unreachable!("ao menos dois braços validados")
+        };
+        Ok(vec![target_stmt, Stmt::If(*root)])
     }
 
     // @pinker-nav:end parser.encaixe.expressao
@@ -2287,6 +2474,14 @@ impl Parser {
             Type::MapVersoVerso(_) => "mapa_verso_verso".to_string(),
             Type::MapBombomBombom(_) => "mapa_bombom_bombom".to_string(),
             Type::MapBombomVerso(_) => "mapa_bombom_verso".to_string(),
+            Type::Union { members, .. } => format!(
+                "uniao_{}",
+                members
+                    .iter()
+                    .map(Self::generic_type_key)
+                    .collect::<Vec<_>>()
+                    .join("_")
+            ),
             Type::Alias { name, .. }
             | Type::Struct { name, .. }
             | Type::Enum { name, .. }
