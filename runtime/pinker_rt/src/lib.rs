@@ -1943,11 +1943,48 @@ pub unsafe extern "C" fn pinker_ambiente_buscar_contexto(
 // @pinker-nav:start runtime.processos.execucao
 // @pinker-nav:domain processos
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Execução de subprocessos do sistema operacional via std::process::Command, com variantes de aridade fixa (0 ou 1 argumento extra) para execução simples, captura de stdout/stderr, envio de entrada por stdin e um pipeline mínimo de dois processos; stdout/stderr são decodificados como UTF-8 estrito (falha aborta via erro_fatal) e comando vazio, falha ao spawnar ou código de saída ausente também abortam via erro_fatal.
+// @pinker-nav:summary Execução de subprocessos sem shell implícito: basenames são resolvidos somente na PATH fixa /usr/local/bin:/usr/bin:/bin, caminhos com slash são usados literalmente, e todas as famílias recebem a PATH saneada; executar_com_entrada escreve stdin numa thread concorrente à espera, fecha o pipe e agrega erros sem deixar writer órfão.
+const PATH_PROCESSOS: &str = "/usr/local/bin:/usr/bin:/bin";
+
 fn exigir_comando_nao_vazio(nome: &str, comando: &str) {
     if comando.trim().is_empty() {
         erro_fatal(&format!("intrínseca '{nome}' exige comando não vazio"));
     }
+}
+
+fn comando_resolvido(nome: &str, comando: &str) -> Result<std::path::PathBuf, String> {
+    if comando.contains('/') {
+        return Ok(std::path::PathBuf::from(comando));
+    }
+    for diretorio in PATH_PROCESSOS.split(':') {
+        let candidato = std::path::Path::new(diretorio).join(comando);
+        let Ok(metadata) = std::fs::metadata(&candidato) else {
+            continue;
+        };
+        if !metadata.is_file() {
+            continue;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            if metadata.permissions().mode() & 0o111 == 0 {
+                continue;
+            }
+        }
+        return Ok(candidato);
+    }
+    Err(format!(
+        "comando '{comando}' não encontrado na PATH saneada em '{nome}'"
+    ))
+}
+
+fn novo_processo(nome: &str, comando: &str) -> std::process::Command {
+    exigir_comando_nao_vazio(nome, comando);
+    let resolvido =
+        comando_resolvido(nome, comando).unwrap_or_else(|err| erro_fatal(err.as_str()));
+    let mut processo = std::process::Command::new(resolvido);
+    processo.env("PATH", PATH_PROCESSOS);
+    processo
 }
 
 fn exit_code_ou_erro(nome: &str, codigo: Option<i32>) -> u64 {
@@ -1964,8 +2001,7 @@ fn exit_code_ou_erro(nome: &str, codigo: Option<i32>) -> u64 {
 }
 
 fn processo_executar(comando: &str, argv1: Option<&str>) -> u64 {
-    exigir_comando_nao_vazio("executar_processo", comando);
-    let mut processo = std::process::Command::new(comando);
+    let mut processo = novo_processo("executar_processo", comando);
     if let Some(argumento) = argv1 {
         processo.arg(argumento);
     }
@@ -1992,8 +2028,7 @@ pub unsafe extern "C" fn pinker_processo_executar_2(comando: *const u8, argv1: *
 }
 
 fn processo_capturar(nome: &str, comando: &str, argv1: Option<&str>, stderr: bool) -> *mut u8 {
-    exigir_comando_nao_vazio(nome, comando);
-    let mut processo = std::process::Command::new(comando);
+    let mut processo = novo_processo(nome, comando);
     if let Some(argumento) = argv1 {
         processo.arg(argumento);
     }
@@ -2054,39 +2089,53 @@ pub unsafe extern "C" fn pinker_processo_capturar_stderr_2(
     )
 }
 
-fn processo_com_entrada(comando: &str, entrada: &str, argv1: Option<&str>) -> u64 {
-    exigir_comando_nao_vazio("executar_com_entrada", comando);
-    let mut processo = std::process::Command::new(comando);
+fn processo_com_entrada_resultado(
+    comando: &str,
+    entrada: &str,
+    argv1: Option<&str>,
+) -> Result<u64, String> {
+    if comando.trim().is_empty() {
+        return Err("intrínseca 'executar_com_entrada' exige comando não vazio".to_string());
+    }
+    let resolvido = comando_resolvido("executar_com_entrada", comando)?;
+    let mut processo = std::process::Command::new(resolvido);
+    processo.env("PATH", PATH_PROCESSOS);
     if let Some(argumento) = argv1 {
         processo.arg(argumento);
     }
     let mut filho = processo
         .stdin(std::process::Stdio::piped())
         .spawn()
-        .unwrap_or_else(|err| {
-            erro_fatal(&format!(
-                "falha ao executar processo em 'executar_com_entrada': {err}"
-            ))
-        });
-    {
+        .map_err(|err| format!("falha ao executar processo em 'executar_com_entrada': {err}"))?;
+    let Some(mut stdin) = filho.stdin.take() else {
+        return Err(
+            "stdin indisponível em 'executar_com_entrada': processo sem pipe configurado"
+                .to_string(),
+        );
+    };
+    let bytes = entrada.as_bytes().to_vec();
+    let writer = std::thread::spawn(move || {
         use std::io::Write as _;
-        let Some(mut stdin) = filho.stdin.take() else {
-            erro_fatal(
-                "stdin indisponível em 'executar_com_entrada': processo sem pipe configurado",
-            );
-        };
-        stdin.write_all(entrada.as_bytes()).unwrap_or_else(|err| {
-            erro_fatal(&format!(
-                "falha ao escrever stdin em 'executar_com_entrada': {err}"
-            ))
-        });
-    }
-    let status = filho.wait().unwrap_or_else(|err| {
-        erro_fatal(&format!(
-            "falha ao aguardar processo em 'executar_com_entrada': {err}"
-        ))
+        stdin.write_all(&bytes)
     });
-    exit_code_ou_erro("executar_com_entrada", status.code())
+    let wait_result = filho.wait();
+    let write_result = writer
+        .join()
+        .map_err(|_| "thread de stdin falhou em 'executar_com_entrada'".to_string())?;
+    write_result
+        .map_err(|err| format!("falha ao escrever stdin em 'executar_com_entrada': {err}"))?;
+    let status = wait_result
+        .map_err(|err| format!("falha ao aguardar processo em 'executar_com_entrada': {err}"))?;
+    let codigo = status.code().ok_or_else(|| {
+        "processo finalizado sem código de saída suportado em 'executar_com_entrada'".to_string()
+    })?;
+    u64::try_from(codigo)
+        .map_err(|_| "código de saída inválido em 'executar_com_entrada': valor negativo".to_string())
+}
+
+fn processo_com_entrada(comando: &str, entrada: &str, argv1: Option<&str>) -> u64 {
+    processo_com_entrada_resultado(comando, entrada, argv1)
+        .unwrap_or_else(|err| erro_fatal(err.as_str()))
 }
 
 /// # Safety
@@ -2123,10 +2172,9 @@ pub unsafe extern "C" fn pinker_processo_pipeline(
 ) -> u64 {
     let produtor_nome = verso_str(produtor);
     let consumidor_nome = verso_str(consumidor);
-    exigir_comando_nao_vazio("pipeline_minimo", produtor_nome);
-    exigir_comando_nao_vazio("pipeline_minimo", consumidor_nome);
-    let mut produtor = std::process::Command::new(produtor_nome)
-        .stdout(std::process::Stdio::piped())
+    let mut produtor_comando = novo_processo("pipeline_minimo", produtor_nome);
+    produtor_comando.stdout(std::process::Stdio::piped());
+    let mut produtor = produtor_comando
         .spawn()
         .unwrap_or_else(|err| {
             erro_fatal(&format!(
@@ -2136,15 +2184,20 @@ pub unsafe extern "C" fn pinker_processo_pipeline(
     let Some(saida_produtor) = produtor.stdout.take() else {
         erro_fatal("stdout indisponível em 'pipeline_minimo': produtor sem pipe configurado");
     };
-    let mut consumidor = std::process::Command::new(consumidor_nome)
-        .stdin(std::process::Stdio::from(saida_produtor))
+    let mut consumidor_comando = novo_processo("pipeline_minimo", consumidor_nome);
+    consumidor_comando.stdin(std::process::Stdio::from(saida_produtor));
+    let mut consumidor = consumidor_comando
         .spawn()
         .unwrap_or_else(|err| {
             erro_fatal(&format!(
                 "falha ao executar processo consumidor em 'pipeline_minimo': {err}"
             ))
         });
-    let _ = produtor.wait();
+    produtor.wait().unwrap_or_else(|err| {
+        erro_fatal(&format!(
+            "falha ao aguardar produtor em 'pipeline_minimo': {err}"
+        ))
+    });
     let status = consumidor.wait().unwrap_or_else(|err| {
         erro_fatal(&format!(
             "falha ao aguardar consumidor em 'pipeline_minimo': {err}"
@@ -2228,6 +2281,71 @@ mod tests {
         let stderr = String::from_utf8_lossy(&pipe_output.stderr);
         assert!(stderr.contains("falha ao escrever stdout"), "{stderr}");
         assert!(!stderr.contains("panicked at"), "{stderr}");
+    }
+
+    #[cfg(unix)]
+    fn script_processo(nome: &str, corpo: &str) -> std::path::PathBuf {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let path = std::env::temp_dir().join(format!(
+            "pinker-rt-processo-{nome}-{}",
+            std::process::id()
+        ));
+        std::fs::write(&path, format!("#!/bin/sh\n{corpo}\n")).expect("gravar script");
+        let mut permissions = std::fs::metadata(&path).expect("metadata").permissions();
+        permissions.set_mode(0o700);
+        std::fs::set_permissions(&path, permissions).expect("permissões");
+        path
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn processos_usam_resolucao_deterministica() {
+        let resolvido = comando_resolvido("teste", "sh").expect("shell do sistema");
+        assert!(
+            resolvido == std::path::Path::new("/usr/local/bin/sh")
+                || resolvido == std::path::Path::new("/usr/bin/sh")
+                || resolvido == std::path::Path::new("/bin/sh"),
+            "{}",
+            resolvido.display()
+        );
+        assert_eq!(
+            comando_resolvido("teste", "./ferramenta").unwrap(),
+            std::path::Path::new("./ferramenta")
+        );
+        assert!(comando_resolvido("teste", "pinker-comando-certamente-ausente").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stdin_concorre_com_espera_e_propaga_erros() {
+        let leitor = script_processo("leitor", "cat >/dev/null\nexit 7");
+        let entrada = "rosa".repeat(64 * 1024);
+        assert_eq!(
+            processo_com_entrada_resultado(leitor.to_str().unwrap(), &entrada, None).unwrap(),
+            7
+        );
+        assert_eq!(
+            processo_com_entrada_resultado("/bin/true", "", None).unwrap(),
+            0
+        );
+        assert_eq!(
+            processo_com_entrada_resultado("/bin/false", "", None).unwrap(),
+            1
+        );
+
+        let nao_leitor = script_processo("nao-leitor", "exit 0");
+        let erro =
+            processo_com_entrada_resultado(nao_leitor.to_str().unwrap(), &entrada, None).unwrap_err();
+        assert!(erro.contains("falha ao escrever stdin"), "{erro}");
+        assert!(
+            processo_com_entrada_resultado("/caminho/ausente/pinker", "", None)
+                .unwrap_err()
+                .contains("falha ao executar processo")
+        );
+
+        std::fs::remove_file(leitor).expect("remover leitor");
+        std::fs::remove_file(nao_leitor).expect("remover não leitor");
     }
 
     #[test]
