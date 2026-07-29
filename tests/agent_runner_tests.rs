@@ -3,8 +3,6 @@ use pinker_v0::agent::{
     sha256_hex, status, verificar, CheckState, EXIT_ACCEPTED, EXIT_BLOCKED,
 };
 use std::fs;
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -496,11 +494,14 @@ fn falha_de_restauracao_bloqueia_e_interrompe_mutacoes_posteriores() {
     fs::write(root.join("worktree/target.txt"), "abc\n").unwrap();
     fs::write(root.join("delegated/before"), "b").unwrap();
     fs::write(root.join("delegated/after"), "x").unwrap();
-    let first = "mutation.first.target = target.txt\nmutation.first.search_file = before\nmutation.first.replacement_file = after\nmutation.first.expected_matches = 1\nmutation.first.probe_program = /bin/chmod\nmutation.first.probe_arg = 0555\nmutation.first.probe_arg = .\nmutation.first.probe_expected_exit = 0\n";
+    let first = "mutation.first.target = target.txt\nmutation.first.search_file = before\nmutation.first.replacement_file = after\nmutation.first.expected_matches = 1\nmutation.first.probe_program = /usr/bin/python3\nmutation.first.probe_arg = -c\nmutation.first.probe_arg = from pathlib import Path; Path('target.txt').unlink(); Path('target.txt').mkdir()\nmutation.first.probe_expected_exit = 0\n";
     let second = "mutation.second.target = target.txt\nmutation.second.search_file = before\nmutation.second.replacement_file = after\nmutation.second.expected_matches = 1\nmutation.second.probe_program = /bin/false\nmutation.second.probe_expected_exit = 1\n";
     let path = append_spec(&root, &(first.to_string() + second));
     assert_eq!(sensibilidade(&path).unwrap(), EXIT_BLOCKED);
-    fs::set_permissions(root.join("worktree"), fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(
+        root.join("worktree/target.txt").is_dir(),
+        "a operação de filesystem injetada deve impedir a restauração"
+    );
     let events = fs::read_to_string(root.join("delegated/estado/mutation-events.jsonl")).unwrap();
     assert_eq!(events.lines().count(), 1);
     assert!(events.contains("HARNESS_ERROR"));

@@ -1,6 +1,8 @@
 //! Testes do pipeline nativo (Eixo B do Bloco 20, fase B1):
 //! emissão `.s` com init de runtime e build/link/execução de executável real.
 
+mod common;
+
 use pinker_v0::{
     backend_s, cfg_ir, cfg_ir_validate, instr_select, instr_select_validate, ir, ir_validate,
     lexer::Lexer, parser::Parser, semantic,
@@ -441,16 +443,12 @@ fn ambiente_e_processo_emitem_calls_de_runtime() {
 // @pinker-nav:start evidencia.backend-nativo.suporte-driver-c
 // @pinker-nav:domain backend-s
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Helper local detect_cc_driver: sonda `cc`, `gcc` e `clang` por `--version` e devolve Option<String> com o primeiro que responder. É diferente do homônimo produtivo de src/main.rs, que devolve Result; este helper é a origem da guarda silenciosa de driver herdada pelos testes processuais e não monta por si próprio. Região de suporte, sem ownership direto de testes.
-fn detect_cc_driver() -> Option<String> {
-    ["cc", "gcc", "clang"].iter().find_map(|candidate| {
-        let probe = Command::new(candidate).arg("--version").output().ok()?;
-        if probe.status.success() {
-            Some((*candidate).to_string())
-        } else {
-            None
-        }
-    })
+// @pinker-nav:summary A capacidade de driver C, plataforma e staticlib passou ao helper comum `require_native_evidence`, que emite ledger JSON e torna a ausência fatal sob `PINKER_EXIGE_NATIVO=1`; região de suporte sem ownership direto de testes.
+fn require_native_evidence(
+    test: &str,
+    needs_runtime: bool,
+) -> Option<(String, Option<std::path::PathBuf>)> {
+    common::require_native_evidence(test, needs_runtime)
 }
 // @pinker-nav:end evidencia.backend-nativo.suporte-driver-c
 
@@ -460,23 +458,12 @@ fn detect_cc_driver() -> Option<String> {
 // @pinker-nav:summary Dois testes que executam `pink build --nativo` fornecendo PINKER_RT_LIB: o driver C externo monta e linka, libpinker_rt.a é ligada e o ELF resultante é executado, mas somente `status.code() == 42` é validado — stdout não é comparado e stderr aparece apenas como mensagem de falha. Três guardas silenciosas (Linux x86_64, driver C e libpinker_rt.a) fazem com que a suíte possa passar sem exercer esta evidência.
 #[test]
 fn build_nativo_produz_executavel_real_com_runtime() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+    let Some((_driver, Some(runtime_lib))) =
+        require_native_evidence(concat!(module_path!(), ":", line!()), true)
+    else {
         return;
-    }
-    if detect_cc_driver().is_none() {
-        return;
-    }
+    };
     let pink = env!("CARGO_BIN_EXE_pink");
-    let runtime_lib = std::path::Path::new(pink)
-        .parent()
-        .expect("diretório do pink")
-        .join("libpinker_rt.a");
-    if !runtime_lib.is_file() {
-        // `make ci` roda `cargo build` antes dos testes, garantindo a staticlib;
-        // em invocações avulsas sem o artefato, o teste não é conclusivo.
-        eprintln!("libpinker_rt.a ausente; pulando teste de build nativo");
-        return;
-    }
 
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -514,21 +501,12 @@ fn build_nativo_produz_executavel_real_com_runtime() {
 
 #[test]
 fn abi_completa_executa_nativo_com_oito_args_aninhamento_e_recursao() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+    let Some((_driver, Some(runtime_lib))) =
+        require_native_evidence(concat!(module_path!(), ":", line!()), true)
+    else {
         return;
-    }
-    if detect_cc_driver().is_none() {
-        return;
-    }
+    };
     let pink = env!("CARGO_BIN_EXE_pink");
-    let runtime_lib = std::path::Path::new(pink)
-        .parent()
-        .expect("diretório do pink")
-        .join("libpinker_rt.a");
-    if !runtime_lib.is_file() {
-        eprintln!("libpinker_rt.a ausente; pulando teste executável da ABI");
-        return;
-    }
 
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -571,21 +549,12 @@ fn abi_completa_executa_nativo_com_oito_args_aninhamento_e_recursao() {
 // @pinker-nav:summary Três testes (verso dinâmico, listas e mapas) que usam o interpretador como oráculo, fazem build nativo e executam o ELF comparando stdout; o exit é comparado apenas à constante 0 e o `strip_suffix("0\n")` pressupõe retorno zero, de modo que não existe paridade de exit contra o retorno observado. Três guardas silenciosas (plataforma, driver C e libpinker_rt.a) — a suíte pode passar sem exercer esta evidência.
 #[test]
 fn verso_dinamico_nativo_tem_paridade_de_stdout_com_interpretador() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+    let Some((_driver, Some(runtime_lib))) =
+        require_native_evidence(concat!(module_path!(), ":", line!()), true)
+    else {
         return;
-    }
-    if detect_cc_driver().is_none() {
-        return;
-    }
+    };
     let pink = env!("CARGO_BIN_EXE_pink");
-    let runtime_lib = std::path::Path::new(pink)
-        .parent()
-        .expect("diretório do pink")
-        .join("libpinker_rt.a");
-    if !runtime_lib.is_file() {
-        eprintln!("libpinker_rt.a ausente; pulando teste de paridade de verso");
-        return;
-    }
 
     let exemplo = "examples/fase215_verso_dinamico_nativo_valido.pink";
 
@@ -595,12 +564,7 @@ fn verso_dinamico_nativo_tem_paridade_de_stdout_com_interpretador() {
         .output()
         .expect("falha ao rodar interpretador");
     assert!(interp.status.success());
-    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
-    // O CLI imprime o valor de retorno de `principal` como última linha;
-    // o stdout do programa em si é tudo antes dela.
-    let programa_interp = interp_stdout
-        .strip_suffix("0\n")
-        .expect("esperava retorno 0 na última linha do interpretador");
+    let programa_interp = String::from_utf8_lossy(&interp.stdout);
 
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -639,21 +603,12 @@ fn verso_dinamico_nativo_tem_paridade_de_stdout_com_interpretador() {
 
 #[test]
 fn listas_nativas_tem_paridade_de_stdout_com_interpretador() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+    let Some((_driver, Some(runtime_lib))) =
+        require_native_evidence(concat!(module_path!(), ":", line!()), true)
+    else {
         return;
-    }
-    if detect_cc_driver().is_none() {
-        return;
-    }
+    };
     let pink = env!("CARGO_BIN_EXE_pink");
-    let runtime_lib = std::path::Path::new(pink)
-        .parent()
-        .expect("diretório do pink")
-        .join("libpinker_rt.a");
-    if !runtime_lib.is_file() {
-        eprintln!("libpinker_rt.a ausente; pulando teste de paridade de listas");
-        return;
-    }
 
     let exemplo = "examples/fase216_listas_nativas_valido.pink";
 
@@ -663,10 +618,7 @@ fn listas_nativas_tem_paridade_de_stdout_com_interpretador() {
         .output()
         .expect("falha ao rodar interpretador");
     assert!(interp.status.success());
-    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
-    let programa_interp = interp_stdout
-        .strip_suffix("0\n")
-        .expect("esperava retorno 0 na última linha do interpretador");
+    let programa_interp = String::from_utf8_lossy(&interp.stdout);
 
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -705,21 +657,12 @@ fn listas_nativas_tem_paridade_de_stdout_com_interpretador() {
 
 #[test]
 fn mapas_nativos_tem_paridade_de_stdout_com_interpretador() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+    let Some((_driver, Some(runtime_lib))) =
+        require_native_evidence(concat!(module_path!(), ":", line!()), true)
+    else {
         return;
-    }
-    if detect_cc_driver().is_none() {
-        return;
-    }
+    };
     let pink = env!("CARGO_BIN_EXE_pink");
-    let runtime_lib = std::path::Path::new(pink)
-        .parent()
-        .expect("diretório do pink")
-        .join("libpinker_rt.a");
-    if !runtime_lib.is_file() {
-        eprintln!("libpinker_rt.a ausente; pulando teste de paridade de mapas");
-        return;
-    }
 
     let exemplo = "examples/fase217_mapas_nativos_valido.pink";
 
@@ -729,10 +672,7 @@ fn mapas_nativos_tem_paridade_de_stdout_com_interpretador() {
         .output()
         .expect("falha ao rodar interpretador");
     assert!(interp.status.success());
-    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
-    let programa_interp = interp_stdout
-        .strip_suffix("0\n")
-        .expect("esperava retorno 0 na última linha do interpretador");
+    let programa_interp = String::from_utf8_lossy(&interp.stdout);
 
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -773,7 +713,7 @@ fn mapas_nativos_tem_paridade_de_stdout_com_interpretador() {
 // @pinker-nav:start evidencia.backend-nativo.suporte-matriz-paridade-b11
 // @pinker-nav:domain backend-s
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Suporte contíguo da matriz B11: ParidadeNativaCaso, ARGVS_FASE221, CASOS_PARIDADE_B11 com 14 casos sobre 13 exemplos distintos (um caso adicional da fase221 com argv), separar_stdout_e_retorno_interpretador — normalização genérica do retorno do interpretador — e paridade_stdout_e_exit, que compara stdout e exit sob as três guardas. Um único #[test] consome todos os casos e uma falha antecipada impede os casos seguintes; região de suporte, sem ownership direto de testes.
+// @pinker-nav:summary Suporte contíguo da matriz B11: casos versionados e ProgramOutcome canônico, com helpers de execução interpretada e nativa que comparam stdout byte a byte e exit code; a capacidade nativa passa pelo ledger central e a região permanece sem ownership direto de testes.
 #[derive(Clone, Copy)]
 struct ParidadeNativaCaso {
     exemplo: &'static str,
@@ -862,51 +802,62 @@ const CASOS_PARIDADE_B11: &[ParidadeNativaCaso] = &[
     },
 ];
 
-fn separar_stdout_e_retorno_interpretador(stdout: &str) -> (&str, i32) {
-    let sem_quebra_final = stdout
-        .strip_suffix('\n')
-        .expect("stdout do interpretador deve terminar com quebra de linha");
-    let (programa_stdout, retorno) = match sem_quebra_final.rsplit_once('\n') {
-        Some((prefixo, ultima)) => (&stdout[..prefixo.len() + 1], ultima),
-        None => ("", sem_quebra_final),
-    };
-    let retorno = retorno
-        .parse::<i32>()
-        .expect("última linha do interpretador deve ser o retorno numérico de principal");
-    (programa_stdout, retorno)
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ProgramOutcome {
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+    exit_code: i32,
+}
+
+fn process_outcome(output: std::process::Output) -> ProgramOutcome {
+    ProgramOutcome {
+        stdout: output.stdout,
+        stderr: output.stderr,
+        exit_code: output
+            .status
+            .code()
+            .expect("processo deve encerrar normalmente"),
+    }
+}
+
+fn interpreted_outcome(pink: &str, example: &str, argv: &[&str]) -> ProgramOutcome {
+    let mut command = Command::new(pink);
+    command.arg("--run").arg(example);
+    if !argv.is_empty() {
+        command.arg("--").args(argv);
+    }
+    process_outcome(command.output().expect("falha ao executar interpretador"))
+}
+
+fn native_outcome(binary: &std::path::Path, argv: &[&str]) -> ProgramOutcome {
+    process_outcome(
+        Command::new(binary)
+            .args(argv)
+            .output()
+            .expect("falha ao executar binário nativo"),
+    )
+}
+
+fn assert_outcome_parity(interpreted: &ProgramOutcome, native: &ProgramOutcome, context: &str) {
+    assert_eq!(
+        interpreted.stdout, native.stdout,
+        "stdout divergente em {context}"
+    );
+    assert_eq!(
+        interpreted.exit_code, native.exit_code,
+        "exit divergente em {context}"
+    );
 }
 
 fn paridade_stdout_e_exit(caso: ParidadeNativaCaso, marcador: u128) {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+    let Some((_driver, Some(runtime_lib))) =
+        require_native_evidence(concat!(module_path!(), ":", line!()), true)
+    else {
         return;
-    }
-    if detect_cc_driver().is_none() {
-        return;
-    }
+    };
     let pink = env!("CARGO_BIN_EXE_pink");
-    let runtime_lib = std::path::Path::new(pink)
-        .parent()
-        .expect("diretório do pink")
-        .join("libpinker_rt.a");
-    if !runtime_lib.is_file() {
-        eprintln!("libpinker_rt.a ausente; pulando teste de paridade B11");
-        return;
-    }
 
-    let mut interp_cmd = Command::new(pink);
-    interp_cmd.arg("--run").arg(caso.exemplo);
-    if !caso.argv.is_empty() {
-        interp_cmd.arg("--").args(caso.argv);
-    }
-    let interp = interp_cmd.output().expect("falha ao rodar interpretador");
-    assert!(
-        interp.status.success(),
-        "interpretador falhou para {}: {}",
-        caso.exemplo,
-        String::from_utf8_lossy(&interp.stderr)
-    );
-    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
-    let (programa_interp, retorno_interp) = separar_stdout_e_retorno_interpretador(&interp_stdout);
+    let interpreted = interpreted_outcome(pink, caso.exemplo, caso.argv);
 
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -931,23 +882,8 @@ fn paridade_stdout_e_exit(caso: ParidadeNativaCaso, marcador: u128) {
     );
 
     let bin_path = out_dir.join(caso.bin_nome);
-    let run = Command::new(bin_path)
-        .args(caso.argv)
-        .output()
-        .expect("falha ao executar binário nativo");
-    let nativo_stdout = String::from_utf8_lossy(&run.stdout);
-
-    assert_eq!(
-        run.status.code(),
-        Some(retorno_interp),
-        "exit deve ser idêntico ao retorno de principal para {}",
-        caso.exemplo
-    );
-    assert_eq!(
-        programa_interp, nativo_stdout,
-        "stdout deve ser idêntico entre interpretador e nativo para {}",
-        caso.exemplo
-    );
+    let native = native_outcome(&bin_path, caso.argv);
+    assert_outcome_parity(&interpreted, &native, caso.exemplo);
 
     let _ = fs::remove_dir_all(&out_dir);
 }
@@ -970,32 +906,14 @@ fn b11_marco_de_paridade_executa_exemplos_versionados_compativeis() {
 // @pinker-nav:layer evidencia
 // @pinker-nav:summary Helper paridade_stdout, com 25 chamadores: executa o interpretador, faz o build nativo e roda o ELF comparando stdout, mas fixa o exit esperado em 0 usando `strip_suffix("0\n")` e nunca passa argv. Concentra as três guardas silenciosas herdadas pelos chamadores; um retorno terminado em zero, como 10, pode gerar diagnóstico enganoso. Região de suporte, sem ownership direto de testes.
 fn paridade_stdout(exemplo: &str, bin_nome: &str, marcador: u128) {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+    let Some((_driver, Some(runtime_lib))) =
+        require_native_evidence(concat!(module_path!(), ":", line!()), true)
+    else {
         return;
-    }
-    if detect_cc_driver().is_none() {
-        return;
-    }
+    };
     let pink = env!("CARGO_BIN_EXE_pink");
-    let runtime_lib = std::path::Path::new(pink)
-        .parent()
-        .expect("diretório do pink")
-        .join("libpinker_rt.a");
-    if !runtime_lib.is_file() {
-        eprintln!("libpinker_rt.a ausente; pulando teste de paridade");
-        return;
-    }
 
-    let interp = Command::new(pink)
-        .arg("--run")
-        .arg(exemplo)
-        .output()
-        .expect("falha ao rodar interpretador");
-    assert!(interp.status.success());
-    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
-    let programa_interp = interp_stdout
-        .strip_suffix("0\n")
-        .expect("esperava retorno 0 na última linha do interpretador");
+    let interpreted = interpreted_outcome(pink, exemplo, &[]);
 
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1019,17 +937,8 @@ fn paridade_stdout(exemplo: &str, bin_nome: &str, marcador: u128) {
     );
 
     let bin_path = out_dir.join(bin_nome);
-    let run = Command::new(bin_path)
-        .output()
-        .expect("falha ao executar binário nativo");
-    assert_eq!(run.status.code(), Some(0), "exit do nativo");
-    let nativo_stdout = String::from_utf8_lossy(&run.stdout);
-
-    assert_eq!(
-        programa_interp, nativo_stdout,
-        "stdout deve ser idêntico entre interpretador e nativo para {}",
-        exemplo
-    );
+    let native = native_outcome(&bin_path, &[]);
+    assert_outcome_parity(&interpreted, &native, exemplo);
 
     let _ = fs::remove_dir_all(&out_dir);
 }
@@ -1039,71 +948,7 @@ fn paridade_stdout(exemplo: &str, bin_nome: &str, marcador: u128) {
 // interpretador e nativo, usando `separar_stdout_e_retorno_interpretador`
 // (helper B11) para extrair o retorno real da última linha do interpretador.
 fn paridade_stdout_exit_completo(exemplo: &str, bin_nome: &str, marcador: u128) {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-    if detect_cc_driver().is_none() {
-        return;
-    }
-    let pink = env!("CARGO_BIN_EXE_pink");
-    let runtime_lib = std::path::Path::new(pink)
-        .parent()
-        .expect("diretório do pink")
-        .join("libpinker_rt.a");
-    if !runtime_lib.is_file() {
-        eprintln!("libpinker_rt.a ausente; pulando teste de paridade");
-        return;
-    }
-
-    let interp = Command::new(pink)
-        .arg("--run")
-        .arg(exemplo)
-        .output()
-        .expect("falha ao rodar interpretador");
-    assert!(interp.status.success());
-    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
-    let (programa_interp, retorno_interp) = separar_stdout_e_retorno_interpretador(&interp_stdout);
-
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("tempo do sistema")
-        .as_nanos()
-        + marcador;
-    let out_dir = std::env::temp_dir().join(format!("pinker_paridade_{}", nanos));
-    let build = Command::new(pink)
-        .arg("build")
-        .arg("--nativo")
-        .arg("--out-dir")
-        .arg(&out_dir)
-        .arg(exemplo)
-        .env("PINKER_RT_LIB", &runtime_lib)
-        .output()
-        .expect("falha ao invocar pink build");
-    assert!(
-        build.status.success(),
-        "build nativo falhou: {}",
-        String::from_utf8_lossy(&build.stderr)
-    );
-
-    let bin_path = out_dir.join(bin_nome);
-    let run = Command::new(bin_path)
-        .output()
-        .expect("falha ao executar binário nativo");
-    assert_eq!(
-        run.status.code(),
-        Some(retorno_interp),
-        "exit deve ser idêntico ao retorno de principal para {}",
-        exemplo
-    );
-    let nativo_stdout = String::from_utf8_lossy(&run.stdout);
-
-    assert_eq!(
-        programa_interp, nativo_stdout,
-        "stdout deve ser idêntico entre interpretador e nativo para {}",
-        exemplo
-    );
-
-    let _ = fs::remove_dir_all(&out_dir);
+    paridade_stdout(exemplo, bin_nome, marcador);
 }
 // @pinker-nav:end evidencia.backend-nativo.suporte-paridade-stdout
 
@@ -1181,21 +1026,12 @@ fn ambiente_processo_tem_paridade_de_stdout_sem_args() {
 // @pinker-nav:summary Único teste que passa o mesmo argv ao interpretador e ao ELF, comprovando a captura de argc/argv pelo runtime para este exemplo: compara stdout, mantém o exit fixado na constante 0 e depende dos processos externos usados pela fase221. Sob as três guardas silenciosas, pode passar sem exercer a evidência.
 #[test]
 fn ambiente_nativo_le_argv_com_paridade() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+    let Some((_driver, Some(runtime_lib))) =
+        require_native_evidence(concat!(module_path!(), ":", line!()), true)
+    else {
         return;
-    }
-    if detect_cc_driver().is_none() {
-        return;
-    }
+    };
     let pink = env!("CARGO_BIN_EXE_pink");
-    let runtime_lib = std::path::Path::new(pink)
-        .parent()
-        .expect("diretório do pink")
-        .join("libpinker_rt.a");
-    if !runtime_lib.is_file() {
-        eprintln!("libpinker_rt.a ausente; pulando teste de argv");
-        return;
-    }
 
     let exemplo = "examples/fase221_ambiente_processo_nativos_valido.pink";
     let argv = [
@@ -1214,10 +1050,7 @@ fn ambiente_nativo_le_argv_com_paridade() {
         .output()
         .expect("falha ao rodar interpretador");
     assert!(interp.status.success());
-    let interp_stdout = String::from_utf8_lossy(&interp.stdout);
-    let programa_interp = interp_stdout
-        .strip_suffix("0\n")
-        .expect("esperava retorno 0 na última linha do interpretador");
+    let programa_interp = String::from_utf8_lossy(&interp.stdout);
 
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1262,21 +1095,12 @@ fn ambiente_nativo_le_argv_com_paridade() {
 // @pinker-nav:summary Único teste que faz build nativo e execução real cobrindo construções gerais de controle de fluxo, validando somente `status.code() == 42` e não comparando stdout. Está fisicamente entre blocos de paridade, mas não pertence a eles; sob as três guardas silenciosas pode passar sem exercer a evidência.
 #[test]
 fn controle_fluxo_geral_executa_nativo_com_todos_os_construtos() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+    let Some((_driver, Some(runtime_lib))) =
+        require_native_evidence(concat!(module_path!(), ":", line!()), true)
+    else {
         return;
-    }
-    if detect_cc_driver().is_none() {
-        return;
-    }
+    };
     let pink = env!("CARGO_BIN_EXE_pink");
-    let runtime_lib = std::path::Path::new(pink)
-        .parent()
-        .expect("diretório do pink")
-        .join("libpinker_rt.a");
-    if !runtime_lib.is_file() {
-        eprintln!("libpinker_rt.a ausente; pulando teste executável de controle de fluxo");
-        return;
-    }
 
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1766,10 +1590,11 @@ fn fase244_paridade_fonte(
     marcador: u128,
     stdout_esperado: &[u8],
 ) -> String {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+    let Some((_driver, _runtime)) =
+        require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return String::new();
-    }
-    let _driver = detect_cc_driver().expect("Fase 244 exige driver C para executar ELF real");
+    };
     let pink = env!("CARGO_BIN_EXE_pink");
     let runtime_lib = std::path::Path::new(pink)
         .parent()
@@ -1812,12 +1637,8 @@ fn fase244_paridade_fonte(
         "interpretador falhou: {}",
         String::from_utf8_lossy(&interp.stderr)
     );
-    assert!(
-        interp.stdout.ends_with(b"0\n"),
-        "interpretador deveria encerrar com retorno 0"
-    );
-    let programa_interp = &interp.stdout[..interp.stdout.len() - 2];
-    assert_eq!(programa_interp, stdout_esperado);
+    assert_eq!(interp.status.code(), Some(0));
+    assert_eq!(interp.stdout, stdout_esperado);
 
     let build = Command::new(pink)
         .arg("build")
@@ -1839,7 +1660,7 @@ fn fase244_paridade_fonte(
         .expect("executar ELF da Fase 244");
     assert_eq!(run.status.code(), Some(0), "exit nativo deve equivaler a 0");
     assert_eq!(
-        programa_interp, run.stdout,
+        interp.stdout, run.stdout,
         "stdout deve coincidir byte a byte entre interpretador e ELF"
     );
     assert_eq!(run.stdout, stdout_esperado);

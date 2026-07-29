@@ -25,25 +25,7 @@ jobs:
           toolchain: "1.78.0"
           components: rustfmt, clippy
 
-      - name: Preflight
-        run: ./ci_env.sh --preflight
-
-      - name: cargo build
-        run: ./ci_env.sh cargo build --locked
-
-      - name: cargo check
-        run: ./ci_env.sh cargo check --locked
-
-      - name: cargo fmt --check
-        run: ./ci_env.sh cargo fmt --check
-
-      - name: cargo clippy
-        run: ./ci_env.sh cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: cargo test
-        run: ./ci_env.sh cargo test --locked
-
-      - name: cargo doc
-        run: ./ci_env.sh cargo doc --no-deps --locked
+      - name: Suíte canônica integral
+        run: PINKER_EXIGE_NATIVO=1 make ci
         env:
           RUSTDOCFLAGS: "-D warnings"
