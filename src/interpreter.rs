@@ -859,8 +859,12 @@ fn exec_instr(
                 if !alive {
                     return Err(runtime_err("uso após liberar detectado em memória pública"));
                 }
+                let width = runtime_type_width(*ty);
+                if addr % width != 0 {
+                    return Err(runtime_err("acesso desalinhado à memória pública"));
+                }
                 let end = addr
-                    .checked_add(runtime_type_width(*ty))
+                    .checked_add(width)
                     .ok_or_else(|| runtime_err("overflow no acesso à memória pública"))?;
                 if end > base + size {
                     return Err(runtime_err("acesso fora dos limites da alocação pública"));
@@ -871,6 +875,11 @@ fn exec_instr(
             } else {
                 deref_load_normal(memory, addr)
             };
+            let loaded = loaded.or_else(|| {
+                public_memory_region(memory, addr)
+                    .filter(|(_, _, alive)| *alive)
+                    .map(|_| zero_runtime_value_for_type(*ty))
+            });
             let Some(value) = loaded else {
                 return Err(runtime_err(
                     "deref_load em endereço inválido ou não inicializado",
@@ -890,14 +899,18 @@ fn exec_instr(
                 if !alive {
                     return Err(runtime_err("uso após liberar detectado em memória pública"));
                 }
+                let width = runtime_type_width(*ty);
+                if addr % width != 0 {
+                    return Err(runtime_err("acesso desalinhado à memória pública"));
+                }
                 let end = addr
-                    .checked_add(runtime_type_width(*ty))
+                    .checked_add(width)
                     .ok_or_else(|| runtime_err("overflow no acesso à memória pública"))?;
                 if end > base + size {
                     return Err(runtime_err("acesso fora dos limites da alocação pública"));
                 }
             }
-            if !memory.contains_key(&addr) {
+            if !memory.contains_key(&addr) && public_memory_region(memory, addr).is_none() {
                 return Err(runtime_err(
                     "deref_store em endereço inválido ou não inicializado",
                 ));
@@ -972,22 +985,22 @@ fn exec_instr(
             stack.push(bin_int_checked_mod(lhs, rhs)?);
         }
         MachineInstr::CmpEq => {
-            let (lhs, rhs) = pop_bin_numeric(stack, "cmp_eq exige dois inteiros")?;
-            stack.push(RuntimeValue::Bool(cmp_int(
-                lhs,
-                rhs,
-                |a, b| a == b,
-                |a, b| a == b,
-            )?));
+            let rhs = pop(stack, "cmp_eq exige dois valores")?;
+            let lhs = pop(stack, "cmp_eq exige dois valores")?;
+            let equal = match (lhs, rhs) {
+                (RuntimeValue::Ptr(a), RuntimeValue::Ptr(b)) => a == b,
+                (lhs, rhs) => cmp_int(lhs, rhs, |a, b| a == b, |a, b| a == b)?,
+            };
+            stack.push(RuntimeValue::Bool(equal));
         }
         MachineInstr::CmpNe => {
-            let (lhs, rhs) = pop_bin_numeric(stack, "cmp_ne exige dois inteiros")?;
-            stack.push(RuntimeValue::Bool(cmp_int(
-                lhs,
-                rhs,
-                |a, b| a != b,
-                |a, b| a != b,
-            )?));
+            let rhs = pop(stack, "cmp_ne exige dois valores")?;
+            let lhs = pop(stack, "cmp_ne exige dois valores")?;
+            let different = match (lhs, rhs) {
+                (RuntimeValue::Ptr(a), RuntimeValue::Ptr(b)) => a != b,
+                (lhs, rhs) => cmp_int(lhs, rhs, |a, b| a != b, |a, b| a != b)?,
+            };
+            stack.push(RuntimeValue::Bool(different));
         }
         MachineInstr::CmpLt => {
             let (lhs, rhs) = pop_bin_numeric(stack, "cmp_lt exige dois inteiros")?;
@@ -1161,6 +1174,9 @@ fn exec_instr(
             let RuntimeValue::Ptr(address) = callee_value else {
                 return Err(runtime_err("call_raw exige ponteiro cru de função"));
             };
+            if address == 0 {
+                return Err(runtime_err("chamada nula por ponteiro cru de função"));
+            }
             let function_name = raw_function_name(program, address)
                 .ok_or_else(|| runtime_err("call_raw com endereço de função inválido"))?;
             let args = pop_args(stack, *argc)?;
@@ -1318,7 +1334,6 @@ fn exec_instr(
 // @pinker-nav:layer interpreter
 // @pinker-nav:summary Implementa intrínsecas hospedadas de aleatoriedade inicial, validando aridade, semente e handle de gerador, mutando o estado pseudoaleatório do interpretador e retornando handles ou números; não representa geradores do runtime nativo.
 const PUBLIC_MEMORY_BASE: usize = 0x5000_0000;
-const PUBLIC_MEMORY_MAX_ALLOCATION: usize = 16 * 1024 * 1024;
 const PUBLIC_MEMORY_COUNT_KEY: usize = usize::MAX;
 const PUBLIC_MEMORY_NEXT_KEY: usize = usize::MAX - 1;
 const PUBLIC_MEMORY_META_START: usize = usize::MAX - 2;
@@ -1343,6 +1358,15 @@ fn runtime_type_width(ty: TypeIR) -> usize {
     }
 }
 
+fn zero_runtime_value_for_type(ty: TypeIR) -> RuntimeValue {
+    match ty {
+        TypeIR::I8 | TypeIR::I16 | TypeIR::I32 | TypeIR::I64 => RuntimeValue::IntSigned(0),
+        TypeIR::Logica => RuntimeValue::Bool(false),
+        TypeIR::Pointer { .. } | TypeIR::FunctionPointer => RuntimeValue::Ptr(0),
+        _ => RuntimeValue::Int(0),
+    }
+}
+
 fn public_memory_meta_key(index: usize, field: usize) -> Option<usize> {
     PUBLIC_MEMORY_META_START.checked_sub(index.checked_mul(3)?.checked_add(field)?)
 }
@@ -1358,7 +1382,8 @@ fn public_memory_region(
     memory: &HashMap<usize, RuntimeValue>,
     address: usize,
 ) -> Option<(usize, usize, bool)> {
-    for index in 0..public_memory_count(memory) {
+    let count = public_memory_count(memory);
+    for index in (0..count).rev() {
         let base = match memory.get(&public_memory_meta_key(index, 0)?) {
             Some(RuntimeValue::Ptr(base)) => *base,
             _ => continue,
@@ -1372,6 +1397,23 @@ fn public_memory_region(
             Some(RuntimeValue::Bool(true))
         );
         if address >= base && address < base.saturating_add(size) {
+            return Some((base, size, alive));
+        }
+    }
+    for index in (0..count).rev() {
+        let base = match memory.get(&public_memory_meta_key(index, 0)?) {
+            Some(RuntimeValue::Ptr(base)) => *base,
+            _ => continue,
+        };
+        let size = match memory.get(&public_memory_meta_key(index, 1)?) {
+            Some(RuntimeValue::Int(size)) => usize::try_from(*size).ok()?,
+            _ => continue,
+        };
+        if address == base.saturating_add(size) {
+            let alive = matches!(
+                memory.get(&public_memory_meta_key(index, 2)?),
+                Some(RuntimeValue::Bool(true))
+            );
             return Some((base, size, alive));
         }
     }
@@ -1390,10 +1432,13 @@ fn public_memory_allocate(
     if size == 0 {
         return Err(runtime_err("'alocar' rejeita tamanho zero"));
     }
-    if size > PUBLIC_MEMORY_MAX_ALLOCATION {
+    if size > (isize::MAX as usize).saturating_sub(16) {
         return Err(runtime_err(
-            "'alocar' excede o limite público de 16777216 bytes",
+            "'alocar' excede o maior bloco representável pela plataforma",
         ));
+    }
+    if cfg!(debug_assertions) && std::env::var_os("PINKER_TESTE_FALHA_ALOCACAO_PUBLICA").is_some() {
+        return Err(runtime_err("'alocar' falhou ao reservar memória"));
     }
     let rounded = size
         .checked_add(15)
@@ -1426,9 +1471,6 @@ fn public_memory_allocate(
             .ok_or_else(|| runtime_err("registro de alocação pública excedeu a plataforma"))?,
         RuntimeValue::Bool(true),
     );
-    for offset in 0..size {
-        memory.insert(base + offset, RuntimeValue::Int(0));
-    }
     Ok(IntrinsicCall::Done(Some(RuntimeValue::Ptr(base))))
 }
 
@@ -1439,6 +1481,9 @@ fn public_memory_free(
     let [RuntimeValue::Ptr(pointer)] = args else {
         return Err(runtime_err("'liberar' exige um ponteiro-base 'seta<u8>'"));
     };
+    if *pointer == 0 {
+        return Err(runtime_err("'liberar' rejeita ponteiro nulo"));
+    }
     for index in 0..public_memory_count(memory) {
         let base_key = public_memory_meta_key(index, 0)
             .ok_or_else(|| runtime_err("registro de alocação pública inválido"))?;
@@ -1457,19 +1502,36 @@ fn public_memory_free(
         if !alive {
             return Err(runtime_err("'liberar' detectou double free"));
         }
-        let size = match memory.get(&size_key) {
+        let _size = match memory.get(&size_key) {
             Some(RuntimeValue::Int(size)) => usize::try_from(*size)
                 .map_err(|_| runtime_err("tamanho registrado de alocação inválido"))?,
             _ => return Err(runtime_err("metadados de alocação pública ausentes")),
         };
-        for offset in 0..size {
-            memory.remove(&(base + offset));
-        }
         memory.insert(alive_key, RuntimeValue::Bool(false));
         return Ok(IntrinsicCall::Done(None));
     }
+    if (0..public_memory_count(memory)).any(|index| {
+        let Some(base_key) = public_memory_meta_key(index, 0) else {
+            return false;
+        };
+        let Some(size_key) = public_memory_meta_key(index, 1) else {
+            return false;
+        };
+        let Some(RuntimeValue::Ptr(base)) = memory.get(&base_key) else {
+            return false;
+        };
+        let Some(RuntimeValue::Int(size)) = memory.get(&size_key) else {
+            return false;
+        };
+        usize::try_from(*size)
+            .is_ok_and(|size| *pointer > *base && *pointer <= base.saturating_add(size))
+    }) {
+        return Err(runtime_err(
+            "'liberar' rejeita ponteiro interior; use o ponteiro-base",
+        ));
+    }
     Err(runtime_err(
-        "'liberar' rejeita ponteiro estrangeiro ou que não é ponteiro-base",
+        "'liberar' rejeita ponteiro estrangeiro ou de domínio interno",
     ))
 }
 
@@ -5021,7 +5083,10 @@ fn coerce_runtime_value_to_type(
         };
     }
 
-    if matches!(ty, crate::ir::TypeIR::Pointer { .. }) {
+    if matches!(
+        ty,
+        crate::ir::TypeIR::Pointer { .. } | crate::ir::TypeIR::FunctionPointer
+    ) {
         return match value {
             RuntimeValue::Int(v) => Ok(RuntimeValue::Ptr(v as usize)),
             RuntimeValue::IntSigned(v) if v < 0 => Err(runtime_err(

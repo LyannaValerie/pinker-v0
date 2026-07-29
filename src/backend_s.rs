@@ -45,7 +45,7 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 /// O resultado mapeia `principal` para o símbolo `main`, para permitir linkedição
 /// via driver C (`cc`/`gcc`/`clang`) sem runtime próprio.
 pub fn emit_external_toolchain_subset(selected: &SelectedProgram) -> Result<String, PinkerError> {
-    let program = extract_external_callconv_program(selected)?;
+    let program = extract_external_callconv_program(selected, false)?;
     Ok(render_external_x86_64_linux_callconv_impl(&program, false))
 }
 // @pinker-nav:end backend-s.pipeline.toolchain-externa
@@ -61,7 +61,7 @@ pub fn emit_external_toolchain_subset(selected: &SelectedProgram) -> Result<Stri
 pub fn emit_external_toolchain_subset_nativo(
     selected: &SelectedProgram,
 ) -> Result<String, PinkerError> {
-    let program = extract_external_callconv_program(selected)?;
+    let program = extract_external_callconv_program(selected, true)?;
     Ok(render_external_x86_64_linux_callconv_impl(&program, true))
 }
 // @pinker-nav:end backend-s.pipeline.nativo-runtime
@@ -192,6 +192,7 @@ const REG_TMP: &str = "%r10";
 // @pinker-nav:summary `extract_external_callconv_program` (início): deduplicação de símbolos globais (recusa duplicados), aceitação apenas de globais estáticas `bombom`/`logica` com inicializador literal inteiro/lógico (`OperandIR::Int`/`Bool`), montagem de `rodata_globals`, e a exigência de função `principal`. Primeira responsabilidade contígua da extração para `ExternalCallConvProgram`.
 fn extract_external_callconv_program(
     selected: &SelectedProgram,
+    native_runtime: bool,
 ) -> Result<ExternalCallConvProgram, PinkerError> {
     let mut seen_globals = HashSet::new();
     let mut rodata_globals = Vec::new();
@@ -260,7 +261,12 @@ fn extract_external_callconv_program(
                 && is_external_trait_receiver_type(ty);
             let is_trait_method_word =
                 function.name.starts_with("__impl_") && ty.is_native_abi_word();
-            if !is_external_param_type(ty) && !is_trait_receiver && !is_trait_method_word {
+            let supported_param = if native_runtime {
+                is_external_param_type(ty) || is_external_scalar_param_type(ty)
+            } else {
+                is_external_param_type(ty)
+            };
+            if !supported_param && !is_trait_receiver && !is_trait_method_word {
                 return Err(err(
                     "subset externo montável aceita parâmetro `bombom`, `u32`, `u64`, `verso` opaco mínimo, `ninho` opaco ou `seta<T>` no recorte conservador",
                 ));
@@ -474,7 +480,11 @@ fn extract_external_callconv_program(
                         ty,
                         is_volatile,
                     } => {
-                        if !is_external_deref_load_type(ty) {
+                        if !(if native_runtime {
+                            is_external_deref_load_type(ty)
+                        } else {
+                            is_external_legacy_deref_load_type(ty)
+                        }) {
                             return Err(err(
                                 "subset externo montável (Fase 134) aceita `deref_load` apenas no recorte mínimo `bombom`/`u32`/`u64` (camada 4 conservadora de `ninho` heterogêneo + legado homogêneo)",
                             ));
@@ -490,9 +500,25 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         );
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
-                        body.push(match ty {
-                            TypeIR::U8 => format!("movzbq ({}), {}", REG_RET, REG_RET),
-                            _ => format!("movq ({}), {}", REG_RET, REG_RET),
+                        body.push(format!("movq {}, %rdi", REG_RET));
+                        body.push(format!("movq ${}, %rsi", external_memory_width(*ty)));
+                        body.push(format!("movq ${}, %rdx", external_memory_alignment(*ty)));
+                        body.push("call pinker_publico_validar_acesso".to_string());
+                        body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
+                        body.push(if native_runtime {
+                            match ty {
+                                TypeIR::U8 | TypeIR::Logica => {
+                                    format!("movzbq ({}), {}", REG_RET, REG_RET)
+                                }
+                                TypeIR::I8 => format!("movsbq ({}), {}", REG_RET, REG_RET),
+                                TypeIR::U16 => format!("movzwq ({}), {}", REG_RET, REG_RET),
+                                TypeIR::I16 => format!("movswq ({}), {}", REG_RET, REG_RET),
+                                TypeIR::U32 => format!("movl ({}), %eax", REG_RET),
+                                TypeIR::I32 => format!("movslq ({}), {}", REG_RET, REG_RET),
+                                _ => format!("movq ({}), {}", REG_RET, REG_RET),
+                            }
+                        } else {
+                            format!("movq ({}), {}", REG_RET, REG_RET)
                         });
                         body.push(format!(
                             "movq {}, -{}(%rbp)",
@@ -506,7 +532,11 @@ fn extract_external_callconv_program(
                         ty,
                         is_volatile,
                     } => {
-                        if !is_external_deref_store_type(ty) {
+                        if !(if native_runtime {
+                            is_external_deref_store_type(ty)
+                        } else {
+                            is_external_legacy_deref_store_type(ty)
+                        }) {
                             return Err(err(
                                 "subset externo montável (Fase 134) aceita `deref_store` apenas no recorte mínimo `bombom`/`u32`/`u64` (camada 4 conservadora de `ninho` heterogêneo + legado homogêneo)",
                             ));
@@ -527,15 +557,32 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         );
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
+                        body.push(format!("movq {}, %rdi", REG_RET));
+                        body.push(format!("movq ${}, %rsi", external_memory_width(*ty)));
+                        body.push(format!("movq ${}, %rdx", external_memory_alignment(*ty)));
+                        body.push("call pinker_publico_validar_acesso".to_string());
+                        body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
                         body.extend(load_operand(
                             REG_TMP,
                             value,
                             &slot_offsets,
                             &rodata_strings,
                         )?);
-                        body.push(match ty {
-                            TypeIR::U8 => format!("movb %r10b, ({})", REG_RET),
-                            _ => format!("movq {}, ({})", REG_TMP, REG_RET),
+                        body.push(if native_runtime {
+                            match ty {
+                                TypeIR::U8 | TypeIR::I8 | TypeIR::Logica => {
+                                    format!("movb %r10b, ({})", REG_RET)
+                                }
+                                TypeIR::U16 | TypeIR::I16 => {
+                                    format!("movw %r10w, ({})", REG_RET)
+                                }
+                                TypeIR::U32 | TypeIR::I32 => {
+                                    format!("movl %r10d, ({})", REG_RET)
+                                }
+                                _ => format!("movq {}, ({})", REG_TMP, REG_RET),
+                            }
+                        } else {
+                            format!("movq {}, ({})", REG_TMP, REG_RET)
                         });
                     }
                     SelectedInstr::Cast {
@@ -543,6 +590,25 @@ fn extract_external_callconv_program(
                         value,
                         target_type,
                     } => {
+                        if matches!(target_type, TypeIR::Pointer { .. }) {
+                            register_rodata_strings_for_operand(
+                                value,
+                                &mut rodata_string_labels,
+                                &mut rodata_strings,
+                            );
+                            body.extend(load_operand(
+                                REG_RET,
+                                value,
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                            body.push(format!(
+                                "movq {}, -{}(%rbp)",
+                                REG_RET,
+                                slot_offsets[&temp_key(*dest)]
+                            ));
+                            continue;
+                        }
                         let OperandIR::Local(source_slot) = value else {
                             return Err(err(
                                 "subset externo montável (Fase 134) exige origem em slot local/parâmetro tipado para `virar` mínimo",
@@ -555,9 +621,7 @@ fn extract_external_callconv_program(
                         };
                         let cast_supported = (*source_ty == TypeIR::U32
                             && *target_type == TypeIR::U64)
-                            || (*source_ty == TypeIR::U64 && *target_type == TypeIR::U32)
-                            || (matches!(source_ty, TypeIR::Pointer { .. })
-                                && matches!(target_type, TypeIR::Pointer { .. }));
+                            || (*source_ty == TypeIR::U64 && *target_type == TypeIR::U32);
                         if !cast_supported {
                             return Err(err(
                                 "subset externo montável (Fase 134/Fase 246) aceita `virar` de slot `u32 -> u64`, `u64 -> u32` ou `seta<T> -> seta<U>`",
@@ -829,6 +893,13 @@ fn extract_external_callconv_program(
                                 &mut rodata_strings,
                             );
                         }
+                        body.extend(load_operand(
+                            "%rdi",
+                            callee,
+                            &slot_offsets,
+                            &rodata_strings,
+                        )?);
+                        body.push("call pinker_publico_validar_ponteiro_funcao".to_string());
                         let stack_args = args.len().saturating_sub(ARG_REGS.len());
                         let pad = stack_args % 2;
                         if pad == 1 {
@@ -1445,6 +1516,9 @@ fn render_external_x86_64_linux_callconv_impl(
                 &format!(".L{}_{}:", function.name, block.label),
             );
             for stmt in &block.body {
+                if !runtime_init && stmt.starts_with("call pinker_publico_validar_") {
+                    continue;
+                }
                 line(&mut out, 1, stmt);
             }
             match &block.terminator {
@@ -2094,6 +2168,30 @@ fn is_external_deref_load_type(ty: &TypeIR) -> bool {
         ty,
         TypeIR::Bombom
             | TypeIR::U8
+            | TypeIR::U16
+            | TypeIR::U32
+            | TypeIR::U64
+            | TypeIR::I8
+            | TypeIR::I16
+            | TypeIR::I32
+            | TypeIR::I64
+            | TypeIR::Logica
+            | TypeIR::Function
+            | TypeIR::FunctionPointer
+            | TypeIR::Pointer { .. }
+            | TypeIR::TraitObject
+    )
+}
+
+fn is_external_deref_store_type(ty: &TypeIR) -> bool {
+    is_external_deref_load_type(ty)
+}
+
+fn is_external_legacy_deref_load_type(ty: &TypeIR) -> bool {
+    matches!(
+        ty,
+        TypeIR::Bombom
+            | TypeIR::U8
             | TypeIR::U32
             | TypeIR::U64
             | TypeIR::Function
@@ -2101,8 +2199,21 @@ fn is_external_deref_load_type(ty: &TypeIR) -> bool {
     )
 }
 
-fn is_external_deref_store_type(ty: &TypeIR) -> bool {
+fn is_external_legacy_deref_store_type(ty: &TypeIR) -> bool {
     matches!(ty, TypeIR::Bombom | TypeIR::U8 | TypeIR::U32 | TypeIR::U64)
+}
+
+fn external_memory_width(ty: TypeIR) -> u64 {
+    match ty {
+        TypeIR::U8 | TypeIR::I8 | TypeIR::Logica => 1,
+        TypeIR::U16 | TypeIR::I16 => 2,
+        TypeIR::U32 | TypeIR::I32 => 4,
+        _ => 8,
+    }
+}
+
+fn external_memory_alignment(ty: TypeIR) -> u64 {
+    external_memory_width(ty)
 }
 
 fn is_external_param_type(ty: &TypeIR) -> bool {
@@ -2183,23 +2294,23 @@ fn is_external_local_type(ty: &TypeIR) -> bool {
 }
 
 fn is_external_ret_type(ty: &TypeIR) -> bool {
-    matches!(
-        ty,
-        TypeIR::Bombom
-            | TypeIR::Verso
-            | TypeIR::Logica
-            | TypeIR::ListBombom
-            | TypeIR::ListVerso
-            | TypeIR::MapVersoBombom
-            | TypeIR::MapVersoVerso
-            | TypeIR::MapBombomBombom
-            | TypeIR::MapBombomVerso
-            | TypeIR::Pointer { .. }
-            | TypeIR::Function
-            | TypeIR::FunctionPointer
-            | TypeIR::TraitObject
-            | TypeIR::Nulo
-    )
+    is_external_scalar_param_type(ty)
+        || matches!(
+            ty,
+            TypeIR::Verso
+                | TypeIR::Logica
+                | TypeIR::ListBombom
+                | TypeIR::ListVerso
+                | TypeIR::MapVersoBombom
+                | TypeIR::MapVersoVerso
+                | TypeIR::MapBombomBombom
+                | TypeIR::MapBombomVerso
+                | TypeIR::Pointer { .. }
+                | TypeIR::Function
+                | TypeIR::FunctionPointer
+                | TypeIR::TraitObject
+                | TypeIR::Nulo
+        )
 }
 
 /// Retornos aceitos em `call`: os de função mais `nulo` (intrínsecas de

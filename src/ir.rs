@@ -3707,9 +3707,37 @@ impl<'a> FunctionLowerer<'a> {
                 }
 
                 let ExprKind::Ident(name) = &callee.kind else {
-                    return Err(PinkerError::Ir {
-                        msg: "IR da v0 suporta apenas chamadas diretas por nome".to_string(),
-                        span: expr.span,
+                    let lowered_callee = self.lower_value(callee)?;
+                    if lowered_callee.ty != TypeIR::FunctionPointer {
+                        return Err(PinkerError::Ir {
+                            msg: "lowering de chamada por expressão exige ponteiro cru de função"
+                                .to_string(),
+                            span: callee.span,
+                        });
+                    }
+                    let Some(metadata) =
+                        self.raw_function_metadata_for_value(&lowered_callee.value)?
+                    else {
+                        return Err(PinkerError::Ir {
+                            msg: "lowering perdeu a assinatura da expressão de ponteiro cru"
+                                .to_string(),
+                            span: callee.span,
+                        });
+                    };
+                    let ir_args = args
+                        .iter()
+                        .map(|arg| self.lower_value(arg).map(|typed| typed.value))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    return Ok(TypedValueIR {
+                        value: ValueIR::CallRaw {
+                            callee: Box::new(lowered_callee.value),
+                            args: ir_args,
+                            param_types: metadata.param_types,
+                            ret_type: metadata.ret_type,
+                        },
+                        ty: metadata.ret_type,
+                        struct_name: None,
+                        ptr_array_bombom_size: None,
                     });
                 };
 

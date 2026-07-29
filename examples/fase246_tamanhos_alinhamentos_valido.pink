@@ -1,0 +1,60 @@
+pacote main;
+
+carinho exercitar_tamanhos() {
+    nova a1: seta<u8> = alocar(1);
+    nova a2: seta<u8> = alocar(2);
+    nova a3: seta<u8> = alocar(3);
+    nova a4: seta<u8> = alocar(4);
+    nova a7: seta<u8> = alocar(7);
+    nova a8: seta<u8> = alocar(8);
+    nova a9: seta<u8> = alocar(9);
+    nova pagina_menos: seta<u8> = alocar(4095);
+    nova pagina: seta<u8> = alocar(4096);
+    nova pagina_mais: seta<u8> = alocar(4097);
+    nova grande_plausivel: seta<u8> = alocar(33554432);
+    liberar(a1);
+    liberar(a2);
+    liberar(a3);
+    liberar(a4);
+    liberar(a7);
+    liberar(a8);
+    liberar(a9);
+    liberar(pagina_menos);
+    liberar(pagina);
+    liberar(pagina_mais);
+    liberar(grande_plausivel);
+}
+
+carinho principal() -> bombom {
+    exercitar_tamanhos();
+    nova bytes: seta<u8> = alocar(64);
+    nova p8: seta<u8> = bytes;
+    nova p16: seta<u16> = (bytes virar seta<bombom> + 2) virar seta<u16>;
+    nova p32: seta<u32> = (bytes virar seta<bombom> + 8) virar seta<u32>;
+    nova p64: seta<u64> = (bytes virar seta<bombom> + 16) virar seta<u64>;
+    nova pi8: seta<i8> = (bytes virar seta<bombom> + 24) virar seta<i8>;
+    nova pi16: seta<i16> = (bytes virar seta<bombom> + 26) virar seta<i16>;
+    nova pi32: seta<i32> = (bytes virar seta<bombom> + 32) virar seta<i32>;
+    nova pi64: seta<i64> = (bytes virar seta<bombom> + 40) virar seta<i64>;
+    nova plogica: seta<logica> = (bytes virar seta<bombom> + 48) virar seta<logica>;
+    *p8 = 1;
+    *p16 = 2;
+    *p32 = 3;
+    *p64 = 4;
+    *pi8 = 5;
+    *pi16 = 6;
+    *pi32 = 7;
+    *pi64 = 8;
+    *plogica = verdade;
+    falar(*p8);
+    falar(*p16);
+    falar(*p32);
+    falar(*p64);
+    falar(*pi8);
+    falar(*pi16);
+    falar(*pi32);
+    falar(*pi64);
+    falar(*plogica);
+    liberar(bytes);
+    mimo 0;
+}

@@ -1,0 +1,44 @@
+pacote main;
+
+carinho eco_u8(v: u8) -> u8 { mimo v; }
+carinho eco_u16(v: u16) -> u16 { mimo v; }
+carinho eco_u32(v: u32) -> u32 { mimo v; }
+carinho eco_u64(v: u64) -> u64 { mimo v; }
+carinho eco_i8(v: i8) -> i8 { mimo v; }
+carinho eco_i16(v: i16) -> i16 { mimo v; }
+carinho eco_i32(v: i32) -> i32 { mimo v; }
+carinho eco_i64(v: i64) -> i64 { mimo v; }
+carinho eco_logica(v: logica) -> logica { mimo v; }
+carinho eco_bombom(v: bombom) -> bombom { mimo v; }
+carinho eco_verso(v: verso) -> verso { mimo v; }
+carinho eco_dados(v: seta<u8>) -> seta<u8> { mimo v; }
+
+carinho principal() -> bombom {
+    nova f_u8: seta<carinho(u8) -> u8> = &eco_u8;
+    nova f_u16: seta<carinho(u16) -> u16> = &eco_u16;
+    nova f_u32: seta<carinho(u32) -> u32> = &eco_u32;
+    nova f_u64: seta<carinho(u64) -> u64> = &eco_u64;
+    nova f_i8: seta<carinho(i8) -> i8> = &eco_i8;
+    nova f_i16: seta<carinho(i16) -> i16> = &eco_i16;
+    nova f_i32: seta<carinho(i32) -> i32> = &eco_i32;
+    nova f_i64: seta<carinho(i64) -> i64> = &eco_i64;
+    nova f_logica: seta<carinho(logica) -> logica> = &eco_logica;
+    nova f_bombom: seta<carinho(bombom) -> bombom> = &eco_bombom;
+    nova f_verso: seta<carinho(verso) -> verso> = &eco_verso;
+    nova f_dados: seta<carinho(seta<u8>) -> seta<u8> > = &eco_dados;
+    falar(f_u8(1));
+    falar(f_u16(2));
+    falar(f_u32(3));
+    falar(f_u64(4));
+    falar(f_i8(5));
+    falar(f_i16(6));
+    falar(f_i32(7));
+    falar(f_i64(8));
+    falar(f_logica(verdade));
+    falar(f_bombom(10));
+    falar(f_verso("abi"));
+    nova memoria: seta<u8> = alocar(1);
+    falar(f_dados(memoria) == memoria);
+    liberar(memoria);
+    mimo 0;
+}

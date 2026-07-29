@@ -1303,7 +1303,7 @@ fn apply_instr_effect(
                 "underflow em deref_store",
                 Some("instr='deref_store'"),
             )?;
-            if pair[0] == StackValueType::Logica {
+            if pair[1] == StackValueType::Logica {
                 return Err(err_ctx_with_detail(
                     f,
                     Some(label),
@@ -1314,7 +1314,7 @@ fn apply_instr_effect(
             ensure_compatible(
                 f,
                 label,
-                pair[1],
+                pair[0],
                 type_to_stack(*ty),
                 "deref_store com valor incompatível",
                 Some("instr='deref_store'"),

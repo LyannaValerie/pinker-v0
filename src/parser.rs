@@ -4684,7 +4684,38 @@ impl Parser {
                 let op_span = token.span;
                 let token_kind = token.kind;
                 self.advance();
-                let operand = self.parse_expr_unary()?;
+                let operand = if token_kind == TokenKind::Amp && self.check(TokenKind::Ident) {
+                    let ident = self.advance().expect("identificador verificado").clone();
+                    let mut name = ident.lexeme.clone();
+                    let mut span = ident.span;
+                    if self.match_token(TokenKind::Less) {
+                        let mut type_args = Vec::new();
+                        loop {
+                            type_args.push(self.parse_type()?);
+                            if !self.match_token(TokenKind::Comma) {
+                                break;
+                            }
+                        }
+                        self.consume(
+                            TokenKind::Greater,
+                            "> após argumentos de tipo no endereço de função",
+                        )?;
+                        let original_name = name.clone();
+                        name = Self::generic_function_name(&original_name, &type_args);
+                        self.generic_instantiations.push(GenericInstantiation {
+                            name: original_name,
+                            type_args,
+                            span: ident.span,
+                        });
+                        span = merge_span(span, self.previous().span);
+                    }
+                    Expr {
+                        kind: ExprKind::Ident(name),
+                        span,
+                    }
+                } else {
+                    self.parse_expr_unary()?
+                };
                 if token_kind == TokenKind::Amp {
                     return Ok(Expr {
                         span: merge_span(op_span, operand.span),

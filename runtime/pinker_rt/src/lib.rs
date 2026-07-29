@@ -67,9 +67,8 @@ pub extern "C" fn pinker_rt_versao() -> u64 {
 // @pinker-nav:domain memoria
 // @pinker-nav:layer runtime
 // @pinker-nav:summary Alocador manual com cabeçalho de tamanho: pinker_alocar reserva um bloco alinhado a 16 bytes com o tamanho total gravado no cabeçalho e devolve ponteiro nulo — sem abortar — em overflow do tamanho (checked_add) ou em falha de alocação do sistema; pinker_liberar libera a partir do cabeçalho, confiando, sem validar, que o ponteiro tenha sido devolvido por pinker_alocar e ainda não liberado.
-fn layout_para(tamanho_total: usize) -> Layout {
-    Layout::from_size_align(tamanho_total, ALINHAMENTO)
-        .expect("layout de alocação inválido no runtime pinker_rt")
+fn layout_para(tamanho_total: usize) -> Option<Layout> {
+    Layout::from_size_align(tamanho_total, ALINHAMENTO).ok()
 }
 
 /// Aloca `tamanho` bytes e devolve ponteiro alinhado a 16 bytes.
@@ -82,7 +81,9 @@ pub extern "C" fn pinker_alocar(tamanho: u64) -> *mut u8 {
         Some(total) => total,
         None => return std::ptr::null_mut(),
     };
-    let layout = layout_para(total);
+    let Some(layout) = layout_para(total) else {
+        return std::ptr::null_mut();
+    };
     unsafe {
         let base = alloc(layout);
         if base.is_null() {
@@ -106,10 +107,10 @@ pub unsafe extern "C" fn pinker_liberar(ptr: *mut u8) {
     }
     let base = ptr.sub(CABECALHO);
     let total = (base as *const u64).read() as usize;
-    dealloc(base, layout_para(total));
+    if let Some(layout) = layout_para(total) {
+        dealloc(base, layout);
+    }
 }
-
-const LIMITE_ALOCACAO_PUBLICA: u64 = 16 * 1024 * 1024;
 
 #[derive(Clone, Copy)]
 struct AlocacaoPublica {
@@ -125,23 +126,37 @@ fn erro_memoria_publica(mensagem: &str) -> ! {
     std::process::exit(1);
 }
 
+fn falha_publica_injetada() -> bool {
+    #[cfg(debug_assertions)]
+    {
+        std::env::var_os("PINKER_TESTE_FALHA_ALOCACAO_PUBLICA").is_some()
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        false
+    }
+}
+
 /// Fase 246: entrada pública de `alocar`. Diferentemente de
-/// `pinker_alocar`, rejeita zero, limita o pedido, zera os bytes visíveis e
+/// `pinker_alocar`, rejeita zero, valida toda conversão, zera os bytes visíveis e
 /// registra ownership para que `liberar` possa validar a origem.
 #[no_mangle]
 pub extern "C" fn pinker_publico_alocar(tamanho: u64) -> *mut u8 {
     if tamanho == 0 {
         erro_memoria_publica("'alocar' rejeita tamanho zero");
     }
-    if tamanho > LIMITE_ALOCACAO_PUBLICA {
-        erro_memoria_publica("'alocar' excede o limite público de 16777216 bytes");
+    let tamanho_usize = usize::try_from(tamanho)
+        .unwrap_or_else(|_| erro_memoria_publica("'alocar' excede a largura da plataforma"));
+    if tamanho_usize > (isize::MAX as usize).saturating_sub(CABECALHO) {
+        erro_memoria_publica("'alocar' excede o maior bloco representável pela plataforma");
+    }
+    if falha_publica_injetada() {
+        erro_memoria_publica("'alocar' falhou ao reservar memória");
     }
     let ponteiro = pinker_alocar(tamanho);
     if ponteiro.is_null() {
         erro_memoria_publica("'alocar' falhou ao reservar memória");
     }
-    let tamanho_usize = usize::try_from(tamanho)
-        .unwrap_or_else(|_| erro_memoria_publica("'alocar' excede a largura da plataforma"));
     unsafe {
         ponteiro.write_bytes(0, tamanho_usize);
     }
@@ -167,21 +182,83 @@ pub extern "C" fn pinker_publico_alocar(tamanho: u64) -> *mut u8 {
 /// encaminhar a liberação ao allocator hospedeiro.
 #[no_mangle]
 pub unsafe extern "C" fn pinker_publico_liberar(ponteiro: *mut u8) {
+    if ponteiro.is_null() {
+        erro_memoria_publica("'liberar' rejeita ponteiro nulo");
+    }
     let mut registro = ALOCACOES_PUBLICAS
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
-    let Some(alocacao) = registro
+    if let Some(alocacao) = registro
         .iter_mut()
+        .rev()
         .find(|alocacao| alocacao.base == ponteiro as usize)
-    else {
-        erro_memoria_publica("'liberar' rejeita ponteiro estrangeiro ou que não é ponteiro-base");
+    {
+        if !alocacao.viva {
+            erro_memoria_publica("'liberar' detectou double free");
+        }
+        debug_assert!(alocacao.tamanho > 0);
+        alocacao.viva = false;
+        // Quarentena física até o término do processo: um endereço nunca é
+        // reciclado para esconder double free ou revalidar alias obsoleto.
+        return;
+    }
+    let endereco = ponteiro as usize;
+    if registro.iter().any(|alocacao| {
+        endereco > alocacao.base && endereco <= alocacao.base.saturating_add(alocacao.tamanho)
+    }) {
+        erro_memoria_publica("'liberar' rejeita ponteiro interior; use o ponteiro-base");
+    }
+    erro_memoria_publica("'liberar' rejeita ponteiro estrangeiro ou de domínio interno");
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_publico_validar_acesso(
+    ponteiro: *const u8,
+    largura: u64,
+    alinhamento: u64,
+) {
+    let endereco = ponteiro as usize;
+    let largura = usize::try_from(largura)
+        .unwrap_or_else(|_| erro_memoria_publica("largura de acesso excede a plataforma"));
+    let alinhamento = usize::try_from(alinhamento)
+        .unwrap_or_else(|_| erro_memoria_publica("alinhamento de acesso excede a plataforma"));
+    if largura == 0 || alinhamento == 0 || !alinhamento.is_power_of_two() {
+        erro_memoria_publica("metadados inválidos de acesso à memória pública");
+    }
+    let fim_acesso = endereco
+        .checked_add(largura)
+        .unwrap_or_else(|| erro_memoria_publica("overflow no acesso à memória pública"));
+    let registro = ALOCACOES_PUBLICAS
+        .lock()
+        .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
+    let candidata = registro.iter().rev().find(|alocacao| {
+        let fim = alocacao.base.saturating_add(alocacao.tamanho);
+        (endereco >= alocacao.base && endereco <= fim)
+            || (endereco < alocacao.base && fim_acesso > alocacao.base)
+    });
+    let Some(alocacao) = candidata else {
+        return;
     };
     if !alocacao.viva {
-        erro_memoria_publica("'liberar' detectou double free");
+        erro_memoria_publica("uso após liberar detectado em memória pública");
     }
-    debug_assert!(alocacao.tamanho > 0);
-    alocacao.viva = false;
-    pinker_liberar(ponteiro);
+    if endereco % alinhamento != 0 {
+        erro_memoria_publica("acesso desalinhado à memória pública");
+    }
+    let fim_regiao = alocacao
+        .base
+        .checked_add(alocacao.tamanho)
+        .unwrap_or_else(|| erro_memoria_publica("metadados de região pública inválidos"));
+    if endereco < alocacao.base || fim_acesso > fim_regiao {
+        erro_memoria_publica("acesso fora dos limites da alocação pública");
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_publico_validar_ponteiro_funcao(endereco: usize) {
+    if endereco == 0 {
+        erro_memoria_publica("chamada nula por ponteiro cru de função");
+    }
 }
 // @pinker-nav:end runtime.memoria.alocador
 

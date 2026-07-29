@@ -1,0 +1,6 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova ausente: seta<carinho() -> bombom> = 0;
+    mimo ausente();
+}

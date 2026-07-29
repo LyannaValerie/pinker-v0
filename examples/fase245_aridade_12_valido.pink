@@ -1,0 +1,19 @@
+pacote main;
+
+carinho soma12(
+    a: bombom, b: bombom, c: bombom, d: bombom,
+    e: bombom, f: bombom, g: bombom, h: bombom,
+    i: bombom, j: bombom, k: bombom, l: bombom
+) -> bombom {
+    mimo a + b + c + d + e + f + g + h + i + j + k + l;
+}
+
+carinho principal() -> bombom {
+    nova somar: seta<carinho(
+        bombom, bombom, bombom, bombom,
+        bombom, bombom, bombom, bombom,
+        bombom, bombom, bombom, bombom
+    ) -> bombom> = &soma12;
+    falar(somar(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12));
+    mimo 0;
+}

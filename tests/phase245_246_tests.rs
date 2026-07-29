@@ -39,6 +39,7 @@ fn fase245_backend_nativo_emite_endereco_e_call_sem_descritor_callable() {
     let asm = render_backend_s_external_subset(code).expect("assembly da fase 245");
     assert!(asm.contains("leaq dobrar(%rip)"), "{asm}");
     assert!(asm.contains("call *%r10"), "{asm}");
+    assert!(!asm.contains("pinker_publico_validar_"), "{asm}");
     assert!(!asm.contains(".Lpinker_fnref_dobrar"), "{asm}");
 }
 
@@ -95,6 +96,15 @@ fn fase245_interpretador_cobre_valor_spill_e_retorno_nulo() {
             "examples/fase245_ponteiro_funcao_nulo_valido.pink",
             "245\n0\n",
         ),
+        (
+            "examples/fase245_contrato_adulto_valido.pink",
+            "42\n1\n63\n42\n245\n5\n0\n",
+        ),
+        ("examples/fase245_aridade_12_valido.pink", "78\n0\n"),
+        (
+            "examples/fase245_assinaturas_abi_valido.pink",
+            "1\n2\n3\n4\n5\n6\n7\n8\nverdade\n10\nabi\nverdade\n0\n",
+        ),
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_pink"))
             .args(["--run", path])
@@ -135,7 +145,7 @@ fn fase246_interpretador_detecta_zero_double_free_estrangeiro_e_uaf() {
         ),
         (
             "examples/fase246_overflow_invalido.pink",
-            "'alocar' excede o limite público de 16777216 bytes",
+            "'alocar' excede o maior bloco representável pela plataforma",
         ),
         (
             "examples/fase246_double_free_invalido.pink",
@@ -148,6 +158,27 @@ fn fase246_interpretador_detecta_zero_double_free_estrangeiro_e_uaf() {
         (
             "examples/fase246_uso_apos_liberar_invalido.pink",
             "uso após liberar detectado",
+        ),
+        (
+            "examples/fase246_limite_multibyte_invalido.pink",
+            "acesso fora dos limites",
+        ),
+        (
+            "examples/fase246_um_depois_invalido.pink",
+            "acesso fora dos limites",
+        ),
+        (
+            "examples/fase246_desalinhado_invalido.pink",
+            "acesso desalinhado",
+        ),
+        (
+            "examples/fase246_interior_free_invalido.pink",
+            "ponteiro interior",
+        ),
+        ("examples/fase246_null_free_invalido.pink", "ponteiro nulo"),
+        (
+            "examples/fase245_ponteiro_nulo_chamada_invalida.pink",
+            "chamada nula por ponteiro cru",
         ),
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_pink"))
@@ -173,6 +204,33 @@ fn fase246_tamanho_minimo_e_duas_regioes_independentes() {
             .args(["--run", path])
             .output()
             .expect("execução de região pública válida");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(String::from_utf8_lossy(&output.stdout), stdout);
+    }
+}
+
+#[test]
+fn fase246_tamanhos_alinhamentos_e_integracao_245_tem_paridade_interpretada() {
+    for (path, stdout) in [
+        (
+            "examples/fase246_tamanhos_alinhamentos_valido.pink",
+            "1\n2\n3\n4\n5\n6\n7\n8\nverdade\n0\n",
+        ),
+        (
+            "examples/fase246_inicializacao_zerada_valido.pink",
+            "0\n0\n0\n0\n",
+        ),
+        ("examples/fases245_246_integracao_valido.pink", "246\n0\n"),
+        ("examples/fase246_reuso_endereco_valido.pink", "2\n0\n"),
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+            .args(["--run", path])
+            .output()
+            .expect("execução interpretada");
         assert!(
             output.status.success(),
             "{}",
@@ -213,7 +271,14 @@ fn fases245_246_elf_real_tem_paridade_de_stdout_e_exit() {
     for example in [
         "examples/fase245_ponteiro_funcao_spill_valido.pink",
         "examples/fase245_ponteiro_funcao_aridades_valido.pink",
+        "examples/fase245_aridade_12_valido.pink",
+        "examples/fase245_contrato_adulto_valido.pink",
+        "examples/fase245_assinaturas_abi_valido.pink",
         "examples/fase246_memoria_explicita_valido.pink",
+        "examples/fase246_tamanhos_alinhamentos_valido.pink",
+        "examples/fase246_inicializacao_zerada_valido.pink",
+        "examples/fase246_reuso_endereco_valido.pink",
+        "examples/fases245_246_integracao_valido.pink",
     ] {
         let out_dir = native_output_dir("phase245_246_parity");
         let executable = build_native(example, &out_dir);
@@ -231,6 +296,86 @@ fn fases245_246_elf_real_tem_paridade_de_stdout_e_exit() {
         assert_eq!(program_stdout, String::from_utf8_lossy(&native.stdout));
         fs::remove_dir_all(out_dir).expect("limpeza da fixture nativa");
     }
+}
+
+#[test]
+fn fases245_246_erros_de_runtime_tem_paridade_nativa() {
+    for (example, expected) in [
+        (
+            "examples/fase245_ponteiro_nulo_chamada_invalida.pink",
+            "chamada nula por ponteiro cru de função",
+        ),
+        (
+            "examples/fase246_limite_multibyte_invalido.pink",
+            "acesso fora dos limites",
+        ),
+        (
+            "examples/fase246_um_depois_invalido.pink",
+            "acesso fora dos limites",
+        ),
+        (
+            "examples/fase246_desalinhado_invalido.pink",
+            "acesso desalinhado",
+        ),
+        (
+            "examples/fase246_interior_free_invalido.pink",
+            "ponteiro interior",
+        ),
+        ("examples/fase246_null_free_invalido.pink", "ponteiro nulo"),
+        ("examples/fase246_double_free_invalido.pink", "double free"),
+        (
+            "examples/fase246_uso_apos_liberar_invalido.pink",
+            "uso após liberar",
+        ),
+        (
+            "examples/fase246_overflow_invalido.pink",
+            "maior bloco representável",
+        ),
+    ] {
+        let out_dir = native_output_dir("phase245_246_native_errors");
+        let executable = build_native(example, &out_dir);
+        let native = Command::new(&executable)
+            .output()
+            .expect("execução nativa inválida");
+        assert!(!native.status.success(), "{example}");
+        assert!(
+            String::from_utf8_lossy(&native.stderr).contains(expected),
+            "{example}: {}",
+            String::from_utf8_lossy(&native.stderr)
+        );
+        fs::remove_dir_all(out_dir).expect("limpeza de caso inválido");
+    }
+}
+
+#[test]
+fn fase246_falha_injetada_e_deterministica_nos_dois_modos() {
+    let example = "examples/fase246_tamanho_minimo_valido.pink";
+    let interpreted = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .env("PINKER_TESTE_FALHA_ALOCACAO_PUBLICA", "1")
+        .args(["--run", example])
+        .output()
+        .expect("falha interpretada injetada");
+    assert!(!interpreted.status.success());
+    assert!(
+        String::from_utf8_lossy(&interpreted.stderr)
+            .contains("'alocar' falhou ao reservar memória"),
+        "{}",
+        String::from_utf8_lossy(&interpreted.stderr)
+    );
+
+    let out_dir = native_output_dir("phase246_alloc_failure");
+    let executable = build_native(example, &out_dir);
+    let native = Command::new(executable)
+        .env("PINKER_TESTE_FALHA_ALOCACAO_PUBLICA", "1")
+        .output()
+        .expect("falha nativa injetada");
+    assert!(!native.status.success());
+    assert!(
+        String::from_utf8_lossy(&native.stderr).contains("'alocar' falhou ao reservar memória"),
+        "{}",
+        String::from_utf8_lossy(&native.stderr)
+    );
+    fs::remove_dir_all(out_dir).expect("limpeza da falha injetada");
 }
 
 #[test]

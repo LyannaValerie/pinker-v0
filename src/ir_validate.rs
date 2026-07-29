@@ -1884,7 +1884,8 @@ fn is_int_literal_value(value: &ValueIR) -> bool {
 fn value_matches_expected(value: &ValueIR, actual: TypeIR, expected: TypeIR) -> bool {
     actual.is_compatible_with(expected)
         || (is_int_literal_value(value) && expected.is_integer())
-        || (matches!(value, ValueIR::Int(_)) && matches!(expected, TypeIR::Pointer { .. }))
+        || (matches!(value, ValueIR::Int(_))
+            && matches!(expected, TypeIR::Pointer { .. } | TypeIR::FunctionPointer))
 }
 
 fn ir_validation_error_ctx(

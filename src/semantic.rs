@@ -688,6 +688,10 @@ impl SemanticChecker {
             )
     }
 
+    fn expr_is_zero_literal(expr: &Expr) -> bool {
+        matches!(expr.kind, ExprKind::IntLit(0))
+    }
+
     fn enum_has_payload(&self, enum_name: &str) -> bool {
         self.enums
             .get(enum_name)
@@ -730,7 +734,14 @@ impl SemanticChecker {
 
     fn check_expected_type_for_expr(expected: &Type, actual: &Type, expr: &Expr) -> bool {
         Self::check_type_match(expected, actual)
-            || matches!(expected, Type::Pointer { .. }) && Self::expr_is_int_literal(expr)
+            || matches!(
+                expected,
+                Type::Pointer { base, .. } if matches!(base.as_ref(), Type::Function { .. })
+            ) && Self::expr_is_zero_literal(expr)
+            || matches!(
+                expected,
+                Type::Pointer { base, .. } if !matches!(base.as_ref(), Type::Function { .. })
+            ) && Self::expr_is_int_literal(expr)
             || (Self::is_integer_type(expected) && Self::expr_is_int_literal(expr))
     }
 
@@ -2648,6 +2659,22 @@ impl SemanticChecker {
                 ) {
                     let lhs_resolved = self.resolve_type_or_error(&lhs_ty)?;
                     let rhs_resolved = self.resolve_type_or_error(&rhs_ty)?;
+                    let raw_function_pointer = |ty: &Type| {
+                        matches!(
+                            ty,
+                            Type::Pointer { base, .. }
+                                if matches!(base.as_ref(), Type::Function { .. })
+                        )
+                    };
+                    if (raw_function_pointer(&lhs_resolved) || raw_function_pointer(&rhs_resolved))
+                        && !matches!(op, BinaryOp::Eq | BinaryOp::Neq)
+                    {
+                        return Err(PinkerError::Semantic {
+                            msg: "ponteiro cru de função aceita apenas igualdade '==' e desigualdade '!='; ordem não possui contrato"
+                                .to_string(),
+                            span: expr.span,
+                        });
+                    }
                     if Self::trait_object_name(&lhs_resolved).is_some()
                         || Self::trait_object_name(&rhs_resolved).is_some()
                     {
@@ -3235,10 +3262,60 @@ impl SemanticChecker {
         }
 
         let ExprKind::Ident(name) = &callee.kind else {
-            return Err(PinkerError::Semantic {
-                msg: "apenas chamadas diretas por nome são suportadas na v0".to_string(),
-                span: callee.span,
-            });
+            let callee_ty = self.check_value_expr(
+                callee,
+                "resultado sem retorno não pode ocupar a posição de chamada",
+            )?;
+            let Type::Pointer { ref base, .. } = callee_ty else {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "expressão em posição de chamada não é chamável (tipo '{}')",
+                        Self::type_key(&callee_ty)
+                    ),
+                    span: callee.span,
+                });
+            };
+            let Type::Function { params, ret, .. } = base.as_ref() else {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "expressão em posição de chamada não é ponteiro cru de função (tipo '{}')",
+                        Self::type_key(&callee_ty)
+                    ),
+                    span: callee.span,
+                });
+            };
+            if args.len() != params.len() {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada por expressão de ponteiro cru com aridade inválida: esperado {}, recebido {}",
+                        params.len(),
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let params = params.clone();
+            let ret = ret.as_ref().clone();
+            for (index, (arg, expected)) in args.iter().zip(params.iter()).enumerate() {
+                let arg_ty = self.check_value_expr(
+                    arg,
+                    "resultado sem retorno não pode ser argumento de ponteiro cru",
+                )?;
+                let expected_resolved = self.resolve_type_or_error(expected)?;
+                if !Self::check_expected_type_for_expr(&expected_resolved, &arg_ty, arg) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "tipo inválido no argumento {} da chamada por expressão de ponteiro cru: esperado '{}', encontrado '{}'",
+                            index + 1,
+                            Self::type_key(&expected_resolved),
+                            Self::type_key(&arg_ty)
+                        ),
+                        span: arg.span,
+                    });
+                }
+                Self::validate_int_literal_range(&expected_resolved, arg)?;
+            }
+            return self.resolve_type_or_error(&ret);
         };
 
         // Fase 242: variável local (parâmetro ou `nova`) tem precedência

@@ -1,0 +1,58 @@
+pacote main;
+
+apelido Operacao = seta<carinho(bombom) -> bombom>;
+apelido OperacaoAlias = Operacao;
+
+carinho identidade<T>(valor: T) -> T {
+    mimo valor;
+}
+
+carinho dobrar(valor: bombom) -> bombom {
+    mimo valor * 2;
+}
+
+carinho triplicar(valor: bombom) -> bombom {
+    mimo valor * 3;
+}
+
+carinho escolher(flag: logica) -> OperacaoAlias {
+    talvez flag {
+        mimo &dobrar;
+    } senao {
+        mimo &triplicar;
+    }
+}
+
+carinho aplicar_callback(callback: Operacao, valor: bombom) -> bombom {
+    mimo callback(valor);
+}
+
+carinho aplicar_por_ponteiro(
+    callback: Operacao,
+    valor: bombom
+) -> bombom {
+    nova executor: seta<carinho(Operacao, bombom) -> bombom> = &aplicar_callback;
+    mimo executor(callback, valor);
+}
+
+carinho recursao_indireta(valor: bombom) -> bombom {
+    talvez valor == 0 {
+        mimo 0;
+    }
+    nova proximo: Operacao = &recursao_indireta;
+    mimo proximo(valor - 1) + 1;
+}
+
+carinho principal() -> bombom {
+    nova via_alias: OperacaoAlias = &dobrar;
+    falar(via_alias(21));
+    talvez via_alias == &dobrar && via_alias != &triplicar {
+        falar(1);
+    }
+    falar(escolher(falso)(21));
+    falar(aplicar_por_ponteiro(&triplicar, 14));
+    nova especializada: seta<carinho(bombom) -> bombom> = &identidade<bombom>;
+    falar(especializada(245));
+    falar(recursao_indireta(5));
+    mimo 0;
+}

@@ -1,0 +1,13 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova primeira: seta<u8> = alocar(32);
+    *primeira = 1;
+    liberar(primeira);
+
+    nova segunda: seta<u8> = alocar(32);
+    *segunda = 2;
+    falar(*segunda);
+    liberar(segunda);
+    mimo 0;
+}

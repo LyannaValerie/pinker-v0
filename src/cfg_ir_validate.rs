@@ -2052,7 +2052,8 @@ fn cfg_error_ctx(
 fn operand_matches_expected(operand: &OperandIR, actual: TypeIR, expected: TypeIR) -> bool {
     actual.is_compatible_with(expected)
         || (matches!(operand, OperandIR::Int(_)) && expected.is_integer())
-        || (matches!(operand, OperandIR::Int(_)) && matches!(expected, TypeIR::Pointer { .. }))
+        || (matches!(operand, OperandIR::Int(_))
+            && matches!(expected, TypeIR::Pointer { .. } | TypeIR::FunctionPointer))
         || (actual.is_integer() && expected.is_integer())
 }
 

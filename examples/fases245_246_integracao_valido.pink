@@ -1,0 +1,20 @@
+pacote main;
+
+carinho escrever(regiao: seta<u8>, valor: u8) -> seta<u8> {
+    *regiao = valor;
+    mimo regiao;
+}
+
+carinho alocar_indireto(tamanho: u64) -> seta<u8> {
+    mimo alocar(tamanho);
+}
+
+carinho principal() -> bombom {
+    nova criar: seta<carinho(u64) -> seta<u8> > = &alocar_indireto;
+    nova memoria: seta<u8> = criar(8);
+    nova callback: seta<carinho(seta<u8>, u8) -> seta<u8> > = &escrever;
+    nova retorno: seta<u8> = callback(memoria, 246);
+    falar(*retorno);
+    liberar(retorno);
+    mimo 0;
+}
