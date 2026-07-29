@@ -189,17 +189,6 @@ pub fn render_backend_s_external_subset(code: &str) -> Result<String, PinkerErro
     backend_s::emit_external_toolchain_subset(&selected)
 }
 
-pub fn render_backend_s_external_subset_nativo(code: &str) -> Result<String, PinkerError> {
-    let program = parse(code)?;
-    semantic::check_program(&program)?;
-    let program_ir = ir::lower_program(&program)?;
-    ir_validate::validate_program(&program_ir)?;
-    let cfg = cfg_ir::lower_program(&program_ir)?;
-    cfg_ir_validate::validate_program(&cfg)?;
-    let selected = instr_select::lower_program(&cfg)?;
-    instr_select_validate::validate_program(&selected)?;
-    backend_s::emit_external_toolchain_subset_nativo(&selected)
-}
 // @pinker-nav:end evidencia.backend-s-externo.pipeline-helper
 
 // @pinker-nav:start evidencia.backend-s.apresentacao-cli-helper
@@ -225,6 +214,18 @@ pub fn render_cli_asm_s_output(code: &str) -> Result<String, PinkerError> {
 // @pinker-nav:domain testing
 // @pinker-nav:layer evidencia
 // @pinker-nav:summary Centraliza a capacidade de evidência nativa: plataforma, driver C e staticlib opcional são classificados com razões enumeradas; todo skip emite ledger JSON canônico e PINKER_EXIGE_NATIVO=1 converte ausência em falha.
+pub fn render_backend_s_external_subset_nativo(code: &str) -> Result<String, PinkerError> {
+    let program = parse(code)?;
+    semantic::check_program(&program)?;
+    let program_ir = ir::lower_program(&program)?;
+    ir_validate::validate_program(&program_ir)?;
+    let cfg = cfg_ir::lower_program(&program_ir)?;
+    cfg_ir_validate::validate_program(&cfg)?;
+    let selected = instr_select::lower_program(&cfg)?;
+    instr_select_validate::validate_program(&selected)?;
+    backend_s::emit_external_toolchain_subset_nativo(&selected)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeEvidenceCapability {
     Executable {
