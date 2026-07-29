@@ -51,7 +51,18 @@ pinker` exige `program = pink`. Interpretadores de shell são recusados quando
 
 Raízes absolutas `repo_root`, `worktree` e `delegated_root` são confinadas ao
 repositório. CWDs e mudanças são relativos ao worktree; escritas declaradas são
-relativas ao diretório delegado. Componentes `..` são rejeitados.
+relativas ao diretório delegado. Componentes `..`, caminhos absolutos externos
+e links simbólicos são rejeitados. No Linux, o I/O mutável e a restauração usam
+resolução relativa a descritor com `openat2`; a ausência dessa garantia falha
+fechada nos demais alvos.
+
+Substituições usam temporário exclusivo no mesmo diretório, sincronização e
+rename atômico. Eventos usam append no-follow. O shell permanece desligado por
+padrão e exige autorização externa `PINKER_AGENT_ALLOW_SHELL`; programas
+não-shell devem constar em `PINKER_AGENT_EXECUTABLE_ALLOWLIST`. O runner resolve
+o caminho absoluto, registra SHA-256 e rejeita mudança observada antes do
+spawn. Comandos Pinker tipados e as ferramentas internas registradas preservam
+seus caminhos próprios.
 
 ## Estado e artefatos
 
@@ -60,7 +71,7 @@ stdout, stderr, duração, shell e exit code; persiste logs por ID, emite evento
 JSONL monotônicos e marca etapas posteriores como `NOT_RUN` após falha. Ao fim,
 gera snapshots, escopo, validação, `resultado.json`, `RELATORIO.md` e manifesto
 SHA-256 ordenado, sem auto-hash. JSON e Markdown canônicos usam substituição
-atômica.
+atômica exclusiva.
 
 Estados terminais são `ACCEPTED`, `BLOCKED` e, como contrato reservado,
 `NEEDS_HUMAN_DECISION`. Os códigos são respectivamente 0, 1 e 2. Erro de

@@ -123,6 +123,10 @@ Localização principal:
 - `MANUAL.md`;
 - exemplos `examples/fase8x` a `examples/fase10x` e posteriores.
 
+O contrato atual mantém `File` aberto no handle, usa criação exclusiva, não
+antecipa a carga em `abrir` e limita a materialização de `verso` a 64 MiB.
+Expansões devem preservar identidade por descritor e não reabrir pelo caminho.
+
 ### 4.4 Processos e linguagem-cola
 
 Exemplos históricos:
@@ -142,6 +146,11 @@ Localização principal:
 - `tests/interpreter_tests.rs`;
 - `tests/backend_nativo_tests.rs`;
 - `examples/fase161*` a `examples/fase177*`.
+
+O runtime resolve basenames somente pela PATH fixa
+`/usr/local/bin:/usr/bin:/bin`, preserva caminhos explícitos e escreve stdin
+concorrentemente à espera do filho. Expansões não devem reintroduzir shell
+implícito, PATH herdada ou ordenação sequencial entre escrita integral e wait.
 
 ### 4.5 Coleções, dados estruturados e aleatoriedade
 

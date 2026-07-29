@@ -186,7 +186,11 @@ Histórico completo por fase: `docs/history/phases/`.
 
 ## 5. Próximo passo
 - Estrutura do Bloco 20 formalizada em dois eixos (Doc-41), padrão pós-Eixo B registrado na Doc-42 e convergência bare-metal formalizada na Doc-46: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado; a trilha BM permanece documental e não implementada.
-- As Fases 245 e 246 estão publicadas na PR #410 com seus contratos completos de ponteiros crus de função e regiões explícitas, sem iniciar o item 14. Qualquer avanço em ownership/lifetime ou desalocação de snapshots/descritores deve definir contrato próprio, incluindo cópia/passagem/retorno de handles, compartilhamento, momento de liberação e prevenção de double free/use-after-free.
+- A PR #411 contém as Fases 247–248 e uma continuação de hardening que preserva
+  as correções anteriores: runner confinado, executáveis autorizados
+  externamente, memória pública limitada com proveniência, arquivos por
+  descritor, subprocessos determinísticos, saída uniforme e YAML canônico. A
+  autoridade terminal de revisão e merge permanece humana.
 - `alocar`/`liberar` é mecanismo separado da política de lifetime dos valores internos que usam heap; a API pública não libera ambientes de closure, descritores de callable, snapshots de trato, coleções ou strings.
 - Qualquer fase que toque o layout ou o tamanho do ambiente deve incluir gate de underallocation que observe diretamente os bytes solicitados por instrumentação, metadado, canário ou fronteira de arredondamento; resultado funcional isolado não é evidência suficiente. No recorte atual de uma palavra por captura, o tamanho exigido é `capturas * tamanho_da_palavra`, com overflow verificado. Para capturas futuras multi-palavra, deve ser o tamanho final alinhado do ambiente: tamanho e alinhamento de cada captura, offset alinhado, padding intermediário, alinhamento final e toda aritmética com detecção de overflow; soma simples dos tamanhos é insuficiente.
 - O item 5 pode avançar para diagnósticos enriquecidos ou métodos utilitários; o item 4 pode avançar apenas em extensões fora do contrato 244. Em qualquer caso, sem recorte mínimo automático, com lowering nativo obrigatório e com fatia vertical utilizável.

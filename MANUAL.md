@@ -325,10 +325,11 @@ Cada alocação pública possui identidade lógica, base, tamanho, alinhamento,
 estado `LIVE`/`FREED`, domínio e proveniência. O interpretador modela regiões
 esparsas byte a byte, inclusive truncamento e extensão de sinal/zero por
 largura; o runtime nativo registra a mesma informação e valida cada load/store
-público quanto a vida, limites completos e alinhamento. A liberação física fica
-em quarentena até o fim do processo, impedindo que reutilização de endereço
-reative aliases antigos ou esconda double free. Metadados conservam todas as
-gerações e a busca sempre seleciona a mais recente.
+público quanto a vida, limites completos e alinhamento. A arena é monotônica:
+uma identidade liberada nunca reutiliza endereço, enquanto as páginas físicas
+são descomprometidas. O orçamento é explícito e equivalente nos dois modos:
+até 1.000.000 de identidades, 8 GiB de espaço virtual público, metadata
+proporcional a esse teto e quarentena física de zero bytes.
 
 Somente um alias do ponteiro-base vivo pode liberar a região, uma vez.
 Ponteiro nulo, interior, estrangeiro, estático, de pilha ou pertencente aos
@@ -337,6 +338,12 @@ casts permitidos preservam a identidade; não transferem ownership. Acesso
 depois de liberar, desalinhado ou que cruze o último byte é diagnosticado com
 paridade entre interpretador e nativo. Cargas assinadas preservam o sinal
 também nas comparações relacionais subsequentes.
+
+A validação pública falha fechada quando recebe endereço sem região gerenciada
+candidata. O compilador transporta proveniência pelo lowering e só emite essa
+validação para ponteiros públicos; ponteiros internos e ponteiros raw
+fabricados seguem domínios distintos. Cast de inteiro para ponteiro permanece
+fora da promessa de segurança de memória.
 
 Os registros de região, vida e próxima identidade pertencem ao estado interno
 do interpretador, fora do mapa endereçável pelo programa. Assim, casts de
@@ -423,6 +430,10 @@ falar(verdade);
 falar("oi");
 ```
 
+Todas as variantes de `falar`, incluindo espaços e newline, usam o mesmo writer
+no runtime nativo. Falha de saída produz diagnóstico uniforme e exit code 1,
+inclusive em pipe fechado.
+
 ### Entrada com `ouvir()`
 
 ```pink
@@ -432,7 +443,11 @@ falar(valor);
 
 ### Arquivo: `abrir`, `ler_arquivo`, `escrever`, `fechar`
 
-Recorte atual: handle inteiro (`bombom`) e conteúdo tratado como `bombom`.
+Recorte atual: handle inteiro (`bombom`) sustentado por um descritor aberto.
+`abrir` não carrega o conteúdo; leitura, escrita, truncamento e append operam no
+mesmo descritor mesmo se o caminho original for renomeado ou removido.
+`criar` é exclusivo e nunca trunca entrada existente. Leituras para `verso`
+possuem limite explícito de 64 MiB.
 
 ```pink
 nova h: bombom = abrir("dados.txt");
@@ -465,6 +480,12 @@ Operações mínimas disponíveis hoje:
 - `capturar_stdout(comando, argv1)` → o mesmo recorte mínimo acima, mas com exatamente um argumento textual explícito adicional, sem shell implícito, sem quoting/escaping rico e sem coleção geral de argv (Fase 169).
 - `capturar_stderr(comando)` → executa um processo externo mínimo sem shell implícito e retorna o stderr textual como `verso`, com UTF-8 estrito.
 - `capturar_stderr(comando, argv1)` → o mesmo recorte mínimo acima, mas com exatamente um argumento textual explícito adicional, sem shell implícito, sem quoting/escaping rico e sem coleção geral de argv (Fase 170).
+
+Subprocessos não herdam a `PATH` do processo pai para resolução: basenames são
+procurados somente em `/usr/local/bin:/usr/bin:/bin`, enquanto comandos com
+`/` usam exatamente o caminho informado. `executar_com_entrada` escreve stdin
+concorrentemente à espera do filho, fecha o pipe e propaga erros de escrita e
+status sem impor timeout oculto.
 
 ```pink
 nova a: verso = "oi ";

@@ -28,8 +28,8 @@ fases; para isso, use os documentos apontados em [Navegação](#navegacao).
 | Generics | `lista<T>`, `mapa<K,V>`, `leque<T...>` via alias explícito e funções genéricas explícitas `nome<T>(...)` com monomorfização |
 | Contratos | `trato`/`impl` estáticos, `trato<Nome>` explícito, materialização por `virar`, vtables e despacho dinâmico nativo |
 | Funções | `carinho`, callables/closures de alto nível e ponteiros crus `seta<carinho(...) -> T>` com chamada indireta sem ambiente |
-| Sistema | argv, ambiente, arquivos, processos, caminhos e texto no recorte versionado |
-| Ponteiros e memória | `seta<T>`, `&funcao`/`&generica<T>`, deref/escrita indireta escalar, aritmética tipada e regiões públicas `alocar(u64)`/`liberar(seta<u8>)` com validação de vida, limites e alinhamento |
+| Sistema | argv, ambiente, arquivos por descritor, processos com resolução determinística, caminhos e texto no recorte versionado |
+| Ponteiros e memória | `seta<T>`, `&funcao`/`&generica<T>`, deref/escrita indireta escalar, aritmética tipada e regiões públicas `alocar(u64)`/`liberar(seta<u8>)` com validação fail-closed, proveniência e orçamento explícito |
 | Baixo nível | `sussurro("...")` emite assembly GNU Intel x86-64 no backend nativo; o interpretador rejeita sua execução deterministicamente |
 | Ferramentas | CLI com check, run, IR textual, CFG, machine e build nativo |
 
@@ -43,7 +43,7 @@ Pinker v0 ainda não é uma linguagem geral, nem um compilador de produção.
 | Multi-plataforma, múltiplas ABIs e bare-metal real | O alvo nativo atual é ELF Linux x86-64 System V |
 | Runtime em Pinker | `pinker_rt` ainda vive no workspace Rust/C ABI |
 | Ownership/lifetime de objetos de trato | Handles, snapshots e descritores não são liberados nem coletados neste recorte |
-| Ownership geral da memória | `alocar`/`liberar` é mecanismo explícito; não há GC, RAII, borrow checker nem detecção nativa universal de uso após liberação |
+| Ownership geral da memória | `alocar`/`liberar` é mecanismo explícito e limitado; não há GC, RAII, borrow checker nem garantia universal para ponteiros raw |
 | Default methods, downcasting/upcasting, herança e objetos de múltiplos tratos | Fora do contrato da Fase 244 |
 | Generics amplos em `ninho`/`leque` e inferência genérica | O recorte atual exige chamada genérica explícita |
 | Ponteiros e layout físico completos | Há operações úteis, mas ainda conservadoras |

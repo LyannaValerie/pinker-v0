@@ -1483,9 +1483,8 @@ pub unsafe extern "C" fn pinker_uniao_payload_v(handle: *mut u8, expected_tag: u
 // ---------------------------------------------------------------------------
 // Arquivo, caminho, tempo e acaso nativos (Fase 220/B9)
 //
-// O modelo de arquivo espelha o interpretador: handles apontam para entradas
-// em memória (`caminho` + `conteudo` + flag de anexo) e toda escrita persiste
-// imediatamente no disco; handles fechados produzem erro distinto. O gerador
+// O modelo de arquivo mantém um descritor aberto por handle; operações não
+// re-resolvem o caminho, e handles fechados produzem erro distinto. O gerador
 // de acaso replica o MESMO LCG do interpretador (paridade de sementes).
 // ---------------------------------------------------------------------------
 
