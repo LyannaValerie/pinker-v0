@@ -31,7 +31,7 @@ guard:
 	$(CI_ENV) cargo run --bin pink -- --run apps/guardiao_pinker/principal.pink -- --repo .
 
 change-history-check:
-	$(CI_ENV) cargo test --locked --test change_history_tests
+	$(CI_ENV) cargo test --locked --test change_history_coverage_tests
 
 # Trama Pinker — catálogo documental (Etapa 2).
 # `sync` é executado pelo agente/desenvolvedor; `check` roda no CI e não corrige.

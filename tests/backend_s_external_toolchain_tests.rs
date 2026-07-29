@@ -10,6 +10,7 @@ use pinker_v0::ir::TypeIR;
 use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // @pinker-nav:start evidencia.backend-s-externo.renderizacao-recortes-versionados
@@ -2026,9 +2027,16 @@ fn asm_s_external_subset_fase112_falha_em_br_com_alvo_falso_inexistente() {
 // @pinker-nav:end evidencia.backend-s-externo.validacao-estrutural-sintetica
 
 fn unique_temp_dir() -> std::path::PathBuf {
+    static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("tempo do sistema inválido")
         .as_nanos();
-    std::env::temp_dir().join(format!("pinker_phase113_{}", nanos))
+    let sequence = NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!(
+        "pinker_phase113_{}_{}_{}",
+        std::process::id(),
+        nanos,
+        sequence
+    ))
 }

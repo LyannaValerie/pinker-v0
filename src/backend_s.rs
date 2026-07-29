@@ -405,8 +405,7 @@ fn extract_external_callconv_program(
                         body.extend(lower_linear_binop(
                             "addq",
                             *dest,
-                            lhs,
-                            rhs,
+                            (lhs, rhs),
                             *ty,
                             &slot_offsets,
                             &mut rodata_string_labels,
@@ -426,8 +425,7 @@ fn extract_external_callconv_program(
                         body.extend(lower_linear_binop(
                             "subq",
                             *dest,
-                            lhs,
-                            rhs,
+                            (lhs, rhs),
                             *ty,
                             &slot_offsets,
                             &mut rodata_string_labels,
@@ -447,8 +445,7 @@ fn extract_external_callconv_program(
                         body.extend(lower_linear_binop(
                             "imulq",
                             *dest,
-                            lhs,
-                            rhs,
+                            (lhs, rhs),
                             *ty,
                             &slot_offsets,
                             &mut rodata_string_labels,
@@ -459,8 +456,7 @@ fn extract_external_callconv_program(
                         body.extend(lower_linear_binop(
                             "andq",
                             *dest,
-                            lhs,
-                            rhs,
+                            (lhs, rhs),
                             *ty,
                             &slot_offsets,
                             &mut rodata_string_labels,
@@ -471,8 +467,7 @@ fn extract_external_callconv_program(
                         body.extend(lower_linear_binop(
                             "orq",
                             *dest,
-                            lhs,
-                            rhs,
+                            (lhs, rhs),
                             *ty,
                             &slot_offsets,
                             &mut rodata_string_labels,
@@ -483,8 +478,7 @@ fn extract_external_callconv_program(
                         body.extend(lower_linear_binop(
                             "xorq",
                             *dest,
-                            lhs,
-                            rhs,
+                            (lhs, rhs),
                             *ty,
                             &slot_offsets,
                             &mut rodata_string_labels,
@@ -1731,13 +1725,13 @@ fn ensure_dest_is_local_or_param(
 fn lower_linear_binop(
     opcode: &str,
     dest: crate::cfg_ir::TempIR,
-    lhs: &OperandIR,
-    rhs: &OperandIR,
+    operands: (&OperandIR, &OperandIR),
     ty: TypeIR,
     slot_offsets: &HashMap<String, u32>,
     rodata_string_labels: &mut HashMap<String, String>,
     rodata_strings: &mut Vec<ExternalCallConvString>,
 ) -> Result<Vec<String>, PinkerError> {
+    let (lhs, rhs) = operands;
     let mut body = Vec::new();
     register_rodata_strings_for_operand(lhs, rodata_string_labels, rodata_strings);
     register_rodata_strings_for_operand(rhs, rodata_string_labels, rodata_strings);
@@ -1796,7 +1790,7 @@ fn lower_shift(
     body.push(format!("movq ${width}, %rsi"));
     body.push("call pinker_erro_shift_count".to_string());
     body.push(format!("{valid_label}:"));
-    body.push(format!("movb %r10b, %cl"));
+    body.push("movb %r10b, %cl".to_string());
     let opcode = if right {
         if ty.is_signed() {
             "sarq"
