@@ -1,0 +1,20 @@
+pacote main;
+
+carinho identidade_um(byte: seta<u8>) -> seta<u8> {
+    mimo byte;
+}
+
+carinho identidade_dois(byte: seta<u8>) -> seta<u8> {
+    mimo byte;
+}
+
+carinho principal() -> bombom {
+    nova byte: seta<u8> = alocar(1);
+    *byte = 253;
+    nova escolher_primeiro: logica = verdade;
+    nova retorno =
+        (escolher_primeiro ? &identidade_um : &identidade_dois)(byte);
+    falar(*retorno);
+    liberar(byte);
+    mimo 0;
+}

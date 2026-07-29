@@ -66,7 +66,7 @@ pub extern "C" fn pinker_rt_versao() -> u64 {
 // @pinker-nav:start runtime.memoria.alocador
 // @pinker-nav:domain memoria
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Alocador manual com cabeçalho de tamanho: pinker_alocar reserva um bloco alinhado a 16 bytes com o tamanho total gravado no cabeçalho e devolve ponteiro nulo — sem abortar — em overflow do tamanho (checked_add) ou em falha de alocação do sistema; pinker_liberar libera a partir do cabeçalho, confiando, sem validar, que o ponteiro tenha sido devolvido por pinker_alocar e ainda não liberado.
+// @pinker-nav:summary Alocador manual e regiões públicas: pinker_alocar reserva bloco alinhado a 16 bytes; a superfície pública rejeita zero/overflow/falha, zera bytes, registra identidade/base/tamanho/vida e mantém blocos liberados em quarentena. Acesso, liberação e derivação de ponteiro validam proveniência, domínio, alinhamento, limites, use-after-free, double free e escapes mesmo quando o endereço derivado já não cai dentro da região.
 fn layout_para(tamanho_total: usize) -> Option<Layout> {
     Layout::from_size_align(tamanho_total, ALINHAMENTO).ok()
 }
@@ -262,6 +262,32 @@ pub extern "C" fn pinker_publico_validar_acesso(
         .unwrap_or_else(|| erro_memoria_publica("metadados de região pública inválidos"));
     if endereco < alocacao.base || fim_acesso > fim_regiao {
         erro_memoria_publica("acesso fora dos limites da alocação pública");
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_publico_validar_derivacao(origem: *const u8, derivado: *const u8) {
+    let origem = origem as usize;
+    let derivado = derivado as usize;
+    let registro = ALOCACOES_PUBLICAS
+        .lock()
+        .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
+    let candidata = registro.iter().rev().find(|alocacao| {
+        let fim = alocacao.base.saturating_add(alocacao.tamanho);
+        origem >= alocacao.base && origem <= fim
+    });
+    let Some(alocacao) = candidata else {
+        return;
+    };
+    if !alocacao.viva {
+        erro_memoria_publica("uso após liberar detectado em memória pública");
+    }
+    let fim = alocacao
+        .base
+        .checked_add(alocacao.tamanho)
+        .unwrap_or_else(|| erro_memoria_publica("metadados de região pública inválidos"));
+    if derivado < alocacao.base || derivado > fim {
+        erro_memoria_publica("derivação fora dos limites da alocação pública");
     }
 }
 

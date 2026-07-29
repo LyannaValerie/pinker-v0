@@ -1,0 +1,16 @@
+pacote main;
+
+carinho fabricar_leitor(byte: seta<u8>) -> carinho() -> u8 {
+    mimo carinho() -> u8 {
+        mimo *byte;
+    };
+}
+
+carinho principal() -> bombom {
+    nova byte: seta<u8> = alocar(1);
+    *byte = 252;
+    nova leitor: carinho() -> u8 = fabricar_leitor(byte);
+    falar(leitor());
+    liberar(byte);
+    mimo 0;
+}

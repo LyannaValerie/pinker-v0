@@ -389,6 +389,7 @@ struct CaptureMetadata {
     trait_object_name: Option<String>,
     callable: Option<CallableMetadata>,
     raw_function: Option<RawFunctionMetadata>,
+    pointer_pointee: Option<TypeIR>,
 }
 
 #[derive(Clone)]
@@ -1964,7 +1965,7 @@ impl<'a> FunctionLowerer<'a> {
     // @pinker-nav:start ir.lowering.funcoes-blocos
     // @pinker-nav:domain lowering
     // @pinker-nav:layer ir
-    // @pinker-nav:summary Configuração do `FunctionLowerer` e lowering de funções e blocos estruturados: constrói o lowerer, aloca parâmetros, abaixa blocos e preserva metadados estruturais e nominais de callables, inclusive ao combinar os dois braços de um ternário sem avaliar expressões. Inclui resolvedores de método de `impl` direto e qualificado por trato. Preserva a estrutura aninhada; não divide o fluxo em blocos básicos de CFG.
+    // @pinker-nav:summary Configuração do `FunctionLowerer` e lowering de funções/blocos estruturados: aloca parâmetros e preserva metadados nominais/estruturais de callables, ponteiros crus e pointees de ponteiros de dados em aliases, retornos, ternários, chamadas por expressão e capturas de closure. Inclui resolvedores de método de `impl` direto e qualificado por trato; preserva a estrutura aninhada, sem ainda dividir o fluxo em CFG.
     fn new(context: &'a LoweringContext) -> Self {
         Self {
             context,
@@ -2093,33 +2094,35 @@ impl<'a> FunctionLowerer<'a> {
                 &self.context.struct_names,
             ),
             ExprKind::Call(callee, _) => {
-                let ExprKind::Ident(name) = &callee.kind else {
-                    return Ok(None);
-                };
-                if name == "alocar" {
-                    return Ok(Some(TypeIR::U8));
-                }
-                if let Some(binding) = self.resolve_existing_binding(name) {
-                    if let Some(pointee) = self
-                        .raw_function_metadata
-                        .get(&binding.slot)
-                        .and_then(|metadata| metadata.ret_pointer_pointee)
-                    {
-                        return Ok(Some(pointee));
+                if let ExprKind::Ident(name) = &callee.kind {
+                    if name == "alocar" {
+                        return Ok(Some(TypeIR::U8));
                     }
-                    if let Some(pointee) = self
-                        .callable_metadata
-                        .get(&binding.slot)
-                        .and_then(|metadata| metadata.ret_pointer_pointee)
-                    {
-                        return Ok(Some(pointee));
+                    if let Some(binding) = self.resolve_existing_binding(name) {
+                        if let Some(pointee) = self
+                            .raw_function_metadata
+                            .get(&binding.slot)
+                            .and_then(|metadata| metadata.ret_pointer_pointee)
+                        {
+                            return Ok(Some(pointee));
+                        }
+                        if let Some(pointee) = self
+                            .callable_metadata
+                            .get(&binding.slot)
+                            .and_then(|metadata| metadata.ret_pointer_pointee)
+                        {
+                            return Ok(Some(pointee));
+                        }
                     }
+                    return Ok(self
+                        .context
+                        .function_ret_pointer_pointees
+                        .get(name)
+                        .copied());
                 }
                 Ok(self
-                    .context
-                    .function_ret_pointer_pointees
-                    .get(name)
-                    .copied())
+                    .raw_function_metadata_for_expr(callee)?
+                    .and_then(|metadata| metadata.ret_pointer_pointee))
             }
             ExprKind::Binary(lhs, BinaryOp::Add | BinaryOp::Sub, rhs) => {
                 let left = self.pointer_pointee_for_expr(lhs)?;
@@ -2128,6 +2131,50 @@ impl<'a> FunctionLowerer<'a> {
                 } else {
                     self.pointer_pointee_for_expr(rhs)
                 }
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn raw_function_metadata_for_expr(
+        &self,
+        expr: &Expr,
+    ) -> Result<Option<RawFunctionMetadata>, PinkerError> {
+        match &expr.kind {
+            ExprKind::Ident(name) => Ok(self
+                .resolve_existing_binding(name)
+                .and_then(|binding| self.raw_function_metadata.get(&binding.slot).cloned())),
+            ExprKind::AddressOf(operand) => {
+                let ExprKind::Ident(name) = &operand.kind else {
+                    return Ok(None);
+                };
+                self.context
+                    .all_functions
+                    .get(name)
+                    .map(|function| {
+                        raw_function_metadata_from_decl(
+                            function,
+                            &self.context.type_aliases,
+                            &self.context.struct_names,
+                        )
+                    })
+                    .transpose()
+            }
+            ExprKind::Call(callee, args) if matches!(&callee.kind, ExprKind::Ident(name) if name == "__ternario") =>
+            {
+                let [_, true_value, false_value] = args.as_slice() else {
+                    return Ok(None);
+                };
+                let true_metadata = self.raw_function_metadata_for_expr(true_value)?;
+                let false_metadata = self.raw_function_metadata_for_expr(false_value)?;
+                Ok(match (true_metadata, false_metadata) {
+                    (Some(true_metadata), Some(false_metadata))
+                        if true_metadata == false_metadata =>
+                    {
+                        Some(true_metadata)
+                    }
+                    _ => None,
+                })
             }
             _ => Ok(None),
         }
@@ -2778,6 +2825,7 @@ impl<'a> FunctionLowerer<'a> {
                 trait_object_name: self.trait_object_names.get(&binding.slot).cloned(),
                 callable: self.callable_metadata.get(&binding.slot).cloned(),
                 raw_function: self.raw_function_metadata.get(&binding.slot).cloned(),
+                pointer_pointee: self.pointer_pointee_types.get(&binding.slot).copied(),
             });
             capture_values.push(ValueIR::Local(binding.slot));
         }
@@ -2853,6 +2901,10 @@ impl<'a> FunctionLowerer<'a> {
             if let Some(raw_function) = &capture.raw_function {
                 self.raw_function_metadata
                     .insert(capture_binding.slot.clone(), raw_function.clone());
+            }
+            if let Some(pointer_pointee) = capture.pointer_pointee {
+                self.pointer_pointee_types
+                    .insert(capture_binding.slot.clone(), pointer_pointee);
             }
             let ptr_expr = ValueIR::Binary {
                 op: BinaryOpIR::Add,

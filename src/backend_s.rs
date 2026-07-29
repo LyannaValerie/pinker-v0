@@ -367,7 +367,7 @@ fn extract_external_callconv_program(
             // @pinker-nav:start backend-s.lowering.operacoes-memoria
             // @pinker-nav:domain lowering
             // @pinker-nav:layer backend-s
-            // @pinker-nav:summary Lowering das instruções de dados/memória do corpo de cada bloco: `Mov` (carga do operando + store em slot), aritmética linear `Add`/`Sub`/`Mul` (via `lower_linear_binop` → `addq`/`subq`/`imulq`), comparações `==`/`!=`/`<`/`>`/`<=`/`>=` (via `lower_cmp_*`), `DerefLoad`/`DerefStore` mínimos (`bombom`/`u32`/`u64`, recusam `is_volatile`, sempre `movq` de 8 bytes) e `Cast` (`virar` mínimo `u32↔u64` por slot, emitindo `movl %eax, %eax`). Não distingue signed/unsigned e não trata divisão/módulo/shift/bitwise (caem no catch-all).
+            // @pinker-nav:summary Lowering externo de dados/memória: `Mov`; aritmética `Add`/`Sub`/`Mul`, com validação nativa de derivação quando o resultado preserva tipo ponteiro; comparações, incluindo condições assinadas inferidas dos produtores; `DerefLoad`/`DerefStore` por largura e sinal para todos os escalares públicos, precedidos por validação de região; e casts de uma palavra. O caminho hospedado legado mantém seu subconjunto conservador.
             let mut body = Vec::new();
             for inst in &block.instructions {
                 match inst {
@@ -410,6 +410,15 @@ fn extract_external_callconv_program(
                             &mut rodata_string_labels,
                             &mut rodata_strings,
                         )?);
+                        body.extend(lower_public_pointer_derivation(
+                            function,
+                            *dest,
+                            lhs,
+                            rhs,
+                            false,
+                            &slot_offsets,
+                            &rodata_strings,
+                        )?);
                     }
                     SelectedInstr::Sub { dest, lhs, rhs } => {
                         body.extend(lower_linear_binop(
@@ -420,6 +429,15 @@ fn extract_external_callconv_program(
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
+                        )?);
+                        body.extend(lower_public_pointer_derivation(
+                            function,
+                            *dest,
+                            lhs,
+                            rhs,
+                            true,
+                            &slot_offsets,
+                            &rodata_strings,
                         )?);
                     }
                     SelectedInstr::Mul { dest, lhs, rhs } => {
@@ -1704,6 +1722,104 @@ fn selected_comparison_is_signed(
     }
     visiting.clear();
     selected_operand_is_signed(function, rhs, &mut visiting)
+}
+
+fn lower_public_pointer_derivation(
+    function: &crate::instr_select::SelectedFunction,
+    dest: crate::cfg_ir::TempIR,
+    lhs: &OperandIR,
+    rhs: &OperandIR,
+    is_subtraction: bool,
+    slot_offsets: &HashMap<String, u32>,
+    rodata_strings: &[ExternalCallConvString],
+) -> Result<Vec<String>, PinkerError> {
+    let mut visiting = HashSet::new();
+    let lhs_is_pointer = selected_operand_is_pointer(function, lhs, &mut visiting);
+    visiting.clear();
+    let rhs_is_pointer = selected_operand_is_pointer(function, rhs, &mut visiting);
+    let origin = if is_subtraction {
+        (lhs_is_pointer && !rhs_is_pointer).then_some(lhs)
+    } else {
+        match (lhs_is_pointer, rhs_is_pointer) {
+            (true, false) => Some(lhs),
+            (false, true) => Some(rhs),
+            _ => None,
+        }
+    };
+    let Some(origin) = origin else {
+        return Ok(Vec::new());
+    };
+    let mut body = load_operand("%rdi", origin, slot_offsets, rodata_strings)?;
+    body.push(format!(
+        "movq -{}(%rbp), %rsi",
+        slot_offsets[&temp_key(dest)]
+    ));
+    body.push("call pinker_publico_validar_derivacao".to_string());
+    Ok(body)
+}
+
+fn selected_operand_is_pointer(
+    function: &crate::instr_select::SelectedFunction,
+    operand: &OperandIR,
+    visiting: &mut HashSet<crate::cfg_ir::TempIR>,
+) -> bool {
+    match operand {
+        OperandIR::Local(slot) => function
+            .slot_types
+            .get(slot)
+            .is_some_and(|ty| matches!(ty, TypeIR::Pointer { .. })),
+        OperandIR::Temp(temp) => selected_temp_is_pointer(function, *temp, visiting),
+        _ => false,
+    }
+}
+
+fn selected_temp_is_pointer(
+    function: &crate::instr_select::SelectedFunction,
+    temp: crate::cfg_ir::TempIR,
+    visiting: &mut HashSet<crate::cfg_ir::TempIR>,
+) -> bool {
+    if !visiting.insert(temp) {
+        return false;
+    }
+    let is_pointer = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find_map(|instruction| match instruction {
+            SelectedInstr::Cast {
+                dest, target_type, ..
+            } if *dest == temp => Some(matches!(target_type, TypeIR::Pointer { .. })),
+            SelectedInstr::Add { dest, lhs, rhs } if *dest == temp => {
+                let lhs_is_pointer = selected_operand_is_pointer(function, lhs, visiting);
+                let rhs_is_pointer = selected_operand_is_pointer(function, rhs, visiting);
+                Some(lhs_is_pointer ^ rhs_is_pointer)
+            }
+            SelectedInstr::Sub { dest, lhs, rhs } if *dest == temp => {
+                let lhs_is_pointer = selected_operand_is_pointer(function, lhs, visiting);
+                let rhs_is_pointer = selected_operand_is_pointer(function, rhs, visiting);
+                Some(lhs_is_pointer && !rhs_is_pointer)
+            }
+            SelectedInstr::Call { dest, ret_type, .. }
+            | SelectedInstr::CallIndirect { dest, ret_type, .. }
+                if *dest == temp =>
+            {
+                Some(matches!(ret_type, TypeIR::Pointer { .. }))
+            }
+            SelectedInstr::CallRaw {
+                dest: Some(dest),
+                ret_type,
+                ..
+            }
+            | SelectedInstr::TraitCall {
+                dest: Some(dest),
+                ret_type,
+                ..
+            } if *dest == temp => Some(matches!(ret_type, TypeIR::Pointer { .. })),
+            _ => None,
+        })
+        .unwrap_or(false);
+    visiting.remove(&temp);
+    is_pointer
 }
 
 fn selected_operand_is_signed(

@@ -176,6 +176,10 @@ fn fase246_interpretador_detecta_zero_double_free_estrangeiro_e_uaf() {
             "endereço inválido ou não inicializado",
         ),
         (
+            "examples/fase246_escape_regiao_publica_invalido.pink",
+            "fora dos limites",
+        ),
+        (
             "examples/fase246_limite_multibyte_invalido.pink",
             "acesso fora dos limites",
         ),
@@ -253,6 +257,14 @@ fn fase246_tamanhos_alinhamentos_e_integracao_245_tem_paridade_interpretada() {
             "examples/fase246_retorno_ponteiro_inferido_valido.pink",
             "255\n254\n0\n",
         ),
+        (
+            "examples/fase246_chamada_expressao_retorna_ponteiro_valido.pink",
+            "253\n0\n",
+        ),
+        (
+            "examples/fase246_closure_captura_ponteiro_valido.pink",
+            "252\n0\n",
+        ),
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_pink"))
             .args(["--run", path])
@@ -311,6 +323,8 @@ fn fases245_246_elf_real_tem_paridade_de_stdout_e_exit() {
         "examples/fase246_escalares_fronteiras_aliases_valido.pink",
         "examples/fase246_reuso_endereco_valido.pink",
         "examples/fase246_retorno_ponteiro_inferido_valido.pink",
+        "examples/fase246_chamada_expressao_retorna_ponteiro_valido.pink",
+        "examples/fase246_closure_captura_ponteiro_valido.pink",
         "examples/fases245_246_integracao_valido.pink",
     ] {
         let out_dir = native_output_dir("phase245_246_parity");
@@ -368,6 +382,10 @@ fn fases245_246_erros_de_runtime_tem_paridade_nativa() {
         (
             "examples/fase246_um_depois_invalido.pink",
             "acesso fora dos limites",
+        ),
+        (
+            "examples/fase246_escape_regiao_publica_invalido.pink",
+            "fora dos limites",
         ),
         (
             "examples/fase246_desalinhado_invalido.pink",

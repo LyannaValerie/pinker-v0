@@ -969,12 +969,24 @@ fn exec_instr(
         MachineInstr::Add => {
             let rhs = pop(stack, "underflow em add")?;
             let lhs = pop(stack, "underflow em add")?;
-            stack.push(eval_add(lhs, rhs)?);
+            let origem = match &lhs {
+                RuntimeValue::Ptr(base) => Some(*base),
+                _ => None,
+            };
+            let resultado = eval_add(lhs, rhs)?;
+            validar_derivacao_memoria_publica(public_memory_state, origem, &resultado)?;
+            stack.push(resultado);
         }
         MachineInstr::Sub => {
             let rhs = pop(stack, "underflow em sub")?;
             let lhs = pop(stack, "underflow em sub")?;
-            stack.push(eval_sub(lhs, rhs)?);
+            let origem = match &lhs {
+                RuntimeValue::Ptr(base) => Some(*base),
+                _ => None,
+            };
+            let resultado = eval_sub(lhs, rhs)?;
+            validar_derivacao_memoria_publica(public_memory_state, origem, &resultado)?;
+            stack.push(resultado);
         }
         MachineInstr::Mul => {
             let (lhs, rhs) = pop_bin_numeric(stack, "mul exige dois inteiros")?;
@@ -1492,6 +1504,31 @@ fn public_memory_region(state: &PublicMemoryState, address: usize) -> Option<(us
         }
     }
     None
+}
+
+fn validar_derivacao_memoria_publica(
+    state: &PublicMemoryState,
+    origem: Option<usize>,
+    resultado: &RuntimeValue,
+) -> Result<(), PinkerError> {
+    let (Some(origem), RuntimeValue::Ptr(derivado)) = (origem, resultado) else {
+        return Ok(());
+    };
+    let Some((base, size, alive)) = public_memory_region(state, origem) else {
+        return Ok(());
+    };
+    if !alive {
+        return Err(runtime_err("uso após liberar detectado em memória pública"));
+    }
+    let fim = base
+        .checked_add(size)
+        .ok_or_else(|| runtime_err("metadados de região pública inválidos"))?;
+    if *derivado < base || *derivado > fim {
+        return Err(runtime_err(
+            "derivação fora dos limites da alocação pública",
+        ));
+    }
+    Ok(())
 }
 
 fn public_memory_allocate(
