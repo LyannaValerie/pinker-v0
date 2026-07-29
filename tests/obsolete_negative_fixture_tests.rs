@@ -13,7 +13,11 @@ fn fixture_invalida_nao_pode_ser_aceita_por_todos_os_modos_relevantes() {
     assert!(tracked.status.success());
 
     let pink = env!("CARGO_BIN_EXE_pink");
-    for raw in tracked.stdout.split(|byte| *byte == 0).filter(|p| !p.is_empty()) {
+    for raw in tracked
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|p| !p.is_empty())
+    {
         let path = std::str::from_utf8(raw).expect("caminho de fixture UTF-8");
         if !Command::new(pink)
             .args(["--check", path])
