@@ -52,7 +52,159 @@ fn stable_region_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -
     records.concat()
 }
 
+fn project_pre_phase245_246(catalog: &mut CodeCatalog) {
+    // Fases 245–246: os snapshots históricos continuam congelados no head da
+    // Fase 244. Reconstrói somente os hashes das regiões tocadas pelas duas
+    // entregas antes de aplicar as projeções históricas anteriores.
+    for region in &mut catalog.regions {
+        let (current, predecessor) = match region.key.as_str() {
+            "ast.closures.identificadores-livres" => {
+                ("fnv1a64:9cfe0f0bd4104c29", "fnv1a64:733d96df8801da83")
+            }
+            "ast.expressoes.representacao" => {
+                ("fnv1a64:324ef29194ba8823", "fnv1a64:da804ed63d673f55")
+            }
+            "backend-s.lowering.chamadas-sysv" => {
+                ("fnv1a64:98b48668cbaea507", "fnv1a64:b9aa31f41fe013e3")
+            }
+            "backend-s.lowering.operacoes-memoria" => {
+                ("fnv1a64:f09d1a1dd2ee9238", "fnv1a64:c62f2129802b2958")
+            }
+            "backend-s.lowering.operandos-slots" => {
+                ("fnv1a64:2c9566cdc31ff564", "fnv1a64:b0c6a9baff2f57ee")
+            }
+            "backend-s.renderizacao.abi-textual-componentes" => {
+                ("fnv1a64:191ff8cc8233ad26", "fnv1a64:0464b9d795e0aa44")
+            }
+            "backend-s.renderizacao.abi-textual-instrucoes" => {
+                ("fnv1a64:ca05263cd79d8463", "fnv1a64:602147ee6f2b57eb")
+            }
+            "backend-s.runtime.simbolos-intrinsecas" => {
+                ("fnv1a64:b4f67ec04b8f9b17", "fnv1a64:2ef27c7df57d5103")
+            }
+            "backend-s.validacao.labels-tipos" => {
+                ("fnv1a64:5f509df0fc74c68e", "fnv1a64:f354ff714559cb4d")
+            }
+            "backend-text.lowering.cfg-programa" => {
+                ("fnv1a64:d369db06d2607cdf", "fnv1a64:44c79d206b1dc681")
+            }
+            "backend-text.lowering.instrucoes-selecionadas" => {
+                ("fnv1a64:418b9e420d630a7e", "fnv1a64:5d97496ff49cd8ec")
+            }
+            "backend-text.modelo.representacao" => {
+                ("fnv1a64:415b2aab1cfe895f", "fnv1a64:172ea789e670fb8e")
+            }
+            "backend-text.renderizacao.componentes" => {
+                ("fnv1a64:e9e9694b0cad0b44", "fnv1a64:e5f0c347d6d3239d")
+            }
+            "backend-text.renderizacao.instrucoes" => {
+                ("fnv1a64:6196cda7892b3bc9", "fnv1a64:9c677c3c3d9cbb58")
+            }
+            "backend-text.validacao.invariantes" => {
+                ("fnv1a64:f30e20015f7a142c", "fnv1a64:73aaca289c641d84")
+            }
+            "cfg.lowering.constantes" => ("fnv1a64:0f182f2cdb0bd440", "fnv1a64:d4351892a75e92ef"),
+            "cfg.lowering.valores-temporarios" => {
+                ("fnv1a64:9065fd2067334b69", "fnv1a64:e794250f56e54066")
+            }
+            "cfg.modelo.representacao" => ("fnv1a64:e1c51c02975e559b", "fnv1a64:b4cb768e5cbe6f82"),
+            "cfg.renderizacao.componentes" => {
+                ("fnv1a64:e3b1a3528c724b58", "fnv1a64:468dbdefa061f03e")
+            }
+            "cfg.validacao.invariantes" => ("fnv1a64:13662c29a7dcf04c", "fnv1a64:869c1a0919d98dfc"),
+            "evidencia.interpreter.ponteiros-array-fixo-e-cast-memoria-cli" => {
+                ("fnv1a64:6e3ea2ab08c58578", "fnv1a64:2a0c627cea9905da")
+            }
+            "evidencia.interpreter.ponteiros-boot-freestanding-e-subset-nativo" => {
+                ("fnv1a64:02da9bcb03aa00a3", "fnv1a64:3e9a52c45a703003")
+            }
+            "interpreter.diagnostico.stack-trace" => {
+                ("fnv1a64:797ffb49c1e8121f", "fnv1a64:8bcd97ece790c80b")
+            }
+            "interpreter.execucao.instrucoes-pilha" => {
+                ("fnv1a64:14fb34b2835b82a9", "fnv1a64:c3f537ebb5d55345")
+            }
+            "interpreter.intrinsecos.acaso" => {
+                ("fnv1a64:e0f6388037335754", "fnv1a64:371c40951a0171ec")
+            }
+            "ir.lowering.assinaturas-intrinsecos" => {
+                ("fnv1a64:54a139a83356777a", "fnv1a64:3125ed3b95452f06")
+            }
+            "ir.lowering.comandos-controle" => {
+                ("fnv1a64:4cba17cf28dd51b1", "fnv1a64:e924105887664ddc")
+            }
+            "ir.lowering.contexto-declaracoes" => {
+                ("fnv1a64:067065b5abca606d", "fnv1a64:2f8a770d6696803c")
+            }
+            "ir.lowering.expressoes-valores" => {
+                ("fnv1a64:5f66356197b9a0d3", "fnv1a64:cfcca853381d28fd")
+            }
+            "ir.lowering.funcoes-blocos" => {
+                ("fnv1a64:81882e0f9e2212af", "fnv1a64:791de6b34b5bc033")
+            }
+            "ir.modelo.representacao" => ("fnv1a64:62ed882c6825300b", "fnv1a64:30c34245cd3fa690"),
+            "ir.renderizacao.textual" => ("fnv1a64:c8f9a06992b5c095", "fnv1a64:15246c7656d5074d"),
+            "ir.tipos.conversao-ast" => ("fnv1a64:955109e94b2f485e", "fnv1a64:e42ce13d36ffbb66"),
+            "ir.validacao.invariantes" => ("fnv1a64:9f656f5098a28fd2", "fnv1a64:a5d7b18f46f9f796"),
+            "machine.lowering.instrucoes-pilha" => {
+                ("fnv1a64:a91945bf323c4f5c", "fnv1a64:dd0dd27f8dc61bb6")
+            }
+            "machine.lowering.operandos-slots" => {
+                ("fnv1a64:ed0572c7a88c2f8e", "fnv1a64:e465a25b6c0e93b6")
+            }
+            "machine.modelo.representacao" => {
+                ("fnv1a64:beb2d38e8ba77670", "fnv1a64:dffce147bf2aaaff")
+            }
+            "machine.renderizacao.componentes" => {
+                ("fnv1a64:a6365dc8bf24bab4", "fnv1a64:53f63148bc38e102")
+            }
+            "machine.validacao.invariantes" => {
+                ("fnv1a64:c254b3e0800ab569", "fnv1a64:043b202233248873")
+            }
+            "parser.callbacks.substituicao-estatica" => {
+                ("fnv1a64:271fd1b0b7addec9", "fnv1a64:e970fb84b89ad885")
+            }
+            "parser.expressoes.precedencia" => {
+                ("fnv1a64:70da659561fb2cfe", "fnv1a64:94785601e408de86")
+            }
+            "parser.genericos.substituicao-ast" => {
+                ("fnv1a64:7eff22c326093675", "fnv1a64:a0f8e1c66e44edc7")
+            }
+            "parser.tipos.gramatica" => ("fnv1a64:64643406531ba071", "fnv1a64:93e5ff9d9fdc5fa0"),
+            "printer.ast.renderizacao" => ("fnv1a64:f75231e20988b9d1", "fnv1a64:b58b2f5e5c9e0a60"),
+            "runtime.memoria.alocador" => ("fnv1a64:8d84756a2797af16", "fnv1a64:2bb8be1f4b705af4"),
+            "select.lowering.instrucoes" => {
+                ("fnv1a64:c0b088faea2bb3f1", "fnv1a64:15c2a5b790057f07")
+            }
+            "select.modelo.representacao" => {
+                ("fnv1a64:4758d14ce22568b4", "fnv1a64:696d63954d5f731c")
+            }
+            "select.renderizacao.componentes" => {
+                ("fnv1a64:004497032d362221", "fnv1a64:0e3e41e7147a0d76")
+            }
+            "select.validacao.invariantes" => {
+                ("fnv1a64:e371243138fcc1b4", "fnv1a64:84065fc2051da4a5")
+            }
+            "semantic.chamadas.despacho" => {
+                ("fnv1a64:6f28aa3d8af5420d", "fnv1a64:bb305921d629547f")
+            }
+            "semantic.comandos.verificacao" => {
+                ("fnv1a64:c4329a490ca74419", "fnv1a64:bcec641450fc09f4")
+            }
+            "semantic.expressoes.verificacao" => {
+                ("fnv1a64:a94b636663edcdc8", "fnv1a64:8a760a00b436468e")
+            }
+            "semantic.tipos.sistema" => ("fnv1a64:1fd535a0fde371c1", "fnv1a64:f14f2d490206b250"),
+            _ => continue,
+        };
+        if region.hash == current {
+            region.hash = predecessor.to_string();
+        }
+    }
+}
+
 fn project_pre_conditional_callable_reassignment(catalog: &mut CodeCatalog) {
+    project_pre_phase245_246(catalog);
     // Continuação pós-revisão da PR #407: reconstrói o head 9964325 antes de
     // aplicar qualquer projeção histórica. Somente regiões alteradas pelo
     // blocker de reatribuição condicional são restauradas.
@@ -6013,7 +6165,19 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
             .any(|prefixo| t.starts_with(prefixo))
     };
     let definicoes: Vec<usize> = (1..bloco_inicio)
-        .filter(|line| e_definicao(central_lines[line - 1]))
+        .filter(|line| {
+            let source = central_lines[line - 1];
+            e_definicao(source)
+                // Reconstrução do snapshot da Onda 8J: as duas entradas ABI
+                // públicas da Fase 246 pertencem ao estado corrente, não ao
+                // predecessor histórico congelado em 147 definições.
+                && !source.contains("LIMITE_ALOCACAO_PUBLICA")
+                && !source.contains("AlocacaoPublica")
+                && !source.contains("ALOCACOES_PUBLICAS")
+                && !source.contains("erro_memoria_publica")
+                && !source.contains("pinker_publico_alocar")
+                && !source.contains("pinker_publico_liberar")
+        })
         .collect();
     assert_eq!(
         definicoes.len(),
@@ -6047,13 +6211,17 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     // 107 símbolos de ABI: 99 `extern "C" fn` nomeadas na produção mais os 8
     // wrappers gerados pela macro.
     let producao = central_lines[..(ordered[0].0 - 1)].join("\n");
-    let abi_nomeadas = producao
+    let abi_nomeadas_correntes = producao
         .match_indices("extern \"C\" fn ")
         .filter(|(index, marca)| {
             !producao[(index + marca.len())..].starts_with('$')
                 && !producao[(index + marca.len())..].is_empty()
         })
         .count();
+    let abi_nomeadas = abi_nomeadas_correntes
+        - producao
+            .match_indices("extern \"C\" fn pinker_publico_")
+            .count();
     assert_eq!(
         abi_nomeadas, 99,
         "a produção do runtime deve manter 99 funções extern \"C\" nomeadas"
