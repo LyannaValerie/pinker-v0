@@ -259,6 +259,49 @@ O receiver `si` aparece apenas na assinatura do trato e é substituído pelo tip
 
 O interpretador e o backend nativo têm a mesma semântica observável e o exemplo completo está em `examples/fase244_objetos_trato_dinamicos_valido.pink`. O lifetime atual é monotônico: snapshots e descritores não são liberados, coletados nem contados. Coerções, default methods, downcasting/upcasting, herança, igualdade/serialização e objetos de múltiplos tratos continuam fora.
 
+## Ponteiros crus de função
+
+Desde a Fase 245, `seta<carinho(P...) -> R>` representa diretamente um
+endereço de código com assinatura concreta. O operador `&` obtém o endereço de
+uma função top-level não capturante e a chamada usa a sintaxe ordinária:
+
+```pinker
+carinho dobrar(x: bombom) -> bombom { mimo x * 2; }
+nova op: seta<carinho(bombom) -> bombom> = &dobrar;
+falar(op(21));
+```
+
+O ponteiro cru ocupa uma palavra e não possui descritor, ambiente ou argumento
+oculto `__env`. Ele é distinto do callable `carinho(...) -> R` das Fases
+242–243: não há conversão implícita entre os dois, e closures capturantes,
+bound methods, objetos de trato e assinaturas multi-palavra sem ABI estável são
+rejeitados. O interpretador usa uma identidade interna determinística; o
+backend nativo usa o endereço real do símbolo e `call *reg` pela ABI SysV.
+
+## Memória explícita
+
+Desde a Fase 246, `alocar(u64) -> seta<u8>` solicita bytes e
+`liberar(seta<u8>)` libera exatamente o ponteiro-base uma única vez. A região é
+zerada, tem alinhamento mínimo de 16 bytes, e o tamanho máximo público atual é
+16 MiB. Tamanho zero, overflow/faixa excessiva, falha do allocator, ponteiro
+estrangeiro, ponteiro interior e double free terminam deterministicamente com
+erro de runtime.
+
+```pinker
+nova bytes: seta<u8> = alocar(8);
+nova numeros: seta<u64> = bytes virar seta<u64>;
+*numeros = 42;
+falar(*numeros);
+liberar(bytes);
+```
+
+O interpretador detecta limites e uso após liberação na memória modelada. No
+backend nativo, usar qualquer cópia depois de `liberar` é programa inválido com
+comportamento indefinido; a fase não promete instrumentação universal. O
+allocator público mantém registro separado de closures, callables e objetos de
+trato. Não existe coleta automática: `alocar`/`liberar` é mecanismo de memória,
+não política geral de ownership.
+
 ## 5) Fluxo de controle
 
 ### `talvez` / `senao`

@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **244** — Eixo A: objetos de trato e despacho dinâmico |
+| Fase funcional mais recente | **246** — Eixo A: alocação e liberação explícitas de memória |
 | Rodada documental mais recente | **Doc-49** — fundação comunitária para contribuições externas |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -24,14 +24,13 @@
 ### Estado operacional estruturado
 
 ```yaml
-fase_funcional_mais_recente: 244
+fase_funcional_mais_recente: 246
 bloco_estruturalmente_ativo: 20
 estado_operacional: eixo_a_retomado
 expansao_funcional_eixo_a: ATIVA
 ultima_fase_antes_da_tarefa: 244
 proxima_progressao:
-  - fase_245
-  - fase_246
+  - fase_247_item_14_nao_iniciado
 retomada:
   decisao: humana_explicita_da_founder
   data: 2026-07-28
@@ -99,6 +98,8 @@ trabalho_estrutural:
 | 242 | Bloco 20, Eixo A: valores de função materializados e chamada indireta — callable handle de 1 palavra (`{code_ptr, env_ptr}`, descritor estático não-capturante); função top-level/literal `carinho` como valor, variável tipada (imutável/`muda`), passagem/retorno de callable e chamada indireta real no interpretador e no backend nativo (`call *reg`); especialização estática da Fase 239 preservada intocada |
 | 243 | Bloco 20, Eixo A: closures com captura imutável por valor — mesmo descritor `{code_ptr, env_ptr}` da Fase 242, agora com `env_ptr` apontando para bloco alocado em heap (`pinker_alocar`) com o snapshot das capturas; `__env` uniforme como argumento oculto final em toda chamada indireta (closure ou wrapper sintético `__fnref_env_<nome>`); resolução léxica preguiçosa no ponto de criação com propagação transitiva por closures aninhadas; sombreamento por parâmetro e por local sobre captura homônima; captura imutável (reatribuição rejeitada); idioma de chamada imediata da Fase 225 preservado sem captura |
 | 244 | Bloco 20, Eixo A: objetos de trato e despacho dinâmico — `trato<Nome>` explícito, materialização por `virar`, snapshot por valor, handle/descritor `{data_ptr,vtable_ptr}`, vtables `.rodata` deduplicadas por trato × tipo, slots na ordem do trato, chamada indireta SysV com receiver primeiro e sem `__env`, interpretador × ELF nativo em paridade |
+| 245 | Bloco 20, Eixo A, Faixa 3 item 12: ponteiro cru `seta<carinho(P...) -> R>` obtido por `&funcao`, endereço de uma palavra, assinatura/ABI concreta, chamada indireta sem descritor e sem `__env`; interpretador determinístico × ELF nativo em paridade |
+| 246 | Bloco 20, Eixo A, Faixa 3 item 13: `alocar(u64) -> seta<u8>`/`liberar(seta<u8>)`, regiões públicas zeradas e alinhadas, registro separado, falhas determinísticas para zero, excesso, double free e ponteiro estrangeiro; interpretador × runtime nativo em paridade |
 
 Histórico completo por fase: `docs/history/phases/`.
 
@@ -106,8 +107,9 @@ Histórico completo por fase: `docs/history/phases/`.
 - **Retomada funcional do Eixo A — 28 de julho de 2026**.
 - Decisão humana explícita da Founder encerrou antecipadamente a janela de
   estabilização estrutural e reativou a expansão funcional do Eixo A.
-- O Bloco 20 permanece estruturalmente ativo; a Fase 244 é a última fase antes
-  desta tarefa, e as Fases 245 e 246 formam a progressão imediata autorizada.
+- O Bloco 20 permanece estruturalmente ativo; a Fase 244 foi a última fase
+  anterior à tarefa, e as Fases 245 e 246 foram concluídas. O item 14 não foi
+  iniciado.
 - Os objetivos estruturais não são declarados concluídos. Modularização ampla,
   reorganização documental ampla e bughunting amplo foram adiados.
 - Os artefatos de auditoria local permanecem evidência histórica preservada

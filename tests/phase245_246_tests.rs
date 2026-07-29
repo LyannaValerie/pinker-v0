@@ -128,6 +128,10 @@ fn fase246_interpretador_detecta_zero_double_free_estrangeiro_e_uaf() {
             "'alocar' rejeita tamanho zero",
         ),
         (
+            "examples/fase246_overflow_invalido.pink",
+            "'alocar' excede o limite público de 16777216 bytes",
+        ),
+        (
             "examples/fase246_double_free_invalido.pink",
             "'liberar' detectou double free",
         ),
@@ -150,5 +154,24 @@ fn fase246_interpretador_detecta_zero_double_free_estrangeiro_e_uaf() {
             "{}",
             String::from_utf8_lossy(&output.stderr)
         );
+    }
+}
+
+#[test]
+fn fase246_tamanho_minimo_e_duas_regioes_independentes() {
+    for (path, stdout) in [
+        ("examples/fase246_tamanho_minimo_valido.pink", "7\n0\n"),
+        ("examples/fase246_duas_alocacoes_valido.pink", "16\n0\n"),
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+            .args(["--run", path])
+            .output()
+            .expect("execução de região pública válida");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(String::from_utf8_lossy(&output.stdout), stdout);
     }
 }

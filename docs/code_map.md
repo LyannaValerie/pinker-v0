@@ -25,6 +25,7 @@ Referência rápida para localizar a camada certa antes de editar.
 - CFG IR: `src/cfg_ir.rs`, `src/cfg_ir_validate.rs`
 - seleção de instruções: `src/instr_select.rs`, `src/instr_select_validate.rs`
 - máquina abstrata: `src/abstract_machine.rs`, `src/abstract_machine_validate.rs`
+- ponteiros crus de função (Fase 245): metadados e lowering atravessam todas as camadas acima, com `CallRaw`
 
 ## Execução e saída
 
@@ -33,6 +34,7 @@ Referência rápida para localizar a camada certa antes de editar.
 - REPL mínimo `pink repl`: `src/repl.rs`
 - backend textual final: `src/backend_text.rs`, `src/backend_text_validate.rs`
 - backend `.s`: `src/backend_s.rs`
+- memória pública (Fase 246): semântica/lowering em `src/semantic.rs` e `src/ir.rs`, modelo interpretado em `src/interpreter.rs`, ABI/registro nativo em `runtime/pinker_rt/src/lib.rs`
 - boot/freestanding: `src/boot.rs`
 - CLI: `src/main.rs`
 
@@ -48,6 +50,7 @@ Referência rápida para localizar a camada certa antes de editar.
 - IR/CFG/seleção: `tests/ir_tests.rs`, `tests/cfg_ir_tests.rs`, `tests/instr_select_tests.rs`
 - máquina/runtime: `tests/abstract_machine_tests.rs`, `tests/abstract_machine_stack_tests.rs`, `tests/interpreter_tests.rs`
 - backends: `tests/backend_text_tests.rs`, `tests/backend_s_tests.rs`, `tests/backend_s_external_toolchain_tests.rs`
+- Fases 245–246: `tests/phase245_246_tests.rs`
 - CLI/saída: `tests/output_tests.rs`, `tests/editor_tui_tests.rs`
 
 ## Docs que costumam acompanhar mudança funcional
