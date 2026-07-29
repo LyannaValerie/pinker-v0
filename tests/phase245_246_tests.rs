@@ -88,6 +88,10 @@ fn fase245_interpretador_cobre_valor_spill_e_retorno_nulo() {
             "36\n0\n",
         ),
         (
+            "examples/fase245_ponteiro_funcao_aridades_valido.pink",
+            "0\n1\n3\n15\n21\n28\n36\n0\n",
+        ),
+        (
             "examples/fase245_ponteiro_funcao_nulo_valido.pink",
             "245\n0\n",
         ),
@@ -208,6 +212,7 @@ fn build_native(example: &str, output_dir: &std::path::Path) -> std::path::PathB
 fn fases245_246_elf_real_tem_paridade_de_stdout_e_exit() {
     for example in [
         "examples/fase245_ponteiro_funcao_spill_valido.pink",
+        "examples/fase245_ponteiro_funcao_aridades_valido.pink",
         "examples/fase246_memoria_explicita_valido.pink",
     ] {
         let out_dir = native_output_dir("phase245_246_parity");
