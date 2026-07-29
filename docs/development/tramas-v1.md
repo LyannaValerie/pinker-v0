@@ -113,6 +113,17 @@ Adiados até depois do Eixo A:
 - retomada;
 - checks remotos.
 
+### Imutabilidade de manifestos
+
+Depois da primeira importação, os dados estruturados de um manifesto são
+imutáveis. Importações semanticamente equivalentes são idempotentes e
+preservam os bytes já versionados, inclusive quando o serializador canônico
+evolui. Qualquer mudança estrutural continua bloqueada.
+
+Artefatos novos usam a serialização YAML canônica vigente. Um artefato
+histórico válido não é reformatado automaticamente: a comparação considera
+todos os campos do schema e mantém a ordem declarada de listas e atualizações.
+
 ## Capacidades reconsideráveis depois do Eixo A
 
 - índice de símbolos;

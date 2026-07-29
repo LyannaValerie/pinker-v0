@@ -1879,7 +1879,7 @@ fn run_doc_sincronizar(repo_root: &Path, config: &doc::DocConfig) -> i32 {
 // @pinker-nav:start cli.doc.mudancas
 // @pinker-nav:domain doc
 // @pinker-nav:layer cli
-// @pinker-nav:summary LEDGER_REL é o caminho fixo do histórico mecânico (.pinker/changes/index.jsonl); write_ledger renderiza os manifestos e grava via write_atomic, ou remove o arquivo quando não há manifestos; run_doc_importar lê o corpo de um PR, parseia e valida o manifesto (change::Change::parse_pr_body/validate), e com `check=true` apenas reporta se o manifesto seria criado sem gravar; sem `check`, grava o YAML em .pinker/changes/pr-<n>.yaml e atualiza o ledger — imutabilidade: se o manifesto já existe com conteúdo idêntico, é tratado como idempotente; conteúdo diferente retorna erro (change::immutable_error).
+// @pinker-nav:summary LEDGER_REL é o caminho fixo do histórico mecânico (.pinker/changes/index.jsonl); write_ledger renderiza os manifestos e grava via write_atomic, ou remove o arquivo quando não há manifestos; run_doc_importar lê, valida e serializa canonicamente um bloco novo e, para manifesto existente, preserva o fast path byte a byte ou compara o modelo semântico completo sem reescrever o artefato; mudanças estruturais e manifestos existentes inválidos retornam change::immutable_error.
 const LEDGER_REL: &str = ".pinker/changes/index.jsonl";
 
 fn write_ledger(repo_root: &Path, manifests: &change::Manifests) -> Result<(), i32> {
@@ -1928,15 +1928,41 @@ fn run_doc_importar(
     let changes_dir = repo_root.join(".pinker/changes");
     let manifest_path = changes_dir.join(format!("pr-{pr}.yaml"));
 
-    // Contrato de imutabilidade (§10): se já existe, o conteúdo canônico precisa
-    // ser idêntico; conteúdo diferente falha com E-CHANGE-IMMUTABLE.
+    // Contrato de imutabilidade (§10): os bytes existentes são preservados. Uma
+    // representação diferente só é idempotente quando o modelo integral coincide.
     if manifest_path.exists() {
-        let existing = fs::read_to_string(&manifest_path).unwrap_or_default();
+        let existing = match fs::read_to_string(&manifest_path) {
+            Ok(existing) => existing,
+            Err(_) => {
+                eprintln!("{}", change::immutable_error(pr));
+                return EXIT_SOURCE;
+            }
+        };
         if existing == rendered {
             if check {
                 println!("Manifesto pr-{pr}.yaml já sincronizado (idempotente).");
             } else {
                 println!("Manifesto pr-{pr}.yaml inalterado (idempotente).");
+            }
+            return EXIT_OK;
+        }
+        let existing_manifest = match change::Change::parse_manifest(&existing) {
+            Ok(existing_manifest) => existing_manifest,
+            Err(_) => {
+                eprintln!("{}", change::immutable_error(pr));
+                return EXIT_SOURCE;
+            }
+        };
+        let existing_valid = existing_manifest.validate().is_ok()
+            && existing_manifest
+                .source
+                .as_ref()
+                .is_some_and(|source| source.number == pr);
+        if existing_valid && existing_manifest.semantically_equal(&manifest) {
+            if check {
+                println!("Manifesto pr-{pr}.yaml semanticamente sincronizado (bytes preservados).");
+            } else {
+                println!("Manifesto pr-{pr}.yaml semanticamente inalterado (bytes preservados).");
             }
             return EXIT_OK;
         }

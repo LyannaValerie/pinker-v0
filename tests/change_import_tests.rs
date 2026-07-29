@@ -140,6 +140,41 @@ fn importacao_e_idempotente() {
 }
 
 #[test]
+fn manifesto_novo_usa_yaml_canonico_e_permanece_idempotente() {
+    let root = temp_repo("canonical");
+    fixture(&root);
+    let body = "```pinker-change\nschema: 1\nkind: phase\nphase: 241\nblock: 20\ntitle: 'Título: # \"aspas\" \\ rota'\narea:\n  - language.result\nstatus: completed\n```\n";
+    write(&root, "body.md", body);
+    let body_path = root.join("body.md").to_string_lossy().to_string();
+
+    let first = run(&root, &["importar-pr", "341", "--corpo", &body_path]);
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let path = root.join(".pinker/changes/pr-341.yaml");
+    let bytes = fs::read(&path).unwrap();
+    let rendered = String::from_utf8(bytes.clone()).unwrap();
+    assert!(
+        rendered.contains("repository: \"LyannaValerie/pinker-v0\"")
+            && rendered.contains("title: \"Título: # \\\"aspas\\\" \\\\ rota\""),
+        "{rendered}"
+    );
+
+    let second = run(&root, &["importar-pr", "341", "--corpo", &body_path]);
+    assert!(second.status.success());
+    assert_eq!(bytes, fs::read(&path).unwrap());
+    let checked = run(
+        &root,
+        &["importar-pr", "341", "--corpo", &body_path, "--check"],
+    );
+    assert!(checked.status.success());
+    assert_eq!(bytes, fs::read(&path).unwrap());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn importar_pr_anterior_ao_marco_e_rejeitado_mesmo_com_corpo() {
     let root = temp_repo("reject");
     fixture(&root);

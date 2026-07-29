@@ -50,9 +50,18 @@ fn write(root: &Path, rel: &str, content: &str) {
 }
 
 fn import(root: &Path, pr: &str, body_rel: &str) -> std::process::Output {
+    import_with_mode(root, pr, body_rel, false)
+}
+
+fn import_with_mode(root: &Path, pr: &str, body_rel: &str, check: bool) -> std::process::Output {
     let body_path = root.join(body_rel).to_string_lossy().to_string();
-    Command::new(env!("CARGO_BIN_EXE_pink"))
-        .args(["doc", "importar-pr", pr, "--corpo", &body_path, "--repo"])
+    let mut command = Command::new(env!("CARGO_BIN_EXE_pink"));
+    command.args(["doc", "importar-pr", pr, "--corpo", &body_path]);
+    if check {
+        command.arg("--check");
+    }
+    command
+        .arg("--repo")
         .arg(root)
         .output()
         .expect("executar pink")
@@ -101,6 +110,156 @@ fn manifesto_imutavel_com_conteudo_diferente() {
     assert_eq!(before, after, "manifesto imutável não pode mudar");
 
     fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn pr411_legado_e_bloco_atual_sao_idempotentes_sem_reescrita() {
+    const LEGACY: &str = "schema: 1\nsource:\n  type: github-pr\n  number: 411\n  repository: LyannaValerie/pinker-v0\nkind: phase\nphase: 248\nblock: 20\ntitle: Uniões estruturais tagged\narea:\n  - language.inline-assembly\n  - language.union-types\n  - runtime.integer-semantics\n  - runtime.public-memory\n  - development.test-integrity\nstatus: completed\nupdates:\n  state: true\n  history: true\n  roadmap: true\nvalidation:\n  required:\n    - make ci\n";
+    const CURRENT_BODY: &str = "```pinker-change\nschema: 1\nkind: phase\nphase: 248\nblock: 20\ntitle: Uniões estruturais tagged\nstatus: completed\narea:\n  - language.inline-assembly\n  - language.union-types\n  - runtime.integer-semantics\n  - runtime.public-memory\n  - development.test-integrity\nupdates:\n  state: true\n  history: true\n  roadmap: true\nvalidation:\n  required:\n    - make ci\n```\n";
+
+    let root = temp_repo("pr411_legacy");
+    setup(&root);
+    write(&root, "body.md", CURRENT_BODY);
+    write(&root, ".pinker/changes/pr-411.yaml", LEGACY);
+    let before = fs::read(root.join(".pinker/changes/pr-411.yaml")).unwrap();
+
+    let checked = import_with_mode(&root, "411", "body.md", true);
+    assert!(
+        checked.status.success(),
+        "{}",
+        String::from_utf8_lossy(&checked.stderr)
+    );
+    assert_eq!(
+        before,
+        fs::read(root.join(".pinker/changes/pr-411.yaml")).unwrap()
+    );
+
+    let mutable = import_with_mode(&root, "411", "body.md", false);
+    assert!(
+        mutable.status.success(),
+        "{}",
+        String::from_utf8_lossy(&mutable.stderr)
+    );
+    assert_eq!(
+        before,
+        fs::read(root.join(".pinker/changes/pr-411.yaml")).unwrap()
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn toda_mudanca_estrutural_permanece_imutavel() {
+    const BODY: &str = "```pinker-change\nschema: 1\nkind: phase\nphase: 248\nblock: 20\ntitle: Entrega canônica\narea:\n  - language.alpha\n  - runtime.beta\nstatus: completed\nupdates:\n  state: true\n  history: false\nsections:\n  implemented:\n    - feature.ready\n  pending_remove:\n    - feature.legacy\nvalidation:\n  required:\n    - make ci\n    - cargo test\n```\n";
+    const EXISTING: &str = "schema: 1\nsource:\n  type: github-pr\n  number: 411\n  repository: LyannaValerie/pinker-v0\nkind: phase\nphase: 248\nblock: 20\ntitle: Entrega canônica\narea:\n  - language.alpha\n  - runtime.beta\nstatus: completed\nupdates:\n  state: true\n  history: false\nsections:\n  implemented:\n    - feature.ready\n  pending_remove:\n    - feature.legacy\nvalidation:\n  required:\n    - make ci\n    - cargo test\n";
+    let cases = [
+        ("schema", EXISTING.replacen("schema: 1", "schema: 2", 1)),
+        (
+            "repository",
+            EXISTING.replace(
+                "repository: LyannaValerie/pinker-v0",
+                "repository: LyannaValerie/outro",
+            ),
+        ),
+        ("number", EXISTING.replace("number: 411", "number: 412")),
+        (
+            "kind",
+            EXISTING.replace("\nkind: phase\n", "\nkind: hotfix\n"),
+        ),
+        ("phase", EXISTING.replace("phase: 248", "phase: 247")),
+        ("block", EXISTING.replace("block: 20", "block: 19")),
+        (
+            "title",
+            EXISTING.replace("title: Entrega canônica", "title: Entrega alterada"),
+        ),
+        (
+            "area",
+            EXISTING.replace("  - runtime.beta", "  - runtime.gamma"),
+        ),
+        (
+            "area_order",
+            EXISTING.replace(
+                "  - language.alpha\n  - runtime.beta",
+                "  - runtime.beta\n  - language.alpha",
+            ),
+        ),
+        (
+            "status",
+            EXISTING.replace("status: completed", "status: planned"),
+        ),
+        (
+            "updates",
+            EXISTING.replace("  history: false", "  history: true"),
+        ),
+        (
+            "sections",
+            EXISTING.replace("  - feature.ready", "  - feature.changed"),
+        ),
+        (
+            "validation",
+            EXISTING.replace("    - cargo test", "    - cargo check"),
+        ),
+    ];
+
+    for (name, existing) in cases {
+        let root = temp_repo(name);
+        setup(&root);
+        write(&root, "body.md", BODY);
+        write(&root, ".pinker/changes/pr-411.yaml", &existing);
+        let before = fs::read(root.join(".pinker/changes/pr-411.yaml")).unwrap();
+        let out = import_with_mode(&root, "411", "body.md", false);
+        assert_eq!(out.status.code(), Some(5), "{name}");
+        assert!(
+            String::from_utf8_lossy(&out.stderr).contains("E-CHANGE-IMMUTABLE"),
+            "{name}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_eq!(
+            before,
+            fs::read(root.join(".pinker/changes/pr-411.yaml")).unwrap(),
+            "{name}"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[test]
+fn manifesto_existente_invalido_falha_fechado_sem_reescrita() {
+    const BODY: &str = "```pinker-change\nschema: 1\nkind: phase\nphase: 248\nblock: 20\ntitle: Entrega canônica\narea:\n  - language.alpha\nstatus: completed\n```\n";
+    const VALID: &str = "schema: 1\nsource:\n  type: github-pr\n  number: 411\n  repository: LyannaValerie/pinker-v0\nkind: phase\nphase: 248\nblock: 20\ntitle: Entrega canônica\narea:\n  - language.alpha\nstatus: completed\n";
+    let cases = [
+        ("malformed", "schema: 1\nsource\n".to_string()),
+        (
+            "invalid_escape",
+            VALID.replace("title: Entrega canônica", "title: \"Entrega\\q\""),
+        ),
+        (
+            "unknown",
+            VALID.replace("  repository:", "  unknown: value\n  repository:"),
+        ),
+        (
+            "source",
+            VALID.replace("type: github-pr", "type: delegated-input"),
+        ),
+        ("schema", VALID.replacen("schema: 1", "schema: 9", 1)),
+        ("filename", VALID.replace("number: 411", "number: 412")),
+    ];
+
+    for (name, existing) in cases {
+        let root = temp_repo(name);
+        setup(&root);
+        write(&root, "body.md", BODY);
+        write(&root, ".pinker/changes/pr-411.yaml", &existing);
+        let before = fs::read(root.join(".pinker/changes/pr-411.yaml")).unwrap();
+        let out = import_with_mode(&root, "411", "body.md", false);
+        assert_eq!(out.status.code(), Some(5), "{name}");
+        assert!(String::from_utf8_lossy(&out.stderr).contains("E-CHANGE-IMMUTABLE"));
+        assert_eq!(
+            before,
+            fs::read(root.join(".pinker/changes/pr-411.yaml")).unwrap(),
+            "{name}"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
 }
 // @pinker-nav:end evidencia.trama.manifest.idempotence-immutability
 
