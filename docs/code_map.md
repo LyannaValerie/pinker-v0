@@ -34,7 +34,8 @@ Referência rápida para localizar a camada certa antes de editar.
 - REPL mínimo `pink repl`: `src/repl.rs`
 - backend textual final: `src/backend_text.rs`, `src/backend_text_validate.rs`
 - backend `.s`: `src/backend_s.rs`
-- memória pública (Fase 246): semântica/lowering em `src/semantic.rs` e `src/ir.rs`, modelo interpretado em `src/interpreter.rs`, ABI/registro nativo em `runtime/pinker_rt/src/lib.rs`
+- ponteiros crus de função (Fase 245): formação em `src/parser.rs`, contrato em `src/semantic.rs`, lowering em `src/ir.rs`, execução determinística em `src/interpreter.rs` e ABI indireta em `src/backend_s.rs`
+- memória pública (Fase 246): semântica/lowering em `src/semantic.rs` e `src/ir.rs`, regiões esparsas em `src/interpreter.rs`, validação nativa de vida/limites/alinhamento e domínios em `runtime/pinker_rt/src/lib.rs`
 - boot/freestanding: `src/boot.rs`
 - CLI: `src/main.rs`
 

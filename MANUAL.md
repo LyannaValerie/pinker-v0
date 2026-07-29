@@ -263,7 +263,8 @@ O interpretador e o backend nativo têm a mesma semântica observável e o exemp
 
 Desde a Fase 245, `seta<carinho(P...) -> R>` representa diretamente um
 endereço de código com assinatura concreta. O operador `&` obtém o endereço de
-uma função top-level não capturante e a chamada usa a sintaxe ordinária:
+uma função top-level ou de uma especialização genérica concreta e materializada;
+a chamada usa a sintaxe ordinária:
 
 ```pinker
 carinho dobrar(x: bombom) -> bombom { mimo x * 2; }
@@ -271,21 +272,39 @@ nova op: seta<carinho(bombom) -> bombom> = &dobrar;
 falar(op(21));
 ```
 
+Aliases diretos e encadeados preservam a assinatura. O valor pode ser copiado,
+reatribuído, passado, retornado, escolhido por branch ou ternário, armazenado
+antes da chamada e chamado diretamente mesmo quando é resultado de outra
+expressão. Aridade, parâmetros e retorno são validados estruturalmente; a ABI
+SysV cobre todos os escalares, `logica`, `verso`, ponteiros de dados e de função
+já aceitos em chamada direta, com quantidade geral de argumentos, registradores,
+spills, alinhamento e extensões estreitas.
+
 O ponteiro cru ocupa uma palavra e não possui descritor, ambiente ou argumento
-oculto `__env`. Ele é distinto do callable `carinho(...) -> R` das Fases
-242–243: não há conversão implícita entre os dois, e closures capturantes,
-bound methods, objetos de trato e assinaturas multi-palavra sem ABI estável são
-rejeitados. O interpretador usa uma identidade interna determinística; o
-backend nativo usa o endereço real do símbolo e `call *reg` pela ABI SysV.
+oculto `__env`. Ele é distinto do callable `carinho(...) -> R`, da closure
+`{code_ptr, env_ptr}` e do objeto de trato `{data_ptr, vtable_ptr}`: não há
+conversões implícitas entre essas categorias. Closures, bound methods sem
+receiver explícito, slots de vtable, símbolos sintéticos, especializações não
+concretizadas e assinaturas multi-palavra sem ABI estável são rejeitados antes
+do lowering.
+
+O literal `0` é o nulo tipado quando o contexto exige ponteiro de função;
+qualquer outro inteiro é rejeitado como endereço implícito. Igualdade e
+desigualdade seguem a identidade de símbolo, mas ordenação, aritmética e casts
+inteiro↔ponteiro de função não fazem parte do contrato. Chamar o nulo termina
+com diagnóstico determinístico. O interpretador usa identidade de símbolo
+estável, sem endereço do processo hospedeiro; o backend materializa o símbolo
+real e usa `call *reg`, sem `__env`.
 
 ## Memória explícita
 
 Desde a Fase 246, `alocar(u64) -> seta<u8>` solicita bytes e
 `liberar(seta<u8>)` libera exatamente o ponteiro-base uma única vez. A região é
-zerada, tem alinhamento mínimo de 16 bytes, e o tamanho máximo público atual é
-16 MiB. Tamanho zero, overflow/faixa excessiva, falha do allocator, ponteiro
-estrangeiro, ponteiro interior e double free terminam deterministicamente com
-erro de runtime.
+zerada em todos os bytes e tem alinhamento de 16 bytes, suficiente para todas as
+classes escalares atualmente acessíveis por `seta<T>`. O maior tamanho aceito é
+o que pode ser representado simultaneamente por `u64`, `usize`, `isize` e pelo
+layout do runtime; nenhuma conversão trunca. Tamanho zero, overflow, falha do
+allocator e tamanho fora dessa interseção terminam com diagnóstico determinístico.
 
 ```pinker
 nova bytes: seta<u8> = alocar(8);
@@ -295,12 +314,27 @@ falar(*numeros);
 liberar(bytes);
 ```
 
-O interpretador detecta limites e uso após liberação na memória modelada. No
-backend nativo, usar qualquer cópia depois de `liberar` é programa inválido com
-comportamento indefinido; a fase não promete instrumentação universal. O
-allocator público mantém registro separado de closures, callables e objetos de
-trato. Não existe coleta automática: `alocar`/`liberar` é mecanismo de memória,
-não política geral de ownership.
+Cada alocação pública possui identidade lógica, base, tamanho, alinhamento,
+estado `LIVE`/`FREED`, domínio e proveniência. O interpretador modela regiões
+esparsas; o runtime nativo registra a mesma informação e valida cada load/store
+público quanto a vida, limites completos e alinhamento. A liberação física fica
+em quarentena até o fim do processo, impedindo que reutilização de endereço
+reative aliases antigos ou esconda double free.
+
+Somente um alias do ponteiro-base vivo pode liberar a região, uma vez.
+Ponteiro nulo, interior, estrangeiro, estático, de pilha ou pertencente aos
+domínios internos de closure, callable, trato e runtime é rejeitado. Cópias e
+casts permitidos preservam a identidade; não transferem ownership. Acesso
+depois de liberar, desalinhado ou que cruze o último byte é diagnosticado com
+paridade entre interpretador e nativo.
+
+A API mantém o modelo fatal estruturado já usado pelas intrínsecas de runtime;
+ela não retorna `Resultado<T,E>` porque isso criaria uma segunda ABI de erro
+somente para esta intrínseca. Falha controlada existe apenas em builds de teste,
+sem superfície pública de produção. Não há ownership estático, GC, RAII,
+reference counting ou promessa de memory safety universal: aliases vivos,
+liberação no momento correto e vazamentos permanecem responsabilidade do
+programa.
 
 ## 5) Fluxo de controle
 

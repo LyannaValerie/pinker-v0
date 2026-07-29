@@ -70,8 +70,8 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 
 | # | Item | Inspiração | Motivação SO/self-hosting |
 |---|---|---|---|
-| 12 | Ponteiros de função / tipos função | C, C++, TS | **entregue na Fase 245**: `seta<carinho(P...) -> R>`, `&funcao`, armazenamento/passagem/retorno/cópia e chamada indireta tipada; endereço cru de uma palavra, ABI SysV, sem descritor nem `__env` |
-| 13 | Alocador de memória (`alocar`/`liberar`) | C | **entregue na Fase 246**: `alocar(u64) -> seta<u8>` e `liberar(seta<u8>)`, bytes zerados/alinhados, registro separado, zero/overflow/double free/ponteiro estrangeiro determinísticos; mecanismo, não política de ownership |
+| 12 | Ponteiros de função / tipos função | C, C++, TS | **entregue na Fase 245**: `seta<carinho(P...) -> R>`, aliases, `&funcao`/`&generica<T>`, ciclo de valor completo, identidade/null e chamada indireta tipada de aridade geral sobre todo o universo ABI de uma palavra; endereço cru sem descritor nem `__env`, separado de callables, closures e vtables |
+| 13 | Alocador de memória (`alocar`/`liberar`) | C | **entregue na Fase 246**: regiões zeradas e alinhadas com identidade, tamanho, estado, proveniência e domínio; validação interpretada e nativa de base/interior, vida, limites, alinhamento, double free, ponteiro estrangeiro e falha de alocação; mecanismo explícito, não política de ownership |
 | 14 | Inline assembly real (lowering completo de `sussurro`) | C | `mov cr3`, `lgdt`, `iret` etc. |
 
 ### Trilha transversal — bare-metal e bootstrap (Doc-46)

@@ -10,7 +10,7 @@ fases; para isso, use os documentos apontados em [Navegação](#navegacao).
 
 | Área | Estado |
 |---|---|
-| Linguagem | Frontend implementado para o recorte versionado atual |
+| Linguagem | Frontend implementado para o contrato versionado atual |
 | Runtime interpretado | `pink --run` executa a superfície estável do workspace |
 | Backend nativo | `pink build --nativo` gera ELF Linux via `.s` x86-64 System V + `pinker_rt` |
 | Paridade | Fases compatíveis do Eixo B verificam interpretador x nativo |
@@ -29,7 +29,7 @@ fases; para isso, use os documentos apontados em [Navegação](#navegacao).
 | Contratos | `trato`/`impl` estáticos, `trato<Nome>` explícito, materialização por `virar`, vtables e despacho dinâmico nativo |
 | Funções | `carinho`, callables/closures de alto nível e ponteiros crus `seta<carinho(...) -> T>` com chamada indireta sem ambiente |
 | Sistema | argv, ambiente, arquivos, processos, caminhos e texto no recorte versionado |
-| Ponteiros e memória | `seta<T>`, `&funcao`, deref/escrita indireta, aritmética mínima e `alocar(u64)`/`liberar(seta<u8>)` |
+| Ponteiros e memória | `seta<T>`, `&funcao`/`&generica<T>`, deref/escrita indireta escalar, aritmética tipada e regiões públicas `alocar(u64)`/`liberar(seta<u8>)` com validação de vida, limites e alinhamento |
 | Ferramentas | CLI com check, run, IR textual, CFG, machine e build nativo |
 
 ## Limites Honestos
