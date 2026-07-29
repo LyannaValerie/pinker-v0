@@ -16,6 +16,7 @@
 
 use std::alloc::{alloc, dealloc, Layout};
 use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
+use std::sync::Once;
 
 // @pinker-nav:start runtime.inicializacao.bootstrap
 // @pinker-nav:domain inicializacao
@@ -699,23 +700,50 @@ formatar_wrappers!(
 // @pinker-nav:start runtime.io.saida
 // @pinker-nav:domain io
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Impressão de falar sem buffer próprio: escreve bombom/logica/verso diretamente em stdout (print!/println!/write_all) espelhando as instruções PrintIntInline/PrintBoolInline/PrintStrValueInline/PrintSpace/PrintNewline do interpretador; erros de escrita em pinker_falar_pedaco_verso são silenciosamente ignorados (`let _ =`).
+// @pinker-nav:summary Impressão uniforme de falar: bombom/logica/verso/espaço/newline passam pelo mesmo writer com write_all+flush; SIGPIPE é ignorado em Unix para que pipe fechado retorne erro, e toda falha de stdout termina pelo diagnóstico controlado de erro_fatal.
+#[cfg(unix)]
+fn preparar_stdout() {
+    static PREPARAR: Once = Once::new();
+    PREPARAR.call_once(|| unsafe {
+        extern "C" {
+            fn signal(signal: i32, handler: usize) -> usize;
+        }
+        const SIGPIPE: i32 = 13;
+        const SIG_IGN: usize = 1;
+        signal(SIGPIPE, SIG_IGN);
+    });
+}
+
+#[cfg(not(unix))]
+fn preparar_stdout() {}
+
+fn escrever_stdout(bytes: &[u8]) {
+    use std::io::Write as _;
+
+    preparar_stdout();
+    let stdout = std::io::stdout();
+    let mut lock = stdout.lock();
+    lock.write_all(bytes)
+        .and_then(|()| lock.flush())
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao escrever stdout: {err}")));
+}
+
 /// Imprime um `bombom` decimal sem quebra de linha.
 #[no_mangle]
 pub extern "C" fn pinker_falar_pedaco_bombom(valor: u64) {
-    print!("{}", valor);
+    escrever_stdout(valor.to_string().as_bytes());
 }
 
 /// Imprime um inteiro com sinal decimal sem quebra de linha.
 #[no_mangle]
 pub extern "C" fn pinker_falar_pedaco_inteiro(valor: i64) {
-    print!("{}", valor);
+    escrever_stdout(valor.to_string().as_bytes());
 }
 
 /// Imprime uma `logica` como `verdade`/`falso` sem quebra de linha.
 #[no_mangle]
 pub extern "C" fn pinker_falar_pedaco_logica(valor: u64) {
-    print!("{}", if valor != 0 { "verdade" } else { "falso" });
+    escrever_stdout(if valor != 0 { b"verdade" } else { b"falso" });
 }
 
 /// Imprime os bytes de um verso sem quebra de linha.
@@ -724,23 +752,19 @@ pub extern "C" fn pinker_falar_pedaco_logica(valor: u64) {
 /// `v` deve apontar para um bloco de verso válido.
 #[no_mangle]
 pub unsafe extern "C" fn pinker_falar_pedaco_verso(v: *const u8) {
-    use std::io::Write;
-    let bytes = verso_bytes(v);
-    let stdout = std::io::stdout();
-    let mut lock = stdout.lock();
-    let _ = lock.write_all(bytes);
+    escrever_stdout(verso_bytes(v));
 }
 
 /// Separador entre argumentos de `falar` (espaço simples).
 #[no_mangle]
 pub extern "C" fn pinker_falar_espaco() {
-    print!(" ");
+    escrever_stdout(b" ");
 }
 
 /// Fim de um `falar` (quebra de linha; o LineWriter da std faz o flush).
 #[no_mangle]
 pub extern "C" fn pinker_falar_fim() {
-    println!();
+    escrever_stdout(b"\n");
 }
 // @pinker-nav:end runtime.io.saida
 
@@ -2137,6 +2161,74 @@ pub unsafe extern "C" fn pinker_processo_pipeline(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    fn filho_stdout(modo: &str) -> std::process::Child {
+        std::process::Command::new(std::env::current_exe().expect("binário de teste"))
+            .args([
+                "--exact",
+                "tests::falha_stdout_termina_com_diagnostico_controlado",
+                "--nocapture",
+            ])
+            .env("PINKER_RT_TESTE_STDOUT_FILHO", modo)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("executar filho de teste")
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn falha_stdout_termina_com_diagnostico_controlado() {
+        if let Some(modo) = std::env::var_os("PINKER_RT_TESTE_STDOUT_FILHO") {
+            if modo == "full" {
+                use std::os::fd::AsRawFd as _;
+
+                let full = std::fs::OpenOptions::new()
+                    .write(true)
+                    .open("/dev/full")
+                    .expect("/dev/full");
+                extern "C" {
+                    fn dup2(oldfd: i32, newfd: i32) -> i32;
+                }
+                assert_eq!(unsafe { dup2(full.as_raw_fd(), 1) }, 1);
+            } else {
+                extern "C" {
+                    fn close(fd: i32) -> i32;
+                    fn dup2(oldfd: i32, newfd: i32) -> i32;
+                    fn pipe(fds: *mut i32) -> i32;
+                }
+                let mut fds = [0_i32; 2];
+                assert_eq!(unsafe { pipe(fds.as_mut_ptr()) }, 0);
+                assert_eq!(unsafe { close(fds[0]) }, 0);
+                assert_eq!(unsafe { dup2(fds[1], 1) }, 1);
+                assert_eq!(unsafe { close(fds[1]) }, 0);
+            }
+            unsafe {
+                pinker_falar_pedaco_verso(verso_alocar("verso").cast_const());
+            }
+            pinker_falar_espaco();
+            pinker_falar_pedaco_inteiro(-7);
+            pinker_falar_fim();
+            return;
+        }
+
+        let full_output = filho_stdout("full")
+            .wait_with_output()
+            .expect("aguardar filho /dev/full");
+        assert_eq!(full_output.status.code(), Some(1));
+        let stderr = String::from_utf8_lossy(&full_output.stderr);
+        assert!(stderr.contains("falha ao escrever stdout"), "{stderr}");
+        assert!(!stderr.contains("panicked at"), "{stderr}");
+
+        let pipe_output = filho_stdout("pipe")
+            .wait_with_output()
+            .expect("aguardar filho");
+        assert_eq!(pipe_output.status.code(), Some(1));
+        let stderr = String::from_utf8_lossy(&pipe_output.stderr);
+        assert!(stderr.contains("falha ao escrever stdout"), "{stderr}");
+        assert!(!stderr.contains("panicked at"), "{stderr}");
+    }
 
     #[test]
     fn alocar_devolve_bloco_alinhado_e_utilizavel() {
