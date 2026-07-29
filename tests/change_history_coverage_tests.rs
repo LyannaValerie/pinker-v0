@@ -97,6 +97,17 @@ fn manifest_prs() -> BTreeSet<u64> {
 }
 
 #[test]
+fn workflows_disponibilizam_historico_local_completo() {
+    for workflow in [".github/workflows/ci.yml", ".github/workflows/trama.yml"] {
+        let text = fs::read_to_string(workflow).expect("ler workflow");
+        assert!(
+            text.contains("fetch-depth: 0"),
+            "{workflow} precisa materializar o histórico para o gate local sem rede"
+        );
+    }
+}
+
+#[test]
 fn todo_merge_pos_baseline_ate_o_cutover_tem_manifesto_ou_excecao() {
     assert!(Path::new(".pinker/doc.toml").exists());
     let merges = reachable_merges();
