@@ -291,9 +291,10 @@ do lowering.
 
 O literal `0` é o nulo tipado quando o contexto exige ponteiro de função;
 qualquer outro inteiro é rejeitado como endereço implícito. Igualdade e
-desigualdade seguem a identidade de símbolo, mas ordenação, aritmética e casts
-inteiro↔ponteiro de função não fazem parte do contrato. Chamar o nulo termina
-com diagnóstico determinístico. O interpretador usa identidade de símbolo
+desigualdade aceitam o nulo em qualquer lado e, entre ponteiros vivos, seguem a
+identidade de símbolo; ordenação, aritmética e casts inteiro↔ponteiro de função
+não fazem parte do contrato. Chamar o nulo termina com diagnóstico
+determinístico. O interpretador usa identidade de símbolo
 estável, sem endereço do processo hospedeiro; o backend materializa o símbolo
 real e usa `call *reg`, sem `__env`.
 
@@ -329,7 +330,8 @@ Ponteiro nulo, interior, estrangeiro, estático, de pilha ou pertencente aos
 domínios internos de closure, callable, trato e runtime é rejeitado. Cópias e
 casts permitidos preservam a identidade; não transferem ownership. Acesso
 depois de liberar, desalinhado ou que cruze o último byte é diagnosticado com
-paridade entre interpretador e nativo.
+paridade entre interpretador e nativo. Cargas assinadas preservam o sinal
+também nas comparações relacionais subsequentes.
 
 A API mantém o modelo fatal estruturado já usado pelas intrínsecas de runtime;
 ela não retorna `Resultado<T,E>` porque isso criaria uma segunda ABI de erro

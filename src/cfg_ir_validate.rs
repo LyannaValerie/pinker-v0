@@ -1427,6 +1427,10 @@ fn validate_block(
                             || (matches!(rhs, OperandIR::Int(_))
                                 && lhs_ty.is_integer()
                                 && lhs_ty != TypeIR::Nulo)
+                            || (matches!(lhs, OperandIR::Int(0))
+                                && rhs_ty == TypeIR::FunctionPointer)
+                            || (matches!(rhs, OperandIR::Int(0))
+                                && lhs_ty == TypeIR::FunctionPointer)
                         {
                             TypeIR::Logica
                         } else {

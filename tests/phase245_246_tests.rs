@@ -94,7 +94,11 @@ fn fase245_interpretador_cobre_valor_spill_e_retorno_nulo() {
         ),
         (
             "examples/fase245_ponteiro_funcao_nulo_valido.pink",
-            "245\n0\n",
+            "verdade\nverdade\nverdade\nverdade\n245\n0\n",
+        ),
+        (
+            "examples/fase245_principal_endereco_valido.pink",
+            "verdade\n0\n",
         ),
         (
             "examples/fase245_contrato_adulto_valido.pink",
@@ -230,7 +234,7 @@ fn fase246_tamanhos_alinhamentos_e_integracao_245_tem_paridade_interpretada() {
         ),
         (
             "examples/fase246_escalares_fronteiras_aliases_valido.pink",
-            "255\n65535\n4294967295\n9223372036854775808\n-128\n-32768\n-2147483648\n-9223372036854775808\n18446744073709551615\nverdade\n120\n22136\n99\n0\n",
+            "255\n65535\n4294967295\n9223372036854775808\n-128\n-32768\n-2147483648\n-9223372036854775808\n18446744073709551615\nverdade\nverdade\nverdade\nfalso\nfalso\n120\n22136\n99\n0\n",
         ),
         ("examples/fases245_246_integracao_valido.pink", "246\n0\n"),
         (
@@ -286,6 +290,8 @@ fn fases245_246_elf_real_tem_paridade_de_stdout_e_exit() {
         "examples/fase245_contrato_adulto_valido.pink",
         "examples/fase245_assinaturas_abi_valido.pink",
         "examples/fase245_abi_opacos_valido.pink",
+        "examples/fase245_ponteiro_funcao_nulo_valido.pink",
+        "examples/fase245_principal_endereco_valido.pink",
         "examples/fase246_memoria_explicita_valido.pink",
         "examples/fase246_tamanhos_alinhamentos_valido.pink",
         "examples/fase246_inicializacao_zerada_valido.pink",
@@ -307,6 +313,10 @@ fn fases245_246_elf_real_tem_paridade_de_stdout_e_exit() {
                 "movzwq",
                 "movswq",
                 "movslq",
+                "setl",
+                "setle",
+                "setg",
+                "setge",
             ] {
                 assert!(
                     assembly.contains(opcode),

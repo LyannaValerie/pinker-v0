@@ -55,6 +55,10 @@ carinho principal() -> bombom {
     falar(*p_i64);
     falar(*p_bombom);
     falar(*p_logica);
+    falar(*p_i8 < 0);
+    falar(*p_i16 <= 0);
+    falar(*p_i32 > 0);
+    falar(*p_i64 >= 0);
 
     nova cruzado_u32: seta<U32Alias> = (bytes virar seta<bombom> + 48) virar seta<U32Alias>;
     nova cruzado_u16: seta<U16Alias> = (bytes virar seta<bombom> + 48) virar seta<U16Alias>;

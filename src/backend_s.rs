@@ -458,6 +458,7 @@ fn extract_external_callconv_program(
                             *dest,
                             lhs,
                             rhs,
+                            selected_comparison_is_signed(function, lhs, rhs),
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
@@ -468,6 +469,7 @@ fn extract_external_callconv_program(
                             *dest,
                             lhs,
                             rhs,
+                            selected_comparison_is_signed(function, lhs, rhs),
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
@@ -478,6 +480,7 @@ fn extract_external_callconv_program(
                             *dest,
                             lhs,
                             rhs,
+                            selected_comparison_is_signed(function, lhs, rhs),
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
@@ -488,6 +491,7 @@ fn extract_external_callconv_program(
                             *dest,
                             lhs,
                             rhs,
+                            selected_comparison_is_signed(function, lhs, rhs),
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
@@ -1689,10 +1693,96 @@ fn lower_cmp_ne(
     Ok(body)
 }
 
+fn selected_comparison_is_signed(
+    function: &crate::instr_select::SelectedFunction,
+    lhs: &OperandIR,
+    rhs: &OperandIR,
+) -> bool {
+    let mut visiting = HashSet::new();
+    if selected_operand_is_signed(function, lhs, &mut visiting) {
+        return true;
+    }
+    visiting.clear();
+    selected_operand_is_signed(function, rhs, &mut visiting)
+}
+
+fn selected_operand_is_signed(
+    function: &crate::instr_select::SelectedFunction,
+    operand: &OperandIR,
+    visiting: &mut HashSet<crate::cfg_ir::TempIR>,
+) -> bool {
+    match operand {
+        OperandIR::Local(slot) => function.slot_types.get(slot).is_some_and(TypeIR::is_signed),
+        OperandIR::Temp(temp) => selected_temp_is_signed(function, *temp, visiting),
+        _ => false,
+    }
+}
+
+fn selected_temp_is_signed(
+    function: &crate::instr_select::SelectedFunction,
+    temp: crate::cfg_ir::TempIR,
+    visiting: &mut HashSet<crate::cfg_ir::TempIR>,
+) -> bool {
+    if !visiting.insert(temp) {
+        return false;
+    }
+    let signed = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find_map(|instruction| match instruction {
+            SelectedInstr::Neg { dest, operand } if *dest == temp => {
+                Some(selected_operand_is_signed(function, operand, visiting))
+            }
+            SelectedInstr::DerefLoad { dest, ty, .. } if *dest == temp => Some(ty.is_signed()),
+            SelectedInstr::Cast {
+                dest, target_type, ..
+            } if *dest == temp => Some(target_type.is_signed()),
+            SelectedInstr::BitAnd { dest, lhs, rhs }
+            | SelectedInstr::BitOr { dest, lhs, rhs }
+            | SelectedInstr::BitXor { dest, lhs, rhs }
+            | SelectedInstr::Shl { dest, lhs, rhs }
+            | SelectedInstr::Shr { dest, lhs, rhs }
+            | SelectedInstr::Add { dest, lhs, rhs }
+            | SelectedInstr::Sub { dest, lhs, rhs }
+            | SelectedInstr::Mul { dest, lhs, rhs }
+            | SelectedInstr::Div { dest, lhs, rhs }
+            | SelectedInstr::Mod { dest, lhs, rhs }
+                if *dest == temp =>
+            {
+                Some(
+                    selected_operand_is_signed(function, lhs, visiting)
+                        || selected_operand_is_signed(function, rhs, visiting),
+                )
+            }
+            SelectedInstr::Call { dest, ret_type, .. }
+            | SelectedInstr::CallIndirect { dest, ret_type, .. }
+                if *dest == temp =>
+            {
+                Some(ret_type.is_signed())
+            }
+            SelectedInstr::CallRaw {
+                dest: Some(dest),
+                ret_type,
+                ..
+            }
+            | SelectedInstr::TraitCall {
+                dest: Some(dest),
+                ret_type,
+                ..
+            } if *dest == temp => Some(ret_type.is_signed()),
+            _ => None,
+        })
+        .unwrap_or(false);
+    visiting.remove(&temp);
+    signed
+}
+
 fn lower_cmp_lt(
     dest: crate::cfg_ir::TempIR,
     lhs: &OperandIR,
     rhs: &OperandIR,
+    signed: bool,
     slot_offsets: &HashMap<String, u32>,
     rodata_string_labels: &mut HashMap<String, String>,
     rodata_strings: &mut Vec<ExternalCallConvString>,
@@ -1703,7 +1793,7 @@ fn lower_cmp_lt(
     body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
     body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
-    body.push("setb %al".to_string());
+    body.push(format!("{} %al", if signed { "setl" } else { "setb" }));
     body.push("movzbq %al, %rax".to_string());
     body.push(format!(
         "movq {}, -{}(%rbp)",
@@ -1717,6 +1807,7 @@ fn lower_cmp_gt(
     dest: crate::cfg_ir::TempIR,
     lhs: &OperandIR,
     rhs: &OperandIR,
+    signed: bool,
     slot_offsets: &HashMap<String, u32>,
     rodata_string_labels: &mut HashMap<String, String>,
     rodata_strings: &mut Vec<ExternalCallConvString>,
@@ -1727,7 +1818,7 @@ fn lower_cmp_gt(
     body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
     body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
-    body.push("seta %al".to_string());
+    body.push(format!("{} %al", if signed { "setg" } else { "seta" }));
     body.push("movzbq %al, %rax".to_string());
     body.push(format!(
         "movq {}, -{}(%rbp)",
@@ -1741,6 +1832,7 @@ fn lower_cmp_le(
     dest: crate::cfg_ir::TempIR,
     lhs: &OperandIR,
     rhs: &OperandIR,
+    signed: bool,
     slot_offsets: &HashMap<String, u32>,
     rodata_string_labels: &mut HashMap<String, String>,
     rodata_strings: &mut Vec<ExternalCallConvString>,
@@ -1751,7 +1843,7 @@ fn lower_cmp_le(
     body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
     body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
-    body.push("setbe %al".to_string());
+    body.push(format!("{} %al", if signed { "setle" } else { "setbe" }));
     body.push("movzbq %al, %rax".to_string());
     body.push(format!(
         "movq {}, -{}(%rbp)",
@@ -1765,6 +1857,7 @@ fn lower_cmp_ge(
     dest: crate::cfg_ir::TempIR,
     lhs: &OperandIR,
     rhs: &OperandIR,
+    signed: bool,
     slot_offsets: &HashMap<String, u32>,
     rodata_string_labels: &mut HashMap<String, String>,
     rodata_strings: &mut Vec<ExternalCallConvString>,
@@ -1775,7 +1868,7 @@ fn lower_cmp_ge(
     body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
     body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("cmpq {}, {}", REG_TMP, REG_RET));
-    body.push("setae %al".to_string());
+    body.push(format!("{} %al", if signed { "setge" } else { "setae" }));
     body.push("movzbq %al, %rax".to_string());
     body.push(format!(
         "movq {}, -{}(%rbp)",
@@ -1891,7 +1984,8 @@ fn load_operand(
             ));
         }
         OperandIR::RawFunctionRef(name) => {
-            lines.push(format!("leaq {}(%rip), {}", name, reg));
+            let symbol = if name == "principal" { "main" } else { name };
+            lines.push(format!("leaq {}(%rip), {}", symbol, reg));
         }
     }
     Ok(lines)

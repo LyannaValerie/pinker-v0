@@ -993,6 +993,8 @@ fn exec_instr(
             let lhs = pop(stack, "cmp_eq exige dois valores")?;
             let equal = match (lhs, rhs) {
                 (RuntimeValue::Ptr(a), RuntimeValue::Ptr(b)) => a == b,
+                (RuntimeValue::Ptr(a), RuntimeValue::Int(0))
+                | (RuntimeValue::Int(0), RuntimeValue::Ptr(a)) => a == 0,
                 (lhs, rhs) => cmp_int(lhs, rhs, |a, b| a == b, |a, b| a == b)?,
             };
             stack.push(RuntimeValue::Bool(equal));
@@ -1002,6 +1004,8 @@ fn exec_instr(
             let lhs = pop(stack, "cmp_ne exige dois valores")?;
             let different = match (lhs, rhs) {
                 (RuntimeValue::Ptr(a), RuntimeValue::Ptr(b)) => a != b,
+                (RuntimeValue::Ptr(a), RuntimeValue::Int(0))
+                | (RuntimeValue::Int(0), RuntimeValue::Ptr(a)) => a != 0,
                 (lhs, rhs) => cmp_int(lhs, rhs, |a, b| a != b, |a, b| a != b)?,
             };
             stack.push(RuntimeValue::Bool(different));

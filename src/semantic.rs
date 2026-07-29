@@ -2648,7 +2648,7 @@ impl SemanticChecker {
                     }
                 }
 
-                if matches!(
+                let raw_pointer_null_comparison = if matches!(
                     op,
                     BinaryOp::Eq
                         | BinaryOp::Neq
@@ -2684,11 +2684,19 @@ impl SemanticChecker {
                             span: expr.span,
                         });
                     }
-                }
+                    matches!(op, BinaryOp::Eq | BinaryOp::Neq)
+                        && ((raw_function_pointer(&lhs_resolved)
+                            && Self::expr_is_zero_literal(rhs))
+                            || (raw_function_pointer(&rhs_resolved)
+                                && Self::expr_is_zero_literal(lhs)))
+                } else {
+                    false
+                };
 
                 let binary_types_compatible = Self::check_type_match(&lhs_ty, &rhs_ty)
                     || (Self::expr_is_int_literal(lhs) && Self::is_integer_type(&rhs_ty))
-                    || (Self::expr_is_int_literal(rhs) && Self::is_integer_type(&lhs_ty));
+                    || (Self::expr_is_int_literal(rhs) && Self::is_integer_type(&lhs_ty))
+                    || raw_pointer_null_comparison;
                 if !binary_types_compatible {
                     return Err(PinkerError::Semantic {
                         msg: format!(

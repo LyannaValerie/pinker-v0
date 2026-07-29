@@ -1526,6 +1526,10 @@ fn infer_value_type(
                         || (matches!(rhs.as_ref(), ValueIR::Int(_))
                             && lhs_ty.is_integer()
                             && lhs_ty != TypeIR::Nulo)
+                        || (matches!(lhs.as_ref(), ValueIR::Int(0))
+                            && rhs_ty == TypeIR::FunctionPointer)
+                        || (matches!(rhs.as_ref(), ValueIR::Int(0))
+                            && lhs_ty == TypeIR::FunctionPointer)
                     {
                         Ok(TypeIR::Logica)
                     } else {

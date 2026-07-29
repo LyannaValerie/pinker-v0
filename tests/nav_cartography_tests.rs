@@ -61,20 +61,31 @@ fn project_pre_pr410_terminal_review(catalog: &mut CodeCatalog) {
             "backend-s.lowering.falar-runtime" => {
                 ("fnv1a64:3f52039a4b36ce2a", "fnv1a64:4ee76ebc416f403d")
             }
-            "backend-s.lowering.operacoes-memoria" => {
-                ("fnv1a64:30cbe1960dd1efe3", "fnv1a64:84eb8e5a46bc4cf1")
+            "backend-s.lowering.operacoes-lineares" => {
+                ("fnv1a64:7d129e158e2480e8", "fnv1a64:6bc887f422e09c12")
             }
+            "backend-s.lowering.operacoes-memoria" => {
+                ("fnv1a64:c3a14e751755312b", "fnv1a64:84eb8e5a46bc4cf1")
+            }
+            "backend-s.lowering.operandos-slots" => {
+                ("fnv1a64:d33d52ff00aadb87", "fnv1a64:2c9566cdc31ff564")
+            }
+            "cfg.validacao.invariantes" => ("fnv1a64:47314aaf7ef5d58a", "fnv1a64:f0f0a8be458646de"),
             "evidencia.runtime.memoria-alocador" => {
                 ("fnv1a64:2e05a3fb74da5731", "fnv1a64:429ce2d2a36f96aa")
             }
             "interpreter.execucao.instrucoes-pilha" => {
-                ("fnv1a64:b05891be8e13e797", "fnv1a64:5967728915dc7bc7")
+                ("fnv1a64:54417512d4d217f1", "fnv1a64:5967728915dc7bc7")
             }
             "interpreter.intrinsecos.acaso" => {
                 ("fnv1a64:b24058f0e14ecd13", "fnv1a64:1ed36246a6aa7f8e")
             }
+            "ir.validacao.invariantes" => ("fnv1a64:48bbd3b1fc673e28", "fnv1a64:58df76ce7a318b84"),
             "runtime.io.saida" => ("fnv1a64:dcd0f28d19b32ffa", "fnv1a64:0d909c31ea9aa3dc"),
             "runtime.memoria.alocador" => ("fnv1a64:257eff63c8de6478", "fnv1a64:d080db807b67c63f"),
+            "semantic.expressoes.verificacao" => {
+                ("fnv1a64:c3c807f559a5207b", "fnv1a64:88941f6bcf13d02d")
+            }
             _ => continue,
         };
         if region.hash == current {
