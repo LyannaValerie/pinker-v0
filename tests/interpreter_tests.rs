@@ -5109,7 +5109,7 @@ fn cli_check_fragil_operacional_fora_subset_falha_com_exemplo_versionado() {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("dereferência nesta fase aceita apenas"),
+        stderr.contains("retorno incompatível em 'ler': esperado 'bombom', encontrado 'u8'"),
         "stderr: {}",
         stderr
     );
@@ -5202,7 +5202,7 @@ fn cli_check_dereferencia_seta_u8_falha_com_exemplo_versionado() {
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("apenas 'seta<bombom>'"),
+        stderr.contains("retorno incompatível em 'principal': esperado 'bombom', encontrado 'u8'"),
         "mensagem inesperada: {}",
         stderr
     );
@@ -5222,14 +5222,14 @@ fn cli_run_escrita_indireta_funciona_com_exemplo_versionado() {
 
 #[test]
 fn cli_check_escrita_indireta_seta_u8_falha_com_exemplo_versionado() {
-    let output = run_cli_check_example("examples/fase67_escrita_indireta_seta_u8_invalida.pink");
+    let output = run_cli_example("examples/fase67_escrita_indireta_seta_u8_invalida.pink");
     assert!(
         !output.status.success(),
-        "esperava falha semântica para escrita indireta fora do subset"
+        "esperava falha de runtime para escrita em ponteiro estrangeiro"
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("apenas 'seta<bombom>'"),
+        stderr.contains("deref_store em endereço inválido ou não inicializado"),
         "mensagem inesperada: {}",
         stderr
     );
@@ -5338,7 +5338,11 @@ fn cli_run_fase147_array_fixo_operacional_minimo_invalido_falha_com_exemplo_vers
         "esperava falha operacional para array fora do recorte bombom"
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("[bombom; N]"), "stderr={}", stderr);
+    assert!(
+        stderr.contains("ponteiro para escalar público, array suportado ou ninho"),
+        "stderr={}",
+        stderr
+    );
 }
 
 #[test]
