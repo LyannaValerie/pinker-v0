@@ -298,6 +298,11 @@ determinístico. O interpretador usa identidade de símbolo
 estável, sem endereço do processo hospedeiro; o backend materializa o símbolo
 real e usa `call *reg`, sem `__env`.
 
+Seleções ternárias entre ponteiros crus compatíveis preservam a assinatura
+comum, tanto quando o resultado é armazenado quanto quando é chamado
+imediatamente. Quando uma função direta ou crua retorna `seta<T>`, o lowering
+preserva `T` para que cargas e escritas inferidas usem a largura correta.
+
 ## Memória explícita
 
 Desde a Fase 246, `alocar(u64) -> seta<u8>` solicita bytes e
@@ -332,6 +337,10 @@ casts permitidos preservam a identidade; não transferem ownership. Acesso
 depois de liberar, desalinhado ou que cruze o último byte é diagnosticado com
 paridade entre interpretador e nativo. Cargas assinadas preservam o sinal
 também nas comparações relacionais subsequentes.
+
+Os registros de região, vida e próxima identidade pertencem ao estado interno
+do interpretador, fora do mapa endereçável pelo programa. Assim, casts de
+inteiro para ponteiro não podem observar nem corromper metadata do allocator.
 
 A API mantém o modelo fatal estruturado já usado pelas intrínsecas de runtime;
 ela não retorna `Resultado<T,E>` porque isso criaria uma segunda ABI de erro

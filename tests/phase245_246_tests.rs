@@ -101,6 +101,10 @@ fn fase245_interpretador_cobre_valor_spill_e_retorno_nulo() {
             "verdade\n0\n",
         ),
         (
+            "examples/fase245_ternario_ponteiro_funcao_valido.pink",
+            "41\n42\n0\n",
+        ),
+        (
             "examples/fase245_contrato_adulto_valido.pink",
             "42\n1\n63\n42\n245\n5\n0\n",
         ),
@@ -166,6 +170,10 @@ fn fase246_interpretador_detecta_zero_double_free_estrangeiro_e_uaf() {
         (
             "examples/fase246_uso_apos_liberar_invalido.pink",
             "uso após liberar detectado",
+        ),
+        (
+            "examples/fase246_metadata_allocator_isolada_invalido.pink",
+            "endereço inválido ou não inicializado",
         ),
         (
             "examples/fase246_limite_multibyte_invalido.pink",
@@ -241,6 +249,10 @@ fn fase246_tamanhos_alinhamentos_e_integracao_245_tem_paridade_interpretada() {
             "examples/fase246_reuso_endereco_valido.pink",
             "1\n2\n3\n0\n",
         ),
+        (
+            "examples/fase246_retorno_ponteiro_inferido_valido.pink",
+            "255\n254\n0\n",
+        ),
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_pink"))
             .args(["--run", path])
@@ -292,11 +304,13 @@ fn fases245_246_elf_real_tem_paridade_de_stdout_e_exit() {
         "examples/fase245_abi_opacos_valido.pink",
         "examples/fase245_ponteiro_funcao_nulo_valido.pink",
         "examples/fase245_principal_endereco_valido.pink",
+        "examples/fase245_ternario_ponteiro_funcao_valido.pink",
         "examples/fase246_memoria_explicita_valido.pink",
         "examples/fase246_tamanhos_alinhamentos_valido.pink",
         "examples/fase246_inicializacao_zerada_valido.pink",
         "examples/fase246_escalares_fronteiras_aliases_valido.pink",
         "examples/fase246_reuso_endereco_valido.pink",
+        "examples/fase246_retorno_ponteiro_inferido_valido.pink",
         "examples/fases245_246_integracao_valido.pink",
     ] {
         let out_dir = native_output_dir("phase245_246_parity");

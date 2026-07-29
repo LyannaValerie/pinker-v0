@@ -1,0 +1,17 @@
+pacote main;
+
+carinho somar_um(valor: bombom) -> bombom {
+    mimo valor + 1;
+}
+
+carinho somar_dois(valor: bombom) -> bombom {
+    mimo valor + 2;
+}
+
+carinho principal() -> bombom {
+    nova escolher_primeiro: logica = verdade;
+    nova operacao = escolher_primeiro ? &somar_um : &somar_dois;
+    falar(operacao(40));
+    falar((falso ? &somar_um : &somar_dois)(40));
+    mimo 0;
+}

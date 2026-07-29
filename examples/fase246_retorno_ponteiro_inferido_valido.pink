@@ -1,0 +1,26 @@
+pacote main;
+
+apelido PonteiroByte = seta<u8>;
+
+carinho criar_byte() -> PonteiroByte {
+    mimo alocar(1);
+}
+
+carinho identidade_byte(byte: PonteiroByte) -> PonteiroByte {
+    mimo byte;
+}
+
+carinho principal() -> bombom {
+    nova byte = criar_byte();
+    *byte = 255;
+    falar(*byte);
+
+    nova retorno_cru:
+        seta<carinho(PonteiroByte) -> PonteiroByte> = &identidade_byte;
+    nova byte_indireto = retorno_cru(byte);
+    *byte_indireto = 254;
+    falar(*byte_indireto);
+
+    liberar(byte);
+    mimo 0;
+}

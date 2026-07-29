@@ -74,11 +74,26 @@ fn project_pre_pr410_terminal_review(catalog: &mut CodeCatalog) {
             "evidencia.runtime.memoria-alocador" => {
                 ("fnv1a64:2e05a3fb74da5731", "fnv1a64:429ce2d2a36f96aa")
             }
+            "interpreter.execucao.funcoes-fluxo" => {
+                ("fnv1a64:c7ecaf0063f818e8", "fnv1a64:66c89e61701f6fdd")
+            }
             "interpreter.execucao.instrucoes-pilha" => {
-                ("fnv1a64:54417512d4d217f1", "fnv1a64:5967728915dc7bc7")
+                ("fnv1a64:a99e74846039250a", "fnv1a64:5967728915dc7bc7")
+            }
+            "interpreter.execucao.programa-globais" => {
+                ("fnv1a64:574ece91b9cb185f", "fnv1a64:cdcd5410a9a600ef")
             }
             "interpreter.intrinsecos.acaso" => {
-                ("fnv1a64:b24058f0e14ecd13", "fnv1a64:1ed36246a6aa7f8e")
+                ("fnv1a64:2f753cf0d0ff6690", "fnv1a64:1ed36246a6aa7f8e")
+            }
+            "ir.lowering.assinaturas-intrinsecos" => {
+                ("fnv1a64:c3ab73bbd7391d60", "fnv1a64:54a139a83356777a")
+            }
+            "ir.lowering.contexto-declaracoes" => {
+                ("fnv1a64:3ebe2403df429a6c", "fnv1a64:067065b5abca606d")
+            }
+            "ir.lowering.funcoes-blocos" => {
+                ("fnv1a64:9b5592dbb2334dbe", "fnv1a64:81882e0f9e2212af")
             }
             "ir.validacao.invariantes" => ("fnv1a64:48bbd3b1fc673e28", "fnv1a64:58df76ce7a318b84"),
             "runtime.io.saida" => ("fnv1a64:dcd0f28d19b32ffa", "fnv1a64:0d909c31ea9aa3dc"),

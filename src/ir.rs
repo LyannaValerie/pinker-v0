@@ -372,12 +372,14 @@ struct TraitMetaIR {
 struct CallableMetadata {
     ret_type: TypeIR,
     ret_trait_name: Option<String>,
+    ret_pointer_pointee: Option<TypeIR>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct RawFunctionMetadata {
     param_types: Vec<TypeIR>,
     ret_type: TypeIR,
+    ret_pointer_pointee: Option<TypeIR>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -425,6 +427,10 @@ struct LoweringContext {
     // Fase 245: função que retorna `seta<carinho(...) -> R>` -> assinatura
     // concreta do endereço cru retornado.
     raw_function_return_metadata: HashMap<String, RawFunctionMetadata>,
+    // Fase 246: função que retorna `seta<T>` -> tipo concreto de `T`.
+    // `TypeIR::Pointer` preserva a ABI de uma palavra, enquanto este catálogo
+    // conserva a largura necessária para dereferências após chamadas.
+    function_ret_pointer_pointees: HashMap<String, TypeIR>,
     // Fase 243: FunctionDecl de toda função do programa (inclusive
     // closures sintéticas `__anon_carinho_*`), para permitir a resolução
     // lazy de closures no ponto de criação (`FunctionLowerer::resolve_closure`)
@@ -590,6 +596,7 @@ fn raw_function_metadata_from_type(
             .map(|param| TypeIR::from_ast_with_context(param, aliases, struct_names))
             .collect::<Result<Vec<_>, _>>()?,
         ret_type: TypeIR::from_ast_with_context(ret, aliases, struct_names)?,
+        ret_pointer_pointee: pointer_pointee_from_type(ret, aliases, struct_names)?,
     }))
 }
 
@@ -641,6 +648,12 @@ fn raw_function_metadata_from_decl(
             aliases,
             struct_names,
         )?,
+        ret_pointer_pointee: function
+            .ret_type
+            .as_ref()
+            .map(|ty| pointer_pointee_from_type(ty, aliases, struct_names))
+            .transpose()?
+            .flatten(),
     })
 }
 
@@ -919,6 +932,7 @@ impl LoweringContext {
         let mut global_consts = HashMap::new();
         let mut callable_metadata = HashMap::new();
         let mut raw_function_return_metadata = HashMap::new();
+        let mut function_ret_pointer_pointees = HashMap::new();
         let mut function_ret_trait_names = HashMap::new();
         let mut all_functions = HashMap::new();
 
@@ -965,6 +979,11 @@ impl LoweringContext {
                                     &type_aliases,
                                     &struct_names,
                                 )?,
+                                ret_pointer_pointee: pointer_pointee_from_type(
+                                    ret,
+                                    &type_aliases,
+                                    &struct_names,
+                                )?,
                             },
                         );
                     }
@@ -973,6 +992,11 @@ impl LoweringContext {
                             raw_function_metadata_from_type(ret_type, &type_aliases, &struct_names)?
                         {
                             raw_function_return_metadata.insert(function.name.clone(), metadata);
+                        }
+                        if let Some(pointee) =
+                            pointer_pointee_from_type(ret_type, &type_aliases, &struct_names)?
+                        {
+                            function_ret_pointer_pointees.insert(function.name.clone(), pointee);
                         }
                     }
                 }
@@ -1924,6 +1948,7 @@ impl LoweringContext {
             function_ret_trait_names,
             callable_metadata,
             raw_function_return_metadata,
+            function_ret_pointer_pointees,
             all_functions,
             closure_state: std::cell::RefCell::new(ClosureLoweringState::default()),
         })
@@ -1975,6 +2000,11 @@ impl<'a> FunctionLowerer<'a> {
                 &self.context.type_aliases,
                 &self.context.struct_names,
             )?,
+            ret_pointer_pointee: pointer_pointee_from_type(
+                ret,
+                &self.context.type_aliases,
+                &self.context.struct_names,
+            )?,
         })
     }
 
@@ -1998,6 +2028,11 @@ impl<'a> FunctionLowerer<'a> {
                         .function_ret_trait_names
                         .get(function_name)
                         .cloned(),
+                    ret_pointer_pointee: self
+                        .context
+                        .function_ret_pointer_pointees
+                        .get(function_name)
+                        .copied(),
                 }),
             ValueIR::Local(slot) => self.callable_metadata.get(slot).cloned(),
             ValueIR::Call { callee, .. } => self.context.callable_metadata.get(callee).cloned(),
@@ -2023,6 +2058,21 @@ impl<'a> FunctionLowerer<'a> {
                 })
                 .transpose(),
             ValueIR::Local(slot) => Ok(self.raw_function_metadata.get(slot).cloned()),
+            ValueIR::Call { callee, args, .. } if callee == "__ternario" => {
+                let [_, true_value, false_value] = args.as_slice() else {
+                    return Ok(None);
+                };
+                let true_metadata = self.raw_function_metadata_for_value(true_value)?;
+                let false_metadata = self.raw_function_metadata_for_value(false_value)?;
+                Ok(match (true_metadata, false_metadata) {
+                    (Some(true_metadata), Some(false_metadata))
+                        if true_metadata == false_metadata =>
+                    {
+                        Some(true_metadata)
+                    }
+                    _ => None,
+                })
+            }
             ValueIR::Call { callee, .. } => Ok(self
                 .context
                 .raw_function_return_metadata
@@ -2042,8 +2092,34 @@ impl<'a> FunctionLowerer<'a> {
                 &self.context.type_aliases,
                 &self.context.struct_names,
             ),
-            ExprKind::Call(callee, _) if matches!(&callee.kind, ExprKind::Ident(name) if name == "alocar") => {
-                Ok(Some(TypeIR::U8))
+            ExprKind::Call(callee, _) => {
+                let ExprKind::Ident(name) = &callee.kind else {
+                    return Ok(None);
+                };
+                if name == "alocar" {
+                    return Ok(Some(TypeIR::U8));
+                }
+                if let Some(binding) = self.resolve_existing_binding(name) {
+                    if let Some(pointee) = self
+                        .raw_function_metadata
+                        .get(&binding.slot)
+                        .and_then(|metadata| metadata.ret_pointer_pointee)
+                    {
+                        return Ok(Some(pointee));
+                    }
+                    if let Some(pointee) = self
+                        .callable_metadata
+                        .get(&binding.slot)
+                        .and_then(|metadata| metadata.ret_pointer_pointee)
+                    {
+                        return Ok(Some(pointee));
+                    }
+                }
+                Ok(self
+                    .context
+                    .function_ret_pointer_pointees
+                    .get(name)
+                    .copied())
             }
             ExprKind::Binary(lhs, BinaryOp::Add | BinaryOp::Sub, rhs) => {
                 let left = self.pointer_pointee_for_expr(lhs)?;
@@ -2076,6 +2152,11 @@ impl<'a> FunctionLowerer<'a> {
                     .map(|sig| CallableMetadata {
                         ret_type: sig.ret_type,
                         ret_trait_name: self.context.function_ret_trait_names.get(name).cloned(),
+                        ret_pointer_pointee: self
+                            .context
+                            .function_ret_pointer_pointees
+                            .get(name)
+                            .copied(),
                     }))
             }
             ExprKind::Call(callee, args) => {
@@ -2477,6 +2558,11 @@ impl<'a> FunctionLowerer<'a> {
                             &self.context.type_aliases,
                             &self.context.struct_names,
                         )?,
+                        ret_pointer_pointee: pointer_pointee_from_type(
+                            ret,
+                            &self.context.type_aliases,
+                            &self.context.struct_names,
+                        )?,
                     },
                 );
             }
@@ -2623,6 +2709,18 @@ impl<'a> FunctionLowerer<'a> {
                     .as_ref()
                     .map(|ty| {
                         trait_object_name_from_type(
+                            ty,
+                            &self.context.type_aliases,
+                            &self.context.struct_names,
+                        )
+                    })
+                    .transpose()?
+                    .flatten(),
+                ret_pointer_pointee: function
+                    .ret_type
+                    .as_ref()
+                    .map(|ty| {
+                        pointer_pointee_from_type(
                             ty,
                             &self.context.type_aliases,
                             &self.context.struct_names,
@@ -2801,6 +2899,11 @@ impl<'a> FunctionLowerer<'a> {
                     CallableMetadata {
                         ret_type: ret_ty,
                         ret_trait_name: trait_object_name_from_type(
+                            ret,
+                            &self.context.type_aliases,
+                            &self.context.struct_names,
+                        )?,
+                        ret_pointer_pointee: pointer_pointee_from_type(
                             ret,
                             &self.context.type_aliases,
                             &self.context.struct_names,

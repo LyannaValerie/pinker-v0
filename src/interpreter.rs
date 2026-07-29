@@ -515,6 +515,7 @@ pub fn run_program_with_args(
         generators: HashMap::new(),
         next_generator_handle: 1,
     };
+    let mut public_memory_state = PublicMemoryState::default();
     let mut callable_state = CallableState::new();
     let mut trait_object_state = TraitObjectState::new();
     let mut call_stack = Vec::new();
@@ -524,6 +525,7 @@ pub fn run_program_with_args(
         program,
         &globals,
         &mut memory,
+        &mut public_memory_state,
         &mut io_state,
         &mut list_state,
         &mut map_state,
@@ -607,6 +609,7 @@ fn call_function(
     program: &MachineProgram,
     globals: &HashMap<String, RuntimeValue>,
     memory: &mut HashMap<usize, RuntimeValue>,
+    public_memory_state: &mut PublicMemoryState,
     io_state: &mut RuntimeIoState,
     list_state: &mut RuntimeListState,
     map_state: &mut RuntimeMapState,
@@ -678,6 +681,7 @@ fn call_function(
                     program,
                     globals,
                     memory,
+                    public_memory_state,
                     io_state,
                     list_state,
                     map_state,
@@ -770,6 +774,7 @@ fn exec_instr(
     program: &MachineProgram,
     globals: &HashMap<String, RuntimeValue>,
     memory: &mut HashMap<usize, RuntimeValue>,
+    public_memory_state: &mut PublicMemoryState,
     io_state: &mut RuntimeIoState,
     list_state: &mut RuntimeListState,
     map_state: &mut RuntimeMapState,
@@ -855,7 +860,7 @@ fn exec_instr(
                 stack.push(RuntimeValue::Ptr(addr));
                 return Ok(());
             }
-            let public_region = public_memory_region(memory, addr);
+            let public_region = public_memory_region(public_memory_state, addr);
             if let Some((base, size, alive)) = public_region {
                 if !alive {
                     return Err(runtime_err("uso após liberar detectado em memória pública"));
@@ -893,7 +898,7 @@ fn exec_instr(
                     "deref_store exige ponteiro abaixo do valor no topo",
                 ));
             };
-            let public_region = public_memory_region(memory, addr);
+            let public_region = public_memory_region(public_memory_state, addr);
             if let Some((base, size, alive)) = public_region {
                 if !alive {
                     return Err(runtime_err("uso após liberar detectado em memória pública"));
@@ -1051,7 +1056,7 @@ fn exec_instr(
             let result = match try_call_intrinsic(
                 callee,
                 &args,
-                memory,
+                public_memory_state,
                 io_state,
                 list_state,
                 map_state,
@@ -1064,6 +1069,7 @@ fn exec_instr(
                     program,
                     globals,
                     memory,
+                    public_memory_state,
                     io_state,
                     list_state,
                     map_state,
@@ -1083,7 +1089,7 @@ fn exec_instr(
             let result = match try_call_intrinsic(
                 callee,
                 &args,
-                memory,
+                public_memory_state,
                 io_state,
                 list_state,
                 map_state,
@@ -1096,6 +1102,7 @@ fn exec_instr(
                     program,
                     globals,
                     memory,
+                    public_memory_state,
                     io_state,
                     list_state,
                     map_state,
@@ -1160,6 +1167,7 @@ fn exec_instr(
                 program,
                 globals,
                 memory,
+                public_memory_state,
                 io_state,
                 list_state,
                 map_state,
@@ -1194,6 +1202,7 @@ fn exec_instr(
                 program,
                 globals,
                 memory,
+                public_memory_state,
                 io_state,
                 list_state,
                 map_state,
@@ -1277,6 +1286,7 @@ fn exec_instr(
                 program,
                 globals,
                 memory,
+                public_memory_state,
                 io_state,
                 list_state,
                 map_state,
@@ -1342,9 +1352,28 @@ fn exec_instr(
 // @pinker-nav:layer interpreter
 // @pinker-nav:summary Implementa intrínsecas hospedadas de aleatoriedade inicial, validando aridade, semente e handle de gerador, mutando o estado pseudoaleatório do interpretador e retornando handles ou números; não representa geradores do runtime nativo.
 const PUBLIC_MEMORY_BASE: usize = 0x5000_0000;
-const PUBLIC_MEMORY_COUNT_KEY: usize = usize::MAX;
-const PUBLIC_MEMORY_NEXT_KEY: usize = usize::MAX - 1;
-const PUBLIC_MEMORY_META_START: usize = usize::MAX - 2;
+
+#[derive(Clone, Debug)]
+struct PublicMemoryRegion {
+    base: usize,
+    size: usize,
+    alive: bool,
+}
+
+#[derive(Clone, Debug)]
+struct PublicMemoryState {
+    next_address: usize,
+    regions: Vec<PublicMemoryRegion>,
+}
+
+impl Default for PublicMemoryState {
+    fn default() -> Self {
+        Self {
+            next_address: PUBLIC_MEMORY_BASE,
+            regions: Vec::new(),
+        }
+    }
+}
 
 fn runtime_type_width(ty: TypeIR) -> usize {
     match ty {
@@ -1451,54 +1480,15 @@ fn public_memory_load_bytes(
     public_memory_word_to_value(word, ty)
 }
 
-fn public_memory_meta_key(index: usize, field: usize) -> Option<usize> {
-    PUBLIC_MEMORY_META_START.checked_sub(index.checked_mul(3)?.checked_add(field)?)
-}
-
-fn public_memory_count(memory: &HashMap<usize, RuntimeValue>) -> usize {
-    match memory.get(&PUBLIC_MEMORY_COUNT_KEY) {
-        Some(RuntimeValue::Int(count)) => usize::try_from(*count).unwrap_or(usize::MAX),
-        _ => 0,
-    }
-}
-
-fn public_memory_region(
-    memory: &HashMap<usize, RuntimeValue>,
-    address: usize,
-) -> Option<(usize, usize, bool)> {
-    let count = public_memory_count(memory);
-    for index in (0..count).rev() {
-        let base = match memory.get(&public_memory_meta_key(index, 0)?) {
-            Some(RuntimeValue::Ptr(base)) => *base,
-            _ => continue,
-        };
-        let size = match memory.get(&public_memory_meta_key(index, 1)?) {
-            Some(RuntimeValue::Int(size)) => usize::try_from(*size).ok()?,
-            _ => continue,
-        };
-        let alive = matches!(
-            memory.get(&public_memory_meta_key(index, 2)?),
-            Some(RuntimeValue::Bool(true))
-        );
-        if address >= base && address < base.saturating_add(size) {
-            return Some((base, size, alive));
+fn public_memory_region(state: &PublicMemoryState, address: usize) -> Option<(usize, usize, bool)> {
+    for region in state.regions.iter().rev() {
+        if address >= region.base && address < region.base.saturating_add(region.size) {
+            return Some((region.base, region.size, region.alive));
         }
     }
-    for index in (0..count).rev() {
-        let base = match memory.get(&public_memory_meta_key(index, 0)?) {
-            Some(RuntimeValue::Ptr(base)) => *base,
-            _ => continue,
-        };
-        let size = match memory.get(&public_memory_meta_key(index, 1)?) {
-            Some(RuntimeValue::Int(size)) => usize::try_from(*size).ok()?,
-            _ => continue,
-        };
-        if address == base.saturating_add(size) {
-            let alive = matches!(
-                memory.get(&public_memory_meta_key(index, 2)?),
-                Some(RuntimeValue::Bool(true))
-            );
-            return Some((base, size, alive));
+    for region in state.regions.iter().rev() {
+        if address == region.base.saturating_add(region.size) {
+            return Some((region.base, region.size, region.alive));
         }
     }
     None
@@ -1506,7 +1496,7 @@ fn public_memory_region(
 
 fn public_memory_allocate(
     args: &[RuntimeValue],
-    memory: &mut HashMap<usize, RuntimeValue>,
+    state: &mut PublicMemoryState,
 ) -> Result<IntrinsicCall, PinkerError> {
     let [RuntimeValue::Int(size)] = args else {
         return Err(runtime_err("'alocar' exige um tamanho 'u64' em bytes"));
@@ -1528,39 +1518,26 @@ fn public_memory_allocate(
         .checked_add(15)
         .map(|value| value & !15)
         .ok_or_else(|| runtime_err("overflow ao alinhar tamanho de 'alocar'"))?;
-    let base = match memory.get(&PUBLIC_MEMORY_NEXT_KEY) {
-        Some(RuntimeValue::Ptr(next)) => *next,
-        _ => PUBLIC_MEMORY_BASE,
-    };
+    let base = state.next_address;
     let next = base
         .checked_add(rounded)
         .ok_or_else(|| runtime_err("overflow de endereço em 'alocar'"))?;
-    let index = public_memory_count(memory);
-    let index_u64 =
-        u64::try_from(index).map_err(|_| runtime_err("registro de alocações públicas esgotado"))?;
-    memory.insert(PUBLIC_MEMORY_COUNT_KEY, RuntimeValue::Int(index_u64 + 1));
-    memory.insert(PUBLIC_MEMORY_NEXT_KEY, RuntimeValue::Ptr(next));
-    memory.insert(
-        public_memory_meta_key(index, 0)
-            .ok_or_else(|| runtime_err("registro de alocação pública excedeu a plataforma"))?,
-        RuntimeValue::Ptr(base),
-    );
-    memory.insert(
-        public_memory_meta_key(index, 1)
-            .ok_or_else(|| runtime_err("registro de alocação pública excedeu a plataforma"))?,
-        RuntimeValue::Int(size as u64),
-    );
-    memory.insert(
-        public_memory_meta_key(index, 2)
-            .ok_or_else(|| runtime_err("registro de alocação pública excedeu a plataforma"))?,
-        RuntimeValue::Bool(true),
-    );
+    state
+        .regions
+        .try_reserve(1)
+        .map_err(|_| runtime_err("registro de alocações públicas não pôde reservar metadata"))?;
+    state.next_address = next;
+    state.regions.push(PublicMemoryRegion {
+        base,
+        size,
+        alive: true,
+    });
     Ok(IntrinsicCall::Done(Some(RuntimeValue::Ptr(base))))
 }
 
 fn public_memory_free(
     args: &[RuntimeValue],
-    memory: &mut HashMap<usize, RuntimeValue>,
+    state: &mut PublicMemoryState,
 ) -> Result<IntrinsicCall, PinkerError> {
     let [RuntimeValue::Ptr(pointer)] = args else {
         return Err(runtime_err("'liberar' exige um ponteiro-base 'seta<u8>'"));
@@ -1568,48 +1545,21 @@ fn public_memory_free(
     if *pointer == 0 {
         return Err(runtime_err("'liberar' rejeita ponteiro nulo"));
     }
-    for index in (0..public_memory_count(memory)).rev() {
-        let base_key = public_memory_meta_key(index, 0)
-            .ok_or_else(|| runtime_err("registro de alocação pública inválido"))?;
-        let size_key = public_memory_meta_key(index, 1)
-            .ok_or_else(|| runtime_err("registro de alocação pública inválido"))?;
-        let alive_key = public_memory_meta_key(index, 2)
-            .ok_or_else(|| runtime_err("registro de alocação pública inválido"))?;
-        let base = match memory.get(&base_key) {
-            Some(RuntimeValue::Ptr(base)) => *base,
-            _ => continue,
-        };
-        if base != *pointer {
+    for region in state.regions.iter_mut().rev() {
+        if region.base != *pointer {
             continue;
         }
-        let alive = matches!(memory.get(&alive_key), Some(RuntimeValue::Bool(true)));
-        if !alive {
+        if !region.alive {
             return Err(runtime_err("'liberar' detectou double free"));
         }
-        let _size = match memory.get(&size_key) {
-            Some(RuntimeValue::Int(size)) => usize::try_from(*size)
-                .map_err(|_| runtime_err("tamanho registrado de alocação inválido"))?,
-            _ => return Err(runtime_err("metadados de alocação pública ausentes")),
-        };
-        memory.insert(alive_key, RuntimeValue::Bool(false));
+        region.alive = false;
         return Ok(IntrinsicCall::Done(None));
     }
-    if (0..public_memory_count(memory)).any(|index| {
-        let Some(base_key) = public_memory_meta_key(index, 0) else {
-            return false;
-        };
-        let Some(size_key) = public_memory_meta_key(index, 1) else {
-            return false;
-        };
-        let Some(RuntimeValue::Ptr(base)) = memory.get(&base_key) else {
-            return false;
-        };
-        let Some(RuntimeValue::Int(size)) = memory.get(&size_key) else {
-            return false;
-        };
-        usize::try_from(*size)
-            .is_ok_and(|size| *pointer > *base && *pointer <= base.saturating_add(size))
-    }) {
+    if state
+        .regions
+        .iter()
+        .any(|region| *pointer > region.base && *pointer <= region.base.saturating_add(region.size))
+    {
         return Err(runtime_err(
             "'liberar' rejeita ponteiro interior; use o ponteiro-base",
         ));
@@ -1622,15 +1572,15 @@ fn public_memory_free(
 fn try_call_intrinsic(
     callee: &str,
     args: &[RuntimeValue],
-    memory: &mut HashMap<usize, RuntimeValue>,
+    public_memory_state: &mut PublicMemoryState,
     io_state: &mut RuntimeIoState,
     list_state: &mut RuntimeListState,
     map_state: &mut RuntimeMapState,
     random_state: &mut RuntimeRandomState,
 ) -> Result<IntrinsicCall, PinkerError> {
     match callee {
-        "alocar" => public_memory_allocate(args, memory),
-        "liberar" => public_memory_free(args, memory),
+        "alocar" => public_memory_allocate(args, public_memory_state),
+        "liberar" => public_memory_free(args, public_memory_state),
         "aleatorio_criar" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -5703,59 +5653,30 @@ mod fase244_trait_runtime_tests {
 mod fase246_public_memory_tests {
     use super::*;
 
-    fn registrar_regiao(
-        memory: &mut HashMap<usize, RuntimeValue>,
-        index: usize,
-        base: usize,
-        size: usize,
-        alive: bool,
-    ) {
-        memory.insert(
-            public_memory_meta_key(index, 0).expect("chave de base"),
-            RuntimeValue::Ptr(base),
-        );
-        memory.insert(
-            public_memory_meta_key(index, 1).expect("chave de tamanho"),
-            RuntimeValue::Int(size as u64),
-        );
-        memory.insert(
-            public_memory_meta_key(index, 2).expect("chave de vida"),
-            RuntimeValue::Bool(alive),
-        );
+    fn registrar_regiao(state: &mut PublicMemoryState, base: usize, size: usize, alive: bool) {
+        state.regions.push(PublicMemoryRegion { base, size, alive });
     }
 
     #[test]
     fn liberar_endereco_reutilizado_escolhe_a_geracao_viva_mais_recente() {
-        let mut memory = HashMap::new();
+        let mut state = PublicMemoryState::default();
         let base = 0x6000_0000;
-        memory.insert(PUBLIC_MEMORY_COUNT_KEY, RuntimeValue::Int(3));
-        registrar_regiao(&mut memory, 0, base, 16, false);
-        registrar_regiao(&mut memory, 1, base, 16, false);
-        registrar_regiao(&mut memory, 2, base, 16, true);
+        registrar_regiao(&mut state, base, 16, false);
+        registrar_regiao(&mut state, base, 16, false);
+        registrar_regiao(&mut state, base, 16, true);
 
-        public_memory_free(&[RuntimeValue::Ptr(base)], &mut memory)
+        public_memory_free(&[RuntimeValue::Ptr(base)], &mut state)
             .expect("a terceira geração viva deve poder ser liberada");
 
-        assert_eq!(
-            memory.get(&public_memory_meta_key(0, 2).expect("vida antiga")),
-            Some(&RuntimeValue::Bool(false))
-        );
-        assert_eq!(
-            memory.get(&public_memory_meta_key(1, 2).expect("vida intermediária")),
-            Some(&RuntimeValue::Bool(false))
-        );
-        assert_eq!(
-            memory.get(&public_memory_meta_key(2, 2).expect("vida recente")),
-            Some(&RuntimeValue::Bool(false))
-        );
+        assert!(!state.regions[0].alive);
+        assert!(!state.regions[1].alive);
+        assert!(!state.regions[2].alive);
     }
 
     #[test]
     fn bytes_publicos_preservam_largura_aliasing_e_extensao() {
         let mut memory = HashMap::new();
         let base = 0x6000_1000;
-        memory.insert(PUBLIC_MEMORY_COUNT_KEY, RuntimeValue::Int(1));
-        registrar_regiao(&mut memory, 0, base, 16, true);
 
         public_memory_store_bytes(
             &mut memory,
