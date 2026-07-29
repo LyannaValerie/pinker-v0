@@ -28,6 +28,8 @@ struct FunctionSigCfg {
 // @pinker-nav:layer cfg
 // @pinker-nav:summary Valida os invariantes do CFG IR: blocos rotulados com terminadores bem formados, alvos de salto existentes, ausência de fall-through implícito e consistência de tipos entre blocos.
 pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
+    crate::ir::validate_union_registry(&program.union_types)
+        .map_err(|message| cfg_error(&message, default_span()))?;
     let mut global_consts = HashMap::new();
     for konst in &program.consts {
         if konst.name.trim().is_empty() {
@@ -439,6 +441,27 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "__pinker_internal_uniao_tag".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Union(crate::ir::UnionTypeId(0))],
+        },
+    );
+    function_sigs.insert(
+        "__pinker_internal_uniao_payload_b".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Union(crate::ir::UnionTypeId(0)), TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        "__pinker_internal_uniao_payload_v".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Union(crate::ir::UnionTypeId(0)), TypeIR::Bombom],
         },
     );
     function_sigs.insert(
@@ -1238,7 +1261,12 @@ fn validate_block(
                     ));
                 }
             }
-            InstructionCfgIR::Unary { dest, op, operand } => {
+            InstructionCfgIR::Unary {
+                dest,
+                op,
+                operand,
+                ty,
+            } => {
                 let operand_ty = infer_operand_type(
                     operand,
                     slot_types,
@@ -1252,6 +1280,12 @@ fn validate_block(
                     crate::ir::UnaryOpIR::BitNot if operand_ty.is_integer() => operand_ty,
                     _ => return Err(cfg_error("operando inválido para unário", function.span)),
                 };
+                if *ty != result {
+                    return Err(cfg_error(
+                        "tipo operacional divergente em unário",
+                        function.span,
+                    ));
+                }
                 temp_types.insert(*dest, result);
             }
             InstructionCfgIR::DerefLoad {
@@ -1367,7 +1401,38 @@ fn validate_block(
                 }
                 temp_types.insert(*dest, *target_type);
             }
-            InstructionCfgIR::Binary { dest, op, lhs, rhs } => {
+            InstructionCfgIR::UnionInject {
+                dest,
+                value,
+                union_type_id,
+                payload_type,
+                payload_size,
+                payload_align,
+                ..
+            } => {
+                let source_ty = infer_operand_type(
+                    value,
+                    slot_types,
+                    &temp_types,
+                    global_consts,
+                    function.span,
+                )?;
+                if !operand_matches_expected(value, source_ty, *payload_type)
+                    || *payload_size == 0
+                    || *payload_align == 0
+                    || !payload_align.is_power_of_two()
+                {
+                    return Err(cfg_error("union_inject inválido na CFG", function.span));
+                }
+                temp_types.insert(*dest, TypeIR::Union(*union_type_id));
+            }
+            InstructionCfgIR::Binary {
+                dest,
+                op,
+                lhs,
+                rhs,
+                ty,
+            } => {
                 let lhs_ty =
                     infer_operand_type(lhs, slot_types, &temp_types, global_consts, function.span)?;
                 let rhs_ty =
@@ -1454,6 +1519,18 @@ fn validate_block(
                         }
                     }
                 };
+                let numeric_operation_type =
+                    if matches!(lhs, OperandIR::Int(_)) && rhs_ty.is_integer() {
+                        rhs_ty
+                    } else {
+                        lhs_ty
+                    };
+                if numeric_operation_type.is_integer() && *ty != numeric_operation_type {
+                    return Err(cfg_error(
+                        "tipo operacional divergente em operação numérica",
+                        function.span,
+                    ));
+                }
                 temp_types.insert(*dest, result);
             }
             InstructionCfgIR::Call {
@@ -1906,6 +1983,14 @@ fn validate_block(
                 temp_types.insert(*dest, TypeIR::Function);
             }
             InstructionCfgIR::Falar { args: _ } => {}
+            InstructionCfgIR::InlineAsm { chunks, .. } => {
+                if chunks.is_empty() || chunks.iter().any(|chunk| chunk.trim().is_empty()) {
+                    return Err(cfg_error(
+                        "inline_asm da CFG exige chunks não vazios",
+                        function.span,
+                    ));
+                }
+            }
         }
     }
 

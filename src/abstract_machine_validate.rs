@@ -35,6 +35,7 @@ enum StackValueType {
 // @pinker-nav:layer machine
 // @pinker-nav:summary Valida a máquina abstrata de pilha: balanceamento de push/pop, profundidade de pilha consistente por caminho, rótulos e saltos válidos e boa formação das operações antes da interpretação.
 pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
+    crate::ir::validate_union_registry(&program.union_types).map_err(|message| err(&message))?;
     let mut globals = HashMap::new();
     for g in &program.globals {
         if g.name.trim().is_empty() {
@@ -381,6 +382,24 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
                 StackValueType::Bombom,
                 StackValueType::Bombom,
             ],
+        ),
+    );
+    sigs.insert(
+        "__pinker_internal_uniao_tag".to_string(),
+        (TypeIR::Bombom, vec![StackValueType::Unknown]),
+    );
+    sigs.insert(
+        "__pinker_internal_uniao_payload_b".to_string(),
+        (
+            TypeIR::Bombom,
+            vec![StackValueType::Unknown, StackValueType::Bombom],
+        ),
+    );
+    sigs.insert(
+        "__pinker_internal_uniao_payload_v".to_string(),
+        (
+            TypeIR::Verso,
+            vec![StackValueType::Unknown, StackValueType::Bombom],
         ),
     );
     sigs.insert(
@@ -1250,7 +1269,7 @@ fn apply_instr_effect(
                 slot_types.insert(slot.clone(), top[0]);
             }
         }
-        MachineInstr::Neg | MachineInstr::Not | MachineInstr::BitNot => {
+        MachineInstr::Neg { ty } | MachineInstr::BitNot { ty } => {
             let top = pop_typed(
                 f,
                 label,
@@ -1259,12 +1278,7 @@ fn apply_instr_effect(
                 "underflow em operação unária",
                 Some(&format!("instr='{}'", instr_name(i))),
             )?;
-            let expected = match i {
-                MachineInstr::Neg => StackValueType::Bombom,
-                MachineInstr::Not => StackValueType::Logica,
-                MachineInstr::BitNot => StackValueType::Bombom,
-                _ => StackValueType::Unknown,
-            };
+            let expected = type_to_stack(*ty);
             ensure_compatible(
                 f,
                 label,
@@ -1274,6 +1288,25 @@ fn apply_instr_effect(
                 Some(&format!("instr='{}'", instr_name(i))),
             )?;
             stack.push(expected);
+        }
+        MachineInstr::Not => {
+            let top = pop_typed(
+                f,
+                label,
+                stack,
+                1,
+                "underflow em operação unária",
+                Some("instr='not'"),
+            )?;
+            ensure_compatible(
+                f,
+                label,
+                top[0],
+                StackValueType::Logica,
+                "tipo inválido em operação unária",
+                Some("instr='not'"),
+            )?;
+            stack.push(StackValueType::Logica);
         }
         MachineInstr::DerefLoad { ty, .. } => {
             let top = pop_typed(
@@ -1339,22 +1372,49 @@ fn apply_instr_effect(
             }
             stack.push(type_to_stack(*ty));
         }
-        MachineInstr::Add
-        | MachineInstr::BitAnd
-        | MachineInstr::BitOr
-        | MachineInstr::BitXor
-        | MachineInstr::Shl
-        | MachineInstr::Shr
-        | MachineInstr::Sub
-        | MachineInstr::Mul
-        | MachineInstr::Div
-        | MachineInstr::Mod
-        | MachineInstr::CmpEq
-        | MachineInstr::CmpNe
-        | MachineInstr::CmpLt
-        | MachineInstr::CmpLe
-        | MachineInstr::CmpGt
-        | MachineInstr::CmpGe => {
+        MachineInstr::MakeUnion {
+            payload_type,
+            payload_size,
+            payload_align,
+            ..
+        } => {
+            let top = pop_typed(
+                f,
+                label,
+                stack,
+                1,
+                "underflow em make_union",
+                Some("instr='make_union'"),
+            )?;
+            ensure_compatible(
+                f,
+                label,
+                top[0],
+                type_to_stack(*payload_type),
+                "payload incompatível em make_union",
+                Some("instr='make_union'"),
+            )?;
+            if *payload_size == 0 || *payload_align == 0 || !payload_align.is_power_of_two() {
+                return Err(err_ctx(f, Some(label), "layout inválido em make_union"));
+            }
+            stack.push(StackValueType::Unknown);
+        }
+        MachineInstr::Add { ty }
+        | MachineInstr::BitAnd { ty }
+        | MachineInstr::BitOr { ty }
+        | MachineInstr::BitXor { ty }
+        | MachineInstr::Shl { ty }
+        | MachineInstr::Shr { ty }
+        | MachineInstr::Sub { ty }
+        | MachineInstr::Mul { ty }
+        | MachineInstr::Div { ty }
+        | MachineInstr::Mod { ty }
+        | MachineInstr::CmpEq { ty }
+        | MachineInstr::CmpNe { ty }
+        | MachineInstr::CmpLt { ty }
+        | MachineInstr::CmpLe { ty }
+        | MachineInstr::CmpGt { ty }
+        | MachineInstr::CmpGe { ty } => {
             let pair = pop_typed(
                 f,
                 label,
@@ -1364,18 +1424,19 @@ fn apply_instr_effect(
                 Some(&format!("instr='{}'", instr_name(i))),
             )?;
             let out_ty = match i {
-                MachineInstr::CmpEq
-                | MachineInstr::CmpNe
-                | MachineInstr::CmpLt
-                | MachineInstr::CmpLe
-                | MachineInstr::CmpGt
-                | MachineInstr::CmpGe => StackValueType::Logica,
+                MachineInstr::CmpEq { .. }
+                | MachineInstr::CmpNe { .. }
+                | MachineInstr::CmpLt { .. }
+                | MachineInstr::CmpLe { .. }
+                | MachineInstr::CmpGt { .. }
+                | MachineInstr::CmpGe { .. } => StackValueType::Logica,
                 _ => {
+                    let expected = type_to_stack(*ty);
                     ensure_compatible(
                         f,
                         label,
                         pair[0],
-                        StackValueType::Bombom,
+                        expected,
                         "tipo inválido em operação binária",
                         Some(&format!("instr='{}'", instr_name(i))),
                     )?;
@@ -1383,11 +1444,11 @@ fn apply_instr_effect(
                         f,
                         label,
                         pair[1],
-                        StackValueType::Bombom,
+                        expected,
                         "tipo inválido em operação binária",
                         Some(&format!("instr='{}'", instr_name(i))),
                     )?;
-                    StackValueType::Bombom
+                    expected
                 }
             };
             if out_ty == StackValueType::Logica
@@ -1651,6 +1712,15 @@ fn apply_instr_effect(
         }
         MachineInstr::PrintStrInline(_) | MachineInstr::PrintSpace | MachineInstr::PrintNewline => {
         }
+        MachineInstr::InlineAsm { chunks, .. } => {
+            if chunks.is_empty() || chunks.iter().any(|chunk| chunk.trim().is_empty()) {
+                return Err(err_ctx(
+                    f,
+                    Some(label),
+                    "inline_asm da máquina exige chunks não vazios",
+                ));
+            }
+        }
     }
 
     Ok(())
@@ -1762,9 +1832,9 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::LoadSlot(_) => "load_slot",
         MachineInstr::LoadGlobal(_) => "load_global",
         MachineInstr::StoreSlot(_) => "store_slot",
-        MachineInstr::Neg => "neg",
+        MachineInstr::Neg { .. } => "neg",
         MachineInstr::Not => "not",
-        MachineInstr::BitNot => "bitnot",
+        MachineInstr::BitNot { .. } => "bitnot",
         MachineInstr::DerefLoad { is_volatile, .. } => {
             if *is_volatile {
                 "deref_load_fragil"
@@ -1780,22 +1850,23 @@ fn instr_name(i: &MachineInstr) -> &'static str {
             }
         }
         MachineInstr::Cast { .. } => "cast",
-        MachineInstr::BitAnd => "bitand",
-        MachineInstr::BitOr => "bitor",
-        MachineInstr::BitXor => "bitxor",
-        MachineInstr::Shl => "shl",
-        MachineInstr::Shr => "shr",
-        MachineInstr::Add => "add",
-        MachineInstr::Sub => "sub",
-        MachineInstr::Mul => "mul",
-        MachineInstr::Div => "div",
-        MachineInstr::Mod => "mod",
-        MachineInstr::CmpEq => "cmp_eq",
-        MachineInstr::CmpNe => "cmp_ne",
-        MachineInstr::CmpLt => "cmp_lt",
-        MachineInstr::CmpLe => "cmp_le",
-        MachineInstr::CmpGt => "cmp_gt",
-        MachineInstr::CmpGe => "cmp_ge",
+        MachineInstr::MakeUnion { .. } => "make_union",
+        MachineInstr::BitAnd { .. } => "bitand",
+        MachineInstr::BitOr { .. } => "bitor",
+        MachineInstr::BitXor { .. } => "bitxor",
+        MachineInstr::Shl { .. } => "shl",
+        MachineInstr::Shr { .. } => "shr",
+        MachineInstr::Add { .. } => "add",
+        MachineInstr::Sub { .. } => "sub",
+        MachineInstr::Mul { .. } => "mul",
+        MachineInstr::Div { .. } => "div",
+        MachineInstr::Mod { .. } => "mod",
+        MachineInstr::CmpEq { .. } => "cmp_eq",
+        MachineInstr::CmpNe { .. } => "cmp_ne",
+        MachineInstr::CmpLt { .. } => "cmp_lt",
+        MachineInstr::CmpLe { .. } => "cmp_le",
+        MachineInstr::CmpGt { .. } => "cmp_gt",
+        MachineInstr::CmpGe { .. } => "cmp_ge",
         MachineInstr::Call { .. } => "call",
         MachineInstr::CallVoid { .. } => "call_void",
         MachineInstr::PushFunctionRef(_) => "push_function_ref",
@@ -1811,6 +1882,7 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::PrintStrInline(_) => "print_str_inline",
         MachineInstr::PrintSpace => "print_space",
         MachineInstr::PrintNewline => "print_newline",
+        MachineInstr::InlineAsm { .. } => "inline_asm",
     }
 }
 
@@ -1851,6 +1923,7 @@ fn type_to_stack(ty: TypeIR) -> StackValueType {
         TypeIR::Function => StackValueType::Unknown,
         TypeIR::FunctionPointer => StackValueType::Unknown,
         TypeIR::TraitObject => StackValueType::TraitObject,
+        TypeIR::Union(_) => StackValueType::Unknown,
         TypeIR::Nulo => StackValueType::Unknown,
     }
 }

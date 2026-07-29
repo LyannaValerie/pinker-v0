@@ -26,6 +26,7 @@ use crate::token::Span;
 pub struct ProgramCfgIR {
     pub module_name: String,
     pub is_freestanding: bool,
+    pub union_types: Vec<crate::ir::UnionTypeIR>,
     pub consts: Vec<GlobalConstCfgIR>,
     pub functions: Vec<FunctionCfgIR>,
 }
@@ -77,6 +78,7 @@ pub enum InstructionCfgIR {
         dest: TempIR,
         op: UnaryOpIR,
         operand: OperandIR,
+        ty: TypeIR,
     },
     DerefLoad {
         dest: TempIR,
@@ -95,11 +97,21 @@ pub enum InstructionCfgIR {
         value: OperandIR,
         target_type: TypeIR,
     },
+    UnionInject {
+        dest: TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+        tag: u64,
+        payload_type: TypeIR,
+        payload_size: u64,
+        payload_align: u64,
+    },
     Binary {
         dest: TempIR,
         op: BinaryOpIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     Call {
         dest: Option<TempIR>,
@@ -164,6 +176,10 @@ pub enum InstructionCfgIR {
     },
     Falar {
         args: Vec<FalarArgCfgIR>,
+    },
+    InlineAsm {
+        chunks: Vec<String>,
+        span: Span,
     },
 }
 
@@ -261,6 +277,7 @@ pub fn lower_program(program: &ProgramIR) -> Result<ProgramCfgIR, PinkerError> {
     Ok(ProgramCfgIR {
         module_name: program.module_name.clone(),
         is_freestanding: program.is_freestanding,
+        union_types: program.union_types.clone(),
         consts,
         functions,
     })
@@ -634,10 +651,15 @@ impl FunctionLowerer {
                     .push(InstructionCfgIR::Falar { args: operands });
                 Ok(next_current)
             }
-            InstructionIR::InlineAsm { span, .. } => Err(PinkerError::Ir {
-                msg: "CFG IR ainda não lowera inline asm ('sussurro') nesta fase".to_string(),
-                span: *span,
-            }),
+            InstructionIR::InlineAsm { chunks, span } => {
+                self.blocks[current]
+                    .instructions
+                    .push(InstructionCfgIR::InlineAsm {
+                        chunks: chunks.clone(),
+                        span: *span,
+                    });
+                Ok(current)
+            }
             InstructionIR::Continue { span, .. } => {
                 let Some(loop_continue_label) = self.loop_continue_stack.last().cloned() else {
                     return Err(PinkerError::Ir {
@@ -773,7 +795,7 @@ impl FunctionLowerer {
             ValueIR::Int(v) => Ok((OperandIR::Int(*v), current)),
             ValueIR::Bool(v) => Ok((OperandIR::Bool(*v), current)),
             ValueIR::String(v) => Ok((OperandIR::Str(v.clone()), current)),
-            ValueIR::Unary { op, operand } => {
+            ValueIR::Unary { op, operand, ty } => {
                 let (operand, next_current) = self.lower_value_operand(operand, current, span)?;
                 let dest = self.next_temp();
                 self.blocks[next_current]
@@ -782,6 +804,7 @@ impl FunctionLowerer {
                         dest,
                         op: *op,
                         operand,
+                        ty: *ty,
                     });
                 Ok((OperandIR::Temp(dest), next_current))
             }
@@ -802,7 +825,7 @@ impl FunctionLowerer {
                     });
                 Ok((OperandIR::Temp(dest), next_current))
             }
-            ValueIR::Binary { op, lhs, rhs } => match op {
+            ValueIR::Binary { op, lhs, rhs, ty } => match op {
                 BinaryOpIR::LogicalAnd | BinaryOpIR::LogicalOr => {
                     self.lower_short_circuit_value(*op, lhs, rhs, current, span)
                 }
@@ -817,6 +840,7 @@ impl FunctionLowerer {
                             op: *op,
                             lhs,
                             rhs,
+                            ty: *ty,
                         });
                     Ok((OperandIR::Temp(dest), rhs_current))
                 }
@@ -1045,6 +1069,29 @@ impl FunctionLowerer {
                     });
                 Ok((OperandIR::Temp(dest), next_current))
             }
+            ValueIR::UnionInject {
+                value,
+                union_type_id,
+                tag,
+                payload_type,
+                payload_size,
+                payload_align,
+            } => {
+                let (value, next_current) = self.lower_value_operand(value, current, span)?;
+                let dest = self.next_temp();
+                self.blocks[next_current]
+                    .instructions
+                    .push(InstructionCfgIR::UnionInject {
+                        dest,
+                        value,
+                        union_type_id: *union_type_id,
+                        tag: *tag,
+                        payload_type: *payload_type,
+                        payload_size: *payload_size,
+                        payload_align: *payload_align,
+                    });
+                Ok((OperandIR::Temp(dest), next_current))
+            }
         }
     }
 
@@ -1121,6 +1168,9 @@ impl FunctionLowerer {
                     op: BinaryOpIR::Add,
                     lhs: base_ptr,
                     rhs: OperandIR::Int(field_offset),
+                    ty: TypeIR::Pointer {
+                        is_volatile: *is_volatile,
+                    },
                 });
             OperandIR::Temp(dest_ptr)
         };
@@ -1180,6 +1230,9 @@ impl FunctionLowerer {
                     op: BinaryOpIR::Add,
                     lhs: base_ptr,
                     rhs: OperandIR::Int(field_offset),
+                    ty: TypeIR::Pointer {
+                        is_volatile: is_volatile || *base_is_volatile,
+                    },
                 });
             OperandIR::Temp(dest_ptr)
         };
@@ -1242,6 +1295,7 @@ impl FunctionLowerer {
                 op: BinaryOpIR::Add,
                 lhs: base_addr,
                 rhs: offset,
+                ty: TypeIR::Pointer { is_volatile },
             });
 
         let dest = self.next_temp();
@@ -1301,6 +1355,7 @@ impl FunctionLowerer {
                 op: BinaryOpIR::Add,
                 lhs: base_addr,
                 rhs: offset,
+                ty: TypeIR::Pointer { is_volatile },
             });
         let (val_operand, next_current) =
             self.lower_value_operand(value, current_after_index, span)?;
@@ -1582,18 +1637,31 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
         InstructionCfgIR::Assign { slot, value } => {
             format!("assign {} = {}", slot, render_operand(value))
         }
-        InstructionCfgIR::Unary { dest, op, operand } => {
+        InstructionCfgIR::Unary {
+            dest,
+            op,
+            operand,
+            ty,
+        } => {
             format!(
-                "{} = {} {}",
+                "{} = {}<{}> {}",
                 render_temp(*dest),
                 render_unary_op(*op),
+                ty.name(),
                 render_operand(operand)
             )
         }
-        InstructionCfgIR::Binary { dest, op, lhs, rhs } => format!(
-            "{} = {} {}, {}",
+        InstructionCfgIR::Binary {
+            dest,
+            op,
+            lhs,
+            rhs,
+            ty,
+        } => format!(
+            "{} = {}<{}> {}, {}",
             render_temp(*dest),
             render_binary_op(*op),
+            ty.name(),
             render_operand(lhs),
             render_operand(rhs)
         ),
@@ -1638,6 +1706,19 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
             render_temp(*dest),
             render_operand(value),
             target_type.name()
+        ),
+        InstructionCfgIR::UnionInject {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            ..
+        } => format!(
+            "{} = union_inject #{} tag={} {}",
+            render_temp(*dest),
+            union_type_id.0,
+            tag,
+            render_operand(value)
         ),
         InstructionCfgIR::Call {
             dest,
@@ -1769,6 +1850,7 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
+        InstructionCfgIR::InlineAsm { chunks, .. } => format!("inline_asm {:?}", chunks),
     }
 }
 

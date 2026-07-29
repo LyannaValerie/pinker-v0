@@ -200,6 +200,7 @@ Análise semântica concluída sem erros.
 #[test]
 fn falha_clara_para_call_sem_destino() {
     let cfg = pinker_v0::cfg_ir::ProgramCfgIR {
+        union_types: vec![],
         module_name: "main".to_string(),
         is_freestanding: false,
         consts: vec![],
@@ -412,6 +413,7 @@ fn fase244_selected_program(
     use std::collections::HashMap;
 
     SelectedProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         is_freestanding: false,
         globals: vec![],

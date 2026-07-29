@@ -13,6 +13,7 @@ fn sp() -> Span {
 
 fn base_program(function: FunctionCfgIR) -> ProgramCfgIR {
     ProgramCfgIR {
+        union_types: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![GlobalConstCfgIR {
@@ -252,6 +253,7 @@ fn falha_call_nulo_com_destino_temporario() {
 
     function.name = "principal".to_string();
     let program = ProgramCfgIR {
+        union_types: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],

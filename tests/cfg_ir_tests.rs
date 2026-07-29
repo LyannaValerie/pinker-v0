@@ -232,7 +232,7 @@ fn cfg_ir_modulo_basico() {
             mimo 10 % 4;
         }";
     let cfg = render_cfg_ir(code).unwrap();
-    assert!(cfg.contains("mod 10:bombom, 4:bombom"), "{}", cfg);
+    assert!(cfg.contains("mod<bombom> 10:bombom, 4:bombom"), "{}", cfg);
 }
 
 #[test]
@@ -377,9 +377,9 @@ fn cfg_ir_acesso_campo_em_valor_struct_ainda_fora_do_subset_operacional() {
 // @pinker-nav:start evidencia.cfg.lowering-limite-asm
 // @pinker-nav:domain cfg
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Espera a rejeição observada de asm inline no lowering para CFG.
+// @pinker-nav:summary Confirma que asm inline atravessa a CFG como barreira explícita e preserva o chunk.
 #[test]
-fn cfg_ir_inline_asm_ainda_fora_do_escopo_operacional() {
+fn cfg_ir_inline_asm_preservado() {
     let code = r#"
         pacote main;
         carinho principal() -> bombom {
@@ -387,8 +387,8 @@ fn cfg_ir_inline_asm_ainda_fora_do_escopo_operacional() {
             mimo 0;
         }
     "#;
-    let err = render_cfg_ir(code).unwrap_err().to_string();
-    assert!(err.contains("ainda não lowera inline asm"));
+    let cfg = render_cfg_ir(code).unwrap();
+    assert!(cfg.contains("inline_asm [\"mov rax, 60\"]"), "{cfg}");
 }
 // @pinker-nav:end evidencia.cfg.lowering-limite-asm
 
