@@ -381,7 +381,7 @@ fn extract_external_callconv_program(
                         body.extend(load_operand(REG_RET, src, &slot_offsets, &rodata_strings)?);
                         body.push(format!("movq {}, -{}(%rbp)", REG_RET, slot_offsets[dest]));
                     }
-                    SelectedInstr::Neg { dest, operand } => {
+                    SelectedInstr::Neg { dest, operand, ty } => {
                         register_rodata_strings_for_operand(
                             operand,
                             &mut rodata_string_labels,
@@ -394,18 +394,20 @@ fn extract_external_callconv_program(
                             &rodata_strings,
                         )?);
                         body.push(format!("negq {}", REG_RET));
+                        body.extend(normalize_rax(*ty));
                         body.push(format!(
                             "movq {}, -{}(%rbp)",
                             REG_RET,
                             slot_offsets[&temp_key(*dest)]
                         ));
                     }
-                    SelectedInstr::Add { dest, lhs, rhs } => {
+                    SelectedInstr::Add { dest, lhs, rhs, ty } => {
                         body.extend(lower_linear_binop(
                             "addq",
                             *dest,
                             lhs,
                             rhs,
+                            *ty,
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
@@ -420,12 +422,13 @@ fn extract_external_callconv_program(
                             &rodata_strings,
                         )?);
                     }
-                    SelectedInstr::Sub { dest, lhs, rhs } => {
+                    SelectedInstr::Sub { dest, lhs, rhs, ty } => {
                         body.extend(lower_linear_binop(
                             "subq",
                             *dest,
                             lhs,
                             rhs,
+                            *ty,
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
@@ -440,18 +443,83 @@ fn extract_external_callconv_program(
                             &rodata_strings,
                         )?);
                     }
-                    SelectedInstr::Mul { dest, lhs, rhs } => {
+                    SelectedInstr::Mul { dest, lhs, rhs, ty } => {
                         body.extend(lower_linear_binop(
                             "imulq",
                             *dest,
                             lhs,
                             rhs,
+                            *ty,
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
                         )?);
                     }
-                    SelectedInstr::CmpEq { dest, lhs, rhs } => {
+                    SelectedInstr::BitAnd { dest, lhs, rhs, ty } => {
+                        body.extend(lower_linear_binop(
+                            "andq",
+                            *dest,
+                            lhs,
+                            rhs,
+                            *ty,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
+                    }
+                    SelectedInstr::BitOr { dest, lhs, rhs, ty } => {
+                        body.extend(lower_linear_binop(
+                            "orq",
+                            *dest,
+                            lhs,
+                            rhs,
+                            *ty,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
+                    }
+                    SelectedInstr::BitXor { dest, lhs, rhs, ty } => {
+                        body.extend(lower_linear_binop(
+                            "xorq",
+                            *dest,
+                            lhs,
+                            rhs,
+                            *ty,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
+                    }
+                    SelectedInstr::Shl { dest, lhs, rhs, ty }
+                    | SelectedInstr::Shr { dest, lhs, rhs, ty } => {
+                        body.extend(lower_shift(
+                            matches!(inst, SelectedInstr::Shr { .. }),
+                            *dest,
+                            lhs,
+                            rhs,
+                            *ty,
+                            &function.name,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
+                    }
+                    SelectedInstr::Div { dest, lhs, rhs, ty }
+                    | SelectedInstr::Mod { dest, lhs, rhs, ty } => {
+                        body.extend(lower_div_mod(
+                            matches!(inst, SelectedInstr::Mod { .. }),
+                            *dest,
+                            lhs,
+                            rhs,
+                            *ty,
+                            &function.name,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
+                    }
+                    SelectedInstr::CmpEq { dest, lhs, rhs, .. } => {
                         body.extend(lower_cmp_eq(
                             *dest,
                             lhs,
@@ -461,7 +529,7 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         )?);
                     }
-                    SelectedInstr::CmpNe { dest, lhs, rhs } => {
+                    SelectedInstr::CmpNe { dest, lhs, rhs, .. } => {
                         body.extend(lower_cmp_ne(
                             *dest,
                             lhs,
@@ -471,7 +539,7 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         )?);
                     }
-                    SelectedInstr::CmpLt { dest, lhs, rhs } => {
+                    SelectedInstr::CmpLt { dest, lhs, rhs, .. } => {
                         body.extend(lower_cmp_lt(
                             *dest,
                             lhs,
@@ -482,7 +550,7 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         )?);
                     }
-                    SelectedInstr::CmpGt { dest, lhs, rhs } => {
+                    SelectedInstr::CmpGt { dest, lhs, rhs, .. } => {
                         body.extend(lower_cmp_gt(
                             *dest,
                             lhs,
@@ -493,7 +561,7 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         )?);
                     }
-                    SelectedInstr::CmpLe { dest, lhs, rhs } => {
+                    SelectedInstr::CmpLe { dest, lhs, rhs, .. } => {
                         body.extend(lower_cmp_le(
                             *dest,
                             lhs,
@@ -504,7 +572,7 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         )?);
                     }
-                    SelectedInstr::CmpGe { dest, lhs, rhs } => {
+                    SelectedInstr::CmpGe { dest, lhs, rhs, .. } => {
                         body.extend(lower_cmp_ge(
                             *dest,
                             lhs,
@@ -650,22 +718,9 @@ fn extract_external_callconv_program(
                             ));
                             continue;
                         }
-                        let OperandIR::Local(source_slot) = value else {
+                        if !target_type.is_integer() {
                             return Err(err(
-                                "subset externo montável (Fase 134) exige origem em slot local/parâmetro tipado para `virar` mínimo",
-                            ));
-                        };
-                        let Some(source_ty) = function.slot_types.get(source_slot) else {
-                            return Err(err(
-                                "subset externo montável (Fase 134) encontrou origem de cast sem tipo de slot",
-                            ));
-                        };
-                        let cast_supported = (*source_ty == TypeIR::U32
-                            && *target_type == TypeIR::U64)
-                            || (*source_ty == TypeIR::U64 && *target_type == TypeIR::U32);
-                        if !cast_supported {
-                            return Err(err(
-                                "subset externo montável (Fase 134/Fase 246) aceita `virar` de slot `u32 -> u64`, `u64 -> u32` ou `seta<T> -> seta<U>`",
+                                "backend nativo aceita `virar` escalar apenas para inteiro ou ponteiro",
                             ));
                         }
                         register_rodata_strings_for_operand(
@@ -679,9 +734,7 @@ fn extract_external_callconv_program(
                             &slot_offsets,
                             &rodata_strings,
                         )?);
-                        if !matches!(target_type, TypeIR::Pointer { .. }) {
-                            body.push("movl %eax, %eax".to_string());
-                        }
+                        body.extend(normalize_rax(*target_type));
                         body.push(format!(
                             "movq {}, -{}(%rbp)",
                             REG_RET,
@@ -1272,6 +1325,39 @@ fn extract_external_callconv_program(
                         }
                         body.push("call pinker_falar_fim".to_string());
                     }
+                    SelectedInstr::InlineAsm { chunks, .. } => {
+                        body.push(".intel_syntax noprefix".to_string());
+                        for (index, chunk) in chunks.iter().enumerate() {
+                            body.push(format!("# pinker:sussurro chunk={index}"));
+                            body.extend(chunk.lines().map(str::to_string));
+                        }
+                        body.push(".att_syntax prefix".to_string());
+                    }
+                    SelectedInstr::UnionInject {
+                        dest,
+                        value,
+                        union_type_id,
+                        tag,
+                        payload_size,
+                        payload_align,
+                        ..
+                    } => {
+                        register_rodata_strings_for_operand(
+                            value,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        );
+                        body.extend(load_operand("%r8", value, &slot_offsets, &rodata_strings)?);
+                        body.push(format!("movq ${}, %rdi", union_type_id.0));
+                        body.push(format!("movq ${tag}, %rsi"));
+                        body.push(format!("movq ${payload_size}, %rdx"));
+                        body.push(format!("movq ${payload_align}, %rcx"));
+                        body.push("call pinker_uniao_criar".to_string());
+                        body.push(format!(
+                            "movq %rax, -{}(%rbp)",
+                            slot_offsets[&temp_key(*dest)]
+                        ));
+                    }
                     _ => {
                         return Err(err(
                             "subset externo montável (Fase 135) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<`, `>`, `<=` e `>=`), `virar` mínimo explícito (`u32` slot -> `u64` e `u64` slot -> `u32`), call direta com N argumentos (`bombom`/`u32`/`u64`/`verso` opaco/`seta<T>`; ABI SysV completa, Fase 213/B2), `deref_store` mínimo em `bombom`/`u32`/`u64` (incluindo escrita heterogênea de campo de `ninho` via offset explícito), `deref_load` mínimo em `bombom`/`u32`/`u64` (incluindo campo heterogêneo de `ninho` via offset explícito), literal `verso` estático mínimo em `.rodata` carregado por endereço e tráfego opaco por slot/parâmetro, composição heterogênea mínima auditável no mesmo `ninho` (`u32` + `u64` por offset) e load/store em slots de frame, preservando recorte conservador de `quebrar`/`continuar` em `sempre que` via saltos já materializados (até três níveis de laço aninhado)",
@@ -1343,6 +1429,7 @@ fn collect_function_refs_in_function(
                     note(value, out);
                 }
                 SelectedInstr::Cast { value, .. } => note(value, out),
+                SelectedInstr::UnionInject { value, .. } => note(value, out),
                 SelectedInstr::BitAnd { lhs, rhs, .. }
                 | SelectedInstr::BitOr { lhs, rhs, .. }
                 | SelectedInstr::BitXor { lhs, rhs, .. }
@@ -1399,6 +1486,7 @@ fn collect_function_refs_in_function(
                         note(&a.value, out);
                     }
                 }
+                SelectedInstr::InlineAsm { .. } => {}
             }
         }
         match &block.terminator {
@@ -1645,6 +1733,7 @@ fn lower_linear_binop(
     dest: crate::cfg_ir::TempIR,
     lhs: &OperandIR,
     rhs: &OperandIR,
+    ty: TypeIR,
     slot_offsets: &HashMap<String, u32>,
     rodata_string_labels: &mut HashMap<String, String>,
     rodata_strings: &mut Vec<ExternalCallConvString>,
@@ -1655,6 +1744,130 @@ fn lower_linear_binop(
     body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
     body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("{} {}, {}", opcode, REG_TMP, REG_RET));
+    body.extend(normalize_rax(ty));
+    body.push(format!(
+        "movq {}, -{}(%rbp)",
+        REG_RET,
+        slot_offsets[&temp_key(dest)]
+    ));
+    Ok(body)
+}
+
+fn normalize_rax(ty: TypeIR) -> Vec<String> {
+    let instruction = match ty {
+        TypeIR::U8 => Some("movzbq %al, %rax"),
+        TypeIR::I8 => Some("movsbq %al, %rax"),
+        TypeIR::U16 => Some("movzwq %ax, %rax"),
+        TypeIR::I16 => Some("movswq %ax, %rax"),
+        TypeIR::U32 => Some("movl %eax, %eax"),
+        TypeIR::I32 => Some("movslq %eax, %rax"),
+        _ => None,
+    };
+    instruction.into_iter().map(str::to_string).collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_shift(
+    right: bool,
+    dest: crate::cfg_ir::TempIR,
+    lhs: &OperandIR,
+    rhs: &OperandIR,
+    ty: TypeIR,
+    function_name: &str,
+    slot_offsets: &HashMap<String, u32>,
+    rodata_string_labels: &mut HashMap<String, String>,
+    rodata_strings: &mut Vec<ExternalCallConvString>,
+) -> Result<Vec<String>, PinkerError> {
+    let width = match ty {
+        TypeIR::U8 | TypeIR::I8 => 8,
+        TypeIR::U16 | TypeIR::I16 => 16,
+        TypeIR::U32 | TypeIR::I32 => 32,
+        _ => 64,
+    };
+    let valid_label = format!(".L{}_shift_valid_{}", function_name, dest.0);
+    let mut body = Vec::new();
+    register_rodata_strings_for_operand(lhs, rodata_string_labels, rodata_strings);
+    register_rodata_strings_for_operand(rhs, rodata_string_labels, rodata_strings);
+    body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
+    body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
+    body.push(format!("cmpq ${width}, {REG_TMP}"));
+    body.push(format!("jb {valid_label}"));
+    body.push(format!("movq {REG_TMP}, %rdi"));
+    body.push(format!("movq ${width}, %rsi"));
+    body.push("call pinker_erro_shift_count".to_string());
+    body.push(format!("{valid_label}:"));
+    body.push(format!("movb %r10b, %cl"));
+    let opcode = if right {
+        if ty.is_signed() {
+            "sarq"
+        } else {
+            "shrq"
+        }
+    } else {
+        "shlq"
+    };
+    body.push(format!("{opcode} %cl, {REG_RET}"));
+    body.extend(normalize_rax(ty));
+    body.push(format!(
+        "movq {}, -{}(%rbp)",
+        REG_RET,
+        slot_offsets[&temp_key(dest)]
+    ));
+    Ok(body)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_div_mod(
+    modulo: bool,
+    dest: crate::cfg_ir::TempIR,
+    lhs: &OperandIR,
+    rhs: &OperandIR,
+    ty: TypeIR,
+    function_name: &str,
+    slot_offsets: &HashMap<String, u32>,
+    rodata_string_labels: &mut HashMap<String, String>,
+    rodata_strings: &mut Vec<ExternalCallConvString>,
+) -> Result<Vec<String>, PinkerError> {
+    let nonzero = format!(".L{}_div_nonzero_{}", function_name, dest.0);
+    let regular = format!(".L{}_div_regular_{}", function_name, dest.0);
+    let done = format!(".L{}_div_done_{}", function_name, dest.0);
+    let mut body = Vec::new();
+    register_rodata_strings_for_operand(lhs, rodata_string_labels, rodata_strings);
+    register_rodata_strings_for_operand(rhs, rodata_string_labels, rodata_strings);
+    body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
+    body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
+    body.push(format!("testq {REG_TMP}, {REG_TMP}"));
+    body.push(format!("jne {nonzero}"));
+    body.push("call pinker_erro_divisao_zero".to_string());
+    body.push(format!("{nonzero}:"));
+    if ty.is_signed() {
+        let min = match ty {
+            TypeIR::I8 => i8::MIN as i64,
+            TypeIR::I16 => i16::MIN as i64,
+            TypeIR::I32 => i32::MIN as i64,
+            _ => i64::MIN,
+        };
+        body.push(format!("cmpq $-1, {REG_TMP}"));
+        body.push(format!("jne {regular}"));
+        body.push(format!("movabsq ${min}, %rdx"));
+        body.push("cmpq %rdx, %rax".to_string());
+        body.push(format!("jne {regular}"));
+        if modulo {
+            body.push("xorq %rax, %rax".to_string());
+        }
+        body.push(format!("jmp {done}"));
+        body.push(format!("{regular}:"));
+        body.push("cqto".to_string());
+        body.push(format!("idivq {REG_TMP}"));
+    } else {
+        body.push("xorq %rdx, %rdx".to_string());
+        body.push(format!("divq {REG_TMP}"));
+    }
+    if modulo {
+        body.push("movq %rdx, %rax".to_string());
+    }
+    body.push(format!("{done}:"));
+    body.extend(normalize_rax(ty));
     body.push(format!(
         "movq {}, -{}(%rbp)",
         REG_RET,
@@ -1789,12 +2002,12 @@ fn selected_temp_is_pointer(
             SelectedInstr::Cast {
                 dest, target_type, ..
             } if *dest == temp => Some(matches!(target_type, TypeIR::Pointer { .. })),
-            SelectedInstr::Add { dest, lhs, rhs } if *dest == temp => {
+            SelectedInstr::Add { dest, lhs, rhs, .. } if *dest == temp => {
                 let lhs_is_pointer = selected_operand_is_pointer(function, lhs, visiting);
                 let rhs_is_pointer = selected_operand_is_pointer(function, rhs, visiting);
                 Some(lhs_is_pointer ^ rhs_is_pointer)
             }
-            SelectedInstr::Sub { dest, lhs, rhs } if *dest == temp => {
+            SelectedInstr::Sub { dest, lhs, rhs, .. } if *dest == temp => {
                 let lhs_is_pointer = selected_operand_is_pointer(function, lhs, visiting);
                 let rhs_is_pointer = selected_operand_is_pointer(function, rhs, visiting);
                 Some(lhs_is_pointer && !rhs_is_pointer)
@@ -1847,23 +2060,23 @@ fn selected_temp_is_signed(
         .iter()
         .flat_map(|block| &block.instructions)
         .find_map(|instruction| match instruction {
-            SelectedInstr::Neg { dest, operand } if *dest == temp => {
+            SelectedInstr::Neg { dest, operand, .. } if *dest == temp => {
                 Some(selected_operand_is_signed(function, operand, visiting))
             }
             SelectedInstr::DerefLoad { dest, ty, .. } if *dest == temp => Some(ty.is_signed()),
             SelectedInstr::Cast {
                 dest, target_type, ..
             } if *dest == temp => Some(target_type.is_signed()),
-            SelectedInstr::BitAnd { dest, lhs, rhs }
-            | SelectedInstr::BitOr { dest, lhs, rhs }
-            | SelectedInstr::BitXor { dest, lhs, rhs }
-            | SelectedInstr::Shl { dest, lhs, rhs }
-            | SelectedInstr::Shr { dest, lhs, rhs }
-            | SelectedInstr::Add { dest, lhs, rhs }
-            | SelectedInstr::Sub { dest, lhs, rhs }
-            | SelectedInstr::Mul { dest, lhs, rhs }
-            | SelectedInstr::Div { dest, lhs, rhs }
-            | SelectedInstr::Mod { dest, lhs, rhs }
+            SelectedInstr::BitAnd { dest, lhs, rhs, .. }
+            | SelectedInstr::BitOr { dest, lhs, rhs, .. }
+            | SelectedInstr::BitXor { dest, lhs, rhs, .. }
+            | SelectedInstr::Shl { dest, lhs, rhs, .. }
+            | SelectedInstr::Shr { dest, lhs, rhs, .. }
+            | SelectedInstr::Add { dest, lhs, rhs, .. }
+            | SelectedInstr::Sub { dest, lhs, rhs, .. }
+            | SelectedInstr::Mul { dest, lhs, rhs, .. }
+            | SelectedInstr::Div { dest, lhs, rhs, .. }
+            | SelectedInstr::Mod { dest, lhs, rhs, .. }
                 if *dest == temp =>
             {
                 Some(
@@ -2009,6 +2222,7 @@ fn collect_temp_ids(function: &crate::instr_select::SelectedFunction) -> BTreeSe
                 | SelectedInstr::BitNot { dest, .. }
                 | SelectedInstr::DerefLoad { dest, .. }
                 | SelectedInstr::Cast { dest, .. }
+                | SelectedInstr::UnionInject { dest, .. }
                 | SelectedInstr::BitAnd { dest, .. }
                 | SelectedInstr::BitOr { dest, .. }
                 | SelectedInstr::BitXor { dest, .. }
@@ -2391,6 +2605,7 @@ fn is_supported_type(ty: TypeIR) -> bool {
             | TypeIR::Logica
             | TypeIR::FunctionPointer
             | TypeIR::TraitObject
+            | TypeIR::Union(_)
             | TypeIR::Nulo
     )
 }
@@ -2412,6 +2627,7 @@ fn is_external_deref_load_type(ty: &TypeIR) -> bool {
             | TypeIR::FunctionPointer
             | TypeIR::Pointer { .. }
             | TypeIR::TraitObject
+            | TypeIR::Union(_)
     )
 }
 
@@ -2465,6 +2681,7 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
         || *ty == TypeIR::Function
         || *ty == TypeIR::FunctionPointer
         || *ty == TypeIR::TraitObject
+        || matches!(ty, TypeIR::Union(_))
 }
 
 fn is_external_scalar_param_type(ty: &TypeIR) -> bool {
@@ -2498,6 +2715,7 @@ fn is_external_raw_call_type(ty: &TypeIR) -> bool {
                 | TypeIR::Function
                 | TypeIR::FunctionPointer
                 | TypeIR::TraitObject
+                | TypeIR::Union(_)
         )
 }
 
@@ -2726,6 +2944,9 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         "__pinker_internal_leque_carga_b" | "__pinker_internal_leque_carga_v" => {
             Some("pinker_leque_carga")
         }
+        "__pinker_internal_uniao_tag" => Some("pinker_uniao_tag"),
+        "__pinker_internal_uniao_payload_b" => Some("pinker_uniao_payload_b"),
+        "__pinker_internal_uniao_payload_v" => Some("pinker_uniao_payload_v"),
         _ => None,
     }
 }
@@ -3039,6 +3260,21 @@ fn render_instruction(inst: &crate::backend_text::BackendTextInstruction) -> Str
                 .map(|arg| format!("{}:{}", render_operand(&arg.value), arg.ty.name()))
                 .collect::<Vec<_>>()
                 .join(", ")
+        ),
+        crate::backend_text::BackendTextInstruction::InlineAsm { chunks } => {
+            format!("inline_asm {:?}", chunks)
+        }
+        crate::backend_text::BackendTextInstruction::UnionInject {
+            dest,
+            value,
+            union_type_id,
+            tag,
+        } => format!(
+            "union_inject %{} #{} tag={} {}",
+            dest.0,
+            union_type_id.0,
+            tag,
+            render_operand(value)
         ),
     }
 }

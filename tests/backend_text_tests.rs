@@ -227,6 +227,7 @@ Análise semântica concluída sem erros.
 #[test]
 fn validador_cfg_falha_quando_cfg_invalida() {
     let cfg = pinker_v0::cfg_ir::ProgramCfgIR {
+        union_types: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],

@@ -131,15 +131,15 @@ fn erro_memoria_publica(mensagem: &str) -> ! {
     std::process::exit(1);
 }
 
-fn falha_publica_injetada() -> bool {
-    #[cfg(debug_assertions)]
-    {
-        std::env::var_os("PINKER_TESTE_FALHA_ALOCACAO_PUBLICA").is_some()
-    }
-    #[cfg(not(debug_assertions))]
-    {
-        false
-    }
+fn intervalo_publico_contido(
+    inicio_regiao: usize,
+    tamanho_regiao: usize,
+    inicio_acesso: usize,
+    largura_acesso: usize,
+) -> Result<bool, ()> {
+    let fim_regiao = inicio_regiao.checked_add(tamanho_regiao).ok_or(())?;
+    let fim_acesso = inicio_acesso.checked_add(largura_acesso).ok_or(())?;
+    Ok(inicio_acesso >= inicio_regiao && fim_acesso <= fim_regiao)
 }
 
 /// Fase 246: entrada pública de `alocar`. Diferentemente de
@@ -154,9 +154,6 @@ pub extern "C" fn pinker_publico_alocar(tamanho: u64) -> *mut u8 {
         .unwrap_or_else(|_| erro_memoria_publica("'alocar' excede a largura da plataforma"));
     if tamanho_usize > (isize::MAX as usize).saturating_sub(CABECALHO) {
         erro_memoria_publica("'alocar' excede o maior bloco representável pela plataforma");
-    }
-    if falha_publica_injetada() {
-        erro_memoria_publica("'alocar' falhou ao reservar memória");
     }
     let mut registro = ALOCACOES_PUBLICAS
         .lock()
@@ -204,7 +201,7 @@ pub unsafe extern "C" fn pinker_publico_liberar(ponteiro: *mut u8) {
     if let Some(indice) = indice_base_publica_mais_recente(&registro, ponteiro as usize) {
         let alocacao = &mut registro[indice];
         if !alocacao.viva {
-            erro_memoria_publica("'liberar' detectou double free");
+            erro_memoria_publica("E-RUNTIME-MEM-DOUBLE-FREE: 'liberar' detectou double free");
         }
         debug_assert!(alocacao.identidade > 0);
         debug_assert!(alocacao.tamanho > 0);
@@ -215,11 +212,18 @@ pub unsafe extern "C" fn pinker_publico_liberar(ponteiro: *mut u8) {
     }
     let endereco = ponteiro as usize;
     if registro.iter().any(|alocacao| {
-        endereco > alocacao.base && endereco <= alocacao.base.saturating_add(alocacao.tamanho)
+        alocacao
+            .base
+            .checked_add(alocacao.tamanho)
+            .is_some_and(|fim| endereco > alocacao.base && endereco < fim)
     }) {
-        erro_memoria_publica("'liberar' rejeita ponteiro interior; use o ponteiro-base");
+        erro_memoria_publica(
+            "E-RUNTIME-MEM-INTERIOR-FREE: 'liberar' rejeita ponteiro interior; use o ponteiro-base",
+        );
     }
-    erro_memoria_publica("'liberar' rejeita ponteiro estrangeiro ou de domínio interno");
+    erro_memoria_publica(
+        "E-RUNTIME-MEM-FOREIGN-FREE: 'liberar' rejeita ponteiro estrangeiro ou de domínio interno",
+    );
 }
 
 #[no_mangle]
@@ -236,14 +240,16 @@ pub extern "C" fn pinker_publico_validar_acesso(
     if largura == 0 || alinhamento == 0 || !alinhamento.is_power_of_two() {
         erro_memoria_publica("metadados inválidos de acesso à memória pública");
     }
-    let fim_acesso = endereco
-        .checked_add(largura)
-        .unwrap_or_else(|| erro_memoria_publica("overflow no acesso à memória pública"));
+    let fim_acesso = endereco.checked_add(largura).unwrap_or_else(|| {
+        erro_memoria_publica("E-RUNTIME-MEM-ADDRESS-OVERFLOW: overflow no acesso à memória pública")
+    });
     let registro = ALOCACOES_PUBLICAS
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
     let candidata = registro.iter().rev().find(|alocacao| {
-        let fim = alocacao.base.saturating_add(alocacao.tamanho);
+        let Some(fim) = alocacao.base.checked_add(alocacao.tamanho) else {
+            return false;
+        };
         (endereco >= alocacao.base && endereco <= fim)
             || (endereco < alocacao.base && fim_acesso > alocacao.base)
     });
@@ -251,17 +257,28 @@ pub extern "C" fn pinker_publico_validar_acesso(
         return;
     };
     if !alocacao.viva {
-        erro_memoria_publica("uso após liberar detectado em memória pública");
+        erro_memoria_publica(
+            "E-RUNTIME-MEM-USE-AFTER-FREE: uso após liberar detectado em memória pública",
+        );
     }
     if endereco % alinhamento != 0 {
-        erro_memoria_publica("acesso desalinhado à memória pública");
+        erro_memoria_publica("E-RUNTIME-MEM-MISALIGNED: acesso desalinhado à memória pública");
     }
-    let fim_regiao = alocacao
-        .base
-        .checked_add(alocacao.tamanho)
-        .unwrap_or_else(|| erro_memoria_publica("metadados de região pública inválidos"));
-    if endereco < alocacao.base || fim_acesso > fim_regiao {
-        erro_memoria_publica("acesso fora dos limites da alocação pública");
+    let contido = intervalo_publico_contido(alocacao.base, alocacao.tamanho, endereco, largura)
+        .unwrap_or_else(|_| {
+            erro_memoria_publica(
+                "E-RUNTIME-MEM-ADDRESS-OVERFLOW: metadados de região pública inválidos",
+            )
+        });
+    if !contido {
+        if endereco >= alocacao.base {
+            erro_memoria_publica(
+                "E-RUNTIME-MEM-CROSS-BOUNDARY: acesso multibyte cruza o limite da alocação pública",
+            );
+        }
+        erro_memoria_publica(
+            "E-RUNTIME-MEM-OUT-OF-BOUNDS: acesso fora dos limites da alocação pública",
+        );
     }
 }
 
@@ -280,14 +297,22 @@ pub extern "C" fn pinker_publico_validar_derivacao(origem: *const u8, derivado: 
         return;
     };
     if !alocacao.viva {
-        erro_memoria_publica("uso após liberar detectado em memória pública");
+        erro_memoria_publica(
+            "E-RUNTIME-MEM-USE-AFTER-FREE: uso após liberar detectado em memória pública",
+        );
     }
     let fim = alocacao
         .base
         .checked_add(alocacao.tamanho)
-        .unwrap_or_else(|| erro_memoria_publica("metadados de região pública inválidos"));
+        .unwrap_or_else(|| {
+            erro_memoria_publica(
+                "E-RUNTIME-MEM-ADDRESS-OVERFLOW: metadados de região pública inválidos",
+            )
+        });
     if derivado < alocacao.base || derivado > fim {
-        erro_memoria_publica("derivação fora dos limites da alocação pública");
+        erro_memoria_publica(
+            "E-RUNTIME-MEM-OUT-OF-BOUNDS: derivação fora dos limites da alocação pública",
+        );
     }
 }
 
@@ -740,6 +765,18 @@ fn erro_fatal(msg: &str) -> ! {
     std::process::exit(1)
 }
 
+#[no_mangle]
+pub extern "C" fn pinker_erro_shift_count(contagem: u64, largura: u64) -> ! {
+    erro_fatal(&format!(
+        "E-RUNTIME-SHIFT-COUNT: contagem {contagem} fora da largura {largura}"
+    ))
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_erro_divisao_zero() -> ! {
+    erro_fatal("divisão por zero")
+}
+
 unsafe fn lista_len(l: *mut u8) -> u64 {
     (l as *const u64).read()
 }
@@ -1190,6 +1227,103 @@ pub unsafe extern "C" fn pinker_leque_carga(l: *mut u8, tag: u64, indice: u64) -
     leque_cargas(l).add(indice as usize).read()
 }
 // @pinker-nav:end runtime.leques.variantes
+
+// ---------------------------------------------------------------------------
+// Uniões estruturais tagged (Fase 248)
+//
+// O valor que atravessa a ABI é sempre uma palavra: ponteiro para este
+// descritor imutável. A alocação é deliberadamente privada (Box) e portanto
+// não pertence ao domínio público de pinker_alocar/pinker_liberar. O lifetime
+// é monotônico nesta fase.
+// ---------------------------------------------------------------------------
+
+// @pinker-nav:start runtime.unioes.descritor
+// @pinker-nav:domain unioes
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Descritor imutável de união estrutural com identidade internada, tag determinística, layout validado e snapshot de uma palavra; criação e leitura usam uma ABI interna separada da memória pública.
+#[repr(C)]
+struct PinkerUnionDescriptor {
+    union_type_id: u64,
+    tag: u64,
+    payload_size: u64,
+    payload_align: u64,
+    payload_word: u64,
+}
+
+fn union_layout_valid(size: u64, align: u64) -> bool {
+    size > 0
+        && size <= std::mem::size_of::<u64>() as u64
+        && align > 0
+        && align.is_power_of_two()
+        && align <= std::mem::align_of::<u64>() as u64
+}
+
+/// Cria um snapshot imutável para um valor de união.
+#[no_mangle]
+pub extern "C" fn pinker_uniao_criar(
+    union_type_id: u64,
+    tag: u64,
+    payload_size: u64,
+    payload_align: u64,
+    payload_word: u64,
+) -> *mut u8 {
+    if !union_layout_valid(payload_size, payload_align) {
+        erro_fatal("layout inválido ao criar descritor de união estrutural");
+    }
+    Box::into_raw(Box::new(PinkerUnionDescriptor {
+        union_type_id,
+        tag,
+        payload_size,
+        payload_align,
+        payload_word,
+    })) as *mut u8
+}
+
+unsafe fn union_descriptor(handle: *mut u8) -> &'static PinkerUnionDescriptor {
+    if handle.is_null() {
+        erro_fatal("handle nulo de união estrutural");
+    }
+    &*(handle as *const PinkerUnionDescriptor)
+}
+
+/// Obtém a tag determinística de uma união.
+///
+/// # Safety
+/// `handle` deve ter sido devolvido por `pinker_uniao_criar`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_uniao_tag(handle: *mut u8) -> u64 {
+    union_descriptor(handle).tag
+}
+
+unsafe fn union_payload(handle: *mut u8, expected_tag: u64) -> u64 {
+    let descriptor = union_descriptor(handle);
+    if descriptor.tag != expected_tag {
+        erro_fatal("extração de união com tag incompatível");
+    }
+    if !union_layout_valid(descriptor.payload_size, descriptor.payload_align) {
+        erro_fatal("descritor de união contém layout inválido");
+    }
+    descriptor.payload_word
+}
+
+/// Obtém uma carga escalar validando a tag.
+///
+/// # Safety
+/// `handle` deve ter sido devolvido por `pinker_uniao_criar`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_uniao_payload_b(handle: *mut u8, expected_tag: u64) -> u64 {
+    union_payload(handle, expected_tag)
+}
+
+/// Obtém uma carga-handle validando a tag.
+///
+/// # Safety
+/// `handle` deve ter sido devolvido por `pinker_uniao_criar`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_uniao_payload_v(handle: *mut u8, expected_tag: u64) -> *mut u8 {
+    union_payload(handle, expected_tag) as *mut u8
+}
+// @pinker-nav:end runtime.unioes.descritor
 
 // ---------------------------------------------------------------------------
 // Arquivo, caminho, tempo e acaso nativos (Fase 220/B9)

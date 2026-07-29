@@ -82,7 +82,7 @@ fn guardiao_pinker_aprova_fixture_valida() {
     let out = run_guard(&root);
 
     assert_eq!(out.return_value, Some(RuntimeValue::Int(0)));
-    assert_eq!(out.exit_status, None);
+    assert_eq!(out.exit_status, Some(0));
     fs::remove_dir_all(root).unwrap();
 }
 
@@ -133,7 +133,7 @@ fn guardiao_pinker_consulta_doc_por_fase() {
     );
 
     assert_eq!(out.return_value, Some(RuntimeValue::Int(0)));
-    assert_eq!(out.exit_status, None);
+    assert_eq!(out.exit_status, Some(0));
     fs::remove_dir_all(root).unwrap();
 }
 
@@ -161,6 +161,6 @@ fn guardiao_pinker_consulta_src_por_busca() {
     );
 
     assert_eq!(out.return_value, Some(RuntimeValue::Int(0)));
-    assert_eq!(out.exit_status, None);
+    assert_eq!(out.exit_status, Some(0));
     fs::remove_dir_all(root).unwrap();
 }

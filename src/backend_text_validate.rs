@@ -275,6 +275,15 @@ fn validate_function(
                     }
                 }
                 BackendTextInstruction::Falar { args: _ } => {}
+                BackendTextInstruction::InlineAsm { chunks } => {
+                    if chunks.is_empty() || chunks.iter().any(|chunk| chunk.trim().is_empty()) {
+                        return Err(err("inline_asm textual exige chunks não vazios"));
+                    }
+                }
+                BackendTextInstruction::UnionInject { dest, value, .. } => {
+                    let _ = infer_operand(value, &slots, &temps, globals)?;
+                    temps.insert(*dest, TypeIR::Union(crate::ir::UnionTypeId(0)));
+                }
             }
         }
 
