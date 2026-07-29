@@ -2235,25 +2235,7 @@ fn run_analyze(config: Config) {
             interpreter::run_program_with_args(machine_program.as_ref().unwrap(), &config.run_args),
             &source
         );
-        if let Some(value) = result.return_value {
-            match value {
-                interpreter::RuntimeValue::Int(v) => println!("{}", v),
-                interpreter::RuntimeValue::IntSigned(v) => println!("{}", v),
-                interpreter::RuntimeValue::Ptr(v) => println!("{}", v),
-                interpreter::RuntimeValue::Bool(_) => {}
-                interpreter::RuntimeValue::Str(v) => println!("{}", v),
-                interpreter::RuntimeValue::ListBombom(_) => {}
-                interpreter::RuntimeValue::ListVerso(_) => {}
-                interpreter::RuntimeValue::MapVersoBombom(_) => {}
-                interpreter::RuntimeValue::MapVersoVerso(_) => {}
-                interpreter::RuntimeValue::MapBombomBombom(_) => {}
-                interpreter::RuntimeValue::MapBombomVerso(_) => {}
-                interpreter::RuntimeValue::Callable(_) => {}
-            }
-        }
-        if let Some(code) = result.exit_status {
-            std::process::exit(code);
-        }
+        std::process::exit(result.exit_status.unwrap_or(0));
     }
 
     // --- Backend textual (pseudo-asm) ---
