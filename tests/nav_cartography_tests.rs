@@ -118,6 +118,9 @@ fn project_pre_phase245_246(catalog: &mut CodeCatalog) {
             "evidencia.interpreter.ponteiros-boot-freestanding-e-subset-nativo" => {
                 ("fnv1a64:02da9bcb03aa00a3", "fnv1a64:3e9a52c45a703003")
             }
+            "evidencia.semantica.ponteiros-e-aritmetica" => {
+                ("fnv1a64:c9a1d6e1bf8680bc", "fnv1a64:25a2a400718eb9fc")
+            }
             "interpreter.diagnostico.stack-trace" => {
                 ("fnv1a64:797ffb49c1e8121f", "fnv1a64:8bcd97ece790c80b")
             }
