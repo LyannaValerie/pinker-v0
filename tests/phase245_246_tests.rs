@@ -451,6 +451,34 @@ fn fase246_falha_injetada_e_deterministica_nos_dois_modos() {
 }
 
 #[test]
+fn fase246_build_comum_ignora_antigo_interruptor_de_teste() {
+    let example = "examples/fase246_duas_alocacoes_valido.pink";
+    let interpreted = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .env("PINKER_TESTE_FALHA_ALOCACAO_PUBLICA", "1")
+        .args(["--run", example])
+        .output()
+        .expect("execução interpretada comum");
+    assert!(
+        interpreted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&interpreted.stderr)
+    );
+
+    let out_dir = native_output_dir("phase246_no_production_failure_switch");
+    let executable = build_native(example, &out_dir);
+    let native = Command::new(executable)
+        .env("PINKER_TESTE_FALHA_ALOCACAO_PUBLICA", "1")
+        .output()
+        .expect("execução nativa comum");
+    assert!(
+        native.status.success(),
+        "{}",
+        String::from_utf8_lossy(&native.stderr)
+    );
+    fs::remove_dir_all(out_dir).expect("limpeza do build comum");
+}
+
+#[test]
 fn fases245_246_build_nativo_e_deterministico() {
     for example in [
         "examples/fase245_ponteiro_funcao_valido.pink",
