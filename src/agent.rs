@@ -3,10 +3,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fmt::Write as FmtWrite;
-use std::fs::{self, OpenOptions};
+use std::fs::{self, File};
 use std::io::Write as IoWrite;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::OnceLock;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub const EXIT_ACCEPTED: i32 = 0;
@@ -883,7 +885,7 @@ fn validate_relative_path(value: &str) -> Result<(), String> {
 // @pinker-nav:start development.agent.artifacts
 // @pinker-nav:domain development
 // @pinker-nav:layer agent
-// @pinker-nav:summary Escrita atômica de JSON/Markdown, append durável de eventos monotônicos, escape JSON, SHA-256 zero-dependency e manifesto terminal ordenado que deliberadamente exclui a si próprio.
+// @pinker-nav:summary I/O confinado do runner sobre descritores: openat2 rejeita symlinks/magic links e escapes, árvores são criadas componente a componente, temporários usam O_EXCL no mesmo pai e rename atômico, append usa no-follow, e leitura/restauração compartilham a mesma fronteira; JSON/SHA-256 e manifesto permanecem determinísticos.
 fn json_escape(value: &str) -> String {
     let mut out = String::from("\"");
     for ch in value.chars() {
@@ -901,19 +903,331 @@ fn json_escape(value: &str) -> String {
     out
 }
 
+struct ConfinedFs {
+    root: PathBuf,
+    root_file: File,
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+impl ConfinedFs {
+    const AT_FDCWD: i32 = -100;
+    const O_RDONLY: u64 = 0;
+    const O_WRONLY: u64 = 1;
+    const O_CREAT: u64 = 0o100;
+    const O_EXCL: u64 = 0o200;
+    const O_APPEND: u64 = 0o2000;
+    const O_DIRECTORY: u64 = 0o200000;
+    const O_NOFOLLOW: u64 = 0o400000;
+    const O_CLOEXEC: u64 = 0o2000000;
+    const O_PATH: u64 = 0o10000000;
+    const RESOLVE_NO_MAGICLINKS: u64 = 0x02;
+    const RESOLVE_NO_SYMLINKS: u64 = 0x04;
+    const RESOLVE_BENEATH: u64 = 0x08;
+    const SYS_OPENAT2: i64 = 437;
+
+    fn c_path(path: &Path) -> Result<std::ffi::CString, String> {
+        use std::os::unix::ffi::OsStrExt as _;
+        std::ffi::CString::new(path.as_os_str().as_bytes())
+            .map_err(|_| format!("caminho contém NUL: {}", path.display()))
+    }
+
+    fn openat2(
+        dirfd: i32,
+        path: &Path,
+        flags: u64,
+        mode: u64,
+        resolve: u64,
+    ) -> Result<File, String> {
+        use std::os::fd::FromRawFd as _;
+
+        #[repr(C)]
+        struct OpenHow {
+            flags: u64,
+            mode: u64,
+            resolve: u64,
+        }
+        extern "C" {
+            fn syscall(number: i64, ...) -> i64;
+        }
+        let c_path = Self::c_path(path)?;
+        let how = OpenHow {
+            flags,
+            mode,
+            resolve,
+        };
+        let fd = unsafe {
+            syscall(
+                Self::SYS_OPENAT2,
+                dirfd,
+                c_path.as_ptr(),
+                &how as *const OpenHow,
+                std::mem::size_of::<OpenHow>(),
+            )
+        };
+        if fd < 0 {
+            return Err(format!(
+                "acesso confinado rejeitado para '{}': {}",
+                path.display(),
+                std::io::Error::last_os_error()
+            ));
+        }
+        Ok(unsafe { File::from_raw_fd(fd as i32) })
+    }
+
+    fn new(root: &Path) -> Result<Self, String> {
+        let root = if root.is_absolute() {
+            root.to_path_buf()
+        } else {
+            env::current_dir()
+                .map_err(|err| err.to_string())?
+                .join(root)
+        };
+        let root_file = Self::openat2(
+            Self::AT_FDCWD,
+            &root,
+            Self::O_PATH | Self::O_DIRECTORY | Self::O_CLOEXEC,
+            0,
+            Self::RESOLVE_NO_MAGICLINKS | Self::RESOLVE_NO_SYMLINKS,
+        )?;
+        Ok(Self { root, root_file })
+    }
+
+    fn for_target(path: &Path) -> Result<(Self, PathBuf), String> {
+        let absolute = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            env::current_dir()
+                .map_err(|err| err.to_string())?
+                .join(path)
+        };
+        let mut root = absolute
+            .parent()
+            .ok_or_else(|| format!("arquivo sem pai: {}", absolute.display()))?
+            .to_path_buf();
+        while !root.exists() {
+            if !root.pop() {
+                return Err(format!("nenhum ancestral existente: {}", absolute.display()));
+            }
+        }
+        let confined = Self::new(&root)?;
+        let relative = absolute
+            .strip_prefix(&confined.root)
+            .map_err(|_| format!("caminho fora da raiz confinada: {}", absolute.display()))?
+            .to_path_buf();
+        validate_relative_path(
+            relative
+                .to_str()
+                .ok_or_else(|| format!("caminho não UTF-8: {}", relative.display()))?,
+        )?;
+        Ok((confined, relative))
+    }
+
+    fn open_dir(&self, relative: &Path) -> Result<File, String> {
+        use std::os::fd::AsRawFd as _;
+        if relative.as_os_str().is_empty() {
+            return Self::openat2(
+                self.root_file.as_raw_fd(),
+                Path::new("."),
+                Self::O_RDONLY | Self::O_DIRECTORY | Self::O_CLOEXEC,
+                0,
+                Self::RESOLVE_BENEATH
+                    | Self::RESOLVE_NO_MAGICLINKS
+                    | Self::RESOLVE_NO_SYMLINKS,
+            );
+        }
+        Self::openat2(
+            self.root_file.as_raw_fd(),
+            relative,
+            Self::O_RDONLY | Self::O_DIRECTORY | Self::O_CLOEXEC,
+            0,
+            Self::RESOLVE_BENEATH | Self::RESOLVE_NO_MAGICLINKS | Self::RESOLVE_NO_SYMLINKS,
+        )
+    }
+
+    fn create_dir_tree(&self, relative: &Path) -> Result<(), String> {
+        use std::os::fd::AsRawFd as _;
+
+        extern "C" {
+            fn mkdirat(dirfd: i32, path: *const std::ffi::c_char, mode: u32) -> i32;
+        }
+        let mut current = self.root_file.try_clone().map_err(|err| err.to_string())?;
+        for component in relative.components() {
+            let Component::Normal(name) = component else {
+                return Err(format!("componente rejeitado: {}", relative.display()));
+            };
+            let name_path = Path::new(name);
+            let name_c = Self::c_path(name_path)?;
+            if unsafe { mkdirat(current.as_raw_fd(), name_c.as_ptr(), 0o700) } != 0 {
+                let error = std::io::Error::last_os_error();
+                if error.raw_os_error() != Some(17) {
+                    return Err(format!("falha ao criar diretório confinado: {error}"));
+                }
+            }
+            current = Self::openat2(
+                current.as_raw_fd(),
+                name_path,
+                Self::O_PATH | Self::O_DIRECTORY | Self::O_CLOEXEC,
+                0,
+                Self::RESOLVE_BENEATH
+                    | Self::RESOLVE_NO_MAGICLINKS
+                    | Self::RESOLVE_NO_SYMLINKS,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn read(&self, relative: &Path) -> Result<Vec<u8>, String> {
+        use std::io::Read as _;
+        use std::os::fd::AsRawFd as _;
+
+        let mut file = Self::openat2(
+            self.root_file.as_raw_fd(),
+            relative,
+            Self::O_RDONLY | Self::O_CLOEXEC | Self::O_NOFOLLOW,
+            0,
+            Self::RESOLVE_BENEATH | Self::RESOLVE_NO_MAGICLINKS | Self::RESOLVE_NO_SYMLINKS,
+        )?;
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).map_err(|err| err.to_string())?;
+        Ok(bytes)
+    }
+
+    fn replace(&self, relative: &Path, content: &[u8], commit: bool) -> Result<(), String> {
+        use std::os::fd::AsRawFd as _;
+
+        extern "C" {
+            fn renameat(
+                olddirfd: i32,
+                oldpath: *const std::ffi::c_char,
+                newdirfd: i32,
+                newpath: *const std::ffi::c_char,
+            ) -> i32;
+            fn unlinkat(dirfd: i32, path: *const std::ffi::c_char, flags: i32) -> i32;
+        }
+        let parent = relative.parent().unwrap_or_else(|| Path::new(""));
+        self.create_dir_tree(parent)?;
+        let parent_file = self.open_dir(parent)?;
+        match fs::symlink_metadata(self.root.join(relative)) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(format!(
+                    "alvo simbólico rejeitado: {}",
+                    self.root.join(relative).display()
+                ));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.to_string()),
+        }
+        let target = relative
+            .file_name()
+            .ok_or_else(|| format!("caminho sem nome: {}", relative.display()))?;
+        static NEXT_TEMP: AtomicU64 = AtomicU64::new(1);
+        static START: OnceLock<Instant> = OnceLock::new();
+        let monotonic = START.get_or_init(Instant::now).elapsed().as_nanos();
+        let temporary = format!(
+            ".{}.pink-agent-{}-{}-{monotonic}.tmp",
+            target.to_string_lossy(),
+            std::process::id(),
+            NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
+        );
+        let temporary_path = Path::new(&temporary);
+        let mut file = Self::openat2(
+            parent_file.as_raw_fd(),
+            temporary_path,
+            Self::O_WRONLY
+                | Self::O_CREAT
+                | Self::O_EXCL
+                | Self::O_CLOEXEC
+                | Self::O_NOFOLLOW,
+            0o600,
+            Self::RESOLVE_BENEATH | Self::RESOLVE_NO_MAGICLINKS | Self::RESOLVE_NO_SYMLINKS,
+        )?;
+        let cleanup = || {
+            if let Ok(tmp) = Self::c_path(temporary_path) {
+                unsafe {
+                    unlinkat(parent_file.as_raw_fd(), tmp.as_ptr(), 0);
+                }
+            }
+        };
+        if let Err(error) = file.write_all(content).and_then(|()| file.sync_all()) {
+            cleanup();
+            return Err(format!("falha ao escrever temporário exclusivo: {error}"));
+        }
+        drop(file);
+        if !commit {
+            cleanup();
+            return Err("substituição interrompida antes do rename".to_string());
+        }
+        let old = Self::c_path(temporary_path)?;
+        let new = Self::c_path(Path::new(target))?;
+        if unsafe {
+            renameat(
+                parent_file.as_raw_fd(),
+                old.as_ptr(),
+                parent_file.as_raw_fd(),
+                new.as_ptr(),
+            )
+        } != 0
+        {
+            let error = std::io::Error::last_os_error();
+            cleanup();
+            return Err(format!("falha ao substituir atomicamente: {error}"));
+        }
+        parent_file.sync_all().map_err(|err| err.to_string())
+    }
+
+    fn append(&self, relative: &Path, content: &[u8]) -> Result<(), String> {
+        use std::os::fd::AsRawFd as _;
+        let parent = relative.parent().unwrap_or_else(|| Path::new(""));
+        self.create_dir_tree(parent)?;
+        let mut file = Self::openat2(
+            self.root_file.as_raw_fd(),
+            relative,
+            Self::O_WRONLY
+                | Self::O_CREAT
+                | Self::O_APPEND
+                | Self::O_CLOEXEC
+                | Self::O_NOFOLLOW,
+            0o600,
+            Self::RESOLVE_BENEATH | Self::RESOLVE_NO_MAGICLINKS | Self::RESOLVE_NO_SYMLINKS,
+        )?;
+        file.write_all(content)
+            .and_then(|()| file.sync_data())
+            .map_err(|err| format!("falha ao anexar evento confinado: {err}"))
+    }
+}
+
+#[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+impl ConfinedFs {
+    fn for_target(_path: &Path) -> Result<(Self, PathBuf), String> {
+        Err("I/O confinado indisponível neste target".to_string())
+    }
+
+    fn read(&self, _relative: &Path) -> Result<Vec<u8>, String> {
+        Err("I/O confinado indisponível neste target".to_string())
+    }
+
+    fn replace(&self, _relative: &Path, _content: &[u8], _commit: bool) -> Result<(), String> {
+        Err("I/O confinado indisponível neste target".to_string())
+    }
+
+    fn append(&self, _relative: &Path, _content: &[u8]) -> Result<(), String> {
+        Err("I/O confinado indisponível neste target".to_string())
+    }
+}
+
+fn atomic_write_inner(path: &Path, content: &[u8], commit: bool) -> Result<(), String> {
+    let (confined, relative) = ConfinedFs::for_target(path)?;
+    confined.replace(&relative, content, commit)
+}
+
 fn atomic_write(path: &Path, content: &[u8]) -> Result<(), String> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| format!("arquivo sem pai: {}", path.display()))?;
-    fs::create_dir_all(parent)
-        .map_err(|err| format!("falha ao criar '{}': {err}", parent.display()))?;
-    let tmp = parent.join(format!(
-        ".{}.agent-tmp",
-        path.file_name().unwrap_or_default().to_string_lossy()
-    ));
-    fs::write(&tmp, content)
-        .map_err(|err| format!("falha ao escrever '{}': {err}", tmp.display()))?;
-    fs::rename(&tmp, path).map_err(|err| format!("falha ao substituir '{}': {err}", path.display()))
+    atomic_write_inner(path, content, true)
+}
+
+fn confined_read(path: &Path) -> Result<Vec<u8>, String> {
+    let (confined, relative) = ConfinedFs::for_target(path)?;
+    confined.read(&relative)
 }
 
 fn append_event(
@@ -923,22 +1237,14 @@ fn append_event(
     status: &str,
     exit: Option<i32>,
 ) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-    }
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-        .map_err(|err| err.to_string())?;
-    writeln!(
-        file,
+    let event = format!(
         "{{\"sequence\":{sequence},\"command\":{},\"status\":{},\"exit_code\":{}}}",
         json_escape(command),
         json_escape(status),
         exit.map_or("null".to_string(), |code| code.to_string())
-    )
-    .map_err(|err| err.to_string())
+    );
+    let (confined, relative) = ConfinedFs::for_target(path)?;
+    confined.append(&relative, format!("{event}\n").as_bytes())
 }
 
 pub fn sha256_hex(bytes: &[u8]) -> String {
@@ -2979,10 +3285,10 @@ pub fn sensibilidade(spec_path: &Path) -> Result<i32, String> {
         let search_path = resolve_under(&spec.delegated_root, Path::new(&mutation.search_file))?;
         let replacement_path =
             resolve_under(&spec.delegated_root, Path::new(&mutation.replacement_file))?;
-        let original = fs::read(&target).map_err(|err| err.to_string())?;
+        let original = confined_read(&target)?;
         let original_hash = sha256_hex(&original);
-        let search = fs::read(&search_path).map_err(|err| err.to_string())?;
-        let replacement = fs::read(&replacement_path).map_err(|err| err.to_string())?;
+        let search = confined_read(&search_path)?;
+        let replacement = confined_read(&replacement_path)?;
         let matches = if search.is_empty() {
             0
         } else {
@@ -3031,7 +3337,7 @@ pub fn sensibilidade(spec_path: &Path) -> Result<i32, String> {
                 Err(err) => stderr = err.to_string().into_bytes(),
             }
             if atomic_write(&target, &original).is_err()
-                || fs::read(&target)
+                || confined_read(&target)
                     .map(|bytes| sha256_hex(&bytes))
                     .ok()
                     .as_deref()
@@ -3433,5 +3739,127 @@ mod executable_resolution_tests {
         let error = resolve_pinker_executable(&deleted).unwrap_err();
         assert!(error.contains("substituto ausente"), "{error}");
         fs::remove_dir_all(root).expect("limpeza do resolver");
+    }
+}
+
+#[cfg(all(test, target_os = "linux", target_arch = "x86_64"))]
+mod confined_fs_tests {
+    use super::{append_event, atomic_write, atomic_write_inner, ConfinedFs};
+    use std::fs;
+    use std::os::unix::fs::symlink;
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+
+    fn root(label: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "pink-agent-confined-{label}-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&root).expect("raiz");
+        root
+    }
+
+    #[test]
+    fn rejeita_symlink_em_componentes_e_no_alvo() {
+        let root = root("symlink");
+        let externo = root.join("externo");
+        fs::create_dir_all(&externo).unwrap();
+        fs::write(externo.join("sentinela"), "preservado").unwrap();
+
+        symlink(&externo, root.join("primeiro")).unwrap();
+        assert!(atomic_write(&root.join("primeiro/arquivo"), b"x").is_err());
+
+        fs::create_dir_all(root.join("real")).unwrap();
+        symlink(&externo, root.join("real/meio")).unwrap();
+        assert!(atomic_write(&root.join("real/meio/arquivo"), b"x").is_err());
+
+        symlink(externo.join("sentinela"), root.join("alvo")).unwrap();
+        assert!(atomic_write(&root.join("alvo"), b"x").is_err());
+        assert_eq!(
+            fs::read_to_string(externo.join("sentinela")).unwrap(),
+            "preservado"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn troca_de_diretorio_depois_do_open_nao_muda_a_raiz_real() {
+        let root = root("exchange");
+        let autorizado = root.join("autorizado");
+        let movido = root.join("movido");
+        let externo = root.join("externo");
+        fs::create_dir_all(&autorizado).unwrap();
+        fs::create_dir_all(&externo).unwrap();
+        fs::write(externo.join("sentinela"), "preservado").unwrap();
+        let confined = ConfinedFs::new(&autorizado).unwrap();
+
+        fs::rename(&autorizado, &movido).unwrap();
+        symlink(&externo, &autorizado).unwrap();
+        confined.replace(Path::new("resultado"), b"interno", true).unwrap();
+
+        assert_eq!(fs::read(movido.join("resultado")).unwrap(), b"interno");
+        assert_eq!(
+            fs::read_to_string(externo.join("sentinela")).unwrap(),
+            "preservado"
+        );
+        assert!(!externo.join("resultado").exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn temporarios_sao_exclusivos_concorrentes_e_limpos() {
+        let root = root("atomic");
+        let target = root.join("resultado.json");
+        fs::write(root.join(".resultado.json.agent-tmp"), "plantado").unwrap();
+        let a = target.clone();
+        let b = target.clone();
+        let ta = std::thread::spawn(move || atomic_write(&a, b"aaaa"));
+        let tb = std::thread::spawn(move || atomic_write(&b, b"bbbb"));
+        ta.join().unwrap().unwrap();
+        tb.join().unwrap().unwrap();
+        let final_bytes = fs::read(&target).unwrap();
+        assert!(final_bytes == b"aaaa" || final_bytes == b"bbbb");
+        assert_eq!(
+            fs::read_to_string(root.join(".resultado.json.agent-tmp")).unwrap(),
+            "plantado"
+        );
+        assert_eq!(
+            fs::read_dir(&root)
+                .unwrap()
+                .filter_map(Result::ok)
+                .filter(|entry| entry.file_name().to_string_lossy().contains(".pink-agent-"))
+                .count(),
+            0
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn append_rejeita_symlink_e_interrupcao_preserva_alvo() {
+        let root = root("append");
+        let externo = root.join("externo");
+        fs::write(&externo, "preservado").unwrap();
+        symlink(&externo, root.join("eventos.jsonl")).unwrap();
+        assert!(
+            append_event(&root.join("eventos.jsonl"), 1, "x", "PASS", Some(0)).is_err()
+        );
+        assert_eq!(fs::read_to_string(&externo).unwrap(), "preservado");
+
+        let target = root.join("estado.json");
+        fs::write(&target, "anterior").unwrap();
+        assert!(atomic_write_inner(&target, b"novo", false).is_err());
+        assert_eq!(fs::read_to_string(&target).unwrap(), "anterior");
+        assert_eq!(
+            fs::read_dir(&root)
+                .unwrap()
+                .filter_map(Result::ok)
+                .filter(|entry| entry.file_name().to_string_lossy().contains(".pink-agent-"))
+                .count(),
+            0
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 }
