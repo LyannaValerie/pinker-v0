@@ -1358,22 +1358,23 @@ pub unsafe extern "C" fn pinker_uniao_payload_v(handle: *mut u8, expected_tag: u
 // de acaso replica o MESMO LCG do interpretador (paridade de sementes).
 // ---------------------------------------------------------------------------
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::io::{Read as _, Seek as _, Write as _};
 use std::sync::{Mutex, OnceLock};
 
 // @pinker-nav:start runtime.arquivos.io
 // @pinker-nav:domain arquivos
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Tabela de arquivos abertos em estado global protegido por Mutex (OnceLock), mapeando handle para caminho/conteúdo/flag de anexo mantidos em memória; toda escrita persiste imediatamente em disco via std::fs, handles fechados ou inválidos abortam via erro_fatal com mensagem específica por operação; com_arquivo/io_lock concentram o acesso ao Mutex e abortam o processo se o lock estiver envenenado.
+// @pinker-nav:summary Tabela limitada aos descritores ativos: cada handle mantém o File aberto e o modo, operações reposicionam e usam esse mesmo descritor sem re-resolver o caminho, criar usa create_new, leituras têm limite explícito, e handles ausentes abaixo de proximo_handle são classificados como fechados sem HashSet crescente.
+const MAX_ARQUIVO_VERSO_BYTES: u64 = 64 * 1024 * 1024;
+
 struct ArquivoAberto {
-    caminho: String,
-    conteudo: String,
+    arquivo: std::fs::File,
     anexo: bool,
 }
 
 struct EstadoIo {
     arquivos: HashMap<u64, ArquivoAberto>,
-    fechados: HashSet<u64>,
     proximo_handle: u64,
 }
 
@@ -1382,7 +1383,6 @@ fn estado_io() -> &'static Mutex<EstadoIo> {
     IO.get_or_init(|| {
         Mutex::new(EstadoIo {
             arquivos: HashMap::new(),
-            fechados: HashSet::new(),
             proximo_handle: 1,
         })
     })
@@ -1394,19 +1394,42 @@ fn io_lock() -> std::sync::MutexGuard<'static, EstadoIo> {
         .unwrap_or_else(|_| erro_fatal("estado de arquivos corrompido"))
 }
 
-fn abrir_com_flag(caminho: &str, conteudo: String, anexo: bool) -> u64 {
+fn abrir_com_flag(arquivo: std::fs::File, anexo: bool) -> u64 {
     let mut io = io_lock();
     let handle = io.proximo_handle;
-    io.proximo_handle = io.proximo_handle.saturating_add(1);
-    io.arquivos.insert(
-        handle,
-        ArquivoAberto {
-            caminho: caminho.to_string(),
-            conteudo,
-            anexo,
-        },
-    );
+    io.proximo_handle = io
+        .proximo_handle
+        .checked_add(1)
+        .unwrap_or_else(|| erro_fatal("esgotamento de handles de arquivo"));
+    io.arquivos.insert(handle, ArquivoAberto { arquivo, anexo });
     handle
+}
+
+fn handle_foi_fechado(io: &EstadoIo, handle: u64) -> bool {
+    handle > 0 && handle < io.proximo_handle && !io.arquivos.contains_key(&handle)
+}
+
+enum ModoArquivo {
+    Abrir,
+    Criar,
+    Anexar,
+}
+
+fn abrir_descritor(caminho: &str, modo: ModoArquivo) -> std::io::Result<std::fs::File> {
+    let mut opcoes = std::fs::OpenOptions::new();
+    opcoes.read(true);
+    match modo {
+        ModoArquivo::Abrir => {
+            opcoes.write(true);
+        }
+        ModoArquivo::Criar => {
+            opcoes.write(true).create_new(true);
+        }
+        ModoArquivo::Anexar => {
+            opcoes.append(true);
+        }
+    }
+    opcoes.open(caminho)
 }
 
 /// # Safety
@@ -1414,9 +1437,9 @@ fn abrir_com_flag(caminho: &str, conteudo: String, anexo: bool) -> u64 {
 #[no_mangle]
 pub unsafe extern "C" fn pinker_arquivo_abrir(caminho: *const u8) -> u64 {
     let caminho = verso_str(caminho);
-    let conteudo = std::fs::read_to_string(caminho)
+    let arquivo = abrir_descritor(caminho, ModoArquivo::Abrir)
         .unwrap_or_else(|err| erro_fatal(&format!("falha ao abrir arquivo '{caminho}': {err}")));
-    abrir_com_flag(caminho, conteudo, false)
+    abrir_com_flag(arquivo, false)
 }
 
 /// # Safety
@@ -1424,9 +1447,9 @@ pub unsafe extern "C" fn pinker_arquivo_abrir(caminho: *const u8) -> u64 {
 #[no_mangle]
 pub unsafe extern "C" fn pinker_arquivo_criar(caminho: *const u8) -> u64 {
     let caminho = verso_str(caminho);
-    std::fs::write(caminho, "")
+    let arquivo = abrir_descritor(caminho, ModoArquivo::Criar)
         .unwrap_or_else(|err| erro_fatal(&format!("falha ao criar arquivo '{caminho}': {err}")));
-    abrir_com_flag(caminho, String::new(), false)
+    abrir_com_flag(arquivo, false)
 }
 
 /// # Safety
@@ -1434,41 +1457,79 @@ pub unsafe extern "C" fn pinker_arquivo_criar(caminho: *const u8) -> u64 {
 #[no_mangle]
 pub unsafe extern "C" fn pinker_arquivo_abrir_anexo(caminho: *const u8) -> u64 {
     let caminho = verso_str(caminho);
-    let conteudo = std::fs::read_to_string(caminho).unwrap_or_else(|err| {
+    let arquivo = abrir_descritor(caminho, ModoArquivo::Anexar).unwrap_or_else(|err| {
         erro_fatal(&format!(
             "falha ao abrir arquivo para anexo '{caminho}': {err}"
         ))
     });
-    abrir_com_flag(caminho, conteudo, true)
+    abrir_com_flag(arquivo, true)
 }
 
 #[no_mangle]
 pub extern "C" fn pinker_arquivo_fechar(handle: u64) {
     let mut io = io_lock();
     if io.arquivos.remove(&handle).is_none() {
-        if io.fechados.contains(&handle) {
+        if handle_foi_fechado(&io, handle) {
             erro_fatal("handle de arquivo já fechado em 'fechar'");
         }
         erro_fatal("handle de arquivo inválido em 'fechar'");
     }
-    io.fechados.insert(handle);
 }
 
 fn com_arquivo<R>(handle: u64, nome: &str, f: impl FnOnce(&mut ArquivoAberto) -> R) -> R {
     let mut io = io_lock();
-    if !io.arquivos.contains_key(&handle) {
-        if io.fechados.contains(&handle) {
-            erro_fatal(&format!("handle de arquivo já fechado em '{nome}'"));
-        }
-        erro_fatal(&format!("handle de arquivo inválido em '{nome}'"));
+    if let Some(arquivo) = io.arquivos.get_mut(&handle) {
+        return f(arquivo);
     }
-    f(io.arquivos.get_mut(&handle).expect("verificado acima"))
+    if handle_foi_fechado(&io, handle) {
+            erro_fatal(&format!("handle de arquivo já fechado em '{nome}'"));
+    }
+    erro_fatal(&format!("handle de arquivo inválido em '{nome}'"));
+}
+
+fn ler_descritor(arq: &mut ArquivoAberto, nome: &str) -> Vec<u8> {
+    let tamanho = arq
+        .arquivo
+        .metadata()
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao medir arquivo em '{nome}': {err}")))
+        .len();
+    if tamanho > MAX_ARQUIVO_VERSO_BYTES {
+        erro_fatal(&format!(
+            "arquivo excede limite de {MAX_ARQUIVO_VERSO_BYTES} bytes em '{nome}'"
+        ));
+    }
+    arq.arquivo
+        .seek(std::io::SeekFrom::Start(0))
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao reposicionar arquivo em '{nome}': {err}")));
+    let mut bytes = Vec::with_capacity(usize::try_from(tamanho).unwrap_or(0));
+    let mut limitado = std::io::Read::take(&mut arq.arquivo, MAX_ARQUIVO_VERSO_BYTES + 1);
+    limitado
+        .read_to_end(&mut bytes)
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao ler arquivo em '{nome}': {err}")));
+    if bytes.len() as u64 > MAX_ARQUIVO_VERSO_BYTES {
+        erro_fatal(&format!(
+            "arquivo excede limite de {MAX_ARQUIVO_VERSO_BYTES} bytes em '{nome}'"
+        ));
+    }
+    bytes
+}
+
+fn substituir_descritor(arq: &mut ArquivoAberto, nome: &str, bytes: &[u8]) {
+    arq.arquivo
+        .set_len(0)
+        .and_then(|()| arq.arquivo.seek(std::io::SeekFrom::Start(0)).map(|_| ()))
+        .and_then(|()| arq.arquivo.write_all(bytes))
+        .and_then(|()| arq.arquivo.flush())
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao escrever em '{nome}': {err}")));
 }
 
 #[no_mangle]
 pub extern "C" fn pinker_arquivo_ler_bombom(handle: u64) -> u64 {
     com_arquivo(handle, "ler_arquivo", |arq| {
-        let aparado = arq.conteudo.trim();
+        let bytes = ler_descritor(arq, "ler_arquivo");
+        let texto = std::str::from_utf8(&bytes)
+            .unwrap_or_else(|_| erro_fatal("conteúdo inválido em 'ler_arquivo': UTF-8 esperado"));
+        let aparado = texto.trim();
         if aparado.is_empty() {
             erro_fatal("arquivo vazio em 'ler_arquivo'");
         }
@@ -1483,7 +1544,11 @@ pub extern "C" fn pinker_arquivo_ler_bombom(handle: u64) -> u64 {
 #[no_mangle]
 pub extern "C" fn pinker_arquivo_ler_verso(handle: u64) -> *mut u8 {
     com_arquivo(handle, "ler_verso_arquivo", |arq| {
-        verso_alocar(&arq.conteudo)
+        let bytes = ler_descritor(arq, "ler_verso_arquivo");
+        let texto = std::str::from_utf8(&bytes).unwrap_or_else(|_| {
+            erro_fatal("conteúdo inválido em 'ler_verso_arquivo': UTF-8 esperado")
+        });
+        verso_alocar(texto)
     })
 }
 
@@ -1491,9 +1556,7 @@ pub extern "C" fn pinker_arquivo_ler_verso(handle: u64) -> *mut u8 {
 pub extern "C" fn pinker_arquivo_escrever_bombom(handle: u64, valor: u64) {
     com_arquivo(handle, "escrever", |arq| {
         let novo = valor.to_string();
-        std::fs::write(&arq.caminho, &novo)
-            .unwrap_or_else(|err| erro_fatal(&format!("falha ao escrever em arquivo: {err}")));
-        arq.conteudo = novo;
+        substituir_descritor(arq, "escrever", novo.as_bytes());
     })
 }
 
@@ -1503,18 +1566,14 @@ pub extern "C" fn pinker_arquivo_escrever_bombom(handle: u64, valor: u64) {
 pub unsafe extern "C" fn pinker_arquivo_escrever_verso(handle: u64, valor: *const u8) {
     let valor = verso_str(valor);
     com_arquivo(handle, "escrever_verso", |arq| {
-        std::fs::write(&arq.caminho, valor)
-            .unwrap_or_else(|err| erro_fatal(&format!("falha ao escrever verso: {err}")));
-        arq.conteudo = valor.to_string();
+        substituir_descritor(arq, "escrever_verso", valor.as_bytes());
     })
 }
 
 #[no_mangle]
 pub extern "C" fn pinker_arquivo_truncar(handle: u64) {
     com_arquivo(handle, "truncar_arquivo", |arq| {
-        std::fs::write(&arq.caminho, "")
-            .unwrap_or_else(|err| erro_fatal(&format!("falha ao truncar arquivo: {err}")));
-        arq.conteudo.clear();
+        substituir_descritor(arq, "truncar_arquivo", b"");
     })
 }
 
@@ -1527,15 +1586,11 @@ pub unsafe extern "C" fn pinker_arquivo_anexar_verso(handle: u64, valor: *const 
         if !arq.anexo {
             erro_fatal("handle sem modo anexo em 'anexar_verso'; use 'abrir_anexo'");
         }
-        use std::io::Write as _;
-        let mut arquivo = std::fs::OpenOptions::new()
-            .append(true)
-            .open(&arq.caminho)
+        arq.arquivo
+            .seek(std::io::SeekFrom::End(0))
+            .and_then(|_| arq.arquivo.write_all(valor.as_bytes()))
+            .and_then(|()| arq.arquivo.flush())
             .unwrap_or_else(|err| erro_fatal(&format!("falha ao anexar verso: {err}")));
-        arquivo
-            .write_all(valor.as_bytes())
-            .unwrap_or_else(|err| erro_fatal(&format!("falha ao anexar verso: {err}")));
-        arq.conteudo.push_str(valor);
     })
 }
 
@@ -2346,6 +2401,92 @@ mod tests {
 
         std::fs::remove_file(leitor).expect("remover leitor");
         std::fs::remove_file(nao_leitor).expect("remover não leitor");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn handles_de_arquivo_preservam_identidade_do_descritor() {
+        use std::os::unix::fs::symlink;
+
+        let raiz = std::env::temp_dir().join(format!(
+            "pinker-rt-descritores-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&raiz).expect("raiz");
+        let caminho = raiz.join("aberto.txt");
+        let movido = raiz.join("movido.txt");
+        let externo = raiz.join("externo.txt");
+        std::fs::write(&caminho, "inicial").expect("arquivo inicial");
+        std::fs::write(&externo, "preservado").expect("arquivo externo");
+
+        let arquivo = abrir_descritor(caminho.to_str().unwrap(), ModoArquivo::Abrir).unwrap();
+        let mut aberto = ArquivoAberto {
+            arquivo,
+            anexo: false,
+        };
+        std::fs::rename(&caminho, &movido).expect("renomear");
+        symlink(&externo, &caminho).expect("trocar caminho por symlink");
+        substituir_descritor(&mut aberto, "teste", b"pelo descritor");
+        assert_eq!(std::fs::read_to_string(&movido).unwrap(), "pelo descritor");
+        assert_eq!(std::fs::read_to_string(&externo).unwrap(), "preservado");
+
+        std::fs::remove_file(&movido).expect("remover nome do arquivo aberto");
+        aberto
+            .arquivo
+            .seek(std::io::SeekFrom::Start(0))
+            .expect("reposicionar removido");
+        assert_eq!(ler_descritor(&mut aberto, "teste"), b"pelo descritor");
+
+        std::fs::remove_file(&caminho).expect("remover symlink");
+        std::fs::remove_file(&externo).expect("remover externo");
+        std::fs::remove_dir(&raiz).expect("remover raiz");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn criar_e_exclusivo_e_open_nao_materializa_arquivo_grande() {
+        use std::os::unix::fs::symlink;
+
+        let raiz = std::env::temp_dir().join(format!(
+            "pinker-rt-create-new-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&raiz).expect("raiz");
+        let existente = raiz.join("existente.txt");
+        let link = raiz.join("link.txt");
+        let grande = raiz.join("grande.bin");
+        std::fs::write(&existente, "preservar").expect("existente");
+        symlink(&existente, &link).expect("symlink");
+        assert!(abrir_descritor(existente.to_str().unwrap(), ModoArquivo::Criar).is_err());
+        assert!(abrir_descritor(link.to_str().unwrap(), ModoArquivo::Criar).is_err());
+        assert_eq!(std::fs::read_to_string(&existente).unwrap(), "preservar");
+
+        let grande_file = std::fs::File::create(&grande).expect("grande");
+        grande_file
+            .set_len(MAX_ARQUIVO_VERSO_BYTES + 1)
+            .expect("sparse");
+        let aberto = abrir_descritor(grande.to_str().unwrap(), ModoArquivo::Abrir)
+            .expect("open não lê conteúdo");
+        assert_eq!(
+            aberto.metadata().expect("metadata").len(),
+            MAX_ARQUIVO_VERSO_BYTES + 1
+        );
+
+        std::fs::remove_dir_all(&raiz).expect("limpeza");
+    }
+
+    #[test]
+    fn classificacao_de_fechados_nao_cresce_com_historico() {
+        let io = EstadoIo {
+            arquivos: HashMap::new(),
+            proximo_handle: 1_000_001,
+        };
+        for handle in 1..=1_000_000 {
+            assert!(handle_foi_fechado(&io, handle));
+        }
+        assert!(!handle_foi_fechado(&io, 0));
+        assert!(!handle_foi_fechado(&io, 1_000_001));
+        assert!(io.arquivos.is_empty());
     }
 
     #[test]
