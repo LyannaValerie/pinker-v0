@@ -1,7 +1,7 @@
 use crate::cfg_ir::{FalarArgCfgIR, InstructionCfgIR, OperandIR, ProgramCfgIR, TerminatorIR};
 use crate::error::PinkerError;
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 // @pinker-nav:start select.modelo.representacao
 // @pinker-nav:domain modelo
@@ -30,6 +30,7 @@ pub struct SelectedFunction {
     pub params: Vec<String>,
     pub locals: Vec<String>,
     pub slot_types: HashMap<String, TypeIR>,
+    pub internal_pointer_params: HashSet<String>,
     pub blocks: Vec<SelectedBlock>,
 }
 
@@ -281,10 +282,33 @@ pub fn lower_program(cfg: &ProgramCfgIR) -> Result<SelectedProgram, PinkerError>
         })
         .collect();
 
+    let closure_entries = cfg
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.instructions)
+        .filter_map(|instruction| match instruction {
+            crate::cfg_ir::InstructionCfgIR::MakeClosure { function_name, .. } => {
+                Some(function_name.clone())
+            }
+            _ => None,
+        })
+        .collect::<HashSet<_>>();
+
     let functions = cfg
         .functions
         .iter()
         .map(|f| {
+            let internal_pointer_params = if closure_entries.contains(&f.name) {
+                f.params
+                    .iter()
+                    .rev()
+                    .find(|param| matches!(param.ty, TypeIR::Pointer { .. }))
+                    .map(|param| HashSet::from([param.slot.clone()]))
+                    .unwrap_or_default()
+            } else {
+                HashSet::new()
+            };
             Ok(SelectedFunction {
                 name: f.name.clone(),
                 ret_type: f.ret_type,
@@ -296,6 +320,7 @@ pub fn lower_program(cfg: &ProgramCfgIR) -> Result<SelectedProgram, PinkerError>
                     .map(|p| (p.slot.clone(), p.ty))
                     .chain(f.locals.iter().map(|l| (l.slot.clone(), l.ty)))
                     .collect(),
+                internal_pointer_params,
                 blocks: f
                     .blocks
                     .iter()

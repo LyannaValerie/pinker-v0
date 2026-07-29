@@ -1870,6 +1870,7 @@ fn asm_s_external_subset_fase114_falha_em_global_duplicada() {
             params: vec![],
             locals: vec![],
             slot_types: HashMap::new(),
+            internal_pointer_params: Default::default(),
             blocks: vec![SelectedBlock {
                 label: "entry".to_string(),
                 instructions: vec![],
@@ -1899,6 +1900,7 @@ fn asm_s_external_subset_fase112_falha_em_jmp_para_label_inexistente() {
             params: vec![],
             locals: vec!["x".to_string()],
             slot_types,
+            internal_pointer_params: Default::default(),
             blocks: vec![SelectedBlock {
                 label: "entry".to_string(),
                 instructions: vec![],
@@ -1928,6 +1930,7 @@ fn asm_s_external_subset_fase112_falha_em_label_duplicado() {
             params: vec![],
             locals: vec!["x".to_string()],
             slot_types,
+            internal_pointer_params: Default::default(),
             blocks: vec![
                 SelectedBlock {
                     label: "entry".to_string(),
@@ -1962,6 +1965,7 @@ fn asm_s_external_subset_fase112_falha_em_br_com_alvo_verdadeiro_inexistente() {
             params: vec![],
             locals: vec![],
             slot_types: HashMap::new(),
+            internal_pointer_params: Default::default(),
             blocks: vec![
                 SelectedBlock {
                     label: "entry".to_string(),
@@ -2000,6 +2004,7 @@ fn asm_s_external_subset_fase112_falha_em_br_com_alvo_falso_inexistente() {
             params: vec![],
             locals: vec![],
             slot_types: HashMap::new(),
+            internal_pointer_params: Default::default(),
             blocks: vec![
                 SelectedBlock {
                     label: "entry".to_string(),

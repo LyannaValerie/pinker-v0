@@ -1546,10 +1546,6 @@ fn execute_one(spec: &Spec, command: &CommandSpec) -> Result<(CommandResult, Out
         shell.arg("-c").arg(&command.program);
         shell.args(&command.argv);
         shell
-    } else if matches!(command.kind, CommandKind::Pinker) {
-        let mut pink = Command::new(&observed.path);
-        pink.args(&command.argv);
-        pink
     } else {
         let mut program = Command::new(&observed.path);
         program.args(&command.argv);

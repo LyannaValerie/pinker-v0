@@ -1995,6 +1995,9 @@ fn selected_operand_is_public_pointer(
 ) -> bool {
     match operand {
         OperandIR::Local(slot) => {
+            if function.internal_pointer_params.contains(slot) {
+                return false;
+            }
             let has_assignment = function
                 .blocks
                 .iter()

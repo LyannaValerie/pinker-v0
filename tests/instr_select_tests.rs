@@ -423,6 +423,7 @@ fn fase244_selected_program(
             params: vec![],
             locals: vec!["%objeto#0".to_string()],
             slot_types: HashMap::from([("%objeto#0".to_string(), TypeIR::TraitObject)]),
+            internal_pointer_params: Default::default(),
             blocks: vec![SelectedBlock {
                 label: "entry".to_string(),
                 instructions,
