@@ -102,7 +102,9 @@ carinho principal() -> bombom {
 "#;
     let ir = render_ir(code).unwrap();
     assert!(
-        ir.contains("return add(add(add(12:bombom, 4:bombom), 6:bombom), 8:bombom)"),
+        ir.contains(
+            "return add<bombom>(add<bombom>(add<bombom>(12:bombom, 4:bombom), 6:bombom), 8:bombom)"
+        ),
         "{}",
         ir
     );
@@ -180,7 +182,7 @@ functions:
       %y#0: bombom
     locals: []
     block entry:
-      return add(%x#0, %y#0)
+      return add<bombom>(%x#0, %y#0)
   func principal -> bombom
     params: []
     locals: []
@@ -284,7 +286,7 @@ fn lowering_de_sempre_que_com_quebrar() {
             mimo x;
         }";
     let ir = render_ir(code).unwrap();
-    assert!(ir.contains("while lt(%x#0, 3:bombom)"), "{}", ir);
+    assert!(ir.contains("while lt<bombom>(%x#0, 3:bombom)"), "{}", ir);
     assert!(ir.contains("break loop_break_join_"), "{}", ir);
 }
 
@@ -332,8 +334,8 @@ carinho principal() -> bombom {
   talvez a && b || !a { mimo 1; } senao { mimo 0; }
 }";
     let ir = render_ir(code).unwrap();
-    assert!(ir.contains("and("), "{}", ir);
-    assert!(ir.contains("or("), "{}", ir);
+    assert!(ir.contains("and<logica>("), "{}", ir);
+    assert!(ir.contains("or<logica>("), "{}", ir);
 }
 // @pinker-nav:end evidencia.ir.lowering-operacoes-textuais
 
@@ -379,7 +381,7 @@ carinho principal() -> bombom {
     assert!(ir.contains("%a#0: i8"), "{}", ir);
     assert!(ir.contains("func sub_i64 -> i64"), "{}", ir);
     assert!(
-        ir.contains("let %r#0 = call sub_i64(neg(%n#0), neg(%m#0)) -> i64"),
+        ir.contains("let %r#0 = call sub_i64(neg<i64>(%n#0), neg<i64>(%m#0)) -> i64"),
         "{}",
         ir
     );
@@ -408,7 +410,11 @@ fn lowering_de_modulo_basico() {
 pacote main;
 carinho principal() -> bombom { mimo 10 % 4; }";
     let ir = render_ir(code).unwrap();
-    assert!(ir.contains("return mod(10:bombom, 4:bombom)"), "{}", ir);
+    assert!(
+        ir.contains("return mod<bombom>(10:bombom, 4:bombom)"),
+        "{}",
+        ir
+    );
 }
 // @pinker-nav:end evidencia.ir.lowering-tipos-numericos
 
@@ -567,7 +573,7 @@ carinho principal() -> bombom { mimo 0; }
         ir
     );
     assert!(
-        ir.contains("deref(add(%__env#0, 0:bombom))"),
+        ir.contains("deref(add<seta>(%__env#0, 0:bombom))"),
         "corpo deveria carregar a captura a partir de __env: {}",
         ir
     );
@@ -1125,7 +1131,7 @@ carinho principal() -> bombom {
 
     let rendered = render_ir(code).expect("closures devem restaurar metadados nominais");
     assert!(
-        rendered.contains("make_closure") && rendered.contains("deref(add(%__env#0"),
+        rendered.contains("make_closure") && rendered.contains("deref(add<seta>(%__env#0"),
         "{rendered}"
     );
     assert_eq!(

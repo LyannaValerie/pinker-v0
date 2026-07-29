@@ -29,6 +29,7 @@ use std::collections::{HashMap, HashSet};
 pub struct ProgramIR {
     pub module_name: String,
     pub is_freestanding: bool,
+    pub union_types: Vec<UnionTypeIR>,
     pub consts: Vec<ConstIR>,
     pub functions: Vec<FunctionIR>,
 }
@@ -171,6 +172,7 @@ pub enum ValueIR {
     Unary {
         op: UnaryOpIR,
         operand: Box<ValueIR>,
+        ty: TypeIR,
     },
     Deref {
         ptr: Box<ValueIR>,
@@ -181,6 +183,7 @@ pub enum ValueIR {
         op: BinaryOpIR,
         lhs: Box<ValueIR>,
         rhs: Box<ValueIR>,
+        ty: TypeIR,
     },
     Call {
         callee: String,
@@ -260,6 +263,14 @@ pub enum ValueIR {
         value: Box<ValueIR>,
         target_type: TypeIR,
     },
+    UnionInject {
+        value: Box<ValueIR>,
+        union_type_id: UnionTypeId,
+        tag: u64,
+        payload_type: TypeIR,
+        payload_size: u64,
+        payload_align: u64,
+    },
 }
 
 /// Tipos do sistema de tipos da v0. `Nulo` representa ausência de retorno (funções sem `-> tipo`);
@@ -298,7 +309,96 @@ pub enum TypeIR {
     // A identidade nominal do trato permanece nos nós `MakeTraitObject` e
     // `TraitCall`, pois `TypeIR` continua pequeno e `Copy`.
     TraitObject,
+    Union(UnionTypeId),
     Nulo,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UnionTypeId(pub u32);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnionTypeIR {
+    pub id: UnionTypeId,
+    pub canonical_key: String,
+    pub members: Vec<UnionMemberIR>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnionMemberIR {
+    pub tag: u64,
+    pub ty: TypeIR,
+    pub nominal_identity: Option<String>,
+    pub size: u64,
+    pub align: u64,
+}
+
+/// Valida a tabela internada de uniões em qualquer fronteira do pipeline.
+///
+/// IDs e tags seguem a ordem canônica armazenada; não há reconstrução por
+/// texto de debug nem dependência da ordem de iteração de mapas.
+pub fn validate_union_registry(unions: &[UnionTypeIR]) -> Result<(), String> {
+    let mut keys = std::collections::BTreeSet::new();
+    for (index, union) in unions.iter().enumerate() {
+        let expected_id =
+            u32::try_from(index).map_err(|_| "tabela de uniões excede u32".to_string())?;
+        if union.id != UnionTypeId(expected_id) {
+            return Err(format!(
+                "ID de união não determinístico: esperado {expected_id}, recebido {}",
+                union.id.0
+            ));
+        }
+        if union.canonical_key.is_empty() {
+            return Err(format!("união {} sem chave canônica", union.id.0));
+        }
+        if !keys.insert(union.canonical_key.as_bytes().to_vec()) {
+            return Err(format!(
+                "chave canônica de união duplicada: {}",
+                union.canonical_key
+            ));
+        }
+        if union.members.len() < 2 {
+            return Err(format!(
+                "união {} possui menos de dois membros distintos",
+                union.id.0
+            ));
+        }
+        let mut member_identities = Vec::new();
+        for (member_index, member) in union.members.iter().enumerate() {
+            if member.tag != member_index as u64 {
+                return Err(format!(
+                    "tag inválida na união {}: esperado {member_index}, recebido {}",
+                    union.id.0, member.tag
+                ));
+            }
+            if member.size == 0 {
+                return Err(format!(
+                    "payload de tamanho zero na união {} tag {}",
+                    union.id.0, member.tag
+                ));
+            }
+            if member.align == 0 || !member.align.is_power_of_two() {
+                return Err(format!(
+                    "alinhamento inválido na união {} tag {}: {}",
+                    union.id.0, member.tag, member.align
+                ));
+            }
+            if matches!(member.ty, TypeIR::Union(_) | TypeIR::Nulo) {
+                return Err(format!(
+                    "membro não achatado ou nulo na união {} tag {}",
+                    union.id.0, member.tag
+                ));
+            }
+            let identity = (member.ty, member.nominal_identity.clone());
+            if member_identities.contains(&identity) {
+                return Err(format!(
+                    "membro duplicado na união {} tag {}",
+                    union.id.0, member.tag
+                ));
+            }
+            member_identities.push(identity);
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -437,6 +537,7 @@ struct LoweringContext {
     // lazy de closures no ponto de criação (`FunctionLowerer::resolve_closure`)
     // abaixar o corpo da closure sob demanda, com o ambiente correto.
     all_functions: HashMap<String, FunctionDecl>,
+    union_registry: std::cell::RefCell<UnionRegistryState>,
     // Estado mutável compartilhado entre todos os `FunctionLowerer` da
     // mesma `lower_program`: capturas já resolvidas e corpos de closure já
     // abaixados. `RefCell` porque `FunctionLowerer` só empresta `context`
@@ -457,6 +558,11 @@ struct ClosureLoweringState {
     // `ValueIR::FunctionRef` passa a apontar para o wrapper em vez do nome
     // original (`function_sigs` não conhece o wrapper).
     wrapper_metadata: HashMap<String, CallableMetadata>,
+}
+
+#[derive(Default)]
+struct UnionRegistryState {
+    types: Vec<UnionTypeIR>,
 }
 
 // Leques na IR: sem carga, o valor é o próprio discriminante imediato; com
@@ -745,10 +851,12 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
 
     let ClosureLoweringState { lowered, .. } = context.closure_state.into_inner();
     functions.extend(lowered.into_iter().map(|(_, f)| f));
+    let union_types = context.union_registry.into_inner().types;
 
     Ok(ProgramIR {
         module_name: context.module_name,
         is_freestanding: program.freestanding.is_some(),
+        union_types,
         consts,
         functions,
     })
@@ -1385,6 +1493,27 @@ impl LoweringContext {
             },
         );
         function_sigs.insert(
+            "__pinker_internal_uniao_tag".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "__pinker_internal_uniao_payload_b".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Bombom,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
+            "__pinker_internal_uniao_payload_v".to_string(),
+            FunctionSigIR {
+                ret_type: TypeIR::Verso,
+                ret_struct_name: None,
+            },
+        );
+        function_sigs.insert(
             "argumento".to_string(),
             FunctionSigIR {
                 ret_type: TypeIR::Verso,
@@ -1951,13 +2080,187 @@ impl LoweringContext {
             raw_function_return_metadata,
             function_ret_pointer_pointees,
             all_functions,
+            union_registry: std::cell::RefCell::new(UnionRegistryState::default()),
             closure_state: std::cell::RefCell::new(ClosureLoweringState::default()),
         })
     }
     // @pinker-nav:end ir.lowering.assinaturas-intrinsecos
 
     fn resolve_type(&self, ty: &Type) -> Result<TypeIR, PinkerError> {
+        let resolved = self.resolve_union_ast_type(ty, &mut Vec::new())?;
+        if let Type::Union { members, span } = resolved {
+            return self.intern_union(&members, span);
+        }
         TypeIR::from_ast_with_context(ty, &self.type_aliases, &self.struct_names)
+    }
+
+    fn resolve_union_ast_type(
+        &self,
+        ty: &Type,
+        resolving: &mut Vec<String>,
+    ) -> Result<Type, PinkerError> {
+        match ty {
+            Type::Alias { name, span } => {
+                if self.struct_names.contains(name) {
+                    return Ok(Type::Struct {
+                        name: name.clone(),
+                        span: *span,
+                    });
+                }
+                if self.enum_variants.contains_key(name) {
+                    return Ok(Type::Enum {
+                        name: name.clone(),
+                        span: *span,
+                    });
+                }
+                if resolving.contains(name) {
+                    return Err(PinkerError::Ir {
+                        msg: format!("alias de tipo recursivo detectado em '{name}'"),
+                        span: *span,
+                    });
+                }
+                let Some(target) = self.type_aliases.get(name) else {
+                    return Ok(ty.clone());
+                };
+                resolving.push(name.clone());
+                let resolved = self.resolve_union_ast_type(target, resolving)?;
+                resolving.pop();
+                Ok(resolved.with_span(*span))
+            }
+            Type::Union { members, span } => {
+                let mut canonical = std::collections::BTreeMap::<String, Type>::new();
+                for member in members {
+                    let resolved = self.resolve_union_ast_type(member, resolving)?;
+                    if let Type::Union {
+                        members: nested, ..
+                    } = resolved
+                    {
+                        for nested_member in nested {
+                            canonical.insert(union_type_key(&nested_member), nested_member);
+                        }
+                    } else {
+                        canonical.insert(union_type_key(&resolved), resolved);
+                    }
+                }
+                if canonical.len() < 2 {
+                    return Err(PinkerError::Ir {
+                        msg: "união exige dois membros canônicos distintos".to_string(),
+                        span: *span,
+                    });
+                }
+                Ok(Type::Union {
+                    members: canonical.into_values().collect(),
+                    span: *span,
+                })
+            }
+            _ => Ok(ty.clone()),
+        }
+    }
+
+    fn intern_union(&self, members: &[Type], span: Span) -> Result<TypeIR, PinkerError> {
+        let canonical_key = format!(
+            "pinker-union-v1[{}]",
+            members
+                .iter()
+                .map(union_type_key)
+                .map(|key| format!("{}:{key}", key.len()))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        let mut registry = self.union_registry.borrow_mut();
+        if let Some(existing) = registry
+            .types
+            .iter()
+            .find(|union| union.canonical_key == canonical_key)
+        {
+            return Ok(TypeIR::Union(existing.id));
+        }
+        let id = UnionTypeId(
+            u32::try_from(registry.types.len()).map_err(|_| PinkerError::Ir {
+                msg: "registro de uniões excedeu u32".to_string(),
+                span,
+            })?,
+        );
+        let mut member_irs = Vec::with_capacity(members.len());
+        for (tag, member) in members.iter().enumerate() {
+            let ty = TypeIR::from_ast_with_context(member, &self.type_aliases, &self.struct_names)?;
+            let nominal_identity = match member {
+                Type::Struct { name, .. } | Type::Enum { name, .. } => Some(name.clone()),
+                _ => None,
+            };
+            let (size, align) = union_member_layout(member, &self.type_aliases, &self.struct_decls)
+                .map_err(|msg| PinkerError::Ir { msg, span })?;
+            member_irs.push(UnionMemberIR {
+                tag: tag as u64,
+                ty,
+                nominal_identity,
+                size,
+                align,
+            });
+        }
+        registry.types.push(UnionTypeIR {
+            id,
+            canonical_key,
+            members: member_irs,
+        });
+        Ok(TypeIR::Union(id))
+    }
+}
+
+fn union_type_key(ty: &Type) -> String {
+    match ty {
+        Type::Bombom(_) => "bombom".to_string(),
+        Type::U8(_) => "u8".to_string(),
+        Type::U16(_) => "u16".to_string(),
+        Type::U32(_) => "u32".to_string(),
+        Type::U64(_) => "u64".to_string(),
+        Type::I8(_) => "i8".to_string(),
+        Type::I16(_) => "i16".to_string(),
+        Type::I32(_) => "i32".to_string(),
+        Type::I64(_) => "i64".to_string(),
+        Type::Logica(_) => "logica".to_string(),
+        Type::Verso(_) => "verso".to_string(),
+        Type::Struct { name, .. } => format!("struct:{}:{name}", name.len()),
+        Type::Enum { name, .. } => format!("enum:{}:{name}", name.len()),
+        Type::Pointer {
+            base, is_volatile, ..
+        } => {
+            format!("ptr:{}:{}", u8::from(*is_volatile), union_type_key(base))
+        }
+        Type::Function { params, ret, .. } => format!(
+            "fn({})->{}",
+            params
+                .iter()
+                .map(union_type_key)
+                .collect::<Vec<_>>()
+                .join(","),
+            union_type_key(ret)
+        ),
+        Type::FixedArray { element, size, .. } => {
+            format!("array:{size}:{}", union_type_key(element))
+        }
+        Type::Union { members, .. } => format!(
+            "union:[{}]",
+            members
+                .iter()
+                .map(union_type_key)
+                .map(|key| format!("{}:{key}", key.len()))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        _ => ty.name().to_string(),
+    }
+}
+
+fn union_member_layout(
+    ty: &Type,
+    aliases: &HashMap<String, Type>,
+    structs: &HashMap<String, StructDecl>,
+) -> Result<(u64, u64), String> {
+    match layout::layout_of_type(ty, aliases, structs) {
+        Ok(layout) => Ok((layout.size, layout.align)),
+        Err(_) if !matches!(ty, Type::Nulo(_)) => Ok((8, 8)),
+        Err(error) => Err(error),
     }
 }
 
@@ -2424,6 +2727,7 @@ impl<'a> FunctionLowerer<'a> {
             | TypeIR::MapBombomVerso
             | TypeIR::Pointer { .. }
             | TypeIR::Function
+            | TypeIR::Union(_)
             | TypeIR::FunctionPointer => Ok(layout::POINTER_SIZE),
 
             TypeIR::FixedArray { element, size } => {
@@ -2910,6 +3214,7 @@ impl<'a> FunctionLowerer<'a> {
                 op: BinaryOpIR::Add,
                 lhs: Box::new(ValueIR::Local(env_binding.slot.clone())),
                 rhs: Box::new(ValueIR::Int((index as u64) * 8)),
+                ty: TypeIR::Pointer { is_volatile: false },
             };
             prelude.push(InstructionIR::Let {
                 slot: capture_binding.slot,
@@ -3634,6 +3939,11 @@ impl<'a> FunctionLowerer<'a> {
                     value: ValueIR::Unary {
                         op: UnaryOpIR::from_ast(*op),
                         operand: Box::new(operand.value),
+                        ty: match op {
+                            UnaryOp::Neg | UnaryOp::BitNot => operand.ty,
+                            UnaryOp::Not => TypeIR::Logica,
+                            UnaryOp::Deref => unreachable!("deref tratada acima"),
+                        },
                     },
                     ty: match op {
                         UnaryOp::Neg => operand.ty,
@@ -3649,37 +3959,30 @@ impl<'a> FunctionLowerer<'a> {
                 let lhs_is_int_lit = matches!(lhs.kind, ExprKind::IntLit(_));
                 let lhs = self.lower_value(lhs)?;
                 let rhs = self.lower_value(rhs)?;
+                let operation_type = if lhs_is_int_lit && rhs.ty.is_integer() {
+                    rhs.ty
+                } else {
+                    lhs.ty
+                };
+                let result_type = match op {
+                    BinaryOp::LogicalAnd
+                    | BinaryOp::LogicalOr
+                    | BinaryOp::Eq
+                    | BinaryOp::Neq
+                    | BinaryOp::Lt
+                    | BinaryOp::Lte
+                    | BinaryOp::Gt
+                    | BinaryOp::Gte => TypeIR::Logica,
+                    _ => operation_type,
+                };
                 Ok(TypedValueIR {
                     value: ValueIR::Binary {
                         op: BinaryOpIR::from_ast(*op),
                         lhs: Box::new(lhs.value),
                         rhs: Box::new(rhs.value),
+                        ty: operation_type,
                     },
-                    ty: match op {
-                        BinaryOp::LogicalAnd | BinaryOp::LogicalOr => TypeIR::Logica,
-                        BinaryOp::Add
-                        | BinaryOp::Sub
-                        | BinaryOp::Mul
-                        | BinaryOp::Div
-                        | BinaryOp::Mod
-                        | BinaryOp::BitAnd
-                        | BinaryOp::BitOr
-                        | BinaryOp::BitXor
-                        | BinaryOp::Shl
-                        | BinaryOp::Shr => {
-                            if lhs_is_int_lit && rhs.ty.is_integer() {
-                                rhs.ty
-                            } else {
-                                lhs.ty
-                            }
-                        }
-                        BinaryOp::Eq
-                        | BinaryOp::Neq
-                        | BinaryOp::Lt
-                        | BinaryOp::Lte
-                        | BinaryOp::Gt
-                        | BinaryOp::Gte => TypeIR::Logica,
-                    },
+                    ty: result_type,
                     struct_name: None,
                     ptr_array_bombom_size: None,
                 })
@@ -4293,6 +4596,50 @@ impl<'a> FunctionLowerer<'a> {
                     });
                 }
 
+                if let TypeIR::Union(union_type_id) = target_type {
+                    let registry = self.context.union_registry.borrow();
+                    let union = registry
+                        .types
+                        .iter()
+                        .find(|union| union.id == union_type_id)
+                        .ok_or_else(|| PinkerError::Ir {
+                            msg: "injeção perdeu o registro da união".to_string(),
+                            span: expr.span,
+                        })?;
+                    let member = union
+                        .members
+                        .iter()
+                        .find(|member| {
+                            member.ty == lowered_source.ty
+                                && member.nominal_identity.as_ref()
+                                    == lowered_source.struct_name.as_ref()
+                        })
+                        .or_else(|| {
+                            union
+                                .members
+                                .iter()
+                                .find(|member| member.ty == lowered_source.ty)
+                        })
+                        .ok_or_else(|| PinkerError::Ir {
+                            msg: "tipo fonte não pertence à união durante o lowering".to_string(),
+                            span: expr.span,
+                        })?
+                        .clone();
+                    return Ok(TypedValueIR {
+                        value: ValueIR::UnionInject {
+                            value: Box::new(lowered_source.value),
+                            union_type_id,
+                            tag: member.tag,
+                            payload_type: member.ty,
+                            payload_size: member.size,
+                            payload_align: member.align,
+                        },
+                        ty: target_type,
+                        struct_name: None,
+                        ptr_array_bombom_size: None,
+                    });
+                }
+
                 Ok(TypedValueIR {
                     value: ValueIR::Cast {
                         value: Box::new(lowered_source.value),
@@ -4648,7 +4995,9 @@ fn render_value(value: &ValueIR) -> String {
         ValueIR::Int(value) => format!("{}:bombom", value),
         ValueIR::Bool(value) => format!("{}:logica", if *value { "verdade" } else { "falso" }),
         ValueIR::String(value) => format!("\"{}\":verso", value),
-        ValueIR::Unary { op, operand } => format!("{}({})", op.name(), render_value(operand)),
+        ValueIR::Unary { op, operand, ty } => {
+            format!("{}<{}>({})", op.name(), ty.name(), render_value(operand))
+        }
         ValueIR::Deref {
             ptr, is_volatile, ..
         } => {
@@ -4658,10 +5007,11 @@ fn render_value(value: &ValueIR) -> String {
                 format!("deref({})", render_value(ptr))
             }
         }
-        ValueIR::Binary { op, lhs, rhs } => {
+        ValueIR::Binary { op, lhs, rhs, ty } => {
             format!(
-                "{}({}, {})",
+                "{}<{}>({}, {})",
                 op.name(),
+                ty.name(),
                 render_value(lhs),
                 render_value(rhs)
             )
@@ -4769,6 +5119,17 @@ fn render_value(value: &ValueIR) -> String {
                 target_type.render_name()
             )
         }
+        ValueIR::UnionInject {
+            value,
+            union_type_id,
+            tag,
+            ..
+        } => format!(
+            "union_inject #{} tag={} ({})",
+            union_type_id.0,
+            tag,
+            render_value(value)
+        ),
     }
 }
 
@@ -4860,6 +5221,7 @@ impl TypeIR {
             // Tipos leque são nominais apenas na semântica; na IR o valor é o
             // discriminante inteiro.
             Type::Enum { .. } => Ok(TypeIR::Bombom),
+            Type::Union { .. } => Ok(TypeIR::Union(UnionTypeId(0))),
             Type::FixedArray {
                 element,
                 size,
@@ -4987,6 +5349,7 @@ impl TypeIR {
             TypeIR::Function => "carinho",
             TypeIR::FunctionPointer => "seta<carinho>",
             TypeIR::TraitObject => "trato",
+            TypeIR::Union(_) => "uniao",
             TypeIR::Nulo => "nulo",
         }
     }
@@ -5005,6 +5368,7 @@ impl TypeIR {
             }
             TypeIR::Struct => "struct".to_string(),
             TypeIR::TraitObject => "trato<?>".to_string(),
+            TypeIR::Union(id) => format!("uniao#{}", id.0),
             TypeIR::ListBombom => "lista<bombom>".to_string(),
             TypeIR::ListVerso => "lista<verso>".to_string(),
             TypeIR::MapVersoBombom => "mapa<verso,bombom>".to_string(),
@@ -5037,6 +5401,7 @@ impl ScalarTypeIR {
             | TypeIR::MapBombomBombom
             | TypeIR::MapBombomVerso
             | TypeIR::FixedArray { .. }
+            | TypeIR::Union(_)
             | TypeIR::Struct
             | TypeIR::Pointer { .. }
             | TypeIR::Function

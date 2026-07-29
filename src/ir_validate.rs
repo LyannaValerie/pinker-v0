@@ -12,7 +12,7 @@ use crate::error::PinkerError;
 use crate::ir::{
     BinaryOpIR, BlockIR, FunctionIR, InstructionIR, ProgramIR, TypeIR, UnaryOpIR, ValueIR,
 };
-use crate::token::Span;
+use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone)]
@@ -26,6 +26,8 @@ struct FunctionSig {
 // @pinker-nav:layer ir
 // @pinker-nav:summary Valida os invariantes da IR estruturada antes do lowering para CFG: constantes globais bem tipadas, bloco de entrada e slots únicos por função, e comandos/expressões com tipos compatíveis via inferência recursiva.
 pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
+    crate::ir::validate_union_registry(&program.union_types)
+        .map_err(|message| ir_validation_error(&message, default_span()))?;
     let mut consts = HashMap::new();
     for konst in &program.consts {
         if konst.name.trim().is_empty() {
@@ -434,6 +436,27 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         FunctionSig {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "__pinker_internal_uniao_tag".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Union(crate::ir::UnionTypeId(0))],
+        },
+    );
+    funcs.insert(
+        "__pinker_internal_uniao_payload_b".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Union(crate::ir::UnionTypeId(0)), TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        "__pinker_internal_uniao_payload_v".to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Union(crate::ir::UnionTypeId(0)), TypeIR::Bombom],
         },
     );
     funcs.insert(
@@ -1440,9 +1463,9 @@ fn infer_value_type(
         ValueIR::Int(_) => Ok(TypeIR::Bombom),
         ValueIR::Bool(_) => Ok(TypeIR::Logica),
         ValueIR::String(_) => Ok(TypeIR::Verso),
-        ValueIR::Unary { op, operand } => {
+        ValueIR::Unary { op, operand, ty } => {
             let op_ty = infer_value_type(operand, slots, consts, funcs, span)?;
-            match op {
+            let inferred = match op {
                 UnaryOpIR::Neg if op_ty.is_integer() => Ok(op_ty),
                 UnaryOpIR::Not if op_ty == TypeIR::Logica => Ok(TypeIR::Logica),
                 UnaryOpIR::BitNot if op_ty.is_integer() => Ok(op_ty),
@@ -1454,7 +1477,14 @@ fn infer_value_type(
                     "operação unária com operando inválido",
                     span,
                 )),
+            }?;
+            if !inferred.is_compatible_with(*ty) {
+                return Err(ir_validation_error(
+                    "operação unária com tipo operacional inconsistente",
+                    span,
+                ));
             }
+            Ok(*ty)
         }
         ValueIR::Deref {
             ptr,
@@ -1479,10 +1509,10 @@ fn infer_value_type(
             }
             Ok(*result_type)
         }
-        ValueIR::Binary { op, lhs, rhs } => {
+        ValueIR::Binary { op, lhs, rhs, ty } => {
             let lhs_ty = infer_value_type(lhs, slots, consts, funcs, span)?;
             let rhs_ty = infer_value_type(rhs, slots, consts, funcs, span)?;
-            match op {
+            let inferred = match op {
                 BinaryOpIR::LogicalAnd | BinaryOpIR::LogicalOr => {
                     if lhs_ty == TypeIR::Logica && rhs_ty == TypeIR::Logica {
                         Ok(TypeIR::Logica)
@@ -1549,7 +1579,29 @@ fn infer_value_type(
                         ))
                     }
                 }
+            }?;
+            let expected = if matches!(
+                op,
+                BinaryOpIR::LogicalAnd
+                    | BinaryOpIR::LogicalOr
+                    | BinaryOpIR::Eq
+                    | BinaryOpIR::Neq
+                    | BinaryOpIR::Lt
+                    | BinaryOpIR::Lte
+                    | BinaryOpIR::Gt
+                    | BinaryOpIR::Gte
+            ) {
+                TypeIR::Logica
+            } else {
+                *ty
+            };
+            if !inferred.is_compatible_with(expected) {
+                return Err(ir_validation_error(
+                    "operação binária com tipo operacional inconsistente",
+                    span,
+                ));
             }
+            Ok(inferred)
         }
         ValueIR::Call {
             callee,
@@ -1866,6 +1918,24 @@ fn infer_value_type(
                 ))
             }
         }
+        ValueIR::UnionInject {
+            value,
+            union_type_id,
+            payload_type,
+            payload_size,
+            payload_align,
+            ..
+        } => {
+            let source_ty = infer_value_type(value, slots, consts, funcs, span)?;
+            if !source_ty.is_compatible_with(*payload_type)
+                || *payload_size == 0
+                || *payload_align == 0
+                || !payload_align.is_power_of_two()
+            {
+                return Err(ir_validation_error("injeção de união inválida na IR", span));
+            }
+            Ok(TypeIR::Union(*union_type_id))
+        }
     }
 }
 
@@ -1876,11 +1946,19 @@ fn ir_validation_error(msg: &str, span: Span) -> PinkerError {
     }
 }
 
+fn default_span() -> Span {
+    Span::single(Position::new(1, 1))
+}
+
 fn is_int_literal_value(value: &ValueIR) -> bool {
     matches!(value, ValueIR::Int(_))
         || matches!(
             value,
-            ValueIR::Unary { op: UnaryOpIR::Neg, operand }
+            ValueIR::Unary {
+                op: UnaryOpIR::Neg,
+                operand,
+                ..
+            }
                 if matches!(operand.as_ref(), ValueIR::Int(_))
         )
 }
