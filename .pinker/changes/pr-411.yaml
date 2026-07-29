@@ -1,0 +1,23 @@
+schema: 1
+source:
+  type: github-pr
+  number: 411
+  repository: LyannaValerie/pinker-v0
+kind: phase
+phase: 248
+block: 20
+title: Uniões estruturais tagged
+area:
+  - language.inline-assembly
+  - language.union-types
+  - runtime.integer-semantics
+  - runtime.public-memory
+  - development.test-integrity
+status: completed
+updates:
+  state: true
+  history: true
+  roadmap: true
+validation:
+  required:
+    - make ci
