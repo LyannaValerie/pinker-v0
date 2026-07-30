@@ -706,6 +706,25 @@ registry canônico — o nome do apelido, a ordem dos braços e a ordem textual 
 união não definem tag alguma. Ler a tag e abrir o payload são operações internas
 tipadas do compilador, não chamadas da linguagem.
 
+A escolha do membro na injeção usa a **identidade semântica resolvida** do tipo
+de origem, e não a representação operacional. As duas noções são distintas e não
+se substituem: a representação (`TypeIR`, interna ao compilador) diz como o valor
+é carregado e armazenado; a identidade resolvida (`ResolvedTypeId`) diz qual tipo
+o valor é. Dois `ninho` diferentes, dois `leque` diferentes, duas assinaturas de
+`carinho` diferentes e dois `seta<T>` de apontados diferentes compartilham
+representação e nunca compartilham identidade. Apelidos são transparentes em
+profundidade — `apelido A = Cor` e `seta<A>` resolvem para a identidade de `Cor`
+e de `seta<Cor>` —, de modo que o texto do apelido nunca vira identidade.
+
+A identidade acompanha o valor por declarações locais, atribuições, parâmetros,
+retornos, chamadas diretas e indiretas, ternários, valores callable, closures,
+capturas, extração de payload e reinjeção. A injeção exige igualdade exata de
+identidade com um membro do registry e **não** tem desempate por primeira
+ocorrência; a tag é copiada desse membro e nenhuma camada posterior reescolhe
+membro. Identidade perdida ou ambígua é erro do compilador
+(`E-IR-TYPE-IDENTITY-LOST`, `E-IR-UNION-IDENTITY-DUPLICATE`,
+`E-IR-UNION-MEMBER-IDENTITY-MISMATCH`), nunca um resultado silencioso.
+
 O interpretador limita a execução a 64 chamadas Pinker simultâneas. O retorno
 de `principal` não é impresso: seus 8 bits baixos formam o exit status.
 
