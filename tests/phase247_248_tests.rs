@@ -468,9 +468,9 @@ fn hr5_rejeita_namespace_reservado_em_toda_declaracao_e_referencia() {
 
 #[test]
 fn hr5_intrinsecas_sinteticas_do_compilador_seguem_funcionando() {
-    // A fronteira vale para identificadores originados da fonte. Os
-    // identificadores sintéticos do desugaring não são lexados e por isso
-    // continuam válidos — `encaixe` de união segue funcionando.
+    // A fronteira vale para identificadores originados da fonte. Depois de HR1
+    // o `encaixe` de união não fabrica identificador algum: tag e extração são
+    // operações internas tipadas da IR, não chamadas de função.
     let source = include_str!("../examples/fase248_unioes_estruturais_valido.pink");
     let (_, _, _, machine) = lower(source);
     let outcome = interpreter::run_program_with_args(&machine, &[]).expect("interpretar união");
@@ -652,4 +652,1024 @@ fn hr2_build_do_envelope_e_deterministico() {
         primeiro, segundo,
         "emissão do envelope deve ser determinística"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Correções da revisão humana da PR #411 — HR1 (`encaixe` de união tipado, com
+// tags exclusivamente do registry) e a parcela residual de HR5 (operações
+// internas tipadas, sem chamadas fabricadas na AST/IR).
+// ---------------------------------------------------------------------------
+
+const HR1_ALIAS_INVERSAO: &str = r#"
+    pacote main;
+    apelido aa = u8;
+    apelido zz = u64;
+    carinho principal() -> bombom {
+        nova valor: uniao<aa, zz> = (7 virar aa) virar uniao<aa, zz>;
+        encaixe valor {
+            caso aa(numero) { falar(1000 + (numero virar bombom)); }
+            caso zz(numero) { falar(2000 + (numero virar bombom)); }
+        }
+        mimo 0;
+    }
+"#;
+
+/// Nomes das antigas intrínsecas de união. Nenhuma delas pode reaparecer como
+/// chamada comum na AST ou na IR estruturada.
+const HR1_INTRINSECAS_PROIBIDAS: [&str; 3] = [
+    "__pinker_internal_uniao_tag",
+    "__pinker_internal_uniao_payload_b",
+    "__pinker_internal_uniao_payload_v",
+];
+
+fn hr1_union_match_stmts(
+    program: &pinker_v0::ast::Program,
+) -> Vec<&pinker_v0::ast::UnionMatchStmt> {
+    fn scan<'a>(
+        block: &'a pinker_v0::ast::Block,
+        out: &mut Vec<&'a pinker_v0::ast::UnionMatchStmt>,
+    ) {
+        use pinker_v0::ast::{ElseBlock, Stmt};
+        for stmt in &block.stmts {
+            match stmt {
+                Stmt::UnionMatch(union_match) => {
+                    out.push(union_match);
+                    for arm in &union_match.arms {
+                        scan(&arm.body, out);
+                    }
+                }
+                Stmt::If(if_stmt) => {
+                    scan(&if_stmt.then_branch, out);
+                    let mut branch = if_stmt.else_branch.as_ref();
+                    while let Some(else_branch) = branch {
+                        match else_branch {
+                            ElseBlock::Block(block) => {
+                                scan(block, out);
+                                branch = None;
+                            }
+                            ElseBlock::If(inner) => {
+                                scan(&inner.then_branch, out);
+                                branch = inner.else_branch.as_ref();
+                            }
+                        }
+                    }
+                }
+                Stmt::While(while_stmt) => scan(&while_stmt.body, out),
+                _ => {}
+            }
+        }
+    }
+
+    let mut out = Vec::new();
+    for item in &program.items {
+        if let pinker_v0::ast::Item::Function(function) = item {
+            scan(&function.body, &mut out);
+        }
+    }
+    out
+}
+
+fn hr1_interpreta(source: &str) -> Option<i32> {
+    let (_, _, _, machine) = lower(source);
+    interpreter::run_program_with_args(&machine, &[])
+        .expect("interpretar encaixe de união")
+        .exit_status
+}
+
+fn hr1_erro_semantico(source: &str) -> String {
+    let ast = common::parse(source).expect("parse");
+    semantic::check_program(&ast)
+        .expect_err("encaixe inválido deve falhar na semântica")
+        .to_string()
+}
+
+fn hr1_registry_tags(source: &str) -> Vec<(u64, String)> {
+    let (ir, _, _, _) = lower(source);
+    assert_eq!(
+        ir.union_types.len(),
+        1,
+        "esperava uma única união internada"
+    );
+    ir.union_types[0]
+        .members
+        .iter()
+        .map(|member| (member.tag, member.canonical_member_key.clone()))
+        .collect()
+}
+
+fn hr1_arm_tags(program: &ir::ProgramIR) -> Vec<(u64, String)> {
+    fn scan(block: &ir::BlockIR, out: &mut Vec<(u64, String)>) {
+        for instruction in &block.instructions {
+            match instruction {
+                ir::InstructionIR::UnionMatch(union_match) => {
+                    for arm in &union_match.arms {
+                        out.push((arm.tag, arm.canonical_member_key.clone()));
+                        scan(&arm.body, out);
+                    }
+                }
+                ir::InstructionIR::If {
+                    then_block,
+                    else_block,
+                    ..
+                } => {
+                    scan(then_block, out);
+                    if let Some(else_block) = else_block {
+                        scan(else_block, out);
+                    }
+                }
+                ir::InstructionIR::While { body_block, .. } => scan(body_block, out),
+                _ => {}
+            }
+        }
+    }
+    let mut out = Vec::new();
+    for function in &program.functions {
+        scan(&function.entry, &mut out);
+    }
+    out
+}
+
+#[test]
+fn hr1_parser_preserva_encaixe_como_no_proprio_sem_calcular_tags() {
+    let program = common::parse(HR1_ALIAS_INVERSAO).expect("parse");
+    let matches = hr1_union_match_stmts(&program);
+    assert_eq!(matches.len(), 1, "esperava um `Stmt::UnionMatch`");
+    let union_match = matches[0];
+
+    // Ordem de fonte preservada, tipos textuais preservados, bindings e corpos
+    // preservados — e nenhuma tag, porque o parser não conhece tags.
+    assert_eq!(union_match.arms.len(), 2);
+    // O tipo do braço é o tipo **como escrito**: o apelido cru, ainda não
+    // resolvido. A resolução é da semântica.
+    let escritos: Vec<&str> = union_match
+        .arms
+        .iter()
+        .map(|arm| match &arm.member_type {
+            pinker_v0::ast::Type::Alias { name, .. } => name.as_str(),
+            outro => panic!("esperava apelido preservado, recebi {}", outro.name()),
+        })
+        .collect();
+    assert_eq!(escritos, vec!["aa", "zz"]);
+    assert_eq!(union_match.arms[0].binding, "numero");
+    assert_eq!(union_match.arms[1].binding, "numero");
+    assert!(union_match.span.start.line > 0);
+    for arm in &union_match.arms {
+        assert!(arm.span.start.line > 0, "span do braço preservado");
+        assert!(!arm.body.stmts.is_empty(), "corpo do braço preservado");
+    }
+
+    // O parser não desdobra o construto em `talvez` aninhado nem sintetiza
+    // âncoras: o corpo da função tem exatamente `nova`, `encaixe` e `mimo`.
+    let principal = program
+        .items
+        .iter()
+        .find_map(|item| match item {
+            pinker_v0::ast::Item::Function(function) if function.name == "principal" => {
+                Some(function)
+            }
+            _ => None,
+        })
+        .expect("função principal");
+    assert_eq!(principal.body.stmts.len(), 3);
+    assert!(matches!(
+        principal.body.stmts[1],
+        pinker_v0::ast::Stmt::UnionMatch(_)
+    ));
+    assert!(
+        !principal
+            .body
+            .stmts
+            .iter()
+            .any(|stmt| matches!(stmt, pinker_v0::ast::Stmt::If(_))),
+        "o parser não gera `talvez` para `encaixe` de união"
+    );
+}
+
+#[test]
+fn hr1_ast_json_expoe_no_proprio_sem_nomes_internos() {
+    let json = common::render_json_ast(HR1_ALIAS_INVERSAO).expect("json ast");
+    assert!(json.contains("\"node\": \"UnionMatchStmt\""), "{json}");
+    assert!(json.contains("\"node\": \"UnionMatchArm\""), "{json}");
+    assert!(json.contains("\"binding\": \"numero\""), "{json}");
+    assert!(json.contains("\"member_type\""), "{json}");
+    assert!(json.contains("\"scrutinee\""), "{json}");
+    for nome in HR1_INTRINSECAS_PROIBIDAS {
+        assert!(!json.contains(nome), "AST JSON não pode conter {nome}");
+    }
+    // Nenhuma tag literal fabricada pelo parser: o desugaring antigo emitia
+    // `IntLit` de tag em cada braço.
+    assert!(
+        !json.contains("__encaixe_uniao_"),
+        "AST JSON não pode conter âncora sintética: {json}"
+    );
+}
+
+#[test]
+fn hr1_reproducao_original_executa_o_braco_correto() {
+    // A reprodução da revisão humana: `aa` é lexicalmente anterior mas
+    // canonicamente posterior (`u64` < `u8` em ordem de chave).
+    let (ir_program, _, _, machine) = lower(HR1_ALIAS_INVERSAO);
+    let registry = &ir_program.union_types[0];
+    assert_eq!(registry.members[0].canonical_member_key, "u64");
+    assert_eq!(registry.members[1].canonical_member_key, "u8");
+
+    // O braço `aa` (u8) recebe a tag 1 do registry, não a tag 0 da ordenação
+    // lexical do apelido.
+    let arms = hr1_arm_tags(&ir_program);
+    assert_eq!(
+        arms,
+        vec![(1, "u8".to_string()), (0, "u64".to_string())],
+        "tags dos braços devem vir do registry"
+    );
+
+    let outcome = interpreter::run_program_with_args(&machine, &[]).expect("interpretar");
+    assert_eq!(outcome.exit_status, Some(0));
+}
+
+#[test]
+fn hr1_stdout_interpretado_seleciona_o_braco_do_apelido_escrito() {
+    let pink = env!("CARGO_BIN_EXE_pink");
+    let run = std::process::Command::new(pink)
+        .arg("--run")
+        .arg("examples/hr1_encaixe_uniao_apelidos_valido.pink")
+        .output()
+        .expect("invocar pink --run");
+    assert!(
+        run.status.success(),
+        "execução interpretada falhou: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&run.stdout).trim(),
+        "1007",
+        "o braço `aa` (u8) deve executar; stderr={}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+}
+
+#[test]
+fn hr1_cada_membro_seleciona_o_seu_proprio_braco() {
+    // Os dois sentidos da mesma união: nenhum braço é privilegiado por posição
+    // e nenhuma tag é assumida constante.
+    let pink = env!("CARGO_BIN_EXE_pink");
+    for (exemplo, esperado) in [
+        ("examples/hr1_encaixe_uniao_apelidos_valido.pink", "1007"),
+        (
+            "examples/hr1_encaixe_uniao_segundo_membro_valido.pink",
+            "2008",
+        ),
+    ] {
+        let run = std::process::Command::new(pink)
+            .arg("--run")
+            .arg(exemplo)
+            .output()
+            .expect("invocar pink --run");
+        assert!(
+            run.status.success(),
+            "execução de {exemplo} falhou: {}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout).trim(),
+            esperado,
+            "{exemplo} deve executar o braço do membro injetado; stderr={}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+    }
+}
+
+#[test]
+fn hr1_ordem_de_apelidos_membros_e_bracos_nao_altera_tags() {
+    let esperado = vec![(0, "u64".to_string()), (1, "u8".to_string())];
+
+    // Ordem textual da união invertida.
+    let uniao_invertida = r#"
+        pacote main;
+        apelido aa = u8;
+        apelido zz = u64;
+        carinho principal() -> bombom {
+            nova valor: uniao<zz, aa> = (7 virar aa) virar uniao<zz, aa>;
+            encaixe valor {
+                caso aa(numero) { falar(1000 + (numero virar bombom)); }
+                caso zz(numero) { falar(2000 + (numero virar bombom)); }
+            }
+            mimo 0;
+        }
+    "#;
+    assert_eq!(hr1_registry_tags(uniao_invertida), esperado);
+
+    // Ordem dos braços invertida.
+    let bracos_invertidos = r#"
+        pacote main;
+        apelido aa = u8;
+        apelido zz = u64;
+        carinho principal() -> bombom {
+            nova valor: uniao<aa, zz> = (7 virar aa) virar uniao<aa, zz>;
+            encaixe valor {
+                caso zz(numero) { falar(2000 + (numero virar bombom)); }
+                caso aa(numero) { falar(1000 + (numero virar bombom)); }
+            }
+            mimo 0;
+        }
+    "#;
+    assert_eq!(hr1_registry_tags(bracos_invertidos), esperado);
+
+    // Sem apelido nenhum: mesma tabela.
+    let sem_apelidos = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: uniao<u8, u64> = (7 virar u8) virar uniao<u8, u64>;
+            encaixe valor {
+                caso u8(numero) { falar(1000 + (numero virar bombom)); }
+                caso u64(numero) { falar(2000 + (numero virar bombom)); }
+            }
+            mimo 0;
+        }
+    "#;
+    assert_eq!(hr1_registry_tags(sem_apelidos), esperado);
+
+    // Em todos os casos o braço executado é o do tipo escrito.
+    for source in [uniao_invertida, bracos_invertidos, sem_apelidos] {
+        assert_eq!(hr1_interpreta(source), Some(0));
+    }
+}
+
+#[test]
+fn hr1_cadeia_de_apelidos_e_apelido_de_apelido_resolvem_ao_tipo_canonico() {
+    let cadeia = r#"
+        pacote main;
+        apelido base_estreito = u8;
+        apelido aa = base_estreito;
+        apelido base_largo = u64;
+        apelido zz = base_largo;
+        carinho principal() -> bombom {
+            nova valor: uniao<aa, zz> = (7 virar aa) virar uniao<aa, zz>;
+            encaixe valor {
+                caso aa(numero) { falar(1000 + (numero virar bombom)); }
+                caso zz(numero) { falar(2000 + (numero virar bombom)); }
+            }
+            mimo 0;
+        }
+    "#;
+    assert_eq!(
+        hr1_registry_tags(cadeia),
+        vec![(0, "u64".to_string()), (1, "u8".to_string())]
+    );
+    assert_eq!(hr1_interpreta(cadeia), Some(0));
+}
+
+#[test]
+fn hr1_apelido_de_verso_seleciona_a_extracao_pelo_tipo_resolvido() {
+    let source = r#"
+        pacote main;
+        apelido texto_curto = verso;
+        apelido byte = u8;
+        carinho principal() -> bombom {
+            nova valor: uniao<texto_curto, byte> =
+                (9 virar byte) virar uniao<texto_curto, byte>;
+            encaixe valor {
+                caso texto_curto(t) { falar(t); }
+                caso byte(n) { falar(2000 + (n virar bombom)); }
+            }
+            mimo 0;
+        }
+    "#;
+    assert_eq!(
+        hr1_registry_tags(source),
+        vec![(0, "u8".to_string()), (1, "verso".to_string())]
+    );
+    assert_eq!(hr1_interpreta(source), Some(0));
+}
+
+#[test]
+fn hr1_apelido_de_leque_resolve_ao_membro_nominal() {
+    let source = r#"
+        pacote main;
+        leque Cor { Rosa, Azul }
+        apelido paleta = Cor;
+        carinho principal() -> bombom {
+            nova valor: uniao<paleta, verso> =
+                Cor.Rosa virar uniao<paleta, verso>;
+            encaixe valor {
+                caso paleta(c) { falar(1); }
+                caso verso(t) { falar(t); }
+            }
+            mimo 0;
+        }
+    "#;
+    let tags = hr1_registry_tags(source);
+    assert!(
+        tags.iter().any(|(_, key)| key == "enum:3:Cor"),
+        "chave nominal do leque preservada: {tags:?}"
+    );
+    assert_eq!(hr1_interpreta(source), Some(0));
+}
+
+#[test]
+fn hr1_dois_apelidos_equivalentes_sao_o_mesmo_membro_canonico() {
+    let source = r#"
+        pacote main;
+        apelido byte_a = u8;
+        apelido byte_b = u8;
+        carinho principal() -> bombom {
+            nova valor: uniao<byte_a, u64> = (7 virar byte_a) virar uniao<byte_a, u64>;
+            encaixe valor {
+                caso byte_a(a) { falar(1000 + (a virar bombom)); }
+                caso byte_b(b) { falar(2000 + (b virar bombom)); }
+            }
+            mimo 0;
+        }
+    "#;
+    let error = hr1_erro_semantico(source);
+    assert!(error.contains("repetido"), "{error}");
+    assert!(error.contains("apelidos"), "{error}");
+}
+
+#[test]
+fn hr1_cobertura_canonica_e_exigida_apos_a_resolucao() {
+    // Membro ausente.
+    let ausente = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: uniao<u8, u64, verso> =
+                (7 virar u8) virar uniao<u8, u64, verso>;
+            encaixe valor {
+                caso u8(n) { falar(n); }
+                caso u64(n) { falar(n); }
+            }
+            mimo 0;
+        }
+    "#;
+    let error = hr1_erro_semantico(ausente);
+    assert!(error.contains("exaustivo"), "{error}");
+    assert!(error.contains("verso"), "ausência nomeada: {error}");
+
+    // Membro externo à união.
+    let externo = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: uniao<u8, u64> = (7 virar u8) virar uniao<u8, u64>;
+            encaixe valor {
+                caso u8(n) { falar(n); }
+                caso verso(t) { falar(t); }
+            }
+            mimo 0;
+        }
+    "#;
+    let error = hr1_erro_semantico(externo);
+    assert!(error.contains("não é membro da união"), "{error}");
+
+    // Duplicata textual.
+    let duplicata = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: uniao<u8, u64> = (7 virar u8) virar uniao<u8, u64>;
+            encaixe valor {
+                caso u8(a) { falar(a); }
+                caso u8(b) { falar(b); }
+            }
+            mimo 0;
+        }
+    "#;
+    let error = hr1_erro_semantico(duplicata);
+    assert!(error.contains("repetido"), "{error}");
+
+    // Scrutinee que não é união.
+    let nao_uniao = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: bombom = 7;
+            encaixe valor {
+                caso u8(n) { falar(n); }
+                caso u64(n) { falar(n); }
+            }
+            mimo 0;
+        }
+    "#;
+    let error = hr1_erro_semantico(nao_uniao);
+    assert!(error.contains("scrutinee de união estrutural"), "{error}");
+}
+
+#[test]
+fn hr1_uniao_aninhada_e_achatada_antes_da_cobertura() {
+    let source = r#"
+        pacote main;
+        apelido par = uniao<u8, u64>;
+        carinho principal() -> bombom {
+            nova valor: uniao<par, verso> = (7 virar u8) virar uniao<par, verso>;
+            encaixe valor {
+                caso u8(a) { falar(1000 + (a virar bombom)); }
+                caso u64(b) { falar(2000 + (b virar bombom)); }
+                caso verso(t) { falar(t); }
+            }
+            mimo 0;
+        }
+    "#;
+    assert_eq!(
+        hr1_registry_tags(source),
+        vec![
+            (0, "u64".to_string()),
+            (1, "u8".to_string()),
+            (2, "verso".to_string()),
+        ]
+    );
+    assert_eq!(hr1_interpreta(source), Some(0));
+}
+
+#[test]
+fn hr1_senao_continua_recusado_no_encaixe_de_uniao() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: uniao<u8, u64> = (7 virar u8) virar uniao<u8, u64>;
+            encaixe valor {
+                caso u8(n) { falar(n); }
+                senao { falar(0); }
+            }
+            mimo 0;
+        }
+    "#;
+    let error = common::parse(source)
+        .expect_err("'senao' deve ser recusado")
+        .to_string();
+    assert!(error.contains("'senao' não substitui"), "{error}");
+}
+
+#[test]
+fn hr1_um_unico_braco_continua_recusado() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: uniao<u8, u64> = (7 virar u8) virar uniao<u8, u64>;
+            encaixe valor {
+                caso u8(n) { falar(n); }
+            }
+            mimo 0;
+        }
+    "#;
+    let error = common::parse(source)
+        .expect_err("um braço deve ser recusado")
+        .to_string();
+    assert!(error.contains("ao menos dois membros"), "{error}");
+}
+
+#[test]
+fn hr1_binding_escopo_retorno_e_aninhamentos() {
+    // Retorno dentro do braço, `talvez` aninhado e `encaixe` aninhado.
+    let source = r#"
+        pacote main;
+        apelido aa = u8;
+        apelido zz = u64;
+        carinho escolher(valor: uniao<aa, zz>) -> bombom {
+            encaixe valor {
+                caso aa(numero) {
+                    talvez numero > (3 virar aa) {
+                        mimo 1000 + (numero virar bombom);
+                    }
+                    mimo 1;
+                }
+                caso zz(numero) {
+                    nova interno: uniao<aa, zz> = (1 virar aa) virar uniao<aa, zz>;
+                    encaixe interno {
+                        caso aa(x) { mimo 2000 + (x virar bombom); }
+                        caso zz(y) { mimo 3000 + (y virar bombom); }
+                    }
+                    mimo 2;
+                }
+            }
+            mimo 0;
+        }
+        carinho principal() -> bombom {
+            nova valor: uniao<aa, zz> = (7 virar aa) virar uniao<aa, zz>;
+            nova resultado: bombom = escolher(valor);
+            falar(resultado);
+            mimo 0;
+        }
+    "#;
+    assert_eq!(hr1_interpreta(source), Some(0));
+
+    // `encaixe` dentro de laço, com `quebrar` no braço.
+    let em_laco = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova muda i: bombom = 0;
+            nova valor: uniao<u8, u64> = (7 virar u8) virar uniao<u8, u64>;
+            sempre que i < 3 {
+                encaixe valor {
+                    caso u8(n) { falar(1000 + (n virar bombom)); quebrar; }
+                    caso u64(n) { falar(2000 + (n virar bombom)); continuar; }
+                }
+                i = i + 1;
+            }
+            mimo 0;
+        }
+    "#;
+    assert_eq!(hr1_interpreta(em_laco), Some(0));
+}
+
+#[test]
+fn hr1_dois_matches_no_mesmo_bloco_e_em_funcoes_distintas() {
+    let source = r#"
+        pacote main;
+        apelido aa = u8;
+        apelido zz = u64;
+        carinho outro() -> bombom {
+            nova b: uniao<u8, verso> = (1 virar u8) virar uniao<u8, verso>;
+            encaixe b {
+                caso u8(n) { falar(n); }
+                caso verso(t) { falar(t); }
+            }
+            mimo 0;
+        }
+        carinho principal() -> bombom {
+            nova primeiro: uniao<aa, zz> = (7 virar aa) virar uniao<aa, zz>;
+            nova segundo: uniao<aa, zz> = (8 virar aa) virar uniao<aa, zz>;
+            encaixe primeiro {
+                caso aa(n) { falar(1000 + (n virar bombom)); }
+                caso zz(n) { falar(2000 + (n virar bombom)); }
+            }
+            encaixe segundo {
+                caso zz(n) { falar(3000 + (n virar bombom)); }
+                caso aa(n) { falar(4000 + (n virar bombom)); }
+            }
+            nova _ignorado: bombom = outro();
+            mimo 0;
+        }
+    "#;
+    let (ir_program, _, _, machine) = lower(source);
+    // Duas uniões distintas internadas: <u64,u8> e <u8,verso>.
+    assert_eq!(ir_program.union_types.len(), 2);
+    let ids: Vec<u32> = ir_program
+        .union_types
+        .iter()
+        .map(|union| union.id.0)
+        .collect();
+    assert_eq!(ids, vec![0, 1]);
+    // Os dois matches do mesmo bloco usam as mesmas tags, na mesma união.
+    let arms = hr1_arm_tags(&ir_program);
+    assert!(arms.contains(&(1, "u8".to_string())));
+    assert!(arms.contains(&(0, "u64".to_string())));
+    let outcome = interpreter::run_program_with_args(&machine, &[]).expect("interpretar");
+    assert_eq!(outcome.exit_status, Some(0));
+}
+
+#[test]
+fn hr1_match_em_closure_e_apos_callable() {
+    let source = r#"
+        pacote main;
+        apelido aa = u8;
+        apelido zz = u64;
+        carinho identidade(x: bombom) -> bombom { mimo x; }
+        carinho principal() -> bombom {
+            nova f: carinho(bombom) -> bombom = identidade;
+            nova pronto: bombom = f(1);
+            nova valor: uniao<aa, zz> = (7 virar aa) virar uniao<aa, zz>;
+            encaixe valor {
+                caso aa(n) { falar(pronto + (n virar bombom)); }
+                caso zz(n) { falar(2000 + (n virar bombom)); }
+            }
+            mimo 0;
+        }
+    "#;
+    assert_eq!(hr1_interpreta(source), Some(0));
+}
+
+#[test]
+fn hr1_registry_carrega_a_mesma_tabela_em_todas_as_camadas() {
+    let (ir_program, cfg, selected, machine) = lower(HR1_ALIAS_INVERSAO);
+    assert_eq!(cfg.union_types, ir_program.union_types);
+    assert_eq!(selected.union_types, ir_program.union_types);
+    assert_eq!(machine.union_types, ir_program.union_types);
+    for (index, member) in ir_program.union_types[0].members.iter().enumerate() {
+        assert_eq!(member.tag, index as u64);
+        assert!(!member.canonical_member_key.is_empty());
+    }
+}
+
+#[test]
+fn hr1_validadores_recusam_divergencia_entre_braco_e_registry() {
+    let (ir_program, _, _, _) = lower(HR1_ALIAS_INVERSAO);
+    let unions = &ir_program.union_types;
+
+    // Tag inexistente.
+    let error = ir::validate_union_member_reference(
+        unions,
+        unions[0].id,
+        99,
+        &unions[0].members[0].canonical_member_key,
+        unions[0].members[0].ty,
+        unions[0].members[0].size,
+        unions[0].members[0].align,
+    )
+    .expect_err("tag fora do registry deve falhar");
+    assert!(error.contains("não pertence"), "{error}");
+
+    // Chave canônica divergente da tag.
+    let error = ir::validate_union_member_reference(
+        unions,
+        unions[0].id,
+        0,
+        "chave-inventada",
+        unions[0].members[0].ty,
+        unions[0].members[0].size,
+        unions[0].members[0].align,
+    )
+    .expect_err("chave divergente deve falhar");
+    assert!(error.contains("chave canônica divergente"), "{error}");
+
+    // Layout divergente.
+    let error = ir::validate_union_member_reference(
+        unions,
+        unions[0].id,
+        0,
+        &unions[0].members[0].canonical_member_key,
+        unions[0].members[0].ty,
+        unions[0].members[0].size + 1,
+        unions[0].members[0].align,
+    )
+    .expect_err("layout divergente deve falhar");
+    assert!(error.contains("layout de payload divergente"), "{error}");
+
+    // Registry ausente.
+    let error =
+        ir::validate_union_reference(&[], unions[0].id).expect_err("registry ausente deve falhar");
+    assert!(error.contains("ausente do registro internado"), "{error}");
+
+    // Cobertura incompleta e braço repetido.
+    let chave = unions[0].members[0].canonical_member_key.clone();
+    let error = ir::validate_union_match_coverage(unions, unions[0].id, &[(0, chave.clone())])
+        .expect_err("cobertura incompleta deve falhar");
+    assert!(error.contains("cobertura incompleta"), "{error}");
+    let error =
+        ir::validate_union_match_coverage(unions, unions[0].id, &[(0, chave.clone()), (0, chave)])
+            .expect_err("braço repetido deve falhar");
+    assert!(error.contains("braço repetido"), "{error}");
+}
+
+#[test]
+fn hr1_validador_de_registry_recusa_chave_vazia_e_ordem_invertida() {
+    let (ir_program, _, _, _) = lower(HR1_ALIAS_INVERSAO);
+
+    let mut sem_chave = ir_program.union_types.clone();
+    sem_chave[0].members[0].canonical_member_key.clear();
+    let error = ir::validate_union_registry(&sem_chave).expect_err("chave vazia deve falhar");
+    assert!(error.contains("sem chave canônica"), "{error}");
+
+    let mut ordem_invertida = ir_program.union_types.clone();
+    ordem_invertida[0].members.swap(0, 1);
+    ordem_invertida[0].members[0].tag = 0;
+    ordem_invertida[0].members[1].tag = 1;
+    let error = ir::validate_union_registry(&ordem_invertida)
+        .expect_err("ordem canônica invertida deve falhar");
+    assert!(error.contains("ordem canônica violada"), "{error}");
+
+    let mut chave_duplicada = ir_program.union_types.clone();
+    let primeira_chave = chave_duplicada[0].members[0].canonical_member_key.clone();
+    chave_duplicada[0].members[1]
+        .canonical_member_key
+        .clone_from(&primeira_chave);
+    let error =
+        ir::validate_union_registry(&chave_duplicada).expect_err("chave duplicada deve falhar");
+    assert!(error.contains("duplicada"), "{error}");
+}
+
+#[test]
+fn hr1_scrutinee_e_avaliado_uma_unica_vez() {
+    let source = r#"
+        pacote main;
+        apelido aa = u8;
+        apelido zz = u64;
+        carinho fonte() -> uniao<aa, zz> { mimo (7 virar aa) virar uniao<aa, zz>; }
+        carinho principal() -> bombom {
+            encaixe fonte() {
+                caso aa(n) { falar(1000 + (n virar bombom)); }
+                caso zz(n) { falar(2000 + (n virar bombom)); }
+            }
+            mimo 0;
+        }
+    "#;
+    let cfg_text = common::render_cfg_ir(source).expect("cfg");
+    assert_eq!(
+        cfg_text.matches("call fonte(").count(),
+        1,
+        "o scrutinee não pode ser reavaliado: {cfg_text}"
+    );
+    assert_eq!(
+        cfg_text.matches("= union_tag ").count(),
+        1,
+        "a tag é lida uma única vez: {cfg_text}"
+    );
+    assert_eq!(hr1_interpreta(source), Some(0));
+}
+
+#[test]
+fn hr1_operacoes_internas_sao_tipadas_em_todas_as_camadas() {
+    let ir_text = common::render_ir(HR1_ALIAS_INVERSAO).expect("ir");
+    let cfg_text = common::render_cfg_ir(HR1_ALIAS_INVERSAO).expect("cfg");
+    let selected_text = common::render_selected(HR1_ALIAS_INVERSAO).expect("selected");
+    let machine_text = common::render_machine(HR1_ALIAS_INVERSAO).expect("machine");
+
+    assert!(ir_text.contains("union_match #0"), "{ir_text}");
+    assert!(cfg_text.contains("= union_tag #0"), "{cfg_text}");
+    assert!(cfg_text.contains("= union_extract #0"), "{cfg_text}");
+    assert!(selected_text.contains("= union_tag #0"), "{selected_text}");
+    assert!(
+        selected_text.contains("= union_extract #0"),
+        "{selected_text}"
+    );
+    assert!(machine_text.contains("union_tag #0"), "{machine_text}");
+    assert!(machine_text.contains("union_extract #0"), "{machine_text}");
+
+    // As antigas intrínsecas não aparecem como chamadas comuns em nenhuma
+    // camada estruturada.
+    for nome in HR1_INTRINSECAS_PROIBIDAS {
+        for (camada, texto) in [
+            ("ir", &ir_text),
+            ("cfg", &cfg_text),
+            ("selected", &selected_text),
+            ("machine", &machine_text),
+        ] {
+            assert!(!texto.contains(nome), "{nome} reapareceu em {camada}");
+        }
+    }
+}
+
+#[test]
+fn hr1_backend_nativo_escolhe_o_simbolo_de_runtime_no_proprio_backend() {
+    let asm = common::render_backend_s_external_subset_nativo(HR1_ALIAS_INVERSAO).expect("asm");
+    // O símbolo de ABI existe apenas no backend.
+    assert!(asm.contains("call pinker_uniao_tag"), "{asm}");
+    assert!(asm.contains("call pinker_uniao_payload_b"), "{asm}");
+    for nome in HR1_INTRINSECAS_PROIBIDAS {
+        assert!(!asm.contains(nome), "{nome} não pode vazar para o backend");
+    }
+}
+
+#[test]
+fn hr1_backend_nativo_usa_extracao_verso_quando_o_membro_e_verso() {
+    let source = r#"
+        pacote main;
+        apelido texto = verso;
+        carinho principal() -> bombom {
+            nova valor: uniao<texto, u8> = "oi" virar uniao<texto, u8>;
+            encaixe valor {
+                caso texto(t) { falar(t); }
+                caso u8(n) { falar(n); }
+            }
+            mimo 0;
+        }
+    "#;
+    let asm = common::render_backend_s_external_subset_nativo(source).expect("asm");
+    assert!(asm.contains("call pinker_uniao_payload_v"), "{asm}");
+    assert_eq!(hr1_interpreta(source), Some(0));
+}
+
+#[test]
+fn hr1_execucao_nativa_tem_paridade_de_stdout_com_o_interpretador() {
+    let Some((_driver, Some(runtime_lib))) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), true)
+    else {
+        return;
+    };
+    let pink = env!("CARGO_BIN_EXE_pink");
+    let exemplo = "examples/hr1_encaixe_uniao_apelidos_valido.pink";
+
+    let interpretado = std::process::Command::new(pink)
+        .arg("--run")
+        .arg(exemplo)
+        .output()
+        .expect("invocar pink --run");
+    assert!(interpretado.status.success());
+    let esperado = String::from_utf8_lossy(&interpretado.stdout).to_string();
+    assert_eq!(esperado.trim(), "1007");
+
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("tempo do sistema")
+        .as_nanos();
+    let out_dir = std::env::temp_dir().join(format!("pinker_hr1_{nanos}"));
+    let build = std::process::Command::new(pink)
+        .arg("build")
+        .arg("--nativo")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .arg(exemplo)
+        .env("PINKER_RT_LIB", &runtime_lib)
+        .output()
+        .expect("invocar pink build --nativo");
+    assert!(
+        build.status.success(),
+        "build nativo falhou: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let binario = out_dir.join("hr1_encaixe_uniao_apelidos_valido");
+    let nativo = std::process::Command::new(binario)
+        .output()
+        .expect("executar binário nativo");
+    assert_eq!(
+        String::from_utf8_lossy(&nativo.stdout),
+        esperado,
+        "paridade de stdout entre interpretador e nativo"
+    );
+    assert_eq!(nativo.status.code(), Some(0));
+
+    // Determinismo entre builds.
+    let segundo = common::render_backend_s_external_subset_nativo(HR1_ALIAS_INVERSAO).expect("asm");
+    let primeiro =
+        common::render_backend_s_external_subset_nativo(HR1_ALIAS_INVERSAO).expect("asm");
+    assert_eq!(primeiro, segundo);
+
+    let _ = std::fs::remove_dir_all(&out_dir);
+}
+
+#[test]
+fn hr1_valores_de_borda_do_payload_atual() {
+    // Zero e o topo de cada largura suportada pelo payload de uma palavra.
+    let casos = [
+        ("u8", "0"),
+        ("u8", "255"),
+        ("u16", "65535"),
+        ("u32", "4294967295"),
+    ];
+    for (tipo, literal) in casos {
+        let source = format!(
+            r#"
+            pacote main;
+            carinho principal() -> bombom {{
+                nova valor: uniao<{tipo}, verso> =
+                    ({literal} virar {tipo}) virar uniao<{tipo}, verso>;
+                encaixe valor {{
+                    caso {tipo}(n) {{ falar(n virar bombom); }}
+                    caso verso(t) {{ falar(t); }}
+                }}
+                mimo 0;
+            }}
+        "#
+        );
+        assert_eq!(
+            hr1_interpreta(&source),
+            Some(0),
+            "borda {tipo}={literal} deve executar"
+        );
+    }
+}
+
+#[test]
+fn hr1_e_hr2_convivem_na_mesma_funcao() {
+    let source = r#"
+        pacote main;
+        apelido aa = u8;
+        apelido zz = u64;
+        carinho principal() -> bombom {
+            sussurro("nop", "1: nop", "jmp 1b");
+            nova valor: uniao<aa, zz> = (7 virar aa) virar uniao<aa, zz>;
+            encaixe valor {
+                caso aa(n) { falar(1000 + (n virar bombom)); }
+                caso zz(n) { falar(2000 + (n virar bombom)); }
+            }
+            sussurro("nop");
+            mimo 0;
+        }
+    "#;
+    // O envelope estrutural de HR2 permanece equilibrado, e o encaixe tipado
+    // continua presente na mesma função.
+    let (_, _, selected, _) = lower(source);
+    let asm = backend_s::emit_external_toolchain_subset_nativo(&selected).expect("assembly");
+    assert_eq!(asm.matches(".intel_syntax noprefix").count(), 2);
+    assert_eq!(asm.matches(".att_syntax prefix").count(), 2);
+    assert!(asm.contains("call pinker_uniao_tag"), "{asm}");
+    assert!(asm.contains("1: nop"), "{asm}");
+}
+
+#[test]
+fn hr1_namespace_reservado_continua_recusado_dentro_do_braco() {
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: uniao<u8, u64> = (7 virar u8) virar uniao<u8, u64>;
+            encaixe valor {
+                caso u8(n) { nova __pinker_internal_x: bombom = 1; falar(n); }
+                caso u64(n) { falar(n); }
+            }
+            mimo 0;
+        }
+    "#;
+    let error = common::parse_and_check(source)
+        .expect_err("namespace reservado deve falhar dentro do braço")
+        .to_string();
+    assert!(error.contains("E-SEMANTIC-RESERVED-NAMESPACE"), "{error}");
+}
+
+#[test]
+fn hr1_chamada_direta_as_intrinsecas_de_uniao_continua_recusada() {
+    for nome in HR1_INTRINSECAS_PROIBIDAS {
+        let source = format!(
+            "pacote main;\ncarinho principal() -> bombom {{\n    nova valor: uniao<u8, u64> = (7 virar u8) virar uniao<u8, u64>;\n    falar({nome}(valor));\n    mimo 0;\n}}"
+        );
+        let error = common::parse_and_check(&source)
+            .expect_err("intrínseca de união não é chamável da fonte")
+            .to_string();
+        assert!(error.contains("E-SEMANTIC-RESERVED-NAMESPACE"), "{error}");
+    }
 }

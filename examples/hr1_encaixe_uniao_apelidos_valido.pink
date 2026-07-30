@@ -1,0 +1,25 @@
+pacote main;
+
+// HR1: a ordem lexical dos apelidos é oposta à ordem canônica dos tipos
+// resolvidos (`u64` antes de `u8`). As tags vêm do registry canônico, não do
+// nome do apelido, da ordem dos braços nem da ordem textual da união — então o
+// braço `aa` (u8) é o executado e a saída é 1007.
+apelido aa = u8;
+apelido zz = u64;
+
+carinho principal() -> bombom {
+    nova valor: uniao<aa, zz> =
+        (7 virar aa) virar uniao<aa, zz>;
+
+    encaixe valor {
+        caso aa(numero) {
+            falar(1000 + (numero virar bombom));
+        }
+
+        caso zz(numero) {
+            falar(2000 + (numero virar bombom));
+        }
+    }
+
+    mimo 0;
+}
