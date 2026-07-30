@@ -338,6 +338,8 @@ fn extract_external_callconv_program(
         // @pinker-nav:layer backend-s
         // @pinker-nav:summary Abertura do laço de blocos e seleção do terminador de cada bloco: `SelectedTerminator::Jmp` → `ExternalCallConvTerminator::Jmp`; `Ret(Some(value))` materializa literais `verso` de retorno em `.rodata` (`register_rodata_strings_for_operand`) e vira `Ret`; `Ret(None)` vira `RetVoid` para funções/métodos `nulo`; `Br` copia condição e rótulos. Constrói o `terminator` antes do corpo do bloco.
         let mut blocks = Vec::new();
+        // Identificador determinístico de envelope de `sussurro` dentro da função.
+        let mut inline_asm_envelopes = 0_u32;
         for block in &function.blocks {
             let terminator = match &block.terminator {
                 SelectedTerminator::Jmp(target) => ExternalCallConvTerminator::Jmp(target.clone()),
@@ -1338,12 +1340,25 @@ fn extract_external_callconv_program(
                         body.push("call pinker_falar_fim".to_string());
                     }
                     SelectedInstr::InlineAsm { chunks, .. } => {
-                        body.push(".intel_syntax noprefix".to_string());
+                        // As sentinelas do envelope são geradas pelo compilador;
+                        // nenhum texto delas vem da fonte. O identificador é
+                        // determinístico por função e ordem de bloco.
+                        inline_asm_envelopes += 1;
+                        let envelope_id = format!("{}#{}", function.name, inline_asm_envelopes);
+                        body.push(format!(
+                            "{}{envelope_id}",
+                            crate::inline_asm::SENTINEL_BEGIN_PREFIX
+                        ));
+                        body.push(crate::inline_asm::INTEL_SYNTAX_WRAPPER.to_string());
                         for (index, chunk) in chunks.iter().enumerate() {
                             body.push(format!("# pinker:sussurro chunk={index}"));
                             body.extend(chunk.lines().map(str::to_string));
                         }
-                        body.push(".att_syntax prefix".to_string());
+                        body.push(crate::inline_asm::ATT_SYNTAX_WRAPPER.to_string());
+                        body.push(format!(
+                            "{}{envelope_id}",
+                            crate::inline_asm::SENTINEL_END_PREFIX
+                        ));
                     }
                     SelectedInstr::UnionInject {
                         dest,
