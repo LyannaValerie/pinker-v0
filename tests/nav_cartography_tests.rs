@@ -1107,8 +1107,9 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
 
     // Total vivo após as Fases 247–248: 474 regiões (471 + 3 regiões novas das
     // correções da revisão humana da PR #411: duas em src/inline_asm.rs e uma
-    // em src/lexer.rs).
-    assert_eq!(index.regions.len(), 477);
+    // em src/lexer.rs); +2 regiões de HR4 em src/ir.rs
+    // (`ir.tipos.identidade-resolvida` e `ir.lowering.identidade-resolvida`).
+    assert_eq!(index.regions.len(), 479);
 
     // Exatamente uma região Pinker, a do Guardião, com metadados congelados.
     let guardiao: Vec<_> = index
@@ -2867,8 +2868,8 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         .filter(|region| region.key != "backend-s.lowering.objetos-trato-nativos")
         .count();
     assert_eq!(
-        historical_catalog_total, 359,
-        "o estado histórico da Onda 8E deve totalizar 341 regiões (340 + 1 região nova de Fase 243 em src/ast.rs)"
+        historical_catalog_total, 361,
+        "o estado histórico da Onda 8E deve totalizar 341 regiões (340 + 1 região nova de Fase 243 em src/ast.rs; +2 regiões de HR4 em src/ir.rs)"
     );
 }
 
@@ -2980,8 +2981,8 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
-        historical_catalog_total, 359,
-        "o estado histórico da Onda 8F deve totalizar 349 regiões (348 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411)"
+        historical_catalog_total, 361,
+        "o estado histórico da Onda 8F deve totalizar 349 regiões (348 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs)"
     );
 
     let mut expected_keys: Vec<_> = expected_regions.iter().map(|entry| entry.0).collect();
@@ -3116,8 +3117,8 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        351,
-        "as 341 regiões anteriores devem ser preservadas (340 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411)"
+        353,
+        "as 341 regiões anteriores devem ser preservadas (340 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs)"
     );
     let previous_projection = stable_region_projection(previous_regions.into_iter());
     assert_eq!(
@@ -3125,7 +3126,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (151_862, 9_452_474_403_840_775_016),
+        (154_021, 9_200_327_957_601_855_315),
         "a projeção estável das 340 entradas anteriores mudou"
     );
 }
@@ -3227,8 +3228,8 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
-        historical_catalog_total, 366,
-        "o estado histórico da Onda 8G deve totalizar 356 regiões (355 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411)"
+        historical_catalog_total, 368,
+        "o estado histórico da Onda 8G deve totalizar 356 regiões (355 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs)"
     );
     assert_eq!(
         catalog
@@ -3529,8 +3530,8 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        359,
-        "as 349 regiões anteriores devem ser preservadas semanticamente (348 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411)"
+        361,
+        "as 349 regiões anteriores devem ser preservadas semanticamente (348 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs)"
     );
     let previous_projection = stable_region_projection(previous_regions.into_iter());
     assert_eq!(
@@ -3538,7 +3539,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (154_807, 8_023_096_075_624_223_588),
+        (156_966, 6_061_123_437_451_829_175),
         "a projeção estável das 348 regiões anteriores mudou"
     );
 
@@ -3784,7 +3785,8 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
                 && region.file != "tests/trama_query_tests.rs"
         })
         .collect();
-    assert_eq!(capsule_scope.len(), 403);
+    // +2 regiões de HR4 em src/ir.rs.
+    assert_eq!(capsule_scope.len(), 405);
     assert_eq!(
         capsule_scope
             .iter()
@@ -3839,19 +3841,20 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
         .copied()
         .filter(|region| region.file != target_path)
         .collect();
-    assert_eq!(historical.len(), 397, "conjunto histórico exato");
+    // +2 regiões de HR4 em src/ir.rs.
+    assert_eq!(historical.len(), 399, "conjunto histórico exato");
     let historical_projection = stable_region_projection(historical.into_iter());
     assert_eq!(
         (
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (174_778, 7_393_181_305_595_335_542)
+        (176_937, 11_810_124_381_064_405_757)
     );
     let full_projection = stable_region_projection(capsule_scope.iter().copied());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (176_515, 3_146_326_847_952_049_199)
+        (178_674, 13_061_982_207_179_321_794)
     );
 
     let regenerated = CodeIndex::scan_repo(&repository).expect("scan canônico");
@@ -4154,7 +4157,8 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
         .iter()
         .filter(|region| region.file != "tests/trama_query_tests.rs")
         .collect();
-    assert_eq!(capsule_scope.len(), 409);
+    // +2 regiões de HR4 em src/ir.rs.
+    assert_eq!(capsule_scope.len(), 411);
     assert_eq!(
         capsule_scope
             .iter()
@@ -4218,7 +4222,8 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
         .copied()
         .filter(|region| region.file != target_path)
         .collect();
-    assert_eq!(merged_base.len(), 403, "base mergeada exata");
+    // +2 regiões de HR4 em src/ir.rs.
+    assert_eq!(merged_base.len(), 405, "base mergeada exata");
     assert_eq!(
         merged_base
             .iter()
@@ -4243,14 +4248,15 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
                 && region.file != "tests/trama_query_tests.rs"
         })
         .collect();
-    assert_eq!(historical.len(), 397, "conjunto histórico exato");
+    // +2 regiões de HR4 em src/ir.rs.
+    assert_eq!(historical.len(), 399, "conjunto histórico exato");
     let historical_projection = stable_region_projection(historical.into_iter());
     assert_eq!(
         (
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (174_778, 7_393_181_305_595_335_542),
+        (176_937, 11_810_124_381_064_405_757),
         "a projeção estável das 387 regiões da Onda 8 mudou"
     );
     let merged_base_projection = stable_region_projection(merged_base.into_iter());
@@ -4259,14 +4265,14 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
             merged_base_projection.len(),
             fnv1a64(merged_base_projection.as_bytes())
         ),
-        (176_515, 3_146_326_847_952_049_199),
+        (178_674, 13_061_982_207_179_321_794),
         "a projeção estável das 393 regiões da base mergeada mudou"
     );
     // K. Projeção completa desta cápsula, medida — não predita.
     let full_projection = stable_region_projection(capsule_scope.iter().copied());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (178_180, 10_792_908_039_074_216_730),
+        (180_339, 10_297_742_919_448_050_609),
         "a projeção estável das 399 regiões mudou"
     );
 
@@ -4363,8 +4369,8 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
 
     assert_eq!(
         historical.len(),
-        397,
-        "a convergência da Onda 8 exige exatamente 387 regiões (386 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411)"
+        399,
+        "a convergência da Onda 8 exige exatamente 387 regiões (386 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs)"
     );
     assert_eq!(
         historical
@@ -4386,7 +4392,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
     let projection = stable_region_projection(historical.into_iter());
     assert_eq!(
         (projection.len(), fnv1a64(projection.as_bytes())),
-        (174_778, 7_393_181_305_595_335_542),
+        (176_937, 11_810_124_381_064_405_757),
         "a projeção estável das 387 regiões convergidas da Onda 8 mudou"
     );
 
@@ -4586,8 +4592,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
-        historical_catalog_total, 376,
-        "o estado histórico da Onda 8H deve totalizar 366 regiões (365 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411)"
+        historical_catalog_total, 378,
+        "o estado histórico da Onda 8H deve totalizar 366 regiões (365 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs)"
     );
     assert_eq!(
         catalog
@@ -5071,8 +5077,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        366,
-        "as 356 regiões anteriores devem ser preservadas semanticamente (355 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411)"
+        368,
+        "as 356 regiões anteriores devem ser preservadas semanticamente (355 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs)"
     );
     let previous_projection = stable_region_projection(previous_regions.into_iter());
     assert_eq!(
@@ -5080,7 +5086,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (157_668, 15_451_707_901_531_081_211),
+        (159_827, 16_977_555_159_693_565_530),
         "a projeção estável das 355 regiões anteriores mudou"
     );
 
@@ -5215,8 +5221,8 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
                 && region.file != "tests/trama_query_tests.rs")
             .filter(|region| !region.key.starts_with("evidencia.runtime."))
             .count(),
-        390,
-        "o estado histórico da Onda 8I deve totalizar 380 regiões (379 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411)"
+        392,
+        "o estado histórico da Onda 8I deve totalizar 380 regiões (379 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs)"
     );
     assert_eq!(
         catalog
@@ -5757,8 +5763,8 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        376,
-        "as 366 regiões anteriores devem ser preservadas semanticamente (365 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411)"
+        378,
+        "as 366 regiões anteriores devem ser preservadas semanticamente (365 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs)"
     );
     let previous_projection = stable_region_projection(previous_regions.into_iter());
     assert_eq!(
@@ -5766,7 +5772,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (164_177, 17_416_248_528_421_219_566),
+        (166_336, 977_770_028_687_418_189),
         "a projeção estável das 365 regiões anteriores mudou"
     );
 
@@ -5852,8 +5858,8 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
                 && region.file != "tests/doc_catalog_tests.rs"
                 && region.file != "tests/trama_query_tests.rs")
             .count(),
-        397,
-        "a Onda 8J deve totalizar 387 regiões (386 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411)"
+        399,
+        "a Onda 8J deve totalizar 387 regiões (386 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs)"
     );
     assert_eq!(
         catalog
@@ -6364,8 +6370,8 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        390,
-        "as 380 regiões anteriores devem ser preservadas semanticamente (379 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411)"
+        392,
+        "as 380 regiões anteriores devem ser preservadas semanticamente (379 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs)"
     );
     let previous_projection = stable_region_projection(previous_regions.into_iter());
     assert_eq!(
@@ -6373,7 +6379,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (171_873, 18_136_737_895_334_932_966),
+        (174_032, 2_549_993_457_546_310_005),
         "a projeção estável das 379 regiões anteriores mudou"
     );
 
@@ -6768,8 +6774,9 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
     let mut catalog = CodeCatalog::load(&catalog_path).expect("catálogo versionado");
     exclude_phase244_post_semantic(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
-    // 415 = 412 + 3 regiões das correções da revisão humana da PR #411.
-    assert_eq!(catalog.regions.len(), 418);
+    // 415 = 412 + 3 regiões das correções da revisão humana da PR #411;
+    // 420 = 418 + 2 regiões de HR4 em src/ir.rs.
+    assert_eq!(catalog.regions.len(), 420);
     assert_eq!(
         catalog
             .regions
@@ -6837,7 +6844,8 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         .iter()
         .filter(|region| region.file != target_path)
         .collect();
-    assert_eq!(predecessor.len(), 409, "base predecessora exata");
+    // +2 regiões de HR4 em src/ir.rs.
+    assert_eq!(predecessor.len(), 411, "base predecessora exata");
     assert_eq!(
         predecessor
             .iter()
@@ -6858,7 +6866,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             predecessor_projection.len(),
             fnv1a64(predecessor_projection.as_bytes())
         ),
-        (178_180, 10_792_908_039_074_216_730),
+        (180_339, 10_297_742_919_448_050_609),
         "a projeção estável das 398 regiões predecessoras mudou"
     );
     // Preservação das 392 regiões pós-nav-catalog.
@@ -6867,14 +6875,15 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         .copied()
         .filter(|region| region.file != "tests/doc_catalog_tests.rs")
         .collect();
-    assert_eq!(post_nav.len(), 403, "conjunto pós-nav-catalog exato");
+    // +2 regiões de HR4 em src/ir.rs.
+    assert_eq!(post_nav.len(), 405, "conjunto pós-nav-catalog exato");
     let post_nav_projection = stable_region_projection(post_nav.iter().copied());
     assert_eq!(
         (
             post_nav_projection.len(),
             fnv1a64(post_nav_projection.as_bytes())
         ),
-        (176_515, 3_146_326_847_952_049_199),
+        (178_674, 13_061_982_207_179_321_794),
         "a projeção estável das 393 regiões pós-nav-catalog mudou"
     );
     // J. Preservação do conjunto histórico de 386 regiões da Onda 8.
@@ -6883,21 +6892,22 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         .copied()
         .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .collect();
-    assert_eq!(historical.len(), 397, "conjunto histórico exato");
+    // +2 regiões de HR4 em src/ir.rs.
+    assert_eq!(historical.len(), 399, "conjunto histórico exato");
     let historical_projection = stable_region_projection(historical.iter().copied());
     assert_eq!(
         (
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (174_778, 7_393_181_305_595_335_542),
+        (176_937, 11_810_124_381_064_405_757),
         "a projeção estável das 387 regiões da Onda 8 mudou"
     );
     // K. Projeção completa desta cápsula, medida — não predita.
     let full_projection = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (180_666, 11_701_499_653_515_443_056),
+        (182_825, 6_247_786_967_687_919_011),
         "a projeção estável das 408 regiões mudou"
     );
 
@@ -7035,8 +7045,9 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     exclude_pink_agent_wave_c(&mut catalog);
     project_pink_agent_wave_a(&mut catalog);
     // 427 = 426 histórico + 1 região nova de Fase 243 em src/ast.rs;
-    // 434 = 431 + 3 regiões das correções da revisão humana da PR #411.
-    assert_eq!(catalog.regions.len(), 437);
+    // 434 = 431 + 3 regiões das correções da revisão humana da PR #411;
+    // 439 = 437 + 2 regiões de HR4 em src/ir.rs.
+    assert_eq!(catalog.regions.len(), 439);
     assert_eq!(
         catalog
             .regions
@@ -7191,14 +7202,15 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let mut predecessor_catalog = catalog.clone();
     exclude_pink_agent_wave_a(&mut predecessor_catalog);
     let predecessor: Vec<_> = predecessor_catalog.regions.iter().collect();
-    assert_eq!(predecessor.len(), 418);
+    // +2 regiões de HR4 em src/ir.rs.
+    assert_eq!(predecessor.len(), 420);
     let predecessor_projection = stable_region_projection(predecessor.iter().copied());
     assert_eq!(
         (
             predecessor_projection.len(),
             fnv1a64(predecessor_projection.as_bytes())
         ),
-        (180_666, 11_701_499_653_515_443_056)
+        (182_825, 6_247_786_967_687_919_011)
     );
     let mut historical_catalog = predecessor_catalog.clone();
     project_pre_nav_map(&mut historical_catalog);
@@ -7221,13 +7233,16 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     for (regions, expected) in [
         (
             post_query.as_slice(),
-            (409, 178_180, 10_792_908_039_074_216_730),
+            (411, 180_339, 10_297_742_919_448_050_609),
         ),
         (
             post_nav.as_slice(),
-            (403, 176_515, 3_146_326_847_952_049_199),
+            (405, 178_674, 13_061_982_207_179_321_794),
         ),
-        (wave_8.as_slice(), (397, 174_778, 7_393_181_305_595_335_542)),
+        (
+            wave_8.as_slice(),
+            (399, 176_937, 11_810_124_381_064_405_757),
+        ),
     ] {
         let projection = stable_region_projection(regions.iter().copied());
         assert_eq!(
@@ -7242,7 +7257,7 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let full_projection = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (186_938, 3_105_926_445_816_254_839),
+        (189_097, 11_964_216_553_578_202_434),
         "projeção final medida da Onda A"
     );
 
@@ -7311,8 +7326,9 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
     exclude_phase244_post_semantic(&mut catalog);
     exclude_pink_agent_wave_c(&mut catalog);
     // 441 = 440 histórico + 1 região nova de Fase 243 em src/ast.rs;
-    // 448 = 445 + 3 regiões das correções da revisão humana da PR #411.
-    assert_eq!(catalog.regions.len(), 451);
+    // 448 = 445 + 3 regiões das correções da revisão humana da PR #411;
+    // 453 = 451 + 2 regiões de HR4 em src/ir.rs.
+    assert_eq!(catalog.regions.len(), 453);
     assert_eq!(
         catalog
             .regions
@@ -7472,7 +7488,7 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (190_977, 4_015_182_508_453_109_112),
+        (193_136, 3_501_613_889_978_352_775),
         "projeção atual medida da Onda B"
     );
     let mut wave_a = catalog.clone();
@@ -7484,7 +7500,7 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
             projection_426.len(),
             fnv1a64(projection_426.as_bytes())
         ),
-        (437, 186_938, 3_105_926_445_816_254_839)
+        (439, 189_097, 11_964_216_553_578_202_434)
     );
     exclude_pink_agent_wave_a(&mut wave_a);
     let projection_407 = stable_region_projection(wave_a.regions.iter());
@@ -7494,7 +7510,7 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
             projection_407.len(),
             fnv1a64(projection_407.as_bytes())
         ),
-        (418, 180_666, 11_701_499_653_515_443_056)
+        (420, 182_825, 6_247_786_967_687_919_011)
     );
     let mut historical_wave_a = wave_a.clone();
     project_pre_nav_map(&mut historical_wave_a);
@@ -7515,9 +7531,9 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
         .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .collect();
     for (regions, expected) in [
-        (q.as_slice(), (409, 178_180, 10_792_908_039_074_216_730)),
-        (d.as_slice(), (403, 176_515, 3_146_326_847_952_049_199)),
-        (n.as_slice(), (397, 174_778, 7_393_181_305_595_335_542)),
+        (q.as_slice(), (411, 180_339, 10_297_742_919_448_050_609)),
+        (d.as_slice(), (405, 178_674, 13_061_982_207_179_321_794)),
+        (n.as_slice(), (399, 176_937, 11_810_124_381_064_405_757)),
     ] {
         let projection = stable_region_projection(regions.iter().copied());
         assert_eq!(
@@ -7593,8 +7609,9 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
     // A Onda D acrescentou contract-v1 (455) e alterou 4 regiões; reconstrói o 454 da Onda C
     // (454/455 = 453/454 históricos + 1 região nova de Fase 243 em src/ast.rs).
     reconstruct_pre_contract_v1(&mut catalog);
-    // 461 = 458 + 3 regiões das correções da revisão humana da PR #411.
-    assert_eq!(catalog.regions.len(), 464);
+    // 461 = 458 + 3 regiões das correções da revisão humana da PR #411;
+    // 466 = 464 + 2 regiões de HR4 em src/ir.rs.
+    assert_eq!(catalog.regions.len(), 466);
     assert_eq!(
         catalog
             .regions
@@ -7754,7 +7771,7 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (194_898, 6_928_071_979_824_284_134),
+        (197_057, 2_532_373_943_959_459_101),
         "projeção atual medida da Onda C"
     );
     let mut wave_b = catalog.clone();
@@ -7766,7 +7783,7 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
             projection_439.len(),
             fnv1a64(projection_439.as_bytes())
         ),
-        (451, 190_977, 4_015_182_508_453_109_112)
+        (453, 193_136, 3_501_613_889_978_352_775)
     );
     let core = include_str!("../src/agent.rs");
     for contract in [
@@ -7857,8 +7874,8 @@ fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
 
     // CATALOG — totais exatos da Onda D (455 = 454 histórico + 1 região
     // nova de Fase 243 em src/ast.rs; 462 = 459 + 3 regiões das correções da
-    // revisão humana da PR #411).
-    assert_eq!(catalog.regions.len(), 465);
+    // revisão humana da PR #411; 467 = 465 + 2 regiões de HR4 em src/ir.rs).
+    assert_eq!(catalog.regions.len(), 467);
     assert_eq!(
         catalog
             .regions
@@ -8000,7 +8017,7 @@ fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (195_350, 374_266_188_410_974_064),
+        (197_509, 15_400_050_459_555_662_167),
         "projeção integral 455 medida da Onda D"
     );
     let mut prev = catalog.clone();
@@ -8008,7 +8025,7 @@ fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
     let p453 = stable_region_projection(prev.regions.iter());
     assert_eq!(
         (prev.regions.len(), p453.len(), fnv1a64(p453.as_bytes())),
-        (464, 194_898, 6_928_071_979_824_284_134),
+        (466, 197_057, 2_532_373_943_959_459_101),
         "predecessor 454 integral medido na base c6478"
     );
     // Cadeia histórica preservada: 439 a partir do 453 reconstruído.
@@ -8017,7 +8034,7 @@ fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
     let p439 = stable_region_projection(wave_b.regions.iter());
     assert_eq!(
         (wave_b.regions.len(), p439.len(), fnv1a64(p439.as_bytes())),
-        (451, 190_977, 4_015_182_508_453_109_112),
+        (453, 193_136, 3_501_613_889_978_352_775),
         "era 440/441 preservada"
     );
     // Nenhuma key removida: 453 é subconjunto exato de 454 com delta 1.
