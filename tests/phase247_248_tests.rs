@@ -1673,3 +1673,734 @@ fn hr1_chamada_direta_as_intrinsecas_de_uniao_continua_recusada() {
         assert!(error.contains("E-SEMANTIC-RESERVED-NAMESPACE"), "{error}");
     }
 }
+
+// HR4 — identidade semântica de tipos em uniões.
+//
+// O defeito corrigido aqui é a seleção do membro de união por categoria
+// operacional (`TypeIR`) com desempate por primeira ocorrência: dois `leque`
+// distintos, dois `ninho` distintos, duas assinaturas de `carinho` e dois
+// `seta<T>` de apontados diferentes colapsam na mesma categoria e faziam a
+// injeção escolher o membro errado **silenciosamente**.
+
+/// Programa com dois `leque` homorrepresentados injetando o membro indicado.
+fn hr4_fonte_dois_leques(injetado: &str, variante: &str) -> String {
+    format!(
+        "pacote main;\n\
+         leque Cor {{ Rosa, Azul }}\n\
+         leque Tom {{ Claro, Escuro }}\n\
+         carinho principal() -> bombom {{\n\
+         \x20   nova valor: uniao<Cor, Tom> = {injetado}.{variante} virar uniao<Cor, Tom>;\n\
+         \x20   encaixe valor {{\n\
+         \x20       caso Cor(c) {{ mimo 1; }}\n\
+         \x20       caso Tom(t) {{ mimo 2; }}\n\
+         \x20   }}\n\
+         \x20   mimo 0;\n\
+         }}"
+    )
+}
+
+#[test]
+fn hr4_dois_leques_homorrepresentados_injetam_o_membro_exato() {
+    // Antes de HR4 ambos os programas caíam no primeiro membro de mesma
+    // representação: os dois devolviam o resultado do braço `Cor`.
+    assert_eq!(
+        hr1_interpreta(&hr4_fonte_dois_leques("Cor", "Azul")),
+        Some(1)
+    );
+    assert_eq!(
+        hr1_interpreta(&hr4_fonte_dois_leques("Tom", "Escuro")),
+        Some(2)
+    );
+}
+
+#[test]
+fn hr4_dois_leques_tem_identidades_resolvidas_distintas_no_registry() {
+    let (ir, _, _, _) = lower(&hr4_fonte_dois_leques("Tom", "Claro"));
+    let union = &ir.union_types[0];
+    let identidades: Vec<_> = union
+        .members
+        .iter()
+        .map(|member| member.resolved_type_id)
+        .collect();
+    assert_eq!(identidades.len(), 2);
+    assert_ne!(
+        identidades[0], identidades[1],
+        "dois leques distintos não podem compartilhar identidade resolvida"
+    );
+
+    let chaves: Vec<_> = union
+        .members
+        .iter()
+        .map(|member| member.canonical_member_key.as_str())
+        .collect();
+    assert_eq!(chaves, vec!["enum:3:Cor", "enum:3:Tom"]);
+
+    // Cada identidade do registry existe na tabela do programa, com a chave
+    // canônica correspondente e a representação escalar do leque.
+    for member in &union.members {
+        let entrada = ir
+            .resolved_types
+            .iter()
+            .find(|entrada| entrada.id == member.resolved_type_id)
+            .expect("identidade do membro presente na tabela do programa");
+        assert_eq!(entrada.canonical_key, member.canonical_member_key);
+        assert_eq!(entrada.representation, ir::TypeIR::Bombom);
+        assert_eq!(entrada.nominal_kind, Some(ir::NominalTypeKindIR::Leque));
+    }
+}
+
+#[test]
+fn hr4_injecao_carrega_a_identidade_do_membro_escolhido() {
+    fn coleta(block: &ir::BlockIR, out: &mut Vec<(u64, ir::ResolvedTypeId, String)>) {
+        fn valor(value: &ir::ValueIR, out: &mut Vec<(u64, ir::ResolvedTypeId, String)>) {
+            if let ir::ValueIR::UnionInject {
+                tag,
+                resolved_member_type_id,
+                canonical_member_key,
+                ..
+            } = value
+            {
+                out.push((*tag, *resolved_member_type_id, canonical_member_key.clone()));
+            }
+        }
+        for instruction in &block.instructions {
+            match instruction {
+                ir::InstructionIR::Let { value, .. } => valor(value, out),
+                ir::InstructionIR::If {
+                    then_block,
+                    else_block,
+                    ..
+                } => {
+                    coleta(then_block, out);
+                    if let Some(else_block) = else_block {
+                        coleta(else_block, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let (ir_programa, _, _, _) = lower(&hr4_fonte_dois_leques("Tom", "Escuro"));
+    let mut injecoes = Vec::new();
+    for function in &ir_programa.functions {
+        coleta(&function.entry, &mut injecoes);
+    }
+    assert_eq!(injecoes.len(), 1, "esperava uma única injeção");
+    let (tag, identidade, chave) = &injecoes[0];
+    assert_eq!(chave, "enum:3:Tom");
+
+    // A tag e a identidade descrevem o **mesmo** membro do registry.
+    let membro = ir_programa.union_types[0]
+        .members
+        .iter()
+        .find(|member| member.tag == *tag)
+        .expect("tag pertence ao registry");
+    assert_eq!(membro.resolved_type_id, *identidade);
+    assert_eq!(&membro.canonical_member_key, chave);
+}
+
+#[test]
+fn hr4_apelido_de_leque_nao_cria_identidade_propria() {
+    // `apelido` é transparente: o texto do apelido nunca vira identidade.
+    let source = r#"
+        pacote main;
+        leque Cor { Rosa, Azul }
+        leque Tom { Claro, Escuro }
+        apelido Apelidada = Cor;
+        carinho principal() -> bombom {
+            nova valor: uniao<Apelidada, Tom> = Cor.Azul virar uniao<Apelidada, Tom>;
+            encaixe valor {
+                caso Cor(c) { mimo 1; }
+                caso Tom(t) { mimo 2; }
+            }
+            mimo 0;
+        }
+    "#;
+    assert_eq!(hr1_interpreta(source), Some(1));
+    assert_eq!(
+        hr1_registry_tags(source),
+        vec![(0, "enum:3:Cor".to_string()), (1, "enum:3:Tom".to_string())]
+    );
+}
+
+#[test]
+fn hr4_identidades_do_programa_sao_deterministicas_entre_lowerings() {
+    // A tabela de identidades não pode depender da ordem de iteração de nenhum
+    // mapa: dois lowerings do mesmo programa, no mesmo processo (onde cada
+    // `HashMap` recebe sementes diferentes), produzem a mesma tabela.
+    let source = hr4_fonte_dois_leques("Cor", "Rosa");
+    let ast = common::parse(&source).expect("parse");
+    semantic::check_program(&ast).expect("semantic");
+    let primeiro = ir::lower_program(&ast).expect("primeiro lowering");
+    let segundo = ir::lower_program(&ast).expect("segundo lowering");
+    assert_eq!(primeiro.resolved_types, segundo.resolved_types);
+    assert_eq!(primeiro.union_types, segundo.union_types);
+}
+
+#[test]
+fn hr4_tabela_de_identidades_e_densa_e_sem_chave_repetida() {
+    let (ir_programa, _, _, _) = lower(&hr4_fonte_dois_leques("Tom", "Claro"));
+    ir::validate_resolved_type_table(&ir_programa.resolved_types)
+        .expect("tabela de identidades válida");
+    ir::validate_union_registry_identities(&ir_programa.union_types, &ir_programa.resolved_types)
+        .expect("registry coerente com a tabela");
+}
+
+#[test]
+fn hr4_validador_recusa_identidade_de_membro_divergente() {
+    // IR deliberadamente inválida: a tag continua correta, mas a identidade
+    // aponta para outro membro. Nenhuma camada pode "consertar" isso escolhendo
+    // o membro pela representação.
+    let (ir_programa, _, _, _) = lower(&hr4_fonte_dois_leques("Cor", "Azul"));
+    let union = &ir_programa.union_types[0];
+    let outra = union.members[1].resolved_type_id;
+    let erro = ir::validate_union_member_identity(&ir_programa.union_types, union.id, 0, outra)
+        .expect_err("identidade divergente deve ser recusada");
+    assert!(
+        erro.contains("E-IR-UNION-MEMBER-IDENTITY-MISMATCH"),
+        "{erro}"
+    );
+}
+
+#[test]
+fn hr4_validador_recusa_identidade_duplicada_no_registry() {
+    // Duas tags com a mesma identidade resolvida descrevem a mesma união
+    // ambígua que HR4 proíbe.
+    let (ir_programa, _, _, _) = lower(&hr4_fonte_dois_leques("Cor", "Azul"));
+    let mut unions = ir_programa.union_types.clone();
+    let primeira = unions[0].members[0].resolved_type_id;
+    unions[0].members[1].resolved_type_id = primeira;
+    let erro = ir::validate_union_registry(&unions)
+        .expect_err("identidade repetida deve ser recusada no registry");
+    assert!(erro.contains("identidade resolvida"), "{erro}");
+}
+
+#[test]
+fn hr4_encaixe_liga_o_braco_a_identidade_exata_do_membro() {
+    // HR1 continua valendo: o braço tipado carrega a identidade do membro, e é
+    // ela que permite reinjetar o valor sem reescolher a tag.
+    let (ir_programa, _, _, _) = lower(&hr4_fonte_dois_leques("Tom", "Escuro"));
+    let union = &ir_programa.union_types[0];
+    let mut vistos = Vec::new();
+    for function in &ir_programa.functions {
+        for instruction in &function.entry.instructions {
+            if let ir::InstructionIR::UnionMatch(union_match) = instruction {
+                for arm in &union_match.arms {
+                    vistos.push((arm.tag, arm.resolved_member_type_id));
+                }
+            }
+        }
+    }
+    assert_eq!(vistos.len(), union.members.len());
+    for (tag, identidade) in vistos {
+        let membro = union
+            .members
+            .iter()
+            .find(|member| member.tag == tag)
+            .expect("tag do braço pertence ao registry");
+        assert_eq!(membro.resolved_type_id, identidade);
+    }
+}
+
+#[test]
+fn hr4_uniao_de_escalares_continua_intacta() {
+    // Regressão cruzada: a união puramente escalar de HR1 não muda de tags nem
+    // de chaves canônicas por causa da identidade resolvida.
+    let source = r#"
+        pacote main;
+        carinho principal() -> bombom {
+            nova valor: uniao<u8, u64> = (7 virar u8) virar uniao<u8, u64>;
+            encaixe valor {
+                caso u8(n) { mimo 1; }
+                caso u64(n) { mimo 2; }
+            }
+            mimo 0;
+        }
+    "#;
+    assert_eq!(hr1_interpreta(source), Some(1));
+    assert_eq!(
+        hr1_registry_tags(source),
+        vec![(0, "u64".to_string()), (1, "u8".to_string())]
+    );
+}
+
+/// Prelúdio comum das superfícies de propagação: dois `leque`
+/// homorrepresentados, o discriminador que devolve `1` para `Cor` e `2` para
+/// `Tom`, produtores já injetados e produtores do **leque cru**.
+///
+/// Os produtores crus (`cor_crua`/`tom_cru`) existem porque a injeção depois da
+/// chamada é a superfície que realmente exercita a identidade do retorno: se o
+/// retorno perder a identidade, a injeção passa a escolher o membro errado.
+const HR4_PRELUDIO: &str = r#"
+    pacote main;
+    leque Cor { Rosa, Azul }
+    leque Tom { Claro, Escuro }
+    carinho so_cor() -> uniao<Cor, Tom> { mimo Cor.Rosa virar uniao<Cor, Tom>; }
+    carinho so_tom() -> uniao<Cor, Tom> { mimo Tom.Escuro virar uniao<Cor, Tom>; }
+    carinho cor_crua() -> Cor { mimo Cor.Rosa; }
+    carinho tom_cru() -> Tom { mimo Tom.Escuro; }
+    carinho decide(u: uniao<Cor, Tom>) -> bombom {
+        encaixe u {
+            caso Cor(c) { mimo 1; }
+            caso Tom(t) { mimo 2; }
+        }
+        mimo 0;
+    }
+"#;
+
+fn hr4_com_prelude(principal: &str) -> String {
+    format!("{HR4_PRELUDIO}\n    carinho principal() -> bombom {{\n{principal}\n    }}\n")
+}
+
+#[test]
+fn hr4_cadeia_de_apelidos_converge_para_a_mesma_identidade() {
+    // `apelido A2 = A1` e `apelido A1 = Cor` precisam produzir exatamente o
+    // `ResolvedTypeId` de `Cor`: nenhum degrau da cadeia vira identidade.
+    let source = r#"
+        pacote main;
+        leque Cor { Rosa, Azul }
+        leque Tom { Claro, Escuro }
+        apelido A1 = Cor;
+        apelido A2 = A1;
+        carinho principal() -> bombom {
+            nova valor: uniao<A2, Tom> = Cor.Azul virar uniao<A2, Tom>;
+            encaixe valor {
+                caso Cor(c) { mimo 1; }
+                caso Tom(t) { mimo 2; }
+            }
+            mimo 0;
+        }
+    "#;
+    assert_eq!(hr1_interpreta(source), Some(1));
+    assert_eq!(
+        hr1_registry_tags(source),
+        vec![(0, "enum:3:Cor".to_string()), (1, "enum:3:Tom".to_string())]
+    );
+
+    // A tabela do programa não guarda nenhuma identidade derivada do texto do
+    // apelido.
+    let (ir_programa, _, _, _) = lower(source);
+    for entrada in &ir_programa.resolved_types {
+        assert!(
+            entrada.canonical_key != "enum:2:A1" && entrada.canonical_key != "enum:2:A2",
+            "apelido virou identidade: {}",
+            entrada.canonical_key
+        );
+    }
+}
+
+#[test]
+fn hr4_identidade_atravessa_parametro_retorno_e_chamada_direta() {
+    // Parâmetro (`decide`), retorno (`so_tom`) e chamada direta compõem a
+    // mesma cadeia de identidade: o membro escolhido na injeção sobrevive à
+    // fronteira da função.
+    let source = hr4_com_prelude("        mimo decide(so_tom());");
+    assert_eq!(hr1_interpreta(&source), Some(2));
+    let cor = hr4_com_prelude("        mimo decide(so_cor());");
+    assert_eq!(hr1_interpreta(&cor), Some(1));
+}
+
+#[test]
+fn hr4_identidade_atravessa_local_e_atribuicao() {
+    let source = hr4_com_prelude(
+        "        nova muda v = so_cor();\n\
+         \x20       nova antes = decide(v);\n\
+         \x20       v = so_tom();\n\
+         \x20       mimo antes + decide(v) * 10;",
+    );
+    // 1 (Cor, antes da atribuição) + 2*10 (Tom, depois) = 21.
+    assert_eq!(hr1_interpreta(&source), Some(21));
+}
+
+#[test]
+fn hr4_identidade_atravessa_ternario() {
+    let verdadeiro = hr4_com_prelude("        mimo decide(verdade ? so_cor() : so_tom());");
+    assert_eq!(hr1_interpreta(&verdadeiro), Some(1));
+    let falso = hr4_com_prelude("        mimo decide(falso ? so_cor() : so_tom());");
+    assert_eq!(hr1_interpreta(&falso), Some(2));
+
+    // Ternário **antes** da injeção: a identidade do resultado precisa ser a do
+    // leque escolhido, não a representação escalar comum aos dois ramos.
+    let cru = hr4_com_prelude(
+        "        nova escolhido = verdade ? Tom.Claro : Tom.Escuro;\n\
+         \x20       mimo decide(escolhido virar uniao<Cor, Tom>);",
+    );
+    assert_eq!(hr1_interpreta(&cru), Some(2));
+}
+
+#[test]
+fn hr4_identidade_do_retorno_de_leque_sobrevive_a_chamada() {
+    // A injeção acontece **depois** da chamada: é a identidade do retorno
+    // declarado que decide o membro.
+    let tom = hr4_com_prelude("        mimo decide(tom_cru() virar uniao<Cor, Tom>);");
+    assert_eq!(hr1_interpreta(&tom), Some(2));
+    let cor = hr4_com_prelude("        mimo decide(cor_crua() virar uniao<Cor, Tom>);");
+    assert_eq!(hr1_interpreta(&cor), Some(1));
+
+    // Mesma cadeia através de um local intermediário.
+    let via_local = hr4_com_prelude(
+        "        nova valor = tom_cru();\n\
+         \x20       mimo decide(valor virar uniao<Cor, Tom>);",
+    );
+    assert_eq!(hr1_interpreta(&via_local), Some(2));
+}
+
+#[test]
+fn hr4_identidade_atravessa_callable_e_chamada_indireta() {
+    let source = hr4_com_prelude(
+        "        nova f = so_tom;\n\
+         \x20       mimo decide(f());",
+    );
+    assert_eq!(hr1_interpreta(&source), Some(2));
+
+    // Chamada indireta que devolve o leque cru: a identidade do retorno do
+    // callable é o que permite injetar no membro certo depois.
+    let cru = hr4_com_prelude(
+        "        nova g = tom_cru;\n\
+         \x20       mimo decide(g() virar uniao<Cor, Tom>);",
+    );
+    assert_eq!(hr1_interpreta(&cru), Some(2));
+}
+
+#[test]
+fn hr4_identidade_atravessa_closure_e_captura() {
+    // `base` é capturada com a identidade de `Tom`; a injeção dentro do corpo
+    // da closure precisa escolher o membro `Tom`, não o primeiro escalar.
+    let source = hr4_com_prelude(
+        "        nova base = Tom.Claro;\n\
+         \x20       nova g = carinho() -> uniao<Cor, Tom> { mimo base virar uniao<Cor, Tom>; };\n\
+         \x20       mimo decide(g());",
+    );
+    assert_eq!(hr1_interpreta(&source), Some(2));
+
+    // Closure que devolve o leque cru: a identidade precisa sobreviver ao
+    // retorno da closure e chegar à injeção no chamador.
+    let cru = hr4_com_prelude(
+        "        nova base = Tom.Claro;\n\
+         \x20       nova h = carinho() -> Tom { mimo base; };\n\
+         \x20       mimo decide(h() virar uniao<Cor, Tom>);",
+    );
+    assert_eq!(hr1_interpreta(&cru), Some(2));
+}
+
+#[test]
+fn hr4_objeto_de_trato_sem_anotacao_carrega_identidade() {
+    // Sem anotação explícita, a identidade do objeto de trato só pode vir da
+    // materialização e da chamada de método. `TypeIR::TraitObject` não
+    // distingue dois tratos, então o slot precisa carregar `trato<Nome>`.
+    let source = r#"
+        pacote main;
+        trato Medivel { carinho medir(valor: si) -> bombom; }
+        impl Medivel para bombom {
+            carinho medir(valor: bombom) -> bombom { mimo valor; }
+        }
+        carinho principal() -> bombom {
+            nova objeto = 7 virar trato<Medivel>;
+            nova copia = objeto;
+            mimo copia.medir();
+        }
+    "#;
+    let (ir_programa, _, _, _) = lower(source);
+    let principal = ir_programa
+        .functions
+        .iter()
+        .find(|function| function.name == "principal")
+        .expect("função principal");
+    let tratos: Vec<_> = principal
+        .locals
+        .iter()
+        .filter(|local| local.ty == ir::TypeIR::TraitObject)
+        .collect();
+    assert!(!tratos.is_empty(), "esperava slots de trato");
+    for local in tratos {
+        let resolved = local
+            .resolved
+            .unwrap_or_else(|| panic!("slot '{}' sem identidade resolvida", local.slot));
+        let entrada = ir_programa
+            .resolved_types
+            .iter()
+            .find(|entrada| entrada.id == resolved)
+            .expect("identidade presente na tabela");
+        assert_eq!(entrada.representation, ir::TypeIR::TraitObject);
+        assert!(
+            entrada.canonical_key.contains("Medivel"),
+            "{}",
+            entrada.canonical_key
+        );
+    }
+    assert_eq!(hr1_interpreta(source), Some(7));
+}
+
+#[test]
+fn hr4_metodo_de_trato_preserva_a_identidade_do_retorno() {
+    // O retorno declarado do método é um `leque`; a injeção acontece depois da
+    // chamada dinâmica, então a identidade precisa atravessar o despacho.
+    let source = r#"
+        pacote main;
+        leque Cor { Rosa, Azul }
+        leque Tom { Claro, Escuro }
+        trato Fonte { carinho tom(valor: si) -> Tom; }
+        impl Fonte para bombom {
+            carinho tom(valor: bombom) -> Tom { mimo Tom.Escuro; }
+        }
+        carinho decide(u: uniao<Cor, Tom>) -> bombom {
+            encaixe u {
+                caso Cor(c) { mimo 1; }
+                caso Tom(t) { mimo 2; }
+            }
+            mimo 0;
+        }
+        carinho principal() -> bombom {
+            nova objeto = 7 virar trato<Fonte>;
+            mimo decide(objeto.tom() virar uniao<Cor, Tom>);
+        }
+    "#;
+    assert_eq!(hr1_interpreta(source), Some(2));
+}
+
+#[test]
+fn hr4_validador_recusa_chave_canonica_repetida() {
+    // IR deliberadamente inválida: duas entradas com a mesma chave canônica.
+    let entrada = |id: u32, key: &str| ir::ResolvedTypeIR {
+        id: ir::ResolvedTypeId(id),
+        canonical_key: key.to_string(),
+        representation: ir::TypeIR::Bombom,
+        nominal_kind: None,
+        nominal_name: None,
+        pointee: None,
+        element: None,
+        signature: None,
+        union_members: None,
+    };
+    let erro = ir::validate_resolved_type_table(&[entrada(0, "bombom"), entrada(1, "bombom")])
+        .expect_err("chave repetida deve ser recusada");
+    assert!(erro.contains("chave canônica repetida"), "{erro}");
+}
+
+#[test]
+fn hr4_validador_recusa_chave_envenenada() {
+    // Uma chave de identidade perdida nunca pode virar identidade internada.
+    let envenenada = ir::ResolvedTypeIR {
+        id: ir::ResolvedTypeId(0),
+        canonical_key: "?apelido-nao-resolvido:3:Cor".to_string(),
+        representation: ir::TypeIR::Bombom,
+        nominal_kind: None,
+        nominal_name: None,
+        pointee: None,
+        element: None,
+        signature: None,
+        union_members: None,
+    };
+    let erro = ir::validate_resolved_type_table(&[envenenada])
+        .expect_err("chave envenenada deve ser recusada");
+    assert!(erro.contains("identidade perdida"), "{erro}");
+}
+
+#[test]
+fn hr4_internacao_recusa_representacao_divergente_na_mesma_chave() {
+    let mut tabela = ir::ResolvedTypeTable::default();
+    let primeiro = tabela
+        .intern(
+            "bombom".to_string(),
+            ir::TypeIR::Bombom,
+            ir::ResolvedTypeParts::default(),
+        )
+        .expect("primeira internação");
+    let repetida = tabela
+        .intern(
+            "bombom".to_string(),
+            ir::TypeIR::Bombom,
+            ir::ResolvedTypeParts::default(),
+        )
+        .expect("mesma chave, mesma representação");
+    assert_eq!(primeiro, repetida, "a internação é idempotente por chave");
+
+    let erro = tabela
+        .intern(
+            "bombom".to_string(),
+            ir::TypeIR::Verso,
+            ir::ResolvedTypeParts::default(),
+        )
+        .expect_err("representação divergente sob a mesma chave deve ser recusada");
+    assert!(erro.contains("representação"), "{erro}");
+}
+
+#[test]
+fn hr4_tabela_de_identidades_recusa_id_fora_da_posicao() {
+    // A densidade dos IDs é o que permite indexar a tabela pela posição; uma
+    // tabela reordenada depois da internação deixa de ser válida.
+    let entrada = |id: u32, key: &str| ir::ResolvedTypeIR {
+        id: ir::ResolvedTypeId(id),
+        canonical_key: key.to_string(),
+        representation: ir::TypeIR::Bombom,
+        nominal_kind: None,
+        nominal_name: None,
+        pointee: None,
+        element: None,
+        signature: None,
+        union_members: None,
+    };
+    let erro = ir::validate_resolved_type_table(&[entrada(1, "u8"), entrada(0, "bombom")])
+        .expect_err("ID fora da posição deve ser recusado");
+    assert!(erro.contains("fora da posição"), "{erro}");
+}
+
+#[test]
+fn hr4_interpretador_recusa_identidade_de_membro_divergente() {
+    // Programa de máquina deliberadamente inválido: a tag continua correta e a
+    // identidade do membro é trocada. O interpretador tem de recusar em vez de
+    // produzir o valor do membro errado.
+    let (_, _, _, mut machine) = lower(&hr4_com_prelude("        mimo decide(so_tom());"));
+    let mut trocadas = 0usize;
+    for function in machine.functions.iter_mut() {
+        for block in function.blocks.iter_mut() {
+            for instruction in block.code.iter_mut() {
+                if let abstract_machine::MachineInstr::MakeUnion {
+                    resolved_member_type_id,
+                    ..
+                } = instruction
+                {
+                    resolved_member_type_id.0 += 1;
+                    trocadas += 1;
+                }
+            }
+        }
+    }
+    assert!(trocadas > 0, "esperava ao menos uma instrução make_union");
+    let erro = interpreter::run_program_with_args(&machine, &[])
+        .expect_err("identidade divergente deve ser recusada em execução")
+        .to_string();
+    assert!(erro.contains("identidade de membro de união"), "{erro}");
+}
+
+#[test]
+fn hr4_extracao_e_reinjecao_preservam_o_membro() {
+    // O valor desempacotado por `encaixe` reinjetado na mesma união tem de
+    // voltar para a **mesma** tag. Antes de HR4 a reinjeção reescolhia o
+    // primeiro membro de mesma representação.
+    let source = format!(
+        "{HR4_PRELUDIO}\n\
+         carinho reinjeta(u: uniao<Cor, Tom>) -> uniao<Cor, Tom> {{\n\
+         \x20   encaixe u {{\n\
+         \x20       caso Cor(c) {{ mimo c virar uniao<Cor, Tom>; }}\n\
+         \x20       caso Tom(t) {{ mimo t virar uniao<Cor, Tom>; }}\n\
+         \x20   }}\n\
+         \x20   mimo u;\n\
+         }}\n\
+         carinho principal() -> bombom {{\n\
+         \x20   mimo decide(reinjeta(so_cor())) + decide(reinjeta(so_tom())) * 10;\n\
+         }}\n"
+    );
+    // 1 (Cor reinjetado como Cor) + 2*10 (Tom reinjetado como Tom) = 21.
+    assert_eq!(hr1_interpreta(&source), Some(21));
+}
+
+#[test]
+fn hr4_dois_ninhos_homorrepresentados_tem_identidades_distintas() {
+    // `ninho Alfa` e `ninho Beta` compartilham `TypeIR::Struct`. A linguagem
+    // ainda não possui expressão de literal de `ninho`, então a injeção direta
+    // de um valor de ninho é NOT_APPLICABLE; o que precisa valer — e vale — é
+    // que o registry e a tabela mantenham identidades separadas.
+    let source = r#"
+        pacote main;
+        ninho Alfa { a: bombom; }
+        ninho Beta { b: bombom; }
+        carinho decide(u: uniao<Alfa, Beta>) -> bombom {
+            encaixe u {
+                caso Alfa(x) { mimo 1; }
+                caso Beta(y) { mimo 2; }
+            }
+            mimo 0;
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let (ir_programa, _, _, _) = lower(source);
+    let union = &ir_programa.union_types[0];
+    assert_eq!(
+        union
+            .members
+            .iter()
+            .map(|member| member.canonical_member_key.as_str())
+            .collect::<Vec<_>>(),
+        vec!["struct:4:Alfa", "struct:4:Beta"]
+    );
+    assert_ne!(
+        union.members[0].resolved_type_id, union.members[1].resolved_type_id,
+        "dois ninhos distintos não podem compartilhar identidade resolvida"
+    );
+    for member in &union.members {
+        assert_eq!(member.ty, ir::TypeIR::Struct, "mesma categoria operacional");
+        let entrada = ir_programa
+            .resolved_types
+            .iter()
+            .find(|entrada| entrada.id == member.resolved_type_id)
+            .expect("identidade presente na tabela");
+        assert_eq!(entrada.nominal_kind, Some(ir::NominalTypeKindIR::Ninho));
+    }
+}
+
+#[test]
+fn hr4_assinaturas_distintas_de_carinho_nao_colidem() {
+    // `carinho(u8) -> u8` e `carinho(u64) -> u64` compartilham
+    // `TypeIR::Function`; a identidade resolvida separa as duas pela assinatura.
+    let source = r#"
+        pacote main;
+        carinho estreito(v: u8) -> u8 { mimo v; }
+        carinho largo(v: u64) -> u64 { mimo v; }
+        carinho principal() -> bombom {
+            nova a = estreito;
+            nova b = largo;
+            mimo 0;
+        }
+    "#;
+    let (ir_programa, _, _, _) = lower(source);
+    let assinaturas: Vec<_> = ir_programa
+        .resolved_types
+        .iter()
+        .filter(|entrada| entrada.representation == ir::TypeIR::Function)
+        .map(|entrada| entrada.canonical_key.as_str())
+        .collect();
+    assert!(assinaturas.contains(&"fn(2:u8)->2:u8"), "{assinaturas:?}");
+    assert!(assinaturas.contains(&"fn(3:u64)->3:u64"), "{assinaturas:?}");
+}
+
+#[test]
+fn hr4_ponteiros_de_apontados_distintos_nao_colidem() {
+    // `seta<u8>` e `seta<u64>` compartilham `TypeIR::Pointer` e precisam de
+    // identidades distintas, com o apontado registrado na tabela.
+    let source = r#"
+        pacote main;
+        carinho le_estreito(p: seta<u8>) -> bombom { mimo 0; }
+        carinho le_largo(p: seta<u64>) -> bombom { mimo 0; }
+        carinho principal() -> bombom {
+            nova estreito: seta<u8> = alocar(8);
+            liberar(estreito);
+            mimo 0;
+        }
+    "#;
+    let (ir_programa, _, _, _) = lower(source);
+    let ponteiros: Vec<_> = ir_programa
+        .resolved_types
+        .iter()
+        .filter(|entrada| matches!(entrada.representation, ir::TypeIR::Pointer { .. }))
+        .map(|entrada| entrada.canonical_key.as_str())
+        .collect();
+    assert!(ponteiros.contains(&"ptr:0:u8"), "{ponteiros:?}");
+    assert!(ponteiros.contains(&"ptr:0:u64"), "{ponteiros:?}");
+
+    for entrada in ir_programa
+        .resolved_types
+        .iter()
+        .filter(|entrada| matches!(entrada.representation, ir::TypeIR::Pointer { .. }))
+    {
+        let pointee = entrada.pointee.expect("ponteiro registra o apontado");
+        assert!(
+            ir_programa
+                .resolved_types
+                .iter()
+                .any(|outro| outro.id == pointee),
+            "apontado ausente da tabela"
+        );
+    }
+}
