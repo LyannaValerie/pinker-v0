@@ -21,7 +21,7 @@ tags: [linguagem, uniao, tipos, tagged, encaixe]
 aliases:
   - uniao estrutural
   - union types
-summary: Define identidade canônica, injeção explícita, encaixe exaustivo e representação de uma palavra das uniões.
+summary: Define identidade canônica, injeção explícita, encaixe exaustivo, handle público de uma palavra e snapshot integral do payload — escalar, handle opaco ou agregado multi-palavra —, com a distinção explícita entre o que o pipeline representa, o que a sintaxe-fonte constrói e qual evidência executável cobre cada forma.
 -->
 
 Uma união é escrita `uniao<T1, T2, ...>`. Aliases são resolvidos, uniões
@@ -268,7 +268,24 @@ operações checadas.
 
 Os snapshots vivem enquanto o processo vive; o crescimento é limitado por esses
 tetos e não por coleta. Falha de alocação produz diagnóstico controlado, nunca
-abort de alocador.
+abort de alocador, e nenhum handle é publicado quando a alocação falha.
+
+No runtime nativo, os três contadores — descritores, bytes de payload e bytes de
+metadata — formam uma unidade de contabilidade própria. A reserva é uma função
+pura sobre valores:
+
+```text
+reserve(orçamento_corrente, limites, tamanho_do_payload)
+    -> orçamento_novo | motivo_da_recusa
+```
+
+O orçamento corrente entra por valor e o orçamento novo só existe no caminho de
+sucesso: uma recusa não pode alterar contador nenhum, nem aquele que já havia
+passado. O runtime de produção usa os limites canônicos da tabela acima; os
+testes passam limites pequenos pelo mesmo parâmetro, o que permite exercitar
+cada fronteira — último permitido, primeiro acima do teto e overflow de cada
+contador — sem materializar um milhão de descritores. Não existe variável de
+ambiente que altere a política, e debug e release se comportam igual.
 
 ### ABI interna
 
@@ -299,6 +316,47 @@ duas extrações → storages distintos → valores inicialmente iguais
 Esses contratos valem igualmente no interpretador e no caminho nativo, com
 paridade de stdout, stderr, código de saída, braço selecionado e conteúdo
 integral do payload.
+
+### Capacidade do pipeline, superfície-fonte e evidência
+
+A tabela de categorias descreve o que o **pipeline representa**. Isso não é o
+mesmo que o conjunto de valores que a **sintaxe-fonte atual constrói**, e nenhum
+dos dois substitui a evidência executável. As três colunas são distintas e estão
+registradas aqui separadamente.
+
+| forma | pipeline representa | fonte constrói hoje | evidência executável |
+|---|---|---|---|
+| payload escalar | sim | sim | `examples/fase248_unioes_estruturais_valido.pink` |
+| payload handle opaco | sim | sim | `examples/fase248_unioes_estruturais_valido.pink` |
+| array fixo `[bombom; N]` | sim | sim | `examples/hr3_uniao_agregado_imutavel_valido.pink`, `examples/hr3_uniao_extracoes_independentes_valido.pink` |
+| `ninho` como payload | sim | sim | `examples/hr3_uniao_agregados_nominais_valido.pink` |
+| `ninho`s nominais homorrepresentados | sim | sim | `examples/hr3_uniao_agregados_nominais_valido.pink` |
+| reinjeção do payload extraído | sim | sim | `examples/hr3_uniao_agregados_nominais_valido.pink` |
+| mutação do binding extraído | sim | sim | `examples/hr3_uniao_binding_extraido_mutavel_valido.pink` |
+| agregado contendo agregado (`ninho` com array) | sim | parcialmente | `examples/hr3_uniao_agregado_aninhado_valido.pink` e programa IR sintético em `tests/pr411_hr3_terminal_evidence_tests.rs` |
+| array fixo aninhado (`[[T; N]; M]`) | não | não | recusado pela semântica |
+
+O caso parcial tem uma formulação exata. O `ninho` com campo de array fixo é
+injetado, copiado e extraído integralmente pela fonte, e o exemplo versionado
+observa a cabeça e a cauda do agregado — as duas fronteiras que só coincidem se
+o array interno tiver sido copiado inteiro. O que a fonte ainda **não** oferece
+é nome de campo para as células internas: não há construtor de array literal nem
+acesso encadeado a campo agregado.
+
+> O pipeline de payload suporta essa representação e é validado por programas
+> IR/máquina executáveis. A sintaxe-fonte atual ainda não oferece um construtor
+> direto para esse valor.
+
+O programa IR sintético usado nessa prova não é um atalho de classificação: a IR
+vem do lowering real, recebe uma cirurgia mínima nos deslocamentos internos e
+atravessa `ir_validate`, `cfg_ir`, `cfg_ir_validate`, `instr_select`,
+`instr_select_validate`, `abstract_machine` e `abstract_machine_validate` antes
+de executar no interpretador e no binário ELF nativo, célula a célula.
+
+Um binding de braço com payload `ninho` **é** o endereço do seu storage próprio
+e aceita acesso de campo direto (`ninhado.cabeca`). Fora desse binding, o acesso
+de campo continua exigindo a forma `(*ptr).campo`; passar um `ninho` por valor e
+acessar seus campos permanece fora do recorte.
 
 ### Estado da revisão humana
 
