@@ -17,6 +17,7 @@ use crate::error::PinkerError;
 use crate::ir::TypeIR;
 use crate::layout;
 use crate::token::{Position, Span};
+use crate::union_canon;
 use std::collections::{HashMap, HashSet};
 
 // @pinker-nav:start semantic.importacoes.familias
@@ -597,20 +598,15 @@ impl SemanticChecker {
                 })
             }
             Type::Union { members, span } => {
-                let mut canonical = std::collections::BTreeMap::<String, Type>::new();
+                // A canonicalização (achatamento, deduplicação e ordem) vem do
+                // contrato compartilhado em `union_canon`, o mesmo consumido
+                // pelo lowering ao internar o `UnionTypeIR`. Não há chave nem
+                // ordem próprias desta camada.
+                let mut resolved_members = Vec::with_capacity(members.len());
                 for member in members {
-                    let resolved = self.resolve_type_named(member, resolving)?;
-                    if let Type::Union {
-                        members: nested, ..
-                    } = resolved
-                    {
-                        for nested_member in nested {
-                            canonical.insert(Self::type_key(&nested_member), nested_member);
-                        }
-                    } else {
-                        canonical.insert(Self::type_key(&resolved), resolved);
-                    }
+                    resolved_members.push(self.resolve_type_named(member, resolving)?);
                 }
+                let canonical = union_canon::canonicalize_resolved_members(resolved_members);
                 if canonical.len() < 2 {
                     return Err(PinkerError::Semantic {
                         msg: "união estrutural exige ao menos dois membros distintos após canonicalização"
@@ -619,7 +615,7 @@ impl SemanticChecker {
                     });
                 }
                 Ok(Type::Union {
-                    members: canonical.into_values().collect(),
+                    members: canonical,
                     span: *span,
                 })
             }
@@ -1975,16 +1971,6 @@ impl SemanticChecker {
                                 &init_ty,
                                 &let_stmt.init,
                             ) {
-                                if let_stmt.name.starts_with("__encaixe_uniao_")
-                                    && matches!(&resolved_declared_ty, Type::Union { .. })
-                                    && matches!(&init_ty, Type::Union { .. })
-                                {
-                                    return Err(PinkerError::Semantic {
-                                        msg: "encaixe de união deve ser exaustivo: os braços devem cobrir exatamente todos os membros canônicos"
-                                            .to_string(),
-                                        span: let_stmt.init.span,
-                                    });
-                                }
                                 return Err(PinkerError::Semantic {
                                     msg: format!(
                                         "tipo de inicialização incompatível para '{}': esperado '{}', encontrado '{}'",
@@ -2287,6 +2273,7 @@ impl SemanticChecker {
                         validate_inline_asm_chunk(chunk, inline_asm_stmt.span)?;
                     }
                 }
+                Stmt::UnionMatch(union_match) => self.check_union_match(union_match)?,
                 Stmt::Expr(expr) => {
                     self.check_expr(expr)?;
                 }
@@ -2300,6 +2287,88 @@ impl SemanticChecker {
         Ok(())
     }
     // @pinker-nav:end semantic.comandos.verificacao
+
+    // @pinker-nav:start semantic.unioes.encaixe
+    // @pinker-nav:domain unioes
+    // @pinker-nav:layer semantic
+    // @pinker-nav:summary Verificação de `encaixe` de união: resolve o tipo do scrutinee e o tipo de cada braço integralmente (apelidos inclusos), deriva a chave canônica compartilhada de `union_canon`, exige que cada braço pertença à união, rejeita duplicata após a resolução (dois apelidos do mesmo tipo canônico são o mesmo membro), exige cobertura exata dos membros canônicos e abre um escopo por braço com o binding declarado no tipo resolvido do membro. Nenhuma tag é calculada ou armazenada aqui — a tag pertence ao registry internado pelo lowering.
+    fn check_union_match(&mut self, union_match: &UnionMatchStmt) -> Result<(), PinkerError> {
+        let scrutinee_ty = self.check_value_expr(
+            &union_match.scrutinee,
+            "resultado de função sem retorno não pode ser inspecionado por 'encaixe'",
+        )?;
+        let scrutinee_ty = self.resolve_type_or_error(&scrutinee_ty)?;
+        let Type::Union {
+            members: canonical_members,
+            ..
+        } = &scrutinee_ty
+        else {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "'encaixe' de união exige scrutinee de união estrutural; encontrado '{}'",
+                    scrutinee_ty.name()
+                ),
+                span: union_match.scrutinee.span,
+            });
+        };
+
+        // Cada braço é associado ao membro canônico pelo **tipo resolvido**.
+        // O spelling original (o nome do apelido escrito) é preservado apenas
+        // para diagnóstico.
+        let mut covered = HashSet::<String>::new();
+        let mut arm_members = Vec::with_capacity(union_match.arms.len());
+        for arm in &union_match.arms {
+            let resolved_member = self.resolve_type_or_error(&arm.member_type)?;
+            let key = union_canon::member_key(&resolved_member);
+            let Some(index) = union_canon::canonical_member_index(canonical_members, &key) else {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "braço '{}' de 'encaixe' não é membro da união '{}'",
+                        arm.member_type.name(),
+                        scrutinee_ty.name()
+                    ),
+                    span: arm.span,
+                });
+            };
+            if !covered.insert(key.canonical_type_key.clone()) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "membro '{}' repetido no 'encaixe' de união após resolução de apelidos",
+                        canonical_members[index].name()
+                    ),
+                    span: arm.span,
+                });
+            }
+            arm_members.push(canonical_members[index].clone());
+        }
+
+        if covered.len() != canonical_members.len() {
+            let faltantes = canonical_members
+                .iter()
+                .filter(|member| !covered.contains(union_canon::member_key(member).as_str()))
+                .map(|member| member.name().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "encaixe de união deve ser exaustivo: os braços devem cobrir exatamente todos os membros canônicos; ausente(s): {faltantes}"
+                ),
+                span: union_match.span,
+            });
+        }
+
+        for (arm, member_ty) in union_match.arms.iter().zip(arm_members) {
+            self.push_scope();
+            let checked = self
+                .declare_var(&arm.binding, member_ty.with_span(arm.span), false, arm.span)
+                .and_then(|()| self.check_block(&arm.body, true));
+            self.pop_scope();
+            checked?;
+        }
+
+        Ok(())
+    }
+    // @pinker-nav:end semantic.unioes.encaixe
 
     // @pinker-nav:start semantic.fluxo.retornos
     // @pinker-nav:domain fluxo
@@ -3599,65 +3668,11 @@ impl SemanticChecker {
             });
         }
 
-        if name == "__pinker_internal_uniao_tag" {
-            if args.len() != 1 {
-                return Err(PinkerError::Semantic {
-                    msg: "intrínseca interna de tag de união exige um argumento".to_string(),
-                    span: expr_span,
-                });
-            }
-            let arg_ty = self.check_value_expr(
-                &args[0],
-                "resultado nulo não pode ser inspecionado por encaixe",
-            )?;
-            if !matches!(arg_ty, Type::Union { .. }) {
-                return Err(PinkerError::Semantic {
-                    msg: "tag de união exige valor de união estrutural".to_string(),
-                    span: args[0].span,
-                });
-            }
-            return Ok(Type::Bombom(expr_span));
-        }
-        if name == "__pinker_internal_uniao_payload_b"
-            || name == "__pinker_internal_uniao_payload_v"
-        {
-            if args.len() != 2 {
-                return Err(PinkerError::Semantic {
-                    msg: "intrínseca interna de payload de união exige união e tag".to_string(),
-                    span: expr_span,
-                });
-            }
-            let arg_ty =
-                self.check_value_expr(&args[0], "resultado nulo não pode ser aberto por encaixe")?;
-            let Type::Union { members, .. } = arg_ty else {
-                return Err(PinkerError::Semantic {
-                    msg: "payload de união exige valor de união estrutural".to_string(),
-                    span: args[0].span,
-                });
-            };
-            let ExprKind::IntLit(tag) = args[1].kind else {
-                return Err(PinkerError::Semantic {
-                    msg: "tag de payload de união deve ser literal interno".to_string(),
-                    span: args[1].span,
-                });
-            };
-            let member = members
-                .get(tag as usize)
-                .ok_or_else(|| PinkerError::Semantic {
-                    msg: "tag de payload não pertence à união".to_string(),
-                    span: args[1].span,
-                })?;
-            if name == "__pinker_internal_uniao_payload_v" {
-                if !matches!(member, Type::Verso(_)) {
-                    return Err(PinkerError::Semantic {
-                        msg: "payload verso solicitado para membro não-verso".to_string(),
-                        span: expr_span,
-                    });
-                }
-                return Ok(Type::Verso(expr_span));
-            }
-            return Ok(Type::Bombom(expr_span));
-        }
+        // As operações de tag e extração de união **não** são chamadas da
+        // linguagem: são nós tipados da IR (`ValueIR::UnionTag` e
+        // `ValueIR::UnionExtract`) criados pelo lowering a partir de
+        // `Stmt::UnionMatch`. Não há intrínseca de união chamável aqui, e o
+        // namespace `__pinker_internal_` permanece recusado à fonte.
 
         // Intrínsecas internas do desugaring de `encaixe` (Fases 209–210).
         if name == "__pinker_internal_leque_tag" {
