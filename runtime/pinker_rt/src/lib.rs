@@ -1395,7 +1395,7 @@ pub unsafe extern "C" fn pinker_leque_carga(l: *mut u8, tag: u64, indice: u64) -
 // @pinker-nav:start runtime.unioes.descritor
 // @pinker-nav:domain unioes
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Descritor imutável de união estrutural com identidade internada, tag determinística, layout validado e snapshot de uma palavra; criação e leitura usam uma ABI interna separada da memória pública.
+// @pinker-nav:summary Descritor imutável de união estrutural com identidade internada, tag determinística, layout validado e snapshot integral do payload — escalar, handle opaco ou agregado multi-palavra copiado byte a byte para storage próprio do descritor; a contabilidade de descritores, bytes de payload e bytes de metadata é feita por uma unidade pura e atômica (`union_budget_reserve`), e criação e leitura usam uma ABI interna separada da memória pública.
 /// Marca do descritor. Um handle que não a apresente não é um descritor criado
 /// por este runtime, e nenhuma leitura adicional é feita nele.
 const UNION_MAGIC: u64 = 0x504b_5f55_4e49_4f31;
@@ -1427,12 +1427,108 @@ struct PinkerUnionDescriptor {
     allocation_align: u64,
 }
 
+/// Contabilidade corrente dos recursos de união.
+///
+/// É um valor puro: não conhece alocador, mutex nem handle. Isso permite provar
+/// cada fronteira de orçamento sem materializar um milhão de descritores e sem
+/// atravessar a fronteira fatal de `erro_fatal`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+struct UnionBudget {
+    descriptors: u64,
+    payload_bytes: u64,
+    metadata_bytes: u64,
+}
+
+/// Tetos aplicáveis a um `UnionBudget`.
+///
+/// O runtime de produção usa exclusivamente [`UNION_BUDGET_LIMITS`], derivado
+/// das constantes canônicas. Os testes passam limites pequenos pelo mesmo
+/// parâmetro — não há variável de ambiente e o comportamento não muda entre
+/// debug e release.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct UnionBudgetLimits {
+    max_descriptors: u64,
+    max_payload_bytes: u64,
+    max_metadata_bytes: u64,
+}
+
+/// Motivo estável de uma reserva recusada.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UnionBudgetError {
+    Descriptors,
+    PayloadBytes,
+    MetadataBytes,
+    DescriptorOverflow,
+    PayloadOverflow,
+    MetadataOverflow,
+}
+
+impl UnionBudgetError {
+    /// Mensagem do diagnóstico fatal correspondente.
+    fn message(self) -> &'static str {
+        match self {
+            UnionBudgetError::Descriptors => "orçamento de descritores de união esgotado",
+            UnionBudgetError::PayloadBytes => "orçamento de bytes de payload de união esgotado",
+            UnionBudgetError::MetadataBytes => {
+                "orçamento de metadata de descritores de união esgotado"
+            }
+            UnionBudgetError::DescriptorOverflow => "overflow no orçamento de descritores de união",
+            UnionBudgetError::PayloadOverflow => "overflow no orçamento de bytes de união",
+            UnionBudgetError::MetadataOverflow => "overflow no orçamento de metadata de união",
+        }
+    }
+}
+
+/// Limites canônicos do runtime de produção.
+const UNION_BUDGET_LIMITS: UnionBudgetLimits = UnionBudgetLimits {
+    max_descriptors: MAX_UNION_DESCRIPTORS,
+    max_payload_bytes: MAX_UNION_TOTAL_PAYLOAD_BYTES,
+    max_metadata_bytes: MAX_UNION_METADATA_BYTES,
+};
+
+/// Reserva os recursos de um descritor novo.
+///
+/// A operação é **atômica por construção**: o orçamento corrente é um parâmetro
+/// por valor e o novo orçamento só existe no caminho `Ok`. Uma recusa não pode
+/// alterar o estado do chamador porque nada foi escrito.
+fn union_budget_reserve(
+    current: UnionBudget,
+    limits: UnionBudgetLimits,
+    payload_size: u64,
+) -> Result<UnionBudget, UnionBudgetError> {
+    let descriptors = current
+        .descriptors
+        .checked_add(1)
+        .ok_or(UnionBudgetError::DescriptorOverflow)?;
+    if descriptors > limits.max_descriptors {
+        return Err(UnionBudgetError::Descriptors);
+    }
+    let payload_bytes = current
+        .payload_bytes
+        .checked_add(payload_size)
+        .ok_or(UnionBudgetError::PayloadOverflow)?;
+    if payload_bytes > limits.max_payload_bytes {
+        return Err(UnionBudgetError::PayloadBytes);
+    }
+    let metadata_bytes = current
+        .metadata_bytes
+        .checked_add(UNION_DESCRIPTOR_METADATA_BYTES)
+        .ok_or(UnionBudgetError::MetadataOverflow)?;
+    if metadata_bytes > limits.max_metadata_bytes {
+        return Err(UnionBudgetError::MetadataBytes);
+    }
+    Ok(UnionBudget {
+        descriptors,
+        payload_bytes,
+        metadata_bytes,
+    })
+}
+
 struct EstadoUnioes {
     /// Handles criados por este runtime. Um handle arbitrário nunca é
     /// dereferenciado antes de constar aqui.
     descritores: std::collections::HashSet<usize>,
-    bytes_de_payload: u64,
-    bytes_de_metadata: u64,
+    orcamento: UnionBudget,
 }
 
 fn estado_unioes() -> &'static Mutex<EstadoUnioes> {
@@ -1440,8 +1536,7 @@ fn estado_unioes() -> &'static Mutex<EstadoUnioes> {
     UNIOES.get_or_init(|| {
         Mutex::new(EstadoUnioes {
             descritores: std::collections::HashSet::new(),
-            bytes_de_payload: 0,
-            bytes_de_metadata: 0,
+            orcamento: UnionBudget::default(),
         })
     })
 }
@@ -1525,27 +1620,12 @@ pub unsafe extern "C" fn pinker_uniao_criar(
         let mut estado = estado_unioes()
             .lock()
             .unwrap_or_else(|_| erro_fatal("estado de uniões corrompido"));
-        let descritores = estado.descritores.len() as u64;
-        if descritores >= MAX_UNION_DESCRIPTORS {
-            erro_fatal("orçamento de descritores de união esgotado");
+        // A reserva é decidida fora do estado: ou o orçamento novo substitui o
+        // antigo por inteiro, ou nada é escrito.
+        match union_budget_reserve(estado.orcamento, UNION_BUDGET_LIMITS, payload_size) {
+            Ok(orcamento) => estado.orcamento = orcamento,
+            Err(erro) => erro_fatal(erro.message()),
         }
-        let Some(bytes) = estado.bytes_de_payload.checked_add(payload_size) else {
-            erro_fatal("overflow no orçamento de bytes de união");
-        };
-        if bytes > MAX_UNION_TOTAL_PAYLOAD_BYTES {
-            erro_fatal("orçamento de bytes de payload de união esgotado");
-        }
-        let Some(metadata) = estado
-            .bytes_de_metadata
-            .checked_add(UNION_DESCRIPTOR_METADATA_BYTES)
-        else {
-            erro_fatal("overflow no orçamento de metadata de união");
-        };
-        if metadata > MAX_UNION_METADATA_BYTES {
-            erro_fatal("orçamento de metadata de descritores de união esgotado");
-        }
-        estado.bytes_de_payload = bytes;
-        estado.bytes_de_metadata = metadata;
     }
 
     let Ok(layout) = Layout::from_size_align(allocation_size as usize, allocation_align as usize)
@@ -3356,6 +3436,187 @@ mod tests {
             .expect("executar filho de teste")
     }
 
+    /// Limites minúsculos usados para provar cada fronteira sem alocar nada.
+    const LIMITES_DE_TESTE: UnionBudgetLimits = UnionBudgetLimits {
+        max_descriptors: 2,
+        max_payload_bytes: 40,
+        max_metadata_bytes: 2 * UNION_DESCRIPTOR_METADATA_BYTES,
+    };
+
+    /// HR3/GAP4: o último descritor permitido é aceito e o primeiro acima do
+    /// teto é recusado, sem materializar um milhão de descritores.
+    #[test]
+    fn uniao_budget_fronteira_de_descritores() {
+        let no_limite = UnionBudget {
+            descriptors: LIMITES_DE_TESTE.max_descriptors - 1,
+            payload_bytes: 0,
+            metadata_bytes: 0,
+        };
+        let aceito = union_budget_reserve(no_limite, LIMITES_DE_TESTE, 8)
+            .expect("o último descritor permitido é aceito");
+        assert_eq!(aceito.descriptors, LIMITES_DE_TESTE.max_descriptors);
+
+        let acima = UnionBudget {
+            descriptors: LIMITES_DE_TESTE.max_descriptors,
+            ..no_limite
+        };
+        assert_eq!(
+            union_budget_reserve(acima, LIMITES_DE_TESTE, 8),
+            Err(UnionBudgetError::Descriptors),
+            "o primeiro descritor acima do limite é recusado"
+        );
+    }
+
+    /// HR3/GAP4: o último byte de payload permitido é aceito e o primeiro acima
+    /// do teto é recusado.
+    #[test]
+    fn uniao_budget_fronteira_de_bytes_de_payload() {
+        let base = UnionBudget {
+            descriptors: 0,
+            payload_bytes: LIMITES_DE_TESTE.max_payload_bytes - 8,
+            metadata_bytes: 0,
+        };
+        let aceito = union_budget_reserve(base, LIMITES_DE_TESTE, 8)
+            .expect("o último byte permitido é aceito");
+        assert_eq!(aceito.payload_bytes, LIMITES_DE_TESTE.max_payload_bytes);
+
+        assert_eq!(
+            union_budget_reserve(base, LIMITES_DE_TESTE, 9),
+            Err(UnionBudgetError::PayloadBytes),
+            "o primeiro byte acima do limite é recusado"
+        );
+    }
+
+    /// HR3/GAP4: a última metadata permitida é aceita e a primeira acima do teto
+    /// é recusada, mesmo com payload dentro do orçamento.
+    #[test]
+    fn uniao_budget_fronteira_de_metadata() {
+        let base = UnionBudget {
+            descriptors: 0,
+            payload_bytes: 0,
+            metadata_bytes: LIMITES_DE_TESTE.max_metadata_bytes - UNION_DESCRIPTOR_METADATA_BYTES,
+        };
+        let aceito = union_budget_reserve(base, LIMITES_DE_TESTE, 8)
+            .expect("a última metadata permitida é aceita");
+        assert_eq!(aceito.metadata_bytes, LIMITES_DE_TESTE.max_metadata_bytes);
+
+        let acima = UnionBudget {
+            metadata_bytes: LIMITES_DE_TESTE.max_metadata_bytes,
+            ..base
+        };
+        assert_eq!(
+            union_budget_reserve(acima, LIMITES_DE_TESTE, 8),
+            Err(UnionBudgetError::MetadataBytes),
+            "a primeira metadata acima do limite é recusada"
+        );
+    }
+
+    /// HR3/GAP4: cada contador detecta overflow antes de qualquer comparação com
+    /// o teto, e o overflow é diagnóstico, não pânico.
+    #[test]
+    fn uniao_budget_detecta_overflow_de_cada_contador() {
+        let ilimitado = UnionBudgetLimits {
+            max_descriptors: u64::MAX,
+            max_payload_bytes: u64::MAX,
+            max_metadata_bytes: u64::MAX,
+        };
+        assert_eq!(
+            union_budget_reserve(
+                UnionBudget {
+                    descriptors: u64::MAX,
+                    payload_bytes: 0,
+                    metadata_bytes: 0,
+                },
+                ilimitado,
+                8,
+            ),
+            Err(UnionBudgetError::DescriptorOverflow)
+        );
+        assert_eq!(
+            union_budget_reserve(
+                UnionBudget {
+                    descriptors: 0,
+                    payload_bytes: u64::MAX,
+                    metadata_bytes: 0,
+                },
+                ilimitado,
+                1,
+            ),
+            Err(UnionBudgetError::PayloadOverflow)
+        );
+        assert_eq!(
+            union_budget_reserve(
+                UnionBudget {
+                    descriptors: 0,
+                    payload_bytes: 0,
+                    metadata_bytes: u64::MAX,
+                },
+                ilimitado,
+                8,
+            ),
+            Err(UnionBudgetError::MetadataOverflow)
+        );
+    }
+
+    /// HR3/GAP4: uma reserva recusada não altera o orçamento corrente — nem no
+    /// contador que passou antes do que falhou.
+    #[test]
+    fn uniao_budget_recusa_e_atomica() {
+        let antes = UnionBudget {
+            descriptors: 0,
+            payload_bytes: LIMITES_DE_TESTE.max_payload_bytes,
+            metadata_bytes: 0,
+        };
+        let copia = antes;
+        assert_eq!(
+            union_budget_reserve(antes, LIMITES_DE_TESTE, 1),
+            Err(UnionBudgetError::PayloadBytes),
+            "a recusa vem do contador de bytes, depois de descritores passar"
+        );
+        assert_eq!(
+            antes, copia,
+            "o orçamento de entrada permanece byte a byte idêntico após a recusa"
+        );
+
+        // O runtime de produção usa os limites canônicos; a unidade é a mesma.
+        assert_eq!(UNION_BUDGET_LIMITS.max_descriptors, MAX_UNION_DESCRIPTORS);
+        assert_eq!(
+            UNION_BUDGET_LIMITS.max_payload_bytes,
+            MAX_UNION_TOTAL_PAYLOAD_BYTES
+        );
+        assert_eq!(
+            UNION_BUDGET_LIMITS.max_metadata_bytes,
+            MAX_UNION_METADATA_BYTES
+        );
+    }
+
+    /// HR3/GAP3: o binding extraído tem storage próprio. Modificar o primeiro
+    /// destino não altera o snapshot, a segunda extração recebe os bytes
+    /// originais e os dois destinos ocupam endereços distintos.
+    #[test]
+    fn uniao_mutacao_do_binding_extraido_nao_altera_o_snapshot() {
+        let origem: [u8; 32] = std::array::from_fn(|indice| (indice as u8).wrapping_mul(3));
+        let handle = unsafe { pinker_uniao_criar(21, 1, 32, 8, origem.as_ptr()) };
+        assert!(!handle.is_null());
+
+        let mut a: [u8; 32] = [0; 32];
+        unsafe { pinker_uniao_copiar_payload(handle, 21, 1, 32, 8, a.as_mut_ptr()) };
+        assert_eq!(a, origem, "a primeira extração devolve o snapshot integral");
+
+        // Mutação integral do binding extraído.
+        a = [0xC3; 32];
+
+        let mut b: [u8; 32] = [0; 32];
+        unsafe { pinker_uniao_copiar_payload(handle, 21, 1, 32, 8, b.as_mut_ptr()) };
+        assert_eq!(b, origem, "a segunda extração conserva os bytes originais");
+        assert_ne!(
+            a.as_ptr() as usize,
+            b.as_ptr() as usize,
+            "as duas extrações usam storages distintos"
+        );
+        assert_eq!(unsafe { pinker_uniao_tag(handle, 21) }, 1);
+    }
+
     /// HR3: falha de alocação do payload produz diagnóstico controlado, não
     /// abort de alocador. A injeção é exclusivamente interna ao teste — não há
     /// variável de ambiente que altere a política documentada em execução.
@@ -3438,6 +3699,36 @@ mod tests {
             let stderr = String::from_utf8_lossy(&saida.stderr);
             assert!(stderr.contains(esperado), "modo {modo}: {stderr}");
         }
+    }
+
+    /// HR3/GAP4: quando a alocação falha, nenhum handle é publicado. O filho
+    /// imprimiria o handle em stdout se a criação tivesse devolvido; a saída
+    /// vazia é a evidência de que nada foi exposto nem registrado.
+    #[cfg(unix)]
+    #[test]
+    fn uniao_falha_de_alocacao_nao_publica_handle() {
+        if std::env::var_os("PINKER_RT_TESTE_UNIAO_FILHO").is_some() {
+            FALHA_ALOCACAO_UNIAO.store(true, std::sync::atomic::Ordering::SeqCst);
+            let origem: [u8; 8] = [0; 8];
+            let handle = unsafe { pinker_uniao_criar(31, 0, 8, 8, origem.as_ptr()) };
+            println!("handle_publicado={}", handle as usize);
+            unreachable!("a criação deveria ter terminado o processo");
+        }
+        let saida = filho_uniao(
+            "alocacao_sem_handle",
+            "tests::uniao_falha_de_alocacao_nao_publica_handle",
+        );
+        assert_eq!(saida.status.code(), Some(1), "saída controlada");
+        let stdout = String::from_utf8_lossy(&saida.stdout);
+        assert!(
+            !stdout.contains("handle_publicado="),
+            "nenhum handle pode ser publicado: {stdout}"
+        );
+        let stderr = String::from_utf8_lossy(&saida.stderr);
+        assert!(
+            stderr.contains("alocação de descritor de união estrutural falhou"),
+            "{stderr}"
+        );
     }
 
     /// HR3: um handle que não foi criado por este runtime nunca é
