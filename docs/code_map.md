@@ -37,7 +37,8 @@ Referência rápida para localizar a camada certa antes de editar.
 - ponteiros crus de função (Fase 245): formação em `src/parser.rs`, contrato em `src/semantic.rs`, lowering em `src/ir.rs`, execução determinística em `src/interpreter.rs` e ABI indireta em `src/backend_s.rs`
 - memória pública (Fase 246): semântica/lowering em `src/semantic.rs` e `src/ir.rs`, regiões esparsas em `src/interpreter.rs`, validação nativa de vida/limites/alinhamento e domínios em `runtime/pinker_rt/src/lib.rs`
 - assembly inline (Fase 247): `sussurro` atravessa AST, IR, CFG, seleção e máquina; validação em `src/semantic.rs`, erro hospedado em `src/interpreter.rs` e emissão GNU Intel x86-64 em `src/backend_s.rs`
-- uniões estruturais (Fase 248): canonicalização em `src/semantic.rs`, registry internado em `src/ir.rs`, preservação/validação nas camadas intermediárias, descritores hospedados em `src/interpreter.rs` e ABI interna em `runtime/pinker_rt/src/lib.rs`
+- uniões estruturais (Fase 248): contrato normativo único de canonicalização em `src/union_canon.rs`, consumido pela semântica (`src/semantic.rs`) e pelo lowering (`src/ir.rs`); registry internado em `src/ir.rs`, preservação/validação nas camadas intermediárias, descritores hospedados em `src/interpreter.rs` e ABI interna em `runtime/pinker_rt/src/lib.rs`
+- `encaixe` de união tipado (HR1 da revisão humana da PR #411): nó próprio na AST (`src/ast.rs`), preservação no parser (`src/parser.rs`), resolução de apelidos e cobertura canônica em `src/semantic.rs`, associação ao registry e operações internas tipadas (`UnionMatch`/`UnionTag`/`UnionExtract`) em `src/ir.rs`, propagação por `src/cfg_ir.rs`, `src/instr_select.rs` e `src/abstract_machine.rs`, execução direta em `src/interpreter.rs` e escolha do símbolo de ABI apenas em `src/backend_s.rs`
 - boot/freestanding: `src/boot.rs`
 - CLI: `src/main.rs`
 
@@ -54,6 +55,7 @@ Referência rápida para localizar a camada certa antes de editar.
 - máquina/runtime: `tests/abstract_machine_tests.rs`, `tests/abstract_machine_stack_tests.rs`, `tests/interpreter_tests.rs`
 - backends: `tests/backend_text_tests.rs`, `tests/backend_s_tests.rs`, `tests/backend_s_external_toolchain_tests.rs`
 - Fases 245–246: `tests/phase245_246_tests.rs`
+- Fases 247–248 e correções da revisão humana da PR #411: `tests/phase247_248_tests.rs`
 - CLI/saída: `tests/output_tests.rs`, `tests/editor_tui_tests.rs`
 
 ## Docs que costumam acompanhar mudança funcional

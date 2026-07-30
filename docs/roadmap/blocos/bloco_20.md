@@ -91,7 +91,7 @@ Cada frente pode exigir várias fases, mas nenhuma fase fecha como stub ou demon
 
 | # | Item | Inspiração |
 |---|---|---|
-| 15 | Union types / tagged unions | C, C++, Rust — **entregue na Fase 248** com `uniao<T...>`, canonicalização, tags determinísticas, injeção explícita e `encaixe` exaustivo |
+| 15 | Union types / tagged unions | C, C++, Rust — **entregue na Fase 248** com `uniao<T...>`, canonicalização, tags determinísticas, injeção explícita e `encaixe` exaustivo; sob correção da revisão humana da PR #411: `encaixe` já é construto tipado com tags exclusivamente do registry canônico, e identidade nominal na injeção e payloads multi-palavra seguem abertos |
 | 16 | Tuplas | Python, Rust, TS |
 | 17 | Inferência de tipo local | TS, Rust, C# |
 

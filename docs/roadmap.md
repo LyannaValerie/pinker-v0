@@ -51,6 +51,9 @@ O bloco executa em **dois eixos** (Doc-41): **Eixo A — linguagem** (11 faixas,
 Os itens 12–14 da Faixa 3 foram entregues nas Fases 245–247 com ponteiros crus
 de função, memória explícita e assembly inline. O item 15 da Faixa 4 foi
 entregue na Fase 248 com uniões estruturais tagged; o item 16 não foi iniciado.
+A revisão humana da PR #411 mantém a Fase 248 sob correção: `encaixe` já é um
+construto tipado com tags exclusivamente do registry canônico, mas a identidade
+nominal na injeção e os payloads multi-palavra continuam abertos.
 
 O contrato de ambientes da Fase 243 usa hoje uma palavra por captura (`quantidade * palavra`, com overflow verificado). Uma futura representação multi-palavra deverá alocar o tamanho final alinhado do layout, derivado do tamanho, alinhamento, offset e padding de cada captura e do alinhamento final, com overflow verificado em cada passo; soma simples de tamanhos e teste apenas funcional não atendem ao gate direto de underallocation.
 

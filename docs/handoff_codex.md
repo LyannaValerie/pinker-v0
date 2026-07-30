@@ -191,6 +191,14 @@ Histórico completo por fase: `docs/history/phases/`.
   externamente, memória pública limitada com proveniência, arquivos por
   descritor, subprocessos determinísticos, saída uniforme e YAML canônico. A
   autoridade terminal de revisão e merge permanece humana.
+- A revisão humana da PR #411 é corrigida em runs separados. Já entregues: o
+  bypass de diretiva em `sussurro` (HR2), a reserva do namespace
+  `__pinker_internal_` para identificadores da fonte (HR5) e o `encaixe` de
+  união tipado com tags exclusivamente do registry canônico (HR1, que também
+  fecha a parcela de HR5 referente a chamadas internas na AST/IR). Continuam
+  **abertos**: a identidade nominal ambígua na injeção de união e a
+  representação de payloads multi-palavra. O head da PR #411 não deve ser
+  mergeado enquanto esses dois achados estiverem abertos.
 - `alocar`/`liberar` é mecanismo separado da política de lifetime dos valores internos que usam heap; a API pública não libera ambientes de closure, descritores de callable, snapshots de trato, coleções ou strings.
 - Qualquer fase que toque o layout ou o tamanho do ambiente deve incluir gate de underallocation que observe diretamente os bytes solicitados por instrumentação, metadado, canário ou fronteira de arredondamento; resultado funcional isolado não é evidência suficiente. No recorte atual de uma palavra por captura, o tamanho exigido é `capturas * tamanho_da_palavra`, com overflow verificado. Para capturas futuras multi-palavra, deve ser o tamanho final alinhado do ambiente: tamanho e alinhamento de cada captura, offset alinhado, padding intermediário, alinhamento final e toda aritmética com detecção de overflow; soma simples dos tamanhos é insuficiente.
 - O item 5 pode avançar para diagnósticos enriquecidos ou métodos utilitários; o item 4 pode avançar apenas em extensões fora do contrato 244. Em qualquer caso, sem recorte mínimo automático, com lowering nativo obrigatório e com fatia vertical utilizável.

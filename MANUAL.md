@@ -697,6 +697,15 @@ da fonte que o use — em declaração ou em referência — é recusado com
 `virar` explícito e a abertura usa `encaixe` com um braço por membro, sem
 `senao`. O handle ocupa uma palavra e tem lifetime monotônico nesta fase.
 
+`encaixe` é preservado como construto tipado: o parser guarda o scrutinee e o
+tipo de cada braço **como escrito**, sem resolver apelidos e sem calcular tags.
+Os apelidos são resolvidos antes da associação dos braços, a cobertura é
+validada depois da resolução (dois apelidos do mesmo tipo canônico são o mesmo
+membro e são recusados como duplicata) e as tags pertencem exclusivamente ao
+registry canônico — o nome do apelido, a ordem dos braços e a ordem textual da
+união não definem tag alguma. Ler a tag e abrir o payload são operações internas
+tipadas do compilador, não chamadas da linguagem.
+
 O interpretador limita a execução a 64 chamadas Pinker simultâneas. O retorno
 de `principal` não é impresso: seus 8 bits baixos formam o exit status.
 
