@@ -1592,7 +1592,8 @@ fn hr1_execucao_nativa_tem_paridade_de_stdout_com_o_interpretador() {
 
 #[test]
 fn hr1_valores_de_borda_do_payload_atual() {
-    // Zero e o topo de cada largura suportada pelo payload de uma palavra.
+    // Zero e o topo de cada largura escalar suportada como payload. O payload
+    // não é limitado a uma palavra: agregados são copiados integralmente.
     let casos = [
         ("u8", "0"),
         ("u8", "255"),

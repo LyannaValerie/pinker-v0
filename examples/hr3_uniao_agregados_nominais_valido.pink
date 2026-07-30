@@ -1,0 +1,70 @@
+pacote main;
+
+// HR3: `Alfa` e `Beta` compartilham representação (`TypeIR::Struct`), tamanho e
+// alinhamento; só a identidade nominal os separa. A união escolhe o membro pelo
+// `ResolvedTypeId` da origem, nunca pela categoria operacional, e o `encaixe`
+// entrega o payload integral do membro exato.
+ninho Alfa {
+    cabeca: bombom;
+    cauda: bombom;
+}
+
+ninho Beta {
+    cabeca: bombom;
+    cauda: bombom;
+}
+
+carinho principal() -> bombom {
+    nova origem_alfa: seta<Alfa> = alocar(16) virar seta<Alfa>;
+    (*origem_alfa).cabeca = 41;
+    (*origem_alfa).cauda = 42;
+
+    nova origem_beta: seta<Beta> = alocar(16) virar seta<Beta>;
+    (*origem_beta).cabeca = 51;
+    (*origem_beta).cauda = 52;
+
+    nova de_alfa: uniao<Alfa, Beta> = (*origem_alfa) virar uniao<Alfa, Beta>;
+    nova de_beta: uniao<Alfa, Beta> = (*origem_beta) virar uniao<Alfa, Beta>;
+
+    encaixe de_alfa {
+        caso Alfa(alfa) {
+            falar(alfa.cabeca);
+            falar(alfa.cauda);
+        }
+        caso Beta(beta) {
+            falar(998);
+        }
+    }
+
+    encaixe de_beta {
+        caso Alfa(alfa) {
+            falar(997);
+        }
+        caso Beta(beta) {
+            falar(beta.cabeca);
+            falar(beta.cauda);
+        }
+    }
+
+    // Reinjeção: o payload extraído de `Alfa` volta para a mesma união e
+    // preserva identidade de membro e conteúdo.
+    encaixe de_alfa {
+        caso Alfa(alfa) {
+            nova reinjetado: uniao<Alfa, Beta> = alfa virar uniao<Alfa, Beta>;
+            encaixe reinjetado {
+                caso Alfa(reextraido) {
+                    falar(reextraido.cabeca);
+                    falar(reextraido.cauda);
+                }
+                caso Beta(outro) {
+                    falar(996);
+                }
+            }
+        }
+        caso Beta(beta) {
+            falar(995);
+        }
+    }
+
+    mimo 0;
+}
