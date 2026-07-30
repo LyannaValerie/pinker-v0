@@ -996,6 +996,8 @@ fn exec_instr(
         MachineInstr::MakeUnion {
             union_type_id,
             tag,
+            resolved_member_type_id,
+            canonical_member_key,
             payload_type,
             payload_size,
             payload_align,
@@ -1017,6 +1019,17 @@ fn exec_instr(
                 || member.align != *payload_align
             {
                 return Err(runtime_err("layout de união divergente no runtime"));
+            }
+            // O interpretador confere a identidade do membro em vez de aceitar a
+            // tag isolada: uma tag que não corresponda à identidade decidida no
+            // lowering é falha de compilação observada em execução, não um
+            // resultado a ser produzido silenciosamente.
+            if member.resolved_type_id != *resolved_member_type_id
+                || member.canonical_member_key != *canonical_member_key
+            {
+                return Err(runtime_err(
+                    "identidade de membro de união divergente no runtime",
+                ));
             }
             let handle = UNION_RUNTIME_STATE.with(|state| {
                 let mut state = state.borrow_mut();
@@ -1063,6 +1076,7 @@ fn exec_instr(
         MachineInstr::UnionExtract {
             union_type_id,
             tag,
+            resolved_member_type_id,
             canonical_member_key,
             payload_type,
             payload_size,
@@ -1080,6 +1094,13 @@ fn exec_instr(
                 *payload_type,
                 *payload_size,
                 *payload_align,
+            )
+            .map_err(|message| runtime_err(&message))?;
+            crate::ir::validate_union_member_identity(
+                &program.union_types,
+                *union_type_id,
+                *tag,
+                *resolved_member_type_id,
             )
             .map_err(|message| runtime_err(&message))?;
             let descriptor = UNION_RUNTIME_STATE.with(|state| {

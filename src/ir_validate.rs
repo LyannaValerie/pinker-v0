@@ -28,6 +28,11 @@ struct FunctionSig {
 pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
     crate::ir::validate_union_registry(&program.union_types)
         .map_err(|message| ir_validation_error(&message, default_span()))?;
+    crate::ir::validate_resolved_type_table(&program.resolved_types)
+        .map_err(|message| ir_validation_error(&message, default_span()))?;
+    crate::ir::validate_union_registry_identities(&program.union_types, &program.resolved_types)
+        .map_err(|message| ir_validation_error(&message, default_span()))?;
+    validate_resolved_identities(program)?;
     validate_union_operations(program)?;
     let mut consts = HashMap::new();
     for konst in &program.consts {
@@ -1520,6 +1525,67 @@ fn validate_block(
     Ok(())
 }
 
+/// Confere que nenhuma identidade semântica foi perdida em parâmetro ou local.
+///
+/// Um slot cuja representação já é a identidade completa (escalares, `verso`,
+/// listas e mapas monomórficos, `nulo`, arrays desses e uniões, cujo
+/// `UnionTypeId` é nominal) pode dispensar a identidade explícita. Um slot cuja
+/// representação é ambígua — `ninho`, `seta<T>`, `carinho(...)`,
+/// `seta<carinho>` e `trato<...>` — precisa carregá-la: são exatamente as
+/// categorias em que HR4 mostra que a representação não identifica o tipo.
+///
+/// Toda identidade presente também precisa existir na tabela do programa e
+/// concordar com ela na representação.
+fn validate_resolved_identities(program: &ProgramIR) -> Result<(), PinkerError> {
+    let exige_identidade = |ty: TypeIR| {
+        matches!(
+            ty,
+            TypeIR::Struct
+                | TypeIR::Pointer { .. }
+                | TypeIR::FunctionPointer
+                | TypeIR::Function
+                | TypeIR::TraitObject
+        )
+    };
+
+    for function in &program.functions {
+        let mut slots: Vec<(&str, TypeIR, Option<crate::ir::ResolvedTypeId>)> = Vec::new();
+        for param in &function.params {
+            slots.push((param.slot.as_str(), param.ty, param.resolved));
+        }
+        for local in &function.locals {
+            slots.push((local.slot.as_str(), local.ty, local.resolved));
+        }
+        for (slot, ty, resolved) in slots {
+            match resolved {
+                None => {
+                    if exige_identidade(ty) {
+                        return Err(ir_validation_error(
+                            &format!(
+                                "E-IR-TYPE-IDENTITY-LOST: slot '{slot}' de '{}' na função '{}' \
+                                 não carrega identidade semântica resolvida",
+                                ty.name(),
+                                function.name
+                            ),
+                            function.span,
+                        ));
+                    }
+                }
+                Some(resolved) => {
+                    crate::ir::validate_resolved_type_reference(
+                        &program.resolved_types,
+                        resolved,
+                        ty,
+                    )
+                    .map_err(|message| ir_validation_error(&message, function.span))?;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 // Fronteira de validação das operações internas tipadas de união na IR estruturada: percorre todo o programa e confronta cada `UnionMatch`, `UnionTag` e `UnionExtract` com a tabela internada — existência do `UnionTypeId`, pertencimento da tag, coincidência entre chave canônica e tag, tipo e layout do payload, ausência de braço repetido e cobertura integral. Nenhuma tag é recalculada aqui; o registry é a única fonte.
 fn validate_union_operations(program: &ProgramIR) -> Result<(), PinkerError> {
     for function in &program.functions {
@@ -1648,6 +1714,7 @@ fn validate_union_operations_value(
             value,
             union_type_id,
             tag,
+            resolved_member_type_id,
             canonical_member_key,
             payload_type,
             payload_size,
@@ -1663,15 +1730,46 @@ fn validate_union_operations_value(
                 *payload_align,
             )
             .map_err(|message| ir_validation_error(&message, span))?;
+            crate::ir::validate_union_member_identity(
+                unions,
+                *union_type_id,
+                *tag,
+                *resolved_member_type_id,
+            )
+            .map_err(|message| ir_validation_error(&message, span))?;
             validate_union_operations_value(value, unions, span)
         }
         ValueIR::UnionInject {
             value,
             union_type_id,
-            ..
+            tag,
+            resolved_member_type_id,
+            canonical_member_key,
+            payload_type,
+            payload_size,
+            payload_align,
         } => {
-            crate::ir::validate_union_reference(unions, *union_type_id)
-                .map_err(|message| ir_validation_error(&message, span))?;
+            // A injeção é validada com o mesmo rigor da extração: tag, chave
+            // canônica, layout e identidade resolvida têm de descrever o mesmo
+            // membro. Antes desta fase a injeção só conferia a existência da
+            // união, o que deixava a associação membro↔tag sem verificação.
+            crate::ir::validate_union_member_reference(
+                unions,
+                *union_type_id,
+                *tag,
+                canonical_member_key,
+                *payload_type,
+                *payload_size,
+                *payload_align,
+            )
+            .map_err(|message| ir_validation_error(&message, span))?;
+            crate::ir::validate_union_member_identity(
+                unions,
+                *union_type_id,
+                *tag,
+                *resolved_member_type_id,
+            )
+            .map_err(|message| ir_validation_error(&message, span))?;
             validate_union_operations_value(value, unions, span)
         }
         ValueIR::Unary { operand, .. } => validate_union_operations_value(operand, unions, span),

@@ -259,9 +259,13 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                     SelectedInstr::UnionInject {
                         dest,
                         value,
+                        union_type_id,
+                        tag,
+                        resolved_member_type_id,
+                        canonical_member_key,
+                        payload_type,
                         payload_size,
                         payload_align,
-                        ..
                     } => {
                         check_operand(value, &slots, &temps, &globals)?;
                         if *payload_size == 0
@@ -270,6 +274,26 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         {
                             return Err(err("selected union_inject inválido"));
                         }
+                        // A injeção selecionada tem de continuar apontando para o
+                        // membro exato decidido no lowering: tag, chave canônica
+                        // e identidade resolvida precisam concordar entre si.
+                        crate::ir::validate_union_member_reference(
+                            &program.union_types,
+                            *union_type_id,
+                            *tag,
+                            canonical_member_key,
+                            *payload_type,
+                            *payload_size,
+                            *payload_align,
+                        )
+                        .map_err(|message| err(&message))?;
+                        crate::ir::validate_union_member_identity(
+                            &program.union_types,
+                            *union_type_id,
+                            *tag,
+                            *resolved_member_type_id,
+                        )
+                        .map_err(|message| err(&message))?;
                         temps.insert(*dest);
                     }
                     SelectedInstr::UnionTag {
@@ -287,6 +311,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         value,
                         union_type_id,
                         tag,
+                        resolved_member_type_id,
                         canonical_member_key,
                         payload_type,
                         payload_size,
@@ -301,6 +326,13 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                             *payload_type,
                             *payload_size,
                             *payload_align,
+                        )
+                        .map_err(|message| err(&message))?;
+                        crate::ir::validate_union_member_identity(
+                            &program.union_types,
+                            *union_type_id,
+                            *tag,
+                            *resolved_member_type_id,
                         )
                         .map_err(|message| err(&message))?;
                         temps.insert(*dest);
