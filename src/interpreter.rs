@@ -24,18 +24,41 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const MAX_CALL_DEPTH: usize = 64;
 
+/// Snapshot imutável do payload de uma união (HR3).
+///
+/// O descritor **nunca** referencia o storage do chamador: escalares e handles
+/// são clonados no ato da injeção, e agregados são copiados byte a byte para
+/// este snapshot. Mudar a origem depois da injeção não muda o que o `encaixe`
+/// observa.
+#[derive(Clone, PartialEq, Eq)]
+enum UnionPayloadSnapshot {
+    /// Inteiro, lógico ou leque sem carga: valor por cópia.
+    Scalar(RuntimeValue),
+    /// Handle de uma palavra. A cópia é rasa **por contrato**: o descritor
+    /// apontado por um `verso`, lista, mapa ou callable dentro da união é o
+    /// mesmo objeto, exatamente como no runtime nativo.
+    OpaqueHandle(RuntimeValue),
+    /// Agregado copiado integralmente. Os bytes são a representação exata da
+    /// origem, incluindo padding.
+    Aggregate { bytes: Vec<u8> },
+}
+
 #[derive(Clone)]
 struct UnionRuntimeDescriptor {
     union_type_id: crate::ir::UnionTypeId,
     tag: u64,
-    payload: RuntimeValue,
-    payload_size: u64,
-    payload_align: u64,
+    payload: UnionPayloadSnapshot,
+    payload_layout: crate::union_payload::UnionPayloadLayout,
 }
 
+/// Orçamento de recursos equivalente ao do runtime nativo. Sem isto, um laço
+/// que injeta uniões cresceria sem limite no interpretador enquanto o nativo
+/// falharia — quebra de paridade.
 struct UnionRuntimeState {
     next_handle: usize,
     descriptors: HashMap<usize, UnionRuntimeDescriptor>,
+    total_payload_bytes: u64,
+    metadata_bytes: u64,
 }
 
 impl Default for UnionRuntimeState {
@@ -43,7 +66,44 @@ impl Default for UnionRuntimeState {
         Self {
             next_handle: 0x7000_0000,
             descriptors: HashMap::new(),
+            total_payload_bytes: 0,
+            metadata_bytes: 0,
         }
+    }
+}
+
+impl UnionRuntimeState {
+    /// Contabiliza um descritor novo contra os três orçamentos, com operações
+    /// checked. Nenhum deles depende do profile de compilação.
+    fn charge(&mut self, payload_size: u64) -> Result<(), PinkerError> {
+        let descriptors = u64::try_from(self.descriptors.len())
+            .map_err(|_| runtime_err("contagem de descritores de união excede u64"))?;
+        if descriptors >= crate::union_payload::MAX_UNION_DESCRIPTORS {
+            return Err(runtime_err(
+                "E-RUNTIME-UNION-DESCRIPTOR-BUDGET: orçamento de descritores de união esgotado",
+            ));
+        }
+        let total = self
+            .total_payload_bytes
+            .checked_add(payload_size)
+            .ok_or_else(|| runtime_err("overflow no orçamento de bytes de união"))?;
+        if total > crate::union_payload::MAX_UNION_TOTAL_PAYLOAD_BYTES {
+            return Err(runtime_err(
+                "E-RUNTIME-UNION-PAYLOAD-BUDGET: orçamento de bytes de payload de união esgotado",
+            ));
+        }
+        let metadata = self
+            .metadata_bytes
+            .checked_add(crate::union_payload::UNION_DESCRIPTOR_METADATA_BYTES)
+            .ok_or_else(|| runtime_err("overflow no orçamento de metadata de união"))?;
+        if metadata > crate::union_payload::MAX_UNION_METADATA_BYTES {
+            return Err(runtime_err(
+                "E-RUNTIME-UNION-METADATA-BUDGET: orçamento de metadata de união esgotado",
+            ));
+        }
+        self.total_payload_bytes = total;
+        self.metadata_bytes = metadata;
+        Ok(())
     }
 }
 
@@ -999,8 +1059,7 @@ fn exec_instr(
             resolved_member_type_id,
             canonical_member_key,
             payload_type,
-            payload_size,
-            payload_align,
+            payload_layout,
         } => {
             let payload = pop(stack, "make_union exige payload no topo")?;
             let payload = coerce_runtime_value_to_type(payload, *payload_type)?;
@@ -1014,11 +1073,11 @@ fn exec_instr(
                 .iter()
                 .find(|member| member.tag == *tag)
                 .ok_or_else(|| runtime_err("tag de união não registrada"))?;
-            if member.ty != *payload_type
-                || member.size != *payload_size
-                || member.align != *payload_align
-            {
+            if member.ty != *payload_type || member.payload_layout != *payload_layout {
                 return Err(runtime_err("layout de união divergente no runtime"));
+            }
+            if !payload_layout.is_well_formed() {
+                return Err(runtime_err("layout de união mal formado no runtime"));
             }
             // O interpretador confere a identidade do membro em vez de aceitar a
             // tag isolada: uma tag que não corresponda à identidade decidida no
@@ -1031,8 +1090,14 @@ fn exec_instr(
                     "identidade de membro de união divergente no runtime",
                 ));
             }
+            // A cópia acontece **antes** de qualquer registro: o snapshot é
+            // materializado a partir da origem e o descritor passa a ser
+            // independente dela.
+            let snapshot =
+                union_snapshot_from_source(payload, *payload_layout, public_memory_state)?;
             let handle = UNION_RUNTIME_STATE.with(|state| {
                 let mut state = state.borrow_mut();
+                state.charge(payload_layout.size)?;
                 let handle = state.next_handle;
                 state.next_handle = state
                     .next_handle
@@ -1043,9 +1108,8 @@ fn exec_instr(
                     UnionRuntimeDescriptor {
                         union_type_id: *union_type_id,
                         tag: *tag,
-                        payload,
-                        payload_size: *payload_size,
-                        payload_align: *payload_align,
+                        payload: snapshot,
+                        payload_layout: *payload_layout,
                     },
                 );
                 Ok::<usize, PinkerError>(handle)
@@ -1079,8 +1143,7 @@ fn exec_instr(
             resolved_member_type_id,
             canonical_member_key,
             payload_type,
-            payload_size,
-            payload_align,
+            payload_layout,
         } => {
             let value = pop(stack, "union_extract exige valor de união no topo")?;
             let RuntimeValue::Ptr(handle) = value else {
@@ -1092,8 +1155,7 @@ fn exec_instr(
                 *tag,
                 canonical_member_key,
                 *payload_type,
-                *payload_size,
-                *payload_align,
+                *payload_layout,
             )
             .map_err(|message| runtime_err(&message))?;
             crate::ir::validate_union_member_identity(
@@ -1119,14 +1181,20 @@ fn exec_instr(
             if descriptor.tag != *tag {
                 return Err(runtime_err("tag divergente ao abrir payload de união"));
             }
-            if descriptor.payload_size != *payload_size
-                || descriptor.payload_align != *payload_align
-                || descriptor.payload_align == 0
-                || !descriptor.payload_align.is_power_of_two()
+            if descriptor.payload_layout != *payload_layout
+                || !descriptor.payload_layout.is_well_formed()
             {
                 return Err(runtime_err("layout inválido no descritor de união"));
             }
-            let payload = coerce_runtime_value_to_type(descriptor.payload, *payload_type)?;
+            // Storage novo a cada extração: o binding pode ser mudado sem tocar
+            // no snapshot, e duas extrações da mesma união não compartilham
+            // memória.
+            let payload = union_snapshot_to_binding(
+                &descriptor.payload,
+                *payload_layout,
+                *payload_type,
+                public_memory_state,
+            )?;
             stack.push(payload);
         }
         MachineInstr::BitAnd { ty } => {
@@ -1790,6 +1858,166 @@ fn validar_derivacao_memoria_publica(
     Ok(())
 }
 
+/// Reserva uma região pública nova para storage de agregado de união.
+///
+/// Reutiliza a mesma aritmética de arena e os mesmos tetos de `alocar`, para
+/// que o storage de união não fique fora do modelo de memória auditado. O
+/// arredondamento para 16 bytes garante o maior alinhamento suportado
+/// ([`crate::union_payload::MAX_UNION_PAYLOAD_ALIGN`]).
+fn union_reserve_public_storage(
+    state: &mut PublicMemoryState,
+    size: u64,
+    align: u64,
+) -> Result<usize, PinkerError> {
+    if align > crate::union_payload::MAX_UNION_PAYLOAD_ALIGN {
+        return Err(runtime_err(
+            "E-RUNTIME-UNION-ALIGN: alinhamento de payload de união acima do suportado",
+        ));
+    }
+    let size = usize::try_from(size)
+        .map_err(|_| runtime_err("tamanho de payload de união excede a plataforma"))?;
+    let rounded = size
+        .checked_add(15)
+        .map(|value| value & !15)
+        .ok_or_else(|| runtime_err("overflow ao alinhar storage de união"))?;
+    let base = state.next_address;
+    let next = base
+        .checked_add(rounded)
+        .ok_or_else(|| runtime_err("overflow de endereço em storage de união"))?;
+    let arena_end = PUBLIC_MEMORY_BASE
+        .checked_add(PUBLIC_MEMORY_MAX_VIRTUAL_BYTES)
+        .ok_or_else(|| runtime_err("overflow no limite virtual da memória pública"))?;
+    if state.regions.len() >= PUBLIC_MEMORY_MAX_IDENTITIES {
+        return Err(runtime_err("limite de identidades públicas esgotado"));
+    }
+    if next > arena_end {
+        return Err(runtime_err("espaço virtual público esgotado"));
+    }
+    state
+        .regions
+        .try_reserve(1)
+        .map_err(|_| runtime_err("registro de alocações públicas não pôde reservar metadata"))?;
+    state.next_address = next;
+    state.regions.push(PublicMemoryRegion {
+        base,
+        size,
+        alive: true,
+    });
+    Ok(base)
+}
+
+/// Copia a origem de uma injeção de união para um snapshot independente.
+///
+/// Para agregados, a origem tem de ser um endereço de uma região pública viva
+/// que contenha integralmente `[addr, addr + size)`. Origem incompleta,
+/// liberada, desalinhada ou fora de região é recusada com diagnóstico — nunca
+/// aceita parcialmente nem guardada como ponteiro.
+fn union_snapshot_from_source(
+    payload: RuntimeValue,
+    layout: crate::union_payload::UnionPayloadLayout,
+    public_memory_state: &PublicMemoryState,
+) -> Result<UnionPayloadSnapshot, PinkerError> {
+    use crate::union_payload::UnionPayloadRepresentation;
+    match layout.representation {
+        UnionPayloadRepresentation::Scalar => Ok(UnionPayloadSnapshot::Scalar(payload)),
+        UnionPayloadRepresentation::OpaqueHandle => Ok(UnionPayloadSnapshot::OpaqueHandle(payload)),
+        UnionPayloadRepresentation::Aggregate => {
+            let RuntimeValue::Ptr(address) = payload else {
+                return Err(runtime_err(
+                    "E-RUNTIME-UNION-AGGREGATE-SOURCE: agregado de união exige valor representado \
+                     por endereço",
+                ));
+            };
+            let size = usize::try_from(layout.size)
+                .map_err(|_| runtime_err("tamanho de agregado de união excede a plataforma"))?;
+            let align = usize::try_from(layout.align)
+                .map_err(|_| runtime_err("alinhamento de agregado de união excede a plataforma"))?;
+            if align == 0 || address % align != 0 {
+                return Err(runtime_err(
+                    "E-RUNTIME-UNION-AGGREGATE-SOURCE: origem de agregado de união desalinhada",
+                ));
+            }
+            let region = public_memory_access_region(public_memory_state, address, size)?;
+            let Some((base, region_size, alive)) = region else {
+                return Err(runtime_err(
+                    "E-RUNTIME-UNION-AGGREGATE-SOURCE: origem de agregado de união fora de região \
+                     pública conhecida",
+                ));
+            };
+            if !alive {
+                return Err(runtime_err(
+                    "E-RUNTIME-MEM-USE-AFTER-FREE: uso após liberar detectado em origem de união",
+                ));
+            }
+            if !public_memory_interval_contained(base, region_size, address, size)? {
+                return Err(runtime_err(
+                    "E-RUNTIME-UNION-AGGREGATE-SOURCE: origem de agregado de união incompleta na \
+                     região",
+                ));
+            }
+            let mut bytes = Vec::new();
+            bytes
+                .try_reserve(size)
+                .map_err(|_| runtime_err("snapshot de união não pôde reservar bytes"))?;
+            for offset in 0..size {
+                let byte_address = address
+                    .checked_add(offset)
+                    .ok_or_else(|| runtime_err("overflow ao copiar agregado de união"))?;
+                // Byte ausente é byte zero, exatamente como na leitura pública:
+                // o padding é preservado com a mesma regra.
+                let byte = match public_memory_state.payload.get(&byte_address) {
+                    Some(RuntimeValue::Int(value)) => (*value & u8::MAX as u64) as u8,
+                    None => 0,
+                    Some(_) => {
+                        return Err(runtime_err(
+                            "representação interna inválida em byte de agregado de união",
+                        ));
+                    }
+                };
+                bytes.push(byte);
+            }
+            Ok(UnionPayloadSnapshot::Aggregate { bytes })
+        }
+    }
+}
+
+/// Materializa o binding de um braço a partir do snapshot imutável.
+///
+/// Escalares e handles são clonados. Agregados recebem uma região nova, para a
+/// qual o snapshot é copiado: o ponteiro devolvido nunca é o storage interno do
+/// descritor, e duas extrações devolvem regiões distintas.
+fn union_snapshot_to_binding(
+    snapshot: &UnionPayloadSnapshot,
+    layout: crate::union_payload::UnionPayloadLayout,
+    payload_type: TypeIR,
+    public_memory_state: &mut PublicMemoryState,
+) -> Result<RuntimeValue, PinkerError> {
+    match snapshot {
+        UnionPayloadSnapshot::Scalar(value) | UnionPayloadSnapshot::OpaqueHandle(value) => {
+            coerce_runtime_value_to_type(value.clone(), payload_type)
+        }
+        UnionPayloadSnapshot::Aggregate { bytes } => {
+            let expected = usize::try_from(layout.size)
+                .map_err(|_| runtime_err("tamanho de agregado de união excede a plataforma"))?;
+            if bytes.len() != expected {
+                return Err(runtime_err(
+                    "snapshot de agregado de união com tamanho divergente",
+                ));
+            }
+            let base =
+                union_reserve_public_storage(public_memory_state, layout.size, layout.align)?;
+            for (offset, byte) in bytes.iter().enumerate() {
+                let byte_address = base
+                    .checked_add(offset)
+                    .ok_or_else(|| runtime_err("overflow ao materializar agregado de união"))?;
+                public_memory_state
+                    .payload
+                    .insert(byte_address, RuntimeValue::Int(u64::from(*byte)));
+            }
+            Ok(RuntimeValue::Ptr(base))
+        }
+    }
+}
 fn public_memory_allocate(
     args: &[RuntimeValue],
     state: &mut PublicMemoryState,
@@ -6158,5 +6386,52 @@ mod fase246_public_memory_tests {
             public_memory_load_bytes(&memory, base + 8, TypeIR::U64).expect("zero u64"),
             RuntimeValue::Int(0)
         );
+    }
+}
+
+#[cfg(test)]
+mod hr3_union_budget_tests {
+    use super::*;
+
+    /// HR3: o orçamento interpretado é equivalente ao nativo. Os tetos são
+    /// testados na fronteira, sem materializar milhões de descritores.
+    #[test]
+    fn orcamento_de_bytes_de_payload_e_finito() {
+        let mut state = UnionRuntimeState {
+            total_payload_bytes: crate::union_payload::MAX_UNION_TOTAL_PAYLOAD_BYTES - 8,
+            ..UnionRuntimeState::default()
+        };
+        state.charge(8).expect("exatamente no teto é aceito");
+        let error = state
+            .charge(1)
+            .expect_err("um byte acima do teto é recusado")
+            .to_string();
+        assert!(error.contains("E-RUNTIME-UNION-PAYLOAD-BUDGET"), "{error}");
+    }
+
+    #[test]
+    fn orcamento_de_metadata_e_finito() {
+        let mut state = UnionRuntimeState {
+            metadata_bytes: crate::union_payload::MAX_UNION_METADATA_BYTES,
+            ..UnionRuntimeState::default()
+        };
+        let error = state
+            .charge(8)
+            .expect_err("metadata esgotada é recusada")
+            .to_string();
+        assert!(error.contains("E-RUNTIME-UNION-METADATA-BUDGET"), "{error}");
+    }
+
+    #[test]
+    fn orcamento_usa_operacoes_checked() {
+        let mut state = UnionRuntimeState {
+            total_payload_bytes: u64::MAX,
+            ..UnionRuntimeState::default()
+        };
+        let error = state
+            .charge(1)
+            .expect_err("overflow é recusado")
+            .to_string();
+        assert!(error.contains("overflow"), "{error}");
     }
 }
