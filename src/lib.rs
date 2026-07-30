@@ -13,6 +13,7 @@ pub mod doc;
 pub mod doc_index;
 pub mod editor_tui;
 pub mod error;
+pub mod inline_asm;
 pub mod instr_select;
 pub mod instr_select_validate;
 pub mod interpreter;
