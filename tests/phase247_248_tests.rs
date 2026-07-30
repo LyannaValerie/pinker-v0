@@ -1358,8 +1358,7 @@ fn hr1_validadores_recusam_divergencia_entre_braco_e_registry() {
         99,
         &unions[0].members[0].canonical_member_key,
         unions[0].members[0].ty,
-        unions[0].members[0].size,
-        unions[0].members[0].align,
+        unions[0].members[0].payload_layout,
     )
     .expect_err("tag fora do registry deve falhar");
     assert!(error.contains("não pertence"), "{error}");
@@ -1371,8 +1370,7 @@ fn hr1_validadores_recusam_divergencia_entre_braco_e_registry() {
         0,
         "chave-inventada",
         unions[0].members[0].ty,
-        unions[0].members[0].size,
-        unions[0].members[0].align,
+        unions[0].members[0].payload_layout,
     )
     .expect_err("chave divergente deve falhar");
     assert!(error.contains("chave canônica divergente"), "{error}");
@@ -1384,8 +1382,10 @@ fn hr1_validadores_recusam_divergencia_entre_braco_e_registry() {
         0,
         &unions[0].members[0].canonical_member_key,
         unions[0].members[0].ty,
-        unions[0].members[0].size + 1,
-        unions[0].members[0].align,
+        pinker_v0::union_payload::UnionPayloadLayout {
+            size: unions[0].members[0].payload_layout.size + 1,
+            ..unions[0].members[0].payload_layout
+        },
     )
     .expect_err("layout divergente deve falhar");
     assert!(error.contains("layout de payload divergente"), "{error}");
@@ -1497,16 +1497,18 @@ fn hr1_operacoes_internas_sao_tipadas_em_todas_as_camadas() {
 #[test]
 fn hr1_backend_nativo_escolhe_o_simbolo_de_runtime_no_proprio_backend() {
     let asm = common::render_backend_s_external_subset_nativo(HR1_ALIAS_INVERSAO).expect("asm");
-    // O símbolo de ABI existe apenas no backend.
+    // O símbolo de ABI existe apenas no backend. Desde HR3 a extração é uma
+    // cópia validada para storage do chamador, e não uma leitura de palavra.
     assert!(asm.contains("call pinker_uniao_tag"), "{asm}");
-    assert!(asm.contains("call pinker_uniao_payload_b"), "{asm}");
+    assert!(asm.contains("call pinker_uniao_copiar_payload"), "{asm}");
+    assert!(!asm.contains("pinker_uniao_payload_"), "{asm}");
     for nome in HR1_INTRINSECAS_PROIBIDAS {
         assert!(!asm.contains(nome), "{nome} não pode vazar para o backend");
     }
 }
 
 #[test]
-fn hr1_backend_nativo_usa_extracao_verso_quando_o_membro_e_verso() {
+fn hr1_backend_nativo_extrai_membro_verso_por_copia_validada() {
     let source = r#"
         pacote main;
         apelido texto = verso;
@@ -1520,7 +1522,12 @@ fn hr1_backend_nativo_usa_extracao_verso_quando_o_membro_e_verso() {
         }
     "#;
     let asm = common::render_backend_s_external_subset_nativo(source).expect("asm");
-    assert!(asm.contains("call pinker_uniao_payload_v"), "{asm}");
+    // HR3: um membro `verso` é handle opaco de uma palavra. A extração copia o
+    // snapshot para storage novo do binding e só então carrega a palavra; o
+    // ponteiro interno do descritor nunca é devolvido.
+    assert!(asm.contains("call pinker_uniao_copiar_payload"), "{asm}");
+    assert!(asm.contains("movq $8, %rcx"), "{asm}");
+    assert!(asm.contains("movq $8, %r8"), "{asm}");
     assert_eq!(hr1_interpreta(source), Some(0));
 }
 
