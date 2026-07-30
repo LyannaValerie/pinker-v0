@@ -102,6 +102,11 @@ pub enum InstructionCfgIR {
         value: OperandIR,
         union_type_id: crate::ir::UnionTypeId,
         tag: u64,
+        /// Identidade semântica do membro escolhido no lowering, transportada
+        /// junto da tag. Nenhuma camada a partir daqui reescolhe membro: a
+        /// identidade existe para que a escolha possa ser **verificada**.
+        resolved_member_type_id: crate::ir::ResolvedTypeId,
+        canonical_member_key: String,
         payload_type: TypeIR,
         payload_size: u64,
         payload_align: u64,
@@ -118,6 +123,7 @@ pub enum InstructionCfgIR {
         value: OperandIR,
         union_type_id: crate::ir::UnionTypeId,
         tag: u64,
+        resolved_member_type_id: crate::ir::ResolvedTypeId,
         canonical_member_key: String,
         payload_type: TypeIR,
         payload_size: u64,
@@ -770,6 +776,9 @@ impl FunctionLowerer {
                     value: OperandIR::Local(scrutinee_slot.clone()),
                     union_type_id: union_match.union_type_id,
                     tag: arm.tag,
+                    // A identidade do membro do braço vem do próprio braço (HR1):
+                    // o valor desempacotado é exatamente aquele membro.
+                    resolved_member_type_id: arm.resolved_member_type_id,
                     canonical_member_key: arm.canonical_member_key.clone(),
                     payload_type: arm.payload_type,
                     payload_size: arm.payload_size,
@@ -1198,6 +1207,8 @@ impl FunctionLowerer {
                 value,
                 union_type_id,
                 tag,
+                resolved_member_type_id,
+                canonical_member_key,
                 payload_type,
                 payload_size,
                 payload_align,
@@ -1211,6 +1222,8 @@ impl FunctionLowerer {
                         value,
                         union_type_id: *union_type_id,
                         tag: *tag,
+                        resolved_member_type_id: *resolved_member_type_id,
+                        canonical_member_key: canonical_member_key.clone(),
                         payload_type: *payload_type,
                         payload_size: *payload_size,
                         payload_align: *payload_align,
@@ -1236,6 +1249,7 @@ impl FunctionLowerer {
                 value,
                 union_type_id,
                 tag,
+                resolved_member_type_id,
                 canonical_member_key,
                 payload_type,
                 payload_size,
@@ -1250,6 +1264,7 @@ impl FunctionLowerer {
                         value,
                         union_type_id: *union_type_id,
                         tag: *tag,
+                        resolved_member_type_id: *resolved_member_type_id,
                         canonical_member_key: canonical_member_key.clone(),
                         payload_type: *payload_type,
                         payload_size: *payload_size,
@@ -1701,6 +1716,8 @@ impl FunctionLowerer {
             source_name: format!("$logic_{}", index),
             slot: slot.clone(),
             ty: TypeIR::Logica,
+            // Temporário fabricado pelo CFG: representação é a identidade.
+            resolved: None,
             is_mut: true,
         });
         slot
@@ -1714,6 +1731,8 @@ impl FunctionLowerer {
             source_name: format!("$ternary_{}", index),
             slot: slot.clone(),
             ty,
+            // Temporário fabricado pelo CFG: nunca é fonte de injeção.
+            resolved: None,
             is_mut: true,
         });
         slot
