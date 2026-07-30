@@ -26,6 +26,7 @@ use crate::token::Span;
 pub struct ProgramCfgIR {
     pub module_name: String,
     pub is_freestanding: bool,
+    pub union_types: Vec<crate::ir::UnionTypeIR>,
     pub consts: Vec<GlobalConstCfgIR>,
     pub functions: Vec<FunctionCfgIR>,
 }
@@ -77,6 +78,7 @@ pub enum InstructionCfgIR {
         dest: TempIR,
         op: UnaryOpIR,
         operand: OperandIR,
+        ty: TypeIR,
     },
     DerefLoad {
         dest: TempIR,
@@ -95,11 +97,42 @@ pub enum InstructionCfgIR {
         value: OperandIR,
         target_type: TypeIR,
     },
+    UnionInject {
+        dest: TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+        tag: u64,
+        /// Identidade semântica do membro escolhido no lowering, transportada
+        /// junto da tag. Nenhuma camada a partir daqui reescolhe membro: a
+        /// identidade existe para que a escolha possa ser **verificada**.
+        resolved_member_type_id: crate::ir::ResolvedTypeId,
+        canonical_member_key: String,
+        payload_type: TypeIR,
+        payload_layout: crate::union_payload::UnionPayloadLayout,
+    },
+    // Operações internas tipadas de união. Não são chamadas comuns: o CFG
+    // nunca fabrica um `Call` para ler tag ou abrir payload.
+    UnionTag {
+        dest: TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+    },
+    UnionExtract {
+        dest: TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+        tag: u64,
+        resolved_member_type_id: crate::ir::ResolvedTypeId,
+        canonical_member_key: String,
+        payload_type: TypeIR,
+        payload_layout: crate::union_payload::UnionPayloadLayout,
+    },
     Binary {
         dest: TempIR,
         op: BinaryOpIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     Call {
         dest: Option<TempIR>,
@@ -165,6 +198,10 @@ pub enum InstructionCfgIR {
     Falar {
         args: Vec<FalarArgCfgIR>,
     },
+    InlineAsm {
+        chunks: Vec<String>,
+        span: Span,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -224,6 +261,55 @@ struct FunctionLowerer {
     ternary_locals: Vec<crate::ir::LocalIR>,
     loop_exit_stack: Vec<String>,
     loop_continue_stack: Vec<String>,
+    /// Slots que recebem o payload `ninho` de um braço de `encaixe`.
+    ///
+    /// HR3: esse binding **é** o endereço do seu storage próprio e não tem
+    /// ponteiro de origem para dereferenciar. O acesso de campo em qualquer
+    /// outro valor `ninho` continua exigindo a forma `(*ptr).campo`.
+    union_aggregate_bindings: std::collections::HashSet<String>,
+}
+
+impl FunctionLowerer {
+    fn is_union_aggregate_binding(&self, value: &ValueIR) -> bool {
+        matches!(
+            value,
+            ValueIR::Local(slot) if self.union_aggregate_bindings.contains(slot)
+        )
+    }
+}
+
+/// Coleta, recursivamente, os slots de binding de braço de `encaixe` cujo
+/// payload é um `ninho`.
+fn collect_union_aggregate_bindings(
+    block: &crate::ir::BlockIR,
+    slots: &mut std::collections::HashSet<String>,
+) {
+    for instruction in &block.instructions {
+        match instruction {
+            InstructionIR::UnionMatch(union_match) => {
+                for arm in &union_match.arms {
+                    if arm.payload_type == TypeIR::Struct {
+                        slots.insert(arm.binding.slot.clone());
+                    }
+                    collect_union_aggregate_bindings(&arm.body, slots);
+                }
+            }
+            InstructionIR::If {
+                then_block,
+                else_block,
+                ..
+            } => {
+                collect_union_aggregate_bindings(then_block, slots);
+                if let Some(else_block) = else_block {
+                    collect_union_aggregate_bindings(else_block, slots);
+                }
+            }
+            InstructionIR::While { body_block, .. } => {
+                collect_union_aggregate_bindings(body_block, slots)
+            }
+            _ => {}
+        }
+    }
 }
 
 // `BlockBuilder` é um bloco em construção. `terminator: None` indica bloco ainda aberto.
@@ -261,6 +347,7 @@ pub fn lower_program(program: &ProgramIR) -> Result<ProgramCfgIR, PinkerError> {
     Ok(ProgramCfgIR {
         module_name: program.module_name.clone(),
         is_freestanding: program.is_freestanding,
+        union_types: program.union_types.clone(),
         consts,
         functions,
     })
@@ -361,6 +448,11 @@ fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
         ternary_locals: Vec::new(),
         loop_exit_stack: Vec::new(),
         loop_continue_stack: Vec::new(),
+        union_aggregate_bindings: {
+            let mut slots = std::collections::HashSet::new();
+            collect_union_aggregate_bindings(&function.entry, &mut slots);
+            slots
+        },
     };
 
     let mut current = 0;
@@ -634,10 +726,15 @@ impl FunctionLowerer {
                     .push(InstructionCfgIR::Falar { args: operands });
                 Ok(next_current)
             }
-            InstructionIR::InlineAsm { span, .. } => Err(PinkerError::Ir {
-                msg: "CFG IR ainda não lowera inline asm ('sussurro') nesta fase".to_string(),
-                span: *span,
-            }),
+            InstructionIR::InlineAsm { chunks, span } => {
+                self.blocks[current]
+                    .instructions
+                    .push(InstructionCfgIR::InlineAsm {
+                        chunks: chunks.clone(),
+                        span: *span,
+                    });
+                Ok(current)
+            }
             InstructionIR::Continue { span, .. } => {
                 let Some(loop_continue_label) = self.loop_continue_stack.last().cloned() else {
                     return Err(PinkerError::Ir {
@@ -655,7 +752,117 @@ impl FunctionLowerer {
                 });
                 Ok(cont_idx)
             }
+            InstructionIR::UnionMatch(union_match) => {
+                self.lower_union_match(union_match, current, function_ret)
+            }
         }
+    }
+
+    // Abaixa `InstructionIR::UnionMatch` para blocos básicos preservando a semântica de match: o scrutinee é avaliado **uma única vez**, a tag é lida uma única vez por `InstructionCfgIR::UnionTag`, cada braço recebe um teste de igualdade contra a tag vinda do registry e um bloco próprio cujo binding é preenchido por `InstructionCfgIR::UnionExtract` tipado, e os braços que caem convergem num bloco de junção. Nenhuma chamada comum é fabricada; braços com `mimo`, `quebrar` ou `continuar` mantêm seus terminadores.
+    fn lower_union_match(
+        &mut self,
+        union_match: &crate::ir::UnionMatchIR,
+        current: usize,
+        function_ret: TypeIR,
+    ) -> Result<usize, PinkerError> {
+        let (scrutinee, current) =
+            self.lower_value_operand(&union_match.scrutinee, current, union_match.span)?;
+
+        // O scrutinee é avaliado uma única vez e guardado num slot: os
+        // temporários têm escopo por bloco, e todos os blocos do match precisam
+        // do mesmo valor.
+        let scrutinee_slot = union_match.scrutinee_binding.slot.clone();
+        self.blocks[current]
+            .instructions
+            .push(InstructionCfgIR::Let {
+                slot: scrutinee_slot.clone(),
+                value: scrutinee,
+            });
+
+        // Uma única leitura de tag alimenta todos os testes.
+        let tag_temp = self.next_temp();
+        self.blocks[current]
+            .instructions
+            .push(InstructionCfgIR::UnionTag {
+                dest: tag_temp,
+                value: OperandIR::Local(scrutinee_slot.clone()),
+                union_type_id: union_match.union_type_id,
+            });
+        let tag_slot = union_match.tag_binding.slot.clone();
+        self.blocks[current]
+            .instructions
+            .push(InstructionCfgIR::Let {
+                slot: tag_slot.clone(),
+                value: OperandIR::Temp(tag_temp),
+            });
+
+        let mut arm_ends = Vec::with_capacity(union_match.arms.len());
+        let mut test_current = current;
+        for arm in &union_match.arms {
+            let cmp = self.next_temp();
+            self.blocks[test_current]
+                .instructions
+                .push(InstructionCfgIR::Binary {
+                    dest: cmp,
+                    op: BinaryOpIR::Eq,
+                    lhs: OperandIR::Local(tag_slot.clone()),
+                    rhs: OperandIR::Int(arm.tag),
+                    // `ty` é o tipo operacional da comparação (o tipo da tag);
+                    // o resultado é `logica`.
+                    ty: TypeIR::Bombom,
+                });
+
+            let arm_idx = self.fresh_block(arm.body.label.clone());
+            let next_test_label = self.next_label("union_match_test");
+            self.blocks[test_current].terminator = Some(TerminatorIR::Branch {
+                cond: OperandIR::Temp(cmp),
+                then_label: self.blocks[arm_idx].label.clone(),
+                else_label: next_test_label.clone(),
+            });
+
+            let payload = self.next_temp();
+            self.blocks[arm_idx]
+                .instructions
+                .push(InstructionCfgIR::UnionExtract {
+                    dest: payload,
+                    value: OperandIR::Local(scrutinee_slot.clone()),
+                    union_type_id: union_match.union_type_id,
+                    tag: arm.tag,
+                    // A identidade do membro do braço vem do próprio braço (HR1):
+                    // o valor desempacotado é exatamente aquele membro.
+                    resolved_member_type_id: arm.resolved_member_type_id,
+                    canonical_member_key: arm.canonical_member_key.clone(),
+                    payload_type: arm.payload_type,
+                    payload_layout: arm.payload_layout,
+                });
+            self.blocks[arm_idx]
+                .instructions
+                .push(InstructionCfgIR::Let {
+                    slot: arm.binding.slot.clone(),
+                    value: OperandIR::Temp(payload),
+                });
+
+            let mut arm_current = arm_idx;
+            for instruction in &arm.body.instructions {
+                arm_current = self.lower_instruction(instruction, arm_current, function_ret)?;
+            }
+            arm_ends.push(arm_current);
+
+            test_current = self.fresh_block(next_test_label);
+        }
+
+        let join_label = self.next_label("union_match_join");
+        let join_idx = self.fresh_block(join_label);
+        let join = self.blocks[join_idx].label.clone();
+        // A cobertura é exata e as tags vêm do registry: o último teste falho é
+        // inalcançável, mas o bloco permanece terminado para o validador.
+        self.blocks[test_current].terminator = Some(TerminatorIR::Jump(join.clone()));
+        for end in arm_ends {
+            if !self.blocks[end].is_terminated() {
+                self.blocks[end].terminator = Some(TerminatorIR::Jump(join.clone()));
+            }
+        }
+        Ok(join_idx)
     }
 
     // @pinker-nav:end cfg.lowering.instrucoes-controle
@@ -773,7 +980,7 @@ impl FunctionLowerer {
             ValueIR::Int(v) => Ok((OperandIR::Int(*v), current)),
             ValueIR::Bool(v) => Ok((OperandIR::Bool(*v), current)),
             ValueIR::String(v) => Ok((OperandIR::Str(v.clone()), current)),
-            ValueIR::Unary { op, operand } => {
+            ValueIR::Unary { op, operand, ty } => {
                 let (operand, next_current) = self.lower_value_operand(operand, current, span)?;
                 let dest = self.next_temp();
                 self.blocks[next_current]
@@ -782,6 +989,7 @@ impl FunctionLowerer {
                         dest,
                         op: *op,
                         operand,
+                        ty: *ty,
                     });
                 Ok((OperandIR::Temp(dest), next_current))
             }
@@ -802,7 +1010,7 @@ impl FunctionLowerer {
                     });
                 Ok((OperandIR::Temp(dest), next_current))
             }
-            ValueIR::Binary { op, lhs, rhs } => match op {
+            ValueIR::Binary { op, lhs, rhs, ty } => match op {
                 BinaryOpIR::LogicalAnd | BinaryOpIR::LogicalOr => {
                     self.lower_short_circuit_value(*op, lhs, rhs, current, span)
                 }
@@ -817,6 +1025,7 @@ impl FunctionLowerer {
                             op: *op,
                             lhs,
                             rhs,
+                            ty: *ty,
                         });
                     Ok((OperandIR::Temp(dest), rhs_current))
                 }
@@ -1045,6 +1254,71 @@ impl FunctionLowerer {
                     });
                 Ok((OperandIR::Temp(dest), next_current))
             }
+            ValueIR::UnionInject {
+                value,
+                union_type_id,
+                tag,
+                resolved_member_type_id,
+                canonical_member_key,
+                payload_type,
+                payload_layout,
+            } => {
+                let (value, next_current) = self.lower_value_operand(value, current, span)?;
+                let dest = self.next_temp();
+                self.blocks[next_current]
+                    .instructions
+                    .push(InstructionCfgIR::UnionInject {
+                        dest,
+                        value,
+                        union_type_id: *union_type_id,
+                        tag: *tag,
+                        resolved_member_type_id: *resolved_member_type_id,
+                        canonical_member_key: canonical_member_key.clone(),
+                        payload_type: *payload_type,
+                        payload_layout: *payload_layout,
+                    });
+                Ok((OperandIR::Temp(dest), next_current))
+            }
+            ValueIR::UnionTag {
+                value,
+                union_type_id,
+            } => {
+                let (value, next_current) = self.lower_value_operand(value, current, span)?;
+                let dest = self.next_temp();
+                self.blocks[next_current]
+                    .instructions
+                    .push(InstructionCfgIR::UnionTag {
+                        dest,
+                        value,
+                        union_type_id: *union_type_id,
+                    });
+                Ok((OperandIR::Temp(dest), next_current))
+            }
+            ValueIR::UnionExtract {
+                value,
+                union_type_id,
+                tag,
+                resolved_member_type_id,
+                canonical_member_key,
+                payload_type,
+                payload_layout,
+            } => {
+                let (value, next_current) = self.lower_value_operand(value, current, span)?;
+                let dest = self.next_temp();
+                self.blocks[next_current]
+                    .instructions
+                    .push(InstructionCfgIR::UnionExtract {
+                        dest,
+                        value,
+                        union_type_id: *union_type_id,
+                        tag: *tag,
+                        resolved_member_type_id: *resolved_member_type_id,
+                        canonical_member_key: canonical_member_key.clone(),
+                        payload_type: *payload_type,
+                        payload_layout: *payload_layout,
+                    });
+                Ok((OperandIR::Temp(dest), next_current))
+            }
         }
     }
 
@@ -1085,31 +1359,39 @@ impl FunctionLowerer {
             });
         }
 
-        let ValueIR::Deref {
-            ptr,
-            result_type: base_result_type,
-            is_volatile,
-        } = base
-        else {
-            return Err(PinkerError::Ir {
-                msg: format!(
-                    "acesso operacional de campo nesta fase exige base no formato '(*ptr).campo' (campo '{}')",
-                    field
-                ),
-                span,
-            });
+        let (endereco, is_volatile) = match base {
+            ValueIR::Deref {
+                ptr,
+                result_type: base_result_type,
+                is_volatile,
+            } => {
+                if *base_result_type != TypeIR::Struct {
+                    return Err(PinkerError::Ir {
+                        msg: format!(
+                            "acesso operacional de campo nesta fase exige ponteiro para 'ninho' (campo '{}')",
+                            field
+                        ),
+                        span,
+                    });
+                }
+                (ptr.as_ref(), *is_volatile)
+            }
+            // Um valor agregado já é o endereço do seu storage; é a forma dos
+            // bindings de `encaixe` com payload `ninho`, que não têm ponteiro
+            // de origem para dereferenciar.
+            outro if self.is_union_aggregate_binding(outro) => (outro, false),
+            _ => {
+                return Err(PinkerError::Ir {
+                    msg: format!(
+                        "acesso operacional de campo nesta fase exige base no formato '(*ptr).campo' (campo '{}')",
+                        field
+                    ),
+                    span,
+                });
+            }
         };
-        if *base_result_type != TypeIR::Struct {
-            return Err(PinkerError::Ir {
-                msg: format!(
-                    "acesso operacional de campo nesta fase exige ponteiro para 'ninho' (campo '{}')",
-                    field
-                ),
-                span,
-            });
-        }
 
-        let (base_ptr, next_current) = self.lower_value_operand(ptr, current, span)?;
+        let (base_ptr, next_current) = self.lower_value_operand(endereco, current, span)?;
         let field_ptr = if field_offset == 0 {
             base_ptr
         } else {
@@ -1121,6 +1403,7 @@ impl FunctionLowerer {
                     op: BinaryOpIR::Add,
                     lhs: base_ptr,
                     rhs: OperandIR::Int(field_offset),
+                    ty: TypeIR::Pointer { is_volatile },
                 });
             OperandIR::Temp(dest_ptr)
         };
@@ -1132,7 +1415,7 @@ impl FunctionLowerer {
                 dest,
                 ptr: field_ptr,
                 ty: result_type,
-                is_volatile: *is_volatile,
+                is_volatile,
             });
         Ok((OperandIR::Temp(dest), next_current))
     }
@@ -1148,27 +1431,35 @@ impl FunctionLowerer {
         current: usize,
         span: Span,
     ) -> Result<usize, PinkerError> {
-        let ValueIR::Deref {
-            ptr,
-            result_type: base_result_type,
-            is_volatile: base_is_volatile,
-        } = base
-        else {
-            return Err(PinkerError::Ir {
-                msg: "escrita operacional de campo nesta fase exige base no formato '(*ptr).campo'"
-                    .to_string(),
-                span,
-            });
+        let (endereco, base_is_volatile) = match base {
+            ValueIR::Deref {
+                ptr,
+                result_type: base_result_type,
+                is_volatile: base_is_volatile,
+            } => {
+                if *base_result_type != TypeIR::Struct {
+                    return Err(PinkerError::Ir {
+                        msg: "escrita operacional de campo nesta fase exige ponteiro para 'ninho'"
+                            .to_string(),
+                        span,
+                    });
+                }
+                (ptr.as_ref(), *base_is_volatile)
+            }
+            // Mesma convenção da leitura: um valor agregado já é o endereço do
+            // seu storage.
+            outro if self.is_union_aggregate_binding(outro) => (outro, false),
+            _ => {
+                return Err(PinkerError::Ir {
+                    msg:
+                        "escrita operacional de campo nesta fase exige base no formato '(*ptr).campo'"
+                            .to_string(),
+                    span,
+                });
+            }
         };
-        if *base_result_type != TypeIR::Struct {
-            return Err(PinkerError::Ir {
-                msg: "escrita operacional de campo nesta fase exige ponteiro para 'ninho'"
-                    .to_string(),
-                span,
-            });
-        }
 
-        let (base_ptr, ptr_current) = self.lower_value_operand(ptr, current, span)?;
+        let (base_ptr, ptr_current) = self.lower_value_operand(endereco, current, span)?;
         let field_ptr = if field_offset == 0 {
             base_ptr
         } else {
@@ -1180,6 +1471,9 @@ impl FunctionLowerer {
                     op: BinaryOpIR::Add,
                     lhs: base_ptr,
                     rhs: OperandIR::Int(field_offset),
+                    ty: TypeIR::Pointer {
+                        is_volatile: is_volatile || base_is_volatile,
+                    },
                 });
             OperandIR::Temp(dest_ptr)
         };
@@ -1191,7 +1485,7 @@ impl FunctionLowerer {
                 ptr: field_ptr,
                 value: val_operand,
                 ty: value_type,
-                is_volatile: is_volatile || *base_is_volatile,
+                is_volatile: is_volatile || base_is_volatile,
             });
         Ok(next_current)
     }
@@ -1242,6 +1536,7 @@ impl FunctionLowerer {
                 op: BinaryOpIR::Add,
                 lhs: base_addr,
                 rhs: offset,
+                ty: TypeIR::Pointer { is_volatile },
             });
 
         let dest = self.next_temp();
@@ -1301,6 +1596,7 @@ impl FunctionLowerer {
                 op: BinaryOpIR::Add,
                 lhs: base_addr,
                 rhs: offset,
+                ty: TypeIR::Pointer { is_volatile },
             });
         let (val_operand, next_current) =
             self.lower_value_operand(value, current_after_index, span)?;
@@ -1481,6 +1777,8 @@ impl FunctionLowerer {
             source_name: format!("$logic_{}", index),
             slot: slot.clone(),
             ty: TypeIR::Logica,
+            // Temporário fabricado pelo CFG: representação é a identidade.
+            resolved: None,
             is_mut: true,
         });
         slot
@@ -1494,6 +1792,8 @@ impl FunctionLowerer {
             source_name: format!("$ternary_{}", index),
             slot: slot.clone(),
             ty,
+            // Temporário fabricado pelo CFG: nunca é fonte de injeção.
+            resolved: None,
             is_mut: true,
         });
         slot
@@ -1582,18 +1882,31 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
         InstructionCfgIR::Assign { slot, value } => {
             format!("assign {} = {}", slot, render_operand(value))
         }
-        InstructionCfgIR::Unary { dest, op, operand } => {
+        InstructionCfgIR::Unary {
+            dest,
+            op,
+            operand,
+            ty,
+        } => {
             format!(
-                "{} = {} {}",
+                "{} = {}<{}> {}",
                 render_temp(*dest),
                 render_unary_op(*op),
+                ty.name(),
                 render_operand(operand)
             )
         }
-        InstructionCfgIR::Binary { dest, op, lhs, rhs } => format!(
-            "{} = {} {}, {}",
+        InstructionCfgIR::Binary {
+            dest,
+            op,
+            lhs,
+            rhs,
+            ty,
+        } => format!(
+            "{} = {}<{}> {}, {}",
             render_temp(*dest),
             render_binary_op(*op),
+            ty.name(),
             render_operand(lhs),
             render_operand(rhs)
         ),
@@ -1638,6 +1951,46 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
             render_temp(*dest),
             render_operand(value),
             target_type.name()
+        ),
+        InstructionCfgIR::UnionInject {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            ..
+        } => format!(
+            "{} = union_inject #{} tag={} {}",
+            render_temp(*dest),
+            union_type_id.0,
+            tag,
+            render_operand(value)
+        ),
+        InstructionCfgIR::UnionTag {
+            dest,
+            value,
+            union_type_id,
+        } => format!(
+            "{} = union_tag #{} {}",
+            render_temp(*dest),
+            union_type_id.0,
+            render_operand(value)
+        ),
+        InstructionCfgIR::UnionExtract {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            canonical_member_key,
+            payload_type,
+            ..
+        } => format!(
+            "{} = union_extract #{} tag={} key={} {} -> {}",
+            render_temp(*dest),
+            union_type_id.0,
+            tag,
+            canonical_member_key,
+            render_operand(value),
+            payload_type.name()
         ),
         InstructionCfgIR::Call {
             dest,
@@ -1769,6 +2122,7 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
+        InstructionCfgIR::InlineAsm { chunks, .. } => format!("inline_asm {:?}", chunks),
     }
 }
 

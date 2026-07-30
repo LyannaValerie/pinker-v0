@@ -1,0 +1,17 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova valor: uniao<u8, verso> =
+        (42 virar u8) virar uniao<verso, u8>;
+
+    encaixe valor {
+        caso verso(texto) {
+            falar(texto);
+        }
+        caso u8(numero) {
+            falar(numero);
+        }
+    }
+
+    mimo 0;
+}

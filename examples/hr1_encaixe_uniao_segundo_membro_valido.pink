@@ -1,0 +1,24 @@
+pacote main;
+
+// HR1, direção oposta: o valor injetado é o membro `zz` (u64), canonicamente
+// **anterior** a `u8` mas lexicalmente posterior como apelido. O braço `zz` é o
+// executado e a saída é 2008 — nenhum braço é privilegiado por posição.
+apelido aa = u8;
+apelido zz = u64;
+
+carinho principal() -> bombom {
+    nova valor: uniao<aa, zz> =
+        (8 virar zz) virar uniao<aa, zz>;
+
+    encaixe valor {
+        caso aa(numero) {
+            falar(1000 + (numero virar bombom));
+        }
+
+        caso zz(numero) {
+            falar(2000 + (numero virar bombom));
+        }
+    }
+
+    mimo 0;
+}

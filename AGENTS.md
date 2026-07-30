@@ -13,7 +13,7 @@ A documentação é dual: portais Markdown para humanos, catálogos consultávei
 5. Leia o `README.md` local do território antes de alterá-lo.
 6. Ao alterar código, mantenha as âncoras `@pinker-nav:start/end`.
 7. Ao alterar documentação, mantenha IDs, frontmatter e âncoras `@pinker-doc`.
-8. Para PRs posteriores ao marco (#330), mantenha o bloco ` ```pinker-change ` e rode `pink doc importar-pr <n> --corpo <arquivo>`.
+8. Para PRs posteriores ao marco (#330), mantenha o bloco ` ```pinker-change ` e rode `pink doc importar-pr <n> --corpo <arquivo>`; o importador serializa campos textuais livres como escalares YAML canônicos.
 9. Regenere catálogos com `pink doc sincronizar` e `pink nav sincronizar`; valide com `make ci` (inclui `docs-check` e `nav-check`).
 10. Não invente estado, testes, histórico ou memória; não faça backfill retroativo (PRs ≤ #330 são rejeitados).
 
@@ -53,6 +53,10 @@ Sem `make`:
 - Suíte oficial é **stable-only** no toolchain fixado pelo repositório.
 - Não depender de nightly nem de `-Z unstable-options`.
 - Caminho oficial precisa passar por `./ci_env.sh`, que saneia `RUSTFLAGS` e `CARGO_ENCODED_RUSTFLAGS` e expõe preflight mínimo de diagnóstico.
+- Specs delegados do Pink Agent não autorizam executáveis por si: shell exige
+  `PINKER_AGENT_ALLOW_SHELL`, programas externos exigem
+  `PINKER_AGENT_EXECUTABLE_ALLOWLIST`, e I/O do runner permanece confinado sem
+  seguir links simbólicos.
 
 ## Disciplina de inspeção (MCP)
 

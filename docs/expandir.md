@@ -6,6 +6,9 @@
 
 Este documento é a referência operacional para transformar implementações históricas **mínimas**, **pequenas**, **conservadoras** ou explicitamente limitadas por **recorte** em implementações adultas. Ele nasce no Bloco 20, após o encerramento do Eixo B, para apoiar a retomada do **Eixo A — linguagem** com um padrão novo: a próxima evolução da Pinker deve mirar recursos utilizáveis em profundidade, com lowering nativo desde o início, sem repetir automaticamente o padrão antigo de menor recorte auditável.
 
+Limite executável atual: o interpretador admite 64 chamadas Pinker simultâneas
+e diagnostica a tentativa de abrir a 65ª.
+
 ## 1. Papel deste documento
 
 `docs/expandir.md` não é histórico e não substitui o roadmap. Seu papel é:
@@ -120,6 +123,10 @@ Localização principal:
 - `MANUAL.md`;
 - exemplos `examples/fase8x` a `examples/fase10x` e posteriores.
 
+O contrato atual mantém `File` aberto no handle, usa criação exclusiva, não
+antecipa a carga em `abrir` e limita a materialização de `verso` a 64 MiB.
+Expansões devem preservar identidade por descritor e não reabrir pelo caminho.
+
 ### 4.4 Processos e linguagem-cola
 
 Exemplos históricos:
@@ -139,6 +146,11 @@ Localização principal:
 - `tests/interpreter_tests.rs`;
 - `tests/backend_nativo_tests.rs`;
 - `examples/fase161*` a `examples/fase177*`.
+
+O runtime resolve basenames somente pela PATH fixa
+`/usr/local/bin:/usr/bin:/bin`, preserva caminhos explícitos e escreve stdin
+concorrentemente à espera do filho. Expansões não devem reintroduzir shell
+implícito, PATH herdada ou ordenação sequencial entre escrita integral e wait.
 
 ### 4.5 Coleções, dados estruturados e aleatoriedade
 

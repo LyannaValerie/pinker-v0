@@ -92,6 +92,30 @@ pub enum BackendTextInstruction {
     Falar {
         args: Vec<BackendTextFalarArg>,
     },
+    InlineAsm {
+        chunks: Vec<String>,
+    },
+    UnionInject {
+        dest: crate::cfg_ir::TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+        tag: u64,
+    },
+    // Operações internas tipadas de união no backend textual. O símbolo de
+    // runtime correspondente é escolhido apenas no backend nativo.
+    UnionTag {
+        dest: crate::cfg_ir::TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+    },
+    UnionExtract {
+        dest: crate::cfg_ir::TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+        tag: u64,
+        canonical_member_key: String,
+        payload_type: TypeIR,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -145,13 +169,13 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                                     src: value.clone(),
                                 })
                             }
-                            InstructionCfgIR::Unary { dest, op, operand } => {
-                                Ok(BackendTextInstruction::Unary {
-                                    dest: *dest,
-                                    op: *op,
-                                    operand: operand.clone(),
-                                })
-                            }
+                            InstructionCfgIR::Unary {
+                                dest, op, operand, ..
+                            } => Ok(BackendTextInstruction::Unary {
+                                dest: *dest,
+                                op: *op,
+                                operand: operand.clone(),
+                            }),
                             InstructionCfgIR::DerefLoad { dest, ptr, .. } => {
                                 Ok(BackendTextInstruction::Unary {
                                     dest: *dest,
@@ -168,14 +192,51 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                                 msg: "backend textual ainda não lowera cast nesta fase".to_string(),
                                 span: crate::token::Span::single(crate::token::Position::new(1, 1)),
                             }),
-                            InstructionCfgIR::Binary { dest, op, lhs, rhs } => {
-                                Ok(BackendTextInstruction::Binary {
-                                    dest: *dest,
-                                    op: *op,
-                                    lhs: lhs.clone(),
-                                    rhs: rhs.clone(),
-                                })
-                            }
+                            InstructionCfgIR::UnionInject {
+                                dest,
+                                value,
+                                union_type_id,
+                                tag,
+                                ..
+                            } => Ok(BackendTextInstruction::UnionInject {
+                                dest: *dest,
+                                value: value.clone(),
+                                union_type_id: *union_type_id,
+                                tag: *tag,
+                            }),
+                            InstructionCfgIR::UnionTag {
+                                dest,
+                                value,
+                                union_type_id,
+                            } => Ok(BackendTextInstruction::UnionTag {
+                                dest: *dest,
+                                value: value.clone(),
+                                union_type_id: *union_type_id,
+                            }),
+                            InstructionCfgIR::UnionExtract {
+                                dest,
+                                value,
+                                union_type_id,
+                                tag,
+                                canonical_member_key,
+                                payload_type,
+                                ..
+                            } => Ok(BackendTextInstruction::UnionExtract {
+                                dest: *dest,
+                                value: value.clone(),
+                                union_type_id: *union_type_id,
+                                tag: *tag,
+                                canonical_member_key: canonical_member_key.clone(),
+                                payload_type: *payload_type,
+                            }),
+                            InstructionCfgIR::Binary {
+                                dest, op, lhs, rhs, ..
+                            } => Ok(BackendTextInstruction::Binary {
+                                dest: *dest,
+                                op: *op,
+                                lhs: lhs.clone(),
+                                rhs: rhs.clone(),
+                            }),
                             InstructionCfgIR::Call {
                                 dest,
                                 callee,
@@ -252,6 +313,11 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                             InstructionCfgIR::Falar { args } => Ok(BackendTextInstruction::Falar {
                                 args: map_falar_args_from_cfg(args),
                             }),
+                            InstructionCfgIR::InlineAsm { chunks, .. } => {
+                                Ok(BackendTextInstruction::InlineAsm {
+                                    chunks: chunks.clone(),
+                                })
+                            }
                         })
                         .collect::<Result<Vec<_>, PinkerError>>()?;
                     Ok(BackendTextBlock {
@@ -363,7 +429,7 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
             dest: dest.clone(),
             src: src.clone(),
         }),
-        SelectedInstr::Neg { dest, operand } => Ok(BackendTextInstruction::Unary {
+        SelectedInstr::Neg { dest, operand, .. } => Ok(BackendTextInstruction::Unary {
             dest: *dest,
             op: UnaryOpIR::Neg,
             operand: operand.clone(),
@@ -373,7 +439,7 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
             op: UnaryOpIR::Not,
             operand: operand.clone(),
         }),
-        SelectedInstr::BitNot { dest, operand } => Ok(BackendTextInstruction::Unary {
+        SelectedInstr::BitNot { dest, operand, .. } => Ok(BackendTextInstruction::Unary {
             dest: *dest,
             op: UnaryOpIR::BitNot,
             operand: operand.clone(),
@@ -391,97 +457,134 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
             msg: "backend textual ainda não lowera cast nesta fase".to_string(),
             span: crate::token::Span::single(crate::token::Position::new(1, 1)),
         }),
-        SelectedInstr::BitAnd { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::UnionInject {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            ..
+        } => Ok(BackendTextInstruction::UnionInject {
+            dest: *dest,
+            value: value.clone(),
+            union_type_id: *union_type_id,
+            tag: *tag,
+        }),
+        SelectedInstr::UnionTag {
+            dest,
+            value,
+            union_type_id,
+        } => Ok(BackendTextInstruction::UnionTag {
+            dest: *dest,
+            value: value.clone(),
+            union_type_id: *union_type_id,
+        }),
+        SelectedInstr::UnionExtract {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            canonical_member_key,
+            payload_type,
+            ..
+        } => Ok(BackendTextInstruction::UnionExtract {
+            dest: *dest,
+            value: value.clone(),
+            union_type_id: *union_type_id,
+            tag: *tag,
+            canonical_member_key: canonical_member_key.clone(),
+            payload_type: *payload_type,
+        }),
+        SelectedInstr::BitAnd { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::BitAnd,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
-        SelectedInstr::BitOr { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::BitOr { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::BitOr,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
-        SelectedInstr::BitXor { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::BitXor { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::BitXor,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
-        SelectedInstr::Shl { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::Shl { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Shl,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
-        SelectedInstr::Shr { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::Shr { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Shr,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
-        SelectedInstr::Add { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::Add { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Add,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
-        SelectedInstr::Sub { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::Sub { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Sub,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
-        SelectedInstr::Mul { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::Mul { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Mul,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
-        SelectedInstr::Div { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::Div { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Div,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
-        SelectedInstr::Mod { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::Mod { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Mod,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
-        SelectedInstr::CmpEq { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::CmpEq { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Eq,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
-        SelectedInstr::CmpNe { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::CmpNe { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Neq,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
-        SelectedInstr::CmpLt { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::CmpLt { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Lt,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
-        SelectedInstr::CmpLe { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::CmpLe { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Lte,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
-        SelectedInstr::CmpGt { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::CmpGt { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Gt,
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
-        SelectedInstr::CmpGe { dest, lhs, rhs } => Ok(BackendTextInstruction::Binary {
+        SelectedInstr::CmpGe { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Gte,
             lhs: lhs.clone(),
@@ -566,6 +669,9 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
         }),
         SelectedInstr::Falar { args } => Ok(BackendTextInstruction::Falar {
             args: map_falar_args_from_selected(args),
+        }),
+        SelectedInstr::InlineAsm { chunks, .. } => Ok(BackendTextInstruction::InlineAsm {
+            chunks: chunks.clone(),
         }),
     }
 }
@@ -814,6 +920,45 @@ fn render_instruction(inst: &BackendTextInstruction) -> String {
                 .map(|arg| format!("{}:{}", render_operand(&arg.value), arg.ty.name()))
                 .collect::<Vec<_>>()
                 .join(", ")
+        ),
+        BackendTextInstruction::InlineAsm { chunks } => format!("inline_asm {:?}", chunks),
+        BackendTextInstruction::UnionInject {
+            dest,
+            value,
+            union_type_id,
+            tag,
+        } => format!(
+            "%{} = union_inject #{} tag={} {}",
+            dest.0,
+            union_type_id.0,
+            tag,
+            render_operand(value)
+        ),
+        BackendTextInstruction::UnionTag {
+            dest,
+            value,
+            union_type_id,
+        } => format!(
+            "%{} = union_tag #{} {}",
+            dest.0,
+            union_type_id.0,
+            render_operand(value)
+        ),
+        BackendTextInstruction::UnionExtract {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            canonical_member_key,
+            payload_type,
+        } => format!(
+            "%{} = union_extract #{} tag={} key={} {} -> {}",
+            dest.0,
+            union_type_id.0,
+            tag,
+            canonical_member_key,
+            render_operand(value),
+            payload_type.name()
         ),
     }
 }

@@ -13,6 +13,7 @@ use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
 use crate::ir::TypeIR;
 use crate::token::Span;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -22,6 +23,94 @@ use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const MAX_CALL_DEPTH: usize = 64;
+
+/// Snapshot imutável do payload de uma união (HR3).
+///
+/// O descritor **nunca** referencia o storage do chamador: escalares e handles
+/// são clonados no ato da injeção, e agregados são copiados byte a byte para
+/// este snapshot. Mudar a origem depois da injeção não muda o que o `encaixe`
+/// observa.
+#[derive(Clone, PartialEq, Eq)]
+enum UnionPayloadSnapshot {
+    /// Inteiro, lógico ou leque sem carga: valor por cópia.
+    Scalar(RuntimeValue),
+    /// Handle de uma palavra. A cópia é rasa **por contrato**: o descritor
+    /// apontado por um `verso`, lista, mapa ou callable dentro da união é o
+    /// mesmo objeto, exatamente como no runtime nativo.
+    OpaqueHandle(RuntimeValue),
+    /// Agregado copiado integralmente. Os bytes são a representação exata da
+    /// origem, incluindo padding.
+    Aggregate { bytes: Vec<u8> },
+}
+
+#[derive(Clone)]
+struct UnionRuntimeDescriptor {
+    union_type_id: crate::ir::UnionTypeId,
+    tag: u64,
+    payload: UnionPayloadSnapshot,
+    payload_layout: crate::union_payload::UnionPayloadLayout,
+}
+
+/// Orçamento de recursos equivalente ao do runtime nativo. Sem isto, um laço
+/// que injeta uniões cresceria sem limite no interpretador enquanto o nativo
+/// falharia — quebra de paridade.
+struct UnionRuntimeState {
+    next_handle: usize,
+    descriptors: HashMap<usize, UnionRuntimeDescriptor>,
+    total_payload_bytes: u64,
+    metadata_bytes: u64,
+}
+
+impl Default for UnionRuntimeState {
+    fn default() -> Self {
+        Self {
+            next_handle: 0x7000_0000,
+            descriptors: HashMap::new(),
+            total_payload_bytes: 0,
+            metadata_bytes: 0,
+        }
+    }
+}
+
+impl UnionRuntimeState {
+    /// Contabiliza um descritor novo contra os três orçamentos, com operações
+    /// checked. Nenhum deles depende do profile de compilação.
+    fn charge(&mut self, payload_size: u64) -> Result<(), PinkerError> {
+        let descriptors = u64::try_from(self.descriptors.len())
+            .map_err(|_| runtime_err("contagem de descritores de união excede u64"))?;
+        if descriptors >= crate::union_payload::MAX_UNION_DESCRIPTORS {
+            return Err(runtime_err(
+                "E-RUNTIME-UNION-DESCRIPTOR-BUDGET: orçamento de descritores de união esgotado",
+            ));
+        }
+        let total = self
+            .total_payload_bytes
+            .checked_add(payload_size)
+            .ok_or_else(|| runtime_err("overflow no orçamento de bytes de união"))?;
+        if total > crate::union_payload::MAX_UNION_TOTAL_PAYLOAD_BYTES {
+            return Err(runtime_err(
+                "E-RUNTIME-UNION-PAYLOAD-BUDGET: orçamento de bytes de payload de união esgotado",
+            ));
+        }
+        let metadata = self
+            .metadata_bytes
+            .checked_add(crate::union_payload::UNION_DESCRIPTOR_METADATA_BYTES)
+            .ok_or_else(|| runtime_err("overflow no orçamento de metadata de união"))?;
+        if metadata > crate::union_payload::MAX_UNION_METADATA_BYTES {
+            return Err(runtime_err(
+                "E-RUNTIME-UNION-METADATA-BUDGET: orçamento de metadata de união esgotado",
+            ));
+        }
+        self.total_payload_bytes = total;
+        self.metadata_bytes = metadata;
+        Ok(())
+    }
+}
+
+thread_local! {
+    static UNION_RUNTIME_STATE: RefCell<UnionRuntimeState> =
+        RefCell::new(UnionRuntimeState::default());
+}
 
 // Truncamento de stack trace longo (Fase 27b):
 // traces com mais de TRACE_TRUNC_THRESHOLD frames são resumidos mostrando
@@ -483,6 +572,7 @@ pub fn run_program_with_args(
     program: &MachineProgram,
     cli_args: &[String],
 ) -> Result<RunOutcome, PinkerError> {
+    UNION_RUNTIME_STATE.with(|state| *state.borrow_mut() = UnionRuntimeState::default());
     let globals = build_globals(program)?;
     let mut memory = build_memory(program, &globals)?;
     let mut io_state = RuntimeIoState {
@@ -534,9 +624,15 @@ pub fn run_program_with_args(
         &mut trait_object_state,
         &mut call_stack,
     )?;
+    let principal_status = match &return_value {
+        Some(RuntimeValue::Int(value)) => Some((value & 0xff) as i32),
+        Some(RuntimeValue::IntSigned(value)) => Some(((*value as u64) & 0xff) as i32),
+        Some(RuntimeValue::Ptr(value)) => Some(((*value as u64) & 0xff) as i32),
+        _ => None,
+    };
     Ok(RunOutcome {
         return_value,
-        exit_status: io_state.exit_status,
+        exit_status: io_state.exit_status.or(principal_status),
     })
 }
 
@@ -554,8 +650,9 @@ fn eval_global_value(g: &MachineGlobal) -> Result<RuntimeValue, PinkerError> {
         (OperandIR::Int(v), crate::ir::TypeIR::Pointer { .. }) => {
             Ok(RuntimeValue::Ptr(*v as usize))
         }
-        (OperandIR::Int(v), ty) if ty.is_signed() => Ok(RuntimeValue::IntSigned(*v as i64)),
-        (OperandIR::Int(v), _) => Ok(RuntimeValue::Int(*v)),
+        (OperandIR::Int(v), ty) if ty.is_integer() => {
+            coerce_runtime_value_to_type(RuntimeValue::Int(*v), ty)
+        }
         (OperandIR::Bool(v), _) => Ok(RuntimeValue::Bool(*v)),
         (OperandIR::Str(s), _) => Ok(RuntimeValue::Str(s.clone())),
         _ => Err(runtime_err("valor global não suportado em runtime")),
@@ -718,7 +815,11 @@ fn call_function(
                             fn_name
                         )));
                     }
-                    return Ok(Some(stack.pop().expect("len checked")));
+                    let value = stack.pop().expect("len checked");
+                    return Ok(Some(coerce_runtime_value_to_type(
+                        value,
+                        function.ret_type,
+                    )?));
                 }
                 MachineTerminator::RetVoid => {
                     if !stack.is_empty() {
@@ -809,7 +910,7 @@ fn exec_instr(
                 };
             slots.insert(slot.clone(), coerced);
         }
-        MachineInstr::Neg => {
+        MachineInstr::Neg { ty } => {
             let value = pop_numeric(stack, "neg exige inteiro no topo")?;
             let out = match value {
                 RuntimeValue::Int(v) => RuntimeValue::Int((0u64).wrapping_sub(v)),
@@ -825,13 +926,13 @@ fn exec_instr(
                 RuntimeValue::MapBombomVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Callable(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
-            stack.push(out);
+            stack.push(normalize_integer(out, *ty)?);
         }
         MachineInstr::Not => {
             let value = pop_bool(stack, "not exige lógica no topo")?;
             stack.push(RuntimeValue::Bool(!value));
         }
-        MachineInstr::BitNot => {
+        MachineInstr::BitNot { ty } => {
             let value = pop_numeric(stack, "bitnot exige inteiro no topo")?;
             let out = match value {
                 RuntimeValue::Int(v) => RuntimeValue::Int(!v),
@@ -847,7 +948,7 @@ fn exec_instr(
                 RuntimeValue::MapBombomVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::Callable(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
-            stack.push(out);
+            stack.push(normalize_integer(out, *ty)?);
         }
         MachineInstr::DerefLoad {
             ty, is_volatile, ..
@@ -856,28 +957,46 @@ fn exec_instr(
             let RuntimeValue::Ptr(addr) = ptr else {
                 return Err(runtime_err("deref_load exige ponteiro no topo"));
             };
-            if matches!(ty, crate::ir::TypeIR::FixedArray { .. }) {
+            // HR3: um agregado — array fixo **ou** `ninho` — é representado
+            // pelo endereço da sua representação completa. Abrir `*ptr` não lê
+            // uma palavra: produz o mesmo endereço, que é o que a injeção de
+            // união entrega para a cópia integral do snapshot. Tratar só array
+            // fixo aqui deixava `ninho` sem caminho de execução.
+            if matches!(
+                ty,
+                crate::ir::TypeIR::FixedArray { .. } | crate::ir::TypeIR::Struct
+            ) {
                 stack.push(RuntimeValue::Ptr(addr));
                 return Ok(());
             }
-            let public_region = public_memory_region(public_memory_state, addr);
+            let width = runtime_type_width(*ty);
+            let public_region = public_memory_access_region(public_memory_state, addr, width)?;
             if let Some((base, size, alive)) = public_region {
                 if !alive {
-                    return Err(runtime_err("uso após liberar detectado em memória pública"));
+                    return Err(runtime_err(
+                        "E-RUNTIME-MEM-USE-AFTER-FREE: uso após liberar detectado em memória pública",
+                    ));
                 }
-                let width = runtime_type_width(*ty);
                 if addr % width != 0 {
-                    return Err(runtime_err("acesso desalinhado à memória pública"));
+                    return Err(runtime_err(
+                        "E-RUNTIME-MEM-MISALIGNED: acesso desalinhado à memória pública",
+                    ));
                 }
-                let end = addr
-                    .checked_add(width)
-                    .ok_or_else(|| runtime_err("overflow no acesso à memória pública"))?;
-                if end > base + size {
-                    return Err(runtime_err("acesso fora dos limites da alocação pública"));
+                if !public_memory_interval_contained(base, size, addr, width)? {
+                    let message = if addr >= base {
+                        "E-RUNTIME-MEM-CROSS-BOUNDARY: acesso multibyte cruza o limite da alocação pública"
+                    } else {
+                        "E-RUNTIME-MEM-OUT-OF-BOUNDS: acesso fora dos limites da alocação pública"
+                    };
+                    return Err(runtime_err(message));
                 }
             }
             let loaded = if public_region.is_some() {
-                Some(public_memory_load_bytes(memory, addr, *ty)?)
+                Some(public_memory_load_bytes(
+                    &public_memory_state.payload,
+                    addr,
+                    *ty,
+                )?)
             } else if *is_volatile {
                 deref_load_fragil(memory, addr)
             } else {
@@ -898,25 +1017,31 @@ fn exec_instr(
                     "deref_store exige ponteiro abaixo do valor no topo",
                 ));
             };
-            let public_region = public_memory_region(public_memory_state, addr);
+            let width = runtime_type_width(*ty);
+            let public_region = public_memory_access_region(public_memory_state, addr, width)?;
             if let Some((base, size, alive)) = public_region {
                 if !alive {
-                    return Err(runtime_err("uso após liberar detectado em memória pública"));
+                    return Err(runtime_err(
+                        "E-RUNTIME-MEM-USE-AFTER-FREE: uso após liberar detectado em memória pública",
+                    ));
                 }
-                let width = runtime_type_width(*ty);
                 if addr % width != 0 {
-                    return Err(runtime_err("acesso desalinhado à memória pública"));
+                    return Err(runtime_err(
+                        "E-RUNTIME-MEM-MISALIGNED: acesso desalinhado à memória pública",
+                    ));
                 }
-                let end = addr
-                    .checked_add(width)
-                    .ok_or_else(|| runtime_err("overflow no acesso à memória pública"))?;
-                if end > base + size {
-                    return Err(runtime_err("acesso fora dos limites da alocação pública"));
+                if !public_memory_interval_contained(base, size, addr, width)? {
+                    let message = if addr >= base {
+                        "E-RUNTIME-MEM-CROSS-BOUNDARY: acesso multibyte cruza o limite da alocação pública"
+                    } else {
+                        "E-RUNTIME-MEM-OUT-OF-BOUNDS: acesso fora dos limites da alocação pública"
+                    };
+                    return Err(runtime_err(message));
                 }
             }
             if public_region.is_some() {
                 let coerced = coerce_runtime_value_to_type(value, *ty)?;
-                public_memory_store_bytes(memory, addr, *ty, coerced)?;
+                public_memory_store_bytes(&mut public_memory_state.payload, addr, *ty, coerced)?;
                 return Ok(());
             }
             if !memory.contains_key(&addr) {
@@ -936,37 +1061,180 @@ fn exec_instr(
             let casted = coerce_runtime_value_to_type(value, *ty)?;
             stack.push(casted);
         }
-        MachineInstr::BitAnd => {
+        MachineInstr::MakeUnion {
+            union_type_id,
+            tag,
+            resolved_member_type_id,
+            canonical_member_key,
+            payload_type,
+            payload_layout,
+        } => {
+            let payload = pop(stack, "make_union exige payload no topo")?;
+            let payload = coerce_runtime_value_to_type(payload, *payload_type)?;
+            let union = program
+                .union_types
+                .iter()
+                .find(|union| union.id == *union_type_id)
+                .ok_or_else(|| runtime_err("tipo de união não registrado"))?;
+            let member = union
+                .members
+                .iter()
+                .find(|member| member.tag == *tag)
+                .ok_or_else(|| runtime_err("tag de união não registrada"))?;
+            if member.ty != *payload_type || member.payload_layout != *payload_layout {
+                return Err(runtime_err("layout de união divergente no runtime"));
+            }
+            if !payload_layout.is_well_formed() {
+                return Err(runtime_err("layout de união mal formado no runtime"));
+            }
+            // O interpretador confere a identidade do membro em vez de aceitar a
+            // tag isolada: uma tag que não corresponda à identidade decidida no
+            // lowering é falha de compilação observada em execução, não um
+            // resultado a ser produzido silenciosamente.
+            if member.resolved_type_id != *resolved_member_type_id
+                || member.canonical_member_key != *canonical_member_key
+            {
+                return Err(runtime_err(
+                    "identidade de membro de união divergente no runtime",
+                ));
+            }
+            // A cópia acontece **antes** de qualquer registro: o snapshot é
+            // materializado a partir da origem e o descritor passa a ser
+            // independente dela.
+            let snapshot =
+                union_snapshot_from_source(payload, *payload_layout, public_memory_state)?;
+            let handle = UNION_RUNTIME_STATE.with(|state| {
+                let mut state = state.borrow_mut();
+                state.charge(payload_layout.size)?;
+                let handle = state.next_handle;
+                state.next_handle = state
+                    .next_handle
+                    .checked_add(16)
+                    .ok_or_else(|| runtime_err("overflow de handle de união"))?;
+                state.descriptors.insert(
+                    handle,
+                    UnionRuntimeDescriptor {
+                        union_type_id: *union_type_id,
+                        tag: *tag,
+                        payload: snapshot,
+                        payload_layout: *payload_layout,
+                    },
+                );
+                Ok::<usize, PinkerError>(handle)
+            })?;
+            stack.push(RuntimeValue::Ptr(handle));
+        }
+        // Execução direta das operações internas tipadas de união: `union_tag` valida o `UnionTypeId` do descritor e devolve a tag corrente; `union_extract` valida união, tag, chave canônica e layout contra a tabela internada antes de devolver o payload. Não há despacho por nome `__pinker_internal_*` — descritor inválido produz diagnóstico estruturado.
+        MachineInstr::UnionTag { union_type_id } => {
+            let value = pop(stack, "union_tag exige valor de união no topo")?;
+            let RuntimeValue::Ptr(handle) = value else {
+                return Err(runtime_err("union_tag exige handle de união"));
+            };
+            crate::ir::validate_union_reference(&program.union_types, *union_type_id)
+                .map_err(|message| runtime_err(&message))?;
+            let tag = UNION_RUNTIME_STATE.with(|state| {
+                let state = state.borrow();
+                let descriptor = state
+                    .descriptors
+                    .get(&handle)
+                    .ok_or_else(|| runtime_err("handle de união inválido em union_tag"))?;
+                if descriptor.union_type_id != *union_type_id {
+                    return Err(runtime_err("descritor de união de outro tipo em union_tag"));
+                }
+                Ok(descriptor.tag)
+            })?;
+            stack.push(RuntimeValue::Int(tag));
+        }
+        MachineInstr::UnionExtract {
+            union_type_id,
+            tag,
+            resolved_member_type_id,
+            canonical_member_key,
+            payload_type,
+            payload_layout,
+        } => {
+            let value = pop(stack, "union_extract exige valor de união no topo")?;
+            let RuntimeValue::Ptr(handle) = value else {
+                return Err(runtime_err("union_extract exige handle de união"));
+            };
+            crate::ir::validate_union_member_reference(
+                &program.union_types,
+                *union_type_id,
+                *tag,
+                canonical_member_key,
+                *payload_type,
+                *payload_layout,
+            )
+            .map_err(|message| runtime_err(&message))?;
+            crate::ir::validate_union_member_identity(
+                &program.union_types,
+                *union_type_id,
+                *tag,
+                *resolved_member_type_id,
+            )
+            .map_err(|message| runtime_err(&message))?;
+            let descriptor = UNION_RUNTIME_STATE.with(|state| {
+                state
+                    .borrow()
+                    .descriptors
+                    .get(&handle)
+                    .cloned()
+                    .ok_or_else(|| runtime_err("handle de união inválido em union_extract"))
+            })?;
+            if descriptor.union_type_id != *union_type_id {
+                return Err(runtime_err(
+                    "descritor de união de outro tipo em union_extract",
+                ));
+            }
+            if descriptor.tag != *tag {
+                return Err(runtime_err("tag divergente ao abrir payload de união"));
+            }
+            if descriptor.payload_layout != *payload_layout
+                || !descriptor.payload_layout.is_well_formed()
+            {
+                return Err(runtime_err("layout inválido no descritor de união"));
+            }
+            // Storage novo a cada extração: o binding pode ser mudado sem tocar
+            // no snapshot, e duas extrações da mesma união não compartilham
+            // memória.
+            let payload = union_snapshot_to_binding(
+                &descriptor.payload,
+                *payload_layout,
+                *payload_type,
+                public_memory_state,
+            )?;
+            stack.push(payload);
+        }
+        MachineInstr::BitAnd { ty } => {
             let (lhs, rhs) = pop_bin_numeric(stack, "bitand exige dois inteiros")?;
-            stack.push(bin_int(lhs, rhs, |a, b| a & b, |a, b| a & b)?);
+            stack.push(normalize_integer(
+                bin_int(lhs, rhs, |a, b| a & b, |a, b| a & b)?,
+                *ty,
+            )?);
         }
-        MachineInstr::BitOr => {
+        MachineInstr::BitOr { ty } => {
             let (lhs, rhs) = pop_bin_numeric(stack, "bitor exige dois inteiros")?;
-            stack.push(bin_int(lhs, rhs, |a, b| a | b, |a, b| a | b)?);
+            stack.push(normalize_integer(
+                bin_int(lhs, rhs, |a, b| a | b, |a, b| a | b)?,
+                *ty,
+            )?);
         }
-        MachineInstr::BitXor => {
+        MachineInstr::BitXor { ty } => {
             let (lhs, rhs) = pop_bin_numeric(stack, "bitxor exige dois inteiros")?;
-            stack.push(bin_int(lhs, rhs, |a, b| a ^ b, |a, b| a ^ b)?);
+            stack.push(normalize_integer(
+                bin_int(lhs, rhs, |a, b| a ^ b, |a, b| a ^ b)?,
+                *ty,
+            )?);
         }
-        MachineInstr::Shl => {
+        MachineInstr::Shl { ty } => {
             let (lhs, rhs) = pop_bin_numeric(stack, "shl exige dois inteiros")?;
-            stack.push(bin_int(
-                lhs,
-                rhs,
-                |a, b| a.wrapping_shl(b as u32),
-                |a, b| a.wrapping_shl(b as u32),
-            )?);
+            stack.push(eval_shift(lhs, rhs, *ty, false)?);
         }
-        MachineInstr::Shr => {
+        MachineInstr::Shr { ty } => {
             let (lhs, rhs) = pop_bin_numeric(stack, "shr exige dois inteiros")?;
-            stack.push(bin_int(
-                lhs,
-                rhs,
-                |a, b| a.wrapping_shr(b as u32),
-                |a, b| a.wrapping_shr(b as u32),
-            )?);
+            stack.push(eval_shift(lhs, rhs, *ty, true)?);
         }
-        MachineInstr::Add => {
+        MachineInstr::Add { ty } => {
             let rhs = pop(stack, "underflow em add")?;
             let lhs = pop(stack, "underflow em add")?;
             let origem = match &lhs {
@@ -974,10 +1242,15 @@ fn exec_instr(
                 _ => None,
             };
             let resultado = eval_add(lhs, rhs)?;
+            let resultado = if ty.is_integer() {
+                normalize_integer(resultado, *ty)?
+            } else {
+                resultado
+            };
             validar_derivacao_memoria_publica(public_memory_state, origem, &resultado)?;
             stack.push(resultado);
         }
-        MachineInstr::Sub => {
+        MachineInstr::Sub { ty } => {
             let rhs = pop(stack, "underflow em sub")?;
             let lhs = pop(stack, "underflow em sub")?;
             let origem = match &lhs {
@@ -985,29 +1258,33 @@ fn exec_instr(
                 _ => None,
             };
             let resultado = eval_sub(lhs, rhs)?;
+            let resultado = if ty.is_integer() {
+                normalize_integer(resultado, *ty)?
+            } else {
+                resultado
+            };
             validar_derivacao_memoria_publica(public_memory_state, origem, &resultado)?;
             stack.push(resultado);
         }
-        MachineInstr::Mul => {
+        MachineInstr::Mul { ty } => {
             let (lhs, rhs) = pop_bin_numeric(stack, "mul exige dois inteiros")?;
-            stack.push(bin_int(
-                lhs,
-                rhs,
-                |a, b| a.wrapping_mul(b),
-                |a, b| a.wrapping_mul(b),
+            stack.push(normalize_integer(
+                bin_int(lhs, rhs, |a, b| a.wrapping_mul(b), |a, b| a.wrapping_mul(b))?,
+                *ty,
             )?);
         }
-        MachineInstr::Div => {
+        MachineInstr::Div { ty } => {
             let (lhs, rhs) = pop_bin_numeric(stack, "div exige dois inteiros")?;
-            stack.push(bin_int_checked_div(lhs, rhs)?);
+            stack.push(normalize_integer(bin_int_checked_div(lhs, rhs)?, *ty)?);
         }
-        MachineInstr::Mod => {
+        MachineInstr::Mod { ty } => {
             let (lhs, rhs) = pop_bin_numeric(stack, "mod exige dois inteiros")?;
-            stack.push(bin_int_checked_mod(lhs, rhs)?);
+            stack.push(normalize_integer(bin_int_checked_mod(lhs, rhs)?, *ty)?);
         }
-        MachineInstr::CmpEq => {
+        MachineInstr::CmpEq { ty } => {
             let rhs = pop(stack, "cmp_eq exige dois valores")?;
             let lhs = pop(stack, "cmp_eq exige dois valores")?;
+            let (lhs, rhs) = normalize_comparison_pair(lhs, rhs, *ty)?;
             let equal = match (lhs, rhs) {
                 (RuntimeValue::Ptr(a), RuntimeValue::Ptr(b)) => a == b,
                 (RuntimeValue::Ptr(a), RuntimeValue::Int(0))
@@ -1016,9 +1293,10 @@ fn exec_instr(
             };
             stack.push(RuntimeValue::Bool(equal));
         }
-        MachineInstr::CmpNe => {
+        MachineInstr::CmpNe { ty } => {
             let rhs = pop(stack, "cmp_ne exige dois valores")?;
             let lhs = pop(stack, "cmp_ne exige dois valores")?;
+            let (lhs, rhs) = normalize_comparison_pair(lhs, rhs, *ty)?;
             let different = match (lhs, rhs) {
                 (RuntimeValue::Ptr(a), RuntimeValue::Ptr(b)) => a != b,
                 (RuntimeValue::Ptr(a), RuntimeValue::Int(0))
@@ -1027,8 +1305,9 @@ fn exec_instr(
             };
             stack.push(RuntimeValue::Bool(different));
         }
-        MachineInstr::CmpLt => {
+        MachineInstr::CmpLt { ty } => {
             let (lhs, rhs) = pop_bin_numeric(stack, "cmp_lt exige dois inteiros")?;
+            let (lhs, rhs) = normalize_comparison_pair(lhs, rhs, *ty)?;
             stack.push(RuntimeValue::Bool(cmp_int(
                 lhs,
                 rhs,
@@ -1036,8 +1315,9 @@ fn exec_instr(
                 |a, b| a < b,
             )?));
         }
-        MachineInstr::CmpLe => {
+        MachineInstr::CmpLe { ty } => {
             let (lhs, rhs) = pop_bin_numeric(stack, "cmp_le exige dois inteiros")?;
+            let (lhs, rhs) = normalize_comparison_pair(lhs, rhs, *ty)?;
             stack.push(RuntimeValue::Bool(cmp_int(
                 lhs,
                 rhs,
@@ -1045,8 +1325,9 @@ fn exec_instr(
                 |a, b| a <= b,
             )?));
         }
-        MachineInstr::CmpGt => {
+        MachineInstr::CmpGt { ty } => {
             let (lhs, rhs) = pop_bin_numeric(stack, "cmp_gt exige dois inteiros")?;
+            let (lhs, rhs) = normalize_comparison_pair(lhs, rhs, *ty)?;
             stack.push(RuntimeValue::Bool(cmp_int(
                 lhs,
                 rhs,
@@ -1054,8 +1335,9 @@ fn exec_instr(
                 |a, b| a > b,
             )?));
         }
-        MachineInstr::CmpGe => {
+        MachineInstr::CmpGe { ty } => {
             let (lhs, rhs) = pop_bin_numeric(stack, "cmp_ge exige dois inteiros")?;
+            let (lhs, rhs) = normalize_comparison_pair(lhs, rhs, *ty)?;
             stack.push(RuntimeValue::Bool(cmp_int(
                 lhs,
                 rhs,
@@ -1352,6 +1634,11 @@ fn exec_instr(
         MachineInstr::PrintNewline => {
             println!();
         }
+        MachineInstr::InlineAsm { .. } => {
+            return Err(runtime_err(
+                "E-RUNTIME-SUSSURRO-NATIVO: sussurro exige execução pelo backend nativo x86-64",
+            ));
+        }
     }
 
     Ok(())
@@ -1364,6 +1651,11 @@ fn exec_instr(
 // @pinker-nav:layer interpreter
 // @pinker-nav:summary Implementa intrínsecas hospedadas de aleatoriedade inicial, validando aridade, semente e handle de gerador, mutando o estado pseudoaleatório do interpretador e retornando handles ou números; não representa geradores do runtime nativo.
 const PUBLIC_MEMORY_BASE: usize = 0x5000_0000;
+const PUBLIC_MEMORY_MAX_IDENTITIES: usize = 1_000_000;
+const PUBLIC_MEMORY_MAX_VIRTUAL_BYTES: usize = 8 * 1024 * 1024 * 1024;
+const PUBLIC_MEMORY_MAX_METADATA_BYTES: usize =
+    PUBLIC_MEMORY_MAX_IDENTITIES * std::mem::size_of::<PublicMemoryRegion>();
+const PUBLIC_MEMORY_MAX_QUARANTINE_BYTES: usize = 0;
 
 #[derive(Clone, Debug)]
 struct PublicMemoryRegion {
@@ -1376,6 +1668,7 @@ struct PublicMemoryRegion {
 struct PublicMemoryState {
     next_address: usize,
     regions: Vec<PublicMemoryRegion>,
+    payload: HashMap<usize, RuntimeValue>,
 }
 
 impl Default for PublicMemoryState {
@@ -1383,6 +1676,7 @@ impl Default for PublicMemoryState {
         Self {
             next_address: PUBLIC_MEMORY_BASE,
             regions: Vec::new(),
+            payload: HashMap::new(),
         }
     }
 }
@@ -1492,18 +1786,57 @@ fn public_memory_load_bytes(
     public_memory_word_to_value(word, ty)
 }
 
+fn public_memory_interval_contained(
+    region_start: usize,
+    region_size: usize,
+    access_start: usize,
+    access_width: usize,
+) -> Result<bool, PinkerError> {
+    let region_end = region_start.checked_add(region_size).ok_or_else(|| {
+        runtime_err("E-RUNTIME-MEM-ADDRESS-OVERFLOW: metadados de região pública inválidos")
+    })?;
+    let access_end = access_start.checked_add(access_width).ok_or_else(|| {
+        runtime_err("E-RUNTIME-MEM-ADDRESS-OVERFLOW: overflow no acesso à memória pública")
+    })?;
+    Ok(access_start >= region_start && access_end <= region_end)
+}
+
 fn public_memory_region(state: &PublicMemoryState, address: usize) -> Option<(usize, usize, bool)> {
     for region in state.regions.iter().rev() {
-        if address >= region.base && address < region.base.saturating_add(region.size) {
+        if region
+            .base
+            .checked_add(region.size)
+            .is_some_and(|end| address >= region.base && address < end)
+        {
             return Some((region.base, region.size, region.alive));
         }
     }
     for region in state.regions.iter().rev() {
-        if address == region.base.saturating_add(region.size) {
+        if region
+            .base
+            .checked_add(region.size)
+            .is_some_and(|end| address == end)
+        {
             return Some((region.base, region.size, region.alive));
         }
     }
     None
+}
+
+fn public_memory_access_region(
+    state: &PublicMemoryState,
+    address: usize,
+    width: usize,
+) -> Result<Option<(usize, usize, bool)>, PinkerError> {
+    let access_end = address.checked_add(width).ok_or_else(|| {
+        runtime_err("E-RUNTIME-MEM-ADDRESS-OVERFLOW: overflow no acesso à memória pública")
+    })?;
+    Ok(state.regions.iter().rev().find_map(|region| {
+        let region_end = region.base.checked_add(region.size)?;
+        ((address >= region.base && address <= region_end)
+            || (address < region.base && access_end > region.base))
+            .then_some((region.base, region.size, region.alive))
+    }))
 }
 
 fn validar_derivacao_memoria_publica(
@@ -1518,23 +1851,190 @@ fn validar_derivacao_memoria_publica(
         return Ok(());
     };
     if !alive {
-        return Err(runtime_err("uso após liberar detectado em memória pública"));
+        return Err(runtime_err(
+            "E-RUNTIME-MEM-USE-AFTER-FREE: uso após liberar detectado em memória pública",
+        ));
     }
-    let fim = base
-        .checked_add(size)
-        .ok_or_else(|| runtime_err("metadados de região pública inválidos"))?;
+    let fim = base.checked_add(size).ok_or_else(|| {
+        runtime_err("E-RUNTIME-MEM-ADDRESS-OVERFLOW: metadados de região pública inválidos")
+    })?;
     if *derivado < base || *derivado > fim {
         return Err(runtime_err(
-            "derivação fora dos limites da alocação pública",
+            "E-RUNTIME-MEM-OUT-OF-BOUNDS: derivação fora dos limites da alocação pública",
         ));
     }
     Ok(())
 }
 
+/// Reserva uma região pública nova para storage de agregado de união.
+///
+/// Reutiliza a mesma aritmética de arena e os mesmos tetos de `alocar`, para
+/// que o storage de união não fique fora do modelo de memória auditado. O
+/// arredondamento para 16 bytes garante o maior alinhamento suportado
+/// ([`crate::union_payload::MAX_UNION_PAYLOAD_ALIGN`]).
+fn union_reserve_public_storage(
+    state: &mut PublicMemoryState,
+    size: u64,
+    align: u64,
+) -> Result<usize, PinkerError> {
+    if align > crate::union_payload::MAX_UNION_PAYLOAD_ALIGN {
+        return Err(runtime_err(
+            "E-RUNTIME-UNION-ALIGN: alinhamento de payload de união acima do suportado",
+        ));
+    }
+    let size = usize::try_from(size)
+        .map_err(|_| runtime_err("tamanho de payload de união excede a plataforma"))?;
+    let rounded = size
+        .checked_add(15)
+        .map(|value| value & !15)
+        .ok_or_else(|| runtime_err("overflow ao alinhar storage de união"))?;
+    let base = state.next_address;
+    let next = base
+        .checked_add(rounded)
+        .ok_or_else(|| runtime_err("overflow de endereço em storage de união"))?;
+    let arena_end = PUBLIC_MEMORY_BASE
+        .checked_add(PUBLIC_MEMORY_MAX_VIRTUAL_BYTES)
+        .ok_or_else(|| runtime_err("overflow no limite virtual da memória pública"))?;
+    if state.regions.len() >= PUBLIC_MEMORY_MAX_IDENTITIES {
+        return Err(runtime_err("limite de identidades públicas esgotado"));
+    }
+    if next > arena_end {
+        return Err(runtime_err("espaço virtual público esgotado"));
+    }
+    state
+        .regions
+        .try_reserve(1)
+        .map_err(|_| runtime_err("registro de alocações públicas não pôde reservar metadata"))?;
+    state.next_address = next;
+    state.regions.push(PublicMemoryRegion {
+        base,
+        size,
+        alive: true,
+    });
+    Ok(base)
+}
+
+/// Copia a origem de uma injeção de união para um snapshot independente.
+///
+/// Para agregados, a origem tem de ser um endereço de uma região pública viva
+/// que contenha integralmente `[addr, addr + size)`. Origem incompleta,
+/// liberada, desalinhada ou fora de região é recusada com diagnóstico — nunca
+/// aceita parcialmente nem guardada como ponteiro.
+fn union_snapshot_from_source(
+    payload: RuntimeValue,
+    layout: crate::union_payload::UnionPayloadLayout,
+    public_memory_state: &PublicMemoryState,
+) -> Result<UnionPayloadSnapshot, PinkerError> {
+    use crate::union_payload::UnionPayloadRepresentation;
+    match layout.representation {
+        UnionPayloadRepresentation::Scalar => Ok(UnionPayloadSnapshot::Scalar(payload)),
+        UnionPayloadRepresentation::OpaqueHandle => Ok(UnionPayloadSnapshot::OpaqueHandle(payload)),
+        UnionPayloadRepresentation::Aggregate => {
+            let RuntimeValue::Ptr(address) = payload else {
+                return Err(runtime_err(
+                    "E-RUNTIME-UNION-AGGREGATE-SOURCE: agregado de união exige valor representado \
+                     por endereço",
+                ));
+            };
+            let size = usize::try_from(layout.size)
+                .map_err(|_| runtime_err("tamanho de agregado de união excede a plataforma"))?;
+            let align = usize::try_from(layout.align)
+                .map_err(|_| runtime_err("alinhamento de agregado de união excede a plataforma"))?;
+            if align == 0 || address % align != 0 {
+                return Err(runtime_err(
+                    "E-RUNTIME-UNION-AGGREGATE-SOURCE: origem de agregado de união desalinhada",
+                ));
+            }
+            let region = public_memory_access_region(public_memory_state, address, size)?;
+            let Some((base, region_size, alive)) = region else {
+                return Err(runtime_err(
+                    "E-RUNTIME-UNION-AGGREGATE-SOURCE: origem de agregado de união fora de região \
+                     pública conhecida",
+                ));
+            };
+            if !alive {
+                return Err(runtime_err(
+                    "E-RUNTIME-MEM-USE-AFTER-FREE: uso após liberar detectado em origem de união",
+                ));
+            }
+            if !public_memory_interval_contained(base, region_size, address, size)? {
+                return Err(runtime_err(
+                    "E-RUNTIME-UNION-AGGREGATE-SOURCE: origem de agregado de união incompleta na \
+                     região",
+                ));
+            }
+            let mut bytes = Vec::new();
+            bytes
+                .try_reserve(size)
+                .map_err(|_| runtime_err("snapshot de união não pôde reservar bytes"))?;
+            for offset in 0..size {
+                let byte_address = address
+                    .checked_add(offset)
+                    .ok_or_else(|| runtime_err("overflow ao copiar agregado de união"))?;
+                // Byte ausente é byte zero, exatamente como na leitura pública:
+                // o padding é preservado com a mesma regra.
+                let byte = match public_memory_state.payload.get(&byte_address) {
+                    Some(RuntimeValue::Int(value)) => (*value & u8::MAX as u64) as u8,
+                    None => 0,
+                    Some(_) => {
+                        return Err(runtime_err(
+                            "representação interna inválida em byte de agregado de união",
+                        ));
+                    }
+                };
+                bytes.push(byte);
+            }
+            Ok(UnionPayloadSnapshot::Aggregate { bytes })
+        }
+    }
+}
+
+/// Materializa o binding de um braço a partir do snapshot imutável.
+///
+/// Escalares e handles são clonados. Agregados recebem uma região nova, para a
+/// qual o snapshot é copiado: o ponteiro devolvido nunca é o storage interno do
+/// descritor, e duas extrações devolvem regiões distintas.
+fn union_snapshot_to_binding(
+    snapshot: &UnionPayloadSnapshot,
+    layout: crate::union_payload::UnionPayloadLayout,
+    payload_type: TypeIR,
+    public_memory_state: &mut PublicMemoryState,
+) -> Result<RuntimeValue, PinkerError> {
+    match snapshot {
+        UnionPayloadSnapshot::Scalar(value) | UnionPayloadSnapshot::OpaqueHandle(value) => {
+            coerce_runtime_value_to_type(value.clone(), payload_type)
+        }
+        UnionPayloadSnapshot::Aggregate { bytes } => {
+            let expected = usize::try_from(layout.size)
+                .map_err(|_| runtime_err("tamanho de agregado de união excede a plataforma"))?;
+            if bytes.len() != expected {
+                return Err(runtime_err(
+                    "snapshot de agregado de união com tamanho divergente",
+                ));
+            }
+            let base =
+                union_reserve_public_storage(public_memory_state, layout.size, layout.align)?;
+            for (offset, byte) in bytes.iter().enumerate() {
+                let byte_address = base
+                    .checked_add(offset)
+                    .ok_or_else(|| runtime_err("overflow ao materializar agregado de união"))?;
+                public_memory_state
+                    .payload
+                    .insert(byte_address, RuntimeValue::Int(u64::from(*byte)));
+            }
+            Ok(RuntimeValue::Ptr(base))
+        }
+    }
+}
 fn public_memory_allocate(
     args: &[RuntimeValue],
     state: &mut PublicMemoryState,
 ) -> Result<IntrinsicCall, PinkerError> {
+    debug_assert_eq!(
+        PUBLIC_MEMORY_MAX_METADATA_BYTES,
+        PUBLIC_MEMORY_MAX_IDENTITIES * std::mem::size_of::<PublicMemoryRegion>()
+    );
+    debug_assert_eq!(PUBLIC_MEMORY_MAX_QUARANTINE_BYTES, 0);
     let [RuntimeValue::Int(size)] = args else {
         return Err(runtime_err("'alocar' exige um tamanho 'u64' em bytes"));
     };
@@ -1548,9 +2048,6 @@ fn public_memory_allocate(
             "'alocar' excede o maior bloco representável pela plataforma",
         ));
     }
-    if cfg!(debug_assertions) && std::env::var_os("PINKER_TESTE_FALHA_ALOCACAO_PUBLICA").is_some() {
-        return Err(runtime_err("'alocar' falhou ao reservar memória"));
-    }
     let rounded = size
         .checked_add(15)
         .map(|value| value & !15)
@@ -1559,6 +2056,15 @@ fn public_memory_allocate(
     let next = base
         .checked_add(rounded)
         .ok_or_else(|| runtime_err("overflow de endereço em 'alocar'"))?;
+    let arena_end = PUBLIC_MEMORY_BASE
+        .checked_add(PUBLIC_MEMORY_MAX_VIRTUAL_BYTES)
+        .ok_or_else(|| runtime_err("overflow no limite virtual da memória pública"))?;
+    if state.regions.len() >= PUBLIC_MEMORY_MAX_IDENTITIES {
+        return Err(runtime_err("limite de identidades públicas esgotado"));
+    }
+    if next > arena_end {
+        return Err(runtime_err("espaço virtual público esgotado"));
+    }
     state
         .regions
         .try_reserve(1)
@@ -1587,22 +2093,32 @@ fn public_memory_free(
             continue;
         }
         if !region.alive {
-            return Err(runtime_err("'liberar' detectou double free"));
+            return Err(runtime_err(
+                "E-RUNTIME-MEM-DOUBLE-FREE: 'liberar' detectou double free",
+            ));
         }
         region.alive = false;
+        let base = region.base;
+        let end = base
+            .checked_add(region.size)
+            .ok_or_else(|| runtime_err("overflow em metadata de memória pública"))?;
+        state
+            .payload
+            .retain(|address, _| *address < base || *address >= end);
         return Ok(IntrinsicCall::Done(None));
     }
-    if state
-        .regions
-        .iter()
-        .any(|region| *pointer > region.base && *pointer <= region.base.saturating_add(region.size))
-    {
+    if state.regions.iter().any(|region| {
+        region
+            .base
+            .checked_add(region.size)
+            .is_some_and(|end| *pointer > region.base && *pointer < end)
+    }) {
         return Err(runtime_err(
-            "'liberar' rejeita ponteiro interior; use o ponteiro-base",
+            "E-RUNTIME-MEM-INTERIOR-FREE: 'liberar' rejeita ponteiro interior; use o ponteiro-base",
         ));
     }
     Err(runtime_err(
-        "'liberar' rejeita ponteiro estrangeiro ou de domínio interno",
+        "E-RUNTIME-MEM-FOREIGN-FREE: 'liberar' rejeita ponteiro estrangeiro ou de domínio interno",
     ))
 }
 
@@ -2186,6 +2702,8 @@ fn try_call_intrinsic(
             payloads.push(RuntimeEnumPayload::Str(payload.clone()));
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(*handle))))
         }
+        // Não há intrínseca chamável de união: `union_tag` e `union_extract`
+        // são instruções tipadas da máquina, executadas diretamente.
         "__pinker_internal_leque_tag" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -5121,36 +5639,152 @@ fn pop_bin_numeric(
     Ok((lhs, rhs))
 }
 
+fn integer_width_bits(ty: crate::ir::TypeIR) -> Option<u32> {
+    match ty {
+        crate::ir::TypeIR::U8 | crate::ir::TypeIR::I8 => Some(8),
+        crate::ir::TypeIR::U16 | crate::ir::TypeIR::I16 => Some(16),
+        crate::ir::TypeIR::U32 | crate::ir::TypeIR::I32 => Some(32),
+        crate::ir::TypeIR::U64 | crate::ir::TypeIR::I64 | crate::ir::TypeIR::Bombom => Some(64),
+        _ => None,
+    }
+}
+
+fn integer_raw_bits(value: RuntimeValue) -> Result<u64, PinkerError> {
+    match value {
+        RuntimeValue::Int(value) => Ok(value),
+        RuntimeValue::IntSigned(value) => Ok(value as u64),
+        RuntimeValue::Ptr(value) => Ok(value as u64),
+        _ => Err(runtime_err("operação inteira exige valor numérico")),
+    }
+}
+
+fn normalize_integer(
+    value: RuntimeValue,
+    ty: crate::ir::TypeIR,
+) -> Result<RuntimeValue, PinkerError> {
+    let width = integer_width_bits(ty)
+        .ok_or_else(|| runtime_err("normalização inteira recebeu tipo não inteiro"))?;
+    let raw = integer_raw_bits(value)?;
+    let masked = if width == 64 {
+        raw
+    } else {
+        raw & ((1u64 << width) - 1)
+    };
+    if ty.is_signed() {
+        let signed = if width == 64 {
+            masked as i64
+        } else {
+            ((masked << (64 - width)) as i64) >> (64 - width)
+        };
+        Ok(RuntimeValue::IntSigned(signed))
+    } else {
+        Ok(RuntimeValue::Int(masked))
+    }
+}
+
+fn normalize_comparison_pair(
+    lhs: RuntimeValue,
+    rhs: RuntimeValue,
+    ty: crate::ir::TypeIR,
+) -> Result<(RuntimeValue, RuntimeValue), PinkerError> {
+    if ty.is_integer() {
+        Ok((normalize_integer(lhs, ty)?, normalize_integer(rhs, ty)?))
+    } else {
+        Ok((lhs, rhs))
+    }
+}
+
+fn eval_shift(
+    lhs: RuntimeValue,
+    rhs: RuntimeValue,
+    ty: crate::ir::TypeIR,
+    right: bool,
+) -> Result<RuntimeValue, PinkerError> {
+    let width = integer_width_bits(ty)
+        .ok_or_else(|| runtime_err("shift recebeu tipo operacional não inteiro"))?;
+    let count = match rhs {
+        RuntimeValue::Int(value) => value,
+        RuntimeValue::IntSigned(value) if value >= 0 => value as u64,
+        RuntimeValue::IntSigned(_) => {
+            return Err(runtime_err(
+                "E-RUNTIME-SHIFT-COUNT: contagem de shift deve ser não negativa",
+            ));
+        }
+        _ => return Err(runtime_err("shift exige contagem inteira")),
+    };
+    if count >= u64::from(width) {
+        return Err(runtime_err(&format!(
+            "E-RUNTIME-SHIFT-COUNT: contagem {count} fora da largura {width}"
+        )));
+    }
+
+    let lhs = normalize_integer(lhs, ty)?;
+    let shifted = if right && ty.is_signed() {
+        let RuntimeValue::IntSigned(value) = lhs else {
+            unreachable!("normalização signed produz IntSigned")
+        };
+        RuntimeValue::IntSigned(value >> (count as u32))
+    } else {
+        let raw = integer_raw_bits(lhs)?;
+        let value = if right {
+            raw >> (count as u32)
+        } else {
+            raw << (count as u32)
+        };
+        RuntimeValue::Int(value)
+    };
+    normalize_integer(shifted, ty)
+}
+
 fn coerce_runtime_value_to_type(
     value: RuntimeValue,
     ty: crate::ir::TypeIR,
 ) -> Result<RuntimeValue, PinkerError> {
     if ty.is_integer() {
-        return match (value, ty.is_signed()) {
-            (RuntimeValue::Int(v), true) => Ok(RuntimeValue::IntSigned(v as i64)),
-            (RuntimeValue::IntSigned(v), false) => Ok(RuntimeValue::Int(v as u64)),
-            (RuntimeValue::Ptr(v), true) => Ok(RuntimeValue::IntSigned(v as i64)),
-            (RuntimeValue::Ptr(v), false) => Ok(RuntimeValue::Int(v as u64)),
-            (RuntimeValue::Str(_), _) => Err(runtime_err("cast inteiro não aceita verso")),
-            (RuntimeValue::ListBombom(_), _) => {
+        return match value {
+            value @ (RuntimeValue::Int(_) | RuntimeValue::IntSigned(_)) => {
+                normalize_integer(value, ty)
+            }
+            // Handles opacos históricos (ninhos, arrays e leques com carga)
+            // atravessam alguns slots `bombom` como ponteiros. Normalização
+            // numérica de armazenamento não pode apagar essa categoria; um
+            // cast público ponteiro→inteiro continua proibido no semantic.
+            value @ RuntimeValue::Ptr(_) => Ok(value),
+            RuntimeValue::Str(_) => Err(runtime_err("cast inteiro não aceita verso")),
+            RuntimeValue::ListBombom(_) => {
                 Err(runtime_err("cast inteiro não aceita lista<bombom>"))
             }
-            (RuntimeValue::ListVerso(_), _) => {
-                Err(runtime_err("cast inteiro não aceita lista<verso>"))
-            }
-            (RuntimeValue::MapVersoBombom(_), _) => {
+            RuntimeValue::ListVerso(_) => Err(runtime_err("cast inteiro não aceita lista<verso>")),
+            RuntimeValue::MapVersoBombom(_) => {
                 Err(runtime_err("cast inteiro não aceita mapa<verso,bombom>"))
             }
-            (RuntimeValue::MapVersoVerso(_), _) => {
+            RuntimeValue::MapVersoVerso(_) => {
                 Err(runtime_err("cast inteiro não aceita mapa<verso,verso>"))
             }
-            (RuntimeValue::MapBombomBombom(_), _) => {
+            RuntimeValue::MapBombomBombom(_) => {
                 Err(runtime_err("cast inteiro não aceita mapa<bombom,bombom>"))
             }
-            (RuntimeValue::MapBombomVerso(_), _) => {
+            RuntimeValue::MapBombomVerso(_) => {
                 Err(runtime_err("cast inteiro não aceita mapa<bombom,verso>"))
             }
-            (v, _) => Ok(v),
+            other => Ok(other),
+        };
+    }
+
+    if let crate::ir::TypeIR::Union(expected_id) = ty {
+        return match value {
+            RuntimeValue::Ptr(handle) => UNION_RUNTIME_STATE.with(|state| {
+                let state = state.borrow();
+                let descriptor = state
+                    .descriptors
+                    .get(&handle)
+                    .ok_or_else(|| runtime_err("handle de união inexistente"))?;
+                if descriptor.union_type_id != expected_id {
+                    return Err(runtime_err("handle pertence a outro tipo de união"));
+                }
+                Ok(RuntimeValue::Ptr(handle))
+            }),
+            _ => Err(runtime_err("valor incompatível: esperado união estrutural")),
         };
     }
 
@@ -5314,6 +5948,9 @@ fn bin_int_checked_div(lhs: RuntimeValue, rhs: RuntimeValue) -> Result<RuntimeVa
             if b == 0 {
                 return Err(runtime_err("divisão por zero"));
             }
+            if a == i64::MIN && b == -1 {
+                return Ok(RuntimeValue::IntSigned(i64::MIN));
+            }
             Ok(RuntimeValue::IntSigned(a / b))
         }
         _ => Err(runtime_err("divisão inteira inválida em runtime")),
@@ -5331,6 +5968,9 @@ fn bin_int_checked_mod(lhs: RuntimeValue, rhs: RuntimeValue) -> Result<RuntimeVa
         (RuntimeValue::IntSigned(a), RuntimeValue::IntSigned(b)) => {
             if b == 0 {
                 return Err(runtime_err("divisão por zero"));
+            }
+            if a == i64::MIN && b == -1 {
+                return Ok(RuntimeValue::IntSigned(0));
             }
             Ok(RuntimeValue::IntSigned(a % b))
         }
@@ -5534,9 +6174,9 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::LoadSlot(_) => "load_slot",
         MachineInstr::LoadGlobal(_) => "load_global",
         MachineInstr::StoreSlot(_) => "store_slot",
-        MachineInstr::Neg => "neg",
+        MachineInstr::Neg { .. } => "neg",
         MachineInstr::Not => "not",
-        MachineInstr::BitNot => "bitnot",
+        MachineInstr::BitNot { .. } => "bitnot",
         MachineInstr::DerefLoad { is_volatile, .. } => {
             if *is_volatile {
                 "deref_load_fragil"
@@ -5552,22 +6192,25 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
             }
         }
         MachineInstr::Cast { .. } => "cast",
-        MachineInstr::BitAnd => "bitand",
-        MachineInstr::BitOr => "bitor",
-        MachineInstr::BitXor => "bitxor",
-        MachineInstr::Shl => "shl",
-        MachineInstr::Shr => "shr",
-        MachineInstr::Add => "add",
-        MachineInstr::Sub => "sub",
-        MachineInstr::Mul => "mul",
-        MachineInstr::Div => "div",
-        MachineInstr::Mod => "mod",
-        MachineInstr::CmpEq => "cmp_eq",
-        MachineInstr::CmpNe => "cmp_ne",
-        MachineInstr::CmpLt => "cmp_lt",
-        MachineInstr::CmpLe => "cmp_le",
-        MachineInstr::CmpGt => "cmp_gt",
-        MachineInstr::CmpGe => "cmp_ge",
+        MachineInstr::MakeUnion { .. } => "make_union",
+        MachineInstr::UnionTag { .. } => "union_tag",
+        MachineInstr::UnionExtract { .. } => "union_extract",
+        MachineInstr::BitAnd { .. } => "bitand",
+        MachineInstr::BitOr { .. } => "bitor",
+        MachineInstr::BitXor { .. } => "bitxor",
+        MachineInstr::Shl { .. } => "shl",
+        MachineInstr::Shr { .. } => "shr",
+        MachineInstr::Add { .. } => "add",
+        MachineInstr::Sub { .. } => "sub",
+        MachineInstr::Mul { .. } => "mul",
+        MachineInstr::Div { .. } => "div",
+        MachineInstr::Mod { .. } => "mod",
+        MachineInstr::CmpEq { .. } => "cmp_eq",
+        MachineInstr::CmpNe { .. } => "cmp_ne",
+        MachineInstr::CmpLt { .. } => "cmp_lt",
+        MachineInstr::CmpLe { .. } => "cmp_le",
+        MachineInstr::CmpGt { .. } => "cmp_gt",
+        MachineInstr::CmpGe { .. } => "cmp_ge",
         MachineInstr::Call { .. } => "call",
         MachineInstr::CallVoid { .. } => "call_void",
         MachineInstr::PushFunctionRef(_) => "push_function_ref",
@@ -5583,6 +6226,7 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::PrintStrInline(_) => "print_str_inline",
         MachineInstr::PrintSpace => "print_space",
         MachineInstr::PrintNewline => "print_newline",
+        MachineInstr::InlineAsm { .. } => "inline_asm",
     }
 }
 // @pinker-nav:end interpreter.diagnostico.stack-trace
@@ -5750,5 +6394,52 @@ mod fase246_public_memory_tests {
             public_memory_load_bytes(&memory, base + 8, TypeIR::U64).expect("zero u64"),
             RuntimeValue::Int(0)
         );
+    }
+}
+
+#[cfg(test)]
+mod hr3_union_budget_tests {
+    use super::*;
+
+    /// HR3: o orçamento interpretado é equivalente ao nativo. Os tetos são
+    /// testados na fronteira, sem materializar milhões de descritores.
+    #[test]
+    fn orcamento_de_bytes_de_payload_e_finito() {
+        let mut state = UnionRuntimeState {
+            total_payload_bytes: crate::union_payload::MAX_UNION_TOTAL_PAYLOAD_BYTES - 8,
+            ..UnionRuntimeState::default()
+        };
+        state.charge(8).expect("exatamente no teto é aceito");
+        let error = state
+            .charge(1)
+            .expect_err("um byte acima do teto é recusado")
+            .to_string();
+        assert!(error.contains("E-RUNTIME-UNION-PAYLOAD-BUDGET"), "{error}");
+    }
+
+    #[test]
+    fn orcamento_de_metadata_e_finito() {
+        let mut state = UnionRuntimeState {
+            metadata_bytes: crate::union_payload::MAX_UNION_METADATA_BYTES,
+            ..UnionRuntimeState::default()
+        };
+        let error = state
+            .charge(8)
+            .expect_err("metadata esgotada é recusada")
+            .to_string();
+        assert!(error.contains("E-RUNTIME-UNION-METADATA-BUDGET"), "{error}");
+    }
+
+    #[test]
+    fn orcamento_usa_operacoes_checked() {
+        let mut state = UnionRuntimeState {
+            total_payload_bytes: u64::MAX,
+            ..UnionRuntimeState::default()
+        };
+        let error = state
+            .charge(1)
+            .expect_err("overflow é recusado")
+            .to_string();
+        assert!(error.contains("overflow"), "{error}");
     }
 }

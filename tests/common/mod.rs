@@ -16,6 +16,8 @@ use pinker_v0::lexer::Lexer;
 use pinker_v0::parser::Parser;
 use pinker_v0::printer;
 use pinker_v0::semantic;
+use std::path::PathBuf;
+use std::process::Command;
 
 // @pinker-nav:start evidencia.frontend.pipeline-basico
 // @pinker-nav:domain frontend
@@ -186,6 +188,7 @@ pub fn render_backend_s_external_subset(code: &str) -> Result<String, PinkerErro
     instr_select_validate::validate_program(&selected)?;
     backend_s::emit_external_toolchain_subset(&selected)
 }
+
 // @pinker-nav:end evidencia.backend-s-externo.pipeline-helper
 
 // @pinker-nav:start evidencia.backend-s.apresentacao-cli-helper
@@ -206,3 +209,116 @@ pub fn render_cli_asm_s_output(code: &str) -> Result<String, PinkerError> {
     Ok(out)
 }
 // @pinker-nav:end evidencia.backend-s.apresentacao-cli-helper
+
+// @pinker-nav:start evidencia.nativo.capacidade
+// @pinker-nav:domain testing
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Centraliza a capacidade de evidência nativa: plataforma, driver C e staticlib opcional são classificados com razões enumeradas; todo skip emite ledger JSON canônico e PINKER_EXIGE_NATIVO=1 converte ausência em falha.
+pub fn render_backend_s_external_subset_nativo(code: &str) -> Result<String, PinkerError> {
+    let program = parse(code)?;
+    semantic::check_program(&program)?;
+    let program_ir = ir::lower_program(&program)?;
+    ir_validate::validate_program(&program_ir)?;
+    let cfg = cfg_ir::lower_program(&program_ir)?;
+    cfg_ir_validate::validate_program(&cfg)?;
+    let selected = instr_select::lower_program(&cfg)?;
+    instr_select_validate::validate_program(&selected)?;
+    backend_s::emit_external_toolchain_subset_nativo(&selected)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NativeEvidenceCapability {
+    Executable {
+        driver: String,
+        runtime_lib: Option<PathBuf>,
+    },
+    Skipped {
+        reason: &'static str,
+    },
+    Unavailable {
+        reason: &'static str,
+    },
+}
+
+fn native_cc_driver() -> Option<String> {
+    ["cc", "gcc", "clang"].iter().find_map(|candidate| {
+        let probe = Command::new(candidate).arg("--version").output().ok()?;
+        probe.status.success().then(|| (*candidate).to_string())
+    })
+}
+
+fn native_runtime_lib() -> Option<PathBuf> {
+    if let Some(path) = std::env::var_os("PINKER_RT_LIB").map(PathBuf::from) {
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+
+    let executable = std::env::current_exe().ok()?;
+    let deps = executable.parent()?;
+    for directory in [Some(deps), deps.parent()].into_iter().flatten() {
+        let candidate = directory.join("libpinker_rt.a");
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+pub fn native_evidence_capability(needs_runtime: bool) -> NativeEvidenceCapability {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return NativeEvidenceCapability::Skipped {
+            reason: "unsupported_platform",
+        };
+    }
+    let Some(driver) = native_cc_driver() else {
+        return NativeEvidenceCapability::Unavailable {
+            reason: "cc_not_found",
+        };
+    };
+    let runtime_lib = needs_runtime.then(native_runtime_lib).flatten();
+    if needs_runtime && runtime_lib.is_none() {
+        return NativeEvidenceCapability::Unavailable {
+            reason: "runtime_library_not_found",
+        };
+    }
+    NativeEvidenceCapability::Executable {
+        driver,
+        runtime_lib,
+    }
+}
+
+pub fn require_native_evidence(
+    test: &str,
+    needs_runtime: bool,
+) -> Option<(String, Option<PathBuf>)> {
+    match native_evidence_capability(needs_runtime) {
+        NativeEvidenceCapability::Executable {
+            driver,
+            runtime_lib,
+        } => Some((driver, runtime_lib)),
+        NativeEvidenceCapability::Skipped { reason } => {
+            eprintln!(
+                "{{\"event\":\"native_evidence\",\"reason\":\"{reason}\",\"status\":\"skipped\",\"test\":\"{test}\"}}"
+            );
+            assert_ne!(
+                std::env::var("PINKER_EXIGE_NATIVO").as_deref(),
+                Ok("1"),
+                "evidência nativa obrigatória indisponível: {reason} ({test})"
+            );
+            None
+        }
+        NativeEvidenceCapability::Unavailable { reason } => {
+            eprintln!(
+                "{{\"event\":\"native_evidence\",\"reason\":\"{reason}\",\"status\":\"unavailable\",\"test\":\"{test}\"}}"
+            );
+            assert_ne!(
+                std::env::var("PINKER_EXIGE_NATIVO").as_deref(),
+                Ok("1"),
+                "evidência nativa obrigatória indisponível: {reason} ({test})"
+            );
+            None
+        }
+    }
+}
+// @pinker-nav:end evidencia.nativo.capacidade

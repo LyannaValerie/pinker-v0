@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 // @pinker-nav:layer select
 // @pinker-nav:summary Valida a camada de seleção de instruções: operandos e destinos bem formados, uso coerente de temporários e conformidade das instruções selecionadas antes de descer à máquina abstrata.
 pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
+    crate::ir::validate_union_registry(&program.union_types).map_err(|message| err(&message))?;
     let mut globals = HashSet::new();
     for g in &program.globals {
         globals.insert(g.name.clone());
@@ -120,6 +121,8 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
         TypeIR::Bombom,
     );
     sigs.insert("__pinker_internal_leque_carga_v".to_string(), TypeIR::Verso);
+    // União não tem intrínseca chamável: `UnionTag`/`UnionExtract` são
+    // operações internas tipadas da seleção.
     sigs.insert("argumento".to_string(), TypeIR::Verso);
     sigs.insert("argumento_ou".to_string(), TypeIR::Verso);
     sigs.insert("tem_chave".to_string(), TypeIR::Logica);
@@ -240,9 +243,9 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         }
                         check_operand(src, &slots, &temps, &globals)?;
                     }
-                    SelectedInstr::Neg { dest, operand }
+                    SelectedInstr::Neg { dest, operand, .. }
                     | SelectedInstr::Not { dest, operand }
-                    | SelectedInstr::BitNot { dest, operand } => {
+                    | SelectedInstr::BitNot { dest, operand, .. } => {
                         check_operand(operand, &slots, &temps, &globals)?;
                         temps.insert(*dest);
                     }
@@ -251,6 +254,80 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         if *ty == TypeIR::Nulo {
                             return Err(err("selected deref_load não pode retornar nulo"));
                         }
+                        temps.insert(*dest);
+                    }
+                    SelectedInstr::UnionInject {
+                        dest,
+                        value,
+                        union_type_id,
+                        tag,
+                        resolved_member_type_id,
+                        canonical_member_key,
+                        payload_type,
+                        payload_layout,
+                    } => {
+                        check_operand(value, &slots, &temps, &globals)?;
+                        if !payload_layout.is_well_formed() {
+                            return Err(err("selected union_inject inválido"));
+                        }
+                        // A injeção selecionada tem de continuar apontando para o
+                        // membro exato decidido no lowering: tag, chave canônica
+                        // e identidade resolvida precisam concordar entre si.
+                        crate::ir::validate_union_member_reference(
+                            &program.union_types,
+                            *union_type_id,
+                            *tag,
+                            canonical_member_key,
+                            *payload_type,
+                            *payload_layout,
+                        )
+                        .map_err(|message| err(&message))?;
+                        crate::ir::validate_union_member_identity(
+                            &program.union_types,
+                            *union_type_id,
+                            *tag,
+                            *resolved_member_type_id,
+                        )
+                        .map_err(|message| err(&message))?;
+                        temps.insert(*dest);
+                    }
+                    SelectedInstr::UnionTag {
+                        dest,
+                        value,
+                        union_type_id,
+                    } => {
+                        check_operand(value, &slots, &temps, &globals)?;
+                        crate::ir::validate_union_reference(&program.union_types, *union_type_id)
+                            .map_err(|message| err(&message))?;
+                        temps.insert(*dest);
+                    }
+                    SelectedInstr::UnionExtract {
+                        dest,
+                        value,
+                        union_type_id,
+                        tag,
+                        resolved_member_type_id,
+                        canonical_member_key,
+                        payload_type,
+                        payload_layout,
+                    } => {
+                        check_operand(value, &slots, &temps, &globals)?;
+                        crate::ir::validate_union_member_reference(
+                            &program.union_types,
+                            *union_type_id,
+                            *tag,
+                            canonical_member_key,
+                            *payload_type,
+                            *payload_layout,
+                        )
+                        .map_err(|message| err(&message))?;
+                        crate::ir::validate_union_member_identity(
+                            &program.union_types,
+                            *union_type_id,
+                            *tag,
+                            *resolved_member_type_id,
+                        )
+                        .map_err(|message| err(&message))?;
                         temps.insert(*dest);
                     }
                     SelectedInstr::DerefStore { ptr, value, ty, .. } => {
@@ -271,22 +348,22 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         }
                         temps.insert(*dest);
                     }
-                    SelectedInstr::Add { dest, lhs, rhs }
-                    | SelectedInstr::BitAnd { dest, lhs, rhs }
-                    | SelectedInstr::BitOr { dest, lhs, rhs }
-                    | SelectedInstr::BitXor { dest, lhs, rhs }
-                    | SelectedInstr::Shl { dest, lhs, rhs }
-                    | SelectedInstr::Shr { dest, lhs, rhs }
-                    | SelectedInstr::Sub { dest, lhs, rhs }
-                    | SelectedInstr::Mul { dest, lhs, rhs }
-                    | SelectedInstr::Div { dest, lhs, rhs }
-                    | SelectedInstr::Mod { dest, lhs, rhs }
-                    | SelectedInstr::CmpEq { dest, lhs, rhs }
-                    | SelectedInstr::CmpNe { dest, lhs, rhs }
-                    | SelectedInstr::CmpLt { dest, lhs, rhs }
-                    | SelectedInstr::CmpLe { dest, lhs, rhs }
-                    | SelectedInstr::CmpGt { dest, lhs, rhs }
-                    | SelectedInstr::CmpGe { dest, lhs, rhs } => {
+                    SelectedInstr::Add { dest, lhs, rhs, .. }
+                    | SelectedInstr::BitAnd { dest, lhs, rhs, .. }
+                    | SelectedInstr::BitOr { dest, lhs, rhs, .. }
+                    | SelectedInstr::BitXor { dest, lhs, rhs, .. }
+                    | SelectedInstr::Shl { dest, lhs, rhs, .. }
+                    | SelectedInstr::Shr { dest, lhs, rhs, .. }
+                    | SelectedInstr::Sub { dest, lhs, rhs, .. }
+                    | SelectedInstr::Mul { dest, lhs, rhs, .. }
+                    | SelectedInstr::Div { dest, lhs, rhs, .. }
+                    | SelectedInstr::Mod { dest, lhs, rhs, .. }
+                    | SelectedInstr::CmpEq { dest, lhs, rhs, .. }
+                    | SelectedInstr::CmpNe { dest, lhs, rhs, .. }
+                    | SelectedInstr::CmpLt { dest, lhs, rhs, .. }
+                    | SelectedInstr::CmpLe { dest, lhs, rhs, .. }
+                    | SelectedInstr::CmpGt { dest, lhs, rhs, .. }
+                    | SelectedInstr::CmpGe { dest, lhs, rhs, .. } => {
                         check_operand(lhs, &slots, &temps, &globals)?;
                         check_operand(rhs, &slots, &temps, &globals)?;
                         temps.insert(*dest);
@@ -458,6 +535,11 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         temps.insert(*dest);
                     }
                     SelectedInstr::Falar { args: _ } => {}
+                    SelectedInstr::InlineAsm { chunks, .. } => {
+                        if chunks.is_empty() || chunks.iter().any(|chunk| chunk.trim().is_empty()) {
+                            return Err(err("selected inline_asm exige chunks não vazios"));
+                        }
+                    }
                 }
             }
 

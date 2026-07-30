@@ -23,11 +23,58 @@ struct FunctionSigCfg {
     params: Vec<TypeIR>,
 }
 
+// @pinker-nav:start cfg.unioes.validacao-operacoes
+// @pinker-nav:domain unioes
+// @pinker-nav:layer cfg
+// @pinker-nav:summary Fronteira de validação das operações internas tipadas de união no CFG: cada `UnionTag` confirma a existência do `UnionTypeId` e cada `UnionExtract` é confrontado com a tabela internada — tag pertencente ao registry, chave canônica coincidente com a tag, tipo e layout do payload iguais. Nenhuma tag é recalculada; o registry é a única fonte, e nenhuma chamada comum substitui estas operações.
+fn validate_union_operations(program: &ProgramCfgIR) -> Result<(), PinkerError> {
+    for function in &program.functions {
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                match instruction {
+                    InstructionCfgIR::UnionTag { union_type_id, .. } => {
+                        crate::ir::validate_union_reference(&program.union_types, *union_type_id)
+                            .map_err(|message| cfg_error(&message, function.span))?;
+                    }
+                    InstructionCfgIR::UnionExtract {
+                        union_type_id,
+                        tag,
+                        canonical_member_key,
+                        payload_type,
+                        payload_layout,
+                        ..
+                    } => {
+                        crate::ir::validate_union_member_reference(
+                            &program.union_types,
+                            *union_type_id,
+                            *tag,
+                            canonical_member_key,
+                            *payload_type,
+                            *payload_layout,
+                        )
+                        .map_err(|message| cfg_error(&message, function.span))?;
+                    }
+                    InstructionCfgIR::UnionInject { union_type_id, .. } => {
+                        crate::ir::validate_union_reference(&program.union_types, *union_type_id)
+                            .map_err(|message| cfg_error(&message, function.span))?;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    Ok(())
+}
+// @pinker-nav:end cfg.unioes.validacao-operacoes
+
 // @pinker-nav:start cfg.validacao.invariantes
 // @pinker-nav:domain validacao
 // @pinker-nav:layer cfg
 // @pinker-nav:summary Valida os invariantes do CFG IR: blocos rotulados com terminadores bem formados, alvos de salto existentes, ausência de fall-through implícito e consistência de tipos entre blocos.
 pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
+    crate::ir::validate_union_registry(&program.union_types)
+        .map_err(|message| cfg_error(&message, default_span()))?;
+    validate_union_operations(program)?;
     let mut global_consts = HashMap::new();
     for konst in &program.consts {
         if konst.name.trim().is_empty() {
@@ -441,6 +488,8 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
+    // Não há assinatura chamável de união: tag e extração são instruções CFG
+    // tipadas (`UnionTag`/`UnionExtract`), nunca `Call`.
     function_sigs.insert(
         "argumento".to_string(),
         FunctionSigCfg {
@@ -1238,7 +1287,12 @@ fn validate_block(
                     ));
                 }
             }
-            InstructionCfgIR::Unary { dest, op, operand } => {
+            InstructionCfgIR::Unary {
+                dest,
+                op,
+                operand,
+                ty,
+            } => {
                 let operand_ty = infer_operand_type(
                     operand,
                     slot_types,
@@ -1252,6 +1306,12 @@ fn validate_block(
                     crate::ir::UnaryOpIR::BitNot if operand_ty.is_integer() => operand_ty,
                     _ => return Err(cfg_error("operando inválido para unário", function.span)),
                 };
+                if *ty != result {
+                    return Err(cfg_error(
+                        "tipo operacional divergente em unário",
+                        function.span,
+                    ));
+                }
                 temp_types.insert(*dest, result);
             }
             InstructionCfgIR::DerefLoad {
@@ -1264,10 +1324,14 @@ fn validate_block(
                     infer_operand_type(ptr, slot_types, &temp_types, global_consts, function.span)?;
                 let ptr_is_volatile = match ptr_ty {
                     TypeIR::Pointer { is_volatile } => Some(is_volatile),
+                    // HR3: um agregado — array fixo de `bombom` ou `ninho` —
+                    // já é o endereço do seu storage e serve de base de acesso
+                    // sem ponteiro intermediário.
                     TypeIR::FixedArray {
                         element: crate::ir::ScalarTypeIR::Bombom,
                         ..
-                    } => None,
+                    }
+                    | TypeIR::Struct => None,
                     _ => {
                         return Err(cfg_error(
                             "deref_load exige operando do tipo ponteiro",
@@ -1302,13 +1366,15 @@ fn validate_block(
                     TypeIR::Pointer {
                         is_volatile: ptr_is_volatile,
                     } => Some(ptr_is_volatile),
+                    // Mesma convenção da leitura: o valor agregado é o endereço.
                     TypeIR::FixedArray {
                         element: crate::ir::ScalarTypeIR::Bombom,
                         ..
-                    } => None,
+                    }
+                    | TypeIR::Struct => None,
                     _ => {
                         return Err(cfg_error(
-                            "deref_store exige operando do tipo ponteiro ou array fixo de bombom",
+                            "deref_store exige operando do tipo ponteiro, array fixo de bombom ou 'ninho'",
                             function.span,
                         ));
                     }
@@ -1367,7 +1433,75 @@ fn validate_block(
                 }
                 temp_types.insert(*dest, *target_type);
             }
-            InstructionCfgIR::Binary { dest, op, lhs, rhs } => {
+            InstructionCfgIR::UnionInject {
+                dest,
+                value,
+                union_type_id,
+                payload_type,
+                payload_layout,
+                ..
+            } => {
+                let source_ty = infer_operand_type(
+                    value,
+                    slot_types,
+                    &temp_types,
+                    global_consts,
+                    function.span,
+                )?;
+                if !operand_matches_expected(value, source_ty, *payload_type)
+                    || !payload_layout.is_well_formed()
+                {
+                    return Err(cfg_error("union_inject inválido na CFG", function.span));
+                }
+                temp_types.insert(*dest, TypeIR::Union(*union_type_id));
+            }
+            InstructionCfgIR::UnionTag {
+                dest,
+                value,
+                union_type_id,
+            } => {
+                let source_ty = infer_operand_type(
+                    value,
+                    slot_types,
+                    &temp_types,
+                    global_consts,
+                    function.span,
+                )?;
+                if source_ty != TypeIR::Union(*union_type_id) {
+                    return Err(cfg_error(
+                        "union_tag exige operando da união associada",
+                        function.span,
+                    ));
+                }
+                temp_types.insert(*dest, TypeIR::Bombom);
+            }
+            InstructionCfgIR::UnionExtract {
+                dest,
+                value,
+                union_type_id,
+                payload_type,
+                payload_layout,
+                ..
+            } => {
+                let source_ty = infer_operand_type(
+                    value,
+                    slot_types,
+                    &temp_types,
+                    global_consts,
+                    function.span,
+                )?;
+                if source_ty != TypeIR::Union(*union_type_id) || !payload_layout.is_well_formed() {
+                    return Err(cfg_error("union_extract inválido na CFG", function.span));
+                }
+                temp_types.insert(*dest, *payload_type);
+            }
+            InstructionCfgIR::Binary {
+                dest,
+                op,
+                lhs,
+                rhs,
+                ty,
+            } => {
                 let lhs_ty =
                     infer_operand_type(lhs, slot_types, &temp_types, global_consts, function.span)?;
                 let rhs_ty =
@@ -1396,6 +1530,10 @@ fn validate_block(
                         let pointer_offset_ok =
                             matches!(op, crate::ir::BinaryOpIR::Add | crate::ir::BinaryOpIR::Sub)
                                 && (matches!(lhs_ty, TypeIR::Pointer { .. })
+                                    // HR3: um agregado é o endereço do seu
+                                    // storage; deslocar dentro dele é a mesma
+                                    // aritmética de ponteiro.
+                                    || matches!(lhs_ty, TypeIR::Struct)
                                     || matches!(
                                         lhs_ty,
                                         TypeIR::FixedArray {
@@ -1454,6 +1592,18 @@ fn validate_block(
                         }
                     }
                 };
+                let numeric_operation_type =
+                    if matches!(lhs, OperandIR::Int(_)) && rhs_ty.is_integer() {
+                        rhs_ty
+                    } else {
+                        lhs_ty
+                    };
+                if numeric_operation_type.is_integer() && *ty != numeric_operation_type {
+                    return Err(cfg_error(
+                        "tipo operacional divergente em operação numérica",
+                        function.span,
+                    ));
+                }
                 temp_types.insert(*dest, result);
             }
             InstructionCfgIR::Call {
@@ -1906,6 +2056,14 @@ fn validate_block(
                 temp_types.insert(*dest, TypeIR::Function);
             }
             InstructionCfgIR::Falar { args: _ } => {}
+            InstructionCfgIR::InlineAsm { chunks, .. } => {
+                if chunks.is_empty() || chunks.iter().any(|chunk| chunk.trim().is_empty()) {
+                    return Err(cfg_error(
+                        "inline_asm da CFG exige chunks não vazios",
+                        function.span,
+                    ));
+                }
+            }
         }
     }
 

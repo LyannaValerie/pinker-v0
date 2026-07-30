@@ -36,6 +36,11 @@ Referência rápida para localizar a camada certa antes de editar.
 - backend `.s`: `src/backend_s.rs`
 - ponteiros crus de função (Fase 245): formação em `src/parser.rs`, contrato em `src/semantic.rs`, lowering em `src/ir.rs`, execução determinística em `src/interpreter.rs` e ABI indireta em `src/backend_s.rs`
 - memória pública (Fase 246): semântica/lowering em `src/semantic.rs` e `src/ir.rs`, regiões esparsas em `src/interpreter.rs`, validação nativa de vida/limites/alinhamento e domínios em `runtime/pinker_rt/src/lib.rs`
+- assembly inline (Fase 247): `sussurro` atravessa AST, IR, CFG, seleção e máquina; validação em `src/semantic.rs`, erro hospedado em `src/interpreter.rs` e emissão GNU Intel x86-64 em `src/backend_s.rs`
+- uniões estruturais (Fase 248): contrato normativo único de canonicalização em `src/union_canon.rs`, consumido pela semântica (`src/semantic.rs`) e pelo lowering (`src/ir.rs`); registry internado em `src/ir.rs`, preservação/validação nas camadas intermediárias, descritores hospedados em `src/interpreter.rs` e ABI interna em `runtime/pinker_rt/src/lib.rs`
+- `encaixe` de união tipado (HR1 da revisão humana da PR #411): nó próprio na AST (`src/ast.rs`), preservação no parser (`src/parser.rs`), resolução de apelidos e cobertura canônica em `src/semantic.rs`, associação ao registry e operações internas tipadas (`UnionMatch`/`UnionTag`/`UnionExtract`) em `src/ir.rs`, propagação por `src/cfg_ir.rs`, `src/instr_select.rs` e `src/abstract_machine.rs`, execução direta em `src/interpreter.rs` e escolha do símbolo de ABI apenas em `src/backend_s.rs`
+- identidade semântica de tipos (HR4 da revisão humana da PR #411): chave canônica exaustiva e transparência de apelidos em `src/union_canon.rs`; `ResolvedTypeId`, `ResolvedTypeIR`, `TypeRefIR`, `ResolvedTypeTable`, a tabela `ProgramIR.resolved_types` e a seleção do membro por igualdade exata em `src/ir.rs`; transporte e verificação da identidade do membro por `src/cfg_ir.rs`, `src/instr_select.rs`, `src/abstract_machine.rs`, `src/ir_validate.rs`, `src/instr_select_validate.rs` e `src/interpreter.rs`. `TypeIR` permanece apenas a categoria operacional; a ABI de payload não muda
+- payloads estruturais de união (HR3 da revisão humana da PR #411): classificação única e exaustiva das representações (escalar, handle opaco, agregado), layout real, transparência de apelidos em profundidade e limites documentados em `src/union_payload.rs`; rejeição antecipada com códigos `E-SEMANTIC-UNION-PAYLOAD-*` em `src/semantic.rs`; `UnionPayloadLayout` transportado por `src/ir.rs`, `src/cfg_ir.rs`, `src/instr_select.rs` e `src/abstract_machine.rs` e reconferido pelos validadores correspondentes; snapshot independente e orçamento no interpretador (`src/interpreter.rs`); scratch alinhado de injeção, storage novo de extração e ABI por endereço em `src/backend_s.rs`; descritor de bloco único com registro de handles, validação e orçamentos em `runtime/pinker_rt/src/lib.rs`
 - boot/freestanding: `src/boot.rs`
 - CLI: `src/main.rs`
 
@@ -52,6 +57,7 @@ Referência rápida para localizar a camada certa antes de editar.
 - máquina/runtime: `tests/abstract_machine_tests.rs`, `tests/abstract_machine_stack_tests.rs`, `tests/interpreter_tests.rs`
 - backends: `tests/backend_text_tests.rs`, `tests/backend_s_tests.rs`, `tests/backend_s_external_toolchain_tests.rs`
 - Fases 245–246: `tests/phase245_246_tests.rs`
+- Fases 247–248 e correções da revisão humana da PR #411: `tests/phase247_248_tests.rs`
 - CLI/saída: `tests/output_tests.rs`, `tests/editor_tui_tests.rs`
 
 ## Docs que costumam acompanhar mudança funcional

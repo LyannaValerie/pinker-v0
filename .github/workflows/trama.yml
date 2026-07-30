@@ -27,6 +27,8 @@ jobs:
     steps:
       - name: Checkout do PR
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Instalar toolchain Rust
         uses: dtolnay/rust-toolchain@master
@@ -34,8 +36,8 @@ jobs:
           toolchain: "1.78.0"
           components: rustfmt, clippy
 
-      - name: make ci (build, test, fmt, clippy, guard, docs-check, nav-check)
-        run: make ci
+      - name: make ci (entry point canônico integral)
+        run: PINKER_EXIGE_NATIVO=1 make ci
 
       - name: Validar bloco pinker-change do PR (somente leitura)
         env:

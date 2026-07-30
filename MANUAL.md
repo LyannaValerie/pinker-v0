@@ -325,10 +325,11 @@ Cada alocação pública possui identidade lógica, base, tamanho, alinhamento,
 estado `LIVE`/`FREED`, domínio e proveniência. O interpretador modela regiões
 esparsas byte a byte, inclusive truncamento e extensão de sinal/zero por
 largura; o runtime nativo registra a mesma informação e valida cada load/store
-público quanto a vida, limites completos e alinhamento. A liberação física fica
-em quarentena até o fim do processo, impedindo que reutilização de endereço
-reative aliases antigos ou esconda double free. Metadados conservam todas as
-gerações e a busca sempre seleciona a mais recente.
+público quanto a vida, limites completos e alinhamento. A arena é monotônica:
+uma identidade liberada nunca reutiliza endereço, enquanto as páginas físicas
+são descomprometidas. O orçamento é explícito e equivalente nos dois modos:
+até 1.000.000 de identidades, 8 GiB de espaço virtual público, metadata
+proporcional a esse teto e quarentena física de zero bytes.
 
 Somente um alias do ponteiro-base vivo pode liberar a região, uma vez.
 Ponteiro nulo, interior, estrangeiro, estático, de pilha ou pertencente aos
@@ -337,6 +338,12 @@ casts permitidos preservam a identidade; não transferem ownership. Acesso
 depois de liberar, desalinhado ou que cruze o último byte é diagnosticado com
 paridade entre interpretador e nativo. Cargas assinadas preservam o sinal
 também nas comparações relacionais subsequentes.
+
+A validação pública falha fechada quando recebe endereço sem região gerenciada
+candidata. O compilador transporta proveniência pelo lowering e só emite essa
+validação para ponteiros públicos; ponteiros internos e ponteiros raw
+fabricados seguem domínios distintos. Cast de inteiro para ponteiro permanece
+fora da promessa de segurança de memória.
 
 Os registros de região, vida e próxima identidade pertencem ao estado interno
 do interpretador, fora do mapa endereçável pelo programa. Assim, casts de
@@ -423,6 +430,10 @@ falar(verdade);
 falar("oi");
 ```
 
+Todas as variantes de `falar`, incluindo espaços e newline, usam o mesmo writer
+no runtime nativo. Falha de saída produz diagnóstico uniforme e exit code 1,
+inclusive em pipe fechado.
+
 ### Entrada com `ouvir()`
 
 ```pink
@@ -432,7 +443,11 @@ falar(valor);
 
 ### Arquivo: `abrir`, `ler_arquivo`, `escrever`, `fechar`
 
-Recorte atual: handle inteiro (`bombom`) e conteúdo tratado como `bombom`.
+Recorte atual: handle inteiro (`bombom`) sustentado por um descritor aberto.
+`abrir` não carrega o conteúdo; leitura, escrita, truncamento e append operam no
+mesmo descritor mesmo se o caminho original for renomeado ou removido.
+`criar` é exclusivo e nunca trunca entrada existente. Leituras para `verso`
+possuem limite explícito de 64 MiB.
 
 ```pink
 nova h: bombom = abrir("dados.txt");
@@ -465,6 +480,12 @@ Operações mínimas disponíveis hoje:
 - `capturar_stdout(comando, argv1)` → o mesmo recorte mínimo acima, mas com exatamente um argumento textual explícito adicional, sem shell implícito, sem quoting/escaping rico e sem coleção geral de argv (Fase 169).
 - `capturar_stderr(comando)` → executa um processo externo mínimo sem shell implícito e retorna o stderr textual como `verso`, com UTF-8 estrito.
 - `capturar_stderr(comando, argv1)` → o mesmo recorte mínimo acima, mas com exatamente um argumento textual explícito adicional, sem shell implícito, sem quoting/escaping rico e sem coleção geral de argv (Fase 170).
+
+Subprocessos não herdam a `PATH` do processo pai para resolução: basenames são
+procurados somente em `/usr/local/bin:/usr/bin:/bin`, enquanto comandos com
+`/` usam exatamente o caminho informado. `executar_com_entrada` escreve stdin
+concorrentemente à espera do filho, fecha o pipe e propaga erros de escrita e
+status sem impor timeout oculto.
 
 ```pink
 nova a: verso = "oi ";
@@ -652,6 +673,80 @@ No estado atual, ainda há limites importantes para uso geral:
 - API de arquivo segue sem modos avançados de streaming.
 
 ## 12) Onde olhar depois
+
+### Assembly inline e uniões estruturais
+
+`sussurro("...");` aceita chunks literais GNU assembler Intel x86-64. O
+backend nativo os emite como barreira de efeitos; o interpretador termina com
+`E-RUNTIME-SUSSURRO-NATIVO`.
+
+A validação é estrutural, por statements: o scanner divide o texto por newline e
+por `;` fora de comentários e regiões citadas e, depois de remover labels e
+comentários, recusa todo statement que comece com `.`. Portanto **todas** as
+diretivas assembler são rejeitadas por construção, e não por uma lista de nomes.
+Labels locais numéricos (`1:`, `jne 1b`) são aceitos; labels nominais não. Cada
+bloco é emitido dentro de um envelope com sentinelas geradas pelo compilador, e
+o objeto montado é inspecionado para provar que o bloco não criou seção nem
+símbolo nomeado adicional.
+
+O prefixo `__pinker_internal_` é reservado ao compilador: qualquer identificador
+da fonte que o use — em declaração ou em referência — é recusado com
+`E-SEMANTIC-RESERVED-NAMESPACE`.
+
+`uniao<T1, T2, ...>` é estrutural e independente da ordem. A injeção usa
+`virar` explícito e a abertura usa `encaixe` com um braço por membro, sem
+`senao`. O handle ocupa uma palavra e tem lifetime monotônico nesta fase.
+
+O **valor público** continua sendo esse handle de uma palavra, mas o descritor
+guarda um snapshot alinhado do payload **completo**. Cada membro é classificado
+como escalar (largura real), handle opaco (uma palavra, cópia rasa por
+contrato) ou agregado (`ninho`, array fixo e apelidos resolvidos deles, copiado
+byte a byte, incluindo padding). Apelidos são transparentes em profundidade
+também na classificação.
+
+Um tipo sem representação de payload conhecida é recusado na semântica, antes da
+IR validada, com código estável: `E-SEMANTIC-UNION-PAYLOAD-LAYOUT`,
+`E-SEMANTIC-UNION-PAYLOAD-SIZE`, `E-SEMANTIC-UNION-PAYLOAD-ALIGN` ou
+`E-SEMANTIC-UNION-PAYLOAD-REPRESENTATION`. Um payload ocupa no máximo 4096
+bytes com alinhamento no máximo 16; descritores, bytes de snapshot e metadata
+têm orçamentos finitos, revalidados no runtime nativo e no interpretador.
+
+A cópia acontece na injeção: mudar a origem depois não muda o que o `encaixe`
+observa. A extração copia para storage novo do binding, de modo que duas
+extrações da mesma união não compartilham memória e nenhuma delas expõe o
+storage interno do descritor. O comportamento é idêntico no interpretador e no
+caminho nativo.
+
+`encaixe` é preservado como construto tipado: o parser guarda o scrutinee e o
+tipo de cada braço **como escrito**, sem resolver apelidos e sem calcular tags.
+Os apelidos são resolvidos antes da associação dos braços, a cobertura é
+validada depois da resolução (dois apelidos do mesmo tipo canônico são o mesmo
+membro e são recusados como duplicata) e as tags pertencem exclusivamente ao
+registry canônico — o nome do apelido, a ordem dos braços e a ordem textual da
+união não definem tag alguma. Ler a tag e abrir o payload são operações internas
+tipadas do compilador, não chamadas da linguagem.
+
+A escolha do membro na injeção usa a **identidade semântica resolvida** do tipo
+de origem, e não a representação operacional. As duas noções são distintas e não
+se substituem: a representação (`TypeIR`, interna ao compilador) diz como o valor
+é carregado e armazenado; a identidade resolvida (`ResolvedTypeId`) diz qual tipo
+o valor é. Dois `ninho` diferentes, dois `leque` diferentes, duas assinaturas de
+`carinho` diferentes e dois `seta<T>` de apontados diferentes compartilham
+representação e nunca compartilham identidade. Apelidos são transparentes em
+profundidade — `apelido A = Cor` e `seta<A>` resolvem para a identidade de `Cor`
+e de `seta<Cor>` —, de modo que o texto do apelido nunca vira identidade.
+
+A identidade acompanha o valor por declarações locais, atribuições, parâmetros,
+retornos, chamadas diretas e indiretas, ternários, valores callable, closures,
+capturas, extração de payload e reinjeção. A injeção exige igualdade exata de
+identidade com um membro do registry e **não** tem desempate por primeira
+ocorrência; a tag é copiada desse membro e nenhuma camada posterior reescolhe
+membro. Identidade perdida ou ambígua é erro do compilador
+(`E-IR-TYPE-IDENTITY-LOST`, `E-IR-UNION-IDENTITY-DUPLICATE`,
+`E-IR-UNION-MEMBER-IDENTITY-MISMATCH`), nunca um resultado silencioso.
+
+O interpretador limita a execução a 64 chamadas Pinker simultâneas. O retorno
+de `principal` não é impresso: seus 8 bits baixos formam o exit status.
 
 - `docs/style.md` — Norma Visual Oficial Mínima (convenções de estilo e estética).
 - `README.md` — visão geral do projeto, modos de execução e comandos.

@@ -1,0 +1,362 @@
+schema: 1
+baseline_pr: 330
+cutover_merge_sha: 1df2a6afff423bc7564e7322880e24af683f6089
+
+exceptions:
+  - pr: 331
+    merge_sha: 6e237ae65cc517eda3ee16b7827c995851e5fa93
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "6e237ae65cc517eda3ee16b7827c995851e5fa93"
+      - "Merge pull request #331 from LyannaValerie/claude/trama-pinker-spec-hj6ywn"
+  - pr: 332
+    merge_sha: bed07d0e9a2e407745f3ca9f56611f3234dca9d8
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "bed07d0e9a2e407745f3ca9f56611f3234dca9d8"
+      - "Merge pull request #332 from LyannaValerie/claude/trama-pinker-spec-hj6ywn"
+  - pr: 340
+    merge_sha: 8ee266df2206a4027ea32a7a76db993968edca6f
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "8ee266df2206a4027ea32a7a76db993968edca6f"
+      - "Merge pull request #340 from LyannaValerie/claude/pinker-trama-completion-c96itj"
+  - pr: 341
+    merge_sha: f57a2b391b9e6f61245e6609623c0aa59de33e73
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "f57a2b391b9e6f61245e6609623c0aa59de33e73"
+      - "Merge pull request #341 from LyannaValerie/claude/pinker-trama-completion-c96itj"
+  - pr: 342
+    merge_sha: 7e7bcbb660cc3f07104fb6a3881fc31d40fdda55
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "7e7bcbb660cc3f07104fb6a3881fc31d40fdda55"
+      - "Merge pull request #342 from LyannaValerie/claude/pinker-trama-completion-c96itj"
+  - pr: 343
+    merge_sha: 8c942eccf97f470424200acb47cf43a2b33125ab
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "8c942eccf97f470424200acb47cf43a2b33125ab"
+      - "Merge pull request #343 from LyannaValerie/claude/pinker-trama-completion-c96itj"
+  - pr: 344
+    merge_sha: ae47af52066503cc500b1dd1cdcf286ffbc62a49
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "ae47af52066503cc500b1dd1cdcf286ffbc62a49"
+      - "Merge pull request #344 from LyannaValerie/claude/pinker-trama-completion-c96itj"
+  - pr: 345
+    merge_sha: 35b90d49d86aa1cafb02a3872739f05585de3454
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "35b90d49d86aa1cafb02a3872739f05585de3454"
+      - "Merge pull request #345 from LyannaValerie/agent/fase-240-leque-generico-resultado"
+  - pr: 346
+    merge_sha: fb73d6fcff30702f5b00ab46d2f30d04844a058e
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "fb73d6fcff30702f5b00ab46d2f30d04844a058e"
+      - "Merge pull request #346 from LyannaValerie/agent/trama-blindagem-template"
+  - pr: 347
+    merge_sha: 5e6f8b51daf11f70b4223298bcf61632a11676b5
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "5e6f8b51daf11f70b4223298bcf61632a11676b5"
+      - "Merge pull request #347 from LyannaValerie/claude/pinker-trama-completion-c96itj"
+  - pr: 348
+    merge_sha: cac538cd49c7b448f168bdf3e071308fd7954ac4
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "cac538cd49c7b448f168bdf3e071308fd7954ac4"
+      - "Merge pull request #348 from LyannaValerie/claude/pinker-trama-completion-c96itj"
+  - pr: 349
+    merge_sha: c70461886ccd12c6cc3ba61bdd4a16c35330c89c
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "c70461886ccd12c6cc3ba61bdd4a16c35330c89c"
+      - "Merge pull request #349 from LyannaValerie/claude/pinker-trama-completion-c96itj"
+  - pr: 350
+    merge_sha: d7d6af286e8f7506345d05b87fc8477dc250e7dd
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "d7d6af286e8f7506345d05b87fc8477dc250e7dd"
+      - "Merge pull request #350 from LyannaValerie/claude/pinker-trama-completion-c96itj"
+  - pr: 351
+    merge_sha: 655452f071be51c16812c49ae70e34f0b00d4dad
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "655452f071be51c16812c49ae70e34f0b00d4dad"
+      - "Merge pull request #351 from LyannaValerie/claude/pinker-trama-wave-5e"
+  - pr: 352
+    merge_sha: eb286bcc47b6233e98d7fe9f3dc5f98c885ea185
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "eb286bcc47b6233e98d7fe9f3dc5f98c885ea185"
+      - "Merge pull request #352 from LyannaValerie/lyannavalerie/pinker-v0-map-interpreter-execution-in-onda-6a"
+  - pr: 353
+    merge_sha: dfe5d0e373a31caf6d7560845fd7573dda91e05b
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "dfe5d0e373a31caf6d7560845fd7573dda91e05b"
+      - "Merge pull request #353 from LyannaValerie/claude/pinker-trama-wave-6b-backend-text"
+  - pr: 354
+    merge_sha: e96b2423a0ca4eabe99e5884832a99448d1835ed
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "e96b2423a0ca4eabe99e5884832a99448d1835ed"
+      - "Merge pull request #354 from LyannaValerie/claude/pinker-trama-wave-6c-backend-s"
+  - pr: 355
+    merge_sha: 2c5ff8628937cf461f40bf46dc7875ea1f22e38e
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "2c5ff8628937cf461f40bf46dc7875ea1f22e38e"
+      - "Merge pull request #355 from LyannaValerie/agents/pinker-trama-wave-6d-scan-roots"
+  - pr: 356
+    merge_sha: 4945b4ce5a33abbe328192ed8a5a1a52a45caf2b
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "4945b4ce5a33abbe328192ed8a5a1a52a45caf2b"
+      - "Merge pull request #356 from LyannaValerie/agents/pinker-trama-wave-6e-runtime"
+  - pr: 357
+    merge_sha: 704950583902d0976a851752422c5c886601728d
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "704950583902d0976a851752422c5c886601728d"
+      - "Merge pull request #357 from LyannaValerie/agents/pinker-trama-wave-7-operational-surfaces"
+  - pr: 358
+    merge_sha: 713aeceb8f27fd33fd95d0bc05d9a1b1f20efeaa
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "713aeceb8f27fd33fd95d0bc05d9a1b1f20efeaa"
+      - "Merge pull request #358 from LyannaValerie/agents/pinker-trama-wave-8a-tests-root"
+  - pr: 359
+    merge_sha: 4c5db086e46c4ab69daf687f2fada7e7d3191fa1
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "4c5db086e46c4ab69daf687f2fada7e7d3191fa1"
+      - "Merge pull request #359 from LyannaValerie/agents/pinker-trama-wave-8b-frontend-evidence"
+  - pr: 360
+    merge_sha: edc8f196c26ce900e02a4f1d93d65e812126099c
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "edc8f196c26ce900e02a4f1d93d65e812126099c"
+      - "Merge pull request #360 from LyannaValerie/agents/pinker-trama-wave-8c-semantic-evidence"
+  - pr: 361
+    merge_sha: ac646f0bd6d0837a4235b0017a311ab6a9042a7a
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "ac646f0bd6d0837a4235b0017a311ab6a9042a7a"
+      - "Merge pull request #361 from LyannaValerie/agents/pinker-trama-wave-8d-pipeline-evidence"
+  - pr: 362
+    merge_sha: e595329ea59a8688b889e84b36ca5ffa4f8b0cd9
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "e595329ea59a8688b889e84b36ca5ffa4f8b0cd9"
+      - "Merge pull request #362 from LyannaValerie/agents/pinker-trama-wave-8e"
+  - pr: 363
+    merge_sha: 4cdc74854b503395eb3129fafb25513b5fcde14a
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "4cdc74854b503395eb3129fafb25513b5fcde14a"
+      - "Merge pull request #363 from LyannaValerie/agents/pinker-trama-wave-8f-backend-textual"
+  - pr: 364
+    merge_sha: b15006491fd4380ca745aff039c10d1374995030
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "b15006491fd4380ca745aff039c10d1374995030"
+      - "Merge pull request #364 from LyannaValerie/agents/pinker-trama-wave-8g-backend-s-textual"
+  - pr: 365
+    merge_sha: c650a88f8c38952678fc3b2fba43c653df125de2
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "c650a88f8c38952678fc3b2fba43c653df125de2"
+      - "Merge pull request #365 from LyannaValerie/agents/pinker-trama-wave-8h-external-toolchain-evidence"
+  - pr: 366
+    merge_sha: f055801b46d0e6ecef178b2104bc0141d85b0457
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "f055801b46d0e6ecef178b2104bc0141d85b0457"
+      - "Merge pull request #366 from LyannaValerie/agents/pinker-trama-wave-8i-native-evidence-parity"
+  - pr: 367
+    merge_sha: 13651a161d22b3b44cf02aa924ab8c5436c0b0e8
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "13651a161d22b3b44cf02aa924ab8c5436c0b0e8"
+      - "Merge pull request #367 from LyannaValerie/agents/pinker-trama-wave-8j-runtime-evidence"
+  - pr: 368
+    merge_sha: 161ba5f083ab87957ecc4b90b758ab49bd41535d
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "161ba5f083ab87957ecc4b90b758ab49bd41535d"
+      - "Merge pull request #368 from VNyCat/docs/contributing-guide"
+  - pr: 369
+    merge_sha: ca8563f60de501070402068888c818e7a56ad888
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "ca8563f60de501070402068888c818e7a56ad888"
+      - "Merge pull request #369 from LyannaValerie/agents/pinker-trama-wave-8-closure"
+  - pr: 371
+    merge_sha: c142e311d4ff296c8c2434599dfaf71a12ab6ff4
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "c142e311d4ff296c8c2434599dfaf71a12ab6ff4"
+      - "Merge pull request #371 from LyannaValerie/agents/pinker-community-foundation-v1"
+  - pr: 373
+    merge_sha: 5cc40a4d1f991988a6dc8bbe4d9cc0042f0ed7ab
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "5cc40a4d1f991988a6dc8bbe4d9cc0042f0ed7ab"
+      - "Merge pull request #373 from LyannaValerie/agents/pinker-community-work-map-v1"
+  - pr: 374
+    merge_sha: b1fb9d301eaa7aba01b19cec3eba1f481ee7e4d8
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "b1fb9d301eaa7aba01b19cec3eba1f481ee7e4d8"
+      - "Merge pull request #374 from LyannaValerie/agents/trama-nav-catalog-capsule-v1"
+  - pr: 375
+    merge_sha: fabbc04231d86f0e91c1a25af85c76e1b69f3b36
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "fabbc04231d86f0e91c1a25af85c76e1b69f3b36"
+      - "Merge pull request #375 from LyannaValerie/agents/trama-doc-catalog-capsule-v1"
+  - pr: 376
+    merge_sha: e60184df421557fe807edb772978c633fc08a894
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "e60184df421557fe807edb772978c633fc08a894"
+      - "Merge pull request #376 from LyannaValerie/agents/trama-query-capsule-v1"
+  - pr: 377
+    merge_sha: 969155085b65a83bd14d3de68171b7e44e7f8d98
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "969155085b65a83bd14d3de68171b7e44e7f8d98"
+      - "Merge pull request #377 from LyannaValerie/agents/pink-agente-onda-a-v1"
+  - pr: 379
+    merge_sha: 41b7240aebfb32f9c19a99741d0f0edc2fb984cf
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "41b7240aebfb32f9c19a99741d0f0edc2fb984cf"
+      - "Merge pull request #379 from LyannaValerie/agents/pink-agente-onda-b-v1"
+  - pr: 381
+    merge_sha: feeb27a293c5f71b852ed4e6825dce4784aee870
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "feeb27a293c5f71b852ed4e6825dce4784aee870"
+      - "Merge pull request #381 from LyannaValerie/agents/pink-agente-onda-c-v1"
+  - pr: 396
+    merge_sha: 9bd5e9993799f14a35aeb200616f1ac8bddd4df8
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "9bd5e9993799f14a35aeb200616f1ac8bddd4df8"
+      - "Merge pull request #396 from LyannaValerie/agents/pink-agente-onda-d-v2"
+  - pr: 398
+    merge_sha: e80db1f5ce673ee1ec87270f96aca4aca70e3f96
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "e80db1f5ce673ee1ec87270f96aca4aca70e3f96"
+      - "Merge pull request #398 from LyannaValerie/agents/trama-onda-9-implementacao-v1"
+  - pr: 399
+    merge_sha: a88860564d07b5c535e5b37c2c6e418a51743215
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "a88860564d07b5c535e5b37c2c6e418a51743215"
+      - "Merge pull request #399 from LyannaValerie/agents/trama-fechamento-formal-v1"
+  - pr: 402
+    merge_sha: 81d24820fb0923b19927dcd92907151e9d6ff5c2
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "81d24820fb0923b19927dcd92907151e9d6ff5c2"
+      - "Merge pull request #402 from LyannaValerie/agents/fase-241-resultado-predeclarado-v1"
+  - pr: 403
+    merge_sha: 6eefa3c35c16def0d162b319cf87f87c954c22b3
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "6eefa3c35c16def0d162b319cf87f87c954c22b3"
+      - "Merge pull request #403 from LyannaValerie/agents/fase-242-chamada-indireta-v1"
+  - pr: 404
+    merge_sha: e65a3239a7b60e6f8976d3ac9d4d481bcfc155e7
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "e65a3239a7b60e6f8976d3ac9d4d481bcfc155e7"
+      - "Merge pull request #404 from LyannaValerie/agents/fase-243-captura-imutavel-v1"
+  - pr: 405
+    merge_sha: a4cb1dcce959e75df244f633a9be43b6ea18cbd4
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "a4cb1dcce959e75df244f633a9be43b6ea18cbd4"
+      - "Merge pull request #405 from LyannaValerie/agents/roadmap-closure-lifetime-obligations-v1"
+  - pr: 406
+    merge_sha: a735186b962179269e514b7475b511323dcfa4c5
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "a735186b962179269e514b7475b511323dcfa4c5"
+      - "Merge pull request #406 from LyannaValerie/agents/fase-244-objetos-trato-despacho-dinamico-v1"
+  - pr: 407
+    merge_sha: b40fc8d414e38153924bad472d4e3d170d1af67c
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "b40fc8d414e38153924bad472d4e3d170d1af67c"
+      - "Merge pull request #407 from LyannaValerie/fix/fase244-callable-closure-trait-identity-v1"
+  - pr: 408
+    merge_sha: 03c3a5e62ba66328bc629796053f41644db0197c
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "03c3a5e62ba66328bc629796053f41644db0197c"
+      - "Merge pull request #408 from LyannaValerie/maintenance/semana-estabilizacao-2026-07-v1"
+  - pr: 409
+    merge_sha: 26297494a8a0f50574b034b8f92334792b78f2c9
+    reason_code: missing_original_structured_block
+    reason: "o merge alcançável não possui manifesto estrutural versionado e o corpo original não integra o histórico Git local"
+    evidence:
+      - "26297494a8a0f50574b034b8f92334792b78f2c9"
+      - "Merge pull request #409 from LyannaValerie/LyannaValerie-patch-1"

@@ -1,0 +1,26 @@
+pacote main;
+
+// HR3: o payload agregado é copiado integralmente para o descritor no momento
+// da injeção. Mudar a origem depois não muda o que o `encaixe` observa, e o
+// binding extraído tem storage próprio.
+carinho principal() -> bombom {
+    nova base: seta<[bombom; 3]> = alocar(24) virar seta<[bombom; 3]>;
+    nova celula: seta<bombom> = base virar seta<bombom>;
+    *celula = 111;
+
+    nova valor: uniao<[bombom; 3], u8> = (*base) virar uniao<[bombom; 3], u8>;
+
+    *celula = 222;
+
+    encaixe valor {
+        caso [bombom; 3](agregado) {
+            falar(agregado[0]);
+        }
+        caso u8(numero) {
+            falar(999);
+        }
+    }
+
+    falar(*celula);
+    mimo 0;
+}

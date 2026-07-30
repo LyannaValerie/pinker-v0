@@ -280,6 +280,27 @@ fn render_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
                 line(out, indent + 1, &format!("chunk \"{}\"", chunk));
             }
         }
+        Stmt::UnionMatch(union_match) => {
+            line(
+                out,
+                indent,
+                &format!("UnionMatch {}", format_span(union_match.span)),
+            );
+            render_expr(&union_match.scrutinee, indent + 1, out, "scrutinee");
+            for arm in &union_match.arms {
+                line(
+                    out,
+                    indent + 1,
+                    &format!(
+                        "arm {}({}) {}",
+                        format_type(&arm.member_type),
+                        arm.binding,
+                        format_span(arm.span)
+                    ),
+                );
+                render_block(&arm.body, indent + 2, out, "body");
+            }
+        }
         Stmt::Expr(expr) => {
             line(out, indent, &format!("ExprStmt {}", format_span(expr.span)));
             render_expr(expr, indent + 1, out, "expr");

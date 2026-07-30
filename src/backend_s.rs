@@ -325,7 +325,44 @@ fn extract_external_callconv_program(
             slot_offsets.insert(temp, slot_index * 8);
             slot_index += 1;
         }
-        let raw_stack = (slot_index.saturating_sub(1)) * 8;
+        // HR3: as operações de união deixam de presumir que todo storage ocupa
+        // oito bytes. Cada injeção recebe um scratch do tamanho real do payload
+        // e cada extração recebe storage próprio para o binding, ambos
+        // alinhados. Os offsets são múltiplos de 16, o maior alinhamento
+        // suportado por `MAX_UNION_PAYLOAD_ALIGN`, e crescem com aritmética
+        // checada.
+        let mut union_storage_offsets: HashMap<UnionStorageKey, u32> = HashMap::new();
+        let mut frame_top = (slot_index.saturating_sub(1)) * 8;
+        frame_top = frame_top.div_ceil(16) * 16;
+        for (block_index, block) in function.blocks.iter().enumerate() {
+            for (instr_index, inst) in block.instructions.iter().enumerate() {
+                let layout = match inst {
+                    SelectedInstr::UnionInject { payload_layout, .. }
+                    | SelectedInstr::UnionExtract { payload_layout, .. } => *payload_layout,
+                    _ => continue,
+                };
+                if !layout.is_well_formed() {
+                    return Err(err(
+                        "subset externo montável recusa layout de payload de união mal formado",
+                    ));
+                }
+                let bytes = u32::try_from(layout.size).map_err(|_| {
+                    err("subset externo montável recusa payload de união acima da plataforma")
+                })?;
+                let reserved = bytes.div_ceil(16).saturating_mul(16);
+                frame_top = frame_top.checked_add(reserved).ok_or_else(|| {
+                    err("overflow no frame do subset externo montável ao reservar storage de união")
+                })?;
+                union_storage_offsets.insert(
+                    UnionStorageKey {
+                        block: block_index,
+                        instr: instr_index,
+                    },
+                    frame_top,
+                );
+            }
+        }
+        let raw_stack = frame_top;
         let stack_size = if raw_stack == 0 {
             0
         } else {
@@ -338,7 +375,9 @@ fn extract_external_callconv_program(
         // @pinker-nav:layer backend-s
         // @pinker-nav:summary Abertura do laço de blocos e seleção do terminador de cada bloco: `SelectedTerminator::Jmp` → `ExternalCallConvTerminator::Jmp`; `Ret(Some(value))` materializa literais `verso` de retorno em `.rodata` (`register_rodata_strings_for_operand`) e vira `Ret`; `Ret(None)` vira `RetVoid` para funções/métodos `nulo`; `Br` copia condição e rótulos. Constrói o `terminator` antes do corpo do bloco.
         let mut blocks = Vec::new();
-        for block in &function.blocks {
+        // Identificador determinístico de envelope de `sussurro` dentro da função.
+        let mut inline_asm_envelopes = 0_u32;
+        for (block_index, block) in function.blocks.iter().enumerate() {
             let terminator = match &block.terminator {
                 SelectedTerminator::Jmp(target) => ExternalCallConvTerminator::Jmp(target.clone()),
                 SelectedTerminator::Ret(Some(value)) => {
@@ -369,7 +408,7 @@ fn extract_external_callconv_program(
             // @pinker-nav:layer backend-s
             // @pinker-nav:summary Lowering externo de dados/memória: `Mov`; aritmética `Add`/`Sub`/`Mul`, com validação nativa de derivação quando o resultado preserva tipo ponteiro; comparações, incluindo condições assinadas inferidas dos produtores; `DerefLoad`/`DerefStore` por largura e sinal para todos os escalares públicos, precedidos por validação de região; e casts de uma palavra. O caminho hospedado legado mantém seu subconjunto conservador.
             let mut body = Vec::new();
-            for inst in &block.instructions {
+            for (instr_index, inst) in block.instructions.iter().enumerate() {
                 match inst {
                     SelectedInstr::Mov { dest, src } => {
                         ensure_dest_is_local_or_param(dest, function)?;
@@ -381,7 +420,7 @@ fn extract_external_callconv_program(
                         body.extend(load_operand(REG_RET, src, &slot_offsets, &rodata_strings)?);
                         body.push(format!("movq {}, -{}(%rbp)", REG_RET, slot_offsets[dest]));
                     }
-                    SelectedInstr::Neg { dest, operand } => {
+                    SelectedInstr::Neg { dest, operand, ty } => {
                         register_rodata_strings_for_operand(
                             operand,
                             &mut rodata_string_labels,
@@ -394,18 +433,19 @@ fn extract_external_callconv_program(
                             &rodata_strings,
                         )?);
                         body.push(format!("negq {}", REG_RET));
+                        body.extend(normalize_rax(*ty));
                         body.push(format!(
                             "movq {}, -{}(%rbp)",
                             REG_RET,
                             slot_offsets[&temp_key(*dest)]
                         ));
                     }
-                    SelectedInstr::Add { dest, lhs, rhs } => {
+                    SelectedInstr::Add { dest, lhs, rhs, ty } => {
                         body.extend(lower_linear_binop(
                             "addq",
                             *dest,
-                            lhs,
-                            rhs,
+                            (lhs, rhs),
+                            *ty,
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
@@ -420,12 +460,12 @@ fn extract_external_callconv_program(
                             &rodata_strings,
                         )?);
                     }
-                    SelectedInstr::Sub { dest, lhs, rhs } => {
+                    SelectedInstr::Sub { dest, lhs, rhs, ty } => {
                         body.extend(lower_linear_binop(
                             "subq",
                             *dest,
-                            lhs,
-                            rhs,
+                            (lhs, rhs),
+                            *ty,
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
@@ -440,18 +480,79 @@ fn extract_external_callconv_program(
                             &rodata_strings,
                         )?);
                     }
-                    SelectedInstr::Mul { dest, lhs, rhs } => {
+                    SelectedInstr::Mul { dest, lhs, rhs, ty } => {
                         body.extend(lower_linear_binop(
                             "imulq",
                             *dest,
-                            lhs,
-                            rhs,
+                            (lhs, rhs),
+                            *ty,
                             &slot_offsets,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
                         )?);
                     }
-                    SelectedInstr::CmpEq { dest, lhs, rhs } => {
+                    SelectedInstr::BitAnd { dest, lhs, rhs, ty } => {
+                        body.extend(lower_linear_binop(
+                            "andq",
+                            *dest,
+                            (lhs, rhs),
+                            *ty,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
+                    }
+                    SelectedInstr::BitOr { dest, lhs, rhs, ty } => {
+                        body.extend(lower_linear_binop(
+                            "orq",
+                            *dest,
+                            (lhs, rhs),
+                            *ty,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
+                    }
+                    SelectedInstr::BitXor { dest, lhs, rhs, ty } => {
+                        body.extend(lower_linear_binop(
+                            "xorq",
+                            *dest,
+                            (lhs, rhs),
+                            *ty,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
+                    }
+                    SelectedInstr::Shl { dest, lhs, rhs, ty }
+                    | SelectedInstr::Shr { dest, lhs, rhs, ty } => {
+                        body.extend(lower_shift(
+                            matches!(inst, SelectedInstr::Shr { .. }),
+                            *dest,
+                            lhs,
+                            rhs,
+                            *ty,
+                            &function.name,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
+                    }
+                    SelectedInstr::Div { dest, lhs, rhs, ty }
+                    | SelectedInstr::Mod { dest, lhs, rhs, ty } => {
+                        body.extend(lower_div_mod(
+                            matches!(inst, SelectedInstr::Mod { .. }),
+                            *dest,
+                            lhs,
+                            rhs,
+                            *ty,
+                            &function.name,
+                            &slot_offsets,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        )?);
+                    }
+                    SelectedInstr::CmpEq { dest, lhs, rhs, .. } => {
                         body.extend(lower_cmp_eq(
                             *dest,
                             lhs,
@@ -461,7 +562,7 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         )?);
                     }
-                    SelectedInstr::CmpNe { dest, lhs, rhs } => {
+                    SelectedInstr::CmpNe { dest, lhs, rhs, .. } => {
                         body.extend(lower_cmp_ne(
                             *dest,
                             lhs,
@@ -471,7 +572,7 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         )?);
                     }
-                    SelectedInstr::CmpLt { dest, lhs, rhs } => {
+                    SelectedInstr::CmpLt { dest, lhs, rhs, .. } => {
                         body.extend(lower_cmp_lt(
                             *dest,
                             lhs,
@@ -482,7 +583,7 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         )?);
                     }
-                    SelectedInstr::CmpGt { dest, lhs, rhs } => {
+                    SelectedInstr::CmpGt { dest, lhs, rhs, .. } => {
                         body.extend(lower_cmp_gt(
                             *dest,
                             lhs,
@@ -493,7 +594,7 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         )?);
                     }
-                    SelectedInstr::CmpLe { dest, lhs, rhs } => {
+                    SelectedInstr::CmpLe { dest, lhs, rhs, .. } => {
                         body.extend(lower_cmp_le(
                             *dest,
                             lhs,
@@ -504,7 +605,7 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         )?);
                     }
-                    SelectedInstr::CmpGe { dest, lhs, rhs } => {
+                    SelectedInstr::CmpGe { dest, lhs, rhs, .. } => {
                         body.extend(lower_cmp_ge(
                             *dest,
                             lhs,
@@ -521,6 +622,35 @@ fn extract_external_callconv_program(
                         ty,
                         is_volatile,
                     } => {
+                        // HR3: um agregado é representado **pelo endereço** da
+                        // sua representação completa. Abrir `*ptr` de um array
+                        // fixo ou de um `ninho` não lê memória: produz o mesmo
+                        // endereço, que é o que a injeção de união entrega ao
+                        // runtime para a cópia integral.
+                        if matches!(ty, TypeIR::FixedArray { .. } | TypeIR::Struct) {
+                            if *is_volatile {
+                                return Err(err(
+                                    "subset externo montável não suporta caminho `fragil` em agregado",
+                                ));
+                            }
+                            register_rodata_strings_for_operand(
+                                ptr,
+                                &mut rodata_string_labels,
+                                &mut rodata_strings,
+                            );
+                            body.extend(load_operand(
+                                REG_RET,
+                                ptr,
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                            body.push(format!(
+                                "movq {}, -{}(%rbp)",
+                                REG_RET,
+                                slot_offsets[&temp_key(*dest)]
+                            ));
+                            continue;
+                        }
                         if !(if native_runtime {
                             is_external_deref_load_type(ty)
                         } else {
@@ -541,10 +671,19 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         );
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
-                        body.push(format!("movq {}, %rdi", REG_RET));
-                        body.push(format!("movq ${}, %rsi", external_memory_width(*ty)));
-                        body.push(format!("movq ${}, %rdx", external_memory_alignment(*ty)));
-                        body.push("call pinker_publico_validar_acesso".to_string());
+                        let mut visiting_temps = HashSet::new();
+                        let mut visiting_slots = HashSet::new();
+                        if selected_operand_is_public_pointer(
+                            function,
+                            ptr,
+                            &mut visiting_temps,
+                            &mut visiting_slots,
+                        ) {
+                            body.push(format!("movq {}, %rdi", REG_RET));
+                            body.push(format!("movq ${}, %rsi", external_memory_width(*ty)));
+                            body.push(format!("movq ${}, %rdx", external_memory_alignment(*ty)));
+                            body.push("call pinker_publico_validar_acesso".to_string());
+                        }
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
                         body.push(if native_runtime {
                             match ty {
@@ -598,10 +737,19 @@ fn extract_external_callconv_program(
                             &mut rodata_strings,
                         );
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
-                        body.push(format!("movq {}, %rdi", REG_RET));
-                        body.push(format!("movq ${}, %rsi", external_memory_width(*ty)));
-                        body.push(format!("movq ${}, %rdx", external_memory_alignment(*ty)));
-                        body.push("call pinker_publico_validar_acesso".to_string());
+                        let mut visiting_temps = HashSet::new();
+                        let mut visiting_slots = HashSet::new();
+                        if selected_operand_is_public_pointer(
+                            function,
+                            ptr,
+                            &mut visiting_temps,
+                            &mut visiting_slots,
+                        ) {
+                            body.push(format!("movq {}, %rdi", REG_RET));
+                            body.push(format!("movq ${}, %rsi", external_memory_width(*ty)));
+                            body.push(format!("movq ${}, %rdx", external_memory_alignment(*ty)));
+                            body.push("call pinker_publico_validar_acesso".to_string());
+                        }
                         body.extend(load_operand(REG_RET, ptr, &slot_offsets, &rodata_strings)?);
                         body.extend(load_operand(
                             REG_TMP,
@@ -650,22 +798,9 @@ fn extract_external_callconv_program(
                             ));
                             continue;
                         }
-                        let OperandIR::Local(source_slot) = value else {
+                        if !target_type.is_integer() {
                             return Err(err(
-                                "subset externo montável (Fase 134) exige origem em slot local/parâmetro tipado para `virar` mínimo",
-                            ));
-                        };
-                        let Some(source_ty) = function.slot_types.get(source_slot) else {
-                            return Err(err(
-                                "subset externo montável (Fase 134) encontrou origem de cast sem tipo de slot",
-                            ));
-                        };
-                        let cast_supported = (*source_ty == TypeIR::U32
-                            && *target_type == TypeIR::U64)
-                            || (*source_ty == TypeIR::U64 && *target_type == TypeIR::U32);
-                        if !cast_supported {
-                            return Err(err(
-                                "subset externo montável (Fase 134/Fase 246) aceita `virar` de slot `u32 -> u64`, `u64 -> u32` ou `seta<T> -> seta<U>`",
+                                "backend nativo aceita `virar` escalar apenas para inteiro ou ponteiro",
                             ));
                         }
                         register_rodata_strings_for_operand(
@@ -679,9 +814,7 @@ fn extract_external_callconv_program(
                             &slot_offsets,
                             &rodata_strings,
                         )?);
-                        if !matches!(target_type, TypeIR::Pointer { .. }) {
-                            body.push("movl %eax, %eax".to_string());
-                        }
+                        body.extend(normalize_rax(*target_type));
                         body.push(format!(
                             "movq {}, -{}(%rbp)",
                             REG_RET,
@@ -1272,6 +1405,164 @@ fn extract_external_callconv_program(
                         }
                         body.push("call pinker_falar_fim".to_string());
                     }
+                    SelectedInstr::InlineAsm { chunks, .. } => {
+                        // As sentinelas do envelope são geradas pelo compilador;
+                        // nenhum texto delas vem da fonte. O identificador é
+                        // determinístico por função e ordem de bloco.
+                        inline_asm_envelopes += 1;
+                        let envelope_id = format!("{}#{}", function.name, inline_asm_envelopes);
+                        body.push(format!(
+                            "{}{envelope_id}",
+                            crate::inline_asm::SENTINEL_BEGIN_PREFIX
+                        ));
+                        body.push(crate::inline_asm::INTEL_SYNTAX_WRAPPER.to_string());
+                        for (index, chunk) in chunks.iter().enumerate() {
+                            body.push(format!("# pinker:sussurro chunk={index}"));
+                            body.extend(chunk.lines().map(str::to_string));
+                        }
+                        body.push(crate::inline_asm::ATT_SYNTAX_WRAPPER.to_string());
+                        body.push(format!(
+                            "{}{envelope_id}",
+                            crate::inline_asm::SENTINEL_END_PREFIX
+                        ));
+                    }
+                    SelectedInstr::UnionInject {
+                        dest,
+                        value,
+                        union_type_id,
+                        tag,
+                        payload_layout,
+                        ..
+                    } => {
+                        register_rodata_strings_for_operand(
+                            value,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        );
+                        let storage = union_storage_offsets
+                            .get(&UnionStorageKey {
+                                block: block_index,
+                                instr: instr_index,
+                            })
+                            .copied()
+                            .ok_or_else(|| {
+                                err("storage de união ausente no frame do subset externo montável")
+                            })?;
+                        // A ABI de criação recebe **endereço**, nunca o payload
+                        // reempacotado em `u64`. Escalares e handles são
+                        // materializados num scratch do tamanho real; agregados
+                        // já são representados por endereço e o próprio
+                        // endereço é passado, e o runtime copia imediatamente.
+                        match payload_layout.representation {
+                            crate::union_payload::UnionPayloadRepresentation::Scalar
+                            | crate::union_payload::UnionPayloadRepresentation::OpaqueHandle => {
+                                body.extend(load_operand(
+                                    "%rax",
+                                    value,
+                                    &slot_offsets,
+                                    &rodata_strings,
+                                )?);
+                                // O scratch é zerado antes da escrita para que
+                                // um payload estreito não vaze bytes anteriores
+                                // do frame para dentro do snapshot.
+                                body.push(format!("movq $0, -{storage}(%rbp)"));
+                                body.extend(store_union_scratch_word(
+                                    "%rax",
+                                    storage,
+                                    payload_layout.size,
+                                )?);
+                                body.push(format!("leaq -{storage}(%rbp), %r8"));
+                            }
+                            crate::union_payload::UnionPayloadRepresentation::Aggregate => {
+                                body.extend(load_operand(
+                                    "%r8",
+                                    value,
+                                    &slot_offsets,
+                                    &rodata_strings,
+                                )?);
+                            }
+                        }
+                        body.push(format!("movq ${}, %rdi", union_type_id.0));
+                        body.push(format!("movq ${tag}, %rsi"));
+                        body.push(format!("movq ${}, %rdx", payload_layout.size));
+                        body.push(format!("movq ${}, %rcx", payload_layout.align));
+                        body.push("call pinker_uniao_criar".to_string());
+                        body.push(format!(
+                            "movq %rax, -{}(%rbp)",
+                            slot_offsets[&temp_key(*dest)]
+                        ));
+                    }
+                    // A escolha do símbolo interno de ABI acontece **aqui**, no
+                    // backend: a AST e a IR não carregam nome de runtime.
+                    SelectedInstr::UnionTag {
+                        dest,
+                        value,
+                        union_type_id,
+                    } => {
+                        register_rodata_strings_for_operand(
+                            value,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        );
+                        body.extend(load_operand("%rdi", value, &slot_offsets, &rodata_strings)?);
+                        // A leitura de tag valida também a identidade da união:
+                        // um handle de outra união não devolve tag alguma.
+                        body.push(format!("movq ${}, %rsi", union_type_id.0));
+                        body.push("call pinker_uniao_tag".to_string());
+                        body.push(format!(
+                            "movq %rax, -{}(%rbp)",
+                            slot_offsets[&temp_key(*dest)]
+                        ));
+                    }
+                    SelectedInstr::UnionExtract {
+                        dest,
+                        value,
+                        union_type_id,
+                        tag,
+                        payload_layout,
+                        ..
+                    } => {
+                        register_rodata_strings_for_operand(
+                            value,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        );
+                        let storage = union_storage_offsets
+                            .get(&UnionStorageKey {
+                                block: block_index,
+                                instr: instr_index,
+                            })
+                            .copied()
+                            .ok_or_else(|| {
+                                err("storage de união ausente no frame do subset externo montável")
+                            })?;
+                        // A extração copia para storage novo do binding. O
+                        // ponteiro interno do descritor nunca é devolvido.
+                        body.extend(load_operand("%rdi", value, &slot_offsets, &rodata_strings)?);
+                        body.push(format!("movq ${}, %rsi", union_type_id.0));
+                        body.push(format!("movq ${tag}, %rdx"));
+                        body.push(format!("movq ${}, %rcx", payload_layout.size));
+                        body.push(format!("movq ${}, %r8", payload_layout.align));
+                        body.push(format!("leaq -{storage}(%rbp), %r9"));
+                        body.push("call pinker_uniao_copiar_payload".to_string());
+                        match payload_layout.representation {
+                            crate::union_payload::UnionPayloadRepresentation::Scalar
+                            | crate::union_payload::UnionPayloadRepresentation::OpaqueHandle => {
+                                body.extend(load_union_scratch_word(
+                                    "%rax",
+                                    storage,
+                                    payload_layout.size,
+                                )?);
+                            }
+                            crate::union_payload::UnionPayloadRepresentation::Aggregate => {
+                                body.push(format!("leaq -{storage}(%rbp), %rax"));
+                            }
+                        }
+                        body.push(format!(
+                            "movq %rax, -{}(%rbp)",
+                            slot_offsets[&temp_key(*dest)]
+                        ));
+                    }
                     _ => {
                         return Err(err(
                             "subset externo montável (Fase 135) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<`, `>`, `<=` e `>=`), `virar` mínimo explícito (`u32` slot -> `u64` e `u64` slot -> `u32`), call direta com N argumentos (`bombom`/`u32`/`u64`/`verso` opaco/`seta<T>`; ABI SysV completa, Fase 213/B2), `deref_store` mínimo em `bombom`/`u32`/`u64` (incluindo escrita heterogênea de campo de `ninho` via offset explícito), `deref_load` mínimo em `bombom`/`u32`/`u64` (incluindo campo heterogêneo de `ninho` via offset explícito), literal `verso` estático mínimo em `.rodata` carregado por endereço e tráfego opaco por slot/parâmetro, composição heterogênea mínima auditável no mesmo `ninho` (`u32` + `u64` por offset) e load/store em slots de frame, preservando recorte conservador de `quebrar`/`continuar` em `sempre que` via saltos já materializados (até três níveis de laço aninhado)",
@@ -1343,6 +1634,9 @@ fn collect_function_refs_in_function(
                     note(value, out);
                 }
                 SelectedInstr::Cast { value, .. } => note(value, out),
+                SelectedInstr::UnionInject { value, .. }
+                | SelectedInstr::UnionTag { value, .. }
+                | SelectedInstr::UnionExtract { value, .. } => note(value, out),
                 SelectedInstr::BitAnd { lhs, rhs, .. }
                 | SelectedInstr::BitOr { lhs, rhs, .. }
                 | SelectedInstr::BitXor { lhs, rhs, .. }
@@ -1399,6 +1693,7 @@ fn collect_function_refs_in_function(
                         note(&a.value, out);
                     }
                 }
+                SelectedInstr::InlineAsm { .. } => {}
             }
         }
         match &block.terminator {
@@ -1643,18 +1938,143 @@ fn ensure_dest_is_local_or_param(
 fn lower_linear_binop(
     opcode: &str,
     dest: crate::cfg_ir::TempIR,
-    lhs: &OperandIR,
-    rhs: &OperandIR,
+    operands: (&OperandIR, &OperandIR),
+    ty: TypeIR,
     slot_offsets: &HashMap<String, u32>,
     rodata_string_labels: &mut HashMap<String, String>,
     rodata_strings: &mut Vec<ExternalCallConvString>,
 ) -> Result<Vec<String>, PinkerError> {
+    let (lhs, rhs) = operands;
     let mut body = Vec::new();
     register_rodata_strings_for_operand(lhs, rodata_string_labels, rodata_strings);
     register_rodata_strings_for_operand(rhs, rodata_string_labels, rodata_strings);
     body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
     body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
     body.push(format!("{} {}, {}", opcode, REG_TMP, REG_RET));
+    body.extend(normalize_rax(ty));
+    body.push(format!(
+        "movq {}, -{}(%rbp)",
+        REG_RET,
+        slot_offsets[&temp_key(dest)]
+    ));
+    Ok(body)
+}
+
+fn normalize_rax(ty: TypeIR) -> Vec<String> {
+    let instruction = match ty {
+        TypeIR::U8 => Some("movzbq %al, %rax"),
+        TypeIR::I8 => Some("movsbq %al, %rax"),
+        TypeIR::U16 => Some("movzwq %ax, %rax"),
+        TypeIR::I16 => Some("movswq %ax, %rax"),
+        TypeIR::U32 => Some("movl %eax, %eax"),
+        TypeIR::I32 => Some("movslq %eax, %rax"),
+        _ => None,
+    };
+    instruction.into_iter().map(str::to_string).collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_shift(
+    right: bool,
+    dest: crate::cfg_ir::TempIR,
+    lhs: &OperandIR,
+    rhs: &OperandIR,
+    ty: TypeIR,
+    function_name: &str,
+    slot_offsets: &HashMap<String, u32>,
+    rodata_string_labels: &mut HashMap<String, String>,
+    rodata_strings: &mut Vec<ExternalCallConvString>,
+) -> Result<Vec<String>, PinkerError> {
+    let width = match ty {
+        TypeIR::U8 | TypeIR::I8 => 8,
+        TypeIR::U16 | TypeIR::I16 => 16,
+        TypeIR::U32 | TypeIR::I32 => 32,
+        _ => 64,
+    };
+    let valid_label = format!(".L{}_shift_valid_{}", function_name, dest.0);
+    let mut body = Vec::new();
+    register_rodata_strings_for_operand(lhs, rodata_string_labels, rodata_strings);
+    register_rodata_strings_for_operand(rhs, rodata_string_labels, rodata_strings);
+    body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
+    body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
+    body.push(format!("cmpq ${width}, {REG_TMP}"));
+    body.push(format!("jb {valid_label}"));
+    body.push(format!("movq {REG_TMP}, %rdi"));
+    body.push(format!("movq ${width}, %rsi"));
+    body.push("call pinker_erro_shift_count".to_string());
+    body.push(format!("{valid_label}:"));
+    body.push("movb %r10b, %cl".to_string());
+    let opcode = if right {
+        if ty.is_signed() {
+            "sarq"
+        } else {
+            "shrq"
+        }
+    } else {
+        "shlq"
+    };
+    body.push(format!("{opcode} %cl, {REG_RET}"));
+    body.extend(normalize_rax(ty));
+    body.push(format!(
+        "movq {}, -{}(%rbp)",
+        REG_RET,
+        slot_offsets[&temp_key(dest)]
+    ));
+    Ok(body)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_div_mod(
+    modulo: bool,
+    dest: crate::cfg_ir::TempIR,
+    lhs: &OperandIR,
+    rhs: &OperandIR,
+    ty: TypeIR,
+    function_name: &str,
+    slot_offsets: &HashMap<String, u32>,
+    rodata_string_labels: &mut HashMap<String, String>,
+    rodata_strings: &mut Vec<ExternalCallConvString>,
+) -> Result<Vec<String>, PinkerError> {
+    let nonzero = format!(".L{}_div_nonzero_{}", function_name, dest.0);
+    let regular = format!(".L{}_div_regular_{}", function_name, dest.0);
+    let done = format!(".L{}_div_done_{}", function_name, dest.0);
+    let mut body = Vec::new();
+    register_rodata_strings_for_operand(lhs, rodata_string_labels, rodata_strings);
+    register_rodata_strings_for_operand(rhs, rodata_string_labels, rodata_strings);
+    body.extend(load_operand(REG_RET, lhs, slot_offsets, rodata_strings)?);
+    body.extend(load_operand(REG_TMP, rhs, slot_offsets, rodata_strings)?);
+    body.push(format!("testq {REG_TMP}, {REG_TMP}"));
+    body.push(format!("jne {nonzero}"));
+    body.push("call pinker_erro_divisao_zero".to_string());
+    body.push(format!("{nonzero}:"));
+    if ty.is_signed() {
+        let min = match ty {
+            TypeIR::I8 => i8::MIN as i64,
+            TypeIR::I16 => i16::MIN as i64,
+            TypeIR::I32 => i32::MIN as i64,
+            _ => i64::MIN,
+        };
+        body.push(format!("cmpq $-1, {REG_TMP}"));
+        body.push(format!("jne {regular}"));
+        body.push(format!("movabsq ${min}, %rdx"));
+        body.push("cmpq %rdx, %rax".to_string());
+        body.push(format!("jne {regular}"));
+        if modulo {
+            body.push("xorq %rax, %rax".to_string());
+        }
+        body.push(format!("jmp {done}"));
+        body.push(format!("{regular}:"));
+        body.push("cqto".to_string());
+        body.push(format!("idivq {REG_TMP}"));
+    } else {
+        body.push("xorq %rdx, %rdx".to_string());
+        body.push(format!("divq {REG_TMP}"));
+    }
+    if modulo {
+        body.push("movq %rdx, %rax".to_string());
+    }
+    body.push(format!("{done}:"));
+    body.extend(normalize_rax(ty));
     body.push(format!(
         "movq {}, -{}(%rbp)",
         REG_RET,
@@ -1733,10 +2153,14 @@ fn lower_public_pointer_derivation(
     slot_offsets: &HashMap<String, u32>,
     rodata_strings: &[ExternalCallConvString],
 ) -> Result<Vec<String>, PinkerError> {
-    let mut visiting = HashSet::new();
-    let lhs_is_pointer = selected_operand_is_pointer(function, lhs, &mut visiting);
-    visiting.clear();
-    let rhs_is_pointer = selected_operand_is_pointer(function, rhs, &mut visiting);
+    let mut visiting_temps = HashSet::new();
+    let mut visiting_slots = HashSet::new();
+    let lhs_is_pointer =
+        selected_operand_is_public_pointer(function, lhs, &mut visiting_temps, &mut visiting_slots);
+    visiting_temps.clear();
+    visiting_slots.clear();
+    let rhs_is_pointer =
+        selected_operand_is_public_pointer(function, rhs, &mut visiting_temps, &mut visiting_slots);
     let origin = if is_subtraction {
         (lhs_is_pointer && !rhs_is_pointer).then_some(lhs)
     } else {
@@ -1758,68 +2182,107 @@ fn lower_public_pointer_derivation(
     Ok(body)
 }
 
-fn selected_operand_is_pointer(
+fn selected_operand_is_public_pointer(
     function: &crate::instr_select::SelectedFunction,
     operand: &OperandIR,
-    visiting: &mut HashSet<crate::cfg_ir::TempIR>,
+    visiting_temps: &mut HashSet<crate::cfg_ir::TempIR>,
+    visiting_slots: &mut HashSet<String>,
 ) -> bool {
     match operand {
-        OperandIR::Local(slot) => function
-            .slot_types
-            .get(slot)
-            .is_some_and(|ty| matches!(ty, TypeIR::Pointer { .. })),
-        OperandIR::Temp(temp) => selected_temp_is_pointer(function, *temp, visiting),
+        OperandIR::Local(slot) => {
+            if function.internal_pointer_params.contains(slot) {
+                return false;
+            }
+            let has_assignment = function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .any(|instruction| {
+                    matches!(instruction, SelectedInstr::Mov { dest, .. } if dest == slot)
+                });
+            if !has_assignment
+                && function
+                    .slot_types
+                    .get(slot)
+                    .is_some_and(|ty| matches!(ty, TypeIR::Pointer { .. }))
+            {
+                return true;
+            }
+            if !visiting_slots.insert(slot.clone()) {
+                return false;
+            }
+            let public = function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .filter_map(|instruction| match instruction {
+                    SelectedInstr::Mov { dest, src } if dest == slot => Some(src),
+                    _ => None,
+                })
+                .any(|src| {
+                    selected_operand_is_public_pointer(
+                        function,
+                        src,
+                        visiting_temps,
+                        visiting_slots,
+                    )
+                });
+            visiting_slots.remove(slot);
+            public
+        }
+        OperandIR::Temp(temp) => {
+            selected_temp_is_public_pointer(function, *temp, visiting_temps, visiting_slots)
+        }
         _ => false,
     }
 }
 
-fn selected_temp_is_pointer(
+fn selected_temp_is_public_pointer(
     function: &crate::instr_select::SelectedFunction,
     temp: crate::cfg_ir::TempIR,
-    visiting: &mut HashSet<crate::cfg_ir::TempIR>,
+    visiting_temps: &mut HashSet<crate::cfg_ir::TempIR>,
+    visiting_slots: &mut HashSet<String>,
 ) -> bool {
-    if !visiting.insert(temp) {
+    if !visiting_temps.insert(temp) {
         return false;
     }
-    let is_pointer = function
+    let public = function
         .blocks
         .iter()
         .flat_map(|block| &block.instructions)
         .find_map(|instruction| match instruction {
+            SelectedInstr::Call {
+                dest,
+                callee,
+                ret_type,
+                ..
+            } if *dest == temp => {
+                Some(callee == "alocar" || matches!(ret_type, TypeIR::Pointer { .. }))
+            }
             SelectedInstr::Cast {
-                dest, target_type, ..
-            } if *dest == temp => Some(matches!(target_type, TypeIR::Pointer { .. })),
-            SelectedInstr::Add { dest, lhs, rhs } if *dest == temp => {
-                let lhs_is_pointer = selected_operand_is_pointer(function, lhs, visiting);
-                let rhs_is_pointer = selected_operand_is_pointer(function, rhs, visiting);
-                Some(lhs_is_pointer ^ rhs_is_pointer)
-            }
-            SelectedInstr::Sub { dest, lhs, rhs } if *dest == temp => {
-                let lhs_is_pointer = selected_operand_is_pointer(function, lhs, visiting);
-                let rhs_is_pointer = selected_operand_is_pointer(function, rhs, visiting);
-                Some(lhs_is_pointer && !rhs_is_pointer)
-            }
-            SelectedInstr::Call { dest, ret_type, .. }
-            | SelectedInstr::CallIndirect { dest, ret_type, .. }
-                if *dest == temp =>
-            {
-                Some(matches!(ret_type, TypeIR::Pointer { .. }))
-            }
-            SelectedInstr::CallRaw {
-                dest: Some(dest),
-                ret_type,
-                ..
-            }
-            | SelectedInstr::TraitCall {
-                dest: Some(dest),
-                ret_type,
-                ..
-            } if *dest == temp => Some(matches!(ret_type, TypeIR::Pointer { .. })),
+                dest,
+                value,
+                target_type,
+            } if *dest == temp && matches!(target_type, TypeIR::Pointer { .. }) => Some(
+                selected_operand_is_public_pointer(function, value, visiting_temps, visiting_slots),
+            ),
+            SelectedInstr::Add { dest, lhs, rhs, .. } if *dest == temp => Some(
+                selected_operand_is_public_pointer(function, lhs, visiting_temps, visiting_slots)
+                    || selected_operand_is_public_pointer(
+                        function,
+                        rhs,
+                        visiting_temps,
+                        visiting_slots,
+                    ),
+            ),
+            SelectedInstr::Sub { dest, lhs, .. } if *dest == temp => Some(
+                selected_operand_is_public_pointer(function, lhs, visiting_temps, visiting_slots),
+            ),
             _ => None,
         })
         .unwrap_or(false);
-    visiting.remove(&temp);
-    is_pointer
+    visiting_temps.remove(&temp);
+    public
 }
 
 fn selected_operand_is_signed(
@@ -1847,23 +2310,23 @@ fn selected_temp_is_signed(
         .iter()
         .flat_map(|block| &block.instructions)
         .find_map(|instruction| match instruction {
-            SelectedInstr::Neg { dest, operand } if *dest == temp => {
+            SelectedInstr::Neg { dest, operand, .. } if *dest == temp => {
                 Some(selected_operand_is_signed(function, operand, visiting))
             }
             SelectedInstr::DerefLoad { dest, ty, .. } if *dest == temp => Some(ty.is_signed()),
             SelectedInstr::Cast {
                 dest, target_type, ..
             } if *dest == temp => Some(target_type.is_signed()),
-            SelectedInstr::BitAnd { dest, lhs, rhs }
-            | SelectedInstr::BitOr { dest, lhs, rhs }
-            | SelectedInstr::BitXor { dest, lhs, rhs }
-            | SelectedInstr::Shl { dest, lhs, rhs }
-            | SelectedInstr::Shr { dest, lhs, rhs }
-            | SelectedInstr::Add { dest, lhs, rhs }
-            | SelectedInstr::Sub { dest, lhs, rhs }
-            | SelectedInstr::Mul { dest, lhs, rhs }
-            | SelectedInstr::Div { dest, lhs, rhs }
-            | SelectedInstr::Mod { dest, lhs, rhs }
+            SelectedInstr::BitAnd { dest, lhs, rhs, .. }
+            | SelectedInstr::BitOr { dest, lhs, rhs, .. }
+            | SelectedInstr::BitXor { dest, lhs, rhs, .. }
+            | SelectedInstr::Shl { dest, lhs, rhs, .. }
+            | SelectedInstr::Shr { dest, lhs, rhs, .. }
+            | SelectedInstr::Add { dest, lhs, rhs, .. }
+            | SelectedInstr::Sub { dest, lhs, rhs, .. }
+            | SelectedInstr::Mul { dest, lhs, rhs, .. }
+            | SelectedInstr::Div { dest, lhs, rhs, .. }
+            | SelectedInstr::Mod { dest, lhs, rhs, .. }
                 if *dest == temp =>
             {
                 Some(
@@ -1999,6 +2462,70 @@ fn lower_cmp_ge(
 // @pinker-nav:domain lowering
 // @pinker-nav:layer backend-s
 // @pinker-nav:summary Coleta de temporários, carga de operandos e nomeação de slots: `collect_temp_ids` (varre instruções e retornos para reunir os `%tN` que ocupam slots de frame), `load_operand` (carrega `Int`/`Bool` via `movabsq`, `Local`/`Temp` de `-off(%rbp)`, `GlobalConst` RIP-relative, `Str` por `leaq label(%rip)` do rodata materializado) e `temp_key` (nome canônico `%tN`). Alimentam o cálculo de frame e a emissão de acesso a slots.
+/// Identifica, de forma determinística, o storage de frame de uma operação de
+/// união dentro de uma função.
+///
+/// A chave é posicional porque cada `union_inject`/`union_extract` precisa de
+/// storage próprio: reaproveitar storage entre instruções faria duas extrações
+/// compartilharem memória, quebrando a independência exigida por HR3.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct UnionStorageKey {
+    block: usize,
+    instr: usize,
+}
+
+/// Grava a largura **real** do payload escalar no scratch.
+///
+/// Um `u8` grava um byte; um `u32`, quatro. Gravar sempre oito bytes copiaria
+/// lixo do frame para dentro do snapshot imutável.
+fn store_union_scratch_word(reg: &str, offset: u32, size: u64) -> Result<Vec<String>, PinkerError> {
+    let byte_reg = match reg {
+        "%rax" => "%al",
+        _ => return Err(err("registrador não suportado no scratch de união")),
+    };
+    let word_reg = match reg {
+        "%rax" => "%ax",
+        _ => return Err(err("registrador não suportado no scratch de união")),
+    };
+    let long_reg = match reg {
+        "%rax" => "%eax",
+        _ => return Err(err("registrador não suportado no scratch de união")),
+    };
+    Ok(match size {
+        1 => vec![format!("movb {byte_reg}, -{offset}(%rbp)")],
+        2 => vec![format!("movw {word_reg}, -{offset}(%rbp)")],
+        4 => vec![format!("movl {long_reg}, -{offset}(%rbp)")],
+        8 => vec![format!("movq {reg}, -{offset}(%rbp)")],
+        _ => {
+            return Err(err(
+                "subset externo montável só materializa payload escalar de união com 1, 2, 4 ou 8 \
+                 bytes",
+            ));
+        }
+    })
+}
+
+/// Lê a largura real do payload escalar do storage de extração.
+///
+/// A carga é sempre estendida com zero para a palavra: a normalização com sinal
+/// dos inteiros assinados continua sendo responsabilidade dos consumidores, que
+/// já a fazem pelo `TypeIR`.
+fn load_union_scratch_word(reg: &str, offset: u32, size: u64) -> Result<Vec<String>, PinkerError> {
+    if reg != "%rax" {
+        return Err(err("registrador não suportado no storage de união"));
+    }
+    Ok(match size {
+        1 => vec![format!("movzbq -{offset}(%rbp), {reg}")],
+        2 => vec![format!("movzwq -{offset}(%rbp), {reg}")],
+        4 => vec![format!("movl -{offset}(%rbp), %eax")],
+        8 => vec![format!("movq -{offset}(%rbp), {reg}")],
+        _ => {
+            return Err(err(
+                "subset externo montável só extrai payload escalar de união com 1, 2, 4 ou 8 bytes",
+            ));
+        }
+    })
+}
 fn collect_temp_ids(function: &crate::instr_select::SelectedFunction) -> BTreeSet<String> {
     let mut ids = BTreeSet::new();
     for block in &function.blocks {
@@ -2009,6 +2536,9 @@ fn collect_temp_ids(function: &crate::instr_select::SelectedFunction) -> BTreeSe
                 | SelectedInstr::BitNot { dest, .. }
                 | SelectedInstr::DerefLoad { dest, .. }
                 | SelectedInstr::Cast { dest, .. }
+                | SelectedInstr::UnionInject { dest, .. }
+                | SelectedInstr::UnionTag { dest, .. }
+                | SelectedInstr::UnionExtract { dest, .. }
                 | SelectedInstr::BitAnd { dest, .. }
                 | SelectedInstr::BitOr { dest, .. }
                 | SelectedInstr::BitXor { dest, .. }
@@ -2391,6 +2921,7 @@ fn is_supported_type(ty: TypeIR) -> bool {
             | TypeIR::Logica
             | TypeIR::FunctionPointer
             | TypeIR::TraitObject
+            | TypeIR::Union(_)
             | TypeIR::Nulo
     )
 }
@@ -2412,6 +2943,7 @@ fn is_external_deref_load_type(ty: &TypeIR) -> bool {
             | TypeIR::FunctionPointer
             | TypeIR::Pointer { .. }
             | TypeIR::TraitObject
+            | TypeIR::Union(_)
     )
 }
 
@@ -2465,6 +2997,7 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
         || *ty == TypeIR::Function
         || *ty == TypeIR::FunctionPointer
         || *ty == TypeIR::TraitObject
+        || matches!(ty, TypeIR::Union(_))
 }
 
 fn is_external_scalar_param_type(ty: &TypeIR) -> bool {
@@ -2498,6 +3031,7 @@ fn is_external_raw_call_type(ty: &TypeIR) -> bool {
                 | TypeIR::Function
                 | TypeIR::FunctionPointer
                 | TypeIR::TraitObject
+                | TypeIR::Union(_)
         )
 }
 
@@ -2522,7 +3056,13 @@ fn is_external_trait_receiver_type(ty: &TypeIR) -> bool {
 }
 
 fn is_external_local_type(ty: &TypeIR) -> bool {
-    is_external_param_type(ty) || is_external_scalar_param_type(ty)
+    is_external_param_type(ty)
+        || is_external_scalar_param_type(ty)
+        // HR3: um agregado de array fixo é representado por endereço, como
+        // `ninho` opaco e `seta<T>`, e ocupa exatamente um slot de palavra. É o
+        // que permite ao braço de `encaixe` receber o binding de um payload
+        // estrutural no caminho montável.
+        || matches!(ty, TypeIR::FixedArray { .. })
 }
 
 fn is_external_ret_type(ty: &TypeIR) -> bool {
@@ -2726,6 +3266,10 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         "__pinker_internal_leque_carga_b" | "__pinker_internal_leque_carga_v" => {
             Some("pinker_leque_carga")
         }
+        // As uniões não passam por este mapeamento: `union_tag` e
+        // `union_extract` são operações internas tipadas, e o símbolo
+        // (`pinker_uniao_tag`/`pinker_uniao_payload_b`/`..._v`) é escolhido
+        // diretamente no lowering do backend.
         _ => None,
     }
 }
@@ -3039,6 +3583,47 @@ fn render_instruction(inst: &crate::backend_text::BackendTextInstruction) -> Str
                 .map(|arg| format!("{}:{}", render_operand(&arg.value), arg.ty.name()))
                 .collect::<Vec<_>>()
                 .join(", ")
+        ),
+        crate::backend_text::BackendTextInstruction::InlineAsm { chunks } => {
+            format!("inline_asm {:?}", chunks)
+        }
+        crate::backend_text::BackendTextInstruction::UnionInject {
+            dest,
+            value,
+            union_type_id,
+            tag,
+        } => format!(
+            "union_inject %{} #{} tag={} {}",
+            dest.0,
+            union_type_id.0,
+            tag,
+            render_operand(value)
+        ),
+        crate::backend_text::BackendTextInstruction::UnionTag {
+            dest,
+            value,
+            union_type_id,
+        } => format!(
+            "union_tag %{} #{} {}",
+            dest.0,
+            union_type_id.0,
+            render_operand(value)
+        ),
+        crate::backend_text::BackendTextInstruction::UnionExtract {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            canonical_member_key,
+            payload_type,
+        } => format!(
+            "union_extract %{} #{} tag={} key={} {} -> {}",
+            dest.0,
+            union_type_id.0,
+            tag,
+            canonical_member_key,
+            render_operand(value),
+            payload_type.name()
         ),
     }
 }

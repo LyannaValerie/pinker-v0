@@ -403,6 +403,10 @@ pub enum Type {
         name: String,
         span: Span,
     },
+    Union {
+        members: Vec<Type>,
+        span: Span,
+    },
     Applied {
         name: String,
         args: Vec<Type>,
@@ -462,6 +466,7 @@ impl PartialEq for Type {
             (Type::Alias { name: n1, .. }, Type::Alias { name: n2, .. }) => n1 == n2,
             (Type::Struct { name: n1, .. }, Type::Struct { name: n2, .. }) => n1 == n2,
             (Type::Enum { name: n1, .. }, Type::Enum { name: n2, .. }) => n1 == n2,
+            (Type::Union { members: m1, .. }, Type::Union { members: m2, .. }) => m1 == m2,
             (
                 Type::Applied {
                     name: n1, args: a1, ..
@@ -514,6 +519,7 @@ impl Type {
             Type::Alias { span, .. }
             | Type::Struct { span, .. }
             | Type::Enum { span, .. }
+            | Type::Union { span, .. }
             | Type::Applied { span, .. }
             | Type::ListEnum { span, .. }
             | Type::FixedArray { span, .. }
@@ -547,6 +553,7 @@ impl Type {
             Type::Alias { .. } => "alias",
             Type::Struct { .. } => "struct",
             Type::Enum { .. } => "leque",
+            Type::Union { .. } => "uniao",
             Type::Applied { .. } => "tipo aplicado",
             Type::ListEnum { .. } => "lista<leque>",
             Type::Nulo(_) => "nulo",
@@ -601,6 +608,10 @@ impl Type {
                 name: name.clone(),
                 span,
             },
+            Type::Union { members, .. } => Type::Union {
+                members: members.clone(),
+                span,
+            },
             Type::Applied { name, args, .. } => Type::Applied {
                 name: name.clone(),
                 args: args.clone(),
@@ -636,6 +647,11 @@ impl Type {
         if let Type::Function { params, ret, .. } = self {
             writer.field_array("params", params, |writer, param| param.write_json(writer));
             writer.field_value("ret", |writer| ret.write_json(writer));
+        }
+        if let Type::Union { members, .. } = self {
+            writer.field_array("members", members, |writer, member| {
+                member.write_json(writer)
+            });
         }
         writer.end_object();
     }
@@ -715,6 +731,52 @@ impl AssignStmt {
     }
 }
 
+/// `encaixe` sobre uma união estrutural, preservado como construto tipado.
+///
+/// O parser não calcula tags, não ordena braços e não resolve apelidos: guarda
+/// o scrutinee, o tipo textual de cada braço, o binding, o corpo, a ordem de
+/// fonte e os spans. A identidade semântica de cada braço é atribuída depois,
+/// pela semântica e pelo lowering, a partir do tipo resolvido.
+#[derive(Debug, Clone)]
+pub struct UnionMatchStmt {
+    pub scrutinee: Expr,
+    pub arms: Vec<UnionMatchArm>,
+    pub span: Span,
+}
+
+/// Braço de um `encaixe` de união. `member_type` é o tipo **como escrito**;
+/// nenhuma tag é gravada aqui.
+#[derive(Debug, Clone)]
+pub struct UnionMatchArm {
+    pub member_type: Type,
+    pub binding: String,
+    pub body: Block,
+    pub span: Span,
+}
+
+impl UnionMatchStmt {
+    fn write_json(&self, writer: &mut JsonWriter<'_>) {
+        writer.begin_object();
+        writer.field_str("node", "UnionMatchStmt");
+        writer.field_span("span", self.span);
+        writer.field_value("scrutinee", |writer| self.scrutinee.write_json(writer));
+        writer.field_array("arms", &self.arms, |writer, arm| arm.write_json(writer));
+        writer.end_object();
+    }
+}
+
+impl UnionMatchArm {
+    fn write_json(&self, writer: &mut JsonWriter<'_>) {
+        writer.begin_object();
+        writer.field_str("node", "UnionMatchArm");
+        writer.field_span("span", self.span);
+        writer.field_value("member_type", |writer| self.member_type.write_json(writer));
+        writer.field_str("binding", &self.binding);
+        writer.field_value("body", |writer| self.body.write_json(writer));
+        writer.end_object();
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Let(LetStmt),
@@ -726,6 +788,7 @@ pub enum Stmt {
     Continue(ContinueStmt),
     Falar(FalarStmt),
     InlineAsm(InlineAsmStmt),
+    UnionMatch(UnionMatchStmt),
     Expr(Expr),
 }
 
@@ -741,6 +804,7 @@ impl Stmt {
             Stmt::Continue(stmt) => stmt.span,
             Stmt::Falar(stmt) => stmt.span,
             Stmt::InlineAsm(stmt) => stmt.span,
+            Stmt::UnionMatch(stmt) => stmt.span,
             Stmt::Expr(expr) => expr.span,
         }
     }
@@ -756,6 +820,7 @@ impl Stmt {
             Stmt::Continue(stmt) => stmt.write_json(writer),
             Stmt::Falar(stmt) => stmt.write_json(writer),
             Stmt::InlineAsm(stmt) => stmt.write_json(writer),
+            Stmt::UnionMatch(stmt) => stmt.write_json(writer),
             Stmt::Expr(expr) => {
                 writer.begin_object();
                 writer.field_str("node", "ExprStmt");
@@ -1580,6 +1645,22 @@ fn scan_stmt_free_idents(
             scan_block_free_idents(&while_stmt.body, bound, free, seen, include_direct_callees);
         }
         Stmt::Break(_) | Stmt::Continue(_) | Stmt::InlineAsm(_) => {}
+        Stmt::UnionMatch(union_match) => {
+            scan_expr_free_idents(
+                &union_match.scrutinee,
+                bound,
+                free,
+                seen,
+                include_direct_callees,
+            );
+            // Cada braço abre escopo próprio: o binding do membro é ligado
+            // apenas dentro do corpo daquele braço.
+            for arm in &union_match.arms {
+                bound.push(HashSet::from([arm.binding.clone()]));
+                scan_block_free_idents(&arm.body, bound, free, seen, include_direct_callees);
+                bound.pop();
+            }
+        }
         Stmt::Falar(falar_stmt) => {
             for arg in &falar_stmt.args {
                 scan_expr_free_idents(arg, bound, free, seen, include_direct_callees);

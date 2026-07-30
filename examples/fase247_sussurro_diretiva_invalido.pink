@@ -1,0 +1,6 @@
+pacote main;
+
+carinho principal() -> bombom {
+    sussurro(".section .data");
+    mimo 0;
+}

@@ -1,7 +1,7 @@
 use crate::cfg_ir::{FalarArgCfgIR, InstructionCfgIR, OperandIR, ProgramCfgIR, TerminatorIR};
 use crate::error::PinkerError;
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 // @pinker-nav:start select.modelo.representacao
 // @pinker-nav:domain modelo
@@ -11,6 +11,7 @@ use std::collections::HashMap;
 pub struct SelectedProgram {
     pub module_name: String,
     pub is_freestanding: bool,
+    pub union_types: Vec<crate::ir::UnionTypeIR>,
     pub globals: Vec<SelectedGlobal>,
     pub functions: Vec<SelectedFunction>,
 }
@@ -29,6 +30,7 @@ pub struct SelectedFunction {
     pub params: Vec<String>,
     pub locals: Vec<String>,
     pub slot_types: HashMap<String, TypeIR>,
+    pub internal_pointer_params: HashSet<String>,
     pub blocks: Vec<SelectedBlock>,
 }
 
@@ -48,6 +50,7 @@ pub enum SelectedInstr {
     Neg {
         dest: crate::cfg_ir::TempIR,
         operand: OperandIR,
+        ty: TypeIR,
     },
     Not {
         dest: crate::cfg_ir::TempIR,
@@ -56,6 +59,7 @@ pub enum SelectedInstr {
     BitNot {
         dest: crate::cfg_ir::TempIR,
         operand: OperandIR,
+        ty: TypeIR,
     },
     DerefLoad {
         dest: crate::cfg_ir::TempIR,
@@ -74,85 +78,130 @@ pub enum SelectedInstr {
         value: OperandIR,
         target_type: TypeIR,
     },
+    UnionInject {
+        dest: crate::cfg_ir::TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+        tag: u64,
+        /// Identidade do membro decidida no lowering. A seleção de instruções
+        /// apenas a transporta; nunca reescolhe membro por representação.
+        resolved_member_type_id: crate::ir::ResolvedTypeId,
+        canonical_member_key: String,
+        payload_type: TypeIR,
+        payload_layout: crate::union_payload::UnionPayloadLayout,
+    },
+    // Operações internas tipadas de união: a seleção nunca as abaixa para um
+    // nome de função genérico que possa se confundir com código de usuário.
+    UnionTag {
+        dest: crate::cfg_ir::TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+    },
+    UnionExtract {
+        dest: crate::cfg_ir::TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+        tag: u64,
+        resolved_member_type_id: crate::ir::ResolvedTypeId,
+        canonical_member_key: String,
+        payload_type: TypeIR,
+        payload_layout: crate::union_payload::UnionPayloadLayout,
+    },
     BitAnd {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     BitOr {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     BitXor {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     Shl {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     Shr {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     Add {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     Sub {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     Mul {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     Div {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     Mod {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     CmpEq {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     CmpNe {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     CmpLt {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     CmpLe {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     CmpGt {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     CmpGe {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
         rhs: OperandIR,
+        ty: TypeIR,
     },
     Call {
         dest: crate::cfg_ir::TempIR,
@@ -214,6 +263,10 @@ pub enum SelectedInstr {
     Falar {
         args: Vec<FalarArgSelected>,
     },
+    InlineAsm {
+        chunks: Vec<String>,
+        span: crate::token::Span,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -249,10 +302,33 @@ pub fn lower_program(cfg: &ProgramCfgIR) -> Result<SelectedProgram, PinkerError>
         })
         .collect();
 
+    let closure_entries = cfg
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.instructions)
+        .filter_map(|instruction| match instruction {
+            crate::cfg_ir::InstructionCfgIR::MakeClosure { function_name, .. } => {
+                Some(function_name.clone())
+            }
+            _ => None,
+        })
+        .collect::<HashSet<_>>();
+
     let functions = cfg
         .functions
         .iter()
         .map(|f| {
+            let internal_pointer_params = if closure_entries.contains(&f.name) {
+                f.params
+                    .iter()
+                    .rev()
+                    .find(|param| matches!(param.ty, TypeIR::Pointer { .. }))
+                    .map(|param| HashSet::from([param.slot.clone()]))
+                    .unwrap_or_default()
+            } else {
+                HashSet::new()
+            };
             Ok(SelectedFunction {
                 name: f.name.clone(),
                 ret_type: f.ret_type,
@@ -264,6 +340,7 @@ pub fn lower_program(cfg: &ProgramCfgIR) -> Result<SelectedProgram, PinkerError>
                     .map(|p| (p.slot.clone(), p.ty))
                     .chain(f.locals.iter().map(|l| (l.slot.clone(), l.ty)))
                     .collect(),
+                internal_pointer_params,
                 blocks: f
                     .blocks
                     .iter()
@@ -300,6 +377,7 @@ pub fn lower_program(cfg: &ProgramCfgIR) -> Result<SelectedProgram, PinkerError>
     Ok(SelectedProgram {
         module_name: cfg.module_name.clone(),
         is_freestanding: cfg.is_freestanding,
+        union_types: cfg.union_types.clone(),
         globals,
         functions,
     })
@@ -319,10 +397,16 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
                 src: value.clone(),
             })
         }
-        InstructionCfgIR::Unary { dest, op, operand } => Ok(match op {
+        InstructionCfgIR::Unary {
+            dest,
+            op,
+            operand,
+            ty,
+        } => Ok(match op {
             UnaryOpIR::Neg => SelectedInstr::Neg {
                 dest: *dest,
                 operand: operand.clone(),
+                ty: *ty,
             },
             UnaryOpIR::Not => SelectedInstr::Not {
                 dest: *dest,
@@ -331,6 +415,7 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             UnaryOpIR::BitNot => SelectedInstr::BitNot {
                 dest: *dest,
                 operand: operand.clone(),
+                ty: *ty,
             },
             UnaryOpIR::Deref => {
                 return Err(PinkerError::Ir {
@@ -370,7 +455,60 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             value: value.clone(),
             target_type: *target_type,
         }),
-        InstructionCfgIR::Binary { dest, op, lhs, rhs } => Ok(match op {
+        InstructionCfgIR::UnionInject {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            resolved_member_type_id,
+            canonical_member_key,
+            payload_type,
+            payload_layout,
+        } => Ok(SelectedInstr::UnionInject {
+            dest: *dest,
+            value: value.clone(),
+            union_type_id: *union_type_id,
+            tag: *tag,
+            resolved_member_type_id: *resolved_member_type_id,
+            canonical_member_key: canonical_member_key.clone(),
+            payload_type: *payload_type,
+            payload_layout: *payload_layout,
+        }),
+        InstructionCfgIR::UnionTag {
+            dest,
+            value,
+            union_type_id,
+        } => Ok(SelectedInstr::UnionTag {
+            dest: *dest,
+            value: value.clone(),
+            union_type_id: *union_type_id,
+        }),
+        InstructionCfgIR::UnionExtract {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            resolved_member_type_id,
+            canonical_member_key,
+            payload_type,
+            payload_layout,
+        } => Ok(SelectedInstr::UnionExtract {
+            dest: *dest,
+            value: value.clone(),
+            union_type_id: *union_type_id,
+            tag: *tag,
+            resolved_member_type_id: *resolved_member_type_id,
+            canonical_member_key: canonical_member_key.clone(),
+            payload_type: *payload_type,
+            payload_layout: *payload_layout,
+        }),
+        InstructionCfgIR::Binary {
+            dest,
+            op,
+            lhs,
+            rhs,
+            ty,
+        } => Ok(match op {
             BinaryOpIR::LogicalAnd | BinaryOpIR::LogicalOr => {
                 return Err(PinkerError::Ir {
                     msg: "logical and/or deve ser resolvido no lowering de CFG com short-circuit"
@@ -382,81 +520,97 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
             BinaryOpIR::BitOr => SelectedInstr::BitOr {
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
             BinaryOpIR::BitXor => SelectedInstr::BitXor {
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
             BinaryOpIR::Shl => SelectedInstr::Shl {
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
             BinaryOpIR::Shr => SelectedInstr::Shr {
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
             BinaryOpIR::Add => SelectedInstr::Add {
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
             BinaryOpIR::Sub => SelectedInstr::Sub {
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
             BinaryOpIR::Mul => SelectedInstr::Mul {
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
             BinaryOpIR::Div => SelectedInstr::Div {
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
             BinaryOpIR::Mod => SelectedInstr::Mod {
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
             BinaryOpIR::Eq => SelectedInstr::CmpEq {
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
             BinaryOpIR::Neq => SelectedInstr::CmpNe {
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
             BinaryOpIR::Lt => SelectedInstr::CmpLt {
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
             BinaryOpIR::Lte => SelectedInstr::CmpLe {
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
             BinaryOpIR::Gt => SelectedInstr::CmpGt {
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
             BinaryOpIR::Gte => SelectedInstr::CmpGe {
                 dest: *dest,
                 lhs: lhs.clone(),
                 rhs: rhs.clone(),
+                ty: *ty,
             },
         }),
         InstructionCfgIR::Call {
@@ -554,6 +708,10 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
         InstructionCfgIR::Falar { args } => Ok(SelectedInstr::Falar {
             args: lower_falar_args(args),
         }),
+        InstructionCfgIR::InlineAsm { chunks, span } => Ok(SelectedInstr::InlineAsm {
+            chunks: chunks.clone(),
+            span: *span,
+        }),
     }
 }
 
@@ -646,13 +804,13 @@ pub fn render_program(program: &SelectedProgram) -> String {
 fn render_instr(inst: &SelectedInstr) -> String {
     match inst {
         SelectedInstr::Mov { dest, src } => format!("mov {}, {}", dest, render_operand(src)),
-        SelectedInstr::Neg { dest, operand } => {
+        SelectedInstr::Neg { dest, operand, .. } => {
             format!("neg {}, {}", render_temp(*dest), render_operand(operand))
         }
         SelectedInstr::Not { dest, operand } => {
             format!("not {}, {}", render_temp(*dest), render_operand(operand))
         }
-        SelectedInstr::BitNot { dest, operand } => {
+        SelectedInstr::BitNot { dest, operand, .. } => {
             format!("bitnot {}, {}", render_temp(*dest), render_operand(operand))
         }
         SelectedInstr::DerefLoad {
@@ -697,97 +855,137 @@ fn render_instr(inst: &SelectedInstr) -> String {
             render_operand(value),
             target_type.name()
         ),
-        SelectedInstr::BitAnd { dest, lhs, rhs } => format!(
+        SelectedInstr::UnionInject {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            ..
+        } => format!(
+            "{} = union_inject #{} tag={} {}",
+            render_temp(*dest),
+            union_type_id.0,
+            tag,
+            render_operand(value)
+        ),
+        SelectedInstr::UnionTag {
+            dest,
+            value,
+            union_type_id,
+        } => format!(
+            "{} = union_tag #{} {}",
+            render_temp(*dest),
+            union_type_id.0,
+            render_operand(value)
+        ),
+        SelectedInstr::UnionExtract {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            canonical_member_key,
+            payload_type,
+            ..
+        } => format!(
+            "{} = union_extract #{} tag={} key={} {} -> {}",
+            render_temp(*dest),
+            union_type_id.0,
+            tag,
+            canonical_member_key,
+            render_operand(value),
+            payload_type.name()
+        ),
+        SelectedInstr::BitAnd { dest, lhs, rhs, .. } => format!(
             "bitand {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        SelectedInstr::BitOr { dest, lhs, rhs } => format!(
+        SelectedInstr::BitOr { dest, lhs, rhs, .. } => format!(
             "bitor {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        SelectedInstr::BitXor { dest, lhs, rhs } => format!(
+        SelectedInstr::BitXor { dest, lhs, rhs, .. } => format!(
             "bitxor {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        SelectedInstr::Shl { dest, lhs, rhs } => format!(
+        SelectedInstr::Shl { dest, lhs, rhs, .. } => format!(
             "shl {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        SelectedInstr::Shr { dest, lhs, rhs } => format!(
+        SelectedInstr::Shr { dest, lhs, rhs, .. } => format!(
             "shr {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        SelectedInstr::Add { dest, lhs, rhs } => format!(
+        SelectedInstr::Add { dest, lhs, rhs, .. } => format!(
             "add {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        SelectedInstr::Sub { dest, lhs, rhs } => format!(
+        SelectedInstr::Sub { dest, lhs, rhs, .. } => format!(
             "sub {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        SelectedInstr::Mul { dest, lhs, rhs } => format!(
+        SelectedInstr::Mul { dest, lhs, rhs, .. } => format!(
             "mul {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        SelectedInstr::Div { dest, lhs, rhs } => format!(
+        SelectedInstr::Div { dest, lhs, rhs, .. } => format!(
             "div {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        SelectedInstr::Mod { dest, lhs, rhs } => format!(
+        SelectedInstr::Mod { dest, lhs, rhs, .. } => format!(
             "mod {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        SelectedInstr::CmpEq { dest, lhs, rhs } => format!(
+        SelectedInstr::CmpEq { dest, lhs, rhs, .. } => format!(
             "cmp_eq {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        SelectedInstr::CmpNe { dest, lhs, rhs } => format!(
+        SelectedInstr::CmpNe { dest, lhs, rhs, .. } => format!(
             "cmp_ne {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        SelectedInstr::CmpLt { dest, lhs, rhs } => format!(
+        SelectedInstr::CmpLt { dest, lhs, rhs, .. } => format!(
             "cmp_lt {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        SelectedInstr::CmpLe { dest, lhs, rhs } => format!(
+        SelectedInstr::CmpLe { dest, lhs, rhs, .. } => format!(
             "cmp_le {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        SelectedInstr::CmpGt { dest, lhs, rhs } => format!(
+        SelectedInstr::CmpGt { dest, lhs, rhs, .. } => format!(
             "cmp_gt {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
         ),
-        SelectedInstr::CmpGe { dest, lhs, rhs } => format!(
+        SelectedInstr::CmpGe { dest, lhs, rhs, .. } => format!(
             "cmp_ge {}, {}, {}",
             render_temp(*dest),
             render_operand(lhs),
@@ -928,6 +1126,7 @@ fn render_instr(inst: &SelectedInstr) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
+        SelectedInstr::InlineAsm { chunks, .. } => format!("inline_asm {:?}", chunks),
     }
 }
 

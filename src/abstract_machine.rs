@@ -26,6 +26,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineProgram {
     pub module_name: String,
+    pub union_types: Vec<crate::ir::UnionTypeIR>,
     pub globals: Vec<MachineGlobal>,
     pub functions: Vec<MachineFunction>,
 }
@@ -74,9 +75,13 @@ pub enum MachineInstr {
     LoadSlot(String),
     LoadGlobal(String),
     StoreSlot(String),
-    Neg,
+    Neg {
+        ty: TypeIR,
+    },
     Not,
-    BitNot,
+    BitNot {
+        ty: TypeIR,
+    },
     DerefLoad {
         ty: TypeIR,
         is_volatile: bool,
@@ -88,22 +93,78 @@ pub enum MachineInstr {
     Cast {
         ty: TypeIR,
     },
-    BitAnd,
-    BitOr,
-    BitXor,
-    Shl,
-    Shr,
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Mod,
-    CmpEq,
-    CmpNe,
-    CmpLt,
-    CmpLe,
-    CmpGt,
-    CmpGe,
+    MakeUnion {
+        union_type_id: crate::ir::UnionTypeId,
+        tag: u64,
+        /// Identidade semântica do membro, decidida uma única vez no lowering.
+        /// A máquina abstrata a transporta como metadado verificável; a
+        /// representação do payload na memória não muda por causa dela.
+        resolved_member_type_id: crate::ir::ResolvedTypeId,
+        canonical_member_key: String,
+        payload_type: TypeIR,
+        payload_layout: crate::union_payload::UnionPayloadLayout,
+    },
+    // Operações internas tipadas de união na máquina abstrata. Consomem o
+    // valor de união no topo da pilha; nunca são chamadas por nome.
+    UnionTag {
+        union_type_id: crate::ir::UnionTypeId,
+    },
+    UnionExtract {
+        union_type_id: crate::ir::UnionTypeId,
+        tag: u64,
+        resolved_member_type_id: crate::ir::ResolvedTypeId,
+        canonical_member_key: String,
+        payload_type: TypeIR,
+        payload_layout: crate::union_payload::UnionPayloadLayout,
+    },
+    BitAnd {
+        ty: TypeIR,
+    },
+    BitOr {
+        ty: TypeIR,
+    },
+    BitXor {
+        ty: TypeIR,
+    },
+    Shl {
+        ty: TypeIR,
+    },
+    Shr {
+        ty: TypeIR,
+    },
+    Add {
+        ty: TypeIR,
+    },
+    Sub {
+        ty: TypeIR,
+    },
+    Mul {
+        ty: TypeIR,
+    },
+    Div {
+        ty: TypeIR,
+    },
+    Mod {
+        ty: TypeIR,
+    },
+    CmpEq {
+        ty: TypeIR,
+    },
+    CmpNe {
+        ty: TypeIR,
+    },
+    CmpLt {
+        ty: TypeIR,
+    },
+    CmpLe {
+        ty: TypeIR,
+    },
+    CmpGt {
+        ty: TypeIR,
+    },
+    CmpGe {
+        ty: TypeIR,
+    },
     Call {
         callee: String,
         argc: usize,
@@ -165,6 +226,10 @@ pub enum MachineInstr {
     PrintStrInline(String),
     PrintSpace,
     PrintNewline,
+    InlineAsm {
+        chunks: Vec<String>,
+        span: crate::token::Span,
+    },
 }
 
 /// Terminadores de bloco. `BrTrue` consome o topo da pilha (deve ser `lógica`).
@@ -233,6 +298,7 @@ pub fn lower_program(selected: &SelectedProgram) -> Result<MachineProgram, Pinke
 
     Ok(MachineProgram {
         module_name: selected.module_name.clone(),
+        union_types: selected.union_types.clone(),
         globals,
         functions,
     })
@@ -249,9 +315,9 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) -> Result<(),
             emit_load(src, code);
             code.push(MachineInstr::StoreSlot(dest.clone()));
         }
-        SelectedInstr::Neg { dest, operand } => {
+        SelectedInstr::Neg { dest, operand, ty } => {
             emit_load(operand, code);
-            code.push(MachineInstr::Neg);
+            code.push(MachineInstr::Neg { ty: *ty });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
         SelectedInstr::Not { dest, operand } => {
@@ -259,9 +325,9 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) -> Result<(),
             code.push(MachineInstr::Not);
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::BitNot { dest, operand } => {
+        SelectedInstr::BitNot { dest, operand, ty } => {
             emit_load(operand, code);
-            code.push(MachineInstr::BitNot);
+            code.push(MachineInstr::BitNot { ty: *ty });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
         SelectedInstr::DerefLoad {
@@ -299,100 +365,153 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) -> Result<(),
             code.push(MachineInstr::Cast { ty: *target_type });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::BitAnd { dest, lhs, rhs } => {
-            emit_load(lhs, code);
-            emit_load(rhs, code);
-            code.push(MachineInstr::BitAnd);
+        SelectedInstr::UnionInject {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            resolved_member_type_id,
+            canonical_member_key,
+            payload_type,
+            payload_layout,
+        } => {
+            emit_load(value, code);
+            code.push(MachineInstr::MakeUnion {
+                union_type_id: *union_type_id,
+                tag: *tag,
+                resolved_member_type_id: *resolved_member_type_id,
+                canonical_member_key: canonical_member_key.clone(),
+                payload_type: *payload_type,
+                payload_layout: *payload_layout,
+            });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::BitOr { dest, lhs, rhs } => {
-            emit_load(lhs, code);
-            emit_load(rhs, code);
-            code.push(MachineInstr::BitOr);
+        SelectedInstr::UnionTag {
+            dest,
+            value,
+            union_type_id,
+        } => {
+            emit_load(value, code);
+            code.push(MachineInstr::UnionTag {
+                union_type_id: *union_type_id,
+            });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::BitXor { dest, lhs, rhs } => {
-            emit_load(lhs, code);
-            emit_load(rhs, code);
-            code.push(MachineInstr::BitXor);
+        SelectedInstr::UnionExtract {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            resolved_member_type_id,
+            canonical_member_key,
+            payload_type,
+            payload_layout,
+        } => {
+            emit_load(value, code);
+            code.push(MachineInstr::UnionExtract {
+                union_type_id: *union_type_id,
+                tag: *tag,
+                resolved_member_type_id: *resolved_member_type_id,
+                canonical_member_key: canonical_member_key.clone(),
+                payload_type: *payload_type,
+                payload_layout: *payload_layout,
+            });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::Shl { dest, lhs, rhs } => {
+        SelectedInstr::BitAnd { dest, lhs, rhs, ty } => {
             emit_load(lhs, code);
             emit_load(rhs, code);
-            code.push(MachineInstr::Shl);
+            code.push(MachineInstr::BitAnd { ty: *ty });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::Shr { dest, lhs, rhs } => {
+        SelectedInstr::BitOr { dest, lhs, rhs, ty } => {
             emit_load(lhs, code);
             emit_load(rhs, code);
-            code.push(MachineInstr::Shr);
+            code.push(MachineInstr::BitOr { ty: *ty });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::Add { dest, lhs, rhs } => {
+        SelectedInstr::BitXor { dest, lhs, rhs, ty } => {
             emit_load(lhs, code);
             emit_load(rhs, code);
-            code.push(MachineInstr::Add);
+            code.push(MachineInstr::BitXor { ty: *ty });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::Sub { dest, lhs, rhs } => {
+        SelectedInstr::Shl { dest, lhs, rhs, ty } => {
             emit_load(lhs, code);
             emit_load(rhs, code);
-            code.push(MachineInstr::Sub);
+            code.push(MachineInstr::Shl { ty: *ty });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::Mul { dest, lhs, rhs } => {
+        SelectedInstr::Shr { dest, lhs, rhs, ty } => {
             emit_load(lhs, code);
             emit_load(rhs, code);
-            code.push(MachineInstr::Mul);
+            code.push(MachineInstr::Shr { ty: *ty });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::Div { dest, lhs, rhs } => {
+        SelectedInstr::Add { dest, lhs, rhs, ty } => {
             emit_load(lhs, code);
             emit_load(rhs, code);
-            code.push(MachineInstr::Div);
+            code.push(MachineInstr::Add { ty: *ty });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::Mod { dest, lhs, rhs } => {
+        SelectedInstr::Sub { dest, lhs, rhs, ty } => {
             emit_load(lhs, code);
             emit_load(rhs, code);
-            code.push(MachineInstr::Mod);
+            code.push(MachineInstr::Sub { ty: *ty });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::CmpEq { dest, lhs, rhs } => {
+        SelectedInstr::Mul { dest, lhs, rhs, ty } => {
             emit_load(lhs, code);
             emit_load(rhs, code);
-            code.push(MachineInstr::CmpEq);
+            code.push(MachineInstr::Mul { ty: *ty });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::CmpNe { dest, lhs, rhs } => {
+        SelectedInstr::Div { dest, lhs, rhs, ty } => {
             emit_load(lhs, code);
             emit_load(rhs, code);
-            code.push(MachineInstr::CmpNe);
+            code.push(MachineInstr::Div { ty: *ty });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::CmpLt { dest, lhs, rhs } => {
+        SelectedInstr::Mod { dest, lhs, rhs, ty } => {
             emit_load(lhs, code);
             emit_load(rhs, code);
-            code.push(MachineInstr::CmpLt);
+            code.push(MachineInstr::Mod { ty: *ty });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::CmpLe { dest, lhs, rhs } => {
+        SelectedInstr::CmpEq { dest, lhs, rhs, ty } => {
             emit_load(lhs, code);
             emit_load(rhs, code);
-            code.push(MachineInstr::CmpLe);
+            code.push(MachineInstr::CmpEq { ty: *ty });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::CmpGt { dest, lhs, rhs } => {
+        SelectedInstr::CmpNe { dest, lhs, rhs, ty } => {
             emit_load(lhs, code);
             emit_load(rhs, code);
-            code.push(MachineInstr::CmpGt);
+            code.push(MachineInstr::CmpNe { ty: *ty });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::CmpGe { dest, lhs, rhs } => {
+        SelectedInstr::CmpLt { dest, lhs, rhs, ty } => {
             emit_load(lhs, code);
             emit_load(rhs, code);
-            code.push(MachineInstr::CmpGe);
+            code.push(MachineInstr::CmpLt { ty: *ty });
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
+        SelectedInstr::CmpLe { dest, lhs, rhs, ty } => {
+            emit_load(lhs, code);
+            emit_load(rhs, code);
+            code.push(MachineInstr::CmpLe { ty: *ty });
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
+        SelectedInstr::CmpGt { dest, lhs, rhs, ty } => {
+            emit_load(lhs, code);
+            emit_load(rhs, code);
+            code.push(MachineInstr::CmpGt { ty: *ty });
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
+        SelectedInstr::CmpGe { dest, lhs, rhs, ty } => {
+            emit_load(lhs, code);
+            emit_load(rhs, code);
+            code.push(MachineInstr::CmpGe { ty: *ty });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
         SelectedInstr::Call {
@@ -516,6 +635,12 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) -> Result<(),
                 lower_falar_arg(arg, code);
             }
             code.push(MachineInstr::PrintNewline);
+        }
+        SelectedInstr::InlineAsm { chunks, span } => {
+            code.push(MachineInstr::InlineAsm {
+                chunks: chunks.clone(),
+                span: *span,
+            });
         }
     }
 
@@ -809,9 +934,13 @@ fn render_instr(i: &MachineInstr) -> String {
             };
             with_comment(format!("store_slot {}", slot), &comment)
         }
-        MachineInstr::Neg => with_comment("neg".to_string(), "negação aritmética do topo"),
+        MachineInstr::Neg { ty } => {
+            with_comment(format!("neg<{}>", ty.name()), "negação aritmética do topo")
+        }
         MachineInstr::Not => with_comment("not".to_string(), "negação lógica do topo"),
-        MachineInstr::BitNot => with_comment("bitnot".to_string(), "negação bitwise do topo"),
+        MachineInstr::BitNot { ty } => {
+            with_comment(format!("bitnot<{}>", ty.name()), "negação bitwise do topo")
+        }
         MachineInstr::DerefLoad { ty, is_volatile } => with_comment(
             format!(
                 "{} {}",
@@ -840,26 +969,73 @@ fn render_instr(i: &MachineInstr) -> String {
             format!("cast {}", ty.name()),
             "converte valor explícito para o tipo alvo",
         ),
-        MachineInstr::BitAnd => {
-            with_comment("bitand".to_string(), "AND bit a bit entre dois topos")
+        MachineInstr::MakeUnion {
+            union_type_id, tag, ..
+        } => format!("make_union #{} tag={}", union_type_id.0, tag),
+        MachineInstr::UnionTag { union_type_id } => with_comment(
+            format!("union_tag #{}", union_type_id.0),
+            "lê a tag corrente da união no topo",
+        ),
+        MachineInstr::UnionExtract {
+            union_type_id,
+            tag,
+            canonical_member_key,
+            ..
+        } => with_comment(
+            format!(
+                "union_extract #{} tag={} key={}",
+                union_type_id.0, tag, canonical_member_key
+            ),
+            "abre o payload do membro já validado",
+        ),
+        MachineInstr::BitAnd { ty } => {
+            with_comment(format!("bitand<{}>", ty.name()), "AND bit a bit entre dois topos")
         }
-        MachineInstr::BitOr => with_comment("bitor".to_string(), "OR bit a bit entre dois topos"),
-        MachineInstr::BitXor => {
-            with_comment("bitxor".to_string(), "XOR bit a bit entre dois topos")
+        MachineInstr::BitOr { ty } => {
+            with_comment(format!("bitor<{}>", ty.name()), "OR bit a bit entre dois topos")
         }
-        MachineInstr::Shl => with_comment("shl".to_string(), "desloca bits à esquerda"),
-        MachineInstr::Shr => with_comment("shr".to_string(), "desloca bits à direita"),
-        MachineInstr::Add => with_comment("add".to_string(), "soma os dois topos da pilha"),
-        MachineInstr::Sub => with_comment("sub".to_string(), "subtrai os dois topos da pilha"),
-        MachineInstr::Mul => with_comment("mul".to_string(), "multiplica os dois topos da pilha"),
-        MachineInstr::Div => with_comment("div".to_string(), "divide os dois topos da pilha"),
-        MachineInstr::Mod => with_comment("mod".to_string(), "resto da divisão entre dois topos"),
-        MachineInstr::CmpEq => with_comment("cmp_eq".to_string(), "compara igualdade"),
-        MachineInstr::CmpNe => with_comment("cmp_ne".to_string(), "compara diferença"),
-        MachineInstr::CmpLt => with_comment("cmp_lt".to_string(), "compara menor que"),
-        MachineInstr::CmpLe => with_comment("cmp_le".to_string(), "compara menor ou igual"),
-        MachineInstr::CmpGt => with_comment("cmp_gt".to_string(), "compara maior que"),
-        MachineInstr::CmpGe => with_comment("cmp_ge".to_string(), "compara maior ou igual"),
+        MachineInstr::BitXor { ty } => {
+            with_comment(format!("bitxor<{}>", ty.name()), "XOR bit a bit entre dois topos")
+        }
+        MachineInstr::Shl { ty } => {
+            with_comment(format!("shl<{}>", ty.name()), "desloca bits à esquerda")
+        }
+        MachineInstr::Shr { ty } => {
+            with_comment(format!("shr<{}>", ty.name()), "desloca bits à direita")
+        }
+        MachineInstr::Add { ty } => {
+            with_comment(format!("add<{}>", ty.name()), "soma os dois topos da pilha")
+        }
+        MachineInstr::Sub { ty } => {
+            with_comment(format!("sub<{}>", ty.name()), "subtrai os dois topos da pilha")
+        }
+        MachineInstr::Mul { ty } => {
+            with_comment(format!("mul<{}>", ty.name()), "multiplica os dois topos da pilha")
+        }
+        MachineInstr::Div { ty } => {
+            with_comment(format!("div<{}>", ty.name()), "divide os dois topos da pilha")
+        }
+        MachineInstr::Mod { ty } => {
+            with_comment(format!("mod<{}>", ty.name()), "resto da divisão entre dois topos")
+        }
+        MachineInstr::CmpEq { ty } => {
+            with_comment(format!("cmp_eq<{}>", ty.name()), "compara igualdade")
+        }
+        MachineInstr::CmpNe { ty } => {
+            with_comment(format!("cmp_ne<{}>", ty.name()), "compara diferença")
+        }
+        MachineInstr::CmpLt { ty } => {
+            with_comment(format!("cmp_lt<{}>", ty.name()), "compara menor que")
+        }
+        MachineInstr::CmpLe { ty } => {
+            with_comment(format!("cmp_le<{}>", ty.name()), "compara menor ou igual")
+        }
+        MachineInstr::CmpGt { ty } => {
+            with_comment(format!("cmp_gt<{}>", ty.name()), "compara maior que")
+        }
+        MachineInstr::CmpGe { ty } => {
+            with_comment(format!("cmp_ge<{}>", ty.name()), "compara maior ou igual")
+        }
         MachineInstr::Call { callee, argc } => with_comment(
             format!("call {}, {}", callee, argc),
             &format!(
@@ -960,6 +1136,7 @@ fn render_instr(i: &MachineInstr) -> String {
         ),
         MachineInstr::PrintSpace => with_comment("print_space".to_string(), "imprime espaço"),
         MachineInstr::PrintNewline => with_comment("print_newline".to_string(), "imprime quebra"),
+        MachineInstr::InlineAsm { chunks, .. } => format!("inline_asm {:?}", chunks),
     }
 }
 

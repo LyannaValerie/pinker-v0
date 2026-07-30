@@ -12,7 +12,7 @@ use crate::error::PinkerError;
 use crate::ir::{
     BinaryOpIR, BlockIR, FunctionIR, InstructionIR, ProgramIR, TypeIR, UnaryOpIR, ValueIR,
 };
-use crate::token::Span;
+use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone)]
@@ -26,6 +26,14 @@ struct FunctionSig {
 // @pinker-nav:layer ir
 // @pinker-nav:summary Valida os invariantes da IR estruturada antes do lowering para CFG: constantes globais bem tipadas, bloco de entrada e slots únicos por função, e comandos/expressões com tipos compatíveis via inferência recursiva.
 pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
+    crate::ir::validate_union_registry(&program.union_types)
+        .map_err(|message| ir_validation_error(&message, default_span()))?;
+    crate::ir::validate_resolved_type_table(&program.resolved_types)
+        .map_err(|message| ir_validation_error(&message, default_span()))?;
+    crate::ir::validate_union_registry_identities(&program.union_types, &program.resolved_types)
+        .map_err(|message| ir_validation_error(&message, default_span()))?;
+    validate_resolved_identities(program)?;
+    validate_union_operations(program)?;
     let mut consts = HashMap::new();
     for konst in &program.consts {
         if konst.name.trim().is_empty() {
@@ -436,6 +444,8 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
+    // Não há assinatura chamável de união: tag e extração são
+    // `ValueIR::UnionTag`/`ValueIR::UnionExtract`, nós tipados da IR.
     funcs.insert(
         "argumento".to_string(),
         FunctionSig {
@@ -1415,10 +1425,388 @@ fn validate_block(
                     ));
                 }
             }
+            InstructionIR::UnionMatch(union_match) => {
+                let scrutinee_ty = infer_value_type(
+                    &union_match.scrutinee,
+                    slots,
+                    consts,
+                    funcs,
+                    union_match.span,
+                )
+                .map_err(|err| {
+                    enrich_ir_error(
+                        err,
+                        Some(function),
+                        Some(block),
+                        Some("instr='union_match'"),
+                    )
+                })?;
+                if scrutinee_ty != TypeIR::Union(union_match.union_type_id) {
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "scrutinee de union_match não é a união associada",
+                        Some(&format!(
+                            "instr='union_match', esperado=Union({}), recebido={:?}",
+                            union_match.union_type_id.0, scrutinee_ty
+                        )),
+                        union_match.span,
+                    ));
+                }
+                if slots.get(&union_match.scrutinee_binding.slot)
+                    != Some(&TypeIR::Union(union_match.union_type_id))
+                    || union_match.scrutinee_binding.ty != TypeIR::Union(union_match.union_type_id)
+                {
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "slot do scrutinee de union_match ausente ou com tipo divergente",
+                        Some(&format!(
+                            "instr='union_match', slot='{}'",
+                            union_match.scrutinee_binding.slot
+                        )),
+                        union_match.span,
+                    ));
+                }
+                if slots.get(&union_match.tag_binding.slot) != Some(&TypeIR::Bombom)
+                    || union_match.tag_binding.ty != TypeIR::Bombom
+                {
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "slot da tag de union_match ausente ou com tipo divergente",
+                        Some(&format!(
+                            "instr='union_match', slot='{}'",
+                            union_match.tag_binding.slot
+                        )),
+                        union_match.span,
+                    ));
+                }
+                for arm in &union_match.arms {
+                    let Some(expected) = slots.get(&arm.binding.slot) else {
+                        return Err(ir_validation_error_ctx(
+                            function,
+                            Some(block),
+                            "binding de braço de union_match sem slot local",
+                            Some(&format!("instr='union_match', slot='{}'", arm.binding.slot)),
+                            arm.span,
+                        ));
+                    };
+                    if *expected != arm.payload_type || arm.binding.ty != arm.payload_type {
+                        return Err(ir_validation_error_ctx(
+                            function,
+                            Some(block),
+                            "binding de braço de union_match com tipo divergente do payload",
+                            Some(&format!(
+                                "instr='union_match', slot='{}', esperado={:?}, recebido={:?}",
+                                arm.binding.slot, arm.payload_type, expected
+                            )),
+                            arm.span,
+                        ));
+                    }
+                    if !arm.payload_layout.is_well_formed() {
+                        return Err(ir_validation_error_ctx(
+                            function,
+                            Some(block),
+                            "layout de payload inválido em braço de union_match",
+                            Some("instr='union_match'"),
+                            arm.span,
+                        ));
+                    }
+                    validate_block(&arm.body, function, slots, consts, funcs)?;
+                }
+            }
         }
     }
 
     Ok(())
+}
+
+/// Confere que nenhuma identidade semântica foi perdida em parâmetro ou local.
+///
+/// Um slot cuja representação já é a identidade completa (escalares, `verso`,
+/// listas e mapas monomórficos, `nulo`, arrays desses e uniões, cujo
+/// `UnionTypeId` é nominal) pode dispensar a identidade explícita. Um slot cuja
+/// representação é ambígua — `ninho`, `seta<T>`, `carinho(...)`,
+/// `seta<carinho>` e `trato<...>` — precisa carregá-la: são exatamente as
+/// categorias em que HR4 mostra que a representação não identifica o tipo.
+///
+/// Toda identidade presente também precisa existir na tabela do programa e
+/// concordar com ela na representação.
+fn validate_resolved_identities(program: &ProgramIR) -> Result<(), PinkerError> {
+    let exige_identidade = |ty: TypeIR| {
+        matches!(
+            ty,
+            TypeIR::Struct
+                | TypeIR::Pointer { .. }
+                | TypeIR::FunctionPointer
+                | TypeIR::Function
+                | TypeIR::TraitObject
+        )
+    };
+
+    for function in &program.functions {
+        let mut slots: Vec<(&str, TypeIR, Option<crate::ir::ResolvedTypeId>)> = Vec::new();
+        for param in &function.params {
+            slots.push((param.slot.as_str(), param.ty, param.resolved));
+        }
+        for local in &function.locals {
+            slots.push((local.slot.as_str(), local.ty, local.resolved));
+        }
+        for (slot, ty, resolved) in slots {
+            match resolved {
+                None => {
+                    if exige_identidade(ty) {
+                        return Err(ir_validation_error(
+                            &format!(
+                                "E-IR-TYPE-IDENTITY-LOST: slot '{slot}' de '{}' na função '{}' \
+                                 não carrega identidade semântica resolvida",
+                                ty.name(),
+                                function.name
+                            ),
+                            function.span,
+                        ));
+                    }
+                }
+                Some(resolved) => {
+                    crate::ir::validate_resolved_type_reference(
+                        &program.resolved_types,
+                        resolved,
+                        ty,
+                    )
+                    .map_err(|message| ir_validation_error(&message, function.span))?;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// Fronteira de validação das operações internas tipadas de união na IR estruturada: percorre todo o programa e confronta cada `UnionMatch`, `UnionTag` e `UnionExtract` com a tabela internada — existência do `UnionTypeId`, pertencimento da tag, coincidência entre chave canônica e tag, tipo e layout do payload, ausência de braço repetido e cobertura integral. Nenhuma tag é recalculada aqui; o registry é a única fonte.
+fn validate_union_operations(program: &ProgramIR) -> Result<(), PinkerError> {
+    for function in &program.functions {
+        validate_union_operations_block(&function.entry, &program.union_types)?;
+    }
+    for konst in &program.consts {
+        validate_union_operations_value(&konst.value, &program.union_types, konst.span)?;
+    }
+    Ok(())
+}
+
+fn validate_union_operations_block(
+    block: &BlockIR,
+    unions: &[crate::ir::UnionTypeIR],
+) -> Result<(), PinkerError> {
+    for instruction in &block.instructions {
+        match instruction {
+            InstructionIR::UnionMatch(union_match) => {
+                validate_union_operations_value(&union_match.scrutinee, unions, union_match.span)?;
+                let arm_keys = union_match
+                    .arms
+                    .iter()
+                    .map(|arm| (arm.tag, arm.canonical_member_key.clone()))
+                    .collect::<Vec<_>>();
+                crate::ir::validate_union_match_coverage(
+                    unions,
+                    union_match.union_type_id,
+                    &arm_keys,
+                )
+                .map_err(|message| ir_validation_error(&message, union_match.span))?;
+                for arm in &union_match.arms {
+                    crate::ir::validate_union_member_reference(
+                        unions,
+                        union_match.union_type_id,
+                        arm.tag,
+                        &arm.canonical_member_key,
+                        arm.payload_type,
+                        arm.payload_layout,
+                    )
+                    .map_err(|message| ir_validation_error(&message, arm.span))?;
+                    validate_union_operations_block(&arm.body, unions)?;
+                }
+            }
+            InstructionIR::Let { value, span, .. }
+            | InstructionIR::Assign { value, span, .. }
+            | InstructionIR::Expr { value, span } => {
+                validate_union_operations_value(value, unions, *span)?
+            }
+            InstructionIR::Return { value, span } => {
+                if let Some(value) = value {
+                    validate_union_operations_value(value, unions, *span)?;
+                }
+            }
+            InstructionIR::StoreIndirect {
+                ptr, value, span, ..
+            } => {
+                validate_union_operations_value(ptr, unions, *span)?;
+                validate_union_operations_value(value, unions, *span)?;
+            }
+            InstructionIR::StoreFieldIndirect {
+                base, value, span, ..
+            } => {
+                validate_union_operations_value(base, unions, *span)?;
+                validate_union_operations_value(value, unions, *span)?;
+            }
+            InstructionIR::StoreIndexed {
+                base,
+                index,
+                value,
+                span,
+                ..
+            } => {
+                validate_union_operations_value(base, unions, *span)?;
+                validate_union_operations_value(index, unions, *span)?;
+                validate_union_operations_value(value, unions, *span)?;
+            }
+            InstructionIR::If {
+                condition,
+                then_block,
+                else_block,
+                span,
+            } => {
+                validate_union_operations_value(condition, unions, *span)?;
+                validate_union_operations_block(then_block, unions)?;
+                if let Some(else_block) = else_block {
+                    validate_union_operations_block(else_block, unions)?;
+                }
+            }
+            InstructionIR::While {
+                condition,
+                body_block,
+                span,
+            } => {
+                validate_union_operations_value(condition, unions, *span)?;
+                validate_union_operations_block(body_block, unions)?;
+            }
+            InstructionIR::Falar { args, span } => {
+                for arg in args {
+                    validate_union_operations_value(&arg.value, unions, *span)?;
+                }
+            }
+            InstructionIR::Break { .. }
+            | InstructionIR::Continue { .. }
+            | InstructionIR::InlineAsm { .. } => {}
+        }
+    }
+    Ok(())
+}
+
+fn validate_union_operations_value(
+    value: &ValueIR,
+    unions: &[crate::ir::UnionTypeIR],
+    span: Span,
+) -> Result<(), PinkerError> {
+    match value {
+        ValueIR::UnionTag {
+            value,
+            union_type_id,
+        } => {
+            crate::ir::validate_union_reference(unions, *union_type_id)
+                .map_err(|message| ir_validation_error(&message, span))?;
+            validate_union_operations_value(value, unions, span)
+        }
+        ValueIR::UnionExtract {
+            value,
+            union_type_id,
+            tag,
+            resolved_member_type_id,
+            canonical_member_key,
+            payload_type,
+            payload_layout,
+        } => {
+            crate::ir::validate_union_member_reference(
+                unions,
+                *union_type_id,
+                *tag,
+                canonical_member_key,
+                *payload_type,
+                *payload_layout,
+            )
+            .map_err(|message| ir_validation_error(&message, span))?;
+            crate::ir::validate_union_member_identity(
+                unions,
+                *union_type_id,
+                *tag,
+                *resolved_member_type_id,
+            )
+            .map_err(|message| ir_validation_error(&message, span))?;
+            validate_union_operations_value(value, unions, span)
+        }
+        ValueIR::UnionInject {
+            value,
+            union_type_id,
+            tag,
+            resolved_member_type_id,
+            canonical_member_key,
+            payload_type,
+            payload_layout,
+        } => {
+            // A injeção é validada com o mesmo rigor da extração: tag, chave
+            // canônica, layout e identidade resolvida têm de descrever o mesmo
+            // membro. Antes desta fase a injeção só conferia a existência da
+            // união, o que deixava a associação membro↔tag sem verificação.
+            crate::ir::validate_union_member_reference(
+                unions,
+                *union_type_id,
+                *tag,
+                canonical_member_key,
+                *payload_type,
+                *payload_layout,
+            )
+            .map_err(|message| ir_validation_error(&message, span))?;
+            crate::ir::validate_union_member_identity(
+                unions,
+                *union_type_id,
+                *tag,
+                *resolved_member_type_id,
+            )
+            .map_err(|message| ir_validation_error(&message, span))?;
+            validate_union_operations_value(value, unions, span)
+        }
+        ValueIR::Unary { operand, .. } => validate_union_operations_value(operand, unions, span),
+        ValueIR::Deref { ptr, .. } => validate_union_operations_value(ptr, unions, span),
+        ValueIR::Binary { lhs, rhs, .. } => {
+            validate_union_operations_value(lhs, unions, span)?;
+            validate_union_operations_value(rhs, unions, span)
+        }
+        ValueIR::Call { args, .. } | ValueIR::MakeClosure { captures: args, .. } => {
+            for arg in args {
+                validate_union_operations_value(arg, unions, span)?;
+            }
+            Ok(())
+        }
+        ValueIR::MakeTraitObject { value, .. } => {
+            validate_union_operations_value(value, unions, span)
+        }
+        ValueIR::TraitCall { object, args, .. } => {
+            validate_union_operations_value(object, unions, span)?;
+            for arg in args {
+                validate_union_operations_value(arg, unions, span)?;
+            }
+            Ok(())
+        }
+        ValueIR::CallIndirect { callee, args, .. } | ValueIR::CallRaw { callee, args, .. } => {
+            validate_union_operations_value(callee, unions, span)?;
+            for arg in args {
+                validate_union_operations_value(arg, unions, span)?;
+            }
+            Ok(())
+        }
+        ValueIR::FieldAccess { base, .. } => validate_union_operations_value(base, unions, span),
+        ValueIR::Index { base, index, .. } => {
+            validate_union_operations_value(base, unions, span)?;
+            validate_union_operations_value(index, unions, span)
+        }
+        ValueIR::Cast { value, .. } => validate_union_operations_value(value, unions, span),
+        ValueIR::Local(_)
+        | ValueIR::GlobalConst(_)
+        | ValueIR::Int(_)
+        | ValueIR::Bool(_)
+        | ValueIR::String(_)
+        | ValueIR::FunctionRef(_)
+        | ValueIR::RawFunctionRef(_) => Ok(()),
+    }
 }
 
 fn infer_value_type(
@@ -1440,9 +1828,9 @@ fn infer_value_type(
         ValueIR::Int(_) => Ok(TypeIR::Bombom),
         ValueIR::Bool(_) => Ok(TypeIR::Logica),
         ValueIR::String(_) => Ok(TypeIR::Verso),
-        ValueIR::Unary { op, operand } => {
+        ValueIR::Unary { op, operand, ty } => {
             let op_ty = infer_value_type(operand, slots, consts, funcs, span)?;
-            match op {
+            let inferred = match op {
                 UnaryOpIR::Neg if op_ty.is_integer() => Ok(op_ty),
                 UnaryOpIR::Not if op_ty == TypeIR::Logica => Ok(TypeIR::Logica),
                 UnaryOpIR::BitNot if op_ty.is_integer() => Ok(op_ty),
@@ -1454,7 +1842,14 @@ fn infer_value_type(
                     "operação unária com operando inválido",
                     span,
                 )),
+            }?;
+            if !inferred.is_compatible_with(*ty) {
+                return Err(ir_validation_error(
+                    "operação unária com tipo operacional inconsistente",
+                    span,
+                ));
             }
+            Ok(*ty)
         }
         ValueIR::Deref {
             ptr,
@@ -1479,10 +1874,10 @@ fn infer_value_type(
             }
             Ok(*result_type)
         }
-        ValueIR::Binary { op, lhs, rhs } => {
+        ValueIR::Binary { op, lhs, rhs, ty } => {
             let lhs_ty = infer_value_type(lhs, slots, consts, funcs, span)?;
             let rhs_ty = infer_value_type(rhs, slots, consts, funcs, span)?;
-            match op {
+            let inferred = match op {
                 BinaryOpIR::LogicalAnd | BinaryOpIR::LogicalOr => {
                     if lhs_ty == TypeIR::Logica && rhs_ty == TypeIR::Logica {
                         Ok(TypeIR::Logica)
@@ -1549,7 +1944,29 @@ fn infer_value_type(
                         ))
                     }
                 }
+            }?;
+            let expected = if matches!(
+                op,
+                BinaryOpIR::LogicalAnd
+                    | BinaryOpIR::LogicalOr
+                    | BinaryOpIR::Eq
+                    | BinaryOpIR::Neq
+                    | BinaryOpIR::Lt
+                    | BinaryOpIR::Lte
+                    | BinaryOpIR::Gt
+                    | BinaryOpIR::Gte
+            ) {
+                TypeIR::Logica
+            } else {
+                *ty
+            };
+            if !inferred.is_compatible_with(expected) {
+                return Err(ir_validation_error(
+                    "operação binária com tipo operacional inconsistente",
+                    span,
+                ));
             }
+            Ok(inferred)
         }
         ValueIR::Call {
             callee,
@@ -1866,6 +2283,48 @@ fn infer_value_type(
                 ))
             }
         }
+        ValueIR::UnionInject {
+            value,
+            union_type_id,
+            payload_type,
+            payload_layout,
+            ..
+        } => {
+            let source_ty = infer_value_type(value, slots, consts, funcs, span)?;
+            if !source_ty.is_compatible_with(*payload_type) || !payload_layout.is_well_formed() {
+                return Err(ir_validation_error("injeção de união inválida na IR", span));
+            }
+            Ok(TypeIR::Union(*union_type_id))
+        }
+        ValueIR::UnionTag {
+            value,
+            union_type_id,
+        } => {
+            let source_ty = infer_value_type(value, slots, consts, funcs, span)?;
+            if source_ty != TypeIR::Union(*union_type_id) {
+                return Err(ir_validation_error(
+                    "leitura de tag exige valor da união associada",
+                    span,
+                ));
+            }
+            Ok(TypeIR::Bombom)
+        }
+        ValueIR::UnionExtract {
+            value,
+            union_type_id,
+            payload_type,
+            payload_layout,
+            ..
+        } => {
+            let source_ty = infer_value_type(value, slots, consts, funcs, span)?;
+            if source_ty != TypeIR::Union(*union_type_id) || !payload_layout.is_well_formed() {
+                return Err(ir_validation_error(
+                    "extração de payload de união inválida na IR",
+                    span,
+                ));
+            }
+            Ok(*payload_type)
+        }
     }
 }
 
@@ -1876,11 +2335,19 @@ fn ir_validation_error(msg: &str, span: Span) -> PinkerError {
     }
 }
 
+fn default_span() -> Span {
+    Span::single(Position::new(1, 1))
+}
+
 fn is_int_literal_value(value: &ValueIR) -> bool {
     matches!(value, ValueIR::Int(_))
         || matches!(
             value,
-            ValueIR::Unary { op: UnaryOpIR::Neg, operand }
+            ValueIR::Unary {
+                op: UnaryOpIR::Neg,
+                operand,
+                ..
+            }
                 if matches!(operand.as_ref(), ValueIR::Int(_))
         )
 }

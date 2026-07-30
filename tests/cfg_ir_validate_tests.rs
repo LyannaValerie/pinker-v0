@@ -4,7 +4,7 @@ use pinker_v0::cfg_ir::{
 };
 use pinker_v0::cfg_ir_validate;
 use pinker_v0::error::PinkerError;
-use pinker_v0::ir::{BindingIR, LocalIR, TypeIR};
+use pinker_v0::ir::{BindingIR, LocalIR, ResolvedTypeId, TypeIR};
 use pinker_v0::token::{Position, Span};
 
 fn sp() -> Span {
@@ -13,6 +13,7 @@ fn sp() -> Span {
 
 fn base_program(function: FunctionCfgIR) -> ProgramCfgIR {
     ProgramCfgIR {
+        union_types: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![GlobalConstCfgIR {
@@ -31,11 +32,13 @@ fn base_function(ret_type: TypeIR, blocks: Vec<BasicBlockIR>) -> FunctionCfgIR {
             source_name: "a".to_string(),
             slot: "%a#0".to_string(),
             ty: TypeIR::Bombom,
+            resolved: Some(ResolvedTypeId(0)),
         }],
         locals: vec![LocalIR {
             source_name: "x".to_string(),
             slot: "%x#0".to_string(),
             ty: TypeIR::Bombom,
+            resolved: None,
             is_mut: true,
         }],
         ret_type,
@@ -252,6 +255,7 @@ fn falha_call_nulo_com_destino_temporario() {
 
     function.name = "principal".to_string();
     let program = ProgramCfgIR {
+        union_types: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -418,6 +422,7 @@ fn fase244_cfg_com_local_objeto(
         source_name: "objeto".to_string(),
         slot: "%objeto#0".to_string(),
         ty: TypeIR::TraitObject,
+        resolved: None,
         is_mut: false,
     });
 

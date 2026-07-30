@@ -17,6 +17,7 @@ use crate::error::PinkerError;
 use crate::ir::TypeIR;
 use crate::layout;
 use crate::token::{Position, Span};
+use crate::union_canon;
 use std::collections::{HashMap, HashSet};
 
 // @pinker-nav:start semantic.importacoes.familias
@@ -162,6 +163,12 @@ impl SemanticChecker {
                     .join(",");
                 format!("carinho({})->{}", params, Self::type_key(ret))
             }
+            Type::Union { members, .. } => {
+                let mut keys = members.iter().map(Self::type_key).collect::<Vec<_>>();
+                keys.sort();
+                keys.dedup();
+                format!("uniao<{}>", keys.join(","))
+            }
             Type::Applied { .. } => Self::trait_object_name(ty)
                 .map(|trait_name| format!("trato<{}>", trait_name))
                 .unwrap_or_else(|| ty.name().to_string()),
@@ -190,6 +197,7 @@ impl SemanticChecker {
             | Type::MapBombomBombom(_)
             | Type::MapBombomVerso(_)
             | Type::Enum { .. }
+            | Type::Union { .. }
             | Type::Pointer { .. }
             | Type::Function { .. } => true,
             Type::Applied { .. } => Self::trait_object_name(ty).is_some(),
@@ -339,6 +347,22 @@ impl SemanticChecker {
             }
             (Type::Enum { name: lhs_name, .. }, Type::Enum { name: rhs_name, .. }) => {
                 lhs_name == rhs_name
+            }
+            (
+                Type::Union {
+                    members: lhs_members,
+                    ..
+                },
+                Type::Union {
+                    members: rhs_members,
+                    ..
+                },
+            ) => {
+                lhs_members.len() == rhs_members.len()
+                    && lhs_members
+                        .iter()
+                        .zip(rhs_members)
+                        .all(|(lhs, rhs)| Self::check_type_match(lhs, rhs))
             }
             (
                 Type::ListEnum {
@@ -570,6 +594,45 @@ impl SemanticChecker {
                 Ok(Type::Applied {
                     name: name.clone(),
                     args: args.clone(),
+                    span: *span,
+                })
+            }
+            Type::Union { members, span } => {
+                // A canonicalização (achatamento, deduplicação e ordem) vem do
+                // contrato compartilhado em `union_canon`, o mesmo consumido
+                // pelo lowering ao internar o `UnionTypeIR`. Não há chave nem
+                // ordem próprias desta camada.
+                let mut resolved_members = Vec::with_capacity(members.len());
+                for member in members {
+                    resolved_members.push(self.resolve_type_named(member, resolving)?);
+                }
+                let canonical = union_canon::canonicalize_resolved_members(resolved_members);
+                if canonical.len() < 2 {
+                    return Err(PinkerError::Semantic {
+                        msg: "união estrutural exige ao menos dois membros distintos após canonicalização"
+                            .to_string(),
+                        span: *span,
+                    });
+                }
+                // HR3: a representação de payload de cada membro é decidida
+                // **aqui**, antes da IR validada. Um membro sem layout
+                // conhecido, com tamanho zero, acima do limite ou com
+                // alinhamento não suportado é recusado com código estável em
+                // vez de virar metadata falsa que só falharia na criação
+                // nativa do descritor.
+                for member in &canonical {
+                    crate::union_payload::classify_union_payload(
+                        member,
+                        &self.type_aliases,
+                        &self.structs,
+                    )
+                    .map_err(|rejection| PinkerError::Semantic {
+                        msg: rejection.message(),
+                        span: *span,
+                    })?;
+                }
+                Ok(Type::Union {
+                    members: canonical,
                     span: *span,
                 })
             }
@@ -2223,7 +2286,11 @@ impl SemanticChecker {
                             span: inline_asm_stmt.span,
                         });
                     }
+                    for chunk in &inline_asm_stmt.chunks {
+                        validate_inline_asm_chunk(chunk, inline_asm_stmt.span)?;
+                    }
                 }
+                Stmt::UnionMatch(union_match) => self.check_union_match(union_match)?,
                 Stmt::Expr(expr) => {
                     self.check_expr(expr)?;
                 }
@@ -2237,6 +2304,88 @@ impl SemanticChecker {
         Ok(())
     }
     // @pinker-nav:end semantic.comandos.verificacao
+
+    // @pinker-nav:start semantic.unioes.encaixe
+    // @pinker-nav:domain unioes
+    // @pinker-nav:layer semantic
+    // @pinker-nav:summary Verificação de `encaixe` de união: resolve o tipo do scrutinee e o tipo de cada braço integralmente (apelidos inclusos), deriva a chave canônica compartilhada de `union_canon`, exige que cada braço pertença à união, rejeita duplicata após a resolução (dois apelidos do mesmo tipo canônico são o mesmo membro), exige cobertura exata dos membros canônicos e abre um escopo por braço com o binding declarado no tipo resolvido do membro. Nenhuma tag é calculada ou armazenada aqui — a tag pertence ao registry internado pelo lowering.
+    fn check_union_match(&mut self, union_match: &UnionMatchStmt) -> Result<(), PinkerError> {
+        let scrutinee_ty = self.check_value_expr(
+            &union_match.scrutinee,
+            "resultado de função sem retorno não pode ser inspecionado por 'encaixe'",
+        )?;
+        let scrutinee_ty = self.resolve_type_or_error(&scrutinee_ty)?;
+        let Type::Union {
+            members: canonical_members,
+            ..
+        } = &scrutinee_ty
+        else {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "'encaixe' de união exige scrutinee de união estrutural; encontrado '{}'",
+                    scrutinee_ty.name()
+                ),
+                span: union_match.scrutinee.span,
+            });
+        };
+
+        // Cada braço é associado ao membro canônico pelo **tipo resolvido**.
+        // O spelling original (o nome do apelido escrito) é preservado apenas
+        // para diagnóstico.
+        let mut covered = HashSet::<String>::new();
+        let mut arm_members = Vec::with_capacity(union_match.arms.len());
+        for arm in &union_match.arms {
+            let resolved_member = self.resolve_type_or_error(&arm.member_type)?;
+            let key = union_canon::member_key(&resolved_member);
+            let Some(index) = union_canon::canonical_member_index(canonical_members, &key) else {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "braço '{}' de 'encaixe' não é membro da união '{}'",
+                        arm.member_type.name(),
+                        scrutinee_ty.name()
+                    ),
+                    span: arm.span,
+                });
+            };
+            if !covered.insert(key.canonical_type_key.clone()) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "membro '{}' repetido no 'encaixe' de união após resolução de apelidos",
+                        canonical_members[index].name()
+                    ),
+                    span: arm.span,
+                });
+            }
+            arm_members.push(canonical_members[index].clone());
+        }
+
+        if covered.len() != canonical_members.len() {
+            let faltantes = canonical_members
+                .iter()
+                .filter(|member| !covered.contains(union_canon::member_key(member).as_str()))
+                .map(|member| member.name().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "encaixe de união deve ser exaustivo: os braços devem cobrir exatamente todos os membros canônicos; ausente(s): {faltantes}"
+                ),
+                span: union_match.span,
+            });
+        }
+
+        for (arm, member_ty) in union_match.arms.iter().zip(arm_members) {
+            self.push_scope();
+            let checked = self
+                .declare_var(&arm.binding, member_ty.with_span(arm.span), false, arm.span)
+                .and_then(|()| self.check_block(&arm.body, true));
+            self.pop_scope();
+            checked?;
+        }
+
+        Ok(())
+    }
+    // @pinker-nav:end semantic.unioes.encaixe
 
     // @pinker-nav:start semantic.fluxo.retornos
     // @pinker-nav:domain fluxo
@@ -2537,6 +2686,33 @@ impl SemanticChecker {
                     "resultado de função sem retorno não pode ser convertido com 'virar'",
                 )?;
                 let target_ty = self.resolve_type_or_error(target)?.with_span(expr.span);
+                if let Type::Union { members, .. } = &target_ty {
+                    let matching = members
+                        .iter()
+                        .filter(|member| Self::check_type_match(member, &source_ty))
+                        .count();
+                    return match matching {
+                        1 => Ok(target_ty),
+                        0 => Err(PinkerError::Semantic {
+                            msg: format!(
+                                "tipo '{}' não pertence à união estrutural alvo",
+                                Self::type_key(&source_ty)
+                            ),
+                            span: source_expr.span,
+                        }),
+                        _ => Err(PinkerError::Semantic {
+                            msg: "injeção em união estrutural é ambígua; aplique 'virar' explicitamente para o membro desejado antes da união"
+                                .to_string(),
+                            span: source_expr.span,
+                        }),
+                    };
+                }
+                if matches!(source_ty, Type::Union { .. }) {
+                    return Err(PinkerError::Semantic {
+                        msg: "downcast de união fora de 'encaixe' não é permitido".to_string(),
+                        span: source_expr.span,
+                    });
+                }
                 if let Some(trait_name) = Self::trait_object_name(&target_ty).map(str::to_string) {
                     let supported_concrete = matches!(
                         &source_ty,
@@ -2747,6 +2923,13 @@ impl SemanticChecker {
                         }
                     }
                     BinaryOp::Eq | BinaryOp::Neq => {
+                        if matches!(&lhs_ty, Type::Union { .. }) {
+                            return Err(PinkerError::Semantic {
+                                msg: "igualdade e desigualdade de união estrutural não são suportadas nesta fase; use 'encaixe'"
+                                    .to_string(),
+                                span: expr.span,
+                            });
+                        }
                         if let Type::Enum { name, .. } = &lhs_ty {
                             if self.enum_has_payload(name) {
                                 return Err(PinkerError::Semantic {
@@ -2761,6 +2944,13 @@ impl SemanticChecker {
                         Ok(Type::Logica(expr.span))
                     }
                     BinaryOp::Lt | BinaryOp::Lte | BinaryOp::Gt | BinaryOp::Gte => {
+                        if matches!(&lhs_ty, Type::Union { .. }) {
+                            return Err(PinkerError::Semantic {
+                                msg: "comparação de ordem não é suportada para união estrutural; use 'encaixe'"
+                                    .to_string(),
+                                span: expr.span,
+                            });
+                        }
                         if matches!(lhs_ty, Type::Enum { .. }) {
                             return Err(PinkerError::Semantic {
                                 msg: "comparação de ordem não é suportada entre valores de leque; use '==' ou '!='"
@@ -3494,6 +3684,12 @@ impl SemanticChecker {
                 span: first_arg.span,
             });
         }
+
+        // As operações de tag e extração de união **não** são chamadas da
+        // linguagem: são nós tipados da IR (`ValueIR::UnionTag` e
+        // `ValueIR::UnionExtract`) criados pelo lowering a partir de
+        // `Stmt::UnionMatch`. Não há intrínseca de união chamável aqui, e o
+        // namespace `__pinker_internal_` permanece recusado à fonte.
 
         // Intrínsecas internas do desugaring de `encaixe` (Fases 209–210).
         if name == "__pinker_internal_leque_tag" {
@@ -7438,6 +7634,20 @@ impl SemanticChecker {
         self.check_named_function_call(expr_span, callee.span, name, &arg_refs)
     }
     // @pinker-nav:end semantic.chamadas.despacho
+}
+
+/// Valida um pedaço de `sussurro` pela política estrutural de statements.
+///
+/// A completude não vem de uma lista de diretivas proibidas: depois da remoção
+/// de labels e comentários, toda diretiva do assembler começa um statement com
+/// `.` e é rejeitada por construção.
+fn validate_inline_asm_chunk(chunk: &str, span: Span) -> Result<(), PinkerError> {
+    crate::inline_asm::scan_chunk(chunk)
+        .map(|_| ())
+        .map_err(|error| PinkerError::Semantic {
+            msg: error.to_string(),
+            span,
+        })
 }
 
 pub fn check_program(program: &Program) -> Result<(), PinkerError> {

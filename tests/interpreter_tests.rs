@@ -9,14 +9,25 @@ use pinker_v0::cfg_ir_validate;
 use pinker_v0::instr_select;
 use pinker_v0::instr_select_validate;
 use pinker_v0::interpreter::{self, RuntimeValue};
-use pinker_v0::ir;
+use pinker_v0::ir::{self, TypeIR};
 use pinker_v0::ir_validate;
 use pinker_v0::semantic;
 use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
-use std::process::Command;
-use std::process::Stdio;
+use std::process::{Command, Output, Stdio};
+
+fn assert_cli_completed(output: &Output) {
+    assert!(
+        output.status.code().is_some(),
+        "processo terminou sem status: {output:?}"
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "programa válido escreveu diagnóstico: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
 
 fn run_code(code: &str) -> Result<Option<RuntimeValue>, String> {
     let program = common::parse(code).map_err(|e| e.to_string())?;
@@ -621,7 +632,7 @@ fn run_argumento_intrinseca_ler_posicional_minimo() {
     )
     .unwrap();
     assert_eq!(out.return_value, Some(RuntimeValue::Int(6)));
-    assert_eq!(out.exit_status, None);
+    assert_eq!(out.exit_status, Some(6));
 }
 
 #[test]
@@ -656,7 +667,7 @@ fn run_quantos_argumentos_intrinseca_conta_argv_posicional() {
     )
     .unwrap();
     assert_eq!(out.return_value, Some(RuntimeValue::Int(3)));
-    assert_eq!(out.exit_status, None);
+    assert_eq!(out.exit_status, Some(3));
 }
 
 #[test]
@@ -678,7 +689,7 @@ fn run_tem_argumento_intrinseca_integra_com_argumento() {
     )
     .unwrap();
     assert_eq!(out.return_value, Some(RuntimeValue::Int(4)));
-    assert_eq!(out.exit_status, None);
+    assert_eq!(out.exit_status, Some(4));
 }
 
 #[test]
@@ -716,7 +727,7 @@ fn run_argumento_ou_intrinseca_usa_fallback_sem_arg() {
     )
     .unwrap();
     assert_eq!(out.return_value, Some(RuntimeValue::Int(9)));
-    assert_eq!(out.exit_status, None);
+    assert_eq!(out.exit_status, Some(9));
 }
 
 #[test]
@@ -733,7 +744,7 @@ fn run_argumento_ou_intrinseca_prioriza_arg_existente() {
     )
     .unwrap();
     assert_eq!(out.return_value, Some(RuntimeValue::Int(6)));
-    assert_eq!(out.exit_status, None);
+    assert_eq!(out.exit_status, Some(6));
 }
 
 #[test]
@@ -1036,10 +1047,10 @@ fn run_buscar_contexto_prioriza_argumento_nomeado() {
         .env("PINKER_FASE143_SAIDA", "env.txt")
         .output()
         .expect("falha ao executar CLI --run");
-    assert!(output.status.success(), "status={:?}", output.status);
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "out.txt\nfalso\n2\n0\n"
+        "out.txt\nfalso\n2\n"
     );
 }
 
@@ -1051,10 +1062,10 @@ fn run_buscar_contexto_usa_ambiente_quando_argumento_ausente() {
         .env("PINKER_FASE143_SAIDA", "env.txt")
         .output()
         .expect("falha ao executar CLI --run");
-    assert!(output.status.success(), "status={:?}", output.status);
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "env.txt\nfalso\n0\n0\n"
+        "env.txt\nfalso\n0\n"
     );
 }
 
@@ -1066,10 +1077,10 @@ fn run_buscar_contexto_usa_fallback_quando_ambos_ausentes() {
         &["PINKER_FASE143_SAIDA"],
         None,
     );
-    assert!(output.status.success(), "status={:?}", output.status);
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "padrao.txt\nverdade\n0\n0\n"
+        "padrao.txt\nverdade\n0\n"
     );
 }
 
@@ -1263,6 +1274,7 @@ fn run_chamada_void_como_statement() {
 #[test]
 fn run_falha_funcao_inexistente() {
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![MachineFunction {
@@ -1290,6 +1302,7 @@ fn run_falha_funcao_inexistente() {
 #[test]
 fn run_falha_global_inexistente() {
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![MachineFunction {
@@ -1324,6 +1337,7 @@ fn run_seta_tem_repr_minima_no_runtime_em_slot() {
     );
 
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![MachineFunction {
@@ -1351,6 +1365,7 @@ fn run_seta_tem_repr_minima_no_runtime_em_slot() {
 #[test]
 fn run_seta_tem_repr_minima_no_runtime_em_global() {
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![MachineGlobal {
             name: "PORTA".to_string(),
@@ -1574,6 +1589,7 @@ fn run_falha_quando_usa_ponteiro_em_operacao_nao_suportada() {
     );
 
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![MachineFunction {
@@ -1589,7 +1605,7 @@ fn run_falha_quando_usa_ponteiro_em_operacao_nao_suportada() {
                     MachineInstr::StoreSlot("p".to_string()),
                     MachineInstr::LoadSlot("p".to_string()),
                     MachineInstr::LoadSlot("p".to_string()),
-                    MachineInstr::Add,
+                    MachineInstr::Add { ty: TypeIR::Bombom },
                 ],
                 terminator: MachineTerminator::Ret,
             }],
@@ -1622,8 +1638,8 @@ fn cli_run_funciona_em_caso_valido() {
         .output()
         .unwrap();
 
-    assert!(output.status.success());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "42\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
 
@@ -1640,8 +1656,8 @@ fn cli_run_global_funciona() {
         .output()
         .unwrap();
 
-    assert!(output.status.success());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "100\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
 
@@ -1655,6 +1671,7 @@ fn cli_run_global_funciona() {
 #[test]
 fn run_falha_divisao_por_zero() {
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![MachineFunction {
@@ -1668,7 +1685,7 @@ fn run_falha_divisao_por_zero() {
                 code: vec![
                     MachineInstr::PushInt(10),
                     MachineInstr::PushInt(0),
-                    MachineInstr::Div,
+                    MachineInstr::Div { ty: TypeIR::Bombom },
                 ],
                 terminator: MachineTerminator::Ret,
             }],
@@ -1697,6 +1714,7 @@ fn run_falha_divisao_por_zero() {
 #[test]
 fn run_falha_modulo_por_zero() {
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![MachineFunction {
@@ -1710,7 +1728,7 @@ fn run_falha_modulo_por_zero() {
                 code: vec![
                     MachineInstr::PushInt(10),
                     MachineInstr::PushInt(0),
-                    MachineInstr::Mod,
+                    MachineInstr::Mod { ty: TypeIR::Bombom },
                 ],
                 terminator: MachineTerminator::Ret,
             }],
@@ -1820,6 +1838,7 @@ fn run_falha_limite_recursao_excedido_tem_categoria_e_trace() {
 #[test]
 fn run_falha_slot_nao_inicializado() {
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![MachineFunction {
@@ -1852,6 +1871,7 @@ fn run_falha_slot_nao_inicializado() {
 fn run_falha_call_retorna_void() {
     // Call para função que faz RetVoid: deve falhar com "call exige função com retorno"
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![
@@ -1901,6 +1921,7 @@ fn run_falha_call_retorna_void() {
 fn run_falha_call_void_retorna_valor() {
     // CallVoid para função que empilha valor e faz Ret: deve falhar com "call_void exige função sem retorno"
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![
@@ -1945,6 +1966,7 @@ fn run_falha_call_void_retorna_valor() {
 fn run_falha_aridade_invalida() {
     // principal chama aux com 1 argumento mas aux tem 0 parâmetros
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![
@@ -1991,6 +2013,7 @@ fn run_falha_aridade_invalida() {
 #[test]
 fn run_falha_valor_global_nao_suportado() {
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![MachineGlobal {
             name: "G".to_string(),
@@ -2347,21 +2370,17 @@ fn run_cli_repl_session(stdin_data: &str, args: &[&str]) -> std::process::Output
 #[test]
 fn cli_run_mantem_exemplos_base() {
     let casos = [
-        ("examples/run_soma.pink", "42\n"),
-        ("examples/run_chamada.pink", "42\n"),
-        ("examples/run_global.pink", "100\n"),
-        ("examples/run_global_expr.pink", "44\n"),
+        ("examples/run_soma.pink", 42),
+        ("examples/run_chamada.pink", 42),
+        ("examples/run_global.pink", 100),
+        ("examples/run_global_expr.pink", 44),
     ];
 
-    for (path, expected) in casos {
+    for (path, expected_exit) in casos {
         let out = run_cli_example(path);
-        assert!(out.status.success(), "falhou em {}", path);
-        assert_eq!(
-            String::from_utf8_lossy(&out.stdout),
-            expected,
-            "path={}",
-            path
-        );
+        assert_cli_completed(&out);
+        assert!(out.stdout.is_empty(), "path={path}");
+        assert_eq!(out.status.code(), Some(expected_exit), "path={path}");
         assert!(
             String::from_utf8_lossy(&out.stderr).is_empty(),
             "stderr em {}: {}",
@@ -2373,39 +2392,39 @@ fn cli_run_mantem_exemplos_base() {
     let maybe_fatorial = std::path::Path::new("examples/run_recursao_fatorial.pink");
     if maybe_fatorial.exists() {
         let out = run_cli_example("examples/run_recursao_fatorial.pink");
-        assert!(out.status.success());
+        assert_cli_completed(&out);
     }
 }
 
 #[test]
 fn cli_run_global_com_chamada_exemplo_novo() {
     let out = run_cli_example("examples/run_global_call_combo.pink");
-    assert!(out.status.success());
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "");
     assert!(String::from_utf8_lossy(&out.stderr).is_empty());
 }
 
 #[test]
 fn cli_run_mutacao_com_if_else_exemplo_novo() {
     let out = run_cli_example("examples/run_mut_if_else.pink");
-    assert!(out.status.success());
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "");
     assert!(String::from_utf8_lossy(&out.stderr).is_empty());
 }
 
 #[test]
 fn cli_run_recursao_com_global_exemplo_novo() {
     let out = run_cli_example("examples/run_recursao_global.pink");
-    assert!(out.status.success());
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "5\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "");
     assert!(String::from_utf8_lossy(&out.stderr).is_empty());
 }
 
 #[test]
 fn cli_run_algoritmo_complexo_fallthrough_if_else() {
     let out = run_cli_example("examples/algoritmo_complexo.pink");
-    assert!(out.status.success());
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "26\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "");
     assert!(String::from_utf8_lossy(&out.stderr).is_empty());
 }
 
@@ -2427,7 +2446,7 @@ fn cli_build_gera_artefato_s_no_diretorio_padrao() {
     .unwrap();
 
     let output = run_cli_build_args(&[source_path.to_str().unwrap()]);
-    assert!(output.status.success());
+    assert_cli_completed(&output);
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Build concluído:"));
@@ -2469,7 +2488,7 @@ fn cli_build_com_imports_gera_artefato_no_out_dir() {
         out_dir.to_str().unwrap(),
         source_path.to_str().unwrap(),
     ]);
-    assert!(output.status.success());
+    assert_cli_completed(&output);
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
     let artifact = out_dir.join("main.s");
     assert!(
@@ -2520,7 +2539,7 @@ fn cli_build_falha_semantica_retorna_erro() {
 #[test]
 fn cli_repl_sem_argumentos_abre_e_sai_com_quit() {
     let output = run_cli_repl_session(":quit\n", &[]);
-    assert!(output.status.success());
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("=== Pinker REPL ==="), "stdout={stdout}");
     assert!(stdout.contains("pinker> "), "stdout={stdout}");
@@ -2538,7 +2557,7 @@ fn cli_repl_sem_argumentos_abre_e_sai_com_quit() {
 #[test]
 fn cli_repl_fluxo_minimo_com_mimo_exibe_resultado() {
     let output = run_cli_repl_session("mimo 42;\n:quit\n", &[]);
-    assert!(output.status.success());
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("=> 42"), "stdout={stdout}");
     assert!(
@@ -2551,7 +2570,7 @@ fn cli_repl_fluxo_minimo_com_mimo_exibe_resultado() {
 #[test]
 fn cli_repl_fluxo_composto_em_linha_unica_funciona() {
     let output = run_cli_repl_session("nova a: bombom = 40; falar(a + 2);\n:quit\n", &[]);
-    assert!(output.status.success());
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("pinker> 42\nok\n"), "stdout={stdout}");
     assert!(
@@ -2654,8 +2673,8 @@ fn run_sempre_que_simples() {
 fn cli_run_sempre_que_funciona() {
     let output = run_cli_example("examples/run_sempre_que.pink");
 
-    assert!(output.status.success());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "3\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
 
@@ -2798,8 +2817,8 @@ fn run_sempre_que_com_quebrar_interrompe_loop() {
 fn cli_run_quebrar_funciona() {
     let output = run_cli_example("examples/run_quebrar.pink");
 
-    assert!(output.status.success());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "1\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
 
@@ -2816,8 +2835,8 @@ fn run_sempre_que_com_continuar_pula_para_proxima_iteracao() {
 fn cli_run_continuar_funciona() {
     let output = run_cli_example("examples/run_continuar.pink");
 
-    assert!(output.status.success());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "12\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
 
@@ -2829,8 +2848,8 @@ fn cli_run_bitwise_funciona() {
         .output()
         .unwrap();
 
-    assert!(output.status.success());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "22\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
 
@@ -2842,8 +2861,8 @@ fn cli_run_modulo_funciona() {
         .output()
         .unwrap();
 
-    assert!(output.status.success());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "2\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
 
@@ -2855,8 +2874,8 @@ fn cli_run_logica_curto_circuito_and_funciona() {
         .output()
         .expect("falha ao executar CLI --run");
 
-    assert!(output.status.success(), "{:?}", output);
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
 }
 
 #[test]
@@ -2867,36 +2886,36 @@ fn cli_run_logica_curto_circuito_or_funciona() {
         .output()
         .expect("falha ao executar CLI --run");
 
-    assert!(output.status.success(), "{:?}", output);
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "1\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
 }
 
 #[test]
 fn cli_run_unsigned_fixos_funciona() {
     let out = run_cli_example("examples/run_unsigned_basico.pink");
-    assert!(out.status.success());
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "");
 }
 
 #[test]
 fn cli_run_signed_fixos_funciona() {
     let out = run_cli_example("examples/run_signed_basico.pink");
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "");
 }
 
 #[test]
 fn cli_run_alias_tipo_funciona() {
     let out = run_cli_example("examples/run_alias_tipo_basico.pink");
-    assert!(out.status.success());
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "");
 }
 
 #[test]
 fn cli_run_falar_signed_funciona() {
     let out = run_cli_example("examples/fase64_falar_signed.pink");
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "-3\nverdade\n0\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "-3\nverdade\n");
 }
 
 // @pinker-nav:end evidencia.interpreter.execucao-operadores-e-fluxo-cli-exemplos
@@ -2907,8 +2926,8 @@ fn cli_run_falar_signed_funciona() {
 #[test]
 fn cli_run_ouvir_bombom_funciona_com_exemplo_versionado() {
     let out = run_cli_example_with_stdin("examples/fase85_ouvir_bombom_valido.pink", "41\n");
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "");
 }
 
 #[test]
@@ -2929,18 +2948,18 @@ fn cli_run_entrada_textual_minima_fase110_funciona_com_exemplo_versionado() {
         "examples/fase110_entrada_textual_minima_valida.pink",
         "  pinker v0  \n",
     );
-    assert!(out.status.success(), "{:?}", out);
+    assert_cli_completed(&out);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "  pinker v0  \nverdade\npadrão-fase110\n0\n"
+        "  pinker v0  \nverdade\npadrão-fase110\n"
     );
 }
 
 #[test]
 fn cli_run_arquivo_leitura_minima_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase86_arquivo_leitura_minima_valido.pink");
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n0\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
 }
 
 #[test]
@@ -3139,8 +3158,8 @@ fn cli_run_arquivo_escrita_minima_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase87_arquivo_escrita_minima_valido.pink");
     fs::write("examples/fase87_output_numero.txt", "1\n")
         .expect("falha ao restaurar fixture da fase 87");
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n0\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
 }
 
 #[test]
@@ -3372,10 +3391,10 @@ fn run_ouvir_verso_ler_texto_minimo_remove_newline_final() {
         "examples/fase110_entrada_textual_minima_valida.pink",
         "linha110\n",
     );
-    assert!(out.status.success(), "{:?}", out);
+    assert_cli_completed(&out);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "linha110\nverdade\npadrão-fase110\n0\n"
+        "linha110\nverdade\npadrão-fase110\n"
     );
 }
 
@@ -3404,11 +3423,8 @@ carinho principal() -> bombom {
     .expect("falha ao gravar programa temporário");
 
     let out = run_cli_example_with_stdin(&file_path.to_string_lossy(), "");
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(
-        String::from_utf8_lossy(&out.stdout),
-        "padrao110 verdade\n0\n"
-    );
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "padrao110 verdade\n");
     let _ = fs::remove_file(&file_path);
 }
 
@@ -3505,8 +3521,8 @@ fn cli_run_truncamento_minimo_fase102_funciona_com_exemplo_versionado() {
     );
     let _ = std::fs::remove_file(base_dir.join("pinker_fase102_saida.txt"));
     let _ = std::fs::remove_dir(&base_dir);
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "0 verdade 0\n0\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "0 verdade 0\n");
 }
 
 #[test]
@@ -3531,8 +3547,8 @@ fn cli_run_observacao_textual_minima_fase103_funciona_com_exemplo_versionado() {
     );
     let _ = std::fs::remove_file(base_dir.join("pinker_fase103_entrada.txt"));
     let _ = std::fs::remove_dir(&base_dir);
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "verdade verdade\n1\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "verdade verdade\n");
 }
 
 #[test]
@@ -3557,8 +3573,8 @@ fn cli_run_observacao_textual_complementar_minima_fase104_funciona_com_exemplo_v
     );
     let _ = std::fs::remove_file(base_dir.join("pinker_fase104_entrada.txt"));
     let _ = std::fs::remove_dir(&base_dir);
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "verdade verdade\n1\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "verdade verdade\n");
 }
 
 #[test]
@@ -3583,22 +3599,22 @@ fn cli_run_saneamento_textual_minimo_fase105_funciona_com_exemplo_versionado() {
     );
     let _ = std::fs::remove_file(base_dir.join("pinker_fase105_entrada.txt"));
     let _ = std::fs::remove_dir(&base_dir);
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "verdade\n1\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "verdade\n");
 }
 
 #[test]
 fn cli_run_normalizacao_minima_caixa_fase106_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase106_normalizacao_minima_caixa_valido.pink");
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "verdade verdade\n1\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "verdade verdade\n");
 }
 
 #[test]
 fn cli_run_observacao_textual_posicional_minima_fase107_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase107_observacao_textual_posicional_minima_valido.pink");
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "7 verdade\n1\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "7 verdade\n");
 }
 
 #[test]
@@ -3623,8 +3639,8 @@ fn cli_run_append_textual_minimo_fase108_funciona_com_exemplo_versionado() {
     );
     let _ = std::fs::remove_file(base_dir.join("fase108_append_textual_minimo.txt"));
     let _ = std::fs::remove_dir(&base_dir);
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "base+A+B 8\n1\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "base+A+B 8\n");
 }
 
 #[test]
@@ -3644,41 +3660,38 @@ fn cli_run_leitura_textual_direta_por_caminho_fase109_funciona_com_exemplo_versi
         &[file_path.to_string_lossy().as_ref()],
     );
     let _ = std::fs::remove_file(&file_path);
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(
-        String::from_utf8_lossy(&out.stdout),
-        "fase109\npadrao109\n1\n"
-    );
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "fase109\npadrao109\n");
 }
 
 #[test]
 fn cli_run_verso_operacional_minimo_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase88_verso_operacional_minimo_valido.pink");
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "olá verso\n0\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "olá verso\n");
 }
 
 #[test]
 fn cli_run_verso_operacoes_minimas_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase89_verso_operacoes_minimas_valido.pink");
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "oi Pinker\n9\n0\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "oi Pinker\n9\n");
 }
 
 #[test]
 fn cli_run_indice_verso_minimo_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase90_verso_indexacao_minima_valido.pink");
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "n\n1\n0\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "n\n1\n");
 }
 
 #[test]
 fn cli_run_falar_multiplos_argumentos_mistos_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase91_falar_multiplos_argumentos_valido.pink");
-    assert!(out.status.success(), "{:?}", out);
+    assert_cli_completed(&out);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "oi Pinker 2\nstatus verdade\n0\n"
+        "oi Pinker 2\nstatus verdade\n"
     );
 }
 
@@ -3743,8 +3756,8 @@ carinho principal() -> bombom {
 #[test]
 fn cli_run_argumento_ou_fallback_minimo_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase94_argumento_ou_fallback_minimo_valido.pink");
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "oi visitante\n9\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "oi visitante\n");
 }
 
 #[test]
@@ -3753,8 +3766,8 @@ fn cli_run_argumento_ou_prioriza_arg_existente_com_exemplo_versionado() {
         "examples/fase94_argumento_ou_fallback_minimo_valido.pink",
         &["Pinker"],
     );
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "oi Pinker\n6\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "oi Pinker\n");
 }
 
 #[test]
@@ -3763,10 +3776,10 @@ fn cli_run_argumentos_nomeados_minimos_funcionam_na_forma_separada() {
         "examples/fase141_argumentos_nomeados_minimos_valido.pink",
         &["--saida", "out.txt"],
     );
-    assert!(out.status.success(), "{:?}", out);
+    assert_cli_completed(&out);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "verdade\nout.txt\nsimples\n0\n"
+        "verdade\nout.txt\nsimples\n"
     );
 }
 
@@ -3776,10 +3789,10 @@ fn cli_run_argumentos_nomeados_minimos_funcionam_na_forma_com_igual() {
         "examples/fase141_argumentos_nomeados_minimos_valido.pink",
         &["--saida=out.txt", "--modo=rapido"],
     );
-    assert!(out.status.success(), "{:?}", out);
+    assert_cli_completed(&out);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "verdade\nout.txt\nrapido\n0\n"
+        "verdade\nout.txt\nrapido\n"
     );
 }
 
@@ -3804,10 +3817,10 @@ fn cli_run_flags_booleanas_minimas_funcionam_com_quiet() {
         "examples/fase142_flags_booleanas_minimas_valido.pink",
         &["--quiet"],
     );
-    assert!(out.status.success(), "{:?}", out);
+    assert_cli_completed(&out);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "verdade\nfalso\npadrao.txt\n0\n"
+        "verdade\nfalso\npadrao.txt\n"
     );
 }
 
@@ -3817,10 +3830,10 @@ fn cli_run_flags_booleanas_minimas_funcionam_com_mistura_de_flag_e_nomeado() {
         "examples/fase142_flags_booleanas_minimas_valido.pink",
         &["--quiet", "--saida", "out.txt"],
     );
-    assert!(out.status.success(), "{:?}", out);
+    assert_cli_completed(&out);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "verdade\nfalso\nout.txt\n0\n"
+        "verdade\nfalso\nout.txt\n"
     );
 }
 
@@ -3835,10 +3848,10 @@ fn cli_run_buscar_contexto_prioriza_saida_do_cli() {
         .env("PINKER_FASE143_SAIDA", "env.txt")
         .output()
         .expect("falha ao executar CLI --run");
-    assert!(output.status.success(), "status={:?}", output.status);
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "out.txt\nfalso\n2\n0\n"
+        "out.txt\nfalso\n2\n"
     );
 }
 
@@ -3850,10 +3863,10 @@ fn cli_run_buscar_contexto_usa_env_sem_saida_no_cli() {
         .env("PINKER_FASE143_SAIDA", "env.txt")
         .output()
         .expect("falha ao executar CLI --run");
-    assert!(output.status.success(), "status={:?}", output.status);
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "env.txt\nfalso\n0\n0\n"
+        "env.txt\nfalso\n0\n"
     );
 }
 
@@ -3865,10 +3878,10 @@ fn cli_run_buscar_contexto_usa_fallback_quando_tudo_ausente() {
         &["PINKER_FASE143_SAIDA"],
         None,
     );
-    assert!(output.status.success(), "status={:?}", output.status);
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "padrao.txt\nverdade\n0\n0\n"
+        "padrao.txt\nverdade\n0\n"
     );
 }
 
@@ -4615,8 +4628,8 @@ fn run_ambiente_ou_intrinseca_usa_fallback_sem_env() {
         &["PINKER_TEST_ENV_PHASE95"],
         None,
     );
-    assert!(output.status.success(), "status={:?}", output.status);
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "visitante\n9\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "visitante\n");
 }
 
 #[test]
@@ -4627,8 +4640,8 @@ fn run_ambiente_ou_intrinseca_ler_valor_real_do_ambiente() {
         &[],
         None,
     );
-    assert!(output.status.success(), "status={:?}", output.status);
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "PinkerLab\n9\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "PinkerLab\n");
 }
 
 #[test]
@@ -4641,22 +4654,21 @@ fn cli_run_diretorio_atual_funciona_com_exemplo_versionado() {
         &[],
         Some(&tmp),
     );
-    assert!(output.status.success(), "status={:?}", output.status);
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        format!("{}\n0\n", tmp.display())
+        format!("{}\n", tmp.display())
     );
 }
 
 #[test]
 fn cli_run_introspeccao_caminho_minima_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase96_introspeccao_caminho_minima_valido.pink");
-    assert!(out.status.success(), "{:?}", out);
+    assert_cli_completed(&out);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
         "verdade
 verdade
-1
 "
     );
 }
@@ -4664,20 +4676,20 @@ verdade
 #[test]
 fn cli_run_refinamento_caminho_fase97_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase97_refinamento_caminho_minimo_valido.pink");
-    assert!(out.status.success(), "{:?}", out);
+    assert_cli_completed(&out);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "verdade\nverdade\nfalso\n1\n"
+        "verdade\nverdade\nfalso\n"
     );
 }
 
 #[test]
 fn cli_run_refinamento_arquivo_fase98_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase98_refinamento_arquivo_minimo_valido.pink");
-    assert!(out.status.success(), "{:?}", out);
+    assert_cli_completed(&out);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "verdade\nverdade\nfalso\n1\n"
+        "verdade\nverdade\nfalso\n"
     );
 }
 
@@ -4706,10 +4718,10 @@ fn cli_run_refinamento_diretorio_arquivo_fase99_funciona_com_exemplo_versionado(
         "examples/fase99_refinamento_diretorio_arquivo_minimo_valido.pink",
         &[&unique_dir, &file_arg],
     );
-    assert!(out.status.success(), "{:?}", out);
+    assert_cli_completed(&out);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "verdade\nverdade\nfalso\n1\n"
+        "verdade\nverdade\nfalso\n"
     );
     let _ = std::fs::remove_dir(std::env::current_dir().unwrap().join(unique_dir));
     let _ = std::fs::remove_file(file_path);
@@ -4721,7 +4733,7 @@ fn cli_run_refinamento_diretorio_texto_fase100_funciona_com_exemplo_versionado()
         "examples/fase100_refinamento_diretorio_texto_minimo_valido.pink",
         &["fase100_saida_teste", "README.md"],
     );
-    assert!(output.status.success(), "status={:?}", output.status);
+    assert_cli_completed(&output);
     let cwd = std::env::current_dir().expect("cwd indisponível");
     let dir_path = cwd.join("fase100_saida_teste");
     assert!(
@@ -4754,8 +4766,8 @@ fn cli_run_escrita_textual_minima_fase101_funciona_com_exemplo_versionado() {
             "texto fase101",
         ],
     );
-    assert!(out.status.success(), "{:?}", out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout), "texto fase101\n1\n");
+    assert_cli_completed(&out);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "texto fase101\n");
     let persisted = std::fs::read_to_string(base_dir.join("fase101_saida.txt"))
         .expect("falha ao reler saída da fase101");
     assert_eq!(persisted, "texto fase101");
@@ -4773,8 +4785,8 @@ fn cli_run_argumento_ou_e_ambiente_ou_combinados_funcionam() {
         .env("PINKER_TEST_ENV_PHASE95", "env")
         .output()
         .unwrap();
-    assert!(output.status.success(), "status={:?}", output.status);
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "cli\n3\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "cli\n");
 }
 
 #[test]
@@ -4783,10 +4795,10 @@ fn cli_run_corpus_tooling_verso_minimo_funciona_com_exemplo_dedicado() {
         "examples/run_corpus_tooling_verso_minimo.pink",
         &["Pinker", "beta"],
     );
-    assert!(out.status.success(), "{:?}", out);
+    assert_cli_completed(&out);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "oi Pinker 9 o\nextra beta\n2\n"
+        "oi Pinker 9 o\nextra beta\n"
     );
 }
 
@@ -4865,8 +4877,8 @@ fn cli_check_continuar_fora_de_loop_falha_com_exemplo_versionado() {
 #[test]
 fn cli_run_modulos_imports_valido_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase60_modulos_valido.pink");
-    assert!(output.status.success(), "{:?}", output);
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "42\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
 }
 
 #[test]
@@ -4914,14 +4926,14 @@ fn cli_check_simbolo_ausente_falha_com_exemplo_versionado() {
 #[test]
 fn cli_check_modulo_ninho_exportado_valido_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/fase144_modulo_ninho_exportado_valido.pink");
-    assert!(output.status.success(), "{:?}", output);
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_modulo_ninho_exportado_valido_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase144_modulo_ninho_exportado_valido.pink");
-    assert!(output.status.success(), "{:?}", output);
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "16\n16\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "16\n");
 }
 
 #[test]
@@ -4957,14 +4969,14 @@ fn cli_check_modulo_ninho_inexistente_falha_com_exemplo_versionado() {
 #[test]
 fn cli_check_modulo_apelido_exportado_valido_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/fase145_modulo_apelido_exportado_valido.pink");
-    assert!(output.status.success(), "{:?}", output);
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_modulo_apelido_exportado_valido_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase145_modulo_apelido_exportado_valido.pink");
-    assert!(output.status.success(), "{:?}", output);
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "42\n42\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "42\n");
 }
 
 #[test]
@@ -5001,18 +5013,17 @@ fn cli_check_modulo_apelido_inexistente_falha_com_exemplo_versionado() {
 #[test]
 fn cli_check_modulo_tipo_qualificado_valido_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/fase146_modulo_tipo_qualificado_valido.pink");
-    assert!(output.status.success(), "{:?}", output);
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_modulo_tipo_qualificado_valido_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase146_modulo_tipo_qualificado_valido.pink");
-    assert!(output.status.success(), "{:?}", output);
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
         "42
 16
-42
 "
     );
 }
@@ -5051,7 +5062,7 @@ fn cli_check_modulo_tipo_qualificado_modulo_nao_importado_falha_com_exemplo_vers
 #[test]
 fn cli_check_verso_valido_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/fase61_verso_valido.pink");
-    assert!(output.status.success(), "{:?}", output);
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -5061,7 +5072,7 @@ fn cli_cfg_ir_verso_constante_global_com_exemplo_versionado() {
         .arg("examples/fase61_verso_cfg_ir_invalido.pink")
         .output()
         .expect("falha ao executar CLI --cfg-ir");
-    assert!(output.status.success());
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("const @MSG: verso"), "stdout: {}", stdout);
 }
@@ -5074,7 +5085,7 @@ fn cli_cfg_ir_verso_constante_global_com_exemplo_versionado() {
 #[test]
 fn cli_check_volatile_valido_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/check_volatile_valido.pink");
-    assert!(output.status.success(), "{:?}", output);
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -5098,9 +5109,9 @@ fn cli_run_fragil_operacional_minimo_funciona_com_exemplo_versionado() {
         .arg("examples/fase72_fragil_operacional_minimo_valido.pink")
         .output()
         .expect("falha ao executar CLI --run");
-    assert!(output.status.success(), "{:?}", output);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("89"), "stdout: {}", stdout);
+    assert_cli_completed(&output);
+    assert_eq!(output.status.code(), Some(89));
+    assert!(output.stdout.is_empty());
 }
 
 #[test]
@@ -5118,7 +5129,7 @@ fn cli_check_fragil_operacional_fora_subset_falha_com_exemplo_versionado() {
 #[test]
 fn cli_check_inline_asm_valido_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/check_inline_asm_valido.pink");
-    assert!(output.status.success(), "{:?}", output);
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -5138,7 +5149,7 @@ fn cli_check_inline_asm_invalido_vazio_com_exemplo_versionado() {
 #[test]
 fn cli_check_freestanding_valido_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/check_freestanding_valido.pink");
-    assert!(output.status.success(), "{:?}", output);
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -5158,13 +5169,13 @@ fn cli_check_freestanding_invalido_fora_topo_com_exemplo_versionado() {
 #[test]
 fn cli_check_boot_entry_livre_valido_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/check_boot_entry_livre_valido.pink");
-    assert!(output.status.success(), "{:?}", output);
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_check_kernel_minimo_fase59_valido_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/check_kernel_minimo_fase59_valido.pink");
-    assert!(output.status.success(), "{:?}", output);
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -5184,13 +5195,9 @@ fn cli_check_boot_entry_livre_sem_principal_falha_com_exemplo_versionado() {
 #[test]
 fn cli_run_dereferencia_leitura_funciona_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase66_deref_leitura_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("77"), "stdout={}", stdout);
+    assert_cli_completed(&output);
+    assert_eq!(output.status.code(), Some(77));
+    assert!(output.stdout.is_empty());
 }
 
 #[test]
@@ -5211,11 +5218,7 @@ fn cli_check_dereferencia_seta_u8_falha_com_exemplo_versionado() {
 #[test]
 fn cli_run_escrita_indireta_funciona_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase67_escrita_indireta_valida.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("123"), "stdout={}", stdout);
 }
@@ -5238,11 +5241,7 @@ fn cli_check_escrita_indireta_seta_u8_falha_com_exemplo_versionado() {
 #[test]
 fn cli_run_aritmetica_ponteiro_valida_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase68_ptr_aritmetica_valida.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("20"), "stdout={}", stdout);
 }
@@ -5250,11 +5249,7 @@ fn cli_run_aritmetica_ponteiro_valida_com_exemplo_versionado() {
 #[test]
 fn cli_run_aritmetica_ponteiro_leitura_valida_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase68_ptr_aritmetica_leitura_valida.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("99"), "stdout={}", stdout);
 }
@@ -5277,13 +5272,9 @@ fn cli_check_aritmetica_ponteiro_invalida_falha_com_exemplo_versionado() {
 #[test]
 fn cli_run_acesso_campo_ninho_operacional_funciona_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase69_ninho_campo_operacional_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("22"), "stdout={}", stdout);
+    assert_cli_completed(&output);
+    assert_eq!(output.status.code(), Some(22));
+    assert!(output.stdout.is_empty());
 }
 
 #[test]
@@ -5304,13 +5295,9 @@ fn cli_run_acesso_campo_ninho_fora_subset_operacional_falha() {
 #[test]
 fn cli_run_indexacao_operacional_em_array_funciona_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase70_indexacao_array_operacional_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("30"), "stdout={}", stdout);
+    assert_cli_completed(&output);
+    assert_eq!(output.status.code(), Some(30));
+    assert!(output.stdout.is_empty());
 }
 
 // @pinker-nav:end evidencia.interpreter.ponteiros-boot-freestanding-e-subset-nativo
@@ -5321,11 +5308,7 @@ fn cli_run_indexacao_operacional_em_array_funciona_com_exemplo_versionado() {
 #[test]
 fn cli_run_fase147_array_fixo_operacional_minimo_por_valor_funciona_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase147_array_fixo_operacional_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("20"), "stdout={}", stdout);
 }
@@ -5348,13 +5331,9 @@ fn cli_run_fase147_array_fixo_operacional_minimo_invalido_falha_com_exemplo_vers
 #[test]
 fn cli_run_cast_memoria_operacional_funciona_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase71_cast_memoria_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("55"), "stdout={}", stdout);
+    assert_cli_completed(&output);
+    assert_eq!(output.status.code(), Some(55));
+    assert!(output.stdout.is_empty());
 }
 
 #[test]
@@ -5384,6 +5363,7 @@ fn runtime_erro_sem_span_real_mostra_localizacao_indisponivel() {
     // Erro de runtime deve exibir "localização: indisponível" em vez de "span: 1:1..1:1"
     // porque a instrução de máquina não carrega span real.
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![MachineFunction {
@@ -5397,7 +5377,7 @@ fn runtime_erro_sem_span_real_mostra_localizacao_indisponivel() {
                 code: vec![
                     MachineInstr::PushInt(10),
                     MachineInstr::PushInt(0),
-                    MachineInstr::Div,
+                    MachineInstr::Div { ty: TypeIR::Bombom },
                 ],
                 terminator: MachineTerminator::Ret,
             }],
@@ -6234,10 +6214,10 @@ fn run_fase139_juntar_verso_com_tudo_vazio() {
 #[test]
 fn cli_run_fase140_busca_textual_minima_funciona_com_exemplo_versionado() {
     let out = run_cli_example("examples/fase140_busca_textual_camada1_valido.pink");
-    assert!(out.status.success());
+    assert_cli_completed(&out);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "0\n18446744073709551615\n0\n"
+        "0\n18446744073709551615\n"
     );
 }
 
@@ -6603,11 +6583,7 @@ fn run_fase159_ler_json_plano_bombom_rejeita_nesting() {
 #[test]
 fn cli_check_fase159_json_basico_valido() {
     let output = run_cli_check_example("examples/fase159_json_basico_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 // @pinker-nav:end evidencia.interpreter.arquivos-json-serializacao
@@ -6677,53 +6653,37 @@ fn run_fase160_tempo_basico_fluxo_composto_funciona() {
 #[test]
 fn cli_check_fase160_tempo_basico_timestamp_valido() {
     let output = run_cli_check_example("examples/fase160_tempo_basico_timestamp_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase160_tempo_basico_timestamp_valido() {
     let output = run_cli_example("examples/fase160_tempo_basico_timestamp_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let linhas = stdout.lines().collect::<Vec<_>>();
-    assert_eq!(linhas.len(), 3, "stdout inesperado: {}", stdout);
+    assert_eq!(linhas.len(), 2, "stdout inesperado: {}", stdout);
     assert_eq!(linhas[0], "1970-01-01T00:00:00Z");
     let ts = linhas[1]
         .parse::<u64>()
         .expect("timestamp inválido em stdout");
     assert!(ts > 0, "timestamp inesperado: {}", ts);
-    assert_eq!(linhas[2], "160", "stdout inesperado: {}", stdout);
+    assert_eq!(output.status.code(), Some(160));
 }
 
 #[test]
 fn cli_check_fase160_tempo_basico_fluxo_composto_valido() {
     let output = run_cli_check_example("examples/fase160_tempo_basico_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase160_tempo_basico_fluxo_composto_valido() {
     let output = run_cli_example("examples/fase160_tempo_basico_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let linhas = stdout.lines().collect::<Vec<_>>();
-    assert_eq!(linhas.len(), 4, "stdout inesperado: {}", stdout);
+    assert_eq!(linhas.len(), 3, "stdout inesperado: {}", stdout);
     assert!(
         linhas[0].starts_with("inicio=20"),
         "stdout inesperado: {}",
@@ -6749,7 +6709,7 @@ fn cli_run_fase160_tempo_basico_fluxo_composto_valido() {
         "stdout inesperado: {}",
         stdout
     );
-    assert_eq!(linhas[3], "160", "stdout inesperado: {}", stdout);
+    assert_eq!(output.status.code(), Some(160));
 }
 
 // @pinker-nav:end evidencia.interpreter.tempo-unix-e-formatacao
@@ -6852,11 +6812,7 @@ fn run_fase161_executar_processo_rejeita_comando_vazio() {
 #[test]
 fn cli_check_fase161_processo_externo_minimo_valido() {
     let output = run_cli_check_example("examples/fase161_processo_externo_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -6865,23 +6821,15 @@ fn cli_run_fase161_processo_externo_minimo_valido() {
         "examples/fase161_processo_externo_minimo_valido.pink",
         &[fase162_helper_bin("exit0")],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n0\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n");
 }
 
 #[test]
 fn cli_check_fase161_processo_externo_fluxo_composto_valido() {
     let output =
         run_cli_check_example("examples/fase161_processo_externo_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -6890,14 +6838,10 @@ fn cli_run_fase161_processo_externo_fluxo_composto_valido() {
         "examples/fase161_processo_externo_fluxo_composto_valido.pink",
         &[fase162_helper_bin("exit0"), fase162_helper_bin("exit1")],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "ok=0\nfalha=1\nok_zero=0;falha_zero=1\n0\n"
+        "ok=0\nfalha=1\nok_zero=0;falha_zero=1\n"
     );
 }
 
@@ -6964,11 +6908,7 @@ fn run_fase168_executar_processo_rejeita_argv_fora_do_recorte_minimo() {
 #[test]
 fn cli_check_fase168_argv_explicito_minimo_valido() {
     let output = run_cli_check_example("examples/fase168_argv_explicito_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -6977,23 +6917,15 @@ fn cli_run_fase168_argv_explicito_minimo_valido() {
         "examples/fase168_argv_explicito_minimo_valido.pink",
         &[fase168_helper_bin()],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n0\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n");
 }
 
 #[test]
 fn cli_check_fase168_argv_explicito_fluxo_composto_valido() {
     let output =
         run_cli_check_example("examples/fase168_argv_explicito_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -7002,14 +6934,10 @@ fn cli_run_fase168_argv_explicito_fluxo_composto_valido() {
         "examples/fase168_argv_explicito_fluxo_composto_valido.pink",
         &[fase168_helper_bin()],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "ok=0\nfalha=1\nok_zero=0;falha_zero=1\n0\n"
+        "ok=0\nfalha=1\nok_zero=0;falha_zero=1\n"
     );
 }
 
@@ -7227,11 +7155,7 @@ fn run_fase163_capturar_stdout_rejeita_stdout_nao_utf8() {
 #[test]
 fn cli_check_fase163_captura_stdout_minima_valido() {
     let output = run_cli_check_example("examples/fase163_captura_stdout_minima_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -7240,14 +7164,10 @@ fn cli_run_fase163_captura_stdout_minima_valido() {
         "examples/fase163_captura_stdout_minima_valido.pink",
         &[fase163_helper_bin("stdout_ok")],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "status=ok\nvalor=7\n\n0\n"
+        "status=ok\nvalor=7\n\n"
     );
 }
 
@@ -7255,11 +7175,7 @@ fn cli_run_fase163_captura_stdout_minima_valido() {
 fn cli_check_fase163_captura_stdout_fluxo_composto_valido() {
     let output =
         run_cli_check_example("examples/fase163_captura_stdout_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -7268,14 +7184,10 @@ fn cli_run_fase163_captura_stdout_fluxo_composto_valido() {
         "examples/fase163_captura_stdout_fluxo_composto_valido.pink",
         &[fase163_helper_bin("stdout_ok")],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "captura=18 bytes\n0\n"
+        "captura=18 bytes\n"
     );
 }
 
@@ -7283,11 +7195,7 @@ fn cli_run_fase163_captura_stdout_fluxo_composto_valido() {
 fn cli_check_fase169_captura_stdout_argv_explicito_minimo_valido() {
     let output =
         run_cli_check_example("examples/fase169_captura_stdout_argv_explicito_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -7296,14 +7204,10 @@ fn cli_run_fase169_captura_stdout_argv_explicito_minimo_valido() {
         "examples/fase169_captura_stdout_argv_explicito_minimo_valido.pink",
         &[fase163_helper_bin("stdout_ok")],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "status=ok\nalvo=rosa\n\n0\n"
+        "status=ok\nalvo=rosa\n\n"
     );
 }
 
@@ -7312,11 +7216,7 @@ fn cli_check_fase169_captura_stdout_argv_explicito_fluxo_composto_valido() {
     let output = run_cli_check_example(
         "examples/fase169_captura_stdout_argv_explicito_fluxo_composto_valido.pink",
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -7325,14 +7225,10 @@ fn cli_run_fase169_captura_stdout_argv_explicito_fluxo_composto_valido() {
         "examples/fase169_captura_stdout_argv_explicito_fluxo_composto_valido.pink",
         &[fase163_helper_bin("stdout_ok")],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "captura=20 bytes\n0\n"
+        "captura=20 bytes\n"
     );
 }
 
@@ -7569,22 +7465,14 @@ fn run_fase170_capturar_stderr_com_argv_explicito_preserva_utf8_estrito() {
 #[test]
 fn cli_check_fase164_captura_stderr_minima_valido() {
     let output = run_cli_check_example("examples/fase164_captura_stderr_minima_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_check_fase170_captura_stderr_argv_explicito_minimo_valido() {
     let output =
         run_cli_check_example("examples/fase170_captura_stderr_argv_explicito_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -7593,14 +7481,10 @@ fn cli_run_fase170_captura_stderr_argv_explicito_minimo_valido() {
         "examples/fase170_captura_stderr_argv_explicito_minimo_valido.pink",
         &[fase164_helper_bin("stderr_ok")],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "erro=sim\nalvo=rosa\n\n0\n"
+        "erro=sim\nalvo=rosa\n\n"
     );
 }
 
@@ -7609,11 +7493,7 @@ fn cli_check_fase170_captura_stderr_argv_explicito_fluxo_composto_valido() {
     let output = run_cli_check_example(
         "examples/fase170_captura_stderr_argv_explicito_fluxo_composto_valido.pink",
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -7622,15 +7502,8 @@ fn cli_run_fase170_captura_stderr_argv_explicito_fluxo_composto_valido() {
         "examples/fase170_captura_stderr_argv_explicito_fluxo_composto_valido.pink",
         &[fase164_helper_bin("stderr_ok")],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "stderr=19 bytes\n0\n"
-    );
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "stderr=19 bytes\n");
 }
 
 #[test]
@@ -7639,14 +7512,10 @@ fn cli_run_fase164_captura_stderr_minima_valido() {
         "examples/fase164_captura_stderr_minima_valido.pink",
         &[fase164_helper_bin("stderr_ok")],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "erro=sim\ncodigo=9\n\n0\n"
+        "erro=sim\ncodigo=9\n\n"
     );
 }
 
@@ -7654,11 +7523,7 @@ fn cli_run_fase164_captura_stderr_minima_valido() {
 fn cli_check_fase164_captura_stderr_fluxo_composto_valido() {
     let output =
         run_cli_check_example("examples/fase164_captura_stderr_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -7667,15 +7532,8 @@ fn cli_run_fase164_captura_stderr_fluxo_composto_valido() {
         "examples/fase164_captura_stderr_fluxo_composto_valido.pink",
         &[fase164_helper_bin("stderr_ok")],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "stderr=18 bytes\n0\n"
-    );
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "stderr=18 bytes\n");
 }
 
 // @pinker-nav:end evidencia.interpreter.processos-captura-stderr
@@ -7846,22 +7704,14 @@ fn run_fase177_executar_com_entrada_com_argv_explicito_ainda_nao_abre_shell_impl
 #[test]
 fn cli_check_fase165_stdin_textual_minimo_valido() {
     let output = run_cli_check_example("examples/fase165_stdin_textual_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_check_fase177_stdin_textual_argv_explicito_minimo_valido() {
     let output =
         run_cli_check_example("examples/fase177_stdin_textual_argv_explicito_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -7870,12 +7720,8 @@ fn cli_run_fase165_stdin_textual_minimo_valido() {
         "examples/fase165_stdin_textual_minimo_valido.pink",
         &[fase165_helper_bin("stdin_ok")],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n0\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n");
 }
 
 #[test]
@@ -7884,22 +7730,14 @@ fn cli_run_fase177_stdin_textual_argv_explicito_minimo_valido() {
         "examples/fase177_stdin_textual_argv_explicito_minimo_valido.pink",
         &[fase165_helper_bin("stdin_ok")],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n0\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n");
 }
 
 #[test]
 fn cli_check_fase165_stdin_textual_fluxo_composto_valido() {
     let output = run_cli_check_example("examples/fase165_stdin_textual_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -7907,11 +7745,7 @@ fn cli_check_fase177_stdin_textual_argv_explicito_fluxo_composto_valido() {
     let output = run_cli_check_example(
         "examples/fase177_stdin_textual_argv_explicito_fluxo_composto_valido.pink",
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -7920,15 +7754,8 @@ fn cli_run_fase165_stdin_textual_fluxo_composto_valido() {
         "examples/fase165_stdin_textual_fluxo_composto_valido.pink",
         &[fase165_helper_bin("stdin_ok")],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "stdin_status=0\n0\n"
-    );
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "stdin_status=0\n");
 }
 
 #[test]
@@ -7937,14 +7764,10 @@ fn cli_run_fase177_stdin_textual_argv_explicito_fluxo_composto_valido() {
         "examples/fase177_stdin_textual_argv_explicito_fluxo_composto_valido.pink",
         &[fase165_helper_bin("stdin_ok")],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "stdin_argv_status=0\n0\n"
+        "stdin_argv_status=0\n"
     );
 }
 
@@ -8088,11 +7911,7 @@ fn run_fase166_pipeline_minimo_nao_abre_shell_implicito() {
 #[test]
 fn cli_check_fase166_pipe_minimo_valido() {
     let output = run_cli_check_example("examples/fase166_pipe_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -8104,22 +7923,14 @@ fn cli_run_fase166_pipe_minimo_valido() {
             fase166_helper_bin("consumidor_stdin_ok"),
         ],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n0\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "0\n");
 }
 
 #[test]
 fn cli_check_fase166_pipe_minimo_fluxo_composto_valido() {
     let output = run_cli_check_example("examples/fase166_pipe_minimo_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -8131,14 +7942,10 @@ fn cli_run_fase166_pipe_minimo_fluxo_composto_valido() {
             fase166_helper_bin("consumidor_stdin_ok"),
         ],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "etapa=0\npipeline_status=0\npipeline=ok\n0\n"
+        "etapa=0\npipeline_status=0\npipeline=ok\n"
     );
 }
 
@@ -8150,11 +7957,7 @@ fn cli_run_fase166_pipe_minimo_fluxo_composto_valido() {
 #[test]
 fn cli_run_fase159_json_basico_valido() {
     let output = run_cli_example("examples/fase159_json_basico_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         stdout.contains("{\"idade\":7,\"pontos\":9}"),
@@ -8166,21 +7969,13 @@ fn cli_run_fase159_json_basico_valido() {
 #[test]
 fn cli_check_fase159_json_basico_fluxo_composto_valido() {
     let output = run_cli_check_example("examples/fase159_json_basico_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase159_json_basico_fluxo_composto_valido() {
     let output = run_cli_example("examples/fase159_json_basico_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         stdout.contains("{\"falhas\":2,\"ok\":5,\"total\":7}"),
@@ -8192,48 +7987,29 @@ fn cli_run_fase159_json_basico_fluxo_composto_valido() {
 #[test]
 fn cli_check_fase158_csv_minimo_valido() {
     let output = run_cli_check_example("examples/fase158_csv_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase158_csv_minimo_valido() {
     let output = run_cli_example("examples/fase158_csv_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "3\n11\n7,11,13\n0\n"
-    );
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "3\n11\n7,11,13\n");
 }
 
 #[test]
 fn cli_check_fase158_csv_minimo_fluxo_composto_valido() {
     let output = run_cli_check_example("examples/fase158_csv_minimo_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase158_csv_minimo_fluxo_composto_valido() {
     let output = run_cli_example("examples/fase158_csv_minimo_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "10;20;30\n10;20;30;60\n0\n"
+        "10;20;30\n10;20;30;60\n"
     );
 }
 
@@ -8245,46 +8021,30 @@ fn cli_run_fase158_csv_minimo_fluxo_composto_valido() {
 #[test]
 fn cli_check_fase157_formatacao_simples_saida_valido() {
     let output = run_cli_check_example("examples/fase157_formatacao_simples_saida_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase157_formatacao_simples_saida_valido() {
     let output = run_cli_example("examples/fase157_formatacao_simples_saida_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "saldo=42\n8\n0\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "saldo=42\n8\n");
 }
 
 #[test]
 fn cli_check_fase157_formatacao_simples_fluxo_composto_valido() {
     let output =
         run_cli_check_example("examples/fase157_formatacao_simples_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase157_formatacao_simples_fluxo_composto_valido() {
     let output = run_cli_example("examples/fase157_formatacao_simples_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "relatorio rodada\ntotal=2\nprimeiro=7\n0\n"
+        "relatorio rodada\ntotal=2\nprimeiro=7\n"
     );
 }
 
@@ -8341,11 +8101,7 @@ fn run_escrita_por_indice_leitura_apos_escrita_comprova_efeito() {
 #[test]
 fn cli_run_fase148_array_fixo_escrita_indice_minima_funciona_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase148_array_fixo_escrita_indice_minima_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("99"), "stdout={}", stdout);
 }
@@ -8412,11 +8168,7 @@ fn run_lista_bombom_fluxo_composto_funciona() {
 #[test]
 fn cli_run_fase149_lista_minima_bombom_funciona_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase149_lista_minima_bombom_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains('5'), "stdout={}", stdout);
     assert!(stdout.contains('8'), "stdout={}", stdout);
@@ -8425,11 +8177,7 @@ fn cli_run_fase149_lista_minima_bombom_funciona_com_exemplo_versionado() {
 #[test]
 fn cli_run_fase149_lista_fluxo_composto_funciona_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase149_lista_minima_bombom_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains('3'), "stdout={}", stdout);
     assert!(stdout.contains("42"), "stdout={}", stdout);
@@ -8510,11 +8258,7 @@ fn run_lista_bombom_definir_fora_da_faixa_falha_claro() {
 #[test]
 fn cli_run_fase150_lista_bombom_definir_minimo_funciona_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase150_lista_bombom_definir_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("33"), "stdout={}", stdout);
 }
@@ -8523,11 +8267,7 @@ fn cli_run_fase150_lista_bombom_definir_minimo_funciona_com_exemplo_versionado()
 fn cli_run_fase150_lista_bombom_definir_fluxo_composto_funciona_com_exemplo_versionado() {
     let output =
         run_cli_example("examples/fase150_lista_bombom_definir_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains('2'), "stdout={}", stdout);
     assert!(stdout.contains("10"), "stdout={}", stdout);
@@ -8598,21 +8338,13 @@ fn run_lista_bombom_tirar_ultimo_em_lista_vazia_falha_claro() {
 fn cli_check_fase151_lista_bombom_tirar_ultimo_minimo_valido() {
     let output =
         run_cli_check_example("examples/fase151_lista_bombom_tirar_ultimo_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase151_lista_bombom_tirar_ultimo_minimo_funciona_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase151_lista_bombom_tirar_ultimo_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("11"), "stdout={}", stdout);
     assert!(stdout.contains('1'), "stdout={}", stdout);
@@ -8623,22 +8355,14 @@ fn cli_check_fase151_lista_bombom_tirar_ultimo_fluxo_composto_valido() {
     let output = run_cli_check_example(
         "examples/fase151_lista_bombom_tirar_ultimo_fluxo_composto_valido.pink",
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase151_lista_bombom_tirar_ultimo_fluxo_composto_funciona_com_exemplo_versionado() {
     let output =
         run_cli_example("examples/fase151_lista_bombom_tirar_ultimo_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("15"), "stdout={}", stdout);
     assert!(stdout.contains('2'), "stdout={}", stdout);
@@ -8713,21 +8437,13 @@ fn run_mapa_verso_bombom_obter_chave_ausente_falha_claro() {
 #[test]
 fn cli_check_fase152_mapa_verso_bombom_minimo_valido() {
     let output = run_cli_check_example("examples/fase152_mapa_verso_bombom_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase152_mapa_verso_bombom_minimo_valido() {
     let output = run_cli_example("examples/fase152_mapa_verso_bombom_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("42"), "stdout={}", stdout);
 }
@@ -8736,21 +8452,13 @@ fn cli_run_fase152_mapa_verso_bombom_minimo_valido() {
 fn cli_check_fase152_mapa_verso_bombom_fluxo_composto_valido() {
     let output =
         run_cli_check_example("examples/fase152_mapa_verso_bombom_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase152_mapa_verso_bombom_fluxo_composto_valido() {
     let output = run_cli_example("examples/fase152_mapa_verso_bombom_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("15"), "stdout={}", stdout);
     assert!(stdout.contains("20"), "stdout={}", stdout);
@@ -8837,21 +8545,13 @@ fn run_fase153_iteracao_em_tipo_fora_do_recorte_falha_claro() {
 #[test]
 fn cli_check_fase153_iteracao_lista_bombom_minima_valido() {
     let output = run_cli_check_example("examples/fase153_iteracao_lista_bombom_minima_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase153_iteracao_lista_bombom_minima_valido() {
     let output = run_cli_example("examples/fase153_iteracao_lista_bombom_minima_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("12"), "stdout={}", stdout);
 }
@@ -8860,22 +8560,14 @@ fn cli_run_fase153_iteracao_lista_bombom_minima_valido() {
 fn cli_check_fase153_iteracao_lista_bombom_fluxo_composto_valido() {
     let output =
         run_cli_check_example("examples/fase153_iteracao_lista_bombom_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase153_iteracao_lista_bombom_fluxo_composto_valido() {
     let output =
         run_cli_example("examples/fase153_iteracao_lista_bombom_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("60"), "stdout={}", stdout);
     assert!(stdout.contains('3'), "stdout={}", stdout);
@@ -9030,21 +8722,13 @@ fn run_fase154_iteracao_mapa_tipo_fora_do_recorte_bombom_falha_claro() {
 fn cli_check_fase154_iteracao_mapa_verso_bombom_minima_valido() {
     let output =
         run_cli_check_example("examples/fase154_iteracao_mapa_verso_bombom_minima_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase154_iteracao_mapa_verso_bombom_minima_valido() {
     let output = run_cli_example("examples/fase154_iteracao_mapa_verso_bombom_minima_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("42"), "stdout={}", stdout);
 }
@@ -9054,22 +8738,14 @@ fn cli_check_fase154_iteracao_mapa_verso_bombom_fluxo_composto_valido() {
     let output = run_cli_check_example(
         "examples/fase154_iteracao_mapa_verso_bombom_fluxo_composto_valido.pink",
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase154_iteracao_mapa_verso_bombom_fluxo_composto_valido() {
     let output =
         run_cli_example("examples/fase154_iteracao_mapa_verso_bombom_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("60"), "stdout={}", stdout);
     assert!(stdout.contains('2'), "stdout={}", stdout);
@@ -9172,21 +8848,13 @@ fn run_fase156_handle_invalido_falha_claro() {
 #[test]
 fn cli_check_fase156_aleatoriedade_basica_semente_valido() {
     let output = run_cli_check_example("examples/fase156_aleatoriedade_basica_semente_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase156_aleatoriedade_basica_semente_valido() {
     let output = run_cli_example("examples/fase156_aleatoriedade_basica_semente_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert_eq!(stdout.matches("verdade").count(), 2, "stdout={}", stdout);
 }
@@ -9195,26 +8863,18 @@ fn cli_run_fase156_aleatoriedade_basica_semente_valido() {
 fn cli_check_fase156_aleatoriedade_basica_fluxo_composto_valido() {
     let output =
         run_cli_check_example("examples/fase156_aleatoriedade_basica_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase156_aleatoriedade_basica_fluxo_composto_valido() {
     let output =
         run_cli_example("examples/fase156_aleatoriedade_basica_fluxo_composto_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains('4'), "stdout={}", stdout);
     assert!(stdout.contains("7 7"), "stdout={}", stdout);
-    assert!(stdout.contains('9'), "stdout={}", stdout);
+    assert_eq!(output.status.code(), Some(9));
 }
 
 // ── Fases 186–188 — importação por família: `tempo`, `ambiente` e `acaso` ──
@@ -9227,21 +8887,13 @@ fn cli_run_fase156_aleatoriedade_basica_fluxo_composto_valido() {
 #[test]
 fn cli_check_fase186_trazer_tempo_minimo_valido() {
     let output = run_cli_check_example("examples/fase186_trazer_tempo_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase186_trazer_tempo_minimo_valido() {
     let output = run_cli_example("examples/fase186_trazer_tempo_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("1970-01-01T00:00:00Z"), "stdout={}", stdout);
 }
@@ -9249,11 +8901,7 @@ fn cli_run_fase186_trazer_tempo_minimo_valido() {
 #[test]
 fn cli_check_fase187_trazer_ambiente_minimo_valido() {
     let output = run_cli_check_example("examples/fase187_trazer_ambiente_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
@@ -9268,11 +8916,7 @@ fn cli_run_fase187_trazer_ambiente_minimo_valido() {
         .env("PINKER_FASE187_AMBIENTE", "env.txt")
         .output()
         .expect("falha ao executar pink --run no exemplo da fase 187");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("cli.txt"), "stdout={}", stdout);
     assert!(stdout.contains("env.txt"), "stdout={}", stdout);
@@ -9282,21 +8926,13 @@ fn cli_run_fase187_trazer_ambiente_minimo_valido() {
 #[test]
 fn cli_check_fase188_trazer_acaso_minimo_valido() {
     let output = run_cli_check_example("examples/fase188_trazer_acaso_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase188_trazer_acaso_minimo_valido() {
     let output = run_cli_example("examples/fase188_trazer_acaso_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("10481999410520546993"), "stdout={}", stdout);
     assert!(stdout.contains("4159066171780167020"), "stdout={}", stdout);
@@ -9305,21 +8941,13 @@ fn cli_run_fase188_trazer_acaso_minimo_valido() {
 #[test]
 fn cli_check_fase189_trazer_texto_minimo_valido() {
     let output = run_cli_check_example("examples/fase189_trazer_texto_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase189_trazer_texto_minimo_valido() {
     let output = run_cli_example("examples/fase189_trazer_texto_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("rosa pinker"), "stdout={}", stdout);
     assert!(stdout.contains("texto"), "stdout={}", stdout);
@@ -9329,31 +8957,19 @@ fn cli_run_fase189_trazer_texto_minimo_valido() {
 fn cli_check_fase207_trazer_arquivo_caminho_processo_valido() {
     let output =
         run_cli_check_example("examples/fase207_trazer_arquivo_caminho_processo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_check_fase208_leque_minimo_valido() {
     let output = run_cli_check_example("examples/fase208_leque_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase208_leque_minimo_valido() {
     let output = run_cli_example("examples/fase208_leque_minimo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("verde"), "stdout={}", stdout);
     assert!(stdout.contains("azul"), "stdout={}", stdout);
@@ -9363,21 +8979,13 @@ fn cli_run_fase208_leque_minimo_valido() {
 #[test]
 fn cli_check_fase209_leque_carga_encaixe_valido() {
     let output = run_cli_check_example("examples/fase209_leque_carga_encaixe_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase209_leque_carga_encaixe_valido() {
     let output = run_cli_example("examples/fase209_leque_carga_encaixe_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("numero 42"), "stdout={}", stdout);
     assert!(stdout.contains("palavra rosa"), "stdout={}", stdout);
@@ -9388,11 +8996,7 @@ fn cli_run_fase209_leque_carga_encaixe_valido() {
 #[test]
 fn cli_run_fase209_lexer_brinquedo_valido() {
     let output = run_cli_example("examples/fase209_lexer_brinquedo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("PALAVRA soma"), "stdout={}", stdout);
     assert!(stdout.contains("NUMERO 12"), "stdout={}", stdout);
@@ -9404,21 +9008,13 @@ fn cli_run_fase209_lexer_brinquedo_valido() {
 #[test]
 fn cli_check_fase210_leque_recursivo_avaliador_valido() {
     let output = run_cli_check_example("examples/fase210_leque_recursivo_avaliador_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase210_leque_recursivo_avaliador_valido() {
     let output = run_cli_example("examples/fase210_leque_recursivo_avaliador_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("avaliando resposta"), "stdout={}", stdout);
     assert!(stdout.contains("42"), "stdout={}", stdout);
@@ -9427,11 +9023,7 @@ fn cli_run_fase210_leque_recursivo_avaliador_valido() {
 #[test]
 fn cli_run_fase211_lista_generica_valido() {
     let output = run_cli_example("examples/fase211_lista_generica_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains('3'), "stdout={}", stdout);
     assert!(stdout.contains("quente"), "stdout={}", stdout);
@@ -9442,21 +9034,13 @@ fn cli_run_fase211_lista_generica_valido() {
 #[test]
 fn cli_check_fase211_compilador_brinquedo_valido() {
     let output = run_cli_check_example("examples/fase211_compilador_brinquedo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --check, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
 }
 
 #[test]
 fn cli_run_fase211_compilador_brinquedo_valido() {
     let output = run_cli_example("examples/fase211_compilador_brinquedo_valido.pink");
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("tokens: 6"), "stdout={}", stdout);
     assert!(stdout.contains("42"), "stdout={}", stdout);
@@ -9468,11 +9052,7 @@ fn cli_run_fase207_trazer_arquivo_caminho_processo_valido() {
         "examples/fase207_trazer_arquivo_caminho_processo_valido.pink",
         &[fase162_helper_bin("exit0")],
     );
-    assert!(
-        output.status.success(),
-        "esperava sucesso no --run, stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_cli_completed(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("rosa pinker"), "stdout={}", stdout);
     assert!(stdout.contains('0'), "stdout={}", stdout);
@@ -9630,8 +9210,8 @@ fn fase242_funcao_indireta_stdout_via_cli() {
         .arg("examples/fase242_funcao_indireta_valido.pink")
         .output()
         .expect("falha ao executar CLI --run");
-    assert!(output.status.success(), "status={:?}", output.status);
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "42\n63\n0\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "42\n63\n");
 }
 
 #[test]
@@ -9721,8 +9301,8 @@ fn fase243_closure_captura_imutavel_stdout_via_cli() {
         .arg("examples/fase243_closure_captura_imutavel_valido.pink")
         .output()
         .expect("falha ao executar CLI --run");
-    assert!(output.status.success(), "status={:?}", output.status);
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "42\n42\n84\n");
+    assert_cli_completed(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "42\n42\n");
 }
 
 #[test]
@@ -10153,6 +9733,7 @@ carinho principal() -> bombom {
 
 fn fase244_manual_trait_program(code: Vec<MachineInstr>) -> MachineProgram {
     MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![MachineFunction {

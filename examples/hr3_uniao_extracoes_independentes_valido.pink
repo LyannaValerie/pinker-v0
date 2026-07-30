@@ -1,0 +1,35 @@
+pacote main;
+
+// HR3: duas extrações da mesma união recebem storages distintos e valores
+// inicialmente iguais. A origem é modificada entre as duas extrações e nenhuma
+// delas observa a mudança, porque ambas vêm do snapshot imutável do descritor.
+carinho principal() -> bombom {
+    nova base: seta<[bombom; 2]> = alocar(16) virar seta<[bombom; 2]>;
+    nova celula: seta<bombom> = base virar seta<bombom>;
+    *celula = 7;
+
+    nova valor: uniao<[bombom; 2], u8> = (*base) virar uniao<[bombom; 2], u8>;
+
+    encaixe valor {
+        caso [bombom; 2](primeiro) {
+            falar(primeiro[0]);
+        }
+        caso u8(numero) {
+            falar(999);
+        }
+    }
+
+    *celula = 42;
+
+    encaixe valor {
+        caso [bombom; 2](segundo) {
+            falar(segundo[0]);
+        }
+        caso u8(numero) {
+            falar(999);
+        }
+    }
+
+    falar(*celula);
+    mimo 0;
+}

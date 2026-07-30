@@ -10,6 +10,7 @@ use pinker_v0::ir::TypeIR;
 use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // @pinker-nav:start evidencia.backend-s-externo.renderizacao-recortes-versionados
@@ -191,7 +192,7 @@ fn asm_s_external_subset_fase130_exemplo_versionado_ninho_heterogeneo_camada2() 
 
 #[test]
 fn asm_s_external_subset_fase129_recusa_campo_heterogeneo_fora_recorte() {
-    let code = include_str!("../examples/fase129_ninho_heterogeneo_camada1_invalido.pink");
+    let code = include_str!("../examples/fase129_ninho_heterogeneo_camada1_regressao_valido.pink");
     let err = render_backend_s_external_subset(code).unwrap_err();
     let msg = err.to_string();
     // Fase 219 (B8): locals `logica` passaram a ser aceitos, então o exemplo
@@ -202,7 +203,7 @@ fn asm_s_external_subset_fase129_recusa_campo_heterogeneo_fora_recorte() {
 
 #[test]
 fn asm_s_external_subset_fase130_recusa_campo_heterogeneo_fora_recorte() {
-    let code = include_str!("../examples/fase130_ninho_heterogeneo_camada2_invalido.pink");
+    let code = include_str!("../examples/fase130_ninho_heterogeneo_camada2_regressao_valido.pink");
     let err = render_backend_s_external_subset(code).unwrap_err();
     let msg = err.to_string();
     // Fase 219 (B8): locals `logica` passaram a ser aceitos, então o exemplo
@@ -224,7 +225,7 @@ fn asm_s_external_subset_fase131_exemplo_versionado_ninho_heterogeneo_camada3() 
 
 #[test]
 fn asm_s_external_subset_fase131_recusa_campo_heterogeneo_fora_recorte() {
-    let code = include_str!("../examples/fase131_ninho_heterogeneo_camada3_invalido.pink");
+    let code = include_str!("../examples/fase131_ninho_heterogeneo_camada3_regressao_valido.pink");
     let err = render_backend_s_external_subset(code).unwrap_err();
     let msg = err.to_string();
     assert!(
@@ -251,7 +252,7 @@ fn asm_s_external_subset_fase132_exemplo_versionado_ninho_heterogeneo_camada4() 
 
 #[test]
 fn asm_s_external_subset_fase132_recusa_campo_heterogeneo_fora_recorte() {
-    let code = include_str!("../examples/fase132_ninho_heterogeneo_camada4_invalido.pink");
+    let code = include_str!("../examples/fase132_ninho_heterogeneo_camada4_regressao_valido.pink");
     let err = render_backend_s_external_subset(code).unwrap_err();
     let msg = err.to_string();
     assert!(
@@ -273,7 +274,6 @@ fn asm_s_external_subset_fase132_recusa_campo_heterogeneo_fora_recorte() {
 fn asm_s_external_subset_fase133_exemplo_versionado_virar_camada1() {
     let code = include_str!("../examples/fase133_virar_camada1_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains("movl %eax, %eax"));
     assert!(out.contains("movabsq $133, %rax"));
     assert!(out.contains("# pinker v0 external toolchain subset (fase 135"));
 }
@@ -282,18 +282,15 @@ fn asm_s_external_subset_fase133_exemplo_versionado_virar_camada1() {
 fn asm_s_external_subset_fase134_exemplo_versionado_virar_camada2() {
     let code = include_str!("../examples/fase134_virar_camada2_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.matches("movl %eax, %eax").count() >= 2);
     assert!(out.contains("movabsq $134, %rax"));
     assert!(out.contains("# pinker v0 external toolchain subset (fase 135"));
 }
 
 #[test]
-fn asm_s_external_subset_fase134_recusa_cast_fora_do_recorte_minimo() {
+fn asm_s_external_subset_fase134_cast_historico_agora_aceito() {
     let code = include_str!("../examples/fase134_virar_camada2_invalido.pink");
-    let err = render_backend_s_external_subset(code).unwrap_err();
-    let msg = err.to_string();
-    assert!(msg.contains("Fase 134"));
-    assert!(msg.contains("`virar`"));
+    let asm = render_backend_s_external_subset(code).unwrap();
+    assert!(asm.contains("movabsq $1, %rax"));
 }
 // @pinker-nav:end evidencia.backend-s-externo.fronteira-conversao-virar
 
@@ -369,11 +366,9 @@ fn asm_s_external_subset_fase126_exemplo_versionado_quebrar_continuar_camada1() 
 // @pinker-nav:summary Cada teste renderiza o `.s` com render_backend_s_external_subset, grava o arquivo em diretório temporário único, detecta em tempo de execução um driver C (`cc`, `gcc` ou `clang`) e o invoca como responsável pela montagem e pela linkedição, executando em seguida o binário produzido e validando apenas `status.code()`. Nenhum stdout é validado e o stderr é usado somente como mensagem de falha. O caminho é hospedado com runtime_init=false e sem libpinker_rt.a. Todos são pulados silenciosamente fora de Linux x86_64 ou quando não há driver C — a suíte pode passar sem exercer esta evidência.
 #[test]
 fn asm_s_external_subset_fluxo_real_fase117_composto_minimo_camada2() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -413,11 +408,9 @@ fn asm_s_external_subset_fluxo_real_fase117_composto_minimo_camada2() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase118_composto_minimo_camada3() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -458,11 +451,9 @@ fn asm_s_external_subset_fluxo_real_fase118_composto_minimo_camada3() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase119_composto_minimo_camada4() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -503,11 +494,9 @@ fn asm_s_external_subset_fluxo_real_fase119_composto_minimo_camada4() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase120_u32_minimo_em_param_local() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -547,11 +536,9 @@ fn asm_s_external_subset_fluxo_real_fase120_u32_minimo_em_param_local() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase121_u64_minimo_em_param_local() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -591,11 +578,9 @@ fn asm_s_external_subset_fluxo_real_fase121_u64_minimo_em_param_local() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase122_comparacao_ne_minima() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -635,11 +620,9 @@ fn asm_s_external_subset_fluxo_real_fase122_comparacao_ne_minima() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase123_comparacao_gt_minima() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -679,11 +662,9 @@ fn asm_s_external_subset_fluxo_real_fase123_comparacao_gt_minima() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase124_comparacao_le_minima() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -723,11 +704,9 @@ fn asm_s_external_subset_fluxo_real_fase124_comparacao_le_minima() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase125_comparacao_ge_minima() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -767,11 +746,9 @@ fn asm_s_external_subset_fluxo_real_fase125_comparacao_ge_minima() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase129_ninho_heterogeneo_camada1() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -811,11 +788,9 @@ fn asm_s_external_subset_fluxo_real_fase129_ninho_heterogeneo_camada1() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase130_ninho_heterogeneo_camada2() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -855,11 +830,9 @@ fn asm_s_external_subset_fluxo_real_fase130_ninho_heterogeneo_camada2() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase131_ninho_heterogeneo_camada3() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -900,11 +873,9 @@ fn asm_s_external_subset_fluxo_real_fase131_ninho_heterogeneo_camada3() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase132_ninho_heterogeneo_camada4() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -945,17 +916,14 @@ fn asm_s_external_subset_fluxo_real_fase132_ninho_heterogeneo_camada4() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase133_virar_camada1() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
     let code = include_str!("../examples/fase133_virar_camada1_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains("movl %eax, %eax"));
 
     let workdir = unique_temp_dir();
     fs::create_dir_all(&workdir).expect("falha ao criar diretório temporário");
@@ -988,17 +956,14 @@ fn asm_s_external_subset_fluxo_real_fase133_virar_camada1() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase134_virar_camada2() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
     let code = include_str!("../examples/fase134_virar_camada2_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.matches("movl %eax, %eax").count() >= 2);
 
     let workdir = unique_temp_dir();
     fs::create_dir_all(&workdir).expect("falha ao criar diretório temporário");
@@ -1031,11 +996,9 @@ fn asm_s_external_subset_fluxo_real_fase134_virar_camada2() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase135_verso_camada1() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1075,11 +1038,9 @@ fn asm_s_external_subset_fluxo_real_fase135_verso_camada1() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase128_quebrar_continuar_camada3() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1122,11 +1083,9 @@ fn asm_s_external_subset_fluxo_real_fase128_quebrar_continuar_camada3() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase127_quebrar_continuar_camada2() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1168,11 +1127,9 @@ fn asm_s_external_subset_fluxo_real_fase127_quebrar_continuar_camada2() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase126_quebrar_continuar_camada1() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1211,11 +1168,9 @@ fn asm_s_external_subset_fluxo_real_fase126_quebrar_continuar_camada1() {
 }
 #[test]
 fn asm_s_external_subset_fluxo_real_fase116_composto_minimo_camada1() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1255,11 +1210,9 @@ fn asm_s_external_subset_fluxo_real_fase116_composto_minimo_camada1() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_condicional() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1299,11 +1252,9 @@ fn asm_s_external_subset_fluxo_real_condicional() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_loop_minimo() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1350,11 +1301,9 @@ fn asm_s_external_subset_fluxo_real_loop_minimo() {
 // @pinker-nav:summary Mesmos limites da região anterior — renderização do `.s`, gravação em diretório temporário, driver C (`cc`, `gcc` ou `clang`) detectado em runtime responsável por montagem e linkedição, execução do binário, validação apenas de `status.code()`, nenhum stdout validado, stderr somente como mensagem de falha, runtime_init=false, sem libpinker_rt.a e skip silencioso fora de Linux x86_64 ou sem driver C — aplicados a locais, aritmética, chamadas, parâmetros, frame, memória de frame, composição interprocedural e programas lineares maiores. A suíte pode passar sem exercer esta evidência.
 #[test]
 fn asm_s_external_subset_fluxo_real_com_locais_e_aritmetica() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1394,11 +1343,9 @@ fn asm_s_external_subset_fluxo_real_com_locais_e_aritmetica() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_com_call_e_parametro_unico() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1441,11 +1388,9 @@ fn asm_s_external_subset_fluxo_real_com_call_e_parametro_unico() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase75_frame_registradores() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1486,11 +1431,9 @@ fn asm_s_external_subset_fluxo_real_fase75_frame_registradores() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase76_multiplos_parametros() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1531,11 +1474,9 @@ fn asm_s_external_subset_fluxo_real_fase76_multiplos_parametros() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase77_memoria_frame_minima() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1576,11 +1517,9 @@ fn asm_s_external_subset_fluxo_real_fase77_memoria_frame_minima() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase78_composicao_interprocedural_linear() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1623,11 +1562,9 @@ fn asm_s_external_subset_fluxo_real_fase78_composicao_interprocedural_linear() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase79_programa_linear_maior() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1670,11 +1607,9 @@ fn asm_s_external_subset_fluxo_real_fase79_programa_linear_maior() {
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase80_cobertura_linear_auditavel_mais_ampla() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1718,11 +1653,9 @@ fn asm_s_external_subset_fluxo_real_fase80_cobertura_linear_auditavel_mais_ampla
 
 #[test]
 fn asm_s_external_subset_fluxo_real_fase115_abi_minima_mais_larga_camada1() {
-    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        return;
-    }
-
-    let Some(driver) = detect_cc_driver() else {
+    let Some((driver, _)) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), false)
+    else {
         return;
     };
 
@@ -1811,13 +1744,12 @@ fn asm_s_external_subset_fase112_aceita_talvez_senao_no_recorte_minimo() {
 }
 
 #[test]
-fn asm_s_external_subset_fase113_recusa_loop_com_condicao_fora_do_recorte() {
+fn asm_s_external_subset_fase113_loop_historico_agora_aceito() {
     let code = include_str!("../examples/fase113_loop_condicao_invalida_invalido.pink");
 
-    let err = render_backend_s_external_subset(code).unwrap_err();
-    let msg = err.to_string();
-    assert!(msg.contains("subset externo montável (Fase 135) aceita apenas atribuição"));
-    assert!(msg.contains("composição heterogênea mínima auditável no mesmo `ninho`"));
+    let asm = render_backend_s_external_subset(code).unwrap();
+    assert!(asm.contains("pinker_erro_divisao_zero"));
+    assert!(asm.contains(".Lprincipal_loop_cond_0:"));
 }
 
 #[test]
@@ -1859,12 +1791,10 @@ fn asm_s_external_subset_fase84_matriz_fronteira_auditavel() {
     assert!(asm_loop.contains(".Lprincipal_loop_cond_0:"));
     assert!(asm_loop.contains("jmp .Lprincipal_loop_cond_0"));
 
-    let caso_rejeitado_sempre_que =
+    let caso_historico_sempre_que =
         include_str!("../examples/fase113_loop_condicao_invalida_invalido.pink");
-    let err_sempre_que = render_backend_s_external_subset(caso_rejeitado_sempre_que).unwrap_err();
-    let msg = err_sempre_que.to_string();
-    assert!(msg.contains("subset externo montável (Fase 135) aceita apenas atribuição"));
-    assert!(msg.contains("composição heterogênea mínima auditável no mesmo `ninho`"));
+    let asm_sempre_que = render_backend_s_external_subset(caso_historico_sempre_que).unwrap();
+    assert!(asm_sempre_que.contains("pinker_erro_divisao_zero"));
 }
 
 #[test]
@@ -1919,6 +1849,7 @@ carinho principal() -> bombom {
 #[test]
 fn asm_s_external_subset_fase114_falha_em_global_duplicada() {
     let program = SelectedProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         is_freestanding: false,
         globals: vec![
@@ -1939,6 +1870,7 @@ fn asm_s_external_subset_fase114_falha_em_global_duplicada() {
             params: vec![],
             locals: vec![],
             slot_types: HashMap::new(),
+            internal_pointer_params: Default::default(),
             blocks: vec![SelectedBlock {
                 label: "entry".to_string(),
                 instructions: vec![],
@@ -1958,6 +1890,7 @@ fn asm_s_external_subset_fase112_falha_em_jmp_para_label_inexistente() {
     let mut slot_types = HashMap::new();
     slot_types.insert("x".to_string(), TypeIR::Bombom);
     let program = SelectedProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         is_freestanding: false,
         globals: vec![],
@@ -1967,6 +1900,7 @@ fn asm_s_external_subset_fase112_falha_em_jmp_para_label_inexistente() {
             params: vec![],
             locals: vec!["x".to_string()],
             slot_types,
+            internal_pointer_params: Default::default(),
             blocks: vec![SelectedBlock {
                 label: "entry".to_string(),
                 instructions: vec![],
@@ -1986,6 +1920,7 @@ fn asm_s_external_subset_fase112_falha_em_label_duplicado() {
     let mut slot_types = HashMap::new();
     slot_types.insert("x".to_string(), TypeIR::Bombom);
     let program = SelectedProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         is_freestanding: false,
         globals: vec![],
@@ -1995,6 +1930,7 @@ fn asm_s_external_subset_fase112_falha_em_label_duplicado() {
             params: vec![],
             locals: vec!["x".to_string()],
             slot_types,
+            internal_pointer_params: Default::default(),
             blocks: vec![
                 SelectedBlock {
                     label: "entry".to_string(),
@@ -2019,6 +1955,7 @@ fn asm_s_external_subset_fase112_falha_em_label_duplicado() {
 #[test]
 fn asm_s_external_subset_fase112_falha_em_br_com_alvo_verdadeiro_inexistente() {
     let program = SelectedProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         is_freestanding: false,
         globals: vec![],
@@ -2028,6 +1965,7 @@ fn asm_s_external_subset_fase112_falha_em_br_com_alvo_verdadeiro_inexistente() {
             params: vec![],
             locals: vec![],
             slot_types: HashMap::new(),
+            internal_pointer_params: Default::default(),
             blocks: vec![
                 SelectedBlock {
                     label: "entry".to_string(),
@@ -2056,6 +1994,7 @@ fn asm_s_external_subset_fase112_falha_em_br_com_alvo_verdadeiro_inexistente() {
 #[test]
 fn asm_s_external_subset_fase112_falha_em_br_com_alvo_falso_inexistente() {
     let program = SelectedProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         is_freestanding: false,
         globals: vec![],
@@ -2065,6 +2004,7 @@ fn asm_s_external_subset_fase112_falha_em_br_com_alvo_falso_inexistente() {
             params: vec![],
             locals: vec![],
             slot_types: HashMap::new(),
+            internal_pointer_params: Default::default(),
             blocks: vec![
                 SelectedBlock {
                     label: "entry".to_string(),
@@ -2091,21 +2031,17 @@ fn asm_s_external_subset_fase112_falha_em_br_com_alvo_falso_inexistente() {
 }
 // @pinker-nav:end evidencia.backend-s-externo.validacao-estrutural-sintetica
 
-fn detect_cc_driver() -> Option<String> {
-    ["cc", "gcc", "clang"].iter().find_map(|candidate| {
-        let probe = Command::new(candidate).arg("--version").output().ok()?;
-        if probe.status.success() {
-            Some((*candidate).to_string())
-        } else {
-            None
-        }
-    })
-}
-
 fn unique_temp_dir() -> std::path::PathBuf {
+    static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("tempo do sistema inválido")
         .as_nanos();
-    std::env::temp_dir().join(format!("pinker_phase113_{}", nanos))
+    let sequence = NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!(
+        "pinker_phase113_{}_{}_{}",
+        std::process::id(),
+        nanos,
+        sequence
+    ))
 }

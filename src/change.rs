@@ -23,9 +23,9 @@ const STATUS_ENUM: &[&str] = &["completed", "in-progress", "planned"];
 pub fn immutable_error(pr: u64) -> String {
     format!(
         "E-CHANGE-IMMUTABLE\n\
-         O manifesto .pinker/changes/pr-{pr}.yaml já existe com conteúdo diferente.\n\
-         Manifestos são imutáveis após a primeira importação; nenhuma alteração\n\
-         silenciosa é permitida. Reverta a mudança ou registre um novo PR."
+         O manifesto .pinker/changes/pr-{pr}.yaml já existe com dados estruturados diferentes.\n\
+         Os dados do manifesto são imutáveis após a primeira importação; nenhuma\n\
+         alteração silenciosa é permitida. Reverta a mudança ou registre um novo PR."
     )
 }
 
@@ -91,6 +91,10 @@ pub enum ChangeError {
     InvalidIdFormat {
         field: String,
         value: String,
+    },
+    MalformedYaml {
+        line: usize,
+        detail: String,
     },
     /// Campo ainda com a sentinela do template (`<preencher-...>` ou `<...>`).
     TemplatePlaceholder {
@@ -158,6 +162,11 @@ impl fmt::Display for ChangeError {
                 "E-CHANGE-SCHEMA\nId inválido em '{}': '{}' (formato [a-z0-9]+([._-][a-z0-9]+)*).",
                 field, value
             ),
+            ChangeError::MalformedYaml { line, detail } => write!(
+                f,
+                "E-CHANGE-SCHEMA\nYAML inválido na linha {}: {}.",
+                line, detail
+            ),
             ChangeError::TemplatePlaceholder { field, value } => write!(
                 f,
                 "E-CHANGE-PLACEHOLDER\nCampo '{}' ainda contém o placeholder '{}'.\n\
@@ -180,6 +189,13 @@ impl Change {
     pub fn parse_pr_body(body: &str) -> Result<Change, ChangeError> {
         let block = extract_block(body)?;
         Self::parse_block(&block)
+    }
+
+    /// Interpreta um manifesto já versionado usando o subconjunto YAML estrito
+    /// emitido pelo projeto e as representações legadas compatíveis.
+    pub fn parse_manifest(block: &str) -> Result<Change, ChangeError> {
+        validate_manifest_syntax(block)?;
+        Self::parse_block(block)
     }
 
     /// Interpreta o conteúdo textual do bloco (sem as cercas).
@@ -357,6 +373,23 @@ impl Change {
         Ok(())
     }
 
+    /// Compara todos os dados estruturados do schema, preservando a ordem das
+    /// listas e de `updates`. Metadados transitórios do parser não participam.
+    pub fn semantically_equal(&self, other: &Change) -> bool {
+        self.schema == other.schema
+            && self.source == other.source
+            && self.kind == other.kind
+            && self.phase == other.phase
+            && self.block == other.block
+            && self.title == other.title
+            && self.area == other.area
+            && self.status == other.status
+            && self.updates == other.updates
+            && self.implemented == other.implemented
+            && self.pending_remove == other.pending_remove
+            && self.validation_required == other.validation_required
+    }
+
     /// Campos escalares e de lista sujeitos a sentinela do template, com um
     /// rótulo estável para diagnóstico. `validation.required` fica de fora: o
     /// template não coloca sentinela ali (é sempre `- make ci`).
@@ -388,7 +421,7 @@ impl Change {
             out.push_str(&format!("  type: {}\n", source.kind));
             out.push_str(&format!("  number: {}\n", source.number));
             if let Some(repo) = &source.repository {
-                out.push_str(&format!("  repository: {}\n", repo));
+                out.push_str(&format!("  repository: {}\n", json_string(repo)));
             }
         }
         out.push_str(&format!("kind: {}\n", self.kind));
@@ -398,7 +431,7 @@ impl Change {
         if let Some(block) = self.block {
             out.push_str(&format!("block: {}\n", block));
         }
-        out.push_str(&format!("title: {}\n", self.title));
+        out.push_str(&format!("title: {}\n", json_string(&self.title)));
         if !self.area.is_empty() {
             out.push_str("area:\n");
             for item in &self.area {
@@ -558,6 +591,210 @@ fn extract_block(body: &str) -> Result<String, ChangeError> {
     Err(ChangeError::UnterminatedBlock)
 }
 
+fn validate_manifest_syntax(block: &str) -> Result<(), ChangeError> {
+    use std::collections::BTreeSet;
+
+    let mut top: Option<&str> = None;
+    let mut sub: Option<&str> = None;
+    let mut seen_top = BTreeSet::new();
+    let mut seen_nested = BTreeSet::new();
+
+    for (index, raw) in block.lines().enumerate() {
+        let line = index + 1;
+        if raw.contains('\t') {
+            return malformed_yaml(line, "tabulação não é aceita na indentação");
+        }
+        let indent = raw.len() - raw.trim_start().len();
+        let trimmed = raw.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if !matches!(indent, 0 | 2 | 4) {
+            return malformed_yaml(line, "indentação fora do schema");
+        }
+
+        if let Some(item) = trimmed.strip_prefix("- ") {
+            let list_allowed = matches!(
+                (indent, top, sub),
+                (2, Some("area"), _)
+                    | (4, Some("sections"), Some("implemented" | "pending_remove"))
+                    | (4, Some("validation"), Some("required"))
+            );
+            if !list_allowed {
+                return malformed_yaml(line, "item de lista fora de uma lista declarada");
+            }
+            validate_manifest_scalar(&strip_inline_comment(item.trim()), line)?;
+            continue;
+        }
+
+        let Some(colon) = trimmed.find(':') else {
+            return malformed_yaml(line, "esperado campo ou item de lista");
+        };
+        let key = trimmed[..colon].trim();
+        let rest = strip_inline_comment(trimmed[colon + 1..].trim());
+        if key.is_empty() {
+            return malformed_yaml(line, "nome de campo vazio");
+        }
+
+        match indent {
+            0 => {
+                top = None;
+                sub = None;
+                if !seen_top.insert(key.to_string()) {
+                    return malformed_yaml(line, "campo de topo duplicado");
+                }
+                match key {
+                    "schema" | "phase" | "block" => {
+                        validate_manifest_scalar(&rest, line)?;
+                        if rest.parse::<u64>().is_err() {
+                            return malformed_yaml(line, "esperado inteiro não negativo");
+                        }
+                    }
+                    "kind" | "title" | "status" => {
+                        validate_manifest_scalar(&rest, line)?;
+                    }
+                    "source" | "area" | "updates" | "sections" | "validation" => {
+                        if !rest.is_empty() {
+                            return malformed_yaml(line, "bloco deve terminar após ':'");
+                        }
+                        top = Some(key);
+                    }
+                    other => {
+                        return Err(ChangeError::UnknownField {
+                            field: other.to_string(),
+                        });
+                    }
+                }
+            }
+            2 => {
+                let Some(parent) = top else {
+                    return malformed_yaml(line, "campo indentado sem bloco pai");
+                };
+                let nested_id = format!("{parent}.{key}");
+                if !seen_nested.insert(nested_id) {
+                    return malformed_yaml(line, "campo aninhado duplicado");
+                }
+                match parent {
+                    "source" => match key {
+                        "type" | "repository" => {
+                            validate_manifest_scalar(&rest, line)?;
+                        }
+                        "number" => {
+                            validate_manifest_scalar(&rest, line)?;
+                            if rest.parse::<u64>().is_err() {
+                                return malformed_yaml(line, "source.number deve ser inteiro");
+                            }
+                        }
+                        other => {
+                            return Err(ChangeError::UnknownField {
+                                field: format!("source.{other}"),
+                            });
+                        }
+                    },
+                    "updates" => {
+                        if !valid_id(key) {
+                            return malformed_yaml(line, "chave inválida em updates");
+                        }
+                        validate_manifest_scalar(&rest, line)?;
+                        if !matches!(rest.as_str(), "true" | "false") {
+                            return malformed_yaml(line, "updates aceita somente true ou false");
+                        }
+                    }
+                    "sections" => match key {
+                        "implemented" | "pending_remove" => {
+                            if !rest.is_empty() {
+                                return malformed_yaml(line, "lista deve terminar após ':'");
+                            }
+                            sub = Some(key);
+                        }
+                        other => {
+                            return Err(ChangeError::UnknownField {
+                                field: format!("sections.{other}"),
+                            });
+                        }
+                    },
+                    "validation" => match key {
+                        "required" => {
+                            if !rest.is_empty() {
+                                return malformed_yaml(line, "lista deve terminar após ':'");
+                            }
+                            sub = Some(key);
+                        }
+                        other => {
+                            return Err(ChangeError::UnknownField {
+                                field: format!("validation.{other}"),
+                            });
+                        }
+                    },
+                    "area" => {
+                        return malformed_yaml(line, "area aceita somente itens de lista");
+                    }
+                    _ => return malformed_yaml(line, "campo aninhado fora do schema"),
+                }
+            }
+            4 => return malformed_yaml(line, "esperado item de lista"),
+            _ => unreachable!(),
+        }
+    }
+    Ok(())
+}
+
+fn malformed_yaml<T>(line: usize, detail: &str) -> Result<T, ChangeError> {
+    Err(ChangeError::MalformedYaml {
+        line,
+        detail: detail.to_string(),
+    })
+}
+
+fn validate_manifest_scalar(value: &str, line: usize) -> Result<(), ChangeError> {
+    let value = value.trim();
+    if value.is_empty() {
+        return malformed_yaml(line, "valor escalar ausente");
+    }
+    if value.starts_with('\'') {
+        if value.len() < 2 || !value.ends_with('\'') {
+            return malformed_yaml(line, "aspas simples não terminadas");
+        }
+        return Ok(());
+    }
+    if !value.starts_with('"') {
+        if value.ends_with('"') || value.ends_with('\'') {
+            return malformed_yaml(line, "aspas sem abertura");
+        }
+        return Ok(());
+    }
+    if value.len() < 2 || !value.ends_with('"') {
+        return malformed_yaml(line, "aspas duplas não terminadas");
+    }
+
+    let mut chars = value[1..value.len() - 1].chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            if ch.is_control() {
+                return malformed_yaml(line, "caractere de controle não escapado");
+            }
+            continue;
+        }
+        let Some(escaped) = chars.next() else {
+            return malformed_yaml(line, "escape incompleto");
+        };
+        match escaped {
+            '"' | '\\' | 'n' | 'r' | 't' => {}
+            'u' => {
+                let digits = chars.by_ref().take(4).collect::<String>();
+                let Ok(codepoint) = u32::from_str_radix(&digits, 16) else {
+                    return malformed_yaml(line, "escape Unicode inválido");
+                };
+                if digits.len() != 4 || char::from_u32(codepoint).is_none() {
+                    return malformed_yaml(line, "escape Unicode inválido");
+                }
+            }
+            _ => return malformed_yaml(line, "escape não suportado"),
+        }
+    }
+    Ok(())
+}
+
 /// Formato permitido de id semântico: `[a-z0-9]+([._-][a-z0-9]+)*`.
 fn valid_id(id: &str) -> bool {
     if id.is_empty() {
@@ -606,15 +843,23 @@ fn pr_number_from_filename(path: &Path) -> Option<u64> {
 fn strip_inline_comment(value: &str) -> String {
     let mut in_single = false;
     let mut in_double = false;
+    let mut escaped = false;
     let mut prev_ws = true; // início do valor conta como precedido por espaço
     let mut out = String::with_capacity(value.len());
     for ch in value.chars() {
         if ch == '#' && !in_single && !in_double && prev_ws {
             break;
         }
+        if in_double && escaped {
+            escaped = false;
+            prev_ws = ch.is_whitespace();
+            out.push(ch);
+            continue;
+        }
         match ch {
             '\'' if !in_double => in_single = !in_single,
             '"' if !in_single => in_double = !in_double,
+            '\\' if in_double => escaped = true,
             _ => {}
         }
         prev_ws = ch.is_whitespace();
@@ -633,14 +878,53 @@ fn is_placeholder(value: &str) -> bool {
 
 fn unquote(value: &str) -> String {
     let value = value.trim();
-    if value.len() >= 2
-        && ((value.starts_with('"') && value.ends_with('"'))
-            || (value.starts_with('\'') && value.ends_with('\'')))
-    {
-        value[1..value.len() - 1].to_string()
-    } else {
-        value.to_string()
+    if value.len() < 2 {
+        return value.to_string();
     }
+    if value.starts_with('\'') && value.ends_with('\'') {
+        return value[1..value.len() - 1].replace("''", "'");
+    }
+    if !(value.starts_with('"') && value.ends_with('"')) {
+        return value.to_string();
+    }
+
+    let mut out = String::with_capacity(value.len() - 2);
+    let mut chars = value[1..value.len() - 1].chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            out.push(ch);
+            continue;
+        }
+        let Some(escaped) = chars.next() else {
+            out.push('\\');
+            break;
+        };
+        match escaped {
+            '"' => out.push('"'),
+            '\\' => out.push('\\'),
+            'n' => out.push('\n'),
+            'r' => out.push('\r'),
+            't' => out.push('\t'),
+            'u' => {
+                let digits = chars.by_ref().take(4).collect::<String>();
+                if digits.len() == 4 {
+                    if let Ok(code) = u32::from_str_radix(&digits, 16) {
+                        if let Some(decoded) = char::from_u32(code) {
+                            out.push(decoded);
+                            continue;
+                        }
+                    }
+                }
+                out.push_str("\\u");
+                out.push_str(&digits);
+            }
+            other => {
+                out.push('\\');
+                out.push(other);
+            }
+        }
+    }
+    out
 }
 
 fn json_string(value: &str) -> String {
@@ -745,7 +1029,56 @@ mod tests {
         let twice = reparsed.render_yaml();
         assert_eq!(once, twice);
         assert!(once.contains("number: 341"));
-        assert!(once.contains("title: Biblioteca predeclarada"));
+        assert!(once.contains("title: \"Biblioteca predeclarada"));
+    }
+
+    #[test]
+    fn yaml_text_scalars_use_canonical_json_subset_quoting() {
+        let cases = [
+            "dois: pontos",
+            "hash # literal",
+            "aspas \"duplas\"",
+            "barra \\ invertida",
+            "linha\nseguinte",
+            "- leading dash",
+            "? leading question",
+            "null",
+            "true",
+            "1234",
+            "---",
+            "&anchor",
+            "*alias",
+            "!tag",
+            "controle\u{0001}",
+        ];
+
+        for title in cases {
+            let change = Change {
+                schema: 1,
+                source: Some(Source {
+                    kind: "github-pr".to_string(),
+                    number: 411,
+                    repository: Some(format!("repo:{title}")),
+                }),
+                kind: "phase".to_string(),
+                title: title.to_string(),
+                status: "completed".to_string(),
+                ..Default::default()
+            };
+            let yaml = change.render_yaml();
+            let reparsed = Change::parse_block(&yaml).unwrap();
+            assert_eq!(reparsed.title, title, "{yaml}");
+            assert_eq!(
+                reparsed
+                    .source
+                    .as_ref()
+                    .and_then(|source| source.repository.as_deref()),
+                Some(format!("repo:{title}").as_str()),
+                "{yaml}"
+            );
+            assert_eq!(reparsed.render_yaml(), yaml);
+            assert_eq!(reparsed.ledger_json(), change.ledger_json());
+        }
     }
 
     #[test]

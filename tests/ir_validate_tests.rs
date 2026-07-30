@@ -1,12 +1,33 @@
 use pinker_v0::error::PinkerError;
 use pinker_v0::ir::{
-    BindingIR, BlockIR, FunctionIR, InstructionIR, LocalIR, ProgramIR, TypeIR, ValueIR,
+    BindingIR, BlockIR, FunctionIR, InstructionIR, LocalIR, ProgramIR, ResolvedTypeIR,
+    ResolvedTypeId, TypeIR, ValueIR,
 };
 use pinker_v0::ir_validate;
 use pinker_v0::token::{Position, Span};
 
 fn sp() -> Span {
     Span::new(Position::new(1, 1), Position::new(1, 1))
+}
+
+/// Identidade resolvida de `bombom` na tabela mínima usada por estes testes.
+fn identidade_bombom() -> ResolvedTypeId {
+    ResolvedTypeId(0)
+}
+
+/// Tabela mínima de identidades: apenas `bombom`, na posição 0.
+fn tabela_identidades_bombom() -> Vec<ResolvedTypeIR> {
+    vec![ResolvedTypeIR {
+        id: identidade_bombom(),
+        canonical_key: "bombom".to_string(),
+        representation: TypeIR::Bombom,
+        nominal_kind: None,
+        nominal_name: None,
+        pointee: None,
+        element: None,
+        signature: None,
+        union_members: None,
+    }]
 }
 
 fn base_function(ret_type: TypeIR, instructions: Vec<InstructionIR>) -> FunctionIR {
@@ -17,6 +38,7 @@ fn base_function(ret_type: TypeIR, instructions: Vec<InstructionIR>) -> Function
             source_name: "x".to_string(),
             slot: "%x#0".to_string(),
             ty: TypeIR::Bombom,
+            resolved: None,
             is_mut: true,
         }],
         ret_type,
@@ -36,6 +58,8 @@ fn base_function(ret_type: TypeIR, instructions: Vec<InstructionIR>) -> Function
 #[test]
 fn valida_ir_simples_valida() {
     let program = ProgramIR {
+        resolved_types: vec![],
+        union_types: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -59,6 +83,8 @@ fn valida_ir_simples_valida() {
 #[test]
 fn falha_retorno_invalido() {
     let program = ProgramIR {
+        resolved_types: vec![],
+        union_types: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -81,6 +107,8 @@ fn falha_retorno_invalido() {
 #[test]
 fn falha_condicao_if_invalida() {
     let program = ProgramIR {
+        resolved_types: vec![],
+        union_types: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -128,6 +156,7 @@ fn falha_chamada_invalida() {
             source_name: "a".to_string(),
             slot: "%a#0".to_string(),
             ty: TypeIR::Bombom,
+            resolved: Some(identidade_bombom()),
         }],
         locals: vec![],
         ret_type: TypeIR::Bombom,
@@ -155,6 +184,8 @@ fn falha_chamada_invalida() {
     );
 
     let program = ProgramIR {
+        resolved_types: tabela_identidades_bombom(),
+        union_types: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -198,6 +229,8 @@ fn falha_uso_incorreto_de_nulo() {
     );
 
     let program = ProgramIR {
+        resolved_types: vec![],
+        union_types: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -226,6 +259,8 @@ fn falha_bloco_malformado() {
     );
     function.entry.label = "".to_string();
     let program = ProgramIR {
+        resolved_types: vec![],
+        union_types: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -241,6 +276,8 @@ fn falha_bloco_malformado() {
 #[test]
 fn erro_ir_tem_contexto_padronizado() {
     let program = ProgramIR {
+        resolved_types: vec![],
+        union_types: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -269,8 +306,31 @@ fn erro_ir_tem_contexto_padronizado() {
 // @pinker-nav:layer evidencia
 // @pinker-nav:summary Valida manualmente a representação estrutural inicial da Fase 244 na IR: materialização explícita, snapshot concreto, vtable ordenada, chamada dinâmica com retorno ou nulo e diagnósticos para receiver e tipo concreto incompatíveis.
 
+/// Identidade resolvida de `trato<Medivel>` usada pelos programas de Fase 244
+/// construídos à mão. Um slot de `trato` tem representação ambígua e precisa de
+/// identidade explícita, exatamente como os demais tipos nominais.
+fn identidade_trato() -> ResolvedTypeId {
+    ResolvedTypeId(0)
+}
+
+fn tabela_identidades_trato() -> Vec<ResolvedTypeIR> {
+    vec![ResolvedTypeIR {
+        id: identidade_trato(),
+        canonical_key: "aplicado:5:trato[13:nome:7:Medivel]".to_string(),
+        representation: TypeIR::TraitObject,
+        nominal_kind: None,
+        nominal_name: None,
+        pointee: None,
+        element: None,
+        signature: None,
+        union_members: None,
+    }]
+}
+
 fn fase244_programa_com_funcao(function: FunctionIR) -> ProgramIR {
     ProgramIR {
+        resolved_types: tabela_identidades_trato(),
+        union_types: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -287,6 +347,7 @@ fn fase244_ir_valida_materializacao_e_chamada_dinamica_com_retorno() {
             source_name: "objeto".to_string(),
             slot: "%objeto#0".to_string(),
             ty: TypeIR::TraitObject,
+            resolved: Some(identidade_trato()),
             is_mut: false,
         }],
         ret_type: TypeIR::Bombom,
@@ -336,6 +397,7 @@ fn fase244_ir_valida_chamada_dinamica_nula_como_comando() {
             source_name: "objeto".to_string(),
             slot: "%objeto#0".to_string(),
             ty: TypeIR::TraitObject,
+            resolved: Some(identidade_trato()),
             is_mut: false,
         }],
         ret_type: TypeIR::Bombom,
@@ -429,6 +491,7 @@ fn fase244_ir_rejeita_tipo_concreto_incompatível_na_materializacao() {
             source_name: "objeto".to_string(),
             slot: "%objeto#0".to_string(),
             ty: TypeIR::TraitObject,
+            resolved: Some(identidade_trato()),
             is_mut: false,
         }],
         ret_type: TypeIR::Bombom,

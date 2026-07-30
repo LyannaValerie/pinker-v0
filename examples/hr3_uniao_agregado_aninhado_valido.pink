@@ -1,0 +1,36 @@
+pacote main;
+
+// HR3: o payload agregado pode conter **outro agregado**. `Ninhado` guarda um
+// escalar, um array fixo de três células e um escalar final: 40 bytes cujo
+// miolo é ele mesmo um agregado. A injeção copia os 40 bytes integralmente
+// para o descritor, e o `encaixe` observa a cabeça e a cauda — as duas
+// fronteiras que só coincidem se o array interno tiver sido copiado inteiro.
+ninho Ninhado {
+    cabeca: bombom;
+    miolo: [bombom; 3];
+    cauda: bombom;
+}
+
+carinho principal() -> bombom {
+    nova base: seta<Ninhado> = alocar(40) virar seta<Ninhado>;
+    (*base).cabeca = 11;
+    (*base).cauda = 15;
+
+    nova valor: uniao<Ninhado, u8> = (*base) virar uniao<Ninhado, u8>;
+
+    (*base).cabeca = 91;
+    (*base).cauda = 95;
+
+    encaixe valor {
+        caso Ninhado(ninhado) {
+            falar(ninhado.cabeca);
+            falar(ninhado.cauda);
+        }
+        caso u8(numero) {
+            falar(999);
+        }
+    }
+
+    falar((*base).cabeca);
+    mimo 0;
+}

@@ -93,7 +93,7 @@ machine:
     entry:  ; entrada da função
       vm load_slot x  ; carrega valor do slot para a pilha
       vm load_slot y  ; carrega valor do slot para a pilha
-      vm add  ; soma os dois topos da pilha
+      vm add<bombom>  ; soma os dois topos da pilha
       vm store_slot %t0  ; guarda o resultado no temporário %t0
       vm load_slot %t0  ; carrega valor do slot para a pilha
       term ret  ; retorna o valor atual da pilha
@@ -128,8 +128,8 @@ carinho principal() -> bombom {
   mimo -(x + y);
 }";
     let out = render_machine(code).unwrap();
-    assert!(out.contains("vm add  ; soma os dois topos da pilha\n      vm store_slot %t0"));
-    assert!(out.contains("vm neg  ; negação aritmética do topo\n      vm store_slot %t1"));
+    assert!(out.contains("vm add<bombom>  ; soma os dois topos da pilha\n      vm store_slot %t0"));
+    assert!(out.contains("vm neg<bombom>  ; negação aritmética do topo\n      vm store_slot %t1"));
 }
 
 // @pinker-nav:end evidencia.machine.lowering-operadores-e-temporarios
@@ -183,6 +183,7 @@ fn machine_diferente_de_selected_e_pseudo_asm() {
 #[test]
 fn machine_falha_em_programa_invalido() {
     let program = pinker_v0::abstract_machine::MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![pinker_v0::abstract_machine::MachineFunction {
@@ -206,6 +207,7 @@ fn machine_falha_em_programa_invalido() {
 #[test]
 fn machine_falha_load_slot_inexistente() {
     let program = pinker_v0::abstract_machine::MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![pinker_v0::abstract_machine::MachineFunction {

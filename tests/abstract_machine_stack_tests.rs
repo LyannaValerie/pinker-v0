@@ -10,6 +10,7 @@ use std::collections::HashMap;
 
 fn validate(function: MachineFunction) -> Result<(), String> {
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![function],
@@ -56,7 +57,7 @@ fn stack_valida_programa_simples() {
 fn stack_underflow_unaria() {
     let err = validate(fn_bombom(vec![block(
         "entry",
-        vec![MachineInstr::Neg],
+        vec![MachineInstr::Neg { ty: TypeIR::Bombom }],
         MachineTerminator::Ret,
     )]))
     .unwrap_err();
@@ -67,7 +68,10 @@ fn stack_underflow_unaria() {
 fn stack_underflow_binaria() {
     let err = validate(fn_bombom(vec![block(
         "entry",
-        vec![MachineInstr::PushInt(1), MachineInstr::Add],
+        vec![
+            MachineInstr::PushInt(1),
+            MachineInstr::Add { ty: TypeIR::Bombom },
+        ],
         MachineTerminator::Ret,
     )]))
     .unwrap_err();
@@ -82,6 +86,7 @@ fn stack_underflow_binaria() {
 #[test]
 fn stack_underflow_call() {
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![
@@ -99,7 +104,7 @@ fn stack_underflow_call() {
                     vec![
                         MachineInstr::LoadSlot("%x#0".to_string()),
                         MachineInstr::LoadSlot("%y#0".to_string()),
-                        MachineInstr::Add,
+                        MachineInstr::Add { ty: TypeIR::Bombom },
                     ],
                     MachineTerminator::Ret,
                 )],
@@ -127,6 +132,7 @@ fn stack_underflow_call() {
 #[test]
 fn stack_call_aridade_invalida() {
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![
@@ -144,7 +150,7 @@ fn stack_call_aridade_invalida() {
                     vec![
                         MachineInstr::LoadSlot("%x#0".to_string()),
                         MachineInstr::LoadSlot("%y#0".to_string()),
-                        MachineInstr::Add,
+                        MachineInstr::Add { ty: TypeIR::Bombom },
                     ],
                     MachineTerminator::Ret,
                 )],
@@ -173,6 +179,7 @@ fn stack_call_aridade_invalida() {
 #[test]
 fn stack_call_void_aridade_invalida() {
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![
@@ -208,6 +215,7 @@ fn stack_call_void_aridade_invalida() {
 #[test]
 fn stack_underflow_call_void() {
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![
@@ -557,7 +565,7 @@ fn stack_aritmetica_invalida_com_parametro_logico() {
             vec![
                 MachineInstr::LoadSlot("%p#0".to_string()),
                 MachineInstr::PushInt(1),
-                MachineInstr::Add,
+                MachineInstr::Add { ty: TypeIR::Bombom },
             ],
             MachineTerminator::Ret,
         )],
@@ -594,6 +602,7 @@ fn stack_ret_invalido_com_parametro_logico() {
 #[test]
 fn stack_call_tipo_argumento_incompativel() {
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![
@@ -641,6 +650,7 @@ fn stack_call_tipo_argumento_incompativel() {
 #[test]
 fn stack_call_void_tipo_argumento_incompativel() {
     let program = MachineProgram {
+        union_types: vec![],
         module_name: "main".to_string(),
         globals: vec![],
         functions: vec![
@@ -722,7 +732,7 @@ fn machine_invalida_nao_e_impressa() {
         slot_types: HashMap::new(),
         blocks: vec![block(
             "entry",
-            vec![MachineInstr::Neg],
+            vec![MachineInstr::Neg { ty: TypeIR::Bombom }],
             MachineTerminator::Ret,
         )],
     };

@@ -45,7 +45,7 @@ fn layout_of_type_inner(
 ) -> Result<TypeLayout, String> {
     match ty {
         // Leque abaixa para discriminante bombom; mesmo layout.
-        Type::Bombom(_) | Type::U64(_) | Type::I64(_) | Type::Enum { .. } => {
+        Type::Bombom(_) | Type::U64(_) | Type::I64(_) | Type::Enum { .. } | Type::Union { .. } => {
             Ok(TypeLayout { size: 8, align: 8 })
         }
         Type::U32(_) | Type::I32(_) => Ok(TypeLayout { size: 4, align: 4 }),

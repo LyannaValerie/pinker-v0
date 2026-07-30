@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Fase funcional mais recente | **246** — Eixo A: alocação e liberação explícitas de memória |
+| Fase funcional mais recente | **248** — Eixo A: uniões estruturais tagged |
 | Rodada documental mais recente | **Doc-49** — fundação comunitária para contribuições externas |
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
@@ -24,13 +24,13 @@
 ### Estado operacional estruturado
 
 ```yaml
-fase_funcional_mais_recente: 246
+fase_funcional_mais_recente: 248
 bloco_estruturalmente_ativo: 20
 estado_operacional: eixo_a_retomado
 expansao_funcional_eixo_a: ATIVA
 ultima_fase_antes_da_tarefa: 244
 proxima_progressao:
-  - fase_247_item_14_nao_iniciado
+  - fase_249_item_16_nao_iniciado
 retomada:
   decisao: humana_explicita_da_founder
   data: 2026-07-28
@@ -186,7 +186,33 @@ Histórico completo por fase: `docs/history/phases/`.
 
 ## 5. Próximo passo
 - Estrutura do Bloco 20 formalizada em dois eixos (Doc-41), padrão pós-Eixo B registrado na Doc-42 e convergência bare-metal formalizada na Doc-46: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado; a trilha BM permanece documental e não implementada.
-- As Fases 245 e 246 estão publicadas na PR #410 com seus contratos completos de ponteiros crus de função e regiões explícitas, sem iniciar o item 14. Qualquer avanço em ownership/lifetime ou desalocação de snapshots/descritores deve definir contrato próprio, incluindo cópia/passagem/retorno de handles, compartilhamento, momento de liberação e prevenção de double free/use-after-free.
+- A PR #411 contém as Fases 247–248 e uma continuação de hardening que preserva
+  as correções anteriores: runner confinado, executáveis autorizados
+  externamente, memória pública limitada com proveniência, arquivos por
+  descritor, subprocessos determinísticos, saída uniforme e YAML canônico. A
+  autoridade terminal de revisão e merge permanece humana.
+- A revisão humana da PR #411 é corrigida em runs separados. Já entregues: o
+  bypass de diretiva em `sussurro` (HR2), a reserva do namespace
+  `__pinker_internal_` para identificadores da fonte (HR5) e o `encaixe` de
+  união tipado com tags exclusivamente do registry canônico (HR1, que também
+  fecha a parcela de HR5 referente a chamadas internas na AST/IR) e a
+  identidade semântica de tipos em uniões (HR4): `ResolvedTypeId` é internado
+  por programa e separado da representação operacional `TypeIR`, apelidos são
+  transparentes em profundidade, a injeção casa o membro por igualdade exata
+  sem desempate por primeira ocorrência e a identidade atravessa bindings,
+  parâmetros, retornos, chamadas diretas e indiretas, ternários, callables,
+  closures, capturas, extração e reinjeção. Entregue também a representação de
+  payloads estruturais (HR3): o valor público continua sendo um handle de uma
+  palavra, mas o descritor passou a guardar um snapshot alinhado do payload
+  completo; os membros são classificados exaustivamente em escalar, handle
+  opaco e agregado por uma autoridade única (`src/union_payload.rs`); o
+  fallback `(8, 8)` foi removido e layouts desconhecidos são recusados antes da
+  IR validada com códigos `E-SEMANTIC-UNION-PAYLOAD-*`; a criação copia a
+  origem integralmente e a extração copia para storage novo do binding, com
+  orçamentos explícitos de descritores, bytes e metadata revalidados no runtime
+  nativo e no interpretador. **Nenhum finding da revisão humana original
+  permanece aberto**; ainda assim, o head da PR #411 exige nova revisão humana
+  integral e a decisão de merge continua exclusiva da Founder.
 - `alocar`/`liberar` é mecanismo separado da política de lifetime dos valores internos que usam heap; a API pública não libera ambientes de closure, descritores de callable, snapshots de trato, coleções ou strings.
 - Qualquer fase que toque o layout ou o tamanho do ambiente deve incluir gate de underallocation que observe diretamente os bytes solicitados por instrumentação, metadado, canário ou fronteira de arredondamento; resultado funcional isolado não é evidência suficiente. No recorte atual de uma palavra por captura, o tamanho exigido é `capturas * tamanho_da_palavra`, com overflow verificado. Para capturas futuras multi-palavra, deve ser o tamanho final alinhado do ambiente: tamanho e alinhamento de cada captura, offset alinhado, padding intermediário, alinhamento final e toda aritmética com detecção de overflow; soma simples dos tamanhos é insuficiente.
 - O item 5 pode avançar para diagnósticos enriquecidos ou métodos utilitários; o item 4 pode avançar apenas em extensões fora do contrato 244. Em qualquer caso, sem recorte mínimo automático, com lowering nativo obrigatório e com fatia vertical utilizável.

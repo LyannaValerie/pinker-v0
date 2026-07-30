@@ -72,7 +72,7 @@ Cumprida no fechamento do Bloco 18 (Fase 207): 18.6 concluído para as 7 famíli
 |---|---|---|---|
 | 12 | Ponteiros de função / tipos função | C, C++, TS | **entregue na Fase 245**: `seta<carinho(P...) -> R>`, aliases, `&funcao`/`&generica<T>`, ciclo de valor completo, identidade/null e chamada indireta tipada de aridade geral sobre todo o universo ABI de uma palavra; endereço cru sem descritor nem `__env`, separado de callables, closures e vtables |
 | 13 | Alocador de memória (`alocar`/`liberar`) | C | **entregue na Fase 246**: regiões zeradas e alinhadas com identidade, tamanho, estado, proveniência e domínio; validação interpretada e nativa de base/interior, vida, limites, alinhamento, double free, ponteiro estrangeiro e falha de alocação; mecanismo explícito, não política de ownership |
-| 14 | Inline assembly real (lowering completo de `sussurro`) | C | `mov cr3`, `lgdt`, `iret` etc. |
+| 14 | Inline assembly real (lowering completo de `sussurro`) | C | **entregue na Fase 247**: chunks GNU Intel x86-64 atravessam o pipeline e são emitidos com wrappers de dialeto; interpretação falha explicitamente |
 
 ### Trilha transversal — bare-metal e bootstrap (Doc-46)
 
@@ -91,7 +91,7 @@ Cada frente pode exigir várias fases, mas nenhuma fase fecha como stub ou demon
 
 | # | Item | Inspiração |
 |---|---|---|
-| 15 | Union types / tagged unions | C, C++, Rust |
+| 15 | Union types / tagged unions | C, C++, Rust — **entregue na Fase 248** com `uniao<T...>`, canonicalização, tags determinísticas, injeção explícita e `encaixe` exaustivo; sob correção da revisão humana da PR #411: `encaixe` já é construto tipado com tags exclusivamente do registry canônico e a injeção já casa o membro por identidade semântica resolvida (`ResolvedTypeId`), distinta da representação operacional (`TypeIR`), com apelidos transparentes em profundidade e sem desempate por primeira ocorrência; os payloads estruturais passaram a ser suportados (HR3) com classificação exaustiva de representação, snapshot alinhado multi-palavra no descritor, ABI de criação e extração por endereço e orçamentos explícitos, sem o fallback `(8, 8)` |
 | 16 | Tuplas | Python, Rust, TS |
 | 17 | Inferência de tipo local | TS, Rust, C# |
 

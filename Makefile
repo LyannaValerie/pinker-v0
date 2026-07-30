@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: preflight build test fmt-check clippy guard ci run-example check-example audit-example smoke docs-sync docs-check nav-sync nav-check
+.PHONY: preflight build check test fmt-check clippy doc-check guard change-history-check ci run-example check-example audit-example smoke docs-sync docs-check nav-sync nav-check
 
 CI_ENV := ./ci_env.sh
 
@@ -12,6 +12,9 @@ preflight:
 build:
 	$(CI_ENV) cargo build --locked
 
+check:
+	$(CI_ENV) cargo check --locked
+
 test:
 	$(CI_ENV) cargo test --locked
 
@@ -21,8 +24,14 @@ fmt-check:
 clippy:
 	$(CI_ENV) cargo clippy --all-targets --all-features -- -D warnings
 
+doc-check:
+	RUSTDOCFLAGS="-D warnings" $(CI_ENV) cargo doc --locked --no-deps
+
 guard:
 	$(CI_ENV) cargo run --bin pink -- --run apps/guardiao_pinker/principal.pink -- --repo .
+
+change-history-check:
+	$(CI_ENV) cargo test --locked --test change_history_coverage_tests
 
 # Trama Pinker — catálogo documental (Etapa 2).
 # `sync` é executado pelo agente/desenvolvedor; `check` roda no CI e não corrige.
@@ -39,7 +48,7 @@ nav-sync:
 nav-check:
 	$(CI_ENV) cargo run --bin pink -- nav verificar
 
-ci: preflight build test fmt-check clippy guard docs-check nav-check
+ci: preflight build check test fmt-check clippy doc-check guard docs-check nav-check change-history-check
 
 run-example:
 	$(CI_ENV) cargo run --bin pink -- $(EX)

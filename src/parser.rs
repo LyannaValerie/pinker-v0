@@ -559,6 +559,27 @@ impl Parser {
         } else if self.match_token(TokenKind::KwVerso) {
             Ok(Type::Verso(span))
         } else if self.match_token(TokenKind::Ident) {
+            if self.previous().lexeme == "uniao" && self.match_token(TokenKind::Less) {
+                let mut members = Vec::new();
+                loop {
+                    members.push(self.parse_type()?);
+                    if !self.match_token(TokenKind::Comma) {
+                        break;
+                    }
+                }
+                self.consume(TokenKind::Greater, ">")?;
+                if members.len() < 2 {
+                    return Err(PinkerError::Expected {
+                        expected: "ao menos dois membros em uniao<T1, T2, ...>".to_string(),
+                        found: format!("{} membro(s)", members.len()),
+                        span: merge_span(span, self.previous().span),
+                    });
+                }
+                return Ok(Type::Union {
+                    members,
+                    span: merge_span(span, self.previous().span),
+                });
+            }
             if self.previous().lexeme == "lista" && self.match_token(TokenKind::Less) {
                 let inner = self.parse_type()?;
                 self.consume(TokenKind::Greater, ">")?;
@@ -957,6 +978,9 @@ impl Parser {
         let start_span = self.previous().span;
         let scrutinee = self.parse_expr()?;
         self.consume(TokenKind::LBrace, "{")?;
+        if self.check(TokenKind::KwCaso) && !self.check_at(2, TokenKind::Dot) {
+            return self.parse_union_encaixe_after_header(start_span, scrutinee);
+        }
 
         struct EncaixeArm {
             variant: String,
@@ -1251,6 +1275,59 @@ impl Parser {
         };
 
         Ok(vec![target_stmt, Stmt::If(*root_if)])
+    }
+
+    /// Reconhece `encaixe` sobre união estrutural e **preserva** o construto.
+    ///
+    /// O parser não conhece tags: não resolve apelidos, não ordena braços, não
+    /// gera literais de tag, não gera `talvez` aninhado e não fabrica chamadas
+    /// internas. A identidade semântica de cada braço é atribuída depois, pela
+    /// semântica e pelo lowering, a partir do tipo resolvido do membro.
+    fn parse_union_encaixe_after_header(
+        &mut self,
+        start_span: Span,
+        scrutinee: Expr,
+    ) -> Result<Vec<Stmt>, PinkerError> {
+        let mut arms: Vec<UnionMatchArm> = Vec::new();
+        while !self.check(TokenKind::RBrace) && self.peek().is_some() {
+            if self.match_token(TokenKind::KwSenao) {
+                return Err(PinkerError::Parse {
+                    msg: "'senao' não substitui cobertura exaustiva de união nesta fase"
+                        .to_string(),
+                    span: self.previous().span,
+                });
+            }
+            self.consume(TokenKind::KwCaso, "caso")?;
+            let arm_span = self.previous().span;
+            let member_type = self.parse_type()?;
+            self.consume(TokenKind::LParen, "(")?;
+            let binding = self
+                .consume(TokenKind::Ident, "binding do membro da união")?
+                .lexeme
+                .clone();
+            self.consume(TokenKind::RParen, ")")?;
+            let body = self.parse_block()?;
+            arms.push(UnionMatchArm {
+                member_type,
+                binding,
+                body,
+                span: arm_span,
+            });
+        }
+        self.consume(TokenKind::RBrace, "}")?;
+        let match_span = merge_span(start_span, self.previous().span);
+        if arms.len() < 2 {
+            return Err(PinkerError::Parse {
+                msg: "encaixe de união exige ao menos dois membros".to_string(),
+                span: match_span,
+            });
+        }
+
+        Ok(vec![Stmt::UnionMatch(UnionMatchStmt {
+            scrutinee,
+            arms,
+            span: match_span,
+        })])
     }
 
     // @pinker-nav:end parser.encaixe.expressao
@@ -2287,6 +2364,14 @@ impl Parser {
             Type::MapVersoVerso(_) => "mapa_verso_verso".to_string(),
             Type::MapBombomBombom(_) => "mapa_bombom_bombom".to_string(),
             Type::MapBombomVerso(_) => "mapa_bombom_verso".to_string(),
+            Type::Union { members, .. } => format!(
+                "uniao_{}",
+                members
+                    .iter()
+                    .map(Self::generic_type_key)
+                    .collect::<Vec<_>>()
+                    .join("_")
+            ),
             Type::Alias { name, .. }
             | Type::Struct { name, .. }
             | Type::Enum { name, .. }
@@ -2686,6 +2771,20 @@ impl Parser {
                 span: falar.span,
             }),
             Stmt::InlineAsm(stmt) => Stmt::InlineAsm(stmt.clone()),
+            Stmt::UnionMatch(union_match) => Stmt::UnionMatch(UnionMatchStmt {
+                scrutinee: Self::substitute_expr(&union_match.scrutinee, substitutions),
+                arms: union_match
+                    .arms
+                    .iter()
+                    .map(|arm| UnionMatchArm {
+                        member_type: Self::substitute_type(&arm.member_type, substitutions),
+                        binding: arm.binding.clone(),
+                        body: Self::substitute_block(&arm.body, substitutions),
+                        span: arm.span,
+                    })
+                    .collect(),
+                span: union_match.span,
+            }),
             Stmt::Expr(expr) => Stmt::Expr(Self::substitute_expr(expr, substitutions)),
         }
     }
@@ -2874,6 +2973,23 @@ impl Parser {
                 span: falar.span,
             }),
             Stmt::InlineAsm(stmt) => Stmt::InlineAsm(stmt.clone()),
+            Stmt::UnionMatch(union_match) => Stmt::UnionMatch(UnionMatchStmt {
+                scrutinee: Self::substitute_function_param_expr(
+                    &union_match.scrutinee,
+                    replacements,
+                ),
+                arms: union_match
+                    .arms
+                    .iter()
+                    .map(|arm| UnionMatchArm {
+                        member_type: arm.member_type.clone(),
+                        binding: arm.binding.clone(),
+                        body: Self::substitute_function_param_block(&arm.body, replacements),
+                        span: arm.span,
+                    })
+                    .collect(),
+                span: union_match.span,
+            }),
             Stmt::Expr(expr) => {
                 Stmt::Expr(Self::substitute_function_param_expr(expr, replacements))
             }

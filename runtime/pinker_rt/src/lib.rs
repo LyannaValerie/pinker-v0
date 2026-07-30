@@ -16,6 +16,7 @@
 
 use std::alloc::{alloc, dealloc, Layout};
 use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
+use std::sync::Once;
 
 // @pinker-nav:start runtime.inicializacao.bootstrap
 // @pinker-nav:domain inicializacao
@@ -117,10 +118,116 @@ struct AlocacaoPublica {
     identidade: u64,
     base: usize,
     tamanho: usize,
+    reservado: usize,
     viva: bool,
 }
 
-static ALOCACOES_PUBLICAS: Mutex<Vec<AlocacaoPublica>> = Mutex::new(Vec::new());
+const PAGINA_PUBLICA: usize = 4096;
+const MAX_IDENTIDADES_PUBLICAS: usize = 1_000_000;
+const MAX_METADATA_PUBLICA_BYTES: usize =
+    MAX_IDENTIDADES_PUBLICAS * std::mem::size_of::<AlocacaoPublica>();
+const MAX_QUARENTENA_FISICA_BYTES: usize = 0;
+const MAX_ESPACO_VIRTUAL_PUBLICO_BYTES: usize = 8 * 1024 * 1024 * 1024;
+
+struct MemoriaPublica {
+    arena_base: usize,
+    proximo_offset: usize,
+    proxima_identidade: u64,
+    alocacoes: Vec<AlocacaoPublica>,
+}
+
+#[cfg(target_os = "linux")]
+fn reservar_arena_publica() -> usize {
+    use std::ffi::c_void;
+
+    extern "C" {
+        fn mmap(
+            address: *mut c_void,
+            length: usize,
+            protection: i32,
+            flags: i32,
+            fd: i32,
+            offset: isize,
+        ) -> *mut c_void;
+    }
+    const PROT_NONE: i32 = 0;
+    const MAP_PRIVATE: i32 = 0x02;
+    const MAP_ANONYMOUS: i32 = 0x20;
+    const MAP_NORESERVE: i32 = 0x4000;
+    let base = unsafe {
+        mmap(
+            std::ptr::null_mut(),
+            MAX_ESPACO_VIRTUAL_PUBLICO_BYTES,
+            PROT_NONE,
+            MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+            -1,
+            0,
+        )
+    };
+    if base as usize == usize::MAX {
+        erro_memoria_publica("arena virtual pública indisponível");
+    }
+    base as usize
+}
+
+#[cfg(not(target_os = "linux"))]
+fn reservar_arena_publica() -> usize {
+    erro_memoria_publica("arena pública limitada indisponível neste target")
+}
+
+fn memoria_publica() -> &'static Mutex<MemoriaPublica> {
+    static MEMORIA: OnceLock<Mutex<MemoriaPublica>> = OnceLock::new();
+    MEMORIA.get_or_init(|| {
+        Mutex::new(MemoriaPublica {
+            arena_base: reservar_arena_publica(),
+            proximo_offset: 0,
+            proxima_identidade: 1,
+            alocacoes: Vec::new(),
+        })
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn comprometer_paginas_publicas(base: usize, tamanho: usize) -> Result<(), ()> {
+    use std::ffi::c_void;
+
+    extern "C" {
+        fn mprotect(address: *mut c_void, length: usize, protection: i32) -> i32;
+    }
+    const PROT_READ: i32 = 1;
+    const PROT_WRITE: i32 = 2;
+    (unsafe { mprotect(base as *mut c_void, tamanho, PROT_READ | PROT_WRITE) } == 0)
+        .then_some(())
+        .ok_or(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn comprometer_paginas_publicas(_base: usize, _tamanho: usize) -> Result<(), ()> {
+    Err(())
+}
+
+#[cfg(target_os = "linux")]
+fn descomprometer_paginas_publicas(base: usize, tamanho: usize) -> Result<(), ()> {
+    use std::ffi::c_void;
+
+    extern "C" {
+        fn madvise(address: *mut c_void, length: usize, advice: i32) -> i32;
+        fn mprotect(address: *mut c_void, length: usize, protection: i32) -> i32;
+    }
+    const MADV_DONTNEED: i32 = 4;
+    const PROT_NONE: i32 = 0;
+    if unsafe { madvise(base as *mut c_void, tamanho, MADV_DONTNEED) } != 0 {
+        return Err(());
+    }
+    (unsafe { mprotect(base as *mut c_void, tamanho, PROT_NONE) } == 0)
+        .then_some(())
+        .ok_or(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn descomprometer_paginas_publicas(_base: usize, _tamanho: usize) -> Result<(), ()> {
+    Err(())
+}
 
 fn indice_base_publica_mais_recente(registro: &[AlocacaoPublica], base: usize) -> Option<usize> {
     registro.iter().rposition(|alocacao| alocacao.base == base)
@@ -131,15 +238,15 @@ fn erro_memoria_publica(mensagem: &str) -> ! {
     std::process::exit(1);
 }
 
-fn falha_publica_injetada() -> bool {
-    #[cfg(debug_assertions)]
-    {
-        std::env::var_os("PINKER_TESTE_FALHA_ALOCACAO_PUBLICA").is_some()
-    }
-    #[cfg(not(debug_assertions))]
-    {
-        false
-    }
+fn intervalo_publico_contido(
+    inicio_regiao: usize,
+    tamanho_regiao: usize,
+    inicio_acesso: usize,
+    largura_acesso: usize,
+) -> Result<bool, ()> {
+    let fim_regiao = inicio_regiao.checked_add(tamanho_regiao).ok_or(())?;
+    let fim_acesso = inicio_acesso.checked_add(largura_acesso).ok_or(())?;
+    Ok(inicio_acesso >= inicio_regiao && fim_acesso <= fim_regiao)
 }
 
 /// Fase 246: entrada pública de `alocar`. Diferentemente de
@@ -147,6 +254,11 @@ fn falha_publica_injetada() -> bool {
 /// registra ownership para que `liberar` possa validar a origem.
 #[no_mangle]
 pub extern "C" fn pinker_publico_alocar(tamanho: u64) -> *mut u8 {
+    debug_assert_eq!(
+        MAX_METADATA_PUBLICA_BYTES,
+        MAX_IDENTIDADES_PUBLICAS * std::mem::size_of::<AlocacaoPublica>()
+    );
+    debug_assert_eq!(MAX_QUARENTENA_FISICA_BYTES, 0);
     if tamanho == 0 {
         erro_memoria_publica("'alocar' rejeita tamanho zero");
     }
@@ -155,30 +267,45 @@ pub extern "C" fn pinker_publico_alocar(tamanho: u64) -> *mut u8 {
     if tamanho_usize > (isize::MAX as usize).saturating_sub(CABECALHO) {
         erro_memoria_publica("'alocar' excede o maior bloco representável pela plataforma");
     }
-    if falha_publica_injetada() {
-        erro_memoria_publica("'alocar' falhou ao reservar memória");
-    }
-    let mut registro = ALOCACOES_PUBLICAS
+    let reservado = tamanho_usize
+        .checked_add(PAGINA_PUBLICA - 1)
+        .map(|valor| valor & !(PAGINA_PUBLICA - 1))
+        .unwrap_or_else(|| erro_memoria_publica("overflow ao alinhar alocação pública"));
+    let mut memoria = memoria_publica()
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
-    registro
+    if memoria.alocacoes.len() >= MAX_IDENTIDADES_PUBLICAS {
+        erro_memoria_publica("limite de identidades públicas esgotado");
+    }
+    memoria
+        .alocacoes
         .try_reserve(1)
         .unwrap_or_else(|_| erro_memoria_publica("metadata pública de alocações esgotada"));
-    let identidade = registro
-        .last()
-        .map_or(Some(1), |alocacao| alocacao.identidade.checked_add(1))
+    let identidade = memoria.proxima_identidade;
+    memoria.proxima_identidade = identidade
+        .checked_add(1)
         .unwrap_or_else(|| erro_memoria_publica("identidade pública de alocação esgotada"));
-    let ponteiro = pinker_alocar(tamanho);
-    if ponteiro.is_null() {
-        erro_memoria_publica("'alocar' falhou ao reservar memória");
-    }
+    let fim = memoria
+        .proximo_offset
+        .checked_add(reservado)
+        .filter(|fim| *fim <= MAX_ESPACO_VIRTUAL_PUBLICO_BYTES)
+        .unwrap_or_else(|| erro_memoria_publica("espaço virtual público esgotado"));
+    let base = memoria
+        .arena_base
+        .checked_add(memoria.proximo_offset)
+        .unwrap_or_else(|| erro_memoria_publica("overflow na arena pública"));
+    comprometer_paginas_publicas(base, reservado)
+        .unwrap_or_else(|_| erro_memoria_publica("'alocar' falhou ao comprometer memória"));
+    let ponteiro = base as *mut u8;
     unsafe {
         ponteiro.write_bytes(0, tamanho_usize);
     }
-    registro.push(AlocacaoPublica {
+    memoria.proximo_offset = fim;
+    memoria.alocacoes.push(AlocacaoPublica {
         identidade,
-        base: ponteiro as usize,
+        base,
         tamanho: tamanho_usize,
+        reservado,
         viva: true,
     });
     ponteiro
@@ -198,28 +325,35 @@ pub unsafe extern "C" fn pinker_publico_liberar(ponteiro: *mut u8) {
     if ponteiro.is_null() {
         erro_memoria_publica("'liberar' rejeita ponteiro nulo");
     }
-    let mut registro = ALOCACOES_PUBLICAS
+    let mut memoria = memoria_publica()
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
-    if let Some(indice) = indice_base_publica_mais_recente(&registro, ponteiro as usize) {
-        let alocacao = &mut registro[indice];
+    if let Some(indice) = indice_base_publica_mais_recente(&memoria.alocacoes, ponteiro as usize) {
+        let alocacao = &mut memoria.alocacoes[indice];
         if !alocacao.viva {
-            erro_memoria_publica("'liberar' detectou double free");
+            erro_memoria_publica("E-RUNTIME-MEM-DOUBLE-FREE: 'liberar' detectou double free");
         }
         debug_assert!(alocacao.identidade > 0);
         debug_assert!(alocacao.tamanho > 0);
+        descomprometer_paginas_publicas(alocacao.base, alocacao.reservado)
+            .unwrap_or_else(|_| erro_memoria_publica("falha ao descomprometer memória pública"));
         alocacao.viva = false;
-        // Quarentena física até o término do processo: um endereço nunca é
-        // reciclado para esconder double free ou revalidar alias obsoleto.
         return;
     }
     let endereco = ponteiro as usize;
-    if registro.iter().any(|alocacao| {
-        endereco > alocacao.base && endereco <= alocacao.base.saturating_add(alocacao.tamanho)
+    if memoria.alocacoes.iter().any(|alocacao| {
+        alocacao
+            .base
+            .checked_add(alocacao.tamanho)
+            .is_some_and(|fim| endereco > alocacao.base && endereco < fim)
     }) {
-        erro_memoria_publica("'liberar' rejeita ponteiro interior; use o ponteiro-base");
+        erro_memoria_publica(
+            "E-RUNTIME-MEM-INTERIOR-FREE: 'liberar' rejeita ponteiro interior; use o ponteiro-base",
+        );
     }
-    erro_memoria_publica("'liberar' rejeita ponteiro estrangeiro ou de domínio interno");
+    erro_memoria_publica(
+        "E-RUNTIME-MEM-FOREIGN-FREE: 'liberar' rejeita ponteiro estrangeiro ou de domínio interno",
+    );
 }
 
 #[no_mangle]
@@ -236,32 +370,45 @@ pub extern "C" fn pinker_publico_validar_acesso(
     if largura == 0 || alinhamento == 0 || !alinhamento.is_power_of_two() {
         erro_memoria_publica("metadados inválidos de acesso à memória pública");
     }
-    let fim_acesso = endereco
-        .checked_add(largura)
-        .unwrap_or_else(|| erro_memoria_publica("overflow no acesso à memória pública"));
-    let registro = ALOCACOES_PUBLICAS
+    let fim_acesso = endereco.checked_add(largura).unwrap_or_else(|| {
+        erro_memoria_publica("E-RUNTIME-MEM-ADDRESS-OVERFLOW: overflow no acesso à memória pública")
+    });
+    let memoria = memoria_publica()
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
-    let candidata = registro.iter().rev().find(|alocacao| {
-        let fim = alocacao.base.saturating_add(alocacao.tamanho);
+    let candidata = memoria.alocacoes.iter().rev().find(|alocacao| {
+        let Some(fim) = alocacao.base.checked_add(alocacao.tamanho) else {
+            return false;
+        };
         (endereco >= alocacao.base && endereco <= fim)
             || (endereco < alocacao.base && fim_acesso > alocacao.base)
     });
     let Some(alocacao) = candidata else {
-        return;
+        erro_memoria_publica("E-RUNTIME-MEM-UNKNOWN-ACCESS: acesso sem região pública registrada");
     };
     if !alocacao.viva {
-        erro_memoria_publica("uso após liberar detectado em memória pública");
+        erro_memoria_publica(
+            "E-RUNTIME-MEM-USE-AFTER-FREE: uso após liberar detectado em memória pública",
+        );
     }
     if endereco % alinhamento != 0 {
-        erro_memoria_publica("acesso desalinhado à memória pública");
+        erro_memoria_publica("E-RUNTIME-MEM-MISALIGNED: acesso desalinhado à memória pública");
     }
-    let fim_regiao = alocacao
-        .base
-        .checked_add(alocacao.tamanho)
-        .unwrap_or_else(|| erro_memoria_publica("metadados de região pública inválidos"));
-    if endereco < alocacao.base || fim_acesso > fim_regiao {
-        erro_memoria_publica("acesso fora dos limites da alocação pública");
+    let contido = intervalo_publico_contido(alocacao.base, alocacao.tamanho, endereco, largura)
+        .unwrap_or_else(|_| {
+            erro_memoria_publica(
+                "E-RUNTIME-MEM-ADDRESS-OVERFLOW: metadados de região pública inválidos",
+            )
+        });
+    if !contido {
+        if endereco >= alocacao.base {
+            erro_memoria_publica(
+                "E-RUNTIME-MEM-CROSS-BOUNDARY: acesso multibyte cruza o limite da alocação pública",
+            );
+        }
+        erro_memoria_publica(
+            "E-RUNTIME-MEM-OUT-OF-BOUNDS: acesso fora dos limites da alocação pública",
+        );
     }
 }
 
@@ -269,25 +416,35 @@ pub extern "C" fn pinker_publico_validar_acesso(
 pub extern "C" fn pinker_publico_validar_derivacao(origem: *const u8, derivado: *const u8) {
     let origem = origem as usize;
     let derivado = derivado as usize;
-    let registro = ALOCACOES_PUBLICAS
+    let memoria = memoria_publica()
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
-    let candidata = registro.iter().rev().find(|alocacao| {
+    let candidata = memoria.alocacoes.iter().rev().find(|alocacao| {
         let fim = alocacao.base.saturating_add(alocacao.tamanho);
         origem >= alocacao.base && origem <= fim
     });
     let Some(alocacao) = candidata else {
-        return;
+        erro_memoria_publica(
+            "E-RUNTIME-MEM-UNKNOWN-DERIVATION: origem sem região pública registrada",
+        );
     };
     if !alocacao.viva {
-        erro_memoria_publica("uso após liberar detectado em memória pública");
+        erro_memoria_publica(
+            "E-RUNTIME-MEM-USE-AFTER-FREE: uso após liberar detectado em memória pública",
+        );
     }
     let fim = alocacao
         .base
         .checked_add(alocacao.tamanho)
-        .unwrap_or_else(|| erro_memoria_publica("metadados de região pública inválidos"));
+        .unwrap_or_else(|| {
+            erro_memoria_publica(
+                "E-RUNTIME-MEM-ADDRESS-OVERFLOW: metadados de região pública inválidos",
+            )
+        });
     if derivado < alocacao.base || derivado > fim {
-        erro_memoria_publica("derivação fora dos limites da alocação pública");
+        erro_memoria_publica(
+            "E-RUNTIME-MEM-OUT-OF-BOUNDS: derivação fora dos limites da alocação pública",
+        );
     }
 }
 
@@ -674,23 +831,50 @@ formatar_wrappers!(
 // @pinker-nav:start runtime.io.saida
 // @pinker-nav:domain io
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Impressão de falar sem buffer próprio: escreve bombom/logica/verso diretamente em stdout (print!/println!/write_all) espelhando as instruções PrintIntInline/PrintBoolInline/PrintStrValueInline/PrintSpace/PrintNewline do interpretador; erros de escrita em pinker_falar_pedaco_verso são silenciosamente ignorados (`let _ =`).
+// @pinker-nav:summary Impressão uniforme de falar: bombom/logica/verso/espaço/newline passam pelo mesmo writer com write_all+flush; SIGPIPE é ignorado em Unix para que pipe fechado retorne erro, e toda falha de stdout termina pelo diagnóstico controlado de erro_fatal.
+#[cfg(unix)]
+fn preparar_stdout() {
+    static PREPARAR: Once = Once::new();
+    PREPARAR.call_once(|| unsafe {
+        extern "C" {
+            fn signal(signal: i32, handler: usize) -> usize;
+        }
+        const SIGPIPE: i32 = 13;
+        const SIG_IGN: usize = 1;
+        signal(SIGPIPE, SIG_IGN);
+    });
+}
+
+#[cfg(not(unix))]
+fn preparar_stdout() {}
+
+fn escrever_stdout(bytes: &[u8]) {
+    use std::io::Write as _;
+
+    preparar_stdout();
+    let stdout = std::io::stdout();
+    let mut lock = stdout.lock();
+    lock.write_all(bytes)
+        .and_then(|()| lock.flush())
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao escrever stdout: {err}")));
+}
+
 /// Imprime um `bombom` decimal sem quebra de linha.
 #[no_mangle]
 pub extern "C" fn pinker_falar_pedaco_bombom(valor: u64) {
-    print!("{}", valor);
+    escrever_stdout(valor.to_string().as_bytes());
 }
 
 /// Imprime um inteiro com sinal decimal sem quebra de linha.
 #[no_mangle]
 pub extern "C" fn pinker_falar_pedaco_inteiro(valor: i64) {
-    print!("{}", valor);
+    escrever_stdout(valor.to_string().as_bytes());
 }
 
 /// Imprime uma `logica` como `verdade`/`falso` sem quebra de linha.
 #[no_mangle]
 pub extern "C" fn pinker_falar_pedaco_logica(valor: u64) {
-    print!("{}", if valor != 0 { "verdade" } else { "falso" });
+    escrever_stdout(if valor != 0 { b"verdade" } else { b"falso" });
 }
 
 /// Imprime os bytes de um verso sem quebra de linha.
@@ -699,23 +883,19 @@ pub extern "C" fn pinker_falar_pedaco_logica(valor: u64) {
 /// `v` deve apontar para um bloco de verso válido.
 #[no_mangle]
 pub unsafe extern "C" fn pinker_falar_pedaco_verso(v: *const u8) {
-    use std::io::Write;
-    let bytes = verso_bytes(v);
-    let stdout = std::io::stdout();
-    let mut lock = stdout.lock();
-    let _ = lock.write_all(bytes);
+    escrever_stdout(verso_bytes(v));
 }
 
 /// Separador entre argumentos de `falar` (espaço simples).
 #[no_mangle]
 pub extern "C" fn pinker_falar_espaco() {
-    print!(" ");
+    escrever_stdout(b" ");
 }
 
 /// Fim de um `falar` (quebra de linha; o LineWriter da std faz o flush).
 #[no_mangle]
 pub extern "C" fn pinker_falar_fim() {
-    println!();
+    escrever_stdout(b"\n");
 }
 // @pinker-nav:end runtime.io.saida
 
@@ -738,6 +918,18 @@ const LISTA_CAP_INICIAL: u64 = 8;
 fn erro_fatal(msg: &str) -> ! {
     eprintln!("Erro de Execução (pinker_rt): {}", msg);
     std::process::exit(1)
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_erro_shift_count(contagem: u64, largura: u64) -> ! {
+    erro_fatal(&format!(
+        "E-RUNTIME-SHIFT-COUNT: contagem {contagem} fora da largura {largura}"
+    ))
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_erro_divisao_zero() -> ! {
+    erro_fatal("divisão por zero")
 }
 
 unsafe fn lista_len(l: *mut u8) -> u64 {
@@ -1192,30 +1384,403 @@ pub unsafe extern "C" fn pinker_leque_carga(l: *mut u8, tag: u64, indice: u64) -
 // @pinker-nav:end runtime.leques.variantes
 
 // ---------------------------------------------------------------------------
+// Uniões estruturais tagged (Fase 248)
+//
+// O valor que atravessa a ABI é sempre uma palavra: ponteiro para este
+// descritor imutável. A alocação é deliberadamente privada (Box) e portanto
+// não pertence ao domínio público de pinker_alocar/pinker_liberar. O lifetime
+// é monotônico nesta fase.
+// ---------------------------------------------------------------------------
+
+// @pinker-nav:start runtime.unioes.descritor
+// @pinker-nav:domain unioes
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Descritor imutável de união estrutural com identidade internada, tag determinística, layout validado e snapshot integral do payload — escalar, handle opaco ou agregado multi-palavra copiado byte a byte para storage próprio do descritor; a contabilidade de descritores, bytes de payload e bytes de metadata é feita por uma unidade pura e atômica (`union_budget_reserve`), e criação e leitura usam uma ABI interna separada da memória pública.
+/// Marca do descritor. Um handle que não a apresente não é um descritor criado
+/// por este runtime, e nenhuma leitura adicional é feita nele.
+const UNION_MAGIC: u64 = 0x504b_5f55_4e49_4f31;
+
+/// Tetos de recurso. São os mesmos valores documentados em
+/// `crate::union_payload` do compilador; a duplicação é a fronteira da ABI, não
+/// uma segunda política.
+const MAX_UNION_PAYLOAD_BYTES: u64 = 4096;
+const MAX_UNION_PAYLOAD_ALIGN: u64 = 16;
+const MAX_UNION_DESCRIPTORS: u64 = 1_000_000;
+const MAX_UNION_TOTAL_PAYLOAD_BYTES: u64 = 256 * 1024 * 1024;
+const UNION_DESCRIPTOR_METADATA_BYTES: u64 = 8 * 8;
+const MAX_UNION_METADATA_BYTES: u64 = MAX_UNION_DESCRIPTORS * UNION_DESCRIPTOR_METADATA_BYTES;
+
+/// Cabeçalho do descritor imutável de união.
+///
+/// O payload vive **no mesmo bloco**, a partir de `payload_offset` já alinhado.
+/// Um único bloco mantém ownership e validação triviais: o descritor é dono de
+/// tudo que devolve, e nada aponta para o storage do chamador.
+#[repr(C)]
+struct PinkerUnionDescriptor {
+    magic: u64,
+    union_type_id: u64,
+    tag: u64,
+    payload_size: u64,
+    payload_align: u64,
+    payload_offset: u64,
+    allocation_size: u64,
+    allocation_align: u64,
+}
+
+/// Contabilidade corrente dos recursos de união.
+///
+/// É um valor puro: não conhece alocador, mutex nem handle. Isso permite provar
+/// cada fronteira de orçamento sem materializar um milhão de descritores e sem
+/// atravessar a fronteira fatal de `erro_fatal`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+struct UnionBudget {
+    descriptors: u64,
+    payload_bytes: u64,
+    metadata_bytes: u64,
+}
+
+/// Tetos aplicáveis a um `UnionBudget`.
+///
+/// O runtime de produção usa exclusivamente [`UNION_BUDGET_LIMITS`], derivado
+/// das constantes canônicas. Os testes passam limites pequenos pelo mesmo
+/// parâmetro — não há variável de ambiente e o comportamento não muda entre
+/// debug e release.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct UnionBudgetLimits {
+    max_descriptors: u64,
+    max_payload_bytes: u64,
+    max_metadata_bytes: u64,
+}
+
+/// Motivo estável de uma reserva recusada.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UnionBudgetError {
+    Descriptors,
+    PayloadBytes,
+    MetadataBytes,
+    DescriptorOverflow,
+    PayloadOverflow,
+    MetadataOverflow,
+}
+
+impl UnionBudgetError {
+    /// Mensagem do diagnóstico fatal correspondente.
+    fn message(self) -> &'static str {
+        match self {
+            UnionBudgetError::Descriptors => "orçamento de descritores de união esgotado",
+            UnionBudgetError::PayloadBytes => "orçamento de bytes de payload de união esgotado",
+            UnionBudgetError::MetadataBytes => {
+                "orçamento de metadata de descritores de união esgotado"
+            }
+            UnionBudgetError::DescriptorOverflow => "overflow no orçamento de descritores de união",
+            UnionBudgetError::PayloadOverflow => "overflow no orçamento de bytes de união",
+            UnionBudgetError::MetadataOverflow => "overflow no orçamento de metadata de união",
+        }
+    }
+}
+
+/// Limites canônicos do runtime de produção.
+const UNION_BUDGET_LIMITS: UnionBudgetLimits = UnionBudgetLimits {
+    max_descriptors: MAX_UNION_DESCRIPTORS,
+    max_payload_bytes: MAX_UNION_TOTAL_PAYLOAD_BYTES,
+    max_metadata_bytes: MAX_UNION_METADATA_BYTES,
+};
+
+/// Reserva os recursos de um descritor novo.
+///
+/// A operação é **atômica por construção**: o orçamento corrente é um parâmetro
+/// por valor e o novo orçamento só existe no caminho `Ok`. Uma recusa não pode
+/// alterar o estado do chamador porque nada foi escrito.
+fn union_budget_reserve(
+    current: UnionBudget,
+    limits: UnionBudgetLimits,
+    payload_size: u64,
+) -> Result<UnionBudget, UnionBudgetError> {
+    let descriptors = current
+        .descriptors
+        .checked_add(1)
+        .ok_or(UnionBudgetError::DescriptorOverflow)?;
+    if descriptors > limits.max_descriptors {
+        return Err(UnionBudgetError::Descriptors);
+    }
+    let payload_bytes = current
+        .payload_bytes
+        .checked_add(payload_size)
+        .ok_or(UnionBudgetError::PayloadOverflow)?;
+    if payload_bytes > limits.max_payload_bytes {
+        return Err(UnionBudgetError::PayloadBytes);
+    }
+    let metadata_bytes = current
+        .metadata_bytes
+        .checked_add(UNION_DESCRIPTOR_METADATA_BYTES)
+        .ok_or(UnionBudgetError::MetadataOverflow)?;
+    if metadata_bytes > limits.max_metadata_bytes {
+        return Err(UnionBudgetError::MetadataBytes);
+    }
+    Ok(UnionBudget {
+        descriptors,
+        payload_bytes,
+        metadata_bytes,
+    })
+}
+
+struct EstadoUnioes {
+    /// Handles criados por este runtime. Um handle arbitrário nunca é
+    /// dereferenciado antes de constar aqui.
+    descritores: std::collections::HashSet<usize>,
+    orcamento: UnionBudget,
+}
+
+fn estado_unioes() -> &'static Mutex<EstadoUnioes> {
+    static UNIOES: OnceLock<Mutex<EstadoUnioes>> = OnceLock::new();
+    UNIOES.get_or_init(|| {
+        Mutex::new(EstadoUnioes {
+            descritores: std::collections::HashSet::new(),
+            orcamento: UnionBudget::default(),
+        })
+    })
+}
+
+fn union_layout_valid(size: u64, align: u64) -> bool {
+    size > 0
+        && size <= MAX_UNION_PAYLOAD_BYTES
+        && align > 0
+        && align.is_power_of_two()
+        && align <= MAX_UNION_PAYLOAD_ALIGN
+}
+
+/// Calcula o layout do bloco único {cabeçalho, padding, payload} com operações
+/// checadas. Overflow em qualquer etapa é diagnóstico, não pânico.
+fn union_allocation_layout(payload_size: u64, payload_align: u64) -> Option<(u64, u64, u64)> {
+    let header = std::mem::size_of::<PinkerUnionDescriptor>() as u64;
+    let header_align = std::mem::align_of::<PinkerUnionDescriptor>() as u64;
+    let allocation_align = header_align.max(payload_align);
+    let payload_offset = header
+        .checked_add(payload_align.checked_sub(1)?)?
+        .checked_div(payload_align)?
+        .checked_mul(payload_align)?;
+    let total = payload_offset.checked_add(payload_size)?;
+    let allocation_size = total
+        .checked_add(allocation_align.checked_sub(1)?)?
+        .checked_div(allocation_align)?
+        .checked_mul(allocation_align)?;
+    Some((payload_offset, allocation_size, allocation_align))
+}
+
+/// Ponto único de injeção de falha de alocação, exercitado apenas por testes do
+/// próprio runtime. Não há variável de ambiente: a política documentada não
+/// muda em execução, e debug e release se comportam igual.
+#[cfg(test)]
+static FALHA_ALOCACAO_UNIAO: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+fn union_alocacao_deve_falhar() -> bool {
+    #[cfg(test)]
+    {
+        FALHA_ALOCACAO_UNIAO.load(std::sync::atomic::Ordering::SeqCst)
+    }
+    #[cfg(not(test))]
+    {
+        false
+    }
+}
+
+/// Cria um snapshot imutável para um valor de união.
+///
+/// A origem é copiada **integralmente** para storage próprio do descritor antes
+/// de o handle ser exposto. Nenhum ponteiro do chamador permanece referenciado.
+///
+/// # Safety
+/// `payload_source_ptr` deve apontar para ao menos `payload_size` bytes legíveis
+/// e alinhados a `payload_align`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_uniao_criar(
+    union_type_id: u64,
+    tag: u64,
+    payload_size: u64,
+    payload_align: u64,
+    payload_source_ptr: *const u8,
+) -> *mut u8 {
+    if !union_layout_valid(payload_size, payload_align) {
+        erro_fatal("layout inválido ao criar descritor de união estrutural");
+    }
+    if payload_source_ptr.is_null() {
+        erro_fatal("origem nula ao criar descritor de união estrutural");
+    }
+    if (payload_source_ptr as usize) % (payload_align as usize) != 0 {
+        erro_fatal("origem desalinhada ao criar descritor de união estrutural");
+    }
+    let Some((payload_offset, allocation_size, allocation_align)) =
+        union_allocation_layout(payload_size, payload_align)
+    else {
+        erro_fatal("overflow no layout do descritor de união estrutural");
+    };
+
+    {
+        let mut estado = estado_unioes()
+            .lock()
+            .unwrap_or_else(|_| erro_fatal("estado de uniões corrompido"));
+        // A reserva é decidida fora do estado: ou o orçamento novo substitui o
+        // antigo por inteiro, ou nada é escrito.
+        match union_budget_reserve(estado.orcamento, UNION_BUDGET_LIMITS, payload_size) {
+            Ok(orcamento) => estado.orcamento = orcamento,
+            Err(erro) => erro_fatal(erro.message()),
+        }
+    }
+
+    let Ok(layout) = Layout::from_size_align(allocation_size as usize, allocation_align as usize)
+    else {
+        erro_fatal("layout de alocação inválido para descritor de união estrutural");
+    };
+    // Falha de alocação é diagnóstico controlado; `alloc` devolvendo nulo nunca
+    // vira abort de alocador nem dereferência de nulo.
+    let base = if union_alocacao_deve_falhar() {
+        std::ptr::null_mut()
+    } else {
+        alloc(layout)
+    };
+    if base.is_null() {
+        erro_fatal("alocação de descritor de união estrutural falhou");
+    }
+
+    (base as *mut PinkerUnionDescriptor).write(PinkerUnionDescriptor {
+        magic: UNION_MAGIC,
+        union_type_id,
+        tag,
+        payload_size,
+        payload_align,
+        payload_offset,
+        allocation_size,
+        allocation_align,
+    });
+    std::ptr::copy_nonoverlapping(
+        payload_source_ptr,
+        base.add(payload_offset as usize),
+        payload_size as usize,
+    );
+
+    // O registro acontece **antes** da exposição: um handle só é observável
+    // depois de ser reconhecível.
+    estado_unioes()
+        .lock()
+        .unwrap_or_else(|_| erro_fatal("estado de uniões corrompido"))
+        .descritores
+        .insert(base as usize);
+    base
+}
+
+/// Confirma que o handle foi criado por este runtime antes de qualquer leitura.
+unsafe fn union_descriptor(handle: *mut u8, operacao: &str) -> &'static PinkerUnionDescriptor {
+    if handle.is_null() {
+        erro_fatal(&format!("handle nulo de união estrutural em '{operacao}'"));
+    }
+    let conhecido = estado_unioes()
+        .lock()
+        .unwrap_or_else(|_| erro_fatal("estado de uniões corrompido"))
+        .descritores
+        .contains(&(handle as usize));
+    if !conhecido {
+        erro_fatal(&format!(
+            "handle desconhecido de união estrutural em '{operacao}'"
+        ));
+    }
+    let descriptor = &*(handle as *const PinkerUnionDescriptor);
+    if descriptor.magic != UNION_MAGIC {
+        erro_fatal(&format!(
+            "descritor de união com marca inválida em '{operacao}'"
+        ));
+    }
+    if !union_layout_valid(descriptor.payload_size, descriptor.payload_align) {
+        erro_fatal(&format!(
+            "descritor de união contém layout inválido em '{operacao}'"
+        ));
+    }
+    descriptor
+}
+
+/// Obtém a tag determinística de uma união, validando também a identidade do
+/// tipo de união esperado.
+///
+/// # Safety
+/// `handle` deve ter sido devolvido por `pinker_uniao_criar`.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_uniao_tag(handle: *mut u8, expected_union_type_id: u64) -> u64 {
+    let descriptor = union_descriptor(handle, "uniao_tag");
+    if descriptor.union_type_id != expected_union_type_id {
+        erro_fatal("leitura de tag com identidade de união divergente");
+    }
+    descriptor.tag
+}
+
+/// Copia o snapshot do payload para storage do chamador.
+///
+/// O ponteiro interno do descritor nunca é devolvido e o descritor não é
+/// alterado.
+///
+/// # Safety
+/// `handle` deve ter sido devolvido por `pinker_uniao_criar` e `destination_ptr`
+/// deve apontar para ao menos `expected_size` bytes graváveis e alinhados.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_uniao_copiar_payload(
+    handle: *mut u8,
+    expected_union_type_id: u64,
+    expected_tag: u64,
+    expected_size: u64,
+    expected_align: u64,
+    destination_ptr: *mut u8,
+) {
+    let descriptor = union_descriptor(handle, "uniao_copiar_payload");
+    if descriptor.union_type_id != expected_union_type_id {
+        erro_fatal("extração de união com identidade de união divergente");
+    }
+    if descriptor.tag != expected_tag {
+        erro_fatal("extração de união com tag incompatível");
+    }
+    if descriptor.payload_size != expected_size {
+        erro_fatal("extração de união com tamanho divergente");
+    }
+    if descriptor.payload_align != expected_align {
+        erro_fatal("extração de união com alinhamento divergente");
+    }
+    if destination_ptr.is_null() {
+        erro_fatal("destino nulo na extração de união estrutural");
+    }
+    if (destination_ptr as usize) % (expected_align as usize) != 0 {
+        erro_fatal("destino desalinhado na extração de união estrutural");
+    }
+    std::ptr::copy_nonoverlapping(
+        handle.add(descriptor.payload_offset as usize) as *const u8,
+        destination_ptr,
+        descriptor.payload_size as usize,
+    );
+}
+// @pinker-nav:end runtime.unioes.descritor
+
+// ---------------------------------------------------------------------------
 // Arquivo, caminho, tempo e acaso nativos (Fase 220/B9)
 //
-// O modelo de arquivo espelha o interpretador: handles apontam para entradas
-// em memória (`caminho` + `conteudo` + flag de anexo) e toda escrita persiste
-// imediatamente no disco; handles fechados produzem erro distinto. O gerador
+// O modelo de arquivo mantém um descritor aberto por handle; operações não
+// re-resolvem o caminho, e handles fechados produzem erro distinto. O gerador
 // de acaso replica o MESMO LCG do interpretador (paridade de sementes).
 // ---------------------------------------------------------------------------
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::io::{Read as _, Seek as _, Write as _};
 use std::sync::{Mutex, OnceLock};
 
 // @pinker-nav:start runtime.arquivos.io
 // @pinker-nav:domain arquivos
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Tabela de arquivos abertos em estado global protegido por Mutex (OnceLock), mapeando handle para caminho/conteúdo/flag de anexo mantidos em memória; toda escrita persiste imediatamente em disco via std::fs, handles fechados ou inválidos abortam via erro_fatal com mensagem específica por operação; com_arquivo/io_lock concentram o acesso ao Mutex e abortam o processo se o lock estiver envenenado.
+// @pinker-nav:summary Tabela limitada aos descritores ativos: cada handle mantém o File aberto e o modo, operações reposicionam e usam esse mesmo descritor sem re-resolver o caminho, criar usa create_new, leituras têm limite explícito, e handles ausentes abaixo de proximo_handle são classificados como fechados sem HashSet crescente.
+const MAX_ARQUIVO_VERSO_BYTES: u64 = 64 * 1024 * 1024;
+
 struct ArquivoAberto {
-    caminho: String,
-    conteudo: String,
+    arquivo: std::fs::File,
     anexo: bool,
 }
 
 struct EstadoIo {
     arquivos: HashMap<u64, ArquivoAberto>,
-    fechados: HashSet<u64>,
     proximo_handle: u64,
 }
 
@@ -1224,7 +1789,6 @@ fn estado_io() -> &'static Mutex<EstadoIo> {
     IO.get_or_init(|| {
         Mutex::new(EstadoIo {
             arquivos: HashMap::new(),
-            fechados: HashSet::new(),
             proximo_handle: 1,
         })
     })
@@ -1236,19 +1800,42 @@ fn io_lock() -> std::sync::MutexGuard<'static, EstadoIo> {
         .unwrap_or_else(|_| erro_fatal("estado de arquivos corrompido"))
 }
 
-fn abrir_com_flag(caminho: &str, conteudo: String, anexo: bool) -> u64 {
+fn abrir_com_flag(arquivo: std::fs::File, anexo: bool) -> u64 {
     let mut io = io_lock();
     let handle = io.proximo_handle;
-    io.proximo_handle = io.proximo_handle.saturating_add(1);
-    io.arquivos.insert(
-        handle,
-        ArquivoAberto {
-            caminho: caminho.to_string(),
-            conteudo,
-            anexo,
-        },
-    );
+    io.proximo_handle = io
+        .proximo_handle
+        .checked_add(1)
+        .unwrap_or_else(|| erro_fatal("esgotamento de handles de arquivo"));
+    io.arquivos.insert(handle, ArquivoAberto { arquivo, anexo });
     handle
+}
+
+fn handle_foi_fechado(io: &EstadoIo, handle: u64) -> bool {
+    handle > 0 && handle < io.proximo_handle && !io.arquivos.contains_key(&handle)
+}
+
+enum ModoArquivo {
+    Abrir,
+    Criar,
+    Anexar,
+}
+
+fn abrir_descritor(caminho: &str, modo: ModoArquivo) -> std::io::Result<std::fs::File> {
+    let mut opcoes = std::fs::OpenOptions::new();
+    opcoes.read(true);
+    match modo {
+        ModoArquivo::Abrir => {
+            opcoes.write(true);
+        }
+        ModoArquivo::Criar => {
+            opcoes.write(true).create_new(true);
+        }
+        ModoArquivo::Anexar => {
+            opcoes.append(true);
+        }
+    }
+    opcoes.open(caminho)
 }
 
 /// # Safety
@@ -1256,9 +1843,9 @@ fn abrir_com_flag(caminho: &str, conteudo: String, anexo: bool) -> u64 {
 #[no_mangle]
 pub unsafe extern "C" fn pinker_arquivo_abrir(caminho: *const u8) -> u64 {
     let caminho = verso_str(caminho);
-    let conteudo = std::fs::read_to_string(caminho)
+    let arquivo = abrir_descritor(caminho, ModoArquivo::Abrir)
         .unwrap_or_else(|err| erro_fatal(&format!("falha ao abrir arquivo '{caminho}': {err}")));
-    abrir_com_flag(caminho, conteudo, false)
+    abrir_com_flag(arquivo, false)
 }
 
 /// # Safety
@@ -1266,9 +1853,9 @@ pub unsafe extern "C" fn pinker_arquivo_abrir(caminho: *const u8) -> u64 {
 #[no_mangle]
 pub unsafe extern "C" fn pinker_arquivo_criar(caminho: *const u8) -> u64 {
     let caminho = verso_str(caminho);
-    std::fs::write(caminho, "")
+    let arquivo = abrir_descritor(caminho, ModoArquivo::Criar)
         .unwrap_or_else(|err| erro_fatal(&format!("falha ao criar arquivo '{caminho}': {err}")));
-    abrir_com_flag(caminho, String::new(), false)
+    abrir_com_flag(arquivo, false)
 }
 
 /// # Safety
@@ -1276,41 +1863,81 @@ pub unsafe extern "C" fn pinker_arquivo_criar(caminho: *const u8) -> u64 {
 #[no_mangle]
 pub unsafe extern "C" fn pinker_arquivo_abrir_anexo(caminho: *const u8) -> u64 {
     let caminho = verso_str(caminho);
-    let conteudo = std::fs::read_to_string(caminho).unwrap_or_else(|err| {
+    let arquivo = abrir_descritor(caminho, ModoArquivo::Anexar).unwrap_or_else(|err| {
         erro_fatal(&format!(
             "falha ao abrir arquivo para anexo '{caminho}': {err}"
         ))
     });
-    abrir_com_flag(caminho, conteudo, true)
+    abrir_com_flag(arquivo, true)
 }
 
 #[no_mangle]
 pub extern "C" fn pinker_arquivo_fechar(handle: u64) {
     let mut io = io_lock();
     if io.arquivos.remove(&handle).is_none() {
-        if io.fechados.contains(&handle) {
+        if handle_foi_fechado(&io, handle) {
             erro_fatal("handle de arquivo já fechado em 'fechar'");
         }
         erro_fatal("handle de arquivo inválido em 'fechar'");
     }
-    io.fechados.insert(handle);
 }
 
 fn com_arquivo<R>(handle: u64, nome: &str, f: impl FnOnce(&mut ArquivoAberto) -> R) -> R {
     let mut io = io_lock();
-    if !io.arquivos.contains_key(&handle) {
-        if io.fechados.contains(&handle) {
-            erro_fatal(&format!("handle de arquivo já fechado em '{nome}'"));
-        }
-        erro_fatal(&format!("handle de arquivo inválido em '{nome}'"));
+    if let Some(arquivo) = io.arquivos.get_mut(&handle) {
+        return f(arquivo);
     }
-    f(io.arquivos.get_mut(&handle).expect("verificado acima"))
+    if handle_foi_fechado(&io, handle) {
+        erro_fatal(&format!("handle de arquivo já fechado em '{nome}'"));
+    }
+    erro_fatal(&format!("handle de arquivo inválido em '{nome}'"));
+}
+
+fn ler_descritor(arq: &mut ArquivoAberto, nome: &str) -> Vec<u8> {
+    let tamanho = arq
+        .arquivo
+        .metadata()
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao medir arquivo em '{nome}': {err}")))
+        .len();
+    if tamanho > MAX_ARQUIVO_VERSO_BYTES {
+        erro_fatal(&format!(
+            "arquivo excede limite de {MAX_ARQUIVO_VERSO_BYTES} bytes em '{nome}'"
+        ));
+    }
+    arq.arquivo
+        .seek(std::io::SeekFrom::Start(0))
+        .unwrap_or_else(|err| {
+            erro_fatal(&format!("falha ao reposicionar arquivo em '{nome}': {err}"))
+        });
+    let mut bytes = Vec::with_capacity(usize::try_from(tamanho).unwrap_or(0));
+    let mut limitado = std::io::Read::take(&mut arq.arquivo, MAX_ARQUIVO_VERSO_BYTES + 1);
+    limitado
+        .read_to_end(&mut bytes)
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao ler arquivo em '{nome}': {err}")));
+    if bytes.len() as u64 > MAX_ARQUIVO_VERSO_BYTES {
+        erro_fatal(&format!(
+            "arquivo excede limite de {MAX_ARQUIVO_VERSO_BYTES} bytes em '{nome}'"
+        ));
+    }
+    bytes
+}
+
+fn substituir_descritor(arq: &mut ArquivoAberto, nome: &str, bytes: &[u8]) {
+    arq.arquivo
+        .set_len(0)
+        .and_then(|()| arq.arquivo.seek(std::io::SeekFrom::Start(0)).map(|_| ()))
+        .and_then(|()| arq.arquivo.write_all(bytes))
+        .and_then(|()| arq.arquivo.flush())
+        .unwrap_or_else(|err| erro_fatal(&format!("falha ao escrever em '{nome}': {err}")));
 }
 
 #[no_mangle]
 pub extern "C" fn pinker_arquivo_ler_bombom(handle: u64) -> u64 {
     com_arquivo(handle, "ler_arquivo", |arq| {
-        let aparado = arq.conteudo.trim();
+        let bytes = ler_descritor(arq, "ler_arquivo");
+        let texto = std::str::from_utf8(&bytes)
+            .unwrap_or_else(|_| erro_fatal("conteúdo inválido em 'ler_arquivo': UTF-8 esperado"));
+        let aparado = texto.trim();
         if aparado.is_empty() {
             erro_fatal("arquivo vazio em 'ler_arquivo'");
         }
@@ -1325,7 +1952,11 @@ pub extern "C" fn pinker_arquivo_ler_bombom(handle: u64) -> u64 {
 #[no_mangle]
 pub extern "C" fn pinker_arquivo_ler_verso(handle: u64) -> *mut u8 {
     com_arquivo(handle, "ler_verso_arquivo", |arq| {
-        verso_alocar(&arq.conteudo)
+        let bytes = ler_descritor(arq, "ler_verso_arquivo");
+        let texto = std::str::from_utf8(&bytes).unwrap_or_else(|_| {
+            erro_fatal("conteúdo inválido em 'ler_verso_arquivo': UTF-8 esperado")
+        });
+        verso_alocar(texto)
     })
 }
 
@@ -1333,9 +1964,7 @@ pub extern "C" fn pinker_arquivo_ler_verso(handle: u64) -> *mut u8 {
 pub extern "C" fn pinker_arquivo_escrever_bombom(handle: u64, valor: u64) {
     com_arquivo(handle, "escrever", |arq| {
         let novo = valor.to_string();
-        std::fs::write(&arq.caminho, &novo)
-            .unwrap_or_else(|err| erro_fatal(&format!("falha ao escrever em arquivo: {err}")));
-        arq.conteudo = novo;
+        substituir_descritor(arq, "escrever", novo.as_bytes());
     })
 }
 
@@ -1345,18 +1974,14 @@ pub extern "C" fn pinker_arquivo_escrever_bombom(handle: u64, valor: u64) {
 pub unsafe extern "C" fn pinker_arquivo_escrever_verso(handle: u64, valor: *const u8) {
     let valor = verso_str(valor);
     com_arquivo(handle, "escrever_verso", |arq| {
-        std::fs::write(&arq.caminho, valor)
-            .unwrap_or_else(|err| erro_fatal(&format!("falha ao escrever verso: {err}")));
-        arq.conteudo = valor.to_string();
+        substituir_descritor(arq, "escrever_verso", valor.as_bytes());
     })
 }
 
 #[no_mangle]
 pub extern "C" fn pinker_arquivo_truncar(handle: u64) {
     com_arquivo(handle, "truncar_arquivo", |arq| {
-        std::fs::write(&arq.caminho, "")
-            .unwrap_or_else(|err| erro_fatal(&format!("falha ao truncar arquivo: {err}")));
-        arq.conteudo.clear();
+        substituir_descritor(arq, "truncar_arquivo", b"");
     })
 }
 
@@ -1369,15 +1994,11 @@ pub unsafe extern "C" fn pinker_arquivo_anexar_verso(handle: u64, valor: *const 
         if !arq.anexo {
             erro_fatal("handle sem modo anexo em 'anexar_verso'; use 'abrir_anexo'");
         }
-        use std::io::Write as _;
-        let mut arquivo = std::fs::OpenOptions::new()
-            .append(true)
-            .open(&arq.caminho)
+        arq.arquivo
+            .seek(std::io::SeekFrom::End(0))
+            .and_then(|_| arq.arquivo.write_all(valor.as_bytes()))
+            .and_then(|()| arq.arquivo.flush())
             .unwrap_or_else(|err| erro_fatal(&format!("falha ao anexar verso: {err}")));
-        arquivo
-            .write_all(valor.as_bytes())
-            .unwrap_or_else(|err| erro_fatal(&format!("falha ao anexar verso: {err}")));
-        arq.conteudo.push_str(valor);
     })
 }
 
@@ -1785,11 +2406,47 @@ pub unsafe extern "C" fn pinker_ambiente_buscar_contexto(
 // @pinker-nav:start runtime.processos.execucao
 // @pinker-nav:domain processos
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Execução de subprocessos do sistema operacional via std::process::Command, com variantes de aridade fixa (0 ou 1 argumento extra) para execução simples, captura de stdout/stderr, envio de entrada por stdin e um pipeline mínimo de dois processos; stdout/stderr são decodificados como UTF-8 estrito (falha aborta via erro_fatal) e comando vazio, falha ao spawnar ou código de saída ausente também abortam via erro_fatal.
+// @pinker-nav:summary Execução de subprocessos sem shell implícito: basenames são resolvidos somente na PATH fixa /usr/local/bin:/usr/bin:/bin, caminhos com slash são usados literalmente, e todas as famílias recebem a PATH saneada; executar_com_entrada escreve stdin numa thread concorrente à espera, fecha o pipe e agrega erros sem deixar writer órfão.
+const PATH_PROCESSOS: &str = "/usr/local/bin:/usr/bin:/bin";
+
 fn exigir_comando_nao_vazio(nome: &str, comando: &str) {
     if comando.trim().is_empty() {
         erro_fatal(&format!("intrínseca '{nome}' exige comando não vazio"));
     }
+}
+
+fn comando_resolvido(nome: &str, comando: &str) -> Result<std::path::PathBuf, String> {
+    if comando.contains('/') {
+        return Ok(std::path::PathBuf::from(comando));
+    }
+    for diretorio in PATH_PROCESSOS.split(':') {
+        let candidato = std::path::Path::new(diretorio).join(comando);
+        let Ok(metadata) = std::fs::metadata(&candidato) else {
+            continue;
+        };
+        if !metadata.is_file() {
+            continue;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            if metadata.permissions().mode() & 0o111 == 0 {
+                continue;
+            }
+        }
+        return Ok(candidato);
+    }
+    Err(format!(
+        "comando '{comando}' não encontrado na PATH saneada em '{nome}'"
+    ))
+}
+
+fn novo_processo(nome: &str, comando: &str) -> std::process::Command {
+    exigir_comando_nao_vazio(nome, comando);
+    let resolvido = comando_resolvido(nome, comando).unwrap_or_else(|err| erro_fatal(err.as_str()));
+    let mut processo = std::process::Command::new(resolvido);
+    processo.env("PATH", PATH_PROCESSOS);
+    processo
 }
 
 fn exit_code_ou_erro(nome: &str, codigo: Option<i32>) -> u64 {
@@ -1806,8 +2463,7 @@ fn exit_code_ou_erro(nome: &str, codigo: Option<i32>) -> u64 {
 }
 
 fn processo_executar(comando: &str, argv1: Option<&str>) -> u64 {
-    exigir_comando_nao_vazio("executar_processo", comando);
-    let mut processo = std::process::Command::new(comando);
+    let mut processo = novo_processo("executar_processo", comando);
     if let Some(argumento) = argv1 {
         processo.arg(argumento);
     }
@@ -1834,8 +2490,7 @@ pub unsafe extern "C" fn pinker_processo_executar_2(comando: *const u8, argv1: *
 }
 
 fn processo_capturar(nome: &str, comando: &str, argv1: Option<&str>, stderr: bool) -> *mut u8 {
-    exigir_comando_nao_vazio(nome, comando);
-    let mut processo = std::process::Command::new(comando);
+    let mut processo = novo_processo(nome, comando);
     if let Some(argumento) = argv1 {
         processo.arg(argumento);
     }
@@ -1896,39 +2551,54 @@ pub unsafe extern "C" fn pinker_processo_capturar_stderr_2(
     )
 }
 
-fn processo_com_entrada(comando: &str, entrada: &str, argv1: Option<&str>) -> u64 {
-    exigir_comando_nao_vazio("executar_com_entrada", comando);
-    let mut processo = std::process::Command::new(comando);
+fn processo_com_entrada_resultado(
+    comando: &str,
+    entrada: &str,
+    argv1: Option<&str>,
+) -> Result<u64, String> {
+    if comando.trim().is_empty() {
+        return Err("intrínseca 'executar_com_entrada' exige comando não vazio".to_string());
+    }
+    let resolvido = comando_resolvido("executar_com_entrada", comando)?;
+    let mut processo = std::process::Command::new(resolvido);
+    processo.env("PATH", PATH_PROCESSOS);
     if let Some(argumento) = argv1 {
         processo.arg(argumento);
     }
     let mut filho = processo
         .stdin(std::process::Stdio::piped())
         .spawn()
-        .unwrap_or_else(|err| {
-            erro_fatal(&format!(
-                "falha ao executar processo em 'executar_com_entrada': {err}"
-            ))
-        });
-    {
+        .map_err(|err| format!("falha ao executar processo em 'executar_com_entrada': {err}"))?;
+    let Some(mut stdin) = filho.stdin.take() else {
+        return Err(
+            "stdin indisponível em 'executar_com_entrada': processo sem pipe configurado"
+                .to_string(),
+        );
+    };
+    let bytes = entrada.as_bytes().to_vec();
+    let writer = std::thread::spawn(move || {
         use std::io::Write as _;
-        let Some(mut stdin) = filho.stdin.take() else {
-            erro_fatal(
-                "stdin indisponível em 'executar_com_entrada': processo sem pipe configurado",
-            );
-        };
-        stdin.write_all(entrada.as_bytes()).unwrap_or_else(|err| {
-            erro_fatal(&format!(
-                "falha ao escrever stdin em 'executar_com_entrada': {err}"
-            ))
-        });
-    }
-    let status = filho.wait().unwrap_or_else(|err| {
-        erro_fatal(&format!(
-            "falha ao aguardar processo em 'executar_com_entrada': {err}"
-        ))
+        stdin.write_all(&bytes)
     });
-    exit_code_ou_erro("executar_com_entrada", status.code())
+    let wait_result = filho.wait();
+    let write_result = writer
+        .join()
+        .map_err(|_| "thread de stdin falhou em 'executar_com_entrada'".to_string())?;
+    write_result
+        .map_err(|err| format!("falha ao escrever stdin em 'executar_com_entrada': {err}"))?;
+    let status = wait_result
+        .map_err(|err| format!("falha ao aguardar processo em 'executar_com_entrada': {err}"))?;
+    let codigo = status.code().ok_or_else(|| {
+        "processo finalizado sem código de saída suportado em 'executar_com_entrada'".to_string()
+    })?;
+    u64::try_from(codigo).map_err(|_| {
+        "código de saída inválido em 'executar_com_entrada': valor negativo".to_string()
+    })
+}
+
+fn processo_com_entrada(comando: &str, entrada: &str, argv1: Option<&str>) -> u64 {
+    processo_com_entrada_resultado(comando, entrada, argv1)
+        .unwrap_or_else(|err| erro_fatal(err.as_str()))
 }
 
 /// # Safety
@@ -1965,28 +2635,28 @@ pub unsafe extern "C" fn pinker_processo_pipeline(
 ) -> u64 {
     let produtor_nome = verso_str(produtor);
     let consumidor_nome = verso_str(consumidor);
-    exigir_comando_nao_vazio("pipeline_minimo", produtor_nome);
-    exigir_comando_nao_vazio("pipeline_minimo", consumidor_nome);
-    let mut produtor = std::process::Command::new(produtor_nome)
-        .stdout(std::process::Stdio::piped())
-        .spawn()
-        .unwrap_or_else(|err| {
-            erro_fatal(&format!(
-                "falha ao executar processo produtor em 'pipeline_minimo': {err}"
-            ))
-        });
+    let mut produtor_comando = novo_processo("pipeline_minimo", produtor_nome);
+    produtor_comando.stdout(std::process::Stdio::piped());
+    let mut produtor = produtor_comando.spawn().unwrap_or_else(|err| {
+        erro_fatal(&format!(
+            "falha ao executar processo produtor em 'pipeline_minimo': {err}"
+        ))
+    });
     let Some(saida_produtor) = produtor.stdout.take() else {
         erro_fatal("stdout indisponível em 'pipeline_minimo': produtor sem pipe configurado");
     };
-    let mut consumidor = std::process::Command::new(consumidor_nome)
-        .stdin(std::process::Stdio::from(saida_produtor))
-        .spawn()
-        .unwrap_or_else(|err| {
-            erro_fatal(&format!(
-                "falha ao executar processo consumidor em 'pipeline_minimo': {err}"
-            ))
-        });
-    let _ = produtor.wait();
+    let mut consumidor_comando = novo_processo("pipeline_minimo", consumidor_nome);
+    consumidor_comando.stdin(std::process::Stdio::from(saida_produtor));
+    let mut consumidor = consumidor_comando.spawn().unwrap_or_else(|err| {
+        erro_fatal(&format!(
+            "falha ao executar processo consumidor em 'pipeline_minimo': {err}"
+        ))
+    });
+    produtor.wait().unwrap_or_else(|err| {
+        erro_fatal(&format!(
+            "falha ao aguardar produtor em 'pipeline_minimo': {err}"
+        ))
+    });
     let status = consumidor.wait().unwrap_or_else(|err| {
         erro_fatal(&format!(
             "falha ao aguardar consumidor em 'pipeline_minimo': {err}"
@@ -2003,6 +2673,295 @@ pub unsafe extern "C" fn pinker_processo_pipeline(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    fn filho_stdout(modo: &str) -> std::process::Child {
+        std::process::Command::new(std::env::current_exe().expect("binário de teste"))
+            .args([
+                "--exact",
+                "tests::falha_stdout_termina_com_diagnostico_controlado",
+                "--nocapture",
+            ])
+            .env("PINKER_RT_TESTE_STDOUT_FILHO", modo)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("executar filho de teste")
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn falha_stdout_termina_com_diagnostico_controlado() {
+        if let Some(modo) = std::env::var_os("PINKER_RT_TESTE_STDOUT_FILHO") {
+            if modo == "full" {
+                use std::os::fd::AsRawFd as _;
+
+                let full = std::fs::OpenOptions::new()
+                    .write(true)
+                    .open("/dev/full")
+                    .expect("/dev/full");
+                extern "C" {
+                    fn dup2(oldfd: i32, newfd: i32) -> i32;
+                }
+                assert_eq!(unsafe { dup2(full.as_raw_fd(), 1) }, 1);
+            } else {
+                extern "C" {
+                    fn close(fd: i32) -> i32;
+                    fn dup2(oldfd: i32, newfd: i32) -> i32;
+                    fn pipe(fds: *mut i32) -> i32;
+                }
+                let mut fds = [0_i32; 2];
+                assert_eq!(unsafe { pipe(fds.as_mut_ptr()) }, 0);
+                assert_eq!(unsafe { close(fds[0]) }, 0);
+                assert_eq!(unsafe { dup2(fds[1], 1) }, 1);
+                assert_eq!(unsafe { close(fds[1]) }, 0);
+            }
+            unsafe {
+                pinker_falar_pedaco_verso(verso_alocar("verso").cast_const());
+            }
+            pinker_falar_espaco();
+            pinker_falar_pedaco_inteiro(-7);
+            pinker_falar_fim();
+            return;
+        }
+
+        let full_output = filho_stdout("full")
+            .wait_with_output()
+            .expect("aguardar filho /dev/full");
+        assert_eq!(full_output.status.code(), Some(1));
+        let stderr = String::from_utf8_lossy(&full_output.stderr);
+        assert!(stderr.contains("falha ao escrever stdout"), "{stderr}");
+        assert!(!stderr.contains("panicked at"), "{stderr}");
+
+        let pipe_output = filho_stdout("pipe")
+            .wait_with_output()
+            .expect("aguardar filho");
+        assert_eq!(pipe_output.status.code(), Some(1));
+        let stderr = String::from_utf8_lossy(&pipe_output.stderr);
+        assert!(stderr.contains("falha ao escrever stdout"), "{stderr}");
+        assert!(!stderr.contains("panicked at"), "{stderr}");
+    }
+
+    #[cfg(unix)]
+    fn script_processo(nome: &str, corpo: &str) -> std::path::PathBuf {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let path =
+            std::env::temp_dir().join(format!("pinker-rt-processo-{nome}-{}", std::process::id()));
+        std::fs::write(&path, format!("#!/bin/sh\n{corpo}\n")).expect("gravar script");
+        let mut permissions = std::fs::metadata(&path).expect("metadata").permissions();
+        permissions.set_mode(0o700);
+        std::fs::set_permissions(&path, permissions).expect("permissões");
+        path
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn processos_usam_resolucao_deterministica() {
+        let resolvido = comando_resolvido("teste", "sh").expect("shell do sistema");
+        assert!(
+            resolvido == std::path::Path::new("/usr/local/bin/sh")
+                || resolvido == std::path::Path::new("/usr/bin/sh")
+                || resolvido == std::path::Path::new("/bin/sh"),
+            "{}",
+            resolvido.display()
+        );
+        assert_eq!(
+            comando_resolvido("teste", "./ferramenta").unwrap(),
+            std::path::Path::new("./ferramenta")
+        );
+        assert!(comando_resolvido("teste", "pinker-comando-certamente-ausente").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stdin_concorre_com_espera_e_propaga_erros() {
+        let leitor = script_processo("leitor", "cat >/dev/null\nexit 7");
+        let entrada = "rosa".repeat(64 * 1024);
+        assert_eq!(
+            processo_com_entrada_resultado(leitor.to_str().unwrap(), &entrada, None).unwrap(),
+            7
+        );
+        assert_eq!(
+            processo_com_entrada_resultado("/bin/true", "", None).unwrap(),
+            0
+        );
+        assert_eq!(
+            processo_com_entrada_resultado("/bin/false", "", None).unwrap(),
+            1
+        );
+
+        let nao_leitor = script_processo("nao-leitor", "exit 0");
+        let erro = processo_com_entrada_resultado(nao_leitor.to_str().unwrap(), &entrada, None)
+            .unwrap_err();
+        assert!(erro.contains("falha ao escrever stdin"), "{erro}");
+        assert!(
+            processo_com_entrada_resultado("/caminho/ausente/pinker", "", None)
+                .unwrap_err()
+                .contains("falha ao executar processo")
+        );
+
+        std::fs::remove_file(leitor).expect("remover leitor");
+        std::fs::remove_file(nao_leitor).expect("remover não leitor");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn handles_de_arquivo_preservam_identidade_do_descritor() {
+        use std::os::unix::fs::symlink;
+
+        let raiz =
+            std::env::temp_dir().join(format!("pinker-rt-descritores-{}", std::process::id()));
+        std::fs::create_dir_all(&raiz).expect("raiz");
+        let caminho = raiz.join("aberto.txt");
+        let movido = raiz.join("movido.txt");
+        let externo = raiz.join("externo.txt");
+        std::fs::write(&caminho, "inicial").expect("arquivo inicial");
+        std::fs::write(&externo, "preservado").expect("arquivo externo");
+
+        let arquivo = abrir_descritor(caminho.to_str().unwrap(), ModoArquivo::Abrir).unwrap();
+        let mut aberto = ArquivoAberto {
+            arquivo,
+            anexo: false,
+        };
+        std::fs::rename(&caminho, &movido).expect("renomear");
+        symlink(&externo, &caminho).expect("trocar caminho por symlink");
+        substituir_descritor(&mut aberto, "teste", b"pelo descritor");
+        assert_eq!(std::fs::read_to_string(&movido).unwrap(), "pelo descritor");
+        assert_eq!(std::fs::read_to_string(&externo).unwrap(), "preservado");
+
+        std::fs::remove_file(&movido).expect("remover nome do arquivo aberto");
+        aberto
+            .arquivo
+            .seek(std::io::SeekFrom::Start(0))
+            .expect("reposicionar removido");
+        assert_eq!(ler_descritor(&mut aberto, "teste"), b"pelo descritor");
+
+        std::fs::remove_file(&caminho).expect("remover symlink");
+        std::fs::remove_file(&externo).expect("remover externo");
+        std::fs::remove_dir(&raiz).expect("remover raiz");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn criar_e_exclusivo_e_open_nao_materializa_arquivo_grande() {
+        use std::os::unix::fs::symlink;
+
+        let raiz =
+            std::env::temp_dir().join(format!("pinker-rt-create-new-{}", std::process::id()));
+        std::fs::create_dir_all(&raiz).expect("raiz");
+        let existente = raiz.join("existente.txt");
+        let link = raiz.join("link.txt");
+        let grande = raiz.join("grande.bin");
+        std::fs::write(&existente, "preservar").expect("existente");
+        symlink(&existente, &link).expect("symlink");
+        assert!(abrir_descritor(existente.to_str().unwrap(), ModoArquivo::Criar).is_err());
+        assert!(abrir_descritor(link.to_str().unwrap(), ModoArquivo::Criar).is_err());
+        assert_eq!(std::fs::read_to_string(&existente).unwrap(), "preservar");
+
+        let grande_file = std::fs::File::create(&grande).expect("grande");
+        grande_file
+            .set_len(MAX_ARQUIVO_VERSO_BYTES + 1)
+            .expect("sparse");
+        let aberto = abrir_descritor(grande.to_str().unwrap(), ModoArquivo::Abrir)
+            .expect("open não lê conteúdo");
+        assert_eq!(
+            aberto.metadata().expect("metadata").len(),
+            MAX_ARQUIVO_VERSO_BYTES + 1
+        );
+
+        std::fs::remove_dir_all(&raiz).expect("limpeza");
+    }
+
+    #[test]
+    fn classificacao_de_fechados_nao_cresce_com_historico() {
+        let io = EstadoIo {
+            arquivos: HashMap::new(),
+            proximo_handle: 1_000_001,
+        };
+        for handle in 1..=1_000_000 {
+            assert!(handle_foi_fechado(&io, handle));
+        }
+        assert!(!handle_foi_fechado(&io, 0));
+        assert!(!handle_foi_fechado(&io, 1_000_001));
+        assert!(io.arquivos.is_empty());
+    }
+
+    #[cfg(target_os = "linux")]
+    fn rss_atual_bytes() -> u64 {
+        let statm = std::fs::read_to_string("/proc/self/statm").expect("/proc/self/statm");
+        let residentes = statm
+            .split_whitespace()
+            .nth(1)
+            .expect("residentes")
+            .parse::<u64>()
+            .expect("rss numérico");
+        residentes * PAGINA_PUBLICA as u64
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn memoria_publica_descompromete_payload_com_metadata_limitada() {
+        let ciclos = std::env::var("PINKER_RT_TESTE_CICLOS_PUBLICOS")
+            .ok()
+            .and_then(|valor| valor.parse::<usize>().ok())
+            .unwrap_or(10_000);
+        assert!(ciclos <= MAX_IDENTIDADES_PUBLICAS);
+        let inicio_tempo = std::time::Instant::now();
+        let rss_inicial = rss_atual_bytes();
+        let mut rss_maximo = rss_inicial;
+        let metadata_inicial = memoria_publica()
+            .lock()
+            .expect("metadata inicial")
+            .alocacoes
+            .len();
+        for indice in 0..ciclos {
+            let ponteiro = pinker_publico_alocar(1);
+            unsafe {
+                ponteiro.write(0xA5);
+                pinker_publico_liberar(ponteiro);
+            }
+            if indice % 1_000 == 0 {
+                rss_maximo = rss_maximo.max(rss_atual_bytes());
+            }
+        }
+        let rss_final = rss_atual_bytes();
+        let memoria = memoria_publica().lock().expect("metadata pública");
+        assert!(memoria.alocacoes.len() >= metadata_inicial + ciclos);
+        let limite_rss = rss_inicial
+            .saturating_add(MAX_METADATA_PUBLICA_BYTES as u64)
+            .saturating_add(64 * 1024 * 1024);
+        assert!(rss_final <= limite_rss, "{rss_inicial} {rss_final}");
+        eprintln!(
+            "public-memory-profile ciclos={ciclos} rss_inicial={rss_inicial} rss_maximo={rss_maximo} rss_final={rss_final} metadata={} elapsed_ms={}",
+            memoria.alocacoes.len(),
+            inicio_tempo.elapsed().as_millis()
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn validacao_publica_desconhecida_falha_fechada() {
+        if std::env::var_os("PINKER_RT_TESTE_ACESSO_DESCONHECIDO").is_some() {
+            pinker_publico_validar_acesso(0x1234usize as *const u8, 1, 1);
+            return;
+        }
+        let output = std::process::Command::new(std::env::current_exe().expect("binário de teste"))
+            .args([
+                "--exact",
+                "tests::validacao_publica_desconhecida_falha_fechada",
+                "--nocapture",
+            ])
+            .env("PINKER_RT_TESTE_ACESSO_DESCONHECIDO", "1")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .expect("executar validação desconhecida");
+        assert_eq!(output.status.code(), Some(1));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("E-RUNTIME-MEM-UNKNOWN-ACCESS"), "{stderr}");
+        assert!(!stderr.contains("panicked at"), "{stderr}");
+    }
 
     #[test]
     fn alocar_devolve_bloco_alinhado_e_utilizavel() {
@@ -2040,12 +2999,14 @@ mod tests {
                 identidade: 1,
                 base: 0x1000,
                 tamanho: 32,
+                reservado: 32,
                 viva: false,
             },
             AlocacaoPublica {
                 identidade: 2,
                 base: 0x1000,
                 tamanho: 32,
+                reservado: 32,
                 viva: true,
             },
         ];
@@ -2058,6 +3019,7 @@ mod tests {
             identidade: 3,
             base: 0x1000,
             tamanho: 32,
+            reservado: 32,
             viva: true,
         });
         let indice = indice_base_publica_mais_recente(&registro, 0x1000)
@@ -2376,5 +3338,425 @@ mod tests {
             assert_eq!(pinker_mapa_iterador_proxima(cursor), 2);
         }
     }
+    // @pinker-nav:end evidencia.runtime.mapas-iterador-snapshot
+
+    // @pinker-nav:start evidencia.runtime.unioes-snapshot
+    // @pinker-nav:domain unioes
+    // @pinker-nav:layer evidencia
+    // @pinker-nav:summary Evidência em memória do descritor de união estrutural: layout do bloco único com payload alinhado, snapshot independente da origem e das extrações, alinhamento de dezesseis honrado, recusa de layout fora dos limites documentados e, por processo filho, diagnóstico controlado para falha de alocação injetada só em teste e para handle desconhecido nunca dereferenciado.
+
+    /// HR3: o layout do bloco único {cabeçalho, padding, payload} respeita o
+    /// alinhamento pedido, cabe no bloco e usa aritmética checada.
+    #[test]
+    fn uniao_layout_de_alocacao_respeita_alinhamento_e_limites() {
+        for (size, align) in [(1_u64, 1_u64), (9, 8), (16, 16), (24, 8), (4096, 16)] {
+            let (offset, total, total_align) =
+                union_allocation_layout(size, align).expect("layout finito");
+            assert_eq!(offset % align, 0, "payload alinhado: {size}/{align}");
+            assert!(offset >= std::mem::size_of::<PinkerUnionDescriptor>() as u64);
+            assert!(total >= offset + size);
+            assert_eq!(total % total_align, 0);
+            assert!(total_align >= align);
+        }
+        assert!(union_allocation_layout(u64::MAX, 8).is_none(), "overflow");
+    }
+
+    /// HR3: o descritor guarda um snapshot integral e independente. Mudar a
+    /// origem depois da criação não muda o payload observado, cada extração
+    /// escreve num destino distinto e o descritor não é alterado.
+    #[test]
+    fn uniao_snapshot_e_independente_da_origem_e_das_extracoes() {
+        let mut origem: [u8; 24] = [0; 24];
+        for (indice, byte) in origem.iter_mut().enumerate() {
+            *byte = indice as u8;
+        }
+        let handle = unsafe { pinker_uniao_criar(7, 3, 24, 8, origem.as_ptr()) };
+        assert!(!handle.is_null());
+
+        // A origem muda inteira depois da injeção.
+        origem = [0xAA; 24];
+
+        let mut primeiro: [u8; 24] = [0; 24];
+        let mut segundo: [u8; 24] = [0; 24];
+        unsafe {
+            pinker_uniao_copiar_payload(handle, 7, 3, 24, 8, primeiro.as_mut_ptr());
+            pinker_uniao_copiar_payload(handle, 7, 3, 24, 8, segundo.as_mut_ptr());
+        }
+        for indice in 0..24usize {
+            assert_eq!(primeiro[indice], indice as u8, "snapshot preservado");
+            assert_eq!(segundo[indice], indice as u8, "extrações iguais");
+        }
+        assert_eq!(origem[0], 0xAA, "a origem permanece independente");
+
+        // Mudar o primeiro destino não contamina o descritor.
+        primeiro[0] = 0xFF;
+        let mut terceiro: [u8; 24] = [0; 24];
+        unsafe { pinker_uniao_copiar_payload(handle, 7, 3, 24, 8, terceiro.as_mut_ptr()) };
+        assert_eq!(terceiro[0], 0, "o snapshot não foi alterado pelo binding");
+
+        assert_eq!(unsafe { pinker_uniao_tag(handle, 7) }, 3);
+    }
+
+    /// HR3: o alinhamento pedido é honrado pelo storage do payload.
+    #[test]
+    fn uniao_storage_respeita_alinhamento_de_dezesseis() {
+        let origem: [u8; 16] = [1; 16];
+        let handle = unsafe { pinker_uniao_criar(1, 0, 16, 16, origem.as_ptr()) };
+        let descriptor = unsafe { &*(handle as *const PinkerUnionDescriptor) };
+        let payload = unsafe { handle.add(descriptor.payload_offset as usize) };
+        assert_eq!(payload as usize % 16, 0, "payload alinhado a 16");
+    }
+
+    /// HR3: layout fora dos limites documentados é recusado sem alocar.
+    #[test]
+    fn uniao_layout_invalido_e_reconhecido_antes_de_alocar() {
+        assert!(!union_layout_valid(0, 8), "tamanho zero");
+        assert!(
+            !union_layout_valid(MAX_UNION_PAYLOAD_BYTES + 1, 8),
+            "acima do limite"
+        );
+        assert!(!union_layout_valid(8, 0), "alinhamento zero");
+        assert!(
+            !union_layout_valid(8, 3),
+            "alinhamento não potência de dois"
+        );
+        assert!(
+            !union_layout_valid(8, MAX_UNION_PAYLOAD_ALIGN * 2),
+            "alinhamento acima do limite"
+        );
+        assert!(union_layout_valid(MAX_UNION_PAYLOAD_BYTES, 16), "no limite");
+    }
+
+    #[cfg(unix)]
+    fn filho_uniao(modo: &str, teste: &str) -> std::process::Output {
+        std::process::Command::new(std::env::current_exe().expect("binário de teste"))
+            .args(["--exact", teste, "--nocapture"])
+            .env("PINKER_RT_TESTE_UNIAO_FILHO", modo)
+            .output()
+            .expect("executar filho de teste")
+    }
+
+    /// Limites minúsculos usados para provar cada fronteira sem alocar nada.
+    const LIMITES_DE_TESTE: UnionBudgetLimits = UnionBudgetLimits {
+        max_descriptors: 2,
+        max_payload_bytes: 40,
+        max_metadata_bytes: 2 * UNION_DESCRIPTOR_METADATA_BYTES,
+    };
+
+    /// HR3/GAP4: o último descritor permitido é aceito e o primeiro acima do
+    /// teto é recusado, sem materializar um milhão de descritores.
+    #[test]
+    fn uniao_budget_fronteira_de_descritores() {
+        let no_limite = UnionBudget {
+            descriptors: LIMITES_DE_TESTE.max_descriptors - 1,
+            payload_bytes: 0,
+            metadata_bytes: 0,
+        };
+        let aceito = union_budget_reserve(no_limite, LIMITES_DE_TESTE, 8)
+            .expect("o último descritor permitido é aceito");
+        assert_eq!(aceito.descriptors, LIMITES_DE_TESTE.max_descriptors);
+
+        let acima = UnionBudget {
+            descriptors: LIMITES_DE_TESTE.max_descriptors,
+            ..no_limite
+        };
+        assert_eq!(
+            union_budget_reserve(acima, LIMITES_DE_TESTE, 8),
+            Err(UnionBudgetError::Descriptors),
+            "o primeiro descritor acima do limite é recusado"
+        );
+    }
+
+    /// HR3/GAP4: o último byte de payload permitido é aceito e o primeiro acima
+    /// do teto é recusado.
+    #[test]
+    fn uniao_budget_fronteira_de_bytes_de_payload() {
+        let base = UnionBudget {
+            descriptors: 0,
+            payload_bytes: LIMITES_DE_TESTE.max_payload_bytes - 8,
+            metadata_bytes: 0,
+        };
+        let aceito = union_budget_reserve(base, LIMITES_DE_TESTE, 8)
+            .expect("o último byte permitido é aceito");
+        assert_eq!(aceito.payload_bytes, LIMITES_DE_TESTE.max_payload_bytes);
+
+        assert_eq!(
+            union_budget_reserve(base, LIMITES_DE_TESTE, 9),
+            Err(UnionBudgetError::PayloadBytes),
+            "o primeiro byte acima do limite é recusado"
+        );
+    }
+
+    /// HR3/GAP4: a última metadata permitida é aceita e a primeira acima do teto
+    /// é recusada, mesmo com payload dentro do orçamento.
+    #[test]
+    fn uniao_budget_fronteira_de_metadata() {
+        let base = UnionBudget {
+            descriptors: 0,
+            payload_bytes: 0,
+            metadata_bytes: LIMITES_DE_TESTE.max_metadata_bytes - UNION_DESCRIPTOR_METADATA_BYTES,
+        };
+        let aceito = union_budget_reserve(base, LIMITES_DE_TESTE, 8)
+            .expect("a última metadata permitida é aceita");
+        assert_eq!(aceito.metadata_bytes, LIMITES_DE_TESTE.max_metadata_bytes);
+
+        let acima = UnionBudget {
+            metadata_bytes: LIMITES_DE_TESTE.max_metadata_bytes,
+            ..base
+        };
+        assert_eq!(
+            union_budget_reserve(acima, LIMITES_DE_TESTE, 8),
+            Err(UnionBudgetError::MetadataBytes),
+            "a primeira metadata acima do limite é recusada"
+        );
+    }
+
+    /// HR3/GAP4: cada contador detecta overflow antes de qualquer comparação com
+    /// o teto, e o overflow é diagnóstico, não pânico.
+    #[test]
+    fn uniao_budget_detecta_overflow_de_cada_contador() {
+        let ilimitado = UnionBudgetLimits {
+            max_descriptors: u64::MAX,
+            max_payload_bytes: u64::MAX,
+            max_metadata_bytes: u64::MAX,
+        };
+        assert_eq!(
+            union_budget_reserve(
+                UnionBudget {
+                    descriptors: u64::MAX,
+                    payload_bytes: 0,
+                    metadata_bytes: 0,
+                },
+                ilimitado,
+                8,
+            ),
+            Err(UnionBudgetError::DescriptorOverflow)
+        );
+        assert_eq!(
+            union_budget_reserve(
+                UnionBudget {
+                    descriptors: 0,
+                    payload_bytes: u64::MAX,
+                    metadata_bytes: 0,
+                },
+                ilimitado,
+                1,
+            ),
+            Err(UnionBudgetError::PayloadOverflow)
+        );
+        assert_eq!(
+            union_budget_reserve(
+                UnionBudget {
+                    descriptors: 0,
+                    payload_bytes: 0,
+                    metadata_bytes: u64::MAX,
+                },
+                ilimitado,
+                8,
+            ),
+            Err(UnionBudgetError::MetadataOverflow)
+        );
+    }
+
+    /// HR3/GAP4: uma reserva recusada não altera o orçamento corrente — nem no
+    /// contador que passou antes do que falhou.
+    #[test]
+    fn uniao_budget_recusa_e_atomica() {
+        let antes = UnionBudget {
+            descriptors: 0,
+            payload_bytes: LIMITES_DE_TESTE.max_payload_bytes,
+            metadata_bytes: 0,
+        };
+        let copia = antes;
+        assert_eq!(
+            union_budget_reserve(antes, LIMITES_DE_TESTE, 1),
+            Err(UnionBudgetError::PayloadBytes),
+            "a recusa vem do contador de bytes, depois de descritores passar"
+        );
+        assert_eq!(
+            antes, copia,
+            "o orçamento de entrada permanece byte a byte idêntico após a recusa"
+        );
+
+        // O runtime de produção usa os limites canônicos; a unidade é a mesma.
+        assert_eq!(UNION_BUDGET_LIMITS.max_descriptors, MAX_UNION_DESCRIPTORS);
+        assert_eq!(
+            UNION_BUDGET_LIMITS.max_payload_bytes,
+            MAX_UNION_TOTAL_PAYLOAD_BYTES
+        );
+        assert_eq!(
+            UNION_BUDGET_LIMITS.max_metadata_bytes,
+            MAX_UNION_METADATA_BYTES
+        );
+    }
+
+    /// HR3/GAP3: o binding extraído tem storage próprio. Modificar o primeiro
+    /// destino não altera o snapshot, a segunda extração recebe os bytes
+    /// originais e os dois destinos ocupam endereços distintos.
+    #[test]
+    fn uniao_mutacao_do_binding_extraido_nao_altera_o_snapshot() {
+        let origem: [u8; 32] = std::array::from_fn(|indice| (indice as u8).wrapping_mul(3));
+        let handle = unsafe { pinker_uniao_criar(21, 1, 32, 8, origem.as_ptr()) };
+        assert!(!handle.is_null());
+
+        let mut a: [u8; 32] = [0; 32];
+        unsafe { pinker_uniao_copiar_payload(handle, 21, 1, 32, 8, a.as_mut_ptr()) };
+        assert_eq!(a, origem, "a primeira extração devolve o snapshot integral");
+
+        // Mutação integral do binding extraído.
+        a = [0xC3; 32];
+
+        let mut b: [u8; 32] = [0; 32];
+        unsafe { pinker_uniao_copiar_payload(handle, 21, 1, 32, 8, b.as_mut_ptr()) };
+        assert_eq!(b, origem, "a segunda extração conserva os bytes originais");
+        assert_ne!(
+            a.as_ptr() as usize,
+            b.as_ptr() as usize,
+            "as duas extrações usam storages distintos"
+        );
+        assert_eq!(unsafe { pinker_uniao_tag(handle, 21) }, 1);
+    }
+
+    /// HR3: falha de alocação do payload produz diagnóstico controlado, não
+    /// abort de alocador. A injeção é exclusivamente interna ao teste — não há
+    /// variável de ambiente que altere a política documentada em execução.
+    #[cfg(unix)]
+    #[test]
+    fn uniao_falha_de_alocacao_produz_diagnostico_controlado() {
+        if std::env::var_os("PINKER_RT_TESTE_UNIAO_FILHO").is_some() {
+            FALHA_ALOCACAO_UNIAO.store(true, std::sync::atomic::Ordering::SeqCst);
+            let origem: [u8; 8] = [0; 8];
+            unsafe { pinker_uniao_criar(1, 0, 8, 8, origem.as_ptr()) };
+            unreachable!("a criação deveria ter terminado o processo");
+        }
+        let saida = filho_uniao(
+            "alocacao",
+            "tests::uniao_falha_de_alocacao_produz_diagnostico_controlado",
+        );
+        assert_eq!(saida.status.code(), Some(1), "saída controlada");
+        let stderr = String::from_utf8_lossy(&saida.stderr);
+        assert!(
+            stderr.contains("alocação de descritor de união estrutural falhou"),
+            "{stderr}"
+        );
+    }
+
+    /// HR3: cada validação da extração é obrigatória e produz diagnóstico
+    /// próprio. Um único teste percorre os cinco estados inválidos porque cada
+    /// um termina o processo; o modo vem do ambiente apenas para selecionar o
+    /// cenário no processo filho, nunca para alterar política.
+    #[cfg(unix)]
+    #[test]
+    fn uniao_extracao_valida_uniao_tag_tamanho_alinhamento_e_destino() {
+        if let Some(modo) = std::env::var_os("PINKER_RT_TESTE_UNIAO_FILHO") {
+            let origem: [u8; 8] = [9; 8];
+            let handle = unsafe { pinker_uniao_criar(11, 4, 8, 8, origem.as_ptr()) };
+            let mut destino: [u8; 8] = [0; 8];
+            let modo = modo.to_string_lossy().to_string();
+            unsafe {
+                match modo.as_str() {
+                    "uniao" => {
+                        pinker_uniao_copiar_payload(handle, 12, 4, 8, 8, destino.as_mut_ptr())
+                    }
+                    "tag" => pinker_uniao_copiar_payload(handle, 11, 5, 8, 8, destino.as_mut_ptr()),
+                    "tamanho" => {
+                        pinker_uniao_copiar_payload(handle, 11, 4, 4, 8, destino.as_mut_ptr())
+                    }
+                    "alinhamento" => {
+                        pinker_uniao_copiar_payload(handle, 11, 4, 8, 4, destino.as_mut_ptr())
+                    }
+                    "destino" => {
+                        pinker_uniao_copiar_payload(handle, 11, 4, 8, 8, std::ptr::null_mut())
+                    }
+                    "tag_identidade" => {
+                        pinker_uniao_tag(handle, 12);
+                    }
+                    outro => panic!("modo desconhecido: {outro}"),
+                }
+            }
+            unreachable!("a operação deveria ter terminado o processo");
+        }
+        for (modo, esperado) in [
+            ("uniao", "identidade de união divergente"),
+            ("tag", "tag incompatível"),
+            ("tamanho", "tamanho divergente"),
+            ("alinhamento", "alinhamento divergente"),
+            ("destino", "destino nulo"),
+            (
+                "tag_identidade",
+                "leitura de tag com identidade de união divergente",
+            ),
+        ] {
+            let saida = filho_uniao(
+                modo,
+                "tests::uniao_extracao_valida_uniao_tag_tamanho_alinhamento_e_destino",
+            );
+            assert_eq!(
+                saida.status.code(),
+                Some(1),
+                "modo {modo}: saída controlada"
+            );
+            let stderr = String::from_utf8_lossy(&saida.stderr);
+            assert!(stderr.contains(esperado), "modo {modo}: {stderr}");
+        }
+    }
+
+    /// HR3/GAP4: quando a alocação falha, nenhum handle é publicado. O filho
+    /// imprimiria o handle em stdout se a criação tivesse devolvido; a saída
+    /// vazia é a evidência de que nada foi exposto nem registrado.
+    #[cfg(unix)]
+    #[test]
+    fn uniao_falha_de_alocacao_nao_publica_handle() {
+        if std::env::var_os("PINKER_RT_TESTE_UNIAO_FILHO").is_some() {
+            FALHA_ALOCACAO_UNIAO.store(true, std::sync::atomic::Ordering::SeqCst);
+            let origem: [u8; 8] = [0; 8];
+            let handle = unsafe { pinker_uniao_criar(31, 0, 8, 8, origem.as_ptr()) };
+            println!("handle_publicado={}", handle as usize);
+            unreachable!("a criação deveria ter terminado o processo");
+        }
+        let saida = filho_uniao(
+            "alocacao_sem_handle",
+            "tests::uniao_falha_de_alocacao_nao_publica_handle",
+        );
+        assert_eq!(saida.status.code(), Some(1), "saída controlada");
+        let stdout = String::from_utf8_lossy(&saida.stdout);
+        assert!(
+            !stdout.contains("handle_publicado="),
+            "nenhum handle pode ser publicado: {stdout}"
+        );
+        let stderr = String::from_utf8_lossy(&saida.stderr);
+        assert!(
+            stderr.contains("alocação de descritor de união estrutural falhou"),
+            "{stderr}"
+        );
+    }
+
+    /// HR3: um handle que não foi criado por este runtime nunca é
+    /// dereferenciado.
+    #[cfg(unix)]
+    #[test]
+    fn uniao_handle_desconhecido_nao_e_dereferenciado() {
+        if std::env::var_os("PINKER_RT_TESTE_UNIAO_FILHO").is_some() {
+            let mut destino: [u8; 8] = [0; 8];
+            unsafe {
+                pinker_uniao_copiar_payload(
+                    0x1234_5678_9abc_def0_u64 as *mut u8,
+                    1,
+                    0,
+                    8,
+                    8,
+                    destino.as_mut_ptr(),
+                )
+            };
+            unreachable!("a extração deveria ter terminado o processo");
+        }
+        let saida = filho_uniao(
+            "handle",
+            "tests::uniao_handle_desconhecido_nao_e_dereferenciado",
+        );
+        assert_eq!(saida.status.code(), Some(1), "saída controlada");
+        let stderr = String::from_utf8_lossy(&saida.stderr);
+        assert!(stderr.contains("handle desconhecido"), "{stderr}");
+    }
 }
-// @pinker-nav:end evidencia.runtime.mapas-iterador-snapshot
+// @pinker-nav:end evidencia.runtime.unioes-snapshot
