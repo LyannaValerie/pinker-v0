@@ -101,6 +101,21 @@ pub enum BackendTextInstruction {
         union_type_id: crate::ir::UnionTypeId,
         tag: u64,
     },
+    // Operações internas tipadas de união no backend textual. O símbolo de
+    // runtime correspondente é escolhido apenas no backend nativo.
+    UnionTag {
+        dest: crate::cfg_ir::TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+    },
+    UnionExtract {
+        dest: crate::cfg_ir::TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+        tag: u64,
+        canonical_member_key: String,
+        payload_type: TypeIR,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -188,6 +203,31 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                                 value: value.clone(),
                                 union_type_id: *union_type_id,
                                 tag: *tag,
+                            }),
+                            InstructionCfgIR::UnionTag {
+                                dest,
+                                value,
+                                union_type_id,
+                            } => Ok(BackendTextInstruction::UnionTag {
+                                dest: *dest,
+                                value: value.clone(),
+                                union_type_id: *union_type_id,
+                            }),
+                            InstructionCfgIR::UnionExtract {
+                                dest,
+                                value,
+                                union_type_id,
+                                tag,
+                                canonical_member_key,
+                                payload_type,
+                                ..
+                            } => Ok(BackendTextInstruction::UnionExtract {
+                                dest: *dest,
+                                value: value.clone(),
+                                union_type_id: *union_type_id,
+                                tag: *tag,
+                                canonical_member_key: canonical_member_key.clone(),
+                                payload_type: *payload_type,
                             }),
                             InstructionCfgIR::Binary {
                                 dest, op, lhs, rhs, ..
@@ -428,6 +468,31 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
             value: value.clone(),
             union_type_id: *union_type_id,
             tag: *tag,
+        }),
+        SelectedInstr::UnionTag {
+            dest,
+            value,
+            union_type_id,
+        } => Ok(BackendTextInstruction::UnionTag {
+            dest: *dest,
+            value: value.clone(),
+            union_type_id: *union_type_id,
+        }),
+        SelectedInstr::UnionExtract {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            canonical_member_key,
+            payload_type,
+            ..
+        } => Ok(BackendTextInstruction::UnionExtract {
+            dest: *dest,
+            value: value.clone(),
+            union_type_id: *union_type_id,
+            tag: *tag,
+            canonical_member_key: canonical_member_key.clone(),
+            payload_type: *payload_type,
         }),
         SelectedInstr::BitAnd { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
@@ -868,6 +933,32 @@ fn render_instruction(inst: &BackendTextInstruction) -> String {
             union_type_id.0,
             tag,
             render_operand(value)
+        ),
+        BackendTextInstruction::UnionTag {
+            dest,
+            value,
+            union_type_id,
+        } => format!(
+            "%{} = union_tag #{} {}",
+            dest.0,
+            union_type_id.0,
+            render_operand(value)
+        ),
+        BackendTextInstruction::UnionExtract {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            canonical_member_key,
+            payload_type,
+        } => format!(
+            "%{} = union_extract #{} tag={} key={} {} -> {}",
+            dest.0,
+            union_type_id.0,
+            tag,
+            canonical_member_key,
+            render_operand(value),
+            payload_type.name()
         ),
     }
 }

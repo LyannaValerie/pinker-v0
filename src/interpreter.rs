@@ -1039,6 +1039,75 @@ fn exec_instr(
             })?;
             stack.push(RuntimeValue::Ptr(handle));
         }
+        // Execução direta das operações internas tipadas de união: `union_tag` valida o `UnionTypeId` do descritor e devolve a tag corrente; `union_extract` valida união, tag, chave canônica e layout contra a tabela internada antes de devolver o payload. Não há despacho por nome `__pinker_internal_*` — descritor inválido produz diagnóstico estruturado.
+        MachineInstr::UnionTag { union_type_id } => {
+            let value = pop(stack, "union_tag exige valor de união no topo")?;
+            let RuntimeValue::Ptr(handle) = value else {
+                return Err(runtime_err("union_tag exige handle de união"));
+            };
+            crate::ir::validate_union_reference(&program.union_types, *union_type_id)
+                .map_err(|message| runtime_err(&message))?;
+            let tag = UNION_RUNTIME_STATE.with(|state| {
+                let state = state.borrow();
+                let descriptor = state
+                    .descriptors
+                    .get(&handle)
+                    .ok_or_else(|| runtime_err("handle de união inválido em union_tag"))?;
+                if descriptor.union_type_id != *union_type_id {
+                    return Err(runtime_err("descritor de união de outro tipo em union_tag"));
+                }
+                Ok(descriptor.tag)
+            })?;
+            stack.push(RuntimeValue::Int(tag));
+        }
+        MachineInstr::UnionExtract {
+            union_type_id,
+            tag,
+            canonical_member_key,
+            payload_type,
+            payload_size,
+            payload_align,
+        } => {
+            let value = pop(stack, "union_extract exige valor de união no topo")?;
+            let RuntimeValue::Ptr(handle) = value else {
+                return Err(runtime_err("union_extract exige handle de união"));
+            };
+            crate::ir::validate_union_member_reference(
+                &program.union_types,
+                *union_type_id,
+                *tag,
+                canonical_member_key,
+                *payload_type,
+                *payload_size,
+                *payload_align,
+            )
+            .map_err(|message| runtime_err(&message))?;
+            let descriptor = UNION_RUNTIME_STATE.with(|state| {
+                state
+                    .borrow()
+                    .descriptors
+                    .get(&handle)
+                    .cloned()
+                    .ok_or_else(|| runtime_err("handle de união inválido em union_extract"))
+            })?;
+            if descriptor.union_type_id != *union_type_id {
+                return Err(runtime_err(
+                    "descritor de união de outro tipo em union_extract",
+                ));
+            }
+            if descriptor.tag != *tag {
+                return Err(runtime_err("tag divergente ao abrir payload de união"));
+            }
+            if descriptor.payload_size != *payload_size
+                || descriptor.payload_align != *payload_align
+                || descriptor.payload_align == 0
+                || !descriptor.payload_align.is_power_of_two()
+            {
+                return Err(runtime_err("layout inválido no descritor de união"));
+            }
+            let payload = coerce_runtime_value_to_type(descriptor.payload, *payload_type)?;
+            stack.push(payload);
+        }
         MachineInstr::BitAnd { ty } => {
             let (lhs, rhs) = pop_bin_numeric(stack, "bitand exige dois inteiros")?;
             stack.push(normalize_integer(
@@ -2376,48 +2445,8 @@ fn try_call_intrinsic(
             payloads.push(RuntimeEnumPayload::Str(payload.clone()));
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(*handle))))
         }
-        "__pinker_internal_uniao_tag" => {
-            let [RuntimeValue::Ptr(handle)] = args else {
-                return Err(runtime_err("tag de união exige handle de união"));
-            };
-            let tag = UNION_RUNTIME_STATE.with(|state| {
-                state
-                    .borrow()
-                    .descriptors
-                    .get(handle)
-                    .map(|descriptor| descriptor.tag)
-                    .ok_or_else(|| runtime_err("handle de união inválido"))
-            })?;
-            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(tag))))
-        }
-        "__pinker_internal_uniao_payload_b" | "__pinker_internal_uniao_payload_v" => {
-            let [RuntimeValue::Ptr(handle), RuntimeValue::Int(expected_tag)] = args else {
-                return Err(runtime_err("payload de união exige handle e tag"));
-            };
-            let descriptor = UNION_RUNTIME_STATE.with(|state| {
-                state
-                    .borrow()
-                    .descriptors
-                    .get(handle)
-                    .cloned()
-                    .ok_or_else(|| runtime_err("handle de união inválido"))
-            })?;
-            if descriptor.tag != *expected_tag {
-                return Err(runtime_err("tag divergente ao abrir payload de união"));
-            }
-            if descriptor.payload_size == 0
-                || descriptor.payload_align == 0
-                || !descriptor.payload_align.is_power_of_two()
-            {
-                return Err(runtime_err("layout inválido no descritor de união"));
-            }
-            if callee == "__pinker_internal_uniao_payload_v"
-                && !matches!(descriptor.payload, RuntimeValue::Str(_))
-            {
-                return Err(runtime_err("payload de união não é verso"));
-            }
-            Ok(IntrinsicCall::Done(Some(descriptor.payload)))
-        }
+        // Não há intrínseca chamável de união: `union_tag` e `union_extract`
+        // são instruções tipadas da máquina, executadas diretamente.
         "__pinker_internal_leque_tag" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -5907,6 +5936,8 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         }
         MachineInstr::Cast { .. } => "cast",
         MachineInstr::MakeUnion { .. } => "make_union",
+        MachineInstr::UnionTag { .. } => "union_tag",
+        MachineInstr::UnionExtract { .. } => "union_extract",
         MachineInstr::BitAnd { .. } => "bitand",
         MachineInstr::BitOr { .. } => "bitor",
         MachineInstr::BitXor { .. } => "bitxor",

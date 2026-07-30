@@ -284,6 +284,19 @@ fn validate_function(
                     let _ = infer_operand(value, &slots, &temps, globals)?;
                     temps.insert(*dest, TypeIR::Union(crate::ir::UnionTypeId(0)));
                 }
+                BackendTextInstruction::UnionTag { dest, value, .. } => {
+                    let _ = infer_operand(value, &slots, &temps, globals)?;
+                    temps.insert(*dest, TypeIR::Bombom);
+                }
+                BackendTextInstruction::UnionExtract {
+                    dest,
+                    value,
+                    payload_type,
+                    ..
+                } => {
+                    let _ = infer_operand(value, &slots, &temps, globals)?;
+                    temps.insert(*dest, *payload_type);
+                }
             }
         }
 

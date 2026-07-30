@@ -1385,6 +1385,46 @@ fn extract_external_callconv_program(
                             slot_offsets[&temp_key(*dest)]
                         ));
                     }
+                    // A escolha do símbolo interno de ABI acontece **aqui**, no
+                    // backend: a AST e a IR não carregam nome de runtime.
+                    SelectedInstr::UnionTag { dest, value, .. } => {
+                        register_rodata_strings_for_operand(
+                            value,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        );
+                        body.extend(load_operand("%rdi", value, &slot_offsets, &rodata_strings)?);
+                        body.push("call pinker_uniao_tag".to_string());
+                        body.push(format!(
+                            "movq %rax, -{}(%rbp)",
+                            slot_offsets[&temp_key(*dest)]
+                        ));
+                    }
+                    SelectedInstr::UnionExtract {
+                        dest,
+                        value,
+                        tag,
+                        payload_type,
+                        ..
+                    } => {
+                        register_rodata_strings_for_operand(
+                            value,
+                            &mut rodata_string_labels,
+                            &mut rodata_strings,
+                        );
+                        body.extend(load_operand("%rdi", value, &slot_offsets, &rodata_strings)?);
+                        body.push(format!("movq ${tag}, %rsi"));
+                        let symbol = if *payload_type == TypeIR::Verso {
+                            "pinker_uniao_payload_v"
+                        } else {
+                            "pinker_uniao_payload_b"
+                        };
+                        body.push(format!("call {symbol}"));
+                        body.push(format!(
+                            "movq %rax, -{}(%rbp)",
+                            slot_offsets[&temp_key(*dest)]
+                        ));
+                    }
                     _ => {
                         return Err(err(
                             "subset externo montável (Fase 135) aceita apenas atribuição, aritmética linear (+,-,*), comparações mínimas (`==`, `!=`, `<`, `>`, `<=` e `>=`), `virar` mínimo explícito (`u32` slot -> `u64` e `u64` slot -> `u32`), call direta com N argumentos (`bombom`/`u32`/`u64`/`verso` opaco/`seta<T>`; ABI SysV completa, Fase 213/B2), `deref_store` mínimo em `bombom`/`u32`/`u64` (incluindo escrita heterogênea de campo de `ninho` via offset explícito), `deref_load` mínimo em `bombom`/`u32`/`u64` (incluindo campo heterogêneo de `ninho` via offset explícito), literal `verso` estático mínimo em `.rodata` carregado por endereço e tráfego opaco por slot/parâmetro, composição heterogênea mínima auditável no mesmo `ninho` (`u32` + `u64` por offset) e load/store em slots de frame, preservando recorte conservador de `quebrar`/`continuar` em `sempre que` via saltos já materializados (até três níveis de laço aninhado)",
@@ -1456,7 +1496,9 @@ fn collect_function_refs_in_function(
                     note(value, out);
                 }
                 SelectedInstr::Cast { value, .. } => note(value, out),
-                SelectedInstr::UnionInject { value, .. } => note(value, out),
+                SelectedInstr::UnionInject { value, .. }
+                | SelectedInstr::UnionTag { value, .. }
+                | SelectedInstr::UnionExtract { value, .. } => note(value, out),
                 SelectedInstr::BitAnd { lhs, rhs, .. }
                 | SelectedInstr::BitOr { lhs, rhs, .. }
                 | SelectedInstr::BitXor { lhs, rhs, .. }
@@ -2293,6 +2335,8 @@ fn collect_temp_ids(function: &crate::instr_select::SelectedFunction) -> BTreeSe
                 | SelectedInstr::DerefLoad { dest, .. }
                 | SelectedInstr::Cast { dest, .. }
                 | SelectedInstr::UnionInject { dest, .. }
+                | SelectedInstr::UnionTag { dest, .. }
+                | SelectedInstr::UnionExtract { dest, .. }
                 | SelectedInstr::BitAnd { dest, .. }
                 | SelectedInstr::BitOr { dest, .. }
                 | SelectedInstr::BitXor { dest, .. }
@@ -3014,9 +3058,10 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         "__pinker_internal_leque_carga_b" | "__pinker_internal_leque_carga_v" => {
             Some("pinker_leque_carga")
         }
-        "__pinker_internal_uniao_tag" => Some("pinker_uniao_tag"),
-        "__pinker_internal_uniao_payload_b" => Some("pinker_uniao_payload_b"),
-        "__pinker_internal_uniao_payload_v" => Some("pinker_uniao_payload_v"),
+        // As uniões não passam por este mapeamento: `union_tag` e
+        // `union_extract` são operações internas tipadas, e o símbolo
+        // (`pinker_uniao_tag`/`pinker_uniao_payload_b`/`..._v`) é escolhido
+        // diretamente no lowering do backend.
         _ => None,
     }
 }
@@ -3345,6 +3390,32 @@ fn render_instruction(inst: &crate::backend_text::BackendTextInstruction) -> Str
             union_type_id.0,
             tag,
             render_operand(value)
+        ),
+        crate::backend_text::BackendTextInstruction::UnionTag {
+            dest,
+            value,
+            union_type_id,
+        } => format!(
+            "union_tag %{} #{} {}",
+            dest.0,
+            union_type_id.0,
+            render_operand(value)
+        ),
+        crate::backend_text::BackendTextInstruction::UnionExtract {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            canonical_member_key,
+            payload_type,
+        } => format!(
+            "union_extract %{} #{} tag={} key={} {} -> {}",
+            dest.0,
+            union_type_id.0,
+            tag,
+            canonical_member_key,
+            render_operand(value),
+            payload_type.name()
         ),
     }
 }
