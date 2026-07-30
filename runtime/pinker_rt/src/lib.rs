@@ -1396,87 +1396,283 @@ pub unsafe extern "C" fn pinker_leque_carga(l: *mut u8, tag: u64, indice: u64) -
 // @pinker-nav:domain unioes
 // @pinker-nav:layer runtime
 // @pinker-nav:summary Descritor imutável de união estrutural com identidade internada, tag determinística, layout validado e snapshot de uma palavra; criação e leitura usam uma ABI interna separada da memória pública.
+/// Marca do descritor. Um handle que não a apresente não é um descritor criado
+/// por este runtime, e nenhuma leitura adicional é feita nele.
+const UNION_MAGIC: u64 = 0x504b_5f55_4e49_4f31;
+
+/// Tetos de recurso. São os mesmos valores documentados em
+/// `crate::union_payload` do compilador; a duplicação é a fronteira da ABI, não
+/// uma segunda política.
+const MAX_UNION_PAYLOAD_BYTES: u64 = 4096;
+const MAX_UNION_PAYLOAD_ALIGN: u64 = 16;
+const MAX_UNION_DESCRIPTORS: u64 = 1_000_000;
+const MAX_UNION_TOTAL_PAYLOAD_BYTES: u64 = 256 * 1024 * 1024;
+const UNION_DESCRIPTOR_METADATA_BYTES: u64 = 8 * 8;
+const MAX_UNION_METADATA_BYTES: u64 = MAX_UNION_DESCRIPTORS * UNION_DESCRIPTOR_METADATA_BYTES;
+
+/// Cabeçalho do descritor imutável de união.
+///
+/// O payload vive **no mesmo bloco**, a partir de `payload_offset` já alinhado.
+/// Um único bloco mantém ownership e validação triviais: o descritor é dono de
+/// tudo que devolve, e nada aponta para o storage do chamador.
 #[repr(C)]
 struct PinkerUnionDescriptor {
+    magic: u64,
     union_type_id: u64,
     tag: u64,
     payload_size: u64,
     payload_align: u64,
-    payload_word: u64,
+    payload_offset: u64,
+    allocation_size: u64,
+    allocation_align: u64,
+}
+
+struct EstadoUnioes {
+    /// Handles criados por este runtime. Um handle arbitrário nunca é
+    /// dereferenciado antes de constar aqui.
+    descritores: std::collections::HashSet<usize>,
+    bytes_de_payload: u64,
+    bytes_de_metadata: u64,
+}
+
+fn estado_unioes() -> &'static Mutex<EstadoUnioes> {
+    static UNIOES: OnceLock<Mutex<EstadoUnioes>> = OnceLock::new();
+    UNIOES.get_or_init(|| {
+        Mutex::new(EstadoUnioes {
+            descritores: std::collections::HashSet::new(),
+            bytes_de_payload: 0,
+            bytes_de_metadata: 0,
+        })
+    })
 }
 
 fn union_layout_valid(size: u64, align: u64) -> bool {
     size > 0
-        && size <= std::mem::size_of::<u64>() as u64
+        && size <= MAX_UNION_PAYLOAD_BYTES
         && align > 0
         && align.is_power_of_two()
-        && align <= std::mem::align_of::<u64>() as u64
+        && align <= MAX_UNION_PAYLOAD_ALIGN
+}
+
+/// Calcula o layout do bloco único {cabeçalho, padding, payload} com operações
+/// checadas. Overflow em qualquer etapa é diagnóstico, não pânico.
+fn union_allocation_layout(payload_size: u64, payload_align: u64) -> Option<(u64, u64, u64)> {
+    let header = std::mem::size_of::<PinkerUnionDescriptor>() as u64;
+    let header_align = std::mem::align_of::<PinkerUnionDescriptor>() as u64;
+    let allocation_align = header_align.max(payload_align);
+    let payload_offset = header
+        .checked_add(payload_align.checked_sub(1)?)?
+        .checked_div(payload_align)?
+        .checked_mul(payload_align)?;
+    let total = payload_offset.checked_add(payload_size)?;
+    let allocation_size = total
+        .checked_add(allocation_align.checked_sub(1)?)?
+        .checked_div(allocation_align)?
+        .checked_mul(allocation_align)?;
+    Some((payload_offset, allocation_size, allocation_align))
+}
+
+/// Ponto único de injeção de falha de alocação, exercitado apenas por testes do
+/// próprio runtime. Não há variável de ambiente: a política documentada não
+/// muda em execução, e debug e release se comportam igual.
+#[cfg(test)]
+static FALHA_ALOCACAO_UNIAO: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+fn union_alocacao_deve_falhar() -> bool {
+    #[cfg(test)]
+    {
+        FALHA_ALOCACAO_UNIAO.load(std::sync::atomic::Ordering::SeqCst)
+    }
+    #[cfg(not(test))]
+    {
+        false
+    }
 }
 
 /// Cria um snapshot imutável para um valor de união.
+///
+/// A origem é copiada **integralmente** para storage próprio do descritor antes
+/// de o handle ser exposto. Nenhum ponteiro do chamador permanece referenciado.
+///
+/// # Safety
+/// `payload_source_ptr` deve apontar para ao menos `payload_size` bytes legíveis
+/// e alinhados a `payload_align`.
 #[no_mangle]
-pub extern "C" fn pinker_uniao_criar(
+pub unsafe extern "C" fn pinker_uniao_criar(
     union_type_id: u64,
     tag: u64,
     payload_size: u64,
     payload_align: u64,
-    payload_word: u64,
+    payload_source_ptr: *const u8,
 ) -> *mut u8 {
     if !union_layout_valid(payload_size, payload_align) {
         erro_fatal("layout inválido ao criar descritor de união estrutural");
     }
-    Box::into_raw(Box::new(PinkerUnionDescriptor {
+    if payload_source_ptr.is_null() {
+        erro_fatal("origem nula ao criar descritor de união estrutural");
+    }
+    if (payload_source_ptr as usize) % (payload_align as usize) != 0 {
+        erro_fatal("origem desalinhada ao criar descritor de união estrutural");
+    }
+    let Some((payload_offset, allocation_size, allocation_align)) =
+        union_allocation_layout(payload_size, payload_align)
+    else {
+        erro_fatal("overflow no layout do descritor de união estrutural");
+    };
+
+    {
+        let mut estado = estado_unioes()
+            .lock()
+            .unwrap_or_else(|_| erro_fatal("estado de uniões corrompido"));
+        let descritores = estado.descritores.len() as u64;
+        if descritores >= MAX_UNION_DESCRIPTORS {
+            erro_fatal("orçamento de descritores de união esgotado");
+        }
+        let Some(bytes) = estado.bytes_de_payload.checked_add(payload_size) else {
+            erro_fatal("overflow no orçamento de bytes de união");
+        };
+        if bytes > MAX_UNION_TOTAL_PAYLOAD_BYTES {
+            erro_fatal("orçamento de bytes de payload de união esgotado");
+        }
+        let Some(metadata) = estado
+            .bytes_de_metadata
+            .checked_add(UNION_DESCRIPTOR_METADATA_BYTES)
+        else {
+            erro_fatal("overflow no orçamento de metadata de união");
+        };
+        if metadata > MAX_UNION_METADATA_BYTES {
+            erro_fatal("orçamento de metadata de descritores de união esgotado");
+        }
+        estado.bytes_de_payload = bytes;
+        estado.bytes_de_metadata = metadata;
+    }
+
+    let Ok(layout) = Layout::from_size_align(allocation_size as usize, allocation_align as usize)
+    else {
+        erro_fatal("layout de alocação inválido para descritor de união estrutural");
+    };
+    // Falha de alocação é diagnóstico controlado; `alloc` devolvendo nulo nunca
+    // vira abort de alocador nem dereferência de nulo.
+    let base = if union_alocacao_deve_falhar() {
+        std::ptr::null_mut()
+    } else {
+        alloc(layout)
+    };
+    if base.is_null() {
+        erro_fatal("alocação de descritor de união estrutural falhou");
+    }
+
+    (base as *mut PinkerUnionDescriptor).write(PinkerUnionDescriptor {
+        magic: UNION_MAGIC,
         union_type_id,
         tag,
         payload_size,
         payload_align,
-        payload_word,
-    })) as *mut u8
+        payload_offset,
+        allocation_size,
+        allocation_align,
+    });
+    std::ptr::copy_nonoverlapping(
+        payload_source_ptr,
+        base.add(payload_offset as usize),
+        payload_size as usize,
+    );
+
+    // O registro acontece **antes** da exposição: um handle só é observável
+    // depois de ser reconhecível.
+    estado_unioes()
+        .lock()
+        .unwrap_or_else(|_| erro_fatal("estado de uniões corrompido"))
+        .descritores
+        .insert(base as usize);
+    base
 }
 
-unsafe fn union_descriptor(handle: *mut u8) -> &'static PinkerUnionDescriptor {
+/// Confirma que o handle foi criado por este runtime antes de qualquer leitura.
+unsafe fn union_descriptor(handle: *mut u8, operacao: &str) -> &'static PinkerUnionDescriptor {
     if handle.is_null() {
-        erro_fatal("handle nulo de união estrutural");
+        erro_fatal(&format!("handle nulo de união estrutural em '{operacao}'"));
     }
-    &*(handle as *const PinkerUnionDescriptor)
+    let conhecido = estado_unioes()
+        .lock()
+        .unwrap_or_else(|_| erro_fatal("estado de uniões corrompido"))
+        .descritores
+        .contains(&(handle as usize));
+    if !conhecido {
+        erro_fatal(&format!(
+            "handle desconhecido de união estrutural em '{operacao}'"
+        ));
+    }
+    let descriptor = &*(handle as *const PinkerUnionDescriptor);
+    if descriptor.magic != UNION_MAGIC {
+        erro_fatal(&format!(
+            "descritor de união com marca inválida em '{operacao}'"
+        ));
+    }
+    if !union_layout_valid(descriptor.payload_size, descriptor.payload_align) {
+        erro_fatal(&format!(
+            "descritor de união contém layout inválido em '{operacao}'"
+        ));
+    }
+    descriptor
 }
 
-/// Obtém a tag determinística de uma união.
+/// Obtém a tag determinística de uma união, validando também a identidade do
+/// tipo de união esperado.
 ///
 /// # Safety
 /// `handle` deve ter sido devolvido por `pinker_uniao_criar`.
 #[no_mangle]
-pub unsafe extern "C" fn pinker_uniao_tag(handle: *mut u8) -> u64 {
-    union_descriptor(handle).tag
+pub unsafe extern "C" fn pinker_uniao_tag(handle: *mut u8, expected_union_type_id: u64) -> u64 {
+    let descriptor = union_descriptor(handle, "uniao_tag");
+    if descriptor.union_type_id != expected_union_type_id {
+        erro_fatal("leitura de tag com identidade de união divergente");
+    }
+    descriptor.tag
 }
 
-unsafe fn union_payload(handle: *mut u8, expected_tag: u64) -> u64 {
-    let descriptor = union_descriptor(handle);
+/// Copia o snapshot do payload para storage do chamador.
+///
+/// O ponteiro interno do descritor nunca é devolvido e o descritor não é
+/// alterado.
+///
+/// # Safety
+/// `handle` deve ter sido devolvido por `pinker_uniao_criar` e `destination_ptr`
+/// deve apontar para ao menos `expected_size` bytes graváveis e alinhados.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_uniao_copiar_payload(
+    handle: *mut u8,
+    expected_union_type_id: u64,
+    expected_tag: u64,
+    expected_size: u64,
+    expected_align: u64,
+    destination_ptr: *mut u8,
+) {
+    let descriptor = union_descriptor(handle, "uniao_copiar_payload");
+    if descriptor.union_type_id != expected_union_type_id {
+        erro_fatal("extração de união com identidade de união divergente");
+    }
     if descriptor.tag != expected_tag {
         erro_fatal("extração de união com tag incompatível");
     }
-    if !union_layout_valid(descriptor.payload_size, descriptor.payload_align) {
-        erro_fatal("descritor de união contém layout inválido");
+    if descriptor.payload_size != expected_size {
+        erro_fatal("extração de união com tamanho divergente");
     }
-    descriptor.payload_word
-}
-
-/// Obtém uma carga escalar validando a tag.
-///
-/// # Safety
-/// `handle` deve ter sido devolvido por `pinker_uniao_criar`.
-#[no_mangle]
-pub unsafe extern "C" fn pinker_uniao_payload_b(handle: *mut u8, expected_tag: u64) -> u64 {
-    union_payload(handle, expected_tag)
-}
-
-/// Obtém uma carga-handle validando a tag.
-///
-/// # Safety
-/// `handle` deve ter sido devolvido por `pinker_uniao_criar`.
-#[no_mangle]
-pub unsafe extern "C" fn pinker_uniao_payload_v(handle: *mut u8, expected_tag: u64) -> *mut u8 {
-    union_payload(handle, expected_tag) as *mut u8
+    if descriptor.payload_align != expected_align {
+        erro_fatal("extração de união com alinhamento divergente");
+    }
+    if destination_ptr.is_null() {
+        erro_fatal("destino nulo na extração de união estrutural");
+    }
+    if (destination_ptr as usize) % (expected_align as usize) != 0 {
+        erro_fatal("destino desalinhado na extração de união estrutural");
+    }
+    std::ptr::copy_nonoverlapping(
+        handle.add(descriptor.payload_offset as usize) as *const u8,
+        destination_ptr,
+        descriptor.payload_size as usize,
+    );
 }
 // @pinker-nav:end runtime.unioes.descritor
 
@@ -3062,5 +3258,214 @@ mod tests {
             assert_eq!(pinker_mapa_iterador_proxima(cursor), 2);
         }
     }
+    // @pinker-nav:end evidencia.runtime.mapas-iterador-snapshot
+
+    // @pinker-nav:start evidencia.runtime.unioes-snapshot
+    // @pinker-nav:domain unioes
+    // @pinker-nav:layer evidencia
+    // @pinker-nav:summary Evidência em memória do descritor de união estrutural: layout do bloco único com payload alinhado, snapshot independente da origem e das extrações, alinhamento de dezesseis honrado, recusa de layout fora dos limites documentados e, por processo filho, diagnóstico controlado para falha de alocação injetada só em teste e para handle desconhecido nunca dereferenciado.
+
+    /// HR3: o layout do bloco único {cabeçalho, padding, payload} respeita o
+    /// alinhamento pedido, cabe no bloco e usa aritmética checada.
+    #[test]
+    fn uniao_layout_de_alocacao_respeita_alinhamento_e_limites() {
+        for (size, align) in [(1_u64, 1_u64), (9, 8), (16, 16), (24, 8), (4096, 16)] {
+            let (offset, total, total_align) =
+                union_allocation_layout(size, align).expect("layout finito");
+            assert_eq!(offset % align, 0, "payload alinhado: {size}/{align}");
+            assert!(offset >= std::mem::size_of::<PinkerUnionDescriptor>() as u64);
+            assert!(total >= offset + size);
+            assert_eq!(total % total_align, 0);
+            assert!(total_align >= align);
+        }
+        assert!(union_allocation_layout(u64::MAX, 8).is_none(), "overflow");
+    }
+
+    /// HR3: o descritor guarda um snapshot integral e independente. Mudar a
+    /// origem depois da criação não muda o payload observado, cada extração
+    /// escreve num destino distinto e o descritor não é alterado.
+    #[test]
+    fn uniao_snapshot_e_independente_da_origem_e_das_extracoes() {
+        let mut origem: [u8; 24] = [0; 24];
+        for (indice, byte) in origem.iter_mut().enumerate() {
+            *byte = indice as u8;
+        }
+        let handle = unsafe { pinker_uniao_criar(7, 3, 24, 8, origem.as_ptr()) };
+        assert!(!handle.is_null());
+
+        // A origem muda inteira depois da injeção.
+        origem = [0xAA; 24];
+
+        let mut primeiro: [u8; 24] = [0; 24];
+        let mut segundo: [u8; 24] = [0; 24];
+        unsafe {
+            pinker_uniao_copiar_payload(handle, 7, 3, 24, 8, primeiro.as_mut_ptr());
+            pinker_uniao_copiar_payload(handle, 7, 3, 24, 8, segundo.as_mut_ptr());
+        }
+        for indice in 0..24usize {
+            assert_eq!(primeiro[indice], indice as u8, "snapshot preservado");
+            assert_eq!(segundo[indice], indice as u8, "extrações iguais");
+        }
+        assert_eq!(origem[0], 0xAA, "a origem permanece independente");
+
+        // Mudar o primeiro destino não contamina o descritor.
+        primeiro[0] = 0xFF;
+        let mut terceiro: [u8; 24] = [0; 24];
+        unsafe { pinker_uniao_copiar_payload(handle, 7, 3, 24, 8, terceiro.as_mut_ptr()) };
+        assert_eq!(terceiro[0], 0, "o snapshot não foi alterado pelo binding");
+
+        assert_eq!(unsafe { pinker_uniao_tag(handle, 7) }, 3);
+    }
+
+    /// HR3: o alinhamento pedido é honrado pelo storage do payload.
+    #[test]
+    fn uniao_storage_respeita_alinhamento_de_dezesseis() {
+        let origem: [u8; 16] = [1; 16];
+        let handle = unsafe { pinker_uniao_criar(1, 0, 16, 16, origem.as_ptr()) };
+        let descriptor = unsafe { &*(handle as *const PinkerUnionDescriptor) };
+        let payload = unsafe { handle.add(descriptor.payload_offset as usize) };
+        assert_eq!(payload as usize % 16, 0, "payload alinhado a 16");
+    }
+
+    /// HR3: layout fora dos limites documentados é recusado sem alocar.
+    #[test]
+    fn uniao_layout_invalido_e_reconhecido_antes_de_alocar() {
+        assert!(!union_layout_valid(0, 8), "tamanho zero");
+        assert!(
+            !union_layout_valid(MAX_UNION_PAYLOAD_BYTES + 1, 8),
+            "acima do limite"
+        );
+        assert!(!union_layout_valid(8, 0), "alinhamento zero");
+        assert!(
+            !union_layout_valid(8, 3),
+            "alinhamento não potência de dois"
+        );
+        assert!(
+            !union_layout_valid(8, MAX_UNION_PAYLOAD_ALIGN * 2),
+            "alinhamento acima do limite"
+        );
+        assert!(union_layout_valid(MAX_UNION_PAYLOAD_BYTES, 16), "no limite");
+    }
+
+    #[cfg(unix)]
+    fn filho_uniao(modo: &str, teste: &str) -> std::process::Output {
+        std::process::Command::new(std::env::current_exe().expect("binário de teste"))
+            .args(["--exact", teste, "--nocapture"])
+            .env("PINKER_RT_TESTE_UNIAO_FILHO", modo)
+            .output()
+            .expect("executar filho de teste")
+    }
+
+    /// HR3: falha de alocação do payload produz diagnóstico controlado, não
+    /// abort de alocador. A injeção é exclusivamente interna ao teste — não há
+    /// variável de ambiente que altere a política documentada em execução.
+    #[cfg(unix)]
+    #[test]
+    fn uniao_falha_de_alocacao_produz_diagnostico_controlado() {
+        if std::env::var_os("PINKER_RT_TESTE_UNIAO_FILHO").is_some() {
+            FALHA_ALOCACAO_UNIAO.store(true, std::sync::atomic::Ordering::SeqCst);
+            let origem: [u8; 8] = [0; 8];
+            unsafe { pinker_uniao_criar(1, 0, 8, 8, origem.as_ptr()) };
+            unreachable!("a criação deveria ter terminado o processo");
+        }
+        let saida = filho_uniao(
+            "alocacao",
+            "tests::uniao_falha_de_alocacao_produz_diagnostico_controlado",
+        );
+        assert_eq!(saida.status.code(), Some(1), "saída controlada");
+        let stderr = String::from_utf8_lossy(&saida.stderr);
+        assert!(
+            stderr.contains("alocação de descritor de união estrutural falhou"),
+            "{stderr}"
+        );
+    }
+
+    /// HR3: cada validação da extração é obrigatória e produz diagnóstico
+    /// próprio. Um único teste percorre os cinco estados inválidos porque cada
+    /// um termina o processo; o modo vem do ambiente apenas para selecionar o
+    /// cenário no processo filho, nunca para alterar política.
+    #[cfg(unix)]
+    #[test]
+    fn uniao_extracao_valida_uniao_tag_tamanho_alinhamento_e_destino() {
+        if let Some(modo) = std::env::var_os("PINKER_RT_TESTE_UNIAO_FILHO") {
+            let origem: [u8; 8] = [9; 8];
+            let handle = unsafe { pinker_uniao_criar(11, 4, 8, 8, origem.as_ptr()) };
+            let mut destino: [u8; 8] = [0; 8];
+            let modo = modo.to_string_lossy().to_string();
+            unsafe {
+                match modo.as_str() {
+                    "uniao" => {
+                        pinker_uniao_copiar_payload(handle, 12, 4, 8, 8, destino.as_mut_ptr())
+                    }
+                    "tag" => pinker_uniao_copiar_payload(handle, 11, 5, 8, 8, destino.as_mut_ptr()),
+                    "tamanho" => {
+                        pinker_uniao_copiar_payload(handle, 11, 4, 4, 8, destino.as_mut_ptr())
+                    }
+                    "alinhamento" => {
+                        pinker_uniao_copiar_payload(handle, 11, 4, 8, 4, destino.as_mut_ptr())
+                    }
+                    "destino" => {
+                        pinker_uniao_copiar_payload(handle, 11, 4, 8, 8, std::ptr::null_mut())
+                    }
+                    "tag_identidade" => {
+                        pinker_uniao_tag(handle, 12);
+                    }
+                    outro => panic!("modo desconhecido: {outro}"),
+                }
+            }
+            unreachable!("a operação deveria ter terminado o processo");
+        }
+        for (modo, esperado) in [
+            ("uniao", "identidade de união divergente"),
+            ("tag", "tag incompatível"),
+            ("tamanho", "tamanho divergente"),
+            ("alinhamento", "alinhamento divergente"),
+            ("destino", "destino nulo"),
+            (
+                "tag_identidade",
+                "leitura de tag com identidade de união divergente",
+            ),
+        ] {
+            let saida = filho_uniao(
+                modo,
+                "tests::uniao_extracao_valida_uniao_tag_tamanho_alinhamento_e_destino",
+            );
+            assert_eq!(
+                saida.status.code(),
+                Some(1),
+                "modo {modo}: saída controlada"
+            );
+            let stderr = String::from_utf8_lossy(&saida.stderr);
+            assert!(stderr.contains(esperado), "modo {modo}: {stderr}");
+        }
+    }
+
+    /// HR3: um handle que não foi criado por este runtime nunca é
+    /// dereferenciado.
+    #[cfg(unix)]
+    #[test]
+    fn uniao_handle_desconhecido_nao_e_dereferenciado() {
+        if std::env::var_os("PINKER_RT_TESTE_UNIAO_FILHO").is_some() {
+            let mut destino: [u8; 8] = [0; 8];
+            unsafe {
+                pinker_uniao_copiar_payload(
+                    0x1234_5678_9abc_def0_u64 as *mut u8,
+                    1,
+                    0,
+                    8,
+                    8,
+                    destino.as_mut_ptr(),
+                )
+            };
+            unreachable!("a extração deveria ter terminado o processo");
+        }
+        let saida = filho_uniao(
+            "handle",
+            "tests::uniao_handle_desconhecido_nao_e_dereferenciado",
+        );
+        assert_eq!(saida.status.code(), Some(1), "saída controlada");
+        let stderr = String::from_utf8_lossy(&saida.stderr);
+        assert!(stderr.contains("handle desconhecido"), "{stderr}");
+    }
 }
-// @pinker-nav:end evidencia.runtime.mapas-iterador-snapshot
+// @pinker-nav:end evidencia.runtime.unioes-snapshot
