@@ -100,6 +100,19 @@ pub enum MachineInstr {
         payload_size: u64,
         payload_align: u64,
     },
+    // Operações internas tipadas de união na máquina abstrata. Consomem o
+    // valor de união no topo da pilha; nunca são chamadas por nome.
+    UnionTag {
+        union_type_id: crate::ir::UnionTypeId,
+    },
+    UnionExtract {
+        union_type_id: crate::ir::UnionTypeId,
+        tag: u64,
+        canonical_member_key: String,
+        payload_type: TypeIR,
+        payload_size: u64,
+        payload_align: u64,
+    },
     BitAnd {
         ty: TypeIR,
     },
@@ -361,6 +374,38 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) -> Result<(),
             code.push(MachineInstr::MakeUnion {
                 union_type_id: *union_type_id,
                 tag: *tag,
+                payload_type: *payload_type,
+                payload_size: *payload_size,
+                payload_align: *payload_align,
+            });
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
+        SelectedInstr::UnionTag {
+            dest,
+            value,
+            union_type_id,
+        } => {
+            emit_load(value, code);
+            code.push(MachineInstr::UnionTag {
+                union_type_id: *union_type_id,
+            });
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
+        SelectedInstr::UnionExtract {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            canonical_member_key,
+            payload_type,
+            payload_size,
+            payload_align,
+        } => {
+            emit_load(value, code);
+            code.push(MachineInstr::UnionExtract {
+                union_type_id: *union_type_id,
+                tag: *tag,
+                canonical_member_key: canonical_member_key.clone(),
                 payload_type: *payload_type,
                 payload_size: *payload_size,
                 payload_align: *payload_align,
@@ -921,6 +966,22 @@ fn render_instr(i: &MachineInstr) -> String {
         MachineInstr::MakeUnion {
             union_type_id, tag, ..
         } => format!("make_union #{} tag={}", union_type_id.0, tag),
+        MachineInstr::UnionTag { union_type_id } => with_comment(
+            format!("union_tag #{}", union_type_id.0),
+            "lê a tag corrente da união no topo",
+        ),
+        MachineInstr::UnionExtract {
+            union_type_id,
+            tag,
+            canonical_member_key,
+            ..
+        } => with_comment(
+            format!(
+                "union_extract #{} tag={} key={}",
+                union_type_id.0, tag, canonical_member_key
+            ),
+            "abre o payload do membro já validado",
+        ),
         MachineInstr::BitAnd { ty } => {
             with_comment(format!("bitand<{}>", ty.name()), "AND bit a bit entre dois topos")
         }

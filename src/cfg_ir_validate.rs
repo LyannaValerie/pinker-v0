@@ -23,6 +23,52 @@ struct FunctionSigCfg {
     params: Vec<TypeIR>,
 }
 
+// @pinker-nav:start cfg.unioes.validacao-operacoes
+// @pinker-nav:domain unioes
+// @pinker-nav:layer cfg
+// @pinker-nav:summary Fronteira de validação das operações internas tipadas de união no CFG: cada `UnionTag` confirma a existência do `UnionTypeId` e cada `UnionExtract` é confrontado com a tabela internada — tag pertencente ao registry, chave canônica coincidente com a tag, tipo e layout do payload iguais. Nenhuma tag é recalculada; o registry é a única fonte, e nenhuma chamada comum substitui estas operações.
+fn validate_union_operations(program: &ProgramCfgIR) -> Result<(), PinkerError> {
+    for function in &program.functions {
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                match instruction {
+                    InstructionCfgIR::UnionTag { union_type_id, .. } => {
+                        crate::ir::validate_union_reference(&program.union_types, *union_type_id)
+                            .map_err(|message| cfg_error(&message, function.span))?;
+                    }
+                    InstructionCfgIR::UnionExtract {
+                        union_type_id,
+                        tag,
+                        canonical_member_key,
+                        payload_type,
+                        payload_size,
+                        payload_align,
+                        ..
+                    } => {
+                        crate::ir::validate_union_member_reference(
+                            &program.union_types,
+                            *union_type_id,
+                            *tag,
+                            canonical_member_key,
+                            *payload_type,
+                            *payload_size,
+                            *payload_align,
+                        )
+                        .map_err(|message| cfg_error(&message, function.span))?;
+                    }
+                    InstructionCfgIR::UnionInject { union_type_id, .. } => {
+                        crate::ir::validate_union_reference(&program.union_types, *union_type_id)
+                            .map_err(|message| cfg_error(&message, function.span))?;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    Ok(())
+}
+// @pinker-nav:end cfg.unioes.validacao-operacoes
+
 // @pinker-nav:start cfg.validacao.invariantes
 // @pinker-nav:domain validacao
 // @pinker-nav:layer cfg
@@ -30,6 +76,7 @@ struct FunctionSigCfg {
 pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
     crate::ir::validate_union_registry(&program.union_types)
         .map_err(|message| cfg_error(&message, default_span()))?;
+    validate_union_operations(program)?;
     let mut global_consts = HashMap::new();
     for konst in &program.consts {
         if konst.name.trim().is_empty() {
@@ -443,27 +490,8 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
-        "__pinker_internal_uniao_tag".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Union(crate::ir::UnionTypeId(0))],
-        },
-    );
-    function_sigs.insert(
-        "__pinker_internal_uniao_payload_b".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Union(crate::ir::UnionTypeId(0)), TypeIR::Bombom],
-        },
-    );
-    function_sigs.insert(
-        "__pinker_internal_uniao_payload_v".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Union(crate::ir::UnionTypeId(0)), TypeIR::Bombom],
-        },
-    );
+    // Não há assinatura chamável de união: tag e extração são instruções CFG
+    // tipadas (`UnionTag`/`UnionExtract`), nunca `Call`.
     function_sigs.insert(
         "argumento".to_string(),
         FunctionSigCfg {
@@ -1425,6 +1453,51 @@ fn validate_block(
                     return Err(cfg_error("union_inject inválido na CFG", function.span));
                 }
                 temp_types.insert(*dest, TypeIR::Union(*union_type_id));
+            }
+            InstructionCfgIR::UnionTag {
+                dest,
+                value,
+                union_type_id,
+            } => {
+                let source_ty = infer_operand_type(
+                    value,
+                    slot_types,
+                    &temp_types,
+                    global_consts,
+                    function.span,
+                )?;
+                if source_ty != TypeIR::Union(*union_type_id) {
+                    return Err(cfg_error(
+                        "union_tag exige operando da união associada",
+                        function.span,
+                    ));
+                }
+                temp_types.insert(*dest, TypeIR::Bombom);
+            }
+            InstructionCfgIR::UnionExtract {
+                dest,
+                value,
+                union_type_id,
+                payload_type,
+                payload_size,
+                payload_align,
+                ..
+            } => {
+                let source_ty = infer_operand_type(
+                    value,
+                    slot_types,
+                    &temp_types,
+                    global_consts,
+                    function.span,
+                )?;
+                if source_ty != TypeIR::Union(*union_type_id)
+                    || *payload_size == 0
+                    || *payload_align == 0
+                    || !payload_align.is_power_of_two()
+                {
+                    return Err(cfg_error("union_extract inválido na CFG", function.span));
+                }
+                temp_types.insert(*dest, *payload_type);
             }
             InstructionCfgIR::Binary {
                 dest,

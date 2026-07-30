@@ -384,24 +384,8 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
-        "__pinker_internal_uniao_tag".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Unknown]),
-    );
-    sigs.insert(
-        "__pinker_internal_uniao_payload_b".to_string(),
-        (
-            TypeIR::Bombom,
-            vec![StackValueType::Unknown, StackValueType::Bombom],
-        ),
-    );
-    sigs.insert(
-        "__pinker_internal_uniao_payload_v".to_string(),
-        (
-            TypeIR::Verso,
-            vec![StackValueType::Unknown, StackValueType::Bombom],
-        ),
-    );
+    // União não possui assinatura chamável na máquina: `union_tag` e
+    // `union_extract` são instruções internas tipadas.
     sigs.insert(
         "argumento".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
@@ -1399,6 +1383,36 @@ fn apply_instr_effect(
             }
             stack.push(StackValueType::Unknown);
         }
+        MachineInstr::UnionTag { .. } => {
+            pop_typed(
+                f,
+                label,
+                stack,
+                1,
+                "underflow em union_tag",
+                Some("instr='union_tag'"),
+            )?;
+            stack.push(StackValueType::Bombom);
+        }
+        MachineInstr::UnionExtract {
+            payload_type,
+            payload_size,
+            payload_align,
+            ..
+        } => {
+            pop_typed(
+                f,
+                label,
+                stack,
+                1,
+                "underflow em union_extract",
+                Some("instr='union_extract'"),
+            )?;
+            if *payload_size == 0 || *payload_align == 0 || !payload_align.is_power_of_two() {
+                return Err(err_ctx(f, Some(label), "layout inválido em union_extract"));
+            }
+            stack.push(type_to_stack(*payload_type));
+        }
         MachineInstr::Add { ty }
         | MachineInstr::BitAnd { ty }
         | MachineInstr::BitOr { ty }
@@ -1851,6 +1865,8 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         }
         MachineInstr::Cast { .. } => "cast",
         MachineInstr::MakeUnion { .. } => "make_union",
+        MachineInstr::UnionTag { .. } => "union_tag",
+        MachineInstr::UnionExtract { .. } => "union_extract",
         MachineInstr::BitAnd { .. } => "bitand",
         MachineInstr::BitOr { .. } => "bitor",
         MachineInstr::BitXor { .. } => "bitxor",

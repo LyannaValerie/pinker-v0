@@ -121,15 +121,8 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
         TypeIR::Bombom,
     );
     sigs.insert("__pinker_internal_leque_carga_v".to_string(), TypeIR::Verso);
-    sigs.insert("__pinker_internal_uniao_tag".to_string(), TypeIR::Bombom);
-    sigs.insert(
-        "__pinker_internal_uniao_payload_b".to_string(),
-        TypeIR::Bombom,
-    );
-    sigs.insert(
-        "__pinker_internal_uniao_payload_v".to_string(),
-        TypeIR::Verso,
-    );
+    // União não tem intrínseca chamável: `UnionTag`/`UnionExtract` são
+    // operações internas tipadas da seleção.
     sigs.insert("argumento".to_string(), TypeIR::Verso);
     sigs.insert("argumento_ou".to_string(), TypeIR::Verso);
     sigs.insert("tem_chave".to_string(), TypeIR::Logica);
@@ -277,6 +270,39 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         {
                             return Err(err("selected union_inject inválido"));
                         }
+                        temps.insert(*dest);
+                    }
+                    SelectedInstr::UnionTag {
+                        dest,
+                        value,
+                        union_type_id,
+                    } => {
+                        check_operand(value, &slots, &temps, &globals)?;
+                        crate::ir::validate_union_reference(&program.union_types, *union_type_id)
+                            .map_err(|message| err(&message))?;
+                        temps.insert(*dest);
+                    }
+                    SelectedInstr::UnionExtract {
+                        dest,
+                        value,
+                        union_type_id,
+                        tag,
+                        canonical_member_key,
+                        payload_type,
+                        payload_size,
+                        payload_align,
+                    } => {
+                        check_operand(value, &slots, &temps, &globals)?;
+                        crate::ir::validate_union_member_reference(
+                            &program.union_types,
+                            *union_type_id,
+                            *tag,
+                            canonical_member_key,
+                            *payload_type,
+                            *payload_size,
+                            *payload_align,
+                        )
+                        .map_err(|message| err(&message))?;
                         temps.insert(*dest);
                     }
                     SelectedInstr::DerefStore { ptr, value, ty, .. } => {

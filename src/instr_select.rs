@@ -87,6 +87,23 @@ pub enum SelectedInstr {
         payload_size: u64,
         payload_align: u64,
     },
+    // Operações internas tipadas de união: a seleção nunca as abaixa para um
+    // nome de função genérico que possa se confundir com código de usuário.
+    UnionTag {
+        dest: crate::cfg_ir::TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+    },
+    UnionExtract {
+        dest: crate::cfg_ir::TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+        tag: u64,
+        canonical_member_key: String,
+        payload_type: TypeIR,
+        payload_size: u64,
+        payload_align: u64,
+    },
     BitAnd {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
@@ -448,6 +465,34 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             value: value.clone(),
             union_type_id: *union_type_id,
             tag: *tag,
+            payload_type: *payload_type,
+            payload_size: *payload_size,
+            payload_align: *payload_align,
+        }),
+        InstructionCfgIR::UnionTag {
+            dest,
+            value,
+            union_type_id,
+        } => Ok(SelectedInstr::UnionTag {
+            dest: *dest,
+            value: value.clone(),
+            union_type_id: *union_type_id,
+        }),
+        InstructionCfgIR::UnionExtract {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            canonical_member_key,
+            payload_type,
+            payload_size,
+            payload_align,
+        } => Ok(SelectedInstr::UnionExtract {
+            dest: *dest,
+            value: value.clone(),
+            union_type_id: *union_type_id,
+            tag: *tag,
+            canonical_member_key: canonical_member_key.clone(),
             payload_type: *payload_type,
             payload_size: *payload_size,
             payload_align: *payload_align,
@@ -817,6 +862,33 @@ fn render_instr(inst: &SelectedInstr) -> String {
             union_type_id.0,
             tag,
             render_operand(value)
+        ),
+        SelectedInstr::UnionTag {
+            dest,
+            value,
+            union_type_id,
+        } => format!(
+            "{} = union_tag #{} {}",
+            render_temp(*dest),
+            union_type_id.0,
+            render_operand(value)
+        ),
+        SelectedInstr::UnionExtract {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            canonical_member_key,
+            payload_type,
+            ..
+        } => format!(
+            "{} = union_extract #{} tag={} key={} {} -> {}",
+            render_temp(*dest),
+            union_type_id.0,
+            tag,
+            canonical_member_key,
+            render_operand(value),
+            payload_type.name()
         ),
         SelectedInstr::BitAnd { dest, lhs, rhs, .. } => format!(
             "bitand {}, {}, {}",

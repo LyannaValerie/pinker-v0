@@ -106,6 +106,23 @@ pub enum InstructionCfgIR {
         payload_size: u64,
         payload_align: u64,
     },
+    // Operações internas tipadas de união. Não são chamadas comuns: o CFG
+    // nunca fabrica um `Call` para ler tag ou abrir payload.
+    UnionTag {
+        dest: TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+    },
+    UnionExtract {
+        dest: TempIR,
+        value: OperandIR,
+        union_type_id: crate::ir::UnionTypeId,
+        tag: u64,
+        canonical_member_key: String,
+        payload_type: TypeIR,
+        payload_size: u64,
+        payload_align: u64,
+    },
     Binary {
         dest: TempIR,
         op: BinaryOpIR,
@@ -677,7 +694,115 @@ impl FunctionLowerer {
                 });
                 Ok(cont_idx)
             }
+            InstructionIR::UnionMatch(union_match) => {
+                self.lower_union_match(union_match, current, function_ret)
+            }
         }
+    }
+
+    // Abaixa `InstructionIR::UnionMatch` para blocos básicos preservando a semântica de match: o scrutinee é avaliado **uma única vez**, a tag é lida uma única vez por `InstructionCfgIR::UnionTag`, cada braço recebe um teste de igualdade contra a tag vinda do registry e um bloco próprio cujo binding é preenchido por `InstructionCfgIR::UnionExtract` tipado, e os braços que caem convergem num bloco de junção. Nenhuma chamada comum é fabricada; braços com `mimo`, `quebrar` ou `continuar` mantêm seus terminadores.
+    fn lower_union_match(
+        &mut self,
+        union_match: &crate::ir::UnionMatchIR,
+        current: usize,
+        function_ret: TypeIR,
+    ) -> Result<usize, PinkerError> {
+        let (scrutinee, current) =
+            self.lower_value_operand(&union_match.scrutinee, current, union_match.span)?;
+
+        // O scrutinee é avaliado uma única vez e guardado num slot: os
+        // temporários têm escopo por bloco, e todos os blocos do match precisam
+        // do mesmo valor.
+        let scrutinee_slot = union_match.scrutinee_binding.slot.clone();
+        self.blocks[current]
+            .instructions
+            .push(InstructionCfgIR::Let {
+                slot: scrutinee_slot.clone(),
+                value: scrutinee,
+            });
+
+        // Uma única leitura de tag alimenta todos os testes.
+        let tag_temp = self.next_temp();
+        self.blocks[current]
+            .instructions
+            .push(InstructionCfgIR::UnionTag {
+                dest: tag_temp,
+                value: OperandIR::Local(scrutinee_slot.clone()),
+                union_type_id: union_match.union_type_id,
+            });
+        let tag_slot = union_match.tag_binding.slot.clone();
+        self.blocks[current]
+            .instructions
+            .push(InstructionCfgIR::Let {
+                slot: tag_slot.clone(),
+                value: OperandIR::Temp(tag_temp),
+            });
+
+        let mut arm_ends = Vec::with_capacity(union_match.arms.len());
+        let mut test_current = current;
+        for arm in &union_match.arms {
+            let cmp = self.next_temp();
+            self.blocks[test_current]
+                .instructions
+                .push(InstructionCfgIR::Binary {
+                    dest: cmp,
+                    op: BinaryOpIR::Eq,
+                    lhs: OperandIR::Local(tag_slot.clone()),
+                    rhs: OperandIR::Int(arm.tag),
+                    // `ty` é o tipo operacional da comparação (o tipo da tag);
+                    // o resultado é `logica`.
+                    ty: TypeIR::Bombom,
+                });
+
+            let arm_idx = self.fresh_block(arm.body.label.clone());
+            let next_test_label = self.next_label("union_match_test");
+            self.blocks[test_current].terminator = Some(TerminatorIR::Branch {
+                cond: OperandIR::Temp(cmp),
+                then_label: self.blocks[arm_idx].label.clone(),
+                else_label: next_test_label.clone(),
+            });
+
+            let payload = self.next_temp();
+            self.blocks[arm_idx]
+                .instructions
+                .push(InstructionCfgIR::UnionExtract {
+                    dest: payload,
+                    value: OperandIR::Local(scrutinee_slot.clone()),
+                    union_type_id: union_match.union_type_id,
+                    tag: arm.tag,
+                    canonical_member_key: arm.canonical_member_key.clone(),
+                    payload_type: arm.payload_type,
+                    payload_size: arm.payload_size,
+                    payload_align: arm.payload_align,
+                });
+            self.blocks[arm_idx]
+                .instructions
+                .push(InstructionCfgIR::Let {
+                    slot: arm.binding.slot.clone(),
+                    value: OperandIR::Temp(payload),
+                });
+
+            let mut arm_current = arm_idx;
+            for instruction in &arm.body.instructions {
+                arm_current = self.lower_instruction(instruction, arm_current, function_ret)?;
+            }
+            arm_ends.push(arm_current);
+
+            test_current = self.fresh_block(next_test_label);
+        }
+
+        let join_label = self.next_label("union_match_join");
+        let join_idx = self.fresh_block(join_label);
+        let join = self.blocks[join_idx].label.clone();
+        // A cobertura é exata e as tags vêm do registry: o último teste falho é
+        // inalcançável, mas o bloco permanece terminado para o validador.
+        self.blocks[test_current].terminator = Some(TerminatorIR::Jump(join.clone()));
+        for end in arm_ends {
+            if !self.blocks[end].is_terminated() {
+                self.blocks[end].terminator = Some(TerminatorIR::Jump(join.clone()));
+            }
+        }
+        Ok(join_idx)
     }
 
     // @pinker-nav:end cfg.lowering.instrucoes-controle
@@ -1086,6 +1211,46 @@ impl FunctionLowerer {
                         value,
                         union_type_id: *union_type_id,
                         tag: *tag,
+                        payload_type: *payload_type,
+                        payload_size: *payload_size,
+                        payload_align: *payload_align,
+                    });
+                Ok((OperandIR::Temp(dest), next_current))
+            }
+            ValueIR::UnionTag {
+                value,
+                union_type_id,
+            } => {
+                let (value, next_current) = self.lower_value_operand(value, current, span)?;
+                let dest = self.next_temp();
+                self.blocks[next_current]
+                    .instructions
+                    .push(InstructionCfgIR::UnionTag {
+                        dest,
+                        value,
+                        union_type_id: *union_type_id,
+                    });
+                Ok((OperandIR::Temp(dest), next_current))
+            }
+            ValueIR::UnionExtract {
+                value,
+                union_type_id,
+                tag,
+                canonical_member_key,
+                payload_type,
+                payload_size,
+                payload_align,
+            } => {
+                let (value, next_current) = self.lower_value_operand(value, current, span)?;
+                let dest = self.next_temp();
+                self.blocks[next_current]
+                    .instructions
+                    .push(InstructionCfgIR::UnionExtract {
+                        dest,
+                        value,
+                        union_type_id: *union_type_id,
+                        tag: *tag,
+                        canonical_member_key: canonical_member_key.clone(),
                         payload_type: *payload_type,
                         payload_size: *payload_size,
                         payload_align: *payload_align,
@@ -1719,6 +1884,33 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
             union_type_id.0,
             tag,
             render_operand(value)
+        ),
+        InstructionCfgIR::UnionTag {
+            dest,
+            value,
+            union_type_id,
+        } => format!(
+            "{} = union_tag #{} {}",
+            render_temp(*dest),
+            union_type_id.0,
+            render_operand(value)
+        ),
+        InstructionCfgIR::UnionExtract {
+            dest,
+            value,
+            union_type_id,
+            tag,
+            canonical_member_key,
+            payload_type,
+            ..
+        } => format!(
+            "{} = union_extract #{} tag={} key={} {} -> {}",
+            render_temp(*dest),
+            union_type_id.0,
+            tag,
+            canonical_member_key,
+            render_operand(value),
+            payload_type.name()
         ),
         InstructionCfgIR::Call {
             dest,
