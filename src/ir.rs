@@ -218,8 +218,7 @@ pub struct UnionMatchArmIR {
     pub resolved_member_type_id: ResolvedTypeId,
     pub binding: BindingIR,
     pub payload_type: TypeIR,
-    pub payload_size: u64,
-    pub payload_align: u64,
+    pub payload_layout: crate::union_payload::UnionPayloadLayout,
     pub body: BlockIR,
     pub span: Span,
 }
@@ -346,8 +345,7 @@ pub enum ValueIR {
         canonical_member_key: String,
         tag: u64,
         payload_type: TypeIR,
-        payload_size: u64,
-        payload_align: u64,
+        payload_layout: crate::union_payload::UnionPayloadLayout,
     },
     // Operações internas tipadas de união (HR1/HR5). Não possuem nome textual
     // chamável, não passam pela resolução comum de função, nunca aparecem como
@@ -369,8 +367,7 @@ pub enum ValueIR {
         tag: u64,
         canonical_member_key: String,
         payload_type: TypeIR,
-        payload_size: u64,
-        payload_align: u64,
+        payload_layout: crate::union_payload::UnionPayloadLayout,
     },
 }
 
@@ -439,8 +436,14 @@ pub struct UnionMemberIR {
     /// membro na injeção compara este campo por igualdade exata, e nunca um
     /// nome textual nem a categoria operacional `ty`.
     pub resolved_type_id: ResolvedTypeId,
-    pub size: u64,
-    pub align: u64,
+    /// Layout terminal do payload: tamanho, alinhamento e categoria de
+    /// representação, decididos uma única vez por
+    /// [`crate::union_payload::classify_union_payload`].
+    ///
+    /// Os três viajam juntos porque `size`, `align` e categoria separados
+    /// tornavam representável um estado inconsistente — um agregado de 24 bytes
+    /// classificado como handle de uma palavra, por exemplo.
+    pub payload_layout: crate::union_payload::UnionPayloadLayout,
 }
 
 /// Valida a tabela internada de uniões em qualquer fronteira do pipeline.
@@ -506,16 +509,17 @@ pub fn validate_union_registry(unions: &[UnionTypeIR]) -> Result<(), String> {
                 }
             }
             previous_key = Some(&member.canonical_member_key);
-            if member.size == 0 {
+            // HR3: um único predicado cobre tamanho, alinhamento, limites e a
+            // coerência entre categoria e layout. Não há mais checagem parcial
+            // de `size`/`align` isolados, e não há layout presumido.
+            if !member.payload_layout.is_well_formed() {
                 return Err(format!(
-                    "payload de tamanho zero na união {} tag {}",
-                    union.id.0, member.tag
-                ));
-            }
-            if member.align == 0 || !member.align.is_power_of_two() {
-                return Err(format!(
-                    "alinhamento inválido na união {} tag {}: {}",
-                    union.id.0, member.tag, member.align
+                    "layout de payload inválido na união {} tag {}: {}/{}/{}",
+                    union.id.0,
+                    member.tag,
+                    member.payload_layout.size,
+                    member.payload_layout.align,
+                    member.payload_layout.representation.name()
                 ));
             }
             if matches!(member.ty, TypeIR::Union(_) | TypeIR::Nulo) {
@@ -564,8 +568,7 @@ pub fn validate_union_member_reference(
     tag: u64,
     canonical_member_key: &str,
     payload_type: TypeIR,
-    payload_size: u64,
-    payload_align: u64,
+    payload_layout: crate::union_payload::UnionPayloadLayout,
 ) -> Result<(), String> {
     let union = validate_union_reference(unions, union_type_id)?;
     let member = union
@@ -598,10 +601,28 @@ pub fn validate_union_member_reference(
             payload_type.name()
         ));
     }
-    if member.size != payload_size || member.align != payload_align {
+    if member.payload_layout != payload_layout {
         return Err(format!(
-            "layout de payload divergente na união {} tag {tag}: esperado {}/{}, recebido {payload_size}/{payload_align}",
-            union_type_id.0, member.size, member.align
+            "layout de payload divergente na união {} tag {tag}: esperado {}/{}/{}, recebido \
+             {}/{}/{}",
+            union_type_id.0,
+            member.payload_layout.size,
+            member.payload_layout.align,
+            member.payload_layout.representation.name(),
+            payload_layout.size,
+            payload_layout.align,
+            payload_layout.representation.name()
+        ));
+    }
+    // A defesa é repetida em vez de confiada à origem: um layout bem formado no
+    // registry não impede que uma camada intermediária tenha fabricado outro.
+    if !payload_layout.is_well_formed() {
+        return Err(format!(
+            "layout de payload mal formado na união {} tag {tag}: {}/{}/{}",
+            union_type_id.0,
+            payload_layout.size,
+            payload_layout.align,
+            payload_layout.representation.name()
         ));
     }
     Ok(())
@@ -3008,15 +3029,25 @@ impl LoweringContext {
         for (tag, member) in members.iter().enumerate() {
             let ty = TypeIR::from_ast_with_context(member, &self.type_aliases, &self.struct_names)?;
             let resolved_type_id = self.intern_resolved_ast(member, span)?;
-            let (size, align) = union_member_layout(member, &self.type_aliases, &self.struct_decls)
-                .map_err(|msg| PinkerError::Ir { msg, span })?;
+            // HR3: sem fallback. Um membro cuja representação de payload não
+            // seja conhecida para a plataforma suportada é erro aqui, e a
+            // semântica já o terá recusado antes com o código estável
+            // correspondente.
+            let payload_layout = crate::union_payload::classify_union_payload(
+                member,
+                &self.type_aliases,
+                &self.struct_decls,
+            )
+            .map_err(|rejection| PinkerError::Ir {
+                msg: rejection.message(),
+                span,
+            })?;
             member_irs.push(UnionMemberIR {
                 tag: tag as u64,
                 canonical_member_key: union_canon::member_key_text(member),
                 ty,
                 resolved_type_id,
-                size,
-                align,
+                payload_layout,
             });
         }
         let mut registry = self.union_registry.borrow_mut();
@@ -3041,18 +3072,6 @@ impl LoweringContext {
             members: member_irs,
         });
         Ok(TypeIR::Union(id))
-    }
-}
-
-fn union_member_layout(
-    ty: &Type,
-    aliases: &HashMap<String, Type>,
-    structs: &HashMap<String, StructDecl>,
-) -> Result<(u64, u64), String> {
-    match layout::layout_of_type(ty, aliases, structs) {
-        Ok(layout) => Ok((layout.size, layout.align)),
-        Err(_) if !matches!(ty, Type::Nulo(_)) => Ok((8, 8)),
-        Err(error) => Err(error),
     }
 }
 
@@ -4506,8 +4525,7 @@ impl<'a> FunctionLowerer<'a> {
                 resolved_member_type_id: member.resolved_type_id,
                 binding,
                 payload_type: member.ty,
-                payload_size: member.size,
-                payload_align: member.align,
+                payload_layout: member.payload_layout,
                 body,
                 span: arm.span,
             });
@@ -5850,8 +5868,7 @@ impl<'a> FunctionLowerer<'a> {
                             resolved_member_type_id: member.resolved_type_id,
                             canonical_member_key: member.canonical_member_key.clone(),
                             payload_type: member.ty,
-                            payload_size: member.size,
-                            payload_align: member.align,
+                            payload_layout: member.payload_layout,
                         },
                         ty: target_type,
                         resolved: Some(self.context.repr_identity(target_type, expr.span)?),

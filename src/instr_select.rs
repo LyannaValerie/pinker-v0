@@ -88,8 +88,7 @@ pub enum SelectedInstr {
         resolved_member_type_id: crate::ir::ResolvedTypeId,
         canonical_member_key: String,
         payload_type: TypeIR,
-        payload_size: u64,
-        payload_align: u64,
+        payload_layout: crate::union_payload::UnionPayloadLayout,
     },
     // Operações internas tipadas de união: a seleção nunca as abaixa para um
     // nome de função genérico que possa se confundir com código de usuário.
@@ -106,8 +105,7 @@ pub enum SelectedInstr {
         resolved_member_type_id: crate::ir::ResolvedTypeId,
         canonical_member_key: String,
         payload_type: TypeIR,
-        payload_size: u64,
-        payload_align: u64,
+        payload_layout: crate::union_payload::UnionPayloadLayout,
     },
     BitAnd {
         dest: crate::cfg_ir::TempIR,
@@ -465,8 +463,7 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             resolved_member_type_id,
             canonical_member_key,
             payload_type,
-            payload_size,
-            payload_align,
+            payload_layout,
         } => Ok(SelectedInstr::UnionInject {
             dest: *dest,
             value: value.clone(),
@@ -475,8 +472,7 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             resolved_member_type_id: *resolved_member_type_id,
             canonical_member_key: canonical_member_key.clone(),
             payload_type: *payload_type,
-            payload_size: *payload_size,
-            payload_align: *payload_align,
+            payload_layout: *payload_layout,
         }),
         InstructionCfgIR::UnionTag {
             dest,
@@ -495,8 +491,7 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             resolved_member_type_id,
             canonical_member_key,
             payload_type,
-            payload_size,
-            payload_align,
+            payload_layout,
         } => Ok(SelectedInstr::UnionExtract {
             dest: *dest,
             value: value.clone(),
@@ -505,8 +500,7 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             resolved_member_type_id: *resolved_member_type_id,
             canonical_member_key: canonical_member_key.clone(),
             payload_type: *payload_type,
-            payload_size: *payload_size,
-            payload_align: *payload_align,
+            payload_layout: *payload_layout,
         }),
         InstructionCfgIR::Binary {
             dest,

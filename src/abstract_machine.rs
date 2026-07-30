@@ -102,8 +102,7 @@ pub enum MachineInstr {
         resolved_member_type_id: crate::ir::ResolvedTypeId,
         canonical_member_key: String,
         payload_type: TypeIR,
-        payload_size: u64,
-        payload_align: u64,
+        payload_layout: crate::union_payload::UnionPayloadLayout,
     },
     // Operações internas tipadas de união na máquina abstrata. Consomem o
     // valor de união no topo da pilha; nunca são chamadas por nome.
@@ -116,8 +115,7 @@ pub enum MachineInstr {
         resolved_member_type_id: crate::ir::ResolvedTypeId,
         canonical_member_key: String,
         payload_type: TypeIR,
-        payload_size: u64,
-        payload_align: u64,
+        payload_layout: crate::union_payload::UnionPayloadLayout,
     },
     BitAnd {
         ty: TypeIR,
@@ -375,8 +373,7 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) -> Result<(),
             resolved_member_type_id,
             canonical_member_key,
             payload_type,
-            payload_size,
-            payload_align,
+            payload_layout,
         } => {
             emit_load(value, code);
             code.push(MachineInstr::MakeUnion {
@@ -385,8 +382,7 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) -> Result<(),
                 resolved_member_type_id: *resolved_member_type_id,
                 canonical_member_key: canonical_member_key.clone(),
                 payload_type: *payload_type,
-                payload_size: *payload_size,
-                payload_align: *payload_align,
+                payload_layout: *payload_layout,
             });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
@@ -409,8 +405,7 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) -> Result<(),
             resolved_member_type_id,
             canonical_member_key,
             payload_type,
-            payload_size,
-            payload_align,
+            payload_layout,
         } => {
             emit_load(value, code);
             code.push(MachineInstr::UnionExtract {
@@ -419,8 +414,7 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) -> Result<(),
                 resolved_member_type_id: *resolved_member_type_id,
                 canonical_member_key: canonical_member_key.clone(),
                 payload_type: *payload_type,
-                payload_size: *payload_size,
-                payload_align: *payload_align,
+                payload_layout: *payload_layout,
             });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }

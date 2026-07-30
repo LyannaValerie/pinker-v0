@@ -264,14 +264,10 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         resolved_member_type_id,
                         canonical_member_key,
                         payload_type,
-                        payload_size,
-                        payload_align,
+                        payload_layout,
                     } => {
                         check_operand(value, &slots, &temps, &globals)?;
-                        if *payload_size == 0
-                            || *payload_align == 0
-                            || !payload_align.is_power_of_two()
-                        {
+                        if !payload_layout.is_well_formed() {
                             return Err(err("selected union_inject inválido"));
                         }
                         // A injeção selecionada tem de continuar apontando para o
@@ -283,8 +279,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                             *tag,
                             canonical_member_key,
                             *payload_type,
-                            *payload_size,
-                            *payload_align,
+                            *payload_layout,
                         )
                         .map_err(|message| err(&message))?;
                         crate::ir::validate_union_member_identity(
@@ -314,8 +309,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         resolved_member_type_id,
                         canonical_member_key,
                         payload_type,
-                        payload_size,
-                        payload_align,
+                        payload_layout,
                     } => {
                         check_operand(value, &slots, &temps, &globals)?;
                         crate::ir::validate_union_member_reference(
@@ -324,8 +318,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                             *tag,
                             canonical_member_key,
                             *payload_type,
-                            *payload_size,
-                            *payload_align,
+                            *payload_layout,
                         )
                         .map_err(|message| err(&message))?;
                         crate::ir::validate_union_member_identity(

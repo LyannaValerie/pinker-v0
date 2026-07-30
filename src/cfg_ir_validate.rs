@@ -41,8 +41,7 @@ fn validate_union_operations(program: &ProgramCfgIR) -> Result<(), PinkerError> 
                         tag,
                         canonical_member_key,
                         payload_type,
-                        payload_size,
-                        payload_align,
+                        payload_layout,
                         ..
                     } => {
                         crate::ir::validate_union_member_reference(
@@ -51,8 +50,7 @@ fn validate_union_operations(program: &ProgramCfgIR) -> Result<(), PinkerError> 
                             *tag,
                             canonical_member_key,
                             *payload_type,
-                            *payload_size,
-                            *payload_align,
+                            *payload_layout,
                         )
                         .map_err(|message| cfg_error(&message, function.span))?;
                     }
@@ -1434,8 +1432,7 @@ fn validate_block(
                 value,
                 union_type_id,
                 payload_type,
-                payload_size,
-                payload_align,
+                payload_layout,
                 ..
             } => {
                 let source_ty = infer_operand_type(
@@ -1446,9 +1443,7 @@ fn validate_block(
                     function.span,
                 )?;
                 if !operand_matches_expected(value, source_ty, *payload_type)
-                    || *payload_size == 0
-                    || *payload_align == 0
-                    || !payload_align.is_power_of_two()
+                    || !payload_layout.is_well_formed()
                 {
                     return Err(cfg_error("union_inject inválido na CFG", function.span));
                 }
@@ -1479,8 +1474,7 @@ fn validate_block(
                 value,
                 union_type_id,
                 payload_type,
-                payload_size,
-                payload_align,
+                payload_layout,
                 ..
             } => {
                 let source_ty = infer_operand_type(
@@ -1490,11 +1484,7 @@ fn validate_block(
                     global_consts,
                     function.span,
                 )?;
-                if source_ty != TypeIR::Union(*union_type_id)
-                    || *payload_size == 0
-                    || *payload_align == 0
-                    || !payload_align.is_power_of_two()
-                {
+                if source_ty != TypeIR::Union(*union_type_id) || !payload_layout.is_well_formed() {
                     return Err(cfg_error("union_extract inválido na CFG", function.span));
                 }
                 temp_types.insert(*dest, *payload_type);

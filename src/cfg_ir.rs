@@ -108,8 +108,7 @@ pub enum InstructionCfgIR {
         resolved_member_type_id: crate::ir::ResolvedTypeId,
         canonical_member_key: String,
         payload_type: TypeIR,
-        payload_size: u64,
-        payload_align: u64,
+        payload_layout: crate::union_payload::UnionPayloadLayout,
     },
     // Operações internas tipadas de união. Não são chamadas comuns: o CFG
     // nunca fabrica um `Call` para ler tag ou abrir payload.
@@ -126,8 +125,7 @@ pub enum InstructionCfgIR {
         resolved_member_type_id: crate::ir::ResolvedTypeId,
         canonical_member_key: String,
         payload_type: TypeIR,
-        payload_size: u64,
-        payload_align: u64,
+        payload_layout: crate::union_payload::UnionPayloadLayout,
     },
     Binary {
         dest: TempIR,
@@ -781,8 +779,7 @@ impl FunctionLowerer {
                     resolved_member_type_id: arm.resolved_member_type_id,
                     canonical_member_key: arm.canonical_member_key.clone(),
                     payload_type: arm.payload_type,
-                    payload_size: arm.payload_size,
-                    payload_align: arm.payload_align,
+                    payload_layout: arm.payload_layout,
                 });
             self.blocks[arm_idx]
                 .instructions
@@ -1210,8 +1207,7 @@ impl FunctionLowerer {
                 resolved_member_type_id,
                 canonical_member_key,
                 payload_type,
-                payload_size,
-                payload_align,
+                payload_layout,
             } => {
                 let (value, next_current) = self.lower_value_operand(value, current, span)?;
                 let dest = self.next_temp();
@@ -1225,8 +1221,7 @@ impl FunctionLowerer {
                         resolved_member_type_id: *resolved_member_type_id,
                         canonical_member_key: canonical_member_key.clone(),
                         payload_type: *payload_type,
-                        payload_size: *payload_size,
-                        payload_align: *payload_align,
+                        payload_layout: *payload_layout,
                     });
                 Ok((OperandIR::Temp(dest), next_current))
             }
@@ -1252,8 +1247,7 @@ impl FunctionLowerer {
                 resolved_member_type_id,
                 canonical_member_key,
                 payload_type,
-                payload_size,
-                payload_align,
+                payload_layout,
             } => {
                 let (value, next_current) = self.lower_value_operand(value, current, span)?;
                 let dest = self.next_temp();
@@ -1267,8 +1261,7 @@ impl FunctionLowerer {
                         resolved_member_type_id: *resolved_member_type_id,
                         canonical_member_key: canonical_member_key.clone(),
                         payload_type: *payload_type,
-                        payload_size: *payload_size,
-                        payload_align: *payload_align,
+                        payload_layout: *payload_layout,
                     });
                 Ok((OperandIR::Temp(dest), next_current))
             }

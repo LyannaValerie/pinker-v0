@@ -1358,8 +1358,7 @@ fn apply_instr_effect(
         }
         MachineInstr::MakeUnion {
             payload_type,
-            payload_size,
-            payload_align,
+            payload_layout,
             ..
         } => {
             let top = pop_typed(
@@ -1378,7 +1377,7 @@ fn apply_instr_effect(
                 "payload incompatível em make_union",
                 Some("instr='make_union'"),
             )?;
-            if *payload_size == 0 || *payload_align == 0 || !payload_align.is_power_of_two() {
+            if !payload_layout.is_well_formed() {
                 return Err(err_ctx(f, Some(label), "layout inválido em make_union"));
             }
             stack.push(StackValueType::Unknown);
@@ -1396,8 +1395,7 @@ fn apply_instr_effect(
         }
         MachineInstr::UnionExtract {
             payload_type,
-            payload_size,
-            payload_align,
+            payload_layout,
             ..
         } => {
             pop_typed(
@@ -1408,7 +1406,7 @@ fn apply_instr_effect(
                 "underflow em union_extract",
                 Some("instr='union_extract'"),
             )?;
-            if *payload_size == 0 || *payload_align == 0 || !payload_align.is_power_of_two() {
+            if !payload_layout.is_well_formed() {
                 return Err(err_ctx(f, Some(label), "layout inválido em union_extract"));
             }
             stack.push(type_to_stack(*payload_type));

@@ -1504,10 +1504,7 @@ fn validate_block(
                             arm.span,
                         ));
                     }
-                    if arm.payload_size == 0
-                        || arm.payload_align == 0
-                        || !arm.payload_align.is_power_of_two()
-                    {
+                    if !arm.payload_layout.is_well_formed() {
                         return Err(ir_validation_error_ctx(
                             function,
                             Some(block),
@@ -1623,8 +1620,7 @@ fn validate_union_operations_block(
                         arm.tag,
                         &arm.canonical_member_key,
                         arm.payload_type,
-                        arm.payload_size,
-                        arm.payload_align,
+                        arm.payload_layout,
                     )
                     .map_err(|message| ir_validation_error(&message, arm.span))?;
                     validate_union_operations_block(&arm.body, unions)?;
@@ -1717,8 +1713,7 @@ fn validate_union_operations_value(
             resolved_member_type_id,
             canonical_member_key,
             payload_type,
-            payload_size,
-            payload_align,
+            payload_layout,
         } => {
             crate::ir::validate_union_member_reference(
                 unions,
@@ -1726,8 +1721,7 @@ fn validate_union_operations_value(
                 *tag,
                 canonical_member_key,
                 *payload_type,
-                *payload_size,
-                *payload_align,
+                *payload_layout,
             )
             .map_err(|message| ir_validation_error(&message, span))?;
             crate::ir::validate_union_member_identity(
@@ -1746,8 +1740,7 @@ fn validate_union_operations_value(
             resolved_member_type_id,
             canonical_member_key,
             payload_type,
-            payload_size,
-            payload_align,
+            payload_layout,
         } => {
             // A injeção é validada com o mesmo rigor da extração: tag, chave
             // canônica, layout e identidade resolvida têm de descrever o mesmo
@@ -1759,8 +1752,7 @@ fn validate_union_operations_value(
                 *tag,
                 canonical_member_key,
                 *payload_type,
-                *payload_size,
-                *payload_align,
+                *payload_layout,
             )
             .map_err(|message| ir_validation_error(&message, span))?;
             crate::ir::validate_union_member_identity(
@@ -2295,16 +2287,11 @@ fn infer_value_type(
             value,
             union_type_id,
             payload_type,
-            payload_size,
-            payload_align,
+            payload_layout,
             ..
         } => {
             let source_ty = infer_value_type(value, slots, consts, funcs, span)?;
-            if !source_ty.is_compatible_with(*payload_type)
-                || *payload_size == 0
-                || *payload_align == 0
-                || !payload_align.is_power_of_two()
-            {
+            if !source_ty.is_compatible_with(*payload_type) || !payload_layout.is_well_formed() {
                 return Err(ir_validation_error("injeção de união inválida na IR", span));
             }
             Ok(TypeIR::Union(*union_type_id))
@@ -2326,16 +2313,11 @@ fn infer_value_type(
             value,
             union_type_id,
             payload_type,
-            payload_size,
-            payload_align,
+            payload_layout,
             ..
         } => {
             let source_ty = infer_value_type(value, slots, consts, funcs, span)?;
-            if source_ty != TypeIR::Union(*union_type_id)
-                || *payload_size == 0
-                || *payload_align == 0
-                || !payload_align.is_power_of_two()
-            {
+            if source_ty != TypeIR::Union(*union_type_id) || !payload_layout.is_well_formed() {
                 return Err(ir_validation_error(
                     "extração de payload de união inválida na IR",
                     span,
