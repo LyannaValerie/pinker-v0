@@ -32,3 +32,4 @@ pub mod semantic;
 pub mod text_norm;
 pub mod token;
 pub mod union_canon;
+pub mod union_payload;
