@@ -325,7 +325,44 @@ fn extract_external_callconv_program(
             slot_offsets.insert(temp, slot_index * 8);
             slot_index += 1;
         }
-        let raw_stack = (slot_index.saturating_sub(1)) * 8;
+        // HR3: as operações de união deixam de presumir que todo storage ocupa
+        // oito bytes. Cada injeção recebe um scratch do tamanho real do payload
+        // e cada extração recebe storage próprio para o binding, ambos
+        // alinhados. Os offsets são múltiplos de 16, o maior alinhamento
+        // suportado por `MAX_UNION_PAYLOAD_ALIGN`, e crescem com aritmética
+        // checada.
+        let mut union_storage_offsets: HashMap<UnionStorageKey, u32> = HashMap::new();
+        let mut frame_top = (slot_index.saturating_sub(1)) * 8;
+        frame_top = frame_top.div_ceil(16) * 16;
+        for (block_index, block) in function.blocks.iter().enumerate() {
+            for (instr_index, inst) in block.instructions.iter().enumerate() {
+                let layout = match inst {
+                    SelectedInstr::UnionInject { payload_layout, .. }
+                    | SelectedInstr::UnionExtract { payload_layout, .. } => *payload_layout,
+                    _ => continue,
+                };
+                if !layout.is_well_formed() {
+                    return Err(err(
+                        "subset externo montável recusa layout de payload de união mal formado",
+                    ));
+                }
+                let bytes = u32::try_from(layout.size).map_err(|_| {
+                    err("subset externo montável recusa payload de união acima da plataforma")
+                })?;
+                let reserved = bytes.div_ceil(16).saturating_mul(16);
+                frame_top = frame_top.checked_add(reserved).ok_or_else(|| {
+                    err("overflow no frame do subset externo montável ao reservar storage de união")
+                })?;
+                union_storage_offsets.insert(
+                    UnionStorageKey {
+                        block: block_index,
+                        instr: instr_index,
+                    },
+                    frame_top,
+                );
+            }
+        }
+        let raw_stack = frame_top;
         let stack_size = if raw_stack == 0 {
             0
         } else {
@@ -340,7 +377,7 @@ fn extract_external_callconv_program(
         let mut blocks = Vec::new();
         // Identificador determinístico de envelope de `sussurro` dentro da função.
         let mut inline_asm_envelopes = 0_u32;
-        for block in &function.blocks {
+        for (block_index, block) in function.blocks.iter().enumerate() {
             let terminator = match &block.terminator {
                 SelectedTerminator::Jmp(target) => ExternalCallConvTerminator::Jmp(target.clone()),
                 SelectedTerminator::Ret(Some(value)) => {
@@ -371,7 +408,7 @@ fn extract_external_callconv_program(
             // @pinker-nav:layer backend-s
             // @pinker-nav:summary Lowering externo de dados/memória: `Mov`; aritmética `Add`/`Sub`/`Mul`, com validação nativa de derivação quando o resultado preserva tipo ponteiro; comparações, incluindo condições assinadas inferidas dos produtores; `DerefLoad`/`DerefStore` por largura e sinal para todos os escalares públicos, precedidos por validação de região; e casts de uma palavra. O caminho hospedado legado mantém seu subconjunto conservador.
             let mut body = Vec::new();
-            for inst in &block.instructions {
+            for (instr_index, inst) in block.instructions.iter().enumerate() {
                 match inst {
                     SelectedInstr::Mov { dest, src } => {
                         ensure_dest_is_local_or_param(dest, function)?;
@@ -585,6 +622,35 @@ fn extract_external_callconv_program(
                         ty,
                         is_volatile,
                     } => {
+                        // HR3: um agregado é representado **pelo endereço** da
+                        // sua representação completa. Abrir `*ptr` de um array
+                        // fixo não lê memória: produz o mesmo endereço, que é
+                        // o que a injeção de união entrega ao runtime para a
+                        // cópia integral.
+                        if matches!(ty, TypeIR::FixedArray { .. }) {
+                            if *is_volatile {
+                                return Err(err(
+                                    "subset externo montável não suporta caminho `fragil` em agregado",
+                                ));
+                            }
+                            register_rodata_strings_for_operand(
+                                ptr,
+                                &mut rodata_string_labels,
+                                &mut rodata_strings,
+                            );
+                            body.extend(load_operand(
+                                REG_RET,
+                                ptr,
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                            body.push(format!(
+                                "movq {}, -{}(%rbp)",
+                                REG_RET,
+                                slot_offsets[&temp_key(*dest)]
+                            ));
+                            continue;
+                        }
                         if !(if native_runtime {
                             is_external_deref_load_type(ty)
                         } else {
@@ -1365,8 +1431,7 @@ fn extract_external_callconv_program(
                         value,
                         union_type_id,
                         tag,
-                        payload_size,
-                        payload_align,
+                        payload_layout,
                         ..
                     } => {
                         register_rodata_strings_for_operand(
@@ -1374,11 +1439,53 @@ fn extract_external_callconv_program(
                             &mut rodata_string_labels,
                             &mut rodata_strings,
                         );
-                        body.extend(load_operand("%r8", value, &slot_offsets, &rodata_strings)?);
+                        let storage = union_storage_offsets
+                            .get(&UnionStorageKey {
+                                block: block_index,
+                                instr: instr_index,
+                            })
+                            .copied()
+                            .ok_or_else(|| {
+                                err("storage de união ausente no frame do subset externo montável")
+                            })?;
+                        // A ABI de criação recebe **endereço**, nunca o payload
+                        // reempacotado em `u64`. Escalares e handles são
+                        // materializados num scratch do tamanho real; agregados
+                        // já são representados por endereço e o próprio
+                        // endereço é passado, e o runtime copia imediatamente.
+                        match payload_layout.representation {
+                            crate::union_payload::UnionPayloadRepresentation::Scalar
+                            | crate::union_payload::UnionPayloadRepresentation::OpaqueHandle => {
+                                body.extend(load_operand(
+                                    "%rax",
+                                    value,
+                                    &slot_offsets,
+                                    &rodata_strings,
+                                )?);
+                                // O scratch é zerado antes da escrita para que
+                                // um payload estreito não vaze bytes anteriores
+                                // do frame para dentro do snapshot.
+                                body.push(format!("movq $0, -{storage}(%rbp)"));
+                                body.extend(store_union_scratch_word(
+                                    "%rax",
+                                    storage,
+                                    payload_layout.size,
+                                )?);
+                                body.push(format!("leaq -{storage}(%rbp), %r8"));
+                            }
+                            crate::union_payload::UnionPayloadRepresentation::Aggregate => {
+                                body.extend(load_operand(
+                                    "%r8",
+                                    value,
+                                    &slot_offsets,
+                                    &rodata_strings,
+                                )?);
+                            }
+                        }
                         body.push(format!("movq ${}, %rdi", union_type_id.0));
                         body.push(format!("movq ${tag}, %rsi"));
-                        body.push(format!("movq ${payload_size}, %rdx"));
-                        body.push(format!("movq ${payload_align}, %rcx"));
+                        body.push(format!("movq ${}, %rdx", payload_layout.size));
+                        body.push(format!("movq ${}, %rcx", payload_layout.align));
                         body.push("call pinker_uniao_criar".to_string());
                         body.push(format!(
                             "movq %rax, -{}(%rbp)",
@@ -1387,13 +1494,20 @@ fn extract_external_callconv_program(
                     }
                     // A escolha do símbolo interno de ABI acontece **aqui**, no
                     // backend: a AST e a IR não carregam nome de runtime.
-                    SelectedInstr::UnionTag { dest, value, .. } => {
+                    SelectedInstr::UnionTag {
+                        dest,
+                        value,
+                        union_type_id,
+                    } => {
                         register_rodata_strings_for_operand(
                             value,
                             &mut rodata_string_labels,
                             &mut rodata_strings,
                         );
                         body.extend(load_operand("%rdi", value, &slot_offsets, &rodata_strings)?);
+                        // A leitura de tag valida também a identidade da união:
+                        // um handle de outra união não devolve tag alguma.
+                        body.push(format!("movq ${}, %rsi", union_type_id.0));
                         body.push("call pinker_uniao_tag".to_string());
                         body.push(format!(
                             "movq %rax, -{}(%rbp)",
@@ -1403,8 +1517,9 @@ fn extract_external_callconv_program(
                     SelectedInstr::UnionExtract {
                         dest,
                         value,
+                        union_type_id,
                         tag,
-                        payload_type,
+                        payload_layout,
                         ..
                     } => {
                         register_rodata_strings_for_operand(
@@ -1412,14 +1527,37 @@ fn extract_external_callconv_program(
                             &mut rodata_string_labels,
                             &mut rodata_strings,
                         );
+                        let storage = union_storage_offsets
+                            .get(&UnionStorageKey {
+                                block: block_index,
+                                instr: instr_index,
+                            })
+                            .copied()
+                            .ok_or_else(|| {
+                                err("storage de união ausente no frame do subset externo montável")
+                            })?;
+                        // A extração copia para storage novo do binding. O
+                        // ponteiro interno do descritor nunca é devolvido.
                         body.extend(load_operand("%rdi", value, &slot_offsets, &rodata_strings)?);
-                        body.push(format!("movq ${tag}, %rsi"));
-                        let symbol = if *payload_type == TypeIR::Verso {
-                            "pinker_uniao_payload_v"
-                        } else {
-                            "pinker_uniao_payload_b"
-                        };
-                        body.push(format!("call {symbol}"));
+                        body.push(format!("movq ${}, %rsi", union_type_id.0));
+                        body.push(format!("movq ${tag}, %rdx"));
+                        body.push(format!("movq ${}, %rcx", payload_layout.size));
+                        body.push(format!("movq ${}, %r8", payload_layout.align));
+                        body.push(format!("leaq -{storage}(%rbp), %r9"));
+                        body.push("call pinker_uniao_copiar_payload".to_string());
+                        match payload_layout.representation {
+                            crate::union_payload::UnionPayloadRepresentation::Scalar
+                            | crate::union_payload::UnionPayloadRepresentation::OpaqueHandle => {
+                                body.extend(load_union_scratch_word(
+                                    "%rax",
+                                    storage,
+                                    payload_layout.size,
+                                )?);
+                            }
+                            crate::union_payload::UnionPayloadRepresentation::Aggregate => {
+                                body.push(format!("leaq -{storage}(%rbp), %rax"));
+                            }
+                        }
                         body.push(format!(
                             "movq %rax, -{}(%rbp)",
                             slot_offsets[&temp_key(*dest)]
@@ -2324,6 +2462,70 @@ fn lower_cmp_ge(
 // @pinker-nav:domain lowering
 // @pinker-nav:layer backend-s
 // @pinker-nav:summary Coleta de temporários, carga de operandos e nomeação de slots: `collect_temp_ids` (varre instruções e retornos para reunir os `%tN` que ocupam slots de frame), `load_operand` (carrega `Int`/`Bool` via `movabsq`, `Local`/`Temp` de `-off(%rbp)`, `GlobalConst` RIP-relative, `Str` por `leaq label(%rip)` do rodata materializado) e `temp_key` (nome canônico `%tN`). Alimentam o cálculo de frame e a emissão de acesso a slots.
+/// Identifica, de forma determinística, o storage de frame de uma operação de
+/// união dentro de uma função.
+///
+/// A chave é posicional porque cada `union_inject`/`union_extract` precisa de
+/// storage próprio: reaproveitar storage entre instruções faria duas extrações
+/// compartilharem memória, quebrando a independência exigida por HR3.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct UnionStorageKey {
+    block: usize,
+    instr: usize,
+}
+
+/// Grava a largura **real** do payload escalar no scratch.
+///
+/// Um `u8` grava um byte; um `u32`, quatro. Gravar sempre oito bytes copiaria
+/// lixo do frame para dentro do snapshot imutável.
+fn store_union_scratch_word(reg: &str, offset: u32, size: u64) -> Result<Vec<String>, PinkerError> {
+    let byte_reg = match reg {
+        "%rax" => "%al",
+        _ => return Err(err("registrador não suportado no scratch de união")),
+    };
+    let word_reg = match reg {
+        "%rax" => "%ax",
+        _ => return Err(err("registrador não suportado no scratch de união")),
+    };
+    let long_reg = match reg {
+        "%rax" => "%eax",
+        _ => return Err(err("registrador não suportado no scratch de união")),
+    };
+    Ok(match size {
+        1 => vec![format!("movb {byte_reg}, -{offset}(%rbp)")],
+        2 => vec![format!("movw {word_reg}, -{offset}(%rbp)")],
+        4 => vec![format!("movl {long_reg}, -{offset}(%rbp)")],
+        8 => vec![format!("movq {reg}, -{offset}(%rbp)")],
+        _ => {
+            return Err(err(
+                "subset externo montável só materializa payload escalar de união com 1, 2, 4 ou 8 \
+                 bytes",
+            ));
+        }
+    })
+}
+
+/// Lê a largura real do payload escalar do storage de extração.
+///
+/// A carga é sempre estendida com zero para a palavra: a normalização com sinal
+/// dos inteiros assinados continua sendo responsabilidade dos consumidores, que
+/// já a fazem pelo `TypeIR`.
+fn load_union_scratch_word(reg: &str, offset: u32, size: u64) -> Result<Vec<String>, PinkerError> {
+    if reg != "%rax" {
+        return Err(err("registrador não suportado no storage de união"));
+    }
+    Ok(match size {
+        1 => vec![format!("movzbq -{offset}(%rbp), {reg}")],
+        2 => vec![format!("movzwq -{offset}(%rbp), {reg}")],
+        4 => vec![format!("movl -{offset}(%rbp), %eax")],
+        8 => vec![format!("movq -{offset}(%rbp), {reg}")],
+        _ => {
+            return Err(err(
+                "subset externo montável só extrai payload escalar de união com 1, 2, 4 ou 8 bytes",
+            ));
+        }
+    })
+}
 fn collect_temp_ids(function: &crate::instr_select::SelectedFunction) -> BTreeSet<String> {
     let mut ids = BTreeSet::new();
     for block in &function.blocks {
@@ -2854,7 +3056,13 @@ fn is_external_trait_receiver_type(ty: &TypeIR) -> bool {
 }
 
 fn is_external_local_type(ty: &TypeIR) -> bool {
-    is_external_param_type(ty) || is_external_scalar_param_type(ty)
+    is_external_param_type(ty)
+        || is_external_scalar_param_type(ty)
+        // HR3: um agregado de array fixo é representado por endereço, como
+        // `ninho` opaco e `seta<T>`, e ocupa exatamente um slot de palavra. É o
+        // que permite ao braço de `encaixe` receber o binding de um payload
+        // estrutural no caminho montável.
+        || matches!(ty, TypeIR::FixedArray { .. })
 }
 
 fn is_external_ret_type(ty: &TypeIR) -> bool {
