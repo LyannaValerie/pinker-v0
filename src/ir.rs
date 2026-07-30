@@ -17,7 +17,7 @@ use crate::ast::{
 };
 use crate::error::PinkerError;
 use crate::layout;
-use crate::token::Span;
+use crate::token::{Position, Span};
 use crate::union_canon;
 use std::collections::{HashMap, HashSet};
 
@@ -30,6 +30,9 @@ use std::collections::{HashMap, HashSet};
 pub struct ProgramIR {
     pub module_name: String,
     pub is_freestanding: bool,
+    /// Tabela internada de identidades semânticas resolvidas, em ordem canônica
+    /// por chave. É a única autoridade de identidade de tipo do programa.
+    pub resolved_types: Vec<ResolvedTypeIR>,
     pub union_types: Vec<UnionTypeIR>,
     pub consts: Vec<ConstIR>,
     pub functions: Vec<FunctionIR>,
@@ -57,11 +60,27 @@ pub struct FunctionIR {
 }
 
 /// Parâmetro ou binding de escopo. `source_name` é o nome original; `slot` é o nome normalizado.
+///
+/// `ty` é a categoria operacional e `resolved` é a identidade semântica
+/// completa. As duas viajam juntas: nenhuma camada posterior pode reconstruir a
+/// identidade a partir de `ty`, porque tipos nominais distintos compartilham a
+/// mesma representação.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BindingIR {
     pub source_name: String,
     pub slot: String,
     pub ty: TypeIR,
+    /// Identidade semântica do parâmetro/slot. Mesma convenção de
+    /// [`LocalIR::resolved`]: `None` significa que a representação já é a
+    /// identidade completa, nunca que a identidade foi descartada.
+    pub resolved: Option<ResolvedTypeId>,
+}
+
+impl BindingIR {
+    pub fn type_ref(&self) -> Option<TypeRefIR> {
+        self.resolved
+            .map(|resolved| TypeRefIR::new(self.ty, resolved))
+    }
 }
 
 /// Variável local declarada por `nova`. `is_mut` reflete a palavra-chave `muda`.
@@ -70,7 +89,21 @@ pub struct LocalIR {
     pub source_name: String,
     pub slot: String,
     pub ty: TypeIR,
+    /// Identidade semântica do slot.
+    ///
+    /// `None` apenas nos temporários fabricados por camadas posteriores
+    /// (`%logic#N`, `%ternary#N`), que nunca são fonte de injeção de união e cuja
+    /// identidade é a própria representação. Todo local originado de uma
+    /// declaração do usuário carrega `Some`.
+    pub resolved: Option<ResolvedTypeId>,
     pub is_mut: bool,
+}
+
+impl LocalIR {
+    pub fn type_ref(&self) -> Option<TypeRefIR> {
+        self.resolved
+            .map(|resolved| TypeRefIR::new(self.ty, resolved))
+    }
 }
 
 /// Bloco de instruções com label e span. Na IR estruturada, `if/else` é uma instrução,
@@ -180,6 +213,9 @@ pub struct UnionMatchIR {
 pub struct UnionMatchArmIR {
     pub tag: u64,
     pub canonical_member_key: String,
+    /// Identidade semântica do membro coberto pelo braço. Obrigatória: um braço
+    /// de `encaixe` existe exatamente por causa de um membro exato do registry.
+    pub resolved_member_type_id: ResolvedTypeId,
     pub binding: BindingIR,
     pub payload_type: TypeIR,
     pub payload_size: u64,
@@ -297,9 +333,17 @@ pub enum ValueIR {
         value: Box<ValueIR>,
         target_type: TypeIR,
     },
+    /// Injeção em união já **decidida** pela identidade semântica exata.
+    ///
+    /// A decisão de tag acontece uma única vez, no lowering, comparando o
+    /// `ResolvedTypeId` do valor de origem com o `ResolvedTypeId` do membro.
+    /// Nenhuma camada posterior escolhe membro, e em particular nenhuma escolhe
+    /// pela primeira ocorrência de um mesmo `TypeIR`.
     UnionInject {
         value: Box<ValueIR>,
         union_type_id: UnionTypeId,
+        resolved_member_type_id: ResolvedTypeId,
+        canonical_member_key: String,
         tag: u64,
         payload_type: TypeIR,
         payload_size: u64,
@@ -321,6 +365,7 @@ pub enum ValueIR {
     UnionExtract {
         value: Box<ValueIR>,
         union_type_id: UnionTypeId,
+        resolved_member_type_id: ResolvedTypeId,
         tag: u64,
         canonical_member_key: String,
         payload_type: TypeIR,
@@ -388,7 +433,12 @@ pub struct UnionMemberIR {
     /// nome de apelido, por posição de braço ou por texto de debug.
     pub canonical_member_key: String,
     pub ty: TypeIR,
-    pub nominal_identity: Option<String>,
+    /// Identidade semântica completa do membro, internada no programa.
+    ///
+    /// Substitui a antiga `nominal_identity: Option<String>`: a seleção do
+    /// membro na injeção compara este campo por igualdade exata, e nunca um
+    /// nome textual nem a categoria operacional `ty`.
+    pub resolved_type_id: ResolvedTypeId,
     pub size: u64,
     pub align: u64,
 }
@@ -423,7 +473,7 @@ pub fn validate_union_registry(unions: &[UnionTypeIR]) -> Result<(), String> {
                 union.id.0
             ));
         }
-        let mut member_identities = Vec::new();
+        let mut member_identities = std::collections::BTreeSet::new();
         let mut member_keys = std::collections::BTreeSet::new();
         let mut previous_key: Option<&str> = None;
         for (member_index, member) in union.members.iter().enumerate() {
@@ -474,14 +524,16 @@ pub fn validate_union_registry(unions: &[UnionTypeIR]) -> Result<(), String> {
                     union.id.0, member.tag
                 ));
             }
-            let identity = (member.ty, member.nominal_identity.clone());
-            if member_identities.contains(&identity) {
+            // A identidade de um membro é o `ResolvedTypeId` — nunca o par
+            // (categoria operacional, nome textual). Dois membros com o mesmo
+            // `TypeIR` e identidades diferentes são legítimos; dois membros com
+            // a mesma identidade são registry inválido.
+            if !member_identities.insert(member.resolved_type_id) {
                 return Err(format!(
-                    "membro duplicado na união {} tag {}",
-                    union.id.0, member.tag
+                    "membro duplicado na união {} tag {}: identidade resolvida {} repetida",
+                    union.id.0, member.tag, member.resolved_type_id.0
                 ));
             }
-            member_identities.push(identity);
         }
     }
     Ok(())
@@ -550,6 +602,39 @@ pub fn validate_union_member_reference(
         return Err(format!(
             "layout de payload divergente na união {} tag {tag}: esperado {}/{}, recebido {payload_size}/{payload_align}",
             union_type_id.0, member.size, member.align
+        ));
+    }
+    Ok(())
+}
+
+/// Confirma que a identidade semântica transportada por uma operação de união é
+/// exatamente a identidade do membro daquela tag no registry.
+///
+/// É esta verificação que torna impossível uma camada posterior "corrigir" a
+/// escolha do membro: se a tag e a identidade discordarem, o pipeline para.
+pub fn validate_union_member_identity(
+    unions: &[UnionTypeIR],
+    union_type_id: UnionTypeId,
+    tag: u64,
+    resolved_member_type_id: ResolvedTypeId,
+) -> Result<(), String> {
+    let union = validate_union_reference(unions, union_type_id)?;
+    let member = union
+        .members
+        .get(usize::try_from(tag).map_err(|_| "tag de união excede usize".to_string())?)
+        .filter(|member| member.tag == tag)
+        .ok_or_else(|| {
+            format!(
+                "tag {tag} não pertence à união {}: {} membros",
+                union_type_id.0,
+                union.members.len()
+            )
+        })?;
+    if member.resolved_type_id != resolved_member_type_id {
+        return Err(format!(
+            "E-IR-UNION-MEMBER-IDENTITY-MISMATCH: união {} tag {tag} tem identidade resolvida {}, \
+             recebida {}",
+            union_type_id.0, member.resolved_type_id.0, resolved_member_type_id.0
         ));
     }
     Ok(())
@@ -640,10 +725,582 @@ pub enum BinaryOpIR {
 }
 // @pinker-nav:end ir.modelo.representacao
 
+// @pinker-nav:start ir.tipos.identidade-resolvida
+// @pinker-nav:domain modelo
+// @pinker-nav:layer ir
+// @pinker-nav:summary Identidade semântica resolvida de tipos: `ResolvedTypeId` interna a identidade completa (`ResolvedTypeIR` = chave canônica de `union_canon` + representação operacional + identidade nominal + componentes internos `pointee`/`element`/`signature`/`union_members`), `TypeRefIR` acopla representação e identidade em um único contrato transportável, `ResolvedTypeTable` interna por chave canônica em `BTreeMap` e recusa qualquer divergência de representação, identidade nominal ou estrutura interna sob a mesma chave, `into_types` entrega a tabela sem renumeração tardia, e `validate_resolved_type_table`/`validate_resolved_type_structure`/`validate_resolved_type_reference`/`validate_union_registry_identities` confirmam densidade, unicidade, ausência de chave envenenada, coerência de representação, coerência nominal e coerência entre membros de união e a tabela. `TypeIR` continua sendo apenas a categoria operacional; as duas noções nunca se substituem.
+/// Identidade semântica completa de um tipo, internada no programa.
+///
+/// **Não** é a categoria operacional: `ninho Alfa` e `ninho Beta` compartilham
+/// `TypeIR::Struct` e possuem `ResolvedTypeId` diferentes; dois `leque`
+/// distintos compartilham a representação escalar e permanecem distintos aqui.
+/// Apelidos transparentes (`apelido X = Alfa`, `apelido Y = X`) resolvem ao
+/// mesmo `ResolvedTypeId`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ResolvedTypeId(pub u32);
+
+/// Categoria nominal declarada pelo usuário, espelhando [`union_canon::NominalTypeKind`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum NominalTypeKindIR {
+    Ninho,
+    Leque,
+}
+
+impl NominalTypeKindIR {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            NominalTypeKindIR::Ninho => "ninho",
+            NominalTypeKindIR::Leque => "leque",
+        }
+    }
+
+    fn from_canon(kind: union_canon::NominalTypeKind) -> Self {
+        match kind {
+            union_canon::NominalTypeKind::Ninho => NominalTypeKindIR::Ninho,
+            union_canon::NominalTypeKind::Leque => NominalTypeKindIR::Leque,
+        }
+    }
+}
+
+/// Assinatura resolvida de um tipo função: identidades completas dos parâmetros
+/// e do retorno.
+///
+/// `carinho(u8) -> u8` e `carinho(u64) -> u64` compartilham
+/// `TypeIR::Function` e possuem assinaturas — e portanto identidades —
+/// diferentes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedSignatureIR {
+    pub params: Vec<ResolvedTypeId>,
+    pub ret: ResolvedTypeId,
+}
+
+/// Entrada da tabela de identidades resolvidas do programa.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedTypeIR {
+    pub id: ResolvedTypeId,
+    /// Chave canônica derivada por [`union_canon::canonical_type_key`].
+    pub canonical_key: String,
+    /// Categoria operacional correspondente. Nunca é a identidade.
+    pub representation: TypeIR,
+    pub nominal_kind: Option<NominalTypeKindIR>,
+    pub nominal_name: Option<String>,
+    /// Identidade do apontado, para `seta<T>` (inclusive `seta<carinho(...)>`).
+    /// `seta<u8>` e `seta<u64>` diferem exatamente aqui.
+    pub pointee: Option<ResolvedTypeId>,
+    /// Identidade do elemento, para arrays fixos e `lista<Leque>`.
+    pub element: Option<ResolvedTypeId>,
+    /// Assinatura completa, para tipos função.
+    pub signature: Option<ResolvedSignatureIR>,
+    /// Identidades dos membros, para uniões.
+    pub union_members: Option<Vec<ResolvedTypeId>>,
+}
+
+/// Contrato tipado transportável: representação operacional **e** identidade
+/// semântica juntas, para que nenhuma camada possa carregar uma sem a outra.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TypeRefIR {
+    pub representation: TypeIR,
+    pub resolved: ResolvedTypeId,
+}
+
+impl TypeRefIR {
+    pub fn new(representation: TypeIR, resolved: ResolvedTypeId) -> Self {
+        Self {
+            representation,
+            resolved,
+        }
+    }
+}
+
+/// Tabela de internação de identidades resolvidas.
+///
+/// A internação é por chave canônica; a mesma chave sempre devolve o mesmo ID e
+/// uma chave já internada com representação ou identidade nominal divergente é
+/// recusada como erro interno.
+#[derive(Debug, Clone, Default)]
+pub struct ResolvedTypeTable {
+    types: Vec<ResolvedTypeIR>,
+    index: std::collections::BTreeMap<String, u32>,
+}
+
+/// Componentes internos de uma identidade resolvida, já internados.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ResolvedTypeParts {
+    pub nominal: Option<(NominalTypeKindIR, String)>,
+    pub pointee: Option<ResolvedTypeId>,
+    pub element: Option<ResolvedTypeId>,
+    pub signature: Option<ResolvedSignatureIR>,
+    pub union_members: Option<Vec<ResolvedTypeId>>,
+}
+
+impl ResolvedTypeTable {
+    pub fn intern(
+        &mut self,
+        canonical_key: String,
+        representation: TypeIR,
+        parts: ResolvedTypeParts,
+    ) -> Result<ResolvedTypeId, String> {
+        if canonical_key.is_empty() {
+            return Err("identidade resolvida sem chave canônica".to_string());
+        }
+        let (nominal_kind, nominal_name) = match parts.nominal {
+            Some((kind, name)) => (Some(kind), Some(name)),
+            None => (None, None),
+        };
+        if let Some(existing_id) = self.index.get(&canonical_key).copied() {
+            let existing = &self.types[existing_id as usize];
+            if existing.representation != representation {
+                return Err(format!(
+                    "identidade resolvida '{canonical_key}' já internada com representação '{}', recebida '{}'",
+                    existing.representation.name(),
+                    representation.name()
+                ));
+            }
+            if existing.nominal_kind != nominal_kind || existing.nominal_name != nominal_name {
+                return Err(format!(
+                    "identidade resolvida '{canonical_key}' já internada com identidade nominal divergente"
+                ));
+            }
+            if existing.pointee != parts.pointee
+                || existing.element != parts.element
+                || existing.signature != parts.signature
+                || existing.union_members != parts.union_members
+            {
+                return Err(format!(
+                    "identidade resolvida '{canonical_key}' já internada com estrutura interna divergente"
+                ));
+            }
+            return Ok(ResolvedTypeId(existing_id));
+        }
+        let id = u32::try_from(self.types.len())
+            .map_err(|_| "tabela de identidades resolvidas excede u32".to_string())?;
+        self.index.insert(canonical_key.clone(), id);
+        self.types.push(ResolvedTypeIR {
+            id: ResolvedTypeId(id),
+            canonical_key,
+            representation,
+            nominal_kind,
+            nominal_name,
+            pointee: parts.pointee,
+            element: parts.element,
+            signature: parts.signature,
+            union_members: parts.union_members,
+        });
+        Ok(ResolvedTypeId(id))
+    }
+
+    pub fn get(&self, id: ResolvedTypeId) -> Option<&ResolvedTypeIR> {
+        self.types.get(id.0 as usize).filter(|entry| entry.id == id)
+    }
+
+    pub fn key_of(&self, id: ResolvedTypeId) -> Option<&str> {
+        self.get(id).map(|entry| entry.canonical_key.as_str())
+    }
+
+    pub fn nominal_name_of(&self, id: ResolvedTypeId) -> Option<&str> {
+        self.get(id).and_then(|entry| entry.nominal_name.as_deref())
+    }
+
+    pub fn id_of_key(&self, key: &str) -> Option<ResolvedTypeId> {
+        self.index.get(key).copied().map(ResolvedTypeId)
+    }
+
+    pub fn len(&self) -> usize {
+        self.types.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.types.is_empty()
+    }
+
+    /// Entrega a tabela final na ordem em que as identidades foram internadas.
+    ///
+    /// Nenhuma renumeração posterior é feita de propósito: os `ResolvedTypeId`
+    /// já gravados em bindings, valores e membros de união são definitivos desde
+    /// a internação, e um remapeamento tardio que esquecesse qualquer uma dessas
+    /// posições produziria justamente a associação silenciosamente errada que
+    /// HR4 descreve.
+    pub fn into_types(self) -> Vec<ResolvedTypeIR> {
+        self.types
+    }
+}
+
+/// Representação operacional exigida por uma chave canônica de tipo escalar ou
+/// nominal conhecida. `None` quando a chave é estrutural e a representação já é
+/// validada pelo próprio construtor.
+fn expected_representation_for_key(key: &str) -> Option<TypeIR> {
+    match key {
+        "bombom" => Some(TypeIR::Bombom),
+        "u8" => Some(TypeIR::U8),
+        "u16" => Some(TypeIR::U16),
+        "u32" => Some(TypeIR::U32),
+        "u64" => Some(TypeIR::U64),
+        "i8" => Some(TypeIR::I8),
+        "i16" => Some(TypeIR::I16),
+        "i32" => Some(TypeIR::I32),
+        "i64" => Some(TypeIR::I64),
+        "logica" => Some(TypeIR::Logica),
+        "verso" => Some(TypeIR::Verso),
+        "lista<bombom>" => Some(TypeIR::ListBombom),
+        "lista<verso>" => Some(TypeIR::ListVerso),
+        "mapa<verso,bombom>" => Some(TypeIR::MapVersoBombom),
+        "mapa<verso,verso>" => Some(TypeIR::MapVersoVerso),
+        "mapa<bombom,bombom>" => Some(TypeIR::MapBombomBombom),
+        "mapa<bombom,verso>" => Some(TypeIR::MapBombomVerso),
+        "nulo" => Some(TypeIR::Nulo),
+        _ => None,
+    }
+}
+
+/// Chave canônica determinada por uma representação operacional autossuficiente.
+///
+/// É a inversa exata de [`expected_representation_for_key`] e existe apenas para
+/// as representações cuja categoria operacional **já é** a identidade semântica
+/// completa (escalares, `verso`, listas e mapas monomórficos, `nulo`). Para
+/// `Struct`, `Pointer`, `Function`, `FunctionPointer` e `TraitObject` retorna
+/// `None`: nesses casos a representação é ambígua por construção (HR4) e a
+/// identidade tem de vir do tipo AST resolvido.
+fn expected_key_for_representation(ty: TypeIR) -> Option<&'static str> {
+    let key = match ty {
+        TypeIR::Bombom => "bombom",
+        TypeIR::U8 => "u8",
+        TypeIR::U16 => "u16",
+        TypeIR::U32 => "u32",
+        TypeIR::U64 => "u64",
+        TypeIR::I8 => "i8",
+        TypeIR::I16 => "i16",
+        TypeIR::I32 => "i32",
+        TypeIR::I64 => "i64",
+        TypeIR::Logica => "logica",
+        TypeIR::Verso => "verso",
+        TypeIR::ListBombom => "lista<bombom>",
+        TypeIR::ListVerso => "lista<verso>",
+        TypeIR::MapVersoBombom => "mapa<verso,bombom>",
+        TypeIR::MapVersoVerso => "mapa<verso,verso>",
+        TypeIR::MapBombomBombom => "mapa<bombom,bombom>",
+        TypeIR::MapBombomVerso => "mapa<bombom,verso>",
+        TypeIR::Nulo => "nulo",
+        TypeIR::Struct
+        | TypeIR::Pointer { .. }
+        | TypeIR::FunctionPointer
+        | TypeIR::Function
+        | TypeIR::TraitObject
+        | TypeIR::FixedArray { .. }
+        | TypeIR::Union(_) => return None,
+    };
+    debug_assert_eq!(expected_representation_for_key(key), Some(ty));
+    Some(key)
+}
+
+/// Interna a identidade de uma representação autossuficiente, sem contexto de
+/// lowering.
+///
+/// Serve ao catálogo de intrínsecas embutidas, cujos retornos são escalares,
+/// `verso`, listas/mapas monomórficos ou `nulo`. Representações ambíguas
+/// (`Struct`, `Pointer`, `Function`, `FunctionPointer`, `TraitObject`, arrays e
+/// uniões) são recusadas de propósito: elas exigem a identidade do tipo AST.
+fn intern_representation_identity(
+    table: &mut ResolvedTypeTable,
+    ty: TypeIR,
+) -> Result<ResolvedTypeId, String> {
+    let key = expected_key_for_representation(ty).ok_or_else(|| {
+        format!(
+            "E-IR-TYPE-IDENTITY-LOST: a representação '{}' não determina a identidade semântica",
+            ty.name()
+        )
+    })?;
+    table.intern(key.to_string(), ty, ResolvedTypeParts::default())
+}
+
+/// Assinatura de intrínseca embutida com identidade de retorno já internada.
+fn builtin_sig(
+    table: &mut ResolvedTypeTable,
+    ret_type: TypeIR,
+) -> Result<FunctionSigIR, PinkerError> {
+    let ret_resolved =
+        intern_representation_identity(table, ret_type).map_err(|msg| PinkerError::Ir {
+            msg,
+            span: Span::new(Position::new(1, 1), Position::new(1, 1)),
+        })?;
+    Ok(FunctionSigIR {
+        ret_type,
+        ret_resolved,
+    })
+}
+
+/// Valida a tabela de identidades resolvidas em qualquer fronteira do pipeline.
+///
+/// Confirma: IDs densos e na posição; chaves não vazias e únicas; nenhuma chave
+/// envenenada por perda de resolução de apelido; coerência entre chave e
+/// representação operacional; e coerência entre identidade nominal declarada,
+/// prefixo da chave e representação.
+///
+/// A **ordem** da tabela é a ordem de internação do lowering, que é função
+/// apenas da ordem sintática do programa (a tabela indexa por `BTreeMap`, nunca
+/// por `HashMap`). A independência de ordem de iteração de mapas é verificada
+/// por igualdade entre dois lowerings do mesmo programa, e não por uma ordenação
+/// posterior — reordenar a tabela exigiria reescrever todo `ResolvedTypeId` já
+/// gravado em bindings, valores e membros, o que reintroduziria exatamente a
+/// classe de erro silencioso de HR4.
+pub fn validate_resolved_type_table(resolved: &[ResolvedTypeIR]) -> Result<(), String> {
+    let mut seen_keys = std::collections::BTreeSet::<&str>::new();
+    for (index, entry) in resolved.iter().enumerate() {
+        let expected_id =
+            u32::try_from(index).map_err(|_| "tabela de identidades excede u32".to_string())?;
+        if entry.id != ResolvedTypeId(expected_id) {
+            return Err(format!(
+                "ID de identidade resolvida fora da posição: esperado {expected_id}, recebido {}",
+                entry.id.0
+            ));
+        }
+        if entry.canonical_key.is_empty() {
+            return Err(format!("identidade {expected_id} sem chave canônica"));
+        }
+        if union_canon::is_poisoned_key(&entry.canonical_key) {
+            return Err(format!(
+                "identidade {expected_id} carrega chave de identidade perdida: '{}'",
+                entry.canonical_key
+            ));
+        }
+        if !seen_keys.insert(entry.canonical_key.as_str()) {
+            return Err(format!(
+                "chave canônica repetida na tabela de identidades: '{}'",
+                entry.canonical_key
+            ));
+        }
+        if let Some(expected) = expected_representation_for_key(&entry.canonical_key) {
+            if entry.representation != expected {
+                return Err(format!(
+                    "representação divergente para a identidade '{}': esperado '{}', recebido '{}'",
+                    entry.canonical_key,
+                    expected.name(),
+                    entry.representation.name()
+                ));
+            }
+        }
+        match (entry.nominal_kind, entry.nominal_name.as_deref()) {
+            (Some(NominalTypeKindIR::Ninho), Some(name)) => {
+                if entry.representation != TypeIR::Struct {
+                    return Err(format!(
+                        "identidade nominal de ninho '{name}' com representação '{}'",
+                        entry.representation.name()
+                    ));
+                }
+                if entry.canonical_key != format!("struct:{}:{name}", name.len()) {
+                    return Err(format!(
+                        "chave canônica '{}' não corresponde ao ninho '{name}'",
+                        entry.canonical_key
+                    ));
+                }
+            }
+            (Some(NominalTypeKindIR::Leque), Some(name)) => {
+                if entry.representation != TypeIR::Bombom {
+                    return Err(format!(
+                        "identidade nominal de leque '{name}' com representação '{}'",
+                        entry.representation.name()
+                    ));
+                }
+                if entry.canonical_key != format!("enum:{}:{name}", name.len()) {
+                    return Err(format!(
+                        "chave canônica '{}' não corresponde ao leque '{name}'",
+                        entry.canonical_key
+                    ));
+                }
+            }
+            (None, None) => {
+                if entry.canonical_key.starts_with("struct:")
+                    || entry.canonical_key.starts_with("enum:")
+                {
+                    return Err(format!(
+                        "identidade nominal ausente para a chave nominal '{}'",
+                        entry.canonical_key
+                    ));
+                }
+            }
+            _ => {
+                return Err(format!(
+                    "identidade {expected_id} com categoria e nome nominais inconsistentes"
+                ));
+            }
+        }
+        validate_resolved_type_structure(resolved, entry)?;
+    }
+    Ok(())
+}
+
+/// Confirma que os componentes internos de uma identidade existem na tabela e
+/// que a chave canônica é exatamente a composição das chaves dos componentes.
+///
+/// É esta checagem que impede que `seta<u8>` e `seta<u64>`, ou
+/// `carinho(u8) -> u8` e `carinho(u64) -> u64`, compartilhem identidade.
+fn validate_resolved_type_structure(
+    resolved: &[ResolvedTypeIR],
+    entry: &ResolvedTypeIR,
+) -> Result<(), String> {
+    let key_of = |id: ResolvedTypeId| -> Result<&str, String> {
+        resolved
+            .get(id.0 as usize)
+            .filter(|component| component.id == id)
+            .map(|component| component.canonical_key.as_str())
+            .ok_or_else(|| {
+                format!(
+                    "identidade '{}' referencia componente {} ausente da tabela",
+                    entry.canonical_key, id.0
+                )
+            })
+    };
+    let expect = |expected: String| -> Result<(), String> {
+        if expected == entry.canonical_key {
+            Ok(())
+        } else {
+            Err(format!(
+                "chave canônica incoerente com os componentes: esperado '{expected}', armazenado '{}'",
+                entry.canonical_key
+            ))
+        }
+    };
+    match entry.representation {
+        TypeIR::Pointer { is_volatile } => {
+            let Some(pointee) = entry.pointee else {
+                return Err(format!(
+                    "identidade de ponteiro '{}' sem identidade do apontado",
+                    entry.canonical_key
+                ));
+            };
+            expect(format!(
+                "ptr:{}:{}",
+                u8::from(is_volatile),
+                key_of(pointee)?
+            ))
+        }
+        TypeIR::FunctionPointer => {
+            let Some(pointee) = entry.pointee else {
+                return Err(format!(
+                    "identidade de ponteiro cru de função '{}' sem assinatura do apontado",
+                    entry.canonical_key
+                ));
+            };
+            expect(format!("ptr:0:{}", key_of(pointee)?))
+        }
+        TypeIR::Function => {
+            let Some(signature) = entry.signature.as_ref() else {
+                return Err(format!(
+                    "identidade de função '{}' sem assinatura resolvida",
+                    entry.canonical_key
+                ));
+            };
+            let mut params = Vec::with_capacity(signature.params.len());
+            for param in &signature.params {
+                let key = key_of(*param)?;
+                params.push(format!("{}:{key}", key.len()));
+            }
+            let ret = key_of(signature.ret)?;
+            expect(format!("fn({})->{}:{ret}", params.join(","), ret.len()))
+        }
+        TypeIR::FixedArray { size, .. } => {
+            let Some(element) = entry.element else {
+                return Err(format!(
+                    "identidade de array '{}' sem identidade do elemento",
+                    entry.canonical_key
+                ));
+            };
+            let element = key_of(element)?;
+            expect(format!("array:{size}:{}:{element}", element.len()))
+        }
+        TypeIR::Union(_) => {
+            let Some(members) = entry.union_members.as_ref() else {
+                return Err(format!(
+                    "identidade de união '{}' sem identidades dos membros",
+                    entry.canonical_key
+                ));
+            };
+            let mut keys = Vec::with_capacity(members.len());
+            for member in members {
+                let key = key_of(*member)?;
+                keys.push(format!("{}:{key}", key.len()));
+            }
+            expect(format!("union:[{}]", keys.join(",")))
+        }
+        _ => {
+            if entry.pointee.is_some()
+                || entry.signature.is_some()
+                || entry.union_members.is_some()
+                || entry.element.is_some()
+            {
+                return Err(format!(
+                    "identidade '{}' carrega componentes incompatíveis com a representação '{}'",
+                    entry.canonical_key,
+                    entry.representation.name()
+                ));
+            }
+            Ok(())
+        }
+    }
+}
+
+/// Confirma que um `ResolvedTypeId` existe na tabela e que a representação
+/// declarada no nó coincide com a identidade internada.
+pub fn validate_resolved_type_reference(
+    resolved: &[ResolvedTypeIR],
+    id: ResolvedTypeId,
+    representation: TypeIR,
+) -> Result<&ResolvedTypeIR, String> {
+    let entry = resolved
+        .get(id.0 as usize)
+        .filter(|entry| entry.id == id)
+        .ok_or_else(|| format!("identidade resolvida {} ausente da tabela internada", id.0))?;
+    if entry.representation != representation {
+        return Err(format!(
+            "representação divergente para a identidade '{}': tabela guarda '{}', nó declara '{}'",
+            entry.canonical_key,
+            entry.representation.name(),
+            representation.name()
+        ));
+    }
+    Ok(entry)
+}
+
+/// Confronta a tabela de uniões com a tabela de identidades resolvidas.
+///
+/// Cada membro precisa apontar para uma identidade existente cuja chave
+/// canônica seja exatamente a chave do membro e cuja representação coincida.
+/// Duas identidades diferentes com o mesmo `TypeIR` continuam sendo membros
+/// distintos; duas entradas com a mesma identidade são erro de registry.
+pub fn validate_union_registry_identities(
+    unions: &[UnionTypeIR],
+    resolved: &[ResolvedTypeIR],
+) -> Result<(), String> {
+    for union in unions {
+        let mut seen = std::collections::BTreeSet::new();
+        for member in &union.members {
+            let entry =
+                validate_resolved_type_reference(resolved, member.resolved_type_id, member.ty)
+                    .map_err(|error| format!("união {} tag {}: {error}", union.id.0, member.tag))?;
+            if entry.canonical_key != member.canonical_member_key {
+                return Err(format!(
+                    "união {} tag {}: chave do membro '{}' não coincide com a identidade '{}'",
+                    union.id.0, member.tag, member.canonical_member_key, entry.canonical_key
+                ));
+            }
+            if !seen.insert(member.resolved_type_id) {
+                return Err(format!(
+                    "união {} possui dois membros com a identidade resolvida {}",
+                    union.id.0, member.resolved_type_id.0
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+// @pinker-nav:end ir.tipos.identidade-resolvida
+
 #[derive(Clone)]
 struct FunctionSigIR {
     ret_type: TypeIR,
-    ret_struct_name: Option<String>,
+    /// Identidade semântica completa do retorno. Substitui o antigo
+    /// `ret_struct_name: Option<String>`: o nome nominal, quando existir, é
+    /// consultado na tabela de identidades e nunca é autoridade de seleção.
+    ret_resolved: ResolvedTypeId,
 }
 
 // Fase 244: assinatura operacional de um método de trato objetificável.
@@ -653,7 +1310,10 @@ struct TraitMethodMetaIR {
     name: String,
     param_types: Vec<TypeIR>,
     ret_type: TypeIR,
-    ret_struct_name: Option<String>,
+    /// Tipo AST do retorno declarado, preservado para que a identidade
+    /// semântica exata seja internada no ponto de uso — a resolução de apelidos
+    /// e a internação de uniões exigem o contexto completo do lowering.
+    ret_ast: Option<Type>,
     ret_trait_name: Option<String>,
 }
 
@@ -665,6 +1325,11 @@ struct TraitMetaIR {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct CallableMetadata {
     ret_type: TypeIR,
+    /// Tipo AST do retorno do callable, preservado para internar a identidade
+    /// semântica exata no ponto de uso. Sem ele a chamada indireta devolveria
+    /// apenas a categoria operacional, e um `leque` devolvido por um callable
+    /// voltaria a colidir com qualquer outro escalar na injeção.
+    ret_ast: Option<Type>,
     ret_trait_name: Option<String>,
     ret_pointer_pointee: Option<TypeIR>,
 }
@@ -673,6 +1338,10 @@ struct CallableMetadata {
 struct RawFunctionMetadata {
     param_types: Vec<TypeIR>,
     ret_type: TypeIR,
+    /// Tipo AST do retorno, pela mesma razão de [`CallableMetadata::ret_ast`]:
+    /// a chamada por ponteiro cru precisa devolver a identidade semântica, não
+    /// apenas a categoria operacional do retorno.
+    ret_ast: Option<Type>,
     ret_pointer_pointee: Option<TypeIR>,
 }
 
@@ -680,6 +1349,9 @@ struct RawFunctionMetadata {
 struct CaptureMetadata {
     source_name: String,
     ty: TypeIR,
+    /// Identidade semântica da variável capturada, preservada através da
+    /// fronteira da closure. Mesma convenção de [`TypedValueIR::resolved`].
+    resolved: Option<ResolvedTypeId>,
     trait_object_name: Option<String>,
     callable: Option<CallableMetadata>,
     raw_function: Option<RawFunctionMetadata>,
@@ -690,7 +1362,8 @@ struct CaptureMetadata {
 struct BindingState {
     slot: String,
     ty: TypeIR,
-    struct_name: Option<String>,
+    /// Mesma convenção de [`TypedValueIR::resolved`].
+    resolved: Option<ResolvedTypeId>,
     ptr_array_bombom_size: Option<u64>,
 }
 
@@ -707,6 +1380,10 @@ struct LoweringContext {
     struct_fields: HashMap<String, HashMap<String, TypeIR>>,
     struct_field_offsets: HashMap<String, HashMap<String, u64>>,
     enum_variants: HashMap<String, EnumInfoIR>,
+    // Nomes **declarados** de `leque`. `enum_variants` também é indexado por
+    // apelidos (para que `X.Variante` funcione), então não serve como autoridade
+    // de identidade nominal: só o nome declarado é.
+    enum_decl_names: HashSet<String>,
     // Fase 244: método e slot seguem a ordem declarada no `trato`.
     traits: HashMap<String, TraitMetaIR>,
     // Nome da função -> identidade nominal do objeto de trato retornado.
@@ -732,6 +1409,12 @@ struct LoweringContext {
     // abaixar o corpo da closure sob demanda, com o ambiente correto.
     all_functions: HashMap<String, FunctionDecl>,
     union_registry: std::cell::RefCell<UnionRegistryState>,
+    // Tabela de internação de identidades semânticas resolvidas. É a única
+    // autoridade de identidade do programa: todo binding, valor, assinatura e
+    // membro de união referencia uma entrada desta tabela por `ResolvedTypeId`.
+    // `RefCell` pelo mesmo motivo de `union_registry`: os lowerings emprestam
+    // `context` imutavelmente e a internação é incremental.
+    resolved_types: std::cell::RefCell<ResolvedTypeTable>,
     // Estado mutável compartilhado entre todos os `FunctionLowerer` da
     // mesma `lower_program`: capturas já resolvidas e corpos de closure já
     // abaixados. `RefCell` porque `FunctionLowerer` só empresta `context`
@@ -897,6 +1580,7 @@ fn raw_function_metadata_from_type(
             .map(|param| TypeIR::from_ast_with_context(param, aliases, struct_names))
             .collect::<Result<Vec<_>, _>>()?,
         ret_type: TypeIR::from_ast_with_context(ret, aliases, struct_names)?,
+        ret_ast: Some(ret.as_ref().clone()),
         ret_pointer_pointee: pointer_pointee_from_type(ret, aliases, struct_names)?,
     }))
 }
@@ -949,6 +1633,7 @@ fn raw_function_metadata_from_decl(
             aliases,
             struct_names,
         )?,
+        ret_ast: function.ret_type.clone(),
         ret_pointer_pointee: function
             .ret_type
             .as_ref()
@@ -989,8 +1674,33 @@ struct FunctionLowerer<'a> {
 struct TypedValueIR {
     value: ValueIR,
     ty: TypeIR,
-    struct_name: Option<String>,
+    /// Identidade semântica do valor.
+    ///
+    /// `None` **não** significa "sem identidade": significa que a
+    /// representação operacional já é a identidade completa e é internada sob
+    /// demanda por [`TypedValueIR::identity`]. Isso só é verdade para as
+    /// representações injetivas (escalares, `verso`, listas/mapas monomórficos,
+    /// `nulo`, arrays desses, e uniões, cujo `UnionTypeId` já é nominal). Para
+    /// `ninho`, `seta<T>`, `carinho(...)` e `trato<...>` — exatamente as
+    /// representações que HR4 mostra serem ambíguas — `None` é perda de
+    /// identidade e `identity` falha com `E-IR-TYPE-IDENTITY-LOST`, em vez de
+    /// escolher um candidato aproximado.
+    resolved: Option<ResolvedTypeId>,
     ptr_array_bombom_size: Option<u64>,
+}
+
+impl TypedValueIR {
+    /// Identidade semântica exata do valor, ou erro interno se ela foi perdida.
+    fn identity(
+        &self,
+        context: &LoweringContext,
+        span: Span,
+    ) -> Result<ResolvedTypeId, PinkerError> {
+        match self.resolved {
+            Some(resolved) => Ok(resolved),
+            None => context.repr_identity(self.ty, span),
+        }
+    }
 }
 
 // Fase 2 escolhe IR estruturada: blocos e `if` seguem explícitos, sem SSA e sem saltos.
@@ -1046,10 +1756,26 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
     let ClosureLoweringState { lowered, .. } = context.closure_state.into_inner();
     functions.extend(lowered.into_iter().map(|(_, f)| f));
     let union_types = context.union_registry.into_inner().types;
+    let resolved_types = context.resolved_types.into_inner().into_types();
+    // A tabela de identidades e o registro de uniões são conferidos já aqui, no
+    // ponto em que ambos ficam completos: qualquer incoerência é erro interno do
+    // lowering e não deve chegar às camadas seguintes.
+    let program_span = Span::new(Position::new(1, 1), Position::new(1, 1));
+    validate_resolved_type_table(&resolved_types).map_err(|msg| PinkerError::Ir {
+        msg: format!("E-IR-TYPE-IDENTITY-LOST: {msg}"),
+        span: program_span,
+    })?;
+    validate_union_registry_identities(&union_types, &resolved_types).map_err(|msg| {
+        PinkerError::Ir {
+            msg,
+            span: program_span,
+        }
+    })?;
 
     Ok(ProgramIR {
         module_name: context.module_name,
         is_freestanding: program.freestanding.is_some(),
+        resolved_types,
         union_types,
         consts,
         functions,
@@ -1111,10 +1837,15 @@ impl LoweringContext {
             .map(|package| package.name.clone())
             .unwrap_or_else(|| "main".to_string());
 
+        // Tabela de identidades semânticas do programa. Nasce aqui porque as
+        // assinaturas das intrínsecas embutidas já precisam internar a
+        // identidade do próprio retorno.
+        let mut resolved_types = ResolvedTypeTable::default();
         let mut type_aliases = HashMap::new();
         let mut struct_decls = HashMap::new();
         let mut struct_names = HashSet::new();
         let mut enum_variants: HashMap<String, EnumInfoIR> = HashMap::new();
+        let mut enum_decl_names: HashSet<String> = HashSet::new();
         for item in &program.items {
             if let Item::TypeAlias(alias) = item {
                 type_aliases.insert(alias.name.clone(), alias.target.clone());
@@ -1126,6 +1857,7 @@ impl LoweringContext {
                 // ou handle); registrar como alias faz toda anotação de tipo
                 // com o nome do leque resolver sozinha.
                 type_aliases.insert(enum_decl.name.clone(), Type::Bombom(enum_decl.span));
+                enum_decl_names.insert(enum_decl.name.clone());
                 let variants = enum_decl
                     .variants
                     .iter()
@@ -1208,9 +1940,6 @@ impl LoweringContext {
                         &struct_names,
                     )?;
 
-                    let ret_struct_name = method.ret_type.as_ref().and_then(|ty| {
-                        resolve_struct_name_from_type(ty, &type_aliases, &struct_names)
-                    });
                     let ret_trait_name = method
                         .ret_type
                         .as_ref()
@@ -1222,7 +1951,7 @@ impl LoweringContext {
                         name: method.name.clone(),
                         param_types,
                         ret_type,
-                        ret_struct_name,
+                        ret_ast: method.ret_type.clone(),
                         ret_trait_name,
                     })
                 })
@@ -1232,6 +1961,8 @@ impl LoweringContext {
         }
 
         let mut function_sigs = HashMap::new();
+        // (nome, tipo AST do retorno, representação) das funções declaradas.
+        let mut pending_declared_sigs: Vec<(String, Option<Type>, TypeIR)> = Vec::new();
         let mut global_consts = HashMap::new();
         let mut callable_metadata = HashMap::new();
         let mut raw_function_return_metadata = HashMap::new();
@@ -1252,19 +1983,21 @@ impl LoweringContext {
                         }
                     }
 
-                    function_sigs.insert(
+                    // A identidade semântica do retorno de uma função declarada
+                    // pode exigir resolução integral de apelidos e internação de
+                    // uniões, o que só é possível com o contexto já montado. A
+                    // assinatura é registrada aqui apenas com a representação e
+                    // é selada em `seal_declared_signature_identities`, antes de
+                    // qualquer corpo ser abaixado.
+                    pending_declared_sigs.push((
                         function.name.clone(),
-                        FunctionSigIR {
-                            ret_type: TypeIR::from_ast_option_with_context(
-                                function.ret_type.as_ref(),
-                                &type_aliases,
-                                &struct_names,
-                            )?,
-                            ret_struct_name: function.ret_type.as_ref().and_then(|ty| {
-                                resolve_struct_name_from_type(ty, &type_aliases, &struct_names)
-                            }),
-                        },
-                    );
+                        function.ret_type.clone(),
+                        TypeIR::from_ast_option_with_context(
+                            function.ret_type.as_ref(),
+                            &type_aliases,
+                            &struct_names,
+                        )?,
+                    ));
                     // Fase 242: quando a função retorna um valor callable,
                     // registra o ret_type DESSE callable (um nível), para
                     // permitir chamada indireta imediata sobre o resultado.
@@ -1277,6 +2010,7 @@ impl LoweringContext {
                                     &type_aliases,
                                     &struct_names,
                                 )?,
+                                ret_ast: Some(ret.as_ref().clone()),
                                 ret_trait_name: trait_object_name_from_type(
                                     ret,
                                     &type_aliases,
@@ -1324,923 +2058,561 @@ impl LoweringContext {
         // @pinker-nav:summary Segunda metade de `from_program`: catálogo centralizado de assinaturas das intrínsecas embutidas e internas (E/S, texto/verso, listas, mapas, CSV/JSON, tempo, ambiente, acaso, arquivo, caminho, processo) — cada `function_sigs.insert` registra o tipo de retorno usado depois para tipar chamadas no lowering de expressões. Encerra montando o `LoweringContext`. Não valida os corpos das intrínsecas; apenas declara contratos de retorno.
         function_sigs.insert(
             "ouvir".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "ouvir_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "ouvir_verso_ou".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "aleatorio_criar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "aleatorio_proximo".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "lista_bombom_criar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::ListBombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::ListBombom)?,
         );
         function_sigs.insert(
             "lista_bombom_anexar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "lista_bombom_obter".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "lista_bombom_tamanho".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "lista_bombom_definir".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "lista_bombom_tirar_ultimo".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "lista_verso_criar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::ListVerso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::ListVerso)?,
         );
         function_sigs.insert(
             "lista_verso_anexar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "lista_verso_obter".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "lista_verso_tamanho".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "lista_verso_definir".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "lista_verso_tirar_ultimo".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "mapa_verso_bombom_criar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::MapVersoBombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::MapVersoBombom)?,
         );
         function_sigs.insert(
             "mapa_verso_bombom_definir".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "mapa_verso_bombom_obter".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "mapa_verso_bombom_tem".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "mapa_verso_bombom_tamanho".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "mapa_verso_verso_criar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::MapVersoVerso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::MapVersoVerso)?,
         );
         function_sigs.insert(
             "mapa_verso_verso_definir".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "mapa_verso_verso_obter".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "mapa_verso_verso_tem".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "mapa_verso_verso_tamanho".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "mapa_verso_verso_remover".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "mapa_bombom_bombom_criar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::MapBombomBombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::MapBombomBombom)?,
         );
         function_sigs.insert(
             "mapa_bombom_bombom_definir".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "mapa_bombom_bombom_obter".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "mapa_bombom_bombom_tem".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "mapa_bombom_bombom_tamanho".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "mapa_bombom_bombom_remover".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "mapa_bombom_verso_criar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::MapBombomVerso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::MapBombomVerso)?,
         );
         function_sigs.insert(
             "mapa_bombom_verso_definir".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "mapa_bombom_verso_obter".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "mapa_bombom_verso_tem".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "mapa_bombom_verso_tamanho".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "mapa_bombom_verso_remover".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "__pinker_internal_mapa_bombom_verso_iterador_criar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "__pinker_internal_leque_criar_0".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "__pinker_internal_leque_anexar_b".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "__pinker_internal_leque_anexar_v".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "__pinker_internal_leque_tag".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "__pinker_internal_leque_carga_b".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "__pinker_internal_leque_carga_v".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         // As uniões não registram intrínsecas chamáveis: tag e extração são
         // `ValueIR::UnionTag`/`ValueIR::UnionExtract`, nós tipados criados pelo
         // lowering de `Stmt::UnionMatch`.
         function_sigs.insert(
             "argumento".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "argumento_ou".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "tem_chave".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "tem_argumento_nomeado".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "pedir_argumento".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "argumento_nomeado_ou".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "tem_flag".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "ambiente_ou".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "buscar_contexto".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "argumento_nomeado_ou_ambiente_ou".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "caminho_existe".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "e_arquivo".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "e_diretorio".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "juntar_caminho".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "tamanho_arquivo".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "e_vazio".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "criar_diretorio".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "remover_arquivo".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "remover_diretorio".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "diretorio_atual".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "quantos_argumentos".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "tem_argumento".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "sair".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "abrir".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "ler_arquivo".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "ler_verso_arquivo".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "ler_arquivo_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "arquivo_ou".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "fechar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "criar_arquivo".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "abrir_anexo".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "escrever".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "escrever_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "truncar_arquivo".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "anexar_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "juntar_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "tamanho_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "indice_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "contem_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "comeca_com".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "termina_com".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "igual_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "vazio_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         function_sigs.insert(
             "aparar_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "minusculo_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "maiusculo_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "indice_verso_em".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         // Fase 140
         function_sigs.insert(
             "buscar_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "nao_vazio_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Logica,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );
         // Fase 137
         function_sigs.insert(
             "dividir_verso_em".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "dividir_verso_contar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         // Fase 138
         function_sigs.insert(
             "substituir_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         // Fase 139
         function_sigs.insert(
             "juntar_verso_com".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "formatar_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         // Fase 158
         function_sigs.insert(
             "ler_linha_csv_bombom".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::ListBombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::ListBombom)?,
         );
         function_sigs.insert(
             "emitir_linha_csv_bombom".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "ler_json_plano_bombom".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::MapVersoBombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::MapVersoBombom)?,
         );
         function_sigs.insert(
             "emitir_json_plano_bombom".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         // Fase 160
         function_sigs.insert(
             "tempo_unix".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "formatar_tempo_unix".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         // Fase 161
         function_sigs.insert(
             "executar_processo".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         // Fase 165
         function_sigs.insert(
             "executar_com_entrada".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         // Fase 166
         function_sigs.insert(
             "pipeline_minimo".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         // Fase 163
         function_sigs.insert(
             "capturar_stdout".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         // Fase 164
         function_sigs.insert(
             "capturar_stderr".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "afirmar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "dormir".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "copiar_arquivo".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "renomear_arquivo".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "verso_para_bombom".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "bombom_para_verso".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
             "aleatorio_entre".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "mapa_verso_bombom_remover".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "lista_bombom_inserir".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "lista_verso_inserir".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
-        function_sigs.insert(
-            "alocar".to_string(),
+        function_sigs.insert("alocar".to_string(), {
+            // `alocar` devolve `seta<u8>`: a identidade do apontado é
+            // explícita, porque `TypeIR::Pointer` não a determina.
+            let pointee =
+                intern_representation_identity(&mut resolved_types, TypeIR::U8).map_err(|msg| {
+                    PinkerError::Ir {
+                        msg,
+                        span: Span::new(Position::new(1, 1), Position::new(1, 1)),
+                    }
+                })?;
+            let ret_type = TypeIR::Pointer { is_volatile: false };
+            let ret_resolved = resolved_types
+                .intern(
+                    "ptr:0:u8".to_string(),
+                    ret_type,
+                    ResolvedTypeParts {
+                        pointee: Some(pointee),
+                        ..ResolvedTypeParts::default()
+                    },
+                )
+                .map_err(|msg| PinkerError::Ir {
+                    msg,
+                    span: Span::new(Position::new(1, 1), Position::new(1, 1)),
+                })?;
             FunctionSigIR {
-                ret_type: TypeIR::Pointer { is_volatile: false },
-                ret_struct_name: None,
-            },
-        );
+                ret_type,
+                ret_resolved,
+            }
+        });
         function_sigs.insert(
             "liberar".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Nulo,
-                ret_struct_name: None,
-            },
+            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
 
-        Ok(Self {
+        let mut context = Self {
             module_name,
             function_sigs,
             global_consts,
@@ -2250,6 +2622,7 @@ impl LoweringContext {
             struct_fields,
             struct_field_offsets,
             enum_variants,
+            enum_decl_names,
             traits,
             function_ret_trait_names,
             callable_metadata,
@@ -2257,8 +2630,11 @@ impl LoweringContext {
             function_ret_pointer_pointees,
             all_functions,
             union_registry: std::cell::RefCell::new(UnionRegistryState::default()),
+            resolved_types: std::cell::RefCell::new(resolved_types),
             closure_state: std::cell::RefCell::new(ClosureLoweringState::default()),
-        })
+        };
+        context.seal_declared_signature_identities(pending_declared_sigs)?;
+        Ok(context)
     }
     // @pinker-nav:end ir.lowering.assinaturas-intrinsecos
 
@@ -2269,6 +2645,255 @@ impl LoweringContext {
         }
         TypeIR::from_ast_with_context(ty, &self.type_aliases, &self.struct_names)
     }
+
+    // @pinker-nav:start ir.lowering.identidade-resolvida
+    // @pinker-nav:domain lowering
+    // @pinker-nav:layer ir
+    // @pinker-nav:summary Internação da identidade semântica no lowering: `resolved_identity` resolve integralmente apelidos e interna a identidade completa de um tipo AST, `intern_resolved_ast` recorre por ponteiro/array/assinatura/união internando os componentes antes do agregado, `repr_identity` cobre apenas as categorias cuja identidade é integralmente derivável da representação (escalares, verso, listas, mapas, arrays de escalar, nulo e uniões já internadas) e recusa as categorias nominais com `E-IR-TYPE-IDENTITY-LOST`, e `internal_identity` interna identidades sintéticas do próprio lowering. Nenhuma destas funções deriva identidade de `TypeIR::name()`, de nome de apelido, de span ou de ordem de mapa.
+    /// Interna a identidade semântica completa de um tipo escrito na fonte.
+    ///
+    /// Apelidos são resolvidos integralmente antes da chave: `apelido X = Alfa`
+    /// e `Alfa` produzem o mesmo `ResolvedTypeId`.
+    fn resolved_identity(&self, ty: &Type) -> Result<ResolvedTypeId, PinkerError> {
+        let resolved = self.resolve_union_ast_type(ty, &mut Vec::new())?;
+        self.intern_resolved_ast(&resolved, ty.span())
+    }
+
+    /// Interna a identidade de um tipo **já resolvido**, recursivamente.
+    fn intern_resolved_ast(
+        &self,
+        resolved: &Type,
+        span: Span,
+    ) -> Result<ResolvedTypeId, PinkerError> {
+        let key = union_canon::canonical_type_key(resolved);
+        if union_canon::is_poisoned_key(&key) {
+            return Err(PinkerError::Ir {
+                msg: format!(
+                    "E-IR-TYPE-IDENTITY-LOST: identidade semântica perdida antes da internação ('{key}')"
+                ),
+                span,
+            });
+        }
+        if let Some(existing) = self.resolved_types.borrow().id_of_key(&key) {
+            return Ok(existing);
+        }
+
+        // Componentes primeiro: a internação do agregado nunca acontece com o
+        // `RefCell` da tabela emprestado, para que a recursão seja segura.
+        let mut parts = ResolvedTypeParts {
+            nominal: union_canon::nominal_identity_of(resolved)
+                .map(|(kind, name)| (NominalTypeKindIR::from_canon(kind), name)),
+            ..ResolvedTypeParts::default()
+        };
+        match resolved {
+            Type::Pointer { base, .. } => {
+                parts.pointee = Some(self.intern_resolved_ast(base, span)?);
+            }
+            Type::Function { params, ret, .. } => {
+                let mut param_ids = Vec::with_capacity(params.len());
+                for param in params {
+                    param_ids.push(self.intern_resolved_ast(param, span)?);
+                }
+                parts.signature = Some(ResolvedSignatureIR {
+                    params: param_ids,
+                    ret: self.intern_resolved_ast(ret, span)?,
+                });
+            }
+            Type::FixedArray { element, .. } => {
+                parts.element = Some(self.intern_resolved_ast(element, span)?);
+            }
+            Type::Union { members, .. } => {
+                let mut member_ids = Vec::with_capacity(members.len());
+                for member in members {
+                    member_ids.push(self.intern_resolved_ast(member, span)?);
+                }
+                parts.union_members = Some(member_ids);
+            }
+            _ => {}
+        }
+
+        let representation = match resolved {
+            Type::Union { members, span } => self.intern_union(members, *span)?,
+            other => TypeIR::from_ast_with_context(other, &self.type_aliases, &self.struct_names)?,
+        };
+
+        self.resolved_types
+            .borrow_mut()
+            .intern(key, representation, parts)
+            .map_err(|msg| PinkerError::Ir { msg, span })
+    }
+
+    /// Identidade de um valor cuja categoria operacional **é** a identidade
+    /// completa.
+    ///
+    /// Vale para escalares, `verso`, listas e mapas monomórficos, arrays de
+    /// escalar, `nulo` e uniões já internadas. As categorias nominais ou
+    /// paramétricas (`ninho`, `leque` — que também abaixa para escalar —,
+    /// `seta<T>`, `carinho(...)`, `trato<...>`) **não** podem ser derivadas da
+    /// representação e produzem `E-IR-TYPE-IDENTITY-LOST`.
+    fn repr_identity(&self, ty: TypeIR, span: Span) -> Result<ResolvedTypeId, PinkerError> {
+        let lost = || {
+            PinkerError::Ir {
+            msg: format!(
+                "E-IR-TYPE-IDENTITY-LOST: a representação '{}' não determina a identidade semântica",
+                ty.name()
+            ),
+            span,
+        }
+        };
+        let (key, parts) = match ty {
+            TypeIR::Bombom
+            | TypeIR::U8
+            | TypeIR::U16
+            | TypeIR::U32
+            | TypeIR::U64
+            | TypeIR::I8
+            | TypeIR::I16
+            | TypeIR::I32
+            | TypeIR::I64
+            | TypeIR::Logica
+            | TypeIR::Verso
+            | TypeIR::ListBombom
+            | TypeIR::ListVerso
+            | TypeIR::MapVersoBombom
+            | TypeIR::MapVersoVerso
+            | TypeIR::MapBombomBombom
+            | TypeIR::MapBombomVerso
+            | TypeIR::Nulo => (
+                expected_key_for_representation(ty)
+                    .ok_or_else(lost)?
+                    .to_string(),
+                ResolvedTypeParts::default(),
+            ),
+            TypeIR::FixedArray { element, size } => {
+                let element_id = self.repr_identity(element.to_type_ir(), span)?;
+                let element_key = {
+                    let table = self.resolved_types.borrow();
+                    table.key_of(element_id).ok_or_else(lost)?.to_string()
+                };
+                (
+                    format!("array:{size}:{}:{element_key}", element_key.len()),
+                    ResolvedTypeParts {
+                        element: Some(element_id),
+                        ..ResolvedTypeParts::default()
+                    },
+                )
+            }
+            TypeIR::Union(union_type_id) => {
+                let member_keys = {
+                    let registry = self.union_registry.borrow();
+                    let union = registry
+                        .types
+                        .get(union_type_id.0 as usize)
+                        .filter(|union| union.id == union_type_id)
+                        .ok_or_else(lost)?;
+                    union
+                        .members
+                        .iter()
+                        .map(|member| {
+                            (member.canonical_member_key.clone(), member.resolved_type_id)
+                        })
+                        .collect::<Vec<_>>()
+                };
+                let key = format!(
+                    "union:[{}]",
+                    member_keys
+                        .iter()
+                        .map(|(key, _)| format!("{}:{key}", key.len()))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                );
+                (
+                    key,
+                    ResolvedTypeParts {
+                        union_members: Some(
+                            member_keys.iter().map(|(_, id)| *id).collect::<Vec<_>>(),
+                        ),
+                        ..ResolvedTypeParts::default()
+                    },
+                )
+            }
+            TypeIR::Struct
+            | TypeIR::Pointer { .. }
+            | TypeIR::FunctionPointer
+            | TypeIR::Function
+            | TypeIR::TraitObject => return Err(lost()),
+        };
+        self.resolved_types
+            .borrow_mut()
+            .intern(key, ty, parts)
+            .map_err(|msg| PinkerError::Ir { msg, span })
+    }
+
+    /// Interna uma identidade sintética do próprio lowering (por exemplo o
+    /// ambiente oculto `__env` das closures), com chave reservada que nunca
+    /// coincide com um tipo escrito pelo usuário.
+    fn internal_identity(
+        &self,
+        tag: &str,
+        ty: TypeIR,
+        span: Span,
+    ) -> Result<ResolvedTypeId, PinkerError> {
+        // A chave reservada não é envenenada: é uma identidade legítima e
+        // distinta, apenas inalcançável pela sintaxe de tipos do usuário.
+        let mut parts = ResolvedTypeParts::default();
+        let key = match ty {
+            TypeIR::Pointer { is_volatile } => {
+                let opaque = self
+                    .resolved_types
+                    .borrow_mut()
+                    .intern(
+                        format!("interno<{tag}>"),
+                        TypeIR::Bombom,
+                        ResolvedTypeParts::default(),
+                    )
+                    .map_err(|msg| PinkerError::Ir { msg, span })?;
+                parts.pointee = Some(opaque);
+                format!("ptr:{}:interno<{tag}>", u8::from(is_volatile))
+            }
+            _ => format!("interno<{tag}>"),
+        };
+        self.resolved_types
+            .borrow_mut()
+            .intern(key, ty, parts)
+            .map_err(|msg| PinkerError::Ir { msg, span })
+    }
+
+    /// Sela a identidade semântica do retorno de cada função declarada.
+    ///
+    /// Roda depois de o contexto estar montado e antes de qualquer corpo ser
+    /// abaixado, porque a identidade de um retorno pode exigir resolução
+    /// integral de apelidos e internação de uniões — ambas dependentes do
+    /// contexto completo. Nomes já ocupados pelo catálogo de intrínsecas
+    /// embutidas continuam pertencendo às embutidas, exatamente como antes.
+    fn seal_declared_signature_identities(
+        &mut self,
+        pending: Vec<(String, Option<Type>, TypeIR)>,
+    ) -> Result<(), PinkerError> {
+        let mut sealed = Vec::with_capacity(pending.len());
+        for (name, ast_ret, ret_type) in pending {
+            let span = ast_ret
+                .as_ref()
+                .map(|ty| ty.span())
+                .unwrap_or_else(|| Span::new(Position::new(1, 1), Position::new(1, 1)));
+            let ret_resolved = match ast_ret.as_ref() {
+                Some(ty) => self.resolved_identity(ty)?,
+                None => self.repr_identity(TypeIR::Nulo, span)?,
+            };
+            sealed.push((
+                name,
+                FunctionSigIR {
+                    ret_type,
+                    ret_resolved,
+                },
+            ));
+        }
+        for (name, sig) in sealed {
+            self.function_sigs.entry(name).or_insert(sig);
+        }
+        Ok(())
+    }
+    // @pinker-nav:end ir.lowering.identidade-resolvida
 
     fn resolve_union_ast_type(
         &self,
@@ -2283,7 +2908,11 @@ impl LoweringContext {
                         span: *span,
                     });
                 }
-                if self.enum_variants.contains_key(name) {
+                // Somente o nome **declarado** do leque é identidade nominal.
+                // Um apelido é transparente: `apelido X = Cor` precisa resolver
+                // para `Cor`, e não produzir a identidade `enum:1:X` — usar o
+                // texto do apelido como identidade é o erro que HR4 proíbe.
+                if self.enum_decl_names.contains(name) {
                     return Ok(Type::Enum {
                         name: name.clone(),
                         span: *span,
@@ -2322,13 +2951,77 @@ impl LoweringContext {
                     span: *span,
                 })
             }
+            // Apelidos são transparentes **em profundidade**: `seta<Apelido>`,
+            // `carinho(Apelido) -> Apelido` e `[Apelido; N]` têm de resolver os
+            // componentes, senão a chave canônica ficaria envenenada e a
+            // identidade seria perdida em tipos compostos perfeitamente legais.
+            Type::Pointer {
+                base,
+                is_volatile,
+                span,
+            } => Ok(Type::Pointer {
+                base: Box::new(self.resolve_union_ast_type(base, resolving)?),
+                is_volatile: *is_volatile,
+                span: *span,
+            }),
+            Type::Function { params, ret, span } => {
+                let mut resolved_params = Vec::with_capacity(params.len());
+                for param in params {
+                    resolved_params.push(self.resolve_union_ast_type(param, resolving)?);
+                }
+                Ok(Type::Function {
+                    params: resolved_params,
+                    ret: Box::new(self.resolve_union_ast_type(ret, resolving)?),
+                    span: *span,
+                })
+            }
+            Type::FixedArray {
+                element,
+                size,
+                span,
+            } => Ok(Type::FixedArray {
+                element: Box::new(self.resolve_union_ast_type(element, resolving)?),
+                size: *size,
+                span: *span,
+            }),
             _ => Ok(ty.clone()),
         }
     }
 
     fn intern_union(&self, members: &[Type], span: Span) -> Result<TypeIR, PinkerError> {
         let canonical_key = union_canon::union_key(members);
+        if let Some(existing) = self
+            .union_registry
+            .borrow()
+            .types
+            .iter()
+            .find(|union| union.canonical_key == canonical_key)
+            .map(|union| union.id)
+        {
+            return Ok(TypeIR::Union(existing));
+        }
+        // A identidade resolvida de cada membro é internada **antes** de
+        // emprestar o registro de uniões mutavelmente: `intern_resolved_ast`
+        // pode internar componentes e, para membros que são eles mesmos uniões,
+        // reentrar em `intern_union`.
+        let mut member_irs = Vec::with_capacity(members.len());
+        for (tag, member) in members.iter().enumerate() {
+            let ty = TypeIR::from_ast_with_context(member, &self.type_aliases, &self.struct_names)?;
+            let resolved_type_id = self.intern_resolved_ast(member, span)?;
+            let (size, align) = union_member_layout(member, &self.type_aliases, &self.struct_decls)
+                .map_err(|msg| PinkerError::Ir { msg, span })?;
+            member_irs.push(UnionMemberIR {
+                tag: tag as u64,
+                canonical_member_key: union_canon::member_key_text(member),
+                ty,
+                resolved_type_id,
+                size,
+                align,
+            });
+        }
         let mut registry = self.union_registry.borrow_mut();
+        // Reconferido depois da internação das identidades: um membro que seja
+        // união pode ter registrado a mesma união pai por reentrância.
         if let Some(existing) = registry
             .types
             .iter()
@@ -2342,24 +3035,6 @@ impl LoweringContext {
                 span,
             })?,
         );
-        let mut member_irs = Vec::with_capacity(members.len());
-        for (tag, member) in members.iter().enumerate() {
-            let ty = TypeIR::from_ast_with_context(member, &self.type_aliases, &self.struct_names)?;
-            let nominal_identity = match member {
-                Type::Struct { name, .. } | Type::Enum { name, .. } => Some(name.clone()),
-                _ => None,
-            };
-            let (size, align) = union_member_layout(member, &self.type_aliases, &self.struct_decls)
-                .map_err(|msg| PinkerError::Ir { msg, span })?;
-            member_irs.push(UnionMemberIR {
-                tag: tag as u64,
-                canonical_member_key: union_canon::member_key_text(member),
-                ty,
-                nominal_identity,
-                size,
-                align,
-            });
-        }
         registry.types.push(UnionTypeIR {
             id,
             canonical_key,
@@ -2403,11 +3078,111 @@ impl<'a> FunctionLowerer<'a> {
         }
     }
 
-    fn impl_receiver_key(typed: &TypedValueIR) -> Option<String> {
+    /// Nome nominal do receptor de um `impl`, consultado na tabela de
+    /// identidades. O nome nunca é autoridade de identidade — é apenas a chave
+    /// textual do catálogo de métodos, derivada da identidade resolvida.
+    fn impl_receiver_key(&self, typed: &TypedValueIR) -> Option<String> {
         if typed.ty == TypeIR::Struct {
-            return typed.struct_name.clone();
+            return self.nominal_name_of_value(typed);
         }
         Some(typed.ty.name().to_string())
+    }
+
+    /// Identidade semântica de um nome de função usado como valor.
+    ///
+    /// Deriva da assinatura declarada (`carinho(P...) -> R`), não do nome do
+    /// símbolo nem do wrapper sintético de `__env`.
+    fn function_value_identity(
+        &self,
+        name: &str,
+        span: Span,
+    ) -> Result<Option<ResolvedTypeId>, PinkerError> {
+        let Some(declaration) = self.context.all_functions.get(name) else {
+            return Ok(None);
+        };
+        let params = declaration
+            .params
+            .iter()
+            .map(|param| param.ty.clone())
+            .collect::<Vec<_>>();
+        let ret = declaration
+            .ret_type
+            .clone()
+            .unwrap_or_else(|| Type::Nulo(span));
+        let identity = self.context.resolved_identity(&Type::Function {
+            params,
+            ret: Box::new(ret),
+            span,
+        })?;
+        Ok(Some(identity))
+    }
+
+    /// Identidade semântica do valor devolvido por uma chamada indireta.
+    ///
+    /// `trato<Nome>` é reconstruído a partir do nome nominal que a metadata do
+    /// callable já preserva; nas demais representações a identidade é a própria
+    /// representação e fica `None` (resolvida sob demanda).
+    fn callable_ret_identity(
+        &self,
+        metadata: &CallableMetadata,
+        span: Span,
+    ) -> Result<Option<ResolvedTypeId>, PinkerError> {
+        // O caminho normal é o tipo AST do retorno declarado: é ele que resolve
+        // apelidos e distingue dois `leque` de mesma representação.
+        if let Some(ret_ast) = metadata.ret_ast.as_ref() {
+            return Ok(Some(self.context.resolved_identity(ret_ast)?));
+        }
+        if metadata.ret_type != TypeIR::TraitObject {
+            return Ok(None);
+        }
+        let Some(trait_name) = metadata.ret_trait_name.as_ref() else {
+            return Err(PinkerError::Ir {
+                msg: "E-IR-TYPE-IDENTITY-LOST: retorno 'trato' de callable sem nome nominal"
+                    .to_string(),
+                span,
+            });
+        };
+        let identity = self.context.resolved_identity(&Type::Applied {
+            name: "trato".to_string(),
+            args: vec![Type::Alias {
+                name: trait_name.clone(),
+                span,
+            }],
+            span,
+        })?;
+        Ok(Some(identity))
+    }
+
+    /// Identidade semântica do valor devolvido por uma chamada por ponteiro cru.
+    fn raw_ret_identity(
+        &self,
+        metadata: &RawFunctionMetadata,
+        span: Span,
+    ) -> Result<Option<ResolvedTypeId>, PinkerError> {
+        let _ = span;
+        match metadata.ret_ast.as_ref() {
+            Some(ret_ast) => Ok(Some(self.context.resolved_identity(ret_ast)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Identidade do apontado de um valor ponteiro, com sua representação.
+    fn pointee_identity_of(&self, typed: &TypedValueIR) -> Option<(ResolvedTypeId, TypeIR)> {
+        let resolved = typed.resolved?;
+        let table = self.context.resolved_types.borrow();
+        let pointee = table.get(resolved)?.pointee?;
+        let representation = table.get(pointee)?.representation;
+        Some((pointee, representation))
+    }
+
+    /// Nome nominal (`ninho`/`leque`) da identidade de um valor, se houver.
+    fn nominal_name_of_value(&self, typed: &TypedValueIR) -> Option<String> {
+        let resolved = typed.resolved?;
+        self.context
+            .resolved_types
+            .borrow()
+            .nominal_name_of(resolved)
+            .map(str::to_string)
     }
 
     fn callable_metadata_from_return_type(
@@ -2416,6 +3191,7 @@ impl<'a> FunctionLowerer<'a> {
     ) -> Result<CallableMetadata, PinkerError> {
         Ok(CallableMetadata {
             ret_type: self.context.resolve_type(ret)?,
+            ret_ast: Some(ret.clone()),
             ret_trait_name: trait_object_name_from_type(
                 ret,
                 &self.context.type_aliases,
@@ -2444,6 +3220,11 @@ impl<'a> FunctionLowerer<'a> {
                 .get(function_name)
                 .map(|sig| CallableMetadata {
                     ret_type: sig.ret_type,
+                    ret_ast: self
+                        .context
+                        .all_functions
+                        .get(function_name)
+                        .and_then(|declaration| declaration.ret_type.clone()),
                     ret_trait_name: self
                         .context
                         .function_ret_trait_names
@@ -2618,6 +3399,11 @@ impl<'a> FunctionLowerer<'a> {
                     .get(name)
                     .map(|sig| CallableMetadata {
                         ret_type: sig.ret_type,
+                        ret_ast: self
+                            .context
+                            .all_functions
+                            .get(name)
+                            .and_then(|declaration| declaration.ret_type.clone()),
                         ret_trait_name: self.context.function_ret_trait_names.get(name).cloned(),
                         ret_pointer_pointee: self
                             .context
@@ -2673,7 +3459,7 @@ impl<'a> FunctionLowerer<'a> {
     }
 
     fn resolve_impl_method(&self, receiver: &TypedValueIR, method_name: &str) -> Option<String> {
-        let receiver_key = Self::impl_receiver_key(receiver)?;
+        let receiver_key = self.impl_receiver_key(receiver)?;
         let candidates: Vec<String> = self
             .context
             .function_sigs
@@ -2695,7 +3481,7 @@ impl<'a> FunctionLowerer<'a> {
         trait_name: &str,
         method_name: &str,
     ) -> Option<String> {
-        let receiver_key = Self::impl_receiver_key(receiver)?;
+        let receiver_key = self.impl_receiver_key(receiver)?;
         self.context.function_sigs.keys().find_map(|name| {
             let (candidate_trait, target_type, method) = parse_impl_function_name(name)?;
             (candidate_trait == trait_name && target_type == receiver_key && method == method_name)
@@ -2864,13 +3650,17 @@ impl<'a> FunctionLowerer<'a> {
             }
 
             TypeIR::Struct => {
-                let struct_name = value.struct_name.as_ref().ok_or_else(|| PinkerError::Ir {
-                    msg: "snapshot de ninho sem identidade nominal".to_string(),
-                    span,
-                })?;
+                let struct_name =
+                    self.nominal_name_of_value(value)
+                        .ok_or_else(|| PinkerError::Ir {
+                            msg: "E-IR-TYPE-IDENTITY-LOST: snapshot de ninho sem identidade \
+                                  resolvida"
+                                .to_string(),
+                            span,
+                        })?;
 
                 let ast_type = Type::Struct {
-                    name: struct_name.clone(),
+                    name: struct_name,
                     span,
                 };
 
@@ -2985,7 +3775,11 @@ impl<'a> FunctionLowerer<'a> {
                 ret_type: method.ret_type,
             },
             ty: method.ret_type,
-            struct_name: method.ret_struct_name,
+            resolved: method
+                .ret_ast
+                .as_ref()
+                .map(|ty| self.context.resolved_identity(ty))
+                .transpose()?,
             ptr_array_bombom_size: None,
         })
     }
@@ -2997,14 +3791,10 @@ impl<'a> FunctionLowerer<'a> {
             let binding = self.allocate_binding(
                 &param.name,
                 self.context.resolve_type(&param.ty)?,
-                resolve_struct_name_from_type(
-                    &param.ty,
-                    &self.context.type_aliases,
-                    &self.context.struct_names,
-                ),
+                Some(self.context.resolved_identity(&param.ty)?),
                 pointer_to_bombom_array_size(&param.ty, &self.context.type_aliases),
                 None,
-            );
+            )?;
 
             if let Some(trait_name) = trait_object_name_from_type(
                 &param.ty,
@@ -3021,6 +3811,7 @@ impl<'a> FunctionLowerer<'a> {
                     binding.slot.clone(),
                     CallableMetadata {
                         ret_type: ret_ty,
+                        ret_ast: Some(ret.as_ref().clone()),
                         ret_trait_name: trait_object_name_from_type(
                             ret,
                             &self.context.type_aliases,
@@ -3121,14 +3912,10 @@ impl<'a> FunctionLowerer<'a> {
             let binding = wrapper.allocate_binding(
                 &param.name,
                 wrapper.context.resolve_type(&param.ty)?,
-                resolve_struct_name_from_type(
-                    &param.ty,
-                    &wrapper.context.type_aliases,
-                    &wrapper.context.struct_names,
-                ),
+                Some(wrapper.context.resolved_identity(&param.ty)?),
                 pointer_to_bombom_array_size(&param.ty, &wrapper.context.type_aliases),
                 None,
-            );
+            )?;
             call_args.push(ValueIR::Local(binding.slot.clone()));
             wrapper_params.push(binding);
         }
@@ -3137,13 +3924,12 @@ impl<'a> FunctionLowerer<'a> {
             &wrapper.context.type_aliases,
             &wrapper.context.struct_names,
         )?;
-        let env_binding = wrapper.allocate_binding(
-            "__env",
-            TypeIR::Pointer { is_volatile: false },
-            None,
-            None,
-            None,
-        );
+        let env_pointer = TypeIR::Pointer { is_volatile: false };
+        let env_identity = wrapper
+            .context
+            .internal_identity("env", env_pointer, function.span)?;
+        let env_binding =
+            wrapper.allocate_binding("__env", env_pointer, Some(env_identity), None, None)?;
         wrapper_params.push(env_binding);
         wrapper.pop_scope();
 
@@ -3172,6 +3958,7 @@ impl<'a> FunctionLowerer<'a> {
             wrapper_name.clone(),
             CallableMetadata {
                 ret_type,
+                ret_ast: function.ret_type.clone(),
                 ret_trait_name: function
                     .ret_type
                     .as_ref()
@@ -3243,6 +4030,10 @@ impl<'a> FunctionLowerer<'a> {
             captures.push(CaptureMetadata {
                 source_name: candidate.clone(),
                 ty: binding.ty,
+                // A captura preserva a identidade exata da variável capturada:
+                // um `ninho` capturado continua sendo aquele `ninho` dentro do
+                // corpo da closure.
+                resolved: binding.resolved,
                 trait_object_name: self.trait_object_names.get(&binding.slot).cloned(),
                 callable: self.callable_metadata.get(&binding.slot).cloned(),
                 raw_function: self.raw_function_metadata.get(&binding.slot).cloned(),
@@ -3262,13 +4053,16 @@ impl<'a> FunctionLowerer<'a> {
             .borrow_mut()
             .lowered
             .push((name.to_string(), lowered));
+        // A closure é um valor de função: sua identidade é a assinatura
+        // declarada, do mesmo modo que um nome de função usado como valor.
+        let closure_identity = self.function_value_identity(name, span)?;
         Ok(TypedValueIR {
             value: ValueIR::MakeClosure {
                 function_name: name.to_string(),
                 captures: capture_values,
             },
             ty: TypeIR::Function,
-            struct_name: None,
+            resolved: closure_identity,
             ptr_array_bombom_size: None,
         })
     }
@@ -3296,21 +4090,25 @@ impl<'a> FunctionLowerer<'a> {
         // primeiro (para as expressões de desempacotamento abaixo), mas só
         // entra em `self.params` (posição final) depois dos parâmetros
         // reais.
-        let env_binding = self.allocate_binding(
-            "__env",
-            TypeIR::Pointer { is_volatile: false },
-            None,
-            None,
-            None,
-        );
+        let env_pointer = TypeIR::Pointer { is_volatile: false };
+        let env_identity = self
+            .context
+            .internal_identity("env", env_pointer, function.span)?;
+        let env_binding =
+            self.allocate_binding("__env", env_pointer, Some(env_identity), None, None)?;
 
         let mut prelude = Vec::new();
         for (index, capture) in captures.iter().enumerate() {
             // Capturas entram no escopo ANTES dos parâmetros para que um
             // parâmetro homônimo possa sombreá-las (§14.3) — a inserção
             // posterior do parâmetro no mesmo mapa de escopo sobrescreve.
-            let capture_binding =
-                self.allocate_binding(&capture.source_name, capture.ty, None, None, Some(false));
+            let capture_binding = self.allocate_binding(
+                &capture.source_name,
+                capture.ty,
+                capture.resolved,
+                None,
+                Some(false),
+            )?;
             if let Some(trait_name) = &capture.trait_object_name {
                 self.trait_object_names
                     .insert(capture_binding.slot.clone(), trait_name.clone());
@@ -3348,14 +4146,10 @@ impl<'a> FunctionLowerer<'a> {
             let binding = self.allocate_binding(
                 &param.name,
                 self.context.resolve_type(&param.ty)?,
-                resolve_struct_name_from_type(
-                    &param.ty,
-                    &self.context.type_aliases,
-                    &self.context.struct_names,
-                ),
+                Some(self.context.resolved_identity(&param.ty)?),
                 pointer_to_bombom_array_size(&param.ty, &self.context.type_aliases),
                 None,
-            );
+            )?;
 
             if let Some(trait_name) = trait_object_name_from_type(
                 &param.ty,
@@ -3372,6 +4166,7 @@ impl<'a> FunctionLowerer<'a> {
                     binding.slot.clone(),
                     CallableMetadata {
                         ret_type: ret_ty,
+                        ret_ast: Some(ret.as_ref().clone()),
                         ret_trait_name: trait_object_name_from_type(
                             ret,
                             &self.context.type_aliases,
@@ -3538,13 +4333,15 @@ impl<'a> FunctionLowerer<'a> {
                     }
                     AssignTarget::FieldDeref { base, field } => {
                         let base_lowered = self.lower_value(base)?;
-                        let Some(base_struct_name) = base_lowered.struct_name.as_ref() else {
+                        let Some(base_struct_name) = self.nominal_name_of_value(&base_lowered)
+                        else {
                             return Err(PinkerError::Ir {
                                 msg: "escrita a campo exige base do tipo 'ninho' no lowering IR"
                                     .to_string(),
                                 span: assign_stmt.span,
                             });
                         };
+                        let base_struct_name = &base_struct_name;
                         let field_type = self
                             .context
                             .struct_fields
@@ -3643,9 +4440,9 @@ impl<'a> FunctionLowerer<'a> {
             None,
             None,
             Some(false),
-        );
+        )?;
         let tag_binding =
-            self.allocate_binding("encaixe_uniao_tag", TypeIR::Bombom, None, None, Some(false));
+            self.allocate_binding("encaixe_uniao_tag", TypeIR::Bombom, None, None, Some(false))?;
         self.pop_scope();
 
         let mut arms = Vec::with_capacity(union_match.arms.len());
@@ -3687,13 +4484,17 @@ impl<'a> FunctionLowerer<'a> {
             }
 
             self.push_scope();
+            // O `encaixe` liga o braço à identidade **exata** do membro: o valor
+            // desempacotado é aquele membro, não "algum membro com a mesma
+            // representação". É isso que permite reinjetar o valor na mesma
+            // união sem reescolher a tag.
             let binding = self.allocate_binding(
                 &arm.binding,
                 member.ty,
-                member.nominal_identity.clone(),
+                Some(member.resolved_type_id),
                 None,
                 Some(false),
-            );
+            )?;
             let body_label = self.next_block_label("encaixe_uniao_braco");
             let body = self.lower_block(&arm.body, body_label, false);
             self.pop_scope();
@@ -3702,6 +4503,7 @@ impl<'a> FunctionLowerer<'a> {
             arms.push(UnionMatchArmIR {
                 tag: member.tag,
                 canonical_member_key: member.canonical_member_key.clone(),
+                resolved_member_type_id: member.resolved_type_id,
                 binding,
                 payload_type: member.ty,
                 payload_size: member.size,
@@ -3776,7 +4578,7 @@ impl<'a> FunctionLowerer<'a> {
                     None,
                     None,
                     Some(let_stmt.is_mut),
-                );
+                )?;
                 return Ok(InstructionIR::Let {
                     slot: binding.slot,
                     value: ValueIR::Call {
@@ -3810,7 +4612,7 @@ impl<'a> FunctionLowerer<'a> {
                     None,
                     None,
                     Some(let_stmt.is_mut),
-                );
+                )?;
                 return Ok(InstructionIR::Let {
                     slot: binding.slot,
                     value: ValueIR::Call {
@@ -3838,17 +4640,13 @@ impl<'a> FunctionLowerer<'a> {
         } else {
             value.ty
         };
-        let struct_name = let_stmt
-            .ty
-            .as_ref()
-            .and_then(|annotated_ty| {
-                resolve_struct_name_from_type(
-                    annotated_ty,
-                    &self.context.type_aliases,
-                    &self.context.struct_names,
-                )
-            })
-            .or(value.struct_name.clone());
+        // A identidade do slot vem da anotação quando ela existe (é ela que o
+        // usuário escreveu) e, na ausência dela, da identidade exata do valor.
+        // Nenhuma das duas é derivada de nome textual.
+        let resolved = match let_stmt.ty.as_ref() {
+            Some(annotated_ty) => Some(self.context.resolved_identity(annotated_ty)?),
+            None => value.resolved,
+        };
         let ptr_array_bombom_size = let_stmt
             .ty
             .as_ref()
@@ -3894,10 +4692,10 @@ impl<'a> FunctionLowerer<'a> {
         let binding = self.allocate_binding(
             &let_stmt.name,
             ty,
-            struct_name,
+            resolved,
             ptr_array_bombom_size,
             Some(let_stmt.is_mut),
-        );
+        )?;
         if let Some(metadata) = callable_metadata {
             self.callable_metadata
                 .insert(binding.slot.clone(), metadata);
@@ -4032,19 +4830,19 @@ impl<'a> FunctionLowerer<'a> {
             ExprKind::IntLit(value) => Ok(TypedValueIR {
                 value: ValueIR::Int(*value),
                 ty: TypeIR::Bombom,
-                struct_name: None,
+                resolved: None,
                 ptr_array_bombom_size: None,
             }),
             ExprKind::BoolLit(value) => Ok(TypedValueIR {
                 value: ValueIR::Bool(*value),
                 ty: TypeIR::Logica,
-                struct_name: None,
+                resolved: None,
                 ptr_array_bombom_size: None,
             }),
             ExprKind::StringLit(value) => Ok(TypedValueIR {
                 value: ValueIR::String(value.clone()),
                 ty: TypeIR::Verso,
-                struct_name: None,
+                resolved: None,
                 ptr_array_bombom_size: None,
             }),
             ExprKind::InternalMapIterCreate(map) => {
@@ -4056,7 +4854,7 @@ impl<'a> FunctionLowerer<'a> {
                         ret_type: TypeIR::Bombom,
                     },
                     ty: TypeIR::Bombom,
-                    struct_name: None,
+                    resolved: None,
                     ptr_array_bombom_size: None,
                 })
             }
@@ -4070,7 +4868,7 @@ impl<'a> FunctionLowerer<'a> {
                         ret_type: TypeIR::Verso,
                     },
                     ty: TypeIR::Verso,
-                    struct_name: None,
+                    resolved: None,
                     ptr_array_bombom_size: None,
                 })
             }
@@ -4085,7 +4883,7 @@ impl<'a> FunctionLowerer<'a> {
                     return Ok(TypedValueIR {
                         value: ValueIR::Local(binding.slot),
                         ty: binding.ty,
-                        struct_name: binding.struct_name,
+                        resolved: binding.resolved,
                         ptr_array_bombom_size: binding.ptr_array_bombom_size,
                     });
                 }
@@ -4094,7 +4892,7 @@ impl<'a> FunctionLowerer<'a> {
                     return Ok(TypedValueIR {
                         value: ValueIR::GlobalConst(name.clone()),
                         ty: *ty,
-                        struct_name: None,
+                        resolved: None,
                         ptr_array_bombom_size: None,
                     });
                 }
@@ -4107,10 +4905,14 @@ impl<'a> FunctionLowerer<'a> {
                 // função real nem suas chamadas diretas existentes.
                 if self.context.function_sigs.contains_key(name) {
                     let wrapper_name = self.ensure_fnref_wrapper(name, expr.span)?;
+                    // A identidade do valor callable é a assinatura completa:
+                    // `carinho(u8) -> u8` e `carinho(u64) -> u64` compartilham
+                    // `TypeIR::Function` e precisam de identidades distintas.
+                    let resolved = self.function_value_identity(name, expr.span)?;
                     return Ok(TypedValueIR {
                         value: ValueIR::FunctionRef(wrapper_name),
                         ty: TypeIR::Function,
-                        struct_name: None,
+                        resolved,
                         ptr_array_bombom_size: None,
                     });
                 }
@@ -4137,10 +4939,43 @@ impl<'a> FunctionLowerer<'a> {
                         span: operand.span,
                     });
                 }
+                // O endereço cru de uma função é `seta<carinho(...)>`: a
+                // identidade é o ponteiro para a assinatura declarada, e não a
+                // categoria `seta<carinho>`, que é a mesma para toda função.
+                let signature = self.function_value_identity(name, expr.span)?;
+                let resolved = match signature {
+                    Some(signature) => {
+                        let key = {
+                            let table = self.context.resolved_types.borrow();
+                            table.key_of(signature).map(str::to_string)
+                        };
+                        match key {
+                            Some(key) => Some(
+                                self.context
+                                    .resolved_types
+                                    .borrow_mut()
+                                    .intern(
+                                        format!("ptr:0:{key}"),
+                                        TypeIR::FunctionPointer,
+                                        ResolvedTypeParts {
+                                            pointee: Some(signature),
+                                            ..ResolvedTypeParts::default()
+                                        },
+                                    )
+                                    .map_err(|msg| PinkerError::Ir {
+                                        msg,
+                                        span: expr.span,
+                                    })?,
+                            ),
+                            None => None,
+                        }
+                    }
+                    None => None,
+                };
                 Ok(TypedValueIR {
                     value: ValueIR::RawFunctionRef(name.clone()),
                     ty: TypeIR::FunctionPointer,
-                    struct_name: None,
+                    resolved,
                     ptr_array_bombom_size: None,
                 })
             }
@@ -4159,22 +4994,32 @@ impl<'a> FunctionLowerer<'a> {
                             span: expr.span,
                         });
                     };
-                    let (result_type, result_struct_name) =
-                        if let Some(struct_name) = operand.struct_name {
-                            (TypeIR::Struct, Some(struct_name))
-                        } else if let Some(size) = operand.ptr_array_bombom_size {
-                            (
-                                TypeIR::FixedArray {
-                                    element: ScalarTypeIR::Bombom,
-                                    size,
-                                },
-                                None,
-                            )
-                        } else if let Some(pointee_type) = pointee_type {
-                            (pointee_type, None)
-                        } else {
-                            (TypeIR::Bombom, None)
-                        };
+                    // A identidade do valor dereferenciado é a identidade do
+                    // apontado registrada na própria identidade do ponteiro:
+                    // `seta<u8>` e `seta<u64>` compartilham `TypeIR::Pointer` e
+                    // se distinguem exatamente aqui.
+                    let pointee_identity = self.pointee_identity_of(&operand);
+                    let (result_type, result_resolved) = match pointee_identity {
+                        Some((pointee_id, TypeIR::Struct)) => (TypeIR::Struct, Some(pointee_id)),
+                        _ => {
+                            if let Some(size) = operand.ptr_array_bombom_size {
+                                (
+                                    TypeIR::FixedArray {
+                                        element: ScalarTypeIR::Bombom,
+                                        size,
+                                    },
+                                    None,
+                                )
+                            } else if let Some(pointee_type) = pointee_type {
+                                let resolved = pointee_identity
+                                    .filter(|(_, repr)| *repr == pointee_type)
+                                    .map(|(id, _)| id);
+                                (pointee_type, resolved)
+                            } else {
+                                (TypeIR::Bombom, None)
+                            }
+                        }
+                    };
                     return Ok(TypedValueIR {
                         value: ValueIR::Deref {
                             ptr: Box::new(operand.value),
@@ -4182,7 +5027,7 @@ impl<'a> FunctionLowerer<'a> {
                             is_volatile,
                         },
                         ty: result_type,
-                        struct_name: result_struct_name,
+                        resolved: result_resolved,
                         ptr_array_bombom_size: None,
                     });
                 }
@@ -4202,7 +5047,7 @@ impl<'a> FunctionLowerer<'a> {
                         UnaryOp::BitNot => operand.ty,
                         UnaryOp::Deref => unreachable!("deref tratada acima"),
                     },
-                    struct_name: None,
+                    resolved: None,
                     ptr_array_bombom_size: None,
                 })
             }
@@ -4234,7 +5079,7 @@ impl<'a> FunctionLowerer<'a> {
                         ty: operation_type,
                     },
                     ty: result_type,
-                    struct_name: None,
+                    resolved: None,
                     ptr_array_bombom_size: None,
                 })
             }
@@ -4285,7 +5130,7 @@ impl<'a> FunctionLowerer<'a> {
                             return Ok(TypedValueIR {
                                 value: chain,
                                 ty: TypeIR::Bombom,
-                                struct_name: None,
+                                resolved: None,
                                 ptr_array_bombom_size: None,
                             });
                         }
@@ -4333,11 +5178,11 @@ impl<'a> FunctionLowerer<'a> {
                                         ret_type,
                                     },
                                     ty: ret_type,
-                                    struct_name: self
+                                    resolved: self
                                         .context
                                         .function_sigs
                                         .get(&function_name)
-                                        .and_then(|sig| sig.ret_struct_name.clone()),
+                                        .map(|sig| sig.ret_resolved),
                                     ptr_array_bombom_size: None,
                                 });
                             }
@@ -4376,7 +5221,7 @@ impl<'a> FunctionLowerer<'a> {
                                 msg: format!(
                                     "lowering falhou ao resolver método '{}' para receiver '{}'",
                                     field,
-                                    Self::impl_receiver_key(&receiver)
+                                    self.impl_receiver_key(&receiver)
                                         .unwrap_or_else(|| receiver.ty.name().to_string())
                                 ),
                                 span: expr.span,
@@ -4406,11 +5251,11 @@ impl<'a> FunctionLowerer<'a> {
                             ret_type,
                         },
                         ty: ret_type,
-                        struct_name: self
+                        resolved: self
                             .context
                             .function_sigs
                             .get(&function_name)
-                            .and_then(|sig| sig.ret_struct_name.clone()),
+                            .map(|sig| sig.ret_resolved),
                         ptr_array_bombom_size: None,
                     });
                 }
@@ -4437,6 +5282,7 @@ impl<'a> FunctionLowerer<'a> {
                         .iter()
                         .map(|arg| self.lower_value(arg).map(|typed| typed.value))
                         .collect::<Result<Vec<_>, _>>()?;
+                    let raw_resolved = self.raw_ret_identity(&metadata, expr.span)?;
                     return Ok(TypedValueIR {
                         value: ValueIR::CallRaw {
                             callee: Box::new(lowered_callee.value),
@@ -4445,7 +5291,7 @@ impl<'a> FunctionLowerer<'a> {
                             ret_type: metadata.ret_type,
                         },
                         ty: metadata.ret_type,
-                        struct_name: None,
+                        resolved: raw_resolved,
                         ptr_array_bombom_size: None,
                     });
                 };
@@ -4469,6 +5315,7 @@ impl<'a> FunctionLowerer<'a> {
                             .iter()
                             .map(|arg| self.lower_value(arg).map(|typed| typed.value))
                             .collect::<Result<Vec<_>, _>>()?;
+                        let raw_resolved = self.raw_ret_identity(&metadata, expr.span)?;
                         return Ok(TypedValueIR {
                             value: ValueIR::CallRaw {
                                 callee: Box::new(ValueIR::Local(binding.slot)),
@@ -4477,7 +5324,7 @@ impl<'a> FunctionLowerer<'a> {
                                 ret_type: metadata.ret_type,
                             },
                             ty: metadata.ret_type,
-                            struct_name: None,
+                            resolved: raw_resolved,
                             ptr_array_bombom_size: None,
                         });
                     }
@@ -4509,6 +5356,7 @@ impl<'a> FunctionLowerer<'a> {
                             .collect::<Result<Vec<_>, _>>()?;
                         let ir_args: Vec<ValueIR> =
                             typed_args.into_iter().map(|typed| typed.value).collect();
+                        let resolved = self.callable_ret_identity(&metadata, expr.span)?;
                         return Ok(TypedValueIR {
                             value: ValueIR::CallIndirect {
                                 callee: Box::new(ValueIR::Local(binding.slot)),
@@ -4516,7 +5364,7 @@ impl<'a> FunctionLowerer<'a> {
                                 ret_type: metadata.ret_type,
                             },
                             ty: metadata.ret_type,
-                            struct_name: None,
+                            resolved,
                             ptr_array_bombom_size: None,
                         });
                     }
@@ -4564,7 +5412,7 @@ impl<'a> FunctionLowerer<'a> {
                             ret_type,
                         },
                         ty: ret_type,
-                        struct_name: None,
+                        resolved: None,
                         ptr_array_bombom_size: None,
                     });
                 }
@@ -4608,7 +5456,7 @@ impl<'a> FunctionLowerer<'a> {
                                 ret_type,
                             },
                             ty: ret_type,
-                            struct_name: None,
+                            resolved: None,
                             ptr_array_bombom_size: None,
                         });
                     }
@@ -4639,7 +5487,7 @@ impl<'a> FunctionLowerer<'a> {
                             ret_type: TypeIR::Verso,
                         },
                         ty: TypeIR::Verso,
-                        struct_name: None,
+                        resolved: None,
                         ptr_array_bombom_size: None,
                     });
                 }
@@ -4650,6 +5498,61 @@ impl<'a> FunctionLowerer<'a> {
                         .map(|arg| self.lower_value(arg))
                         .collect::<Result<Vec<_>, _>>()?;
                     let ret_type = typed_args[1].ty;
+                    // Os dois ramos precisam concordar na identidade semântica,
+                    // não apenas na representação: um ternário entre dois
+                    // `ninho` diferentes (ou dois `leque` diferentes) não pode
+                    // produzir um valor de identidade indeterminada.
+                    // Ternário de callables tem contrato próprio (Fase 244): a
+                    // concordância dos dois braços é exigida pela metadata de
+                    // callable, com diagnósticos específicos. Aqui a identidade
+                    // apenas acompanha o primeiro braço para não antecipar (e
+                    // mascarar) aqueles diagnósticos.
+                    if ret_type == TypeIR::Function {
+                        let resolved = typed_args[1].resolved;
+                        let ir_args: Vec<ValueIR> =
+                            typed_args.into_iter().map(|t| t.value).collect();
+                        return Ok(TypedValueIR {
+                            value: ValueIR::Call {
+                                callee: name.clone(),
+                                args: ir_args,
+                                ret_type,
+                            },
+                            ty: ret_type,
+                            resolved,
+                            ptr_array_bombom_size: None,
+                        });
+                    }
+                    let resolved = match (typed_args[1].resolved, typed_args[2].resolved) {
+                        (Some(left), Some(right)) => {
+                            if left != right {
+                                return Err(PinkerError::Ir {
+                                    msg: format!(
+                                        "E-IR-TYPE-IDENTITY-LOST: ramos do ternário têm \
+                                         identidades resolvidas distintas ({} e {})",
+                                        left.0, right.0
+                                    ),
+                                    span: expr.span,
+                                });
+                            }
+                            Some(left)
+                        }
+                        (None, None) => None,
+                        (Some(known), None) | (None, Some(known)) => {
+                            // O ramo sem identidade explícita só é aceito quando
+                            // sua representação já é a identidade completa e
+                            // coincide com a do outro ramo.
+                            let derived = self.context.repr_identity(ret_type, expr.span)?;
+                            if derived != known {
+                                return Err(PinkerError::Ir {
+                                    msg: "E-IR-TYPE-IDENTITY-LOST: ramos do ternário não \
+                                          concordam na identidade resolvida"
+                                        .to_string(),
+                                    span: expr.span,
+                                });
+                            }
+                            Some(known)
+                        }
+                    };
                     let ir_args: Vec<ValueIR> = typed_args.into_iter().map(|t| t.value).collect();
                     return Ok(TypedValueIR {
                         value: ValueIR::Call {
@@ -4658,7 +5561,7 @@ impl<'a> FunctionLowerer<'a> {
                             ret_type,
                         },
                         ty: ret_type,
-                        struct_name: None,
+                        resolved,
                         ptr_array_bombom_size: None,
                     });
                 }
@@ -4685,11 +5588,11 @@ impl<'a> FunctionLowerer<'a> {
                         ret_type,
                     },
                     ty: ret_type,
-                    struct_name: self
+                    resolved: self
                         .context
                         .function_sigs
                         .get(name)
-                        .and_then(|sig| sig.ret_struct_name.clone()),
+                        .map(|sig| sig.ret_resolved),
                     ptr_array_bombom_size: None,
                 })
             }
@@ -4707,6 +5610,14 @@ impl<'a> FunctionLowerer<'a> {
                                 span: expr.span,
                             });
                         };
+                        // O valor de uma variante **é** do leque de origem: a
+                        // representação escalar não apaga a identidade nominal.
+                        // Sem isto, dois `leque` distintos ficariam
+                        // indistinguíveis na injeção em união (HR4).
+                        let leque_identity = self.context.resolved_identity(&Type::Alias {
+                            name: base_name.clone(),
+                            span: base.span,
+                        })?;
                         if info.has_payload {
                             return Ok(TypedValueIR {
                                 value: ValueIR::Call {
@@ -4715,25 +5626,26 @@ impl<'a> FunctionLowerer<'a> {
                                     ret_type: TypeIR::Bombom,
                                 },
                                 ty: TypeIR::Bombom,
-                                struct_name: None,
+                                resolved: Some(leque_identity),
                                 ptr_array_bombom_size: None,
                             });
                         }
                         return Ok(TypedValueIR {
                             value: ValueIR::Int(*discriminant),
                             ty: TypeIR::Bombom,
-                            struct_name: None,
+                            resolved: Some(leque_identity),
                             ptr_array_bombom_size: None,
                         });
                     }
                 }
                 let base = self.lower_value(base)?;
-                let Some(base_struct_name) = base.struct_name.as_ref() else {
+                let Some(base_struct_name) = self.nominal_name_of_value(&base) else {
                     return Err(PinkerError::Ir {
                         msg: "acesso a campo com base não-struct na IR".to_string(),
                         span: expr.span,
                     });
                 };
+                let base_struct_name = &base_struct_name;
                 let result_type = self
                     .context
                     .struct_fields
@@ -4765,7 +5677,7 @@ impl<'a> FunctionLowerer<'a> {
                         result_type,
                     },
                     ty: result_type,
-                    struct_name: None,
+                    resolved: None,
                     ptr_array_bombom_size: None,
                 })
             }
@@ -4797,7 +5709,7 @@ impl<'a> FunctionLowerer<'a> {
                         element_type,
                     },
                     ty: element_type,
-                    struct_name: None,
+                    resolved: None,
                     ptr_array_bombom_size: None,
                 })
             }
@@ -4820,17 +5732,28 @@ impl<'a> FunctionLowerer<'a> {
                     })?;
 
                     let concrete_type_name =
-                        Self::impl_receiver_key(&lowered_source).ok_or_else(|| {
-                            PinkerError::Ir {
+                        self.impl_receiver_key(&lowered_source)
+                            .ok_or_else(|| PinkerError::Ir {
                                 msg: "materialização sem identidade do tipo concreto".to_string(),
                                 span: expr.span,
-                            }
-                        })?;
+                            })?;
 
                     let concrete_size = self.concrete_snapshot_size(&lowered_source, expr.span)?;
 
                     let vtable_methods =
                         self.trait_vtable(&trait_name, &concrete_type_name, expr.span)?;
+
+                    // A identidade do objeto de trato é `trato<Nome>`: dois
+                    // tratos diferentes compartilham `TypeIR::TraitObject` e não
+                    // podem colapsar na mesma identidade.
+                    let trait_object_identity = self.context.resolved_identity(&Type::Applied {
+                        name: "trato".to_string(),
+                        args: vec![Type::Alias {
+                            name: trait_name.clone(),
+                            span: expr.span,
+                        }],
+                        span: expr.span,
+                    })?;
 
                     return Ok(TypedValueIR {
                         value: ValueIR::MakeTraitObject {
@@ -4842,51 +5765,96 @@ impl<'a> FunctionLowerer<'a> {
                             vtable_methods,
                         },
                         ty: TypeIR::TraitObject,
-                        struct_name: None,
+                        resolved: Some(trait_object_identity),
                         ptr_array_bombom_size: None,
                     });
                 }
 
                 if let TypeIR::Union(union_type_id) = target_type {
-                    let registry = self.context.union_registry.borrow();
-                    let union = registry
-                        .types
-                        .iter()
-                        .find(|union| union.id == union_type_id)
-                        .ok_or_else(|| PinkerError::Ir {
-                            msg: "injeção perdeu o registro da união".to_string(),
-                            span: expr.span,
-                        })?;
-                    let member = union
-                        .members
-                        .iter()
-                        .find(|member| {
-                            member.ty == lowered_source.ty
-                                && member.nominal_identity.as_ref()
-                                    == lowered_source.struct_name.as_ref()
-                        })
-                        .or_else(|| {
-                            union
+                    // A identidade semântica exata do valor de origem é
+                    // obrigatória: sem ela não há injeção possível, e escolher
+                    // um membro por representação ou por primeira ocorrência é
+                    // exatamente o defeito HR4.
+                    let source_identity = lowered_source.identity(self.context, expr.span)?;
+                    let member = {
+                        let registry = self.context.union_registry.borrow();
+                        let union = registry
+                            .types
+                            .iter()
+                            .find(|union| union.id == union_type_id)
+                            .ok_or_else(|| PinkerError::Ir {
+                                msg: "injeção perdeu o registro da união".to_string(),
+                                span: expr.span,
+                            })?;
+                        let mut exact = union
+                            .members
+                            .iter()
+                            .filter(|member| member.resolved_type_id == source_identity);
+                        let member = exact.next().cloned().ok_or_else(|| {
+                            // Nenhum membro tem esta identidade. Se existe um
+                            // membro com a mesma representação, o diagnóstico
+                            // aponta a confusão entre categoria e identidade em
+                            // vez de aceitar o candidato aproximado.
+                            let operational = union
                                 .members
                                 .iter()
-                                .find(|member| member.ty == lowered_source.ty)
-                        })
-                        .ok_or_else(|| PinkerError::Ir {
-                            msg: "tipo fonte não pertence à união durante o lowering".to_string(),
-                            span: expr.span,
-                        })?
-                        .clone();
+                                .any(|member| member.ty == lowered_source.ty);
+                            let key = self
+                                .context
+                                .resolved_types
+                                .borrow()
+                                .key_of(source_identity)
+                                .unwrap_or("<desconhecida>")
+                                .to_string();
+                            if operational {
+                                PinkerError::Ir {
+                                    msg: format!(
+                                        "E-IR-UNION-MEMBER-IDENTITY-MISMATCH: a união {} possui \
+                                         membro com a representação '{}', mas nenhum com a \
+                                         identidade '{key}'",
+                                        union_type_id.0,
+                                        lowered_source.ty.name()
+                                    ),
+                                    span: expr.span,
+                                }
+                            } else {
+                                PinkerError::Ir {
+                                    msg: format!(
+                                        "tipo fonte de identidade '{key}' não pertence à união {} \
+                                         durante o lowering",
+                                        union_type_id.0
+                                    ),
+                                    span: expr.span,
+                                }
+                            }
+                        })?;
+                        if let Some(duplicate) = exact.next() {
+                            return Err(PinkerError::Ir {
+                                msg: format!(
+                                    "E-IR-UNION-IDENTITY-DUPLICATE: a união {} tem a identidade \
+                                     resolvida {} nas tags {} e {}",
+                                    union_type_id.0, source_identity.0, member.tag, duplicate.tag
+                                ),
+                                span: expr.span,
+                            });
+                        }
+                        member
+                    };
                     return Ok(TypedValueIR {
                         value: ValueIR::UnionInject {
                             value: Box::new(lowered_source.value),
                             union_type_id,
+                            // A tag é **copiada** do membro exato; nenhuma camada
+                            // posterior torna a escolher membro.
                             tag: member.tag,
+                            resolved_member_type_id: member.resolved_type_id,
+                            canonical_member_key: member.canonical_member_key.clone(),
                             payload_type: member.ty,
                             payload_size: member.size,
                             payload_align: member.align,
                         },
                         ty: target_type,
-                        struct_name: None,
+                        resolved: Some(self.context.repr_identity(target_type, expr.span)?),
                         ptr_array_bombom_size: None,
                     });
                 }
@@ -4897,7 +5865,7 @@ impl<'a> FunctionLowerer<'a> {
                         target_type,
                     },
                     ty: target_type,
-                    struct_name: None,
+                    resolved: None,
                     ptr_array_bombom_size: None,
                 })
             }
@@ -4914,7 +5882,7 @@ impl<'a> FunctionLowerer<'a> {
                 Ok(TypedValueIR {
                     value: ValueIR::Int(layout.size),
                     ty: TypeIR::Bombom,
-                    struct_name: None,
+                    resolved: None,
                     ptr_array_bombom_size: None,
                 })
             }
@@ -4931,7 +5899,7 @@ impl<'a> FunctionLowerer<'a> {
                 Ok(TypedValueIR {
                     value: ValueIR::Int(layout.align),
                     ty: TypeIR::Bombom,
-                    struct_name: None,
+                    resolved: None,
                     ptr_array_bombom_size: None,
                 })
             }
@@ -4948,10 +5916,19 @@ impl<'a> FunctionLowerer<'a> {
         &mut self,
         source_name: &str,
         ty: TypeIR,
-        struct_name: Option<String>,
+        resolved: Option<ResolvedTypeId>,
         ptr_array_bombom_size: Option<u64>,
         is_mut: Option<bool>,
-    ) -> BindingIR {
+    ) -> Result<BindingIR, PinkerError> {
+        // O slot transporta a identidade que o chamador determinou. `None`
+        // segue a convenção de [`TypedValueIR::resolved`]: a identidade é a da
+        // própria representação e é internada sob demanda. A exigência de
+        // identidade exata é cobrada nos pontos que a **consomem** — injeção em
+        // união, concordância de ramos e acesso nominal —, e não na alocação do
+        // slot, para que nenhuma dessas checagens possa ser satisfeita por uma
+        // identidade fabricada só para preencher o campo.
+        let slot_identity = resolved;
+
         let next = self
             .slot_counters
             .entry(source_name.to_string())
@@ -4963,6 +5940,7 @@ impl<'a> FunctionLowerer<'a> {
             source_name: source_name.to_string(),
             slot: slot.clone(),
             ty,
+            resolved: slot_identity,
         };
 
         self.scopes.last_mut().unwrap().insert(
@@ -4970,7 +5948,7 @@ impl<'a> FunctionLowerer<'a> {
             BindingState {
                 slot: slot.clone(),
                 ty,
-                struct_name: struct_name.clone(),
+                resolved: slot_identity,
                 ptr_array_bombom_size,
             },
         );
@@ -4980,11 +5958,12 @@ impl<'a> FunctionLowerer<'a> {
                 source_name: source_name.to_string(),
                 slot,
                 ty,
+                resolved: slot_identity,
                 is_mut,
             });
         }
 
-        binding
+        Ok(binding)
     }
 
     fn resolve_binding(&self, source_name: &str, span: Span) -> Result<BindingState, PinkerError> {
@@ -5034,26 +6013,11 @@ fn lower_const(const_decl: &ConstDecl, context: &LoweringContext) -> Result<Cons
 }
 // @pinker-nav:end ir.lowering.constantes
 
-fn resolve_struct_name_from_type(
-    ty: &Type,
-    aliases: &HashMap<String, Type>,
-    struct_names: &HashSet<String>,
-) -> Option<String> {
-    match ty {
-        Type::Struct { name, .. } => Some(name.clone()),
-        Type::Alias { name, .. } => {
-            if struct_names.contains(name) {
-                Some(name.clone())
-            } else {
-                aliases
-                    .get(name)
-                    .and_then(|target| resolve_struct_name_from_type(target, aliases, struct_names))
-            }
-        }
-        Type::Pointer { base, .. } => resolve_struct_name_from_type(base, aliases, struct_names),
-        _ => None,
-    }
-}
+// `resolve_struct_name_from_type` foi removida: derivar identidade de um nome
+// textual de `ninho` (e, no caso de `seta<Ninho>`, do nome do apontado) era
+// justamente a autoridade paralela que HR4 descreve. A identidade agora vem de
+// `LoweringContext::resolved_identity` e o nome nominal, quando necessário, é
+// consultado na tabela de identidades resolvidas.
 
 fn pointer_to_bombom_array_size(ty: &Type, aliases: &HashMap<String, Type>) -> Option<u64> {
     match ty {
@@ -5703,6 +6667,23 @@ impl ScalarTypeIR {
             | TypeIR::FunctionPointer
             | TypeIR::TraitObject
             | TypeIR::Nulo => None,
+        }
+    }
+
+    /// Representação operacional equivalente, para reentrar na internação de
+    /// identidade dos elementos de `array`.
+    fn to_type_ir(self) -> TypeIR {
+        match self {
+            ScalarTypeIR::Bombom => TypeIR::Bombom,
+            ScalarTypeIR::U8 => TypeIR::U8,
+            ScalarTypeIR::U16 => TypeIR::U16,
+            ScalarTypeIR::U32 => TypeIR::U32,
+            ScalarTypeIR::U64 => TypeIR::U64,
+            ScalarTypeIR::I8 => TypeIR::I8,
+            ScalarTypeIR::I16 => TypeIR::I16,
+            ScalarTypeIR::I32 => TypeIR::I32,
+            ScalarTypeIR::I64 => TypeIR::I64,
+            ScalarTypeIR::Logica => TypeIR::Logica,
         }
     }
 
