@@ -680,6 +680,19 @@ No estado atual, ainda há limites importantes para uso geral:
 backend nativo os emite como barreira de efeitos; o interpretador termina com
 `E-RUNTIME-SUSSURRO-NATIVO`.
 
+A validação é estrutural, por statements: o scanner divide o texto por newline e
+por `;` fora de comentários e regiões citadas e, depois de remover labels e
+comentários, recusa todo statement que comece com `.`. Portanto **todas** as
+diretivas assembler são rejeitadas por construção, e não por uma lista de nomes.
+Labels locais numéricos (`1:`, `jne 1b`) são aceitos; labels nominais não. Cada
+bloco é emitido dentro de um envelope com sentinelas geradas pelo compilador, e
+o objeto montado é inspecionado para provar que o bloco não criou seção nem
+símbolo nomeado adicional.
+
+O prefixo `__pinker_internal_` é reservado ao compilador: qualquer identificador
+da fonte que o use — em declaração ou em referência — é recusado com
+`E-SEMANTIC-RESERVED-NAMESPACE`.
+
 `uniao<T1, T2, ...>` é estrutural e independente da ordem. A injeção usa
 `virar` explícito e a abertura usa `encaixe` com um braço por membro, sem
 `senao`. O handle ocupa uma palavra e tem lifetime monotônico nesta fase.
