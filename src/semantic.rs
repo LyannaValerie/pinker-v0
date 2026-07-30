@@ -7604,48 +7604,18 @@ impl SemanticChecker {
     // @pinker-nav:end semantic.chamadas.despacho
 }
 
+/// Valida um pedaço de `sussurro` pela política estrutural de statements.
+///
+/// A completude não vem de uma lista de diretivas proibidas: depois da remoção
+/// de labels e comentários, toda diretiva do assembler começa um statement com
+/// `.` e é rejeitada por construção.
 fn validate_inline_asm_chunk(chunk: &str, span: Span) -> Result<(), PinkerError> {
-    if chunk.contains('\0') {
-        return Err(PinkerError::Semantic {
-            msg: "bloco de 'sussurro' não pode conter NUL".to_string(),
+    crate::inline_asm::scan_chunk(chunk)
+        .map(|_| ())
+        .map_err(|error| PinkerError::Semantic {
+            msg: error.to_string(),
             span,
-        });
-    }
-    const DIRECTIVES: [&str; 11] = [
-        ".intel_syntax",
-        ".att_syntax",
-        ".section",
-        ".text",
-        ".data",
-        ".bss",
-        ".globl",
-        ".global",
-        ".type",
-        ".size",
-        ".include",
-    ];
-    for line in chunk.lines() {
-        let line = line.trim_start();
-        let forbidden = DIRECTIVES.iter().copied().find(|directive| {
-            line == *directive
-                || line
-                    .strip_prefix(directive)
-                    .is_some_and(|tail| tail.starts_with(char::is_whitespace))
-        });
-        if let Some(directive) = forbidden {
-            return Err(PinkerError::Semantic {
-                msg: format!("diretiva '{directive}' não é permitida dentro de 'sussurro'"),
-                span,
-            });
-        }
-        if line.starts_with(".cfi_") || line.starts_with(".incbin") {
-            return Err(PinkerError::Semantic {
-                msg: "diretiva de controle não é permitida dentro de 'sussurro'".to_string(),
-                span,
-            });
-        }
-    }
-    Ok(())
+        })
 }
 
 pub fn check_program(program: &Program) -> Result<(), PinkerError> {
