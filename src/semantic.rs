@@ -614,6 +614,23 @@ impl SemanticChecker {
                         span: *span,
                     });
                 }
+                // HR3: a representação de payload de cada membro é decidida
+                // **aqui**, antes da IR validada. Um membro sem layout
+                // conhecido, com tamanho zero, acima do limite ou com
+                // alinhamento não suportado é recusado com código estável em
+                // vez de virar metadata falsa que só falharia na criação
+                // nativa do descritor.
+                for member in &canonical {
+                    crate::union_payload::classify_union_payload(
+                        member,
+                        &self.type_aliases,
+                        &self.structs,
+                    )
+                    .map_err(|rejection| PinkerError::Semantic {
+                        msg: rejection.message(),
+                        span: *span,
+                    })?;
+                }
                 Ok(Type::Union {
                     members: canonical,
                     span: *span,

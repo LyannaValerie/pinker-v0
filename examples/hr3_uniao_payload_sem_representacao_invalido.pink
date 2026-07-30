@@ -1,0 +1,19 @@
+pacote main;
+
+// HR3: um payload acima do limite explícito é recusado na semântica, antes da
+// IR validada. Não existe mais o fallback `(8, 8)` que deixava metadata falsa
+// atravessar o pipeline até a criação nativa do descritor.
+carinho principal() -> bombom {
+    nova valor: uniao<[bombom; 513], u8> = (1 virar u8) virar uniao<[bombom; 513], u8>;
+
+    encaixe valor {
+        caso [bombom; 513](agregado) {
+            falar(1);
+        }
+        caso u8(numero) {
+            falar(2);
+        }
+    }
+
+    mimo 0;
+}
