@@ -1,6 +1,32 @@
 use crate::error::PinkerError;
 use crate::token::{Position, Span, Token, TokenKind};
 
+// @pinker-nav:start lexer.identificadores.namespace-reservado
+// @pinker-nav:domain identificadores
+// @pinker-nav:layer lexer
+// @pinker-nav:summary Fronteira única de identificadores originados da fonte: o prefixo `__pinker_internal_` é reservado ao compilador e recusado com `E-SEMANTIC-RESERVED-NAMESPACE` em toda posição de identificador — declaração de função, variável, parâmetro, constante, apelido, ninho, leque, trato, método e campo, e também qualquer referência. Por estar no ponto em que o texto da fonte se torna `TokenKind::Ident`, nenhum consumidor a jusante pode observar um identificador reservado; identificadores sintéticos construídos diretamente pelo compilador não são lexados e portanto não passam por esta fronteira.
+
+/// Prefixo de identificador reservado ao compilador.
+pub const RESERVED_INTERNAL_PREFIX: &str = "__pinker_internal_";
+
+/// Fronteira única dos identificadores originados da fonte.
+///
+/// Recusa o prefixo reservado antes de o texto da fonte virar um
+/// `TokenKind::Ident`, de modo que a garantia não depende de auditar cada
+/// consumidor de identificador.
+fn consume_source_identifier(lexeme: &str, span: Span) -> Result<(), PinkerError> {
+    if lexeme.starts_with(RESERVED_INTERNAL_PREFIX) {
+        return Err(PinkerError::Lexer {
+            msg: format!(
+                "E-SEMANTIC-RESERVED-NAMESPACE\nidentificador '{lexeme}' usa o prefixo '{RESERVED_INTERNAL_PREFIX}', reservado ao compilador"
+            ),
+            span,
+        });
+    }
+    Ok(())
+}
+// @pinker-nav:end lexer.identificadores.namespace-reservado
+
 pub struct Lexer<'a> {
     chars: std::iter::Peekable<std::str::CharIndices<'a>>,
     line: usize,
@@ -402,7 +428,13 @@ impl<'a> Lexer<'a> {
                                 "ate" => TokenKind::KwAte,
                                 "escolha" => TokenKind::KwEscolha,
                                 "caso" => TokenKind::KwCaso,
-                                _ => TokenKind::Ident,
+                                _ => {
+                                    consume_source_identifier(
+                                        &lexeme,
+                                        Span::new(start_pos, self.current_pos()),
+                                    )?;
+                                    TokenKind::Ident
+                                }
                             }
                         }
                         '?' => TokenKind::Question,
