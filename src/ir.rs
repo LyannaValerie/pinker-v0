@@ -13,11 +13,12 @@
 use crate::ast::{
     transitive_free_identifiers_in_function, AssignTarget, BinaryOp, Block, BreakStmt, ConstDecl,
     ContinueStmt, ElseBlock, Expr, ExprKind, FalarStmt, FunctionDecl, IfStmt, InlineAsmStmt, Item,
-    LetStmt, Program, ReturnStmt, Stmt, StructDecl, Type, UnaryOp, WhileStmt,
+    LetStmt, Program, ReturnStmt, Stmt, StructDecl, Type, UnaryOp, UnionMatchStmt, WhileStmt,
 };
 use crate::error::PinkerError;
 use crate::layout;
 use crate::token::Span;
+use crate::union_canon;
 use std::collections::{HashMap, HashSet};
 
 // @pinker-nav:start ir.modelo.representacao
@@ -152,6 +153,39 @@ pub enum InstructionIR {
         chunks: Vec<String>,
         span: Span,
     },
+    /// `encaixe` de união já associado ao registry canônico.
+    UnionMatch(UnionMatchIR),
+}
+
+/// Match de união na IR estruturada.
+///
+/// O scrutinee é abaixado uma única vez. Cada braço carrega a tag **copiada**
+/// do `UnionTypeIR` internado — nunca derivada da posição do braço, da ordem
+/// textual da união, do nome do apelido ou de um `TypeIR` isolado.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnionMatchIR {
+    pub scrutinee: ValueIR,
+    /// Slot que guarda o scrutinee já avaliado. Existe para que o valor seja
+    /// avaliado **uma única vez** e permaneça legível em todos os blocos do
+    /// match, cujos temporários têm escopo por bloco.
+    pub scrutinee_binding: BindingIR,
+    /// Slot que guarda a tag lida uma única vez do valor de união.
+    pub tag_binding: BindingIR,
+    pub union_type_id: UnionTypeId,
+    pub arms: Vec<UnionMatchArmIR>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnionMatchArmIR {
+    pub tag: u64,
+    pub canonical_member_key: String,
+    pub binding: BindingIR,
+    pub payload_type: TypeIR,
+    pub payload_size: u64,
+    pub payload_align: u64,
+    pub body: BlockIR,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -271,6 +305,28 @@ pub enum ValueIR {
         payload_size: u64,
         payload_align: u64,
     },
+    // Operações internas tipadas de união (HR1/HR5). Não possuem nome textual
+    // chamável, não passam pela resolução comum de função, nunca aparecem como
+    // `Call` e não podem ser construídas pelo parser. Os símbolos de runtime
+    // correspondentes são um detalhe do backend.
+    /// Lê a tag corrente de um valor de união validado.
+    UnionTag {
+        value: Box<ValueIR>,
+        union_type_id: UnionTypeId,
+    },
+    /// Extrai o payload de um membro já validado contra o registry.
+    ///
+    /// Os metadados de layout viajam no nó para que HR3 possa estender a
+    /// extração a payloads multi-palavra sem reconstruir o match.
+    UnionExtract {
+        value: Box<ValueIR>,
+        union_type_id: UnionTypeId,
+        tag: u64,
+        canonical_member_key: String,
+        payload_type: TypeIR,
+        payload_size: u64,
+        payload_align: u64,
+    },
 }
 
 /// Tipos do sistema de tipos da v0. `Nulo` representa ausência de retorno (funções sem `-> tipo`);
@@ -326,6 +382,11 @@ pub struct UnionTypeIR {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnionMemberIR {
     pub tag: u64,
+    /// Chave canônica do membro, derivada do **tipo resolvido** pelo contrato
+    /// compartilhado em [`crate::union_canon`]. É a única identidade terminal
+    /// de um membro: nenhuma camada a reconstrói por `TypeIR::name()`, por
+    /// nome de apelido, por posição de braço ou por texto de debug.
+    pub canonical_member_key: String,
     pub ty: TypeIR,
     pub nominal_identity: Option<String>,
     pub size: u64,
@@ -363,6 +424,8 @@ pub fn validate_union_registry(unions: &[UnionTypeIR]) -> Result<(), String> {
             ));
         }
         let mut member_identities = Vec::new();
+        let mut member_keys = std::collections::BTreeSet::new();
+        let mut previous_key: Option<&str> = None;
         for (member_index, member) in union.members.iter().enumerate() {
             if member.tag != member_index as u64 {
                 return Err(format!(
@@ -370,6 +433,29 @@ pub fn validate_union_registry(unions: &[UnionTypeIR]) -> Result<(), String> {
                     union.id.0, member.tag
                 ));
             }
+            if member.canonical_member_key.is_empty() {
+                return Err(format!(
+                    "membro sem chave canônica na união {} tag {}",
+                    union.id.0, member.tag
+                ));
+            }
+            if !member_keys.insert(member.canonical_member_key.as_bytes().to_vec()) {
+                return Err(format!(
+                    "chave canônica de membro duplicada na união {}: {}",
+                    union.id.0, member.canonical_member_key
+                ));
+            }
+            // A ordem canônica do registry é a ordem crescente das chaves; a
+            // tag é o índice nessa ordem e em nenhuma outra.
+            if let Some(previous) = previous_key {
+                if previous.as_bytes() >= member.canonical_member_key.as_bytes() {
+                    return Err(format!(
+                        "ordem canônica violada na união {}: '{}' antes de '{}'",
+                        union.id.0, previous, member.canonical_member_key
+                    ));
+                }
+            }
+            previous_key = Some(&member.canonical_member_key);
             if member.size == 0 {
                 return Err(format!(
                     "payload de tamanho zero na união {} tag {}",
@@ -397,6 +483,114 @@ pub fn validate_union_registry(unions: &[UnionTypeIR]) -> Result<(), String> {
             }
             member_identities.push(identity);
         }
+    }
+    Ok(())
+}
+
+/// Confirma que um `UnionTypeId` existe na tabela internada.
+pub fn validate_union_reference(
+    unions: &[UnionTypeIR],
+    union_type_id: UnionTypeId,
+) -> Result<&UnionTypeIR, String> {
+    unions
+        .get(union_type_id.0 as usize)
+        .filter(|union| union.id == union_type_id)
+        .ok_or_else(|| format!("união {} ausente do registro internado", union_type_id.0))
+}
+
+/// Confirma que uma operação interna tipada de união corresponde exatamente ao
+/// membro internado.
+///
+/// Verifica, em qualquer fronteira do pipeline: a união existe; a tag pertence
+/// ao registry; a chave canônica coincide com a tag; o tipo do payload
+/// coincide; tamanho e alinhamento coincidem. Nenhuma dessas verificações
+/// reconstrói a identidade do membro por `TypeIR::name()` ou por texto de
+/// debug.
+pub fn validate_union_member_reference(
+    unions: &[UnionTypeIR],
+    union_type_id: UnionTypeId,
+    tag: u64,
+    canonical_member_key: &str,
+    payload_type: TypeIR,
+    payload_size: u64,
+    payload_align: u64,
+) -> Result<(), String> {
+    let union = validate_union_reference(unions, union_type_id)?;
+    let member = union
+        .members
+        .get(usize::try_from(tag).map_err(|_| "tag de união excede usize".to_string())?)
+        .ok_or_else(|| {
+            format!(
+                "tag {tag} não pertence à união {}: {} membros",
+                union_type_id.0,
+                union.members.len()
+            )
+        })?;
+    if member.tag != tag {
+        return Err(format!(
+            "tag divergente na união {}: esperado {}, recebido {tag}",
+            union_type_id.0, member.tag
+        ));
+    }
+    if member.canonical_member_key != canonical_member_key {
+        return Err(format!(
+            "chave canônica divergente na união {} tag {tag}: esperado '{}', recebido '{}'",
+            union_type_id.0, member.canonical_member_key, canonical_member_key
+        ));
+    }
+    if member.ty != payload_type {
+        return Err(format!(
+            "tipo de payload divergente na união {} tag {tag}: esperado '{}', recebido '{}'",
+            union_type_id.0,
+            member.ty.name(),
+            payload_type.name()
+        ));
+    }
+    if member.size != payload_size || member.align != payload_align {
+        return Err(format!(
+            "layout de payload divergente na união {} tag {tag}: esperado {}/{}, recebido {payload_size}/{payload_align}",
+            union_type_id.0, member.size, member.align
+        ));
+    }
+    Ok(())
+}
+
+/// Confirma que o conjunto de braços de um match cobre integralmente a união,
+/// sem braço repetido e sem referência a união diferente.
+pub fn validate_union_match_coverage(
+    unions: &[UnionTypeIR],
+    union_type_id: UnionTypeId,
+    arm_keys: &[(u64, String)],
+) -> Result<(), String> {
+    let union = validate_union_reference(unions, union_type_id)?;
+    let mut seen = std::collections::BTreeSet::new();
+    for (tag, key) in arm_keys {
+        if !seen.insert(key.as_bytes().to_vec()) {
+            return Err(format!(
+                "braço repetido na união {}: chave '{key}'",
+                union_type_id.0
+            ));
+        }
+        let Some(member) = union.members.iter().find(|member| member.tag == *tag) else {
+            return Err(format!(
+                "tag {tag} não pertence à união {}",
+                union_type_id.0
+            ));
+        };
+        if member.canonical_member_key != *key {
+            return Err(format!(
+                "braço da união {} associa tag {tag} à chave '{key}', mas o registry guarda '{}'",
+                union_type_id.0, member.canonical_member_key
+            ));
+        }
+    }
+    if seen.len() != union.members.len() {
+        return Err(format!(
+            "cobertura incompleta da união {}: {} de {} membros",
+            union_type_id.0,
+            seen.len(),
+            union.members.len()
+        ));
     }
     Ok(())
 }
@@ -1492,27 +1686,9 @@ impl LoweringContext {
                 ret_struct_name: None,
             },
         );
-        function_sigs.insert(
-            "__pinker_internal_uniao_tag".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
-        );
-        function_sigs.insert(
-            "__pinker_internal_uniao_payload_b".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Bombom,
-                ret_struct_name: None,
-            },
-        );
-        function_sigs.insert(
-            "__pinker_internal_uniao_payload_v".to_string(),
-            FunctionSigIR {
-                ret_type: TypeIR::Verso,
-                ret_struct_name: None,
-            },
-        );
+        // As uniões não registram intrínsecas chamáveis: tag e extração são
+        // `ValueIR::UnionTag`/`ValueIR::UnionExtract`, nós tipados criados pelo
+        // lowering de `Stmt::UnionMatch`.
         function_sigs.insert(
             "argumento".to_string(),
             FunctionSigIR {
@@ -2128,20 +2304,13 @@ impl LoweringContext {
                 Ok(resolved.with_span(*span))
             }
             Type::Union { members, span } => {
-                let mut canonical = std::collections::BTreeMap::<String, Type>::new();
+                // Achatamento, deduplicação e ordem vêm do contrato
+                // compartilhado — os mesmos consumidos pela semântica.
+                let mut resolved_members = Vec::with_capacity(members.len());
                 for member in members {
-                    let resolved = self.resolve_union_ast_type(member, resolving)?;
-                    if let Type::Union {
-                        members: nested, ..
-                    } = resolved
-                    {
-                        for nested_member in nested {
-                            canonical.insert(union_type_key(&nested_member), nested_member);
-                        }
-                    } else {
-                        canonical.insert(union_type_key(&resolved), resolved);
-                    }
+                    resolved_members.push(self.resolve_union_ast_type(member, resolving)?);
                 }
+                let canonical = union_canon::canonicalize_resolved_members(resolved_members);
                 if canonical.len() < 2 {
                     return Err(PinkerError::Ir {
                         msg: "união exige dois membros canônicos distintos".to_string(),
@@ -2149,7 +2318,7 @@ impl LoweringContext {
                     });
                 }
                 Ok(Type::Union {
-                    members: canonical.into_values().collect(),
+                    members: canonical,
                     span: *span,
                 })
             }
@@ -2158,15 +2327,7 @@ impl LoweringContext {
     }
 
     fn intern_union(&self, members: &[Type], span: Span) -> Result<TypeIR, PinkerError> {
-        let canonical_key = format!(
-            "pinker-union-v1[{}]",
-            members
-                .iter()
-                .map(union_type_key)
-                .map(|key| format!("{}:{key}", key.len()))
-                .collect::<Vec<_>>()
-                .join(",")
-        );
+        let canonical_key = union_canon::union_key(members);
         let mut registry = self.union_registry.borrow_mut();
         if let Some(existing) = registry
             .types
@@ -2192,6 +2353,7 @@ impl LoweringContext {
                 .map_err(|msg| PinkerError::Ir { msg, span })?;
             member_irs.push(UnionMemberIR {
                 tag: tag as u64,
+                canonical_member_key: union_canon::member_key_text(member),
                 ty,
                 nominal_identity,
                 size,
@@ -2204,51 +2366,6 @@ impl LoweringContext {
             members: member_irs,
         });
         Ok(TypeIR::Union(id))
-    }
-}
-
-fn union_type_key(ty: &Type) -> String {
-    match ty {
-        Type::Bombom(_) => "bombom".to_string(),
-        Type::U8(_) => "u8".to_string(),
-        Type::U16(_) => "u16".to_string(),
-        Type::U32(_) => "u32".to_string(),
-        Type::U64(_) => "u64".to_string(),
-        Type::I8(_) => "i8".to_string(),
-        Type::I16(_) => "i16".to_string(),
-        Type::I32(_) => "i32".to_string(),
-        Type::I64(_) => "i64".to_string(),
-        Type::Logica(_) => "logica".to_string(),
-        Type::Verso(_) => "verso".to_string(),
-        Type::Struct { name, .. } => format!("struct:{}:{name}", name.len()),
-        Type::Enum { name, .. } => format!("enum:{}:{name}", name.len()),
-        Type::Pointer {
-            base, is_volatile, ..
-        } => {
-            format!("ptr:{}:{}", u8::from(*is_volatile), union_type_key(base))
-        }
-        Type::Function { params, ret, .. } => format!(
-            "fn({})->{}",
-            params
-                .iter()
-                .map(union_type_key)
-                .collect::<Vec<_>>()
-                .join(","),
-            union_type_key(ret)
-        ),
-        Type::FixedArray { element, size, .. } => {
-            format!("array:{size}:{}", union_type_key(element))
-        }
-        Type::Union { members, .. } => format!(
-            "union:[{}]",
-            members
-                .iter()
-                .map(union_type_key)
-                .map(|key| format!("{}:{key}", key.len()))
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-        _ => ty.name().to_string(),
     }
 }
 
@@ -3481,7 +3598,141 @@ impl<'a> FunctionLowerer<'a> {
             Stmt::Continue(continue_stmt) => self.lower_continue(continue_stmt),
             Stmt::Falar(falar_stmt) => self.lower_falar(falar_stmt),
             Stmt::InlineAsm(inline_asm_stmt) => self.lower_inline_asm(inline_asm_stmt),
+            Stmt::UnionMatch(union_match) => self.lower_union_match(union_match),
         }
+    }
+
+    // Abaixa `Stmt::UnionMatch` para `InstructionIR::UnionMatch`: avalia o scrutinee uma única vez, obtém o `UnionTypeId` do valor, resolve cada tipo de braço pelo contrato compartilhado de `union_canon`, localiza exatamente um membro do `UnionTypeIR` internado pela chave canônica, **copia** tag, tipo, tamanho e alinhamento do membro, cria o binding próprio do braço e abaixa o corpo no escopo desse binding. Preserva a ordem de fonte dos braços e revalida a cobertura como defesa de fronteira; a tag nunca é derivada de posição, ordem textual, nome de apelido ou `TypeIR` isolado.
+    fn lower_union_match(
+        &mut self,
+        union_match: &UnionMatchStmt,
+    ) -> Result<InstructionIR, PinkerError> {
+        let scrutinee = self.lower_value(&union_match.scrutinee)?;
+        let TypeIR::Union(union_type_id) = scrutinee.ty else {
+            return Err(PinkerError::Ir {
+                msg: format!(
+                    "'encaixe' de união exige scrutinee de união; encontrado '{}'",
+                    scrutinee.ty.name()
+                ),
+                span: union_match.scrutinee.span,
+            });
+        };
+
+        let union_ir = {
+            let registry = self.context.union_registry.borrow();
+            registry
+                .types
+                .get(union_type_id.0 as usize)
+                .cloned()
+                .ok_or_else(|| PinkerError::Ir {
+                    msg: format!(
+                        "união {} ausente do registro internado no 'encaixe'",
+                        union_type_id.0
+                    ),
+                    span: union_match.span,
+                })?
+        };
+
+        // Slots de lowering para o scrutinee e a tag. São slots normalizados
+        // desta camada (como qualquer `%nome#N`), não identidade de membro:
+        // a identidade continua sendo a chave canônica do registry.
+        self.push_scope();
+        let scrutinee_binding = self.allocate_binding(
+            "encaixe_uniao_alvo",
+            TypeIR::Union(union_type_id),
+            None,
+            None,
+            Some(false),
+        );
+        let tag_binding =
+            self.allocate_binding("encaixe_uniao_tag", TypeIR::Bombom, None, None, Some(false));
+        self.pop_scope();
+
+        let mut arms = Vec::with_capacity(union_match.arms.len());
+        let mut covered = HashSet::<String>::new();
+        for arm in &union_match.arms {
+            let resolved_member = self
+                .context
+                .resolve_union_ast_type(&arm.member_type, &mut Vec::new())?;
+            let key = union_canon::member_key(&resolved_member);
+            let mut matching = union_ir
+                .members
+                .iter()
+                .filter(|member| member.canonical_member_key == key.canonical_type_key);
+            let member = matching.next().ok_or_else(|| PinkerError::Ir {
+                msg: format!(
+                    "braço '{}' de 'encaixe' não pertence à união {}",
+                    arm.member_type.name(),
+                    union_type_id.0
+                ),
+                span: arm.span,
+            })?;
+            if matching.next().is_some() {
+                return Err(PinkerError::Ir {
+                    msg: format!(
+                        "chave canônica ambígua na união {}: '{}'",
+                        union_type_id.0, key.canonical_type_key
+                    ),
+                    span: arm.span,
+                });
+            }
+            if !covered.insert(member.canonical_member_key.clone()) {
+                return Err(PinkerError::Ir {
+                    msg: format!(
+                        "membro '{}' repetido no 'encaixe' da união {}",
+                        member.canonical_member_key, union_type_id.0
+                    ),
+                    span: arm.span,
+                });
+            }
+
+            self.push_scope();
+            let binding = self.allocate_binding(
+                &arm.binding,
+                member.ty,
+                member.nominal_identity.clone(),
+                None,
+                Some(false),
+            );
+            let body_label = self.next_block_label("encaixe_uniao_braco");
+            let body = self.lower_block(&arm.body, body_label, false);
+            self.pop_scope();
+            let body = body?;
+
+            arms.push(UnionMatchArmIR {
+                tag: member.tag,
+                canonical_member_key: member.canonical_member_key.clone(),
+                binding,
+                payload_type: member.ty,
+                payload_size: member.size,
+                payload_align: member.align,
+                body,
+                span: arm.span,
+            });
+        }
+
+        // Defesa de fronteira: a semântica já exigiu cobertura exata, e o
+        // lowering recusa qualquer divergência restante.
+        if covered.len() != union_ir.members.len() {
+            return Err(PinkerError::Ir {
+                msg: format!(
+                    "cobertura incompleta no 'encaixe' da união {}: {} de {} membros",
+                    union_type_id.0,
+                    covered.len(),
+                    union_ir.members.len()
+                ),
+                span: union_match.span,
+            });
+        }
+
+        Ok(InstructionIR::UnionMatch(UnionMatchIR {
+            scrutinee: scrutinee.value,
+            scrutinee_binding,
+            tag_binding,
+            union_type_id,
+            arms,
+            span: union_match.span,
+        }))
     }
 
     fn lower_falar(&mut self, falar_stmt: &FalarStmt) -> Result<InstructionIR, PinkerError> {
@@ -4985,6 +5236,33 @@ fn render_instruction(instruction: &InstructionIR, indent: usize, out: &mut Stri
         InstructionIR::InlineAsm { chunks, .. } => {
             line(out, indent, &format!("inline_asm [{}]", chunks.join(" | ")));
         }
+        InstructionIR::UnionMatch(union_match) => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "union_match #{} alvo={} tag={} {}",
+                    union_match.union_type_id.0,
+                    union_match.scrutinee_binding.slot,
+                    union_match.tag_binding.slot,
+                    render_value(&union_match.scrutinee)
+                ),
+            );
+            for arm in &union_match.arms {
+                line(
+                    out,
+                    indent + 1,
+                    &format!(
+                        "arm tag={} key={} {} : {}",
+                        arm.tag,
+                        arm.canonical_member_key,
+                        arm.binding.slot,
+                        arm.payload_type.render_name()
+                    ),
+                );
+                render_block(&arm.body, indent + 2, out);
+            }
+        }
     }
 }
 
@@ -5128,6 +5406,23 @@ fn render_value(value: &ValueIR) -> String {
             "union_inject #{} tag={} ({})",
             union_type_id.0,
             tag,
+            render_value(value)
+        ),
+        ValueIR::UnionTag {
+            value,
+            union_type_id,
+        } => format!("union_tag #{} ({})", union_type_id.0, render_value(value)),
+        ValueIR::UnionExtract {
+            value,
+            union_type_id,
+            tag,
+            canonical_member_key,
+            ..
+        } => format!(
+            "union_extract #{} tag={} key={} ({})",
+            union_type_id.0,
+            tag,
+            canonical_member_key,
             render_value(value)
         ),
     }
