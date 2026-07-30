@@ -183,4 +183,127 @@ parser. O símbolo de ABI do runtime é escolhido apenas no backend nativo.
 O namespace `__pinker_internal_` permanece reservado ao compilador e recusado a
 qualquer identificador vindo da fonte.
 
+## O payload é um snapshot, não uma palavra
+
+O **valor público** de uma união continua sendo um handle de uma palavra: um
+ponteiro para um descritor imutável. O que mudou é o descritor.
+
+O descritor guarda um snapshot alinhado do payload **completo**. Não há mais
+limite de uma palavra, o payload não é serializado dentro de um `u64` e o
+descritor nunca referencia o storage do chamador.
+
+```text
+valor de origem
+→ identidade semântica resolvida
+→ membro exato do registry
+→ layout classificado e validado
+→ endereço do valor representacional
+→ cópia integral para storage imutável do descritor
+```
+
+```text
+encaixe
+→ validar identidade da união
+→ validar tag
+→ validar layout esperado
+→ copiar payload integral para storage novo do binding
+→ executar o braço
+```
+
+### Três representações, decididas uma única vez
+
+Todo membro é classificado por `crate::union_payload::classify_union_payload`,
+a **única** autoridade de classificação do pipeline. Semântica, lowering,
+registry, validadores de IR/CFG/seleção/máquina, interpretador, backend e a
+validação da ABI do runtime consomem o mesmo resultado.
+
+| categoria | membros | tamanho e alinhamento | cópia |
+|---|---|---|---|
+| escalar | `bombom`, `u8..u64`, `i8..i64`, `logica`, `leque` sem carga | largura real do tipo | por valor |
+| handle opaco | `verso`, listas, mapas, `seta<T>`, ponteiros de função, callables e closures, objetos de trato, uniões já materializadas | uma palavra, por definição da categoria | rasa, por contrato |
+| agregado | `ninho`, array fixo, apelidos resolvidos deles, agregados aninhados | layout estático completo, incluindo padding | integral, byte a byte |
+
+Apelidos são transparentes em profundidade também aqui: dois apelidos do mesmo
+agregado têm o mesmo `ResolvedTypeId`, a mesma classificação, o mesmo layout e a
+mesma seleção de membro.
+
+A cópia rasa dos handles é deliberada e vale inclusive **dentro** de um
+agregado: um `verso` guardado num campo continua apontando para o mesmo
+descritor de texto depois da injeção, exatamente como no runtime nativo. O que
+é copiado profundamente é o storage do agregado.
+
+### Não existe mais o fallback `(8, 8)`
+
+Até HR3, qualquer erro de layout de um tipo não `nulo` era convertido em
+`(8, 8)`. Isso deixava metadata falsa atravessar semântica, IR e validadores, e
+a incoerência só aparecia — quando aparecia — na criação nativa do descritor.
+
+Agora um tipo sem representação de payload conhecida é recusado **antes da IR
+validada**, com código estável:
+
+| código | motivo |
+|---|---|
+| `E-SEMANTIC-UNION-PAYLOAD-LAYOUT` | layout desconhecido, tipo inexistente, apelido ou ninho recursivo, overflow de layout |
+| `E-SEMANTIC-UNION-PAYLOAD-SIZE` | tamanho zero ou acima do limite por payload |
+| `E-SEMANTIC-UNION-PAYLOAD-ALIGN` | alinhamento zero, não potência de dois ou acima do suportado |
+| `E-SEMANTIC-UNION-PAYLOAD-REPRESENTATION` | `nulo`, genérico não monomorfizado, tipo sem representação runtime definida |
+
+Os validadores de IR, CFG, seleção e máquina repetem a defesa em vez de confiar
+na origem.
+
+### Limites explícitos
+
+O repositório não possuía limite canônico aplicável a agregados de união. Os
+valores abaixo são escolhidos explicitamente, são finitos, não dependem do
+profile de compilação e são revalidados no runtime nativo e no interpretador com
+operações checadas.
+
+| constante | valor | papel |
+|---|---|---|
+| `MAX_UNION_PAYLOAD_BYTES` | 4096 | teto por payload; uma página |
+| `MAX_UNION_PAYLOAD_ALIGN` | 16 | teto de alinhamento, coerente com o alinhamento de pilha da SysV |
+| `MAX_UNION_DESCRIPTORS` | 1 000 000 | teto de descritores vivos, na ordem de grandeza de `MAX_IDENTIDADES_PUBLICAS` |
+| `MAX_UNION_TOTAL_PAYLOAD_BYTES` | 256 MiB | teto agregado de bytes de snapshot |
+| `MAX_UNION_METADATA_BYTES` | derivado | teto de metadata de descritores |
+
+Os snapshots vivem enquanto o processo vive; o crescimento é limitado por esses
+tetos e não por coleta. Falha de alocação produz diagnóstico controlado, nunca
+abort de alocador.
+
+### ABI interna
+
+```text
+pinker_uniao_criar(union_type_id, tag, payload_size, payload_align, payload_source_ptr) -> handle
+pinker_uniao_tag(handle, expected_union_type_id) -> tag
+pinker_uniao_copiar_payload(handle, expected_union_type_id, expected_tag, expected_size, expected_align, destination_ptr)
+```
+
+A criação recebe **endereço**, nunca o payload reempacotado numa palavra. O
+backend materializa scratch alinhado do tamanho real para escalares e handles e
+passa o endereço da representação completa para agregados. A extração copia para
+storage novo do binding: o ponteiro interno do descritor nunca é devolvido, e
+duas extrações da mesma união não compartilham memória.
+
+O handle é validado antes de qualquer leitura — marca, identidade da união, tag,
+tamanho e alinhamento — e um handle que não tenha sido criado por este runtime
+nunca é dereferenciado.
+
+### Independência observável
+
+```text
+origem criada → união injetada → origem modificada → encaixe observa o snapshot anterior
+união extraída → binding modificado → novo encaixe → snapshot original permanece
+duas extrações → storages distintos → valores inicialmente iguais
+```
+
+Esses contratos valem igualmente no interpretador e no caminho nativo, com
+paridade de stdout, stderr, código de saída, braço selecionado e conteúdo
+integral do payload.
+
+### Estado da revisão humana
+
+Os cinco findings da revisão humana original da PR #411 — HR1, HR2, HR3, HR4 e
+HR5 — estão corrigidos. A PR continua exigindo nova revisão humana integral; não
+há aprovação nem autorização de merge registradas aqui.
+
 <!-- @pinker-doc:end language.union-types.contract -->

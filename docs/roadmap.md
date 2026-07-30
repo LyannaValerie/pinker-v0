@@ -54,9 +54,13 @@ entregue na Fase 248 com uniões estruturais tagged; o item 16 não foi iniciado
 A revisão humana da PR #411 mantém a Fase 248 sob correção: `encaixe` já é um
 construto tipado com tags exclusivamente do registry canônico e a injeção já
 seleciona o membro por identidade semântica resolvida (`ResolvedTypeId`),
-separada da representação operacional (`TypeIR`); os payloads multi-palavra
-continuam abertos e são o único achado remanescente. A PR #411 permanece em
-draft e não deve ser mergeada.
+separada da representação operacional (`TypeIR`); os payloads estruturais
+passaram a ser suportados de forma adulta (HR3), com classificação exaustiva em
+escalar, handle opaco e agregado, snapshot alinhado do payload completo no
+descritor, remoção do fallback `(8, 8)` e limites explícitos de descritores,
+bytes e metadata. Nenhum achado da revisão humana original permanece aberto; a
+PR #411 exige nova revisão humana integral e a decisão de merge é exclusiva da
+Founder.
 
 O contrato de ambientes da Fase 243 usa hoje uma palavra por captura (`quantidade * palavra`, com overflow verificado). Uma futura representação multi-palavra deverá alocar o tamanho final alinhado do layout, derivado do tamanho, alinhamento, offset e padding de cada captura e do alinhamento final, com overflow verificado em cada passo; soma simples de tamanhos e teste apenas funcional não atendem ao gate direto de underallocation.
 

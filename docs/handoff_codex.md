@@ -201,10 +201,18 @@ Histórico completo por fase: `docs/history/phases/`.
   transparentes em profundidade, a injeção casa o membro por igualdade exata
   sem desempate por primeira ocorrência e a identidade atravessa bindings,
   parâmetros, retornos, chamadas diretas e indiretas, ternários, callables,
-  closures, capturas, extração e reinjeção. Continua **aberto** apenas: a
-  representação de payloads multi-palavra
-  (`HR3_UNION_PAYLOAD_REPRESENTATION_MISMATCH`). O head da PR #411 não deve ser
-  mergeado enquanto esse achado estiver aberto, e a PR permanece em draft.
+  closures, capturas, extração e reinjeção. Entregue também a representação de
+  payloads estruturais (HR3): o valor público continua sendo um handle de uma
+  palavra, mas o descritor passou a guardar um snapshot alinhado do payload
+  completo; os membros são classificados exaustivamente em escalar, handle
+  opaco e agregado por uma autoridade única (`src/union_payload.rs`); o
+  fallback `(8, 8)` foi removido e layouts desconhecidos são recusados antes da
+  IR validada com códigos `E-SEMANTIC-UNION-PAYLOAD-*`; a criação copia a
+  origem integralmente e a extração copia para storage novo do binding, com
+  orçamentos explícitos de descritores, bytes e metadata revalidados no runtime
+  nativo e no interpretador. **Nenhum finding da revisão humana original
+  permanece aberto**; ainda assim, o head da PR #411 exige nova revisão humana
+  integral e a decisão de merge continua exclusiva da Founder.
 - `alocar`/`liberar` é mecanismo separado da política de lifetime dos valores internos que usam heap; a API pública não libera ambientes de closure, descritores de callable, snapshots de trato, coleções ou strings.
 - Qualquer fase que toque o layout ou o tamanho do ambiente deve incluir gate de underallocation que observe diretamente os bytes solicitados por instrumentação, metadado, canário ou fronteira de arredondamento; resultado funcional isolado não é evidência suficiente. No recorte atual de uma palavra por captura, o tamanho exigido é `capturas * tamanho_da_palavra`, com overflow verificado. Para capturas futuras multi-palavra, deve ser o tamanho final alinhado do ambiente: tamanho e alinhamento de cada captura, offset alinhado, padding intermediário, alinhamento final e toda aritmética com detecção de overflow; soma simples dos tamanhos é insuficiente.
 - O item 5 pode avançar para diagnósticos enriquecidos ou métodos utilitários; o item 4 pode avançar apenas em extensões fora do contrato 244. Em qualquer caso, sem recorte mínimo automático, com lowering nativo obrigatório e com fatia vertical utilizável.

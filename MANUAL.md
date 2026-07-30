@@ -697,6 +697,26 @@ da fonte que o use — em declaração ou em referência — é recusado com
 `virar` explícito e a abertura usa `encaixe` com um braço por membro, sem
 `senao`. O handle ocupa uma palavra e tem lifetime monotônico nesta fase.
 
+O **valor público** continua sendo esse handle de uma palavra, mas o descritor
+guarda um snapshot alinhado do payload **completo**. Cada membro é classificado
+como escalar (largura real), handle opaco (uma palavra, cópia rasa por
+contrato) ou agregado (`ninho`, array fixo e apelidos resolvidos deles, copiado
+byte a byte, incluindo padding). Apelidos são transparentes em profundidade
+também na classificação.
+
+Um tipo sem representação de payload conhecida é recusado na semântica, antes da
+IR validada, com código estável: `E-SEMANTIC-UNION-PAYLOAD-LAYOUT`,
+`E-SEMANTIC-UNION-PAYLOAD-SIZE`, `E-SEMANTIC-UNION-PAYLOAD-ALIGN` ou
+`E-SEMANTIC-UNION-PAYLOAD-REPRESENTATION`. Um payload ocupa no máximo 4096
+bytes com alinhamento no máximo 16; descritores, bytes de snapshot e metadata
+têm orçamentos finitos, revalidados no runtime nativo e no interpretador.
+
+A cópia acontece na injeção: mudar a origem depois não muda o que o `encaixe`
+observa. A extração copia para storage novo do binding, de modo que duas
+extrações da mesma união não compartilham memória e nenhuma delas expõe o
+storage interno do descritor. O comportamento é idêntico no interpretador e no
+caminho nativo.
+
 `encaixe` é preservado como construto tipado: o parser guarda o scrutinee e o
 tipo de cada braço **como escrito**, sem resolver apelidos e sem calcular tags.
 Os apelidos são resolvidos antes da associação dos braços, a cobertura é
