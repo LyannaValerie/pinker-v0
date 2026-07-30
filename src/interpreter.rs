@@ -957,7 +957,15 @@ fn exec_instr(
             let RuntimeValue::Ptr(addr) = ptr else {
                 return Err(runtime_err("deref_load exige ponteiro no topo"));
             };
-            if matches!(ty, crate::ir::TypeIR::FixedArray { .. }) {
+            // HR3: um agregado — array fixo **ou** `ninho` — é representado
+            // pelo endereço da sua representação completa. Abrir `*ptr` não lê
+            // uma palavra: produz o mesmo endereço, que é o que a injeção de
+            // união entrega para a cópia integral do snapshot. Tratar só array
+            // fixo aqui deixava `ninho` sem caminho de execução.
+            if matches!(
+                ty,
+                crate::ir::TypeIR::FixedArray { .. } | crate::ir::TypeIR::Struct
+            ) {
                 stack.push(RuntimeValue::Ptr(addr));
                 return Ok(());
             }

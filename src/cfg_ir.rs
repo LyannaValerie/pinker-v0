@@ -261,6 +261,55 @@ struct FunctionLowerer {
     ternary_locals: Vec<crate::ir::LocalIR>,
     loop_exit_stack: Vec<String>,
     loop_continue_stack: Vec<String>,
+    /// Slots que recebem o payload `ninho` de um braço de `encaixe`.
+    ///
+    /// HR3: esse binding **é** o endereço do seu storage próprio e não tem
+    /// ponteiro de origem para dereferenciar. O acesso de campo em qualquer
+    /// outro valor `ninho` continua exigindo a forma `(*ptr).campo`.
+    union_aggregate_bindings: std::collections::HashSet<String>,
+}
+
+impl FunctionLowerer {
+    fn is_union_aggregate_binding(&self, value: &ValueIR) -> bool {
+        matches!(
+            value,
+            ValueIR::Local(slot) if self.union_aggregate_bindings.contains(slot)
+        )
+    }
+}
+
+/// Coleta, recursivamente, os slots de binding de braço de `encaixe` cujo
+/// payload é um `ninho`.
+fn collect_union_aggregate_bindings(
+    block: &crate::ir::BlockIR,
+    slots: &mut std::collections::HashSet<String>,
+) {
+    for instruction in &block.instructions {
+        match instruction {
+            InstructionIR::UnionMatch(union_match) => {
+                for arm in &union_match.arms {
+                    if arm.payload_type == TypeIR::Struct {
+                        slots.insert(arm.binding.slot.clone());
+                    }
+                    collect_union_aggregate_bindings(&arm.body, slots);
+                }
+            }
+            InstructionIR::If {
+                then_block,
+                else_block,
+                ..
+            } => {
+                collect_union_aggregate_bindings(then_block, slots);
+                if let Some(else_block) = else_block {
+                    collect_union_aggregate_bindings(else_block, slots);
+                }
+            }
+            InstructionIR::While { body_block, .. } => {
+                collect_union_aggregate_bindings(body_block, slots)
+            }
+            _ => {}
+        }
+    }
 }
 
 // `BlockBuilder` é um bloco em construção. `terminator: None` indica bloco ainda aberto.
@@ -399,6 +448,11 @@ fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
         ternary_locals: Vec::new(),
         loop_exit_stack: Vec::new(),
         loop_continue_stack: Vec::new(),
+        union_aggregate_bindings: {
+            let mut slots = std::collections::HashSet::new();
+            collect_union_aggregate_bindings(&function.entry, &mut slots);
+            slots
+        },
     };
 
     let mut current = 0;
@@ -1305,31 +1359,39 @@ impl FunctionLowerer {
             });
         }
 
-        let ValueIR::Deref {
-            ptr,
-            result_type: base_result_type,
-            is_volatile,
-        } = base
-        else {
-            return Err(PinkerError::Ir {
-                msg: format!(
-                    "acesso operacional de campo nesta fase exige base no formato '(*ptr).campo' (campo '{}')",
-                    field
-                ),
-                span,
-            });
+        let (endereco, is_volatile) = match base {
+            ValueIR::Deref {
+                ptr,
+                result_type: base_result_type,
+                is_volatile,
+            } => {
+                if *base_result_type != TypeIR::Struct {
+                    return Err(PinkerError::Ir {
+                        msg: format!(
+                            "acesso operacional de campo nesta fase exige ponteiro para 'ninho' (campo '{}')",
+                            field
+                        ),
+                        span,
+                    });
+                }
+                (ptr.as_ref(), *is_volatile)
+            }
+            // Um valor agregado já é o endereço do seu storage; é a forma dos
+            // bindings de `encaixe` com payload `ninho`, que não têm ponteiro
+            // de origem para dereferenciar.
+            outro if self.is_union_aggregate_binding(outro) => (outro, false),
+            _ => {
+                return Err(PinkerError::Ir {
+                    msg: format!(
+                        "acesso operacional de campo nesta fase exige base no formato '(*ptr).campo' (campo '{}')",
+                        field
+                    ),
+                    span,
+                });
+            }
         };
-        if *base_result_type != TypeIR::Struct {
-            return Err(PinkerError::Ir {
-                msg: format!(
-                    "acesso operacional de campo nesta fase exige ponteiro para 'ninho' (campo '{}')",
-                    field
-                ),
-                span,
-            });
-        }
 
-        let (base_ptr, next_current) = self.lower_value_operand(ptr, current, span)?;
+        let (base_ptr, next_current) = self.lower_value_operand(endereco, current, span)?;
         let field_ptr = if field_offset == 0 {
             base_ptr
         } else {
@@ -1341,9 +1403,7 @@ impl FunctionLowerer {
                     op: BinaryOpIR::Add,
                     lhs: base_ptr,
                     rhs: OperandIR::Int(field_offset),
-                    ty: TypeIR::Pointer {
-                        is_volatile: *is_volatile,
-                    },
+                    ty: TypeIR::Pointer { is_volatile },
                 });
             OperandIR::Temp(dest_ptr)
         };
@@ -1355,7 +1415,7 @@ impl FunctionLowerer {
                 dest,
                 ptr: field_ptr,
                 ty: result_type,
-                is_volatile: *is_volatile,
+                is_volatile,
             });
         Ok((OperandIR::Temp(dest), next_current))
     }
@@ -1371,27 +1431,35 @@ impl FunctionLowerer {
         current: usize,
         span: Span,
     ) -> Result<usize, PinkerError> {
-        let ValueIR::Deref {
-            ptr,
-            result_type: base_result_type,
-            is_volatile: base_is_volatile,
-        } = base
-        else {
-            return Err(PinkerError::Ir {
-                msg: "escrita operacional de campo nesta fase exige base no formato '(*ptr).campo'"
-                    .to_string(),
-                span,
-            });
+        let (endereco, base_is_volatile) = match base {
+            ValueIR::Deref {
+                ptr,
+                result_type: base_result_type,
+                is_volatile: base_is_volatile,
+            } => {
+                if *base_result_type != TypeIR::Struct {
+                    return Err(PinkerError::Ir {
+                        msg: "escrita operacional de campo nesta fase exige ponteiro para 'ninho'"
+                            .to_string(),
+                        span,
+                    });
+                }
+                (ptr.as_ref(), *base_is_volatile)
+            }
+            // Mesma convenção da leitura: um valor agregado já é o endereço do
+            // seu storage.
+            outro if self.is_union_aggregate_binding(outro) => (outro, false),
+            _ => {
+                return Err(PinkerError::Ir {
+                    msg:
+                        "escrita operacional de campo nesta fase exige base no formato '(*ptr).campo'"
+                            .to_string(),
+                    span,
+                });
+            }
         };
-        if *base_result_type != TypeIR::Struct {
-            return Err(PinkerError::Ir {
-                msg: "escrita operacional de campo nesta fase exige ponteiro para 'ninho'"
-                    .to_string(),
-                span,
-            });
-        }
 
-        let (base_ptr, ptr_current) = self.lower_value_operand(ptr, current, span)?;
+        let (base_ptr, ptr_current) = self.lower_value_operand(endereco, current, span)?;
         let field_ptr = if field_offset == 0 {
             base_ptr
         } else {
@@ -1404,7 +1472,7 @@ impl FunctionLowerer {
                     lhs: base_ptr,
                     rhs: OperandIR::Int(field_offset),
                     ty: TypeIR::Pointer {
-                        is_volatile: is_volatile || *base_is_volatile,
+                        is_volatile: is_volatile || base_is_volatile,
                     },
                 });
             OperandIR::Temp(dest_ptr)
@@ -1417,7 +1485,7 @@ impl FunctionLowerer {
                 ptr: field_ptr,
                 value: val_operand,
                 ty: value_type,
-                is_volatile: is_volatile || *base_is_volatile,
+                is_volatile: is_volatile || base_is_volatile,
             });
         Ok(next_current)
     }

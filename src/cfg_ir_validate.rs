@@ -1324,10 +1324,14 @@ fn validate_block(
                     infer_operand_type(ptr, slot_types, &temp_types, global_consts, function.span)?;
                 let ptr_is_volatile = match ptr_ty {
                     TypeIR::Pointer { is_volatile } => Some(is_volatile),
+                    // HR3: um agregado — array fixo de `bombom` ou `ninho` —
+                    // já é o endereço do seu storage e serve de base de acesso
+                    // sem ponteiro intermediário.
                     TypeIR::FixedArray {
                         element: crate::ir::ScalarTypeIR::Bombom,
                         ..
-                    } => None,
+                    }
+                    | TypeIR::Struct => None,
                     _ => {
                         return Err(cfg_error(
                             "deref_load exige operando do tipo ponteiro",
@@ -1362,13 +1366,15 @@ fn validate_block(
                     TypeIR::Pointer {
                         is_volatile: ptr_is_volatile,
                     } => Some(ptr_is_volatile),
+                    // Mesma convenção da leitura: o valor agregado é o endereço.
                     TypeIR::FixedArray {
                         element: crate::ir::ScalarTypeIR::Bombom,
                         ..
-                    } => None,
+                    }
+                    | TypeIR::Struct => None,
                     _ => {
                         return Err(cfg_error(
-                            "deref_store exige operando do tipo ponteiro ou array fixo de bombom",
+                            "deref_store exige operando do tipo ponteiro, array fixo de bombom ou 'ninho'",
                             function.span,
                         ));
                     }
@@ -1524,6 +1530,10 @@ fn validate_block(
                         let pointer_offset_ok =
                             matches!(op, crate::ir::BinaryOpIR::Add | crate::ir::BinaryOpIR::Sub)
                                 && (matches!(lhs_ty, TypeIR::Pointer { .. })
+                                    // HR3: um agregado é o endereço do seu
+                                    // storage; deslocar dentro dele é a mesma
+                                    // aritmética de ponteiro.
+                                    || matches!(lhs_ty, TypeIR::Struct)
                                     || matches!(
                                         lhs_ty,
                                         TypeIR::FixedArray {

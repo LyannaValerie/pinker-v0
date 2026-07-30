@@ -624,10 +624,10 @@ fn extract_external_callconv_program(
                     } => {
                         // HR3: um agregado é representado **pelo endereço** da
                         // sua representação completa. Abrir `*ptr` de um array
-                        // fixo não lê memória: produz o mesmo endereço, que é
-                        // o que a injeção de união entrega ao runtime para a
-                        // cópia integral.
-                        if matches!(ty, TypeIR::FixedArray { .. }) {
+                        // fixo ou de um `ninho` não lê memória: produz o mesmo
+                        // endereço, que é o que a injeção de união entrega ao
+                        // runtime para a cópia integral.
+                        if matches!(ty, TypeIR::FixedArray { .. } | TypeIR::Struct) {
                             if *is_volatile {
                                 return Err(err(
                                     "subset externo montável não suporta caminho `fragil` em agregado",
