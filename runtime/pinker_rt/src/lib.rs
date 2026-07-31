@@ -311,15 +311,27 @@ fn erro_memoria_publica(mensagem: &str) -> ! {
     std::process::exit(1);
 }
 
-fn intervalo_publico_contido(
-    inicio_regiao: usize,
-    tamanho_regiao: usize,
-    inicio_acesso: usize,
-    largura_acesso: usize,
-) -> Result<bool, ()> {
-    let fim_regiao = inicio_regiao.checked_add(tamanho_regiao).ok_or(())?;
-    let fim_acesso = inicio_acesso.checked_add(largura_acesso).ok_or(())?;
-    Ok(inicio_acesso >= inicio_regiao && fim_acesso <= fim_regiao)
+/// Primeiro endereço **depois** da região.
+///
+/// `base + tamanho` não é uma classe de erro classificável: é um invariante do
+/// único construtor produtivo de `AlocacaoPublica`. `pinker_publico_alocar`
+/// deriva `base` de `arena_base.checked_add(proximo_offset)`, mantém
+/// `proximo_offset + reservado` abaixo de `MAX_ESPACO_VIRTUAL_PUBLICO_BYTES` e
+/// só registra a entrada depois de comprometer as páginas — ou seja, a região
+/// inteira está efetivamente mapeada, e um mapeamento não pode terminar depois
+/// do fim do espaço de endereços. `tamanho` também é sempre ≥ 1, porque
+/// `alocar` recusa zero.
+///
+/// O `debug_assert!` é onde esse invariante fica escrito de forma executável: em
+/// teste e em debug uma entrada corrompida falha alto, e em release
+/// `saturating_add` mantém a função pura — ela é a unidade que a matriz de
+/// veredictos exercita, e não pode encerrar o processo.
+fn fim_da_regiao(alocacao: &AlocacaoPublica) -> usize {
+    debug_assert!(
+        alocacao.base.checked_add(alocacao.tamanho).is_some(),
+        "invariante da arena pública: base + tamanho precisa ser representável"
+    );
+    alocacao.base.saturating_add(alocacao.tamanho)
 }
 
 /// Fase 246: entrada pública de `alocar`. Diferentemente de
@@ -456,7 +468,6 @@ enum VeredictoAcesso {
     Permitido,
     MetadadosInvalidos,
     OverflowEndereco,
-    MetadadosDeRegiaoInvalidos,
     /// O endereço não cai em nenhuma região pública registrada. Cobre endereço
     /// fabricado a partir de inteiro, nulo, pilha, dado estático, código,
     /// alocação interna do runtime e mapeamento estrangeiro: para a Pinker,
@@ -476,9 +487,6 @@ impl VeredictoAcesso {
             Self::MetadadosInvalidos => Some("metadados inválidos de acesso à memória pública"),
             Self::OverflowEndereco => {
                 Some("E-RUNTIME-MEM-ADDRESS-OVERFLOW: overflow no acesso à memória pública")
-            }
-            Self::MetadadosDeRegiaoInvalidos => {
-                Some("E-RUNTIME-MEM-ADDRESS-OVERFLOW: metadados de região pública inválidos")
             }
             Self::Desconhecido => {
                 Some("E-RUNTIME-MEM-UNKNOWN-ACCESS: acesso sem região pública registrada")
@@ -502,9 +510,16 @@ impl VeredictoAcesso {
 /// Classifica um acesso contra o registro público, sem efeito colateral.
 ///
 /// A ordem das verificações é o contrato: metadados do acesso, overflow do
-/// intervalo, existência da região, estado vivo, alinhamento e, por fim,
-/// contenção — distinguindo interior que cruza o limite de acesso que começa
-/// antes da base.
+/// intervalo **consultado**, existência da região, estado vivo, alinhamento e,
+/// por fim, contenção — distinguindo interior que cruza o limite de acesso que
+/// começa antes da base.
+///
+/// O overflow que é classificado aqui é o de `endereco + largura`, que vem de
+/// fora e pode ser qualquer coisa. Já `base + tamanho` não é classificado:
+/// nenhuma entrada do registro pode tê-lo, por invariante do construtor
+/// (`fim_da_regiao`). Por isso não existe veredicto de "metadados de região
+/// inválidos" — ele seria inalcançável, e um veredicto inalcançável mente
+/// sobre o contrato.
 fn classificar_acesso_publico(
     registro: &[AlocacaoPublica],
     endereco: usize,
@@ -518,9 +533,7 @@ fn classificar_acesso_publico(
         return VeredictoAcesso::OverflowEndereco;
     };
     let candidata = registro.iter().rev().find(|alocacao| {
-        let Some(fim) = alocacao.base.checked_add(alocacao.tamanho) else {
-            return false;
-        };
+        let fim = fim_da_regiao(alocacao);
         (endereco >= alocacao.base && endereco <= fim)
             || (endereco < alocacao.base && fim_acesso > alocacao.base)
     });
@@ -533,11 +546,7 @@ fn classificar_acesso_publico(
     if endereco % alinhamento != 0 {
         return VeredictoAcesso::Desalinhado;
     }
-    let Ok(contido) = intervalo_publico_contido(alocacao.base, alocacao.tamanho, endereco, largura)
-    else {
-        return VeredictoAcesso::MetadadosDeRegiaoInvalidos;
-    };
-    if contido {
+    if endereco >= alocacao.base && fim_acesso <= fim_da_regiao(alocacao) {
         return VeredictoAcesso::Permitido;
     }
     if endereco >= alocacao.base {
@@ -550,10 +559,21 @@ fn classificar_acesso_publico(
 /// Fase 246 + hotfix pós-PR #411 (V4): validação de `deref_load`/`deref_store`
 /// sobre memória pública.
 ///
-/// O back-end nativo emite esta chamada para todo acesso através de ponteiro de
-/// proveniência pública **ou fabricada** (`<inteiro> virar seta<T>`). Endereço
-/// nunca registrado é recusado aqui, com diagnóstico estável, em vez de virar
-/// escrita em memória real e SIGSEGV.
+/// O back-end nativo emite esta chamada para todo acesso através de ponteiro
+/// classificado como `Public` ou `Fabricated`. Endereço nunca registrado é
+/// recusado aqui, com diagnóstico estável, em vez de virar escrita em memória
+/// real e SIGSEGV.
+///
+/// As outras duas classes de proveniência não chegam aqui, por razões
+/// diferentes: `Internal` tem domínio próprio e confrontá-la com o registro
+/// público rejeitaria acesso legítimo; `Unclassified` é um limite reconhecido
+/// da análise, e um acesso dessa classe **pode** terminar por sinal. Este
+/// símbolo não sustenta garantia universal sobre todo ponteiro — o contrato
+/// exato está em `MANUAL.md`, seção "Memória explícita".
+///
+/// O interpretador não compartilha esta implementação: ele valida no seu modelo
+/// de memória sintético. O que os dois modos garantem é resultado observável
+/// correspondente nos casos cobertos, não um validador único.
 #[no_mangle]
 pub extern "C" fn pinker_publico_validar_acesso(
     ponteiro: *const u8,
@@ -582,7 +602,7 @@ pub extern "C" fn pinker_publico_validar_derivacao(origem: *const u8, derivado: 
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
     let candidata = memoria.alocacoes.iter().rev().find(|alocacao| {
-        let fim = alocacao.base.saturating_add(alocacao.tamanho);
+        let fim = fim_da_regiao(alocacao);
         origem >= alocacao.base && origem <= fim
     });
     let Some(alocacao) = candidata else {
@@ -595,14 +615,7 @@ pub extern "C" fn pinker_publico_validar_derivacao(origem: *const u8, derivado: 
             "E-RUNTIME-MEM-USE-AFTER-FREE: uso após liberar detectado em memória pública",
         );
     }
-    let fim = alocacao
-        .base
-        .checked_add(alocacao.tamanho)
-        .unwrap_or_else(|| {
-            erro_memoria_publica(
-                "E-RUNTIME-MEM-ADDRESS-OVERFLOW: metadados de região pública inválidos",
-            )
-        });
+    let fim = fim_da_regiao(alocacao);
     if derivado < alocacao.base || derivado > fim {
         erro_memoria_publica(
             "E-RUNTIME-MEM-OUT-OF-BOUNDS: derivação fora dos limites da alocação pública",
@@ -3285,7 +3298,7 @@ mod tests {
     // @pinker-nav:start evidencia.runtime.validacao-acesso-publico
     // @pinker-nav:domain memoria
     // @pinker-nav:layer evidencia
-    // @pinker-nav:summary Matriz do veredicto de acesso à memória pública (hotfix pós-PR #411, item V4) sobre a unidade pura `classificar_acesso_publico`: endereços não registrados (4096 não mapeado, nulo, pilha, dado estático, função, alocação interna do runtime, mapeamento estrangeiro válido) recusados como E-RUNTIME-MEM-UNKNOWN-ACCESS; região liberada como use-after-free; base viva, interior, primeiro e último byte válidos permitidos; um byte após a região e acesso multibyte cruzando o limite recusados; e a matriz de larguras 1/2/4/8 com os alinhamentos correspondentes, idêntica para load e store porque ambos compartilham o mesmo predicado.
+    // @pinker-nav:summary Matriz do veredicto de acesso à memória pública (hotfix pós-PR #411, item V4) sobre a unidade pura `classificar_acesso_publico`: endereços não registrados (4096 não mapeado, nulo, pilha, dado estático, função, alocação interna do runtime, mapeamento estrangeiro válido) recusados como E-RUNTIME-MEM-UNKNOWN-ACCESS; região liberada como use-after-free; base viva, interior, primeiro e último byte válidos permitidos; um byte após a região e acesso multibyte cruzando o limite recusados; e a matriz de larguras 1/2/4/8 com os alinhamentos correspondentes, idêntica para load e store porque ambos compartilham o mesmo predicado; mais a sustentação do construtor, que mostra por que não existe veredicto de metadata de região inválida — `pinker_publico_alocar` é a única origem produtiva de `AlocacaoPublica` e toda entrada publicada tem tamanho ≥ 1, `tamanho <= reservado` e `base + tamanho` representável.
     /// Registro sintético com uma região viva de 64 bytes e uma liberada de 16,
     /// em endereços que não colidem com nada real do processo.
     fn registro_de_teste() -> Vec<AlocacaoPublica> {
@@ -3443,7 +3456,6 @@ mod tests {
         for veredicto in [
             VeredictoAcesso::MetadadosInvalidos,
             VeredictoAcesso::OverflowEndereco,
-            VeredictoAcesso::MetadadosDeRegiaoInvalidos,
             VeredictoAcesso::Desconhecido,
             VeredictoAcesso::UsoAposLiberar,
             VeredictoAcesso::Desalinhado,
@@ -3469,6 +3481,108 @@ mod tests {
                 VeredictoAcesso::Desconhecido,
                 "endereço {endereco:#x} não pode ser aceito com registro vazio"
             );
+        }
+    }
+
+    /// O invariante da arena não é um comentário: é uma asserção executada.
+    ///
+    /// Se uma entrada com `base + tamanho` irrepresentável chegasse ao
+    /// registro, `fim_da_regiao` falha alto em debug e em teste, em vez de
+    /// devolver um fim inventado e classificar o acesso em cima dele. Este
+    /// teste é o que impede que o guarda seja trocado por um `unwrap_or`
+    /// silencioso numa mudança futura.
+    #[test]
+    #[should_panic(expected = "invariante da arena pública")]
+    fn metadata_de_regiao_irrepresentavel_falha_alto() {
+        let corrompida = AlocacaoPublica {
+            identidade: 1,
+            base: usize::MAX,
+            tamanho: 2,
+            reservado: 2,
+            viva: true,
+        };
+        let _ = fim_da_regiao(&corrompida);
+    }
+
+    /// Sustentação do Ponto 4: não existe veredicto de "metadados de região
+    /// inválidos" porque não existe entrada de registro com metadata inválida.
+    ///
+    /// A prova é sobre o **construtor**, não sobre o classificador:
+    /// `pinker_publico_alocar` é a única origem produtiva de `AlocacaoPublica`,
+    /// e toda entrada que ele publica satisfaz `tamanho >= 1`,
+    /// `base + tamanho` representável e `tamanho <= reservado`. Enquanto isso
+    /// valer, `fim_da_regiao` nunca satura e o antigo braço seria inalcançável.
+    #[test]
+    fn construtor_publico_so_registra_metadata_de_regiao_valida() {
+        // A guarda de tamanho zero encerra o processo, então só um filho
+        // re-executado consegue exercitá-la. É ela que sustenta `tamanho >= 1`
+        // em toda entrada do registro — sem isso, uma região de tamanho nulo
+        // entraria e a metadata deixaria de ser válida por construção.
+        if std::env::var_os("PINKER_RT_TESTE_ALOCAR_ZERO").is_some() {
+            pinker_publico_alocar(0);
+            unreachable!("'alocar' precisa recusar tamanho zero");
+        }
+        let filho = std::process::Command::new(std::env::current_exe().expect("binário de teste"))
+            .args([
+                "--exact",
+                "tests::construtor_publico_so_registra_metadata_de_regiao_valida",
+                "--nocapture",
+            ])
+            .env("PINKER_RT_TESTE_ALOCAR_ZERO", "1")
+            .output()
+            .expect("executar filho de teste");
+        assert_eq!(
+            filho.status.code(),
+            Some(1),
+            "'alocar' com tamanho zero precisa encerrar por diagnóstico"
+        );
+        assert!(
+            String::from_utf8_lossy(&filho.stderr).contains("'alocar' rejeita tamanho zero"),
+            "diagnóstico inesperado: {}",
+            String::from_utf8_lossy(&filho.stderr)
+        );
+
+        let mut ponteiros = Vec::new();
+        for tamanho in [1_u64, 7, 8, 64, 4096, 4097] {
+            let ptr = pinker_publico_alocar(tamanho);
+            assert!(!ptr.is_null());
+            ponteiros.push(ptr);
+        }
+        {
+            let memoria = memoria_publica().lock().expect("registro público");
+            assert!(
+                !memoria.alocacoes.is_empty(),
+                "o construtor precisa ter publicado entradas"
+            );
+            for alocacao in &memoria.alocacoes {
+                assert!(
+                    alocacao.tamanho >= 1,
+                    "'alocar' recusa zero, então nenhuma entrada tem tamanho nulo"
+                );
+                assert!(
+                    alocacao.tamanho <= alocacao.reservado,
+                    "a região visível nunca excede as páginas comprometidas"
+                );
+                let fim = alocacao
+                    .base
+                    .checked_add(alocacao.tamanho)
+                    .expect("base + tamanho precisa ser representável");
+                assert_eq!(
+                    fim,
+                    fim_da_regiao(alocacao),
+                    "fim_da_regiao não pode saturar sobre metadata produtiva"
+                );
+                assert!(
+                    alocacao
+                        .base
+                        .checked_add(alocacao.reservado)
+                        .is_some_and(|limite| limite >= fim),
+                    "a reserva inteira também precisa ser representável"
+                );
+            }
+        }
+        for ptr in ponteiros {
+            unsafe { pinker_publico_liberar(ptr) };
         }
     }
     // @pinker-nav:end evidencia.runtime.validacao-acesso-publico
