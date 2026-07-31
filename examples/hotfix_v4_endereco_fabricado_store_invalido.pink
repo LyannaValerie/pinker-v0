@@ -1,0 +1,10 @@
+// Hotfix pós-PR #411 — item V4: escrita através de endereço fabricado a partir
+// de inteiro. O endereço 4096 nunca foi registrado como região pública; os dois
+// back-ends devem recusar deterministicamente, sem SIGSEGV.
+pacote main;
+
+carinho principal() -> bombom {
+    nova alvo: seta<bombom> = 4096 virar seta<bombom>;
+    *alvo = 1234;
+    mimo 0;
+}

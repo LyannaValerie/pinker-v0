@@ -2182,16 +2182,77 @@ fn lower_public_pointer_derivation(
     Ok(body)
 }
 
+/// Proveniência de um ponteiro, do ponto de vista do validador de acesso do
+/// runtime nativo.
+///
+/// A classificação decide se `deref_load`/`deref_store` passam por
+/// `pinker_publico_validar_acesso`. Antes do hotfix pós-PR #411 ela era um
+/// booleano "é público?", e converter um inteiro em ponteiro caía no ramo
+/// falso: o acesso era emitido cru e o processo morria por SIGSEGV, enquanto o
+/// interpretador diagnosticava o mesmo programa. Distinguir *fabricado* de
+/// *interno* fecha essa lacuna sem passar a validar o que não é memória
+/// pública.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum PointerProvenance {
+    /// Domínio interno do runtime — hoje, o ambiente de closure recebido como
+    /// parâmetro. Não é memória pública e não pode ser confrontado com o
+    /// registro público: validar aqui rejeitaria um acesso legítimo.
+    Internal,
+    /// Região pública: resultado de `alocar`, de uma chamada que devolve
+    /// ponteiro, de um parâmetro de ponteiro, ou derivação dessas.
+    Public,
+    /// Endereço fabricado a partir de um inteiro (`<inteiro> virar seta<T>`).
+    /// Não há proveniência para rastrear; o acesso precisa ser validado para
+    /// que o runtime recuse endereço nunca registrado em vez de escrever em
+    /// memória real.
+    Fabricated,
+    /// Nenhuma das anteriores — o ponteiro chega por um caminho que a análise
+    /// não classifica (por exemplo, carregado de memória).
+    Unclassified,
+}
+
+impl PointerProvenance {
+    /// Um acesso é validado quando o ponteiro pertence à memória pública ou
+    /// quando foi fabricado. `Internal` é a única classe deliberadamente
+    /// isenta, e `Unclassified` preserva o comportamento anterior para
+    /// caminhos que a análise não alcança.
+    fn requires_access_check(self) -> bool {
+        matches!(self, Self::Public | Self::Fabricated)
+    }
+
+    /// Combina as proveniências de várias atribuições ao mesmo destino: vence a
+    /// classe mais exigente, porque o acesso precisa ser seguro para qualquer
+    /// caminho que chegue até ele.
+    fn join(self, other: Self) -> Self {
+        for classe in [Self::Fabricated, Self::Public, Self::Internal] {
+            if self == classe || other == classe {
+                return classe;
+            }
+        }
+        Self::Unclassified
+    }
+}
+
 fn selected_operand_is_public_pointer(
     function: &crate::instr_select::SelectedFunction,
     operand: &OperandIR,
     visiting_temps: &mut HashSet<crate::cfg_ir::TempIR>,
     visiting_slots: &mut HashSet<String>,
 ) -> bool {
+    selected_operand_provenance(function, operand, visiting_temps, visiting_slots)
+        .requires_access_check()
+}
+
+fn selected_operand_provenance(
+    function: &crate::instr_select::SelectedFunction,
+    operand: &OperandIR,
+    visiting_temps: &mut HashSet<crate::cfg_ir::TempIR>,
+    visiting_slots: &mut HashSet<String>,
+) -> PointerProvenance {
     match operand {
         OperandIR::Local(slot) => {
             if function.internal_pointer_params.contains(slot) {
-                return false;
+                return PointerProvenance::Internal;
             }
             let has_assignment = function
                 .blocks
@@ -2206,12 +2267,12 @@ fn selected_operand_is_public_pointer(
                     .get(slot)
                     .is_some_and(|ty| matches!(ty, TypeIR::Pointer { .. }))
             {
-                return true;
+                return PointerProvenance::Public;
             }
             if !visiting_slots.insert(slot.clone()) {
-                return false;
+                return PointerProvenance::Unclassified;
             }
-            let public = function
+            let provenance = function
                 .blocks
                 .iter()
                 .flat_map(|block| &block.instructions)
@@ -2219,34 +2280,34 @@ fn selected_operand_is_public_pointer(
                     SelectedInstr::Mov { dest, src } if dest == slot => Some(src),
                     _ => None,
                 })
-                .any(|src| {
-                    selected_operand_is_public_pointer(
+                .fold(PointerProvenance::Unclassified, |acumulado, src| {
+                    acumulado.join(selected_operand_provenance(
                         function,
                         src,
                         visiting_temps,
                         visiting_slots,
-                    )
+                    ))
                 });
             visiting_slots.remove(slot);
-            public
+            provenance
         }
         OperandIR::Temp(temp) => {
-            selected_temp_is_public_pointer(function, *temp, visiting_temps, visiting_slots)
+            selected_temp_provenance(function, *temp, visiting_temps, visiting_slots)
         }
-        _ => false,
+        _ => PointerProvenance::Unclassified,
     }
 }
 
-fn selected_temp_is_public_pointer(
+fn selected_temp_provenance(
     function: &crate::instr_select::SelectedFunction,
     temp: crate::cfg_ir::TempIR,
     visiting_temps: &mut HashSet<crate::cfg_ir::TempIR>,
     visiting_slots: &mut HashSet<String>,
-) -> bool {
+) -> PointerProvenance {
     if !visiting_temps.insert(temp) {
-        return false;
+        return PointerProvenance::Unclassified;
     }
-    let public = function
+    let provenance = function
         .blocks
         .iter()
         .flat_map(|block| &block.instructions)
@@ -2256,33 +2317,44 @@ fn selected_temp_is_public_pointer(
                 callee,
                 ret_type,
                 ..
-            } if *dest == temp => {
-                Some(callee == "alocar" || matches!(ret_type, TypeIR::Pointer { .. }))
-            }
+            } if *dest == temp => Some(
+                if callee == "alocar" || matches!(ret_type, TypeIR::Pointer { .. }) {
+                    PointerProvenance::Public
+                } else {
+                    PointerProvenance::Unclassified
+                },
+            ),
             SelectedInstr::Cast {
                 dest,
                 value,
                 target_type,
-            } if *dest == temp && matches!(target_type, TypeIR::Pointer { .. }) => Some(
-                selected_operand_is_public_pointer(function, value, visiting_temps, visiting_slots),
-            ),
+            } if *dest == temp && matches!(target_type, TypeIR::Pointer { .. }) => {
+                let origem =
+                    selected_operand_provenance(function, value, visiting_temps, visiting_slots);
+                Some(match origem {
+                    // A origem já é um ponteiro rastreável: `virar` só muda o
+                    // tipo apontado e preserva a proveniência.
+                    PointerProvenance::Internal
+                    | PointerProvenance::Public
+                    | PointerProvenance::Fabricated => origem,
+                    // Origem sem proveniência de ponteiro: o endereço está
+                    // sendo fabricado a partir de um inteiro.
+                    PointerProvenance::Unclassified => PointerProvenance::Fabricated,
+                })
+            }
             SelectedInstr::Add { dest, lhs, rhs, .. } if *dest == temp => Some(
-                selected_operand_is_public_pointer(function, lhs, visiting_temps, visiting_slots)
-                    || selected_operand_is_public_pointer(
-                        function,
-                        rhs,
-                        visiting_temps,
-                        visiting_slots,
-                    ),
+                selected_operand_provenance(function, lhs, visiting_temps, visiting_slots).join(
+                    selected_operand_provenance(function, rhs, visiting_temps, visiting_slots),
+                ),
             ),
             SelectedInstr::Sub { dest, lhs, .. } if *dest == temp => Some(
-                selected_operand_is_public_pointer(function, lhs, visiting_temps, visiting_slots),
+                selected_operand_provenance(function, lhs, visiting_temps, visiting_slots),
             ),
             _ => None,
         })
-        .unwrap_or(false);
+        .unwrap_or(PointerProvenance::Unclassified);
     visiting_temps.remove(&temp);
-    public
+    provenance
 }
 
 fn selected_operand_is_signed(

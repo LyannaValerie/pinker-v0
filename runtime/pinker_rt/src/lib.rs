@@ -363,6 +363,119 @@ pub unsafe extern "C" fn pinker_publico_liberar(ponteiro: *mut u8) {
     );
 }
 
+/// Veredicto de um acesso à memória pública.
+///
+/// A decisão vive numa unidade **pura**, separada do efeito, pelo mesmo motivo
+/// que `union_budget_reserve`: `erro_memoria_publica` encerra o processo, então
+/// só uma função sem efeito pode ser exercitada por teste interno. Assim a
+/// matriz de endereços (não mapeado, nulo, pilha, dado estático, função,
+/// interno do runtime, região liberada, base viva, interior, primeiro e último
+/// byte, um byte depois, acesso multibyte cruzando o limite) é verificável sem
+/// derrubar o runner, e `load` e `store` compartilham exatamente o mesmo
+/// predicado — não há como divergirem.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum VeredictoAcesso {
+    Permitido,
+    MetadadosInvalidos,
+    OverflowEndereco,
+    MetadadosDeRegiaoInvalidos,
+    /// O endereço não cai em nenhuma região pública registrada. Cobre endereço
+    /// fabricado a partir de inteiro, nulo, pilha, dado estático, código,
+    /// alocação interna do runtime e mapeamento estrangeiro: para a Pinker,
+    /// nada disso é memória pública endereçável.
+    Desconhecido,
+    UsoAposLiberar,
+    Desalinhado,
+    CruzaLimite,
+    ForaDosLimites,
+}
+
+impl VeredictoAcesso {
+    /// Diagnóstico estável do veredicto. `None` para o acesso permitido.
+    fn diagnostico(self) -> Option<&'static str> {
+        match self {
+            Self::Permitido => None,
+            Self::MetadadosInvalidos => Some("metadados inválidos de acesso à memória pública"),
+            Self::OverflowEndereco => {
+                Some("E-RUNTIME-MEM-ADDRESS-OVERFLOW: overflow no acesso à memória pública")
+            }
+            Self::MetadadosDeRegiaoInvalidos => {
+                Some("E-RUNTIME-MEM-ADDRESS-OVERFLOW: metadados de região pública inválidos")
+            }
+            Self::Desconhecido => {
+                Some("E-RUNTIME-MEM-UNKNOWN-ACCESS: acesso sem região pública registrada")
+            }
+            Self::UsoAposLiberar => {
+                Some("E-RUNTIME-MEM-USE-AFTER-FREE: uso após liberar detectado em memória pública")
+            }
+            Self::Desalinhado => {
+                Some("E-RUNTIME-MEM-MISALIGNED: acesso desalinhado à memória pública")
+            }
+            Self::CruzaLimite => Some(
+                "E-RUNTIME-MEM-CROSS-BOUNDARY: acesso multibyte cruza o limite da alocação pública",
+            ),
+            Self::ForaDosLimites => {
+                Some("E-RUNTIME-MEM-OUT-OF-BOUNDS: acesso fora dos limites da alocação pública")
+            }
+        }
+    }
+}
+
+/// Classifica um acesso contra o registro público, sem efeito colateral.
+///
+/// A ordem das verificações é o contrato: metadados do acesso, overflow do
+/// intervalo, existência da região, estado vivo, alinhamento e, por fim,
+/// contenção — distinguindo interior que cruza o limite de acesso que começa
+/// antes da base.
+fn classificar_acesso_publico(
+    registro: &[AlocacaoPublica],
+    endereco: usize,
+    largura: usize,
+    alinhamento: usize,
+) -> VeredictoAcesso {
+    if largura == 0 || alinhamento == 0 || !alinhamento.is_power_of_two() {
+        return VeredictoAcesso::MetadadosInvalidos;
+    }
+    let Some(fim_acesso) = endereco.checked_add(largura) else {
+        return VeredictoAcesso::OverflowEndereco;
+    };
+    let candidata = registro.iter().rev().find(|alocacao| {
+        let Some(fim) = alocacao.base.checked_add(alocacao.tamanho) else {
+            return false;
+        };
+        (endereco >= alocacao.base && endereco <= fim)
+            || (endereco < alocacao.base && fim_acesso > alocacao.base)
+    });
+    let Some(alocacao) = candidata else {
+        return VeredictoAcesso::Desconhecido;
+    };
+    if !alocacao.viva {
+        return VeredictoAcesso::UsoAposLiberar;
+    }
+    if endereco % alinhamento != 0 {
+        return VeredictoAcesso::Desalinhado;
+    }
+    let Ok(contido) = intervalo_publico_contido(alocacao.base, alocacao.tamanho, endereco, largura)
+    else {
+        return VeredictoAcesso::MetadadosDeRegiaoInvalidos;
+    };
+    if contido {
+        return VeredictoAcesso::Permitido;
+    }
+    if endereco >= alocacao.base {
+        VeredictoAcesso::CruzaLimite
+    } else {
+        VeredictoAcesso::ForaDosLimites
+    }
+}
+
+/// Fase 246 + hotfix pós-PR #411 (V4): validação de `deref_load`/`deref_store`
+/// sobre memória pública.
+///
+/// O back-end nativo emite esta chamada para todo acesso através de ponteiro de
+/// proveniência pública **ou fabricada** (`<inteiro> virar seta<T>`). Endereço
+/// nunca registrado é recusado aqui, com diagnóstico estável, em vez de virar
+/// escrita em memória real e SIGSEGV.
 #[no_mangle]
 pub extern "C" fn pinker_publico_validar_acesso(
     ponteiro: *const u8,
@@ -374,48 +487,12 @@ pub extern "C" fn pinker_publico_validar_acesso(
         .unwrap_or_else(|_| erro_memoria_publica("largura de acesso excede a plataforma"));
     let alinhamento = usize::try_from(alinhamento)
         .unwrap_or_else(|_| erro_memoria_publica("alinhamento de acesso excede a plataforma"));
-    if largura == 0 || alinhamento == 0 || !alinhamento.is_power_of_two() {
-        erro_memoria_publica("metadados inválidos de acesso à memória pública");
-    }
-    let fim_acesso = endereco.checked_add(largura).unwrap_or_else(|| {
-        erro_memoria_publica("E-RUNTIME-MEM-ADDRESS-OVERFLOW: overflow no acesso à memória pública")
-    });
     let memoria = memoria_publica()
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
-    let candidata = memoria.alocacoes.iter().rev().find(|alocacao| {
-        let Some(fim) = alocacao.base.checked_add(alocacao.tamanho) else {
-            return false;
-        };
-        (endereco >= alocacao.base && endereco <= fim)
-            || (endereco < alocacao.base && fim_acesso > alocacao.base)
-    });
-    let Some(alocacao) = candidata else {
-        erro_memoria_publica("E-RUNTIME-MEM-UNKNOWN-ACCESS: acesso sem região pública registrada");
-    };
-    if !alocacao.viva {
-        erro_memoria_publica(
-            "E-RUNTIME-MEM-USE-AFTER-FREE: uso após liberar detectado em memória pública",
-        );
-    }
-    if endereco % alinhamento != 0 {
-        erro_memoria_publica("E-RUNTIME-MEM-MISALIGNED: acesso desalinhado à memória pública");
-    }
-    let contido = intervalo_publico_contido(alocacao.base, alocacao.tamanho, endereco, largura)
-        .unwrap_or_else(|_| {
-            erro_memoria_publica(
-                "E-RUNTIME-MEM-ADDRESS-OVERFLOW: metadados de região pública inválidos",
-            )
-        });
-    if !contido {
-        if endereco >= alocacao.base {
-            erro_memoria_publica(
-                "E-RUNTIME-MEM-CROSS-BOUNDARY: acesso multibyte cruza o limite da alocação pública",
-            );
-        }
-        erro_memoria_publica(
-            "E-RUNTIME-MEM-OUT-OF-BOUNDS: acesso fora dos limites da alocação pública",
-        );
+    let veredicto = classificar_acesso_publico(&memoria.alocacoes, endereco, largura, alinhamento);
+    if let Some(diagnostico) = veredicto.diagnostico() {
+        erro_memoria_publica(diagnostico);
     }
 }
 
@@ -3126,6 +3203,311 @@ mod tests {
     }
 
     // @pinker-nav:end evidencia.runtime.memoria-alocador
+
+    // @pinker-nav:start evidencia.runtime.validacao-acesso-publico
+    // @pinker-nav:domain memoria
+    // @pinker-nav:layer evidencia
+    // @pinker-nav:summary Matriz do veredicto de acesso à memória pública (hotfix pós-PR #411, item V4) sobre a unidade pura `classificar_acesso_publico`: endereços não registrados (4096 não mapeado, nulo, pilha, dado estático, função, alocação interna do runtime, mapeamento estrangeiro válido) recusados como E-RUNTIME-MEM-UNKNOWN-ACCESS; região liberada como use-after-free; base viva, interior, primeiro e último byte válidos permitidos; um byte após a região e acesso multibyte cruzando o limite recusados; e a matriz de larguras 1/2/4/8 com os alinhamentos correspondentes, idêntica para load e store porque ambos compartilham o mesmo predicado.
+    /// Registro sintético com uma região viva de 64 bytes e uma liberada de 16,
+    /// em endereços que não colidem com nada real do processo.
+    fn registro_de_teste() -> Vec<AlocacaoPublica> {
+        vec![
+            AlocacaoPublica {
+                identidade: 1,
+                base: 0x4000_0000,
+                tamanho: 64,
+                reservado: PAGINA_PUBLICA,
+                viva: true,
+            },
+            AlocacaoPublica {
+                identidade: 2,
+                base: 0x5000_0000,
+                tamanho: 16,
+                reservado: PAGINA_PUBLICA,
+                viva: false,
+            },
+        ]
+    }
+
+    /// Larguras e alinhamentos operacionais dos tipos escalares endereçáveis:
+    /// `u8`/`i8`/`logica` (1), `u16`/`i16` (2), `u32`/`i32` (4) e
+    /// `u64`/`i64`/`bombom` (8).
+    const LARGURAS_OPERACIONAIS: [usize; 4] = [1, 2, 4, 8];
+
+    #[test]
+    fn acesso_a_endereco_nunca_registrado_e_recusado_em_toda_largura() {
+        let registro = registro_de_teste();
+        let pilha = 0_u64;
+        static ESTATICO: u64 = 0;
+        fn funcao_alvo() {}
+
+        let interno = pinker_alocar(32);
+        let candidatos: [(&str, usize); 7] = [
+            ("4096 não mapeado", 4096),
+            ("nulo", 0),
+            ("pilha", std::ptr::addr_of!(pilha) as usize),
+            ("dado estático", std::ptr::addr_of!(ESTATICO) as usize),
+            ("função", funcao_alvo as usize),
+            ("interno do runtime", interno as usize),
+            // Mapeamento estrangeiro válido: a arena pública existe, mas este
+            // offset não pertence a nenhuma região registrada.
+            ("mapeamento estrangeiro", 0x4000_0000 + PAGINA_PUBLICA * 4),
+        ];
+
+        for (rotulo, endereco) in candidatos {
+            for largura in LARGURAS_OPERACIONAIS {
+                // O endereço é alinhado para a largura sob teste, de modo que a
+                // recusa venha da ausência de região e não do alinhamento.
+                let alinhado = endereco & !(largura - 1);
+                assert_eq!(
+                    classificar_acesso_publico(&registro, alinhado, largura, largura),
+                    VeredictoAcesso::Desconhecido,
+                    "{rotulo} com largura {largura} deveria ser recusado"
+                );
+            }
+        }
+        unsafe { pinker_liberar(interno) };
+    }
+
+    #[test]
+    fn acessos_validos_sao_permitidos_em_toda_largura() {
+        let registro = registro_de_teste();
+        let base = 0x4000_0000_usize;
+        for largura in LARGURAS_OPERACIONAIS {
+            for (rotulo, endereco) in [
+                ("base viva", base),
+                ("interior válido", base + 16),
+                ("primeiro byte", base),
+                ("último byte válido", base + 64 - largura),
+            ] {
+                assert_eq!(
+                    classificar_acesso_publico(&registro, endereco, largura, largura),
+                    VeredictoAcesso::Permitido,
+                    "{rotulo} com largura {largura} deveria ser permitido"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn limites_da_regiao_sao_recusados_com_diagnostico_proprio() {
+        let registro = registro_de_teste();
+        let base = 0x4000_0000_usize;
+
+        // Um byte após a região: começa dentro do intervalo [base, fim] mas o
+        // acesso não cabe.
+        assert_eq!(
+            classificar_acesso_publico(&registro, base + 64, 1, 1),
+            VeredictoAcesso::CruzaLimite
+        );
+        // Acesso multibyte que começa dentro da região e termina depois dela.
+        // O alinhamento exigido é 1 para que a recusa venha da contenção, e
+        // não do alinhamento.
+        for largura in [2, 4, 8] {
+            let inicio = base + 64 - largura + 1;
+            assert_eq!(
+                classificar_acesso_publico(&registro, inicio, largura, 1),
+                VeredictoAcesso::CruzaLimite,
+                "largura {largura} começando em {inicio:#x} deveria cruzar o limite"
+            );
+            // O mesmo acesso, um byte antes, ainda cabe: prova que a fronteira
+            // testada é exatamente o último byte válido.
+            assert_eq!(
+                classificar_acesso_publico(&registro, inicio - 1, largura, 1),
+                VeredictoAcesso::Permitido,
+                "largura {largura} deveria caber terminando no último byte"
+            );
+        }
+        // Acesso que começa antes da base e invade a região.
+        assert_eq!(
+            classificar_acesso_publico(&registro, base - 4, 8, 1),
+            VeredictoAcesso::ForaDosLimites
+        );
+    }
+
+    #[test]
+    fn regiao_liberada_e_desalinhamento_tem_veredictos_distintos() {
+        let registro = registro_de_teste();
+        assert_eq!(
+            classificar_acesso_publico(&registro, 0x5000_0000, 8, 8),
+            VeredictoAcesso::UsoAposLiberar
+        );
+        assert_eq!(
+            classificar_acesso_publico(&registro, 0x4000_0001, 8, 8),
+            VeredictoAcesso::Desalinhado
+        );
+    }
+
+    #[test]
+    fn metadados_invalidos_e_overflow_sao_classificados_antes_do_registro() {
+        let registro = registro_de_teste();
+        assert_eq!(
+            classificar_acesso_publico(&registro, 0x4000_0000, 0, 8),
+            VeredictoAcesso::MetadadosInvalidos
+        );
+        assert_eq!(
+            classificar_acesso_publico(&registro, 0x4000_0000, 8, 0),
+            VeredictoAcesso::MetadadosInvalidos
+        );
+        assert_eq!(
+            classificar_acesso_publico(&registro, 0x4000_0000, 8, 3),
+            VeredictoAcesso::MetadadosInvalidos
+        );
+        assert_eq!(
+            classificar_acesso_publico(&registro, usize::MAX, 8, 1),
+            VeredictoAcesso::OverflowEndereco
+        );
+    }
+
+    #[test]
+    fn todo_veredicto_recusado_tem_diagnostico_estavel() {
+        assert_eq!(VeredictoAcesso::Permitido.diagnostico(), None);
+        for veredicto in [
+            VeredictoAcesso::MetadadosInvalidos,
+            VeredictoAcesso::OverflowEndereco,
+            VeredictoAcesso::MetadadosDeRegiaoInvalidos,
+            VeredictoAcesso::Desconhecido,
+            VeredictoAcesso::UsoAposLiberar,
+            VeredictoAcesso::Desalinhado,
+            VeredictoAcesso::CruzaLimite,
+            VeredictoAcesso::ForaDosLimites,
+        ] {
+            let diagnostico = veredicto.diagnostico().expect("veredicto recusado");
+            assert!(!diagnostico.is_empty());
+        }
+        assert_eq!(
+            VeredictoAcesso::Desconhecido.diagnostico(),
+            Some("E-RUNTIME-MEM-UNKNOWN-ACCESS: acesso sem região pública registrada")
+        );
+    }
+
+    /// Não há registro vazio permissivo: sem nenhuma região registrada, todo
+    /// endereço é recusado. Esta é a garantia que faltava antes do hotfix.
+    #[test]
+    fn registro_vazio_nao_permite_nenhum_acesso() {
+        for endereco in [0, 1, 4096, 0x4000_0000, usize::MAX / 2] {
+            assert_eq!(
+                classificar_acesso_publico(&[], endereco, 1, 1),
+                VeredictoAcesso::Desconhecido,
+                "endereço {endereco:#x} não pode ser aceito com registro vazio"
+            );
+        }
+    }
+    // @pinker-nav:end evidencia.runtime.validacao-acesso-publico
+
+    // @pinker-nav:start evidencia.runtime.cota-identidades-publicas
+    // @pinker-nav:domain memoria
+    // @pinker-nav:layer evidencia
+    // @pinker-nav:summary Evidência da cota vitalícia de identidades públicas (hotfix pós-PR #411, item V3): a unidade contada é a entrada de registro, liberar não devolve capacidade, identidades concedidas são estritamente crescentes e nunca reutilizadas, o esgotamento é irrecuperável no mesmo processo, e o diagnóstico é estável — verificado também de ponta a ponta num filho re-executado com o limite reduzido pela configuração interna de teste, sem interruptor público.
+    #[test]
+    fn identidade_publica_e_concedida_ate_a_cota_e_depois_esgota() {
+        // A cota conta entradas de registro, não alocações vivas.
+        for registradas in 0..4_usize {
+            assert!(matches!(
+                reservar_identidade_publica(registradas, 1, 4),
+                ReservaIdentidade::Concedida { .. }
+            ));
+        }
+        assert_eq!(
+            reservar_identidade_publica(4, 1, 4),
+            ReservaIdentidade::Esgotada
+        );
+        // Uma vez esgotada, continua esgotada: não há recuperação no processo.
+        assert_eq!(
+            reservar_identidade_publica(9_999, 1, 4),
+            ReservaIdentidade::Esgotada
+        );
+    }
+
+    #[test]
+    fn liberar_nao_devolve_capacidade_de_identidade() {
+        // Simula o laço `alocar(1024) + liberar` sempre pareado: nunca há mais
+        // de uma alocação viva, mas o registro cresce a cada ciclo e as
+        // identidades nunca se repetem.
+        let limite = 8;
+        let mut registradas = 0_usize;
+        let mut proxima = 1_u64;
+        let mut concedidas = Vec::new();
+        loop {
+            match reservar_identidade_publica(registradas, proxima, limite) {
+                ReservaIdentidade::Concedida {
+                    identidade,
+                    proxima: seguinte,
+                } => {
+                    concedidas.push(identidade);
+                    proxima = seguinte;
+                    // `liberar` marcaria `viva = false` sem remover a entrada.
+                    registradas += 1;
+                }
+                ReservaIdentidade::Esgotada => break,
+                ReservaIdentidade::Exaurida => panic!("contador não deveria estourar"),
+            }
+        }
+        assert_eq!(concedidas.len(), limite, "a cota é exatamente o limite");
+        let mut unicas = concedidas.clone();
+        unicas.sort_unstable();
+        unicas.dedup();
+        assert_eq!(unicas, concedidas, "identidades não podem se repetir");
+        assert!(
+            concedidas.windows(2).all(|par| par[0] < par[1]),
+            "identidades precisam ser estritamente crescentes"
+        );
+    }
+
+    #[test]
+    fn contador_de_identidade_saturado_e_classificado() {
+        assert_eq!(
+            reservar_identidade_publica(0, u64::MAX, usize::MAX),
+            ReservaIdentidade::Exaurida
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn esgotamento_de_identidade_tem_diagnostico_estavel() {
+        const LIMITE_REDUZIDO: usize = 4;
+        if std::env::var_os("PINKER_RT_TESTE_COTA_IDENTIDADE").is_some() {
+            LIMITE_IDENTIDADES_PUBLICAS_TESTE.store(LIMITE_REDUZIDO, Ordering::SeqCst);
+            // Alocação e liberação sempre pareadas: os bytes voltam a cada
+            // ciclo, mas a capacidade de identidade não. O ciclo seguinte à
+            // cota precisa falhar mesmo sem nenhuma alocação viva.
+            for _ in 0..LIMITE_REDUZIDO {
+                let ponteiro = pinker_publico_alocar(16);
+                assert!(!ponteiro.is_null());
+                unsafe { pinker_publico_liberar(ponteiro) };
+            }
+            let _ = pinker_publico_alocar(16);
+            unreachable!("a alocação além da cota deveria encerrar o processo");
+        }
+
+        let filho = std::process::Command::new(std::env::current_exe().expect("binário de teste"))
+            .args([
+                "--exact",
+                "tests::esgotamento_de_identidade_tem_diagnostico_estavel",
+                "--nocapture",
+            ])
+            .env("PINKER_RT_TESTE_COTA_IDENTIDADE", "1")
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .expect("executar filho da cota de identidade");
+
+        assert_eq!(
+            filho.status.code(),
+            Some(1),
+            "o esgotamento precisa encerrar pelo diagnóstico controlado"
+        );
+        let stderr = String::from_utf8_lossy(&filho.stderr);
+        assert!(
+            stderr.contains("limite de identidades públicas esgotado"),
+            "diagnóstico de esgotamento instável: {stderr}"
+        );
+        assert!(
+            !stderr.contains("panicked at"),
+            "o esgotamento não pode virar panic: {stderr}"
+        );
+    }
+    // @pinker-nav:end evidencia.runtime.cota-identidades-publicas
 
     // @pinker-nav:start evidencia.runtime.inicializacao-abi
     // @pinker-nav:domain inicializacao

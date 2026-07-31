@@ -1,0 +1,8 @@
+// Hotfix pós-PR #411 — item V4: escrita através do endereço nulo fabricado.
+pacote main;
+
+carinho principal() -> bombom {
+    nova alvo: seta<bombom> = 0 virar seta<bombom>;
+    *alvo = 7;
+    mimo 0;
+}

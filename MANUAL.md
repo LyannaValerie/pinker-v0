@@ -340,10 +340,39 @@ paridade entre interpretador e nativo. Cargas assinadas preservam o sinal
 também nas comparações relacionais subsequentes.
 
 A validação pública falha fechada quando recebe endereço sem região gerenciada
-candidata. O compilador transporta proveniência pelo lowering e só emite essa
-validação para ponteiros públicos; ponteiros internos e ponteiros raw
-fabricados seguem domínios distintos. Cast de inteiro para ponteiro permanece
-fora da promessa de segurança de memória.
+candidata: sem nenhuma região registrada, nenhum endereço é aceito. O compilador
+transporta proveniência pelo lowering e classifica cada ponteiro em três
+domínios:
+
+- **público** — resultado de `alocar`, de uma chamada que devolve `seta<T>`, de
+  um parâmetro de ponteiro, ou derivação desses;
+- **interno** — estruturas do próprio runtime, hoje o ambiente de closure
+  recebido como parâmetro;
+- **fabricado** — endereço construído a partir de um inteiro
+  (`<inteiro> virar seta<T>`), sem proveniência para rastrear.
+
+Load e store através de ponteiro **público ou fabricado** passam pelo mesmo
+validador, com o mesmo predicado, nos dois back-ends: não há operação com
+verificação mais fraca que a outra. Só o domínio interno é isento, porque não é
+memória pública e confrontá-lo com o registro público rejeitaria acesso
+legítimo.
+
+Cast de inteiro para ponteiro continua **fora da promessa de segurança de
+memória** — a linguagem não passa a garantir que o endereço fabricado é
+utilizável. O que passa a valer é mais estreito e verificável: o acesso por
+endereço fabricado falha de forma determinística, com diagnóstico
+(`E-RUNTIME-MEM-UNKNOWN-ACCESS`) e exit 1, em vez de escrever em memória real e
+derrubar o processo por `SIGSEGV`. Nenhum programa Pinker deve terminar por
+sinal de memória.
+
+Fica um limite honesto entre os dois modos: o interpretador tem um espaço de
+endereços **sintético**, no qual inteiros pequenos podem coincidir com globais
+escalares declaradas — `examples/fase71_cast_memoria_valido.pink` é o caso
+histórico, válido no interpretador porque o endereço `1` é uma global. O
+nativo executa em memória real e não tem esse mapa. Os dois back-ends concordam
+em *recusar deterministicamente* endereço não registrado; eles não concordam
+sobre *quais* endereços fabricados são válidos, e essa parte é intrínseca ao
+modelo de execução, não uma lacuna a fechar.
 
 Os registros de região, vida e próxima identidade pertencem ao estado interno
 do interpretador, fora do mapa endereçável pelo programa. Assim, casts de

@@ -102,6 +102,12 @@ Localização principal:
 - `src/backend_s.rs`;
 - `tests/semantic_tests.rs`, `tests/interpreter_tests.rs`, `tests/backend_s_external_toolchain_tests.rs`.
 
+Ponteiro fabricado por `<inteiro> virar seta<T>` é validado como acesso público
+— falha determinística, nunca `SIGSEGV` —, mas continua fora da promessa de
+segurança de memória: os back-ends concordam em recusar endereço não
+registrado, não sobre quais endereços fabricados são válidos. Expansões não
+devem devolver essa classe ao caminho não validado.
+
 ### 4.3 Texto, arquivos, caminho e ambiente
 
 Exemplos históricos:
