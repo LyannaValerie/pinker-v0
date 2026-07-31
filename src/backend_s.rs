@@ -2189,33 +2189,44 @@ fn lower_public_pointer_derivation(
 /// `pinker_publico_validar_acesso`. Antes do hotfix pós-PR #411 ela era um
 /// booleano "é público?", e converter um inteiro em ponteiro caía no ramo
 /// falso: o acesso era emitido cru e o processo morria por SIGSEGV, enquanto o
-/// interpretador diagnosticava o mesmo programa. Distinguir *fabricado* de
-/// *interno* fecha essa lacuna sem passar a validar o que não é memória
-/// pública.
+/// interpretador diagnosticava o mesmo programa.
+///
+/// São **quatro** classes, e as duas últimas não são a mesma coisa:
+/// `Fabricated` afirma que a origem é um valor não-ponteiro; `Unclassified`
+/// afirma apenas que a origem não foi determinada. Confundir as duas foi o
+/// defeito apontado na revisão do head `3725118` — um cast entre tipos de
+/// ponteiro promovia `Unclassified` a `Fabricated` só por falta de informação.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum PointerProvenance {
     /// Domínio interno do runtime — hoje, o ambiente de closure recebido como
     /// parâmetro. Não é memória pública e não pode ser confrontado com o
     /// registro público: validar aqui rejeitaria um acesso legítimo.
     Internal,
-    /// Região pública: resultado de `alocar`, de uma chamada que devolve
-    /// ponteiro, de um parâmetro de ponteiro, ou derivação dessas.
+    /// Região pública conhecida: resultado de `alocar`, de uma chamada que
+    /// devolve ponteiro — em **qualquer** forma de chamada, ver
+    /// `selected_call_provenance` —, de um parâmetro de ponteiro, ou derivação
+    /// dessas.
     Public,
-    /// Endereço fabricado a partir de um inteiro (`<inteiro> virar seta<T>`).
-    /// Não há proveniência para rastrear; o acesso precisa ser validado para
-    /// que o runtime recuse endereço nunca registrado em vez de escrever em
-    /// memória real.
+    /// Endereço construído a partir de um valor **não-ponteiro**, tipicamente
+    /// um inteiro (`<inteiro> virar seta<T>`). Não há proveniência para
+    /// rastrear; o acesso precisa ser validado para que o runtime recuse
+    /// endereço nunca registrado em vez de escrever em memória real.
     Fabricated,
-    /// Nenhuma das anteriores — o ponteiro chega por um caminho que a análise
-    /// não classifica (por exemplo, carregado de memória).
+    /// Ponteiro cuja origem não foi determinada pela análise atual — por
+    /// exemplo, carregado de memória.
+    ///
+    /// Não é sinônimo de inteiro, e não recebe a garantia de falha controlada:
+    /// é um limite conhecido, documentado em `MANUAL.md`. Fechar a classe exige
+    /// análise de domínio com contrato próprio; tratá-la como exigente foi
+    /// testado e rejeita acesso legítimo de closure.
     Unclassified,
 }
 
 impl PointerProvenance {
     /// Um acesso é validado quando o ponteiro pertence à memória pública ou
-    /// quando foi fabricado. `Internal` é a única classe deliberadamente
-    /// isenta, e `Unclassified` preserva o comportamento anterior para
-    /// caminhos que a análise não alcança.
+    /// quando foi fabricado. `Internal` é isenta porque tem domínio próprio, e
+    /// `Unclassified` fica de fora como limite reconhecido — não como
+    /// afirmação de que aquele acesso é seguro.
     fn requires_access_check(self) -> bool {
         matches!(self, Self::Public | Self::Fabricated)
     }
@@ -2241,6 +2252,183 @@ fn selected_operand_is_public_pointer(
 ) -> bool {
     selected_operand_provenance(function, operand, visiting_temps, visiting_slots)
         .requires_access_check()
+}
+
+/// Forma de chamada selecionada, reduzida ao que a proveniência precisa saber.
+///
+/// `dest` é `None` para a chamada sem valor de retorno.
+struct SelectedCallShape<'a> {
+    dest: Option<crate::cfg_ir::TempIR>,
+    /// Símbolo chamado, quando a chamada é por nome. `None` nas formas
+    /// indiretas — chamada por valor callable, por endereço cru de código ou
+    /// por slot de vtable.
+    callee: Option<&'a str>,
+    ret_type: TypeIR,
+}
+
+/// **Autoridade única** sobre as formas de chamada do IR selecionado.
+///
+/// Toda regra que dependa de "isto é uma chamada, e o que ela devolve" passa por
+/// aqui, para que nenhuma forma nova entre no back-end classificada por engano
+/// em um braço isolado. `CallVoid` fica de fora de propósito: não produz valor,
+/// logo não produz proveniência nem tipo de destino.
+fn selected_call_shape(instruction: &SelectedInstr) -> Option<SelectedCallShape<'_>> {
+    match instruction {
+        SelectedInstr::Call {
+            dest,
+            callee,
+            ret_type,
+            ..
+        } => Some(SelectedCallShape {
+            dest: Some(*dest),
+            callee: Some(callee.as_str()),
+            ret_type: *ret_type,
+        }),
+        SelectedInstr::CallIndirect { dest, ret_type, .. } => Some(SelectedCallShape {
+            dest: Some(*dest),
+            callee: None,
+            ret_type: *ret_type,
+        }),
+        SelectedInstr::CallRaw { dest, ret_type, .. }
+        | SelectedInstr::TraitCall { dest, ret_type, .. } => Some(SelectedCallShape {
+            dest: *dest,
+            callee: None,
+            ret_type: *ret_type,
+        }),
+        _ => None,
+    }
+}
+
+/// Proveniência do valor devolvido por uma chamada, qualquer que seja a forma.
+///
+/// O que decide é o **tipo de retorno**, não a forma do alvo: uma função que
+/// devolve `seta<T>` devolve ponteiro de região pública tanto chamada por
+/// símbolo quanto por valor callable, por endereço cru de código ou por slot de
+/// vtable. Classificar só a forma direta como `Public` deixava o resultado das
+/// formas indiretas fora da validação, e o acesso após `liberar` descia cru:
+/// o processo morria por SIGSEGV em vez de diagnosticar
+/// `E-RUNTIME-MEM-USE-AFTER-FREE`.
+///
+/// Retorno que não é ponteiro nunca vira `Public`.
+fn selected_call_provenance(
+    instruction: &SelectedInstr,
+    temp: crate::cfg_ir::TempIR,
+) -> Option<PointerProvenance> {
+    let shape = selected_call_shape(instruction)?;
+    if shape.dest != Some(temp) {
+        return None;
+    }
+    Some(
+        if shape.callee == Some("alocar") || matches!(shape.ret_type, TypeIR::Pointer { .. }) {
+            PointerProvenance::Public
+        } else {
+            PointerProvenance::Unclassified
+        },
+    )
+}
+
+/// O operando já é **tipado** como ponteiro no ponto da seleção?
+///
+/// Distingue "a análise não sabe de onde veio" de "não é ponteiro". Só a
+/// segunda situação fabrica endereço num `virar seta<T>`; a primeira apenas
+/// troca o tipo apontado.
+///
+/// A autoridade de tipos é a que o pipeline já transporta — `slot_types` para
+/// locais e parâmetros, e o tipo que cada instrução selecionada carrega no seu
+/// próprio destino. Não existe tabela paralela, e nada aqui olha nome de slot,
+/// texto emitido ou qualquer outra heurística: ausência de informação responde
+/// `false`, que é o lado conservador (o acesso passa a ser validado).
+fn selected_operand_is_pointer_typed(
+    function: &crate::instr_select::SelectedFunction,
+    operand: &OperandIR,
+) -> bool {
+    matches!(
+        selected_operand_type(function, operand),
+        Some(TypeIR::Pointer { .. })
+    )
+}
+
+fn selected_operand_type(
+    function: &crate::instr_select::SelectedFunction,
+    operand: &OperandIR,
+) -> Option<TypeIR> {
+    match operand {
+        OperandIR::Local(slot) => function.slot_types.get(slot).copied(),
+        OperandIR::Temp(temp) => selected_temp_type(function, *temp),
+        // Literais e referências de símbolo não são ponteiro de dados: um
+        // `virar seta<T>` sobre eles fabrica endereço.
+        _ => None,
+    }
+}
+
+/// Tipo do temporário, lido da instrução que o define.
+///
+/// Cada variante devolve o tipo do **destino**, não o tipo dos operandos: por
+/// isso as comparações respondem `Logica` mesmo quando comparam ponteiros.
+/// Variantes cujo destino não tem tipo transportado respondem `None`.
+fn selected_temp_type(
+    function: &crate::instr_select::SelectedFunction,
+    temp: crate::cfg_ir::TempIR,
+) -> Option<TypeIR> {
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find_map(|instruction| {
+            if let Some(shape) = selected_call_shape(instruction) {
+                return (shape.dest == Some(temp)).then_some(shape.ret_type);
+            }
+            match instruction {
+                SelectedInstr::Cast {
+                    dest, target_type, ..
+                } if *dest == temp => Some(*target_type),
+                SelectedInstr::DerefLoad { dest, ty, .. }
+                | SelectedInstr::Neg { dest, ty, .. }
+                | SelectedInstr::BitNot { dest, ty, .. }
+                | SelectedInstr::BitAnd { dest, ty, .. }
+                | SelectedInstr::BitOr { dest, ty, .. }
+                | SelectedInstr::BitXor { dest, ty, .. }
+                | SelectedInstr::Shl { dest, ty, .. }
+                | SelectedInstr::Shr { dest, ty, .. }
+                | SelectedInstr::Add { dest, ty, .. }
+                | SelectedInstr::Sub { dest, ty, .. }
+                | SelectedInstr::Mul { dest, ty, .. }
+                | SelectedInstr::Div { dest, ty, .. }
+                | SelectedInstr::Mod { dest, ty, .. }
+                    if *dest == temp =>
+                {
+                    Some(*ty)
+                }
+                // Destino lógico: `ty` descreve os operandos comparados, nunca o
+                // resultado. Confundir os dois faria uma comparação de ponteiros
+                // parecer um ponteiro.
+                SelectedInstr::Not { dest, .. }
+                | SelectedInstr::CmpEq { dest, .. }
+                | SelectedInstr::CmpNe { dest, .. }
+                | SelectedInstr::CmpLt { dest, .. }
+                | SelectedInstr::CmpLe { dest, .. }
+                | SelectedInstr::CmpGt { dest, .. }
+                | SelectedInstr::CmpGe { dest, .. }
+                    if *dest == temp =>
+                {
+                    Some(TypeIR::Logica)
+                }
+                SelectedInstr::UnionInject {
+                    dest,
+                    union_type_id,
+                    ..
+                } if *dest == temp => Some(TypeIR::Union(*union_type_id)),
+                SelectedInstr::UnionExtract {
+                    dest, payload_type, ..
+                } if *dest == temp => Some(*payload_type),
+                SelectedInstr::UnionTag { dest, .. } if *dest == temp => Some(TypeIR::U64),
+                SelectedInstr::MakeClosure { dest, .. } if *dest == temp => Some(TypeIR::Function),
+                SelectedInstr::MakeTraitObject { dest, .. } if *dest == temp => {
+                    Some(TypeIR::TraitObject)
+                }
+                _ => None,
+            }
+        })
 }
 
 fn selected_operand_provenance(
@@ -2311,46 +2499,56 @@ fn selected_temp_provenance(
         .blocks
         .iter()
         .flat_map(|block| &block.instructions)
-        .find_map(|instruction| match instruction {
-            SelectedInstr::Call {
-                dest,
-                callee,
-                ret_type,
-                ..
-            } if *dest == temp => Some(
-                if callee == "alocar" || matches!(ret_type, TypeIR::Pointer { .. }) {
-                    PointerProvenance::Public
-                } else {
-                    PointerProvenance::Unclassified
-                },
-            ),
-            SelectedInstr::Cast {
-                dest,
-                value,
-                target_type,
-            } if *dest == temp && matches!(target_type, TypeIR::Pointer { .. }) => {
-                let origem =
-                    selected_operand_provenance(function, value, visiting_temps, visiting_slots);
-                Some(match origem {
-                    // A origem já é um ponteiro rastreável: `virar` só muda o
-                    // tipo apontado e preserva a proveniência.
-                    PointerProvenance::Internal
-                    | PointerProvenance::Public
-                    | PointerProvenance::Fabricated => origem,
-                    // Origem sem proveniência de ponteiro: o endereço está
-                    // sendo fabricado a partir de um inteiro.
-                    PointerProvenance::Unclassified => PointerProvenance::Fabricated,
-                })
+        .find_map(|instruction| {
+            if let Some(provenance) = selected_call_provenance(instruction, temp) {
+                return Some(provenance);
             }
-            SelectedInstr::Add { dest, lhs, rhs, .. } if *dest == temp => Some(
-                selected_operand_provenance(function, lhs, visiting_temps, visiting_slots).join(
-                    selected_operand_provenance(function, rhs, visiting_temps, visiting_slots),
+            match instruction {
+                SelectedInstr::Cast {
+                    dest,
+                    value,
+                    target_type,
+                } if *dest == temp && matches!(target_type, TypeIR::Pointer { .. }) => {
+                    let origem = selected_operand_provenance(
+                        function,
+                        value,
+                        visiting_temps,
+                        visiting_slots,
+                    );
+                    Some(match origem {
+                        // A origem já é um ponteiro rastreável: `virar` só muda o
+                        // tipo apontado e preserva a proveniência.
+                        PointerProvenance::Internal
+                        | PointerProvenance::Public
+                        | PointerProvenance::Fabricated => origem,
+                        // Proveniência desconhecida não é o mesmo que origem
+                        // inteira. Quem decide é o **tipo operacional** da origem:
+                        // ponteiro→ponteiro só troca o tipo apontado e preserva a
+                        // classe; só a conversão de um valor não-ponteiro
+                        // (tipicamente um inteiro) fabrica um endereço.
+                        PointerProvenance::Unclassified => {
+                            if selected_operand_is_pointer_typed(function, value) {
+                                PointerProvenance::Unclassified
+                            } else {
+                                PointerProvenance::Fabricated
+                            }
+                        }
+                    })
+                }
+                SelectedInstr::Add { dest, lhs, rhs, .. } if *dest == temp => Some(
+                    selected_operand_provenance(function, lhs, visiting_temps, visiting_slots)
+                        .join(selected_operand_provenance(
+                            function,
+                            rhs,
+                            visiting_temps,
+                            visiting_slots,
+                        )),
                 ),
-            ),
-            SelectedInstr::Sub { dest, lhs, .. } if *dest == temp => Some(
-                selected_operand_provenance(function, lhs, visiting_temps, visiting_slots),
-            ),
-            _ => None,
+                SelectedInstr::Sub { dest, lhs, .. } if *dest == temp => Some(
+                    selected_operand_provenance(function, lhs, visiting_temps, visiting_slots),
+                ),
+                _ => None,
+            }
         })
         .unwrap_or(PointerProvenance::Unclassified);
     visiting_temps.remove(&temp);
@@ -3864,3 +4062,336 @@ fn err(msg: &str) -> PinkerError {
         span: Span::single(Position::new(1, 1)),
     }
 }
+
+// @pinker-nav:start evidencia.backend-s.proveniencia-de-ponteiro
+// @pinker-nav:domain memoria
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Unidade da classificação de proveniência do back-end nativo (continuação do hotfix pós-PR #411): `selected_call_provenance` como autoridade única sobre chamada direta, indireta, por endereço cru e de trato — `Public` quando e somente quando o retorno é ponteiro —, e a regra do cast `virar seta<T>`, que preserva `Public`, `Internal`, `Fabricated` e `Unclassified` tipado como ponteiro, e só produz `Fabricated` a partir de valor não-ponteiro. Cobre os ramos que a superfície da linguagem ainda não alcança, porque `seta<seta<T>>`, carga de ponteiro pela memória e carga de união com ponteiro estão fora do subconjunto atual.
+#[cfg(test)]
+mod tests_proveniencia_de_ponteiro {
+    use super::*;
+    use crate::cfg_ir::{OperandIR, TempIR};
+    use crate::instr_select::{SelectedBlock, SelectedFunction, SelectedTerminator};
+
+    const PONTEIRO: TypeIR = TypeIR::Pointer { is_volatile: false };
+    const OUTRO_PONTEIRO: TypeIR = TypeIR::Pointer { is_volatile: true };
+
+    fn funcao(
+        instructions: Vec<SelectedInstr>,
+        slot_types: &[(&str, TypeIR)],
+        internos: &[&str],
+    ) -> SelectedFunction {
+        SelectedFunction {
+            name: "principal".to_string(),
+            ret_type: TypeIR::Bombom,
+            params: Vec::new(),
+            locals: slot_types
+                .iter()
+                .map(|(nome, _)| nome.to_string())
+                .collect(),
+            slot_types: slot_types
+                .iter()
+                .map(|(nome, ty)| (nome.to_string(), *ty))
+                .collect(),
+            internal_pointer_params: internos.iter().map(|nome| nome.to_string()).collect(),
+            blocks: vec![SelectedBlock {
+                label: "entrada".to_string(),
+                instructions,
+                terminator: SelectedTerminator::Ret(None),
+            }],
+        }
+    }
+
+    fn proveniencia(function: &SelectedFunction, temp: TempIR) -> PointerProvenance {
+        let mut visiting_temps = HashSet::new();
+        let mut visiting_slots = HashSet::new();
+        selected_temp_provenance(function, temp, &mut visiting_temps, &mut visiting_slots)
+    }
+
+    fn cast(dest: u32, value: OperandIR, target_type: TypeIR) -> SelectedInstr {
+        SelectedInstr::Cast {
+            dest: TempIR(dest),
+            value,
+            target_type,
+        }
+    }
+
+    /// As quatro formas de chamada que devolvem valor, com o mesmo tipo de
+    /// retorno, precisam produzir a mesma proveniência. A assimetria anterior
+    /// classificava só a direta como `Public`, e o acesso pelas outras descia
+    /// sem validação.
+    fn chamadas_que_devolvem(ret_type: TypeIR) -> Vec<(&'static str, SelectedInstr)> {
+        vec![
+            (
+                "direta",
+                SelectedInstr::Call {
+                    dest: TempIR(0),
+                    callee: "fabricar".to_string(),
+                    args: Vec::new(),
+                    ret_type,
+                },
+            ),
+            (
+                "indireta",
+                SelectedInstr::CallIndirect {
+                    dest: TempIR(0),
+                    callee: OperandIR::Local("f".to_string()),
+                    args: Vec::new(),
+                    ret_type,
+                },
+            ),
+            (
+                "crua",
+                SelectedInstr::CallRaw {
+                    dest: Some(TempIR(0)),
+                    callee: OperandIR::Local("fp".to_string()),
+                    args: Vec::new(),
+                    param_types: Vec::new(),
+                    ret_type,
+                },
+            ),
+            (
+                "trato",
+                SelectedInstr::TraitCall {
+                    dest: Some(TempIR(0)),
+                    object: OperandIR::Local("objeto".to_string()),
+                    trait_name: "Fonte".to_string(),
+                    method_name: "regiao".to_string(),
+                    method_slot: 0,
+                    method_count: 1,
+                    args: Vec::new(),
+                    param_types: Vec::new(),
+                    ret_type,
+                },
+            ),
+        ]
+    }
+
+    #[test]
+    fn toda_forma_de_chamada_que_devolve_ponteiro_e_publica() {
+        for (forma, instrucao) in chamadas_que_devolvem(PONTEIRO) {
+            let function = funcao(vec![instrucao], &[], &[]);
+            assert_eq!(
+                proveniencia(&function, TempIR(0)),
+                PointerProvenance::Public,
+                "chamada {forma} devolvendo ponteiro precisa ser pública"
+            );
+            assert!(
+                proveniencia(&function, TempIR(0)).requires_access_check(),
+                "chamada {forma}: o acesso precisa ser validado"
+            );
+        }
+    }
+
+    #[test]
+    fn chamada_que_nao_devolve_ponteiro_nunca_e_publica() {
+        for (forma, instrucao) in chamadas_que_devolvem(TypeIR::U64) {
+            let function = funcao(vec![instrucao], &[], &[]);
+            assert_eq!(
+                proveniencia(&function, TempIR(0)),
+                PointerProvenance::Unclassified,
+                "chamada {forma} devolvendo inteiro não pode virar pública"
+            );
+        }
+    }
+
+    /// `alocar` continua público mesmo se o tipo de retorno não for anotado
+    /// como ponteiro: é a origem canônica de região pública.
+    #[test]
+    fn alocar_permanece_publico_pelo_nome() {
+        let function = funcao(
+            vec![SelectedInstr::Call {
+                dest: TempIR(0),
+                callee: "alocar".to_string(),
+                args: Vec::new(),
+                ret_type: TypeIR::U64,
+            }],
+            &[],
+            &[],
+        );
+        assert_eq!(
+            proveniencia(&function, TempIR(0)),
+            PointerProvenance::Public
+        );
+    }
+
+    #[test]
+    fn cast_de_inteiro_para_ponteiro_fabrica_endereco() {
+        let function = funcao(vec![cast(0, OperandIR::Int(4096), PONTEIRO)], &[], &[]);
+        assert_eq!(
+            proveniencia(&function, TempIR(0)),
+            PointerProvenance::Fabricated
+        );
+        assert!(proveniencia(&function, TempIR(0)).requires_access_check());
+    }
+
+    #[test]
+    fn cast_de_slot_inteiro_para_ponteiro_fabrica_endereco() {
+        let function = funcao(
+            vec![cast(0, OperandIR::Local("n".to_string()), PONTEIRO)],
+            &[("n", TypeIR::U64)],
+            &[],
+        );
+        assert_eq!(
+            proveniencia(&function, TempIR(0)),
+            PointerProvenance::Fabricated
+        );
+    }
+
+    /// Contrato central do Ponto 1: em cast ponteiro→ponteiro a proveniência da
+    /// origem é preservada, incluindo `Unclassified`. Antes, `Unclassified`
+    /// virava `Fabricated` só por falta de informação.
+    #[test]
+    fn cast_ponteiro_para_ponteiro_preserva_a_proveniencia() {
+        // `Public`: chamada que devolve ponteiro.
+        let publica = funcao(
+            vec![
+                SelectedInstr::Call {
+                    dest: TempIR(0),
+                    callee: "fabricar".to_string(),
+                    args: Vec::new(),
+                    ret_type: PONTEIRO,
+                },
+                cast(1, OperandIR::Temp(TempIR(0)), OUTRO_PONTEIRO),
+            ],
+            &[],
+            &[],
+        );
+        assert_eq!(proveniencia(&publica, TempIR(1)), PointerProvenance::Public);
+
+        // `Internal`: parâmetro de ambiente de closure.
+        let interna = funcao(
+            vec![cast(
+                0,
+                OperandIR::Local("__env".to_string()),
+                OUTRO_PONTEIRO,
+            )],
+            &[("__env", PONTEIRO)],
+            &["__env"],
+        );
+        assert_eq!(
+            proveniencia(&interna, TempIR(0)),
+            PointerProvenance::Internal
+        );
+        assert!(
+            !proveniencia(&interna, TempIR(0)).requires_access_check(),
+            "o domínio interno não pode ser confrontado com o registro público"
+        );
+
+        // `Fabricated`: cadeia inteiro → ponteiro A → ponteiro B.
+        let fabricada = funcao(
+            vec![
+                cast(0, OperandIR::Int(4096), PONTEIRO),
+                cast(1, OperandIR::Temp(TempIR(0)), OUTRO_PONTEIRO),
+            ],
+            &[],
+            &[],
+        );
+        assert_eq!(
+            proveniencia(&fabricada, TempIR(1)),
+            PointerProvenance::Fabricated
+        );
+
+        // `Unclassified` **tipado como ponteiro**: origem carregada de memória.
+        // Este ramo não é alcançável pela superfície atual da linguagem — é
+        // exatamente por isso que a evidência é de unidade.
+        let nao_classificada = funcao(
+            vec![
+                SelectedInstr::DerefLoad {
+                    dest: TempIR(0),
+                    ptr: OperandIR::Local("celula".to_string()),
+                    ty: PONTEIRO,
+                    is_volatile: false,
+                },
+                cast(1, OperandIR::Temp(TempIR(0)), OUTRO_PONTEIRO),
+            ],
+            &[("celula", PONTEIRO)],
+            &[],
+        );
+        assert_eq!(
+            proveniencia(&nao_classificada, TempIR(0)),
+            PointerProvenance::Unclassified,
+            "carga de memória não é classificada pela análise atual"
+        );
+        assert_eq!(
+            proveniencia(&nao_classificada, TempIR(1)),
+            PointerProvenance::Unclassified,
+            "cast ponteiro→ponteiro não pode promover a classe por falta de informação"
+        );
+        assert!(
+            !proveniencia(&nao_classificada, TempIR(1)).requires_access_check(),
+            "a classe não classificada permanece fora da validação pública"
+        );
+    }
+
+    /// Cadeia longa: ponteiro não classificado atravessa dois casts sem trocar
+    /// de classe.
+    #[test]
+    fn cadeia_de_casts_nao_promove_ponteiro_nao_classificado() {
+        let function = funcao(
+            vec![
+                SelectedInstr::DerefLoad {
+                    dest: TempIR(0),
+                    ptr: OperandIR::Local("celula".to_string()),
+                    ty: PONTEIRO,
+                    is_volatile: false,
+                },
+                cast(1, OperandIR::Temp(TempIR(0)), OUTRO_PONTEIRO),
+                cast(2, OperandIR::Temp(TempIR(1)), PONTEIRO),
+            ],
+            &[("celula", PONTEIRO)],
+            &[],
+        );
+        assert_eq!(
+            proveniencia(&function, TempIR(2)),
+            PointerProvenance::Unclassified
+        );
+    }
+
+    /// O resultado de uma comparação é lógico, não ponteiro: convertê-lo em
+    /// `seta<T>` fabrica endereço. Confundir o tipo dos operandos com o tipo do
+    /// destino faria uma comparação de ponteiros escapar da validação.
+    #[test]
+    fn comparacao_de_ponteiros_nao_e_ponteiro() {
+        let function = funcao(
+            vec![
+                SelectedInstr::CmpEq {
+                    dest: TempIR(0),
+                    lhs: OperandIR::Local("a".to_string()),
+                    rhs: OperandIR::Local("b".to_string()),
+                    ty: PONTEIRO,
+                },
+                cast(1, OperandIR::Temp(TempIR(0)), PONTEIRO),
+            ],
+            &[("a", PONTEIRO), ("b", PONTEIRO)],
+            &[],
+        );
+        assert_eq!(
+            selected_temp_type(&function, TempIR(0)),
+            Some(TypeIR::Logica)
+        );
+        assert_eq!(
+            proveniencia(&function, TempIR(1)),
+            PointerProvenance::Fabricated
+        );
+    }
+
+    /// A autoridade única precisa reconhecer todas as formas de chamada e
+    /// recusar o que não é chamada.
+    #[test]
+    fn autoridade_de_chamada_cobre_as_formas_e_ignora_o_resto() {
+        for (forma, instrucao) in chamadas_que_devolvem(PONTEIRO) {
+            let shape = selected_call_shape(&instrucao)
+                .unwrap_or_else(|| panic!("forma {forma} precisa ser reconhecida"));
+            assert_eq!(shape.dest, Some(TempIR(0)));
+            assert_eq!(shape.ret_type, PONTEIRO);
+        }
+        assert!(selected_call_shape(&SelectedInstr::CallVoid {
+            callee: "falar".to_string(),
+            args: Vec::new(),
+        })
+        .is_none());
+        assert!(selected_call_shape(&cast(0, OperandIR::Int(1), PONTEIRO)).is_none());
+    }
+}
+// @pinker-nav:end evidencia.backend-s.proveniencia-de-ponteiro
