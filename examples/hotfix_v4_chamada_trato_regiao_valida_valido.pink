@@ -1,0 +1,20 @@
+pacote main;
+
+trato Fonte {
+    carinho regiao(valor: si) -> seta<u8>;
+}
+
+impl Fonte para bombom {
+    carinho regiao(valor: bombom) -> seta<u8> {
+        mimo alocar(8);
+    }
+}
+
+carinho principal() -> bombom {
+    nova objeto: trato<Fonte> = 1 virar trato<Fonte>;
+    nova p: seta<u8> = objeto.regiao();
+    *p = 7;
+    falar(*p);
+    liberar(p);
+    mimo 0;
+}

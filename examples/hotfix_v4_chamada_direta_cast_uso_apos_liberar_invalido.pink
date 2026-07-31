@@ -1,0 +1,13 @@
+pacote main;
+
+carinho fabricar() -> seta<u8> {
+    mimo alocar(8);
+}
+
+carinho principal() -> bombom {
+    nova p: seta<u8> = fabricar();
+    nova q: seta<u32> = p virar seta<u32>;
+    liberar(p);
+    *q = 7;
+    mimo 0;
+}
