@@ -1,0 +1,40 @@
+// Disposição de SIGPIPE observada pelo filho em cada família de subprocesso
+// (hotfix pós-PR #411, item R5 — continuação de portabilidade).
+//
+// O pai Pinker ignora SIGPIPE. A Pinker configura explicitamente o filho para a
+// disposição padrão imediatamente antes do `exec`, no construtor comum de
+// `Command`. Este exemplo existe para que essa autoridade comum seja observável
+// família a família: se uma delas deixar de usar o construtor, só a linha dela
+// muda.
+//
+//   argumento(0) = caminho do filho auxiliar
+//   argumento(1) = cópia do auxiliar nomeada como produtor do pipeline
+//   argumento(2) = cópia do auxiliar nomeada como consumidor do pipeline
+//
+// Cada linha reporta a disposição observada pelo filho daquela família:
+// `0`/`SIG_DFL` significa disposição padrão herdada; `1`/`SIG_IGN` significaria
+// a disposição do pai vazando para o filho.
+pacote main;
+
+carinho principal() -> bombom {
+    nova filho: verso = argumento(0);
+    nova produtor: verso = argumento(1);
+    nova consumidor: verso = argumento(2);
+
+    nova executado: bombom = executar_processo(filho, "sigpipe-disposicao");
+    falar(formatar_verso("executar_processo={}", executado));
+
+    nova saida: verso = capturar_stdout(filho, "sigpipe-disposicao-imprime");
+    falar(formatar_verso("capturar_stdout={}", saida));
+
+    nova erro: verso = capturar_stderr(filho, "sigpipe-disposicao-imprime-erro");
+    falar(formatar_verso("capturar_stderr={}", erro));
+
+    nova com_entrada: bombom = executar_com_entrada(filho, "carga", "sigpipe-disposicao");
+    falar(formatar_verso("executar_com_entrada={}", com_entrada));
+
+    nova pipeline: bombom = pipeline_minimo(produtor, consumidor);
+    falar(formatar_verso("pipeline_minimo={}", pipeline));
+
+    mimo 0;
+}

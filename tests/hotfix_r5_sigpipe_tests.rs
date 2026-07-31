@@ -11,6 +11,13 @@
 //! A evidência aqui é a matriz completa exigida pelo contrato: stdout anterior ×
 //! comportamento do filho × tamanho do stdin, comparando interpretador e nativo
 //! célula a célula.
+//!
+//! A continuação de portabilidade acrescenta o outro lado do contrato: o filho.
+//! A Pinker devolve `SIGPIPE` a `SIG_DFL` no contexto pré-`exec` por conta
+//! própria, em todas as famílias de subprocesso dos dois back-ends, sem delegar
+//! isso à biblioteca padrão. Como a `std` também restaura hoje, a remoção da
+//! nossa configuração não seria observável pelo filho — daí o guardião
+//! estrutural, ao lado da matriz observável e da validação da própria sonda.
 
 mod common;
 
@@ -19,6 +26,7 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const EXEMPLO: &str = "examples/hotfix_r5_sigpipe_matriz_valido.pink";
+const EXEMPLO_FAMILIAS: &str = "examples/hotfix_r5_sigpipe_familias_valido.pink";
 
 /// Teto de tempo por célula. Qualquer deadlock (writer órfão, `wait` antes da
 /// escrita, pipe nunca fechado) estoura este limite em vez de travar a suíte.
@@ -140,17 +148,22 @@ fn celula_nativa(binario: &Path, modo: &str, tamanho: u64, antes: u64) -> Option
     executar_com_limite(comando)
 }
 
-/// Compila o exemplo uma única vez; a matriz inteira roda sobre o mesmo ELF.
-fn compilar_nativo(runtime_lib: &Path) -> PathBuf {
+/// Diretório temporário exclusivo desta execução.
+fn diretorio_temporario(rotulo: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("tempo do sistema")
         .as_nanos();
-    let out_dir = std::env::temp_dir().join(format!("pinker_hf412_r5_{nanos}"));
+    std::env::temp_dir().join(format!("pinker_hf412_{rotulo}_{nanos}"))
+}
+
+/// Compila um exemplo uma única vez; a matriz inteira roda sobre o mesmo ELF.
+fn compilar_exemplo(runtime_lib: &Path, exemplo: &str, rotulo: &str) -> PathBuf {
+    let out_dir = diretorio_temporario(rotulo);
     let build = Command::new(env!("CARGO_BIN_EXE_pink"))
         .args(["build", "--nativo", "--out-dir"])
         .arg(&out_dir)
-        .arg(EXEMPLO)
+        .arg(exemplo)
         .env("PINKER_RT_LIB", runtime_lib)
         .output()
         .expect("invocar pink build --nativo");
@@ -159,7 +172,16 @@ fn compilar_nativo(runtime_lib: &Path) -> PathBuf {
         "build nativo falhou: {}",
         String::from_utf8_lossy(&build.stderr)
     );
-    out_dir.join("hotfix_r5_sigpipe_matriz_valido")
+    let nome = Path::new(exemplo)
+        .file_stem()
+        .expect("nome do exemplo")
+        .to_str()
+        .expect("nome utf-8");
+    out_dir.join(nome)
+}
+
+fn compilar_nativo(runtime_lib: &Path) -> PathBuf {
+    compilar_exemplo(runtime_lib, EXEMPLO, "r5")
 }
 
 /// Invariantes exigidas de qualquer célula, em qualquer back-end.
@@ -271,3 +293,197 @@ fn r5_filho_herda_disposicao_padrao_de_sigpipe() {
     let _ = std::fs::remove_dir_all(binario.parent().expect("diretório do build"));
 }
 // @pinker-nav:end evidencia.hotfix.r5-sigpipe-ordem
+
+// @pinker-nav:start evidencia.hotfix.r5-sigpipe-familias
+// @pinker-nav:domain processos
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Evidência de que a configuração explícita da disposição do filho vale para todas as famílias de subprocesso — executar_processo, capturar_stdout, capturar_stderr, executar_com_entrada e as duas pontas de pipeline_minimo — com paridade entre interpretador e nativo; da portabilidade da própria sonda, provando que o construtor de .init_array do auxiliar precede a inicialização da linguagem e que ele distingue SIG_DFL de SIG_IGN quando a disposição é forçada no pré-exec; e o guardião estrutural que exige o pre_exec dentro do construtor comum dos dois back-ends, já que a std também restaura SIGPIPE hoje e a remoção da configuração da Pinker não seria observável pelo filho.
+/// Saída exigida do exemplo das famílias, linha a linha.
+///
+/// `0` é o código de saída da sonda para `SIG_DFL`; `SIG_DFL` é o rótulo textual
+/// da mesma leitura, usado pelas famílias que devolvem texto.
+const FAMILIAS_ESPERADAS: &str = "executar_processo=0\n\
+     capturar_stdout=SIG_DFL\n\
+     capturar_stderr=SIG_DFL\n\
+     executar_com_entrada=0\n\
+     pipeline_minimo=0\n";
+
+/// Cria as duas cópias do auxiliar usadas como pontas de `pipeline_minimo`.
+///
+/// `pipeline_minimo(produtor, consumidor)` não aceita argumentos por processo,
+/// então o papel é escolhido pelo nome do executável.
+fn preparar_pontas_do_pipeline() -> (PathBuf, PathBuf) {
+    let dir = diretorio_temporario("pipeline");
+    std::fs::create_dir_all(&dir).expect("diretório das pontas do pipeline");
+    let produtor = dir.join("pinker_hf412_pipeline_produtor");
+    let consumidor = dir.join("pinker_hf412_pipeline_consumidor");
+    for destino in [&produtor, &consumidor] {
+        std::fs::copy(helper_filho(), destino).expect("copiar auxiliar");
+    }
+    (produtor, consumidor)
+}
+
+#[test]
+fn r5_todas_as_familias_configuram_a_disposicao_do_filho() {
+    let Some((_driver, Some(runtime_lib))) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), true)
+    else {
+        return;
+    };
+    let binario = compilar_exemplo(&runtime_lib, EXEMPLO_FAMILIAS, "familias");
+    let (produtor, consumidor) = preparar_pontas_do_pipeline();
+
+    let argumentos = [
+        helper_filho().to_string(),
+        produtor.display().to_string(),
+        consumidor.display().to_string(),
+    ];
+
+    let mut interpretado = Command::new(env!("CARGO_BIN_EXE_pink"));
+    interpretado.args(["--run", EXEMPLO_FAMILIAS, "--"]);
+    interpretado.args(&argumentos);
+    let interpretado = executar_com_limite(interpretado).expect("interpretador dentro do limite");
+
+    let mut nativo = Command::new(&binario);
+    nativo.args(&argumentos);
+    let nativo = executar_com_limite(nativo).expect("nativo dentro do limite");
+
+    for (rotulo, saida) in [("interpretador", &interpretado), ("nativo", &nativo)] {
+        assert_eq!(
+            saida.stdout, FAMILIAS_ESPERADAS,
+            "{rotulo}: alguma família não configurou a disposição do filho\nstderr: {}",
+            saida.stderr
+        );
+        assert_eq!(saida.codigo, Some(0), "{rotulo}: saída inesperada");
+    }
+
+    let _ = std::fs::remove_dir_all(binario.parent().expect("diretório do build"));
+    let _ = std::fs::remove_dir_all(produtor.parent().expect("diretório das pontas"));
+}
+
+extern "C" {
+    fn signal(signal: i32, handler: usize) -> usize;
+}
+
+const SIGPIPE: i32 = 13;
+const SIG_DFL: usize = 0;
+const SIG_IGN: usize = 1;
+const SIG_ERR: usize = usize::MAX;
+
+/// Dispara o auxiliar forçando a disposição de `SIGPIPE` no contexto
+/// pré-`exec`, sem passar pelas APIs da Pinker.
+///
+/// É o controle da sonda: permite observar `SIG_DFL` e `SIG_IGN` no filho a
+/// partir de uma causa conhecida, em vez de inferir a sensibilidade da medida.
+fn auxiliar_com_disposicao_forcada(modo: &str, handler: usize) -> Option<i32> {
+    use std::os::unix::process::CommandExt as _;
+
+    let mut comando = Command::new(helper_filho());
+    comando.arg(modo);
+    // SAFETY: a closure roda no filho entre `fork` e `exec` e faz uma única
+    // chamada a `signal(2)`, async-signal-safe pela POSIX, sem alocação, lock,
+    // formatação ou acesso ao ambiente.
+    unsafe {
+        comando.pre_exec(move || {
+            if signal(SIGPIPE, handler) == SIG_ERR {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+    executar_com_limite(comando)
+        .expect("auxiliar dentro do limite")
+        .codigo
+}
+
+#[test]
+fn r5_sonda_precede_a_inicializacao_da_linguagem() {
+    // O modo de ordem compara a leitura do construtor de `.init_array` com uma
+    // segunda leitura feita em `main`. A std instala `SIG_IGN` entre as duas,
+    // então a divergência só existe se o construtor tiver mesmo rodado antes —
+    // é prova positiva da ordem no binário usado pelos demais testes.
+    let mut ordem = Command::new(helper_filho());
+    ordem.arg("sigpipe-sonda-ordem");
+    let ordem = executar_com_limite(ordem).expect("auxiliar dentro do limite");
+    assert_eq!(
+        ordem.codigo,
+        Some(0),
+        "a sonda precisa preceder a inicialização da linguagem \
+         (1=leituras iguais, 2=combinação inesperada, 3=erro, 4=sonda não rodou)"
+    );
+
+    // Sensibilidade: a mesma sonda distingue as duas disposições que podem
+    // atravessar `exec`. Handler personalizado não é alcançável por herança —
+    // a POSIX exige que `exec` o reinicie para `SIG_DFL`.
+    assert_eq!(
+        auxiliar_com_disposicao_forcada("sigpipe-disposicao", SIG_DFL),
+        Some(0),
+        "a sonda precisa reportar SIG_DFL quando o pré-exec restaura a disposição padrão"
+    );
+    assert_eq!(
+        auxiliar_com_disposicao_forcada("sigpipe-disposicao", SIG_IGN),
+        Some(1),
+        "a sonda precisa reportar SIG_IGN quando o pré-exec deixa a disposição do pai vazar"
+    );
+}
+/// Recorta uma região cartografada de um arquivo, pelos marcadores de nav.
+fn regiao_cartografada(arquivo: &str, chave: &str) -> String {
+    let fonte = std::fs::read_to_string(arquivo).expect("ler fonte cartografada");
+    let inicio = fonte
+        .find(&format!("@pinker-nav:start {chave}"))
+        .unwrap_or_else(|| panic!("região {chave} ausente em {arquivo}"));
+    let fim = fonte
+        .find(&format!("@pinker-nav:end {chave}"))
+        .unwrap_or_else(|| panic!("fim da região {chave} ausente em {arquivo}"));
+    fonte[inicio..fim].to_string()
+}
+
+/// Guardião estrutural da configuração explícita do filho.
+///
+/// A `std` do Rust também devolve `SIGPIPE` a `SIG_DFL` antes do `exec`, tanto
+/// no caminho `fork`/`exec` quanto no de `posix_spawn`. Isso torna a
+/// configuração da Pinker **indistinguível por observação do filho**: remover a
+/// nossa preparação não muda o que o filho mede enquanto a std mantiver a dela.
+///
+/// É justamente por isso que o contrato não pode ficar só nela — e por isso a
+/// evidência de que a Pinker o cumpre por conta própria precisa ser estrutural.
+/// Este teste falha se o `pre_exec` sair do construtor comum, se ele passar a
+/// instalar `SIG_IGN` em vez de `SIG_DFL`, ou se alguma família voltar a
+/// construir `Command` fora do construtor comum.
+#[test]
+fn r5_configuracao_do_filho_e_explicita_e_centralizada() {
+    let runtime = regiao_cartografada("runtime/pinker_rt/src/lib.rs", "runtime.processos.execucao");
+    assert_eq!(
+        runtime.matches("Command::new").count(),
+        1,
+        "todas as famílias do runtime precisam construir Command por comando_saneado"
+    );
+    assert!(
+        runtime.contains("processo.pre_exec(|| restaurar_disposicao_padrao(SINAL_SIGPIPE))"),
+        "comando_saneado precisa restaurar SIGPIPE no filho antes do exec"
+    );
+
+    let interpretador = regiao_cartografada(
+        "src/interpreter.rs",
+        "interpreter.hospedeiro.servicos-auxiliares",
+    );
+    assert_eq!(
+        interpretador.matches("Command::new").count(),
+        1,
+        "todas as famílias do interpretador precisam construir Command por comando_de_processo"
+    );
+    assert!(
+        interpretador.contains("command.pre_exec(|| restaurar_disposicao_padrao(SINAL_SIGPIPE))"),
+        "comando_de_processo precisa restaurar SIGPIPE no filho antes do exec"
+    );
+
+    // A disposição instalada no filho é a padrão, nunca a do pai.
+    for arquivo in ["runtime/pinker_rt/src/lib.rs", "src/interpreter.rs"] {
+        let fonte = std::fs::read_to_string(arquivo).expect("ler fonte");
+        assert!(
+            fonte.contains("let anterior = unsafe { signal(sinal, SINAL_HANDLER_PADRAO) };"),
+            "{arquivo}: a restauração precisa passar SIG_DFL, não a disposição do pai"
+        );
+    }
+}
+// @pinker-nav:end evidencia.hotfix.r5-sigpipe-familias
