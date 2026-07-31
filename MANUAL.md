@@ -340,14 +340,109 @@ paridade entre interpretador e nativo. Cargas assinadas preservam o sinal
 também nas comparações relacionais subsequentes.
 
 A validação pública falha fechada quando recebe endereço sem região gerenciada
-candidata. O compilador transporta proveniência pelo lowering e só emite essa
-validação para ponteiros públicos; ponteiros internos e ponteiros raw
-fabricados seguem domínios distintos. Cast de inteiro para ponteiro permanece
-fora da promessa de segurança de memória.
+candidata: sem nenhuma região registrada, nenhum endereço é aceito. O compilador
+transporta proveniência pelo lowering e classifica cada ponteiro em **quatro**
+classes:
+
+- **`Public`** — região pública conhecida: resultado de `alocar`, de uma chamada
+  que devolve `seta<T>`, de um parâmetro de ponteiro, ou derivação desses;
+- **`Internal`** — domínio interno reconhecido do próprio runtime, hoje o
+  ambiente de closure recebido como parâmetro;
+- **`Fabricated`** — endereço construído a partir de um valor **não-ponteiro**,
+  tipicamente um inteiro (`<inteiro> virar seta<T>`);
+- **`Unclassified`** — ponteiro cuja origem não foi determinada pela análise
+  atual. **Não** é sinônimo de inteiro: é ausência de informação sobre a origem,
+  não afirmação de que a origem é um inteiro.
+
+Um cast `virar seta<T>` entre tipos de ponteiro só troca o tipo apontado e
+**preserva** a classe da origem, incluindo `Unclassified`. `Fabricated` é
+produzido quando, e somente quando, um valor não-ponteiro é convertido em
+`seta<T>`.
+
+A classificação de uma chamada depende do **tipo de retorno**, nunca da forma da
+chamada: chamada direta por símbolo, chamada indireta por valor callable,
+chamada por endereço cru de código e chamada de método de trato produzem
+`Public` exatamente quando devolvem `seta<T>`. Retorno que não é ponteiro nunca
+é `Public`.
+
+Load e store através de ponteiro `Public` ou `Fabricated` passam pela validação,
+com o mesmo predicado e sem caminhos divergentes entre os dois sentidos do
+acesso. Nesses domínios, endereço recusado termina por **diagnóstico
+controlado** com exit 1, não por sinal. `Internal` tem domínio próprio e não é
+confrontado com o registro público, porque não é memória pública e validá-lo
+rejeitaria acesso legítimo.
+
+Interpretador e nativo **não compartilham implementação de validação**, e o
+contrato não afirma isso: o interpretador usa seu modelo de memória sintético e
+o nativo chama `pinker_publico_validar_acesso`. O que se garante é que, nos
+casos cobertos, os dois apresentam **resultado observável correspondente** —
+mesma classe de falha, mesmo diagnóstico e mesmo exit.
+
+Cast de inteiro para ponteiro continua **fora da promessa de segurança de
+memória** — a linguagem não passa a garantir que o endereço fabricado é
+utilizável. O que vale é mais estreito e verificável: o acesso por endereço
+fabricado falha de forma determinística, com diagnóstico
+(`E-RUNTIME-MEM-UNKNOWN-ACCESS`) e exit 1, em vez de escrever em memória real e
+derrubar o processo por `SIGSEGV`.
+
+**Limite conhecido, e o escopo exato da garantia.** A ausência de término por
+sinal de memória vale para acessos por ponteiro classificado como `Public` ou
+`Fabricated`. Ela **não** é uma garantia universal sobre todo programa Pinker:
+`Unclassified` permanece fora da validação pública enquanto não houver análise
+de domínio suficiente, e um acesso por ponteiro dessa classe pode terminar por
+sinal. Fechar essa classe exige contrato próprio — tratá-la como exigente foi
+testado e rejeita acesso legítimo de closure. Na superfície atual da linguagem
+essa classe é estreita: `seta<seta<T>>` não é suportada, a conversão de ponteiro
+para inteiro é recusada pela semântica e carga de união não aceita ponteiro,
+de modo que um ponteiro não pode ser carregado de memória.
+
+Fica um limite honesto entre os dois modos: o interpretador tem um espaço de
+endereços **sintético**, no qual inteiros pequenos podem coincidir com globais
+escalares declaradas — `examples/fase71_cast_memoria_valido.pink` é o caso
+histórico, válido no interpretador porque o endereço `1` é uma global. O
+nativo executa em memória real e não tem esse mapa. Os dois back-ends concordam
+em *recusar deterministicamente* endereço não registrado; eles não concordam
+sobre *quais* endereços fabricados são válidos, e essa parte é intrínseca ao
+modelo de execução, não uma lacuna a fechar.
 
 Os registros de região, vida e próxima identidade pertencem ao estado interno
 do interpretador, fora do mapa endereçável pelo programa. Assim, casts de
 inteiro para ponteiro não podem observar nem corromper metadata do allocator.
+
+### Cota vitalícia de identidades públicas
+
+O orçamento de **memória** é recuperável; o de **identidade** não. O contrato
+medido, idêntico nos dois back-ends, é:
+
+- o limite é de **1.000.000 de identidades públicas por processo**;
+- a unidade contada é a **entrada de registro**, isto é, uma chamada de
+  `alocar` bem-sucedida — a milionésima passa, a seguinte falha;
+- a identidade é consumida no momento da alocação bem-sucedida; toda falha de
+  alocação encerra o processo pelo diagnóstico, então não existe caminho
+  observável em que uma falha consuma cota;
+- `liberar` devolve o armazenamento — as páginas são descomprometidas e o pico
+  de memória se estabiliza — mas **não devolve capacidade de identidade**: a
+  entrada permanece no registro, marcada como morta;
+- o esgotamento **não é recuperável no mesmo processo**, e o diagnóstico é
+  estável: `limite de identidades públicas esgotado`, com exit 1.
+
+Um laço de `alocar(1024)` e `liberar` sempre pareados mantém o pico de memória
+constante e ainda assim esgota a cota depois de um milhão de ciclos.
+
+A razão é deliberada e vale a pena: a quarentena de identidade é o que permite
+distinguir gerações, detectar double free e recusar a revalidação de um alias
+obsoleto. Reciclar identidade faria um endereço reutilizado mascarar exatamente
+esses erros. Processos de vida longa com muito *churn* de alocação podem esgotar
+o orçamento — este é um limite conhecido, não um defeito latente.
+
+Não há reciclagem planejada. Introduzi-la exigiria um contrato próprio de
+geração e *lifetime* que hoje não existe; até que exista, a cota é vitalícia.
+
+Uma nota de assimetria, medida e ainda não unificada: no interpretador, o
+armazenamento de payload agregado de união também consome uma identidade
+pública, porque compartilha o mesmo registro de regiões; no runtime nativo, esse
+armazenamento tem orçamento próprio e não toca a cota pública. Programas que
+constroem muitas uniões agregadas esgotam a cota mais cedo no interpretador.
 
 A API mantém o modelo fatal estruturado já usado pelas intrínsecas de runtime;
 ela não retorna `Resultado<T,E>` porque isso criaria uma segunda ABI de erro
@@ -433,6 +528,42 @@ falar("oi");
 Todas as variantes de `falar`, incluindo espaços e newline, usam o mesmo writer
 no runtime nativo. Falha de saída produz diagnóstico uniforme e exit code 1,
 inclusive em pipe fechado.
+
+### Disposição de sinais e pipes fechados
+
+O `main` gerado em modo nativo não passa pela inicialização de runtime da
+biblioteca padrão, então a disposição de sinais do processo é estabelecida por
+`pinker_rt_iniciar`, **antes da primeira instrução do programa**. `SIGPIPE` é
+ignorado, de modo que escrever em pipe fechado devolve `EPIPE` ao runtime e vira
+diagnóstico controlado, em qualquer ponto do programa.
+
+Isso é contrato, não detalhe: antes, a disposição era instalada só a partir do
+primeiro `falar`. Um programa que escrevia o stdin de um processo filho sem ter
+falado antes morria por sinal, com stderr vazio, enquanto o mesmo programa com
+um `falar` antes terminava com exit 1 e diagnóstico — e o interpretador dava
+exit 1 nos dois casos. O comportamento observável não pode depender da ordem de
+execução.
+
+A estratégia é confinada ao processo Pinker. Todo filho disparado por
+`executar_processo`, `capturar_stdout`, `capturar_stderr`,
+`executar_com_entrada` e `pipeline_minimo` recebe `SIGPIPE` de volta na
+disposição padrão imediatamente antes do `exec`, e portanto se comporta como
+qualquer outro programa da linha de comando.
+
+Essa restauração é feita **pela Pinker**, no construtor comum de subprocessos
+dos dois back-ends, e não delegada à biblioteca padrão. A `std` do Rust também
+restaura `SIGPIPE` hoje, mas por caminhos internos distintos (`fork`/`exec` e
+`posix_spawn`) e sob condições que ela pode mudar; o contrato observável da
+Pinker não depende dessa escolha, nem da libc, nem da máquina onde o programa
+roda. Em resumo:
+
+- o pai Pinker configura explicitamente `SIGPIPE` para produzir erros
+  controlados em vez de morte por sinal;
+- a Pinker configura explicitamente o filho para a disposição padrão antes do
+  `exec`;
+- esse comportamento pertence ao runtime da Pinker;
+- a matriz de teste verifica o contrato observável, família a família e nos dois
+  back-ends.
 
 ### Entrada com `ouvir()`
 

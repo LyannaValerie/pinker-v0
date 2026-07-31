@@ -35,11 +35,18 @@ static ARGV: AtomicUsize = AtomicUsize::new(0);
 /// Inicialização do runtime; chamada pelo prólogo do `main` gerado em modo
 /// nativo, com `argc` em `%rdi` e `argv` em `%rsi` (ABI C do `main`).
 ///
+/// O `main` gerado não passa pelo `lang_start` da std, então nenhuma
+/// inicialização de runtime Rust acontece antes daqui. A disposição de sinais
+/// do processo é estabelecida neste ponto — antes de qualquer `falar`, escrita
+/// de stdin de filho ou outra operação capaz de receber `SIGPIPE` — para que o
+/// comportamento observável não dependa da ordem de execução do programa.
+///
 /// # Safety
 /// `argv` deve ser o vetor de argumentos recebido pelo `main` C; o runtime
 /// apenas o armazena para consulta posterior.
 #[no_mangle]
 pub unsafe extern "C" fn pinker_rt_iniciar(argc: i64, argv: *const *const u8) {
+    preparar_disposicao_sinais();
     ARGC.store(argc, Ordering::SeqCst);
     ARGV.store(argv as usize, Ordering::SeqCst);
 }
@@ -123,11 +130,77 @@ struct AlocacaoPublica {
 }
 
 const PAGINA_PUBLICA: usize = 4096;
+
+/// Cota **vitalícia** de identidades públicas por processo.
+///
+/// A unidade contada é a entrada de registro, isto é, uma alocação pública
+/// bem-sucedida. `liberar` marca a geração como morta mas **não** remove a
+/// entrada: os bytes voltam, a identidade não. O contrato completo, incluindo a
+/// razão pela qual a identidade não é reciclada, está em `MANUAL.md`, seção
+/// "Cota vitalícia de identidades públicas".
 const MAX_IDENTIDADES_PUBLICAS: usize = 1_000_000;
 const MAX_METADATA_PUBLICA_BYTES: usize =
     MAX_IDENTIDADES_PUBLICAS * std::mem::size_of::<AlocacaoPublica>();
 const MAX_QUARENTENA_FISICA_BYTES: usize = 0;
 const MAX_ESPACO_VIRTUAL_PUBLICO_BYTES: usize = 8 * 1024 * 1024 * 1024;
+
+/// Limite de identidades efetivamente aplicado.
+///
+/// Fora de teste é sempre `MAX_IDENTIDADES_PUBLICAS`. Os testes internos do
+/// runtime reduzem o valor para exercitar o esgotamento e a não reutilização em
+/// tempo determinístico, sem precisar de um milhão de ciclos. Não existe
+/// interruptor público: nada de variável de ambiente, nada de símbolo
+/// exportado, e o comportamento de debug e release é o mesmo.
+#[cfg(test)]
+static LIMITE_IDENTIDADES_PUBLICAS_TESTE: AtomicUsize = AtomicUsize::new(MAX_IDENTIDADES_PUBLICAS);
+
+fn limite_identidades_publicas() -> usize {
+    #[cfg(test)]
+    {
+        LIMITE_IDENTIDADES_PUBLICAS_TESTE.load(Ordering::SeqCst)
+    }
+    #[cfg(not(test))]
+    {
+        MAX_IDENTIDADES_PUBLICAS
+    }
+}
+
+/// Veredicto da reserva de uma identidade pública, sem efeito colateral.
+///
+/// Separar a decisão do efeito é o que torna a cota testável: o efeito é
+/// `erro_memoria_publica`, que encerra o processo.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum ReservaIdentidade {
+    /// Identidade concedida; a próxima do processo passa a ser `proxima`.
+    Concedida { identidade: u64, proxima: u64 },
+    /// A cota vitalícia do processo acabou. Não é recuperável: liberar não
+    /// devolve capacidade de identidade.
+    Esgotada,
+    /// O contador de identidades estourou a largura de `u64`. Inalcançável na
+    /// prática enquanto a cota for menor, mas classificado em vez de suposto.
+    Exaurida,
+}
+
+/// Concede a próxima identidade pública, respeitando a cota vitalícia.
+///
+/// `identidades_registradas` é o tamanho do registro — inclui as gerações já
+/// liberadas, e é exatamente por isso que a cota é vitalícia.
+fn reservar_identidade_publica(
+    identidades_registradas: usize,
+    proxima_identidade: u64,
+    limite: usize,
+) -> ReservaIdentidade {
+    if identidades_registradas >= limite {
+        return ReservaIdentidade::Esgotada;
+    }
+    match proxima_identidade.checked_add(1) {
+        Some(proxima) => ReservaIdentidade::Concedida {
+            identidade: proxima_identidade,
+            proxima,
+        },
+        None => ReservaIdentidade::Exaurida,
+    }
+}
 
 struct MemoriaPublica {
     arena_base: usize,
@@ -238,15 +311,27 @@ fn erro_memoria_publica(mensagem: &str) -> ! {
     std::process::exit(1);
 }
 
-fn intervalo_publico_contido(
-    inicio_regiao: usize,
-    tamanho_regiao: usize,
-    inicio_acesso: usize,
-    largura_acesso: usize,
-) -> Result<bool, ()> {
-    let fim_regiao = inicio_regiao.checked_add(tamanho_regiao).ok_or(())?;
-    let fim_acesso = inicio_acesso.checked_add(largura_acesso).ok_or(())?;
-    Ok(inicio_acesso >= inicio_regiao && fim_acesso <= fim_regiao)
+/// Primeiro endereço **depois** da região.
+///
+/// `base + tamanho` não é uma classe de erro classificável: é um invariante do
+/// único construtor produtivo de `AlocacaoPublica`. `pinker_publico_alocar`
+/// deriva `base` de `arena_base.checked_add(proximo_offset)`, mantém
+/// `proximo_offset + reservado` abaixo de `MAX_ESPACO_VIRTUAL_PUBLICO_BYTES` e
+/// só registra a entrada depois de comprometer as páginas — ou seja, a região
+/// inteira está efetivamente mapeada, e um mapeamento não pode terminar depois
+/// do fim do espaço de endereços. `tamanho` também é sempre ≥ 1, porque
+/// `alocar` recusa zero.
+///
+/// O `debug_assert!` é onde esse invariante fica escrito de forma executável: em
+/// teste e em debug uma entrada corrompida falha alto, e em release
+/// `saturating_add` mantém a função pura — ela é a unidade que a matriz de
+/// veredictos exercita, e não pode encerrar o processo.
+fn fim_da_regiao(alocacao: &AlocacaoPublica) -> usize {
+    debug_assert!(
+        alocacao.base.checked_add(alocacao.tamanho).is_some(),
+        "invariante da arena pública: base + tamanho precisa ser representável"
+    );
+    alocacao.base.saturating_add(alocacao.tamanho)
 }
 
 /// Fase 246: entrada pública de `alocar`. Diferentemente de
@@ -274,17 +359,29 @@ pub extern "C" fn pinker_publico_alocar(tamanho: u64) -> *mut u8 {
     let mut memoria = memoria_publica()
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
-    if memoria.alocacoes.len() >= MAX_IDENTIDADES_PUBLICAS {
-        erro_memoria_publica("limite de identidades públicas esgotado");
-    }
+    // Exaustivo de propósito: sem braço curinga, um veredicto novo passa a ser
+    // erro de compilação em vez de herdar silenciosamente a mensagem errada.
+    let (identidade, proxima) = match reservar_identidade_publica(
+        memoria.alocacoes.len(),
+        memoria.proxima_identidade,
+        limite_identidades_publicas(),
+    ) {
+        ReservaIdentidade::Concedida {
+            identidade,
+            proxima,
+        } => (identidade, proxima),
+        ReservaIdentidade::Esgotada => {
+            erro_memoria_publica("limite de identidades públicas esgotado")
+        }
+        ReservaIdentidade::Exaurida => {
+            erro_memoria_publica("identidade pública de alocação esgotada")
+        }
+    };
     memoria
         .alocacoes
         .try_reserve(1)
         .unwrap_or_else(|_| erro_memoria_publica("metadata pública de alocações esgotada"));
-    let identidade = memoria.proxima_identidade;
-    memoria.proxima_identidade = identidade
-        .checked_add(1)
-        .unwrap_or_else(|| erro_memoria_publica("identidade pública de alocação esgotada"));
+    memoria.proxima_identidade = proxima;
     let fim = memoria
         .proximo_offset
         .checked_add(reservado)
@@ -356,6 +453,127 @@ pub unsafe extern "C" fn pinker_publico_liberar(ponteiro: *mut u8) {
     );
 }
 
+/// Veredicto de um acesso à memória pública.
+///
+/// A decisão vive numa unidade **pura**, separada do efeito, pelo mesmo motivo
+/// que `union_budget_reserve`: `erro_memoria_publica` encerra o processo, então
+/// só uma função sem efeito pode ser exercitada por teste interno. Assim a
+/// matriz de endereços (não mapeado, nulo, pilha, dado estático, função,
+/// interno do runtime, região liberada, base viva, interior, primeiro e último
+/// byte, um byte depois, acesso multibyte cruzando o limite) é verificável sem
+/// derrubar o runner, e `load` e `store` compartilham exatamente o mesmo
+/// predicado — não há como divergirem.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum VeredictoAcesso {
+    Permitido,
+    MetadadosInvalidos,
+    OverflowEndereco,
+    /// O endereço não cai em nenhuma região pública registrada. Cobre endereço
+    /// fabricado a partir de inteiro, nulo, pilha, dado estático, código,
+    /// alocação interna do runtime e mapeamento estrangeiro: para a Pinker,
+    /// nada disso é memória pública endereçável.
+    Desconhecido,
+    UsoAposLiberar,
+    Desalinhado,
+    CruzaLimite,
+    ForaDosLimites,
+}
+
+impl VeredictoAcesso {
+    /// Diagnóstico estável do veredicto. `None` para o acesso permitido.
+    fn diagnostico(self) -> Option<&'static str> {
+        match self {
+            Self::Permitido => None,
+            Self::MetadadosInvalidos => Some("metadados inválidos de acesso à memória pública"),
+            Self::OverflowEndereco => {
+                Some("E-RUNTIME-MEM-ADDRESS-OVERFLOW: overflow no acesso à memória pública")
+            }
+            Self::Desconhecido => {
+                Some("E-RUNTIME-MEM-UNKNOWN-ACCESS: acesso sem região pública registrada")
+            }
+            Self::UsoAposLiberar => {
+                Some("E-RUNTIME-MEM-USE-AFTER-FREE: uso após liberar detectado em memória pública")
+            }
+            Self::Desalinhado => {
+                Some("E-RUNTIME-MEM-MISALIGNED: acesso desalinhado à memória pública")
+            }
+            Self::CruzaLimite => Some(
+                "E-RUNTIME-MEM-CROSS-BOUNDARY: acesso multibyte cruza o limite da alocação pública",
+            ),
+            Self::ForaDosLimites => {
+                Some("E-RUNTIME-MEM-OUT-OF-BOUNDS: acesso fora dos limites da alocação pública")
+            }
+        }
+    }
+}
+
+/// Classifica um acesso contra o registro público, sem efeito colateral.
+///
+/// A ordem das verificações é o contrato: metadados do acesso, overflow do
+/// intervalo **consultado**, existência da região, estado vivo, alinhamento e,
+/// por fim, contenção — distinguindo interior que cruza o limite de acesso que
+/// começa antes da base.
+///
+/// O overflow que é classificado aqui é o de `endereco + largura`, que vem de
+/// fora e pode ser qualquer coisa. Já `base + tamanho` não é classificado:
+/// nenhuma entrada do registro pode tê-lo, por invariante do construtor
+/// (`fim_da_regiao`). Por isso não existe veredicto de "metadados de região
+/// inválidos" — ele seria inalcançável, e um veredicto inalcançável mente
+/// sobre o contrato.
+fn classificar_acesso_publico(
+    registro: &[AlocacaoPublica],
+    endereco: usize,
+    largura: usize,
+    alinhamento: usize,
+) -> VeredictoAcesso {
+    if largura == 0 || alinhamento == 0 || !alinhamento.is_power_of_two() {
+        return VeredictoAcesso::MetadadosInvalidos;
+    }
+    let Some(fim_acesso) = endereco.checked_add(largura) else {
+        return VeredictoAcesso::OverflowEndereco;
+    };
+    let candidata = registro.iter().rev().find(|alocacao| {
+        let fim = fim_da_regiao(alocacao);
+        (endereco >= alocacao.base && endereco <= fim)
+            || (endereco < alocacao.base && fim_acesso > alocacao.base)
+    });
+    let Some(alocacao) = candidata else {
+        return VeredictoAcesso::Desconhecido;
+    };
+    if !alocacao.viva {
+        return VeredictoAcesso::UsoAposLiberar;
+    }
+    if endereco % alinhamento != 0 {
+        return VeredictoAcesso::Desalinhado;
+    }
+    if endereco >= alocacao.base && fim_acesso <= fim_da_regiao(alocacao) {
+        return VeredictoAcesso::Permitido;
+    }
+    if endereco >= alocacao.base {
+        VeredictoAcesso::CruzaLimite
+    } else {
+        VeredictoAcesso::ForaDosLimites
+    }
+}
+
+/// Fase 246 + hotfix pós-PR #411 (V4): validação de `deref_load`/`deref_store`
+/// sobre memória pública.
+///
+/// O back-end nativo emite esta chamada para todo acesso através de ponteiro
+/// classificado como `Public` ou `Fabricated`. Endereço nunca registrado é
+/// recusado aqui, com diagnóstico estável, em vez de virar escrita em memória
+/// real e SIGSEGV.
+///
+/// As outras duas classes de proveniência não chegam aqui, por razões
+/// diferentes: `Internal` tem domínio próprio e confrontá-la com o registro
+/// público rejeitaria acesso legítimo; `Unclassified` é um limite reconhecido
+/// da análise, e um acesso dessa classe **pode** terminar por sinal. Este
+/// símbolo não sustenta garantia universal sobre todo ponteiro — o contrato
+/// exato está em `MANUAL.md`, seção "Memória explícita".
+///
+/// O interpretador não compartilha esta implementação: ele valida no seu modelo
+/// de memória sintético. O que os dois modos garantem é resultado observável
+/// correspondente nos casos cobertos, não um validador único.
 #[no_mangle]
 pub extern "C" fn pinker_publico_validar_acesso(
     ponteiro: *const u8,
@@ -367,48 +585,12 @@ pub extern "C" fn pinker_publico_validar_acesso(
         .unwrap_or_else(|_| erro_memoria_publica("largura de acesso excede a plataforma"));
     let alinhamento = usize::try_from(alinhamento)
         .unwrap_or_else(|_| erro_memoria_publica("alinhamento de acesso excede a plataforma"));
-    if largura == 0 || alinhamento == 0 || !alinhamento.is_power_of_two() {
-        erro_memoria_publica("metadados inválidos de acesso à memória pública");
-    }
-    let fim_acesso = endereco.checked_add(largura).unwrap_or_else(|| {
-        erro_memoria_publica("E-RUNTIME-MEM-ADDRESS-OVERFLOW: overflow no acesso à memória pública")
-    });
     let memoria = memoria_publica()
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
-    let candidata = memoria.alocacoes.iter().rev().find(|alocacao| {
-        let Some(fim) = alocacao.base.checked_add(alocacao.tamanho) else {
-            return false;
-        };
-        (endereco >= alocacao.base && endereco <= fim)
-            || (endereco < alocacao.base && fim_acesso > alocacao.base)
-    });
-    let Some(alocacao) = candidata else {
-        erro_memoria_publica("E-RUNTIME-MEM-UNKNOWN-ACCESS: acesso sem região pública registrada");
-    };
-    if !alocacao.viva {
-        erro_memoria_publica(
-            "E-RUNTIME-MEM-USE-AFTER-FREE: uso após liberar detectado em memória pública",
-        );
-    }
-    if endereco % alinhamento != 0 {
-        erro_memoria_publica("E-RUNTIME-MEM-MISALIGNED: acesso desalinhado à memória pública");
-    }
-    let contido = intervalo_publico_contido(alocacao.base, alocacao.tamanho, endereco, largura)
-        .unwrap_or_else(|_| {
-            erro_memoria_publica(
-                "E-RUNTIME-MEM-ADDRESS-OVERFLOW: metadados de região pública inválidos",
-            )
-        });
-    if !contido {
-        if endereco >= alocacao.base {
-            erro_memoria_publica(
-                "E-RUNTIME-MEM-CROSS-BOUNDARY: acesso multibyte cruza o limite da alocação pública",
-            );
-        }
-        erro_memoria_publica(
-            "E-RUNTIME-MEM-OUT-OF-BOUNDS: acesso fora dos limites da alocação pública",
-        );
+    let veredicto = classificar_acesso_publico(&memoria.alocacoes, endereco, largura, alinhamento);
+    if let Some(diagnostico) = veredicto.diagnostico() {
+        erro_memoria_publica(diagnostico);
     }
 }
 
@@ -420,7 +602,7 @@ pub extern "C" fn pinker_publico_validar_derivacao(origem: *const u8, derivado: 
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
     let candidata = memoria.alocacoes.iter().rev().find(|alocacao| {
-        let fim = alocacao.base.saturating_add(alocacao.tamanho);
+        let fim = fim_da_regiao(alocacao);
         origem >= alocacao.base && origem <= fim
     });
     let Some(alocacao) = candidata else {
@@ -433,14 +615,7 @@ pub extern "C" fn pinker_publico_validar_derivacao(origem: *const u8, derivado: 
             "E-RUNTIME-MEM-USE-AFTER-FREE: uso após liberar detectado em memória pública",
         );
     }
-    let fim = alocacao
-        .base
-        .checked_add(alocacao.tamanho)
-        .unwrap_or_else(|| {
-            erro_memoria_publica(
-                "E-RUNTIME-MEM-ADDRESS-OVERFLOW: metadados de região pública inválidos",
-            )
-        });
+    let fim = fim_da_regiao(alocacao);
     if derivado < alocacao.base || derivado > fim {
         erro_memoria_publica(
             "E-RUNTIME-MEM-OUT-OF-BOUNDS: derivação fora dos limites da alocação pública",
@@ -831,27 +1006,85 @@ formatar_wrappers!(
 // @pinker-nav:start runtime.io.saida
 // @pinker-nav:domain io
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Impressão uniforme de falar: bombom/logica/verso/espaço/newline passam pelo mesmo writer com write_all+flush; SIGPIPE é ignorado em Unix para que pipe fechado retorne erro, e toda falha de stdout termina pelo diagnóstico controlado de erro_fatal.
+// @pinker-nav:summary Impressão uniforme de falar: bombom/logica/verso/espaço/newline passam pelo mesmo writer com write_all+flush; a disposição de SIGPIPE é estabelecida em pinker_rt_iniciar (e reafirmada por Once nas entradas de I/O) para que pipe fechado retorne erro em qualquer ordem de execução, toda falha de stdout termina pelo diagnóstico controlado de erro_fatal, e restaurar_disposicao_padrao expõe a operação mínima de sistema que os caminhos de subprocesso usam para devolver SIGPIPE a SIG_DFL no filho antes do exec.
 #[cfg(unix)]
-fn preparar_stdout() {
+const SINAL_SIGPIPE: i32 = 13;
+#[cfg(unix)]
+const SINAL_HANDLER_PADRAO: usize = 0;
+#[cfg(unix)]
+const SINAL_HANDLER_IGNORAR: usize = 1;
+#[cfg(unix)]
+const SINAL_HANDLER_ERRO: usize = usize::MAX;
+
+#[cfg(unix)]
+extern "C" {
+    fn signal(signal: i32, handler: usize) -> usize;
+}
+
+/// Estabelece a disposição de sinais do processo: `SIGPIPE` passa a ser
+/// ignorado para que escrita em pipe fechado devolva `EPIPE` ao chamador em vez
+/// de terminar o processo por sinal.
+///
+/// É idempotente (`Once`). O ponto autoritativo de chamada é
+/// `pinker_rt_iniciar`, que roda antes da primeira instrução do programa
+/// nativo; `escrever_stdout` também chama, preservando o comportamento anterior
+/// para quem exercita o runtime por chamada nativa direta, sem passar pela
+/// inicialização (caso dos testes internos da crate).
+///
+/// Os caminhos de subprocesso **não** repetem a chamada, de propósito: repetir
+/// tornaria a inicialização imune a mutação, e a matriz de R5 continuaria verde
+/// mesmo com a correção desfeita.
+///
+/// Sobre herança: `SIG_IGN` sobrevive a `exec`. Os filhos não são afetados
+/// porque o próprio runtime restaura `SIG_DFL` no contexto pré-`exec` — ver
+/// `comando_saneado` e `restaurar_disposicao_padrao`.
+#[cfg(unix)]
+fn preparar_disposicao_sinais() {
     static PREPARAR: Once = Once::new();
-    PREPARAR.call_once(|| unsafe {
-        extern "C" {
-            fn signal(signal: i32, handler: usize) -> usize;
+    PREPARAR.call_once(|| {
+        // SAFETY: `signal` só é chamada aqui, uma única vez, com um handler
+        // constante e sem executar código de usuário.
+        let anterior = unsafe { signal(SINAL_SIGPIPE, SINAL_HANDLER_IGNORAR) };
+        if anterior == SINAL_HANDLER_ERRO {
+            erro_fatal("falha ao estabelecer a disposição de SIGPIPE do runtime");
         }
-        const SIGPIPE: i32 = 13;
-        const SIG_IGN: usize = 1;
-        signal(SIGPIPE, SIG_IGN);
     });
 }
 
 #[cfg(not(unix))]
-fn preparar_stdout() {}
+fn preparar_disposicao_sinais() {}
+
+/// Devolve `sinal` à disposição padrão (`SIG_DFL`) no processo corrente.
+///
+/// É a operação de sistema mínima usada pelo contexto pré-`exec` dos
+/// subprocessos: uma única chamada a `signal(2)`, sem alocação, sem formatação,
+/// sem acesso ao ambiente e sem lock. `signal(2)` está na lista de funções
+/// async-signal-safe da POSIX, o que a torna legítima entre `fork` e `exec`.
+///
+/// Falha vira `io::Error` para que o chamador a propague ao pai como erro
+/// controlado de criação do processo — nunca silenciada.
+///
+/// # Safety
+/// A `unsafe` cobre apenas a chamada a `signal(2)`, que é FFI. As precondições
+/// são: `sinal` é um número de sinal válido; o handler passado é a constante
+/// `SIG_DFL`, então nenhum código de usuário passa a ser executável por sinal; e
+/// nenhuma memória é lida ou escrita através de ponteiro. A função não executa
+/// código do chamador, portanto é segura para o contexto pré-`exec`.
+#[cfg(unix)]
+fn restaurar_disposicao_padrao(sinal: i32) -> std::io::Result<()> {
+    // SAFETY: ver as precondições acima — FFI pura, handler constante, sem
+    // ponteiros e sem código de usuário.
+    let anterior = unsafe { signal(sinal, SINAL_HANDLER_PADRAO) };
+    if anterior == SINAL_HANDLER_ERRO {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(())
+}
 
 fn escrever_stdout(bytes: &[u8]) {
     use std::io::Write as _;
 
-    preparar_stdout();
+    preparar_disposicao_sinais();
     let stdout = std::io::stdout();
     let mut lock = stdout.lock();
     lock.write_all(bytes)
@@ -2406,8 +2639,54 @@ pub unsafe extern "C" fn pinker_ambiente_buscar_contexto(
 // @pinker-nav:start runtime.processos.execucao
 // @pinker-nav:domain processos
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Execução de subprocessos sem shell implícito: basenames são resolvidos somente na PATH fixa /usr/local/bin:/usr/bin:/bin, caminhos com slash são usados literalmente, e todas as famílias recebem a PATH saneada; executar_com_entrada escreve stdin numa thread concorrente à espera, fecha o pipe e agrega erros sem deixar writer órfão.
+// @pinker-nav:summary Execução de subprocessos sem shell implícito: basenames são resolvidos somente na PATH fixa /usr/local/bin:/usr/bin:/bin, caminhos com slash são usados literalmente, e todas as famílias recebem a PATH saneada; a disposição de SIGPIPE do pai não é reafirmada aqui (pertence a pinker_rt_iniciar) e comando_saneado instala um pre_exec que devolve SIGPIPE a SIG_DFL no filho imediatamente antes do exec, sem depender da escolha interna da std entre fork/exec e posix_spawn, propagando falha de preparação ao pai como erro de criação do processo; executar_com_entrada escreve stdin numa thread concorrente à espera, fecha o pipe e agrega erros sem deixar writer órfão.
 const PATH_PROCESSOS: &str = "/usr/local/bin:/usr/bin:/bin";
+
+/// Constrói o `Command` comum a todas as famílias de processo, com a PATH
+/// saneada.
+///
+/// A disposição de `SIGPIPE` do pai **não** é (re)estabelecida aqui de
+/// propósito: ela pertence a `pinker_rt_iniciar`, que roda antes de qualquer
+/// instrução do programa. Repetir a preparação neste ponto tornaria a correção
+/// de R5 imune a mutação — a matriz continuaria passando mesmo com a
+/// inicialização desfeita — e esconderia a regressão que ela existe para pegar.
+///
+/// Sobre a herança da disposição pelos filhos: `SIG_IGN` sobrevive a `exec`, o
+/// que faria um programa externo disparado pela Pinker herdar uma disposição
+/// não padrão. Por isso este construtor instala um `pre_exec` que devolve
+/// `SIGPIPE` a `SIG_DFL` no filho, imediatamente antes do `exec`.
+///
+/// A configuração é explícita e pertence ao runtime da Pinker. Ela **não**
+/// delega o contrato à biblioteca padrão: `std::process::Command` hoje também
+/// restaura `SIGPIPE`, mas por caminhos internos distintos (`fork`/`exec` e
+/// `posix_spawn`) e sob condições que a std pode mudar. O contrato observável
+/// da Pinker não pode depender dessa escolha interna, da libc nem do runner.
+///
+/// Efeito colateral aceito e desejado: instalar uma closure de `pre_exec`
+/// remove este `Command` do caminho de `posix_spawn` da std, tornando a
+/// preparação do filho determinística em vez de condicional.
+///
+/// A closure respeita o contrato de [`CommandExt::pre_exec`]: roda no filho
+/// depois do `fork`, faz uma única chamada async-signal-safe a `signal(2)` via
+/// [`restaurar_disposicao_padrao`] e não aloca, não formata mensagem, não
+/// acessa ambiente e não adquire lock. Falha de preparação vira `io::Error` e
+/// chega ao pai como erro de criação do processo.
+fn comando_saneado(resolvido: std::path::PathBuf) -> std::process::Command {
+    let mut processo = std::process::Command::new(resolvido);
+    processo.env("PATH", PATH_PROCESSOS);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt as _;
+        // SAFETY: a closure roda no filho entre `fork` e `exec`. Ela executa
+        // apenas `restaurar_disposicao_padrao`, cujo corpo é uma chamada a
+        // `signal(2)` — async-signal-safe pela POSIX — sem alocação,
+        // formatação, acesso a ambiente, lock ou código de usuário.
+        unsafe {
+            processo.pre_exec(|| restaurar_disposicao_padrao(SINAL_SIGPIPE));
+        }
+    }
+    processo
+}
 
 fn exigir_comando_nao_vazio(nome: &str, comando: &str) {
     if comando.trim().is_empty() {
@@ -2444,9 +2723,7 @@ fn comando_resolvido(nome: &str, comando: &str) -> Result<std::path::PathBuf, St
 fn novo_processo(nome: &str, comando: &str) -> std::process::Command {
     exigir_comando_nao_vazio(nome, comando);
     let resolvido = comando_resolvido(nome, comando).unwrap_or_else(|err| erro_fatal(err.as_str()));
-    let mut processo = std::process::Command::new(resolvido);
-    processo.env("PATH", PATH_PROCESSOS);
-    processo
+    comando_saneado(resolvido)
 }
 
 fn exit_code_ou_erro(nome: &str, codigo: Option<i32>) -> u64 {
@@ -2560,8 +2837,7 @@ fn processo_com_entrada_resultado(
         return Err("intrínseca 'executar_com_entrada' exige comando não vazio".to_string());
     }
     let resolvido = comando_resolvido("executar_com_entrada", comando)?;
-    let mut processo = std::process::Command::new(resolvido);
-    processo.env("PATH", PATH_PROCESSOS);
+    let mut processo = comando_saneado(resolvido);
     if let Some(argumento) = argv1 {
         processo.arg(argumento);
     }
@@ -3065,6 +3341,412 @@ mod tests {
 
     // @pinker-nav:end evidencia.runtime.memoria-alocador
 
+    // @pinker-nav:start evidencia.runtime.validacao-acesso-publico
+    // @pinker-nav:domain memoria
+    // @pinker-nav:layer evidencia
+    // @pinker-nav:summary Matriz do veredicto de acesso à memória pública (hotfix pós-PR #411, item V4) sobre a unidade pura `classificar_acesso_publico`: endereços não registrados (4096 não mapeado, nulo, pilha, dado estático, função, alocação interna do runtime, mapeamento estrangeiro válido) recusados como E-RUNTIME-MEM-UNKNOWN-ACCESS; região liberada como use-after-free; base viva, interior, primeiro e último byte válidos permitidos; um byte após a região e acesso multibyte cruzando o limite recusados; e a matriz de larguras 1/2/4/8 com os alinhamentos correspondentes, idêntica para load e store porque ambos compartilham o mesmo predicado; mais a sustentação do construtor, que mostra por que não existe veredicto de metadata de região inválida — `pinker_publico_alocar` é a única origem produtiva de `AlocacaoPublica` e toda entrada publicada tem tamanho ≥ 1, `tamanho <= reservado` e `base + tamanho` representável.
+    /// Registro sintético com uma região viva de 64 bytes e uma liberada de 16,
+    /// em endereços que não colidem com nada real do processo.
+    fn registro_de_teste() -> Vec<AlocacaoPublica> {
+        vec![
+            AlocacaoPublica {
+                identidade: 1,
+                base: 0x4000_0000,
+                tamanho: 64,
+                reservado: PAGINA_PUBLICA,
+                viva: true,
+            },
+            AlocacaoPublica {
+                identidade: 2,
+                base: 0x5000_0000,
+                tamanho: 16,
+                reservado: PAGINA_PUBLICA,
+                viva: false,
+            },
+        ]
+    }
+
+    /// Larguras e alinhamentos operacionais dos tipos escalares endereçáveis:
+    /// `u8`/`i8`/`logica` (1), `u16`/`i16` (2), `u32`/`i32` (4) e
+    /// `u64`/`i64`/`bombom` (8).
+    const LARGURAS_OPERACIONAIS: [usize; 4] = [1, 2, 4, 8];
+
+    #[test]
+    fn acesso_a_endereco_nunca_registrado_e_recusado_em_toda_largura() {
+        let registro = registro_de_teste();
+        let pilha = 0_u64;
+        static ESTATICO: u64 = 0;
+        fn funcao_alvo() {}
+
+        let interno = pinker_alocar(32);
+        let candidatos: [(&str, usize); 7] = [
+            ("4096 não mapeado", 4096),
+            ("nulo", 0),
+            ("pilha", std::ptr::addr_of!(pilha) as usize),
+            ("dado estático", std::ptr::addr_of!(ESTATICO) as usize),
+            ("função", funcao_alvo as usize),
+            ("interno do runtime", interno as usize),
+            // Mapeamento estrangeiro válido: a arena pública existe, mas este
+            // offset não pertence a nenhuma região registrada.
+            ("mapeamento estrangeiro", 0x4000_0000 + PAGINA_PUBLICA * 4),
+        ];
+
+        for (rotulo, endereco) in candidatos {
+            for largura in LARGURAS_OPERACIONAIS {
+                // O endereço é alinhado para a largura sob teste, de modo que a
+                // recusa venha da ausência de região e não do alinhamento.
+                let alinhado = endereco & !(largura - 1);
+                assert_eq!(
+                    classificar_acesso_publico(&registro, alinhado, largura, largura),
+                    VeredictoAcesso::Desconhecido,
+                    "{rotulo} com largura {largura} deveria ser recusado"
+                );
+            }
+        }
+        unsafe { pinker_liberar(interno) };
+    }
+
+    #[test]
+    fn acessos_validos_sao_permitidos_em_toda_largura() {
+        let registro = registro_de_teste();
+        let base = 0x4000_0000_usize;
+        for largura in LARGURAS_OPERACIONAIS {
+            for (rotulo, endereco) in [
+                ("base viva", base),
+                ("interior válido", base + 16),
+                ("primeiro byte", base),
+                ("último byte válido", base + 64 - largura),
+            ] {
+                assert_eq!(
+                    classificar_acesso_publico(&registro, endereco, largura, largura),
+                    VeredictoAcesso::Permitido,
+                    "{rotulo} com largura {largura} deveria ser permitido"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn limites_da_regiao_sao_recusados_com_diagnostico_proprio() {
+        let registro = registro_de_teste();
+        let base = 0x4000_0000_usize;
+
+        // Um byte após a região: começa dentro do intervalo [base, fim] mas o
+        // acesso não cabe.
+        assert_eq!(
+            classificar_acesso_publico(&registro, base + 64, 1, 1),
+            VeredictoAcesso::CruzaLimite
+        );
+        // Acesso multibyte que começa dentro da região e termina depois dela.
+        // O alinhamento exigido é 1 para que a recusa venha da contenção, e
+        // não do alinhamento.
+        for largura in [2, 4, 8] {
+            let inicio = base + 64 - largura + 1;
+            assert_eq!(
+                classificar_acesso_publico(&registro, inicio, largura, 1),
+                VeredictoAcesso::CruzaLimite,
+                "largura {largura} começando em {inicio:#x} deveria cruzar o limite"
+            );
+            // O mesmo acesso, um byte antes, ainda cabe: prova que a fronteira
+            // testada é exatamente o último byte válido.
+            assert_eq!(
+                classificar_acesso_publico(&registro, inicio - 1, largura, 1),
+                VeredictoAcesso::Permitido,
+                "largura {largura} deveria caber terminando no último byte"
+            );
+        }
+        // Acesso que começa antes da base e invade a região.
+        assert_eq!(
+            classificar_acesso_publico(&registro, base - 4, 8, 1),
+            VeredictoAcesso::ForaDosLimites
+        );
+    }
+
+    #[test]
+    fn regiao_liberada_e_desalinhamento_tem_veredictos_distintos() {
+        let registro = registro_de_teste();
+        assert_eq!(
+            classificar_acesso_publico(&registro, 0x5000_0000, 8, 8),
+            VeredictoAcesso::UsoAposLiberar
+        );
+        assert_eq!(
+            classificar_acesso_publico(&registro, 0x4000_0001, 8, 8),
+            VeredictoAcesso::Desalinhado
+        );
+    }
+
+    #[test]
+    fn metadados_invalidos_e_overflow_sao_classificados_antes_do_registro() {
+        let registro = registro_de_teste();
+        assert_eq!(
+            classificar_acesso_publico(&registro, 0x4000_0000, 0, 8),
+            VeredictoAcesso::MetadadosInvalidos
+        );
+        assert_eq!(
+            classificar_acesso_publico(&registro, 0x4000_0000, 8, 0),
+            VeredictoAcesso::MetadadosInvalidos
+        );
+        assert_eq!(
+            classificar_acesso_publico(&registro, 0x4000_0000, 8, 3),
+            VeredictoAcesso::MetadadosInvalidos
+        );
+        assert_eq!(
+            classificar_acesso_publico(&registro, usize::MAX, 8, 1),
+            VeredictoAcesso::OverflowEndereco
+        );
+    }
+
+    #[test]
+    fn todo_veredicto_recusado_tem_diagnostico_estavel() {
+        assert_eq!(VeredictoAcesso::Permitido.diagnostico(), None);
+        for veredicto in [
+            VeredictoAcesso::MetadadosInvalidos,
+            VeredictoAcesso::OverflowEndereco,
+            VeredictoAcesso::Desconhecido,
+            VeredictoAcesso::UsoAposLiberar,
+            VeredictoAcesso::Desalinhado,
+            VeredictoAcesso::CruzaLimite,
+            VeredictoAcesso::ForaDosLimites,
+        ] {
+            let diagnostico = veredicto.diagnostico().expect("veredicto recusado");
+            assert!(!diagnostico.is_empty());
+        }
+        assert_eq!(
+            VeredictoAcesso::Desconhecido.diagnostico(),
+            Some("E-RUNTIME-MEM-UNKNOWN-ACCESS: acesso sem região pública registrada")
+        );
+    }
+
+    /// Não há registro vazio permissivo: sem nenhuma região registrada, todo
+    /// endereço é recusado. Esta é a garantia que faltava antes do hotfix.
+    #[test]
+    fn registro_vazio_nao_permite_nenhum_acesso() {
+        for endereco in [0, 1, 4096, 0x4000_0000, usize::MAX / 2] {
+            assert_eq!(
+                classificar_acesso_publico(&[], endereco, 1, 1),
+                VeredictoAcesso::Desconhecido,
+                "endereço {endereco:#x} não pode ser aceito com registro vazio"
+            );
+        }
+    }
+
+    /// O invariante da arena não é um comentário: é uma asserção executada.
+    ///
+    /// Se uma entrada com `base + tamanho` irrepresentável chegasse ao
+    /// registro, `fim_da_regiao` falha alto em debug e em teste, em vez de
+    /// devolver um fim inventado e classificar o acesso em cima dele. Este
+    /// teste é o que impede que o guarda seja trocado por um `unwrap_or`
+    /// silencioso numa mudança futura.
+    #[test]
+    #[should_panic(expected = "invariante da arena pública")]
+    fn metadata_de_regiao_irrepresentavel_falha_alto() {
+        let corrompida = AlocacaoPublica {
+            identidade: 1,
+            base: usize::MAX,
+            tamanho: 2,
+            reservado: 2,
+            viva: true,
+        };
+        let _ = fim_da_regiao(&corrompida);
+    }
+
+    /// Sustentação do Ponto 4: não existe veredicto de "metadados de região
+    /// inválidos" porque não existe entrada de registro com metadata inválida.
+    ///
+    /// A prova é sobre o **construtor**, não sobre o classificador:
+    /// `pinker_publico_alocar` é a única origem produtiva de `AlocacaoPublica`,
+    /// e toda entrada que ele publica satisfaz `tamanho >= 1`,
+    /// `base + tamanho` representável e `tamanho <= reservado`. Enquanto isso
+    /// valer, `fim_da_regiao` nunca satura e o antigo braço seria inalcançável.
+    #[test]
+    fn construtor_publico_so_registra_metadata_de_regiao_valida() {
+        // A guarda de tamanho zero encerra o processo, então só um filho
+        // re-executado consegue exercitá-la. É ela que sustenta `tamanho >= 1`
+        // em toda entrada do registro — sem isso, uma região de tamanho nulo
+        // entraria e a metadata deixaria de ser válida por construção.
+        if std::env::var_os("PINKER_RT_TESTE_ALOCAR_ZERO").is_some() {
+            pinker_publico_alocar(0);
+            unreachable!("'alocar' precisa recusar tamanho zero");
+        }
+        let filho = std::process::Command::new(std::env::current_exe().expect("binário de teste"))
+            .args([
+                "--exact",
+                "tests::construtor_publico_so_registra_metadata_de_regiao_valida",
+                "--nocapture",
+            ])
+            .env("PINKER_RT_TESTE_ALOCAR_ZERO", "1")
+            .output()
+            .expect("executar filho de teste");
+        assert_eq!(
+            filho.status.code(),
+            Some(1),
+            "'alocar' com tamanho zero precisa encerrar por diagnóstico"
+        );
+        assert!(
+            String::from_utf8_lossy(&filho.stderr).contains("'alocar' rejeita tamanho zero"),
+            "diagnóstico inesperado: {}",
+            String::from_utf8_lossy(&filho.stderr)
+        );
+
+        let mut ponteiros = Vec::new();
+        for tamanho in [1_u64, 7, 8, 64, 4096, 4097] {
+            let ptr = pinker_publico_alocar(tamanho);
+            assert!(!ptr.is_null());
+            ponteiros.push(ptr);
+        }
+        {
+            let memoria = memoria_publica().lock().expect("registro público");
+            assert!(
+                !memoria.alocacoes.is_empty(),
+                "o construtor precisa ter publicado entradas"
+            );
+            for alocacao in &memoria.alocacoes {
+                assert!(
+                    alocacao.tamanho >= 1,
+                    "'alocar' recusa zero, então nenhuma entrada tem tamanho nulo"
+                );
+                assert!(
+                    alocacao.tamanho <= alocacao.reservado,
+                    "a região visível nunca excede as páginas comprometidas"
+                );
+                let fim = alocacao
+                    .base
+                    .checked_add(alocacao.tamanho)
+                    .expect("base + tamanho precisa ser representável");
+                assert_eq!(
+                    fim,
+                    fim_da_regiao(alocacao),
+                    "fim_da_regiao não pode saturar sobre metadata produtiva"
+                );
+                assert!(
+                    alocacao
+                        .base
+                        .checked_add(alocacao.reservado)
+                        .is_some_and(|limite| limite >= fim),
+                    "a reserva inteira também precisa ser representável"
+                );
+            }
+        }
+        for ptr in ponteiros {
+            unsafe { pinker_publico_liberar(ptr) };
+        }
+    }
+    // @pinker-nav:end evidencia.runtime.validacao-acesso-publico
+
+    // @pinker-nav:start evidencia.runtime.cota-identidades-publicas
+    // @pinker-nav:domain memoria
+    // @pinker-nav:layer evidencia
+    // @pinker-nav:summary Evidência da cota vitalícia de identidades públicas (hotfix pós-PR #411, item V3): a unidade contada é a entrada de registro, liberar não devolve capacidade, identidades concedidas são estritamente crescentes e nunca reutilizadas, o esgotamento é irrecuperável no mesmo processo, e o diagnóstico é estável — verificado também de ponta a ponta num filho re-executado com o limite reduzido pela configuração interna de teste, sem interruptor público.
+    #[test]
+    fn identidade_publica_e_concedida_ate_a_cota_e_depois_esgota() {
+        // A cota conta entradas de registro, não alocações vivas.
+        for registradas in 0..4_usize {
+            assert!(matches!(
+                reservar_identidade_publica(registradas, 1, 4),
+                ReservaIdentidade::Concedida { .. }
+            ));
+        }
+        assert_eq!(
+            reservar_identidade_publica(4, 1, 4),
+            ReservaIdentidade::Esgotada
+        );
+        // Uma vez esgotada, continua esgotada: não há recuperação no processo.
+        assert_eq!(
+            reservar_identidade_publica(9_999, 1, 4),
+            ReservaIdentidade::Esgotada
+        );
+    }
+
+    #[test]
+    fn liberar_nao_devolve_capacidade_de_identidade() {
+        // Simula o laço `alocar(1024) + liberar` sempre pareado: nunca há mais
+        // de uma alocação viva, mas o registro cresce a cada ciclo e as
+        // identidades nunca se repetem.
+        let limite = 8;
+        let mut registradas = 0_usize;
+        let mut proxima = 1_u64;
+        let mut concedidas = Vec::new();
+        loop {
+            match reservar_identidade_publica(registradas, proxima, limite) {
+                ReservaIdentidade::Concedida {
+                    identidade,
+                    proxima: seguinte,
+                } => {
+                    concedidas.push(identidade);
+                    proxima = seguinte;
+                    // `liberar` marcaria `viva = false` sem remover a entrada.
+                    registradas += 1;
+                }
+                ReservaIdentidade::Esgotada => break,
+                ReservaIdentidade::Exaurida => panic!("contador não deveria estourar"),
+            }
+        }
+        assert_eq!(concedidas.len(), limite, "a cota é exatamente o limite");
+        let mut unicas = concedidas.clone();
+        unicas.sort_unstable();
+        unicas.dedup();
+        assert_eq!(unicas, concedidas, "identidades não podem se repetir");
+        assert!(
+            concedidas.windows(2).all(|par| par[0] < par[1]),
+            "identidades precisam ser estritamente crescentes"
+        );
+    }
+
+    #[test]
+    fn contador_de_identidade_saturado_e_classificado() {
+        assert_eq!(
+            reservar_identidade_publica(0, u64::MAX, usize::MAX),
+            ReservaIdentidade::Exaurida
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn esgotamento_de_identidade_tem_diagnostico_estavel() {
+        const LIMITE_REDUZIDO: usize = 4;
+        if std::env::var_os("PINKER_RT_TESTE_COTA_IDENTIDADE").is_some() {
+            LIMITE_IDENTIDADES_PUBLICAS_TESTE.store(LIMITE_REDUZIDO, Ordering::SeqCst);
+            // Alocação e liberação sempre pareadas: os bytes voltam a cada
+            // ciclo, mas a capacidade de identidade não. O ciclo seguinte à
+            // cota precisa falhar mesmo sem nenhuma alocação viva.
+            for _ in 0..LIMITE_REDUZIDO {
+                let ponteiro = pinker_publico_alocar(16);
+                assert!(!ponteiro.is_null());
+                unsafe { pinker_publico_liberar(ponteiro) };
+            }
+            let _ = pinker_publico_alocar(16);
+            unreachable!("a alocação além da cota deveria encerrar o processo");
+        }
+
+        let filho = std::process::Command::new(std::env::current_exe().expect("binário de teste"))
+            .args([
+                "--exact",
+                "tests::esgotamento_de_identidade_tem_diagnostico_estavel",
+                "--nocapture",
+            ])
+            .env("PINKER_RT_TESTE_COTA_IDENTIDADE", "1")
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .expect("executar filho da cota de identidade");
+
+        assert_eq!(
+            filho.status.code(),
+            Some(1),
+            "o esgotamento precisa encerrar pelo diagnóstico controlado"
+        );
+        let stderr = String::from_utf8_lossy(&filho.stderr);
+        assert!(
+            stderr.contains("limite de identidades públicas esgotado"),
+            "diagnóstico de esgotamento instável: {stderr}"
+        );
+        assert!(
+            !stderr.contains("panicked at"),
+            "o esgotamento não pode virar panic: {stderr}"
+        );
+    }
+    // @pinker-nav:end evidencia.runtime.cota-identidades-publicas
+
     // @pinker-nav:start evidencia.runtime.inicializacao-abi
     // @pinker-nav:domain inicializacao
     // @pinker-nav:layer evidencia
@@ -3082,6 +3764,169 @@ mod tests {
         assert_eq!(pinker_rt_versao(), 1);
     }
     // @pinker-nav:end evidencia.runtime.inicializacao-abi
+
+    // @pinker-nav:start evidencia.runtime.sigpipe-disposicao
+    // @pinker-nav:domain processos
+    // @pinker-nav:layer evidencia
+    // @pinker-nav:summary Evidência do contrato de SIGPIPE do runtime: partindo de SIG_DFL num processo filho dedicado, pinker_rt_iniciar deixa o pai com SIG_IGN; um filho criado pelo construtor comum comando_saneado observa SIG_DFL antes da inicialização da linguagem, medido por construtor de .init_array do próprio binário de teste; e restaurar_disposicao_padrao devolve erro em vez de silenciar falha, sem tocar a disposição do processo.
+    /// Sentinela distinta de qualquer disposição real; sinaliza que o
+    /// construtor de `.init_array` não rodou.
+    #[cfg(unix)]
+    const SIGPIPE_NAO_OBSERVADO: usize = usize::MAX - 1;
+
+    /// Disposição de `SIGPIPE` que este binário de teste herdou através de
+    /// `exec`.
+    ///
+    /// A leitura precisa acontecer antes do `lang_start` da std, que instala
+    /// `SIG_IGN` e mascararia a herança. Por isso o construtor abaixo é
+    /// registrado em `.init_array`, durante a partida da libc.
+    #[cfg(unix)]
+    static SIGPIPE_HERDADO_PELO_TESTE: AtomicUsize = AtomicUsize::new(SIGPIPE_NAO_OBSERVADO);
+
+    /// Lê a disposição herdada restaurando-a em seguida: `signal(2)` devolve a
+    /// disposição anterior, então ler exige uma troca imediatamente desfeita.
+    ///
+    /// # Safety
+    /// Roda em `.init_array`, antes de threads e antes da std; usa apenas
+    /// `signal(2)`.
+    #[cfg(unix)]
+    unsafe extern "C" fn capturar_sigpipe_herdado_pelo_teste() {
+        let anterior = signal(SINAL_SIGPIPE, SINAL_HANDLER_PADRAO);
+        if anterior != SINAL_HANDLER_ERRO && anterior != SINAL_HANDLER_PADRAO {
+            signal(SINAL_SIGPIPE, anterior);
+        }
+        SIGPIPE_HERDADO_PELO_TESTE.store(anterior, Ordering::SeqCst);
+    }
+
+    #[cfg(unix)]
+    #[used]
+    #[cfg_attr(target_os = "linux", link_section = ".init_array")]
+    static CONSTRUTOR_SIGPIPE_DO_TESTE: unsafe extern "C" fn() =
+        capturar_sigpipe_herdado_pelo_teste;
+
+    /// Depois de `pinker_rt_iniciar`, o processo Pinker pai ignora `SIGPIPE`.
+    ///
+    /// A medida roda num processo filho dedicado porque a preparação é
+    /// idempotente por `Once`: num processo que já a consumiu, a chamada seria
+    /// um no-op e o teste ficaria vazio. O filho começa devolvendo `SIGPIPE` a
+    /// `SIG_DFL`, reproduzindo o `main` nativo — que não passa pela
+    /// inicialização da std — e só então chama a inicialização do runtime.
+    #[cfg(unix)]
+    #[test]
+    fn pai_ignora_sigpipe_depois_de_iniciar() {
+        if std::env::var_os("PINKER_RT_TESTE_SIGPIPE_PAI").is_some() {
+            restaurar_disposicao_padrao(SINAL_SIGPIPE).expect("partir de SIG_DFL");
+            let argv: [*const u8; 2] = [b"pink\0".as_ptr(), std::ptr::null()];
+            // SAFETY: `argv` é um vetor válido terminado em nulo, vivo por toda
+            // a chamada; o runtime apenas o armazena.
+            unsafe { pinker_rt_iniciar(1, argv.as_ptr()) };
+            // Ler a disposição exige trocá-la; trocar justamente por `SIG_IGN`
+            // devolve o valor anterior sem alterar o estado esperado.
+            // SAFETY: FFI pura com handler constante, sem ponteiros.
+            let observada = unsafe { signal(SINAL_SIGPIPE, SINAL_HANDLER_IGNORAR) };
+            assert_eq!(
+                observada, SINAL_HANDLER_IGNORAR,
+                "o pai Pinker precisa ignorar SIGPIPE depois de pinker_rt_iniciar"
+            );
+            return;
+        }
+
+        let saida = std::process::Command::new(std::env::current_exe().expect("binário de teste"))
+            .args([
+                "--exact",
+                "tests::pai_ignora_sigpipe_depois_de_iniciar",
+                "--nocapture",
+            ])
+            .env("PINKER_RT_TESTE_SIGPIPE_PAI", "1")
+            .output()
+            .expect("executar filho de teste");
+        let relato = String::from_utf8_lossy(&saida.stdout).into_owned();
+        assert!(
+            saida.status.success(),
+            "disposição do pai divergente:\n{relato}"
+        );
+        // Sem esta guarda, um filtro que não casasse com nenhum teste também
+        // sairia com sucesso e o teste passaria sem medir nada.
+        assert!(
+            relato.contains("1 passed"),
+            "o filho precisa ter executado exatamente o teste medido:\n{relato}"
+        );
+    }
+
+    /// Todo filho criado pelo construtor comum observa `SIG_DFL`, mesmo com o
+    /// pai ignorando `SIGPIPE`.
+    ///
+    /// Esta é a prova da autoridade comum: `comando_saneado` é o único ponto
+    /// que constrói `Command` para as famílias de subprocesso, e a preparação
+    /// está nele. A matriz de ponta a ponta cobre cada família observando o
+    /// mesmo contrato pelo programa Pinker.
+    #[cfg(unix)]
+    #[test]
+    fn filho_de_comando_saneado_observa_disposicao_padrao() {
+        // `SIG_DFL` sai com código próprio, não com zero: um filtro que não
+        // casasse com nenhum teste faria o binário sair com zero, e o teste
+        // passaria sem medir nada.
+        const OBSERVOU_PADRAO: i32 = 7;
+
+        if std::env::var_os("PINKER_RT_TESTE_SIGPIPE_FILHO").is_some() {
+            let codigo = match SIGPIPE_HERDADO_PELO_TESTE.load(Ordering::SeqCst) {
+                SINAL_HANDLER_PADRAO => OBSERVOU_PADRAO,
+                SINAL_HANDLER_IGNORAR => 1,
+                SINAL_HANDLER_ERRO => 3,
+                SIGPIPE_NAO_OBSERVADO => 4,
+                _ => 2,
+            };
+            std::process::exit(codigo);
+        }
+
+        // O pai passa a ignorar SIGPIPE — é a disposição que sobreviveria ao
+        // `exec` se o runtime não restaurasse a padrão no filho.
+        preparar_disposicao_sinais();
+
+        let mut comando = comando_saneado(std::env::current_exe().expect("binário de teste"));
+        let saida = comando
+            .args([
+                "--exact",
+                "tests::filho_de_comando_saneado_observa_disposicao_padrao",
+                "--nocapture",
+            ])
+            .env("PINKER_RT_TESTE_SIGPIPE_FILHO", "1")
+            .output()
+            .expect("executar filho de teste");
+        assert_eq!(
+            saida.status.code(),
+            Some(OBSERVOU_PADRAO),
+            "o filho precisa observar SIG_DFL \
+             (0=teste não rodou, 1=SIG_IGN, 2=handler, 3=erro, 4=sonda não rodou)"
+        );
+    }
+
+    /// Falha ao preparar a disposição do filho vira erro, nunca silêncio.
+    ///
+    /// `SIGKILL` não aceita mudança de disposição, então serve de gatilho real
+    /// para o caminho de erro sem exigir superfície pública nem variável de
+    /// ambiente de produção.
+    #[cfg(unix)]
+    #[test]
+    fn falha_ao_restaurar_disposicao_vira_erro() {
+        const SINAL_SIGKILL: i32 = 9;
+
+        let erro = restaurar_disposicao_padrao(SINAL_SIGKILL)
+            .expect_err("SIGKILL não aceita mudança de disposição");
+        assert!(
+            erro.raw_os_error().is_some(),
+            "a falha precisa carregar o erro do sistema: {erro}"
+        );
+
+        // A tentativa falha não pode ter mexido na disposição do processo.
+        // SAFETY: FFI pura com handler constante, sem ponteiros.
+        let observada = unsafe { signal(SINAL_SIGPIPE, SINAL_HANDLER_IGNORAR) };
+        assert_eq!(
+            observada, SINAL_HANDLER_IGNORAR,
+            "a falha não pode alterar a disposição de SIGPIPE do processo"
+        );
+    }
+    // @pinker-nav:end evidencia.runtime.sigpipe-disposicao
 
     // @pinker-nav:start evidencia.runtime.texto-verso
     // @pinker-nav:domain texto

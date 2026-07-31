@@ -1,0 +1,13 @@
+// Hotfix pós-PR #411 — item V4: a proveniência fabricada sobrevive a um
+// round-trip por inteiro e a aritmética de ponteiro. Nenhuma dessas formas pode
+// devolver o ponteiro ao caminho não validado.
+pacote main;
+
+carinho principal() -> bombom {
+    nova origem: bombom = 8192;
+    nova p: seta<bombom> = origem virar seta<bombom>;
+    nova cru: bombom = p virar bombom;
+    nova q: seta<bombom> = (cru virar seta<bombom> + 8) virar seta<bombom>;
+    *q = 1;
+    mimo 0;
+}

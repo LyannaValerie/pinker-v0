@@ -102,6 +102,43 @@ Localização principal:
 - `src/backend_s.rs`;
 - `tests/semantic_tests.rs`, `tests/interpreter_tests.rs`, `tests/backend_s_external_toolchain_tests.rs`.
 
+A proveniência de ponteiro tem **quatro** classes: `Public` (região pública
+conhecida), `Internal` (domínio interno reconhecido, hoje o ambiente de
+closure), `Fabricated` (endereço construído a partir de um valor não-ponteiro) e
+`Unclassified` (origem não determinada pela análise atual — ausência de
+informação, não afirmação de origem inteira).
+
+Ponteiro `Public` ou `Fabricated` é validado no acesso — falha determinística
+com diagnóstico controlado, sem término por sinal. `Fabricated` continua fora da
+promessa de segurança de memória: os back-ends concordam em recusar endereço não
+registrado, não sobre quais endereços fabricados são válidos. Expansões não
+devem devolver essas classes ao caminho não validado.
+
+`Unclassified` permanece fora da validação pública. É um limite conhecido, não
+uma garantia: um acesso por ponteiro dessa classe pode terminar por sinal.
+Fechá-la exige análise de domínio com contrato próprio — tratá-la como exigente
+rejeita acesso legítimo de closure.
+
+Duas regras que uma expansão não pode quebrar. Primeira: a classificação de uma
+chamada depende do **tipo de retorno**, nunca da forma da chamada — direta,
+indireta, por endereço cru de código e de trato são simétricas, e
+`selected_call_shape` em `src/backend_s.rs` é a autoridade única onde as formas
+são enumeradas; uma forma nova precisa entrar ali, não num braço isolado.
+Segunda: um cast entre tipos de ponteiro preserva a classe da origem, e só a
+conversão de um valor não-ponteiro produz `Fabricated`.
+
+Interpretador e nativo **não compartilham implementação de validação**: o
+primeiro usa seu modelo de memória sintético, o segundo chama
+`pinker_publico_validar_acesso`. O contrato é de resultado observável
+correspondente nos casos cobertos, não de validador único.
+
+A memória pública tem dois orçamentos com naturezas diferentes: bytes são
+recuperáveis por `liberar`, identidades **não**. A cota de 1.000.000 de
+identidades é vitalícia por processo e existe para distinguir gerações e impedir
+que reuso de endereço mascare double free ou revalide alias obsoleto; qualquer
+expansão que proponha reciclar identidade precisa trazer contrato próprio de
+geração e lifetime.
+
 ### 4.3 Texto, arquivos, caminho e ambiente
 
 Exemplos históricos:
@@ -151,6 +188,22 @@ O runtime resolve basenames somente pela PATH fixa
 `/usr/local/bin:/usr/bin:/bin`, preserva caminhos explícitos e escreve stdin
 concorrentemente à espera do filho. Expansões não devem reintroduzir shell
 implícito, PATH herdada ou ordenação sequencial entre escrita integral e wait.
+
+A disposição de `SIGPIPE` é estabelecida em `pinker_rt_iniciar`, antes da
+primeira instrução do programa, e não a partir do primeiro `falar`: o
+comportamento observável de escrita em pipe fechado não pode depender da ordem
+de execução. A estratégia é confinada ao processo Pinker — a própria Pinker
+devolve `SIGPIPE` à disposição padrão no filho, imediatamente antes do `exec`,
+no construtor comum de subprocessos de cada back-end (`comando_saneado` no
+runtime nativo, `comando_de_processo` no interpretador). A restauração é
+explícita e não delegada à biblioteca padrão: a `std` também a faz hoje, mas por
+caminhos internos distintos (`fork`/`exec` e `posix_spawn`), e o contrato da
+Pinker não pode depender dessa escolha, da libc nem do runner.
+
+Expansões não devem mover a preparação do pai para um caminho alcançável só por
+I/O, nem duplicá-la em pontos que tornem a inicialização imune a mutação, nem
+construir `Command` fora do construtor comum — uma família que escapar dele
+volta a vazar a disposição do pai para o filho.
 
 ### 4.5 Coleções, dados estruturados e aleatoriedade
 

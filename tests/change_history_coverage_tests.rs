@@ -8,6 +8,59 @@ use std::{
 const BASELINE_PR: u64 = 330;
 const CUTOVER: &str = "1df2a6afff423bc7564e7322880e24af683f6089";
 
+/// Código do diagnóstico de clone raso.
+///
+/// A reconstrução histórica percorre merges alcançáveis a partir do cutover. Em
+/// clone raso o enxerto corta esse alcance e o gate falhava dizendo que uma
+/// exceção "não pertence ao histórico alcançável" — uma mensagem que sugere
+/// corrupção histórica quando a causa é apenas profundidade de clone. A CI já
+/// usa `fetch-depth: 0`; o problema era só o diagnóstico local.
+const CODIGO_CLONE_RASO: &str = "E-CHANGE-HISTORY-SHALLOW-CLONE";
+
+/// Detecta clone raso.
+///
+/// `git rev-parse --is-shallow-repository` é a consulta canônica. O arquivo
+/// `.git/shallow` é o fallback para versões de git anteriores a ela; um `git`
+/// indisponível não é tratado como "completo", porque isso enfraqueceria a
+/// verificação — nesse caso a falha original continua valendo.
+fn repositorio_e_raso(diretorio: &Path) -> bool {
+    let consulta = Command::new("git")
+        .arg("-C")
+        .arg(diretorio)
+        .args(["rev-parse", "--is-shallow-repository"])
+        .output();
+    if let Ok(saida) = consulta {
+        if saida.status.success() {
+            let resposta = String::from_utf8_lossy(&saida.stdout);
+            return resposta.trim() == "true";
+        }
+    }
+    diretorio.join(".git").join("shallow").exists()
+}
+
+/// Diagnóstico acionável quando o histórico local está incompleto.
+///
+/// Devolve `None` em clone completo — o gate segue exatamente como antes.
+fn diagnostico_de_historico_incompleto(diretorio: &Path) -> Option<String> {
+    repositorio_e_raso(diretorio).then(|| {
+        format!(
+            "{CODIGO_CLONE_RASO}\n\
+             a reconstrução histórica exige o histórico completo;\n\
+             execute `git fetch --unshallow` e repita a validação"
+        )
+    })
+}
+
+/// Falha cedo, e com a causa certa, quando o clone é raso.
+///
+/// A verificação não é enfraquecida: o teste continua falhando: o que muda é o
+/// diagnóstico. `--unshallow` nunca é executado automaticamente.
+fn exigir_historico_completo() {
+    if let Some(diagnostico) = diagnostico_de_historico_incompleto(Path::new(".")) {
+        panic!("{diagnostico}");
+    }
+}
+
 #[derive(Debug)]
 struct Exception {
     merge_sha: String,
@@ -96,6 +149,119 @@ fn manifest_prs() -> BTreeSet<u64> {
         .collect()
 }
 
+/// Monta um repositório mínimo com dois commits e devolve seu caminho.
+fn repositorio_sintetico(nome: &str) -> std::path::PathBuf {
+    let raiz = std::env::temp_dir().join(format!(
+        "pinker-clone-raso-{nome}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("tempo do sistema")
+            .as_nanos()
+    ));
+    let origem = raiz.join("origem");
+    fs::create_dir_all(&origem).expect("criar diretório de origem");
+
+    let git = |args: &[&str]| {
+        let saida = Command::new("git")
+            .arg("-C")
+            .arg(&origem)
+            .args(args)
+            .output()
+            .expect("executar git");
+        assert!(
+            saida.status.success(),
+            "git {args:?} falhou: {}",
+            String::from_utf8_lossy(&saida.stderr)
+        );
+    };
+    git(&["init", "--quiet"]);
+    git(&["config", "user.name", "pinker-teste"]);
+    git(&["config", "user.email", "pinker-teste@example.invalid"]);
+    for indice in 0..2 {
+        fs::write(origem.join("arquivo.txt"), format!("conteudo {indice}\n"))
+            .expect("gravar arquivo");
+        git(&["add", "arquivo.txt"]);
+        git(&["commit", "--quiet", "-m", &format!("commit {indice}")]);
+    }
+    raiz
+}
+
+// @pinker-nav:start evidencia.hotfix.clone-raso-diagnostico
+// @pinker-nav:domain trama
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Evidência do diagnóstico de clone raso do gate de cobertura histórica (hotfix pós-PR #411): um clone com profundidade 1 é detectado e recebe E-CHANGE-HISTORY-SHALLOW-CLONE com a instrução de `git fetch --unshallow`, enquanto clone completo — o repositório sintético de origem e o próprio workspace — não muda de comportamento e segue sem diagnóstico.
+#[test]
+fn clone_raso_recebe_diagnostico_especifico() {
+    let raiz = repositorio_sintetico("raso");
+    let origem = raiz.join("origem");
+    let destino = raiz.join("raso");
+    let clone = Command::new("git")
+        .args(["clone", "--quiet", "--depth", "1"])
+        .arg(format!("file://{}", origem.display()))
+        .arg(&destino)
+        .output()
+        .expect("executar git clone");
+    assert!(
+        clone.status.success(),
+        "clone raso falhou: {}",
+        String::from_utf8_lossy(&clone.stderr)
+    );
+
+    assert!(
+        repositorio_e_raso(&destino),
+        "clone com --depth 1 precisa ser detectado como raso"
+    );
+    let diagnostico = diagnostico_de_historico_incompleto(&destino)
+        .expect("clone raso precisa produzir diagnóstico");
+    assert!(diagnostico.contains(CODIGO_CLONE_RASO), "{diagnostico}");
+    assert!(
+        diagnostico.contains("git fetch --unshallow"),
+        "o diagnóstico precisa dizer o que fazer: {diagnostico}"
+    );
+    assert!(
+        !diagnostico.contains("não pertence ao histórico alcançável"),
+        "o diagnóstico de clone raso não pode sugerir corrupção histórica: {diagnostico}"
+    );
+
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn clone_completo_nao_muda_de_comportamento() {
+    // O próprio workspace, onde a suíte roda, precisa estar completo — é a
+    // garantia de que o gate real não foi enfraquecido. Passa pelo mesmo
+    // caminho dos gates históricos para que um workspace raso receba o
+    // diagnóstico acionável em vez de uma asserção obscura.
+    exigir_historico_completo();
+
+    let raiz = repositorio_sintetico("completo");
+    let origem = raiz.join("origem");
+    let destino = raiz.join("completo");
+    let clone = Command::new("git")
+        .args(["clone", "--quiet"])
+        .arg(format!("file://{}", origem.display()))
+        .arg(&destino)
+        .output()
+        .expect("executar git clone");
+    assert!(clone.status.success());
+
+    for completo in [&origem, &destino] {
+        assert!(
+            !repositorio_e_raso(completo),
+            "{} não deveria ser classificado como raso",
+            completo.display()
+        );
+        assert!(
+            diagnostico_de_historico_incompleto(completo).is_none(),
+            "clone completo não pode receber diagnóstico de clone raso"
+        );
+    }
+
+    let _ = fs::remove_dir_all(&raiz);
+}
+// @pinker-nav:end evidencia.hotfix.clone-raso-diagnostico
+
 #[test]
 fn workflows_disponibilizam_historico_local_completo() {
     for workflow in [".github/workflows/ci.yml", ".github/workflows/trama.yml"] {
@@ -109,6 +275,7 @@ fn workflows_disponibilizam_historico_local_completo() {
 
 #[test]
 fn todo_merge_pos_baseline_ate_o_cutover_tem_manifesto_ou_excecao() {
+    exigir_historico_completo();
     assert!(Path::new(".pinker/doc.toml").exists());
     let merges = reachable_merges();
     let manifests = manifest_prs();
@@ -152,6 +319,7 @@ fn todo_merge_pos_baseline_ate_o_cutover_tem_manifesto_ou_excecao() {
 
 #[test]
 fn excecoes_sao_proibidas_depois_do_cutover() {
+    exigir_historico_completo();
     let output = Command::new("git")
         .args([
             "log",

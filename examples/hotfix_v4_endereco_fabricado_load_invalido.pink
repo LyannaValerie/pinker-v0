@@ -1,0 +1,8 @@
+// Hotfix pós-PR #411 — item V4: leitura através de endereço fabricado.
+// Espelha o caso de escrita: o validador cobre `deref_load` e `deref_store`.
+pacote main;
+
+carinho principal() -> bombom {
+    nova alvo: seta<bombom> = 4096 virar seta<bombom>;
+    mimo *alvo;
+}
