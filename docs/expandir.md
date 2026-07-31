@@ -108,6 +108,13 @@ segurança de memória: os back-ends concordam em recusar endereço não
 registrado, não sobre quais endereços fabricados são válidos. Expansões não
 devem devolver essa classe ao caminho não validado.
 
+A memória pública tem dois orçamentos com naturezas diferentes: bytes são
+recuperáveis por `liberar`, identidades **não**. A cota de 1.000.000 de
+identidades é vitalícia por processo e existe para distinguir gerações e impedir
+que reuso de endereço mascare double free ou revalide alias obsoleto; qualquer
+expansão que proponha reciclar identidade precisa trazer contrato próprio de
+geração e lifetime.
+
 ### 4.3 Texto, arquivos, caminho e ambiente
 
 Exemplos históricos:

@@ -378,6 +378,41 @@ Os registros de região, vida e próxima identidade pertencem ao estado interno
 do interpretador, fora do mapa endereçável pelo programa. Assim, casts de
 inteiro para ponteiro não podem observar nem corromper metadata do allocator.
 
+### Cota vitalícia de identidades públicas
+
+O orçamento de **memória** é recuperável; o de **identidade** não. O contrato
+medido, idêntico nos dois back-ends, é:
+
+- o limite é de **1.000.000 de identidades públicas por processo**;
+- a unidade contada é a **entrada de registro**, isto é, uma chamada de
+  `alocar` bem-sucedida — a milionésima passa, a seguinte falha;
+- a identidade é consumida no momento da alocação bem-sucedida; toda falha de
+  alocação encerra o processo pelo diagnóstico, então não existe caminho
+  observável em que uma falha consuma cota;
+- `liberar` devolve o armazenamento — as páginas são descomprometidas e o pico
+  de memória se estabiliza — mas **não devolve capacidade de identidade**: a
+  entrada permanece no registro, marcada como morta;
+- o esgotamento **não é recuperável no mesmo processo**, e o diagnóstico é
+  estável: `limite de identidades públicas esgotado`, com exit 1.
+
+Um laço de `alocar(1024)` e `liberar` sempre pareados mantém o pico de memória
+constante e ainda assim esgota a cota depois de um milhão de ciclos.
+
+A razão é deliberada e vale a pena: a quarentena de identidade é o que permite
+distinguir gerações, detectar double free e recusar a revalidação de um alias
+obsoleto. Reciclar identidade faria um endereço reutilizado mascarar exatamente
+esses erros. Processos de vida longa com muito *churn* de alocação podem esgotar
+o orçamento — este é um limite conhecido, não um defeito latente.
+
+Não há reciclagem planejada. Introduzi-la exigiria um contrato próprio de
+geração e *lifetime* que hoje não existe; até que exista, a cota é vitalícia.
+
+Uma nota de assimetria, medida e ainda não unificada: no interpretador, o
+armazenamento de payload agregado de união também consome uma identidade
+pública, porque compartilha o mesmo registro de regiões; no runtime nativo, esse
+armazenamento tem orçamento próprio e não toca a cota pública. Programas que
+constroem muitas uniões agregadas esgotam a cota mais cedo no interpretador.
+
 A API mantém o modelo fatal estruturado já usado pelas intrínsecas de runtime;
 ela não retorna `Resultado<T,E>` porque isso criaria uma segunda ABI de erro
 somente para esta intrínseca. Falha controlada existe apenas em builds de teste,

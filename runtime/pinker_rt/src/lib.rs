@@ -130,11 +130,77 @@ struct AlocacaoPublica {
 }
 
 const PAGINA_PUBLICA: usize = 4096;
+
+/// Cota **vitalícia** de identidades públicas por processo.
+///
+/// A unidade contada é a entrada de registro, isto é, uma alocação pública
+/// bem-sucedida. `liberar` marca a geração como morta mas **não** remove a
+/// entrada: os bytes voltam, a identidade não. O contrato completo, incluindo a
+/// razão pela qual a identidade não é reciclada, está em `MANUAL.md`, seção
+/// "Cota vitalícia de identidades públicas".
 const MAX_IDENTIDADES_PUBLICAS: usize = 1_000_000;
 const MAX_METADATA_PUBLICA_BYTES: usize =
     MAX_IDENTIDADES_PUBLICAS * std::mem::size_of::<AlocacaoPublica>();
 const MAX_QUARENTENA_FISICA_BYTES: usize = 0;
 const MAX_ESPACO_VIRTUAL_PUBLICO_BYTES: usize = 8 * 1024 * 1024 * 1024;
+
+/// Limite de identidades efetivamente aplicado.
+///
+/// Fora de teste é sempre `MAX_IDENTIDADES_PUBLICAS`. Os testes internos do
+/// runtime reduzem o valor para exercitar o esgotamento e a não reutilização em
+/// tempo determinístico, sem precisar de um milhão de ciclos. Não existe
+/// interruptor público: nada de variável de ambiente, nada de símbolo
+/// exportado, e o comportamento de debug e release é o mesmo.
+#[cfg(test)]
+static LIMITE_IDENTIDADES_PUBLICAS_TESTE: AtomicUsize = AtomicUsize::new(MAX_IDENTIDADES_PUBLICAS);
+
+fn limite_identidades_publicas() -> usize {
+    #[cfg(test)]
+    {
+        LIMITE_IDENTIDADES_PUBLICAS_TESTE.load(Ordering::SeqCst)
+    }
+    #[cfg(not(test))]
+    {
+        MAX_IDENTIDADES_PUBLICAS
+    }
+}
+
+/// Veredicto da reserva de uma identidade pública, sem efeito colateral.
+///
+/// Separar a decisão do efeito é o que torna a cota testável: o efeito é
+/// `erro_memoria_publica`, que encerra o processo.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum ReservaIdentidade {
+    /// Identidade concedida; a próxima do processo passa a ser `proxima`.
+    Concedida { identidade: u64, proxima: u64 },
+    /// A cota vitalícia do processo acabou. Não é recuperável: liberar não
+    /// devolve capacidade de identidade.
+    Esgotada,
+    /// O contador de identidades estourou a largura de `u64`. Inalcançável na
+    /// prática enquanto a cota for menor, mas classificado em vez de suposto.
+    Exaurida,
+}
+
+/// Concede a próxima identidade pública, respeitando a cota vitalícia.
+///
+/// `identidades_registradas` é o tamanho do registro — inclui as gerações já
+/// liberadas, e é exatamente por isso que a cota é vitalícia.
+fn reservar_identidade_publica(
+    identidades_registradas: usize,
+    proxima_identidade: u64,
+    limite: usize,
+) -> ReservaIdentidade {
+    if identidades_registradas >= limite {
+        return ReservaIdentidade::Esgotada;
+    }
+    match proxima_identidade.checked_add(1) {
+        Some(proxima) => ReservaIdentidade::Concedida {
+            identidade: proxima_identidade,
+            proxima,
+        },
+        None => ReservaIdentidade::Exaurida,
+    }
+}
 
 struct MemoriaPublica {
     arena_base: usize,
@@ -281,17 +347,29 @@ pub extern "C" fn pinker_publico_alocar(tamanho: u64) -> *mut u8 {
     let mut memoria = memoria_publica()
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
-    if memoria.alocacoes.len() >= MAX_IDENTIDADES_PUBLICAS {
-        erro_memoria_publica("limite de identidades públicas esgotado");
-    }
+    // Exaustivo de propósito: sem braço curinga, um veredicto novo passa a ser
+    // erro de compilação em vez de herdar silenciosamente a mensagem errada.
+    let (identidade, proxima) = match reservar_identidade_publica(
+        memoria.alocacoes.len(),
+        memoria.proxima_identidade,
+        limite_identidades_publicas(),
+    ) {
+        ReservaIdentidade::Concedida {
+            identidade,
+            proxima,
+        } => (identidade, proxima),
+        ReservaIdentidade::Esgotada => {
+            erro_memoria_publica("limite de identidades públicas esgotado")
+        }
+        ReservaIdentidade::Exaurida => {
+            erro_memoria_publica("identidade pública de alocação esgotada")
+        }
+    };
     memoria
         .alocacoes
         .try_reserve(1)
         .unwrap_or_else(|_| erro_memoria_publica("metadata pública de alocações esgotada"));
-    let identidade = memoria.proxima_identidade;
-    memoria.proxima_identidade = identidade
-        .checked_add(1)
-        .unwrap_or_else(|| erro_memoria_publica("identidade pública de alocação esgotada"));
+    memoria.proxima_identidade = proxima;
     let fim = memoria
         .proximo_offset
         .checked_add(reservado)
