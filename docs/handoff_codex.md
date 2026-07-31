@@ -19,7 +19,7 @@
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
 | Última rodada paralela | **Paralela-1** — negação bitwise dual |
-| Último hotfix | **HF-6** — robustez de literal inteiro fora da faixa |
+| Último hotfix | endurecimento do runtime nativo pós-PR #411 (PR #412, mergeada) — sem identificador `HF-*` canônico atribuído; o último da série numerada continua sendo **HF-6** |
 
 ### Estado operacional estruturado
 
@@ -29,8 +29,15 @@ bloco_estruturalmente_ativo: 20
 estado_operacional: eixo_a_retomado
 expansao_funcional_eixo_a: ATIVA
 ultima_fase_antes_da_tarefa: 244
+fases_247_248:
+  estado: ENTREGUES_E_MERGEADAS
+  pr: 411
+hotfix_pos_pr_411:
+  estado: CONCLUIDO_E_MERGEADO
+  pr: 412
+  fase_funcional_aberta: nenhuma
 proxima_progressao:
-  - fase_249_item_16_nao_iniciado
+  - fase_249_item_16_tuplas_nao_iniciado
 retomada:
   decisao: humana_explicita_da_founder
   data: 2026-07-28
@@ -186,12 +193,21 @@ Histórico completo por fase: `docs/history/phases/`.
 
 ## 5. Próximo passo
 - Estrutura do Bloco 20 formalizada em dois eixos (Doc-41), padrão pós-Eixo B registrado na Doc-42 e convergência bare-metal formalizada na Doc-46: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado; a trilha BM permanece documental e não implementada.
-- A PR #411 contém as Fases 247–248 e uma continuação de hardening que preserva
-  as correções anteriores: runner confinado, executáveis autorizados
-  externamente, memória pública limitada com proveniência, arquivos por
-  descritor, subprocessos determinísticos, saída uniforme e YAML canônico. A
-  autoridade terminal de revisão e merge permanece humana.
-- A revisão humana da PR #411 é corrigida em runs separados. Já entregues: o
+- A PR #411 está **mergeada** e trouxe as Fases 247–248 mais uma continuação de
+  hardening que preserva as correções anteriores: runner confinado, executáveis
+  autorizados externamente, memória pública limitada com proveniência, arquivos
+  por descritor, subprocessos determinísticos, saída uniforme e YAML canônico.
+- A PR #412 está **mergeada** e fechou o endurecimento do runtime nativo pedido
+  na auditoria pós-PR #411: disposição de `SIGPIPE` configurada explicitamente
+  no filho antes do `exec` em todas as famílias de subprocesso dos dois
+  back-ends e independente da ordem de execução; validação de acesso por
+  ponteiro fabricado a partir de inteiro em load e store nas larguras 1/2/4/8,
+  com simetria das quatro formas de chamada que devolvem ponteiro; cota
+  vitalícia de identidades públicas documentada e testada, sem redesenho; e
+  diagnóstico `E-CHANGE-HISTORY-SHALLOW-CLONE` para clone raso. **Nenhuma fase
+  funcional nova foi aberta pela PR #412 e tuplas continuam não iniciadas.**
+- A revisão humana da PR #411 foi corrigida em runs separados, todos mergeados.
+  Registro histórico do que foi entregue nesses runs: o
   bypass de diretiva em `sussurro` (HR2), a reserva do namespace
   `__pinker_internal_` para identificadores da fonte (HR5) e o `encaixe` de
   união tipado com tags exclusivamente do registry canônico (HR1, que também
@@ -211,8 +227,11 @@ Histórico completo por fase: `docs/history/phases/`.
   origem integralmente e a extração copia para storage novo do binding, com
   orçamentos explícitos de descritores, bytes e metadata revalidados no runtime
   nativo e no interpretador. **Nenhum finding da revisão humana original
-  permanece aberto**; ainda assim, o head da PR #411 exige nova revisão humana
-  integral e a decisão de merge continua exclusiva da Founder.
+  permanece aberto ou em correção**; a revisão foi concluída e a PR #411 foi
+  mergeada.
+- A próxima progressão funcional declarada continua sendo a **Fase 249 — item 16
+  da Faixa 4 (tuplas)**, ainda não iniciada. Nenhuma fase funcional está aberta
+  no momento.
 - `alocar`/`liberar` é mecanismo separado da política de lifetime dos valores internos que usam heap; a API pública não libera ambientes de closure, descritores de callable, snapshots de trato, coleções ou strings.
 - Qualquer fase que toque o layout ou o tamanho do ambiente deve incluir gate de underallocation que observe diretamente os bytes solicitados por instrumentação, metadado, canário ou fronteira de arredondamento; resultado funcional isolado não é evidência suficiente. No recorte atual de uma palavra por captura, o tamanho exigido é `capturas * tamanho_da_palavra`, com overflow verificado. Para capturas futuras multi-palavra, deve ser o tamanho final alinhado do ambiente: tamanho e alinhamento de cada captura, offset alinhado, padding intermediário, alinhamento final e toda aritmética com detecção de overflow; soma simples dos tamanhos é insuficiente.
 - O item 5 pode avançar para diagnósticos enriquecidos ou métodos utilitários; o item 4 pode avançar apenas em extensões fora do contrato 244. Em qualquer caso, sem recorte mínimo automático, com lowering nativo obrigatório e com fatia vertical utilizável.
