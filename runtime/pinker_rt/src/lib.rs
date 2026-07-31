@@ -1006,9 +1006,11 @@ formatar_wrappers!(
 // @pinker-nav:start runtime.io.saida
 // @pinker-nav:domain io
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Impressão uniforme de falar: bombom/logica/verso/espaço/newline passam pelo mesmo writer com write_all+flush; a disposição de SIGPIPE é estabelecida em pinker_rt_iniciar (e reafirmada por Once nas entradas de I/O) para que pipe fechado retorne erro em qualquer ordem de execução, e toda falha de stdout termina pelo diagnóstico controlado de erro_fatal.
+// @pinker-nav:summary Impressão uniforme de falar: bombom/logica/verso/espaço/newline passam pelo mesmo writer com write_all+flush; a disposição de SIGPIPE é estabelecida em pinker_rt_iniciar (e reafirmada por Once nas entradas de I/O) para que pipe fechado retorne erro em qualquer ordem de execução, toda falha de stdout termina pelo diagnóstico controlado de erro_fatal, e restaurar_disposicao_padrao expõe a operação mínima de sistema que os caminhos de subprocesso usam para devolver SIGPIPE a SIG_DFL no filho antes do exec.
 #[cfg(unix)]
 const SINAL_SIGPIPE: i32 = 13;
+#[cfg(unix)]
+const SINAL_HANDLER_PADRAO: usize = 0;
 #[cfg(unix)]
 const SINAL_HANDLER_IGNORAR: usize = 1;
 #[cfg(unix)]
@@ -1033,9 +1035,9 @@ extern "C" {
 /// tornaria a inicialização imune a mutação, e a matriz de R5 continuaria verde
 /// mesmo com a correção desfeita.
 ///
-/// Sobre herança: `SIG_IGN` sobrevive a `exec`, mas os filhos não são afetados
-/// — ver `comando_saneado` para a medição e a decisão de não instalar um
-/// `pre_exec` próprio.
+/// Sobre herança: `SIG_IGN` sobrevive a `exec`. Os filhos não são afetados
+/// porque o próprio runtime restaura `SIG_DFL` no contexto pré-`exec` — ver
+/// `comando_saneado` e `restaurar_disposicao_padrao`.
 #[cfg(unix)]
 fn preparar_disposicao_sinais() {
     static PREPARAR: Once = Once::new();
@@ -1051,6 +1053,33 @@ fn preparar_disposicao_sinais() {
 
 #[cfg(not(unix))]
 fn preparar_disposicao_sinais() {}
+
+/// Devolve `sinal` à disposição padrão (`SIG_DFL`) no processo corrente.
+///
+/// É a operação de sistema mínima usada pelo contexto pré-`exec` dos
+/// subprocessos: uma única chamada a `signal(2)`, sem alocação, sem formatação,
+/// sem acesso ao ambiente e sem lock. `signal(2)` está na lista de funções
+/// async-signal-safe da POSIX, o que a torna legítima entre `fork` e `exec`.
+///
+/// Falha vira `io::Error` para que o chamador a propague ao pai como erro
+/// controlado de criação do processo — nunca silenciada.
+///
+/// # Safety
+/// A `unsafe` cobre apenas a chamada a `signal(2)`, que é FFI. As precondições
+/// são: `sinal` é um número de sinal válido; o handler passado é a constante
+/// `SIG_DFL`, então nenhum código de usuário passa a ser executável por sinal; e
+/// nenhuma memória é lida ou escrita através de ponteiro. A função não executa
+/// código do chamador, portanto é segura para o contexto pré-`exec`.
+#[cfg(unix)]
+fn restaurar_disposicao_padrao(sinal: i32) -> std::io::Result<()> {
+    // SAFETY: ver as precondições acima — FFI pura, handler constante, sem
+    // ponteiros e sem código de usuário.
+    let anterior = unsafe { signal(sinal, SINAL_HANDLER_PADRAO) };
+    if anterior == SINAL_HANDLER_ERRO {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(())
+}
 
 fn escrever_stdout(bytes: &[u8]) {
     use std::io::Write as _;
@@ -2610,7 +2639,7 @@ pub unsafe extern "C" fn pinker_ambiente_buscar_contexto(
 // @pinker-nav:start runtime.processos.execucao
 // @pinker-nav:domain processos
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Execução de subprocessos sem shell implícito: basenames são resolvidos somente na PATH fixa /usr/local/bin:/usr/bin:/bin, caminhos com slash são usados literalmente, e todas as famílias recebem a PATH saneada; a disposição de SIGPIPE do pai não é reafirmada aqui (pertence a pinker_rt_iniciar) e os filhos observam SIG_DFL porque std::process::Command restaura a disposição antes do exec — medido pela matriz de R5, não presumido; executar_com_entrada escreve stdin numa thread concorrente à espera, fecha o pipe e agrega erros sem deixar writer órfão.
+// @pinker-nav:summary Execução de subprocessos sem shell implícito: basenames são resolvidos somente na PATH fixa /usr/local/bin:/usr/bin:/bin, caminhos com slash são usados literalmente, e todas as famílias recebem a PATH saneada; a disposição de SIGPIPE do pai não é reafirmada aqui (pertence a pinker_rt_iniciar) e comando_saneado instala um pre_exec que devolve SIGPIPE a SIG_DFL no filho imediatamente antes do exec, sem depender da escolha interna da std entre fork/exec e posix_spawn, propagando falha de preparação ao pai como erro de criação do processo; executar_com_entrada escreve stdin numa thread concorrente à espera, fecha o pipe e agrega erros sem deixar writer órfão.
 const PATH_PROCESSOS: &str = "/usr/local/bin:/usr/bin:/bin";
 
 /// Constrói o `Command` comum a todas as famílias de processo, com a PATH
@@ -2623,22 +2652,39 @@ const PATH_PROCESSOS: &str = "/usr/local/bin:/usr/bin:/bin";
 /// inicialização desfeita — e esconderia a regressão que ela existe para pegar.
 ///
 /// Sobre a herança da disposição pelos filhos: `SIG_IGN` sobrevive a `exec`, o
-/// que em princípio faria um programa externo disparado pela Pinker herdar uma
-/// disposição não padrão. Isso **não** acontece porque `std::process::Command`
-/// restaura `SIGPIPE` para `SIG_DFL` no caminho pré-`exec`, antes de qualquer
-/// closure de `pre_exec` do chamador. Foi medido, não presumido: a matriz de
-/// R5 inclui uma célula (`sigpipe-disposicao`) em que o filho lê a disposição
-/// herdada num construtor de `.init_array` — antes do `lang_start` da std, que
-/// instalaria `SIG_IGN` e mascararia a medida — e exige `SIG_DFL` nos dois
-/// back-ends.
+/// que faria um programa externo disparado pela Pinker herdar uma disposição
+/// não padrão. Por isso este construtor instala um `pre_exec` que devolve
+/// `SIGPIPE` a `SIG_DFL` no filho, imediatamente antes do `exec`.
 ///
-/// Por isso o runtime **não** instala um `pre_exec` próprio: seria código
-/// `unsafe` redundante que nenhum teste conseguiria distinguir do
-/// comportamento já garantido. A célula da matriz é o guardião do contrato: se
-/// a std deixar de restaurar, ela falha.
+/// A configuração é explícita e pertence ao runtime da Pinker. Ela **não**
+/// delega o contrato à biblioteca padrão: `std::process::Command` hoje também
+/// restaura `SIGPIPE`, mas por caminhos internos distintos (`fork`/`exec` e
+/// `posix_spawn`) e sob condições que a std pode mudar. O contrato observável
+/// da Pinker não pode depender dessa escolha interna, da libc nem do runner.
+///
+/// Efeito colateral aceito e desejado: instalar uma closure de `pre_exec`
+/// remove este `Command` do caminho de `posix_spawn` da std, tornando a
+/// preparação do filho determinística em vez de condicional.
+///
+/// A closure respeita o contrato de [`CommandExt::pre_exec`]: roda no filho
+/// depois do `fork`, faz uma única chamada async-signal-safe a `signal(2)` via
+/// [`restaurar_disposicao_padrao`] e não aloca, não formata mensagem, não
+/// acessa ambiente e não adquire lock. Falha de preparação vira `io::Error` e
+/// chega ao pai como erro de criação do processo.
 fn comando_saneado(resolvido: std::path::PathBuf) -> std::process::Command {
     let mut processo = std::process::Command::new(resolvido);
     processo.env("PATH", PATH_PROCESSOS);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt as _;
+        // SAFETY: a closure roda no filho entre `fork` e `exec`. Ela executa
+        // apenas `restaurar_disposicao_padrao`, cujo corpo é uma chamada a
+        // `signal(2)` — async-signal-safe pela POSIX — sem alocação,
+        // formatação, acesso a ambiente, lock ou código de usuário.
+        unsafe {
+            processo.pre_exec(|| restaurar_disposicao_padrao(SINAL_SIGPIPE));
+        }
+    }
     processo
 }
 
@@ -3718,6 +3764,169 @@ mod tests {
         assert_eq!(pinker_rt_versao(), 1);
     }
     // @pinker-nav:end evidencia.runtime.inicializacao-abi
+
+    // @pinker-nav:start evidencia.runtime.sigpipe-disposicao
+    // @pinker-nav:domain processos
+    // @pinker-nav:layer evidencia
+    // @pinker-nav:summary Evidência do contrato de SIGPIPE do runtime: partindo de SIG_DFL num processo filho dedicado, pinker_rt_iniciar deixa o pai com SIG_IGN; um filho criado pelo construtor comum comando_saneado observa SIG_DFL antes da inicialização da linguagem, medido por construtor de .init_array do próprio binário de teste; e restaurar_disposicao_padrao devolve erro em vez de silenciar falha, sem tocar a disposição do processo.
+    /// Sentinela distinta de qualquer disposição real; sinaliza que o
+    /// construtor de `.init_array` não rodou.
+    #[cfg(unix)]
+    const SIGPIPE_NAO_OBSERVADO: usize = usize::MAX - 1;
+
+    /// Disposição de `SIGPIPE` que este binário de teste herdou através de
+    /// `exec`.
+    ///
+    /// A leitura precisa acontecer antes do `lang_start` da std, que instala
+    /// `SIG_IGN` e mascararia a herança. Por isso o construtor abaixo é
+    /// registrado em `.init_array`, durante a partida da libc.
+    #[cfg(unix)]
+    static SIGPIPE_HERDADO_PELO_TESTE: AtomicUsize = AtomicUsize::new(SIGPIPE_NAO_OBSERVADO);
+
+    /// Lê a disposição herdada restaurando-a em seguida: `signal(2)` devolve a
+    /// disposição anterior, então ler exige uma troca imediatamente desfeita.
+    ///
+    /// # Safety
+    /// Roda em `.init_array`, antes de threads e antes da std; usa apenas
+    /// `signal(2)`.
+    #[cfg(unix)]
+    unsafe extern "C" fn capturar_sigpipe_herdado_pelo_teste() {
+        let anterior = signal(SINAL_SIGPIPE, SINAL_HANDLER_PADRAO);
+        if anterior != SINAL_HANDLER_ERRO && anterior != SINAL_HANDLER_PADRAO {
+            signal(SINAL_SIGPIPE, anterior);
+        }
+        SIGPIPE_HERDADO_PELO_TESTE.store(anterior, Ordering::SeqCst);
+    }
+
+    #[cfg(unix)]
+    #[used]
+    #[cfg_attr(target_os = "linux", link_section = ".init_array")]
+    static CONSTRUTOR_SIGPIPE_DO_TESTE: unsafe extern "C" fn() =
+        capturar_sigpipe_herdado_pelo_teste;
+
+    /// Depois de `pinker_rt_iniciar`, o processo Pinker pai ignora `SIGPIPE`.
+    ///
+    /// A medida roda num processo filho dedicado porque a preparação é
+    /// idempotente por `Once`: num processo que já a consumiu, a chamada seria
+    /// um no-op e o teste ficaria vazio. O filho começa devolvendo `SIGPIPE` a
+    /// `SIG_DFL`, reproduzindo o `main` nativo — que não passa pela
+    /// inicialização da std — e só então chama a inicialização do runtime.
+    #[cfg(unix)]
+    #[test]
+    fn pai_ignora_sigpipe_depois_de_iniciar() {
+        if std::env::var_os("PINKER_RT_TESTE_SIGPIPE_PAI").is_some() {
+            restaurar_disposicao_padrao(SINAL_SIGPIPE).expect("partir de SIG_DFL");
+            let argv: [*const u8; 2] = [b"pink\0".as_ptr(), std::ptr::null()];
+            // SAFETY: `argv` é um vetor válido terminado em nulo, vivo por toda
+            // a chamada; o runtime apenas o armazena.
+            unsafe { pinker_rt_iniciar(1, argv.as_ptr()) };
+            // Ler a disposição exige trocá-la; trocar justamente por `SIG_IGN`
+            // devolve o valor anterior sem alterar o estado esperado.
+            // SAFETY: FFI pura com handler constante, sem ponteiros.
+            let observada = unsafe { signal(SINAL_SIGPIPE, SINAL_HANDLER_IGNORAR) };
+            assert_eq!(
+                observada, SINAL_HANDLER_IGNORAR,
+                "o pai Pinker precisa ignorar SIGPIPE depois de pinker_rt_iniciar"
+            );
+            return;
+        }
+
+        let saida = std::process::Command::new(std::env::current_exe().expect("binário de teste"))
+            .args([
+                "--exact",
+                "tests::pai_ignora_sigpipe_depois_de_iniciar",
+                "--nocapture",
+            ])
+            .env("PINKER_RT_TESTE_SIGPIPE_PAI", "1")
+            .output()
+            .expect("executar filho de teste");
+        let relato = String::from_utf8_lossy(&saida.stdout).into_owned();
+        assert!(
+            saida.status.success(),
+            "disposição do pai divergente:\n{relato}"
+        );
+        // Sem esta guarda, um filtro que não casasse com nenhum teste também
+        // sairia com sucesso e o teste passaria sem medir nada.
+        assert!(
+            relato.contains("1 passed"),
+            "o filho precisa ter executado exatamente o teste medido:\n{relato}"
+        );
+    }
+
+    /// Todo filho criado pelo construtor comum observa `SIG_DFL`, mesmo com o
+    /// pai ignorando `SIGPIPE`.
+    ///
+    /// Esta é a prova da autoridade comum: `comando_saneado` é o único ponto
+    /// que constrói `Command` para as famílias de subprocesso, e a preparação
+    /// está nele. A matriz de ponta a ponta cobre cada família observando o
+    /// mesmo contrato pelo programa Pinker.
+    #[cfg(unix)]
+    #[test]
+    fn filho_de_comando_saneado_observa_disposicao_padrao() {
+        // `SIG_DFL` sai com código próprio, não com zero: um filtro que não
+        // casasse com nenhum teste faria o binário sair com zero, e o teste
+        // passaria sem medir nada.
+        const OBSERVOU_PADRAO: i32 = 7;
+
+        if std::env::var_os("PINKER_RT_TESTE_SIGPIPE_FILHO").is_some() {
+            let codigo = match SIGPIPE_HERDADO_PELO_TESTE.load(Ordering::SeqCst) {
+                SINAL_HANDLER_PADRAO => OBSERVOU_PADRAO,
+                SINAL_HANDLER_IGNORAR => 1,
+                SINAL_HANDLER_ERRO => 3,
+                SIGPIPE_NAO_OBSERVADO => 4,
+                _ => 2,
+            };
+            std::process::exit(codigo);
+        }
+
+        // O pai passa a ignorar SIGPIPE — é a disposição que sobreviveria ao
+        // `exec` se o runtime não restaurasse a padrão no filho.
+        preparar_disposicao_sinais();
+
+        let mut comando = comando_saneado(std::env::current_exe().expect("binário de teste"));
+        let saida = comando
+            .args([
+                "--exact",
+                "tests::filho_de_comando_saneado_observa_disposicao_padrao",
+                "--nocapture",
+            ])
+            .env("PINKER_RT_TESTE_SIGPIPE_FILHO", "1")
+            .output()
+            .expect("executar filho de teste");
+        assert_eq!(
+            saida.status.code(),
+            Some(OBSERVOU_PADRAO),
+            "o filho precisa observar SIG_DFL \
+             (0=teste não rodou, 1=SIG_IGN, 2=handler, 3=erro, 4=sonda não rodou)"
+        );
+    }
+
+    /// Falha ao preparar a disposição do filho vira erro, nunca silêncio.
+    ///
+    /// `SIGKILL` não aceita mudança de disposição, então serve de gatilho real
+    /// para o caminho de erro sem exigir superfície pública nem variável de
+    /// ambiente de produção.
+    #[cfg(unix)]
+    #[test]
+    fn falha_ao_restaurar_disposicao_vira_erro() {
+        const SINAL_SIGKILL: i32 = 9;
+
+        let erro = restaurar_disposicao_padrao(SINAL_SIGKILL)
+            .expect_err("SIGKILL não aceita mudança de disposição");
+        assert!(
+            erro.raw_os_error().is_some(),
+            "a falha precisa carregar o erro do sistema: {erro}"
+        );
+
+        // A tentativa falha não pode ter mexido na disposição do processo.
+        // SAFETY: FFI pura com handler constante, sem ponteiros.
+        let observada = unsafe { signal(SINAL_SIGPIPE, SINAL_HANDLER_IGNORAR) };
+        assert_eq!(
+            observada, SINAL_HANDLER_IGNORAR,
+            "a falha não pode alterar a disposição de SIGPIPE do processo"
+        );
+    }
+    // @pinker-nav:end evidencia.runtime.sigpipe-disposicao
 
     // @pinker-nav:start evidencia.runtime.texto-verso
     // @pinker-nav:domain texto

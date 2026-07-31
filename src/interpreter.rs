@@ -5014,7 +5014,7 @@ fn try_call_intrinsic(
 // @pinker-nav:start interpreter.hospedeiro.servicos-auxiliares
 // @pinker-nav:domain hospedeiro
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Reúne helpers hospedados usados pelas intrínsecas para stdin, aleatoriedade, argumentos nomeados, ambiente, formatação textual, CSV, JSON mínimo, tempo UTC e processos; encapsula efeitos e normalizações auxiliares sem criar novas ferramentas da Trama nem alterar a semântica do dispatcher.
+// @pinker-nav:summary Reúne helpers hospedados usados pelas intrínsecas para stdin, aleatoriedade, argumentos nomeados, ambiente, formatação textual, CSV, JSON mínimo, tempo UTC e processos; encapsula efeitos e normalizações auxiliares sem criar novas ferramentas da Trama nem alterar a semântica do dispatcher, e concentra em comando_de_processo a construção de todo Command das famílias de subprocesso, que instala um pre_exec devolvendo SIGPIPE a SIG_DFL no filho antes do exec em paridade com o runtime nativo.
 fn read_stdin_line_minima(intrinsic_name: &str) -> Result<Option<String>, PinkerError> {
     let mut raw = String::new();
     let bytes = io::stdin().read_line(&mut raw).map_err(|err| {
@@ -5326,13 +5326,73 @@ fn formatar_tempo_unix_iso_utc(timestamp: u64) -> Result<String, PinkerError> {
     ))
 }
 
+#[cfg(unix)]
+const SINAL_SIGPIPE: i32 = 13;
+#[cfg(unix)]
+const SINAL_HANDLER_PADRAO: usize = 0;
+#[cfg(unix)]
+const SINAL_HANDLER_ERRO: usize = usize::MAX;
+
+#[cfg(unix)]
+extern "C" {
+    fn signal(signal: i32, handler: usize) -> usize;
+}
+
+/// Devolve `sinal` à disposição padrão (`SIG_DFL`) no processo corrente.
+///
+/// Espelha `restaurar_disposicao_padrao` do runtime nativo: é a operação de
+/// sistema mínima executada no contexto pré-`exec`, sem alocação, formatação,
+/// acesso a ambiente ou lock. `signal(2)` está na lista async-signal-safe da
+/// POSIX. Falha vira `io::Error` e chega ao pai como erro de criação do
+/// processo.
+///
+/// # Safety
+/// A `unsafe` cobre só a chamada FFI a `signal(2)`: `sinal` é um número de
+/// sinal válido, o handler é a constante `SIG_DFL` (nenhum código de usuário
+/// passa a ser executável por sinal) e nenhum ponteiro é desreferenciado.
+#[cfg(unix)]
+fn restaurar_disposicao_padrao(sinal: i32) -> std::io::Result<()> {
+    // SAFETY: ver as precondições acima — FFI pura, handler constante, sem
+    // ponteiros e sem código de usuário.
+    let anterior = unsafe { signal(sinal, SINAL_HANDLER_PADRAO) };
+    if anterior == SINAL_HANDLER_ERRO {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+/// Constrói o `Command` comum a todas as famílias de processo do
+/// interpretador.
+///
+/// O processo `pink` ignora `SIGPIPE` (a inicialização da std instala
+/// `SIG_IGN`), e `SIG_IGN` sobrevive a `exec`. Para que o contrato observável
+/// seja o mesmo dos dois back-ends, este construtor devolve explicitamente
+/// `SIGPIPE` a `SIG_DFL` no filho, imediatamente antes do `exec`, em vez de
+/// depender de `std::process::Command` fazer isso por conta própria.
+fn comando_de_processo(command_name: &str) -> Command {
+    #[allow(unused_mut)]
+    let mut command = Command::new(command_name);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt as _;
+        // SAFETY: a closure roda no filho entre `fork` e `exec` e executa
+        // apenas `restaurar_disposicao_padrao` — uma chamada async-signal-safe
+        // a `signal(2)`, sem alocação, formatação, ambiente, lock ou código de
+        // usuário.
+        unsafe {
+            command.pre_exec(|| restaurar_disposicao_padrao(SINAL_SIGPIPE));
+        }
+    }
+    command
+}
+
 fn executar_processo_minimo(
     command_name: &str,
     explicit_argv: Option<&str>,
 ) -> Result<u64, PinkerError> {
     validar_comando_nao_vazio("executar_processo", command_name)?;
 
-    let mut command = Command::new(command_name);
+    let mut command = comando_de_processo(command_name);
     if let Some(arg) = explicit_argv {
         command.arg(arg);
     }
@@ -5354,7 +5414,7 @@ fn executar_com_entrada_minimo(
 ) -> Result<u64, PinkerError> {
     validar_comando_nao_vazio("executar_com_entrada", command_name)?;
 
-    let mut command = Command::new(command_name);
+    let mut command = comando_de_processo(command_name);
     if let Some(arg) = explicit_argv {
         command.arg(arg);
     }
@@ -5391,7 +5451,7 @@ fn pipeline_minimo(producer_name: &str, consumer_name: &str) -> Result<u64, Pink
     validar_comando_nao_vazio("pipeline_minimo", producer_name)?;
     validar_comando_nao_vazio("pipeline_minimo", consumer_name)?;
 
-    let mut producer = Command::new(producer_name)
+    let mut producer = comando_de_processo(producer_name)
         .stdout(Stdio::piped())
         .spawn()
         .map_err(|err| {
@@ -5405,7 +5465,7 @@ fn pipeline_minimo(producer_name: &str, consumer_name: &str) -> Result<u64, Pink
         runtime_err("stdout indisponível em 'pipeline_minimo': produtor sem pipe configurado")
     })?;
 
-    let mut consumer = Command::new(consumer_name)
+    let mut consumer = comando_de_processo(consumer_name)
         .stdin(Stdio::from(producer_stdout))
         .spawn()
         .map_err(|err| {
@@ -5438,7 +5498,7 @@ fn capturar_stdout_minimo(
 ) -> Result<String, PinkerError> {
     validar_comando_nao_vazio("capturar_stdout", command_name)?;
 
-    let mut command = Command::new(command_name);
+    let mut command = comando_de_processo(command_name);
     if let Some(arg) = explicit_argv {
         command.arg(arg);
     }
@@ -5461,7 +5521,7 @@ fn capturar_stderr_minimo(
 ) -> Result<String, PinkerError> {
     validar_comando_nao_vazio("capturar_stderr", command_name)?;
 
-    let mut command = Command::new(command_name);
+    let mut command = comando_de_processo(command_name);
     if let Some(arg) = explicit_argv {
         command.arg(arg);
     }
