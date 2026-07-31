@@ -192,10 +192,18 @@ implícito, PATH herdada ou ordenação sequencial entre escrita integral e wait
 A disposição de `SIGPIPE` é estabelecida em `pinker_rt_iniciar`, antes da
 primeira instrução do programa, e não a partir do primeiro `falar`: o
 comportamento observável de escrita em pipe fechado não pode depender da ordem
-de execução. A estratégia é confinada ao processo Pinker — todo filho recebe a
-disposição padrão restaurada antes do `exec`. Expansões não devem mover essa
-preparação para um caminho alcançável só por I/O nem duplicá-la em pontos que
-tornem a inicialização imune a mutação.
+de execução. A estratégia é confinada ao processo Pinker — a própria Pinker
+devolve `SIGPIPE` à disposição padrão no filho, imediatamente antes do `exec`,
+no construtor comum de subprocessos de cada back-end (`comando_saneado` no
+runtime nativo, `comando_de_processo` no interpretador). A restauração é
+explícita e não delegada à biblioteca padrão: a `std` também a faz hoje, mas por
+caminhos internos distintos (`fork`/`exec` e `posix_spawn`), e o contrato da
+Pinker não pode depender dessa escolha, da libc nem do runner.
+
+Expansões não devem mover a preparação do pai para um caminho alcançável só por
+I/O, nem duplicá-la em pontos que tornem a inicialização imune a mutação, nem
+construir `Command` fora do construtor comum — uma família que escapar dele
+volta a vazar a disposição do pai para o filho.
 
 ### 4.5 Coleções, dados estruturados e aleatoriedade
 

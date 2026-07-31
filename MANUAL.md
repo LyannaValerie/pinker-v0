@@ -544,11 +544,26 @@ um `falar` antes terminava com exit 1 e diagnóstico — e o interpretador dava
 exit 1 nos dois casos. O comportamento observável não pode depender da ordem de
 execução.
 
-A estratégia é confinada ao processo Pinker: todo filho disparado por
+A estratégia é confinada ao processo Pinker. Todo filho disparado por
 `executar_processo`, `capturar_stdout`, `capturar_stderr`,
-`executar_com_entrada` e `pipeline_minimo` recebe `SIGPIPE` restaurado para a
-disposição padrão antes do `exec`, e portanto se comporta como qualquer outro
-programa da linha de comando.
+`executar_com_entrada` e `pipeline_minimo` recebe `SIGPIPE` de volta na
+disposição padrão imediatamente antes do `exec`, e portanto se comporta como
+qualquer outro programa da linha de comando.
+
+Essa restauração é feita **pela Pinker**, no construtor comum de subprocessos
+dos dois back-ends, e não delegada à biblioteca padrão. A `std` do Rust também
+restaura `SIGPIPE` hoje, mas por caminhos internos distintos (`fork`/`exec` e
+`posix_spawn`) e sob condições que ela pode mudar; o contrato observável da
+Pinker não depende dessa escolha, nem da libc, nem da máquina onde o programa
+roda. Em resumo:
+
+- o pai Pinker configura explicitamente `SIGPIPE` para produzir erros
+  controlados em vez de morte por sinal;
+- a Pinker configura explicitamente o filho para a disposição padrão antes do
+  `exec`;
+- esse comportamento pertence ao runtime da Pinker;
+- a matriz de teste verifica o contrato observável, família a família e nos dois
+  back-ends.
 
 ### Entrada com `ouvir()`
 
