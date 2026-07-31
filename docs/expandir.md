@@ -102,11 +102,35 @@ Localização principal:
 - `src/backend_s.rs`;
 - `tests/semantic_tests.rs`, `tests/interpreter_tests.rs`, `tests/backend_s_external_toolchain_tests.rs`.
 
-Ponteiro fabricado por `<inteiro> virar seta<T>` é validado como acesso público
-— falha determinística, nunca `SIGSEGV` —, mas continua fora da promessa de
-segurança de memória: os back-ends concordam em recusar endereço não
+A proveniência de ponteiro tem **quatro** classes: `Public` (região pública
+conhecida), `Internal` (domínio interno reconhecido, hoje o ambiente de
+closure), `Fabricated` (endereço construído a partir de um valor não-ponteiro) e
+`Unclassified` (origem não determinada pela análise atual — ausência de
+informação, não afirmação de origem inteira).
+
+Ponteiro `Public` ou `Fabricated` é validado no acesso — falha determinística
+com diagnóstico controlado, sem término por sinal. `Fabricated` continua fora da
+promessa de segurança de memória: os back-ends concordam em recusar endereço não
 registrado, não sobre quais endereços fabricados são válidos. Expansões não
-devem devolver essa classe ao caminho não validado.
+devem devolver essas classes ao caminho não validado.
+
+`Unclassified` permanece fora da validação pública. É um limite conhecido, não
+uma garantia: um acesso por ponteiro dessa classe pode terminar por sinal.
+Fechá-la exige análise de domínio com contrato próprio — tratá-la como exigente
+rejeita acesso legítimo de closure.
+
+Duas regras que uma expansão não pode quebrar. Primeira: a classificação de uma
+chamada depende do **tipo de retorno**, nunca da forma da chamada — direta,
+indireta, por endereço cru de código e de trato são simétricas, e
+`selected_call_shape` em `src/backend_s.rs` é a autoridade única onde as formas
+são enumeradas; uma forma nova precisa entrar ali, não num braço isolado.
+Segunda: um cast entre tipos de ponteiro preserva a classe da origem, e só a
+conversão de um valor não-ponteiro produz `Fabricated`.
+
+Interpretador e nativo **não compartilham implementação de validação**: o
+primeiro usa seu modelo de memória sintético, o segundo chama
+`pinker_publico_validar_acesso`. O contrato é de resultado observável
+correspondente nos casos cobertos, não de validador único.
 
 A memória pública tem dois orçamentos com naturezas diferentes: bytes são
 recuperáveis por `liberar`, identidades **não**. A cota de 1.000.000 de

@@ -7,11 +7,14 @@
 //! SIGSEGV (exit 139), enquanto o interpretador — cuja memória é uma tabela —
 //! diagnosticava o mesmo programa com exit 1.
 //!
-//! A correção classifica a proveniência em três classes (pública, interna,
-//! fabricada) e valida as duas primeiras exceto a interna: memória pública e
-//! endereço fabricado passam pelo validador, o ambiente de closure continua
-//! isento porque não é memória pública e não poderia ser confrontado com o
-//! registro público.
+//! A correção classifica a proveniência em **quatro** classes — `Public`
+//! (região pública conhecida), `Internal` (domínio interno reconhecido),
+//! `Fabricated` (endereço construído a partir de um valor não-ponteiro) e
+//! `Unclassified` (origem não determinada pela análise) — e valida `Public` e
+//! `Fabricated`: memória pública e endereço fabricado passam pelo validador, o
+//! ambiente de closure continua isento porque tem domínio próprio e não poderia
+//! ser confrontado com o registro público, e `Unclassified` fica de fora como
+//! limite reconhecido.
 //!
 //! O limite residual está documentado em `MANUAL.md`, seção "Memória
 //! explícita": o
@@ -168,13 +171,17 @@ fn v4_preserva_isencao_do_ponteiro_interno_de_closure() {
 /// Limite residual medido, não presumido.
 ///
 /// A análise classifica como `Unclassified` o ponteiro que chega por um caminho
-/// que ela não percorre — por exemplo, carregado de memória. Esses acessos
-/// continuam sem validação, exatamente como antes do hotfix. Tratá-los como
+/// que ela não percorre. Esses acessos continuam sem validação. Tratá-los como
 /// exigentes foi testado e **quebra** as closures das Fases 243/244: parte dos
 /// ponteiros de ambiente chega por caminhos não classificados, e validá-los
 /// contra o registro público rejeita acesso legítimo. Fechar essa classe exige
 /// uma análise de domínio de verdade, com contrato próprio, não um ajuste do
 /// predicado.
+///
+/// A classe encolheu depois da simetria das formas de chamada: o resultado de
+/// chamada indireta, por endereço cru de código e de trato passou a ser
+/// `Public` quando o retorno é ponteiro, e deixou de cair aqui. Ver
+/// `tests/hotfix_v4_chamadas_ponteiro_tests.rs`.
 ///
 /// Este teste guarda a fronteira: os exemplos de closure precisam continuar
 /// executando nos dois back-ends, e é isso que impede que a classe
@@ -302,9 +309,12 @@ fn v4_endereco_fabricado_falha_igual_nos_dois_back_ends() {
     }
 }
 
-/// Antes do hotfix, o mesmo programa terminava por SIGSEGV. A garantia mínima
-/// é: nenhum programa Pinker pode derrubar o processo nativo por sinal de
-/// memória.
+/// Antes do hotfix, o mesmo programa terminava por SIGSEGV.
+///
+/// A garantia é **restrita ao escopo verificado**, e o nome do teste diz qual:
+/// acesso por ponteiro classificado como `Fabricated` não derruba o processo
+/// nativo por sinal. Não é uma afirmação sobre todo programa Pinker —
+/// `Unclassified` continua fora da validação e não recebe essa garantia.
 #[test]
 fn v4_nenhum_endereco_fabricado_termina_por_sinal() {
     let Some((_driver, Some(runtime_lib))) =

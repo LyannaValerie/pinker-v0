@@ -341,29 +341,60 @@ também nas comparações relacionais subsequentes.
 
 A validação pública falha fechada quando recebe endereço sem região gerenciada
 candidata: sem nenhuma região registrada, nenhum endereço é aceito. O compilador
-transporta proveniência pelo lowering e classifica cada ponteiro em três
-domínios:
+transporta proveniência pelo lowering e classifica cada ponteiro em **quatro**
+classes:
 
-- **público** — resultado de `alocar`, de uma chamada que devolve `seta<T>`, de
-  um parâmetro de ponteiro, ou derivação desses;
-- **interno** — estruturas do próprio runtime, hoje o ambiente de closure
-  recebido como parâmetro;
-- **fabricado** — endereço construído a partir de um inteiro
-  (`<inteiro> virar seta<T>`), sem proveniência para rastrear.
+- **`Public`** — região pública conhecida: resultado de `alocar`, de uma chamada
+  que devolve `seta<T>`, de um parâmetro de ponteiro, ou derivação desses;
+- **`Internal`** — domínio interno reconhecido do próprio runtime, hoje o
+  ambiente de closure recebido como parâmetro;
+- **`Fabricated`** — endereço construído a partir de um valor **não-ponteiro**,
+  tipicamente um inteiro (`<inteiro> virar seta<T>`);
+- **`Unclassified`** — ponteiro cuja origem não foi determinada pela análise
+  atual. **Não** é sinônimo de inteiro: é ausência de informação sobre a origem,
+  não afirmação de que a origem é um inteiro.
 
-Load e store através de ponteiro **público ou fabricado** passam pelo mesmo
-validador, com o mesmo predicado, nos dois back-ends: não há operação com
-verificação mais fraca que a outra. Só o domínio interno é isento, porque não é
-memória pública e confrontá-lo com o registro público rejeitaria acesso
-legítimo.
+Um cast `virar seta<T>` entre tipos de ponteiro só troca o tipo apontado e
+**preserva** a classe da origem, incluindo `Unclassified`. `Fabricated` é
+produzido quando, e somente quando, um valor não-ponteiro é convertido em
+`seta<T>`.
+
+A classificação de uma chamada depende do **tipo de retorno**, nunca da forma da
+chamada: chamada direta por símbolo, chamada indireta por valor callable,
+chamada por endereço cru de código e chamada de método de trato produzem
+`Public` exatamente quando devolvem `seta<T>`. Retorno que não é ponteiro nunca
+é `Public`.
+
+Load e store através de ponteiro `Public` ou `Fabricated` passam pela validação,
+com o mesmo predicado e sem caminhos divergentes entre os dois sentidos do
+acesso. Nesses domínios, endereço recusado termina por **diagnóstico
+controlado** com exit 1, não por sinal. `Internal` tem domínio próprio e não é
+confrontado com o registro público, porque não é memória pública e validá-lo
+rejeitaria acesso legítimo.
+
+Interpretador e nativo **não compartilham implementação de validação**, e o
+contrato não afirma isso: o interpretador usa seu modelo de memória sintético e
+o nativo chama `pinker_publico_validar_acesso`. O que se garante é que, nos
+casos cobertos, os dois apresentam **resultado observável correspondente** —
+mesma classe de falha, mesmo diagnóstico e mesmo exit.
 
 Cast de inteiro para ponteiro continua **fora da promessa de segurança de
 memória** — a linguagem não passa a garantir que o endereço fabricado é
-utilizável. O que passa a valer é mais estreito e verificável: o acesso por
-endereço fabricado falha de forma determinística, com diagnóstico
+utilizável. O que vale é mais estreito e verificável: o acesso por endereço
+fabricado falha de forma determinística, com diagnóstico
 (`E-RUNTIME-MEM-UNKNOWN-ACCESS`) e exit 1, em vez de escrever em memória real e
-derrubar o processo por `SIGSEGV`. Nenhum programa Pinker deve terminar por
-sinal de memória.
+derrubar o processo por `SIGSEGV`.
+
+**Limite conhecido, e o escopo exato da garantia.** A ausência de término por
+sinal de memória vale para acessos por ponteiro classificado como `Public` ou
+`Fabricated`. Ela **não** é uma garantia universal sobre todo programa Pinker:
+`Unclassified` permanece fora da validação pública enquanto não houver análise
+de domínio suficiente, e um acesso por ponteiro dessa classe pode terminar por
+sinal. Fechar essa classe exige contrato próprio — tratá-la como exigente foi
+testado e rejeita acesso legítimo de closure. Na superfície atual da linguagem
+essa classe é estreita: `seta<seta<T>>` não é suportada, a conversão de ponteiro
+para inteiro é recusada pela semântica e carga de união não aceita ponteiro,
+de modo que um ponteiro não pode ser carregado de memória.
 
 Fica um limite honesto entre os dois modos: o interpretador tem um espaço de
 endereços **sintético**, no qual inteiros pequenos podem coincidir com globais
