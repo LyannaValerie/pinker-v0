@@ -434,6 +434,27 @@ Todas as variantes de `falar`, incluindo espaços e newline, usam o mesmo writer
 no runtime nativo. Falha de saída produz diagnóstico uniforme e exit code 1,
 inclusive em pipe fechado.
 
+### Disposição de sinais e pipes fechados
+
+O `main` gerado em modo nativo não passa pela inicialização de runtime da
+biblioteca padrão, então a disposição de sinais do processo é estabelecida por
+`pinker_rt_iniciar`, **antes da primeira instrução do programa**. `SIGPIPE` é
+ignorado, de modo que escrever em pipe fechado devolve `EPIPE` ao runtime e vira
+diagnóstico controlado, em qualquer ponto do programa.
+
+Isso é contrato, não detalhe: antes, a disposição era instalada só a partir do
+primeiro `falar`. Um programa que escrevia o stdin de um processo filho sem ter
+falado antes morria por sinal, com stderr vazio, enquanto o mesmo programa com
+um `falar` antes terminava com exit 1 e diagnóstico — e o interpretador dava
+exit 1 nos dois casos. O comportamento observável não pode depender da ordem de
+execução.
+
+A estratégia é confinada ao processo Pinker: todo filho disparado por
+`executar_processo`, `capturar_stdout`, `capturar_stderr`,
+`executar_com_entrada` e `pipeline_minimo` recebe `SIGPIPE` restaurado para a
+disposição padrão antes do `exec`, e portanto se comporta como qualquer outro
+programa da linha de comando.
+
 ### Entrada com `ouvir()`
 
 ```pink

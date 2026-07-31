@@ -1,0 +1,59 @@
+// Matriz de SIGPIPE do runtime nativo (hotfix pós-PR #411, item R5).
+//
+// O programa é dirigido por argv para que uma única compilação nativa cubra a
+// matriz inteira sem multiplicar binários:
+//
+//   argumento(0) = caminho absoluto do filho auxiliar
+//   argumento(1) = modo do filho (encerra | espera | le-tudo | le-parcial |
+//                  fecha-cedo | sigpipe-disposicao)
+//   argumento(2) = tamanho do stdin em bytes (0, 1, 4096, 65536, 262144, ...)
+//   argumento(3) = quantidade de escritas em stdout antes do processo
+//                  (0 = nenhuma, 1 = um falar, 2 = várias escritas)
+//
+// A linha `codigo=<n>` é sempre a última saída do caminho feliz; quando a
+// escrita do stdin falha, o runtime encerra pelo diagnóstico controlado e a
+// linha não é impressa.
+pacote main;
+
+carinho construir_entrada(tamanho: bombom) -> verso {
+    talvez tamanho == 0 {
+        mimo "";
+    }
+    nova muda texto: verso = "x";
+    nova muda atual: bombom = 1;
+    sempre que atual < tamanho {
+        texto = juntar_verso(texto, texto);
+        atual = atual * 2;
+    }
+    mimo texto;
+}
+
+carinho escrever_antes(quantidade: bombom) -> bombom {
+    talvez quantidade == 1 {
+        falar("pre");
+        mimo 1;
+    }
+    talvez quantidade == 2 {
+        falar("pre");
+        falar("pre");
+        falar("pre");
+        mimo 3;
+    }
+    mimo 0;
+}
+
+carinho principal() -> bombom {
+    nova filho: verso = argumento(0);
+    nova modo: verso = argumento(1);
+    nova tamanho: bombom = verso_para_bombom(argumento(2));
+    nova antes: bombom = verso_para_bombom(argumento(3));
+
+    nova linhas: bombom = escrever_antes(antes);
+    nova entrada: verso = construir_entrada(tamanho);
+    nova codigo: bombom = executar_com_entrada(filho, entrada, modo);
+    falar(formatar_verso("codigo={}", codigo));
+    talvez linhas > 0 {
+        mimo 0;
+    }
+    mimo 0;
+}

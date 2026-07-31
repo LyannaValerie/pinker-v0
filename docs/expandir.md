@@ -152,6 +152,14 @@ O runtime resolve basenames somente pela PATH fixa
 concorrentemente à espera do filho. Expansões não devem reintroduzir shell
 implícito, PATH herdada ou ordenação sequencial entre escrita integral e wait.
 
+A disposição de `SIGPIPE` é estabelecida em `pinker_rt_iniciar`, antes da
+primeira instrução do programa, e não a partir do primeiro `falar`: o
+comportamento observável de escrita em pipe fechado não pode depender da ordem
+de execução. A estratégia é confinada ao processo Pinker — todo filho recebe a
+disposição padrão restaurada antes do `exec`. Expansões não devem mover essa
+preparação para um caminho alcançável só por I/O nem duplicá-la em pontos que
+tornem a inicialização imune a mutação.
+
 ### 4.5 Coleções, dados estruturados e aleatoriedade
 
 Exemplos históricos:

@@ -35,11 +35,18 @@ static ARGV: AtomicUsize = AtomicUsize::new(0);
 /// Inicialização do runtime; chamada pelo prólogo do `main` gerado em modo
 /// nativo, com `argc` em `%rdi` e `argv` em `%rsi` (ABI C do `main`).
 ///
+/// O `main` gerado não passa pelo `lang_start` da std, então nenhuma
+/// inicialização de runtime Rust acontece antes daqui. A disposição de sinais
+/// do processo é estabelecida neste ponto — antes de qualquer `falar`, escrita
+/// de stdin de filho ou outra operação capaz de receber `SIGPIPE` — para que o
+/// comportamento observável não dependa da ordem de execução do programa.
+///
 /// # Safety
 /// `argv` deve ser o vetor de argumentos recebido pelo `main` C; o runtime
 /// apenas o armazena para consulta posterior.
 #[no_mangle]
 pub unsafe extern "C" fn pinker_rt_iniciar(argc: i64, argv: *const *const u8) {
+    preparar_disposicao_sinais();
     ARGC.store(argc, Ordering::SeqCst);
     ARGV.store(argv as usize, Ordering::SeqCst);
 }
@@ -831,27 +838,56 @@ formatar_wrappers!(
 // @pinker-nav:start runtime.io.saida
 // @pinker-nav:domain io
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Impressão uniforme de falar: bombom/logica/verso/espaço/newline passam pelo mesmo writer com write_all+flush; SIGPIPE é ignorado em Unix para que pipe fechado retorne erro, e toda falha de stdout termina pelo diagnóstico controlado de erro_fatal.
+// @pinker-nav:summary Impressão uniforme de falar: bombom/logica/verso/espaço/newline passam pelo mesmo writer com write_all+flush; a disposição de SIGPIPE é estabelecida em pinker_rt_iniciar (e reafirmada por Once nas entradas de I/O) para que pipe fechado retorne erro em qualquer ordem de execução, e toda falha de stdout termina pelo diagnóstico controlado de erro_fatal.
 #[cfg(unix)]
-fn preparar_stdout() {
+const SINAL_SIGPIPE: i32 = 13;
+#[cfg(unix)]
+const SINAL_HANDLER_IGNORAR: usize = 1;
+#[cfg(unix)]
+const SINAL_HANDLER_ERRO: usize = usize::MAX;
+
+#[cfg(unix)]
+extern "C" {
+    fn signal(signal: i32, handler: usize) -> usize;
+}
+
+/// Estabelece a disposição de sinais do processo: `SIGPIPE` passa a ser
+/// ignorado para que escrita em pipe fechado devolva `EPIPE` ao chamador em vez
+/// de terminar o processo por sinal.
+///
+/// É idempotente (`Once`). O ponto autoritativo de chamada é
+/// `pinker_rt_iniciar`, que roda antes da primeira instrução do programa
+/// nativo; `escrever_stdout` também chama, preservando o comportamento anterior
+/// para quem exercita o runtime por chamada nativa direta, sem passar pela
+/// inicialização (caso dos testes internos da crate).
+///
+/// Os caminhos de subprocesso **não** repetem a chamada, de propósito: repetir
+/// tornaria a inicialização imune a mutação, e a matriz de R5 continuaria verde
+/// mesmo com a correção desfeita.
+///
+/// Sobre herança: `SIG_IGN` sobrevive a `exec`, mas os filhos não são afetados
+/// — ver `comando_saneado` para a medição e a decisão de não instalar um
+/// `pre_exec` próprio.
+#[cfg(unix)]
+fn preparar_disposicao_sinais() {
     static PREPARAR: Once = Once::new();
-    PREPARAR.call_once(|| unsafe {
-        extern "C" {
-            fn signal(signal: i32, handler: usize) -> usize;
+    PREPARAR.call_once(|| {
+        // SAFETY: `signal` só é chamada aqui, uma única vez, com um handler
+        // constante e sem executar código de usuário.
+        let anterior = unsafe { signal(SINAL_SIGPIPE, SINAL_HANDLER_IGNORAR) };
+        if anterior == SINAL_HANDLER_ERRO {
+            erro_fatal("falha ao estabelecer a disposição de SIGPIPE do runtime");
         }
-        const SIGPIPE: i32 = 13;
-        const SIG_IGN: usize = 1;
-        signal(SIGPIPE, SIG_IGN);
     });
 }
 
 #[cfg(not(unix))]
-fn preparar_stdout() {}
+fn preparar_disposicao_sinais() {}
 
 fn escrever_stdout(bytes: &[u8]) {
     use std::io::Write as _;
 
-    preparar_stdout();
+    preparar_disposicao_sinais();
     let stdout = std::io::stdout();
     let mut lock = stdout.lock();
     lock.write_all(bytes)
@@ -2406,8 +2442,37 @@ pub unsafe extern "C" fn pinker_ambiente_buscar_contexto(
 // @pinker-nav:start runtime.processos.execucao
 // @pinker-nav:domain processos
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Execução de subprocessos sem shell implícito: basenames são resolvidos somente na PATH fixa /usr/local/bin:/usr/bin:/bin, caminhos com slash são usados literalmente, e todas as famílias recebem a PATH saneada; executar_com_entrada escreve stdin numa thread concorrente à espera, fecha o pipe e agrega erros sem deixar writer órfão.
+// @pinker-nav:summary Execução de subprocessos sem shell implícito: basenames são resolvidos somente na PATH fixa /usr/local/bin:/usr/bin:/bin, caminhos com slash são usados literalmente, e todas as famílias recebem a PATH saneada; a disposição de SIGPIPE do pai não é reafirmada aqui (pertence a pinker_rt_iniciar) e os filhos observam SIG_DFL porque std::process::Command restaura a disposição antes do exec — medido pela matriz de R5, não presumido; executar_com_entrada escreve stdin numa thread concorrente à espera, fecha o pipe e agrega erros sem deixar writer órfão.
 const PATH_PROCESSOS: &str = "/usr/local/bin:/usr/bin:/bin";
+
+/// Constrói o `Command` comum a todas as famílias de processo, com a PATH
+/// saneada.
+///
+/// A disposição de `SIGPIPE` do pai **não** é (re)estabelecida aqui de
+/// propósito: ela pertence a `pinker_rt_iniciar`, que roda antes de qualquer
+/// instrução do programa. Repetir a preparação neste ponto tornaria a correção
+/// de R5 imune a mutação — a matriz continuaria passando mesmo com a
+/// inicialização desfeita — e esconderia a regressão que ela existe para pegar.
+///
+/// Sobre a herança da disposição pelos filhos: `SIG_IGN` sobrevive a `exec`, o
+/// que em princípio faria um programa externo disparado pela Pinker herdar uma
+/// disposição não padrão. Isso **não** acontece porque `std::process::Command`
+/// restaura `SIGPIPE` para `SIG_DFL` no caminho pré-`exec`, antes de qualquer
+/// closure de `pre_exec` do chamador. Foi medido, não presumido: a matriz de
+/// R5 inclui uma célula (`sigpipe-disposicao`) em que o filho lê a disposição
+/// herdada num construtor de `.init_array` — antes do `lang_start` da std, que
+/// instalaria `SIG_IGN` e mascararia a medida — e exige `SIG_DFL` nos dois
+/// back-ends.
+///
+/// Por isso o runtime **não** instala um `pre_exec` próprio: seria código
+/// `unsafe` redundante que nenhum teste conseguiria distinguir do
+/// comportamento já garantido. A célula da matriz é o guardião do contrato: se
+/// a std deixar de restaurar, ela falha.
+fn comando_saneado(resolvido: std::path::PathBuf) -> std::process::Command {
+    let mut processo = std::process::Command::new(resolvido);
+    processo.env("PATH", PATH_PROCESSOS);
+    processo
+}
 
 fn exigir_comando_nao_vazio(nome: &str, comando: &str) {
     if comando.trim().is_empty() {
@@ -2444,9 +2509,7 @@ fn comando_resolvido(nome: &str, comando: &str) -> Result<std::path::PathBuf, St
 fn novo_processo(nome: &str, comando: &str) -> std::process::Command {
     exigir_comando_nao_vazio(nome, comando);
     let resolvido = comando_resolvido(nome, comando).unwrap_or_else(|err| erro_fatal(err.as_str()));
-    let mut processo = std::process::Command::new(resolvido);
-    processo.env("PATH", PATH_PROCESSOS);
-    processo
+    comando_saneado(resolvido)
 }
 
 fn exit_code_ou_erro(nome: &str, codigo: Option<i32>) -> u64 {
@@ -2560,8 +2623,7 @@ fn processo_com_entrada_resultado(
         return Err("intrínseca 'executar_com_entrada' exige comando não vazio".to_string());
     }
     let resolvido = comando_resolvido("executar_com_entrada", comando)?;
-    let mut processo = std::process::Command::new(resolvido);
-    processo.env("PATH", PATH_PROCESSOS);
+    let mut processo = comando_saneado(resolvido);
     if let Some(argumento) = argv1 {
         processo.arg(argumento);
     }
