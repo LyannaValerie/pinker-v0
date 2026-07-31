@@ -48,6 +48,37 @@ const TAMANHOS: [u64; 6] = [0, 1, 4096, 65536, 262144, 1048576];
 /// Escritas em stdout antes do processo: nenhuma, um `falar`, várias.
 const ESCRITAS_ANTERIORES: [u64; 3] = [0, 1, 2];
 
+/// Capacidade padrão do buffer de um pipe no Linux. Uma escrita que caiba aqui
+/// pode completar sem consumidor; acima disso, ela necessariamente bloqueia.
+const CAPACIDADE_PIPE: u64 = 65536;
+
+/// Modos em que o filho encerra sem drenar o stdin.
+const MODOS_SEM_DRENAGEM: [&str; 3] = ["encerra", "fecha-cedo", "le-parcial"];
+
+/// Uma célula é **decidida por corrida** quando o filho encerra sem drenar o
+/// stdin e o que o pai escreve cabe no buffer do pipe.
+///
+/// Nessas células, quem chega primeiro decide o resultado: se a escrita vence,
+/// ela completa no buffer e o programa termina em `ok`; se o filho vence, o
+/// descritor de leitura já fechou e a escrita colhe `EPIPE`, virando o
+/// diagnóstico controlado. As duas saídas são **igualmente corretas** — a
+/// segunda é justamente o que o item R5 existe para garantir.
+///
+/// Medido sob carga (`nproc × 3` processos ocupados), as duas saídas aparecem
+/// nos dois back-ends, e já apareciam antes desta continuação: em `8b6f0c4`,
+/// `fecha-cedo` com 1 byte deu 7 `ok` em 20 no nativo e 13 em 20 no
+/// interpretador. Exigir paridade da classe exata aqui não afere contrato
+/// nenhum — afere o escalonador, e o resultado é um teste que pisca sob carga.
+///
+/// Fora dessas células o resultado é determinístico e a paridade continua
+/// exata: sem escrita (`tamanho == 0`) ou com filho que drena (`le-tudo`)
+/// sempre `ok`; acima da capacidade do pipe, sempre `EPIPE` quando ninguém
+/// consome. `espera` permanece determinístico dos dois lados porque o filho
+/// sobrevive ao tempo da escrita.
+fn celula_decidida_por_corrida(modo: &str, tamanho: u64) -> bool {
+    MODOS_SEM_DRENAGEM.contains(&modo) && tamanho > 0 && tamanho <= CAPACIDADE_PIPE
+}
+
 struct Saida {
     codigo: Option<i32>,
     stdout: String,
@@ -63,6 +94,39 @@ impl Saida {
             Some(1) if self.stderr.contains("falha ao escrever stdin") => "epipe-diagnosticado",
             Some(_) => "outro-erro",
             None => "terminado-por-sinal",
+        }
+    }
+
+    /// Classe comparável entre back-ends.
+    ///
+    /// Numa célula decidida por corrida, `ok` e `epipe-diagnosticado` são o
+    /// mesmo veredicto de contrato — o programa terminou por decisão do
+    /// runtime, não por sinal. As classes que denunciam defeito
+    /// (`terminado-por-sinal`, `outro-erro`) continuam distintas e continuam
+    /// comparadas exatamente, em toda célula.
+    fn classe_comparavel(&self, corrida: bool) -> &'static str {
+        let classe = self.classe();
+        if corrida && matches!(classe, "ok" | "epipe-diagnosticado") {
+            "sem-morte-por-sinal"
+        } else {
+            classe
+        }
+    }
+
+    /// Stdout comparável entre back-ends.
+    ///
+    /// A linha final `codigo=` só existe no caminho feliz, então numa célula
+    /// decidida por corrida ela varia com o escalonador. Tudo o que vem antes
+    /// dela — as escritas anteriores, que são o eixo de ordem de execução da
+    /// matriz — é determinístico e continua comparado byte a byte.
+    fn stdout_comparavel(&self, corrida: bool) -> &str {
+        if corrida {
+            match self.stdout.find("codigo=") {
+                Some(fim) => &self.stdout[..fim],
+                None => &self.stdout,
+            }
+        } else {
+            &self.stdout
         }
     }
 }
@@ -215,7 +279,7 @@ fn exigir_invariantes(rotulo: &str, saida: &Saida) {
 // @pinker-nav:start evidencia.hotfix.r5-sigpipe-ordem
 // @pinker-nav:domain processos
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Matriz R5 de SIGPIPE: stdout anterior (nenhum/um falar/várias escritas) × comportamento do filho (encerra, espera sem ler, lê tudo, lê parcial, fecha stdin cedo) × tamanho de stdin (0, 1, 4096, 65536, 262144, acima da capacidade do pipe), exigindo em cada célula ausência de término por sinal, ausência de exit 141, ausência de deadlock sob teto de tempo, EPIPE convertido em diagnóstico e paridade de classe entre interpretador e nativo; cobre ainda a disposição de SIGPIPE herdada pelo filho após exec, medida antes da inicialização da std.
+// @pinker-nav:summary Matriz R5 de SIGPIPE: stdout anterior (nenhum/um falar/várias escritas) × comportamento do filho (encerra, espera sem ler, lê tudo, lê parcial, fecha stdin cedo) × tamanho de stdin (0, 1, 4096, 65536, 262144, acima da capacidade do pipe), exigindo em cada célula ausência de término por sinal, ausência de exit 141, ausência de deadlock sob teto de tempo, EPIPE convertido em diagnóstico e paridade entre interpretador e nativo; nas 27 células em que o filho encerra sem drenar e a escrita cabe no buffer do pipe, ok e epipe-diagnosticado são o mesmo veredicto de contrato e a paridade compara a classe estável mais o stdout anterior à linha codigo=, porque exigir a classe exata aferiria o escalonador; cobre ainda a disposição de SIGPIPE herdada pelo filho após exec, medida antes da inicialização da std.
 #[test]
 fn r5_matriz_sigpipe_independe_da_ordem_e_mantem_paridade() {
     let Some((_driver, Some(runtime_lib))) =
@@ -240,9 +304,10 @@ fn r5_matriz_sigpipe_independe_da_ordem_e_mantem_paridade() {
                 exigir_invariantes(&format!("interpretador {rotulo}"), &interpretado);
                 exigir_invariantes(&format!("nativo {rotulo}"), &nativo);
 
+                let corrida = celula_decidida_por_corrida(modo, tamanho);
                 assert_eq!(
-                    interpretado.classe(),
-                    nativo.classe(),
+                    interpretado.classe_comparavel(corrida),
+                    nativo.classe_comparavel(corrida),
                     "{rotulo}: back-ends divergem\ninterpretador: exit {:?} / {}\nnativo: exit {:?} / {}",
                     interpretado.codigo,
                     interpretado.stderr,
@@ -250,7 +315,8 @@ fn r5_matriz_sigpipe_independe_da_ordem_e_mantem_paridade() {
                     nativo.stderr
                 );
                 assert_eq!(
-                    interpretado.stdout, nativo.stdout,
+                    interpretado.stdout_comparavel(corrida),
+                    nativo.stdout_comparavel(corrida),
                     "{rotulo}: stdout divergente entre back-ends"
                 );
             }
