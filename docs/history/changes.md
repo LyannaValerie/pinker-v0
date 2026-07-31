@@ -52,4 +52,5 @@ mão. Regenere com `pink doc sincronizar`.
 | #382 | parallel-phase | — | — | Adiciona mapa agrupado do catálogo de código | completed |
 | #410 | phase | 246 | 20 | Alocação e liberação explícitas de memória | completed |
 | #411 | phase | 248 | 20 | Uniões estruturais tagged | completed |
+| #412 | hotfix | — | 20 | Endurecimento do runtime nativo pós-PR | completed |
 <!-- @pinker-generated:end change.history -->
