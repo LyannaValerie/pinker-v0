@@ -1,0 +1,6 @@
+pacote main;
+
+carinho principal() -> bombom {
+    sussurro("nop", "meu_simbolo = 1");
+    mimo 0;
+}

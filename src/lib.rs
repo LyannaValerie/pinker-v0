@@ -12,6 +12,7 @@ pub mod change;
 pub mod doc;
 pub mod doc_index;
 pub mod editor_tui;
+pub mod elf;
 pub mod error;
 pub mod inline_asm;
 pub mod instr_select;

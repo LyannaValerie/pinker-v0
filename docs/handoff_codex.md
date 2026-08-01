@@ -19,7 +19,7 @@
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
 | Última rodada paralela | **Paralela-1** — negação bitwise dual |
-| Último hotfix | **HF-7** — endurecimento do runtime nativo pós-PR #411 (PR #412, mergeada); entrada dedicada em `docs/history/hotfixes/001a050.md`, sucedendo **HF-6** na série numerada |
+| Último hotfix | **HF-8** — atribuição de símbolo em `sussurro`: política estrutural (`E-SEMANTIC-ASM-SYMBOL-ASSIGN`) e invariante do artefato no caminho real de `pink build --nativo` (`E-BACKEND-ASM-ARTIFACT`); entrada dedicada em `docs/history/hotfixes/001a050.md`, sucedendo **HF-7** e, antes dele, **HF-6** na série numerada |
 
 ### Estado operacional estruturado
 
