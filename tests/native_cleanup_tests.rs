@@ -740,6 +740,7 @@ fn cleanup_bash_preserva_substituicoes_antes_e_depois_da_quarentena() {
     });
     assert!(output.status.success(), "{output:?}");
     assert!(String::from_utf8_lossy(&output.stdout).contains("PRESERVED quarantine-exists"));
+    assert!(output.stderr.is_empty(), "{output:?}");
     assert_eq!(
         fs::read_to_string(collision.join("sentinel")).unwrap(),
         "original"

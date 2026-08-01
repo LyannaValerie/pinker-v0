@@ -269,7 +269,15 @@ for directory in "${candidates[@]}"; do
         printf 'ERROR test-hook-before %q\n' "$name" >&2
         exit 1
     fi
-    if ! mv -T -n -- "$directory" "$quarantine"; then
+    if [[ -e "$quarantine" || -L "$quarantine" ]]; then
+        printf 'PRESERVED quarantine-exists %q\n' "$name"
+        continue
+    fi
+    if ! mv -T -n -- "$directory" "$quarantine" 2>/dev/null; then
+        if [[ -d "$directory" && ! -L "$directory" && -e "$quarantine" && ! -L "$quarantine" ]]; then
+            printf 'PRESERVED quarantine-exists %q\n' "$name"
+            continue
+        fi
         printf 'ERROR quarantine %q\n' "$name" >&2
         partial_error=1
         continue
