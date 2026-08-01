@@ -142,4 +142,14 @@ fn cleanup_e_restrito_marcado_seguro_e_idempotente() {
     let second = run_cleanup("--apply");
     assert!(second.status.success(), "segundo apply falhou: {second:?}");
     assert!(!String::from_utf8_lossy(&second.stdout).contains("REMOVED"));
+
+    let script = fs::read_to_string("scripts/pinker-cleanup.sh").expect("lê ferramenta");
+    for required in [
+        "[[ -L \"$execution_root\"",
+        "[[ -L \"$directory\"",
+        "[[ -L \"$marker\"",
+        "PRESERVED missing-marker",
+    ] {
+        assert!(script.contains(required), "proteção ausente: {required}");
+    }
 }

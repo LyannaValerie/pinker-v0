@@ -100,6 +100,7 @@ fn saida_acima_do_teto_encerra_execucao_sem_crescimento_ilimitado() {
         .output()
         .expect_err("stdout acima do teto precisa falhar");
     assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+    assert!(error.to_string().contains("stdout_limit"), "{error}");
 }
 
 #[test]
@@ -246,6 +247,10 @@ fn caminhos_nativos_mapeados_usam_a_autoridade_controlada() {
         !runtime.contains("write_bytes(0, tamanho"),
         "zeragem ansiosa retornou"
     );
+    assert!(
+        !runtime.contains("mmap_publico_monolitico(MAX_PUBLIC_LIFETIME_VIRTUAL_BYTES"),
+        "arena monolítica retornou"
+    );
     let helper = fs::read_to_string("tests/common/native_process.rs").expect("lê helper");
     for required in [
         "PR_SET_PDEATHSIG",
@@ -254,6 +259,10 @@ fn caminhos_nativos_mapeados_usam_a_autoridade_controlada() {
         "terminate_process_group",
         "MAX_CAPTURED_STDOUT_BYTES",
         "executable_sha256",
+        "started.elapsed() >= policy.timeout",
+        "sandbox.cleanup()?",
+        "let git_head = read_git_head()",
+        "signal_group(pgid, 15)",
     ] {
         assert!(helper.contains(required), "política ausente: {required}");
     }
