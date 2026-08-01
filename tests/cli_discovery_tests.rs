@@ -294,7 +294,7 @@ fn nome_de_invocacao_usa_apenas_componente_final_em_paths_absolutos_e_com_espaco
 fn nome_de_invocacao_relativo_preserva_apenas_o_nome_final() {
     let temp = TempDir::new("relativo");
     let copied = temp.path().join("pink");
-    fs::copy(pink(), &copied).expect("copiar pink");
+    fs::copy(pink(), copied).expect("copiar pink");
     let output = Command::new("./pink")
         .arg("--help")
         .current_dir(temp.path())
