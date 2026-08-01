@@ -34,8 +34,9 @@ use std::path::{Path, PathBuf};
 // @pinker-nav:domain config
 // @pinker-nav:layer cli
 // @pinker-nav:summary Constantes de códigos de saída (EXIT_OK/EXIT_USAGE/EXIT_CATALOG/EXIT_NORESULT/EXIT_SOURCE) e limites de paginação (LIMIT_MIN/MAX, LIMIT_DEFAULT_ROTA/BUSCAR); clamp_limit ajusta um Option<usize> aos limites via .clamp; json_escape escapa aspas/barra/controle para JSON; json_string_array serializa Vec<String>. Structs de configuração por subcomando (Config, BuildConfig, EditorConfig, ReplConfig, DocConfigCli, NavConfigCli) e os enums de subcomando (DocSub, NavSub, CliCommand) usados pelo parsing e roteamento a seguir.
-/// Códigos de saída padronizados das consultas da Trama (especificação §7.4).
+/// Códigos de saída públicos da CLI e das consultas da Trama (especificação §7.4).
 const EXIT_OK: i32 = 0;
+const EXIT_FAILURE: i32 = 1;
 const EXIT_USAGE: i32 = 2;
 const EXIT_CATALOG: i32 = 3;
 const EXIT_NORESULT: i32 = 4;
@@ -171,6 +172,8 @@ struct AgentConfigCli {
 }
 
 enum CliCommand {
+    Help(String),
+    Version,
     Analyze(Config),
     Build(BuildConfig),
     Editor(EditorConfig),
@@ -184,15 +187,25 @@ enum CliCommand {
 // @pinker-nav:start cli.ajuda.usage
 // @pinker-nav:domain ajuda
 // @pinker-nav:layer cli
-// @pinker-nav:summary Funções que montam as strings de uso/ajuda (usage, nav_usage, doc_usage, build_usage, editor_usage, repl_usage) impressas em stderr quando `--help`/`-h` é pedido ou o parsing rejeita os argumentos; cada uma apenas formata texto com format!, sem side effects.
-fn usage(binary: &str) -> String {
+// @pinker-nav:summary program_name reduz argv[0] ao componente final, preserva nomes alternativos e usa pink como fallback; as funções de ajuda consomem somente esse nome e formatam a ajuda principal ou dos seis comandos existentes, sem side effects.
+fn program_name(argv0: Option<&String>) -> String {
+    argv0
+        .and_then(|raw| Path::new(raw).file_name())
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or("pink")
+        .to_string()
+}
+
+fn usage(program: &str) -> String {
     format!(
-        "Uso: {binary} [--tokens] [--ast] [--json-ast] [--ir] [--cfg-ir] [--selected] [--machine] [--pseudo-asm] [--asm-s] [--run] [--check] <arquivo.pink> [-- <args...>]\n\
-         Uso: {binary} build [--out-dir <diretorio>] <arquivo.pink>\n\
-         Uso: {binary} editor <arquivo.pink>\n\
-         Uso: {binary} repl\n\
+        "Uso: {program} [OPÇÕES] ARQUIVO [-- ARGS...]\n\
+         Uso: {program} COMANDO [OPÇÕES]\n\
+         Uso: {program} help [COMANDO]\n\
          \n\
-         Modos:\n\
+         Opções principais:\n\
+           -h, --help  exibe esta ajuda e termina com sucesso\n\
+           -V, --version  exibe a versão do pacote e termina com sucesso\n\
            --tokens    imprime a lista de tokens com spans\n\
            --ast       imprime a AST textual legível\n\
            --json-ast  imprime a AST em JSON estável\n\
@@ -231,16 +244,16 @@ fn agent_usage(binary: &str) -> String {
 
 fn nav_usage(binary: &str) -> String {
     format!(
-        "Uso: {binary} nav <subcomando> [--repo <dir>] [args...]\n\
+        "Uso: {binary} nav SUBCOMANDO [--repo DIRETÓRIO] [ARGS...]\n\
          \n\
          Comando:\n\
            nav         navegação semântica do código da Trama Pinker\n\
          \n\
          Subcomandos:\n\
-           mostrar <key>       extrai a região de código pela chave\n\
-           buscar <consulta>   busca regiões por chave, domínio, camada, resumo\n\
-           listar <seletor>    lista regiões de uma camada (layer) ou domínio\n\
-           mapa [filtro]       agrupa regiões por arquivo\n\
+           mostrar CHAVE       extrai a região de código pela chave\n\
+           buscar CONSULTA     busca regiões por chave, domínio, camada, resumo\n\
+           listar SELETOR      lista regiões de uma camada (layer) ou domínio\n\
+           mapa [FILTRO]       agrupa regiões por arquivo\n\
            sincronizar         regenera o catálogo src/navigation.jsonl\n\
            verificar           valida os marcadores e o catálogo (não corrige)\n\
          \n\
@@ -256,21 +269,21 @@ fn nav_usage(binary: &str) -> String {
 
 fn doc_usage(binary: &str) -> String {
     format!(
-        "Uso: {binary} doc <subcomando> [--repo <dir>] [args...]\n\
+        "Uso: {binary} doc SUBCOMANDO [--repo DIRETÓRIO] [ARGS...]\n\
          \n\
          Comando:\n\
            doc         ferramenta documental da Trama Pinker\n\
          \n\
          Subcomandos:\n\
            marco               exibe o marco documental configurado em {config}\n\
-           importar-pr <n>     aplica a política do marco a um PR (E-DOC-BASELINE);\n\
-                               com --corpo <arquivo>, importa o bloco pinker-change\n\
-                               e grava .pinker/changes/pr-<n>.yaml;\n\
+           importar-pr N       aplica a política do marco a um PR (E-DOC-BASELINE);\n\
+                               com --corpo ARQUIVO, importa o bloco pinker-change\n\
+                               e grava .pinker/changes/pr-N.yaml;\n\
                                com --check, valida sem escrever\n\
-           mostrar <id>        extrai a seção/documento pelo id semântico\n\
-           listar <territorio> lista documentos de um território (domain)\n\
-           buscar <consulta>   busca seções por id, título, tags, aliases, resumo\n\
-           rota <consulta>     melhores destinos para uma intenção\n\
+           mostrar ID          extrai a seção/documento pelo id semântico\n\
+           listar TERRITÓRIO   lista documentos de um território (domain)\n\
+           buscar CONSULTA     busca seções por id, título, tags, aliases, resumo\n\
+           rota CONSULTA       melhores destinos para uma intenção\n\
            sincronizar         regenera o catálogo docs/navigation.jsonl\n\
            verificar           valida documentação e catálogo (não corrige)\n\
          \n\
@@ -290,7 +303,7 @@ fn doc_usage(binary: &str) -> String {
 
 fn build_usage(binary: &str) -> String {
     format!(
-        "Uso: {binary} build [--out-dir <diretorio>] [--nativo] <arquivo.pink>\n\
+        "Uso: {binary} build [--out-dir DIRETÓRIO] [--nativo] ARQUIVO\n\
          \n\
          Comando:\n\
            build      executa o pipeline de build e grava artefato `.s` no disco\n\
@@ -305,7 +318,7 @@ fn build_usage(binary: &str) -> String {
 
 fn editor_usage(binary: &str) -> String {
     format!(
-        "Uso: {binary} editor <arquivo.pink>\n\
+        "Uso: {binary} editor ARQUIVO\n\
          \n\
          Comando:\n\
            editor     abre a TUI oficial mínima da Pinker (Fase 136)\n\
@@ -332,6 +345,18 @@ fn repl_usage(binary: &str) -> String {
            não há estado persistente entre linhas\n\
            sem multiline amplo; use `:quit` ou `:sair` para encerrar\n"
     )
+}
+
+fn help_for_command(program: &str, command: &str) -> Option<String> {
+    match command {
+        "build" => Some(build_usage(program)),
+        "editor" => Some(editor_usage(program)),
+        "repl" => Some(repl_usage(program)),
+        "doc" => Some(doc_usage(program)),
+        "nav" => Some(nav_usage(program)),
+        "agente" => Some(agent_usage(program)),
+        _ => None,
+    }
 }
 // @pinker-nav:end cli.ajuda.usage
 
@@ -362,7 +387,7 @@ fn parse_build_args(binary: &str, args: &[String]) -> Result<BuildConfig, String
             "--nativo" => {
                 nativo = true;
             }
-            _ if arg.starts_with("--") => {
+            _ if arg.starts_with('-') => {
                 return Err(format!(
                     "Flag desconhecida no comando build: '{}'\n\n{}",
                     arg,
@@ -397,7 +422,7 @@ fn parse_editor_args(binary: &str, args: &[String]) -> Result<EditorConfig, Stri
     for arg in args {
         match arg.as_str() {
             "--help" | "-h" => return Err(editor_usage(binary)),
-            _ if arg.starts_with("--") => {
+            _ if arg.starts_with('-') => {
                 return Err(format!(
                     "Flag desconhecida no comando editor: '{}'\n\n{}",
                     arg,
@@ -430,7 +455,7 @@ fn parse_repl_args(binary: &str, args: &[String]) -> Result<ReplConfig, String> 
     let arg = &args[0];
     match arg.as_str() {
         "--help" | "-h" => Err(repl_usage(binary)),
-        _ if arg.starts_with("--") => Err(format!(
+        _ if arg.starts_with('-') => Err(format!(
             "Flag desconhecida no comando repl: '{}'\n\n{}",
             arg,
             repl_usage(binary)
@@ -496,7 +521,7 @@ fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String>
                 })?;
                 limite = Some(value);
             }
-            _ if arg.starts_with("--") => {
+            _ if arg.starts_with('-') => {
                 return Err(format!(
                     "Flag desconhecida no comando doc: '{}'\n\n{}",
                     arg,
@@ -637,7 +662,7 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                 })?;
                 limite = Some(value);
             }
-            _ if arg.starts_with("--") => {
+            _ if arg.starts_with('-') => {
                 return Err(format!(
                     "Flag desconhecida no comando nav: '{}'\n\n{}",
                     arg,
@@ -772,7 +797,7 @@ fn parse_agent_args(binary: &str, args: &[String]) -> Result<AgentConfigCli, Str
 // @pinker-nav:start cli.parsing.roteamento
 // @pinker-nav:domain parsing
 // @pinker-nav:layer cli
-// @pinker-nav:summary parse_args: lê env::args(), separa o argv em flag_args e runtime_tail (delimitados por '--'), despacha para build/editor/repl/doc/nav quando o primeiro argumento bate um desses nomes, senão interpreta as flags de análise (--tokens/--ast/--json-ast/--ir/--cfg-ir/--selected/--machine/--pseudo-asm/--asm-s (aliases --asm/--s)/--run/--check) e monta CliCommand::Analyze(Config); erros retornam Err(String) com a mensagem de usage.
+// @pinker-nav:summary parse_args reduz argv[0] via program_name, resolve ajuda principal/help COMANDO/COMANDO --help e versão antes do parsing operacional, separa flag_args do runtime_tail e despacha os seis comandos existentes ou o modo de análise; erros de invocação retornam Err(String) para saída uniforme com EXIT_USAGE.
 fn parse_args() -> Result<CliCommand, String> {
     let mut input: Option<String> = None;
     let mut print_tokens = false;
@@ -788,10 +813,7 @@ fn parse_args() -> Result<CliCommand, String> {
     let mut check_only = false;
 
     let raw_args: Vec<String> = env::args().collect();
-    let binary = raw_args
-        .first()
-        .cloned()
-        .unwrap_or_else(|| "pink".to_string());
+    let program = program_name(raw_args.first());
     let cli_args = &raw_args[1..];
     let mut cli_tail_start = cli_args.len();
     for (i, arg) in cli_args.iter().enumerate() {
@@ -807,24 +829,72 @@ fn parse_args() -> Result<CliCommand, String> {
         &[]
     };
 
+    if matches!(flag_args.first().map(String::as_str), Some("--help" | "-h")) {
+        return Ok(CliCommand::Help(usage(&program)));
+    }
+    if matches!(
+        flag_args.first().map(String::as_str),
+        Some("--version" | "-V")
+    ) {
+        if flag_args.len() == 1 && runtime_tail.is_empty() {
+            return Ok(CliCommand::Version);
+        }
+        return Err(format!(
+            "A opção de versão não aceita argumentos.\n\n{}",
+            usage(&program)
+        ));
+    }
+    if flag_args.first().map(String::as_str) == Some("version") {
+        return Err(format!(
+            "Comando 'version' desconhecido. Use '--version' ou '-V'.\n\n{}",
+            usage(&program)
+        ));
+    }
+    if flag_args.first().map(String::as_str) == Some("help") {
+        return match &flag_args[1..] {
+            [] if runtime_tail.is_empty() => Ok(CliCommand::Help(usage(&program))),
+            [command] if runtime_tail.is_empty() => help_for_command(&program, command)
+                .map(CliCommand::Help)
+                .ok_or_else(|| {
+                    format!(
+                        "Comando desconhecido para ajuda: '{}'.\n\n{}",
+                        command,
+                        usage(&program)
+                    )
+                }),
+            _ => Err(format!(
+                "O comando 'help' aceita no máximo um COMANDO.\n\n{}",
+                usage(&program)
+            )),
+        };
+    }
+
     if let Some(cmd) = flag_args.first() {
+        if let Some(help) = help_for_command(&program, cmd) {
+            if flag_args[1..]
+                .iter()
+                .any(|arg| matches!(arg.as_str(), "--help" | "-h"))
+            {
+                return Ok(CliCommand::Help(help));
+            }
+        }
         if cmd == "build" {
-            return parse_build_args(&binary, &flag_args[1..]).map(CliCommand::Build);
+            return parse_build_args(&program, &flag_args[1..]).map(CliCommand::Build);
         }
         if cmd == "editor" {
-            return parse_editor_args(&binary, &flag_args[1..]).map(CliCommand::Editor);
+            return parse_editor_args(&program, &flag_args[1..]).map(CliCommand::Editor);
         }
         if cmd == "repl" {
-            return parse_repl_args(&binary, &flag_args[1..]).map(CliCommand::Repl);
+            return parse_repl_args(&program, &flag_args[1..]).map(CliCommand::Repl);
         }
         if cmd == "doc" {
-            return parse_doc_args(&binary, &flag_args[1..]).map(CliCommand::Doc);
+            return parse_doc_args(&program, &flag_args[1..]).map(CliCommand::Doc);
         }
         if cmd == "nav" {
-            return parse_nav_args(&binary, &flag_args[1..]).map(CliCommand::Nav);
+            return parse_nav_args(&program, &flag_args[1..]).map(CliCommand::Nav);
         }
         if cmd == "agente" {
-            return parse_agent_args(&binary, &flag_args[1..]).map(CliCommand::Agent);
+            return parse_agent_args(&program, &flag_args[1..]).map(CliCommand::Agent);
         }
     }
 
@@ -841,19 +911,25 @@ fn parse_args() -> Result<CliCommand, String> {
             "--asm" | "--asm-s" | "--s" => print_asm_s = true,
             "--run" => run_program = true,
             "--check" => check_only = true,
-            "--help" | "-h" => return Err(usage(&binary)),
-            _ if arg.starts_with("--") => {
+            "--help" | "-h" => return Ok(CliCommand::Help(usage(&program))),
+            "--version" | "-V" => {
+                return Err(format!(
+                    "A opção de versão deve ser usada sem ARQUIVO.\n\n{}",
+                    usage(&program)
+                ));
+            }
+            _ if arg.starts_with('-') => {
                 return Err(format!(
                     "Flag desconhecida: '{}'\n\n{}",
                     arg,
-                    usage(&binary)
+                    usage(&program)
                 ));
             }
             _ => {
                 if input.is_some() {
                     return Err(format!(
                         "Apenas um arquivo de entrada é suportado.\n\n{}",
-                        usage(&binary)
+                        usage(&program)
                     ));
                 }
                 input = Some(arg.clone());
@@ -862,12 +938,15 @@ fn parse_args() -> Result<CliCommand, String> {
     }
 
     let Some(input) = input else {
-        return Err(usage(&binary));
+        return Err(format!(
+            "Uso inválido: nenhum argumento informado.\n\n{}",
+            usage(&program)
+        ));
     };
     if !run_program && !runtime_tail.is_empty() {
         return Err(format!(
             "Argumentos após '--' exigem '--run'.\n\n{}",
-            usage(&binary)
+            usage(&program)
         ));
     }
 
@@ -892,7 +971,7 @@ fn parse_args() -> Result<CliCommand, String> {
 // @pinker-nav:start cli.execucao.entrada
 // @pinker-nav:domain execucao
 // @pinker-nav:layer cli
-// @pinker-nav:summary try_or_exit! extrai um Result::Ok ou imprime o erro renderizado com a fonte e chama std::process::exit(1); main() chama parse_args, e em Err imprime a mensagem e sai com EXIT_USAGE (para doc/nav) ou 1 (demais), senão despacha CliCommand para run_analyze/run_build/run_editor/run_repl/run_doc/run_nav; scan_code chama nav::CodeIndex::scan_repo e sai com 1 em Err; run_nav roteia NavSub para run_nav_mostrar/buscar/listar/mapa/sincronizar/verificar.
+// @pinker-nav:summary try_or_exit! encerra falhas operacionais com EXIT_FAILURE; main imprime ajuda em stdout, versão determinística do pacote em stdout, erros de invocação em stderr com EXIT_USAGE e preserva os códigos de domínio ao despachar análise, build, editor, repl, doc, nav e agente.
 /// Macro para encurtar o padrão "try or exit(1)" repetido no pipeline.
 macro_rules! try_or_exit {
     ($result:expr, $source:expr) => {
@@ -900,7 +979,7 @@ macro_rules! try_or_exit {
             Ok(val) => val,
             Err(err) => {
                 eprintln!("{}", err.render_for_cli_with_source($source));
-                std::process::exit(1);
+                std::process::exit(EXIT_FAILURE);
             }
         }
     };
@@ -911,17 +990,13 @@ fn main() {
         Ok(config) => config,
         Err(msg) => {
             eprintln!("{}", msg);
-            // Uso inválido de `doc`/`nav` sai com 2 (§7.4); demais mantêm 1.
-            let raw: Vec<String> = env::args().collect();
-            let is_trama = matches!(
-                raw.get(1).map(String::as_str),
-                Some("doc") | Some("nav") | Some("agente")
-            );
-            std::process::exit(if is_trama { EXIT_USAGE } else { 1 });
+            std::process::exit(EXIT_USAGE);
         }
     };
 
     match command {
+        CliCommand::Help(help) => print!("{help}"),
+        CliCommand::Version => println!("pink {}", env!("CARGO_PKG_VERSION")),
         CliCommand::Analyze(config) => run_analyze(config),
         CliCommand::Build(config) => run_build(config),
         CliCommand::Editor(config) => run_editor(config),
@@ -955,7 +1030,7 @@ fn scan_code(repo_root: &Path) -> nav::CodeIndex {
         Ok(index) => index,
         Err(err) => {
             eprintln!("{err}");
-            std::process::exit(1);
+            std::process::exit(EXIT_FAILURE);
         }
     }
 }
