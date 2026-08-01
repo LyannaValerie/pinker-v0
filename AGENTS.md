@@ -95,7 +95,8 @@ Mapa curto por feature: `docs/code_map.md`.
   `Eixo A — linguagem: COMPLETE`. A janela auxiliar de infraestrutura
   determinística é exceção estreita apenas para as capacidades enumeradas em
   `docs/development/janela-infraestrutura-deterministica.md`; agentes devem
-  bloquear qualquer expansão. A janela não autoriza mudança semântica da
+  bloquear qualquer tarefa da janela que exceda essa lista fechada.
+  A janela não autoriza mudança semântica da
   linguagem, novo executor, auto-merge ou modificação automática de fontes.
 - Validar com `build`, `test`, `fmt-check` e `clippy` antes de encerrar.
 
