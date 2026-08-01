@@ -124,7 +124,9 @@ fn cli_publica_subcomandos_v1c() {
         .args(["agente", "--help"])
         .output()
         .expect("pink");
-    let help = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty());
+    let help = String::from_utf8_lossy(&output.stdout);
     for name in [
         "iniciar",
         "executar",

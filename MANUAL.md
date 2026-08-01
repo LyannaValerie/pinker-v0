@@ -799,6 +799,44 @@ carinho principal() -> bombom {
 }
 ```
 
+## 10.1) Descoberta e códigos de saída da CLI
+
+Dentro do checkout, a ajuda principal pode ser obtida diretamente pelo wrapper
+oficial:
+
+```bash
+./ci_env.sh cargo run --bin pink -- --help
+```
+
+As formas `pink --help`, `pink -h` e `pink help` são equivalentes. Para os
+comandos existentes (`build`, `editor`, `repl`, `doc`, `nav` e `agente`), use
+`pink help COMANDO`, `pink COMANDO --help` ou `pink COMANDO -h`. Ajuda
+explicitamente solicitada não exige arquivo, root ou catálogo, não executa o
+comando, escreve em stdout e retorna `0`.
+
+`pink --version` e `pink -V` escrevem `pink` e a versão do pacote em stdout,
+mantêm stderr vazio e retornam `0`, inclusive fora de um checkout. A saída
+humana não inclui Git, commit de build nem versões de schema. Essa metadata só
+poderá integrar uma saída estruturada futura depois que houver contrato
+canônico; nenhuma saída estruturada nova é definida aqui. `pink version` não é
+alias e constitui uso inválido.
+
+A taxonomia pública é:
+
+- `0`: sucesso, ajuda ou versão;
+- `1`: falha operacional, de compilação, execução, leitura ou escrita sem código
+  de domínio mais específico;
+- `2`: uso inválido, como flag ou subcomando desconhecido, argumento ausente ou
+  excedente e aridade inválida;
+- `3`, `4` e `5`: códigos estruturados já publicados por `doc` e `nav`,
+  respectivamente para catálogo ausente/inválido, ausência de resultado e
+  fonte/âncora divergente.
+
+Os códigos operacionais de `pink agente` permanecem válidos depois do parsing;
+erros de invocação de `agente` usam `2`. `pink comandos`, `pink env`,
+`pink doctor` e `pink listar` não são comandos raiz implementados. O nome
+`listar` permanece disponível apenas como subcomando próprio de `doc` e `nav`.
+
 ## 11) Build nativo (`pink build --nativo`)
 
 Desde a Fase 212 (Eixo B do Bloco 20), além do artefato `.s`, o build pode

@@ -73,8 +73,23 @@ Sem `make`:
 
 ## CLI
 
+No checkout, o caminho oficial mais curto para descobrir a CLI é:
+
+```bash
+./ci_env.sh cargo run --bin pink -- --help
+```
+
+Depois de `make build` ou `./ci_env.sh cargo build --locked`, o mesmo contrato
+pode ser verificado diretamente com `./target/debug/pink --help`. Ajuda
+solicitada escreve em stdout e termina com código `0`; diagnósticos de uso
+inválido escrevem em stderr e terminam com código `2`.
+
 | Comando | Uso |
 |---|---|
+| `pink --help`, `pink -h`, `pink help` | Ajuda principal |
+| `pink help COMANDO` | Ajuda de `build`, `editor`, `repl`, `doc`, `nav` ou `agente` |
+| `pink COMANDO --help`, `pink COMANDO -h` | Forma equivalente de ajuda do comando |
+| `pink --version`, `pink -V` | Versão determinística do pacote |
 | `pink arquivo.pink` | Compila/checka o arquivo pelo caminho padrão |
 | `pink --check arquivo.pink` | Validação sem execução |
 | `pink --run arquivo.pink` | Execução interpretada |
@@ -82,6 +97,20 @@ Sem `make`:
 | `pink --cfg-ir arquivo.pink` | Emissão de CFG IR |
 | `pink --machine arquivo.pink` | Emissão da machine abstrata |
 | `pink build --nativo arquivo.pink` | Geração de executável nativo no recorte suportado |
+
+Os códigos públicos distinguem `0` (sucesso, ajuda ou versão), `1` (falha
+operacional genérica) e `2` (invocação inválida). `doc` e `nav` preservam os
+códigos estruturados `3` para catálogo ausente ou inválido, `4` para ausência
+de resultado e `5` para fonte ou âncora divergente; `agente` preserva seus
+códigos operacionais depois do parsing. A versão humana contém apenas
+`pink` e a versão do pacote: commit de build e versões de schema ficam
+reservados a uma possível saída estruturada futura, ainda sem contrato nesta
+etapa.
+
+Os comandos raiz existentes são somente `build`, `editor`, `repl`, `doc`,
+`nav` e `agente`. Propostas como `pink comandos`, `pink env`, `pink doctor` e
+`pink listar` não estão implementadas; `listar` existe apenas dentro das
+gramáticas próprias de `doc` e `nav`.
 
 ## Exemplo Minimo
 

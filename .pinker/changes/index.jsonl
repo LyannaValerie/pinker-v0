@@ -5,3 +5,4 @@
 {"schema":1,"pr":412,"kind":"hotfix","block":20,"title":"Endurecimento do runtime nativo pós-PR","status":"completed","area":["runtime.public-memory","runtime.process-io","development.test-integrity"]}
 {"schema":1,"pr":418,"kind":"parallel-phase","title":"Aceita listas como cargas tipadas de variantes","status":"completed","area":["language.enums","language.collections","compiler.ir"]}
 {"schema":1,"pr":419,"kind":"documentation","block":20,"title":"Ativa janela auxiliar de infraestrutura pré-Eixo A","status":"completed","area":["development.deterministic-infrastructure-window","development.tramas-policy","roadmap.block-20"]}
+{"schema":1,"pr":420,"kind":"parallel-phase","block":20,"title":"Normaliza descoberta, ajuda e versão da CLI","status":"completed","area":["development.deterministic-infrastructure-window"]}

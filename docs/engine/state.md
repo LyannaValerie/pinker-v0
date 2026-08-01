@@ -66,7 +66,7 @@ Conteúdo abaixo é **propriedade da ferramenta** (projeção `state`); não edi
 mão. Regenere com `pink doc sincronizar`.
 
 <!-- @pinker-generated:start engine.state.generated -->
-- Manifestos processados: 7
-- Última mudança: PR #419 — Ativa janela auxiliar de infraestrutura pré-Eixo A (fase —, bloco 20)
+- Manifestos processados: 8
+- Última mudança: PR #420 — Normaliza descoberta, ajuda e versão da CLI (fase —, bloco 20)
 - Seções implementadas: —
 <!-- @pinker-generated:end engine.state.generated -->

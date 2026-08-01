@@ -428,8 +428,9 @@ fn nav_help_inclui_mapa() {
     let root = temp_repo("mapa_help");
     fixture(&root);
     let out = nav(&root, &["--help"]);
-    assert_eq!(code(&out), 2);
-    assert!(stderr(&out).contains("mapa [filtro]"));
+    assert_eq!(code(&out), 0);
+    assert!(out.stderr.is_empty());
+    assert!(stdout(&out).contains("mapa [FILTRO]"));
     fs::remove_dir_all(root).unwrap();
 }
 

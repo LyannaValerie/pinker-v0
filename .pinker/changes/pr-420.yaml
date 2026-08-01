@@ -1,0 +1,18 @@
+schema: 1
+source:
+  type: github-pr
+  number: 420
+  repository: "LyannaValerie/pinker-v0"
+kind: parallel-phase
+block: 20
+title: "Normaliza descoberta, ajuda e versão da CLI"
+area:
+  - development.deterministic-infrastructure-window
+status: completed
+updates:
+  state: false
+  history: false
+  roadmap: false
+validation:
+  required:
+    - make ci
