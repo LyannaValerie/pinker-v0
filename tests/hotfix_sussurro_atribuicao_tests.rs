@@ -11,13 +11,13 @@
 
 mod common;
 
+use common::ControlledCommand as Command;
 use pinker_v0::inline_asm::{self, E_ASM_ARTIFACT, E_ASM_SYMBOL_ASSIGN};
 use pinker_v0::{
     abstract_machine, abstract_machine_validate, backend_s, cfg_ir, cfg_ir_validate, elf,
     instr_select, instr_select_validate, interpreter, ir, ir_validate, semantic,
 };
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn sussurro_source(chunks: &str) -> String {

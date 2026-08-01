@@ -15,10 +15,10 @@
 mod common;
 
 use common::parse_and_check;
+use common::ControlledCommand as Command;
 use pinker_v0::enum_payload::{self, EnumPayloadClass};
 use pinker_v0::ir::{self, EnumPayloadMetaIR, ProgramIR, TypeIR};
 use pinker_v0::{ir_validate, semantic};
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // ---------------------------------------------------------------------------

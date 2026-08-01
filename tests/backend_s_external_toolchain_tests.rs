@@ -1,6 +1,7 @@
 mod common;
 
 use common::render_backend_s_external_subset;
+use common::ControlledCommand as Command;
 use pinker_v0::backend_s::emit_external_toolchain_subset;
 use pinker_v0::cfg_ir::OperandIR;
 use pinker_v0::instr_select::{
@@ -9,7 +10,6 @@ use pinker_v0::instr_select::{
 use pinker_v0::ir::TypeIR;
 use std::collections::HashMap;
 use std::fs;
-use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 

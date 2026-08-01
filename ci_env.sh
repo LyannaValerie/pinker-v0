@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if ! ulimit -S -c 0 2>/dev/null; then
+    printf 'ci_env: não foi possível desabilitar core dumps para esta execução\n' >&2
+    exit 1
+fi
+
 usage() {
     cat <<'EOF'
 Uso:
@@ -10,6 +15,7 @@ Uso:
 Executa a suite oficial da Pinker v0 em ambiente saneado:
 - remove RUSTFLAGS;
 - remove CARGO_ENCODED_RUSTFLAGS;
+- desabilita core dumps na árvore de processos;
 - preserva toolchain stable configurada pelo projeto.
 EOF
 }
@@ -33,6 +39,7 @@ if [[ "${1-}" == "--preflight" ]]; then
     printf 'original_CARGO_ENCODED_RUSTFLAGS=%q\n' "${CARGO_ENCODED_RUSTFLAGS-}"
     printf 'sanitized_RUSTFLAGS=%q\n' ''
     printf 'sanitized_CARGO_ENCODED_RUSTFLAGS=%q\n' ''
+    printf 'core_dump_soft_limit=%s\n' "$(ulimit -c)"
     exit 0
 fi
 

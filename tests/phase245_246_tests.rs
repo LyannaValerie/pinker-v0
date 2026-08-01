@@ -1,11 +1,11 @@
 mod common;
 
+use common::ControlledCommand as Command;
 use common::{
     parse_and_check, render_backend_s_external_subset, render_backend_s_external_subset_nativo,
     render_backend_text, render_cfg_ir, render_ir, render_machine, render_selected,
 };
 use std::fs;
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]

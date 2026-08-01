@@ -3,12 +3,12 @@
 
 mod common;
 
+use common::ControlledCommand as Command;
 use pinker_v0::{
     backend_s, cfg_ir, cfg_ir_validate, instr_select, instr_select_validate, ir, ir_validate,
     lexer::Lexer, parser::Parser, semantic,
 };
 use std::fs;
-use std::process::Command;
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
