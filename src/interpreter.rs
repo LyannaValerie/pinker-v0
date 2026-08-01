@@ -13,6 +13,10 @@ use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
 use crate::ir::TypeIR;
 use crate::token::Span;
+use pinker_memory_contract::{
+    release_public_live_bytes, reserve_public_allocation, PublicAllocationVerdict,
+    PublicMemoryBudget, PublicMemoryLimits as ContractMemoryLimits,
+};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env;
@@ -1701,10 +1705,11 @@ fn exec_instr(
 // @pinker-nav:layer interpreter
 // @pinker-nav:summary Implementa intrínsecas hospedadas de aleatoriedade inicial, validando aridade, semente e handle de gerador, mutando o estado pseudoaleatório do interpretador e retornando handles ou números; não representa geradores do runtime nativo.
 const PUBLIC_MEMORY_BASE: usize = 0x5000_0000;
-const PUBLIC_MEMORY_MAX_IDENTITIES: usize = 1_000_000;
-const PUBLIC_MEMORY_MAX_VIRTUAL_BYTES: usize = 8 * 1024 * 1024 * 1024;
+const PUBLIC_MEMORY_MAX_IDENTITIES: usize = pinker_memory_contract::MAX_PUBLIC_IDENTITIES as usize;
+const PUBLIC_MEMORY_MAX_VIRTUAL_BYTES: usize =
+    pinker_memory_contract::MAX_PUBLIC_LIFETIME_VIRTUAL_BYTES as usize;
 const PUBLIC_MEMORY_MAX_METADATA_BYTES: usize =
-    PUBLIC_MEMORY_MAX_IDENTITIES * std::mem::size_of::<PublicMemoryRegion>();
+    pinker_memory_contract::MAX_PUBLIC_METADATA_BYTES as usize;
 const PUBLIC_MEMORY_MAX_QUARANTINE_BYTES: usize = 0;
 
 /// Base da arena interna de binding de extração de união.
@@ -1724,12 +1729,30 @@ const UNION_BINDING_BASE: usize = 0x4_0000_0000;
 struct PublicMemoryLimits {
     max_identities: usize,
     max_virtual_bytes: usize,
+    max_single_reserved_bytes: usize,
+    max_live_reserved_bytes: usize,
+    max_metadata_bytes: usize,
 }
 
 const PUBLIC_MEMORY_LIMITS: PublicMemoryLimits = PublicMemoryLimits {
     max_identities: PUBLIC_MEMORY_MAX_IDENTITIES,
     max_virtual_bytes: PUBLIC_MEMORY_MAX_VIRTUAL_BYTES,
+    max_single_reserved_bytes: pinker_memory_contract::MAX_PUBLIC_SINGLE_RESERVED_BYTES as usize,
+    max_live_reserved_bytes: pinker_memory_contract::MAX_PUBLIC_LIVE_RESERVED_BYTES as usize,
+    max_metadata_bytes: PUBLIC_MEMORY_MAX_METADATA_BYTES,
 };
+
+impl PublicMemoryLimits {
+    fn contract(self) -> ContractMemoryLimits {
+        ContractMemoryLimits {
+            max_identities: self.max_identities as u64,
+            max_lifetime_virtual_bytes: self.max_virtual_bytes as u64,
+            max_single_reserved_bytes: self.max_single_reserved_bytes as u64,
+            max_live_reserved_bytes: self.max_live_reserved_bytes as u64,
+            max_metadata_bytes: self.max_metadata_bytes as u64,
+        }
+    }
+}
 
 /// Tetos do domínio interno de binding de extração de união.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1747,6 +1770,7 @@ const UNION_BINDING_LIMITS: UnionBindingLimits = UnionBindingLimits {
 struct PublicMemoryRegion {
     base: usize,
     size: usize,
+    reserved: usize,
     alive: bool,
 }
 
@@ -1785,6 +1809,7 @@ impl Default for UnionBindingArena {
 #[derive(Clone, Debug)]
 struct PublicMemoryState {
     next_address: usize,
+    budget: PublicMemoryBudget,
     /// Registro de **identidades públicas**. Só `alocar` acrescenta uma entrada
     /// aqui, e cada chamada bem-sucedida acrescenta exatamente uma.
     regions: Vec<PublicMemoryRegion>,
@@ -1799,6 +1824,7 @@ impl Default for PublicMemoryState {
     fn default() -> Self {
         Self {
             next_address: PUBLIC_MEMORY_BASE,
+            budget: PublicMemoryBudget::default(),
             regions: Vec::new(),
             payload: HashMap::new(),
             limits: PUBLIC_MEMORY_LIMITS,
@@ -2080,6 +2106,7 @@ fn union_reserve_binding_storage(
     arena.regions.push(PublicMemoryRegion {
         base,
         size,
+        reserved: rounded,
         alive: true,
     });
     Ok(base)
@@ -2201,54 +2228,50 @@ fn public_memory_allocate(
     args: &[RuntimeValue],
     state: &mut PublicMemoryState,
 ) -> Result<IntrinsicCall, PinkerError> {
-    debug_assert_eq!(
-        PUBLIC_MEMORY_MAX_METADATA_BYTES,
-        PUBLIC_MEMORY_MAX_IDENTITIES * std::mem::size_of::<PublicMemoryRegion>()
-    );
     debug_assert_eq!(PUBLIC_MEMORY_MAX_QUARANTINE_BYTES, 0);
     let [RuntimeValue::Int(size)] = args else {
         return Err(runtime_err("'alocar' exige um tamanho 'u64' em bytes"));
     };
-    let size = usize::try_from(*size)
-        .map_err(|_| runtime_err("'alocar' recebeu tamanho que excede a plataforma"))?;
-    if size == 0 {
-        return Err(runtime_err("'alocar' rejeita tamanho zero"));
-    }
-    if size > (isize::MAX as usize).saturating_sub(16) {
-        return Err(runtime_err(
-            "'alocar' excede o maior bloco representável pela plataforma",
-        ));
-    }
-    let rounded = size
-        .checked_add(15)
-        .map(|value| value & !15)
-        .ok_or_else(|| runtime_err("overflow ao alinhar tamanho de 'alocar'"))?;
+    let reservation = match reserve_public_allocation(
+        state.budget,
+        *size,
+        isize::MAX as usize,
+        state.limits.contract(),
+    ) {
+        PublicAllocationVerdict::Allowed(reservation) => reservation,
+        verdict => {
+            return Err(runtime_err(
+                verdict
+                    .diagnostic()
+                    .expect("todo veredicto recusado possui diagnóstico"),
+            ))
+        }
+    };
     let base = state.next_address;
     let next = base
-        .checked_add(rounded)
-        .ok_or_else(|| runtime_err("overflow de endereço em 'alocar'"))?;
-    let arena_end = PUBLIC_MEMORY_BASE
-        .checked_add(state.limits.max_virtual_bytes)
-        .ok_or_else(|| runtime_err("overflow no limite virtual da memória pública"))?;
-    // A cota vitalícia de identidades públicas é consumida **somente** aqui:
-    // uma chamada bem-sucedida de `alocar` acrescenta exatamente uma entrada em
-    // `regions`. O domínio interno de união tem arena e teto próprios.
-    if state.regions.len() >= state.limits.max_identities {
-        return Err(runtime_err("limite de identidades públicas esgotado"));
-    }
-    if next > arena_end {
-        return Err(runtime_err("espaço virtual público esgotado"));
-    }
-    state
-        .regions
-        .try_reserve(1)
-        .map_err(|_| runtime_err("registro de alocações públicas não pôde reservar metadata"))?;
-    state.next_address = next;
+        .checked_add(reservation.reserved_page_bytes)
+        .ok_or_else(|| {
+            runtime_err(
+                PublicAllocationVerdict::CounterOverflow
+                    .diagnostic()
+                    .expect("diagnóstico de overflow"),
+            )
+        })?;
+    state.regions.try_reserve(1).map_err(|_| {
+        runtime_err(
+            PublicAllocationVerdict::MetadataBudgetExceeded
+                .diagnostic()
+                .expect("diagnóstico de metadata"),
+        )
+    })?;
     state.regions.push(PublicMemoryRegion {
         base,
-        size,
+        size: reservation.logical_bytes,
+        reserved: reservation.reserved_page_bytes,
         alive: true,
     });
+    state.next_address = next;
+    state.budget = reservation.next_budget;
     Ok(IntrinsicCall::Done(Some(RuntimeValue::Ptr(base))))
 }
 
@@ -2262,23 +2285,28 @@ fn public_memory_free(
     if *pointer == 0 {
         return Err(runtime_err("'liberar' rejeita ponteiro nulo"));
     }
-    for region in state.regions.iter_mut().rev() {
-        if region.base != *pointer {
-            continue;
-        }
-        if !region.alive {
+    if let Some(index) = state
+        .regions
+        .iter()
+        .rposition(|region| region.base == *pointer)
+    {
+        if !state.regions[index].alive {
             return Err(runtime_err(
                 "E-RUNTIME-MEM-DOUBLE-FREE: 'liberar' detectou double free",
             ));
         }
-        region.alive = false;
+        let region = state.regions[index].clone();
         let base = region.base;
         let end = base
             .checked_add(region.size)
             .ok_or_else(|| runtime_err("overflow em metadata de memória pública"))?;
+        let next_budget = release_public_live_bytes(state.budget, region.reserved)
+            .ok_or_else(|| runtime_err("underflow no orçamento público vivo"))?;
         state
             .payload
             .retain(|address, _| *address < base || *address >= end);
+        state.regions[index].alive = false;
+        state.budget = next_budget;
         return Ok(IntrinsicCall::Done(None));
     }
     if state.regions.iter().any(|region| {
@@ -6646,7 +6674,18 @@ mod fase246_public_memory_tests {
     use super::*;
 
     fn registrar_regiao(state: &mut PublicMemoryState, base: usize, size: usize, alive: bool) {
-        state.regions.push(PublicMemoryRegion { base, size, alive });
+        state.budget.identity_count += 1;
+        state.budget.lifetime_virtual_bytes += size as u64;
+        state.budget.metadata_bytes += pinker_memory_contract::PUBLIC_METADATA_BYTES_PER_IDENTITY;
+        if alive {
+            state.budget.live_reserved_bytes += size as u64;
+        }
+        state.regions.push(PublicMemoryRegion {
+            base,
+            size,
+            reserved: size,
+            alive,
+        });
     }
 
     #[test]
@@ -6705,6 +6744,44 @@ mod fase246_public_memory_tests {
             public_memory_load_bytes(&memory, base + 8, TypeIR::U64).expect("zero u64"),
             RuntimeValue::Int(0)
         );
+    }
+
+    #[test]
+    fn interpretador_contabiliza_paginas_e_libera_somente_bytes_vivos() {
+        let mut state = PublicMemoryState::default();
+        let IntrinsicCall::Done(Some(RuntimeValue::Ptr(first))) =
+            public_memory_allocate(&[RuntimeValue::Int(1)], &mut state).expect("primeira alocação")
+        else {
+            panic!("alocar precisa devolver ponteiro");
+        };
+        assert_eq!(state.budget.identity_count, 1);
+        assert_eq!(state.budget.live_reserved_bytes, 4096);
+        assert_eq!(state.budget.lifetime_virtual_bytes, 4096);
+        assert_eq!(
+            state.budget.metadata_bytes,
+            pinker_memory_contract::PUBLIC_METADATA_BYTES_PER_IDENTITY
+        );
+
+        public_memory_free(&[RuntimeValue::Ptr(first)], &mut state).expect("libera primeira");
+        assert_eq!(state.budget.live_reserved_bytes, 0);
+        let after_free = state.budget;
+        assert!(public_memory_free(&[RuntimeValue::Ptr(first)], &mut state).is_err());
+        assert_eq!(state.budget, after_free, "double free não altera orçamento");
+        assert!(public_memory_free(&[RuntimeValue::Ptr(0x1234)], &mut state).is_err());
+        assert_eq!(
+            state.budget, after_free,
+            "foreign free não altera orçamento"
+        );
+
+        let IntrinsicCall::Done(Some(RuntimeValue::Ptr(second))) =
+            public_memory_allocate(&[RuntimeValue::Int(1)], &mut state).expect("segunda alocação")
+        else {
+            panic!("alocar precisa devolver ponteiro");
+        };
+        assert_ne!(first, second);
+        assert_eq!(state.budget.identity_count, 2);
+        assert_eq!(state.budget.live_reserved_bytes, 4096);
+        assert_eq!(state.budget.lifetime_virtual_bytes, 8192);
     }
 }
 

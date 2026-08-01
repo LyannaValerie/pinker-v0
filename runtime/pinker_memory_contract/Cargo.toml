@@ -1,0 +1,12 @@
+[package]
+name = "pinker_memory_contract"
+version = "0.1.0"
+edition = "2021"
+description = "Contrato puro de contabilidade da memória pública da Pinker"
+license = "MIT"
+
+[lib]
+name = "pinker_memory_contract"
+
+[dependencies]
+
