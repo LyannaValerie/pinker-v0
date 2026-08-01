@@ -117,6 +117,38 @@ pub const UNION_DESCRIPTOR_METADATA_BYTES: u64 = 8 * 8;
 /// Teto de metadata de descritores, derivado do teto de descritores.
 pub const MAX_UNION_METADATA_BYTES: u64 = MAX_UNION_DESCRIPTORS * UNION_DESCRIPTOR_METADATA_BYTES;
 
+// ---------------------------------------------------------------------------
+// Domínio interno de binding de extração
+//
+// Extrair um payload agregado materializa uma cópia nova, distinta do snapshot
+// imutável do descritor. Esse storage **não é uma identidade pública**: não vem
+// de `alocar`, não é aceito por `liberar` e não reduz a cota vitalícia de
+// identidades públicas. O backend nativo o realiza como slot do frame
+// (`leaq -offset(%rbp)`), reaproveitado a cada passagem pelo mesmo ponto de
+// extração; o interpretador não possui frame de máquina e o realiza numa arena
+// interna própria, monotônica enquanto não existir contrato de desalocação para
+// uniões.
+//
+// Os dois tetos abaixo são, por isso, **exclusivos do interpretador**: o slot do
+// frame nativo já está reservado quando a extração acontece e não é cobrado de
+// orçamento nenhum, então não existe cota nem diagnóstico de binding do lado
+// nativo. Não confundir com os tetos de descritores, bytes de payload e
+// metadata acima, esses sim aplicados nos dois back-ends. O que os dois
+// compartilham é o contrato de contabilidade — extrair não consome identidade
+// pública —, não a realização do storage.
+// ---------------------------------------------------------------------------
+
+/// Teto de regiões de binding de extração vivas na arena do interpretador.
+///
+/// Sem contraparte nativa: ver a nota do bloco acima.
+pub const MAX_UNION_BINDING_REGIONS: u64 = 1_000_000;
+
+/// Teto agregado de bytes materializados para bindings de extração na arena do
+/// interpretador.
+///
+/// Sem contraparte nativa: ver a nota do bloco acima.
+pub const MAX_UNION_BINDING_BYTES: u64 = 256 * 1024 * 1024;
+
 /// Motivo estável pelo qual um tipo não pode ser membro de união.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UnionPayloadRejection {

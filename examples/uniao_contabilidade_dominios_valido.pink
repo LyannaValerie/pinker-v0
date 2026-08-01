@@ -1,0 +1,40 @@
+pacote main;
+
+// Contabilidade de uniões: os dois domínios de storage são independentes.
+//
+// A cota vitalícia de identidades públicas pertence a `alocar`. Construir e
+// extrair uniões agregadas usa o domínio interno de união e **não** reduz a
+// capacidade pública observável: as alocações públicas feitas depois do laço
+// continuam disponíveis, no interpretador e no nativo.
+carinho principal() -> bombom {
+    nova base: seta<[bombom; 3]> = alocar(24) virar seta<[bombom; 3]>;
+    nova celula: seta<bombom> = base virar seta<bombom>;
+    *celula = 101;
+
+    nova muda i: bombom = 0;
+    nova muda soma: bombom = 0;
+
+    sempre que i < 8 {
+        nova valor: uniao<[bombom; 3], u8> = (*base) virar uniao<[bombom; 3], u8>;
+
+        encaixe valor {
+            caso [bombom; 3](agregado) {
+                soma = soma + agregado[0];
+            }
+            caso u8(numero) {
+                soma = soma + 1;
+            }
+        }
+
+        i = i + 1;
+    }
+
+    falar(soma);
+
+    // Oito construções internas depois, a cota pública continua intacta.
+    nova depois: seta<bombom> = alocar(8) virar seta<bombom>;
+    *depois = 7;
+    falar(*depois);
+
+    mimo 0;
+}

@@ -1,0 +1,37 @@
+pacote main;
+
+// Contabilidade de uniões: extração seguida de reinjeção.
+//
+// O binding extraído vive no domínio interno de união, não no registro de
+// identidades públicas. Ainda assim ele é uma origem legítima para uma união
+// nova: reinjetar copia o agregado integralmente para o descritor novo, sem
+// consumir identidade pública e sem duplicar consumo indevido.
+carinho principal() -> bombom {
+    nova base: seta<[bombom; 2]> = alocar(16) virar seta<[bombom; 2]>;
+    nova celula: seta<bombom> = base virar seta<bombom>;
+    *celula = 31;
+
+    nova primeira: uniao<[bombom; 2], u8> = (*base) virar uniao<[bombom; 2], u8>;
+
+    encaixe primeira {
+        caso [bombom; 2](agregado) {
+            falar(agregado[0]);
+
+            nova segunda: uniao<[bombom; 2], u8> = agregado virar uniao<[bombom; 2], u8>;
+
+            encaixe segunda {
+                caso [bombom; 2](copia) {
+                    falar(copia[0]);
+                }
+                caso u8(numero) {
+                    falar(999);
+                }
+            }
+        }
+        caso u8(numero) {
+            falar(999);
+        }
+    }
+
+    mimo 0;
+}

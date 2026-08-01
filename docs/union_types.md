@@ -21,7 +21,7 @@ tags: [linguagem, uniao, tipos, tagged, encaixe]
 aliases:
   - uniao estrutural
   - union types
-summary: Define identidade canônica, injeção explícita, encaixe exaustivo, handle público de uma palavra e snapshot integral do payload — escalar, handle opaco ou agregado multi-palavra —, com a distinção explícita entre o que o pipeline representa, o que a sintaxe-fonte constrói e qual evidência executável cobre cada forma.
+summary: Define identidade canônica, injeção explícita, encaixe exaustivo, handle público de uma palavra e snapshot integral do payload — escalar, handle opaco ou agregado multi-palavra —, com a distinção explícita entre o que o pipeline representa, o que a sintaxe-fonte constrói e qual evidência executável cobre cada forma; e separa os dois domínios de armazenamento — a cota vitalícia de identidades públicas, consumida só por `alocar` e com contrato igual nos dois back-ends, e o domínio interno de união, onde descritores, bytes de payload e metadata têm limites compartilhados, mas o storage do binding de extração é slot de frame já reservado e sem cota própria no nativo e arena monotônica com limite e diagnósticos exclusivos no interpretador.
 -->
 
 Uma união é escrita `uniao<T1, T2, ...>`. Aliases são resolvidos, uniões
@@ -258,13 +258,20 @@ valores abaixo são escolhidos explicitamente, são finitos, não dependem do
 profile de compilação e são revalidados no runtime nativo e no interpretador com
 operações checadas.
 
-| constante | valor | papel |
-|---|---|---|
-| `MAX_UNION_PAYLOAD_BYTES` | 4096 | teto por payload; uma página |
-| `MAX_UNION_PAYLOAD_ALIGN` | 16 | teto de alinhamento, coerente com o alinhamento de pilha da SysV |
-| `MAX_UNION_DESCRIPTORS` | 1 000 000 | teto de descritores vivos, na ordem de grandeza de `MAX_IDENTIDADES_PUBLICAS` |
-| `MAX_UNION_TOTAL_PAYLOAD_BYTES` | 256 MiB | teto agregado de bytes de snapshot |
-| `MAX_UNION_METADATA_BYTES` | derivado | teto de metadata de descritores |
+| constante | valor | papel | vale em |
+|---|---|---|---|
+| `MAX_UNION_PAYLOAD_BYTES` | 4096 | teto por payload; uma página | ambos |
+| `MAX_UNION_PAYLOAD_ALIGN` | 16 | teto de alinhamento, coerente com o alinhamento de pilha da SysV | ambos |
+| `MAX_UNION_DESCRIPTORS` | 1 000 000 | teto de descritores vivos, na ordem de grandeza de `MAX_IDENTIDADES_PUBLICAS` | ambos |
+| `MAX_UNION_TOTAL_PAYLOAD_BYTES` | 256 MiB | teto agregado de bytes de snapshot | ambos |
+| `MAX_UNION_METADATA_BYTES` | derivado | teto de metadata de descritores | ambos |
+| `MAX_UNION_BINDING_REGIONS` | 1 000 000 | teto de regiões de binding de extração | só interpretador |
+| `MAX_UNION_BINDING_BYTES` | 256 MiB | teto agregado de bytes materializados para bindings | só interpretador |
+
+As cinco primeiras são revalidadas nos dois back-ends. As duas últimas existem
+**apenas no interpretador**, e a razão está em [Contabilidade](#contabilidade-identidade-pública-e-domínio-interno):
+o nativo materializa o binding de extração num slot do frame já reservado no
+prólogo, que não é cobrado de orçamento nenhum.
 
 Os snapshots vivem enquanto o processo vive; o crescimento é limitado por esses
 tetos e não por coleta. Falha de alocação produz diagnóstico controlado, nunca
@@ -316,6 +323,97 @@ duas extrações → storages distintos → valores inicialmente iguais
 Esses contratos valem igualmente no interpretador e no caminho nativo, com
 paridade de stdout, stderr, código de saída, braço selecionado e conteúdo
 integral do payload.
+
+### Contabilidade: identidade pública e domínio interno
+
+Existem dois domínios de armazenamento, e eles não se misturam.
+
+**Identidade pública** é a entrada de registro criada por `alocar`. Uma chamada
+bem-sucedida de `alocar` consome exatamente uma, a cota é vitalícia por processo
+(`liberar` devolve o armazenamento, não a identidade) e o esgotamento produz
+`limite de identidades públicas esgotado`. O contrato completo está em
+[MANUAL.md](../MANUAL.md#cota-vitalícia-de-identidades-públicas).
+
+**Armazenamento interno de união** é tudo que a união materializa por conta
+própria: o descritor, o snapshot imutável do payload e o storage do binding
+produzido por uma extração agregada. Nada disso é uma identidade pública.
+
+O que decorre disso, igualmente nos dois back-ends:
+
+- construir uma união — escalar, handle opaco ou agregada — não consome
+  identidade pública;
+- extrair um payload agregado não consome identidade pública: no nativo o
+  binding é um slot do frame (`leaq -offset(%rbp)`), no interpretador é uma
+  região de uma arena interna própria, disjunta da arena pública;
+- `liberar` recusa um endereço do domínio interno com
+  `E-RUNTIME-MEM-FOREIGN-FREE`, e liberar memória pública não devolve nem altera
+  o orçamento interno de uniões;
+- apelidos, achatamento de união aninhada, `ResolvedTypeId`, travessia por
+  chamada direta ou indireta e reinjeção de um binding extraído não mudam
+  contagem alguma;
+- construir uniões não altera a capacidade restante de `alocar`, e esgotar o
+  domínio interno deixa a cota pública numericamente intacta.
+
+Quais cotas são recuperáveis e quais domínios são monotônicos:
+
+| domínio | unidade | recuperável | monotônico |
+|---|---|---|---|
+| identidade pública | entrada de registro de `alocar` | não (vitalícia) | sim |
+| memória pública | bytes de uma região viva | sim, por `liberar` | não |
+| descritores de união | descritor criado por injeção | não | sim |
+| bytes de payload de união | bytes do snapshot | não | sim |
+| metadata de descritores | cabeçalho por descritor | não | sim |
+| binding de extração (interpretador) | região materializada por extração agregada | não | sim |
+
+Os domínios de união permanecem monotônicos porque não existe contrato de
+desalocação para uniões nesta fase. Isso não é uma promessa de reciclagem futura
+nem um ownership novo: é a razão de cada um ter teto explícito.
+
+Cada limite tem diagnóstico próprio, e nenhum deles reutiliza a mensagem do
+limite público:
+
+| diagnóstico | limite | emitido por |
+|---|---|---|
+| `limite de identidades públicas esgotado` | cota vitalícia de `alocar` | ambos |
+| `E-RUNTIME-UNION-DESCRIPTOR-BUDGET` | descritores internos | ambos |
+| `E-RUNTIME-UNION-PAYLOAD-BUDGET` | bytes de payload internos | ambos |
+| `E-RUNTIME-UNION-METADATA-BUDGET` | metadata de descritores | ambos |
+| `E-RUNTIME-UNION-ALIGN` | alinhamento de payload acima do suportado | ambos |
+| `E-RUNTIME-UNION-BINDING-BUDGET` | regiões de binding de extração | só interpretador |
+| `E-RUNTIME-UNION-BINDING-BYTES` | bytes de binding de extração | só interpretador |
+| `E-RUNTIME-UNION-BINDING-OVERFLOW` | overflow de layout na arena de binding | só interpretador |
+| `E-RUNTIME-UNION-BINDING-METADATA` | metadata da arena de binding inconsistente | só interpretador |
+
+A família `E-RUNTIME-UNION-BINDING-*` não tem contraparte nativa porque não há o
+que diagnosticar do outro lado: o slot do frame já existe quando a extração
+acontece.
+
+Os endereços do domínio interno não são expostos como regiões públicas: o
+registro de identidades não os contém, `liberar` não os aceita e o registro
+interno vive fora do mapa endereçável, do mesmo modo que o registro público —
+casts de inteiro para ponteiro não observam metadata de nenhum dos dois.
+
+Uma diferença de realização permanece, e é deliberada. No nativo, o storage do
+binding é um slot do frame, reservado uma vez no prólogo por ponto de extração e
+reaproveitado a cada passagem: extrair mil vezes o mesmo agregado não aloca nada
+e não é cobrado de orçamento nenhum. Consequentemente **não existe cota de
+binding nem diagnóstico de binding no nativo** — o custo já foi pago pelo frame,
+e o limite efetivo é o tamanho do frame, decidido na compilação.
+
+No interpretador não há frame de máquina, então cada extração materializa uma
+região nova numa arena interna, que cresce monotonicamente enquanto não existir
+contrato de desalocação para uniões. Esse crescimento precisa de teto, e é daí
+que vêm `MAX_UNION_BINDING_REGIONS`, `MAX_UNION_BINDING_BYTES` e a família
+`E-RUNTIME-UNION-BINDING-*`: são **exclusivos do interpretador**, e existem para
+que um laço de extrações não cresça sem contabilidade nesse back-end.
+
+O que os dois back-ends compartilham é o contrato de contabilidade, não a
+realização: em nenhum deles a extração consome identidade pública, e os limites
+de descritores, bytes de payload e metadata são idênticos. A assimetria restante
+é de **capacidade de extração repetida** — ilimitada no nativo dentro do frame,
+finita no interpretador —, e está aqui declarada em vez de escondida. Igualá-las
+exigiria reclamar a região do binding ao fim do escopo, isto é, um contrato de
+ownership que esta fase não define.
 
 ### Capacidade do pipeline, superfície-fonte e evidência
 
