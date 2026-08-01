@@ -26,8 +26,8 @@
 mod common;
 
 use common::render_backend_s_external_subset_nativo;
-use common::ControlledCommand as Command;
 use std::path::PathBuf;
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Tipos escalares endereçáveis, com largura e alinhamento operacionais.

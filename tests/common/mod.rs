@@ -1,9 +1,5 @@
 #![allow(dead_code)]
 
-mod native_process;
-#[allow(unused_imports)]
-pub use native_process::{ControlledCommand, NativeArtifactDir};
-
 use pinker_v0::abstract_machine;
 use pinker_v0::abstract_machine_validate;
 use pinker_v0::backend_s;
@@ -21,6 +17,7 @@ use pinker_v0::parser::Parser;
 use pinker_v0::printer;
 use pinker_v0::semantic;
 use std::path::PathBuf;
+use std::process::Command;
 
 // @pinker-nav:start evidencia.frontend.pipeline-basico
 // @pinker-nav:domain frontend
@@ -245,10 +242,7 @@ pub enum NativeEvidenceCapability {
 
 fn native_cc_driver() -> Option<String> {
     ["cc", "gcc", "clang"].iter().find_map(|candidate| {
-        let probe = ControlledCommand::new(candidate)
-            .arg("--version")
-            .output()
-            .ok()?;
+        let probe = Command::new(candidate).arg("--version").output().ok()?;
         probe.status.success().then(|| (*candidate).to_string())
     })
 }

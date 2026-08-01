@@ -7,8 +7,8 @@
 
 mod common;
 
-use common::ControlledCommand as Command;
 use std::collections::HashMap;
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use pinker_v0::ast::{StructDecl, Type};

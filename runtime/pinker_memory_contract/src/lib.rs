@@ -276,6 +276,20 @@ mod tests {
     }
 
     #[test]
+    fn workload_historico_aproximado_e_recusado_sem_materializacao() {
+        const APPROXIMATE_HISTORICAL_BYTES: u64 = 7_709_466_296;
+        assert_eq!(
+            reserve_public_allocation(
+                PublicMemoryBudget::default(),
+                APPROXIMATE_HISTORICAL_BYTES,
+                usize::MAX,
+                PUBLIC_MEMORY_LIMITS
+            ),
+            PublicAllocationVerdict::SingleAllocationBudgetExceeded
+        );
+    }
+
+    #[test]
     fn fronteira_de_bytes_vivos() {
         let current = PublicMemoryBudget {
             live_reserved_bytes: MAX_PUBLIC_LIVE_RESERVED_BYTES - PUBLIC_PAGE_BYTES as u64,

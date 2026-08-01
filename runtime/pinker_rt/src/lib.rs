@@ -4050,6 +4050,8 @@ mod tests {
             fn setrlimit(resource: i32, limit: *const RLimit) -> i32;
         }
         const RLIMIT_CORE: i32 = 4;
+        const RLIMIT_CPU: i32 = 0;
+        const RLIMIT_AS: i32 = 9;
 
         fn core_limit() -> (u64, u64) {
             let mut limit = RLimit {
@@ -4095,6 +4097,15 @@ mod tests {
                 limit.current = limit.maximum;
                 if setrlimit(RLIMIT_CORE, &limit) != 0 {
                     return Err(std::io::Error::last_os_error());
+                }
+                for (resource, value) in [(RLIMIT_CPU, 15), (RLIMIT_AS, 1024 * 1024 * 1024)] {
+                    let limit = RLimit {
+                        current: value,
+                        maximum: value,
+                    };
+                    if setrlimit(resource, &limit) != 0 {
+                        return Err(std::io::Error::last_os_error());
+                    }
                 }
                 Ok(())
             });

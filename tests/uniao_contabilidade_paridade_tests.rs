@@ -12,7 +12,7 @@
 
 mod common;
 
-use common::ControlledCommand as Command;
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // @pinker-nav:start evidencia.unioes.contabilidade-paridade
