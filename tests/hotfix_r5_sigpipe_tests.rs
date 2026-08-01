@@ -21,9 +21,10 @@
 
 mod common;
 
+use common::{ControlledCommand as Command, NativeArtifactDir};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::process::Stdio;
+use std::time::Duration;
 
 const EXEMPLO: &str = "examples/hotfix_r5_sigpipe_matriz_valido.pink";
 const EXEMPLO_FAMILIAS: &str = "examples/hotfix_r5_sigpipe_familias_valido.pink";
@@ -135,51 +136,23 @@ impl Saida {
 /// caso, **mata** o processo antes de voltar, para que o próprio detector de
 /// deadlock não deixe processo órfão atrás de si.
 fn executar_com_limite(mut comando: Command) -> Option<Saida> {
-    let mut filho = comando
+    let output = match comando
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn()
-        .expect("disparar processo da célula");
-    let mut stdout = filho.stdout.take().expect("stdout da célula");
-    let mut stderr = filho.stderr.take().expect("stderr da célula");
-
-    // As leituras acontecem em threads para que um pipe cheio não vire deadlock
-    // do próprio teste enquanto se espera o encerramento do filho.
-    let leitor_stdout = std::thread::spawn(move || {
-        use std::io::Read as _;
-        let mut texto = String::new();
-        let _ = stdout.read_to_string(&mut texto);
-        texto
-    });
-    let leitor_stderr = std::thread::spawn(move || {
-        use std::io::Read as _;
-        let mut texto = String::new();
-        let _ = stderr.read_to_string(&mut texto);
-        texto
-    });
-
-    // `try_wait` em laço mantém o handle nesta thread, o que é justamente o que
-    // permite matar o filho quando o limite estoura.
-    let prazo = Instant::now() + LIMITE;
-    let codigo = loop {
-        match filho.try_wait().expect("consultar processo da célula") {
-            Some(status) => break status.code(),
-            None if Instant::now() >= prazo => {
-                let _ = filho.kill();
-                let _ = filho.wait();
-                let _ = leitor_stdout.join();
-                let _ = leitor_stderr.join();
-                return None;
-            }
-            None => std::thread::sleep(Duration::from_millis(10)),
-        }
+        .timeout(LIMITE)
+        .logical_case("hotfix-r5-sigpipe")
+        .output()
+    {
+        Ok(output) => output,
+        Err(error) if error.kind() == std::io::ErrorKind::TimedOut => return None,
+        Err(error) => panic!("disparar processo da célula: {error}"),
     };
 
     Some(Saida {
-        codigo,
-        stdout: leitor_stdout.join().unwrap_or_default(),
-        stderr: leitor_stderr.join().unwrap_or_default(),
+        codigo: output.status.code(),
+        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
     })
 }
 
@@ -213,20 +186,17 @@ fn celula_nativa(binario: &Path, modo: &str, tamanho: u64, antes: u64) -> Option
 }
 
 /// Diretório temporário exclusivo desta execução.
-fn diretorio_temporario(rotulo: &str) -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("tempo do sistema")
-        .as_nanos();
-    std::env::temp_dir().join(format!("pinker_hf412_{rotulo}_{nanos}"))
-}
-
 /// Compila um exemplo uma única vez; a matriz inteira roda sobre o mesmo ELF.
-fn compilar_exemplo(runtime_lib: &Path, exemplo: &str, rotulo: &str) -> PathBuf {
-    let out_dir = diretorio_temporario(rotulo);
+fn compilar_exemplo(
+    runtime_lib: &Path,
+    exemplo: &str,
+    _rotulo: &str,
+) -> (NativeArtifactDir, PathBuf) {
+    let artifacts = NativeArtifactDir::create().expect("diretório nativo marcado");
+    let out_dir = artifacts.path();
     let build = Command::new(env!("CARGO_BIN_EXE_pink"))
         .args(["build", "--nativo", "--out-dir"])
-        .arg(&out_dir)
+        .arg(out_dir)
         .arg(exemplo)
         .env("PINKER_RT_LIB", runtime_lib)
         .output()
@@ -241,10 +211,11 @@ fn compilar_exemplo(runtime_lib: &Path, exemplo: &str, rotulo: &str) -> PathBuf 
         .expect("nome do exemplo")
         .to_str()
         .expect("nome utf-8");
-    out_dir.join(nome)
+    let executable = out_dir.join(nome);
+    (artifacts, executable)
 }
 
-fn compilar_nativo(runtime_lib: &Path) -> PathBuf {
+fn compilar_nativo(runtime_lib: &Path) -> (NativeArtifactDir, PathBuf) {
     compilar_exemplo(runtime_lib, EXEMPLO, "r5")
 }
 
@@ -287,7 +258,7 @@ fn r5_matriz_sigpipe_independe_da_ordem_e_mantem_paridade() {
     else {
         return;
     };
-    let binario = compilar_nativo(&runtime_lib);
+    let (_artifacts, binario) = compilar_nativo(&runtime_lib);
 
     for modo in MODOS_FILHO {
         for tamanho in TAMANHOS {
@@ -322,8 +293,6 @@ fn r5_matriz_sigpipe_independe_da_ordem_e_mantem_paridade() {
             }
         }
     }
-
-    let _ = std::fs::remove_dir_all(binario.parent().expect("diretório do build"));
 }
 
 /// A disposição instalada pelo runtime é confinada ao processo Pinker.
@@ -340,7 +309,7 @@ fn r5_filho_herda_disposicao_padrao_de_sigpipe() {
     else {
         return;
     };
-    let binario = compilar_nativo(&runtime_lib);
+    let (_artifacts, binario) = compilar_nativo(&runtime_lib);
 
     for antes in ESCRITAS_ANTERIORES {
         let interpretado = celula_interpretada("sigpipe-disposicao", 16, antes)
@@ -355,8 +324,6 @@ fn r5_filho_herda_disposicao_padrao_de_sigpipe() {
             );
         }
     }
-
-    let _ = std::fs::remove_dir_all(binario.parent().expect("diretório do build"));
 }
 // @pinker-nav:end evidencia.hotfix.r5-sigpipe-ordem
 
@@ -378,15 +345,15 @@ const FAMILIAS_ESPERADAS: &str = "executar_processo=0\n\
 ///
 /// `pipeline_minimo(produtor, consumidor)` não aceita argumentos por processo,
 /// então o papel é escolhido pelo nome do executável.
-fn preparar_pontas_do_pipeline() -> (PathBuf, PathBuf) {
-    let dir = diretorio_temporario("pipeline");
-    std::fs::create_dir_all(&dir).expect("diretório das pontas do pipeline");
+fn preparar_pontas_do_pipeline() -> (NativeArtifactDir, PathBuf, PathBuf) {
+    let artifacts = NativeArtifactDir::create().expect("diretório marcado das pontas");
+    let dir = artifacts.path();
     let produtor = dir.join("pinker_hf412_pipeline_produtor");
     let consumidor = dir.join("pinker_hf412_pipeline_consumidor");
     for destino in [&produtor, &consumidor] {
         std::fs::copy(helper_filho(), destino).expect("copiar auxiliar");
     }
-    (produtor, consumidor)
+    (artifacts, produtor, consumidor)
 }
 
 #[test]
@@ -396,8 +363,8 @@ fn r5_todas_as_familias_configuram_a_disposicao_do_filho() {
     else {
         return;
     };
-    let binario = compilar_exemplo(&runtime_lib, EXEMPLO_FAMILIAS, "familias");
-    let (produtor, consumidor) = preparar_pontas_do_pipeline();
+    let (_build_artifacts, binario) = compilar_exemplo(&runtime_lib, EXEMPLO_FAMILIAS, "familias");
+    let (_pipeline_artifacts, produtor, consumidor) = preparar_pontas_do_pipeline();
 
     let argumentos = [
         helper_filho().to_string(),
@@ -410,7 +377,7 @@ fn r5_todas_as_familias_configuram_a_disposicao_do_filho() {
     interpretado.args(&argumentos);
     let interpretado = executar_com_limite(interpretado).expect("interpretador dentro do limite");
 
-    let mut nativo = Command::new(&binario);
+    let mut nativo = Command::new(binario.as_os_str());
     nativo.args(&argumentos);
     let nativo = executar_com_limite(nativo).expect("nativo dentro do limite");
 
@@ -422,9 +389,6 @@ fn r5_todas_as_familias_configuram_a_disposicao_do_filho() {
         );
         assert_eq!(saida.codigo, Some(0), "{rotulo}: saída inesperada");
     }
-
-    let _ = std::fs::remove_dir_all(binario.parent().expect("diretório do build"));
-    let _ = std::fs::remove_dir_all(produtor.parent().expect("diretório das pontas"));
 }
 
 extern "C" {
@@ -442,8 +406,6 @@ const SIG_ERR: usize = usize::MAX;
 /// É o controle da sonda: permite observar `SIG_DFL` e `SIG_IGN` no filho a
 /// partir de uma causa conhecida, em vez de inferir a sensibilidade da medida.
 fn auxiliar_com_disposicao_forcada(modo: &str, handler: usize) -> Option<i32> {
-    use std::os::unix::process::CommandExt as _;
-
     let mut comando = Command::new(helper_filho());
     comando.arg(modo);
     // SAFETY: a closure roda no filho entre `fork` e `exec` e faz uma única

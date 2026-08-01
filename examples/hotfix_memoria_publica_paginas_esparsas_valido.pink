@@ -1,0 +1,16 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova bytes: seta<u8> = alocar(67108864);
+    nova meio: seta<u8> = (bytes virar seta<bombom> + 33554432) virar seta<u8>;
+    nova fim: seta<u8> = (bytes virar seta<bombom> + 67108863) virar seta<u8>;
+    falar(*bytes);
+    falar(*meio);
+    falar(*fim);
+    *bytes = 7;
+    *meio = 8;
+    *fim = 9;
+    falar(*bytes + *meio + *fim);
+    liberar(bytes);
+    mimo 0;
+}

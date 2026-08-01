@@ -32,8 +32,8 @@
 mod common;
 
 use common::render_backend_s_external_subset_nativo;
+use common::ControlledCommand as Command;
 use std::path::PathBuf;
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// As quatro formas de chamada que devolvem valor no IR selecionado, com o

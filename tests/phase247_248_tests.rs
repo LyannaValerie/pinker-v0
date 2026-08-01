@@ -483,7 +483,7 @@ fn hr5_intrinsecas_sinteticas_do_compilador_seguem_funcionando() {
 /// não pode ser pulada em silêncio.
 fn require_object_inspection_tools(test: &str) -> Option<(&'static str, &'static str)> {
     fn probe(tool: &str) -> bool {
-        std::process::Command::new(tool)
+        common::ControlledCommand::new(tool)
             .arg("--version")
             .output()
             .map(|out| out.status.success())
@@ -530,7 +530,7 @@ fn assemble_and_inspect(
     let object = dir.join("bloco.o");
     std::fs::write(&source, asm).expect("escrever .s");
 
-    let assembled = std::process::Command::new(assembler)
+    let assembled = common::ControlledCommand::new(assembler)
         .arg("-o")
         .arg(&object)
         .arg(&source)
@@ -542,7 +542,7 @@ fn assemble_and_inspect(
         String::from_utf8_lossy(&assembled.stderr)
     );
 
-    let sections = std::process::Command::new(reader)
+    let sections = common::ControlledCommand::new(reader)
         .arg("-SW")
         .arg(&object)
         .output()
@@ -557,7 +557,7 @@ fn assemble_and_inspect(
     section_names.sort();
     section_names.dedup();
 
-    let symbols = std::process::Command::new(reader)
+    let symbols = common::ControlledCommand::new(reader)
         .arg("-sW")
         .arg(&object)
         .output()
@@ -889,7 +889,7 @@ fn hr1_reproducao_original_executa_o_braco_correto() {
 #[test]
 fn hr1_stdout_interpretado_seleciona_o_braco_do_apelido_escrito() {
     let pink = env!("CARGO_BIN_EXE_pink");
-    let run = std::process::Command::new(pink)
+    let run = common::ControlledCommand::new(pink)
         .arg("--run")
         .arg("examples/hr1_encaixe_uniao_apelidos_valido.pink")
         .output()
@@ -919,7 +919,7 @@ fn hr1_cada_membro_seleciona_o_seu_proprio_braco() {
             "2008",
         ),
     ] {
-        let run = std::process::Command::new(pink)
+        let run = common::ControlledCommand::new(pink)
             .arg("--run")
             .arg(exemplo)
             .output()
@@ -1541,7 +1541,7 @@ fn hr1_execucao_nativa_tem_paridade_de_stdout_com_o_interpretador() {
     let pink = env!("CARGO_BIN_EXE_pink");
     let exemplo = "examples/hr1_encaixe_uniao_apelidos_valido.pink";
 
-    let interpretado = std::process::Command::new(pink)
+    let interpretado = common::ControlledCommand::new(pink)
         .arg("--run")
         .arg(exemplo)
         .output()
@@ -1555,7 +1555,7 @@ fn hr1_execucao_nativa_tem_paridade_de_stdout_com_o_interpretador() {
         .expect("tempo do sistema")
         .as_nanos();
     let out_dir = std::env::temp_dir().join(format!("pinker_hr1_{nanos}"));
-    let build = std::process::Command::new(pink)
+    let build = common::ControlledCommand::new(pink)
         .arg("build")
         .arg("--nativo")
         .arg("--out-dir")
@@ -1571,7 +1571,7 @@ fn hr1_execucao_nativa_tem_paridade_de_stdout_com_o_interpretador() {
     );
 
     let binario = out_dir.join("hr1_encaixe_uniao_apelidos_valido");
-    let nativo = std::process::Command::new(binario)
+    let nativo = common::ControlledCommand::new(binario)
         .output()
         .expect("executar binário nativo");
     assert_eq!(
