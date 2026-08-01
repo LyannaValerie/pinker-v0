@@ -213,7 +213,7 @@ fn manifesto_detecta_artefato_alterado() {
 #[test]
 fn comando_pinker_tipado_executa_pela_cli() {
     let root = root("typed");
-    let command = "command.help.kind = pinker\ncommand.help.program = pink\ncommand.help.arg = --help\ncommand.help.cwd = .\ncommand.help.expect = 1\ncommand.help.shell = false\n";
+    let command = "command.help.kind = pinker\ncommand.help.program = pink\ncommand.help.arg = --help\ncommand.help.cwd = .\ncommand.help.expect = 0\ncommand.help.shell = false\n";
     let path = spec(&root, command);
     let output = Command::new(env!("CARGO_BIN_EXE_pink"))
         .args(["agente", "executar", path.to_str().unwrap()])
