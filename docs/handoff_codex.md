@@ -19,7 +19,7 @@
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
 | Última rodada paralela | **Paralela-1** — negação bitwise dual |
-| Último hotfix | endurecimento do runtime nativo pós-PR #411 (PR #412, mergeada) — sem identificador `HF-*` canônico atribuído; o último da série numerada continua sendo **HF-6** |
+| Último hotfix | **HF-7** — endurecimento do runtime nativo pós-PR #411 (PR #412, mergeada); entrada dedicada em `docs/history/hotfixes/001a050.md`, sucedendo **HF-6** na série numerada |
 
 ### Estado operacional estruturado
 
@@ -206,6 +206,8 @@ Histórico completo por fase: `docs/history/phases/`.
   vitalícia de identidades públicas documentada e testada, sem redesenho; e
   diagnóstico `E-CHANGE-HISTORY-SHALLOW-CLONE` para clone raso. **Nenhuma fase
   funcional nova foi aberta pela PR #412 e tuplas continuam não iniciadas.**
+  O hotfix está registrado como **HF-7** em
+  `docs/history/hotfixes/001a050.md`, que é a rota canônica para reconstruí-lo.
 - A revisão humana da PR #411 foi corrigida em runs separados, todos mergeados.
   Registro histórico do que foi entregue nesses runs: o
   bypass de diretiva em `sussurro` (HR2), a reserva do namespace
