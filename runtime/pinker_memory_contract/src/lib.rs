@@ -78,7 +78,9 @@ impl PublicAllocationVerdict {
             Self::Allowed(_) => None,
             Self::ZeroSize => Some("E-RUNTIME-MEM-PUBLIC-ZERO: 'alocar' rejeita tamanho zero"),
             Self::PlatformWidthExceeded => {
-                Some("E-RUNTIME-MEM-PUBLIC-WIDTH: 'alocar' excede a largura da plataforma")
+                Some(
+                    "E-RUNTIME-MEM-PUBLIC-WIDTH: 'alocar' excede o maior bloco representável pela plataforma (largura pública indisponível)",
+                )
             }
             Self::AlignmentOverflow => {
                 Some("E-RUNTIME-MEM-PUBLIC-ALIGN: overflow ao alinhar alocação pública")
