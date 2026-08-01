@@ -115,7 +115,10 @@ O runtime aplica `RLIMIT_CORE.soft=0` antes do código Pinker e o harness aplica
 core zero antes de `exec`, cobrindo falhas anteriores à inicialização. O
 `ci_env.sh` também desabilita core para toda a esteira. Pinker v0 não produz core
 dump por padrão nas superfícies controladas; nenhuma configuração global do host
-é alterada.
+é alterada. Em hosts com `systemd-coredump`, uma terminação deliberada por sinal
+ainda pode produzir uma entrada de journal com armazenamento `none`; isso é
+metadata do status observado, não um payload nem um core file. O contrato testado
+é ausência de payload e de arquivo crescente na raiz controlada.
 
 ## Coredumps e resíduos históricos
 
