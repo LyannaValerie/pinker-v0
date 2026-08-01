@@ -28,7 +28,9 @@ antecipadamente a janela de estabilização estrutural e reativou a expansão
 funcional do **Eixo A — linguagem**. O Bloco 20 permanece estruturalmente ativo;
 a Fase 244 foi a última fase anterior à retomada. As Fases 245 e 246 foram
 entregues consecutivamente; as Fases 247 e 248 entregaram os itens 14 e 15 e já
-estão mergeadas na `main`.
+estão mergeadas na `main`. A expansão funcional paralela D1 adulta foi
+concluída depois pela PR #418, merge
+`09b7456fd57c2efcf71e54895b938a6a69d77307`.
 
 Os objetivos estruturais da janela encerrada não são declarados concluídos.
 Modularização ampla, reorganização documental ampla e bughunting amplo foram
@@ -38,6 +40,20 @@ preservada pelo Git e pela PR #408.
 Uma futura modularização deve priorizar inicialmente arquivos com mais de 5.000
 linhas, sem tratar tamanho como critério único. Arquivos menores só entram nesse
 trabalho quando houver justificativa arquitetural material.
+
+## Janela auxiliar de infraestrutura determinística
+
+A Issue #417 autorizou uma exceção estreita ao portão pré-Eixo A, ativada por
+esta governança depois da conclusão de D1. A janela está `ACTIVE`; o Eixo A está
+`PAUSED_BY_EXPLICIT_HUMAN_DECISION`, sem defeito técnico e sem declaração de
+conclusão. A primeira entrega é a Etapa 1 da Issue #414. D2 permanece
+`NOT_STARTED` e é o próximo trabalho funcional após a PR explícita de
+encerramento da janela.
+
+A janela não abre Fase, Faixa ou Eixo, não altera os 52 itens e não conta como
+progresso funcional do Bloco 20. Somente as seis capacidades enumeradas em
+`docs/development/janela-infraestrutura-deterministica.md` estão autorizadas;
+todo o restante do portão pós-Trama continua vigente.
 
 ## Bloco ativo atual
 
@@ -64,8 +80,10 @@ da PR #411 foi concluído e mergeado pela PR #412 — disposição de `SIGPIPE`
 independente da ordem de execução, validação de acesso por ponteiro fabricado a
 partir de inteiro, cota vitalícia de identidades públicas documentada e
 diagnóstico de clone raso — sem abrir fase funcional nova. Nenhum achado dessas
-revisões permanece em correção. A próxima progressão funcional declarada
-continua sendo a **Fase 249, item 16 (tuplas)**, ainda não iniciada.
+revisões permanece em correção. D1 adulta foi concluída pela PR #418. A
+progressão funcional está pausada pela janela da Issue #417; D2 permanece não
+iniciado e retorna como próximo item funcional somente após o encerramento
+explícito da janela.
 
 O contrato de ambientes da Fase 243 usa hoje uma palavra por captura (`quantidade * palavra`, com overflow verificado). Uma futura representação multi-palavra deverá alocar o tamanho final alinhado do layout, derivado do tamanho, alinhamento, offset e padding de cada captura e do alinhamento final, com overflow verificado em cada passo; soma simples de tamanhos e teste apenas funcional não atendem ao gate direto de underallocation.
 
@@ -98,5 +116,6 @@ A **Doc-46** formaliza a trilha transversal bare-metal e bootstrap como converg�
 - Hub do roadmap: `docs/roadmap/indice.md`
 - Bloco ativo atual: `docs/roadmap/blocos/bloco_20.md`
 - Trilha bare-metal do bloco ativo: `docs/roadmap/bare_metal_bootstrap.md`
+- Autoridade da janela auxiliar: `docs/development/janela-infraestrutura-deterministica.md`
 - Bloco recém-encerrado: `docs/roadmap/blocos/bloco_18.md`
 - Candidato futuro não ativo: `docs/roadmap/blocos/bloco_19.md`

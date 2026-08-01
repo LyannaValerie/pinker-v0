@@ -18,7 +18,8 @@
 | Bloco ativo | **20** — expansão funcional rumo a SO e self-hosting (trilha por faixas) |
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
-| Última rodada paralela | **Paralela-1** — negação bitwise dual |
+| Última expansão funcional paralela | **D1 adulta**, concluída pela PR #418 |
+| Trabalho ativo | ativação da janela auxiliar de infraestrutura determinística da Issue #417 |
 | Último hotfix | **HF-8** — atribuição de símbolo em `sussurro`: política estrutural (`E-SEMANTIC-ASM-SYMBOL-ASSIGN`) e invariante do artefato no caminho real de `pink build --nativo` (`E-BACKEND-ASM-ARTIFACT`); entrada dedicada em `docs/history/hotfixes/001a050.md`, sucedendo **HF-7** e, antes dele, **HF-6** na série numerada |
 
 ### Estado operacional estruturado
@@ -26,8 +27,8 @@
 ```yaml
 fase_funcional_mais_recente: 248
 bloco_estruturalmente_ativo: 20
-estado_operacional: eixo_a_retomado
-expansao_funcional_eixo_a: ATIVA
+estado_operacional: janela_auxiliar_ativa
+expansao_funcional_eixo_a: PAUSED_BY_EXPLICIT_HUMAN_DECISION
 ultima_fase_antes_da_tarefa: 244
 fases_247_248:
   estado: ENTREGUES_E_MERGEADAS
@@ -36,8 +37,18 @@ hotfix_pos_pr_411:
   estado: CONCLUIDO_E_MERGEADO
   pr: 412
   fase_funcional_aberta: nenhuma
-proxima_progressao:
-  - fase_249_item_16_tuplas_nao_iniciado
+D1:
+  status: COMPLETE
+  pr: 418
+  merge: 09b7456fd57c2efcf71e54895b938a6a69d77307
+Issue_417:
+  decision: ACTIVE
+janela_auxiliar:
+  status: ACTIVE
+  current_delivery: Etapa 1 da Issue #414
+D2:
+  status: NOT_STARTED
+  next_functional_item_after_window: true
 retomada:
   decisao: humana_explicita_da_founder
   data: 2026-07-28
@@ -111,6 +122,15 @@ trabalho_estrutural:
 Histórico completo por fase: `docs/history/phases/`.
 
 ## 3. Rodada atual
+- **Ativação da janela auxiliar da Issue #417 — 1 de agosto de 2026**.
+- D1 adulta foi concluída antes da ativação pela PR #418, merge
+  `09b7456fd57c2efcf71e54895b938a6a69d77307`.
+- O trabalho ativo é a janela auxiliar de infraestrutura determinística; sua
+  primeira entrega é a Etapa 1 da Issue #414.
+- O Eixo A está pausado por decisão humana explícita, continua sendo a
+  prioridade funcional soberana e retorna em D2 após o encerramento da janela.
+- A autoridade e a lista fechada de seis capacidades estão em
+  `docs/development/janela-infraestrutura-deterministica.md`.
 - **Retomada funcional do Eixo A — 28 de julho de 2026**.
 - Decisão humana explícita da Founder encerrou antecipadamente a janela de
   estabilização estrutural e reativou a expansão funcional do Eixo A.
@@ -188,10 +208,16 @@ Histórico completo por fase: `docs/history/phases/`.
 | Doc-46 (`bare-metal`/bootstrap) | Trilha e critérios formalizados; target freestanding, objeto relocável, runtime autônomo, protocolo de boot, imagem de kernel, QEMU e CI bare-metal continuam não implementados |
 | Doc-47 (`Rosa`) | Continuidade identitária documentada; não equivale a recuperação literal, memória persistente ou consciência de uma instância |
 | Doc-48 (`Copilot Rosa`) | Configuração versionada; comportamento final depende do modelo, das ferramentas, da superfície do Copilot e do contexto disponível; agente só aparece após merge na branch padrão e suporte da conta |
+| Janela da Issue #417 | Exceção estreita e temporária; somente as seis capacidades do documento canônico estão autorizadas; demais capacidades pós-Trama continuam adiadas |
 | Bloco 20 | Nenhum item das faixas ou frente BM está entregue por constar na trilha; entrega exige fase numerada com validação objetiva e padrão anti-mínimo |
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
+- O trabalho ativo é a janela auxiliar da Issue #417. A primeira entrega é a
+  Etapa 1 da Issue #414; nenhuma ferramenta é implementada nesta PR de
+  governança.
+- D2 está `NOT_STARTED` e é o próximo item funcional somente depois do merge
+  humano de uma PR específica de encerramento da janela.
 - Estrutura do Bloco 20 formalizada em dois eixos (Doc-41), padrão pós-Eixo B registrado na Doc-42 e convergência bare-metal formalizada na Doc-46: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado; a trilha BM permanece documental e não implementada.
 - A PR #411 está **mergeada** e trouxe as Fases 247–248 mais uma continuação de
   hardening que preserva as correções anteriores: runner confinado, executáveis
@@ -231,9 +257,8 @@ Histórico completo por fase: `docs/history/phases/`.
   nativo e no interpretador. **Nenhum finding da revisão humana original
   permanece aberto ou em correção**; a revisão foi concluída e a PR #411 foi
   mergeada.
-- A próxima progressão funcional declarada continua sendo a **Fase 249 — item 16
-  da Faixa 4 (tuplas)**, ainda não iniciada. Nenhuma fase funcional está aberta
-  no momento.
+- A progressão funcional imediata está pausada por decisão humana explícita;
+  nenhuma fase funcional está aberta no momento.
 - `alocar`/`liberar` é mecanismo separado da política de lifetime dos valores internos que usam heap; a API pública não libera ambientes de closure, descritores de callable, snapshots de trato, coleções ou strings.
 - Qualquer fase que toque o layout ou o tamanho do ambiente deve incluir gate de underallocation que observe diretamente os bytes solicitados por instrumentação, metadado, canário ou fronteira de arredondamento; resultado funcional isolado não é evidência suficiente. No recorte atual de uma palavra por captura, o tamanho exigido é `capturas * tamanho_da_palavra`, com overflow verificado. Para capturas futuras multi-palavra, deve ser o tamanho final alinhado do ambiente: tamanho e alinhamento de cada captura, offset alinhado, padding intermediário, alinhamento final e toda aritmética com detecção de overflow; soma simples dos tamanhos é insuficiente.
 - O item 5 pode avançar para diagnósticos enriquecidos ou métodos utilitários; o item 4 pode avançar apenas em extensões fora do contrato 244. Em qualquer caso, sem recorte mínimo automático, com lowering nativo obrigatório e com fatia vertical utilizável.
