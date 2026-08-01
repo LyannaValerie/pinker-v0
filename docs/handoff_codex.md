@@ -19,8 +19,8 @@
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
 | Última expansão funcional paralela | **D1 adulta**, concluída pela PR #418 |
-| Trabalho ativo | ativação da janela auxiliar de infraestrutura determinística da Issue #417 |
-| Último hotfix | **HF-8** — atribuição de símbolo em `sussurro`: política estrutural (`E-SEMANTIC-ASM-SYMBOL-ASSIGN`) e invariante do artefato no caminho real de `pink build --nativo` (`E-BACKEND-ASM-ARTIFACT`); entrada dedicada em `docs/history/hotfixes/001a050.md`, sucedendo **HF-7** e, antes dele, **HF-6** na série numerada |
+| Trabalho ativo | PR #421 — hotfix extraordinário de memória pública, posterior ao merge da PR #420; revisão e merge exclusivamente humanos |
+| Último hotfix | **HF-9** — alocação pública lazy/proporcional, quatro orçamentos equivalentes, paridade e core zero instalado pelo runtime; não abre Fase nem conta na janela auxiliar |
 
 ### Estado operacional estruturado
 
@@ -45,7 +45,10 @@ Issue_417:
   decision: ACTIVE
 janela_auxiliar:
   status: ACTIVE
-  current_delivery: Etapa 1 da Issue #414
+  completed:
+    - Etapa 1 da Issue #414 (PR #420, merge a22735385fde0a55b2cd1b3a010a9a6063600bda)
+  extraordinary_interruption: HF-9 memoria publica
+  next_delivery_after_hotfix_merge: Issue #384 snapshots e projecoes
 D2:
   status: NOT_STARTED
   next_functional_item_after_window: true

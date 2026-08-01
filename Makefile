@@ -16,6 +16,7 @@ check:
 	$(CI_ENV) cargo check --locked
 
 test:
+	$(CI_ENV) cargo build --locked -p pinker_rt
 	$(CI_ENV) cargo test --locked
 
 fmt-check:

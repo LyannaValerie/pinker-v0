@@ -132,12 +132,22 @@ primeiro usa seu modelo de memória sintético, o segundo chama
 `pinker_publico_validar_acesso`. O contrato é de resultado observável
 correspondente nos casos cobertos, não de validador único.
 
-A memória pública tem dois orçamentos com naturezas diferentes: bytes são
-recuperáveis por `liberar`, identidades **não**. A cota de 1.000.000 de
-identidades é vitalícia por processo e existe para distinguir gerações e impedir
-que reuso de endereço mascare double free ou revalide alias obsoleto; qualquer
-expansão que proponha reciclar identidade precisa trazer contrato próprio de
-geração e lifetime.
+A memória pública tem quatro orçamentos independentes: identidades vitalícias
+(1.000.000 de entradas), espaço virtual vitalício (8 GiB na soma de regiões já
+mapeadas), bytes reservados vivos (256 MiB, arredondados para páginas de 4096
+bytes) e metadata histórica (64 MiB, com carga canônica de 64 bytes por
+identidade). Uma região individual também está limitada a 256 MiB reservados.
+Somente os bytes vivos são recuperáveis por `liberar`; identidades, virtual
+vitalício e metadata **não** são. Essa separação distingue gerações e impede que
+reuso de endereço mascare double free ou revalide alias obsoleto. Qualquer
+expansão que proponha reciclar identidade ou endereço precisa trazer contrato
+próprio de geração e lifetime.
+
+Interpretador e nativo aplicam o mesmo arredondamento, ordem de consumo,
+veredicto e classe diagnóstica, mas não imitam a realização física um do outro:
+o interpretador continua esparso; o nativo usa um mapeamento anônimo proporcional
+por alocação, sem tocar o intervalo inteiro. `liberar` descompromete e protege o
+mapeamento nativo, que permanece reservado até o encerramento do processo.
 
 A cota conta **apenas** regiões públicas criadas por `alocar`. Armazenamento
 interno de outros domínios não pode compartilhar esse registro: quem precisar de

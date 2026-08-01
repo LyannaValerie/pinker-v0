@@ -47,7 +47,10 @@ D1:
 
 janela_auxiliar:
   status: ACTIVE
-  current_delivery: Etapa 1 da Issue #414
+  completed:
+    - Etapa 1 da Issue #414 (PR #420)
+  extraordinary_interruption: HF-9 — remediação de memória pública
+  next_delivery_after_hotfix_merge: Issue #384 — snapshots e projeções
 
 Eixo_A:
   status: PAUSED_BY_EXPLICIT_HUMAN_DECISION
@@ -61,6 +64,12 @@ A pausa do Eixo A não caracteriza defeito nem bloqueio técnico. É uma decisã
 explícita e temporária de prioridade, com retorno determinado para D2 após o
 encerramento da janela. O Eixo A continua sendo a prioridade funcional soberana:
 qualquer conflito material de escopo ou regressão favorece o Eixo A.
+
+A remediação de memória pública foi autorizada diretamente pela mantenedora
+depois do merge humano da PR #420. É uma interrupção extraordinária de
+estabilidade: não ocupa uma das seis entregas, não altera sua ordem e não inicia
+D2. Depois do merge humano do hotfix, a entrega corrente volta a ser a segunda
+capacidade, snapshots e projeções da Issue #384.
 
 ## Ativação e efeito
 

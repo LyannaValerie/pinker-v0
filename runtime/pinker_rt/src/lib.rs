@@ -14,6 +14,10 @@
 //! intrínsecas de sistema. O runtime é substituível no futuro por uma
 //! implementação em Pinker (convergência com a direção self-hosting).
 
+use pinker_memory_contract::{
+    release_public_live_bytes, reserve_public_allocation, PublicAllocationVerdict,
+    PublicMemoryBudget, PublicMemoryLimits, PUBLIC_MEMORY_LIMITS,
+};
 use std::alloc::{alloc, dealloc, Layout};
 use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
 use std::sync::Once;
@@ -32,6 +36,42 @@ const CABECALHO: usize = 16;
 static ARGC: AtomicI64 = AtomicI64::new(0);
 static ARGV: AtomicUsize = AtomicUsize::new(0);
 
+#[cfg(target_os = "linux")]
+fn desabilitar_core_dump() {
+    #[repr(C)]
+    struct RLimit {
+        current: u64,
+        maximum: u64,
+    }
+    extern "C" {
+        fn getrlimit(resource: i32, limit: *mut RLimit) -> i32;
+        fn setrlimit(resource: i32, limit: *const RLimit) -> i32;
+    }
+    const RLIMIT_CORE: i32 = 4;
+    let mut limit = RLimit {
+        current: 0,
+        maximum: 0,
+    };
+    if unsafe { getrlimit(RLIMIT_CORE, &mut limit) } != 0 {
+        eprintln!(
+            "Erro Runtime: E-RUNTIME-HOST-CORE-LIMIT: falha ao consultar limite de core dump: {}",
+            std::io::Error::last_os_error()
+        );
+        std::process::exit(1);
+    }
+    limit.current = 0;
+    if unsafe { setrlimit(RLIMIT_CORE, &limit) } != 0 {
+        eprintln!(
+            "Erro Runtime: E-RUNTIME-HOST-CORE-LIMIT: falha ao desabilitar core dump: {}",
+            std::io::Error::last_os_error()
+        );
+        std::process::exit(1);
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn desabilitar_core_dump() {}
+
 /// Inicialização do runtime; chamada pelo prólogo do `main` gerado em modo
 /// nativo, com `argc` em `%rdi` e `argv` em `%rsi` (ABI C do `main`).
 ///
@@ -46,6 +86,7 @@ static ARGV: AtomicUsize = AtomicUsize::new(0);
 /// apenas o armazena para consulta posterior.
 #[no_mangle]
 pub unsafe extern "C" fn pinker_rt_iniciar(argc: i64, argv: *const *const u8) {
+    desabilitar_core_dump();
     preparar_disposicao_sinais();
     ARGC.store(argc, Ordering::SeqCst);
     ARGV.store(argv as usize, Ordering::SeqCst);
@@ -74,7 +115,7 @@ pub extern "C" fn pinker_rt_versao() -> u64 {
 // @pinker-nav:start runtime.memoria.alocador
 // @pinker-nav:domain memoria
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Alocador manual e regiões públicas: pinker_alocar reserva bloco alinhado a 16 bytes; a superfície pública rejeita zero/overflow/falha, zera bytes, registra identidade/base/tamanho/vida e mantém blocos liberados em quarentena. Acesso, liberação e derivação de ponteiro validam proveniência, domínio, alinhamento, limites, use-after-free, double free e escapes mesmo quando o endereço derivado já não cai dentro da região.
+// @pinker-nav:summary Alocador manual e regiões públicas: pinker_alocar mantém o alocador interno; a superfície pública decide cotas numa unidade pura compartilhada, cria um mmap anônimo proporcional e lazy por alocação, registra identidade/base/tamanho/vida e mantém mapeamentos liberados inacessíveis até o fim do processo. Acesso, liberação e derivação validam proveniência, domínio, alinhamento, limites, use-after-free, double free e escapes.
 fn layout_para(tamanho_total: usize) -> Option<Layout> {
     Layout::from_size_align(tamanho_total, ALINHAMENTO).ok()
 }
@@ -129,62 +170,44 @@ struct AlocacaoPublica {
     viva: bool,
 }
 
-const PAGINA_PUBLICA: usize = 4096;
-
-/// Cota **vitalícia** de identidades públicas por processo.
-///
-/// A unidade contada é a entrada de registro, isto é, uma alocação pública
-/// bem-sucedida. `liberar` marca a geração como morta mas **não** remove a
-/// entrada: os bytes voltam, a identidade não. O contrato completo, incluindo a
-/// razão pela qual a identidade não é reciclada, está em `MANUAL.md`, seção
-/// "Cota vitalícia de identidades públicas".
-const MAX_IDENTIDADES_PUBLICAS: usize = 1_000_000;
-const MAX_METADATA_PUBLICA_BYTES: usize =
-    MAX_IDENTIDADES_PUBLICAS * std::mem::size_of::<AlocacaoPublica>();
-const MAX_QUARENTENA_FISICA_BYTES: usize = 0;
-const MAX_ESPACO_VIRTUAL_PUBLICO_BYTES: usize = 8 * 1024 * 1024 * 1024;
-
-/// Limite de identidades efetivamente aplicado.
-///
-/// Fora de teste é sempre `MAX_IDENTIDADES_PUBLICAS`. Os testes internos do
-/// runtime reduzem o valor para exercitar o esgotamento e a não reutilização em
-/// tempo determinístico, sem precisar de um milhão de ciclos. Não existe
-/// interruptor público: nada de variável de ambiente, nada de símbolo
-/// exportado, e o comportamento de debug e release é o mesmo.
-#[cfg(test)]
-static LIMITE_IDENTIDADES_PUBLICAS_TESTE: AtomicUsize = AtomicUsize::new(MAX_IDENTIDADES_PUBLICAS);
-
-fn limite_identidades_publicas() -> usize {
-    #[cfg(test)]
-    {
-        LIMITE_IDENTIDADES_PUBLICAS_TESTE.load(Ordering::SeqCst)
-    }
-    #[cfg(not(test))]
-    {
-        MAX_IDENTIDADES_PUBLICAS
-    }
+struct MemoriaPublica {
+    budget: PublicMemoryBudget,
+    alocacoes: Vec<AlocacaoPublica>,
 }
 
-/// Veredicto da reserva de uma identidade pública, sem efeito colateral.
-///
-/// Separar a decisão do efeito é o que torna a cota testável: o efeito é
-/// `erro_memoria_publica`, que encerra o processo.
+#[cfg(test)]
+const PAGINA_PUBLICA: usize = pinker_memory_contract::PUBLIC_PAGE_BYTES;
+#[cfg(test)]
+const MAX_IDENTIDADES_PUBLICAS: usize = pinker_memory_contract::MAX_PUBLIC_IDENTITIES as usize;
+#[cfg(test)]
+const MAX_METADATA_PUBLICA_BYTES: usize =
+    pinker_memory_contract::MAX_PUBLIC_METADATA_BYTES as usize;
+
+#[cfg(test)]
+static LIMITE_IDENTIDADES_PUBLICAS_TESTE: AtomicUsize =
+    AtomicUsize::new(pinker_memory_contract::MAX_PUBLIC_IDENTITIES as usize);
+
+#[cfg(not(test))]
+fn limites_memoria_publica() -> PublicMemoryLimits {
+    PUBLIC_MEMORY_LIMITS
+}
+
+#[cfg(test)]
+fn limites_memoria_publica() -> PublicMemoryLimits {
+    let mut limits = PUBLIC_MEMORY_LIMITS;
+    limits.max_identities = LIMITE_IDENTIDADES_PUBLICAS_TESTE.load(Ordering::SeqCst) as u64;
+    limits
+}
+
+#[cfg(test)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum ReservaIdentidade {
-    /// Identidade concedida; a próxima do processo passa a ser `proxima`.
     Concedida { identidade: u64, proxima: u64 },
-    /// A cota vitalícia do processo acabou. Não é recuperável: liberar não
-    /// devolve capacidade de identidade.
     Esgotada,
-    /// O contador de identidades estourou a largura de `u64`. Inalcançável na
-    /// prática enquanto a cota for menor, mas classificado em vez de suposto.
     Exaurida,
 }
 
-/// Concede a próxima identidade pública, respeitando a cota vitalícia.
-///
-/// `identidades_registradas` é o tamanho do registro — inclui as gerações já
-/// liberadas, e é exatamente por isso que a cota é vitalícia.
+#[cfg(test)]
 fn reservar_identidade_publica(
     identidades_registradas: usize,
     proxima_identidade: u64,
@@ -202,15 +225,8 @@ fn reservar_identidade_publica(
     }
 }
 
-struct MemoriaPublica {
-    arena_base: usize,
-    proximo_offset: usize,
-    proxima_identidade: u64,
-    alocacoes: Vec<AlocacaoPublica>,
-}
-
 #[cfg(target_os = "linux")]
-fn reservar_arena_publica() -> usize {
+fn mapear_regiao_publica(tamanho: usize) -> Result<usize, ()> {
     use std::ffi::c_void;
 
     extern "C" {
@@ -223,60 +239,39 @@ fn reservar_arena_publica() -> usize {
             offset: isize,
         ) -> *mut c_void;
     }
-    const PROT_NONE: i32 = 0;
+    const PROT_READ: i32 = 1;
+    const PROT_WRITE: i32 = 2;
     const MAP_PRIVATE: i32 = 0x02;
     const MAP_ANONYMOUS: i32 = 0x20;
     const MAP_NORESERVE: i32 = 0x4000;
     let base = unsafe {
         mmap(
             std::ptr::null_mut(),
-            MAX_ESPACO_VIRTUAL_PUBLICO_BYTES,
-            PROT_NONE,
+            tamanho,
+            PROT_READ | PROT_WRITE,
             MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
             -1,
             0,
         )
     };
-    if base as usize == usize::MAX {
-        erro_memoria_publica("arena virtual pública indisponível");
-    }
-    base as usize
+    (base as usize != usize::MAX)
+        .then_some(base as usize)
+        .ok_or(())
 }
 
 #[cfg(not(target_os = "linux"))]
-fn reservar_arena_publica() -> usize {
-    erro_memoria_publica("arena pública limitada indisponível neste target")
+fn mapear_regiao_publica(_tamanho: usize) -> Result<usize, ()> {
+    Err(())
 }
 
 fn memoria_publica() -> &'static Mutex<MemoriaPublica> {
     static MEMORIA: OnceLock<Mutex<MemoriaPublica>> = OnceLock::new();
     MEMORIA.get_or_init(|| {
         Mutex::new(MemoriaPublica {
-            arena_base: reservar_arena_publica(),
-            proximo_offset: 0,
-            proxima_identidade: 1,
+            budget: PublicMemoryBudget::default(),
             alocacoes: Vec::new(),
         })
     })
-}
-
-#[cfg(target_os = "linux")]
-fn comprometer_paginas_publicas(base: usize, tamanho: usize) -> Result<(), ()> {
-    use std::ffi::c_void;
-
-    extern "C" {
-        fn mprotect(address: *mut c_void, length: usize, protection: i32) -> i32;
-    }
-    const PROT_READ: i32 = 1;
-    const PROT_WRITE: i32 = 2;
-    (unsafe { mprotect(base as *mut c_void, tamanho, PROT_READ | PROT_WRITE) } == 0)
-        .then_some(())
-        .ok_or(())
-}
-
-#[cfg(not(target_os = "linux"))]
-fn comprometer_paginas_publicas(_base: usize, _tamanho: usize) -> Result<(), ()> {
-    Err(())
 }
 
 #[cfg(target_os = "linux")]
@@ -334,78 +329,59 @@ fn fim_da_regiao(alocacao: &AlocacaoPublica) -> usize {
     alocacao.base.saturating_add(alocacao.tamanho)
 }
 
-/// Fase 246: entrada pública de `alocar`. Diferentemente de
-/// `pinker_alocar`, rejeita zero, valida toda conversão, zera os bytes visíveis e
-/// registra ownership para que `liberar` possa validar a origem.
+/// Entrada pública de `alocar`: decide todas as cotas antes do efeito, reserva
+/// metadata, cria um mapeamento anônimo novo e só então publica identidade,
+/// região e contadores. O kernel garante zero inicial sem toque integral.
+fn tentar_alocar_publico_com(
+    memoria: &mut MemoriaPublica,
+    tamanho: u64,
+    limits: PublicMemoryLimits,
+    reservar_metadata: impl FnOnce(&mut Vec<AlocacaoPublica>) -> Result<(), ()>,
+    mapear: impl FnOnce(usize) -> Result<usize, ()>,
+) -> Result<usize, PublicAllocationVerdict> {
+    let reservation =
+        match reserve_public_allocation(memoria.budget, tamanho, isize::MAX as usize, limits) {
+            PublicAllocationVerdict::Allowed(reservation) => reservation,
+            verdict => return Err(verdict),
+        };
+    reservar_metadata(&mut memoria.alocacoes)
+        .map_err(|_| PublicAllocationVerdict::MetadataBudgetExceeded)?;
+    let base = mapear(reservation.reserved_page_bytes)
+        .map_err(|_| PublicAllocationVerdict::MappingFailure)?;
+    memoria.alocacoes.push(AlocacaoPublica {
+        identidade: reservation.identity,
+        base,
+        tamanho: reservation.logical_bytes,
+        reservado: reservation.reserved_page_bytes,
+        viva: true,
+    });
+    memoria.budget = reservation.next_budget;
+    Ok(base)
+}
+
+fn reservar_metadata_publica(alocacoes: &mut Vec<AlocacaoPublica>) -> Result<(), ()> {
+    alocacoes.try_reserve(1).map_err(|_| ())
+}
+
 #[no_mangle]
 pub extern "C" fn pinker_publico_alocar(tamanho: u64) -> *mut u8 {
-    debug_assert_eq!(
-        MAX_METADATA_PUBLICA_BYTES,
-        MAX_IDENTIDADES_PUBLICAS * std::mem::size_of::<AlocacaoPublica>()
-    );
-    debug_assert_eq!(MAX_QUARENTENA_FISICA_BYTES, 0);
-    if tamanho == 0 {
-        erro_memoria_publica("'alocar' rejeita tamanho zero");
-    }
-    let tamanho_usize = usize::try_from(tamanho)
-        .unwrap_or_else(|_| erro_memoria_publica("'alocar' excede a largura da plataforma"));
-    if tamanho_usize > (isize::MAX as usize).saturating_sub(CABECALHO) {
-        erro_memoria_publica("'alocar' excede o maior bloco representável pela plataforma");
-    }
-    let reservado = tamanho_usize
-        .checked_add(PAGINA_PUBLICA - 1)
-        .map(|valor| valor & !(PAGINA_PUBLICA - 1))
-        .unwrap_or_else(|| erro_memoria_publica("overflow ao alinhar alocação pública"));
     let mut memoria = memoria_publica()
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
-    // Exaustivo de propósito: sem braço curinga, um veredicto novo passa a ser
-    // erro de compilação em vez de herdar silenciosamente a mensagem errada.
-    let (identidade, proxima) = match reservar_identidade_publica(
-        memoria.alocacoes.len(),
-        memoria.proxima_identidade,
-        limite_identidades_publicas(),
+    match tentar_alocar_publico_com(
+        &mut memoria,
+        tamanho,
+        limites_memoria_publica(),
+        reservar_metadata_publica,
+        mapear_regiao_publica,
     ) {
-        ReservaIdentidade::Concedida {
-            identidade,
-            proxima,
-        } => (identidade, proxima),
-        ReservaIdentidade::Esgotada => {
-            erro_memoria_publica("limite de identidades públicas esgotado")
-        }
-        ReservaIdentidade::Exaurida => {
-            erro_memoria_publica("identidade pública de alocação esgotada")
-        }
-    };
-    memoria
-        .alocacoes
-        .try_reserve(1)
-        .unwrap_or_else(|_| erro_memoria_publica("metadata pública de alocações esgotada"));
-    memoria.proxima_identidade = proxima;
-    let fim = memoria
-        .proximo_offset
-        .checked_add(reservado)
-        .filter(|fim| *fim <= MAX_ESPACO_VIRTUAL_PUBLICO_BYTES)
-        .unwrap_or_else(|| erro_memoria_publica("espaço virtual público esgotado"));
-    let base = memoria
-        .arena_base
-        .checked_add(memoria.proximo_offset)
-        .unwrap_or_else(|| erro_memoria_publica("overflow na arena pública"));
-    comprometer_paginas_publicas(base, reservado)
-        .unwrap_or_else(|_| erro_memoria_publica("'alocar' falhou ao comprometer memória"));
-    let ponteiro = base as *mut u8;
-    unsafe {
-        ponteiro.write_bytes(0, tamanho_usize);
+        Ok(base) => base as *mut u8,
+        Err(verdict) => erro_memoria_publica(
+            verdict
+                .diagnostic()
+                .expect("todo veredicto recusado possui diagnóstico"),
+        ),
     }
-    memoria.proximo_offset = fim;
-    memoria.alocacoes.push(AlocacaoPublica {
-        identidade,
-        base,
-        tamanho: tamanho_usize,
-        reservado,
-        viva: true,
-    });
-    ponteiro
 }
 
 /// Fase 246: entrada pública de `liberar`. Somente o ponteiro-base de uma
@@ -416,7 +392,8 @@ pub extern "C" fn pinker_publico_alocar(tamanho: u64) -> *mut u8 {
 ///
 /// `ponteiro` deve ser exatamente o endereço-base retornado por
 /// `pinker_publico_alocar`. O registro interno valida essa origem antes de
-/// marcar a geração como liberada; o bloco físico permanece em quarentena.
+/// marcar a geração como liberada. As páginas são descartadas e o mapeamento
+/// vira `PROT_NONE`, mas permanece reservado até o encerramento do processo.
 #[no_mangle]
 pub unsafe extern "C" fn pinker_publico_liberar(ponteiro: *mut u8) {
     if ponteiro.is_null() {
@@ -426,15 +403,18 @@ pub unsafe extern "C" fn pinker_publico_liberar(ponteiro: *mut u8) {
         .lock()
         .unwrap_or_else(|_| erro_memoria_publica("registro público de alocações indisponível"));
     if let Some(indice) = indice_base_publica_mais_recente(&memoria.alocacoes, ponteiro as usize) {
-        let alocacao = &mut memoria.alocacoes[indice];
-        if !alocacao.viva {
+        if !memoria.alocacoes[indice].viva {
             erro_memoria_publica("E-RUNTIME-MEM-DOUBLE-FREE: 'liberar' detectou double free");
         }
+        let alocacao = memoria.alocacoes[indice];
         debug_assert!(alocacao.identidade > 0);
         debug_assert!(alocacao.tamanho > 0);
         descomprometer_paginas_publicas(alocacao.base, alocacao.reservado)
             .unwrap_or_else(|_| erro_memoria_publica("falha ao descomprometer memória pública"));
-        alocacao.viva = false;
+        let next_budget = release_public_live_bytes(memoria.budget, alocacao.reservado)
+            .unwrap_or_else(|| erro_memoria_publica("underflow no orçamento público vivo"));
+        memoria.alocacoes[indice].viva = false;
+        memoria.budget = next_budget;
         return;
     }
     let endereco = ponteiro as usize;
@@ -3339,6 +3319,168 @@ mod tests {
         unsafe { pinker_liberar(std::ptr::null_mut()) };
     }
 
+    #[cfg(target_os = "linux")]
+    fn paginas_residentes(base: usize, tamanho: usize) -> usize {
+        use std::ffi::c_void;
+        extern "C" {
+            fn mincore(address: *mut c_void, length: usize, vec: *mut u8) -> i32;
+        }
+        let paginas = tamanho.div_ceil(pinker_memory_contract::PUBLIC_PAGE_BYTES);
+        let mut residencia = vec![0_u8; paginas];
+        assert_eq!(
+            unsafe {
+                mincore(
+                    base as *mut c_void,
+                    paginas * pinker_memory_contract::PUBLIC_PAGE_BYTES,
+                    residencia.as_mut_ptr(),
+                )
+            },
+            0,
+            "mincore: {}",
+            std::io::Error::last_os_error()
+        );
+        residencia.into_iter().filter(|byte| byte & 1 != 0).count()
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn mapeamento_publico_grande_e_lazy_zero_e_proporcional() {
+        let tamanho = 64 * 1024 * 1024;
+        let mut memoria = MemoriaPublica {
+            budget: PublicMemoryBudget::default(),
+            alocacoes: Vec::new(),
+        };
+        let base = tentar_alocar_publico_com(
+            &mut memoria,
+            tamanho as u64,
+            PUBLIC_MEMORY_LIMITS,
+            reservar_metadata_publica,
+            mapear_regiao_publica,
+        )
+        .expect("mapeamento público");
+        let reservado = memoria.alocacoes[0].reservado;
+        assert_eq!(reservado, tamanho);
+        assert!(
+            paginas_residentes(base, reservado) <= 8,
+            "alocar sem tocar não pode materializar 64 MiB"
+        );
+
+        let offsets = [
+            0,
+            tamanho / 2,
+            tamanho - pinker_memory_contract::PUBLIC_PAGE_BYTES,
+        ];
+        for offset in offsets {
+            assert_eq!(
+                unsafe { (base as *const u8).add(offset).read_volatile() },
+                0
+            );
+            unsafe { (base as *mut u8).add(offset).write_volatile(0x5a) };
+        }
+        let residentes = paginas_residentes(base, reservado);
+        // Em Linux x86-64 com THP em modo `always`, cada offset tocado pode
+        // materializar uma PMD huge page de 2 MiB. Isso continua lazy e
+        // proporcional aos três toques; a antiga zeragem ansiosa materializa
+        // as 16.384 páginas do mapeamento e permanece fora desta tolerância.
+        let paginas_por_thp = (2 * 1024 * 1024) / pinker_memory_contract::PUBLIC_PAGE_BYTES;
+        let maximo_residente = offsets.len() * paginas_por_thp;
+        assert!(
+            (offsets.len()..=maximo_residente).contains(&residentes),
+            "somente páginas ou THPs dos offsets tocados devem residir, observado {residentes}"
+        );
+
+        descomprometer_paginas_publicas(base, reservado).expect("descomprometer");
+        memoria.budget =
+            release_public_live_bytes(memoria.budget, reservado).expect("devolver bytes vivos");
+        memoria.alocacoes[0].viva = false;
+        assert_eq!(paginas_residentes(base, reservado), 0);
+        assert_eq!(memoria.budget.live_reserved_bytes, 0);
+        assert_eq!(memoria.budget.identity_count, 1);
+        assert_eq!(memoria.budget.lifetime_virtual_bytes, tamanho as u64);
+
+        let maps = std::fs::read_to_string("/proc/self/maps").expect("maps");
+        let protegido = maps.lines().any(|line| {
+            let Some((range, permissions)) = line.split_once(' ') else {
+                return false;
+            };
+            let Some((start, end)) = range.split_once('-') else {
+                return false;
+            };
+            let Ok(start) = usize::from_str_radix(start, 16) else {
+                return false;
+            };
+            let Ok(end) = usize::from_str_radix(end, 16) else {
+                return false;
+            };
+            base >= start && base < end && permissions.starts_with("---")
+        });
+        assert!(protegido, "região liberada precisa permanecer PROT_NONE");
+
+        let novo = tentar_alocar_publico_com(
+            &mut memoria,
+            pinker_memory_contract::PUBLIC_PAGE_BYTES as u64,
+            PUBLIC_MEMORY_LIMITS,
+            reservar_metadata_publica,
+            mapear_regiao_publica,
+        )
+        .expect("nova geração");
+        assert_ne!(novo, base, "mapeamento morto não pode ser reutilizado");
+        assert_eq!(memoria.budget.identity_count, 2);
+    }
+
+    #[test]
+    fn falha_de_mapeamento_nao_consumo_orcamento_nem_identidade() {
+        let mut memoria = MemoriaPublica {
+            budget: PublicMemoryBudget::default(),
+            alocacoes: Vec::new(),
+        };
+        let before = memoria.budget;
+        let result = tentar_alocar_publico_com(
+            &mut memoria,
+            4096,
+            PUBLIC_MEMORY_LIMITS,
+            reservar_metadata_publica,
+            |_| Err(()),
+        );
+        assert_eq!(result, Err(PublicAllocationVerdict::MappingFailure));
+        assert_eq!(memoria.budget, before);
+        assert!(memoria.alocacoes.is_empty());
+    }
+
+    #[test]
+    fn falha_de_reserva_de_metadata_e_atomica_e_nao_mapeia() {
+        let mut memoria = MemoriaPublica {
+            budget: PublicMemoryBudget::default(),
+            alocacoes: Vec::new(),
+        };
+        let before = memoria.budget;
+        let map_called = std::cell::Cell::new(false);
+        let result = tentar_alocar_publico_com(
+            &mut memoria,
+            4096,
+            PUBLIC_MEMORY_LIMITS,
+            |_| Err(()),
+            |_| {
+                map_called.set(true);
+                Ok(0x1000)
+            },
+        );
+        assert_eq!(result, Err(PublicAllocationVerdict::MetadataBudgetExceeded));
+        assert!(!map_called.get());
+        assert_eq!(memoria.budget, before);
+        assert!(memoria.alocacoes.is_empty());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn mapeamento_publico_novo_e_integralmente_zero_em_tamanho_seguro() {
+        let tamanho = 1024 * 1024;
+        let base = mapear_regiao_publica(tamanho).expect("mapeamento anônimo");
+        let bytes = unsafe { std::slice::from_raw_parts(base as *const u8, tamanho) };
+        assert!(bytes.iter().all(|byte| *byte == 0));
+        descomprometer_paginas_publicas(base, tamanho).expect("descomprometer");
+    }
+
     // @pinker-nav:end evidencia.runtime.memoria-alocador
 
     // @pinker-nav:start evidencia.runtime.validacao-acesso-publico
@@ -3881,7 +4023,7 @@ mod tests {
     // @pinker-nav:start evidencia.runtime.inicializacao-abi
     // @pinker-nav:domain inicializacao
     // @pinker-nav:layer evidencia
-    // @pinker-nav:summary Evidência em memória do bootstrap e da ABI: `pinker_rt_iniciar` captura `argc`/`argv` e os devolve por `pinker_rt_argc`/`pinker_rt_argv`, e `pinker_rt_versao` reporta a versão corrente da ABI.
+    // @pinker-nav:summary Evidência em memória do bootstrap e da ABI: `pinker_rt_iniciar` desabilita core dump antes do código Pinker, captura `argc`/`argv` e os devolve por `pinker_rt_argc`/`pinker_rt_argv`, e `pinker_rt_versao` reporta a versão corrente da ABI.
     #[test]
     fn iniciar_captura_argc_e_argv() {
         let argv: [*const u8; 2] = [b"pink\0".as_ptr(), std::ptr::null()];
@@ -3893,6 +4035,90 @@ mod tests {
     #[test]
     fn versao_da_abi_atual() {
         assert_eq!(pinker_rt_versao(), 1);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn iniciar_desabilita_core_dump_mesmo_se_o_filho_herdar_soft_ilimitado() {
+        #[repr(C)]
+        struct RLimit {
+            current: u64,
+            maximum: u64,
+        }
+        extern "C" {
+            fn getrlimit(resource: i32, limit: *mut RLimit) -> i32;
+            fn setrlimit(resource: i32, limit: *const RLimit) -> i32;
+        }
+        const RLIMIT_CORE: i32 = 4;
+        const RLIMIT_CPU: i32 = 0;
+        const RLIMIT_AS: i32 = 9;
+
+        fn core_limit() -> (u64, u64) {
+            let mut limit = RLimit {
+                current: 0,
+                maximum: 0,
+            };
+            assert_eq!(unsafe { getrlimit(RLIMIT_CORE, &mut limit) }, 0);
+            (limit.current, limit.maximum)
+        }
+
+        if std::env::var_os("PINKER_RT_TESTE_CORE_FILHO").is_some() {
+            let before = core_limit();
+            let argv: [*const u8; 2] = [b"pink\0".as_ptr(), std::ptr::null()];
+            unsafe { pinker_rt_iniciar(1, argv.as_ptr()) };
+            let after = core_limit();
+            assert_eq!(after.0, 0, "soft RLIMIT_CORE precisa ser zero");
+            assert_eq!(
+                after.1, before.1,
+                "runtime preserva o hard limit do operador"
+            );
+            return;
+        }
+
+        use std::os::unix::process::CommandExt;
+        let mut command =
+            std::process::Command::new(std::env::current_exe().expect("binário de teste"));
+        command
+            .args([
+                "--exact",
+                "tests::iniciar_desabilita_core_dump_mesmo_se_o_filho_herdar_soft_ilimitado",
+                "--nocapture",
+            ])
+            .env("PINKER_RT_TESTE_CORE_FILHO", "1");
+        unsafe {
+            command.pre_exec(|| {
+                let mut limit = RLimit {
+                    current: 0,
+                    maximum: 0,
+                };
+                if getrlimit(RLIMIT_CORE, &mut limit) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                limit.current = limit.maximum;
+                if setrlimit(RLIMIT_CORE, &limit) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                for (resource, value) in [(RLIMIT_CPU, 15), (RLIMIT_AS, 1024 * 1024 * 1024)] {
+                    let limit = RLimit {
+                        current: value,
+                        maximum: value,
+                    };
+                    if setrlimit(resource, &limit) != 0 {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                }
+                Ok(())
+            });
+        }
+        let output = command
+            .output()
+            .expect("executar filho com core habilitado");
+        assert!(
+            output.status.success(),
+            "stdout={} stderr={}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
     // @pinker-nav:end evidencia.runtime.inicializacao-abi
 

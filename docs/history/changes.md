@@ -56,4 +56,5 @@ mão. Regenere com `pink doc sincronizar`.
 | #418 | parallel-phase | — | — | Aceita listas como cargas tipadas de variantes | completed |
 | #419 | documentation | — | 20 | Ativa janela auxiliar de infraestrutura pré-Eixo A | completed |
 | #420 | parallel-phase | — | 20 | Normaliza descoberta, ajuda e versão da CLI | completed |
+| #421 | hotfix | — | 20 | Contenção da memória pública e eliminação da materialização ansiosa | completed |
 <!-- @pinker-generated:end change.history -->
