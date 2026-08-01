@@ -144,8 +144,14 @@ interno de outros domínios não pode compartilhar esse registro: quem precisar 
 storage próprio traz arena, teto e diagnóstico próprios. O caso de referência é
 o de uniões — descritores, snapshots e o binding materializado por extração
 agregada vivem num domínio separado, com os tetos de `crate::union_payload` e
-diagnósticos `E-RUNTIME-UNION-*`, no interpretador e no nativo (ver
+diagnósticos `E-RUNTIME-UNION-*` (ver
 [`docs/union_types.md`](union_types.md#contabilidade-identidade-pública-e-domínio-interno)).
+Nesse caso de referência, atenção a uma distinção que se repete: os tetos de
+descritores, bytes e metadata valem nos dois back-ends, mas os de **binding de
+extração** existem só no interpretador, porque o nativo materializa esse storage
+num slot do frame já reservado. Quando a realização difere entre back-ends, o
+que se unifica é a contabilidade e o contrato — não se inventa uma cota do lado
+que não paga custo, nem se afirma paridade de capacidade que não existe.
 Uma expansão que precise de storage endereçável interno deve seguir esse
 desenho, e nunca reutilizar o diagnóstico do limite público para um limite que
 não é público.

@@ -199,6 +199,24 @@ fn os_limites_do_dominio_interno_sao_identicos_nos_dois_backends() {
              construções atingiria limites diferentes em cada backend"
         );
     }
+
+    // Os tetos de binding de extração são exclusivos do interpretador: no
+    // nativo o storage é um slot do frame já reservado no prólogo, que não é
+    // cobrado de orçamento nenhum. Se algum dia aparecerem no runtime, a
+    // documentação passa a mentir sobre onde a cota existe — e este teste é o
+    // ponto onde isso é notado.
+    for ausente in [
+        "MAX_UNION_BINDING_REGIONS",
+        "MAX_UNION_BINDING_BYTES",
+        "E-RUNTIME-UNION-BINDING",
+    ] {
+        assert!(
+            !fonte.contains(ausente),
+            "'{ausente}' apareceu no runtime nativo: a cota de binding de extração é documentada \
+             como exclusiva do interpretador, porque o nativo usa slot do frame. Atualize \
+             docs/union_types.md e MANUAL.md junto com o código."
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------

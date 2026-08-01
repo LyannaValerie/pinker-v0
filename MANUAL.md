@@ -440,9 +440,14 @@ geração e *lifetime* que hoje não existe; até que exista, a cota é vitalíc
 
 A cota conta **apenas** regiões públicas criadas por `alocar`. O armazenamento
 interno de união — descritores, snapshots de payload e o storage do binding
-extraído por `encaixe` — pertence a um domínio separado, com orçamento e
-diagnósticos próprios, e não reduz a capacidade pública observável em nenhum dos
-dois back-ends. Ver [Contabilidade de uniões](docs/union_types.md#contabilidade-identidade-pública-e-domínio-interno).
+extraído por `encaixe` — pertence a um domínio separado e não reduz a capacidade
+pública observável em nenhum dos dois back-ends.
+
+Descritores, bytes de payload e metadata têm orçamento e diagnósticos próprios
+nos dois back-ends. O storage do binding de extração é a exceção de realização:
+no nativo é um slot do frame já reservado, sem cota e sem diagnóstico; no
+interpretador é uma arena própria com teto e diagnóstico exclusivos desse
+back-end. Ver [Contabilidade de uniões](docs/union_types.md#contabilidade-identidade-pública-e-domínio-interno).
 
 A API mantém o modelo fatal estruturado já usado pelas intrínsecas de runtime;
 ela não retorna `Resultado<T,E>` porque isso criaria uma segunda ABI de erro

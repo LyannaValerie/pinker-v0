@@ -258,15 +258,20 @@ valores abaixo são escolhidos explicitamente, são finitos, não dependem do
 profile de compilação e são revalidados no runtime nativo e no interpretador com
 operações checadas.
 
-| constante | valor | papel |
-|---|---|---|
-| `MAX_UNION_PAYLOAD_BYTES` | 4096 | teto por payload; uma página |
-| `MAX_UNION_PAYLOAD_ALIGN` | 16 | teto de alinhamento, coerente com o alinhamento de pilha da SysV |
-| `MAX_UNION_DESCRIPTORS` | 1 000 000 | teto de descritores vivos, na ordem de grandeza de `MAX_IDENTIDADES_PUBLICAS` |
-| `MAX_UNION_TOTAL_PAYLOAD_BYTES` | 256 MiB | teto agregado de bytes de snapshot |
-| `MAX_UNION_METADATA_BYTES` | derivado | teto de metadata de descritores |
-| `MAX_UNION_BINDING_REGIONS` | 1 000 000 | teto de regiões de binding de extração no domínio interno |
-| `MAX_UNION_BINDING_BYTES` | 256 MiB | teto agregado de bytes materializados para bindings |
+| constante | valor | papel | vale em |
+|---|---|---|---|
+| `MAX_UNION_PAYLOAD_BYTES` | 4096 | teto por payload; uma página | ambos |
+| `MAX_UNION_PAYLOAD_ALIGN` | 16 | teto de alinhamento, coerente com o alinhamento de pilha da SysV | ambos |
+| `MAX_UNION_DESCRIPTORS` | 1 000 000 | teto de descritores vivos, na ordem de grandeza de `MAX_IDENTIDADES_PUBLICAS` | ambos |
+| `MAX_UNION_TOTAL_PAYLOAD_BYTES` | 256 MiB | teto agregado de bytes de snapshot | ambos |
+| `MAX_UNION_METADATA_BYTES` | derivado | teto de metadata de descritores | ambos |
+| `MAX_UNION_BINDING_REGIONS` | 1 000 000 | teto de regiões de binding de extração | só interpretador |
+| `MAX_UNION_BINDING_BYTES` | 256 MiB | teto agregado de bytes materializados para bindings | só interpretador |
+
+As cinco primeiras são revalidadas nos dois back-ends. As duas últimas existem
+**apenas no interpretador**, e a razão está em [Contabilidade](#contabilidade-identidade-pública-e-domínio-interno):
+o nativo materializa o binding de extração num slot do frame já reservado no
+prólogo, que não é cobrado de orçamento nenhum.
 
 Os snapshots vivem enquanto o processo vive; o crescimento é limitado por esses
 tetos e não por coleta. Falha de alocação produz diagnóstico controlado, nunca
@@ -367,28 +372,48 @@ nem um ownership novo: é a razão de cada um ter teto explícito.
 Cada limite tem diagnóstico próprio, e nenhum deles reutiliza a mensagem do
 limite público:
 
-| diagnóstico | limite |
-|---|---|
-| `limite de identidades públicas esgotado` | cota vitalícia de `alocar` |
-| `E-RUNTIME-UNION-DESCRIPTOR-BUDGET` | descritores internos |
-| `E-RUNTIME-UNION-PAYLOAD-BUDGET` | bytes de payload internos |
-| `E-RUNTIME-UNION-METADATA-BUDGET` | metadata de descritores |
-| `E-RUNTIME-UNION-BINDING-BUDGET` | regiões de binding de extração |
-| `E-RUNTIME-UNION-BINDING-BYTES` | bytes de binding de extração |
-| `E-RUNTIME-UNION-BINDING-OVERFLOW` | overflow de layout no domínio interno |
-| `E-RUNTIME-UNION-BINDING-METADATA` | metadata interna inconsistente |
-| `E-RUNTIME-UNION-ALIGN` | alinhamento de payload acima do suportado |
+| diagnóstico | limite | emitido por |
+|---|---|---|
+| `limite de identidades públicas esgotado` | cota vitalícia de `alocar` | ambos |
+| `E-RUNTIME-UNION-DESCRIPTOR-BUDGET` | descritores internos | ambos |
+| `E-RUNTIME-UNION-PAYLOAD-BUDGET` | bytes de payload internos | ambos |
+| `E-RUNTIME-UNION-METADATA-BUDGET` | metadata de descritores | ambos |
+| `E-RUNTIME-UNION-ALIGN` | alinhamento de payload acima do suportado | ambos |
+| `E-RUNTIME-UNION-BINDING-BUDGET` | regiões de binding de extração | só interpretador |
+| `E-RUNTIME-UNION-BINDING-BYTES` | bytes de binding de extração | só interpretador |
+| `E-RUNTIME-UNION-BINDING-OVERFLOW` | overflow de layout na arena de binding | só interpretador |
+| `E-RUNTIME-UNION-BINDING-METADATA` | metadata da arena de binding inconsistente | só interpretador |
+
+A família `E-RUNTIME-UNION-BINDING-*` não tem contraparte nativa porque não há o
+que diagnosticar do outro lado: o slot do frame já existe quando a extração
+acontece.
 
 Os endereços do domínio interno não são expostos como regiões públicas: o
 registro de identidades não os contém, `liberar` não os aceita e o registro
 interno vive fora do mapa endereçável, do mesmo modo que o registro público —
 casts de inteiro para ponteiro não observam metadata de nenhum dos dois.
 
-Uma diferença de realização permanece, e é deliberada: no nativo o storage do
-binding é um slot do frame, reaproveitado a cada passagem pelo mesmo ponto de
-extração; no interpretador não há frame de máquina, e a arena interna cresce
-monotonicamente até `MAX_UNION_BINDING_BYTES`. Os dois têm limite explícito e
-diagnóstico próprio; o teto do interpretador é o mais estrito dos dois.
+Uma diferença de realização permanece, e é deliberada. No nativo, o storage do
+binding é um slot do frame, reservado uma vez no prólogo por ponto de extração e
+reaproveitado a cada passagem: extrair mil vezes o mesmo agregado não aloca nada
+e não é cobrado de orçamento nenhum. Consequentemente **não existe cota de
+binding nem diagnóstico de binding no nativo** — o custo já foi pago pelo frame,
+e o limite efetivo é o tamanho do frame, decidido na compilação.
+
+No interpretador não há frame de máquina, então cada extração materializa uma
+região nova numa arena interna, que cresce monotonicamente enquanto não existir
+contrato de desalocação para uniões. Esse crescimento precisa de teto, e é daí
+que vêm `MAX_UNION_BINDING_REGIONS`, `MAX_UNION_BINDING_BYTES` e a família
+`E-RUNTIME-UNION-BINDING-*`: são **exclusivos do interpretador**, e existem para
+que um laço de extrações não cresça sem contabilidade nesse back-end.
+
+O que os dois back-ends compartilham é o contrato de contabilidade, não a
+realização: em nenhum deles a extração consome identidade pública, e os limites
+de descritores, bytes de payload e metadata são idênticos. A assimetria restante
+é de **capacidade de extração repetida** — ilimitada no nativo dentro do frame,
+finita no interpretador —, e está aqui declarada em vez de escondida. Igualá-las
+exigiria reclamar a região do binding ao fim do escopo, isto é, um contrato de
+ownership que esta fase não define.
 
 ### Capacidade do pipeline, superfície-fonte e evidência
 

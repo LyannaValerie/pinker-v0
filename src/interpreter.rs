@@ -1748,6 +1748,12 @@ struct PublicMemoryRegion {
 /// identidades públicas não é tocada por elas. O storage é monotônico enquanto
 /// não existir contrato de desalocação para uniões — por isso possui teto
 /// próprio e diagnóstico próprio.
+///
+/// A arena existe **só aqui**. O backend nativo materializa o mesmo binding num
+/// slot do frame reservado no prólogo, reaproveitado a cada passagem pelo ponto
+/// de extração: lá não há cota de binding a esgotar nem diagnóstico a emitir. A
+/// paridade que os dois back-ends mantêm é a de contabilidade — extrair não
+/// consome identidade pública —, não a de capacidade de extração repetida.
 #[derive(Clone, Debug)]
 struct UnionBindingArena {
     next_address: usize,

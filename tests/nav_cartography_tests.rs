@@ -3131,7 +3131,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (166_221, 4_913_360_489_823_531_458),
+        (166_221, 7_039_055_888_145_573_254),
         "a projeção estável das 340 entradas anteriores mudou"
     );
 }
@@ -3544,7 +3544,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (169_972, 3_275_173_980_127_166_200),
+        (169_972, 2_322_577_472_395_253_868),
         "a projeção estável das 348 regiões anteriores mudou"
     );
 
@@ -3856,12 +3856,12 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (192_809, 4_719_551_862_602_950_930)
+        (192_809, 199_444_240_794_933_846)
     );
     let full_projection = stable_region_projection(capsule_scope.iter().copied());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (194_546, 17_035_455_106_925_271_285)
+        (194_546, 5_506_156_577_276_092_669)
     );
 
     let regenerated = CodeIndex::scan_repo(&repository).expect("scan canônico");
@@ -4266,7 +4266,7 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (192_809, 4_719_551_862_602_950_930),
+        (192_809, 199_444_240_794_933_846),
         "a projeção estável das 387 regiões da Onda 8 mudou"
     );
     let merged_base_projection = stable_region_projection(merged_base.into_iter());
@@ -4275,14 +4275,14 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
             merged_base_projection.len(),
             fnv1a64(merged_base_projection.as_bytes())
         ),
-        (194_546, 17_035_455_106_925_271_285),
+        (194_546, 5_506_156_577_276_092_669),
         "a projeção estável das 393 regiões da base mergeada mudou"
     );
     // K. Projeção completa desta cápsula, medida — não predita.
     let full_projection = stable_region_projection(capsule_scope.iter().copied());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (196_211, 2_944_798_780_363_975_006),
+        (196_211, 1_815_938_184_382_374_146),
         "a projeção estável das 399 regiões mudou"
     );
 
@@ -4402,7 +4402,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
     let projection = stable_region_projection(historical.into_iter());
     assert_eq!(
         (projection.len(), fnv1a64(projection.as_bytes())),
-        (192_809, 4_719_551_862_602_950_930),
+        (192_809, 199_444_240_794_933_846),
         "a projeção estável das 387 regiões convergidas da Onda 8 mudou"
     );
 
@@ -5096,7 +5096,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (172_833, 16_986_219_828_708_402_531),
+        (172_833, 3_385_063_079_729_768_307),
         "a projeção estável das 355 regiões anteriores mudou"
     );
 
@@ -5782,7 +5782,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (179_342, 17_057_641_229_380_046_094),
+        (179_342, 6_655_305_011_866_467_186),
         "a projeção estável das 365 regiões anteriores mudou"
     );
 
@@ -6413,7 +6413,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
             previous_projection.len(),
             fnv1a64(previous_projection.as_bytes()),
         ),
-        (187_038, 9_323_822_860_362_855_318),
+        (187_038, 16_390_418_342_871_668_986),
         "a projeção estável das 379 regiões anteriores mudou"
     );
 
@@ -6902,7 +6902,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             predecessor_projection.len(),
             fnv1a64(predecessor_projection.as_bytes())
         ),
-        (196_211, 2_944_798_780_363_975_006),
+        (196_211, 1_815_938_184_382_374_146),
         "a projeção estável das 398 regiões predecessoras mudou"
     );
     // Preservação das 392 regiões pós-nav-catalog.
@@ -6920,7 +6920,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             post_nav_projection.len(),
             fnv1a64(post_nav_projection.as_bytes())
         ),
-        (194_546, 17_035_455_106_925_271_285),
+        (194_546, 5_506_156_577_276_092_669),
         "a projeção estável das 393 regiões pós-nav-catalog mudou"
     );
     // J. Preservação do conjunto histórico de 386 regiões da Onda 8.
@@ -6938,14 +6938,14 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
             historical_projection.len(),
             fnv1a64(historical_projection.as_bytes())
         ),
-        (192_809, 4_719_551_862_602_950_930),
+        (192_809, 199_444_240_794_933_846),
         "a projeção estável das 387 regiões da Onda 8 mudou"
     );
     // K. Projeção completa desta cápsula, medida — não predita.
     let full_projection = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (198_697, 18_262_880_529_900_017_446),
+        (198_697, 4_489_205_290_239_156_474),
         "a projeção estável das 408 regiões mudou"
     );
 
@@ -7250,7 +7250,7 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
             predecessor_projection.len(),
             fnv1a64(predecessor_projection.as_bytes())
         ),
-        (198_697, 18_262_880_529_900_017_446)
+        (198_697, 4_489_205_290_239_156_474)
     );
     let mut historical_catalog = predecessor_catalog.clone();
     project_pre_nav_map(&mut historical_catalog);
@@ -7273,13 +7273,13 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     for (regions, expected) in [
         (
             post_query.as_slice(),
-            (428, 196_211, 2_944_798_780_363_975_006),
+            (428, 196_211, 1_815_938_184_382_374_146),
         ),
         (
             post_nav.as_slice(),
-            (422, 194_546, 17_035_455_106_925_271_285),
+            (422, 194_546, 5_506_156_577_276_092_669),
         ),
-        (wave_8.as_slice(), (416, 192_809, 4_719_551_862_602_950_930)),
+        (wave_8.as_slice(), (416, 192_809, 199_444_240_794_933_846)),
     ] {
         let projection = stable_region_projection(regions.iter().copied());
         assert_eq!(
@@ -7294,7 +7294,7 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
     let full_projection = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full_projection.len(), fnv1a64(full_projection.as_bytes())),
-        (204_969, 12_652_856_461_077_980_471),
+        (204_969, 15_565_453_381_945_018_815),
         "projeção final medida da Onda A"
     );
 
@@ -7526,7 +7526,7 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (209_008, 9_740_869_244_040_230_326),
+        (209_008, 11_775_092_321_614_729_546),
         "projeção atual medida da Onda B"
     );
     let mut wave_a = catalog.clone();
@@ -7538,7 +7538,7 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
             projection_426.len(),
             fnv1a64(projection_426.as_bytes())
         ),
-        (456, 204_969, 12_652_856_461_077_980_471)
+        (456, 204_969, 15_565_453_381_945_018_815)
     );
     exclude_pink_agent_wave_a(&mut wave_a);
     let projection_407 = stable_region_projection(wave_a.regions.iter());
@@ -7548,7 +7548,7 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
             projection_407.len(),
             fnv1a64(projection_407.as_bytes())
         ),
-        (437, 198_697, 18_262_880_529_900_017_446)
+        (437, 198_697, 4_489_205_290_239_156_474)
     );
     let mut historical_wave_a = wave_a.clone();
     project_pre_nav_map(&mut historical_wave_a);
@@ -7569,9 +7569,9 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
         .filter(|region| region.file != "tests/nav_catalog_tests.rs")
         .collect();
     for (regions, expected) in [
-        (q.as_slice(), (428, 196_211, 2_944_798_780_363_975_006)),
-        (d.as_slice(), (422, 194_546, 17_035_455_106_925_271_285)),
-        (n.as_slice(), (416, 192_809, 4_719_551_862_602_950_930)),
+        (q.as_slice(), (428, 196_211, 1_815_938_184_382_374_146)),
+        (d.as_slice(), (422, 194_546, 5_506_156_577_276_092_669)),
+        (n.as_slice(), (416, 192_809, 199_444_240_794_933_846)),
     ] {
         let projection = stable_region_projection(regions.iter().copied());
         assert_eq!(
@@ -7810,7 +7810,7 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (212_929, 15_331_218_213_293_428_272),
+        (212_929, 17_327_787_551_189_191_780),
         "projeção atual medida da Onda C"
     );
     let mut wave_b = catalog.clone();
@@ -7822,7 +7822,7 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
             projection_439.len(),
             fnv1a64(projection_439.as_bytes())
         ),
-        (470, 209_008, 9_740_869_244_040_230_326)
+        (470, 209_008, 11_775_092_321_614_729_546)
     );
     let core = include_str!("../src/agent.rs");
     for contract in [
@@ -8057,7 +8057,7 @@ fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
     let full = stable_region_projection(catalog.regions.iter());
     assert_eq!(
         (full.len(), fnv1a64(full.as_bytes())),
-        (213_381, 8_274_958_637_573_015_694),
+        (213_381, 6_482_044_191_873_419_490),
         "projeção integral 460 medida da Onda D"
     );
     let mut prev = catalog.clone();
@@ -8065,7 +8065,7 @@ fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
     let p453 = stable_region_projection(prev.regions.iter());
     assert_eq!(
         (prev.regions.len(), p453.len(), fnv1a64(p453.as_bytes())),
-        (483, 212_929, 15_331_218_213_293_428_272),
+        (483, 212_929, 17_327_787_551_189_191_780),
         "predecessor 454 integral medido na base c6478"
     );
     // Cadeia histórica preservada: 439 a partir do 453 reconstruído.
@@ -8074,7 +8074,7 @@ fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
     let p439 = stable_region_projection(wave_b.regions.iter());
     assert_eq!(
         (wave_b.regions.len(), p439.len(), fnv1a64(p439.as_bytes())),
-        (470, 209_008, 9_740_869_244_040_230_326),
+        (470, 209_008, 11_775_092_321_614_729_546),
         "era 440/441 preservada"
     );
     // Nenhuma key removida: 453 é subconjunto exato de 454 com delta 1.
