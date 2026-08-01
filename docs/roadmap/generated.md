@@ -39,5 +39,5 @@ mão. Regenere com `pink doc sincronizar`.
 | #418 | — | — | Aceita listas como cargas tipadas de variantes | completed |
 | #419 | — | 20 | Ativa janela auxiliar de infraestrutura pré-Eixo A | completed |
 | #420 | — | 20 | Normaliza descoberta, ajuda e versão da CLI | completed |
-| #421 | — | 20 | Contenção da memória pública e higiene da execução nativa | completed |
+| #421 | — | 20 | Contenção da memória pública e eliminação da materialização ansiosa | completed |
 <!-- @pinker-generated:end roadmap.generated -->

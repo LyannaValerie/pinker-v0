@@ -67,6 +67,6 @@ mão. Regenere com `pink doc sincronizar`.
 
 <!-- @pinker-generated:start engine.state.generated -->
 - Manifestos processados: 9
-- Última mudança: PR #421 — Contenção da memória pública e higiene da execução nativa (fase —, bloco 20)
+- Última mudança: PR #421 — Contenção da memória pública e eliminação da materialização ansiosa (fase —, bloco 20)
 - Seções implementadas: —
 <!-- @pinker-generated:end engine.state.generated -->

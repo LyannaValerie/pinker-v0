@@ -37,7 +37,6 @@ Referência rápida para localizar a camada certa antes de editar.
 - backend `.s`: `src/backend_s.rs`
 - ponteiros crus de função (Fase 245): formação em `src/parser.rs`, contrato em `src/semantic.rs`, lowering em `src/ir.rs`, execução determinística em `src/interpreter.rs` e ABI indireta em `src/backend_s.rs`
 - memória pública (Fase 246 + hotfix extraordinário): semântica/lowering em `src/semantic.rs` e `src/ir.rs`; contrato puro de páginas, identidades, virtual vitalício, bytes vivos e metadata em `runtime/pinker_memory_contract/src/lib.rs`; regiões esparsas e contabilidade equivalente em `src/interpreter.rs`; mapeamentos anônimos proporcionais, lazy, sem reuso, com validação de vida/limites/alinhamento em `runtime/pinker_rt/src/lib.rs`
-- contenção de ELF em testes: autoridade de processo, grupos, `PDEATHSIG`, core zero, timeouts por classe, captura limitada, sandbox marcado e proveniência em `tests/common/native_process.rs`; recuperação conservadora em `scripts/pinker-cleanup.sh`; ambiente canônico com core zero em `ci_env.sh`
 - assembly inline (Fase 247): `sussurro` atravessa AST, IR, CFG, seleção e máquina; validação em `src/semantic.rs`, erro hospedado em `src/interpreter.rs` e emissão GNU Intel x86-64 em `src/backend_s.rs`
 - uniões estruturais (Fase 248): contrato normativo único de canonicalização em `src/union_canon.rs`, consumido pela semântica (`src/semantic.rs`) e pelo lowering (`src/ir.rs`); registry internado em `src/ir.rs`, preservação/validação nas camadas intermediárias, descritores hospedados em `src/interpreter.rs` e ABI interna em `runtime/pinker_rt/src/lib.rs`
 - `encaixe` de união tipado (HR1 da revisão humana da PR #411): nó próprio na AST (`src/ast.rs`), preservação no parser (`src/parser.rs`), resolução de apelidos e cobertura canônica em `src/semantic.rs`, associação ao registry e operações internas tipadas (`UnionMatch`/`UnionTag`/`UnionExtract`) em `src/ir.rs`, propagação por `src/cfg_ir.rs`, `src/instr_select.rs` e `src/abstract_machine.rs`, execução direta em `src/interpreter.rs` e escolha do símbolo de ABI apenas em `src/backend_s.rs`
@@ -61,7 +60,7 @@ Referência rápida para localizar a camada certa antes de editar.
 - backends: `tests/backend_text_tests.rs`, `tests/backend_s_tests.rs`, `tests/backend_s_external_toolchain_tests.rs`
 - Fases 245–246: `tests/phase245_246_tests.rs`
 - Fases 247–248 e correções da revisão humana da PR #411: `tests/phase247_248_tests.rs`
-- hotfix de memória pública e contenção do host: `tests/public_memory_hotfix_tests.rs`, `tests/native_process_control_tests.rs`, `tests/native_cleanup_tests.rs` e testes de unidade em `runtime/pinker_memory_contract`/`runtime/pinker_rt`
+- hotfix de memória pública: `tests/public_memory_hotfix_tests.rs` e testes de unidade em `runtime/pinker_memory_contract`/`runtime/pinker_rt`
 - expansão D1 de cargas `lista<E>` em leques: `tests/d1_leque_carga_lista_tests.rs` (matrizes positiva/negativa, IR, validadores, ABI e paridade)
 - CLI/saída: `tests/output_tests.rs`, `tests/editor_tui_tests.rs`
 

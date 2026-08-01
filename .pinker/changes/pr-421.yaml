@@ -5,11 +5,11 @@ source:
   repository: "LyannaValerie/pinker-v0"
 kind: hotfix
 block: 20
-title: "Contenção da memória pública e higiene da execução nativa"
+title: "Contenção da memória pública e eliminação da materialização ansiosa"
 area:
   - runtime.public-memory
-  - runtime.process-io
-  - development.test-integrity
+  - runtime.allocation
+  - language.memory
 status: completed
 updates:
   state: true

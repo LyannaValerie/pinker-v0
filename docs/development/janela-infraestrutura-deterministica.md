@@ -49,7 +49,7 @@ janela_auxiliar:
   status: ACTIVE
   completed:
     - Etapa 1 da Issue #414 (PR #420)
-  extraordinary_interruption: remediação de memória pública e higiene nativa
+  extraordinary_interruption: HF-9 — remediação de memória pública
   next_delivery_after_hotfix_merge: Issue #384 — snapshots e projeções
 
 Eixo_A:

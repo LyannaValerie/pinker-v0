@@ -357,6 +357,13 @@ apenas o orçamento vivo e conserva mapeamento, identidade, espaço virtual
 vitalício e metadata até o fim do processo, impedindo reuso de endereço.
 Somente os bytes vivos são recuperáveis por `liberar`.
 
+Com cobrança mínima de 4096 bytes, o teto vivo de 256 MiB admite no máximo
+65.536 regiões vivas mínimas. A cota de 1.000.000 mede identidades vitalícias,
+não mapeamentos simultâneos nem capacidade garantida do host; `mmap` pode falhar
+antes dos tetos lógicos, por exemplo por `vm.max_map_count`, com
+`E-RUNTIME-MEM-PUBLIC-MAP`. Como `liberar` não devolve virtual vitalício, churn
+alto pode esgotar os 8 GiB acumulados mesmo com RSS estável.
+
 Somente um alias do ponteiro-base vivo pode liberar a região, uma vez.
 Ponteiro nulo, interior, estrangeiro, estático, de pilha ou pertencente aos
 domínios internos de closure, callable, trato e runtime é rejeitado. Cópias e
