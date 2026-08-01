@@ -488,6 +488,36 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
+    // D1: cargas de lista, mesmo caminho de uma palavra com a categoria
+    // operacional preservada.
+    function_sigs.insert(
+        crate::enum_payload::ANEXAR_LISTA_BOMBOM.to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Bombom, TypeIR::ListBombom],
+        },
+    );
+    function_sigs.insert(
+        crate::enum_payload::ANEXAR_LISTA_VERSO.to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Bombom, TypeIR::ListVerso],
+        },
+    );
+    function_sigs.insert(
+        crate::enum_payload::CARGA_LISTA_BOMBOM.to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::ListBombom,
+            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
+        crate::enum_payload::CARGA_LISTA_VERSO.to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::ListVerso,
+            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
     // Não há assinatura chamável de união: tag e extração são instruções CFG
     // tipadas (`UnionTag`/`UnionExtract`), nunca `Call`.
     function_sigs.insert(

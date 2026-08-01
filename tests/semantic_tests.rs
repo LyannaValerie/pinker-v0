@@ -3561,8 +3561,15 @@ fn leque_carga_tipo_nao_suportado_rejeitado() {
         carinho principal() -> bombom { mimo 0; }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
+    // A mensagem descreve o contrato atualizado (D1) e carrega o código estável
+    // da recusa; `logica` continua fora do contrato.
     assert!(
-        err.contains("deve ser 'bombom', 'verso' ou um leque declarado"),
+        err.contains(pinker_v0::enum_payload::CONTRATO_CARGAS),
+        "{}",
+        err
+    );
+    assert!(
+        err.contains("E-SEMANTIC-ENUM-PAYLOAD-UNSUPPORTED"),
         "{}",
         err
     );
@@ -3831,7 +3838,12 @@ fn leque_carga_de_tipo_desconhecido_rejeitada() {
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(
-        err.contains("deve ser 'bombom', 'verso' ou um leque declarado"),
+        err.contains(pinker_v0::enum_payload::CONTRATO_CARGAS),
+        "{}",
+        err
+    );
+    assert!(
+        err.contains("E-SEMANTIC-ENUM-PAYLOAD-UNRESOLVED"),
         "{}",
         err
     );

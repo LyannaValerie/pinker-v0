@@ -140,14 +140,28 @@ impl SemanticChecker {
         }
     }
 
+    /// Nome do leque por trás de um identificador, atravessando a cadeia de
+    /// apelidos.
+    ///
+    /// A cadeia é transparente: `apelido A = Leque; apelido B = A;` faz `B.X`
+    /// significar exatamente `Leque.X`, sem criar uma identidade nominal nova.
     fn resolve_enum_base_name(&self, base_name: &str) -> Option<String> {
-        if self.enums.contains_key(base_name) {
-            return Some(base_name.to_string());
+        let mut current = base_name.to_string();
+        // O teto é o número de apelidos declarados: uma cadeia mais longa que
+        // isso só pode ser cíclica, e a recursão de apelidos já é diagnosticada
+        // por `resolve_type_named`.
+        for _ in 0..=self.type_aliases.len() {
+            if self.enums.contains_key(&current) {
+                return Some(current);
+            }
+            match self.type_aliases.get(&current) {
+                Some(Type::Enum { name, .. }) | Some(Type::Alias { name, .. }) => {
+                    current.clone_from(name)
+                }
+                _ => return None,
+            }
         }
-        match self.type_aliases.get(base_name) {
-            Some(Type::Enum { name, .. }) if self.enums.contains_key(name) => Some(name.clone()),
-            _ => None,
-        }
+        None
     }
 
     fn type_key(ty: &Type) -> String {
@@ -638,16 +652,39 @@ impl SemanticChecker {
             }
             Type::Struct { .. } => Ok(ty.clone()),
             Type::ListEnum { element, span } => {
-                if !self.enums.contains_key(element) {
-                    return Err(PinkerError::Semantic {
+                if self.enums.contains_key(element) {
+                    return Ok(ty.clone());
+                }
+                // O elemento passa pela mesma resolução dos demais tipos:
+                // `lista<Apelido>` é a lista do **alvo** do apelido, e não uma
+                // lista de um tipo nominal novo chamado `Apelido`. Sem isto,
+                // `apelido CorAlias = Cor; lista<CorAlias>` teria identidade
+                // distinta de `lista<Cor>`.
+                let resolved_element = self.type_aliases.get(element).and_then(|_| {
+                    self.resolve_type_named(
+                        &Type::Alias {
+                            name: element.clone(),
+                            span: *span,
+                        },
+                        resolving,
+                    )
+                    .ok()
+                });
+                match resolved_element {
+                    Some(Type::Bombom(_)) => Ok(Type::ListBombom(*span)),
+                    Some(Type::Verso(_)) => Ok(Type::ListVerso(*span)),
+                    Some(Type::Enum { name, .. }) => Ok(Type::ListEnum {
+                        element: name,
+                        span: *span,
+                    }),
+                    _ => Err(PinkerError::Semantic {
                         msg: format!(
                             "lista genérica exige leque declarado como elemento; '{}' não é um leque",
                             element
                         ),
                         span: *span,
-                    });
+                    }),
                 }
-                Ok(ty.clone())
             }
             _ => Ok(ty.clone()),
         }
@@ -753,6 +790,21 @@ impl SemanticChecker {
 
     fn expr_is_zero_literal(expr: &Expr) -> bool {
         matches!(expr.kind, ExprKind::IntLit(0))
+    }
+
+    /// Classifica uma carga de variante pela autoridade única (D1).
+    ///
+    /// A semântica não reimplementa a resolução: fornece apenas as tabelas de
+    /// apelidos, leques e ninhos que possui, e recebe de volta representação
+    /// operacional e tipo resolvido acoplados.
+    fn classify_enum_payload(
+        &self,
+        ty: &Type,
+    ) -> Result<crate::enum_payload::EnumPayloadShape, crate::enum_payload::EnumPayloadRejection>
+    {
+        let enums: HashSet<String> = self.enums.keys().cloned().collect();
+        let structs: HashSet<String> = self.structs.keys().cloned().collect();
+        crate::enum_payload::classify_enum_payload(ty, &self.type_aliases, &enums, &structs)
     }
 
     fn enum_has_payload(&self, enum_name: &str) -> bool {
@@ -1205,16 +1257,17 @@ impl SemanticChecker {
         for enum_decl in self.enums.values() {
             for variant in &enum_decl.variants {
                 for payload in &variant.payloads {
-                    let payload_ok = match payload {
-                        Type::Bombom(_) | Type::Verso(_) => true,
-                        Type::Alias { name, .. } => self.enums.contains_key(name),
-                        _ => false,
-                    };
-                    if !payload_ok {
+                    // A validade da carga vem da autoridade única de
+                    // classificação (D1), nunca de um `match` parcial local:
+                    // ela resolve apelidos em profundidade, resolve o elemento
+                    // de `lista<E>` e recusa com motivo estável.
+                    if let Err(rejection) = self.classify_enum_payload(payload) {
                         return Err(PinkerError::Semantic {
                             msg: format!(
-                                "carga da variante '{}' deve ser 'bombom', 'verso' ou um leque declarado nesta fase",
-                                variant.name
+                                "carga da variante '{}' deve ser {}; {}",
+                                variant.name,
+                                crate::enum_payload::CONTRATO_CARGAS,
+                                rejection.message()
                             ),
                             span: payload.span(),
                         });
@@ -3378,8 +3431,11 @@ impl SemanticChecker {
                                     index + 1,
                                     enum_name,
                                     field,
-                                    expected.name(),
-                                    arg_ty.name()
+                                    // Nome fiel: a mensagem existe para
+                                    // distinguir `lista<Cor>` de `lista<Token>`,
+                                    // que compartilham a categoria operacional.
+                                    expected.display_name(),
+                                    arg_ty.display_name()
                                 ),
                                 span: args[index].span,
                             });
@@ -3726,7 +3782,7 @@ impl SemanticChecker {
             }
             return Ok(Type::Bombom(expr_span));
         }
-        if name == "__pinker_internal_leque_carga_b" || name == "__pinker_internal_leque_carga_v" {
+        if crate::enum_payload::is_carga_intrinsic(name) {
             if args.len() != 3 {
                 return Err(PinkerError::Semantic {
                     msg: format!(
@@ -3775,20 +3831,34 @@ impl SemanticChecker {
                     span: expr_span,
                 });
             };
-            let resolved = self.resolve_type_or_error(&payload_ty)?;
-            if name == "__pinker_internal_leque_carga_v" {
-                if !matches!(resolved, Type::Verso(_)) {
-                    return Err(PinkerError::Semantic {
-                        msg: format!(
-                            "intrínseca interna '{}' usada com carga não-verso no leque '{}'",
-                            name, enum_name
-                        ),
-                        span: expr_span,
-                    });
+            // O helper usado tem de ser exatamente o que a autoridade de
+            // classificação escolhe para esta carga. Isso impede que uma
+            // extração `lista<verso>` seja encaminhada pelo caminho de `verso`
+            // — ou o contrário — mesmo que ambos caibam numa palavra.
+            let shape = self.classify_enum_payload(&payload_ty).map_err(|rejection| {
+                PinkerError::Semantic {
+                    msg: format!(
+                        "intrínseca interna '{}' usada com carga sem classificação no leque '{}'; {}",
+                        name,
+                        enum_name,
+                        rejection.message()
+                    ),
+                    span: expr_span,
                 }
-                return Ok(Type::Verso(expr_span));
+            })?;
+            if shape.carga_intrinsic() != name {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "intrínseca interna '{}' usada com carga de classe '{}' no leque '{}'; o helper correto é '{}'",
+                        name,
+                        shape.class.name(),
+                        enum_name,
+                        shape.carga_intrinsic()
+                    ),
+                    span: expr_span,
+                });
             }
-            return Ok(resolved.with_span(expr_span));
+            return Ok(shape.resolved.with_span(expr_span));
         }
 
         // Intrínsecas genéricas de lista (Fase 211): tipam sobre qualquer

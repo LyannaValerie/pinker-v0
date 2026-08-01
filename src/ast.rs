@@ -560,6 +560,22 @@ impl Type {
         }
     }
 
+    /// Nome fiel para diagnósticos, preservando a identidade nominal.
+    ///
+    /// `name()` devolve a **categoria** e por isso colapsa `lista<Cor>` e
+    /// `lista<Token>` em `lista<leque>`, o que produziria a mensagem
+    /// "esperado `lista<leque>`, encontrado `lista<leque>`". Onde a mensagem
+    /// existe justamente para distinguir identidades, use este nome.
+    pub fn display_name(&self) -> String {
+        match self {
+            Type::ListEnum { element, .. } => format!("lista<{element}>"),
+            Type::Enum { name, .. } | Type::Struct { name, .. } | Type::Alias { name, .. } => {
+                name.clone()
+            }
+            other => other.name().to_string(),
+        }
+    }
+
     pub fn with_span(&self, span: Span) -> Self {
         match self {
             Type::Bombom(_) => Type::Bombom(span),

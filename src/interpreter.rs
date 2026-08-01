@@ -515,6 +515,15 @@ struct RuntimeMapState {
 enum RuntimeEnumPayload {
     Int(u64),
     Str(String),
+    /// D1: handle opaco de uma palavra guardado numa variante.
+    ///
+    /// A cópia é **rasa por contrato**: o que entra na variante é o handle, e
+    /// nada é clonado do conteúdo apontado. O backend nativo guarda exatamente
+    /// a mesma palavra; aqui a categoria acompanha o handle apenas porque o
+    /// interpretador tipa `RuntimeValue` e precisa devolver a lista com a
+    /// mesma categoria com que ela entrou.
+    ListBombom(u64),
+    ListVerso(u64),
 }
 
 struct RuntimeRandomState {
@@ -2866,6 +2875,83 @@ fn try_call_intrinsic(
             };
             payloads.push(RuntimeEnumPayload::Str(payload.clone()));
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(*handle))))
+        }
+        // D1: cargas de lista. A variante guarda o **handle**, nunca uma cópia
+        // do conteúdo: alterar a lista depois de construir a variante é
+        // observado pela extração, e vice-versa.
+        "__pinker_internal_leque_anexar_lista_b" | "__pinker_internal_leque_anexar_lista_v" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca interna de anexo de carga de lista exige 2 argumentos (leque, carga)",
+                ));
+            }
+            let RuntimeValue::Int(handle) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca interna de anexo de carga de lista exige handle de leque 'bombom'",
+                ));
+            };
+            let payload = match (callee, &args[1]) {
+                ("__pinker_internal_leque_anexar_lista_b", RuntimeValue::ListBombom(lista)) => {
+                    RuntimeEnumPayload::ListBombom(*lista)
+                }
+                ("__pinker_internal_leque_anexar_lista_v", RuntimeValue::ListVerso(lista)) => {
+                    RuntimeEnumPayload::ListVerso(*lista)
+                }
+                _ => {
+                    return Err(runtime_err(&format!(
+                        "intrínseca interna '{callee}' exige carga de lista da categoria correspondente"
+                    )))
+                }
+            };
+            let Some((_, payloads)) = map_state.enum_values.get_mut(handle) else {
+                return Err(runtime_err(&format!(
+                    "handle de leque inválido em '{callee}'"
+                )));
+            };
+            payloads.push(payload);
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(*handle))))
+        }
+        "__pinker_internal_leque_carga_lista_b" | "__pinker_internal_leque_carga_lista_v" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca interna de extração de carga de lista exige 3 argumentos (leque, tag, índice)",
+                ));
+            }
+            let (RuntimeValue::Int(handle), RuntimeValue::Int(tag), RuntimeValue::Int(index)) =
+                (&args[0], &args[1], &args[2])
+            else {
+                return Err(runtime_err(
+                    "intrínseca interna de extração de carga de lista exige argumentos 'bombom'",
+                ));
+            };
+            let Some((stored_tag, payloads)) = map_state.enum_values.get(handle) else {
+                return Err(runtime_err(&format!(
+                    "handle de leque inválido em '{callee}'"
+                )));
+            };
+            if stored_tag != tag {
+                return Err(runtime_err(&format!(
+                    "extração de carga com variante inconsistente em '{callee}'"
+                )));
+            }
+            // A extração devolve o mesmo handle armazenado, sem materializar
+            // uma segunda lista.
+            let value = match (callee, payloads.get(*index as usize)) {
+                (
+                    "__pinker_internal_leque_carga_lista_b",
+                    Some(RuntimeEnumPayload::ListBombom(lista)),
+                ) => RuntimeValue::ListBombom(*lista),
+                (
+                    "__pinker_internal_leque_carga_lista_v",
+                    Some(RuntimeEnumPayload::ListVerso(lista)),
+                ) => RuntimeValue::ListVerso(*lista),
+                _ => {
+                    return Err(runtime_err(&format!(
+                        "carga de lista ausente ou de categoria divergente em '{callee}'"
+                    )))
+                }
+            };
+            Ok(IntrinsicCall::Done(Some(value)))
         }
         // Não há intrínseca chamável de união: `union_tag` e `union_extract`
         // são instruções tipadas da máquina, executadas diretamente.

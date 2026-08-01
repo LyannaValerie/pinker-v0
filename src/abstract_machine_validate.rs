@@ -373,6 +373,45 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
+    // D1: cargas de lista. O handle é uma palavra na pilha, como as demais
+    // cargas; a categoria operacional é o que impede `lista<verso>` de ser
+    // aceita pelo caminho de `verso`.
+    sigs.insert(
+        crate::enum_payload::ANEXAR_LISTA_BOMBOM.to_string(),
+        (
+            TypeIR::Bombom,
+            vec![StackValueType::Bombom, StackValueType::ListBombom],
+        ),
+    );
+    sigs.insert(
+        crate::enum_payload::ANEXAR_LISTA_VERSO.to_string(),
+        (
+            TypeIR::Bombom,
+            vec![StackValueType::Bombom, StackValueType::ListVerso],
+        ),
+    );
+    sigs.insert(
+        crate::enum_payload::CARGA_LISTA_BOMBOM.to_string(),
+        (
+            TypeIR::ListBombom,
+            vec![
+                StackValueType::Bombom,
+                StackValueType::Bombom,
+                StackValueType::Bombom,
+            ],
+        ),
+    );
+    sigs.insert(
+        crate::enum_payload::CARGA_LISTA_VERSO.to_string(),
+        (
+            TypeIR::ListVerso,
+            vec![
+                StackValueType::Bombom,
+                StackValueType::Bombom,
+                StackValueType::Bombom,
+            ],
+        ),
+    );
     sigs.insert(
         "__pinker_internal_leque_carga_v".to_string(),
         (
