@@ -27,7 +27,8 @@ Em 28 de julho de 2026, decisão humana explícita da Founder encerrou
 antecipadamente a janela de estabilização estrutural e reativou a expansão
 funcional do **Eixo A — linguagem**. O Bloco 20 permanece estruturalmente ativo;
 a Fase 244 foi a última fase anterior à retomada. As Fases 245 e 246 foram
-entregues consecutivamente; as Fases 247 e 248 entregaram os itens 14 e 15.
+entregues consecutivamente; as Fases 247 e 248 entregaram os itens 14 e 15 e já
+estão mergeadas na `main`.
 
 Os objetivos estruturais da janela encerrada não são declarados concluídos.
 Modularização ampla, reorganização documental ampla e bughunting amplo foram
@@ -50,17 +51,21 @@ O bloco executa em **dois eixos** (Doc-41): **Eixo A — linguagem** (11 faixas,
 
 Os itens 12–14 da Faixa 3 foram entregues nas Fases 245–247 com ponteiros crus
 de função, memória explícita e assembly inline. O item 15 da Faixa 4 foi
-entregue na Fase 248 com uniões estruturais tagged; o item 16 não foi iniciado.
-A revisão humana da PR #411 mantém a Fase 248 sob correção: `encaixe` já é um
-construto tipado com tags exclusivamente do registry canônico e a injeção já
-seleciona o membro por identidade semântica resolvida (`ResolvedTypeId`),
-separada da representação operacional (`TypeIR`); os payloads estruturais
-passaram a ser suportados de forma adulta (HR3), com classificação exaustiva em
-escalar, handle opaco e agregado, snapshot alinhado do payload completo no
-descritor, remoção do fallback `(8, 8)` e limites explícitos de descritores,
-bytes e metadata. Nenhum achado da revisão humana original permanece aberto; a
-PR #411 exige nova revisão humana integral e a decisão de merge é exclusiva da
-Founder.
+entregue na Fase 248 com uniões estruturais tagged; o item 16 (tuplas) não foi
+iniciado. As Fases 247 e 248 e as correções da revisão humana chegaram à `main`
+pela PR #411, mergeada: `encaixe` é construto tipado com tags exclusivamente do
+registry canônico e a injeção seleciona o membro por identidade semântica
+resolvida (`ResolvedTypeId`), separada da representação operacional (`TypeIR`);
+os payloads estruturais são suportados de forma adulta (HR3), com classificação
+exaustiva em escalar, handle opaco e agregado, snapshot alinhado do payload
+completo no descritor, remoção do fallback `(8, 8)` e limites explícitos de
+descritores, bytes e metadata. O endurecimento do runtime nativo pedido depois
+da PR #411 foi concluído e mergeado pela PR #412 — disposição de `SIGPIPE`
+independente da ordem de execução, validação de acesso por ponteiro fabricado a
+partir de inteiro, cota vitalícia de identidades públicas documentada e
+diagnóstico de clone raso — sem abrir fase funcional nova. Nenhum achado dessas
+revisões permanece em correção. A próxima progressão funcional declarada
+continua sendo a **Fase 249, item 16 (tuplas)**, ainda não iniciada.
 
 O contrato de ambientes da Fase 243 usa hoje uma palavra por captura (`quantidade * palavra`, com overflow verificado). Uma futura representação multi-palavra deverá alocar o tamanho final alinhado do layout, derivado do tamanho, alinhamento, offset e padding de cada captura e do alinhamento final, com overflow verificado em cada passo; soma simples de tamanhos e teste apenas funcional não atendem ao gate direto de underallocation.
 

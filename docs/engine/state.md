@@ -66,7 +66,7 @@ Conteúdo abaixo é **propriedade da ferramenta** (projeção `state`); não edi
 mão. Regenere com `pink doc sincronizar`.
 
 <!-- @pinker-generated:start engine.state.generated -->
-- Manifestos processados: 4
-- Última mudança: PR #411 — Uniões estruturais tagged (fase 248, bloco 20)
+- Manifestos processados: 5
+- Última mudança: PR #412 — Endurecimento do runtime nativo pós-PR (fase —, bloco 20)
 - Seções implementadas: —
 <!-- @pinker-generated:end engine.state.generated -->

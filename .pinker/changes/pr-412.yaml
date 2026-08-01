@@ -1,0 +1,16 @@
+schema: 1
+source:
+  type: github-pr
+  number: 412
+  repository: "LyannaValerie/pinker-v0"
+kind: hotfix
+block: 20
+title: "Endurecimento do runtime nativo pós-PR"
+area:
+  - runtime.public-memory
+  - runtime.process-io
+  - development.test-integrity
+status: completed
+validation:
+  required:
+    - make ci

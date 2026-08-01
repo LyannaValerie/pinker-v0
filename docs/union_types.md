@@ -361,7 +361,7 @@ acessar seus campos permanece fora do recorte.
 ### Estado da revisão humana
 
 Os cinco findings da revisão humana original da PR #411 — HR1, HR2, HR3, HR4 e
-HR5 — estão corrigidos. A PR continua exigindo nova revisão humana integral; não
-há aprovação nem autorização de merge registradas aqui.
+HR5 — estão corrigidos. A revisão foi concluída e a PR #411 foi mergeada na
+`main`; nada aqui permanece em correção.
 
 <!-- @pinker-doc:end language.union-types.contract -->
