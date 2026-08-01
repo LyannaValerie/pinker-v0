@@ -9,4 +9,3 @@ license = "MIT"
 name = "pinker_memory_contract"
 
 [dependencies]
-
