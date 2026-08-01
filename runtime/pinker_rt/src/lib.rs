@@ -3745,6 +3745,137 @@ mod tests {
             "o esgotamento não pode virar panic: {stderr}"
         );
     }
+
+    /// Paridade de contabilidade: o domínio interno de união não toca a cota
+    /// vitalícia de identidades públicas.
+    ///
+    /// Criar descritores e copiar payloads move **apenas** o orçamento de
+    /// uniões; o registro de identidades públicas fica numericamente intacto —
+    /// o mesmo contrato que o interpretador aplica na arena interna de binding.
+    /// A medição roda num filho re-executado porque o registro público e o
+    /// orçamento de uniões são estado do processo: só isolado o delta é exato.
+    #[test]
+    fn dominio_interno_de_uniao_nao_consome_identidade_publica() {
+        if std::env::var_os("PINKER_RT_TESTE_CONTABILIDADE_UNIAO").is_some() {
+            let antes_identidades = identidades_publicas_registradas();
+            let antes_orcamento = orcamento_de_unioes();
+
+            let origem: [u64; 3] = [111, 222, 333];
+            let mut destino = [0_u64; 3];
+            for _ in 0..8 {
+                let handle =
+                    unsafe { pinker_uniao_criar(7, 3, 24, 8, origem.as_ptr() as *const u8) };
+                unsafe {
+                    pinker_uniao_copiar_payload(
+                        handle,
+                        7,
+                        3,
+                        24,
+                        8,
+                        destino.as_mut_ptr() as *mut u8,
+                    );
+                }
+            }
+
+            assert_eq!(
+                identidades_publicas_registradas(),
+                antes_identidades,
+                "oito construções e oito extrações não podem consumir identidade pública alguma"
+            );
+            let depois = orcamento_de_unioes();
+            assert_eq!(
+                depois.descriptors - antes_orcamento.descriptors,
+                8,
+                "cada construção cobra exatamente um descritor interno"
+            );
+            assert_eq!(
+                depois.payload_bytes - antes_orcamento.payload_bytes,
+                8 * 24,
+                "cada construção cobra os bytes reais do payload multi-palavra"
+            );
+            assert_eq!(
+                depois.metadata_bytes - antes_orcamento.metadata_bytes,
+                8 * UNION_DESCRIPTOR_METADATA_BYTES
+            );
+            assert_eq!(
+                destino, origem,
+                "payload multi-palavra copiado integralmente"
+            );
+
+            // A cota pública continua respondendo normalmente depois disso.
+            let ponteiro = pinker_publico_alocar(16);
+            assert!(!ponteiro.is_null());
+            assert_eq!(
+                identidades_publicas_registradas(),
+                antes_identidades + 1,
+                "um `alocar` bem-sucedido consome exatamente uma identidade pública"
+            );
+            return;
+        }
+
+        let saida = filho_contabilidade_uniao(
+            "tests::dominio_interno_de_uniao_nao_consome_identidade_publica",
+        );
+        assert!(
+            saida.status.success(),
+            "filho da contabilidade de união falhou: {}{}",
+            String::from_utf8_lossy(&saida.stdout),
+            String::from_utf8_lossy(&saida.stderr)
+        );
+    }
+
+    /// A extração nativa escreve num destino do chamador (slot do frame), e não
+    /// numa região pública: o ponteiro entregue nunca pertence ao registro de
+    /// identidades públicas.
+    #[test]
+    fn extracao_nativa_escreve_em_destino_do_chamador() {
+        let origem: [u64; 2] = [7, 9];
+        let mut destino = [0_u64; 2];
+        let handle = unsafe { pinker_uniao_criar(11, 1, 16, 8, origem.as_ptr() as *const u8) };
+        unsafe {
+            pinker_uniao_copiar_payload(handle, 11, 1, 16, 8, destino.as_mut_ptr() as *mut u8);
+        }
+        assert_eq!(destino, origem);
+        let endereco = destino.as_ptr() as usize;
+        let publico = memoria_publica()
+            .lock()
+            .map(|memoria| {
+                memoria.alocacoes.iter().any(|alocacao| {
+                    alocacao
+                        .base
+                        .checked_add(alocacao.tamanho)
+                        .is_some_and(|fim| endereco >= alocacao.base && endereco < fim)
+                })
+            })
+            .expect("registro público disponível");
+        assert!(
+            !publico,
+            "o destino da extração não pode pertencer ao registro público"
+        );
+    }
+
+    fn identidades_publicas_registradas() -> usize {
+        memoria_publica()
+            .lock()
+            .map(|memoria| memoria.alocacoes.len())
+            .expect("registro público disponível")
+    }
+
+    fn orcamento_de_unioes() -> UnionBudget {
+        estado_unioes()
+            .lock()
+            .map(|estado| estado.orcamento)
+            .expect("estado de uniões disponível")
+    }
+
+    fn filho_contabilidade_uniao(teste: &str) -> std::process::Output {
+        std::process::Command::new(std::env::current_exe().expect("binário de teste"))
+            .args(["--exact", teste, "--nocapture"])
+            .env("PINKER_RT_TESTE_CONTABILIDADE_UNIAO", "1")
+            .output()
+            .expect("executar filho da contabilidade de união")
+    }
+
     // @pinker-nav:end evidencia.runtime.cota-identidades-publicas
 
     // @pinker-nav:start evidencia.runtime.inicializacao-abi

@@ -51,14 +51,39 @@ struct UnionRuntimeDescriptor {
     payload_layout: crate::union_payload::UnionPayloadLayout,
 }
 
+/// Tetos do domínio interno de descritores de união.
+///
+/// Espelha `UnionBudgetLimits` do runtime nativo, inclusive na forma: os
+/// limites são um **parâmetro do estado**, nunca uma leitura de ambiente. O
+/// runtime de produção usa exclusivamente [`UNION_BUDGET_LIMITS`]; os testes do
+/// próprio módulo constroem estados com limites reduzidos pelo mesmo campo, e
+/// debug e release se comportam igual.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct UnionBudgetLimits {
+    max_descriptors: u64,
+    max_payload_bytes: u64,
+    max_metadata_bytes: u64,
+}
+
+/// Limites canônicos do domínio interno de descritores.
+const UNION_BUDGET_LIMITS: UnionBudgetLimits = UnionBudgetLimits {
+    max_descriptors: crate::union_payload::MAX_UNION_DESCRIPTORS,
+    max_payload_bytes: crate::union_payload::MAX_UNION_TOTAL_PAYLOAD_BYTES,
+    max_metadata_bytes: crate::union_payload::MAX_UNION_METADATA_BYTES,
+};
+
 /// Orçamento de recursos equivalente ao do runtime nativo. Sem isto, um laço
 /// que injeta uniões cresceria sem limite no interpretador enquanto o nativo
 /// falharia — quebra de paridade.
+///
+/// Este é o domínio **interno** de uniões: nada aqui consome a cota vitalícia
+/// de identidades públicas, que pertence exclusivamente a `alocar`.
 struct UnionRuntimeState {
     next_handle: usize,
     descriptors: HashMap<usize, UnionRuntimeDescriptor>,
     total_payload_bytes: u64,
     metadata_bytes: u64,
+    limits: UnionBudgetLimits,
 }
 
 impl Default for UnionRuntimeState {
@@ -68,6 +93,7 @@ impl Default for UnionRuntimeState {
             descriptors: HashMap::new(),
             total_payload_bytes: 0,
             metadata_bytes: 0,
+            limits: UNION_BUDGET_LIMITS,
         }
     }
 }
@@ -78,7 +104,7 @@ impl UnionRuntimeState {
     fn charge(&mut self, payload_size: u64) -> Result<(), PinkerError> {
         let descriptors = u64::try_from(self.descriptors.len())
             .map_err(|_| runtime_err("contagem de descritores de união excede u64"))?;
-        if descriptors >= crate::union_payload::MAX_UNION_DESCRIPTORS {
+        if descriptors >= self.limits.max_descriptors {
             return Err(runtime_err(
                 "E-RUNTIME-UNION-DESCRIPTOR-BUDGET: orçamento de descritores de união esgotado",
             ));
@@ -87,7 +113,7 @@ impl UnionRuntimeState {
             .total_payload_bytes
             .checked_add(payload_size)
             .ok_or_else(|| runtime_err("overflow no orçamento de bytes de união"))?;
-        if total > crate::union_payload::MAX_UNION_TOTAL_PAYLOAD_BYTES {
+        if total > self.limits.max_payload_bytes {
             return Err(runtime_err(
                 "E-RUNTIME-UNION-PAYLOAD-BUDGET: orçamento de bytes de payload de união esgotado",
             ));
@@ -96,7 +122,7 @@ impl UnionRuntimeState {
             .metadata_bytes
             .checked_add(crate::union_payload::UNION_DESCRIPTOR_METADATA_BYTES)
             .ok_or_else(|| runtime_err("overflow no orçamento de metadata de união"))?;
-        if metadata > crate::union_payload::MAX_UNION_METADATA_BYTES {
+        if metadata > self.limits.max_metadata_bytes {
             return Err(runtime_err(
                 "E-RUNTIME-UNION-METADATA-BUDGET: orçamento de metadata de união esgotado",
             ));
@@ -572,7 +598,23 @@ pub fn run_program_with_args(
     program: &MachineProgram,
     cli_args: &[String],
 ) -> Result<RunOutcome, PinkerError> {
+    let mut public_memory_state = PublicMemoryState::default();
     UNION_RUNTIME_STATE.with(|state| *state.borrow_mut() = UnionRuntimeState::default());
+    run_program_com_estado(program, cli_args, &mut public_memory_state)
+}
+
+/// Execução hospedada sobre um estado de memória pública fornecido pelo chamador.
+///
+/// Existe para que a contabilidade seja **observável e configurável por dentro**:
+/// os testes do próprio módulo constroem um [`PublicMemoryState`] com limites
+/// reduzidos, executam o programa e inspecionam as cotas consumidas. Não há
+/// variável de ambiente nem opção de linha de comando: `run_program_with_args`
+/// sempre usa os limites canônicos, e esta função não é exportada da crate.
+fn run_program_com_estado(
+    program: &MachineProgram,
+    cli_args: &[String],
+    public_memory_state: &mut PublicMemoryState,
+) -> Result<RunOutcome, PinkerError> {
     let globals = build_globals(program)?;
     let mut memory = build_memory(program, &globals)?;
     let mut io_state = RuntimeIoState {
@@ -605,7 +647,6 @@ pub fn run_program_with_args(
         generators: HashMap::new(),
         next_generator_handle: 1,
     };
-    let mut public_memory_state = PublicMemoryState::default();
     let mut callable_state = CallableState::new();
     let mut trait_object_state = TraitObjectState::new();
     let mut call_stack = Vec::new();
@@ -615,7 +656,7 @@ pub fn run_program_with_args(
         program,
         &globals,
         &mut memory,
-        &mut public_memory_state,
+        public_memory_state,
         &mut io_state,
         &mut list_state,
         &mut map_state,
@@ -1657,6 +1698,42 @@ const PUBLIC_MEMORY_MAX_METADATA_BYTES: usize =
     PUBLIC_MEMORY_MAX_IDENTITIES * std::mem::size_of::<PublicMemoryRegion>();
 const PUBLIC_MEMORY_MAX_QUARANTINE_BYTES: usize = 0;
 
+/// Base da arena interna de binding de extração de união.
+///
+/// Fica **acima** do fim da arena pública (`PUBLIC_MEMORY_BASE + 8 GiB`), de
+/// modo que nenhum endereço interno possa ser confundido com uma identidade
+/// pública nem colidir com ela.
+const UNION_BINDING_BASE: usize = 0x4_0000_0000;
+
+/// Tetos aplicados à memória pública.
+///
+/// São um campo do estado, e não constantes lidas diretamente, para que os
+/// testes do próprio módulo possam exercitar o esgotamento com limites
+/// reduzidos. Não há variável de ambiente nem opção pública: fora dos testes o
+/// valor é sempre [`PUBLIC_MEMORY_LIMITS`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PublicMemoryLimits {
+    max_identities: usize,
+    max_virtual_bytes: usize,
+}
+
+const PUBLIC_MEMORY_LIMITS: PublicMemoryLimits = PublicMemoryLimits {
+    max_identities: PUBLIC_MEMORY_MAX_IDENTITIES,
+    max_virtual_bytes: PUBLIC_MEMORY_MAX_VIRTUAL_BYTES,
+};
+
+/// Tetos do domínio interno de binding de extração de união.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct UnionBindingLimits {
+    max_regions: u64,
+    max_bytes: u64,
+}
+
+const UNION_BINDING_LIMITS: UnionBindingLimits = UnionBindingLimits {
+    max_regions: crate::union_payload::MAX_UNION_BINDING_REGIONS,
+    max_bytes: crate::union_payload::MAX_UNION_BINDING_BYTES,
+};
+
 #[derive(Clone, Debug)]
 struct PublicMemoryRegion {
     base: usize,
@@ -1664,11 +1741,43 @@ struct PublicMemoryRegion {
     alive: bool,
 }
 
+/// Arena interna que materializa os bindings de extração de payload agregado.
+///
+/// É um domínio **separado** do registro de identidades públicas: as regiões
+/// aqui não vêm de `alocar`, `liberar` não as aceita, e a cota vitalícia de
+/// identidades públicas não é tocada por elas. O storage é monotônico enquanto
+/// não existir contrato de desalocação para uniões — por isso possui teto
+/// próprio e diagnóstico próprio.
+#[derive(Clone, Debug)]
+struct UnionBindingArena {
+    next_address: usize,
+    regions: Vec<PublicMemoryRegion>,
+    bytes: u64,
+    limits: UnionBindingLimits,
+}
+
+impl Default for UnionBindingArena {
+    fn default() -> Self {
+        Self {
+            next_address: UNION_BINDING_BASE,
+            regions: Vec::new(),
+            bytes: 0,
+            limits: UNION_BINDING_LIMITS,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 struct PublicMemoryState {
     next_address: usize,
+    /// Registro de **identidades públicas**. Só `alocar` acrescenta uma entrada
+    /// aqui, e cada chamada bem-sucedida acrescenta exatamente uma.
     regions: Vec<PublicMemoryRegion>,
     payload: HashMap<usize, RuntimeValue>,
+    limits: PublicMemoryLimits,
+    /// Domínio interno de união. Endereçável pelo programa, mas fora da cota
+    /// pública e fora do alcance de `liberar`.
+    union_bindings: UnionBindingArena,
 }
 
 impl Default for PublicMemoryState {
@@ -1677,6 +1786,8 @@ impl Default for PublicMemoryState {
             next_address: PUBLIC_MEMORY_BASE,
             regions: Vec::new(),
             payload: HashMap::new(),
+            limits: PUBLIC_MEMORY_LIMITS,
+            union_bindings: UnionBindingArena::default(),
         }
     }
 }
@@ -1801,23 +1912,37 @@ fn public_memory_interval_contained(
     Ok(access_start >= region_start && access_end <= region_end)
 }
 
+/// Localiza a região endereçável que contém `address`.
+///
+/// Cobre os **dois** domínios de storage endereçável do interpretador: as
+/// identidades públicas criadas por `alocar` e as regiões internas de binding
+/// de extração de união. Ambas são memória legítima do ponto de vista de um
+/// `deref`, exatamente como no nativo, onde o binding é um slot do frame e o
+/// acesso é uma instrução de memória comum. A distinção entre os domínios não
+/// está no acesso: está na contabilidade (só o primeiro consome identidade
+/// pública) e em `liberar` (que só aceita o primeiro).
 fn public_memory_region(state: &PublicMemoryState, address: usize) -> Option<(usize, usize, bool)> {
-    for region in state.regions.iter().rev() {
-        if region
-            .base
-            .checked_add(region.size)
-            .is_some_and(|end| address >= region.base && address < end)
-        {
-            return Some((region.base, region.size, region.alive));
+    let dominios = [&state.regions, &state.union_bindings.regions];
+    for regions in dominios {
+        for region in regions.iter().rev() {
+            if region
+                .base
+                .checked_add(region.size)
+                .is_some_and(|end| address >= region.base && address < end)
+            {
+                return Some((region.base, region.size, region.alive));
+            }
         }
     }
-    for region in state.regions.iter().rev() {
-        if region
-            .base
-            .checked_add(region.size)
-            .is_some_and(|end| address == end)
-        {
-            return Some((region.base, region.size, region.alive));
+    for regions in dominios {
+        for region in regions.iter().rev() {
+            if region
+                .base
+                .checked_add(region.size)
+                .is_some_and(|end| address == end)
+            {
+                return Some((region.base, region.size, region.alive));
+            }
         }
     }
     None
@@ -1831,11 +1956,16 @@ fn public_memory_access_region(
     let access_end = address.checked_add(width).ok_or_else(|| {
         runtime_err("E-RUNTIME-MEM-ADDRESS-OVERFLOW: overflow no acesso à memória pública")
     })?;
-    Ok(state.regions.iter().rev().find_map(|region| {
-        let region_end = region.base.checked_add(region.size)?;
-        ((address >= region.base && address <= region_end)
-            || (address < region.base && access_end > region.base))
-            .then_some((region.base, region.size, region.alive))
+    // Os dois domínios endereçáveis, na mesma ordem de `public_memory_region`:
+    // identidades públicas primeiro, storage interno de binding depois.
+    let dominios = [&state.regions, &state.union_bindings.regions];
+    Ok(dominios.into_iter().find_map(|regions| {
+        regions.iter().rev().find_map(|region| {
+            let region_end = region.base.checked_add(region.size)?;
+            ((address >= region.base && address <= region_end)
+                || (address < region.base && access_end > region.base))
+                .then_some((region.base, region.size, region.alive))
+        })
     }))
 }
 
@@ -1866,13 +1996,15 @@ fn validar_derivacao_memoria_publica(
     Ok(())
 }
 
-/// Reserva uma região pública nova para storage de agregado de união.
+/// Reserva storage no domínio **interno** de união para o binding de extração.
 ///
-/// Reutiliza a mesma aritmética de arena e os mesmos tetos de `alocar`, para
-/// que o storage de união não fique fora do modelo de memória auditado. O
-/// arredondamento para 16 bytes garante o maior alinhamento suportado
-/// ([`crate::union_payload::MAX_UNION_PAYLOAD_ALIGN`]).
-fn union_reserve_public_storage(
+/// Esta é a autoridade única do domínio interno de binding no interpretador:
+/// reserva a região, contabiliza os bytes, verifica overflow e emite o
+/// diagnóstico. Nada aqui toca o registro de identidades públicas — no nativo o
+/// mesmo storage é um slot do frame (`leaq -offset(%rbp)`), que também não
+/// consome identidade pública. O arredondamento para 16 bytes garante o maior
+/// alinhamento suportado ([`crate::union_payload::MAX_UNION_PAYLOAD_ALIGN`]).
+fn union_reserve_binding_storage(
     state: &mut PublicMemoryState,
     size: u64,
     align: u64,
@@ -1882,31 +2014,55 @@ fn union_reserve_public_storage(
             "E-RUNTIME-UNION-ALIGN: alinhamento de payload de união acima do suportado",
         ));
     }
-    let size = usize::try_from(size)
-        .map_err(|_| runtime_err("tamanho de payload de união excede a plataforma"))?;
+    let arena = &mut state.union_bindings;
+    let regions = u64::try_from(arena.regions.len()).map_err(|_| {
+        runtime_err(
+            "E-RUNTIME-UNION-BINDING-METADATA: contagem de bindings de união excede a plataforma",
+        )
+    })?;
+    if regions >= arena.limits.max_regions {
+        return Err(runtime_err(
+            "E-RUNTIME-UNION-BINDING-BUDGET: orçamento de bindings de extração de união esgotado",
+        ));
+    }
+    let bytes = arena.bytes.checked_add(size).ok_or_else(|| {
+        runtime_err(
+            "E-RUNTIME-UNION-BINDING-OVERFLOW: overflow no orçamento de bytes de binding de união",
+        )
+    })?;
+    if bytes > arena.limits.max_bytes {
+        return Err(runtime_err(
+            "E-RUNTIME-UNION-BINDING-BYTES: orçamento de bytes de binding de extração de união esgotado",
+        ));
+    }
+    let size = usize::try_from(size).map_err(|_| {
+        runtime_err(
+            "E-RUNTIME-UNION-BINDING-OVERFLOW: tamanho de payload de união excede a plataforma",
+        )
+    })?;
     let rounded = size
         .checked_add(15)
         .map(|value| value & !15)
-        .ok_or_else(|| runtime_err("overflow ao alinhar storage de união"))?;
-    let base = state.next_address;
-    let next = base
-        .checked_add(rounded)
-        .ok_or_else(|| runtime_err("overflow de endereço em storage de união"))?;
-    let arena_end = PUBLIC_MEMORY_BASE
-        .checked_add(PUBLIC_MEMORY_MAX_VIRTUAL_BYTES)
-        .ok_or_else(|| runtime_err("overflow no limite virtual da memória pública"))?;
-    if state.regions.len() >= PUBLIC_MEMORY_MAX_IDENTITIES {
-        return Err(runtime_err("limite de identidades públicas esgotado"));
-    }
-    if next > arena_end {
-        return Err(runtime_err("espaço virtual público esgotado"));
-    }
-    state
-        .regions
-        .try_reserve(1)
-        .map_err(|_| runtime_err("registro de alocações públicas não pôde reservar metadata"))?;
-    state.next_address = next;
-    state.regions.push(PublicMemoryRegion {
+        .ok_or_else(|| {
+            runtime_err(
+                "E-RUNTIME-UNION-BINDING-OVERFLOW: overflow ao alinhar storage de binding de união",
+            )
+        })?;
+    let base = arena.next_address;
+    let next = base.checked_add(rounded).ok_or_else(|| {
+        runtime_err(
+            "E-RUNTIME-UNION-BINDING-OVERFLOW: overflow de endereço no domínio interno de união",
+        )
+    })?;
+    arena.regions.try_reserve(1).map_err(|_| {
+        runtime_err(
+            "E-RUNTIME-UNION-BINDING-METADATA: registro de bindings de união não pôde reservar \
+             metadata",
+        )
+    })?;
+    arena.next_address = next;
+    arena.bytes = bytes;
+    arena.regions.push(PublicMemoryRegion {
         base,
         size,
         alive: true,
@@ -2013,7 +2169,7 @@ fn union_snapshot_to_binding(
                 ));
             }
             let base =
-                union_reserve_public_storage(public_memory_state, layout.size, layout.align)?;
+                union_reserve_binding_storage(public_memory_state, layout.size, layout.align)?;
             for (offset, byte) in bytes.iter().enumerate() {
                 let byte_address = base
                     .checked_add(offset)
@@ -2057,9 +2213,12 @@ fn public_memory_allocate(
         .checked_add(rounded)
         .ok_or_else(|| runtime_err("overflow de endereço em 'alocar'"))?;
     let arena_end = PUBLIC_MEMORY_BASE
-        .checked_add(PUBLIC_MEMORY_MAX_VIRTUAL_BYTES)
+        .checked_add(state.limits.max_virtual_bytes)
         .ok_or_else(|| runtime_err("overflow no limite virtual da memória pública"))?;
-    if state.regions.len() >= PUBLIC_MEMORY_MAX_IDENTITIES {
+    // A cota vitalícia de identidades públicas é consumida **somente** aqui:
+    // uma chamada bem-sucedida de `alocar` acrescenta exatamente uma entrada em
+    // `regions`. O domínio interno de união tem arena e teto próprios.
+    if state.regions.len() >= state.limits.max_identities {
         return Err(runtime_err("limite de identidades públicas esgotado"));
     }
     if next > arena_end {
@@ -6503,3 +6662,684 @@ mod hr3_union_budget_tests {
         assert!(error.contains("overflow"), "{error}");
     }
 }
+
+// @pinker-nav:start interpreter.unioes.contabilidade-dominios
+// @pinker-nav:domain unioes
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Matriz de contabilidade dos dois domínios de storage do interpretador — identidades públicas consumidas exclusivamente por `alocar` e domínio interno de união com descritores, bytes de payload e bindings de extração —, provando com limites reduzidos por configuração interna que construir e extrair uniões não reduz a capacidade pública, que o esgotamento de cada domínio produz diagnóstico próprio, que `liberar` recusa endereços internos e que liberar memória pública não altera o orçamento interno.
+#[cfg(test)]
+mod contabilidade_dominios_uniao_tests {
+    use super::*;
+
+    /// Contabilidade observada ao fim de uma execução hospedada.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    struct Contabilidade {
+        identidades_publicas: usize,
+        descritores_uniao: usize,
+        bytes_payload_uniao: u64,
+        metadata_uniao: u64,
+        bindings_uniao: usize,
+        bytes_binding_uniao: u64,
+    }
+
+    fn compilar(source: &str) -> crate::abstract_machine::MachineProgram {
+        let mut lexer = crate::lexer::Lexer::new(source);
+        let tokens = lexer.tokenize().expect("lexer");
+        let mut parser = crate::parser::Parser::new(tokens);
+        let ast = parser.parse().expect("parser");
+        crate::semantic::check_program(&ast).expect("semantic");
+        let ir_program = crate::ir::lower_program(&ast).expect("ir");
+        crate::ir_validate::validate_program(&ir_program).expect("ir validate");
+        let cfg = crate::cfg_ir::lower_program(&ir_program).expect("cfg");
+        crate::cfg_ir_validate::validate_program(&cfg).expect("cfg validate");
+        let selected = crate::instr_select::lower_program(&cfg).expect("selected");
+        crate::instr_select_validate::validate_program(&selected).expect("selected validate");
+        let machine = crate::abstract_machine::lower_program(&selected).expect("machine");
+        crate::abstract_machine_validate::validate_program(&machine).expect("machine validate");
+        machine
+    }
+
+    /// Executa com limites reduzidos por **configuração interna de teste**.
+    ///
+    /// Os limites viajam pelos mesmos campos usados em produção; não há variável
+    /// de ambiente nem opção pública, e o comportamento não muda entre debug e
+    /// release.
+    fn executar(
+        source: &str,
+        publicos: PublicMemoryLimits,
+        descritores: UnionBudgetLimits,
+        bindings: UnionBindingLimits,
+    ) -> (Result<RunOutcome, PinkerError>, Contabilidade) {
+        let program = compilar(source);
+        UNION_RUNTIME_STATE.with(|state| {
+            *state.borrow_mut() = UnionRuntimeState {
+                limits: descritores,
+                ..UnionRuntimeState::default()
+            };
+        });
+        let mut estado = PublicMemoryState {
+            limits: publicos,
+            union_bindings: UnionBindingArena {
+                limits: bindings,
+                ..UnionBindingArena::default()
+            },
+            ..PublicMemoryState::default()
+        };
+        let resultado = run_program_com_estado(&program, &[], &mut estado);
+        let (descritores_uniao, bytes_payload_uniao, metadata_uniao) =
+            UNION_RUNTIME_STATE.with(|state| {
+                let state = state.borrow();
+                (
+                    state.descriptors.len(),
+                    state.total_payload_bytes,
+                    state.metadata_bytes,
+                )
+            });
+        let contabilidade = Contabilidade {
+            identidades_publicas: estado.regions.len(),
+            descritores_uniao,
+            bytes_payload_uniao,
+            metadata_uniao,
+            bindings_uniao: estado.union_bindings.regions.len(),
+            bytes_binding_uniao: estado.union_bindings.bytes,
+        };
+        (resultado, contabilidade)
+    }
+
+    /// Execução com os limites canônicos de produção.
+    fn executar_canonico(source: &str) -> (Result<RunOutcome, PinkerError>, Contabilidade) {
+        executar(
+            source,
+            PUBLIC_MEMORY_LIMITS,
+            UNION_BUDGET_LIMITS,
+            UNION_BINDING_LIMITS,
+        )
+    }
+
+    fn diagnostico(resultado: &Result<RunOutcome, PinkerError>) -> String {
+        match resultado {
+            Ok(_) => String::new(),
+            Err(erro) => erro.to_string(),
+        }
+    }
+
+    /// `n` chamadas de `alocar` e nenhuma união.
+    fn fonte_somente_alocar(n: usize) -> String {
+        let mut corpo = String::new();
+        for indice in 0..n {
+            corpo.push_str(&format!(
+                "    nova p{indice}: seta<u8> = alocar(16);\n    *p{indice} = 1;\n"
+            ));
+        }
+        format!("pacote main;\ncarinho principal() -> bombom {{\n{corpo}    mimo 0;\n}}\n")
+    }
+
+    /// `n` construções e extrações de união com payload **escalar**.
+    fn fonte_uniao_escalar(n: u64) -> String {
+        format!(
+            "pacote main;\n\
+             carinho principal() -> bombom {{\n\
+             \x20   nova muda i: bombom = 0;\n\
+             \x20   sempre que i < {n} {{\n\
+             \x20       nova v: uniao<u8, verso> = (7 virar u8) virar uniao<u8, verso>;\n\
+             \x20       encaixe v {{\n\
+             \x20           caso u8(numero) {{ nova d: bombom = numero virar bombom; }}\n\
+             \x20           caso verso(texto) {{ nova e: bombom = 0; }}\n\
+             \x20       }}\n\
+             \x20       i = i + 1;\n\
+             \x20   }}\n\
+             \x20   mimo 0;\n\
+             }}\n"
+        )
+    }
+
+    /// `n` construções e extrações de união com payload **agregado** de
+    /// `[bombom; 2]` (16 bytes, multi-palavra), a partir de uma única região
+    /// pública de origem.
+    fn fonte_uniao_agregada(n: u64) -> String {
+        format!(
+            "pacote main;\n\
+             carinho principal() -> bombom {{\n\
+             \x20   nova base: seta<[bombom; 2]> = alocar(16) virar seta<[bombom; 2]>;\n\
+             \x20   nova celula: seta<bombom> = base virar seta<bombom>;\n\
+             \x20   *celula = 5;\n\
+             \x20   nova muda i: bombom = 0;\n\
+             \x20   sempre que i < {n} {{\n\
+             \x20       nova v: uniao<[bombom; 2], u8> = (*base) virar uniao<[bombom; 2], u8>;\n\
+             \x20       encaixe v {{\n\
+             \x20           caso [bombom; 2](agregado) {{ nova d: bombom = agregado[0]; }}\n\
+             \x20           caso u8(numero) {{ nova e: bombom = 0; }}\n\
+             \x20       }}\n\
+             \x20       i = i + 1;\n\
+             \x20   }}\n\
+             \x20   mimo 0;\n\
+             }}\n"
+        )
+    }
+
+    // -----------------------------------------------------------------------
+    // Contrato da identidade pública
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn alocar_consome_exatamente_uma_identidade_publica_por_chamada() {
+        for chamadas in [0usize, 1, 3, 7] {
+            let (resultado, conta) = executar_canonico(&fonte_somente_alocar(chamadas));
+            resultado.expect("execução sem união deve concluir");
+            assert_eq!(
+                conta.identidades_publicas, chamadas,
+                "cada `alocar` bem-sucedido consome exatamente uma identidade pública"
+            );
+            assert_eq!(conta.descritores_uniao, 0);
+            assert_eq!(conta.bindings_uniao, 0);
+        }
+    }
+
+    #[test]
+    fn uniao_escalar_nao_consome_identidade_publica() {
+        let (resultado, conta) = executar_canonico(&fonte_uniao_escalar(5));
+        resultado.expect("execução com uniões escalares deve concluir");
+        assert_eq!(
+            conta.identidades_publicas, 0,
+            "payload escalar não materializa storage endereçável"
+        );
+        assert_eq!(conta.descritores_uniao, 5);
+        assert_eq!(
+            conta.bytes_payload_uniao, 5,
+            "u8 ocupa 1 byte por descritor"
+        );
+        assert_eq!(conta.bindings_uniao, 0);
+        assert_eq!(conta.bytes_binding_uniao, 0);
+    }
+
+    #[test]
+    fn uniao_agregada_nao_consome_identidade_publica() {
+        for construcoes in [1u64, 3, 16] {
+            let (resultado, conta) = executar_canonico(&fonte_uniao_agregada(construcoes));
+            resultado.expect("execução com uniões agregadas deve concluir");
+            // A única identidade pública é a origem criada por `alocar`.
+            assert_eq!(
+                conta.identidades_publicas, 1,
+                "construir e extrair {construcoes} uniões agregadas não pode consumir identidade \
+                 pública além do `alocar` da origem"
+            );
+            assert_eq!(conta.descritores_uniao, construcoes as usize);
+            assert_eq!(conta.bytes_payload_uniao, construcoes * 16);
+            assert_eq!(
+                conta.bindings_uniao, construcoes as usize,
+                "cada extração agregada materializa um binding no domínio interno"
+            );
+            assert_eq!(conta.bytes_binding_uniao, construcoes * 16);
+        }
+    }
+
+    #[test]
+    fn construir_unioes_nao_altera_a_capacidade_restante_de_alocar() {
+        let (_, sem_uniao) = executar_canonico(&fonte_somente_alocar(1));
+        let (_, com_uniao) = executar_canonico(&fonte_uniao_agregada(32));
+        assert_eq!(
+            sem_uniao.identidades_publicas, com_uniao.identidades_publicas,
+            "32 construções agregadas não podem mudar a contagem de identidades públicas"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Esgotamento de cada domínio, com limites reduzidos
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn esgotamento_publico_acontece_apenas_por_alocar() {
+        let publicos = PublicMemoryLimits {
+            max_identities: 3,
+            ..PUBLIC_MEMORY_LIMITS
+        };
+        // Três `alocar` cabem exatamente na cota.
+        let (ok, conta) = executar(
+            &fonte_somente_alocar(3),
+            publicos,
+            UNION_BUDGET_LIMITS,
+            UNION_BINDING_LIMITS,
+        );
+        ok.expect("três alocações cabem na cota de três identidades");
+        assert_eq!(conta.identidades_publicas, 3);
+
+        // A quarta falha, e só ela.
+        let (erro, _) = executar(
+            &fonte_somente_alocar(4),
+            publicos,
+            UNION_BUDGET_LIMITS,
+            UNION_BINDING_LIMITS,
+        );
+        assert!(
+            diagnostico(&erro).contains("limite de identidades públicas esgotado"),
+            "{}",
+            diagnostico(&erro)
+        );
+    }
+
+    #[test]
+    fn dominio_interno_de_uniao_nao_esgota_a_cota_publica() {
+        // Cota pública mínima viável: apenas a origem agregada.
+        let publicos = PublicMemoryLimits {
+            max_identities: 1,
+            ..PUBLIC_MEMORY_LIMITS
+        };
+        let (resultado, conta) = executar(
+            &fonte_uniao_agregada(64),
+            publicos,
+            UNION_BUDGET_LIMITS,
+            UNION_BINDING_LIMITS,
+        );
+        resultado.expect(
+            "64 construções agregadas devem concluir mesmo com a cota pública inteira consumida \
+             pela origem",
+        );
+        assert_eq!(conta.identidades_publicas, 1);
+        assert_eq!(conta.bindings_uniao, 64);
+    }
+
+    #[test]
+    fn esgotar_o_dominio_interno_mantem_a_cota_publica_numericamente_intacta() {
+        let bindings = UnionBindingLimits {
+            max_regions: 4,
+            ..UNION_BINDING_LIMITS
+        };
+        let (erro, conta) = executar(
+            &fonte_uniao_agregada(8),
+            PUBLIC_MEMORY_LIMITS,
+            UNION_BUDGET_LIMITS,
+            bindings,
+        );
+        assert!(
+            diagnostico(&erro).contains("E-RUNTIME-UNION-BINDING-BUDGET"),
+            "{}",
+            diagnostico(&erro)
+        );
+        assert_eq!(
+            conta.identidades_publicas, 1,
+            "o esgotamento interno não pode ter consumido identidade pública alguma além da origem"
+        );
+        assert_eq!(conta.bindings_uniao, 4, "o teto interno foi respeitado");
+    }
+
+    #[test]
+    fn limite_de_descritores_internos_tem_diagnostico_proprio() {
+        let descritores = UnionBudgetLimits {
+            max_descriptors: 3,
+            ..UNION_BUDGET_LIMITS
+        };
+        let (erro, conta) = executar(
+            &fonte_uniao_agregada(8),
+            PUBLIC_MEMORY_LIMITS,
+            descritores,
+            UNION_BINDING_LIMITS,
+        );
+        let mensagem = diagnostico(&erro);
+        assert!(
+            mensagem.contains("E-RUNTIME-UNION-DESCRIPTOR-BUDGET"),
+            "{mensagem}"
+        );
+        assert!(
+            !mensagem.contains("identidades públicas"),
+            "o limite interno não pode reutilizar a mensagem do limite público: {mensagem}"
+        );
+        assert_eq!(conta.identidades_publicas, 1);
+        assert_eq!(conta.descritores_uniao, 3);
+    }
+
+    #[test]
+    fn limite_de_bytes_internos_tem_diagnostico_proprio() {
+        // Cabem exatamente três payloads de 16 bytes.
+        let descritores = UnionBudgetLimits {
+            max_payload_bytes: 48,
+            ..UNION_BUDGET_LIMITS
+        };
+        let (erro, conta) = executar(
+            &fonte_uniao_agregada(8),
+            PUBLIC_MEMORY_LIMITS,
+            descritores,
+            UNION_BINDING_LIMITS,
+        );
+        let mensagem = diagnostico(&erro);
+        assert!(
+            mensagem.contains("E-RUNTIME-UNION-PAYLOAD-BUDGET"),
+            "{mensagem}"
+        );
+        assert!(!mensagem.contains("identidades públicas"), "{mensagem}");
+        assert_eq!(conta.identidades_publicas, 1);
+        assert_eq!(conta.bytes_payload_uniao, 48);
+    }
+
+    #[test]
+    fn limite_de_bytes_de_binding_tem_diagnostico_proprio() {
+        let bindings = UnionBindingLimits {
+            max_bytes: 32,
+            ..UNION_BINDING_LIMITS
+        };
+        let (erro, conta) = executar(
+            &fonte_uniao_agregada(8),
+            PUBLIC_MEMORY_LIMITS,
+            UNION_BUDGET_LIMITS,
+            bindings,
+        );
+        let mensagem = diagnostico(&erro);
+        assert!(
+            mensagem.contains("E-RUNTIME-UNION-BINDING-BYTES"),
+            "{mensagem}"
+        );
+        assert!(!mensagem.contains("identidades públicas"), "{mensagem}");
+        assert_eq!(conta.identidades_publicas, 1);
+        assert_eq!(conta.bytes_binding_uniao, 32);
+    }
+
+    // -----------------------------------------------------------------------
+    // Teste cruzado dos dois orçamentos
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn cruzado_cota_publica_intacta_apos_muitas_unioes_agregadas() {
+        // Cota de 4: a origem mais três alocações públicas restantes.
+        let publicos = PublicMemoryLimits {
+            max_identities: 4,
+            ..PUBLIC_MEMORY_LIMITS
+        };
+        let cenario = |extras: usize, unioes: u64| -> String {
+            let mut corpo = String::from(
+                "    nova base: seta<[bombom; 2]> = alocar(16) virar seta<[bombom; 2]>;\n\
+                 \x20   nova celula: seta<bombom> = base virar seta<bombom>;\n\
+                 \x20   *celula = 5;\n",
+            );
+            corpo.push_str(&format!(
+                "    nova muda i: bombom = 0;\n\
+                 \x20   sempre que i < {unioes} {{\n\
+                 \x20       nova v: uniao<[bombom; 2], u8> = (*base) virar uniao<[bombom; 2], u8>;\n\
+                 \x20       encaixe v {{\n\
+                 \x20           caso [bombom; 2](agregado) {{ nova d: bombom = agregado[0]; }}\n\
+                 \x20           caso u8(numero) {{ nova e: bombom = 0; }}\n\
+                 \x20       }}\n\
+                 \x20       i = i + 1;\n\
+                 \x20   }}\n"
+            ));
+            for indice in 0..extras {
+                corpo.push_str(&format!("    nova extra{indice}: seta<u8> = alocar(16);\n"));
+            }
+            format!("pacote main;\ncarinho principal() -> bombom {{\n{corpo}    mimo 0;\n}}\n")
+        };
+
+        // 1 (origem) + 3 extras = 4, exatamente a cota, depois de 128 uniões.
+        let (ok, conta) = executar(
+            &cenario(3, 128),
+            publicos,
+            UNION_BUDGET_LIMITS,
+            UNION_BINDING_LIMITS,
+        );
+        ok.expect("a última alocação pública permitida deve ser aceita depois das uniões");
+        assert_eq!(conta.identidades_publicas, 4);
+        assert_eq!(conta.bindings_uniao, 128);
+
+        // Só a seguinte falha.
+        let (erro, _) = executar(
+            &cenario(4, 128),
+            publicos,
+            UNION_BUDGET_LIMITS,
+            UNION_BINDING_LIMITS,
+        );
+        assert!(
+            diagnostico(&erro).contains("limite de identidades públicas esgotado"),
+            "{}",
+            diagnostico(&erro)
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Fronteira entre os domínios
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn liberar_recusa_endereco_do_dominio_interno_de_uniao() {
+        let mut estado = PublicMemoryState::default();
+        let base = union_reserve_binding_storage(&mut estado, 16, 8).expect("binding reservado");
+        assert!(
+            base >= UNION_BINDING_BASE,
+            "o binding deve viver na arena interna: {base:#x}"
+        );
+        assert!(
+            estado.regions.is_empty(),
+            "o binding não pode aparecer no registro de identidades públicas"
+        );
+        let Err(erro) = public_memory_free(&[RuntimeValue::Ptr(base)], &mut estado) else {
+            panic!("'liberar' deve recusar um endereço interno");
+        };
+        let erro = erro.to_string();
+        assert!(erro.contains("E-RUNTIME-MEM-FOREIGN-FREE"), "{erro}");
+    }
+
+    #[test]
+    fn liberar_memoria_publica_nao_altera_o_orcamento_interno_de_unioes() {
+        let mut estado = PublicMemoryState::default();
+        let IntrinsicCall::Done(Some(RuntimeValue::Ptr(publico))) =
+            public_memory_allocate(&[RuntimeValue::Int(16)], &mut estado).expect("alocar")
+        else {
+            panic!("'alocar' deveria devolver um ponteiro");
+        };
+        union_reserve_binding_storage(&mut estado, 16, 8).expect("binding reservado");
+        let antes = (
+            estado.union_bindings.regions.len(),
+            estado.union_bindings.bytes,
+            estado.union_bindings.next_address,
+        );
+        public_memory_free(&[RuntimeValue::Ptr(publico)], &mut estado).expect("liberar");
+        let depois = (
+            estado.union_bindings.regions.len(),
+            estado.union_bindings.bytes,
+            estado.union_bindings.next_address,
+        );
+        assert_eq!(
+            antes, depois,
+            "liberar memória pública não pode devolver nem alterar orçamento interno de uniões"
+        );
+    }
+
+    #[test]
+    fn arena_interna_e_disjunta_da_arena_publica() {
+        let fim_publico = PUBLIC_MEMORY_BASE + PUBLIC_MEMORY_MAX_VIRTUAL_BYTES;
+        assert!(
+            UNION_BINDING_BASE >= fim_publico,
+            "a arena interna deve começar depois do fim da arena pública: {UNION_BINDING_BASE:#x} \
+             vs {fim_publico:#x}"
+        );
+    }
+
+    #[test]
+    fn bindings_sucessivos_recebem_regioes_distintas_e_alinhadas() {
+        let mut estado = PublicMemoryState::default();
+        let primeiro = union_reserve_binding_storage(&mut estado, 24, 8).expect("primeiro");
+        let segundo = union_reserve_binding_storage(&mut estado, 24, 8).expect("segundo");
+        assert_ne!(primeiro, segundo, "duas extrações não compartilham storage");
+        assert_eq!(primeiro % 16, 0, "storage alinhado a 16");
+        assert_eq!(segundo % 16, 0, "storage alinhado a 16");
+        assert!(
+            segundo >= primeiro + 24,
+            "as regiões não podem se sobrepor: {primeiro:#x} e {segundo:#x}"
+        );
+        assert_eq!(estado.union_bindings.bytes, 48);
+        assert_eq!(estado.regions.len(), 0);
+    }
+
+    #[test]
+    fn alinhamento_acima_do_teto_e_recusado_antes_de_reservar() {
+        let mut estado = PublicMemoryState::default();
+        let erro = union_reserve_binding_storage(
+            &mut estado,
+            16,
+            crate::union_payload::MAX_UNION_PAYLOAD_ALIGN * 2,
+        )
+        .expect_err("alinhamento acima do teto deve ser recusado")
+        .to_string();
+        assert!(erro.contains("E-RUNTIME-UNION-ALIGN"), "{erro}");
+        assert_eq!(estado.union_bindings.regions.len(), 0, "nada foi reservado");
+        assert_eq!(estado.union_bindings.bytes, 0);
+    }
+
+    #[test]
+    fn orcamento_de_binding_usa_operacoes_checked() {
+        let mut estado = PublicMemoryState {
+            union_bindings: UnionBindingArena {
+                bytes: u64::MAX,
+                ..UnionBindingArena::default()
+            },
+            ..PublicMemoryState::default()
+        };
+        let erro = union_reserve_binding_storage(&mut estado, 1, 8)
+            .expect_err("overflow deve ser recusado")
+            .to_string();
+        assert!(erro.contains("E-RUNTIME-UNION-BINDING-OVERFLOW"), "{erro}");
+    }
+
+    /// Alias transparente, união aninhada achatada e travessia por chamada
+    /// direta: nenhuma dessas formas muda a contagem de identidades públicas.
+    const FORMAS_COMPOSTAS: &str = r#"pacote main;
+
+apelido Trio = [bombom; 3];
+
+carinho consome(v: uniao<Trio, u8>) -> bombom {
+    nova muda saida: bombom = 0;
+    encaixe v {
+        caso Trio(agregado) { saida = agregado[0]; }
+        caso u8(numero) { saida = 0; }
+    }
+    mimo saida;
+}
+
+carinho principal() -> bombom {
+    nova base: seta<Trio> = alocar(24) virar seta<Trio>;
+    nova celula: seta<bombom> = base virar seta<bombom>;
+    *celula = 55;
+
+    nova valor: uniao<Trio, u8> = (*base) virar uniao<Trio, u8>;
+    falar(consome(valor));
+
+    nova aninhada: uniao<uniao<Trio, u8>, verso> = (*base) virar uniao<uniao<Trio, u8>, verso>;
+    encaixe aninhada {
+        caso Trio(a) { falar(a[0]); }
+        caso u8(n) { falar(1); }
+        caso verso(t) { falar(2); }
+    }
+    mimo 0;
+}
+"#;
+
+    #[test]
+    fn alias_uniao_aninhada_e_chamada_direta_nao_mudam_a_contagem() {
+        let (resultado, conta) = executar_canonico(FORMAS_COMPOSTAS);
+        resultado.expect("alias, união aninhada e chamada direta devem concluir");
+        assert_eq!(
+            conta.identidades_publicas, 1,
+            "apelidos, achatamento de união aninhada e travessia por chamada não criam identidade \
+             pública: só o `alocar` da origem conta"
+        );
+        // Duas injeções (uma por `virar`) e duas extrações agregadas.
+        assert_eq!(conta.descritores_uniao, 2);
+        assert_eq!(conta.bindings_uniao, 2);
+        assert_eq!(conta.bytes_binding_uniao, 48, "dois agregados de 24 bytes");
+    }
+
+    #[test]
+    fn extracao_e_reinjecao_nao_duplicam_consumo_indevido() {
+        let fonte = r#"pacote main;
+carinho principal() -> bombom {
+    nova base: seta<[bombom; 2]> = alocar(16) virar seta<[bombom; 2]>;
+    nova celula: seta<bombom> = base virar seta<bombom>;
+    *celula = 31;
+    nova primeira: uniao<[bombom; 2], u8> = (*base) virar uniao<[bombom; 2], u8>;
+    encaixe primeira {
+        caso [bombom; 2](agregado) {
+            nova segunda: uniao<[bombom; 2], u8> = agregado virar uniao<[bombom; 2], u8>;
+            encaixe segunda {
+                caso [bombom; 2](copia) { falar(copia[0]); }
+                caso u8(numero) { falar(999); }
+            }
+        }
+        caso u8(numero) { falar(999); }
+    }
+    mimo 0;
+}
+"#;
+        let (resultado, conta) = executar_canonico(fonte);
+        resultado.expect("extração seguida de reinjeção deve concluir");
+        assert_eq!(
+            conta.identidades_publicas, 1,
+            "reinjetar um binding não cria identidade pública"
+        );
+        assert_eq!(
+            conta.descritores_uniao, 2,
+            "duas injeções, duas cobranças de descritor — nem mais, nem menos"
+        );
+        assert_eq!(
+            conta.bindings_uniao, 2,
+            "duas extrações, dois bindings — a reinjeção não cobra um terceiro"
+        );
+        assert_eq!(conta.bytes_payload_uniao, 32);
+        assert_eq!(conta.bytes_binding_uniao, 32);
+    }
+
+    #[test]
+    fn binding_preserva_alinhamentos_de_1_a_16() {
+        for align in [1u64, 2, 4, 8, 16] {
+            let mut estado = PublicMemoryState::default();
+            let base = union_reserve_binding_storage(&mut estado, align.max(1), align)
+                .unwrap_or_else(|erro| panic!("alinhamento {align} deveria ser aceito: {erro}"));
+            assert_eq!(
+                base % (align as usize),
+                0,
+                "storage de binding desalinhado para align={align}: {base:#x}"
+            );
+            assert_eq!(estado.regions.len(), 0, "nenhuma identidade pública gasta");
+        }
+    }
+
+    #[test]
+    fn payload_multi_palavra_consome_os_bytes_corretos() {
+        for palavras in [1u64, 2, 3, 8] {
+            let bytes = palavras * 8;
+            let mut estado = PublicMemoryState::default();
+            union_reserve_binding_storage(&mut estado, bytes, 8).expect("binding multi-palavra");
+            assert_eq!(
+                estado.union_bindings.bytes, bytes,
+                "um agregado de {palavras} palavras deve consumir {bytes} bytes internos"
+            );
+            assert_eq!(estado.regions.len(), 0);
+        }
+    }
+
+    #[test]
+    fn os_limites_dos_dois_dominios_sao_finitos_e_independentes() {
+        // Finitos: cada teto é diferente de zero e de `usize`/`u64::MAX`.
+        assert_ne!(PUBLIC_MEMORY_LIMITS.max_identities, 0);
+        assert_ne!(PUBLIC_MEMORY_LIMITS.max_identities, usize::MAX);
+        assert_ne!(UNION_BUDGET_LIMITS.max_descriptors, 0);
+        assert_ne!(UNION_BUDGET_LIMITS.max_descriptors, u64::MAX);
+        assert_ne!(UNION_BINDING_LIMITS.max_regions, 0);
+        assert_ne!(UNION_BINDING_LIMITS.max_regions, u64::MAX);
+        assert_ne!(UNION_BINDING_LIMITS.max_bytes, 0);
+        assert_ne!(UNION_BINDING_LIMITS.max_bytes, u64::MAX);
+        // O teto interno não é derivado do público: cada um tem sua autoridade.
+        assert_eq!(
+            UNION_BINDING_LIMITS.max_regions,
+            crate::union_payload::MAX_UNION_BINDING_REGIONS
+        );
+        assert_eq!(
+            UNION_BINDING_LIMITS.max_bytes,
+            crate::union_payload::MAX_UNION_BINDING_BYTES
+        );
+        assert_eq!(
+            UNION_BUDGET_LIMITS.max_descriptors,
+            crate::union_payload::MAX_UNION_DESCRIPTORS
+        );
+        assert_eq!(
+            PUBLIC_MEMORY_LIMITS.max_identities,
+            PUBLIC_MEMORY_MAX_IDENTITIES
+        );
+    }
+}
+// @pinker-nav:end interpreter.unioes.contabilidade-dominios

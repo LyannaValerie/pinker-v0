@@ -117,6 +117,26 @@ pub const UNION_DESCRIPTOR_METADATA_BYTES: u64 = 8 * 8;
 /// Teto de metadata de descritores, derivado do teto de descritores.
 pub const MAX_UNION_METADATA_BYTES: u64 = MAX_UNION_DESCRIPTORS * UNION_DESCRIPTOR_METADATA_BYTES;
 
+// ---------------------------------------------------------------------------
+// Domínio interno de binding de extração
+//
+// Extrair um payload agregado materializa uma cópia nova, distinta do snapshot
+// imutável do descritor. Esse storage **não é uma identidade pública**: não vem
+// de `alocar`, não é aceito por `liberar` e não reduz a cota vitalícia de
+// identidades públicas. O backend nativo o realiza como slot do frame
+// (`leaq -offset(%rbp)`), reaproveitado a cada passagem pelo mesmo ponto de
+// extração; o interpretador não possui frame de máquina e o realiza numa arena
+// interna própria, monotônica enquanto não existir contrato de desalocação para
+// uniões. Os tetos abaixo são o contrato compartilhado desse domínio: finitos,
+// independentes do profile de compilação e com diagnóstico próprio.
+// ---------------------------------------------------------------------------
+
+/// Teto de regiões de binding de extração vivas no domínio interno.
+pub const MAX_UNION_BINDING_REGIONS: u64 = 1_000_000;
+
+/// Teto agregado de bytes materializados para bindings de extração.
+pub const MAX_UNION_BINDING_BYTES: u64 = 256 * 1024 * 1024;
+
 /// Motivo estável pelo qual um tipo não pode ser membro de união.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UnionPayloadRejection {

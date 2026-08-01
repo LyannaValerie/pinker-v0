@@ -438,11 +438,11 @@ o orçamento — este é um limite conhecido, não um defeito latente.
 Não há reciclagem planejada. Introduzi-la exigiria um contrato próprio de
 geração e *lifetime* que hoje não existe; até que exista, a cota é vitalícia.
 
-Uma nota de assimetria, medida e ainda não unificada: no interpretador, o
-armazenamento de payload agregado de união também consome uma identidade
-pública, porque compartilha o mesmo registro de regiões; no runtime nativo, esse
-armazenamento tem orçamento próprio e não toca a cota pública. Programas que
-constroem muitas uniões agregadas esgotam a cota mais cedo no interpretador.
+A cota conta **apenas** regiões públicas criadas por `alocar`. O armazenamento
+interno de união — descritores, snapshots de payload e o storage do binding
+extraído por `encaixe` — pertence a um domínio separado, com orçamento e
+diagnósticos próprios, e não reduz a capacidade pública observável em nenhum dos
+dois back-ends. Ver [Contabilidade de uniões](docs/union_types.md#contabilidade-identidade-pública-e-domínio-interno).
 
 A API mantém o modelo fatal estruturado já usado pelas intrínsecas de runtime;
 ela não retorna `Resultado<T,E>` porque isso criaria uma segunda ABI de erro
