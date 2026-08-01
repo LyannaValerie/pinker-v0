@@ -7340,10 +7340,7 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
             post_nav.as_slice(),
             (422, 194_446, 2_601_187_225_600_117_156),
         ),
-        (
-            wave_8.as_slice(),
-            (416, 192_709, 6_673_599_250_081_331_075),
-        ),
+        (wave_8.as_slice(), (416, 192_709, 6_673_599_250_081_331_075)),
     ] {
         let projection = stable_region_projection(regions.iter().copied());
         assert_eq!(
