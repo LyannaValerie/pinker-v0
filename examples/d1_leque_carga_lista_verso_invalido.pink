@@ -1,0 +1,15 @@
+pacote main;
+
+// D1 negativo — `lista<bombom>` não aceita `lista<verso>`.
+//
+// `lista<verso>` também não é um `verso`: são três identidades distintas com a
+// mesma classe de representação.
+leque Pacote {
+    Numeros(lista<bombom>),
+}
+
+carinho principal() -> bombom {
+    nova textos: lista<verso> = lista_criar();
+    nova p: Pacote = Pacote.Numeros(textos);
+    mimo 0;
+}

@@ -1,0 +1,25 @@
+pacote main;
+
+// D1 negativo — `lista<Cor>` não aceita `lista<Token>`.
+//
+// As duas chegam ao runtime como handles de uma palavra e **não** são tipos
+// intercambiáveis: o diagnóstico é de incompatibilidade de tipos, não de
+// representação.
+leque Cor {
+    Rosa,
+    Azul,
+}
+
+leque Token {
+    Fim,
+}
+
+leque A {
+    X(lista<Cor>),
+}
+
+carinho principal() -> bombom {
+    nova tokens: lista<Token> = lista_criar();
+    nova valor: A = A.X(tokens);
+    mimo 0;
+}
