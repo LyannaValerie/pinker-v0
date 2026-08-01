@@ -1,0 +1,19 @@
+schema: 1
+source:
+  type: github-pr
+  number: 418
+  repository: "LyannaValerie/pinker-v0"
+kind: parallel-phase
+title: "Aceita listas como cargas tipadas de variantes"
+area:
+  - language.enums
+  - language.collections
+  - compiler.ir
+status: completed
+updates:
+  state: false
+  history: false
+  roadmap: false
+validation:
+  required:
+    - make ci

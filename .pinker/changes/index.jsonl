@@ -3,3 +3,4 @@
 {"schema":1,"pr":410,"kind":"phase","phase":246,"block":20,"title":"Alocação e liberação explícitas de memória","status":"completed","area":["language.memory","runtime.allocation"]}
 {"schema":1,"pr":411,"kind":"phase","phase":248,"block":20,"title":"Uniões estruturais tagged","status":"completed","area":["language.inline-assembly","language.union-types","runtime.integer-semantics","runtime.public-memory","development.test-integrity"]}
 {"schema":1,"pr":412,"kind":"hotfix","block":20,"title":"Endurecimento do runtime nativo pós-PR","status":"completed","area":["runtime.public-memory","runtime.process-io","development.test-integrity"]}
+{"schema":1,"pr":418,"kind":"parallel-phase","title":"Aceita listas como cargas tipadas de variantes","status":"completed","area":["language.enums","language.collections","compiler.ir"]}
