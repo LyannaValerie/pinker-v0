@@ -21,7 +21,7 @@ tags: [linguagem, uniao, tipos, tagged, encaixe]
 aliases:
   - uniao estrutural
   - union types
-summary: Define identidade canônica, injeção explícita, encaixe exaustivo, handle público de uma palavra e snapshot integral do payload — escalar, handle opaco ou agregado multi-palavra —, com a distinção explícita entre o que o pipeline representa, o que a sintaxe-fonte constrói e qual evidência executável cobre cada forma; e separa os dois domínios de armazenamento, a cota vitalícia de identidades públicas consumida só por `alocar` e o domínio interno de união com tetos, monotonicidade e diagnósticos próprios, idênticos no interpretador e no nativo.
+summary: Define identidade canônica, injeção explícita, encaixe exaustivo, handle público de uma palavra e snapshot integral do payload — escalar, handle opaco ou agregado multi-palavra —, com a distinção explícita entre o que o pipeline representa, o que a sintaxe-fonte constrói e qual evidência executável cobre cada forma; e separa os dois domínios de armazenamento — a cota vitalícia de identidades públicas, consumida só por `alocar` e com contrato igual nos dois back-ends, e o domínio interno de união, onde descritores, bytes de payload e metadata têm limites compartilhados, mas o storage do binding de extração é slot de frame já reservado e sem cota própria no nativo e arena monotônica com limite e diagnósticos exclusivos no interpretador.
 -->
 
 Uma união é escrita `uniao<T1, T2, ...>`. Aliases são resolvidos, uniões
