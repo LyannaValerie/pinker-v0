@@ -279,6 +279,9 @@ fn nome_de_invocacao_usa_apenas_componente_final_em_paths_absolutos_e_com_espaco
     let spaced_dir = temp.path().join("caminho com espaços");
     fs::create_dir(&spaced_dir).expect("diretório com espaços");
     let copied = spaced_dir.join("pink");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(pink(), &copied).expect("criar symlink com espaços");
+    #[cfg(not(unix))]
     fs::copy(pink(), &copied).expect("copiar pink");
     let spaced = Command::new(&copied)
         .arg("--help")
@@ -294,7 +297,10 @@ fn nome_de_invocacao_usa_apenas_componente_final_em_paths_absolutos_e_com_espaco
 fn nome_de_invocacao_relativo_preserva_apenas_o_nome_final() {
     let temp = TempDir::new("relativo");
     let copied = temp.path().join("pink");
-    fs::copy(pink(), copied).expect("copiar pink");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(pink(), &copied).expect("criar symlink relativo");
+    #[cfg(not(unix))]
+    fs::copy(pink(), &copied).expect("copiar pink");
     let output = Command::new("./pink")
         .arg("--help")
         .current_dir(temp.path())
