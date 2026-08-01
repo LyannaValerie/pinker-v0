@@ -335,11 +335,17 @@ Estes aliases existem por compatibilidade temporária e devem ser tratados como 
 | `__pinker_internal_leque_criar_0` | `(tag) → handle` | Suporte interno à construção de variante de leque sem carga (Fase 209) |
 | `__pinker_internal_leque_criar_b` | `(tag, bombom) → handle` | Suporte interno à construção de variante de leque com carga `bombom` (Fase 209) |
 | `__pinker_internal_leque_criar_v` | `(tag, verso) → handle` | Suporte interno à construção de variante de leque com carga `verso` (Fase 209) |
+| `__pinker_internal_leque_anexar_b` | `(handle, bombom) → handle` | Anexa carga imediata (`bombom` ou discriminante de leque) segundo a classificação única de cargas |
+| `__pinker_internal_leque_anexar_v` | `(handle, verso) → handle` | Anexa carga textual segundo a classificação única de cargas |
+| `__pinker_internal_leque_anexar_lista_b` | `(handle, lista<bombom>) → handle` | Anexa rasamente um handle de `lista<bombom>` ou `lista<Leque>`; preserva a identidade semântica na metadata do compilador |
+| `__pinker_internal_leque_anexar_lista_v` | `(handle, lista<verso>) → handle` | Anexa rasamente um handle de `lista<verso>` sem encaminhá-lo pelo helper textual |
 | `__pinker_internal_leque_tag` | `(handle) → bombom` | Suporte interno ao desugaring de `encaixe` (leitura de discriminante) |
 | `__pinker_internal_leque_carga_b` | `(handle) → bombom` | Suporte interno ao desugaring de `encaixe` (extração de carga `bombom`) |
 | `__pinker_internal_leque_carga_v` | `(handle) → verso` | Suporte interno ao desugaring de `encaixe` (extração de carga `verso`) |
+| `__pinker_internal_leque_carga_lista_b` | `(handle) → lista<bombom>` | Extrai o mesmo handle lógico de `lista<bombom>` ou `lista<Leque>`; o tipo exato do binding vem da metadata |
+| `__pinker_internal_leque_carga_lista_v` | `(handle) → lista<verso>` | Extrai o mesmo handle lógico de `lista<verso>` sem confundi-lo com `verso` |
 
-Estas intrínsecas não fazem parte da superfície pública e não participam da classificação do Bloco 18. São mecanismo interno do compilador para desdobrar `para cada` sobre os tipos de mapa e para construção/desconstrução de valores de `leque` com carga via `encaixe`.
+Estas intrínsecas não fazem parte da superfície pública e não participam da classificação do Bloco 18. São mecanismo interno do compilador para desdobrar `para cada` sobre os tipos de mapa e para construção/desconstrução de valores de `leque` com carga via `encaixe`. As quatro formas de lista colapsam nos símbolos de ABI já existentes `pinker_leque_anexar` e `pinker_leque_carga`; o runtime não ganhou símbolo nem representação novos em D1.
 
 ## 4. Resumo quantitativo
 
