@@ -3378,9 +3378,15 @@ mod tests {
             unsafe { (base as *mut u8).add(offset).write_volatile(0x5a) };
         }
         let residentes = paginas_residentes(base, reservado);
+        // Em Linux x86-64 com THP em modo `always`, cada offset tocado pode
+        // materializar uma PMD huge page de 2 MiB. Isso continua lazy e
+        // proporcional aos três toques; a antiga zeragem ansiosa materializa
+        // as 16.384 páginas do mapeamento e permanece fora desta tolerância.
+        let paginas_por_thp = (2 * 1024 * 1024) / pinker_memory_contract::PUBLIC_PAGE_BYTES;
+        let maximo_residente = offsets.len() * paginas_por_thp;
         assert!(
-            (3..=16).contains(&residentes),
-            "somente páginas tocadas devem residir, observado {residentes}"
+            (offsets.len()..=maximo_residente).contains(&residentes),
+            "somente páginas ou THPs dos offsets tocados devem residir, observado {residentes}"
         );
 
         descomprometer_paginas_publicas(base, reservado).expect("descomprometer");

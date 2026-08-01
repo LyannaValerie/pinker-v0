@@ -342,10 +342,10 @@ esparsas byte a byte, inclusive truncamento e extensão de sinal/zero por
 largura; o runtime nativo registra a mesma informação e valida cada load/store
 público quanto a vida, limites completos e alinhamento. No nativo, cada
 `alocar` cria um mapeamento anônimo proporcional, inicialmente zerado pelo
-kernel e fisicamente realizado apenas nas páginas acessadas; não existe reserva
-antecipada de 8 GiB nem laço de zeragem integral. No interpretador, os bytes
-continuam esparsos. A realização física difere, mas a contabilidade pública e os
-diagnósticos são equivalentes.
+kernel e fisicamente realizado sob demanda nas páginas ou huge pages acionadas
+pelos acessos; não existe reserva antecipada de 8 GiB nem laço de zeragem
+integral. No interpretador, os bytes continuam esparsos. A realização física
+difere, mas a contabilidade pública e os diagnósticos são equivalentes.
 
 Quatro recursos permanecem separados: até 1.000.000 de identidades vitalícias;
 até 8 GiB na soma vitalícia dos mapeamentos públicos arredondados; até 256 MiB

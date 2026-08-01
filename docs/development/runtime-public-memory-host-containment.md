@@ -59,6 +59,11 @@ Nenhuma alocação de 7–8 GiB foi executada.
 | `liberar` depois dos três toques | — | RSS volta próximo da base; arena de 8 GiB permanece | 0 páginas residentes; região proporcional permanece `PROT_NONE` |
 | dois filhos de 16 MiB | — | cada processo começava com 8 GiB de VSZ | cada processo reserva apenas suas regiões |
 
+Os três toques realizaram três páginas no host da baseline. Em kernels x86-64
+com Transparent Huge Pages em modo `always`, cada toque pode realizar uma PMD
+huge page de 2 MiB; o teste aceita essa granularidade do kernel, mas continua
+recusando a materialização integral das 16.384 páginas.
+
 O interpretador já era esparso: o exemplo versionado de 32 MiB ficou perto de
 9,8 MiB de RSS, enquanto o nativo anterior ficou perto de 35 MiB. Isso confirmava
 divergência de realização, não o workload histórico exato.
