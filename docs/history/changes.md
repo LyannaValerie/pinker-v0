@@ -54,4 +54,5 @@ mão. Regenere com `pink doc sincronizar`.
 | #411 | phase | 248 | 20 | Uniões estruturais tagged | completed |
 | #412 | hotfix | — | 20 | Endurecimento do runtime nativo pós-PR | completed |
 | #418 | parallel-phase | — | — | Aceita listas como cargas tipadas de variantes | completed |
+| #419 | documentation | — | 20 | Ativa janela auxiliar de infraestrutura pré-Eixo A | completed |
 <!-- @pinker-generated:end change.history -->
