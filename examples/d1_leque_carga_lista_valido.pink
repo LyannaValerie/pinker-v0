@@ -1,0 +1,214 @@
+pacote main;
+
+// D1 — listas como cargas tipadas de variantes de `leque`.
+//
+// Uma lista continua sendo um handle opaco de uma palavra. Guardar uma lista
+// numa variante **copia o handle**, não os elementos: a cópia é rasa por
+// contrato, exatamente como já ocorre com os demais handles opacos da
+// linguagem. Nenhuma lista é liberada ao sair de `encaixe` e a variante não
+// assume ownership exclusivo.
+leque Cor {
+    Rosa,
+    Azul,
+}
+
+leque Rotulo {
+    Nomeado(verso),
+    Anonimo,
+}
+
+leque Pacote {
+    Numeros(lista<bombom>),
+    Textos(lista<verso>),
+    Cores(lista<Cor>),
+    Rotulos(lista<Rotulo>),
+    Vazio,
+}
+
+// Cargas misturadas: listas convivem com as cargas já suportadas, na ordem
+// declarada.
+leque Evento {
+    Dados(bombom, lista<bombom>, verso),
+    Paleta(lista<Cor>, bombom),
+    Encerrar,
+}
+
+carinho soma(valores: lista<bombom>) -> bombom {
+    nova muda total: bombom = 0;
+    para cada v em valores {
+        total = total + v;
+    }
+    mimo total;
+}
+
+carinho devolve(valores: lista<bombom>) -> lista<bombom> {
+    mimo valores;
+}
+
+carinho principal() -> bombom {
+    // 1. `lista<bombom>` vazia.
+    nova vazia: lista<bombom> = lista_criar();
+    nova p_vazia: Pacote = Pacote.Numeros(vazia);
+    encaixe p_vazia {
+        caso Pacote.Numeros(v) { falar(lista_tamanho(v)); }
+        caso Pacote.Textos(t) { falar(lista_tamanho(t)); }
+        caso Pacote.Cores(c) { falar(lista_tamanho(c)); }
+        caso Pacote.Rotulos(r) { falar(lista_tamanho(r)); }
+        caso Pacote.Vazio { falar(0); }
+    }
+
+    // 2 e 15. Um elemento, anexado **antes** da construção.
+    nova um: lista<bombom> = lista_criar();
+    lista_anexar(um, 42);
+    nova p_um: Pacote = Pacote.Numeros(um);
+
+    // 16. Mutação **depois** da construção é observada pela extração: a
+    // variante guarda o handle, não uma cópia.
+    lista_anexar(um, 43);
+
+    encaixe p_um {
+        caso Pacote.Numeros(v) {
+            falar(lista_tamanho(v));
+            falar(lista_obter(v, 0));
+            // 17. Mutação pelo binding extraído é observada pelo alias
+            // original do mesmo handle.
+            lista_anexar(v, 44);
+            // 14. Passagem e retorno da lista extraída.
+            falar(soma(v));
+            nova ecoada: lista<bombom> = devolve(v);
+            falar(lista_tamanho(ecoada));
+        }
+        caso Pacote.Textos(t) { falar(lista_tamanho(t)); }
+        caso Pacote.Cores(c) { falar(lista_tamanho(c)); }
+        caso Pacote.Rotulos(r) { falar(lista_tamanho(r)); }
+        caso Pacote.Vazio { falar(0); }
+    }
+    falar(lista_tamanho(um));
+
+    // 3 e 18. Vários elementos e iteração da lista extraída.
+    nova varios: lista<bombom> = lista_criar();
+    lista_anexar(varios, 1);
+    lista_anexar(varios, 2);
+    lista_anexar(varios, 3);
+    nova p_varios: Pacote = Pacote.Numeros(varios);
+    encaixe p_varios {
+        caso Pacote.Numeros(v) {
+            nova muda acumulado: bombom = 0;
+            para cada item em v {
+                acumulado = acumulado + item;
+            }
+            falar(acumulado);
+        }
+        caso Pacote.Textos(t) { falar(lista_tamanho(t)); }
+        caso Pacote.Cores(c) { falar(lista_tamanho(c)); }
+        caso Pacote.Rotulos(r) { falar(lista_tamanho(r)); }
+        caso Pacote.Vazio { falar(0); }
+    }
+
+    // 4. `lista<verso>` — que **não** é um `verso`.
+    nova textos: lista<verso> = lista_criar();
+    lista_anexar(textos, "rosa");
+    lista_anexar(textos, "azul");
+    nova p_textos: Pacote = Pacote.Textos(textos);
+    encaixe p_textos {
+        caso Pacote.Numeros(v) { falar(lista_tamanho(v)); }
+        caso Pacote.Textos(t) {
+            falar(lista_tamanho(t));
+            falar(lista_obter(t, 1));
+        }
+        caso Pacote.Cores(c) { falar(lista_tamanho(c)); }
+        caso Pacote.Rotulos(r) { falar(lista_tamanho(r)); }
+        caso Pacote.Vazio { falar(0); }
+    }
+
+    // 5. `lista<LequeSemCarga>` seguida de novo `encaixe` em cada elemento.
+    nova cores: lista<Cor> = lista_criar();
+    lista_anexar(cores, Cor.Rosa);
+    lista_anexar(cores, Cor.Azul);
+    nova p_cores: Pacote = Pacote.Cores(cores);
+    encaixe p_cores {
+        caso Pacote.Numeros(v) { falar(lista_tamanho(v)); }
+        caso Pacote.Textos(t) { falar(lista_tamanho(t)); }
+        caso Pacote.Cores(c) {
+            para cada cor em c {
+                encaixe cor {
+                    caso Cor.Rosa { falar("rosa"); }
+                    caso Cor.Azul { falar("azul"); }
+                }
+            }
+        }
+        caso Pacote.Rotulos(r) { falar(lista_tamanho(r)); }
+        caso Pacote.Vazio { falar(0); }
+    }
+
+    // 6. `lista<LequeComCarga>` seguida de novo `encaixe`.
+    nova rotulos: lista<Rotulo> = lista_criar();
+    lista_anexar(rotulos, Rotulo.Nomeado("alfa"));
+    lista_anexar(rotulos, Rotulo.Anonimo);
+    nova p_rotulos: Pacote = Pacote.Rotulos(rotulos);
+    encaixe p_rotulos {
+        caso Pacote.Numeros(v) { falar(lista_tamanho(v)); }
+        caso Pacote.Textos(t) { falar(lista_tamanho(t)); }
+        caso Pacote.Cores(c) { falar(lista_tamanho(c)); }
+        caso Pacote.Rotulos(r) {
+            para cada rotulo em r {
+                encaixe rotulo {
+                    caso Rotulo.Nomeado(nome) { falar(nome); }
+                    caso Rotulo.Anonimo { falar("anonimo"); }
+                }
+            }
+        }
+        caso Pacote.Vazio { falar(0); }
+    }
+
+    // 11 e 12. Variante com várias cargas misturadas, e várias variantes com
+    // listas diferentes no mesmo leque.
+    nova ev: Evento = Evento.Dados(7, varios, "fim");
+    encaixe ev {
+        caso Evento.Dados(n, l, s) {
+            falar(n);
+            falar(lista_tamanho(l));
+            falar(s);
+        }
+        caso Evento.Paleta(p, q) {
+            falar(lista_tamanho(p));
+            falar(q);
+        }
+        caso Evento.Encerrar { falar(0); }
+    }
+    nova paleta: Evento = Evento.Paleta(cores, 9);
+    encaixe paleta {
+        caso Evento.Dados(n, l, s) { falar(n); falar(lista_tamanho(l)); falar(s); }
+        caso Evento.Paleta(p, q) {
+            falar(lista_tamanho(p));
+            falar(q);
+        }
+        caso Evento.Encerrar { falar(0); }
+    }
+
+    // 20. Várias instâncias da mesma variante não interferem entre si: cada
+    // valor guarda o seu próprio handle.
+    nova primeira: lista<bombom> = lista_criar();
+    lista_anexar(primeira, 10);
+    nova segunda: lista<bombom> = lista_criar();
+    lista_anexar(segunda, 20);
+    lista_anexar(segunda, 21);
+    nova pa: Pacote = Pacote.Numeros(primeira);
+    nova pb: Pacote = Pacote.Numeros(segunda);
+    encaixe pa {
+        caso Pacote.Numeros(v) { falar(lista_obter(v, 0)); }
+        caso Pacote.Textos(t) { falar(lista_tamanho(t)); }
+        caso Pacote.Cores(c) { falar(lista_tamanho(c)); }
+        caso Pacote.Rotulos(r) { falar(lista_tamanho(r)); }
+        caso Pacote.Vazio { falar(0); }
+    }
+    encaixe pb {
+        caso Pacote.Numeros(v) { falar(lista_tamanho(v)); }
+        caso Pacote.Textos(t) { falar(lista_tamanho(t)); }
+        caso Pacote.Cores(c) { falar(lista_tamanho(c)); }
+        caso Pacote.Rotulos(r) { falar(lista_tamanho(r)); }
+        caso Pacote.Vazio { falar(0); }
+    }
+
+    mimo 0;
+}

@@ -3529,13 +3529,19 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         // Leques com carga (Fase 218/B7): anexar e carga não distinguem
         // bombom/verso no runtime — toda carga é uma palavra de 8 bytes.
         "__pinker_internal_leque_criar_0" => Some("pinker_leque_criar_0"),
-        "__pinker_internal_leque_anexar_b" | "__pinker_internal_leque_anexar_v" => {
-            Some("pinker_leque_anexar")
-        }
+        // D1: handles de lista entram pelos **mesmos** símbolos. O caminho de
+        // carga de uma palavra já transporta qualquer handle opaco sem tocar na
+        // ABI: `pinker_leque_anexar`/`pinker_leque_carga` movem um `u64` e não
+        // interpretam o conteúdo. Nenhum símbolo novo é criado.
+        "__pinker_internal_leque_anexar_b"
+        | "__pinker_internal_leque_anexar_v"
+        | "__pinker_internal_leque_anexar_lista_b"
+        | "__pinker_internal_leque_anexar_lista_v" => Some("pinker_leque_anexar"),
         "__pinker_internal_leque_tag" => Some("pinker_leque_tag"),
-        "__pinker_internal_leque_carga_b" | "__pinker_internal_leque_carga_v" => {
-            Some("pinker_leque_carga")
-        }
+        "__pinker_internal_leque_carga_b"
+        | "__pinker_internal_leque_carga_v"
+        | "__pinker_internal_leque_carga_lista_b"
+        | "__pinker_internal_leque_carga_lista_v" => Some("pinker_leque_carga"),
         // As uniões não passam por este mapeamento: `union_tag` e
         // `union_extract` são operações internas tipadas, e o símbolo
         // (`pinker_uniao_tag`/`pinker_uniao_payload_b`/`..._v`) é escolhido

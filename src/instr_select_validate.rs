@@ -121,6 +121,23 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
         TypeIR::Bombom,
     );
     sigs.insert("__pinker_internal_leque_carga_v".to_string(), TypeIR::Verso);
+    // D1: cargas de lista reutilizam o caminho de uma palavra.
+    sigs.insert(
+        crate::enum_payload::ANEXAR_LISTA_BOMBOM.to_string(),
+        TypeIR::Bombom,
+    );
+    sigs.insert(
+        crate::enum_payload::ANEXAR_LISTA_VERSO.to_string(),
+        TypeIR::Bombom,
+    );
+    sigs.insert(
+        crate::enum_payload::CARGA_LISTA_BOMBOM.to_string(),
+        TypeIR::ListBombom,
+    );
+    sigs.insert(
+        crate::enum_payload::CARGA_LISTA_VERSO.to_string(),
+        TypeIR::ListVerso,
+    );
     // União não tem intrínseca chamável: `UnionTag`/`UnionExtract` são
     // operações internas tipadas da seleção.
     sigs.insert("argumento".to_string(), TypeIR::Verso);

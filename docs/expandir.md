@@ -227,6 +227,7 @@ volta a vazar a disposição do pai para o filho.
 Exemplos históricos:
 
 - `lista<bombom>` mínima;
+- cargas de `leque` com `lista<bombom>`, `lista<verso>` e `lista<Leque>`;
 - `mapa<verso,bombom>` mínimo;
 - iteração confortável mínima;
 - CSV mínimo;
@@ -236,14 +237,27 @@ Exemplos históricos:
 
 Localização principal:
 
+- `src/enum_payload.rs` para a classificação única de cargas de `leque`;
 - `src/semantic.rs`;
+- `src/ir.rs` e validadores das quatro camadas para representação e identidade;
 - `src/interpreter.rs`;
+- `src/backend_s.rs`;
 - `runtime/pinker_rt/src/lib.rs`;
 - `tests/semantic_tests.rs`;
 - `tests/interpreter_tests.rs`;
 - `tests/backend_nativo_tests.rs`;
 - `docs/inventario_intrinsecas.md`;
 - `docs/examples_index.md`.
+
+D1 é a referência adulta para a fronteira entre identidade e representação em
+coleções usadas como carga. `lista<E>` continua sendo um handle opaco de uma
+palavra, copiado rasamente e sem mudança de ownership, mas conserva a identidade
+resolvida de `E` até construção, extração e validação tardia. Apelidos são
+transparentes, a monomorfização substitui `lista<T>` em profundidade e
+`lista<proprio_leque>` quebra a recursão de layout pelo handle. O mesmo contrato
+é executado no interpretador e no nativo sem símbolo novo de ABI; mapas,
+ponteiros, ninhos, arrays, funções, objetos de trato, uniões e `nulo` não foram
+generalizados como cargas.
 
 ### 4.6 Módulos, famílias e superfície documental
 
@@ -272,6 +286,7 @@ Exemplos históricos:
 - `leque` mínimo;
 - pattern matching mínimo;
 - generics mínimos sobre `lista<T>`.
+- expansão D1 de cargas de `leque` para listas tipadas, sem abrir a Fase 249.
 
 Localização principal:
 

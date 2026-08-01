@@ -1,0 +1,95 @@
+pacote main;
+
+// D1 — construção e extração fora de `principal`.
+//
+// A carga de lista atravessa parâmetro, retorno, chamada direta, chamada
+// indireta por função local tipada e alias local de função, sem deixar de ser
+// o mesmo handle: a cópia é rasa em todos esses pontos.
+leque Cor {
+    Rosa,
+    Azul,
+}
+
+leque Pacote {
+    Numeros(lista<bombom>),
+    Cores(lista<Cor>),
+    Vazio,
+}
+
+// Construção numa função auxiliar, a partir de um parâmetro.
+carinho empacotar(valores: lista<bombom>) -> Pacote {
+    mimo Pacote.Numeros(valores);
+}
+
+// Extração numa função auxiliar, devolvendo a lista extraída.
+carinho desempacotar(p: Pacote) -> lista<bombom> {
+    nova muda saida: lista<bombom> = lista_criar();
+    encaixe p {
+        caso Pacote.Numeros(v) { saida = v; }
+        caso Pacote.Cores(c) { }
+        caso Pacote.Vazio { }
+    }
+    mimo saida;
+}
+
+carinho tamanho_do_pacote(p: Pacote) -> bombom {
+    nova muda total: bombom = 0;
+    encaixe p {
+        caso Pacote.Numeros(v) { total = lista_tamanho(v); }
+        caso Pacote.Cores(c) { total = lista_tamanho(c); }
+        caso Pacote.Vazio { total = 0; }
+    }
+    mimo total;
+}
+
+carinho cores_empacotadas(cores: lista<Cor>) -> Pacote {
+    mimo Pacote.Cores(cores);
+}
+
+carinho principal() -> bombom {
+    nova base: lista<bombom> = lista_criar();
+    lista_anexar(base, 2);
+    lista_anexar(base, 3);
+
+    // Chamada direta: construção e extração em funções auxiliares.
+    nova p: Pacote = empacotar(base);
+    falar(tamanho_do_pacote(p));
+
+    nova extraida: lista<bombom> = desempacotar(p);
+    // O handle devolvido é o mesmo: mutar por ele é visto pelo original.
+    lista_anexar(extraida, 4);
+    falar(lista_tamanho(base));
+    falar(lista_obter(base, 2));
+
+    // Chamada indireta por função local tipada (contrato corrente da
+    // linguagem para valores de função).
+    nova medir: carinho(Pacote) -> bombom = carinho (q: Pacote) -> bombom {
+        nova muda n: bombom = 0;
+        encaixe q {
+            caso Pacote.Numeros(v) { n = lista_tamanho(v); }
+            caso Pacote.Cores(c) { n = lista_tamanho(c); }
+            caso Pacote.Vazio { n = 0; }
+        }
+        mimo n;
+    };
+    falar(medir(p));
+
+    nova cores: lista<Cor> = lista_criar();
+    lista_anexar(cores, Cor.Rosa);
+    nova pc: Pacote = cores_empacotadas(cores);
+    falar(tamanho_do_pacote(pc));
+    encaixe pc {
+        caso Pacote.Numeros(v) { falar(lista_tamanho(v)); }
+        caso Pacote.Cores(c) {
+            para cada cor em c {
+                encaixe cor {
+                    caso Cor.Rosa { falar("rosa"); }
+                    caso Cor.Azul { falar("azul"); }
+                }
+            }
+        }
+        caso Pacote.Vazio { falar(0); }
+    }
+
+    mimo 0;
+}

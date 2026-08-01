@@ -34,6 +34,11 @@ pub struct ProgramIR {
     /// por chave. É a única autoridade de identidade de tipo do programa.
     pub resolved_types: Vec<ResolvedTypeIR>,
     pub union_types: Vec<UnionTypeIR>,
+    /// Metadata das variantes de `leque`, em ordem estável por leque e por
+    /// discriminante. Cada carga carrega representação operacional **e**
+    /// identidade semântica resolvida; nenhuma camada posterior reconstrói uma
+    /// a partir da outra.
+    pub enum_variants: Vec<EnumVariantMetaIR>,
     pub consts: Vec<ConstIR>,
     pub functions: Vec<FunctionIR>,
 }
@@ -1228,6 +1233,54 @@ fn validate_resolved_type_structure(
             let element = key_of(element)?;
             expect(format!("array:{size}:{}:{element}", element.len()))
         }
+        // D1: `lista<Leque>` compartilha a representação de `lista<bombom>` e
+        // carrega, além dela, a identidade concreta do elemento. É por este
+        // componente que `lista<Cor>` e `lista<Token>` deixam de poder colapsar
+        // numa identidade única.
+        TypeIR::ListBombom | TypeIR::ListVerso => {
+            if entry.pointee.is_some() || entry.signature.is_some() || entry.union_members.is_some()
+            {
+                return Err(format!(
+                    "identidade de lista '{}' carrega componentes incompatíveis",
+                    entry.canonical_key
+                ));
+            }
+            let Some(element) = entry.element else {
+                // Lista monomórfica: a representação já é a identidade completa.
+                return expect(
+                    match entry.representation {
+                        TypeIR::ListVerso => "lista<verso>",
+                        _ => "lista<bombom>",
+                    }
+                    .to_string(),
+                );
+            };
+            if entry.representation != TypeIR::ListBombom {
+                return Err(format!(
+                    "identidade de lista '{}' com elemento nominal exige representação 'lista<bombom>'",
+                    entry.canonical_key
+                ));
+            }
+            let element_entry = resolved
+                .get(element.0 as usize)
+                .filter(|component| component.id == element)
+                .ok_or_else(|| {
+                    format!(
+                        "identidade '{}' referencia componente {} ausente da tabela",
+                        entry.canonical_key, element.0
+                    )
+                })?;
+            let (Some(NominalTypeKindIR::Leque), Some(name)) = (
+                element_entry.nominal_kind,
+                element_entry.nominal_name.as_ref(),
+            ) else {
+                return Err(format!(
+                    "identidade de lista '{}' referencia elemento sem identidade nominal de leque",
+                    entry.canonical_key
+                ));
+            };
+            expect(format!("lista<leque>:{}:{name}", name.len()))
+        }
         TypeIR::Union(_) => {
             let Some(members) = entry.union_members.as_ref() else {
                 return Err(format!(
@@ -1467,8 +1520,85 @@ struct UnionRegistryState {
 // carga, o valor é um handle opaco (bombom) para o estado do runtime.
 #[derive(Clone)]
 struct EnumInfoIR {
+    /// Nome **declarado** do leque. `enum_variants` também é indexado pelos
+    /// apelidos que apontam para ele; este campo é a chave de deduplicação para
+    /// publicar a metadata uma única vez por leque.
+    declared_name: String,
     has_payload: bool,
-    variants: HashMap<String, (u64, Vec<TypeIR>)>,
+    variants: HashMap<String, (u64, Vec<EnumPayloadTypeIR>)>,
+}
+
+/// Descrição de carga de variante durante o lowering.
+///
+/// Substitui o antigo `Vec<TypeIR>`: guardar apenas a categoria operacional
+/// tornava `lista<bombom>`, `lista<Cor>` e `lista<Token>` indistinguíveis, e a
+/// perda de identidade só apareceria na construção ou na extração — tarde
+/// demais para produzir um diagnóstico fiel.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct EnumPayloadTypeIR {
+    /// Categoria operacional do valor da carga.
+    operational_type: TypeIR,
+    /// Classe de representação e tipo resolvido, decididos pela autoridade
+    /// única em [`crate::enum_payload`].
+    shape: crate::enum_payload::EnumPayloadShape,
+}
+
+impl EnumPayloadTypeIR {
+    fn classify(
+        declared: &Type,
+        payload_aliases: &HashMap<String, Type>,
+        enum_names: &HashSet<String>,
+        struct_names: &HashSet<String>,
+        type_aliases: &HashMap<String, Type>,
+    ) -> Result<Self, PinkerError> {
+        let shape = crate::enum_payload::classify_enum_payload(
+            declared,
+            payload_aliases,
+            enum_names,
+            struct_names,
+        )
+        .map_err(|rejection| PinkerError::Ir {
+            msg: format!(
+                "carga de variante sem classificação na IR: {}",
+                rejection.message()
+            ),
+            span: declared.span(),
+        })?;
+        let operational_type =
+            TypeIR::from_ast_with_context(&shape.resolved, type_aliases, struct_names)?;
+        Ok(Self {
+            operational_type,
+            shape,
+        })
+    }
+}
+
+/// Metadata publicada de uma variante de leque.
+///
+/// Viaja no [`ProgramIR`] para que os validadores e os testes estruturais
+/// possam conferir, sem reconstruir nada, que cada carga conserva ao mesmo
+/// tempo a representação operacional e a identidade semântica resolvida.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumVariantMetaIR {
+    pub enum_name: String,
+    pub variant_name: String,
+    pub discriminant: u64,
+    pub payloads: Vec<EnumPayloadMetaIR>,
+}
+
+/// Carga de variante na metadata publicada: as duas dimensões, acopladas.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumPayloadMetaIR {
+    /// Categoria operacional. Nunca é a identidade.
+    pub operational_type: TypeIR,
+    /// Classe de representação que escolhe o helper de runtime.
+    pub class: crate::enum_payload::EnumPayloadClass,
+    /// Chave canônica da identidade semântica resolvida.
+    pub canonical_key: String,
+    /// Identidade semântica internada na tabela do programa.
+    pub resolved_type_id: ResolvedTypeId,
+    /// Identidade concreta do elemento, quando a carga é uma `lista<E>`.
+    pub element_type_id: Option<ResolvedTypeId>,
 }
 
 fn is_generic_list_create_expr(expr: &Expr) -> bool {
@@ -1774,6 +1904,11 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
         }
     }
 
+    // A metadata das variantes é selada antes de a tabela de identidades ser
+    // entregue: cada carga interna aqui a identidade do próprio tipo resolvido
+    // e, quando é lista, a identidade concreta do elemento.
+    let enum_variants_meta = context.seal_enum_variant_metadata()?;
+
     let ClosureLoweringState { lowered, .. } = context.closure_state.into_inner();
     functions.extend(lowered.into_iter().map(|(_, f)| f));
     let union_types = context.union_registry.into_inner().types;
@@ -1798,6 +1933,7 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
         is_freestanding: program.freestanding.is_some(),
         resolved_types,
         union_types,
+        enum_variants: enum_variants_meta,
         consts,
         functions,
     })
@@ -1867,9 +2003,15 @@ impl LoweringContext {
         let mut struct_names = HashSet::new();
         let mut enum_variants: HashMap<String, EnumInfoIR> = HashMap::new();
         let mut enum_decl_names: HashSet<String> = HashSet::new();
+        // Tabelas exclusivas da classificação de cargas (D1). Não podem ser
+        // `type_aliases`: ali um leque já foi reescrito para `bombom`, e usar
+        // aquela tabela apagaria justamente a identidade nominal que a carga
+        // precisa preservar.
+        let mut payload_aliases: HashMap<String, Type> = HashMap::new();
         for item in &program.items {
             if let Item::TypeAlias(alias) = item {
                 type_aliases.insert(alias.name.clone(), alias.target.clone());
+                payload_aliases.insert(alias.name.clone(), alias.target.clone());
             } else if let Item::Struct(struct_decl) = item {
                 struct_names.insert(struct_decl.name.clone());
                 struct_decls.insert(struct_decl.name.clone(), struct_decl.clone());
@@ -1879,39 +2021,62 @@ impl LoweringContext {
                 // com o nome do leque resolver sozinha.
                 type_aliases.insert(enum_decl.name.clone(), Type::Bombom(enum_decl.span));
                 enum_decl_names.insert(enum_decl.name.clone());
-                let variants = enum_decl
-                    .variants
-                    .iter()
-                    .enumerate()
-                    .map(|(index, variant)| {
-                        let payloads = variant
-                            .payloads
-                            .iter()
-                            .map(|ty| match ty {
-                                Type::Verso(_) => TypeIR::Verso,
-                                _ => TypeIR::Bombom,
-                            })
-                            .collect::<Vec<_>>();
-                        (variant.name.clone(), (index as u64, payloads))
-                    })
-                    .collect();
-                enum_variants.insert(
-                    enum_decl.name.clone(),
-                    EnumInfoIR {
-                        has_payload: enum_decl
-                            .variants
-                            .iter()
-                            .any(|variant| !variant.payloads.is_empty()),
-                        variants,
-                    },
-                );
             }
         }
-        for (alias_name, target) in type_aliases.clone() {
-            if let Type::Enum { name, .. } = target {
+        // As cargas são classificadas depois da coleta completa: um leque pode
+        // referenciar outro declarado adiante, inclusive a si mesmo através de
+        // `lista<si>`.
+        for item in &program.items {
+            let Item::Enum(enum_decl) = item else {
+                continue;
+            };
+            let mut variants = HashMap::new();
+            for (index, variant) in enum_decl.variants.iter().enumerate() {
+                let mut payloads = Vec::with_capacity(variant.payloads.len());
+                for payload in &variant.payloads {
+                    payloads.push(EnumPayloadTypeIR::classify(
+                        payload,
+                        &payload_aliases,
+                        &enum_decl_names,
+                        &struct_names,
+                        &type_aliases,
+                    )?);
+                }
+                variants.insert(variant.name.clone(), (index as u64, payloads));
+            }
+            enum_variants.insert(
+                enum_decl.name.clone(),
+                EnumInfoIR {
+                    declared_name: enum_decl.name.clone(),
+                    has_payload: enum_decl
+                        .variants
+                        .iter()
+                        .any(|variant| !variant.payloads.is_empty()),
+                    variants,
+                },
+            );
+        }
+        // Apelidos de leque herdam a metadata do alvo. A propagação roda até o
+        // ponto fixo porque a cadeia pode ter mais de um elo
+        // (`apelido B = A; apelido A = Leque;`), e o `declared_name` de cada
+        // entrada continua sendo o do leque real: o apelido não cria
+        // identidade nominal nova.
+        loop {
+            let mut mudou = false;
+            for (alias_name, target) in type_aliases.clone() {
+                if enum_variants.contains_key(&alias_name) {
+                    continue;
+                }
+                let (Type::Enum { name, .. } | Type::Alias { name, .. }) = target else {
+                    continue;
+                };
                 if let Some(info) = enum_variants.get(&name).cloned() {
                     enum_variants.insert(alias_name, info);
+                    mudou = true;
                 }
+            }
+            if !mudou {
+                break;
             }
         }
         let mut struct_fields = HashMap::new();
@@ -2284,6 +2449,25 @@ impl LoweringContext {
         function_sigs.insert(
             "__pinker_internal_leque_carga_v".to_string(),
             builtin_sig(&mut resolved_types, TypeIR::Verso)?,
+        );
+        // D1: cargas de lista reutilizam integralmente o caminho de uma palavra.
+        // Os quatro nomes internos existem porque a assinatura de retorno é por
+        // símbolo; todos colapsam no mesmo par de símbolos do runtime nativo.
+        function_sigs.insert(
+            crate::enum_payload::ANEXAR_LISTA_BOMBOM.to_string(),
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
+        );
+        function_sigs.insert(
+            crate::enum_payload::ANEXAR_LISTA_VERSO.to_string(),
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
+        );
+        function_sigs.insert(
+            crate::enum_payload::CARGA_LISTA_BOMBOM.to_string(),
+            builtin_sig(&mut resolved_types, TypeIR::ListBombom)?,
+        );
+        function_sigs.insert(
+            crate::enum_payload::CARGA_LISTA_VERSO.to_string(),
+            builtin_sig(&mut resolved_types, TypeIR::ListVerso)?,
         );
         // As uniões não registram intrínsecas chamáveis: tag e extração são
         // `ValueIR::UnionTag`/`ValueIR::UnionExtract`, nós tipados criados pelo
@@ -2723,6 +2907,18 @@ impl LoweringContext {
             Type::FixedArray { element, .. } => {
                 parts.element = Some(self.intern_resolved_ast(element, span)?);
             }
+            // `lista<Leque>` carrega a identidade do elemento: sem isto, duas
+            // listas de leques diferentes ficariam distintas apenas pela chave
+            // canônica e idênticas em estrutura interna.
+            Type::ListEnum { element, .. } => {
+                parts.element = Some(self.intern_resolved_ast(
+                    &Type::Enum {
+                        name: element.clone(),
+                        span,
+                    },
+                    span,
+                )?);
+            }
             Type::Union { members, .. } => {
                 let mut member_ids = Vec::with_capacity(members.len());
                 for member in members {
@@ -2742,6 +2938,71 @@ impl LoweringContext {
             .borrow_mut()
             .intern(key, representation, parts)
             .map_err(|msg| PinkerError::Ir { msg, span })
+    }
+
+    /// Sela a metadata publicada das variantes de `leque`.
+    ///
+    /// Roda depois de todo o lowering, quando a tabela de identidades já contém
+    /// tudo o que os corpos internaram, e antes de a tabela ser entregue. Cada
+    /// carga interna aqui a identidade do próprio tipo resolvido e, quando é
+    /// `lista<E>`, a identidade concreta do elemento — as duas dimensões que a
+    /// representação operacional sozinha não determina.
+    ///
+    /// A iteração é feita sobre os nomes **declarados**: `enum_variants` também
+    /// é indexado pelos apelidos que apontam para cada leque, e um apelido não
+    /// cria uma identidade nominal nova.
+    fn seal_enum_variant_metadata(&self) -> Result<Vec<EnumVariantMetaIR>, PinkerError> {
+        let mut declared: Vec<&EnumInfoIR> = Vec::new();
+        for (name, info) in &self.enum_variants {
+            if *name == info.declared_name {
+                declared.push(info);
+            }
+        }
+        declared.sort_by(|a, b| a.declared_name.cmp(&b.declared_name));
+
+        let mut meta = Vec::new();
+        for info in declared {
+            let mut variants: Vec<(&String, &(u64, Vec<EnumPayloadTypeIR>))> =
+                info.variants.iter().collect();
+            variants.sort_by_key(|(_, (discriminant, _))| *discriminant);
+            for (variant_name, (discriminant, payloads)) in variants {
+                let mut payload_meta = Vec::with_capacity(payloads.len());
+                for payload in payloads {
+                    let span = payload.shape.resolved.span();
+                    let resolved_type_id =
+                        self.intern_resolved_ast(&payload.shape.resolved, span)?;
+                    // Listas monomórficas (`bombom`/`verso`) já têm a
+                    // identidade completa na própria chave/representação. Só
+                    // `lista<Leque>` precisa publicar separadamente a
+                    // identidade nominal do elemento, exatamente como a
+                    // entrada internada acima.
+                    let element_type_id = match &payload.shape.resolved {
+                        Type::ListEnum { element, .. } => Some(self.intern_resolved_ast(
+                            &Type::Enum {
+                                name: element.clone(),
+                                span,
+                            },
+                            span,
+                        )?),
+                        _ => None,
+                    };
+                    payload_meta.push(EnumPayloadMetaIR {
+                        operational_type: payload.operational_type,
+                        class: payload.shape.class,
+                        canonical_key: payload.shape.canonical_key(),
+                        resolved_type_id,
+                        element_type_id,
+                    });
+                }
+                meta.push(EnumVariantMetaIR {
+                    enum_name: info.declared_name.clone(),
+                    variant_name: variant_name.clone(),
+                    discriminant: *discriminant,
+                    payloads: payload_meta,
+                });
+            }
+        }
+        Ok(meta)
     }
 
     /// Identidade de um valor cuja categoria operacional **é** a identidade
@@ -5135,10 +5396,35 @@ impl<'a> FunctionLowerer<'a> {
                             };
                             for (arg, payload_ty) in args.iter().zip(payload_types) {
                                 let payload = self.lower_value(arg)?;
-                                let anexar = match payload_ty {
-                                    TypeIR::Verso => "__pinker_internal_leque_anexar_v",
-                                    _ => "__pinker_internal_leque_anexar_b",
-                                };
+                                // A identidade da carga é conferida aqui, e não
+                                // pela representação: `lista<Cor>` e
+                                // `lista<Token>` são a mesma palavra e tipos
+                                // diferentes.
+                                let expected_identity = self
+                                    .context
+                                    .intern_resolved_ast(&payload_ty.shape.resolved, arg.span)?;
+                                if let Some(actual) = payload.resolved {
+                                    if actual != expected_identity {
+                                        return Err(PinkerError::Ir {
+                                            msg: format!(
+                                                "E-IR-ENUM-PAYLOAD-IDENTITY: carga de '{}.{}' exige identidade '{}' e recebeu '{}'",
+                                                base_name,
+                                                field,
+                                                payload_ty.shape.canonical_key(),
+                                                self.context
+                                                    .resolved_types
+                                                    .borrow()
+                                                    .key_of(actual)
+                                                    .unwrap_or("?")
+                                            ),
+                                            span: arg.span,
+                                        });
+                                    }
+                                }
+                                // O helper deriva da classe de representação
+                                // decidida pela autoridade única, nunca de um
+                                // `match` parcial sobre o tipo-fonte.
+                                let anexar = payload_ty.shape.anexar_intrinsic();
                                 chain = ValueIR::Call {
                                     callee: anexar.to_string(),
                                     args: vec![chain, payload.value],

@@ -60,6 +60,7 @@ fn valida_ir_simples_valida() {
     let program = ProgramIR {
         resolved_types: vec![],
         union_types: vec![],
+        enum_variants: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -85,6 +86,7 @@ fn falha_retorno_invalido() {
     let program = ProgramIR {
         resolved_types: vec![],
         union_types: vec![],
+        enum_variants: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -109,6 +111,7 @@ fn falha_condicao_if_invalida() {
     let program = ProgramIR {
         resolved_types: vec![],
         union_types: vec![],
+        enum_variants: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -186,6 +189,7 @@ fn falha_chamada_invalida() {
     let program = ProgramIR {
         resolved_types: tabela_identidades_bombom(),
         union_types: vec![],
+        enum_variants: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -231,6 +235,7 @@ fn falha_uso_incorreto_de_nulo() {
     let program = ProgramIR {
         resolved_types: vec![],
         union_types: vec![],
+        enum_variants: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -261,6 +266,7 @@ fn falha_bloco_malformado() {
     let program = ProgramIR {
         resolved_types: vec![],
         union_types: vec![],
+        enum_variants: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -278,6 +284,7 @@ fn erro_ir_tem_contexto_padronizado() {
     let program = ProgramIR {
         resolved_types: vec![],
         union_types: vec![],
+        enum_variants: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],
@@ -331,6 +338,7 @@ fn fase244_programa_com_funcao(function: FunctionIR) -> ProgramIR {
     ProgramIR {
         resolved_types: tabela_identidades_trato(),
         union_types: vec![],
+        enum_variants: vec![],
         is_freestanding: false,
         module_name: "main".to_string(),
         consts: vec![],

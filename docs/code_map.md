@@ -16,6 +16,7 @@ Referência rápida para localizar a camada certa antes de editar.
 ## Semântica e layout
 
 - checagem semântica principal: `src/semantic.rs`
+- cargas de variantes de `leque`: autoridade única de resolução/classificação em `src/enum_payload.rs`, identidade e metadata em `src/ir.rs`, invariantes em `src/ir_validate.rs`, `src/cfg_ir_validate.rs`, `src/instr_select_validate.rs` e `src/abstract_machine_validate.rs`
 - layout de tipos compostos: `src/layout.rs`
 - erros/renderização comum: `src/error.rs`, `src/printer.rs`
 
@@ -59,6 +60,7 @@ Referência rápida para localizar a camada certa antes de editar.
 - backends: `tests/backend_text_tests.rs`, `tests/backend_s_tests.rs`, `tests/backend_s_external_toolchain_tests.rs`
 - Fases 245–246: `tests/phase245_246_tests.rs`
 - Fases 247–248 e correções da revisão humana da PR #411: `tests/phase247_248_tests.rs`
+- expansão D1 de cargas `lista<E>` em leques: `tests/d1_leque_carga_lista_tests.rs` (matrizes positiva/negativa, IR, validadores, ABI e paridade)
 - CLI/saída: `tests/output_tests.rs`, `tests/editor_tui_tests.rs`
 
 ## Docs que costumam acompanhar mudança funcional

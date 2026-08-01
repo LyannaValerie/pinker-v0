@@ -53,4 +53,5 @@ mão. Regenere com `pink doc sincronizar`.
 | #410 | phase | 246 | 20 | Alocação e liberação explícitas de memória | completed |
 | #411 | phase | 248 | 20 | Uniões estruturais tagged | completed |
 | #412 | hotfix | — | 20 | Endurecimento do runtime nativo pós-PR | completed |
+| #418 | parallel-phase | — | — | Aceita listas como cargas tipadas de variantes | completed |
 <!-- @pinker-generated:end change.history -->

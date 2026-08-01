@@ -58,6 +58,17 @@ pub struct Parser {
     /// Leques declarados até o ponto atual do parse (nome -> variantes com cargas).
     /// Usado pelo desugaring de `encaixe`; exige o leque declarado antes do uso.
     enum_decls: HashMap<String, Vec<(String, Vec<Type>)>>,
+    /// Nomes **declarados** de leque (sem os apelidos que apontam para eles).
+    /// Separado de `enum_decls` porque a identidade semântica de uma carga é a
+    /// do leque de destino, nunca a do apelido que o nomeia.
+    enum_names: HashSet<String>,
+    /// Alvos de `apelido` vistos até aqui, para que o desugaring de `encaixe`
+    /// possa classificar uma carga escrita como apelido (D1) pela mesma
+    /// autoridade que a semântica e o lowering usam.
+    type_alias_targets: HashMap<String, Type>,
+    /// Nomes de `ninho` declarados até aqui, necessários para que a resolução
+    /// de apelidos distinga um ninho de um apelido inexistente.
+    struct_names: HashSet<String>,
     /// Tratos declarados até o ponto atual do parse.
     /// Usado por `impl`; exige o trato declarado antes do uso.
     trait_decls: HashSet<String>,
@@ -128,6 +139,9 @@ impl Parser {
             synthetic_counter: 0,
             collection_types: HashMap::new(),
             enum_decls: HashMap::new(),
+            enum_names: HashSet::new(),
+            type_alias_targets: HashMap::new(),
+            struct_names: HashSet::new(),
             trait_decls: HashSet::new(),
             pending_functions: Vec::new(),
             generic_templates: HashMap::new(),
@@ -234,6 +248,53 @@ impl Parser {
                 span: self.peek_span(),
             })
         }
+    }
+
+    /// Fecha uma lista de argumentos de tipo aceitando `>` ou a primeira
+    /// metade de um `>>`.
+    ///
+    /// O lexer produz `>>` como um único token de deslocamento, e nada abaixo
+    /// dele distingue os dois usos. Sem esta divisão,
+    /// `Opcao<lista<bombom>>` seria erro sintático; a alternativa — proibir o
+    /// aninhamento — obrigaria a inventar uma segunda sintaxe de tipos de lista
+    /// só para cargas, exatamente o que o contrato proíbe. O token restante é
+    /// reescrito como um `>` com o span da segunda coluna, para que os
+    /// diagnósticos seguintes continuem apontando a posição real.
+    fn consume_type_arg_close(&mut self) -> Result<(), PinkerError> {
+        if self.check(TokenKind::Greater) {
+            self.advance();
+            return Ok(());
+        }
+        if self.check(TokenKind::GreaterGreater) {
+            let span = self.tokens[self.current].span;
+            let middle = crate::token::Position::new(span.start.line, span.start.col + 1);
+            self.tokens[self.current] = Token::new(
+                TokenKind::Greater,
+                ">".to_string(),
+                Span::new(middle, span.end),
+            );
+            // O `previous()` dos chamadores precisa enxergar um `>` fechado: o
+            // token anterior passa a ser o primeiro `>` sintetizado.
+            self.tokens.insert(
+                self.current,
+                Token::new(
+                    TokenKind::Greater,
+                    ">".to_string(),
+                    Span::new(span.start, middle),
+                ),
+            );
+            self.advance();
+            return Ok(());
+        }
+        let found = self
+            .peek()
+            .map(|token| token.lexeme.clone())
+            .unwrap_or_default();
+        Err(PinkerError::Expected {
+            expected: ">".to_string(),
+            found,
+            span: self.peek_span(),
+        })
     }
 
     // @pinker-nav:end parser.fluxo.nucleo
@@ -500,7 +561,7 @@ impl Parser {
             } else {
                 self.parse_type()?
             };
-            self.consume(TokenKind::Greater, ">")?;
+            self.consume_type_arg_close()?;
             return Ok(Type::Pointer {
                 base: Box::new(base),
                 is_volatile: false,
@@ -567,7 +628,7 @@ impl Parser {
                         break;
                     }
                 }
-                self.consume(TokenKind::Greater, ">")?;
+                self.consume_type_arg_close()?;
                 if members.len() < 2 {
                     return Err(PinkerError::Expected {
                         expected: "ao menos dois membros em uniao<T1, T2, ...>".to_string(),
@@ -582,7 +643,7 @@ impl Parser {
             }
             if self.previous().lexeme == "lista" && self.match_token(TokenKind::Less) {
                 let inner = self.parse_type()?;
-                self.consume(TokenKind::Greater, ">")?;
+                self.consume_type_arg_close()?;
                 let outer_span = merge_span(span, self.previous().span);
                 if matches!(inner, Type::Bombom(_)) {
                     return Ok(Type::ListBombom(outer_span));
@@ -608,7 +669,7 @@ impl Parser {
                 let key_ty = self.parse_type()?;
                 self.consume(TokenKind::Comma, ",")?;
                 let value_ty = self.parse_type()?;
-                self.consume(TokenKind::Greater, ">")?;
+                self.consume_type_arg_close()?;
                 let outer_span = merge_span(span, self.previous().span);
                 if matches!(key_ty, Type::Verso(_)) && matches!(value_ty, Type::Bombom(_)) {
                     return Ok(Type::MapVersoBombom(outer_span));
@@ -639,7 +700,7 @@ impl Parser {
                         break;
                     }
                 }
-                self.consume(TokenKind::Greater, ">")?;
+                self.consume_type_arg_close()?;
                 let applied_span = merge_span(type_span, self.previous().span);
                 self.enum_generic_instantiations
                     .push(EnumGenericInstantiation {
@@ -650,6 +711,7 @@ impl Parser {
                 if let Some(template) = self.enum_generic_templates.get(&name).cloned() {
                     let concrete =
                         Self::instantiate_generic_enum_decl(&template, &args, applied_span)?;
+                    self.enum_names.insert(concrete.name.clone());
                     self.enum_decls.insert(
                         concrete.name,
                         concrete
@@ -747,19 +809,83 @@ impl Parser {
         self.consume(TokenKind::Eq, "=")?;
         let target = self.parse_type()?;
         self.consume(TokenKind::Semi, ";")?;
+        // Um apelido de leque herda as variantes do alvo, inclusive quando o
+        // alvo é ele próprio um apelido: a cadeia é transparente e não cria
+        // identidade nominal nova.
         if let Type::Enum {
-            name: enum_name, ..
+            name: target_name, ..
+        }
+        | Type::Alias {
+            name: target_name, ..
         } = &target
         {
-            if let Some(variants) = self.enum_decls.get(enum_name).cloned() {
+            if let Some(variants) = self.enum_decls.get(target_name).cloned() {
+                // Só as variantes são herdadas. O nome do apelido **não** entra
+                // em `enum_names`: a identidade semântica continua sendo a do
+                // leque de destino.
                 self.enum_decls.insert(name.clone(), variants);
             }
         }
+        self.type_alias_targets.insert(name.clone(), target.clone());
         Ok(TypeAliasDecl {
             name,
             target,
             span: merge_span(start_span, self.previous().span),
         })
+    }
+
+    /// Helper de extração e tipo do binding de uma carga, pela autoridade única
+    /// de classificação (D1).
+    ///
+    /// O desugaring de `encaixe` não decide mais por `match` parcial sobre o
+    /// tipo-fonte: pergunta à autoridade, que resolve apelidos em profundidade
+    /// e devolve a classe operacional junto do tipo resolvido. O binding recebe
+    /// o **tipo resolvido**, de modo que `apelido N = lista<bombom>` e
+    /// `lista<bombom>` produzam bindings com a mesma identidade.
+    ///
+    /// Cargas ainda não classificáveis aqui — apelido inexistente, genérico não
+    /// monomorfizado, tipo fora do contrato — conservam o tipo escrito e o
+    /// helper imediato: quem emite o diagnóstico fiel é a semântica, com as
+    /// tabelas completas, e é lá que a coerência do helper é reconferida.
+    /// Registra o tipo de coleção de cada binding de carga de um braço.
+    ///
+    /// Existe para que o despacho das operações genéricas de lista derive do
+    /// **tipo do binding** — `lista<verso>` não é `lista<bombom>` e
+    /// `lista<Arvore>` não perde o elemento — em vez do caminho padrão.
+    fn register_payload_binding_collections(
+        &mut self,
+        enum_name: &str,
+        variant: &str,
+        names: &[String],
+    ) {
+        let Some(payloads) = self.enum_decls.get(enum_name).and_then(|variants| {
+            variants
+                .iter()
+                .find(|(candidate, _)| candidate == variant)
+                .map(|(_, payloads)| payloads.clone())
+        }) else {
+            return;
+        };
+        let span = Span::single(crate::token::Position::new(1, 1));
+        for (name, payload_ty) in names.iter().zip(payloads) {
+            let (_, binding_ty) = self.payload_binding(&payload_ty, span);
+            self.register_collection_type(name, &binding_ty);
+        }
+    }
+
+    fn payload_binding(&self, declared: &Type, span: Span) -> (&'static str, Type) {
+        match crate::enum_payload::classify_enum_payload(
+            declared,
+            &self.type_alias_targets,
+            &self.enum_names,
+            &self.struct_names,
+        ) {
+            Ok(shape) => (shape.carga_intrinsic(), shape.resolved.with_span(span)),
+            Err(_) => (
+                crate::enum_payload::CARGA_IMEDIATO,
+                declared.with_span(span),
+            ),
+        }
     }
 
     fn parse_struct_decl(&mut self) -> Result<StructDecl, PinkerError> {
@@ -786,6 +912,7 @@ impl Parser {
             });
         }
         self.consume(TokenKind::RBrace, "}")?;
+        self.struct_names.insert(name.clone());
         Ok(StructDecl {
             name,
             fields,
@@ -946,6 +1073,7 @@ impl Parser {
                 .map(|variant| (variant.name.clone(), variant.payloads.clone()))
                 .collect(),
         );
+        self.enum_names.insert(name.clone());
         Ok(EnumDecl {
             name,
             type_params,
@@ -1034,6 +1162,14 @@ impl Parser {
                             span: caso_span,
                         });
                     }
+                }
+                // As cargas precisam estar registradas **antes** de o corpo do
+                // braço ser lido: `para cada` e as operações genéricas de lista
+                // são desaçucaradas durante o parse, e sem o tipo do binding
+                // cairiam no caminho padrão de `lista<bombom>`.
+                if let (Some(names), Some(base)) = (bindings.as_ref(), enum_name.as_ref()) {
+                    let base = base.clone();
+                    self.register_payload_binding_collections(&base, &variant, names);
                 }
                 let body = self.parse_block()?;
                 arms.push(EncaixeArm {
@@ -1223,14 +1359,15 @@ impl Parser {
                 for (index, (bind_name, payload_ty)) in
                     bind_names.into_iter().zip(payload_types).enumerate()
                 {
-                    let carga_fn = match payload_ty {
-                        Type::Verso(_) => "__pinker_internal_leque_carga_v",
-                        _ => "__pinker_internal_leque_carga_b",
-                    };
+                    let (carga_fn, binding_ty) = self.payload_binding(&payload_ty, arm.span);
+                    // O binding herda o tipo exato da carga: sem registrá-lo,
+                    // as operações genéricas de lista sobre ele cairiam no
+                    // caminho padrão de `lista<bombom>`.
+                    self.register_collection_type(&bind_name, &binding_ty);
                     body_stmts.push(Stmt::Let(LetStmt {
                         name: bind_name,
                         is_mut: false,
-                        ty: Some(payload_ty.with_span(arm.span)),
+                        ty: Some(binding_ty),
                         init: Expr {
                             kind: ExprKind::Call(
                                 Box::new(Expr {
@@ -1582,14 +1719,12 @@ impl Parser {
             for (index, (bind_name, payload_ty)) in
                 arm.bindings.into_iter().zip(payload_types).enumerate()
             {
-                let carga_fn = match payload_ty {
-                    Type::Verso(_) => "__pinker_internal_leque_carga_v",
-                    _ => "__pinker_internal_leque_carga_b",
-                };
+                let (carga_fn, binding_ty) = self.payload_binding(&payload_ty, arm.span);
+                self.register_collection_type(&bind_name, &binding_ty);
                 body_stmts.push(Stmt::Let(LetStmt {
                     name: bind_name,
                     is_mut: false,
-                    ty: Some(payload_ty.with_span(arm.span)),
+                    ty: Some(binding_ty),
                     init: Expr {
                         kind: ExprKind::Call(
                             Box::new(Expr {
@@ -1835,24 +1970,20 @@ impl Parser {
             kind: ExprKind::Ident(target_name.clone()),
             span: helper_span,
         };
-        let success_payload_ty = success_payloads
+        let success_declared_ty = success_payloads
             .into_iter()
             .next()
-            .expect("validado exatamente uma carga")
-            .with_span(helper_span);
-        let failure_payload_ty = failure_payloads
+            .expect("validado exatamente uma carga");
+        let failure_declared_ty = failure_payloads
             .into_iter()
             .next()
-            .expect("validado exatamente uma carga")
-            .with_span(helper_span);
-        let success_carga_fn = match success_payload_ty {
-            Type::Verso(_) => "__pinker_internal_leque_carga_v",
-            _ => "__pinker_internal_leque_carga_b",
-        };
-        let failure_carga_fn = match failure_payload_ty {
-            Type::Verso(_) => "__pinker_internal_leque_carga_v",
-            _ => "__pinker_internal_leque_carga_b",
-        };
+            .expect("validado exatamente uma carga");
+        let (success_carga_fn, success_payload_ty) =
+            self.payload_binding(&success_declared_ty, helper_span);
+        let (failure_carga_fn, failure_payload_ty) =
+            self.payload_binding(&failure_declared_ty, helper_span);
+        self.register_collection_type(&success_binding, &success_payload_ty);
+        self.register_collection_type(&failure_binding, &failure_payload_ty);
         let success_binding_stmt = Stmt::Let(LetStmt {
             name: success_binding,
             is_mut: false,

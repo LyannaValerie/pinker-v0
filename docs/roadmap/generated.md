@@ -36,4 +36,5 @@ mão. Regenere com `pink doc sincronizar`.
 | #410 | 246 | 20 | Alocação e liberação explícitas de memória | completed |
 | #411 | 248 | 20 | Uniões estruturais tagged | completed |
 | #412 | — | 20 | Endurecimento do runtime nativo pós-PR | completed |
+| #418 | — | — | Aceita listas como cargas tipadas de variantes | completed |
 <!-- @pinker-generated:end roadmap.generated -->

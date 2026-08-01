@@ -52,6 +52,62 @@ fn stable_region_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -
     records.concat()
 }
 
+fn project_pre_d1(catalog: &mut CodeCatalog) {
+    // D1 é posterior a todos os snapshots históricos desta suíte. Remove as
+    // cinco regiões novas e restaura os hashes do head e47b84a antes de
+    // aplicar as projeções mais antigas.
+    catalog.regions.retain(|region| {
+        !matches!(
+            region.key.as_str(),
+            "evidencia.leques.carga-lista-abi-runtime"
+                | "evidencia.leques.carga-lista-estrutura-ir"
+                | "evidencia.leques.carga-lista-matriz-negativa"
+                | "evidencia.leques.carga-lista-matriz-positiva"
+                | "leque.carga.classificacao"
+        )
+    });
+    for region in &mut catalog.regions {
+        let predecessor_hash = match region.key.as_str() {
+            "ast.tipos.representacao" => Some("fnv1a64:b8fb394499b2a481"),
+            "backend-s.runtime.simbolos-intrinsecas" => Some("fnv1a64:7f8a8f2be50a1bbd"),
+            "cfg.validacao.invariantes" => Some("fnv1a64:20d8e1c86911072e"),
+            "evidencia.ir.validacao-aceitacao-basica" => Some("fnv1a64:ee43abb63ba62314"),
+            "evidencia.ir.validacao-chamadas-e-nulo" => Some("fnv1a64:5a5dab78c4638060"),
+            "evidencia.ir.validacao-estrutura-e-diagnostico" => Some("fnv1a64:70056fcef9941da0"),
+            "evidencia.ir.validacao-objetos-trato-fase244" => Some("fnv1a64:3eb5ee4556b62f05"),
+            "evidencia.ir.validacao-retorno-e-condicao" => Some("fnv1a64:d5d3c9137e407ddc"),
+            "evidencia.semantica.leques-com-carga" => Some("fnv1a64:fceb96c8479eae07"),
+            "evidencia.semantica.leques-recursivos-e-multiplas-cargas" => {
+                Some("fnv1a64:a672e43adf1d84fd")
+            }
+            "interpreter.intrinsecos.leques" => Some("fnv1a64:5bb330b2ee2da4b8"),
+            "interpreter.modelo.valores-estado" => Some("fnv1a64:034da22baca7af35"),
+            "ir.lowering.assinaturas-intrinsecos" => Some("fnv1a64:e4b5bb4f44fe27a0"),
+            "ir.lowering.contexto-declaracoes" => Some("fnv1a64:6ffa4ebae14f7bef"),
+            "ir.lowering.expressoes-valores" => Some("fnv1a64:cee3cc49604da1bd"),
+            "ir.lowering.identidade-resolvida" => Some("fnv1a64:9c819db88a036e81"),
+            "ir.lowering.programa-orquestracao" => Some("fnv1a64:ad78bc409d0ac322"),
+            "ir.modelo.representacao" => Some("fnv1a64:69ad243e2ee47e29"),
+            "ir.tipos.identidade-resolvida" => Some("fnv1a64:ee7b723531ffdac3"),
+            "ir.validacao.invariantes" => Some("fnv1a64:8f8603f129307aaa"),
+            "machine.validacao.invariantes" => Some("fnv1a64:df694fdf61cb41f2"),
+            "parser.declaracoes.tipos" => Some("fnv1a64:ab66333ca6bb9b12"),
+            "parser.encaixe.expressao" => Some("fnv1a64:a741c39f7ba7b71a"),
+            "parser.fluxo.nucleo" => Some("fnv1a64:24f0a67ac2da71c6"),
+            "parser.resultado.tentar-propagar" => Some("fnv1a64:71ee3ce2bfbb5214"),
+            "parser.tipos.gramatica" => Some("fnv1a64:df84740555001eb5"),
+            "select.validacao.invariantes" => Some("fnv1a64:606d39dbc2743a40"),
+            "semantic.chamadas.despacho" => Some("fnv1a64:706060569909d7b2"),
+            "semantic.programa.duas-passagens" => Some("fnv1a64:50930bac579f4fc8"),
+            "semantic.tipos.sistema" => Some("fnv1a64:6c818440f8b4eecf"),
+            _ => None,
+        };
+        if let Some(hash) = predecessor_hash {
+            region.hash = hash.to_string();
+        }
+    }
+}
+
 fn project_pre_pr410_terminal_review(catalog: &mut CodeCatalog) {
     // A revisão terminal da PR #410 fortalece regiões já existentes sem
     // reescrever os snapshots históricos. Reconstrói primeiro o head publicado
@@ -435,6 +491,7 @@ fn project_pre_terminal_phase244_fixes(catalog: &mut CodeCatalog) {
 }
 
 fn exclude_phase244_post_semantic(catalog: &mut CodeCatalog) {
+    project_pre_d1(catalog);
     project_pre_phase244_followups(catalog);
     project_pre_terminal_phase244_fixes(catalog);
     const KEYS: [&str; 10] = [
@@ -1108,13 +1165,13 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     // Total vivo após as Fases 247–248: 474 regiões (471 + 3 regiões novas das
     // correções da revisão humana da PR #411: duas em src/inline_asm.rs e uma
     // em src/lexer.rs); +2 regiões de HR4 em src/ir.rs; +5 regiões do
-    // endurecimento pós-PR #411 (itens R5, V4, V3 e clone raso); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends).
+    // endurecimento pós-PR #411 (itens R5, V4, V3 e clone raso); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais cinco regiões de D1 (a autoridade de classificação e quatro cápsulas de evidência).
     // (`ir.tipos.identidade-resolvida` e `ir.lowering.identidade-resolvida`).
     // HR3 acrescentou `uniao.payload.classificacao` em `src/union_payload.rs`.
     // O hotfix da atribuição de símbolo em `sussurro` acrescenta quatro regiões:
     // `build.elf.leitor` (`src/elf.rs`), `sussurro.artefato.invariante`
     // (`src/inline_asm.rs`) e as duas de evidência do hotfix.
-    assert_eq!(index.regions.len(), 496);
+    assert_eq!(index.regions.len(), 501);
 
     // Exatamente uma região Pinker, a do Guardião, com metadados congelados.
     let guardiao: Vec<_> = index
@@ -1137,7 +1194,7 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
             .filter(|r| r.layer.as_deref() == Some(layer))
             .count()
     };
-    assert_eq!(by_layer("evidencia"), 264);
+    assert_eq!(by_layer("evidencia"), 268);
     assert_eq!(by_layer("runtime"), 16);
     assert_eq!(by_layer("apps"), 1);
 }
@@ -2538,6 +2595,7 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
 fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
+    project_pre_d1(&mut catalog);
     exclude_pink_agent_wave_a(&mut catalog);
 
     // A Onda 8E cartografa 565 testes de tests/interpreter_tests.rs (evidências

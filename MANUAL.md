@@ -60,7 +60,7 @@ nova nome: verso = "Pinker";
 
 Também existem tipos inteiros fixos (`u8..u64`, `i8..i64`) no estado atual.
 
-Coleções: `lista<bombom>`, `lista<verso>` e, desde a Fase 211, `lista<T>` com `T` sendo qualquer `leque` declarado — todas operadas pelas intrínsecas genéricas `lista_criar` (exige anotação em `nova`), `lista_anexar`, `lista_obter`, `lista_tamanho`, `lista_definir`, `lista_tirar_ultimo` e `lista_inserir`. Desde a Fase 233, as quatro combinações públicas de `mapa<K,V>` (`verso`/`bombom`) também têm fachada genérica: `mapa_criar`, `mapa_definir`, `mapa_obter`, `mapa_tem`, `mapa_tamanho` e `mapa_remover`. Desde a Fase 235, essas operações aceitam o mapa como expressão tipada no primeiro argumento, não apenas variável local/parâmetro reconhecido pelo parser.
+Coleções: `lista<bombom>`, `lista<verso>` e, desde a Fase 211, `lista<T>` com `T` sendo qualquer `leque` declarado — todas operadas pelas intrínsecas genéricas `lista_criar` (exige anotação em `nova`), `lista_anexar`, `lista_obter`, `lista_tamanho`, `lista_definir`, `lista_tirar_ultimo` e `lista_inserir`. Cada `lista<E>` conserva a identidade exata de `E`: listas de dois leques diferentes não são intercambiáveis, mesmo quando compartilham a mesma representação operacional de handle. Desde a Fase 233, as quatro combinações públicas de `mapa<K,V>` (`verso`/`bombom`) também têm fachada genérica: `mapa_criar`, `mapa_definir`, `mapa_obter`, `mapa_tem`, `mapa_tamanho` e `mapa_remover`. Desde a Fase 235, essas operações aceitam o mapa como expressão tipada no primeiro argumento, não apenas variável local/parâmetro reconhecido pelo parser.
 
 ```pink
 nova tokens: lista<Token> = lista_criar();
@@ -83,10 +83,10 @@ nova n: bombom = identidade<bombom>(42);
 nova s: verso = identidade<verso>("ok");
 ```
 
-O recorte atual exige chamada explícita `nome<T>(...)`; não há inferência de tipo, generics em `leque`/`ninho` nominais, tipos associados, bounds ou especialização. `T` pode aparecer em parâmetros, retorno, anotações locais e em `lista<T>` no recorte público já suportado.
+O recorte atual exige chamada explícita `nome<T>(...)`; não há inferência de tipo, generics em `ninho`, tipos associados, bounds ou especialização. Leques genéricos são usados por especialização explícita em um `apelido`, como `apelido OpcaoNumeros = Opcao<lista<bombom>>;`; depois da monomorfização, nenhuma referência residual ao parâmetro chega à IR validada. `T` pode aparecer em parâmetros, retorno, anotações locais e em `lista<T>` no recorte público já suportado.
 
 ### `leque`
-Enumeração nominal com variantes nomeadas, opcionalmente com cargas (`bombom`, `verso` ou outro leque — inclusive o próprio, permitindo tipos recursivos):
+Enumeração nominal com variantes nomeadas, opcionalmente com cargas. O contrato aceita `bombom`, `verso`, outro leque concreto, `lista<bombom>`, `lista<verso>` e `lista<LequeConcreto>`, além de apelidos transparentes e parâmetros de leque genérico que se resolvam integralmente para uma dessas formas:
 
 ```pink
 leque Cor { Vermelho, Verde, Azul }
@@ -94,6 +94,15 @@ leque Cor { Vermelho, Verde, Azul }
 leque Token { Numero(bombom), Palavra(verso), Fim }
 
 leque Expr { Lit(bombom), Soma(Expr, Expr) }
+
+leque Pacote {
+    Numeros(lista<bombom>),
+    Textos(lista<verso>),
+    Cores(lista<Cor>),
+    Vazio,
+}
+
+leque Arvore { Folha(bombom), Ramos(lista<Arvore>) }
 
 carinho avalia(e: Expr) -> bombom {
     encaixe e {
@@ -109,7 +118,13 @@ carinho principal() -> bombom {
 }
 ```
 
-Dois leques diferentes são tipos distintos mesmo com variantes de mesmo nome. Em leques **sem carga**, a comparação usa `==`/`!=` (inclusive em `escolha`) e o discriminante pode ser lido com `virar bombom`. Em leques **com carga**, a desconstrução acontece exclusivamente via `encaixe`: o compilador exige que todas as variantes sejam cobertas ou que exista um `senao`, e cada `caso Leque.Variante(a, b, ...)` liga as cargas a variáveis novas no corpo do caso, na ordem da declaração.
+Dois leques diferentes são tipos distintos mesmo com variantes de mesmo nome. A identidade também vale dentro da lista: `lista<Cor>` não aceita `lista<Token>` nem vira `lista<bombom>` só porque as três formas ocupam uma palavra no runtime. Apelidos simples ou encadeados convergem para a identidade do alvo, e a substituição de genéricos ocorre em profundidade dentro de `lista<T>`.
+
+Uma lista guardada numa variante copia **rasamente** o handle de uma palavra. A variante e todos os aliases continuam observando a mesma lista lógica: mutações feitas antes ou depois da construção, inclusive pelo binding extraído, ficam visíveis pelos demais aliases. Não há cópia profunda, ownership exclusivo, liberação automática ao sair de `encaixe`, contagem de referências, move semantics, borrow checking ou destrutor. A recursão `lista<proprio_leque>` é válida justamente porque o handle quebra a recursão de layout.
+
+Em leques **sem carga**, a comparação usa `==`/`!=` (inclusive em `escolha`) e o discriminante pode ser lido com `virar bombom`. Em leques **com carga**, a desconstrução acontece exclusivamente via `encaixe`: o compilador exige que todas as variantes sejam cobertas ou que exista um `senao`, e cada `caso Leque.Variante(a, b, ...)` liga as cargas a variáveis novas com o tipo exato, na ordem da declaração. Construção, extração, operações genéricas de lista e alias do handle têm a mesma semântica no interpretador e no backend nativo; D1 reutiliza a ABI existente de uma palavra e não altera o runtime.
+
+Continuam fora do contrato de carga nesta expansão: `mapa<K,V>`, `seta<T>`, `ninho`, array fixo, função, objeto de trato, união estrutural, `nulo`, tipo inexistente e parâmetro genérico não resolvido. A rejeição acontece pelo tipo resolvido, não apenas pela representação operacional.
 
 ### `tentar` para resultado estruturado
 

@@ -1,0 +1,13 @@
+pacote main;
+
+// D1 negativo — `mapa<K,V>` continua fora do contrato de cargas.
+//
+// Compartilhar a representação de uma palavra com as listas não basta: o
+// contrato desta fase aceita listas, e apenas listas, como carga nova.
+leque Indice {
+    Tabela(mapa<verso, bombom>),
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}

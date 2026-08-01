@@ -25,6 +25,132 @@ struct FunctionSig {
 // @pinker-nav:domain validacao
 // @pinker-nav:layer ir
 // @pinker-nav:summary Valida os invariantes da IR estruturada antes do lowering para CFG: constantes globais bem tipadas, bloco de entrada e slots únicos por função, e comandos/expressões com tipos compatíveis via inferência recursiva.
+/// Confere a metadata publicada das variantes de `leque` (D1).
+///
+/// A defesa é repetida aqui, em vez de confiar no lowering, porque é
+/// exatamente esta metadata que decide o helper de runtime e a compatibilidade
+/// de uma carga: uma entrada fabricada com representação de uma palavra e
+/// identidade de outro tipo passaria despercebida por todas as camadas
+/// seguintes, que só enxergam `TypeIR`.
+fn validate_enum_variant_metadata(program: &ProgramIR) -> Result<(), PinkerError> {
+    for variant in &program.enum_variants {
+        if variant.enum_name.trim().is_empty() || variant.variant_name.trim().is_empty() {
+            return Err(ir_validation_error(
+                "metadata de variante de leque sem nome",
+                default_span(),
+            ));
+        }
+        for (index, payload) in variant.payloads.iter().enumerate() {
+            let posicao = format!(
+                "carga {} de '{}.{}'",
+                index + 1,
+                variant.enum_name,
+                variant.variant_name
+            );
+            let entry = program
+                .resolved_types
+                .get(payload.resolved_type_id.0 as usize)
+                .filter(|entry| entry.id == payload.resolved_type_id)
+                .ok_or_else(|| {
+                    ir_validation_error(
+                        &format!(
+                            "E-IR-ENUM-PAYLOAD-METADATA: {posicao} referencia identidade {} ausente da tabela",
+                            payload.resolved_type_id.0
+                        ),
+                        default_span(),
+                    )
+                })?;
+            if entry.representation != payload.operational_type {
+                return Err(ir_validation_error(
+                    &format!(
+                        "E-IR-ENUM-PAYLOAD-METADATA: {posicao} declara representação '{}' e a identidade internada é '{}'",
+                        payload.operational_type.name(),
+                        entry.representation.name()
+                    ),
+                    default_span(),
+                ));
+            }
+            if entry.canonical_key != payload.canonical_key {
+                return Err(ir_validation_error(
+                    &format!(
+                        "E-IR-ENUM-PAYLOAD-METADATA: {posicao} declara identidade '{}' e a tabela registra '{}'",
+                        payload.canonical_key, entry.canonical_key
+                    ),
+                    default_span(),
+                ));
+            }
+            if crate::union_canon::is_poisoned_key(&payload.canonical_key) {
+                return Err(ir_validation_error(
+                    &format!(
+                        "E-IR-ENUM-PAYLOAD-METADATA: {posicao} carrega identidade não resolvida '{}'",
+                        payload.canonical_key
+                    ),
+                    default_span(),
+                ));
+            }
+            // A classe é derivada da representação por uma função total: se a
+            // metadata declarasse outra, o helper escolhido divergiria da
+            // categoria do valor.
+            let esperada = classe_da_representacao(payload.operational_type).ok_or_else(|| {
+                ir_validation_error(
+                    &format!(
+                        "E-IR-ENUM-PAYLOAD-METADATA: {posicao} usa representação '{}' fora do contrato de cargas",
+                        payload.operational_type.name()
+                    ),
+                    default_span(),
+                )
+            })?;
+            if esperada != payload.class {
+                return Err(ir_validation_error(
+                    &format!(
+                        "E-IR-ENUM-PAYLOAD-METADATA: {posicao} declara classe '{}' e a representação '{}' exige '{}'",
+                        payload.class.name(),
+                        payload.operational_type.name(),
+                        esperada.name()
+                    ),
+                    default_span(),
+                ));
+            }
+            if payload.element_type_id != entry.element {
+                return Err(ir_validation_error(
+                    &format!(
+                        "E-IR-ENUM-PAYLOAD-METADATA: {posicao} declara identidade de elemento divergente da identidade internada"
+                    ),
+                    default_span(),
+                ));
+            }
+            // Só listas têm elemento; um elemento numa carga imediata ou `verso`
+            // seria metadata inventada.
+            let admite_elemento = matches!(payload.operational_type, TypeIR::ListBombom);
+            if payload.element_type_id.is_some() && !admite_elemento {
+                return Err(ir_validation_error(
+                    &format!(
+                        "E-IR-ENUM-PAYLOAD-METADATA: {posicao} declara elemento para a representação '{}'",
+                        payload.operational_type.name()
+                    ),
+                    default_span(),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Classe de carga exigida por uma representação operacional.
+///
+/// É a inversa da escolha feita em [`crate::enum_payload`]: as duas precisam
+/// concordar, e é justamente a divergência entre elas que este validador
+/// existe para pegar.
+fn classe_da_representacao(ty: TypeIR) -> Option<crate::enum_payload::EnumPayloadClass> {
+    use crate::enum_payload::EnumPayloadClass;
+    match ty {
+        TypeIR::Bombom => Some(EnumPayloadClass::ImmediateDiscriminant),
+        TypeIR::Verso => Some(EnumPayloadClass::Verso),
+        TypeIR::ListBombom | TypeIR::ListVerso => Some(EnumPayloadClass::OpaqueWordHandle),
+        _ => None,
+    }
+}
+
 pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
     crate::ir::validate_union_registry(&program.union_types)
         .map_err(|message| ir_validation_error(&message, default_span()))?;
@@ -33,6 +159,7 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
     crate::ir::validate_union_registry_identities(&program.union_types, &program.resolved_types)
         .map_err(|message| ir_validation_error(&message, default_span()))?;
     validate_resolved_identities(program)?;
+    validate_enum_variant_metadata(program)?;
     validate_union_operations(program)?;
     let mut consts = HashMap::new();
     for konst in &program.consts {
@@ -441,6 +568,37 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         "__pinker_internal_leque_carga_v".to_string(),
         FunctionSig {
             ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
+    // D1: handles de lista como carga. O parâmetro e o retorno são de uma
+    // palavra, exatamente como o caminho `_b`; o que muda é a categoria
+    // operacional exigida, que preserva a identidade do valor.
+    funcs.insert(
+        crate::enum_payload::ANEXAR_LISTA_BOMBOM.to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Bombom, TypeIR::ListBombom],
+        },
+    );
+    funcs.insert(
+        crate::enum_payload::ANEXAR_LISTA_VERSO.to_string(),
+        FunctionSig {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Bombom, TypeIR::ListVerso],
+        },
+    );
+    funcs.insert(
+        crate::enum_payload::CARGA_LISTA_BOMBOM.to_string(),
+        FunctionSig {
+            ret_type: TypeIR::ListBombom,
+            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
+    funcs.insert(
+        crate::enum_payload::CARGA_LISTA_VERSO.to_string(),
+        FunctionSig {
+            ret_type: TypeIR::ListVerso,
             params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
