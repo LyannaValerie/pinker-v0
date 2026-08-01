@@ -19,7 +19,7 @@
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
 | Última expansão funcional paralela | **D1 adulta**, concluída pela PR #418 |
-| Trabalho ativo | hotfix extraordinário de memória pública e contenção do host, posterior ao merge da PR #420; revisão e merge exclusivamente humanos |
+| Trabalho ativo | PR #421 — hotfix extraordinário de memória pública e contenção do host, posterior ao merge da PR #420; revisão e merge exclusivamente humanos |
 | Último hotfix | **HF-9** — alocação pública lazy/proporcional, quatro orçamentos equivalentes e contenção das execuções nativas controladas; não abre Fase nem conta na janela auxiliar |
 
 ### Estado operacional estruturado
