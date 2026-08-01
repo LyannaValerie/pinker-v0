@@ -340,11 +340,22 @@ Cada alocação pública possui identidade lógica, base, tamanho, alinhamento,
 estado `LIVE`/`FREED`, domínio e proveniência. O interpretador modela regiões
 esparsas byte a byte, inclusive truncamento e extensão de sinal/zero por
 largura; o runtime nativo registra a mesma informação e valida cada load/store
-público quanto a vida, limites completos e alinhamento. A arena é monotônica:
-uma identidade liberada nunca reutiliza endereço, enquanto as páginas físicas
-são descomprometidas. O orçamento é explícito e equivalente nos dois modos:
-até 1.000.000 de identidades, 8 GiB de espaço virtual público, metadata
-proporcional a esse teto e quarentena física de zero bytes.
+público quanto a vida, limites completos e alinhamento. No nativo, cada
+`alocar` cria um mapeamento anônimo proporcional, inicialmente zerado pelo
+kernel e fisicamente realizado apenas nas páginas acessadas; não existe reserva
+antecipada de 8 GiB nem laço de zeragem integral. No interpretador, os bytes
+continuam esparsos. A realização física difere, mas a contabilidade pública e os
+diagnósticos são equivalentes.
+
+Quatro recursos permanecem separados: até 1.000.000 de identidades vitalícias;
+até 8 GiB na soma vitalícia dos mapeamentos públicos arredondados; até 256 MiB
+reservados vivos, recuperáveis por `liberar`; e até 64 MiB de metadata histórica
+(64 bytes canônicos por identidade). Uma alocação individual também não pode
+exceder 256 MiB reservados. Todos os limites contam páginas de 4096 bytes, não
+somente o tamanho lógico. `liberar` aplica `MADV_DONTNEED` e `PROT_NONE`, devolve
+apenas o orçamento vivo e conserva mapeamento, identidade, espaço virtual
+vitalício e metadata até o fim do processo, impedindo reuso de endereço.
+Somente os bytes vivos são recuperáveis por `liberar`.
 
 Somente um alias do ponteiro-base vivo pode liberar a região, uma vez.
 Ponteiro nulo, interior, estrangeiro, estático, de pilha ou pertencente aos

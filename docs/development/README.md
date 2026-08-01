@@ -73,6 +73,9 @@ janela auxiliar autorizada pela Issue #417 tem autoridade operacional própria e
 
 ## Mapa
 
+- `runtime-public-memory-host-containment.md` — contrato de memória pública,
+  reprodução segura e higiene das execuções nativas controladas;
+
 | Necessidade | Documento |
 |---|---|
 | regras de apps internas | `../apps.md` |

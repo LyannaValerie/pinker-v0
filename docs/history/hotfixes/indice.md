@@ -7,4 +7,4 @@
 Hotfixes extraordinários, agrupados por faixa nominal de 50.
 
 ## Shards
-- `001a050.md` — faixa nominal `001a050`; cobre de `HF-1 - Fase 48-H1: hotfixes de corretude e manutenção` até `HF-8 — atribuição de símbolo em `sussurro` (política estrutural e invariante do artefato)`.
+- `001a050.md` — faixa nominal `001a050`; cobre de `HF-1 - Fase 48-H1: hotfixes de corretude e manutenção` até `HF-9 — memória pública lazy e contenção do host`.
