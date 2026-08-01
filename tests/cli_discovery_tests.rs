@@ -298,7 +298,7 @@ fn nome_de_invocacao_relativo_preserva_apenas_o_nome_final() {
     let temp = TempDir::new("relativo");
     let copied = temp.path().join("pink");
     #[cfg(unix)]
-    std::os::unix::fs::symlink(pink(), &copied).expect("criar symlink relativo");
+    std::os::unix::fs::symlink(pink(), copied).expect("criar symlink relativo");
     #[cfg(not(unix))]
     fs::copy(pink(), &copied).expect("copiar pink");
     let output = Command::new("./pink")
