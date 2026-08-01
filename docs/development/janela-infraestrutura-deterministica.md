@@ -67,8 +67,9 @@ qualquer conflito material de escopo ou regressão favorece o Eixo A.
 
 O HF-9 foi autorizado diretamente pela mantenedora depois do merge humano da
 PR #420. Sua unidade 1 é a memória pública da PR #421; a unidade 2 é a contenção
-do host. A interrupção extraordinária não ocupa uma das seis entregas, não altera
-sua ordem e não inicia D2. Depois do merge humano da unidade 2, a entrega
+do host da PR #422. A interrupção extraordinária não ocupa uma das seis
+entregas, não altera sua ordem e não inicia D2. Depois do merge humano da
+unidade 2, a entrega
 corrente volta a ser a segunda capacidade, snapshots e projeções da Issue #384.
 
 ## Ativação e efeito

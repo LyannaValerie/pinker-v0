@@ -7,3 +7,4 @@
 {"schema":1,"pr":419,"kind":"documentation","block":20,"title":"Ativa janela auxiliar de infraestrutura pré-Eixo A","status":"completed","area":["development.deterministic-infrastructure-window","development.tramas-policy","roadmap.block-20"]}
 {"schema":1,"pr":420,"kind":"parallel-phase","block":20,"title":"Normaliza descoberta, ajuda e versão da CLI","status":"completed","area":["development.deterministic-infrastructure-window"]}
 {"schema":1,"pr":421,"kind":"hotfix","block":20,"title":"Contenção da memória pública e eliminação da materialização ansiosa","status":"completed","area":["runtime.public-memory","runtime.allocation","language.memory"]}
+{"schema":1,"pr":422,"kind":"hotfix","block":20,"title":"Contenção do host para execuções nativas","status":"completed","area":["testing.native-execution","development.host-containment","runtime.process-lifecycle"]}
