@@ -33,6 +33,26 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 target_root="$repo_root/target"
 execution_root="$target_root/pinker-exec"
+test_hook_fd=
+
+if [[ -L /proc/$$/fd/9 ]]; then
+    hook_target=$(readlink -- "/proc/$$/fd/9" 2>/dev/null || true)
+    if [[ "$hook_target" == socket:* ]]; then
+        hook_magic=
+        if IFS= read -r -t 0.1 hook_magic <&9 \
+            && [[ "$hook_magic" == PINKER_INTERNAL_CLEANUP_TEST_V1 ]]; then
+            test_hook_fd=9
+        fi
+    fi
+fi
+
+run_test_hook() {
+    local stage=$1 original=$2 quarantine=$3 acknowledgement
+    [[ -n "$test_hook_fd" ]] || return 0
+    printf '%s\t%s\t%s\n' "$stage" "$original" "$quarantine" >&9
+    IFS= read -r acknowledgement <&9 || return 1
+    [[ "$acknowledgement" == OK ]]
+}
 
 root_error() {
     printf 'ERROR root %s\n' "$1" >&2
@@ -67,19 +87,86 @@ revalidate_root() {
     [[ "$current_identity" == "$root_identity" ]]
 }
 
-field() {
-    local marker=$1 key=$2
-    local -a values=()
-    mapfile -t values < <(sed -n "s/^${key}: //p" "$marker")
-    if ((${#values[@]} != 1)); then return 1; fi
-    printf '%s' "${values[0]}"
+marker_reason=invalid-marker
+parse_marker() {
+    local marker=$1 expected_name_owner=$2 expected_identity=$3
+    local line key value
+    local -A parsed=()
+    marker_reason=invalid-marker
+    while IFS= read -r line; do
+        if [[ ! "$line" =~ ^([a-z0-9_]+):\ (.+)$ ]]; then return 1; fi
+        key=${BASH_REMATCH[1]}
+        value=${BASH_REMATCH[2]}
+        case "$key" in
+            schema|owner_pid|owner_start_time|execution_device|execution_inode|launcher_pid|launcher_start_time|guest_pid|process_group_id|watchdog_pid|created_at_unix|git_head|executable_sha256|state) ;;
+            *) return 1 ;;
+        esac
+        if [[ -v "parsed[$key]" ]]; then return 1; fi
+        parsed[$key]=$value
+    done < "$marker"
+    if [[ ${parsed[schema]-} == 1 ]]; then
+        marker_reason=legacy-marker
+        return 1
+    fi
+    ((${#parsed[@]} == 14)) || return 1
+    schema=${parsed[schema]-}
+    owner_pid=${parsed[owner_pid]-}
+    owner_start=${parsed[owner_start_time]-}
+    execution_device=${parsed[execution_device]-}
+    execution_inode=${parsed[execution_inode]-}
+    launcher_pid=${parsed[launcher_pid]-}
+    launcher_start=${parsed[launcher_start_time]-}
+    guest_pid=${parsed[guest_pid]-}
+    process_group_id=${parsed[process_group_id]-}
+    watchdog_pid=${parsed[watchdog_pid]-}
+    created=${parsed[created_at_unix]-}
+    git_head=${parsed[git_head]-}
+    executable_hash=${parsed[executable_sha256]-}
+    state=${parsed[state]-}
+    [[ "$schema" == 2 ]] || return 1
+    [[ "$owner_pid" =~ ^[1-9][0-9]*$ && "$owner_start" =~ ^[1-9][0-9]*$ ]] || return 1
+    [[ "$execution_device" =~ ^[0-9]+$ && "$execution_inode" =~ ^[1-9][0-9]*$ ]] || return 1
+    [[ "$created" =~ ^[0-9]+$ ]] || return 1
+    [[ "$launcher_pid" =~ ^(null|[1-9][0-9]*)$ ]] || return 1
+    [[ "$launcher_start" =~ ^(null|[1-9][0-9]*)$ ]] || return 1
+    [[ "$guest_pid" =~ ^(null|[1-9][0-9]*)$ ]] || return 1
+    [[ "$process_group_id" =~ ^(null|[1-9][0-9]*)$ ]] || return 1
+    [[ "$watchdog_pid" =~ ^(null|[1-9][0-9]*)$ ]] || return 1
+    [[ "$git_head" =~ ^(unknown|[0-9a-f]{40})$ ]] || return 1
+    [[ "$executable_hash" =~ ^(pending|unknown|[0-9a-f]{64})$ ]] || return 1
+    [[ "$owner_pid" == "$expected_name_owner" ]] || { marker_reason=name-owner-mismatch; return 1; }
+    [[ "$execution_device:$execution_inode" == "$expected_identity" ]] || { marker_reason=identity-mismatch; return 1; }
+
+    local shape=invalid
+    if [[ "$launcher_pid" == null && "$launcher_start" == null && "$guest_pid" == null \
+        && "$process_group_id" == null && "$watchdog_pid" == null ]]; then
+        shape=preparing
+    elif [[ "$launcher_pid" != null && "$launcher_start" != null && "$guest_pid" == null \
+        && "$process_group_id" == "$launcher_pid" && "$watchdog_pid" == null ]]; then
+        shape=launcher-ready
+    elif [[ "$launcher_pid" != null && "$launcher_start" != null && "$guest_pid" == null \
+        && "$process_group_id" == "$launcher_pid" && "$watchdog_pid" != null ]]; then
+        shape=watchdog-ready
+    elif [[ "$launcher_pid" != null && "$launcher_start" != null && "$guest_pid" != null \
+        && "$process_group_id" == "$launcher_pid" && "$watchdog_pid" != null ]]; then
+        shape=running
+    fi
+    case "$state:$shape" in
+        preparing:preparing|launcher-ready:launcher-ready|watchdog-ready:watchdog-ready|running:running|terminating:running|finished:running|failed:preparing|failed:launcher-ready|failed:watchdog-ready|failed:running) ;;
+        *) return 1 ;;
+    esac
+    case "$state" in
+        preparing|launcher-ready|watchdog-ready) [[ "$executable_hash" == pending ]] || return 1 ;;
+        running|terminating|finished) [[ "$executable_hash" != pending ]] || return 1 ;;
+    esac
+    return 0
 }
 
 read_proc_start_time() {
     local pid=$1 stat_text suffix
     local -a suffix_fields=()
     [[ -d /proc ]] || return 2
-    if ! IFS= read -r stat_text < "/proc/$pid/stat"; then
+    if ! IFS= read -r stat_text 2>/dev/null < "/proc/$pid/stat"; then
         if [[ -e "/proc/$pid" ]]; then return 2; fi
         return 1
     fi
@@ -101,10 +188,15 @@ shopt -u nullglob
 
 for directory in "${candidates[@]}"; do
     name=${directory##*/}
-    if [[ -L "$directory" || ! -d "$directory" || ! "$name" =~ ^exec-[0-9]+-[0-9]+$ ]]; then
+    if [[ -L "$directory" || ! -d "$directory" || ! "$name" =~ ^exec-([0-9]+)-([0-9]+)$ ]]; then
         printf 'PRESERVED invalid-entry %q\n' "$name"
         continue
     fi
+    name_owner=${BASH_REMATCH[1]}
+    entry_identity=$(stat -Lc '%d:%i' -- "$directory") || {
+        printf 'PRESERVED unreadable-identity %q\n' "$name"
+        continue
+    }
 
     canonical_directory=$(realpath -e -- "$directory") || {
         printf 'ERROR canonicalize %q\n' "$name" >&2
@@ -126,26 +218,8 @@ for directory in "${candidates[@]}"; do
         continue
     fi
 
-    schema=$(field "$marker" schema) || schema=''
-    owner_pid=$(field "$marker" owner_pid) || owner_pid=''
-    owner_start=$(field "$marker" owner_start_time) || owner_start=''
-    created=$(field "$marker" created_at_unix) || created=''
-    child_pid=$(field "$marker" child_pid) || child_pid=''
-    child_pgid=$(field "$marker" child_pgid) || child_pgid=''
-    supervisor_pid=$(field "$marker" supervisor_pid) || supervisor_pid=''
-    git_head=$(field "$marker" git_head) || git_head=''
-    executable_hash=$(field "$marker" executable_sha256) || executable_hash=''
-    state=$(field "$marker" state) || state=''
-
-    if [[ "$schema" != 1 || ! "$owner_pid" =~ ^[0-9]+$ || ! "$owner_start" =~ ^[0-9]+$ \
-        || ! "$created" =~ ^[0-9]+$ \
-        || ! "$child_pid" =~ ^(null|[0-9]+)$ \
-        || ! "$child_pgid" =~ ^(null|-?[0-9]+)$ \
-        || ! "$supervisor_pid" =~ ^(null|[0-9]+)$ \
-        || ! "$git_head" =~ ^(unknown|[0-9a-f]{40})$ \
-        || ! "$executable_hash" =~ ^(pending|unknown|[0-9a-f]{64})$ \
-        || ! "$state" =~ ^(preparing|running|finished|failed)$ ]]; then
-        printf 'PRESERVED invalid-marker %q\n' "$name"
+    if ! parse_marker "$marker" "$name_owner" "$entry_identity"; then
+        printf 'PRESERVED %s %q\n' "$marker_reason" "$name"
         continue
     fi
 
@@ -174,29 +248,59 @@ for directory in "${candidates[@]}"; do
     fi
 
     if ! revalidate_root; then
-        printf 'ERROR root changed-before-remove %q\n' "$name" >&2
+        printf 'ERROR root changed-before-quarantine %q\n' "$name" >&2
         exit 1
     fi
     if [[ -L "$directory" || ! -d "$directory" ]]; then
         printf 'PRESERVED changed-entry %q\n' "$name"
         continue
     fi
-    current_directory=$(realpath -e -- "$directory") || {
-        printf 'ERROR recanonicalize %q\n' "$name" >&2
+    quarantine_counter=0
+    while :; do
+        quarantine="$execution_root/.pinker-quarantine-$$-${RANDOM}-${quarantine_counter}"
+        if [[ ! -e "$quarantine" && ! -L "$quarantine" ]]; then break; fi
+        ((quarantine_counter += 1))
+        if ((quarantine_counter > 1024)); then
+            printf 'PRESERVED quarantine-exhausted %q\n' "$name"
+            continue 2
+        fi
+    done
+    if ! run_test_hook before-quarantine "$directory" "$quarantine"; then
+        printf 'ERROR test-hook-before %q\n' "$name" >&2
+        exit 1
+    fi
+    if ! mv -T -n -- "$directory" "$quarantine"; then
+        printf 'ERROR quarantine %q\n' "$name" >&2
         partial_error=1
-        continue
-    }
-    if [[ "$current_directory" != "$canonical_directory" ]]; then
-        printf 'PRESERVED changed-entry %q\n' "$name"
         continue
     fi
-    rm -rf -- "$directory" || {
-        printf 'ERROR remove %q\n' "$name" >&2
+    if [[ -e "$directory" || -L "$directory" ]]; then
+        printf 'PRESERVED quarantine-exists %q\n' "$name"
+        continue
+    fi
+    if ! run_test_hook after-quarantine "$directory" "$quarantine"; then
+        printf 'ERROR test-hook-after %q\n' "$name" >&2
+        exit 1
+    fi
+    quarantined_identity=$(stat -Lc '%d:%i' -- "$quarantine" 2>/dev/null) || {
+        printf 'PRESERVED identity-mismatch %q\n' "$name"
+        continue
+    }
+    if [[ -L "$quarantine" || ! -d "$quarantine" || "$quarantined_identity" != "$entry_identity" ]]; then
+        printf 'PRESERVED identity-mismatch %q\n' "$name"
+        continue
+    fi
+    if ! revalidate_root; then
+        printf 'ERROR root changed-after-quarantine %q\n' "$name" >&2
+        exit 1
+    fi
+    rm -rf -- "$quarantine" || {
+        printf 'ERROR remove-quarantine %q\n' "$name" >&2
         partial_error=1
         continue
     }
-    if [[ -e "$directory" || -L "$directory" ]]; then
-        printf 'ERROR remained %q\n' "$name" >&2
+    if [[ -e "$quarantine" || -L "$quarantine" ]]; then
+        printf 'ERROR quarantine-remained %q\n' "$name" >&2
         partial_error=1
         continue
     fi

@@ -1,0 +1,19 @@
+# case	marker	cleanup
+valid_preparing	VALID	STALE
+valid_launcher_ready	VALID	STALE
+valid_watchdog_ready	VALID	STALE
+valid_running	VALID	STALE
+valid_terminating	VALID	STALE
+valid_finished	VALID	STALE
+valid_failed	VALID	STALE
+legacy_schema_1	PRESERVED	PRESERVED
+truncated	PRESERVED	PRESERVED
+missing_field	PRESERVED	PRESERVED
+extra_field	PRESERVED	PRESERVED
+duplicate_field	PRESERVED	PRESERVED
+invalid_number	PRESERVED	PRESERVED
+invalid_hash	PRESERVED	PRESERVED
+invalid_state	PRESERVED	PRESERVED
+impossible_combination	PRESERVED	PRESERVED
+name_owner_mismatch	VALID	PRESERVED
+inode_mismatch	VALID	PRESERVED

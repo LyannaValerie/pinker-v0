@@ -5,21 +5,37 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command as StdCommand, ExitStatus, Output, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-#[cfg(unix)]
-use std::os::unix::fs::MetadataExt as _;
-
 const MAX_CAPTURED_STDOUT_BYTES: usize = 1024 * 1024;
 const MAX_CAPTURED_STDERR_BYTES: usize = 1024 * 1024;
 const STALE_EXECUTION_MIN_AGE: Duration = Duration::from_secs(60 * 60);
-static NEXT_EXECUTION: AtomicU64 = AtomicU64::new(1);
 type HashFingerprint = (u64, SystemTime, String);
 type HashCache = Mutex<BTreeMap<PathBuf, HashFingerprint>>;
 static HASH_CACHE: OnceLock<HashCache> = OnceLock::new();
+
+#[path = "native_process_launcher.rs"]
+mod native_process_launcher;
+#[path = "native_process_marker.rs"]
+mod native_process_marker;
+#[path = "native_process_sandbox.rs"]
+mod native_process_sandbox;
+
+use native_process_launcher::{LauncherIdentity, ProcessLauncher};
+pub use native_process_launcher::{LifecycleProbe, StartupFailurePoint};
+use native_process_marker::MarkerState;
+#[allow(unused_imports)]
+pub use native_process_marker::{
+    atomic_marker_interruption_for_test, marker_fields_for_test, marker_verdict_for_test,
+};
+use native_process_sandbox::ExecutionSandbox;
+#[allow(unused_imports)]
+pub use native_process_sandbox::{
+    quarantine_remove_for_test, rust_cleanup_verdict_for_test, QuarantineStage, RemovalVerdict,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum NativeRunClass {
@@ -29,11 +45,11 @@ enum NativeRunClass {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct ResourcePolicy {
+pub(super) struct ResourcePolicy {
     class: NativeRunClass,
     timeout: Duration,
-    address_space_bytes: u64,
-    cpu_seconds: u64,
+    pub(super) address_space_bytes: u64,
+    pub(super) cpu_seconds: u64,
 }
 
 impl ResourcePolicy {
@@ -81,6 +97,8 @@ pub struct ControlledCommand {
     stdout_configured: bool,
     stderr_configured: bool,
     execution_repo_root: Option<PathBuf>,
+    startup_failure: Option<StartupFailurePoint>,
+    lifecycle_probe: LifecycleProbe,
 }
 
 impl ControlledCommand {
@@ -100,6 +118,8 @@ impl ControlledCommand {
             stdout_configured: false,
             stderr_configured: false,
             execution_repo_root: None,
+            startup_failure: None,
+            lifecycle_probe: LifecycleProbe::default(),
         }
     }
 
@@ -172,6 +192,16 @@ impl ControlledCommand {
         self
     }
 
+    pub fn startup_failure_for_test(&mut self, point: StartupFailurePoint) -> &mut Self {
+        self.startup_failure = Some(point);
+        self
+    }
+
+    pub fn lifecycle_probe_for_test(&mut self, probe: &LifecycleProbe) -> &mut Self {
+        self.lifecycle_probe = probe.clone();
+        self
+    }
+
     #[cfg(unix)]
     pub unsafe fn pre_exec<F>(&mut self, function: F) -> &mut Self
     where
@@ -195,11 +225,15 @@ impl ControlledCommand {
         }
         controlled_run(
             &mut self.inner,
-            &self.logical_case,
-            self.timeout_override,
-            self.capture_override,
-            true,
-            self.execution_repo_root.as_deref(),
+            ControlledRunConfig {
+                logical_case: &self.logical_case,
+                timeout_override: self.timeout_override,
+                capture_override: self.capture_override,
+                capture: true,
+                repo_root: self.execution_repo_root.as_deref(),
+                startup_failure: self.startup_failure,
+                lifecycle_probe: self.lifecycle_probe.clone(),
+            },
         )
         .map(|run| Output {
             status: run.status,
@@ -220,351 +254,17 @@ impl ControlledCommand {
         }
         controlled_run(
             &mut self.inner,
-            &self.logical_case,
-            self.timeout_override,
-            self.capture_override,
-            false,
-            self.execution_repo_root.as_deref(),
+            ControlledRunConfig {
+                logical_case: &self.logical_case,
+                timeout_override: self.timeout_override,
+                capture_override: self.capture_override,
+                capture: false,
+                repo_root: self.execution_repo_root.as_deref(),
+                startup_failure: self.startup_failure,
+                lifecycle_probe: self.lifecycle_probe.clone(),
+            },
         )
         .map(|run| run.status)
-    }
-}
-
-#[derive(Debug)]
-struct ExecutionRootAuthority {
-    repo_root: PathBuf,
-    target: PathBuf,
-    root: PathBuf,
-    #[cfg(unix)]
-    root_device: u64,
-    #[cfg(unix)]
-    root_inode: u64,
-}
-
-impl ExecutionRootAuthority {
-    fn prepare() -> io::Result<Self> {
-        let repo_root = discover_repo_root()?;
-        Self::prepare_at(&repo_root)
-    }
-
-    fn prepare_at(repo_root: &Path) -> io::Result<Self> {
-        let repo_root = repo_root.canonicalize().map_err(|error| {
-            io::Error::new(
-                error.kind(),
-                format!("não foi possível canonicalizar a raiz autorizada: {error}"),
-            )
-        })?;
-        let target = repo_root.join("target");
-        ensure_real_directory(&target, "target")?;
-        let root = target.join("pinker-exec");
-        ensure_real_directory(&root, "target/pinker-exec")?;
-        let canonical_root = root.canonicalize()?;
-        if !canonical_root.starts_with(&repo_root) {
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "raiz de execução escapou da raiz canônica autorizada",
-            ));
-        }
-        let metadata = fs::symlink_metadata(&root)?;
-        Ok(Self {
-            repo_root,
-            target,
-            root: canonical_root,
-            #[cfg(unix)]
-            root_device: metadata.dev(),
-            #[cfg(unix)]
-            root_inode: metadata.ino(),
-        })
-    }
-
-    fn revalidate(&self) -> io::Result<()> {
-        validate_real_directory(&self.target, "target")?;
-        validate_real_directory(&self.root, "target/pinker-exec")?;
-        let canonical = self.root.canonicalize()?;
-        if canonical != self.root || !canonical.starts_with(&self.repo_root) {
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "raiz de execução mudou ou escapou da raiz autorizada",
-            ));
-        }
-        #[cfg(unix)]
-        {
-            let metadata = fs::symlink_metadata(&self.root)?;
-            if metadata.dev() != self.root_device || metadata.ino() != self.root_inode {
-                return Err(io::Error::new(
-                    io::ErrorKind::PermissionDenied,
-                    "raiz de execução foi trocada desde a preparação",
-                ));
-            }
-        }
-        Ok(())
-    }
-}
-
-fn discover_repo_root() -> io::Result<PathBuf> {
-    let mut directory = std::env::current_dir()?.canonicalize()?;
-    loop {
-        let git = directory.join(".git");
-        match fs::symlink_metadata(&git) {
-            Ok(metadata)
-                if !metadata.file_type().is_symlink()
-                    && (metadata.is_dir() || metadata.is_file()) =>
-            {
-                return Ok(directory);
-            }
-            Ok(_) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::PermissionDenied,
-                    ".git ambíguo na raiz candidata",
-                ));
-            }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
-        }
-        if !directory.pop() {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "raiz real do repositório Pinker não encontrada",
-            ));
-        }
-    }
-}
-
-fn ensure_real_directory(path: &Path, label: &str) -> io::Result<()> {
-    match fs::symlink_metadata(path) {
-        Ok(_) => validate_real_directory(path, label),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            fs::create_dir(path)?;
-            validate_real_directory(path, label)
-        }
-        Err(error) => Err(error),
-    }
-}
-
-fn validate_real_directory(path: &Path, label: &str) -> io::Result<()> {
-    let metadata = fs::symlink_metadata(path)?;
-    if metadata.file_type().is_symlink() || !metadata.is_dir() {
-        return Err(io::Error::new(
-            io::ErrorKind::PermissionDenied,
-            format!("{label} deve ser um diretório real, nunca symlink"),
-        ));
-    }
-    Ok(())
-}
-
-struct ExecutionSandbox {
-    authority: ExecutionRootAuthority,
-    directory: PathBuf,
-    marker: PathBuf,
-    created_at_unix: u64,
-    owner_start_time: u64,
-}
-
-impl ExecutionSandbox {
-    fn create(git_head: &str, repo_root: Option<&Path>) -> io::Result<Self> {
-        let authority = match repo_root {
-            Some(root) => ExecutionRootAuthority::prepare_at(root)?,
-            None => ExecutionRootAuthority::prepare()?,
-        };
-        scavenge_stale_execution_dirs(&authority, STALE_EXECUTION_MIN_AGE)?;
-        authority.revalidate()?;
-        let id = NEXT_EXECUTION.fetch_add(1, Ordering::SeqCst);
-        let directory = authority
-            .root
-            .join(format!("exec-{}-{id}", std::process::id()));
-        fs::create_dir(&directory)?;
-        validate_real_directory(&directory, "diretório de execução")?;
-        let marker = directory.join("owner.marker");
-        let created_at_unix = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let owner_start_time = process_start_time(std::process::id()).ok_or_else(|| {
-            io::Error::other("não foi possível provar a identidade do owner em /proc")
-        })?;
-        let sandbox = Self {
-            authority,
-            directory,
-            marker,
-            created_at_unix,
-            owner_start_time,
-        };
-        sandbox.write_marker(git_head, None, None, None, "preparing", "pending")?;
-        Ok(sandbox)
-    }
-
-    fn write_marker(
-        &self,
-        git_head: &str,
-        child_pid: Option<u32>,
-        child_pgid: Option<i32>,
-        supervisor_pid: Option<i32>,
-        state: &str,
-        executable_sha256: &str,
-    ) -> io::Result<()> {
-        let marker = format!(
-            "schema: 1\nowner_pid: {}\nowner_start_time: {}\nchild_pid: {}\nchild_pgid: {}\nsupervisor_pid: {}\ncreated_at_unix: {}\ngit_head: {git_head}\nexecutable_sha256: {executable_sha256}\nstate: {state}\n",
-            std::process::id(),
-            self.owner_start_time,
-            child_pid.map_or_else(|| "null".to_string(), |pid| pid.to_string()),
-            child_pgid.map_or_else(|| "null".to_string(), |pgid| pgid.to_string()),
-            supervisor_pid.map_or_else(|| "null".to_string(), |pid| pid.to_string()),
-            self.created_at_unix,
-        );
-        fs::write(&self.marker, marker)
-    }
-
-    fn cleanup(&self) -> io::Result<()> {
-        self.authority.revalidate()?;
-        let metadata = match fs::symlink_metadata(&self.directory) {
-            Ok(metadata) => metadata,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-            Err(error) => return Err(error),
-        };
-        if metadata.file_type().is_symlink() || !metadata.is_dir() {
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "diretório de execução foi trocado ou não é diretório real",
-            ));
-        }
-        let canonical_directory = self.directory.canonicalize()?;
-        if !canonical_directory.starts_with(&self.authority.root)
-            || canonical_directory == self.authority.root
-        {
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "diretório de execução escapou da raiz Pinker",
-            ));
-        }
-        fs::remove_dir_all(&self.directory)?;
-        if self.directory.exists() {
-            return Err(io::Error::other("diretório de execução não foi removido"));
-        }
-        Ok(())
-    }
-}
-
-fn scavenge_stale_execution_dirs(
-    authority: &ExecutionRootAuthority,
-    minimum_age: Duration,
-) -> io::Result<usize> {
-    authority.revalidate()?;
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    let mut removed = 0;
-    for entry in fs::read_dir(&authority.root)? {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(error) => {
-                eprintln!("PRESERVED entrada ilegível no scavenger: {error}");
-                continue;
-            }
-        };
-        match scavenge_entry(authority, &entry, now, minimum_age) {
-            Ok(true) => removed += 1,
-            Ok(false) => {}
-            Err(error) => eprintln!("PRESERVED {}: {error}", entry.path().display()),
-        }
-    }
-    Ok(removed)
-}
-
-fn scavenge_entry(
-    authority: &ExecutionRootAuthority,
-    entry: &fs::DirEntry,
-    now: u64,
-    minimum_age: Duration,
-) -> io::Result<bool> {
-    let file_type = entry.file_type()?;
-    if file_type.is_symlink() || !file_type.is_dir() {
-        return Ok(false);
-    }
-    let name = entry.file_name();
-    let Some(name) = name.to_str() else {
-        return Ok(false);
-    };
-    if !valid_execution_directory_name(name) {
-        return Ok(false);
-    }
-    let directory = entry.path();
-    let marker_path = directory.join("owner.marker");
-    let marker_metadata = fs::symlink_metadata(&marker_path)?;
-    if marker_metadata.file_type().is_symlink() || !marker_metadata.is_file() {
-        return Ok(false);
-    }
-    let marker = parse_marker(&fs::read_to_string(&marker_path)?).ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidData, "marcador inválido ou ambíguo")
-    })?;
-    if marker.created_at > now || now - marker.created_at < minimum_age.as_secs() {
-        return Ok(false);
-    }
-    match process_identity(marker.owner_pid, marker.owner_start_time) {
-        ProcessIdentity::Live | ProcessIdentity::Unknown => return Ok(false),
-        ProcessIdentity::Missing | ProcessIdentity::Reused => {}
-    }
-    authority.revalidate()?;
-    validate_real_directory(&directory, "entrada exec")?;
-    let canonical_directory = directory.canonicalize()?;
-    if !canonical_directory.starts_with(&authority.root) || canonical_directory == authority.root {
-        return Ok(false);
-    }
-    fs::remove_dir_all(&directory)?;
-    Ok(true)
-}
-
-fn valid_execution_directory_name(name: &str) -> bool {
-    let Some(ids) = name.strip_prefix("exec-") else {
-        return false;
-    };
-    let mut ids = ids.split('-');
-    ids.next()
-        .and_then(|value| value.parse::<u32>().ok())
-        .is_some()
-        && ids
-            .next()
-            .and_then(|value| value.parse::<u64>().ok())
-            .is_some()
-        && ids.next().is_none()
-}
-
-struct MarkerIdentity {
-    owner_pid: u32,
-    owner_start_time: u64,
-    created_at: u64,
-}
-
-fn parse_marker(marker: &str) -> Option<MarkerIdentity> {
-    let mut fields = BTreeMap::new();
-    for line in marker.lines() {
-        let (key, value) = line.split_once(": ")?;
-        if fields.insert(key, value).is_some() {
-            return None;
-        }
-    }
-    if fields.get("schema") != Some(&"1") {
-        return None;
-    }
-    let state = *fields.get("state")?;
-    if !matches!(state, "preparing" | "running" | "finished" | "failed") {
-        return None;
-    }
-    Some(MarkerIdentity {
-        owner_pid: fields.get("owner_pid")?.parse().ok()?,
-        owner_start_time: fields.get("owner_start_time")?.parse().ok()?,
-        created_at: fields.get("created_at_unix")?.parse().ok()?,
-    })
-}
-
-impl Drop for ExecutionSandbox {
-    fn drop(&mut self) {
-        if let Err(error) = self.cleanup() {
-            eprintln!(
-                "falha ao limpar sandbox nativo {}: {error}",
-                self.directory.display()
-            );
-        }
     }
 }
 
@@ -575,13 +275,13 @@ pub struct NativeArtifactDir {
 impl NativeArtifactDir {
     pub fn create() -> io::Result<Self> {
         let git_head = read_git_head().unwrap_or_else(|| "unknown".to_string());
-        let sandbox = ExecutionSandbox::create(&git_head, None)?;
-        sandbox.write_marker(&git_head, None, None, None, "running", "pending")?;
+        let mut sandbox = ExecutionSandbox::create(&git_head, None)?;
+        sandbox.authorize_cleanup();
         Ok(Self { sandbox })
     }
 
     pub fn path(&self) -> &Path {
-        &self.sandbox.directory
+        self.sandbox.path()
     }
 }
 
@@ -591,14 +291,29 @@ struct ControlledRun {
     stderr: Vec<u8>,
 }
 
-fn controlled_run(
-    command: &mut StdCommand,
-    logical_case: &str,
+struct ControlledRunConfig<'a> {
+    logical_case: &'a str,
     timeout_override: Option<Duration>,
     capture_override: Option<usize>,
     capture: bool,
-    repo_root: Option<&Path>,
+    repo_root: Option<&'a Path>,
+    startup_failure: Option<StartupFailurePoint>,
+    lifecycle_probe: LifecycleProbe,
+}
+
+fn controlled_run(
+    command: &mut StdCommand,
+    config: ControlledRunConfig<'_>,
 ) -> io::Result<ControlledRun> {
+    let ControlledRunConfig {
+        logical_case,
+        timeout_override,
+        capture_override,
+        capture,
+        repo_root,
+        startup_failure,
+        lifecycle_probe,
+    } = config;
     let mut policy = ResourcePolicy::for_program(command.get_program());
     if let Some(timeout) = timeout_override {
         policy.timeout = timeout;
@@ -618,75 +333,140 @@ fn controlled_run(
         .as_deref()
         .and_then(sha256_file_cached);
     let git_head = read_git_head().unwrap_or_else(|| "unknown".to_string());
-    let sandbox = ExecutionSandbox::create(&git_head, repo_root)?;
-    command.env("TMPDIR", &sandbox.directory);
-    command.env("PINKER_EXECUTION_DIR", &sandbox.directory);
-
-    #[cfg(target_os = "linux")]
-    prepare_linux_child(command, policy)?;
+    let mut sandbox = ExecutionSandbox::create(&git_head, repo_root)?;
+    command.env("TMPDIR", sandbox.path());
+    command.env("PINKER_EXECUTION_DIR", sandbox.path());
 
     let started_unix_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis();
     let started = Instant::now();
-    let mut child = command.spawn()?;
-    let pid = child.id();
-    let pgid = pid as i32;
-    let mut watchdog = ProcessWatchdog::spawn(pgid)?;
-    sandbox.write_marker(
-        &git_head,
-        Some(pid),
-        Some(pgid),
-        watchdog.pid(),
-        "running",
+    let startup = ProcessLauncher::spawn_gated(
+        command,
+        policy,
+        startup_failure,
+        lifecycle_probe.clone(),
+        |identity, control_fd| {
+            sandbox.update_marker(
+                MarkerState::LauncherReady,
+                Some((identity.pid, identity.start_time, identity.pgid)),
+                None,
+                None,
+                "pending",
+            )?;
+            if startup_failure == Some(StartupFailurePoint::BeforeWatchdog) {
+                return Err(io::Error::other("falha injetada em BEFORE_WATCHDOG"));
+            }
+            let watchdog = ProcessWatchdog::spawn(
+                identity,
+                control_fd,
+                startup_failure,
+                lifecycle_probe.clone(),
+            )?;
+            sandbox.update_marker(
+                MarkerState::WatchdogReady,
+                Some((identity.pid, identity.start_time, identity.pgid)),
+                None,
+                watchdog.pid().map(|pid| pid as u32),
+                "pending",
+            )?;
+            Ok(watchdog)
+        },
+    );
+    let (mut launcher, mut watchdog) = match startup {
+        Ok(startup) => startup,
+        Err(error) => {
+            let marker_result = sandbox.mark_failed_preserving_shape(&executable_hash);
+            if marker_result.is_ok() {
+                sandbox.authorize_cleanup();
+                sandbox.cleanup()?;
+            } else {
+                sandbox.preserve();
+            }
+            return Err(error);
+        }
+    };
+    let launcher_identity = launcher.identity();
+    let guest_pid = launcher.guest_pid();
+    if let Err(error) = sandbox.update_marker(
+        MarkerState::Running,
+        Some((
+            launcher_identity.pid,
+            launcher_identity.start_time,
+            launcher_identity.pgid,
+        )),
+        Some(guest_pid),
+        watchdog.pid().map(|pid| pid as u32),
         &executable_hash,
-    )?;
+    ) {
+        let shutdown = launcher
+            .request_termination()
+            .and_then(|()| launcher.wait_final(Duration::from_secs(10)))
+            .and_then(|_| launcher.reap())
+            .and_then(|()| watchdog.finish());
+        sandbox.preserve();
+        return match shutdown {
+            Ok(()) => Err(error),
+            Err(shutdown_error) => Err(io::Error::other(format!(
+                "{error}; árvore também falhou ao encerrar: {shutdown_error}"
+            ))),
+        };
+    }
 
     let stdout_overflow = Arc::new(AtomicBool::new(false));
     let stderr_overflow = Arc::new(AtomicBool::new(false));
     let stdout_thread = if capture {
-        child
-            .stdout
-            .take()
+        launcher
+            .take_stdout()
             .map(|stdout| bounded_reader(stdout, stdout_limit, Arc::clone(&stdout_overflow)))
     } else {
         None
     };
     let stderr_thread = if capture {
-        child
-            .stderr
-            .take()
+        launcher
+            .take_stderr()
             .map(|stderr| bounded_reader(stderr, stderr_limit, Arc::clone(&stderr_overflow)))
     } else {
         None
     };
-    drop(child.stdin.take());
+    drop(launcher.take_stdin());
 
-    let mut termination_reason = None;
+    let mut termination_reason =
+        (startup_failure == Some(StartupFailurePoint::AfterGate)).then_some("after_gate");
     let status = loop {
         if !watchdog.is_alive()? {
             termination_reason = Some("watchdog_exit");
-            terminate_process_group(pgid, &mut child);
-            break child.wait()?;
+            launcher.request_termination()?;
         }
         if stdout_overflow.load(Ordering::SeqCst) {
             termination_reason = Some("stdout_limit");
-            terminate_process_group(pgid, &mut child);
-            break child.wait()?;
+            launcher.request_termination()?;
         }
         if stderr_overflow.load(Ordering::SeqCst) {
             termination_reason = Some("stderr_limit");
-            terminate_process_group(pgid, &mut child);
-            break child.wait()?;
+            launcher.request_termination()?;
         }
         if started.elapsed() >= policy.timeout {
             termination_reason = Some("timeout");
-            terminate_process_group(pgid, &mut child);
-            break child.wait()?;
+            launcher.request_termination()?;
         }
-        if let Some(status) = child.try_wait()? {
-            terminate_remaining_group(pgid);
+        if termination_reason.is_some() {
+            let _ = sandbox.update_marker(
+                MarkerState::Terminating,
+                Some((
+                    launcher_identity.pid,
+                    launcher_identity.start_time,
+                    launcher_identity.pgid,
+                )),
+                Some(guest_pid),
+                watchdog.pid().map(|pid| pid as u32),
+                &executable_hash,
+            );
+            launcher.request_termination()?;
+            break launcher.wait_final(Duration::from_secs(10))?;
+        }
+        if let Some(status) = launcher.try_final()? {
             break status;
         }
         thread::sleep(Duration::from_millis(10));
@@ -695,6 +475,7 @@ fn controlled_run(
     let stdout = join_reader(stdout_thread, "stdout")?;
     let stderr = join_reader(stderr_thread, "stderr")?;
     let duration = started.elapsed();
+    launcher.reap()?;
     watchdog.finish()?;
 
     if termination_reason.is_some() || !status.success() {
@@ -709,8 +490,8 @@ fn controlled_run(
                 .unwrap_or("unknown"),
             executable_hash,
             runtime_hash.as_deref().unwrap_or("unknown"),
-            pid,
-            pgid,
+            guest_pid,
+            launcher_identity.pgid,
             watchdog.reported_pid(),
             policy.class,
             policy.address_space_bytes,
@@ -727,6 +508,23 @@ fn controlled_run(
         );
     }
 
+    let terminal_state = if termination_reason.is_none() && status.success() {
+        MarkerState::Finished
+    } else {
+        MarkerState::Failed
+    };
+    sandbox.update_marker(
+        terminal_state,
+        Some((
+            launcher_identity.pid,
+            launcher_identity.start_time,
+            launcher_identity.pgid,
+        )),
+        Some(guest_pid),
+        watchdog.pid().map(|pid| pid as u32),
+        &executable_hash,
+    )?;
+    sandbox.authorize_cleanup();
     sandbox.cleanup()?;
     if let Some(reason) = termination_reason {
         return Err(io::Error::new(
@@ -777,149 +575,144 @@ fn bounded_reader<R: Read + Send + 'static>(
 }
 
 #[cfg(target_os = "linux")]
-fn prepare_linux_child(command: &mut StdCommand, policy: ResourcePolicy) -> io::Result<()> {
-    use std::os::unix::process::CommandExt;
-    let expected_parent = std::process::id() as i32;
-    unsafe {
-        command.pre_exec(move || {
-            #[repr(C)]
-            struct RLimit {
-                current: u64,
-                maximum: u64,
-            }
-            extern "C" {
-                fn getppid() -> i32;
-                fn getrlimit(resource: i32, limit: *mut RLimit) -> i32;
-                fn prctl(option: i32, arg2: u64, arg3: u64, arg4: u64, arg5: u64) -> i32;
-                fn setpgid(pid: i32, pgid: i32) -> i32;
-                fn setrlimit(resource: i32, limit: *const RLimit) -> i32;
-            }
-            const PR_SET_PDEATHSIG: i32 = 1;
-            const SIGKILL: u64 = 9;
-            const RLIMIT_CPU: i32 = 0;
-            const RLIMIT_CORE: i32 = 4;
-            const RLIMIT_AS: i32 = 9;
-            let set_soft = |resource: i32, value: u64| {
-                let mut limit = RLimit {
-                    current: 0,
-                    maximum: 0,
-                };
-                if getrlimit(resource, &mut limit) != 0 {
-                    return Err(io::Error::last_os_error());
-                }
-                limit.current = value.min(limit.maximum);
-                if setrlimit(resource, &limit) != 0 {
-                    return Err(io::Error::last_os_error());
-                }
-                Ok(())
-            };
-            if setpgid(0, 0) != 0 {
-                return Err(io::Error::last_os_error());
-            }
-            if prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0) != 0 {
-                return Err(io::Error::last_os_error());
-            }
-            if getppid() != expected_parent {
-                return Err(io::Error::from_raw_os_error(3));
-            }
-            set_soft(RLIMIT_CORE, 0)?;
-            set_soft(RLIMIT_AS, policy.address_space_bytes)?;
-            set_soft(RLIMIT_CPU, policy.cpu_seconds)?;
-            Ok(())
-        });
-    }
-    Ok(())
-}
-
-#[cfg(not(target_os = "linux"))]
-fn prepare_linux_child(_command: &mut StdCommand, _policy: ResourcePolicy) -> io::Result<()> {
-    Ok(())
-}
-
-#[cfg(target_os = "linux")]
 struct ProcessWatchdog {
     pid: i32,
     reported_pid: i32,
     life_fd: Option<i32>,
     reaped: bool,
+    probe: LifecycleProbe,
+    launcher: LauncherIdentity,
 }
 
 #[cfg(target_os = "linux")]
 impl ProcessWatchdog {
-    fn spawn(pgid: i32) -> io::Result<Self> {
-        #[repr(C)]
-        struct Timespec {
-            seconds: i64,
-            nanoseconds: i64,
-        }
+    fn spawn(
+        launcher: LauncherIdentity,
+        launcher_control_fd: i32,
+        failure: Option<StartupFailurePoint>,
+        probe: LifecycleProbe,
+    ) -> io::Result<Self> {
         extern "C" {
             fn pipe2(pipefd: *mut i32, flags: i32) -> i32;
             fn fork() -> i32;
             fn close(fd: i32) -> i32;
-            fn dup2(old_fd: i32, new_fd: i32) -> i32;
             fn read(fd: i32, buffer: *mut u8, count: usize) -> isize;
-            fn kill(pid: i32, signal: i32) -> i32;
-            fn nanosleep(request: *const Timespec, remaining: *mut Timespec) -> i32;
-            fn syscall(number: isize, ...) -> isize;
+            fn write(fd: i32, buffer: *const u8, count: usize) -> isize;
             fn _exit(status: i32) -> !;
         }
         const O_CLOEXEC: i32 = 0o2000000;
-        const SYS_CLOSE_RANGE: isize = 436;
-        const WATCHDOG_LIFE_FD: i32 = 3;
-        let mut pipe = [-1_i32; 2];
-        if unsafe { pipe2(pipe.as_mut_ptr(), O_CLOEXEC) } != 0 {
+        if failure == Some(StartupFailurePoint::WatchdogPipe) {
+            return Err(io::Error::other("falha injetada em WATCHDOG_PIPE"));
+        }
+        let mut life_pipe = [-1_i32; 2];
+        let mut ready_pipe = [-1_i32; 2];
+        if unsafe { pipe2(life_pipe.as_mut_ptr(), O_CLOEXEC) } != 0 {
             return Err(io::Error::last_os_error());
+        }
+        if unsafe { pipe2(ready_pipe.as_mut_ptr(), O_CLOEXEC) } != 0 {
+            let error = io::Error::last_os_error();
+            unsafe {
+                close(life_pipe[0]);
+                close(life_pipe[1]);
+            }
+            return Err(error);
+        }
+        if failure == Some(StartupFailurePoint::WatchdogFork) {
+            unsafe {
+                close(life_pipe[0]);
+                close(life_pipe[1]);
+                close(ready_pipe[0]);
+                close(ready_pipe[1]);
+            }
+            return Err(io::Error::other("falha injetada em WATCHDOG_FORK"));
         }
         let supervisor = unsafe { fork() };
         if supervisor < 0 {
             unsafe {
-                close(pipe[0]);
-                close(pipe[1]);
+                close(life_pipe[0]);
+                close(life_pipe[1]);
+                close(ready_pipe[0]);
+                close(ready_pipe[1]);
             }
             return Err(io::Error::last_os_error());
         }
         if supervisor == 0 {
             unsafe {
-                close(pipe[1]);
-                if pipe[0] != WATCHDOG_LIFE_FD {
-                    if dup2(pipe[0], WATCHDOG_LIFE_FD) < 0 {
-                        _exit(126);
-                    }
-                    close(pipe[0]);
+                close(life_pipe[1]);
+                close(ready_pipe[0]);
+                if failure == Some(StartupFailurePoint::AfterWatchdogBeforeReady) {
+                    _exit(124);
                 }
-                if syscall(SYS_CLOSE_RANGE, 4_u32, u32::MAX, 0_u32) < 0 {
-                    _exit(126);
+                close_watchdog_fds_except(life_pipe[0], ready_pipe[1], launcher_control_fd);
+                let ready = [b'R'];
+                if write(ready_pipe[1], ready.as_ptr(), 1) != 1 {
+                    _exit(125);
                 }
+                close(ready_pipe[1]);
                 let mut byte = 0_u8;
-                let read_result = read(WATCHDOG_LIFE_FD, &mut byte, 1);
-                close(WATCHDOG_LIFE_FD);
+                let read_result = read(life_pipe[0], &mut byte, 1);
+                close(life_pipe[0]);
                 if read_result == 0 {
-                    kill(-pgid, 15);
-                    let delay = Timespec {
-                        seconds: 0,
-                        nanoseconds: 200_000_000,
-                    };
-                    nanosleep(&delay, std::ptr::null_mut());
-                    kill(-pgid, 9);
+                    let terminate = [b'T'];
+                    let _ = write(launcher_control_fd, terminate.as_ptr(), 1);
                 }
                 _exit(0);
             }
         }
         unsafe {
-            close(pipe[0]);
+            close(life_pipe[0]);
+            close(ready_pipe[1]);
         }
+        let mut ready = 0_u8;
+        let ready_result = unsafe { read(ready_pipe[0], &mut ready, 1) };
+        unsafe {
+            close(ready_pipe[0]);
+        }
+        if ready_result != 1 || ready != b'R' {
+            let mut status = 0_i32;
+            unsafe {
+                waitpid_blocking(supervisor, &mut status);
+                close(life_pipe[1]);
+            }
+            probe.record("watchdog_reaped");
+            return Err(io::Error::other("watchdog não confirmou o canal de vida"));
+        }
+        probe.record(format!(
+            "watchdog_ready:{}:launcher={}:start={}:pgid={}",
+            supervisor, launcher.pid, launcher.start_time, launcher.pgid
+        ));
         Ok(Self {
             pid: supervisor,
             reported_pid: supervisor,
-            life_fd: Some(pipe[1]),
+            life_fd: Some(life_pipe[1]),
             reaped: false,
+            probe,
+            launcher,
         })
     }
 
     fn fd_hygiene_probe<T>(action: impl FnOnce() -> T) -> io::Result<T> {
-        let mut watchdog = Self::spawn(i32::MAX)?;
+        extern "C" {
+            fn pipe2(pipefd: *mut i32, flags: i32) -> i32;
+            fn close(fd: i32) -> i32;
+        }
+        const O_CLOEXEC: i32 = 0o2000000;
+        let mut control = [-1_i32; 2];
+        if unsafe { pipe2(control.as_mut_ptr(), O_CLOEXEC) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let identity = LauncherIdentity {
+            pid: std::process::id(),
+            start_time: process_start_time(std::process::id()).unwrap_or(1),
+            pgid: std::process::id() as i32,
+        };
+        let mut watchdog = Self::spawn(identity, control[1], None, LifecycleProbe::default())?;
         let result = action();
         watchdog.finish()?;
+        unsafe {
+            close(control[0]);
+            close(control[1]);
+        }
         Ok(result)
     }
 
@@ -968,7 +761,7 @@ impl ProcessWatchdog {
                 fn write(fd: i32, buffer: *const u8, count: usize) -> isize;
                 fn close(fd: i32) -> i32;
             }
-            let graceful = [1_u8];
+            let graceful = [b'D'];
             if unsafe { write(fd, graceful.as_ptr(), 1) } < 0 {
                 unsafe {
                     close(fd);
@@ -979,7 +772,9 @@ impl ProcessWatchdog {
                 close(fd);
             }
         }
-        self.reap()
+        self.reap()?;
+        self.probe.record("watchdog_reaped");
+        Ok(())
     }
 
     fn reap(&mut self) -> io::Result<()> {
@@ -1001,6 +796,30 @@ impl ProcessWatchdog {
 }
 
 #[cfg(target_os = "linux")]
+unsafe fn close_watchdog_fds_except(first: i32, second: i32, third: i32) {
+    extern "C" {
+        fn close(fd: i32) -> i32;
+    }
+    for fd in 0..65_536 {
+        if fd != first && fd != second && fd != third {
+            close(fd);
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+unsafe fn waitpid_blocking(pid: i32, status: *mut i32) {
+    extern "C" {
+        fn waitpid(pid: i32, status: *mut i32, options: i32) -> i32;
+    }
+    while waitpid(pid, status, 0) < 0 {
+        if io::Error::last_os_error().kind() != io::ErrorKind::Interrupted {
+            break;
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
 impl Drop for ProcessWatchdog {
     fn drop(&mut self) {
         if let Some(fd) = self.life_fd.take() {
@@ -1011,7 +830,9 @@ impl Drop for ProcessWatchdog {
                 close(fd);
             }
         }
-        let _ = self.reap();
+        if self.reap().is_ok() {
+            self.probe.record("watchdog_reaped");
+        }
     }
 }
 
@@ -1045,38 +866,6 @@ impl ProcessWatchdog {
     fn finish(&mut self) -> io::Result<()> {
         Ok(())
     }
-}
-
-#[cfg(target_os = "linux")]
-fn signal_group(pgid: i32, signal: i32) {
-    extern "C" {
-        fn kill(pid: i32, signal: i32) -> i32;
-    }
-    unsafe {
-        kill(-pgid, signal);
-    }
-}
-
-#[cfg(not(target_os = "linux"))]
-fn signal_group(_pgid: i32, _signal: i32) {}
-
-fn terminate_process_group(pgid: i32, child: &mut std::process::Child) {
-    signal_group(pgid, 15);
-    let deadline = Instant::now() + Duration::from_millis(200);
-    while Instant::now() < deadline {
-        if child.try_wait().ok().flatten().is_some() {
-            terminate_remaining_group(pgid);
-            return;
-        }
-        thread::sleep(Duration::from_millis(10));
-    }
-    signal_group(pgid, 9);
-}
-
-fn terminate_remaining_group(pgid: i32) {
-    signal_group(pgid, 15);
-    thread::sleep(Duration::from_millis(20));
-    signal_group(pgid, 9);
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

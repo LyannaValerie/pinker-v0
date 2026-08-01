@@ -1,6 +1,8 @@
 mod common;
 
-use common::native_process::{process_identity, process_start_time, ProcessIdentity};
+use common::native_process::{
+    process_identity, process_start_time, LifecycleProbe, ProcessIdentity, StartupFailurePoint,
+};
 use common::{ControlledCommand, NativeArtifactDir};
 use std::fs::{self, OpenOptions};
 use std::io::{Read as _, Write as _};
@@ -525,8 +527,10 @@ fn supervisor_morto_e_detectado_e_arvore_terminada() {
     let _serial = serial();
     let id = NEXT_FIXTURE.fetch_add(1, Ordering::SeqCst);
     let child_file = PathBuf::from(format!("target/supervisor-child-{id}.pid"));
+    let grand_file = PathBuf::from(format!("target/supervisor-grand-{id}.pid"));
     let result_file = PathBuf::from(format!("target/supervisor-result-{id}"));
     let _ = fs::remove_file(&child_file);
+    let _ = fs::remove_file(&grand_file);
     let _ = fs::remove_file(&result_file);
     let mut controller = RawCommand::new(std::env::current_exe().expect("test binary"))
         .args([
@@ -536,6 +540,7 @@ fn supervisor_morto_e_detectado_e_arvore_terminada() {
             "--nocapture",
         ])
         .env("PINKER_SUPERVISOR_CHILD", &child_file)
+        .env("PINKER_SUPERVISOR_GRAND", &grand_file)
         .env("PINKER_SUPERVISOR_RESULT", &result_file)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -543,7 +548,9 @@ fn supervisor_morto_e_detectado_e_arvore_terminada() {
         .spawn()
         .expect("controlador");
     wait_for_file(&child_file);
+    wait_for_file(&grand_file);
     let child_pid: u32 = fs::read_to_string(&child_file).unwrap().parse().unwrap();
+    let grand_pid: u32 = fs::read_to_string(&grand_file).unwrap().parse().unwrap();
 
     let root = Path::new("target/pinker-exec");
     let marker = {
@@ -567,7 +574,7 @@ fn supervisor_morto_e_detectado_e_arvore_terminada() {
     let supervisor_pid: u32 = marker
         .1
         .lines()
-        .find_map(|line| line.strip_prefix("supervisor_pid: "))
+        .find_map(|line| line.strip_prefix("watchdog_pid: "))
         .expect("supervisor no marker")
         .parse()
         .expect("PID supervisor");
@@ -575,6 +582,7 @@ fn supervisor_morto_e_detectado_e_arvore_terminada() {
     wait_for_file(&result_file);
     let _ = controller.wait().expect("reap controlador");
     wait_process_dead(child_pid);
+    wait_process_dead(grand_pid);
     assert!(
         fs::read_to_string(&result_file)
             .unwrap()
@@ -582,6 +590,7 @@ fn supervisor_morto_e_detectado_e_arvore_terminada() {
         "falha não identificou supervisor"
     );
     let _ = fs::remove_file(child_file);
+    let _ = fs::remove_file(grand_file);
     let _ = fs::remove_file(result_file);
 }
 
@@ -594,9 +603,17 @@ fn supervisor_controller_entry() {
     let Some(result_file) = std::env::var_os("PINKER_SUPERVISOR_RESULT") else {
         return;
     };
+    let Some(grand_file) = std::env::var_os("PINKER_SUPERVISOR_GRAND") else {
+        return;
+    };
     let result = ControlledCommand::new("sh")
-        .args(["-c", "printf '%s' \"$$\" > \"$1\"; exec sleep 60", "sh"])
+        .args([
+            "-c",
+            "printf '%s' \"$$\" > \"$1\"; sleep 60 & printf '%s' \"$!\" > \"$2\"; wait",
+            "sh",
+        ])
         .arg(child_file)
+        .arg(grand_file)
         .timeout(Duration::from_secs(60))
         .output();
     fs::write(result_file, format!("{result:?}")).expect("publica resultado");
@@ -704,6 +721,239 @@ fn cem_execucoes_pequenas_nao_acumulam_filhos_nem_temporarios() {
 }
 
 #[test]
+fn falhas_injetadas_antes_do_gate_nunca_iniciam_convidado_e_sao_reaped() {
+    let _serial = serial();
+    let before_dirs = execution_dirs();
+    let before_children = direct_children();
+    let cases = [
+        StartupFailurePoint::BeforeLauncher,
+        StartupFailurePoint::AfterLauncherBeforeReady,
+        StartupFailurePoint::AfterLauncherReady,
+        StartupFailurePoint::BeforeWatchdog,
+        StartupFailurePoint::WatchdogPipe,
+        StartupFailurePoint::WatchdogFork,
+        StartupFailurePoint::AfterWatchdogBeforeReady,
+        StartupFailurePoint::AfterWatchdogReadyBeforeGate,
+    ];
+    for (index, point) in cases.into_iter().enumerate() {
+        let evidence = PathBuf::from(format!(
+            "target/startup-gate-evidence-{}-{index}",
+            std::process::id()
+        ));
+        let _ = fs::remove_file(&evidence);
+        let probe = LifecycleProbe::default();
+        let error = ControlledCommand::new("sh")
+            .args(["-c", "printf guest > \"$1\"", "sh"])
+            .arg(&evidence)
+            .startup_failure_for_test(point)
+            .lifecycle_probe_for_test(&probe)
+            .output()
+            .expect_err("falha injetada precisa fechar a inicialização");
+        assert!(!error.to_string().is_empty());
+        assert!(!evidence.exists(), "{point:?} iniciou o convidado");
+        let events = probe.events();
+        assert!(
+            !events
+                .iter()
+                .any(|event| event.starts_with("guest_started:")),
+            "{point:?} liberou gate: {events:?}"
+        );
+        if point != StartupFailurePoint::BeforeLauncher {
+            assert!(events.iter().any(|event| event == "launcher_reaped"));
+        }
+        if matches!(
+            point,
+            StartupFailurePoint::AfterWatchdogBeforeReady
+                | StartupFailurePoint::AfterWatchdogReadyBeforeGate
+        ) {
+            assert!(events.iter().any(|event| event == "watchdog_reaped"));
+        }
+        assert_eq!(direct_children(), before_children, "{point:?} deixou filho");
+    }
+    assert_eq!(execution_dirs(), before_dirs);
+}
+
+#[test]
+fn falha_injetada_depois_do_gate_encerra_e_reap_toda_autoridade() {
+    let _serial = serial();
+    let before_dirs = execution_dirs();
+    let before_children = direct_children();
+    let probe = LifecycleProbe::default();
+    let error = ControlledCommand::new("sh")
+        .args(["-c", "sleep 60 & wait"])
+        .startup_failure_for_test(StartupFailurePoint::AfterGate)
+        .lifecycle_probe_for_test(&probe)
+        .output()
+        .expect_err("falha pós-gate precisa encerrar árvore");
+    assert!(error.to_string().contains("after_gate"));
+    let events = probe.events();
+    assert!(events
+        .iter()
+        .any(|event| event.starts_with("guest_started:")));
+    assert!(events.iter().any(|event| event == "launcher_reaped"));
+    assert!(events.iter().any(|event| event == "watchdog_reaped"));
+    assert_eq!(direct_children(), before_children);
+    assert_eq!(execution_dirs(), before_dirs);
+}
+
+#[test]
+fn handshake_ordena_launcher_watchdog_gate_e_convidado() {
+    let _serial = serial();
+    let probe = LifecycleProbe::default();
+    let output = ControlledCommand::new("sh")
+        .args(["-c", "printf gated"])
+        .lifecycle_probe_for_test(&probe)
+        .output()
+        .expect("execução saudável com handshake");
+    assert_eq!(output.stdout, b"gated");
+    let events = probe.events();
+    let position = |prefix: &str| {
+        events
+            .iter()
+            .position(|event| event.starts_with(prefix))
+            .unwrap_or_else(|| panic!("evento {prefix} ausente: {events:?}"))
+    };
+    assert!(position("launcher_ready:") < position("watchdog_ready:"));
+    assert!(position("watchdog_ready:") < position("guest_gate_opened"));
+    assert!(position("guest_gate_opened") < position("guest_started:"));
+    assert!(position("guest_started:") < position("launcher_reaped"));
+    assert!(position("launcher_reaped") < position("watchdog_reaped"));
+}
+
+#[test]
+fn launcher_ancora_pgid_durante_term_espera_e_kill_sem_sinalizar_externo() {
+    let _serial = serial();
+    let mut external = RawCommand::new("sleep")
+        .arg("60")
+        .spawn()
+        .expect("processo externo");
+    let probe = LifecycleProbe::default();
+    let error = ControlledCommand::new("sh")
+        .args([
+            "-c",
+            "trap '' TERM; sh -c 'trap \"\" TERM; sleep 60' & wait",
+        ])
+        .timeout(Duration::from_millis(100))
+        .lifecycle_probe_for_test(&probe)
+        .output()
+        .expect_err("timeout precisa exercitar TERM e KILL");
+    assert!(error.to_string().contains("timeout"));
+    let events = probe.events();
+    for required in [
+        "launcher_anchor_verified_term",
+        "launcher_term_sent",
+        "launcher_anchor_verified_kill",
+        "launcher_kill_sent_after_200ms",
+        "launcher_reaped",
+    ] {
+        assert!(events.iter().any(|event| event == required), "{events:?}");
+    }
+    assert!(external.try_wait().expect("consulta externo").is_none());
+    kill_process(external.id(), 9);
+    let _ = external.wait();
+}
+
+#[test]
+fn controlador_sigkill_antes_do_gate_cancela_launcher_e_watchdog_sem_convidado() {
+    let _serial = serial();
+    let id = NEXT_FIXTURE.fetch_add(1, Ordering::SeqCst);
+    let ready = PathBuf::from(format!("target/controller-pregate-ready-{id}"));
+    let evidence = PathBuf::from(format!("target/controller-pregate-guest-{id}"));
+    let _ = fs::remove_file(&ready);
+    let _ = fs::remove_file(&evidence);
+    let mut controller = RawCommand::new(std::env::current_exe().expect("test binary"))
+        .args([
+            "--exact",
+            "controller_before_gate_entry",
+            "--ignored",
+            "--nocapture",
+        ])
+        .env("PINKER_PREGATE_READY", &ready)
+        .env("PINKER_PREGATE_GUEST", &evidence)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("controlador pré-gate");
+    wait_for_file(&ready);
+    let marker = {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            let found = fs::read_dir("target/pinker-exec")
+                .expect("raiz")
+                .filter_map(Result::ok)
+                .find_map(|entry| {
+                    let marker = entry.path().join("owner.marker");
+                    let text = fs::read_to_string(marker).ok()?;
+                    (text.contains(&format!("owner_pid: {}\n", controller.id()))
+                        && text.contains("state: watchdog-ready\n"))
+                    .then_some(text)
+                });
+            if let Some(found) = found {
+                break found;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "marcador pré-gate não estabilizou"
+            );
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    };
+    let marker_pid = |field: &str| -> u32 {
+        marker
+            .lines()
+            .find_map(|line| line.strip_prefix(&format!("{field}: ")))
+            .expect("campo PID")
+            .parse()
+            .expect("PID numérico")
+    };
+    let launcher_pid = marker_pid("launcher_pid");
+    let watchdog_pid = marker_pid("watchdog_pid");
+    assert!(marker.contains("state: watchdog-ready\n"));
+    kill_process(controller.id(), 9);
+    let _ = controller.wait();
+    wait_process_dead(launcher_pid);
+    wait_process_dead(watchdog_pid);
+    assert!(!evidence.exists());
+    let cleanup = RawCommand::new("bash")
+        .args(["scripts/pinker-cleanup.sh", "--apply", "--older-than", "0"])
+        .output()
+        .expect("cleanup pós-controlador");
+    assert!(cleanup.status.success(), "{cleanup:?}");
+    let _ = fs::remove_file(ready);
+}
+
+#[test]
+#[ignore = "ponto de reexecução para morte pré-gate do controlador"]
+fn controller_before_gate_entry() {
+    let Some(ready) = std::env::var_os("PINKER_PREGATE_READY") else {
+        return;
+    };
+    let Some(evidence) = std::env::var_os("PINKER_PREGATE_GUEST") else {
+        return;
+    };
+    let probe = LifecycleProbe::default();
+    probe.hold_guest_gate_for_test();
+    let observer = probe.clone();
+    std::thread::spawn(move || loop {
+        if observer
+            .events()
+            .iter()
+            .any(|event| event.starts_with("watchdog_ready:"))
+        {
+            fs::write(&ready, "ready").expect("publica pré-gate");
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    });
+    let _ = ControlledCommand::new("sh")
+        .args(["-c", "printf guest > \"$1\"", "sh"])
+        .arg(evidence)
+        .lifecycle_probe_for_test(&probe)
+        .output();
+}
+
+#[test]
 fn caminhos_nativos_mapeados_usam_a_autoridade_controlada() {
     let mapped = [
         "tests/backend_nativo_tests.rs",
@@ -745,16 +995,31 @@ fn caminhos_nativos_mapeados_usam_a_autoridade_controlada() {
         "ferramenta externa escapou"
     );
 
-    let helper = fs::read_to_string("tests/common/native_process.rs").expect("helper");
+    let helper = [
+        "tests/common/native_process.rs",
+        "tests/common/native_process_launcher.rs",
+        "tests/common/native_process_marker.rs",
+        "tests/common/native_process_sandbox.rs",
+    ]
+    .into_iter()
+    .map(|path| fs::read_to_string(path).expect("helper"))
+    .collect::<Vec<_>>()
+    .join("\n");
     for required in [
         "ProcessWatchdog",
         "pipe2",
         "root_inode",
+        "execution_inode",
+        "LauncherReady",
+        "guest_gate_opened",
+        "PR_SET_CHILD_SUBREAPER",
+        "SYS_PIDFD_SEND_SIGNAL",
+        "RENAME_NOREPLACE",
         "parse_proc_stat_start_time",
         "Stdio::null()",
         "Stdio::inherit()",
         "cpu_seconds",
-        "supervisor_pid",
+        "watchdog_pid",
         "sandbox.cleanup()?",
         "started.elapsed() >= policy.timeout",
     ] {
@@ -795,4 +1060,113 @@ fn rust_code_without_strings_and_comments(source: &str) -> String {
         output.push('\n');
     }
     output
+}
+
+fn containment_guard(sources: &std::collections::BTreeMap<&str, String>) -> bool {
+    let required = [
+        ("launcher", "raw_wait_for_gate"),
+        ("launcher", "probe.wait_guest_gate()"),
+        ("launcher", "guest_gate_opened"),
+        ("launcher", "PR_SET_CHILD_SUBREAPER"),
+        ("launcher", "raw_supervise_tree"),
+        ("launcher", "SYS_PIDFD_SEND_SIGNAL"),
+        ("launcher", "self.verify_anchor(\"kill\")"),
+        ("launcher", "reap_cancelled_child"),
+        ("launcher", "inherited_parent_fds"),
+        ("process", "ProcessWatchdog::spawn"),
+        ("process", "watchdog_exit"),
+        ("process", "launcher.wait_final"),
+        ("sandbox", "execution_device"),
+        ("sandbox", "execution_inode"),
+        ("sandbox", "RENAME_NOREPLACE"),
+        ("sandbox", "fs::remove_dir_all(&quarantine)"),
+        ("marker", "fields.len() != MARKER_FIELDS.len() + 1"),
+        ("marker", "create_new(true)"),
+        ("marker", "file.sync_all()?"),
+        ("marker", "fs::rename(&temporary, &marker)"),
+        ("bash", "parse_marker"),
+        ("bash", "execution_device|execution_inode|launcher_pid"),
+        ("bash", "mv -T -n -- \"$directory\" \"$quarantine\""),
+        ("bash", "quarantined_identity"),
+        ("bash", "read -r stat_text 2>/dev/null"),
+    ];
+    required
+        .iter()
+        .all(|(source, token)| sources.get(source).is_some_and(|text| text.contains(token)))
+        && !sources
+            .get("sandbox")
+            .is_some_and(|text| text.contains("remove_dir_all(&self.directory)"))
+        && !sources
+            .get("process")
+            .is_some_and(|text| text.contains("ProcessWatchdog::spawn(pgid)"))
+        && !sources
+            .get("bash")
+            .is_some_and(|text| text.contains("rm -rf -- \"$directory\""))
+}
+
+#[test]
+fn sensibilidade_detecta_variacoes_e_restaura_fontes_byte_a_byte() {
+    let paths = [
+        ("process", "tests/common/native_process.rs"),
+        ("launcher", "tests/common/native_process_launcher.rs"),
+        ("sandbox", "tests/common/native_process_sandbox.rs"),
+        ("marker", "tests/common/native_process_marker.rs"),
+        ("bash", "scripts/pinker-cleanup.sh"),
+    ];
+    let originals: std::collections::BTreeMap<_, _> = paths
+        .into_iter()
+        .map(|(key, path)| {
+            (
+                key,
+                fs::read_to_string(path).expect("fonte de sensibilidade"),
+            )
+        })
+        .collect();
+    assert!(containment_guard(&originals));
+    let variations = [
+        ("launcher", "raw_wait_for_gate"),
+        ("launcher", "probe.wait_guest_gate()"),
+        ("launcher", "guest_gate_opened"),
+        ("launcher", "PR_SET_CHILD_SUBREAPER"),
+        ("launcher", "raw_supervise_tree"),
+        ("launcher", "SYS_PIDFD_SEND_SIGNAL"),
+        ("launcher", "self.verify_anchor(\"kill\")"),
+        ("launcher", "reap_cancelled_child"),
+        ("launcher", "inherited_parent_fds"),
+        ("process", "ProcessWatchdog::spawn"),
+        ("process", "watchdog_exit"),
+        ("process", "launcher.wait_final"),
+        ("sandbox", "execution_device"),
+        ("sandbox", "execution_inode"),
+        ("sandbox", "RENAME_NOREPLACE"),
+        ("sandbox", "fs::remove_dir_all(&quarantine)"),
+        ("marker", "fields.len() != MARKER_FIELDS.len() + 1"),
+        ("marker", "create_new(true)"),
+        ("marker", "file.sync_all()?"),
+        ("marker", "fs::rename(&temporary, &marker)"),
+        ("bash", "parse_marker"),
+        ("bash", "execution_device|execution_inode|launcher_pid"),
+        ("bash", "mv -T -n -- \"$directory\" \"$quarantine\""),
+        ("bash", "quarantined_identity"),
+        ("bash", "read -r stat_text 2>/dev/null"),
+    ];
+    for (source, token) in variations {
+        let mut mutated = originals.clone();
+        let text = mutated.get_mut(source).expect("fonte da variação");
+        assert!(text.contains(token), "token de variação ausente: {token}");
+        *text = text.replace(token, "");
+        assert!(
+            !containment_guard(&mutated),
+            "variação não detectada: {token}"
+        );
+        mutated = originals.clone();
+        assert_eq!(mutated, originals, "restauração em memória não foi exata");
+    }
+    for (key, path) in paths {
+        assert_eq!(
+            fs::read_to_string(path).unwrap(),
+            originals[key],
+            "fonte {key} mudou durante sensibilidade"
+        );
+    }
 }
