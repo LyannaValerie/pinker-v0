@@ -10,6 +10,7 @@ use pinker_v0::change;
 use pinker_v0::doc;
 use pinker_v0::doc_index;
 use pinker_v0::editor_tui::EditorTui;
+use pinker_v0::inline_asm;
 use pinker_v0::instr_select;
 use pinker_v0::instr_select_validate;
 use pinker_v0::interpreter;
@@ -2302,7 +2303,7 @@ fn run_analyze(config: Config) {
 // @pinker-nav:start cli.build.nativo
 // @pinker-nav:domain build
 // @pinker-nav:layer cli
-// @pinker-nav:summary run_build repete o front-end (lex/parse/imports/semântica/IR/CFG/seleção) e grava o `.s` resultante em <out_dir>/<stem>.s via fs::write; com --nativo, emite via emit_external_toolchain_subset_nativo e, após gravar, chama link_nativo. locate_pinker_rt_lib localiza (não constrói) a staticlib libpinker_rt.a pré-buildada: usa a env PINKER_RT_LIB se apontar para um arquivo existente, senão procura ao lado do executável atual via std::env::current_exe; retorna Err com uma mensagem sugerindo `cargo build` se não encontrar. detect_cc_driver detecta um driver C disponível testando `cc --version`/`gcc --version`/`clang --version` via std::process::Command e retorna o primeiro que responder com status de sucesso. link_nativo invoca esse driver externo passando o `.s`, a staticlib localizada e -lpthread/-ldl/-lm para produzir o binário via -o; a montagem e a linkedição são feitas pelo driver externo, não por este arquivo.
+// @pinker-nav:summary run_build repete o front-end (lex/parse/imports/semântica/IR/CFG/seleção) e grava o `.s` resultante em <out_dir>/<stem>.s via fs::write; com --nativo, emite via emit_external_toolchain_subset_nativo e, após gravar, chama link_nativo. locate_pinker_rt_lib localiza (não constrói) a staticlib libpinker_rt.a pré-buildada: usa a env PINKER_RT_LIB se apontar para um arquivo existente, senão procura ao lado do executável atual via std::env::current_exe; retorna Err com uma mensagem sugerindo `cargo build` se não encontrar. detect_cc_driver detecta um driver C disponível testando `cc --version`/`gcc --version`/`clang --version` via std::process::Command e retorna o primeiro que responder com status de sucesso. link_nativo invoca esse driver externo passando o `.s`, a staticlib localizada e -lpthread/-ldl/-lm para produzir o binário via -o; a montagem e a linkedição são feitas pelo driver externo, não por este arquivo. Antes de linkar, link_nativo chama verificar_artefato_sussurro, que relê o `.s` gravado e delega a inline_asm::verify_native_artifact — o invariante de artefato roda no caminho produtivo, não só em fixture de teste: monta o assembly emitido e a baseline derivada sem os envelopes num diretório intermediário `.pinker-sussurro-verificacao` sob o out_dir, compara as superfícies dos dois objetos e aborta o build com E-BACKEND-ASM-ARTIFACT diante de qualquer delta de seção ou de símbolo definido; o diretório intermediário é removido em qualquer desfecho e a verificação só imprime linha de confirmação quando existe ao menos um envelope.
 fn run_build(config: BuildConfig) {
     let source = match fs::read_to_string(&config.input) {
         Ok(source) => source,
@@ -2424,9 +2425,40 @@ fn detect_cc_driver() -> Result<String, String> {
 /// Monta e linka o `.s` nativo com o runtime `pinker_rt`, produzindo um
 /// executável ELF real. As libs de sistema extras cobrem as dependências da
 /// std do Rust embutida na staticlib do runtime.
+/// Verifica o objeto realmente produzido antes de linkar.
+///
+/// A política estrutural governa a fonte; este é o invariante do artefato. Ele
+/// monta o assembly emitido e a baseline sem os envelopes e recusa qualquer
+/// delta de seção ou de símbolo definido atribuível ao bloco de `sussurro`.
+fn verificar_artefato_sussurro(
+    asm_path: &Path,
+    out_dir: &Path,
+    driver: &str,
+) -> Result<Option<inline_asm::ArtifactCheck>, String> {
+    let asm = fs::read_to_string(asm_path)
+        .map_err(|err| format!("falha ao reler '{}': {}", asm_path.display(), err))?;
+    let workdir = out_dir.join(".pinker-sussurro-verificacao");
+    let resultado = inline_asm::verify_native_artifact(&asm, driver, &workdir);
+    // O diretório de verificação é intermediário: não sobrevive ao build, nem
+    // quando a verificação recusa.
+    let _ = fs::remove_dir_all(&workdir);
+    let check = resultado.map_err(|error| error.to_string())?;
+    Ok((check.envelopes > 0).then_some(check))
+}
+
 fn link_nativo(asm_path: &Path, bin_path: &Path) -> Result<(), String> {
     let driver = detect_cc_driver()?;
     let runtime_lib = locate_pinker_rt_lib()?;
+    let out_dir = asm_path
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+    if let Some(check) = verificar_artefato_sussurro(asm_path, &out_dir, &driver)? {
+        println!(
+            "Artefato verificado: {} envelope(s) de 'sussurro', sem delta de seção ou símbolo ({} seções, {} símbolos definidos)",
+            check.envelopes, check.sections, check.defined_symbols
+        );
+    }
     let output = std::process::Command::new(&driver)
         .arg(asm_path)
         .arg(&runtime_lib)

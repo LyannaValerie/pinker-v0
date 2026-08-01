@@ -40,9 +40,19 @@ não por uma lista de diretivas proibidas. O scanner normaliza continuações
 regiões citadas, remove comentários de linha `#` e de bloco `/* */` sem
 interpretar o conteúdo, e recusa citação ou comentário não terminado.
 
-Depois da remoção de labels e comentários, toda diretiva do assembler começa um
-statement com `.`. Por isso **todas** as diretivas são rejeitadas por
-construção, independentemente do nome — inclusive as que nenhuma lista conteria.
+A gramática de statement do GNU as, depois de removidos comentários e labels,
+tem exatamente três formas: **diretiva** (começa com `.`), **atribuição de
+símbolo** (`nome = expressão`) e **instrução**. As duas primeiras definem ou
+alteram símbolo, e `sussurro` não define símbolo; as duas são rejeitadas por
+construção, independentemente do nome usado — inclusive nomes que nenhuma lista
+conteria. O que resta é a instrução, cujo texto de operandos é entregue ao
+assembler real.
+
+A recusa da atribuição vale com qualquer espaçamento (nenhum, largo ou com tab),
+depois de `;`, de comentário já removido, de newline normalizado (inclusive
+CRLF) e de label local numérico, e cobre a forma `==` do dialeto. Formas apenas
+parecidas mantêm a classificação própria: `nome:` é label nominal e `= 1` sem
+token à frente é token estrutural inesperado.
 
 Aceito:
 
@@ -57,6 +67,8 @@ Rejeitado:
 
 - qualquer diretiva assembler escrita pelo autor;
 - definição de label nominal (`nome:`, `.Lnome:`);
+- atribuição de símbolo (`nome = expressão`, `nome == expressão`), inclusive na
+  forma de alias para um símbolo existente;
 - criação ou troca de seção; criação ou alteração de símbolos;
 - macros e repetição do assembler; inclusão; troca de sintaxe; troca de modo de
   código; CFI; dados embutidos;
@@ -64,9 +76,19 @@ Rejeitado:
   assembler discordarem sobre o fim do statement.
 
 Diagnósticos: `E-SEMANTIC-ASM-DIRECTIVE`, `E-SEMANTIC-ASM-NAMED-LABEL`,
-`E-SEMANTIC-ASM-UNEXPECTED-TOKEN`, `E-SEMANTIC-ASM-UNTERMINATED-QUOTE`,
-`E-SEMANTIC-ASM-UNTERMINATED-COMMENT`, `E-SEMANTIC-ASM-SEPARATOR-IN-QUOTE`,
-`E-SEMANTIC-ASM-NUL`.
+`E-SEMANTIC-ASM-SYMBOL-ASSIGN`, `E-SEMANTIC-ASM-UNEXPECTED-TOKEN`,
+`E-SEMANTIC-ASM-UNTERMINATED-QUOTE`, `E-SEMANTIC-ASM-UNTERMINATED-COMMENT`,
+`E-SEMANTIC-ASM-SEPARATOR-IN-QUOTE`, `E-SEMANTIC-ASM-NUL`.
+
+### Limite conhecido
+
+Não existe lista positiva de mnemônicos. O conjunto de instruções x86-64
+aceitas depende da versão do assembler e das extensões habilitadas, não tem
+autoridade única publicada e não poderia ser mantido completo — uma lista
+parcial seria pior que nenhuma, porque pareceria integral. Por isso a política
+estrutural governa a **forma** do statement, e o texto de operandos de uma
+instrução é entregue ao assembler real, que é a autoridade sobre ele. O que a
+fonte não pode provar é provado sobre o objeto produzido, na seção seguinte.
 
 ## Envelope do backend
 
@@ -84,10 +106,29 @@ fonte:
 A validação do envelope confirma que cada begin tem exatamente um end, que os
 identificadores são únicos, que os wrappers de sintaxe estão balanceados e que a
 sintaxe AT&T é restaurada, e reaplica a política estrutural ao texto realmente
-emitido. Depois da geração, o objeto montado é inspecionado com `readelf`: o
-bloco não pode criar seção nem símbolo nomeado adicional. Sob
-`PINKER_EXIGE_NATIVO=1`, a ausência das ferramentas de inspeção bloqueia — não é
-pulada em silêncio. Diagnóstico do envelope: `E-BACKEND-ASM-ENVELOPE`.
+emitido. Diagnóstico do envelope: `E-BACKEND-ASM-ENVELOPE`.
+
+## Invariante do artefato
+
+`pink build --nativo` verifica o objeto realmente produzido antes de linkar —
+não apenas em fixture de teste. A baseline é explícita e derivada do próprio
+assembly emitido: o mesmo `.s` com os envelopes removidos por inteiro. As duas
+variantes são montadas pelo mesmo driver C e comparadas, de modo que **todo**
+delta é atribuível ao bloco; nada produzido pelo compilador ou pelo toolchain é
+confundido com produção do autor.
+
+A superfície comparada é o conjunto de seções e o conjunto de símbolos
+**definidos** — nome, ligação, visibilidade, tipo, seção e tamanho. Símbolo
+novo, alias novo, seção nova e mudança de ligação, de visibilidade ou de tamanho
+em símbolo reservado do runtime aparecem como delta e abortam o build com
+`E-BACKEND-ASM-ARTIFACT`. Símbolos apenas referenciados (`SHN_UNDEF`) ficam de
+fora, porque referência a símbolo já existente é aceita pelo contrato.
+
+O ELF é lido por um leitor próprio de ELF64 (`src/elf.rs`), e não pela saída
+textual de `readelf` ou `nm`: o workspace não tem dependências externas, então
+não havia parser de objeto a reutilizar, e saída textual de ferramenta muda
+entre versões e locales. Sob `PINKER_EXIGE_NATIVO=1`, a ausência do driver C
+bloqueia a evidência — não é pulada em silêncio.
 
 ## Namespace interno
 

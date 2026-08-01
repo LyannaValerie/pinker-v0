@@ -1,0 +1,10 @@
+pacote main;
+
+carinho principal() -> bombom {
+    nova antes: bombom = 20;
+    sussurro("nop", "1: nop", "jmp 1f", "1: nop");
+    nova depois: bombom = 22;
+    sussurro("nop /* dois blocos no mesmo carinho */ ; nop");
+    falar(antes + depois);
+    mimo 0;
+}
