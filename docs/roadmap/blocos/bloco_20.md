@@ -32,6 +32,21 @@ Os itens da Faixa 1 mais os três primeiros da Faixa 3 formam o conjunto que des
 
 Para o propósito de SO, esse conjunto ainda precisa convergir em uma cadeia freestanding adulta: target, objeto, linker, entrada, runtime sem host, protocolo de boot, fronteira de hardware, imagem reproduzível e validação automatizada. Essa convergência é detalhada em `docs/roadmap/bare_metal_bootstrap.md`.
 
+## Janela auxiliar de infraestrutura determinística
+
+Esta seção é externa às 11 faixas e registra a exceção estreita da Issue #417,
+cuja autoridade operacional está em
+`docs/development/janela-infraestrutura-deterministica.md`.
+
+- D1 adulta foi concluída pela PR #418, merge
+  `09b7456fd57c2efcf71e54895b938a6a69d77307`;
+- a janela ocorre depois de D1 e começa pela Etapa 1 da Issue #414;
+- a janela não altera nem renumera os 52 itens;
+- a janela não cria nova faixa, Fase ou Eixo;
+- D2 permanece `NOT_STARTED` e é o próximo item funcional após o encerramento;
+- nenhuma entrega da janela conta como progresso funcional dos itens do bloco;
+- o Eixo A permanece incompleto e está pausado por decisão humana explícita.
+
 ## Eixo A — faixas de linguagem
 
 ### Faixa 1 — funcionalidades de alta dificuldade (ex-Direção B)

@@ -61,7 +61,7 @@ necessária para o fechamento. Nenhuma nova onda funcional é exigida.
 
 ## Prioridade do Eixo A
 
-- O Eixo A do Bloco 20 retoma imediatamente após o merge do fechamento.
+- O Eixo A do Bloco 20 retomou imediatamente após o merge do fechamento.
 - Futuras Tramas **não** podem entrar no caminho crítico.
 - O gate obrigatório é `Eixo A — linguagem: COMPLETE`.
 - Correções que bloqueiem o Eixo A continuam permitidas.
@@ -72,6 +72,20 @@ Faixa 1; conclusão de uma fase; implementação de `Resultado<T,E>`; ponteiros 
 função; alocador; protótipo bare-metal; ou conclusão parcial do Bloco 20. Ele é
 satisfeito somente quando o roadmap canônico declarar explicitamente
 `Eixo A — linguagem: COMPLETE`.
+
+## Exceção estreita da Issue #417
+
+O portão geral até `Eixo A — linguagem: COMPLETE` continua vigente. Depois de
+D1 adulta, concluída pela PR #418, a decisão humana da Issue #417 autorizou uma
+janela auxiliar nominal e temporária. Sua autoridade operacional, lista fechada
+de seis capacidades, ordem, política de escrita, suspensão e encerramento estão
+em `janela-infraestrutura-deterministica.md`.
+
+A janela não constitui Trama Nova, não reabre a Trama Pinker V1 e não altera as
+listas históricas de trabalho futuro. Conflitos materiais favorecem o Eixo A,
+que permanece a prioridade funcional soberana. A exceção termina somente por
+encerramento explícito; toda capacidade não enumerada continua bloqueada pelo
+portão geral.
 
 ## Tramas futuras
 
@@ -96,6 +110,10 @@ Adiados até depois do Eixo A:
 - expansão do Rosa Orchestrator;
 - evolução do Supervisor;
 - endurecimento pós-Trama de paridade nativa.
+
+Esta lista preserva o portão histórico. Durante a janela da Issue #417, somente
+os recortes expressamente enumerados no documento canônico da janela são
+excepcionados; isso não libera os programas completos listados acima.
 
 ## Capacidades já cobertas
 
@@ -163,9 +181,11 @@ todos os campos do schema e mantém a ordem declarada de listas e atualizações
 - Não é necessária para fechar a Trama.
 - Não conclui a Issue #384.
 - Permanece inalterada.
-- Não deve ser rebaseada, atualizada ou mergeada antes de `Eixo A: COMPLETE`.
-- Qualquer reaproveitamento futuro exige novo inventário sobre a base então
-  atual.
+- Não deve ser rebaseada, atualizada ou mergeada.
+- A janela da Issue #417 permite uma implementação nova de snapshots somente a
+  partir de novo inventário sobre a `main` pós-D1.
+- Ideias podem ser reaproveitadas após inspeção; commits não devem ser
+  transplantados cegamente.
 
 As Issues #384–#395 são pós-fechamento ou endurecimento paralelo. Os snapshots
 permanecem pós-fechamento.
@@ -180,7 +200,8 @@ Trama_Pinker_V1:
 
 Eixo_A_Bloco_20:
   resume_after_closure: true
-  priority_over_future_Tramas: absolute
+  priority_over_future_Tramas: functional_sovereign
+  temporary_exception: development.deterministic-infrastructure-window
 
 future_Tramas:
   start_before_Eixo_A_complete: false

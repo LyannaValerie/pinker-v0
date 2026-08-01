@@ -67,7 +67,9 @@ sem varrer `src/` ou `examples/` indiscriminadamente.
 ## Autoridade
 
 O Desenvolvimento é proprietário das convenções de apps internas e do índice de
-exemplos. O mapa de código aponta, mas não substitui, a navegação `pink nav`.
+exemplos. O mapa de código aponta, mas não substitui, a navegação `pink nav`. A
+janela auxiliar autorizada pela Issue #417 tem autoridade operacional própria em
+`janela-infraestrutura-deterministica.md`.
 
 ## Mapa
 
@@ -77,6 +79,7 @@ exemplos. O mapa de código aponta, mas não substitui, a navegação `pink nav`
 | índice de exemplos e testes | `../examples_index.md` |
 | mapa de código por feature | `../code_map.md` |
 | navegação semântica do código | `pink nav buscar "<conceito>"` |
+| janela auxiliar de infraestrutura determinística | `janela-infraestrutura-deterministica.md` |
 
 ## Rotas de leitura
 
@@ -107,4 +110,5 @@ junto com a feature, e os marcadores `@pinker-nav` acompanham o código.
 
 O contrato de conclusão da Trama Pinker V1 e a ordem das futuras Tramas
 estão em `tramas-v1.md`. Nenhuma Trama posterior entra antes de o roadmap
-declarar `Eixo A — linguagem: COMPLETE`.
+declarar `Eixo A — linguagem: COMPLETE`. A única exceção corrente é a janela
+estreita e nominal definida em `janela-infraestrutura-deterministica.md`.
