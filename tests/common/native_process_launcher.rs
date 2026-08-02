@@ -1,11 +1,17 @@
-use super::{process_start_time, ResourcePolicy};
+use super::{
+    process_start_time, LifecycleEvent, LifecycleRecord, ProcessIdentitySnapshot, ResourcePolicy,
+    ShutdownSignal,
+};
 use std::fs::File;
 use std::io::{self, Read as _};
 use std::os::fd::{AsRawFd as _, FromRawFd as _, OwnedFd};
+use std::os::unix::net::UnixDatagram;
+use std::path::Path;
 use std::process::{Child, Command as StdCommand, ExitStatus};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant};
+
+static LAUNCHER_FORK_WINDOW: OnceLock<Mutex<()>> = OnceLock::new();
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StartupFailurePoint {
@@ -20,38 +26,165 @@ pub enum StartupFailurePoint {
     AfterGate,
 }
 
-#[derive(Clone, Default)]
+#[derive(Default)]
+struct LifecycleState {
+    next_sequence: u64,
+    records: Vec<LifecycleRecord>,
+}
+
+#[derive(Clone)]
 pub struct LifecycleProbe {
-    events: Arc<Mutex<Vec<String>>>,
-    hold_guest_gate: Arc<AtomicBool>,
+    state: Arc<(Mutex<LifecycleState>, Condvar)>,
+    hold_guest_gate: Arc<(Mutex<bool>, Condvar)>,
+    sink: Option<Arc<UnixDatagram>>,
+    sink_error: Arc<Mutex<Option<io::Error>>>,
+}
+
+impl Default for LifecycleProbe {
+    fn default() -> Self {
+        Self {
+            state: Arc::new((Mutex::new(LifecycleState::default()), Condvar::new())),
+            hold_guest_gate: Arc::new((Mutex::new(false), Condvar::new())),
+            sink: None,
+            sink_error: Arc::new(Mutex::new(None)),
+        }
+    }
 }
 
 impl LifecycleProbe {
-    pub fn events(&self) -> Vec<String> {
-        self.events
+    pub fn connected_to_for_test(path: &Path) -> io::Result<Self> {
+        let sink = UnixDatagram::unbound()?;
+        sink.connect(path)?;
+        Ok(Self {
+            sink: Some(Arc::new(sink)),
+            ..Self::default()
+        })
+    }
+
+    pub fn records(&self) -> Vec<LifecycleRecord> {
+        self.state
+            .0
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .records
             .clone()
     }
 
+    pub fn events(&self) -> Vec<LifecycleEvent> {
+        self.records()
+            .into_iter()
+            .map(|record| record.event)
+            .collect()
+    }
+
     pub fn hold_guest_gate_for_test(&self) {
-        self.hold_guest_gate.store(true, Ordering::SeqCst);
+        *self
+            .hold_guest_gate
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = true;
     }
 
     pub fn release_guest_gate_for_test(&self) {
-        self.hold_guest_gate.store(false, Ordering::SeqCst);
+        let mut held = self
+            .hold_guest_gate
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *held = false;
+        self.hold_guest_gate.1.notify_all();
     }
 
-    pub(super) fn record(&self, event: impl Into<String>) {
-        self.events
+    pub fn record_for_test(&self, event: LifecycleEvent) {
+        self.record(event);
+    }
+
+    pub fn wait_for_test(
+        &self,
+        label: &str,
+        timeout: Duration,
+        predicate: impl Fn(&LifecycleEvent) -> bool,
+    ) -> io::Result<LifecycleRecord> {
+        let deadline = Instant::now() + timeout;
+        let mut state = self
+            .state
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        loop {
+            if let Some(record) = state.records.iter().find(|record| predicate(&record.event)) {
+                return Ok(record.clone());
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    format!("evento {label} ausente; observados={:?}", state.records),
+                ));
+            }
+            let (next, result) = self
+                .state
+                .1
+                .wait_timeout(state, remaining)
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            state = next;
+            if result.timed_out() && !state.records.iter().any(|record| predicate(&record.event)) {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    format!("evento {label} ausente; observados={:?}", state.records),
+                ));
+            }
+        }
+    }
+
+    pub(super) fn take_sink_error(&self) -> Option<io::Error> {
+        self.sink_error
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .push(event.into());
+            .take()
+    }
+
+    pub(super) fn record(&self, event: LifecycleEvent) {
+        let record = {
+            let mut state = self
+                .state
+                .0
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            state.next_sequence += 1;
+            let record = LifecycleRecord {
+                sequence: state.next_sequence,
+                event,
+            };
+            state.records.push(record.clone());
+            self.state.1.notify_all();
+            record
+        };
+        if let Some(sink) = &self.sink {
+            if let Err(error) = sink.send(record.to_wire().as_bytes()) {
+                let mut saved = self
+                    .sink_error
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                if saved.is_none() {
+                    *saved = Some(error);
+                }
+            }
+        }
     }
 
     fn wait_guest_gate(&self) {
-        while self.hold_guest_gate.load(Ordering::SeqCst) {
-            std::thread::sleep(Duration::from_millis(5));
+        let mut held = self
+            .hold_guest_gate
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        while *held {
+            held = self
+                .hold_guest_gate
+                .1
+                .wait(held)
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
         }
     }
 }
@@ -61,6 +194,16 @@ pub(super) struct LauncherIdentity {
     pub pid: u32,
     pub start_time: u64,
     pub pgid: i32,
+}
+
+impl LauncherIdentity {
+    pub(super) fn snapshot(self) -> ProcessIdentitySnapshot {
+        ProcessIdentitySnapshot {
+            pid: self.pid,
+            start_time: self.start_time,
+            pgid: Some(self.pgid),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -110,6 +253,24 @@ fn pipe_cloexec() -> io::Result<(OwnedFd, OwnedFd)> {
 }
 
 #[cfg(target_os = "linux")]
+fn open_fd_snapshot() -> io::Result<Vec<i32>> {
+    extern "C" {
+        fn fcntl(fd: i32, command: i32, ...) -> i32;
+    }
+    const F_GETFD: i32 = 1;
+    let mut descriptors = std::fs::read_dir("/proc/self/fd")?
+        .filter_map(Result::ok)
+        .filter_map(|entry| entry.file_name().to_str()?.parse::<i32>().ok())
+        .collect::<Vec<_>>();
+    // O fd usado por read_dir já foi fechado; removê-lo evita fechar por
+    // engano o pipe interno que std::process possa reutilizar nesse número.
+    descriptors.retain(|&fd| unsafe { fcntl(fd, F_GETFD) } >= 0);
+    descriptors.sort_unstable();
+    descriptors.dedup();
+    Ok(descriptors)
+}
+
+#[cfg(target_os = "linux")]
 pub(super) struct ProcessLauncher {
     child: Child,
     status: File,
@@ -138,6 +299,14 @@ impl ProcessLauncher {
         if failure == Some(StartupFailurePoint::BeforeLauncher) {
             return Err(injected("BEFORE_LAUNCHER"));
         }
+        // A tabela de descritores pertence ao processo inteiro. Serialize
+        // somente o snapshot + fork + READY para que launchers concorrentes
+        // não herdem os canais uns dos outros; a execução após READY continua
+        // plenamente concorrente.
+        let fork_window = LAUNCHER_FORK_WINDOW
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let (status_read, status_write) = pipe_cloexec()?;
         let (gate_read, gate_write) = pipe_cloexec()?;
         let (control_read, control_write) = pipe_cloexec()?;
@@ -146,12 +315,7 @@ impl ProcessLauncher {
         let gate_fd = gate_read.as_raw_fd();
         let control_fd = control_read.as_raw_fd();
         let life_fd = life_read.as_raw_fd();
-        let inherited_parent_fds = [
-            status_read.as_raw_fd(),
-            gate_write.as_raw_fd(),
-            control_write.as_raw_fd(),
-            life_write.as_raw_fd(),
-        ];
+        let inherited_fds = open_fd_snapshot()?;
         let fail_before_ready = failure == Some(StartupFailurePoint::AfterLauncherBeforeReady);
         unsafe {
             command.pre_exec(move || {
@@ -160,7 +324,7 @@ impl ProcessLauncher {
                     gate_fd,
                     control_fd,
                     life_fd,
-                    inherited_parent_fds,
+                    &inherited_fds,
                     policy,
                     fail_before_ready,
                 )
@@ -191,6 +355,7 @@ impl ProcessLauncher {
                     return Err(error);
                 }
             };
+            drop(fork_window);
             let launcher_pid = ready.pid as u32;
             let start_time = process_start_time(launcher_pid)
                 .ok_or_else(|| io::Error::other("identidade do launcher não pôde ser provada"))?;
@@ -199,7 +364,7 @@ impl ProcessLauncher {
                 start_time,
                 pgid: ready.pid,
             };
-            probe.record(format!("launcher_ready:{}", identity.pid));
+            probe.record(LifecycleEvent::LauncherReady(identity.snapshot()));
             if failure == Some(StartupFailurePoint::AfterLauncherReady) {
                 drop(gate_write);
                 let child = spawn_thread
@@ -231,7 +396,7 @@ impl ProcessLauncher {
             probe.wait_guest_gate();
             write_fd(gate_write.as_raw_fd(), b'G')?;
             drop(gate_write);
-            probe.record("guest_gate_opened");
+            probe.record(LifecycleEvent::GuestGateOpened);
             let child = spawn_thread
                 .join()
                 .map_err(|_| io::Error::other("thread de spawn em panic"))??;
@@ -245,7 +410,11 @@ impl ProcessLauncher {
             let _ = child.wait();
             return Err(io::Error::other("launcher não confirmou o convidado"));
         }
-        probe.record(format!("guest_started:{}", guest.pid));
+        probe.record(LifecycleEvent::GuestStarted(ProcessIdentitySnapshot {
+            pid: guest.pid as u32,
+            start_time: process_start_time(guest.pid as u32).unwrap_or(0),
+            pgid: Some(identity.pgid),
+        }));
         Ok((
             Self {
                 child,
@@ -283,7 +452,7 @@ impl ProcessLauncher {
     }
 
     pub(super) fn request_termination(&mut self) -> io::Result<()> {
-        self.probe.record("termination_requested");
+        self.probe.record(LifecycleEvent::TermRequested);
         match self.control.as_ref() {
             Some(fd) => write_fd(fd.as_raw_fd(), b'T'),
             None => Ok(()),
@@ -301,15 +470,16 @@ impl ProcessLauncher {
                     use std::os::unix::process::ExitStatusExt as _;
                     let status = ExitStatus::from_raw(message.value as i32);
                     self.final_status = Some(status);
+                    self.probe.record(LifecycleEvent::GuestReaped);
                     return Ok(Some(status));
                 }
                 LauncherMessage::TERM_SENT => {
                     self.verify_anchor("term")?;
-                    self.probe.record("launcher_term_sent");
+                    self.probe.record(LifecycleEvent::TermSent);
                 }
                 LauncherMessage::KILL_SENT => {
                     self.verify_anchor("kill")?;
-                    self.probe.record("launcher_kill_sent_after_200ms");
+                    self.probe.record(LifecycleEvent::KillSent);
                 }
                 LauncherMessage::ERROR => {
                     return Err(io::Error::other(format!(
@@ -344,7 +514,11 @@ impl ProcessLauncher {
     fn verify_anchor(&self, stage: &str) -> io::Result<()> {
         if process_start_time(self.identity.pid) == Some(self.identity.start_time) {
             self.probe
-                .record(format!("launcher_anchor_verified_{stage}"));
+                .record(LifecycleEvent::LauncherAnchorVerified(match stage {
+                    "term" => ShutdownSignal::Term,
+                    "kill" => ShutdownSignal::Kill,
+                    _ => return Err(io::Error::other("estágio de sinal inválido")),
+                }));
             Ok(())
         } else {
             Err(io::Error::other(format!(
@@ -362,7 +536,7 @@ impl ProcessLauncher {
         self.control.take();
         self.controller_life.take();
         if status.success() {
-            self.probe.record("launcher_reaped");
+            self.probe.record(LifecycleEvent::LauncherReaped);
             Ok(())
         } else {
             Err(io::Error::other(format!(
@@ -387,7 +561,7 @@ impl Drop for ProcessLauncher {
 #[cfg(target_os = "linux")]
 fn reap_cancelled_child(mut child: Child, probe: &LifecycleProbe) -> io::Result<()> {
     let status = child.wait()?;
-    probe.record("launcher_reaped");
+    probe.record(LifecycleEvent::LauncherReaped);
     if status.success() {
         Ok(())
     } else {
@@ -457,7 +631,7 @@ unsafe fn launcher_pre_exec(
     gate_fd: i32,
     control_fd: i32,
     life_fd: i32,
-    inherited_parent_fds: [i32; 4],
+    inherited_fds: &[i32],
     policy: ResourcePolicy,
     fail_before_ready: bool,
 ) -> io::Result<()> {
@@ -488,9 +662,15 @@ unsafe fn launcher_pre_exec(
     const RLIMIT_CORE: i32 = 4;
     const RLIMIT_AS: i32 = 9;
     let controller_pid = getppid();
-    for fd in inherited_parent_fds {
-        close(fd);
-    }
+    raw_close_snapshot_fds(
+        inherited_fds,
+        &[0, 1, 2, status_fd, gate_fd, control_fd, life_fd],
+    );
+    // O launcher é a primeira autoridade criada por fork. Antes de publicar
+    // READY, elimine descritores não-CLOEXEC e qualquer arquivo gravável e
+    // seekable herdado do harness. O único descritor desconhecido que precisa
+    // sobreviver até exec é o pipe CLOEXEC interno de std::process::Command.
+    raw_prepare_exec_fds(&[0, 1, 2, status_fd, gate_fd, control_fd, life_fd]);
     if setpgid(0, 0) != 0 || prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0 {
         _exit(120);
     }
@@ -531,6 +711,10 @@ unsafe fn launcher_pre_exec(
         close(gate_fd);
         close(control_fd);
         close(life_fd);
+        // O convidado conserva stdio e o pipe CLOEXEC interno de exec somente
+        // até retornar a std::process::Command. O kernel fecha o último na
+        // própria fronteira; a ferramenta externa recebe apenas 0, 1 e 2.
+        raw_prepare_exec_fds(&[0, 1, 2]);
         if prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0) != 0 || getppid() != launcher_pid {
             return Err(io::Error::last_os_error());
         }
@@ -557,7 +741,9 @@ unsafe fn launcher_pre_exec(
         return Ok(());
     }
     close(gate_fd);
-    raw_close_except(status_fd, control_fd, life_fd);
+    // Depois do fork, o launcher conserva apenas seus três canais de
+    // autoridade; stdio e os canais do convidado não lhe pertencem.
+    raw_close_fds_except(&[status_fd, control_fd, life_fd]);
     let _ = raw_write_message(
         status_fd,
         LauncherMessage {
@@ -650,9 +836,10 @@ unsafe fn raw_wait_for_gate(gate_fd: i32, control_fd: i32, life_fd: i32) -> bool
 }
 
 #[cfg(target_os = "linux")]
-unsafe fn raw_close_except(first: i32, second: i32, third: i32) {
+unsafe fn raw_close_fds_except(allowed: &[i32]) {
     extern "C" {
         fn close(fd: i32) -> i32;
+        fn close_range(first: u32, last: u32, flags: u32) -> i32;
         fn getrlimit(resource: i32, limit: *mut RLimitRaw) -> i32;
     }
     #[repr(C)]
@@ -666,12 +853,116 @@ unsafe fn raw_close_except(first: i32, second: i32, third: i32) {
         maximum: 65_536,
     };
     let _ = getrlimit(RLIMIT_NOFILE, &mut limit);
-    let maximum = limit.current.min(1_048_576) as i32;
-    for fd in 0..maximum {
-        if fd != first && fd != second && fd != third {
+    let maximum = limit.current.min(1_048_576) as u32;
+    let mut first = 0_u32;
+    // Encontre o próximo fd autorizado sem alocar ou ordenar no filho
+    // pós-fork. close_range fecha cada lacuna com uma syscall; o laço é apenas
+    // fallback para kernels sem close_range.
+    loop {
+        let Some(kept) = allowed
+            .iter()
+            .copied()
+            .filter(|&fd| fd >= 0 && fd as u32 >= first)
+            .map(|fd| fd as u32)
+            .min()
+        else {
+            break;
+        };
+        if first < kept && close_range(first, kept - 1, 0) != 0 {
+            for fd in first..kept.min(maximum) {
+                close(fd as i32);
+            }
+        }
+        first = kept.saturating_add(1);
+    }
+    if first < maximum && close_range(first, u32::MAX, 0) != 0 {
+        for fd in first..maximum {
+            close(fd as i32);
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+unsafe fn raw_close_snapshot_fds(snapshot: &[i32], allowed: &[i32]) {
+    extern "C" {
+        fn close(fd: i32) -> i32;
+    }
+    for &fd in snapshot {
+        if !allowed.contains(&fd) {
             close(fd);
         }
     }
+}
+
+#[cfg(target_os = "linux")]
+unsafe fn raw_prepare_exec_fds(allowed: &[i32]) {
+    extern "C" {
+        fn close(fd: i32) -> i32;
+        fn fcntl(fd: i32, command: i32, ...) -> i32;
+        fn getdents64(fd: i32, directory: *mut u8, count: usize) -> isize;
+        fn lseek(fd: i32, offset: i64, whence: i32) -> i64;
+        fn open(path: *const i8, flags: i32, ...) -> i32;
+    }
+    const F_GETFD: i32 = 1;
+    const F_GETFL: i32 = 3;
+    const FD_CLOEXEC: i32 = 1;
+    const O_RDONLY: i32 = 0;
+    const O_DIRECTORY: i32 = 0o200000;
+    const O_CLOEXEC: i32 = 0o2000000;
+    const O_ACCMODE: i32 = 3;
+    const O_WRONLY: i32 = 1;
+    const O_RDWR: i32 = 2;
+    const SEEK_CUR: i32 = 1;
+    const DIRENT_NAME_OFFSET: usize = 19;
+    let directory_fd = open(
+        b"/proc/self/fd\0".as_ptr().cast(),
+        O_RDONLY | O_DIRECTORY | O_CLOEXEC,
+    );
+    if directory_fd < 0 {
+        return;
+    }
+    let mut buffer = [0_u8; 4096];
+    loop {
+        let read = getdents64(directory_fd, buffer.as_mut_ptr(), buffer.len());
+        if read <= 0 {
+            break;
+        }
+        let mut offset = 0_usize;
+        while offset + DIRENT_NAME_OFFSET <= read as usize {
+            let entry = buffer.as_ptr().add(offset);
+            let record_length = u16::from_ne_bytes([*entry.add(16), *entry.add(17)]) as usize;
+            if record_length < DIRENT_NAME_OFFSET || offset + record_length > read as usize {
+                break;
+            }
+            let name = std::slice::from_raw_parts(
+                entry.add(DIRENT_NAME_OFFSET),
+                record_length - DIRENT_NAME_OFFSET,
+            );
+            let mut parsed = 0_i32;
+            let mut numeric = false;
+            for &byte in name.iter().take_while(|&&byte| byte != 0) {
+                if !byte.is_ascii_digit() {
+                    numeric = false;
+                    break;
+                }
+                numeric = true;
+                parsed = parsed
+                    .saturating_mul(10)
+                    .saturating_add((byte - b'0') as i32);
+            }
+            if numeric && parsed != directory_fd && !allowed.contains(&parsed) {
+                let descriptor_flags = fcntl(parsed, F_GETFD);
+                let status_flags = fcntl(parsed, F_GETFL);
+                let writable = matches!(status_flags & O_ACCMODE, O_WRONLY | O_RDWR);
+                let seekable = writable && lseek(parsed, 0, SEEK_CUR) >= 0;
+                if descriptor_flags >= 0 && (descriptor_flags & FD_CLOEXEC == 0 || seekable) {
+                    close(parsed);
+                }
+            }
+            offset += record_length;
+        }
+    }
+    close(directory_fd);
 }
 
 #[cfg(target_os = "linux")]

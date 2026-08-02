@@ -133,6 +133,18 @@ então, mensagem explícita `G` no gate. EOF antes de `G` cancela; não autoriza
 convidado. Falha em qualquer etapa pré-gate termina e aguarda launcher e
 watchdog antes de liberar a limpeza.
 
+Cada processo recebe uma allowlist explícita de descritores. O controlador
+captura a tabela de FDs antes do fork do launcher sob exclusão mútua apenas da
+janela global `snapshot -> fork -> LauncherReady`; essa trava não abrange o
+watchdog, o gate, o convidado nem a execução da suíte. Antes do `exec`, o
+launcher conserva somente stdio, status, gate, controle e lifecycle; depois do
+fork do convidado conserva somente status, controle e lifecycle; o watchdog
+conserva apenas seus três canais autorizados. O convidado fecha controle e todo
+FD herdado gravável ou sem `CLOEXEC`, preservando apenas stdio e o pipe interno
+de erro de `std::process` até o `exec`. A varredura pré-exec usa primitivas raw
+em `/proc/self/fd`, sem alocação depois do fork. Assim uma execução concorrente
+não pode manter aberto para escrita o executável de outra execução.
+
 O watchdog registra PID, start time e PGID do launcher e conserva um canal
 direto cujo único leitor é esse launcher; ele nunca sinaliza um PGID apenas por
 número. O launcher e o watchdog observam canais independentes de vida do
@@ -147,6 +159,47 @@ marcador ou morte de uma autoridade seguem: registrar motivo, publicar
 reaping do watchdog, marcador terminal e limpeza. Se a ausência de processos
 não puder ser provada, o sandbox permanece preservado. `Drop` é apenas a última
 defesa conservadora.
+
+### Causa tipada, precedência e shutdown composto
+
+A autoridade interna usa `TerminationReason`, nunca texto livre. Uma função
+pura recebe todos os eventos observados na mesma iteração e aplica a ordem
+fechada: watchdog morto, controlador perdido, launcher falho, stdout excedido,
+stderr excedido, timeout, falha de startup e saída normal do convidado. Se uma
+causa já estiver fixada, a função a devolve sem alteração: a primeira causa
+vence inclusive quando outro limite se torna verdadeiro durante o shutdown.
+
+`ControlledRunOutcome` conserva status, causa primária, todos os
+`ShutdownError` secundários com estágio e identidade aplicável, identidades do
+launcher/watchdog, prova da morte da árvore e disposição removida ou preservada
+do sandbox. TERM, espera, KILL, reap, finalização do watchdog, marker terminal,
+quarentena, cleanup e evidência acumulam falhas sem retorno antecipado que
+apague a causa. `output()` e `status()` preservam a API compatível e só
+renderizam o relatório textual nessa fronteira.
+
+### Lifecycle estruturado e identidade direta do watchdog
+
+`LifecycleProbe` mantém registros tipados com sequência monotônica sob mutex e
+condvar. O canal de reexecução usa um socket Unix exclusivo com timeout:
+`LauncherReady`, `WatchdogReady`, `GuestStarted`, `SandboxRunning`,
+`WatchdogExitObserved`,
+`PrimaryReasonLatched`, TERM/KILL, reaps, disposição do sandbox e publicação do
+resultado chegam diretamente ao teste. O watchdog só recebe `SIGKILL` depois
+que PID e start time correntes em `/proc` coincidem com a identidade publicada.
+O marker continua evidência secundária; nenhuma varredura de
+`target/pinker-exec` descobre o processo.
+
+As fixtures de árvore publicam PIDs e start times do filho e do neto pelo mesmo
+canal direto antes de liberar o teste. A troca controlada da raiz aguarda
+`SandboxRunning`, em vez de disputar a transição do marcador. Todas as esperas
+do teste de morte do watchdog compartilham um prazo operacional absoluto de 60
+segundos e, ao expirar, mostram o último evento e o journal completo; não há
+polling de strings nem uma janela local artificial de 5 segundos.
+
+O outcome entre processos é escrito em temporário exclusivo, sincronizado e
+publicado por rename antes de `ResultPublished`. Assim, existência de arquivo
+jamais significa conteúdo parcial. Esperas bloqueantes limitadas preservam o
+journal ordenado ao expirar.
 
 ## Marcador schema 2
 
@@ -197,6 +250,86 @@ watchdog, PGID,
 classe de política, espaço de endereçamento, CPU, timeout, teto de captura,
 início, duração, status, sinal e motivo de terminação. O hash do nome produzido
 pelo Cargo nunca é tratado como revisão Git.
+
+`scripts/pinker-flake-runner.sh` executa lotes finitos. Sucessos removem stdout,
+stderr, journal e amostras; falhas preservam diretório exclusivo sob
+`target/pinker-flake-evidence/` com iteração, filtro, threads, duração, head,
+teste falho, identidades disponíveis, markers/resultados, eventos, snapshots
+`/proc`, processos, árvore do sandbox e amostras de processos/sandboxes.
+
+## Gate de estabilidade desta correção
+
+O baseline anterior à mudança completou 30/30 arquivos sequenciais (690
+testes), 30/30 arquivos com threads padrão (690 testes), 50/50 execuções do
+teste conhecido e 30/30 grupos launcher/watchdog (420 testes), sem reproduzir
+as duas falhas históricas. Uma iteração interrompida não foi contada e sua
+evidência permaneceu preservada.
+
+Sobre os bytes finais, todos os lotes obrigatórios terminaram sem falha:
+
+- teste conhecido, um thread: 100/100, 100 testes, 382.795 ms, máximo de 5
+  processos e 3 sandboxes;
+- teste conhecido, harness normal: 100/100, 100 testes, 382.364 ms, máximo de
+  5 processos e 3 sandboxes;
+- arquivo completo, um thread: 100/100, 2.800 testes, 2.420.642 ms, máximo de
+  5 processos e 4 sandboxes;
+- arquivo completo, threads padrão: 100/100, 2.800 testes, 746.680 ms, máximo
+  de 26 processos e 8 sandboxes;
+- grupo launcher/watchdog, threads padrão: 100/100, 1.900 testes, 530.691 ms,
+  máximo de 25 processos e 10 sandboxes.
+
+Esses cinco lotes reutilizaram o mesmo binário compilado depois da última
+alteração de código: 500 repetições, 7.800 testes e zero falhas. Execuções
+anteriores à última correção não foram contadas como evidência do head final.
+
+A falha conhecida combinava sobrescrita de `WatchdogExit` por um limite
+observado na mesma iteração e retornos antecipados capazes de perder a causa
+durante o shutdown. A causa tipada, a seleção pura com precedência explícita,
+o primeiro latch imutável e a retenção de erros secundários corrigem esse
+mecanismo. O teste deixou de descobrir watchdog por marker e passou a verificar
+PID e start time recebidos pelo canal lifecycle antes do sinal.
+
+A segunda falha histórica não possuía nome de teste nem evidência preservada,
+mas a execução completa sob carga identificou manifestações concretas além da
+falha conhecida: `supervisor_fecha_descritores_gravaveis_herdados` produziu
+`ETXTBSY`, e `execution_root_symlink_e_entradas_symlink_nunca_escapam` junto de
+`raiz_real_ausente_existente_e_segunda_execucao_sao_idempotentes` atingiram um
+timeout artificial de fixture. A inspeção também encontrou uma janela distinta
+e determinística na publicação do outcome: `fs::write` tornava o arquivo visível
+antes de completar os bytes. A regressão
+`publicacao_atomica_elimina_janela_de_resultado_parcial` reproduz a janela
+antiga por canais e prova temporário exclusivo, `sync_all` e `rename` na
+publicação nova. Uma recorrência futura agora preserva resultado, eventos,
+identidades e arquivos auxiliares automaticamente.
+
+No `ETXTBSY`, a prova abria a cópia executável para escrita e o launcher fechava
+FDs não relacionados somente depois de criar o convidado. Um fork concorrente
+podia herdar aquele descritor gravável e mantê-lo vivo até seu próprio `exec`,
+bloqueando o `exec` do proprietário. A correção é a allowlist por processo e a
+exclusão estreita da janela global de snapshot/fork descrita acima. A regressão
+isolada `supervisor_fecha_descritores_gravaveis_herdados` prova que launcher,
+watchdog e convidado fecham o descritor; `watchdog_fd_allowlist_probe` verifica
+diretamente `/proc/PID/fd/FD` no watchdog identificado.
+
+Nos dois testes de sandbox, `FakeRepo::controlled` impunha um override local de
+3 segundos sem relação com o contrato das asserções. Sob carga, a autoridade
+selecionava corretamente `Timeout` embora o convidado terminasse em seguida. O
+override foi removido: a fixture usa a política operacional `Common` de 20
+segundos e aguarda `GuestStarted`/resultado pelo canal, sem sleep. A regressão
+`fixture_de_sandbox_preserva_timeout_operacional` comprova a política e a saída
+estruturada `GuestExited`. Nenhum lock global foi adicionado. As falhas estão
+preservadas em
+`20260802T044209.579283283Z-stability-complete-parallel-default-1-1865290` e
+`20260802T054910.868032911Z-stability-complete-parallel-default-72-1873760`.
+
+Uma validação intermediária do grupo revelou ainda que o teste conhecido
+mantinha esperas locais de 5 segundos para `LauncherReady`/`WatchdogReady`,
+apesar do contrato operacional de 60 segundos. Sob disputa legítima da janela
+estreita de fork, o último evento permanecia vazio e a fixture expirava antes
+do controlador. Todas as etapas agora derivam do mesmo prazo absoluto de 60
+segundos, com diagnóstico do journal no timeout; a regressão integrada do grupo
+falhou deterministicamente antes da correção e completou 100/100 depois dela.
+Sucessos dos lotes finais não deixaram diretórios de evidência.
 
 ## Política de core da esteira
 

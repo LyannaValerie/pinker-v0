@@ -21,6 +21,8 @@ static HASH_CACHE: OnceLock<HashCache> = OnceLock::new();
 mod native_process_launcher;
 #[path = "native_process_marker.rs"]
 mod native_process_marker;
+#[path = "native_process_model.rs"]
+mod native_process_model;
 #[path = "native_process_sandbox.rs"]
 mod native_process_sandbox;
 
@@ -30,6 +32,11 @@ use native_process_marker::MarkerState;
 #[allow(unused_imports)]
 pub use native_process_marker::{
     atomic_marker_interruption_for_test, marker_fields_for_test, marker_verdict_for_test,
+};
+pub use native_process_model::{
+    select_primary_reason, ControlledRunOutcome, LifecycleEvent, LifecycleRecord,
+    ObservedTerminationEvents, ProcessIdentitySnapshot, SandboxDisposition, ShutdownError,
+    ShutdownFailurePoint, ShutdownSignal, ShutdownStage, TerminationReason,
 };
 use native_process_sandbox::ExecutionSandbox;
 #[allow(unused_imports)]
@@ -98,6 +105,7 @@ pub struct ControlledCommand {
     stderr_configured: bool,
     execution_repo_root: Option<PathBuf>,
     startup_failure: Option<StartupFailurePoint>,
+    shutdown_failure: Option<ShutdownFailurePoint>,
     lifecycle_probe: LifecycleProbe,
 }
 
@@ -119,6 +127,7 @@ impl ControlledCommand {
             stderr_configured: false,
             execution_repo_root: None,
             startup_failure: None,
+            shutdown_failure: None,
             lifecycle_probe: LifecycleProbe::default(),
         }
     }
@@ -180,6 +189,13 @@ impl ControlledCommand {
         self
     }
 
+    pub fn timeout_contract_for_test(&self) -> (Duration, Option<Duration>) {
+        (
+            ResourcePolicy::for_program(self.inner.get_program()).timeout,
+            self.timeout_override,
+        )
+    }
+
     pub fn capture_limit(&mut self, bytes_per_channel: usize) -> &mut Self {
         self.capture_override = Some(bytes_per_channel);
         self
@@ -199,6 +215,11 @@ impl ControlledCommand {
 
     pub fn lifecycle_probe_for_test(&mut self, probe: &LifecycleProbe) -> &mut Self {
         self.lifecycle_probe = probe.clone();
+        self
+    }
+
+    pub fn shutdown_failure_for_test(&mut self, point: ShutdownFailurePoint) -> &mut Self {
+        self.shutdown_failure = Some(point);
         self
     }
 
@@ -223,7 +244,7 @@ impl ControlledCommand {
         if !self.stderr_configured {
             self.inner.stderr(Stdio::piped());
         }
-        controlled_run(
+        let outcome = controlled_run(
             &mut self.inner,
             ControlledRunConfig {
                 logical_case: &self.logical_case,
@@ -232,13 +253,17 @@ impl ControlledCommand {
                 capture: true,
                 repo_root: self.execution_repo_root.as_deref(),
                 startup_failure: self.startup_failure,
+                shutdown_failure: self.shutdown_failure,
                 lifecycle_probe: self.lifecycle_probe.clone(),
             },
-        )
-        .map(|run| Output {
-            status: run.status,
-            stdout: run.stdout,
-            stderr: run.stderr,
+        )?;
+        if let Some(error) = outcome.compatibility_error() {
+            return Err(error);
+        }
+        Ok(Output {
+            status: outcome.status.expect("outcome saudável possui status"),
+            stdout: outcome.stdout,
+            stderr: outcome.stderr,
         })
     }
 
@@ -252,7 +277,7 @@ impl ControlledCommand {
         if !self.stderr_configured {
             self.inner.stderr(Stdio::inherit());
         }
-        controlled_run(
+        let outcome = controlled_run(
             &mut self.inner,
             ControlledRunConfig {
                 logical_case: &self.logical_case,
@@ -261,10 +286,41 @@ impl ControlledCommand {
                 capture: false,
                 repo_root: self.execution_repo_root.as_deref(),
                 startup_failure: self.startup_failure,
+                shutdown_failure: self.shutdown_failure,
+                lifecycle_probe: self.lifecycle_probe.clone(),
+            },
+        )?;
+        if let Some(error) = outcome.compatibility_error() {
+            return Err(error);
+        }
+        outcome
+            .status
+            .ok_or_else(|| io::Error::other("outcome saudável sem status"))
+    }
+
+    pub fn outcome_for_test(&mut self) -> io::Result<ControlledRunOutcome> {
+        if !self.stdin_configured {
+            self.inner.stdin(Stdio::null());
+        }
+        if !self.stdout_configured {
+            self.inner.stdout(Stdio::piped());
+        }
+        if !self.stderr_configured {
+            self.inner.stderr(Stdio::piped());
+        }
+        controlled_run(
+            &mut self.inner,
+            ControlledRunConfig {
+                logical_case: &self.logical_case,
+                timeout_override: self.timeout_override,
+                capture_override: self.capture_override,
+                capture: true,
+                repo_root: self.execution_repo_root.as_deref(),
+                startup_failure: self.startup_failure,
+                shutdown_failure: self.shutdown_failure,
                 lifecycle_probe: self.lifecycle_probe.clone(),
             },
         )
-        .map(|run| run.status)
     }
 }
 
@@ -285,12 +341,6 @@ impl NativeArtifactDir {
     }
 }
 
-struct ControlledRun {
-    status: ExitStatus,
-    stdout: Vec<u8>,
-    stderr: Vec<u8>,
-}
-
 struct ControlledRunConfig<'a> {
     logical_case: &'a str,
     timeout_override: Option<Duration>,
@@ -298,13 +348,14 @@ struct ControlledRunConfig<'a> {
     capture: bool,
     repo_root: Option<&'a Path>,
     startup_failure: Option<StartupFailurePoint>,
+    shutdown_failure: Option<ShutdownFailurePoint>,
     lifecycle_probe: LifecycleProbe,
 }
 
 fn controlled_run(
     command: &mut StdCommand,
     config: ControlledRunConfig<'_>,
-) -> io::Result<ControlledRun> {
+) -> io::Result<ControlledRunOutcome> {
     let ControlledRunConfig {
         logical_case,
         timeout_override,
@@ -312,6 +363,7 @@ fn controlled_run(
         capture,
         repo_root,
         startup_failure,
+        shutdown_failure,
         lifecycle_probe,
     } = config;
     let mut policy = ResourcePolicy::for_program(command.get_program());
@@ -388,31 +440,22 @@ fn controlled_run(
         }
     };
     let launcher_identity = launcher.identity();
+    let launcher_snapshot = launcher_identity.snapshot();
+    let watchdog_identity = watchdog.identity();
     let guest_pid = launcher.guest_pid();
-    if let Err(error) = sandbox.update_marker(
-        MarkerState::Running,
-        Some((
-            launcher_identity.pid,
-            launcher_identity.start_time,
-            launcher_identity.pgid,
-        )),
-        Some(guest_pid),
-        watchdog.pid().map(|pid| pid as u32),
-        &executable_hash,
-    ) {
-        let shutdown = launcher
-            .request_termination()
-            .and_then(|()| launcher.wait_final(Duration::from_secs(10)))
-            .and_then(|_| launcher.reap())
-            .and_then(|()| watchdog.finish());
-        sandbox.preserve();
-        return match shutdown {
-            Ok(()) => Err(error),
-            Err(shutdown_error) => Err(io::Error::other(format!(
-                "{error}; árvore também falhou ao encerrar: {shutdown_error}"
-            ))),
-        };
-    }
+    let running_marker_error = sandbox
+        .update_marker(
+            MarkerState::Running,
+            Some((
+                launcher_identity.pid,
+                launcher_identity.start_time,
+                launcher_identity.pgid,
+            )),
+            Some(guest_pid),
+            watchdog.pid().map(|pid| pid as u32),
+            &executable_hash,
+        )
+        .err();
 
     let stdout_overflow = Arc::new(AtomicBool::new(false));
     let stderr_overflow = Arc::new(AtomicBool::new(false));
@@ -432,27 +475,84 @@ fn controlled_run(
     };
     drop(launcher.take_stdin());
 
-    let mut termination_reason =
-        (startup_failure == Some(StartupFailurePoint::AfterGate)).then_some("after_gate");
+    let running_marker_failed = running_marker_error.is_some();
+    if !running_marker_failed {
+        lifecycle_probe.record(LifecycleEvent::SandboxRunning);
+    }
+    let mut secondary_errors = Vec::new();
+    let mut primary_reason = None;
+    if let Some(error) = running_marker_error {
+        primary_reason = Some(TerminationReason::StartupFailure);
+        lifecycle_probe.record(LifecycleEvent::PrimaryReasonLatched(
+            TerminationReason::StartupFailure,
+        ));
+        record_secondary(
+            &mut secondary_errors,
+            &lifecycle_probe,
+            ShutdownError::from_io(ShutdownStage::MarkerRunning, error, None),
+        );
+    } else if startup_failure == Some(StartupFailurePoint::AfterGate) {
+        primary_reason = Some(TerminationReason::StartupFailure);
+        lifecycle_probe.record(LifecycleEvent::PrimaryReasonLatched(
+            TerminationReason::StartupFailure,
+        ));
+    }
+
     let status = loop {
-        if !watchdog.is_alive()? {
-            termination_reason = Some("watchdog_exit");
-            launcher.request_termination()?;
+        let watchdog_exit = match watchdog.is_alive() {
+            Ok(alive) => !alive,
+            Err(error) => {
+                record_secondary(
+                    &mut secondary_errors,
+                    &lifecycle_probe,
+                    ShutdownError::from_io(
+                        ShutdownStage::WatchdogFinish,
+                        error,
+                        Some(watchdog_identity),
+                    ),
+                );
+                true
+            }
+        };
+        let final_observation = launcher.try_final();
+        let (guest_status, launcher_failure) = match final_observation {
+            Ok(status) => (status, false),
+            Err(error) => {
+                record_secondary(
+                    &mut secondary_errors,
+                    &lifecycle_probe,
+                    ShutdownError::from_io(
+                        ShutdownStage::WaitFinal,
+                        error,
+                        Some(launcher_snapshot),
+                    ),
+                );
+                (None, true)
+            }
+        };
+        let observed = ObservedTerminationEvents {
+            watchdog_exit,
+            launcher_failure,
+            stdout_limit: stdout_overflow.load(Ordering::SeqCst),
+            stderr_limit: stderr_overflow.load(Ordering::SeqCst),
+            timeout: started.elapsed() >= policy.timeout,
+            startup_failure: startup_failure == Some(StartupFailurePoint::AfterGate)
+                || running_marker_failed,
+            guest_exited: guest_status.is_some(),
+            ..ObservedTerminationEvents::default()
+        };
+        let selected = select_primary_reason(primary_reason, observed);
+        if primary_reason.is_none() {
+            if let Some(reason) = selected {
+                primary_reason = Some(reason);
+                lifecycle_probe.record(LifecycleEvent::PrimaryReasonLatched(reason));
+            }
         }
-        if stdout_overflow.load(Ordering::SeqCst) {
-            termination_reason = Some("stdout_limit");
-            launcher.request_termination()?;
+        if primary_reason == Some(TerminationReason::GuestExited) {
+            break guest_status;
         }
-        if stderr_overflow.load(Ordering::SeqCst) {
-            termination_reason = Some("stderr_limit");
-            launcher.request_termination()?;
-        }
-        if started.elapsed() >= policy.timeout {
-            termination_reason = Some("timeout");
-            launcher.request_termination()?;
-        }
-        if termination_reason.is_some() {
-            let _ = sandbox.update_marker(
+        if primary_reason.is_some() {
+            if let Err(error) = sandbox.update_marker(
                 MarkerState::Terminating,
                 Some((
                     launcher_identity.pid,
@@ -462,23 +562,112 @@ fn controlled_run(
                 Some(guest_pid),
                 watchdog.pid().map(|pid| pid as u32),
                 &executable_hash,
-            );
-            launcher.request_termination()?;
-            break launcher.wait_final(Duration::from_secs(10))?;
-        }
-        if let Some(status) = launcher.try_final()? {
-            break status;
+            ) {
+                record_secondary(
+                    &mut secondary_errors,
+                    &lifecycle_probe,
+                    ShutdownError::from_io(ShutdownStage::MarkerTerminating, error, None),
+                );
+            }
+            if let Err(error) = launcher.request_termination() {
+                record_secondary(
+                    &mut secondary_errors,
+                    &lifecycle_probe,
+                    ShutdownError::from_io(
+                        ShutdownStage::TerminationRequest,
+                        error,
+                        Some(launcher_snapshot),
+                    ),
+                );
+            }
+            break match launcher.wait_final(Duration::from_secs(10)) {
+                Ok(status) => Some(status),
+                Err(error) => {
+                    record_secondary(
+                        &mut secondary_errors,
+                        &lifecycle_probe,
+                        ShutdownError::from_io(
+                            ShutdownStage::WaitFinal,
+                            error,
+                            Some(launcher_snapshot),
+                        ),
+                    );
+                    None
+                }
+            };
         }
         thread::sleep(Duration::from_millis(10));
     };
 
-    let stdout = join_reader(stdout_thread, "stdout")?;
-    let stderr = join_reader(stderr_thread, "stderr")?;
+    let stdout = match join_reader(stdout_thread, "stdout") {
+        Ok(stdout) => stdout,
+        Err(error) => {
+            record_secondary(
+                &mut secondary_errors,
+                &lifecycle_probe,
+                ShutdownError::from_io(ShutdownStage::StdoutJoin, error, None),
+            );
+            Vec::new()
+        }
+    };
+    let stderr = match join_reader(stderr_thread, "stderr") {
+        Ok(stderr) => stderr,
+        Err(error) => {
+            record_secondary(
+                &mut secondary_errors,
+                &lifecycle_probe,
+                ShutdownError::from_io(ShutdownStage::StderrJoin, error, None),
+            );
+            Vec::new()
+        }
+    };
     let duration = started.elapsed();
-    launcher.reap()?;
-    watchdog.finish()?;
+    let launcher_reaped = match launcher.reap() {
+        Ok(()) => true,
+        Err(error) => {
+            record_secondary(
+                &mut secondary_errors,
+                &lifecycle_probe,
+                ShutdownError::from_io(ShutdownStage::FinalReap, error, Some(launcher_snapshot)),
+            );
+            false
+        }
+    };
+    if shutdown_failure == Some(ShutdownFailurePoint::FinalReap) {
+        record_secondary(
+            &mut secondary_errors,
+            &lifecycle_probe,
+            ShutdownError::injected(ShutdownStage::FinalReap, Some(launcher_snapshot)),
+        );
+    }
+    let watchdog_reaped = match watchdog.finish() {
+        Ok(()) => true,
+        Err(error) => {
+            record_secondary(
+                &mut secondary_errors,
+                &lifecycle_probe,
+                ShutdownError::from_io(
+                    ShutdownStage::WatchdogFinish,
+                    error,
+                    Some(watchdog_identity),
+                ),
+            );
+            false
+        }
+    };
+    if shutdown_failure == Some(ShutdownFailurePoint::WatchdogFinish) {
+        record_secondary(
+            &mut secondary_errors,
+            &lifecycle_probe,
+            ShutdownError::injected(ShutdownStage::WatchdogFinish, Some(watchdog_identity)),
+        );
+    }
+    let tree_shutdown_proven = status.is_some() && launcher_reaped && watchdog_reaped;
+    let primary_reason = primary_reason.unwrap_or(TerminationReason::LauncherFailure);
 
-    if termination_reason.is_some() || !status.success() {
+    if primary_reason != TerminationReason::GuestExited
+        || status.map_or(true, |status| !status.success())
+    {
         eprintln!(
             "native_execution_failure case={} git_head={} executable={} executable_sha256={} runtime_sha256={} pid={} pgid={} supervisor_pid={} policy={:?} address_space_bytes={} cpu_seconds={} timeout_ms={} capture_limit={} started_unix_ms={} duration_ms={} status={} signal={} reason={}",
             sanitize(logical_case),
@@ -500,20 +689,27 @@ fn controlled_run(
             if capture { stdout_limit.max(stderr_limit) } else { 0 },
             started_unix_ms,
             duration.as_millis(),
-            status,
-            exit_signal(&status)
+            status
+                .map(|status| status.to_string())
+                .unwrap_or_else(|| "unknown".to_string()),
+            status
+                .as_ref()
+                .and_then(exit_signal)
                 .map(|signal| signal.to_string())
                 .unwrap_or_else(|| "none".to_string()),
-            termination_reason.unwrap_or("exit"),
+            primary_reason,
         );
     }
 
-    let terminal_state = if termination_reason.is_none() && status.success() {
+    let terminal_state = if primary_reason == TerminationReason::GuestExited
+        && status.is_some_and(|status| status.success())
+        && secondary_errors.is_empty()
+    {
         MarkerState::Finished
     } else {
         MarkerState::Failed
     };
-    sandbox.update_marker(
+    if let Err(error) = sandbox.update_marker(
         terminal_state,
         Some((
             launcher_identity.pid,
@@ -523,20 +719,90 @@ fn controlled_run(
         Some(guest_pid),
         watchdog.pid().map(|pid| pid as u32),
         &executable_hash,
-    )?;
-    sandbox.authorize_cleanup();
-    sandbox.cleanup()?;
-    if let Some(reason) = termination_reason {
-        return Err(io::Error::new(
-            io::ErrorKind::TimedOut,
-            format!("execução nativa controlada encerrada: {reason}"),
+    ) {
+        record_secondary(
+            &mut secondary_errors,
+            &lifecycle_probe,
+            ShutdownError::from_io(ShutdownStage::MarkerTerminal, error, None),
+        );
+    }
+    if shutdown_failure == Some(ShutdownFailurePoint::MarkerTerminal) {
+        record_secondary(
+            &mut secondary_errors,
+            &lifecycle_probe,
+            ShutdownError::injected(ShutdownStage::MarkerTerminal, None),
+        );
+    }
+
+    let sandbox_disposition = if tree_shutdown_proven {
+        sandbox.authorize_cleanup();
+        match sandbox.cleanup() {
+            Ok(()) => {
+                lifecycle_probe.record(LifecycleEvent::SandboxRemoved);
+                SandboxDisposition::Removed
+            }
+            Err(error) => {
+                let reason = error.to_string();
+                sandbox.preserve();
+                lifecycle_probe.record(LifecycleEvent::SandboxPreserved(reason.clone()));
+                record_secondary(
+                    &mut secondary_errors,
+                    &lifecycle_probe,
+                    ShutdownError::from_io(ShutdownStage::Cleanup, error, None),
+                );
+                SandboxDisposition::Preserved(reason)
+            }
+        }
+    } else {
+        let reason = "tree-shutdown-unproven".to_string();
+        sandbox.preserve();
+        lifecycle_probe.record(LifecycleEvent::SandboxPreserved(reason.clone()));
+        SandboxDisposition::Preserved(reason)
+    };
+    for (point, stage) in [
+        (ShutdownFailurePoint::Cleanup, ShutdownStage::Cleanup),
+        (ShutdownFailurePoint::Quarantine, ShutdownStage::Quarantine),
+        (
+            ShutdownFailurePoint::EvidenceWrite,
+            ShutdownStage::EvidenceWrite,
+        ),
+    ] {
+        if shutdown_failure == Some(point) {
+            record_secondary(
+                &mut secondary_errors,
+                &lifecycle_probe,
+                ShutdownError::injected(stage, None),
+            );
+        }
+    }
+    if let Some(error) = lifecycle_probe.take_sink_error() {
+        secondary_errors.push(ShutdownError::from_io(
+            ShutdownStage::EvidenceWrite,
+            error,
+            None,
         ));
     }
-    Ok(ControlledRun {
+
+    Ok(ControlledRunOutcome {
         status,
+        primary_reason,
+        secondary_errors,
+        launcher_identity: launcher_snapshot,
+        watchdog_identity: Some(watchdog_identity),
+        tree_shutdown_proven,
+        sandbox_disposition,
         stdout,
         stderr,
     })
+}
+
+fn record_secondary(
+    secondary_errors: &mut Vec<ShutdownError>,
+    lifecycle_probe: &LifecycleProbe,
+    error: ShutdownError,
+) {
+    lifecycle_probe.record(LifecycleEvent::SecondaryFailure(error.clone()));
+    secondary_errors.push(error);
 }
 
 fn join_reader(
@@ -578,6 +844,7 @@ fn bounded_reader<R: Read + Send + 'static>(
 struct ProcessWatchdog {
     pid: i32,
     reported_pid: i32,
+    identity: ProcessIdentitySnapshot,
     life_fd: Option<i32>,
     reaped: bool,
     probe: LifecycleProbe,
@@ -643,7 +910,10 @@ impl ProcessWatchdog {
                 if failure == Some(StartupFailurePoint::AfterWatchdogBeforeReady) {
                     _exit(124);
                 }
-                close_watchdog_fds_except(life_pipe[0], ready_pipe[1], launcher_control_fd);
+                // O watchdog não executa ferramentas nem o convidado: sua
+                // allowlist contém somente vida, prontidão e controle do
+                // launcher. A higiene termina antes de WATCHDOG_READY.
+                close_watchdog_fds_except(&[launcher_control_fd, life_pipe[0], ready_pipe[1]]);
                 let ready = [b'R'];
                 if write(ready_pipe[1], ready.as_ptr(), 1) != 1 {
                     _exit(125);
@@ -674,46 +944,35 @@ impl ProcessWatchdog {
                 waitpid_blocking(supervisor, &mut status);
                 close(life_pipe[1]);
             }
-            probe.record("watchdog_reaped");
+            probe.record(LifecycleEvent::WatchdogReaped);
             return Err(io::Error::other("watchdog não confirmou o canal de vida"));
         }
-        probe.record(format!(
-            "watchdog_ready:{}:launcher={}:start={}:pgid={}",
-            supervisor, launcher.pid, launcher.start_time, launcher.pgid
-        ));
+        let start_time = process_start_time(supervisor as u32).ok_or_else(|| {
+            unsafe {
+                close(life_pipe[1]);
+            }
+            let mut status = 0_i32;
+            unsafe {
+                waitpid_blocking(supervisor, &mut status);
+            }
+            probe.record(LifecycleEvent::WatchdogReaped);
+            io::Error::other("identidade do watchdog não pôde ser provada")
+        })?;
+        let identity = ProcessIdentitySnapshot {
+            pid: supervisor as u32,
+            start_time,
+            pgid: None,
+        };
+        probe.record(LifecycleEvent::WatchdogReady(identity));
         Ok(Self {
             pid: supervisor,
             reported_pid: supervisor,
+            identity,
             life_fd: Some(life_pipe[1]),
             reaped: false,
             probe,
             launcher,
         })
-    }
-
-    fn fd_hygiene_probe<T>(action: impl FnOnce() -> T) -> io::Result<T> {
-        extern "C" {
-            fn pipe2(pipefd: *mut i32, flags: i32) -> i32;
-            fn close(fd: i32) -> i32;
-        }
-        const O_CLOEXEC: i32 = 0o2000000;
-        let mut control = [-1_i32; 2];
-        if unsafe { pipe2(control.as_mut_ptr(), O_CLOEXEC) } != 0 {
-            return Err(io::Error::last_os_error());
-        }
-        let identity = LauncherIdentity {
-            pid: std::process::id(),
-            start_time: process_start_time(std::process::id()).unwrap_or(1),
-            pgid: std::process::id() as i32,
-        };
-        let mut watchdog = Self::spawn(identity, control[1], None, LifecycleProbe::default())?;
-        let result = action();
-        watchdog.finish()?;
-        unsafe {
-            close(control[0]);
-            close(control[1]);
-        }
-        Ok(result)
     }
 
     fn pid(&self) -> Option<i32> {
@@ -724,6 +983,10 @@ impl ProcessWatchdog {
         self.reported_pid
     }
 
+    fn identity(&self) -> ProcessIdentitySnapshot {
+        self.identity
+    }
+
     fn is_alive(&mut self) -> io::Result<bool> {
         if self.reaped {
             return Ok(false);
@@ -732,16 +995,24 @@ impl ProcessWatchdog {
             fn waitpid(pid: i32, status: *mut i32, options: i32) -> i32;
         }
         const WNOHANG: i32 = 1;
-        let mut status = 0_i32;
-        let waited = unsafe { waitpid(self.pid, &mut status, WNOHANG) };
-        if waited == 0 {
-            return Ok(true);
+        loop {
+            let mut status = 0_i32;
+            let waited = unsafe { waitpid(self.pid, &mut status, WNOHANG) };
+            if waited == 0 {
+                return Ok(true);
+            }
+            if waited == self.pid {
+                self.reaped = true;
+                self.probe
+                    .record(LifecycleEvent::WatchdogExitObserved(self.identity));
+                self.probe.record(LifecycleEvent::WatchdogReaped);
+                return Ok(false);
+            }
+            let error = io::Error::last_os_error();
+            if error.kind() != io::ErrorKind::Interrupted {
+                return Err(error);
+            }
         }
-        if waited == self.pid {
-            self.reaped = true;
-            return Ok(false);
-        }
-        Err(io::Error::last_os_error())
     }
 
     fn finish(&mut self) -> io::Result<()> {
@@ -756,6 +1027,7 @@ impl ProcessWatchdog {
             }
             return Ok(());
         }
+        let mut first_error = None;
         if let Some(fd) = self.life_fd.take() {
             extern "C" {
                 fn write(fd: i32, buffer: *const u8, count: usize) -> isize;
@@ -763,18 +1035,30 @@ impl ProcessWatchdog {
             }
             let graceful = [b'D'];
             if unsafe { write(fd, graceful.as_ptr(), 1) } < 0 {
+                first_error = Some(io::Error::last_os_error());
                 unsafe {
                     close(fd);
                 }
-                return Err(io::Error::last_os_error());
-            }
-            unsafe {
-                close(fd);
+            } else {
+                unsafe {
+                    close(fd);
+                }
             }
         }
-        self.reap()?;
-        self.probe.record("watchdog_reaped");
-        Ok(())
+        match self.reap() {
+            Ok(()) => self.probe.record(LifecycleEvent::WatchdogReaped),
+            Err(error) if first_error.is_none() => first_error = Some(error),
+            Err(error) => {
+                let earlier = first_error.take().expect("erro anterior presente");
+                first_error = Some(io::Error::other(format!(
+                    "{earlier}; reap do watchdog também falhou: {error}"
+                )));
+            }
+        }
+        match first_error {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
     }
 
     fn reap(&mut self) -> io::Result<()> {
@@ -796,15 +1080,98 @@ impl ProcessWatchdog {
 }
 
 #[cfg(target_os = "linux")]
-unsafe fn close_watchdog_fds_except(first: i32, second: i32, third: i32) {
+unsafe fn close_watchdog_fds_except(allowed: &[i32]) {
     extern "C" {
         fn close(fd: i32) -> i32;
+        fn close_range(first: u32, last: u32, flags: u32) -> i32;
     }
-    for fd in 0..65_536 {
-        if fd != first && fd != second && fd != third {
-            close(fd);
+    let maximum = 65_536_u32;
+    let mut first = 0_u32;
+    loop {
+        let Some(kept) = allowed
+            .iter()
+            .copied()
+            .filter(|&fd| fd >= 0 && fd as u32 >= first)
+            .map(|fd| fd as u32)
+            .min()
+        else {
+            break;
+        };
+        if first < kept && close_range(first, kept - 1, 0) != 0 {
+            for fd in first..kept.min(maximum) {
+                close(fd as i32);
+            }
+        }
+        first = kept.saturating_add(1);
+    }
+    if first < maximum && close_range(first, u32::MAX, 0) != 0 {
+        for fd in first..maximum {
+            close(fd as i32);
         }
     }
+}
+
+#[cfg(target_os = "linux")]
+pub fn watchdog_fd_allowlist_probe(inherited_fd: i32) -> io::Result<bool> {
+    extern "C" {
+        fn close(fd: i32) -> i32;
+        fn fcntl(fd: i32, command: i32, ...) -> i32;
+        fn fork() -> i32;
+        fn pipe2(pipefd: *mut i32, flags: i32) -> i32;
+        fn read(fd: i32, buffer: *mut u8, count: usize) -> isize;
+        fn write(fd: i32, buffer: *const u8, count: usize) -> isize;
+        fn _exit(status: i32) -> !;
+    }
+    const F_GETFD: i32 = 1;
+    const O_CLOEXEC: i32 = 0o2000000;
+    let mut probe = [-1_i32; 2];
+    if unsafe { pipe2(probe.as_mut_ptr(), O_CLOEXEC) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let child = unsafe { fork() };
+    if child < 0 {
+        let error = io::Error::last_os_error();
+        unsafe {
+            close(probe[0]);
+            close(probe[1]);
+        }
+        return Err(error);
+    }
+    if child == 0 {
+        unsafe {
+            close(probe[0]);
+            close_watchdog_fds_except(&[probe[1]]);
+            let result = if fcntl(inherited_fd, F_GETFD) < 0 {
+                b'C'
+            } else {
+                b'O'
+            };
+            let _ = write(probe[1], &result, 1);
+            close(probe[1]);
+            _exit(0);
+        }
+    }
+    unsafe {
+        close(probe[1]);
+    }
+    let mut result = 0_u8;
+    let read_result = unsafe { read(probe[0], &mut result, 1) };
+    unsafe {
+        close(probe[0]);
+    }
+    let mut status = 0_i32;
+    unsafe {
+        waitpid_blocking(child, &mut status);
+    }
+    if read_result != 1 {
+        return Err(io::Error::other("watchdog não publicou prova da allowlist"));
+    }
+    Ok(result == b'C')
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn watchdog_fd_allowlist_probe(_inherited_fd: i32) -> io::Result<bool> {
+    Ok(true)
 }
 
 #[cfg(target_os = "linux")]
@@ -830,20 +1197,10 @@ impl Drop for ProcessWatchdog {
                 close(fd);
             }
         }
-        if self.reap().is_ok() {
-            self.probe.record("watchdog_reaped");
+        if !self.reaped && self.reap().is_ok() {
+            self.probe.record(LifecycleEvent::WatchdogReaped);
         }
     }
-}
-
-#[cfg(target_os = "linux")]
-pub fn watchdog_fd_hygiene_probe<T>(action: impl FnOnce() -> T) -> io::Result<T> {
-    ProcessWatchdog::fd_hygiene_probe(action)
-}
-
-#[cfg(not(target_os = "linux"))]
-pub fn watchdog_fd_hygiene_probe<T>(action: impl FnOnce() -> T) -> io::Result<T> {
-    Ok(action())
 }
 
 #[cfg(not(target_os = "linux"))]
@@ -859,6 +1216,13 @@ impl ProcessWatchdog {
     }
     fn reported_pid(&self) -> i32 {
         -1
+    }
+    fn identity(&self) -> ProcessIdentitySnapshot {
+        ProcessIdentitySnapshot {
+            pid: 0,
+            start_time: 0,
+            pgid: None,
+        }
     }
     fn is_alive(&mut self) -> io::Result<bool> {
         Ok(true)

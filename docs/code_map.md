@@ -37,8 +37,11 @@ Referência rápida para localizar a camada certa antes de editar.
 - backend `.s`: `src/backend_s.rs`
 - ponteiros crus de função (Fase 245): formação em `src/parser.rs`, contrato em `src/semantic.rs`, lowering em `src/ir.rs`, execução determinística em `src/interpreter.rs` e ABI indireta em `src/backend_s.rs`
 - memória pública (Fase 246 + hotfix extraordinário): semântica/lowering em `src/semantic.rs` e `src/ir.rs`; contrato puro de páginas, identidades, virtual vitalício, bytes vivos e metadata em `runtime/pinker_memory_contract/src/lib.rs`; regiões esparsas e contabilidade equivalente em `src/interpreter.rs`; mapeamentos anônimos proporcionais, lazy, sem reuso, com validação de vida/limites/alinhamento em `runtime/pinker_rt/src/lib.rs`
-- contenção do host nas suítes nativas: autoridade de processos, PGID, watchdog,
-  limites, stdio, sandbox e proveniência em `tests/common/native_process.rs`;
+- contenção do host nas suítes nativas: autoridade e outcome em
+  `tests/common/native_process.rs`, causa/eventos tipados em
+  `tests/common/native_process_model.rs`, launcher/PGID em
+  `tests/common/native_process_launcher.rs` e evidência repetível em
+  `scripts/pinker-flake-runner.sh`;
   recuperação conservadora em `scripts/pinker-cleanup.sh`; core zero da
   esteira em `ci_env.sh`
 - assembly inline (Fase 247): `sussurro` atravessa AST, IR, CFG, seleção e máquina; validação em `src/semantic.rs`, erro hospedado em `src/interpreter.rs` e emissão GNU Intel x86-64 em `src/backend_s.rs`
@@ -65,8 +68,12 @@ Referência rápida para localizar a camada certa antes de editar.
 - Fases 245–246: `tests/phase245_246_tests.rs`
 - Fases 247–248 e correções da revisão humana da PR #411: `tests/phase247_248_tests.rs`
 - hotfix de memória pública: `tests/public_memory_hotfix_tests.rs` e testes de unidade em `runtime/pinker_memory_contract`/`runtime/pinker_rt`
-- contenção do host: `tests/native_process_control_tests.rs`,
-  `tests/native_cleanup_tests.rs` e `tests/core_dump_policy_tests.rs`
+- contenção do host: autoridade, outcome tipado, lifecycle e allowlists de FDs
+  em `tests/common/native_process.rs`, `tests/common/native_process_model.rs` e
+  `tests/common/native_process_launcher.rs`; regressões em
+  `tests/native_process_control_tests.rs`, `tests/native_cleanup_tests.rs` e
+  `tests/core_dump_policy_tests.rs`; runner finito e evidência automática em
+  `scripts/pinker-flake-runner.sh`
 - expansão D1 de cargas `lista<E>` em leques: `tests/d1_leque_carga_lista_tests.rs` (matrizes positiva/negativa, IR, validadores, ABI e paridade)
 - CLI/saída: `tests/output_tests.rs`, `tests/editor_tui_tests.rs`
 
