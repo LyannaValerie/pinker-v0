@@ -160,6 +160,67 @@ reaping do watchdog, marcador terminal e limpeza. Se a ausência de processos
 não puder ser provada, o sandbox permanece preservado. `Drop` é apenas a última
 defesa conservadora.
 
+### Varredura de descendentes e prova de ausência
+
+A autoridade sobre a árvore não mantém tabela de processos. `/proc` é enumerado
+de forma incremental: cada PID é classificado e, quando exigido, sinalizado
+antes de a próxima entrada ser lida, e nenhuma entrada é retida depois disso. O
+espaço é constante por candidato. Os únicos arranjos fixos são buffers de
+leitura de `dirent` e de `stat`; **4096 e 8192 são tamanhos de buffer de I/O, não
+limites de quantidade de processos**. Não existe teto de quantidade nem teto de
+altura da cadeia de ancestralidade.
+
+A cadeia é percorrida de forma iterativa, jamais recursiva. Sequências
+patológicas são detectadas por cursores lento e rápido sobre a mesma cadeia, em
+espaço constante.
+
+O campo `ppid` é classificado por uma autoridade única, que distingue:
+
+- `pid`: inteiro estritamente positivo;
+- `ppid`: inteiro **não negativo**;
+- `ppid` zero: fronteira raiz do kernel, não descendente do launcher;
+- `ppid` um: raiz de userspace, não descendente do launcher;
+- `ppid` igual ao próprio `pid`: ciclo declarado pela entrada;
+- campo ausente, não numérico, com sinal ou `stat` truncado: parse inválido;
+- processo desaparecido entre a enumeração e a leitura: desaparecido;
+- erro de leitura: erro classificado, distinto de desaparecido.
+
+`ppid` zero é representação válida de fronteira raiz. Confundi-lo com entrada
+malformada transformava `kthreadd` e toda a sua descendência em incógnita
+permanente, e nenhuma varredura voltava a provar ausência. Entradas com `ppid`
+zero não impedem a prova de ausência de descendentes.
+
+A sinalização fixa a identidade do alvo com `pidfd` **antes** do sinal e
+revalida a ancestralidade **depois** de fixá-la, de modo que um PID reutilizado
+por processo alheio à árvore nunca recebe sinal. Todos os descritores abertos
+na varredura são fechados no mesmo caminho.
+
+A ausência só é afirmada após uma varredura **completa** e sem incógnitas.
+Passagem interrompida no meio do diretório não prova nada: o descendente
+sobrevivente poderia estar exatamente na parte não lida. Identidade desconhecida
+jamais é convertida em prova de encerramento, e a prova vale apenas para a
+passagem que a produziu — uma passagem posterior pode encontrar processo criado
+depois da anterior.
+
+Erro em uma entrada nunca impede o tratamento das demais: a entrada vira
+incógnita tipada e um descendente comprovado depois dela ainda recebe o sinal.
+Falha de varredura na fase TERM também não encerra a supervisão antes do KILL;
+o erro é retido como causa secundária e a causa primária permanece tipada como
+árvore sobrevivente ao prazo absoluto.
+
+A enumeração de candidatos, a leitura de identidade, a resolução de
+ancestralidade e a decisão de sinalização são parâmetros genéricos da mesma
+função de decisão, resolvidos por monomorfização. Não há objeto de trait, não há
+despacho dinâmico e não há alocação no caminho pós-fork. As regressões
+sintéticas atravessam exatamente essa autoridade: nenhuma lógica de
+ancestralidade é duplicada em implementação exclusiva de teste. Elas cobrem zero,
+um, 4095, 4096, 4097, 8192, 8193 e 20000 candidatos, descendente no primeiro, no
+último e em posições separadas, cadeia de 12000 elos, término em `ppid` zero e
+em `ppid` um, pai ausente, desaparecimento de candidato e de ancestral, PID
+reutilizado, identidade divergente, auto-pai, ciclo de dois nós e ciclo maior,
+`stat` truncado, PID inválido, `ppid` inválido e erro de leitura. Quantidades
+acima de milhares vêm de fonte sintética; nenhuma delas cria processo real.
+
 ### Causa tipada, precedência e shutdown composto
 
 A autoridade interna usa `TerminationReason`, nunca texto livre. Uma função
@@ -257,6 +318,41 @@ stderr, journal e amostras; falhas preservam diretório exclusivo sob
 teste falho, identidades disponíveis, markers/resultados, eventos, snapshots
 `/proc`, processos, árvore do sandbox e amostras de processos/sandboxes.
 
+### Falso verde do runner de estabilidade
+
+O runner tratava o código de saída do harness como suficiente. Três formas de
+verde falso passavam:
+
+- **exit status booleano**: a contagem de falhas era usada diretamente como
+  código de saída, e o shell a trunca em módulo 256, de modo que exatamente 256
+  falhas produziriam zero, isto é, sucesso aparente. Os códigos passam a ser
+  fixos e disjuntos: `0` sucesso, `1` falhas, `2` erro de uso, `130`
+  interrompido;
+- **zero testes executados**: um lote cujo filtro não casava com teste algum
+  terminava em zero sem executar nada e era contado como iteração bem-sucedida.
+  Uma iteração só é `PASS` quando o harness termina em zero, existe resumo
+  reconhecido pertencente àquela execução e pelo menos um teste foi de fato
+  executado. Testes ignorados e filtrados não contam como executados;
+- **resumo inválido**: saída sem linha de resumo reconhecível era aceita. Agora
+  falha fechada com `unparseable-test-summary` e preserva evidência.
+
+Nenhuma execução comprovada nunca produz resumo verde: um lote que completa zero
+iterações é contabilizado como falha. A validação de uso ocorre antes de criar
+diretório de evidência, antes de apagar resumo anterior e antes de iniciar
+qualquer teste, de modo que erro de uso não altera o estado de um lote anterior.
+
+Interrupção é preservada, não apagada: o `trap` encerra o controlador `setsid`
+pela identidade revalidada, promove o diretório em curso a `INTERRUPTED-*` e
+sai com `130`. Uma iteração interrompida nunca é contada como concluída.
+
+### Recuperação de quarentena
+
+Uma quarentena interrompida deixava diretório órfão sem autoridade que o
+retomasse. As duas autoridades — a nativa e `scripts/pinker-cleanup.sh` —
+passam a reconhecer e recuperar quarentenas incompletas, preservando colisão de
+nome em vez de sobrescrever evidência. Sucesso não preserva sandbox; falha
+preserva.
+
 ## Gate de estabilidade desta correção
 
 O baseline anterior à mudança completou 30/30 arquivos sequenciais (690
@@ -330,6 +426,36 @@ do controlador. Todas as etapas agora derivam do mesmo prazo absoluto de 60
 segundos, com diagnóstico do journal no timeout; a regressão integrada do grupo
 falhou deterministicamente antes da correção e completou 100/100 depois dela.
 Sucessos dos lotes finais não deixaram diretórios de evidência.
+
+### Gate da segunda unidade
+
+A campanha do head intermediário não é gate. Duas campanhas pesadas chegaram a
+executar simultaneamente sobre o mesmo clone, compartilhando
+`target/pinker-flake-evidence` e `target/pinker-exec`; como o runner apaga
+`PROGRESS-<modo>.txt` e `SUMMARY-<modo>.txt` no início de cada lote, um resumo
+sobrescreveu o outro e três iterações falhadas ficaram invisíveis atrás de um
+`failures=0`. Todo resultado daquela execução está rotulado `diagnostic_only:
+true` e não é atribuído a head algum. Campanhas pesadas não devem executar
+simultaneamente sobre o mesmo diretório de trabalho.
+
+A campanha final executou sobre o head de código final, com binário único e
+sem recompilação entre grupos, e os quatro grupos correram sequencialmente
+entre si:
+
+- 50 focadas sequenciais: 50/50, 1.800 testes, 382.683 ms, máximo de 5
+  processos e 2 sandboxes;
+- 50 focadas com threads padrão: 50/50, 1.800 testes, 164.720 ms, máximo de 10
+  processos e 3 sandboxes;
+- arquivo completo, um thread: 20/20, 900 testes, 301.328 ms, máximo de 5
+  processos e 2 sandboxes;
+- arquivo completo, threads padrão: 20/20, 900 testes, 92.598 ms, máximo de 10
+  processos e 2 sandboxes.
+
+São 140 repetições e 5.400 testes com zero falhas. Ao final de cada grupo e ao
+final da campanha: zero processos residuais, zero sandboxes residuais e nenhum
+diretório de evidência — sucesso não preserva evidência indevida. O teste de
+sensibilidade passou e as fontes foram restauradas byte a byte, com árvore
+limpa e delta temporário vazio.
 
 ## Política de core da esteira
 
